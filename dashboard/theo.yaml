@@ -1,0 +1,9 @@
+version: 1
+project: theo-dashboard
+
+apps:
+  dashboard:
+    path: .
+    framework: nextjs
+    type: frontend
+    build: buildpack
