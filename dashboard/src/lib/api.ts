@@ -58,21 +58,27 @@ export function getRefreshToken(): string | null {
   return refreshToken;
 }
 
-export function setAuth(token: string, refresh: string, email: string) {
+export function setAuth(token: string, refresh: string, email: string, name?: string) {
   accessToken = token;
   refreshToken = refresh;
-  // Email is non-sensitive — safe in localStorage for display after refresh
+  // Non-sensitive user info — safe in localStorage for display after refresh
   localStorage.setItem('theo_email', email);
+  if (name) localStorage.setItem('theo_name', name);
 }
 
 export function clearAuth() {
   accessToken = null;
   refreshToken = null;
   localStorage.removeItem('theo_email');
+  localStorage.removeItem('theo_name');
 }
 
 export function getEmail(): string | null {
   return localStorage.getItem('theo_email');
+}
+
+export function getName(): string | null {
+  return localStorage.getItem('theo_name');
 }
 
 export function isAuthenticated(): boolean {
