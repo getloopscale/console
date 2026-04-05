@@ -1,16 +1,12 @@
-// Real API client for the Theo Cloud service.
-// All dashboard API calls go through this client with real authentication.
+// API client for the Theo Cloud dashboard.
 //
-// Security: access and refresh tokens are kept in memory only (not localStorage)
-// to prevent XSS exfiltration. Page refresh requires re-authentication via PKCE
-// (Hydra session makes this transparent — no password re-entry).
+// Token storage strategy:
+// - Access token in sessionStorage (survives redirects, cleared on tab close)
+// - NOT localStorage (XSS risk for long-lived tokens)
+// - NOT in-memory (lost on OAuth redirects)
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:13002';
 const ENGINE_API = import.meta.env.VITE_ENGINE_URL || 'http://localhost:13001';
-
-// In-memory token storage — cleared on page refresh (XSS-safe)
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
 
 export function getApiBase() { return API_BASE; }
 export function getEngineBase() { return ENGINE_API; }
@@ -50,35 +46,32 @@ async function apiFetch<T>(base: string, path: string, options: RequestInit = {}
   }
 }
 
-export function getToken(): string | null {
-  return accessToken;
-}
+// --- Auth state (sessionStorage — survives OAuth redirects) ---
 
-export function getRefreshToken(): string | null {
-  return refreshToken;
+export function getToken(): string | null {
+  return sessionStorage.getItem('theo_token');
 }
 
 export function setAuth(token: string, refresh: string, email: string, name?: string) {
-  accessToken = token;
-  refreshToken = refresh;
-  // Non-sensitive user info — safe in localStorage for display after refresh
-  localStorage.setItem('theo_email', email);
-  if (name) localStorage.setItem('theo_name', name);
+  sessionStorage.setItem('theo_token', token);
+  sessionStorage.setItem('theo_refresh', refresh);
+  sessionStorage.setItem('theo_email', email);
+  if (name) sessionStorage.setItem('theo_name', name);
 }
 
 export function clearAuth() {
-  accessToken = null;
-  refreshToken = null;
-  localStorage.removeItem('theo_email');
-  localStorage.removeItem('theo_name');
+  sessionStorage.removeItem('theo_token');
+  sessionStorage.removeItem('theo_refresh');
+  sessionStorage.removeItem('theo_email');
+  sessionStorage.removeItem('theo_name');
 }
 
 export function getEmail(): string | null {
-  return localStorage.getItem('theo_email');
+  return sessionStorage.getItem('theo_email');
 }
 
 export function getName(): string | null {
-  return localStorage.getItem('theo_name');
+  return sessionStorage.getItem('theo_name');
 }
 
 export function isAuthenticated(): boolean {
