@@ -10,14 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	theojwt "github.com/usetheo/theo/pkg/jwt"
 )
 
 // SessionTokenHandler exchanges Kratos session cookies for JWT tokens.
-// This is the BFF (Backend For Frontend) token exchange endpoint.
-// The dashboard calls this after Kratos login to get a JWT for all API calls.
 type SessionTokenHandler struct {
-	issuer            *auth.SessionTokenIssuer
+	issuer            *theojwt.SessionTokenIssuer
 	kratosInternalURL string
 	kratosClient      *http.Client
 
@@ -32,7 +30,7 @@ const (
 )
 
 // NewSessionTokenHandler creates a session token exchange handler.
-func NewSessionTokenHandler(issuer *auth.SessionTokenIssuer, kratosInternalURL string) *SessionTokenHandler {
+func NewSessionTokenHandler(issuer *theojwt.SessionTokenIssuer, kratosInternalURL string) *SessionTokenHandler {
 	return &SessionTokenHandler{
 		issuer:            issuer,
 		kratosInternalURL: kratosInternalURL,
@@ -44,12 +42,8 @@ func NewSessionTokenHandler(issuer *auth.SessionTokenIssuer, kratosInternalURL s
 // Exchange validates the Kratos session cookie and returns a JWT.
 // POST /v1/auth/session/token
 func (h *SessionTokenHandler) Exchange(w http.ResponseWriter, r *http.Request) {
-	// Rate limit by IP
-	ip := r.RemoteAddr
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		ip = fwd
-	}
-	if !h.checkRateLimit(ip) {
+	// Rate limit by IP (uses r.RemoteAddr set by chi RealIP middleware)
+	if !h.checkRateLimit(r.RemoteAddr) {
 		writeError(w, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests. Try again in a moment.")
 		return
 	}
@@ -118,7 +112,6 @@ func (h *SessionTokenHandler) checkRateLimit(ip string) bool {
 	now := time.Now()
 	cutoff := now.Add(-rateLimitWindow)
 
-	// Prune old entries
 	recent := h.attempts[ip]
 	pruned := recent[:0]
 	for _, t := range recent {
