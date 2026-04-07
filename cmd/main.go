@@ -90,11 +90,13 @@ func main() {
 
 	// JWT validation — single source of truth (pkg/jwt)
 	jwksURL := cfg.HydraPublicURL + "/.well-known/jwks.json"
-	jwtValidator := theojwt.NewValidator(jwksURL, cfg.JWTIssuer)
+	jwtValidator := theojwt.NewValidator(jwksURL, cfg.JWTIssuer, "theo-cloud")
 
 	// Session token issuer/validator (HMAC JWTs for dashboard)
+	// MEET-2026-04-07-039: audience is explicit per service.
 	sessIssuer := theojwt.NewSessionTokenIssuer(
 		cfg.SessionTokenSecret.Value(),
+		"theo-cloud",
 		"theo-cloud",
 		15*time.Minute,
 	)
