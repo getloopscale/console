@@ -260,14 +260,15 @@ func main() {
 			proxyReq.Header.Set("Content-Type", r.Header.Get("Content-Type"))
 
 			// Service-to-service auth: cloud authenticates to engine via shared secret.
-			// Engine trusts this header and extracts user context from X-Theo-* headers.
+			// S2.3: Proxy sends identity only (user ID, tenant, email). Engine resolves
+			// role from DB — never trusts role from headers.
 			proxyReq.Header.Set("X-Service-Auth", serviceSecret)
 			user := auth.GetUser(r.Context())
 			if user != nil {
 				proxyReq.Header.Set("X-Theo-User-ID", user.Subject)
 				proxyReq.Header.Set("X-Theo-Tenant", user.TenantID)
 				proxyReq.Header.Set("X-Theo-Email", user.Email)
-				proxyReq.Header.Set("X-Theo-Role", user.Role)
+				// X-Theo-Role intentionally NOT sent — engine resolves from DB (S2.3)
 			}
 
 			resp, err := http.DefaultClient.Do(proxyReq)
