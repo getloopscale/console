@@ -96,7 +96,7 @@ func main() {
 	sessIssuer := theojwt.NewSessionTokenIssuer(
 		cfg.SessionTokenSecret.Value(),
 		"theo-cloud",
-		1*time.Hour,
+		15*time.Minute,
 	)
 	tenantProvisioner := auth.NewTenantProvisioner(db, logger)
 	sessionTokenHandler := routes.NewSessionTokenHandler(sessIssuer, tenantProvisioner, cfg.KratosInternalURL)
