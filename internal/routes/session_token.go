@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	theojwt "github.com/usetheo/theo/pkg/jwt"
 
 	"github.com/usetheo/theo/cloud/internal/auth"
@@ -35,7 +36,10 @@ func NewSessionTokenHandler(issuer *theojwt.SessionTokenIssuer, tenantProv *auth
 		issuer:            issuer,
 		tenantProvisioner: tenantProv,
 		kratosInternalURL: kratosInternalURL,
-		kratosClient:      &http.Client{Timeout: 5 * time.Second},
+		kratosClient: &http.Client{
+			Timeout:   5 * time.Second,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		},
 		limiter:           ratelimit.NewInMemoryLimiter(rateLimitMaxCalls, rateLimitWindow),
 	}
 }
