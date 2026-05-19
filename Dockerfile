@@ -20,7 +20,7 @@ FROM alpine:3.22
 
 LABEL org.opencontainers.image.source="https://github.com/usetheo/theo"
 LABEL org.opencontainers.image.title="theo-cloud"
-LABEL org.opencontainers.image.description="Theo PaaS cloud service"
+LABEL org.opencontainers.image.description="TheoCloud service"
 
 RUN apk add --no-cache ca-certificates && adduser -D -u 1000 theo
 COPY --from=builder /cloud-api /cloud-api
