@@ -13,7 +13,7 @@ import {
   StatusDot,
   Table,
   type StatusKind,
-} from '@usetheo/ui';
+} from '@theokit/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useEngineApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';

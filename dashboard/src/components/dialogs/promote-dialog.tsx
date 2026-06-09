@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowRight, Loader2, Rocket } from 'lucide-react';
-import { Alert, Button, Dialog, Input, Label } from '@usetheo/ui';
+import { Alert, Button, Dialog, Input, Label } from '@theokit/ui';
 import { engineFetch } from '@/lib/api';
 import type { PromoteResponse } from '@/lib/api/types';
 

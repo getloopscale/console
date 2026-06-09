@@ -16,7 +16,7 @@ import {
   PageShell,
   ProjectCard,
   UsageMeter,
-} from '@usetheo/ui';
+} from '@theokit/ui';
 import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

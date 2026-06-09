@@ -1,7 +1,7 @@
-import { Skeleton } from '@usetheo/ui';
+import { Skeleton } from '@theokit/ui';
 
 /**
- * TableSkeleton (T0.3) — table-shaped skeleton composite atop @usetheo/ui
+ * TableSkeleton (T0.3) — table-shaped skeleton composite atop @theokit/ui
  * Skeleton primitive. Substitui spinner genérico em PageShell.loading com
  * layout-matching skeleton per sponsor critério #14 ("skeletons devem
  * representar o layout real").

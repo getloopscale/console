@@ -1,5 +1,5 @@
 import { AlertTriangle, Cpu, Rocket, TrendingUp } from 'lucide-react';
-import { Card } from '@usetheo/ui';
+import { Card } from '@theokit/ui';
 import type { ProjectStatusDetail } from '@/lib/api/types';
 
 interface ProjectHealthCardProps {

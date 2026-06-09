@@ -10,7 +10,7 @@ import {
   UsageMeter,
   type PlanTier,
   type UsageMetric as UsageMeterMetric,
-} from '@usetheo/ui';
+} from '@theokit/ui';
 import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useCloudApi } from '@/hooks/use-api';

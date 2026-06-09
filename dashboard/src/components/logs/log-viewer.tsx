@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pause, Play, Trash2 } from 'lucide-react';
-import { Badge, Button, Input } from '@usetheo/ui';
+import { Badge, Button, Input } from '@theokit/ui';
 import type { LogLine, LogLevel } from '@/lib/api/types';
 
 interface LogViewerProps {

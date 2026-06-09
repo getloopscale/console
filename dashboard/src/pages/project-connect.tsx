@@ -10,7 +10,7 @@ import {
   Input,
   Label,
   PageShell,
-} from '@usetheo/ui';
+} from '@theokit/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { engineFetch } from '@/lib/api';

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, CircleDashed, XCircle } from 'lucide-react';
-import { Badge, Card } from '@usetheo/ui';
+import { Badge, Card } from '@theokit/ui';
 
 /**
  * ReadinessChecklist (Sprint 1 T1.2) — production-fitness signals visualization.

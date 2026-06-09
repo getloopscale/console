@@ -8,7 +8,7 @@ import {
   CodeBlock,
   FormField,
   Input,
-} from '@usetheo/ui';
+} from '@theokit/ui';
 import { GoogleBrandIcon } from '@/components/google-brand-icon';
 import { getSession, startLogin } from '@/lib/auth';
 import { clearToken } from '@/lib/api';

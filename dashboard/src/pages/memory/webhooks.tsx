@@ -17,7 +17,7 @@ import {
   Sheet,
   Timestamp,
   useToast,
-} from '@usetheo/ui';
+} from '@theokit/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';

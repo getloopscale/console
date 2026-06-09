@@ -10,7 +10,7 @@ import {
   PageShell,
   Select,
   Table,
-} from '@usetheo/ui';
+} from '@theokit/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useEngineApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';

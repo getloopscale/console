@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react';
-import { Badge, Button, DropdownMenu } from '@usetheo/ui';
+import { Badge, Button, DropdownMenu } from '@theokit/ui';
 import { useWhoami } from '@/hooks/use-whoami';
 import { useSwitchTeam } from '@/hooks/mutations/use-switch-team';
 

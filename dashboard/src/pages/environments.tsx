@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Box, Lock, Plus, Trash2 } from 'lucide-react';
-import { Button, Card, ConfirmDialog, PageShell, StatusDot, Table } from '@usetheo/ui';
+import { Button, Card, ConfirmDialog, PageShell, StatusDot, Table } from '@theokit/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useEngineApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';

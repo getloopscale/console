@@ -19,7 +19,7 @@ import {
   Sheet,
   Timestamp,
   Tooltip,
-} from '@usetheo/ui';
+} from '@theokit/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -668,7 +668,7 @@ interface ConfirmDeleteDialogProps {
 
 /**
  * DESIGN.md danger zone choreography per Memory Section mandate.
- * Uses @usetheo/ui's built-in `confirmationPhrase` (typed verification)
+ * Uses @theokit/ui's built-in `confirmationPhrase` (typed verification)
  * + `intent="destructive"` (NOT primary).
  */
 function ConfirmDeleteDialog({ target, onCancel, onConfirm, submitting }: ConfirmDeleteDialogProps) {

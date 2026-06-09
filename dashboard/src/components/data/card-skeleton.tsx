@@ -1,7 +1,7 @@
-import { Skeleton } from '@usetheo/ui';
+import { Skeleton } from '@theokit/ui';
 
 /**
- * CardSkeleton (T0.3) — card-shaped skeleton via @usetheo/ui Skeleton.
+ * CardSkeleton (T0.3) — card-shaped skeleton via @theokit/ui Skeleton.
  * Mirrors Card title + body lines + optional footer.
  */
 
