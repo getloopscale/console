@@ -1,5 +1,5 @@
 import { Rocket } from 'lucide-react';
-import { Button, Card, CodeBlock, CopyButton } from '@theokit/ui';
+import { Button, Card, CodeBlock, CopyButton } from '@usetheo/ui';
 
 /**
  * EmptyProjectsHero (Sprint 3 T3.3) — Vercel-style empty-state-as-onboarding.

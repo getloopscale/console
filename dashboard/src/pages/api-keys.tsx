@@ -19,10 +19,9 @@ import {
   Sheet,
   Timestamp,
   Tooltip,
-} from '@theokit/ui';
+} from '@usetheo/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { TableSkeleton } from '@/components/data/table-skeleton';
 import { cloudFetch } from '@/lib/api';
 
 /**
@@ -232,11 +231,10 @@ export function ApiKeysPage() {
         }}
       >
         {listQuery.isLoading ? (
-          <Card><TableSkeleton rows={4} columns={5} /></Card>
+          <Card>Loading…</Card>
         ) : listQuery.isError ? (
           <Alert intent="warning" title="Could not load API keys">
-            The platform service is not reachable right now. Existing keys keep
-            working at the edge — only this listing is affected.
+            Something went wrong. Try refreshing the page.
           </Alert>
         ) : keys.length === 0 ? (
           <EmptyState
@@ -670,7 +668,7 @@ interface ConfirmDeleteDialogProps {
 
 /**
  * DESIGN.md danger zone choreography per Memory Section mandate.
- * Uses @theokit/ui's built-in `confirmationPhrase` (typed verification)
+ * Uses @usetheo/ui's built-in `confirmationPhrase` (typed verification)
  * + `intent="destructive"` (NOT primary).
  */
 function ConfirmDeleteDialog({ target, onCancel, onConfirm, submitting }: ConfirmDeleteDialogProps) {
