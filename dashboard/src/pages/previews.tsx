@@ -8,7 +8,7 @@ import {
   ConfirmDialog,
   PageShell,
   Table,
-} from '@theokit/ui';
+} from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { usePreviews } from '@/hooks/use-previews';
