@@ -9,7 +9,7 @@ import {
   StatTile,
   TokenUsageChart,
   type TokenUsagePoint,
-} from '@theokit/ui';
+} from '@usetheo/ui';
 import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

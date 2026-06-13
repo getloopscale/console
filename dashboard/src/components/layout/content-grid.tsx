@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cn } from '@theokit/ui';
+import { cn } from '@usetheo/ui';
 
 export type GridColumns = '1' | '2-equal' | '2-asymmetric' | '3-equal';
 
