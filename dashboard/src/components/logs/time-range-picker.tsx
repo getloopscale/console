@@ -1,4 +1,4 @@
-import { Select } from '@theokit/ui';
+import { Select } from '@usetheo/ui';
 
 /**
  * TimeRangePicker — J-19 T1.1 (R1 blueprint MUST).
