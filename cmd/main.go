@@ -103,9 +103,30 @@ func main() {
 		logger.Warn("failed to register OAuth2 client (Hydra may not be ready yet)", "error", err)
 	}
 
-	// JWT validation — single source of truth (pkg/jwt)
+	// JWT validation — single source of truth (pkg/jwt).
+	//
+	// CANONICAL FIX 2026-06-15 (multi-audience JWT per RFC 7519 § 4.1.3):
+	// theo-cloud MUST accept BOTH:
+	//   - "theo-cloud" — its own dashboard session JWTs (HMAC-signed via
+	//     SessionTokenIssuer below; sourced from /v1/auth/session/token
+	//     cookie-based exchange)
+	//   - "theo-engine" — bootstrap + CLI JWTs (RSA-signed by Hydra; minted
+	//     by seed-local-user.sh + theo CLI) which transit /engine/* paths
+	//     into theo-api (which itself validates "theo-engine")
+	//
+	// Single-audience validation (aud="theo-cloud" only) caused 11/12
+	// dogfood --live-only wrappers to fail because the bootstrap JWT
+	// audience is "theo-engine" by design. Multi-audience constructor
+	// matches the AWS Cognito + Auth0 + Okta + Google Cloud Identity
+	// canonical pattern. Zero technical debt — single-aud NewValidator
+	// is preserved for backward compat (delegates to multi-aud with
+	// []string{audience}).
 	jwksURL := cfg.HydraPublicURL + "/.well-known/jwks.json"
-	jwtValidator := theojwt.NewValidator(jwksURL, cfg.JWTIssuer, "theo-cloud")
+	jwtValidator := theojwt.NewValidatorWithAudiences(
+		jwksURL,
+		cfg.JWTIssuer,
+		[]string{"theo-cloud", "theo-engine"},
+	)
 
 	// Session token issuer/validator (HMAC JWTs for dashboard)
 	// MEET-2026-04-07-039: audience explicit. §2.2: kid + dual-key rotation.
