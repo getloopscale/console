@@ -36,7 +36,7 @@ import (
 
 	"github.com/usetheo/theo/cloud/internal/auth"
 	"github.com/usetheo/theo/cloud/internal/routes"
-	theojwt "github.com/usetheo/theo/pkg/jwt"
+	theojwt "github.com/usetheodev/theo-contracts/jwt"
 )
 
 // mockKratosServer simulates Kratos /sessions/whoami. behavior is configured
