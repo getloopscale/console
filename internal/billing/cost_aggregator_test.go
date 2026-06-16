@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	planpkg "github.com/usetheo/theo/pkg/plan"
+	planpkg "github.com/usetheodev/theo-contracts/plan"
 )
 
 // fakePromQuerier is a deterministic in-memory PromQuerier for tests.

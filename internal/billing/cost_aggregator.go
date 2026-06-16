@@ -11,7 +11,7 @@ import (
 	"log/slog"
 	"time"
 
-	planpkg "github.com/usetheo/theo/pkg/plan"
+	planpkg "github.com/usetheodev/theo-contracts/plan"
 )
 
 // T1.9 of plans/2026-05-12-launch-readiness-waves-plan.md (v1.4).
