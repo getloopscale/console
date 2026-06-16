@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/usetheo/theo/cloud/internal/auth"
-	"github.com/usetheo/theo/pkg/serviceauth"
+	"github.com/usetheodev/theo-contracts/serviceauth"
 )
 
 // TestServiceSigner_AttachAddsAllThreeHeaders — happy path: a configured

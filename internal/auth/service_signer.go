@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/usetheo/theo/pkg/serviceauth"
+	"github.com/usetheodev/theo-contracts/serviceauth"
 )
 
 // ServiceSigner attaches the three dual-control headers
