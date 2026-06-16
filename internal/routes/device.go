@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
 // DeviceHandler handles Device Code Flow endpoints.

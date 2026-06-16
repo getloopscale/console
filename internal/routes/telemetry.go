@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/usetheo/theo/cloud/internal/metrics"
+	"github.com/usetheodev/theo-cloud/internal/metrics"
 )
 
 // TelemetryHandler accepts beacon-style POSTs from the dashboard and emits

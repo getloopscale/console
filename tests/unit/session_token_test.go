@@ -34,8 +34,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
-	"github.com/usetheo/theo/cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/routes"
 	theojwt "github.com/usetheodev/theo-contracts/jwt"
 )
 

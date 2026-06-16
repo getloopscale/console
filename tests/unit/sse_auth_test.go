@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/auth"
 	theojwt "github.com/usetheodev/theo-contracts/jwt"
 )
 

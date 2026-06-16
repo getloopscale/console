@@ -26,9 +26,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
-	"github.com/usetheo/theo/cloud/internal/routes"
-	"github.com/usetheo/theo/cloud/internal/themory"
+	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/themory"
 )
 
 // fakeMemoryClient is a minimal TheMemoryClient stub for delegation tests.

@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/usetheo/theo/cloud/internal/billing"
+	"github.com/usetheodev/theo-cloud/internal/billing"
 )
 
 // Reporter sends unreported usage records to Stripe.

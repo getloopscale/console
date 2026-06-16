@@ -22,7 +22,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
 // sqlmockSetup returns a (db, mock) pair ready for sqlmock expectations.

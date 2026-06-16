@@ -17,7 +17,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
 // Memory Webhook Delivery plan, T5.6 + T5.7.

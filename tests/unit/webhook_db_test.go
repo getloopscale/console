@@ -14,7 +14,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheo/theo/cloud/internal/billing"
+	"github.com/usetheodev/theo-cloud/internal/billing"
 )
 
 func newWebhookHandler(t *testing.T) (*billing.WebhookHandler, sqlmock.Sqlmock) {

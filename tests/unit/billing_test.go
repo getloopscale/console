@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheo/theo/cloud/internal/billing"
+	"github.com/usetheodev/theo-cloud/internal/billing"
 )
 
 func TestVerifySignature_Valid(t *testing.T) {

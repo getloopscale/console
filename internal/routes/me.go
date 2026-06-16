@@ -6,7 +6,7 @@ package routes
 import (
 	"net/http"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
 // MeHandler returns user info for the authenticated user.

@@ -12,8 +12,8 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	theojwt "github.com/usetheodev/theo-contracts/jwt"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
-	"github.com/usetheo/theo/cloud/internal/ratelimit"
+	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 )
 
 // SessionTokenHandler exchanges Kratos session cookies for JWT tokens.

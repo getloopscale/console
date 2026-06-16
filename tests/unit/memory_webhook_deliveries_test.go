@@ -30,8 +30,8 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
-	"github.com/usetheo/theo/cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/routes"
 )
 
 func newDeliveriesHandler(t *testing.T) (*routes.MemoryWebhookDeliveriesHandler, sqlmock.Sqlmock) {

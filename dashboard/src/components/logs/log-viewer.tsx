@@ -15,6 +15,9 @@ interface LogViewerProps {
   // Optional para back-compat — sem props o botão simplesmente não renderiza.
   onRefresh?: () => void;
   refreshing?: boolean;
+  // J-19 T1.3 R3: lines dropped by the FIFO maxLines cap. Optional for
+  // backward compat — absent or 0 hides the indicator.
+  droppedCount?: number;
 }
 
 const LEVEL_COLOR: Record<LogLevel, string> = {
@@ -63,6 +66,7 @@ export function LogViewer({
   onClear,
   onRefresh,
   refreshing = false,
+  droppedCount = 0,
 }: LogViewerProps) {
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState<'all' | LogLevel>('all');
@@ -165,6 +169,15 @@ export function LogViewer({
           </Button>
         </div>
       </div>
+
+      {droppedCount > 0 && (
+        <div
+          role="status"
+          className="border-b border-border/60 bg-warning/10 px-4 py-1.5 text-label text-warning-foreground"
+        >
+          {droppedCount} older line{droppedCount === 1 ? '' : 's'} dropped from buffer
+        </div>
+      )}
 
       {/* Log lines */}
       <div

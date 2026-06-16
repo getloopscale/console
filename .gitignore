@@ -1,0 +1,14 @@
+# Go
+/bin/
+*.test
+*.out
+coverage*.lcov
+
+# Dashboard (Node/Vite)
+dashboard/node_modules/
+dashboard/dist/
+node_modules/
+
+# Local / editor
+*.local
+.DS_Store

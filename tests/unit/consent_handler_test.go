@@ -13,8 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
-	"github.com/usetheo/theo/cloud/internal/consent"
+	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/consent"
 )
 
 // mockOryServer simulates the Hydra admin + Kratos admin/public endpoints the

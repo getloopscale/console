@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
 // API Key Rotation plan defaults.

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheo/theo/cloud/internal/ratelimit"
+	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 )
 
 // T6.3 — the rate-limit middleware allows up to the limit, then returns 429.

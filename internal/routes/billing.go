@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
-	"github.com/usetheo/theo/cloud/internal/billing"
+	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/billing"
 )
 
 // UsageMetric represents a single usage metric with current value and limit.

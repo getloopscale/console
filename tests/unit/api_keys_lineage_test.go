@@ -19,7 +19,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
 func lineageRequest(t *testing.T, keyID string, u *auth.UserContext) *http.Request {

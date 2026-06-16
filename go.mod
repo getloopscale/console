@@ -1,4 +1,4 @@
-module github.com/usetheo/theo/cloud
+module github.com/usetheodev/theo-cloud
 
 go 1.26.1
 
@@ -70,4 +70,4 @@ require (
 	github.com/usetheodev/theo-contracts v0.0.0
 )
 
-replace github.com/usetheodev/theo-contracts => ../../theo-contracts
+replace github.com/usetheodev/theo-contracts => ../theo-contracts

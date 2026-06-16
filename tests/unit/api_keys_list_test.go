@@ -18,8 +18,8 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
-	"github.com/usetheo/theo/cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/routes"
 )
 
 // authedRequest returns a GET request with the given UserContext attached via

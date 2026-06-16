@@ -57,6 +57,8 @@ export interface UseSSEStreamResult<T = unknown> {
   connected: boolean;
   error: boolean;
   lastEventID: string | null;
+  /** Total events dropped by the FIFO maxEvents cap since the last clear(). */
+  droppedCount: number;
   clear: () => void;
 }
 
@@ -79,12 +81,14 @@ export function useSSEStream<T = unknown>(
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(false);
   const [lastEventID, setLastEventID] = useState<string | null>(initialLastEventID);
+  const [droppedCount, setDroppedCount] = useState(0);
 
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
   const bufferRef = useRef<SSEStreamEvent<T>[]>([]);
+  const droppedRef = useRef(0);
   const lastIDRef = useRef<string | null>(initialLastEventID);
 
   // Stable join key for the eventTypes dep (re-binding on real change).
@@ -95,6 +99,8 @@ export function useSSEStream<T = unknown>(
       return;
     }
     setEvents([]);
+    droppedRef.current = 0;
+    setDroppedCount(0);
     setError(false);
     setConnected(false);
     bufferRef.current = [];
@@ -115,7 +121,9 @@ export function useSSEStream<T = unknown>(
       const event: SSEStreamEvent<T> = { id, type, data };
       bufferRef.current.push(event);
       if (bufferRef.current.length > maxEvents) {
-        bufferRef.current.splice(0, bufferRef.current.length - maxEvents);
+        const overflow = bufferRef.current.length - maxEvents;
+        bufferRef.current.splice(0, overflow);
+        droppedRef.current += overflow;
       }
       if (id) {
         lastIDRef.current = id;
@@ -123,6 +131,7 @@ export function useSSEStream<T = unknown>(
       if (!pausedRef.current) {
         setEvents([...bufferRef.current]);
         setLastEventID(lastIDRef.current);
+        setDroppedCount(droppedRef.current);
       }
       onEventRef.current?.(event);
     };
@@ -202,9 +211,12 @@ export function useSSEStream<T = unknown>(
     connected,
     error,
     lastEventID,
+    droppedCount,
     clear: () => {
       bufferRef.current = [];
+      droppedRef.current = 0;
       setEvents([]);
+      setDroppedCount(0);
     },
   };
 }

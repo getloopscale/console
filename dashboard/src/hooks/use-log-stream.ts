@@ -28,6 +28,8 @@ interface UseLogStreamResult {
   lines: LogLine[];
   connected: boolean;
   error: boolean;
+  /** Total lines dropped by the FIFO maxLines cap since the last clear() (J-19 T1.3 R3). */
+  droppedCount: number;
   clear: () => void;
 }
 
@@ -59,6 +61,7 @@ export function useLogStream(
     lines,
     connected: stream.connected,
     error: stream.error,
+    droppedCount: stream.droppedCount,
     clear: stream.clear,
   };
 }

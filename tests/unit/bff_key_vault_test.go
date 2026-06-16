@@ -28,7 +28,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
 // theoLivePattern matches the BFF secret prefix for security-gate scans.

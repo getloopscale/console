@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheo/theo/cloud/internal/metering"
+	"github.com/usetheodev/theo-cloud/internal/metering"
 )
 
 func TestTrackerNilDB_RecordBuild(t *testing.T) {

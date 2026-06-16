@@ -18,7 +18,6 @@ import { clearToken } from '@/lib/api';
 import { API_URL, AUTH_URL } from '@/lib/config';
 import { safeErrorDetail, isEnumerationCollision } from '@/lib/auth/kratos-error-detail';
 import { mapKratosError } from '@/lib/auth/error-mapper';
-import { isSafeRedirectUrl } from '@/lib/auth/safe-redirect';
 import type { Flow } from '@/lib/auth/kratos-flow';
 import {
   reportEvent,

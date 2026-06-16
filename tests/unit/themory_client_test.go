@@ -15,7 +15,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/usetheo/theo/cloud/internal/themory"
+	"github.com/usetheodev/theo-cloud/internal/themory"
 )
 
 // stubMemoryServer captures inbound requests so tests can assert headers,

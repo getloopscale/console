@@ -26,17 +26,17 @@ import (
 
 	theojwt "github.com/usetheodev/theo-contracts/jwt"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
-	"github.com/usetheo/theo/cloud/internal/billing"
-	"github.com/usetheo/theo/cloud/internal/config"
-	"github.com/usetheo/theo/cloud/internal/consent"
-	"github.com/usetheo/theo/cloud/internal/metering"
-	cloudmetrics "github.com/usetheo/theo/cloud/internal/metrics"
-	"github.com/usetheo/theo/cloud/internal/ratelimit"
-	"github.com/usetheo/theo/cloud/internal/memory_webhook_worker"
-	"github.com/usetheo/theo/cloud/internal/routes"
-	"github.com/usetheo/theo/cloud/internal/themory"
-	"github.com/usetheo/theo/cloud/internal/tracing"
+	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/billing"
+	"github.com/usetheodev/theo-cloud/internal/config"
+	"github.com/usetheodev/theo-cloud/internal/consent"
+	"github.com/usetheodev/theo-cloud/internal/metering"
+	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
+	"github.com/usetheodev/theo-cloud/internal/ratelimit"
+	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
+	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/themory"
+	"github.com/usetheodev/theo-cloud/internal/tracing"
 )
 
 func main() {

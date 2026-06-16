@@ -12,7 +12,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
 func TestTenantProvisionerNilDB(t *testing.T) {

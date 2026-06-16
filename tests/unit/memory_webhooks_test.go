@@ -20,8 +20,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
-	"github.com/usetheo/theo/cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/routes"
 )
 
 func newWebhooksHandler(t *testing.T) (*routes.MemoryWebhooksHandler, sqlmock.Sqlmock) {

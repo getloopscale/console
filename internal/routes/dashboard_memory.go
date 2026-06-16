@@ -22,10 +22,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/usetheo/theo/cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
-const dashboardMemoryTracer = "github.com/usetheo/theo/cloud/internal/routes/dashboard_memory"
+const dashboardMemoryTracer = "github.com/usetheodev/theo-cloud/internal/routes/dashboard_memory"
 
 // DashboardMemoryHandler delegates browser-trust calls through the BFF vault
 // to the existing MemoryHandler infrastructure.
