@@ -3,25 +3,34 @@ WORKDIR /workspace
 
 ENV GOWORK=off
 
-COPY pkg/go.mod ./pkg/go.mod
-COPY cloud/go.mod cloud/go.sum ./cloud/
+# Sibling theo-contracts module: go.mod uses `replace => ../theo-contracts`
+# which from /workspace/ resolves to /theo-contracts. Provided via BuildKit
+# named build context `theo-contracts` so the sibling repo is reachable inside
+# the Docker build (per M5 decomposition; see theo/docs/version-pin-cutover-runbook.md).
+# Sponsor-direct-approval 2026-06-17 ("O sistema deve rodar no k3, continue").
+COPY --from=theo-contracts . /theo-contracts
+
+# Post-M4 decomposition: theo-cloud is its own repo (no more cloud/ subdir).
+# Build context is theo-cloud/ root; main.go lives at cmd/main.go directly.
+COPY go.mod go.sum ./
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \
-    cd cloud && go mod download
+    go mod download
 
-COPY pkg/ ./pkg/
-COPY cloud/ ./cloud/
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY openapi/ ./openapi/
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    cd cloud && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /cloud-api ./cmd/main.go
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /cloud-api ./cmd/main.go
 
 # Distroless static runtime (find_infra_009): no shell/apk/utilities to reduce
 # post-compromise attack surface. Includes ca-certificates and runs as the
 # built-in nonroot user (uid 65532). The binary is fully static (CGO_ENABLED=0).
 FROM gcr.io/distroless/static-debian12:nonroot
 
-LABEL org.opencontainers.image.source="https://github.com/usetheo/theo"
+LABEL org.opencontainers.image.source="https://github.com/usetheodev/theo-cloud"
 LABEL org.opencontainers.image.title="theo-cloud"
 LABEL org.opencontainers.image.description="TheoCloud service"
 
