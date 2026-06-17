@@ -10,8 +10,6 @@ Format: Keep a Changelog + Semantic Versioning.
   via `git filter-repo` (history preserved) — M4 of the decomposition roadmap.
   Contains the Go cloud-API (`cmd/` + `internal/`) and the React/TSX dashboard
   (`dashboard/`, `@theo/dashboard`).
-
-### Added
 - `docs/dashboard-governance.md` — the dashboard's active mandates (Memory Section
   invariants, the 20 dashboard-journey plans, the sponsor priority chain, and the
   dashboard-specific common mistakes), migrated verbatim from the engine's
@@ -26,8 +24,10 @@ Format: Keep a Changelog + Semantic Versioning.
 - Go module path renamed `github.com/usetheo/theo/cloud` → `github.com/usetheodev/theo-cloud`
   (matches the repository URL; internal imports rewritten).
 - Consumes the contract vocabulary from the standalone `github.com/usetheodev/theo-contracts`
-  module (jwt/serviceauth/plan), wired via `replace => ../theo-contracts` (version pin at M5).
-- `jwt`: dashboard log-stream now exposes `droppedCount` (J-19 T1.3 R3) — the FIFO
+  module (jwt/serviceauth/plan), wired via local `replace => ../theo-contracts` (`require v0.0.0`).
+  The cutover to a pinned published version is documented in
+  `theo/docs/version-pin-cutover-runbook.md` and is NOT yet executed (owner-gated).
+- dashboard log-stream now exposes `droppedCount` (J-19 T1.3 R3) — the FIFO
   `maxLines` cap counts dropped lines; `LogViewer` renders a "N older line(s) dropped"
   indicator. (completed during the M4 extraction to unblock the dashboard build)
 
