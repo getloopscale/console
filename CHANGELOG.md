@@ -12,6 +12,10 @@ Format: Keep a Changelog + Semantic Versioning.
   (`dashboard/`, `@theo/dashboard`).
 
 ### Changed
+- Expanded `CLAUDE.md` with a Durable-enforcement section (the engine-hosted
+  `acyclic-graph` gate proving theo-cloud imports no engine `pkg/*`, the cross-repo
+  contract runner for both seams, the `replace`-to-pinned cutover, and the J-19 debt
+  pointer) — M5 of the decomposition roadmap.
 - Go module path renamed `github.com/usetheo/theo/cloud` → `github.com/usetheodev/theo-cloud`
   (matches the repository URL; internal imports rewritten).
 - Consumes the contract vocabulary from the standalone `github.com/usetheodev/theo-contracts`

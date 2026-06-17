@@ -39,3 +39,13 @@ cd dashboard && npm ci && npm run build && npm test   # dashboard
 Extracted at M4 (`theo-cloud/.claude/knowledge-base/plans/m4-extract-theo-cloud-plan.md`),
 history preserved via `git filter-repo`. Governance minimal at M4; fuller per-repo CI +
 release discipline at M5. The theo-contracts `replace` is local-only until the M5 version pin.
+
+## Durable enforcement (M5)
+
+Dependency direction (theo-cloud imports only theo-contracts, never engine `pkg/*`) is
+enforced by the engine's `theo-ops quality acyclic-graph` gate. The seams (cloud↔engine
+serviceauth, cloud↔theo-data themory) run in the cross-repo matrix
+`task quality:contract:cross-repo` (`theo/docs/cross-repo-contract-matrix.md`). The
+theo-contracts `replace => ../theo-contracts` cuts over to a pinned version per
+`theo/docs/version-pin-cutover-runbook.md` (owner-gated). J-19 runtime-logs dashboard
+debt (named-event log handling) is the first follow-up — see CHANGELOG § Notes.
