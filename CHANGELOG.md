@@ -11,6 +11,13 @@ Format: Keep a Changelog + Semantic Versioning.
   Contains the Go cloud-API (`cmd/` + `internal/`) and the React/TSX dashboard
   (`dashboard/`, `@theo/dashboard`).
 
+### Added
+- `docs/dashboard-governance.md` — the dashboard's active mandates (Memory Section
+  invariants, the 20 dashboard-journey plans, the sponsor priority chain, and the
+  dashboard-specific common mistakes), migrated verbatim from the engine's
+  `theo/CLAUDE.md` to where the dashboard code now lives — M5 of the decomposition
+  roadmap. `CLAUDE.md` points to it.
+
 ### Changed
 - Expanded `CLAUDE.md` with a Durable-enforcement section (the engine-hosted
   `acyclic-graph` gate proving theo-cloud imports no engine `pkg/*`, the cross-repo

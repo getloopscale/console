@@ -34,6 +34,14 @@ cd dashboard && npm ci && npm run build && npm test   # dashboard
 - Imports nothing engine-internal (`go list -deps` shows zero `usetheo/theo/pkg/*`).
 - The dashboard is the closed-source commercial differentiator.
 
+## Dashboard governance
+
+The dashboard's active mandates — Memory Section invariants, the 20 dashboard-journey
+plans, the sponsor priority chain, and the dashboard-specific common mistakes — live in
+[`docs/dashboard-governance.md`](docs/dashboard-governance.md). They were migrated here
+from the engine's `theo/CLAUDE.md` at M5 (the dashboard code lives in this repo, so its
+governance does too). Read it before editing any `dashboard/src/pages/` route.
+
 ## Provenance
 
 Extracted at M4 (`theo-cloud/.claude/knowledge-base/plans/m4-extract-theo-cloud-plan.md`),
