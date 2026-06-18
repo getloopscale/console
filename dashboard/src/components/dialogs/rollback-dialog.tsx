@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Loader2, Undo2 } from 'lucide-react';
-import { Alert, Button, Dialog, Input, Label } from '@usetheo/ui';
+import { Undo2 } from 'lucide-react';
+import { Alert, Button, Dialog, Input, Label, useToast } from '@usetheo/ui';
 import { ensureSSEToken } from '@/lib/api';
 import { API_URL } from '@/lib/config';
 import type { Build, RollbackResponse } from '@/lib/api/types';
@@ -23,11 +23,12 @@ export function RollbackDialog({
   onRolledBack,
 }: RollbackDialogProps) {
   const [phrase, setPhrase] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast, dismiss } = useToast();
 
   const isProd = targetBuild.environment === 'production';
   const requiresPhrase = isProd;
+  const sha = targetBuild.commit_sha.slice(0, 7);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,17 +37,29 @@ export function RollbackDialog({
       setError(`Type "${CONFIRMATION_PHRASE}" exactly to confirm.`);
       return;
     }
-    setSubmitting(true);
+
+    // LIVE-caught 2026-06-18 sponsor feedback: close the dialog
+    // immediately on valid submit so the page doesn't lock up while
+    // the rollback (1-3min) runs. Surface progress + result via
+    // global toasts — info on submit, success/destructive on settle.
+    const progressId = toast({
+      title: `Rollback in progress`,
+      description: `Reverting ${projectName} (${targetBuild.environment}) to ${sha}…`,
+      variant: 'info',
+      duration: null, // sticky until we dismiss on settle
+    });
+    setPhrase('');
+    onOpenChange(false);
+
     try {
-      // LIVE-caught 2026-06-18: engineFetch swallows non-OK responses
-      // → "Couldn't trigger rollback" generic message. Rollback is a
-      // critical destructive op; the user MUST see why it failed
-      // (sync timeout, no previous release, network error, etc).
-      // Direct fetch + parse the canonical TheoError body so the user
-      // gets actionable feedback.
       const token = await ensureSSEToken();
       if (!token) {
-        setError('Session expired. Sign in again and retry the rollback.');
+        dismiss(progressId);
+        toast({
+          title: 'Rollback failed',
+          description: 'Session expired. Sign in again and retry the rollback.',
+          variant: 'destructive',
+        });
         return;
       }
       const resp = await fetch(
@@ -65,29 +78,39 @@ export function RollbackDialog({
           credentials: 'include',
         },
       );
+      dismiss(progressId);
       if (!resp.ok) {
         const errBody = await resp.json().catch(() => null) as
           | { message?: string; code?: string; error?: string }
           | null;
-        setError(formatRollbackError(resp.status, errBody));
+        toast({
+          title: 'Rollback failed',
+          description: formatRollbackError(resp.status, errBody),
+          variant: 'destructive',
+          duration: null, // user must dismiss critical errors
+        });
         return;
       }
       const res = (await resp.json()) as RollbackResponse;
       onRolledBack?.(res);
-      setPhrase('');
-      onOpenChange(false);
+      toast({
+        title: `Rolled back to ${sha}`,
+        description: `${projectName} (${targetBuild.environment}) is serving the previous release.`,
+        variant: 'success',
+      });
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? `Rollback failed: ${e.message}. The current release remains active. Retry, or contact support if it persists.`
-          : 'Rollback failed: network error. The current release remains active. Check connection and retry.',
-      );
-    } finally {
-      setSubmitting(false);
+      dismiss(progressId);
+      toast({
+        title: 'Rollback failed',
+        description:
+          e instanceof Error
+            ? `${e.message}. The current release remains active. Check connection and retry.`
+            : 'Network error. The current release remains active. Check connection and retry.',
+        variant: 'destructive',
+        duration: null,
+      });
     }
   };
-
-  const sha = targetBuild.commit_sha.slice(0, 7);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -133,10 +156,9 @@ export function RollbackDialog({
             <Button
               type="submit"
               variant="destructive"
-              disabled={submitting || (requiresPhrase && phrase !== CONFIRMATION_PHRASE)}
+              disabled={requiresPhrase && phrase !== CONFIRMATION_PHRASE}
             >
-              {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              {submitting ? 'Rolling back…' : `Rollback to ${sha}`}
+              Rollback to {sha}
             </Button>
           </Dialog.Footer>
         </form>
