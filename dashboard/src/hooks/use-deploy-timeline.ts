@@ -7,6 +7,33 @@ import {
   type Phase,
   type PhaseStatus,
 } from '@/lib/api/deploy-timeline-events';
+import type { BuildStep } from '@/lib/api/sse-events';
+
+/**
+ * Step-level detail rendered inside an expandable PhaseCell.
+ * Sourced from the J-17 build.step.* events via useDeployTimelineSteps,
+ * mapped to canonical Deploy Timeline phases via phaseGroupToCanonicalPhase.
+ */
+export interface PhaseStep {
+  name: string;
+  status: 'running' | 'succeeded' | 'failed';
+  startedAt: string;
+  endedAt?: string;
+  durationSeconds?: number;
+  errorMessage?: string;
+}
+
+/** Map BuildStep → PhaseStep (UI-narrow shape). */
+export function buildStepToPhaseStep(s: BuildStep): PhaseStep {
+  return {
+    name: s.step_name,
+    status: s.status,
+    startedAt: s.started_at,
+    endedAt: s.ended_at,
+    durationSeconds: s.duration_seconds,
+    errorMessage: s.error_message,
+  };
+}
 
 /**
  * useDeployTimeline — Plan deploy-timeline-canonical-5-phases (dashboard half).
@@ -38,6 +65,13 @@ export interface PhaseState {
   substateMessage: string | null;
   /** Pre-scrubbed text safe for direct render. */
   degradedReason: string | null;
+  /**
+   * Step-level detail for the expandable PhaseCell (Vercel-style
+   * progressive disclosure). Empty array means no step-level signal
+   * (phases 'deploy' / 'live' inherently have none — they are driven
+   * by argocd_app / status_url_probe sources, not by build steps).
+   */
+  steps: PhaseStep[];
 }
 
 export type OverallStatus =
@@ -79,6 +113,7 @@ function initialPhases(): PhaseState[] {
     endedAt: null,
     substateMessage: null,
     degradedReason: null,
+    steps: [],
   }));
 }
 

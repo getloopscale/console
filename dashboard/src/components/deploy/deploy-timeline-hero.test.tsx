@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/api', () => ({
@@ -68,8 +69,8 @@ describe('DeployTimelineHero', () => {
 
   it('marks the in_progress phase with aria-current="step"', async () => {
     render(<DeployTimelineHero deployId="dep-2" />);
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
-    const es = MockEventSource.instances[0];
+    await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThanOrEqual(1));
+    const es = MockEventSource.instances.find((i) => i.url.includes('/deploys/')) ?? MockEventSource.instances[0];
     act(() => {
       es.emit(
         'deploy_timeline.build.in_progress',
@@ -90,8 +91,8 @@ describe('DeployTimelineHero', () => {
 
   it('shows Live pill when overall status is live', async () => {
     render(<DeployTimelineHero deployId="dep-3" />);
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
-    const es = MockEventSource.instances[0];
+    await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThanOrEqual(1));
+    const es = MockEventSource.instances.find((i) => i.url.includes('/deploys/')) ?? MockEventSource.instances[0];
     const events = [
       'build',
       'sign',
@@ -119,8 +120,8 @@ describe('DeployTimelineHero', () => {
 
   it('renders an alert role when aggregator degrades', async () => {
     render(<DeployTimelineHero deployId="dep-4" />);
-    await waitFor(() => expect(MockEventSource.instances).toHaveLength(1));
-    const es = MockEventSource.instances[0];
+    await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThanOrEqual(1));
+    const es = MockEventSource.instances.find((i) => i.url.includes('/deploys/')) ?? MockEventSource.instances[0];
     act(() => {
       es.emit(
         'deploy_timeline.aggregator.degraded',
@@ -148,10 +149,59 @@ describe('DeployTimelineHero', () => {
   it('hides itself politely when deployId is empty (still renders skeleton)', () => {
     render(<DeployTimelineHero deployId="" />);
     // Always renders 5 cells — empty deployId yields pending skeletons.
-    const cells = screen.getAllByRole('listitem');
-    expect(cells).toHaveLength(5);
-    expect(cells.every((c) => c.getAttribute('data-status') === 'pending')).toBe(
+    const list = screen.getByTestId('deploy-timeline-phases');
+    const listCells = within(list).getAllByRole('listitem');
+    expect(listCells).toHaveLength(5);
+    expect(listCells.every((c) => c.getAttribute('data-status') === 'pending')).toBe(
       true,
     );
+  });
+
+  it('shows phase step count badge + expandable disclosure when steps arrive', async () => {
+    render(<DeployTimelineHero deployId="dep-steps" />);
+    await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThanOrEqual(2));
+    const stepStream = MockEventSource.instances.find((i) => i.url.includes('/builds/'))!;
+    act(() => {
+      stepStream.emit(
+        'build.step.succeeded',
+        {
+          step_name: 'clone-repo',
+          started_at: '2026-06-18T12:00:00Z',
+          ended_at: '2026-06-18T12:00:09Z',
+          duration_seconds: 9,
+          phase_group: 'clone',
+        },
+        '1',
+      );
+      stepStream.emit(
+        'build.step.succeeded',
+        {
+          step_name: 'install-deps',
+          started_at: '2026-06-18T12:00:10Z',
+          ended_at: '2026-06-18T12:00:57Z',
+          duration_seconds: 47,
+          phase_group: 'install',
+        },
+        '2',
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('phase-step-count-build').textContent).toBe('2');
+    });
+
+    const toggle = screen.getByTestId('phase-toggle-build');
+    // Default-expanded for build phase since it's pending-not-completed
+    // → user can click to collapse.
+    const initiallyExpanded = toggle.getAttribute('aria-expanded') === 'true';
+    if (!initiallyExpanded) {
+      await userEvent.click(toggle);
+    }
+    await waitFor(() => {
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    });
+    const stepsList = screen.getByTestId('phase-steps-build');
+    expect(within(stepsList).getByText(/Clone repo/i)).toBeTruthy();
+    expect(within(stepsList).getByText(/Install deps/i)).toBeTruthy();
   });
 });

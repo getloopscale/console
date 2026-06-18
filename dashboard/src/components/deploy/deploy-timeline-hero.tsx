@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Check,
+  ChevronDown,
   CircleDashed,
   Loader2,
   X,
@@ -9,7 +10,8 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { useDeployTimeline, type PhaseState, type OverallStatus } from '@/hooks/use-deploy-timeline';
+import { useDeployTimelineWithSteps } from '@/hooks/use-deploy-timeline-with-steps';
+import type { PhaseState, OverallStatus, PhaseStep } from '@/hooks/use-deploy-timeline';
 import {
   PHASE_LABEL,
   PHASE_DEFAULT_SUBSTATE,
@@ -59,7 +61,7 @@ export function DeployTimelineHero({
     aggregatorDegradedReason,
     overall,
     connected,
-  } = useDeployTimeline(deployId, { initialLastEventID, paused });
+  } = useDeployTimelineWithSteps(deployId, { initialLastEventID, paused });
 
   // For aria-live: announce only the latest phase/status transition.
   const live = describeOverall(overall, phases);
@@ -134,6 +136,13 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
     cell.status === 'failed' ||
     cell.status === 'canceled';
   const isDegraded = cell.status === 'degraded';
+  const hasSteps = cell.steps.length > 0;
+  // Auto-open while the phase is the live one or recently failed; user
+  // toggle is sticky after first click via the explicit state.
+  const [expandedOverride, setExpandedOverride] = useState<boolean | null>(null);
+  const defaultExpanded = isActive || cell.status === 'failed';
+  const expanded = expandedOverride ?? defaultExpanded;
+  const detailId = `phase-${cell.phase}-steps`;
 
   return (
     <li
@@ -162,8 +171,41 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
           <span className={['text-sm font-medium', tone.label].join(' ')}>
             {PHASE_LABEL[cell.phase]}
           </span>
+          {hasSteps ? (
+            <span
+              className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-4 px-1 rounded-full bg-muted/60 text-[10px] font-medium tabular-nums text-muted-foreground"
+              aria-label={`${cell.steps.length} steps`}
+              data-testid={`phase-step-count-${cell.phase}`}
+            >
+              {cell.steps.length}
+            </span>
+          ) : null}
         </div>
-        <PhaseDuration cell={cell} />
+        <div className="flex items-center gap-1">
+          <PhaseDuration cell={cell} />
+          {hasSteps ? (
+            <button
+              type="button"
+              className="rounded-md p-0.5 text-muted-foreground hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-expanded={expanded}
+              aria-controls={detailId}
+              aria-label={
+                expanded ? `Hide ${PHASE_LABEL[cell.phase]} steps` : `Show ${PHASE_LABEL[cell.phase]} steps`
+              }
+              onClick={() => setExpandedOverride(!expanded)}
+              data-testid={`phase-toggle-${cell.phase}`}
+            >
+              <ChevronDown
+                size={14}
+                className={[
+                  'transition-transform motion-safe:duration-150',
+                  expanded ? 'rotate-180' : '',
+                ].join(' ')}
+                aria-hidden="true"
+              />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {(cell.substateMessage || cell.status !== 'pending') && (
@@ -187,6 +229,18 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
         </p>
       ) : null}
 
+      {hasSteps && expanded ? (
+        <ol
+          id={detailId}
+          className="mt-3 space-y-1.5 border-t border-border/40 pt-2"
+          data-testid={`phase-steps-${cell.phase}`}
+        >
+          {cell.steps.map((step) => (
+            <StepRow key={step.name} step={step} />
+          ))}
+        </ol>
+      ) : null}
+
       {!isLast && (
         <span
           aria-hidden="true"
@@ -197,6 +251,49 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
       )}
     </li>
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/* StepRow — single step inside an expanded PhaseCell                         */
+/* -------------------------------------------------------------------------- */
+
+function StepRow({ step }: { step: PhaseStep }) {
+  const Icon = step.status === 'succeeded' ? Check : step.status === 'failed' ? X : Loader2;
+  const tone =
+    step.status === 'succeeded'
+      ? 'text-green-600 dark:text-green-400'
+      : step.status === 'failed'
+        ? 'text-red-600 dark:text-red-400'
+        : 'text-blue-600 dark:text-blue-400';
+  return (
+    <li
+      className="flex items-center justify-between gap-2 text-xs"
+      data-step-name={step.name}
+      data-step-status={step.status}
+    >
+      <span className="flex items-center gap-1.5 min-w-0">
+        <Icon
+          size={12}
+          className={[tone, step.status === 'running' ? 'motion-safe:animate-spin' : ''].join(' ')}
+          aria-hidden="true"
+        />
+        <span className="truncate font-medium" title={step.name}>
+          {humanizeStepName(step.name)}
+        </span>
+      </span>
+      <span className="font-mono tabular-nums text-muted-foreground shrink-0">
+        {step.durationSeconds != null
+          ? formatDuration(step.durationSeconds)
+          : '…'}
+      </span>
+    </li>
+  );
+}
+
+function humanizeStepName(name: string): string {
+  // Strip noisy suffixes + replace dashes with spaces, capitalize first.
+  const stripped = name.replace(/[-_]/g, ' ');
+  return stripped.charAt(0).toUpperCase() + stripped.slice(1);
 }
 
 /* -------------------------------------------------------------------------- */

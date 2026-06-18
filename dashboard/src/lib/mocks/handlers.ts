@@ -296,17 +296,54 @@ function registerLogStreamHandlers() {
   });
 
   registerSSE('/api/v1/builds/{id}/stream', (es) => {
-    const events = ['queued', 'running', 'pushing', 'releasing', 'succeeded'];
+    // Canonical step-level seed mirroring the build pipeline phase_group
+    // taxonomy. Used by the step-expansion E2E tests + visual validation.
+    const steps: Array<{
+      step_name: string;
+      phase_group: 'clone' | 'install' | 'build' | 'sign' | 'deliver' | 'other';
+      duration_seconds: number;
+    }> = [
+      { step_name: 'clone-repo', phase_group: 'clone', duration_seconds: 9 },
+      { step_name: 'install-deps', phase_group: 'install', duration_seconds: 47 },
+      { step_name: 'build-image', phase_group: 'build', duration_seconds: 82 },
+      { step_name: 'cosign-sign', phase_group: 'sign', duration_seconds: 21 },
+      { step_name: 'syft-sbom', phase_group: 'sign', duration_seconds: 11 },
+      { step_name: 'generate-manifests', phase_group: 'deliver', duration_seconds: 2 },
+      { step_name: 'gitops-push', phase_group: 'deliver', duration_seconds: 2 },
+    ];
     let i = 0;
+    let lastId = 0;
+    const baseTime = Date.now();
     const interval = setInterval(() => {
-      if (i >= events.length) {
+      if (i >= steps.length) {
         clearInterval(interval);
         return;
       }
+      const step = steps[i++];
+      // Emit started + succeeded back-to-back so the test sees finished steps.
+      const started_at = new Date(baseTime + i * 1000).toISOString();
+      const ended_at = new Date(baseTime + i * 1000 + step.duration_seconds * 1000).toISOString();
+      lastId++;
       es.dispatchEvent(
-        new MessageEvent('message', { data: JSON.stringify({ status: events[i++] }) }),
+        new MessageEvent('build.step.started', {
+          data: JSON.stringify({ step_name: step.step_name, started_at, phase_group: step.phase_group }),
+          lastEventId: String(lastId),
+        }),
       );
-    }, 1200);
+      lastId++;
+      es.dispatchEvent(
+        new MessageEvent('build.step.succeeded', {
+          data: JSON.stringify({
+            step_name: step.step_name,
+            started_at,
+            ended_at,
+            duration_seconds: step.duration_seconds,
+            phase_group: step.phase_group,
+          }),
+          lastEventId: String(lastId),
+        }),
+      );
+    }, 200);
     return () => clearInterval(interval);
   });
 
