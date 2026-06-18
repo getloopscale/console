@@ -36,7 +36,7 @@ export function useDeployTimelineWithSteps(
     // Group J-17 steps by canonical phase.
     const stepsByPhase = new Map<string, ReturnType<typeof buildStepToPhaseStep>[]>();
     for (const s of stepStream.steps) {
-      const canonical = phaseGroupToCanonicalPhase(s.phase_group);
+      const canonical = phaseGroupToCanonicalPhase(s.phase_group, s.step_name);
       const arr = stepsByPhase.get(canonical) ?? [];
       arr.push(buildStepToPhaseStep(s));
       stepsByPhase.set(canonical, arr);
