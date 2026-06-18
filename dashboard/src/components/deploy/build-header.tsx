@@ -1,4 +1,11 @@
-import { GitBranch, GitCommit, RefreshCw, Undo2, XCircle } from 'lucide-react';
+import {
+  ArrowUpToLine,
+  GitBranch,
+  GitCommit,
+  RefreshCw,
+  Undo2,
+  XCircle,
+} from 'lucide-react';
 import { Button, StatusDot, type StatusKind } from '@usetheo/ui';
 import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
 
@@ -25,6 +32,16 @@ export interface BuildHeaderProps {
   onCancel: () => void;
   onRollback: () => void;
   onRedeploy: () => void;
+  /**
+   * Optional. When provided AND the build environment is a preview
+   * (i.e. not "production") AND the build status is succeeded, renders
+   * the FAANG-canonical contextual "Promote to Production" action.
+   * Sponsor LIVE 2026-06-18 PRD: substitui o legacy from→to PromoteDialog
+   * pelo padrão Vercel/Netlify (destino implícito = production, source
+   * implícito = este deploy). Without the callback the action is hidden,
+   * preserving back-compat with call sites that don't wire it yet.
+   */
+  onPromoteToProduction?: () => void;
 }
 
 const STATUS_MAP: Record<BuildStatus, StatusKind> = {
@@ -63,6 +80,7 @@ export function BuildHeader({
   onCancel,
   onRollback,
   onRedeploy,
+  onPromoteToProduction,
 }: BuildHeaderProps) {
   const sha = build.commit_sha.slice(0, 7);
   // Backend returns CAPS statuses; normalize once so every comparison
@@ -71,6 +89,16 @@ export function BuildHeader({
   const inFlight = isInFlight(ns);
   const showCancel = inFlight;
   const showRollback = ns === 'succeeded';
+  // Promote-to-Production visibility:
+  //   - callback wired by the caller (back-compat: hidden when absent)
+  //   - build is succeeded (no point promoting an in-flight / failed)
+  //   - the deploy is in a preview env (production deploys obviously
+  //     don't promote to themselves; this is also enforced backend-side
+  //     via SAME_ENVIRONMENT)
+  const showPromoteToProduction =
+    Boolean(onPromoteToProduction) &&
+    ns === 'succeeded' &&
+    build.environment !== 'production';
 
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -112,6 +140,17 @@ export function BuildHeader({
           >
             <Undo2 className="size-4 text-warning" aria-hidden="true" />
             Rollback
+          </Button>
+        )}
+        {showPromoteToProduction && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onPromoteToProduction}
+            aria-label="Promote to production"
+          >
+            <ArrowUpToLine className="size-4" aria-hidden="true" />
+            Promote to Production
           </Button>
         )}
         <Button

@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import { ArrowLeft, CheckCircle2, Play, RefreshCw, Rocket } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowUpToLine,
+  CheckCircle2,
+  Play,
+  RefreshCw,
+  Rocket,
+} from 'lucide-react';
 import {
   Badge,
   Button,
@@ -15,6 +22,7 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useDeploymentsListStream } from '@/hooks/use-deployments-list-stream';
 import { useProjectStatus } from '@/hooks/use-project-status';
+import { useMutationInFlight } from '@/hooks/use-mutation-in-flight';
 import { useBuildEnvs } from '@/hooks/use-build-envs';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { DeploymentRowVisitIcon } from '@/components/project/deployment-row-visit-icon';
@@ -167,6 +175,16 @@ export function DeploymentsPage() {
   // is RUNNING — the banner would otherwise lie that the in-flight commit
   // is already serving traffic.
   const { status: prodStatus } = useProjectStatus(name);
+  // Sponsor 2026-06-18 — honest progress badge during the ~90s sync gap
+  // between submit and DB flip. The dialog publishes the target row id;
+  // we suppress the canonical "● Active" badge on it and render a
+  // pulsing transitional badge instead, until the DB flips and the
+  // mutation-in-flight store clears. The label depends on the kind
+  // discriminator ("Rolling back…" / "Promoting…" / "Redeploying…")
+  // so a single subscription serves every long-running mutation —
+  // rollback was the first; promote was added in the FAANG PRD ship
+  // of the same day (sponsor caught the missing badge LIVE).
+  const mutationInFlight = useMutationInFlight(name);
   const activeBuildId = prodStatus?.active_release?.build_id;
 
   // T4.3 finding 3.2 + ADR D3: dynamic env filter chip set sourced
@@ -427,7 +445,19 @@ export function DeploymentsPage() {
             <Table.Body>
               {filtered.map((b, idx) => {
                 const sha = b.commit_sha.slice(0, 7);
-                const isActive = activeBuildId === b.build_id;
+                const inFlightHere =
+                  mutationInFlight?.targetBuildId === b.build_id
+                    ? mutationInFlight
+                    : null;
+                const isRollingBackTo = inFlightHere?.kind === 'rollback';
+                const isPromotingHere = inFlightHere?.kind === 'promote';
+                // While a long-running mutation is in flight to THIS row,
+                // suppress the canonical Active badge (DB still says old
+                // release is active for another ~90s) — the pulsing
+                // transitional badge expresses the in-flight state
+                // honestly. Same logic covers rollback + promote.
+                const isActive =
+                  inFlightHere == null && activeBuildId === b.build_id;
                 // Ordering signal: filtered is already sorted by created_at
                 // desc in the hook (most recent first), so #1 is the newest.
                 const orderLabel = `#${idx + 1}`;
@@ -464,6 +494,32 @@ export function DeploymentsPage() {
                               className="border-success/50 bg-success/10 text-success text-label uppercase"
                             >
                               ● Active
+                            </Badge>
+                          )}
+                          {isRollingBackTo && (
+                            <Badge
+                              variant="outline"
+                              className="border-warning/50 bg-warning/10 text-warning text-label uppercase animate-pulse inline-flex items-center gap-1"
+                              aria-live="polite"
+                            >
+                              <RefreshCw
+                                className="size-3 animate-spin"
+                                aria-hidden="true"
+                              />
+                              Rolling back to {sha}…
+                            </Badge>
+                          )}
+                          {isPromotingHere && (
+                            <Badge
+                              variant="outline"
+                              className="border-primary/50 bg-primary/10 text-primary text-label uppercase animate-pulse inline-flex items-center gap-1"
+                              aria-live="polite"
+                            >
+                              <ArrowUpToLine
+                                className="size-3"
+                                aria-hidden="true"
+                              />
+                              Promoting {sha} to production…
                             </Badge>
                           )}
                           {b.environment && (

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   FileText,
@@ -32,6 +33,7 @@ import { PromoteDialog } from '@/components/dialogs/promote-dialog';
 import { CancelBuildDialog } from '@/components/dialogs/cancel-build-dialog';
 import { formatDate } from '@/lib/format';
 import { formatBuildError } from '@/lib/format-build-error-patterns';
+import { queryKeys } from '@/lib/api/query-keys';
 import type { BuildStatus } from '@/lib/api/types';
 
 const STATUS_MAP: Record<BuildStatus, StatusKind> = {
@@ -84,6 +86,7 @@ export function DeploymentDetailPage() {
   // destructive". The dialog also surfaces 409 race ("build already
   // completed") as a toast instead of silently dropping.
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
   // Plan J-10 v1.1 — PromoteDialog requires environments list for source/target
   // dropdowns. Fetched here so deployment detail's "Promote" button can open
   // the dialog with full env context.
@@ -91,6 +94,18 @@ export function DeploymentDetailPage() {
     environments: Array<{ name: string; status?: string }>;
   }>('/api/v1/environments');
   const environments = envsData?.environments ?? [];
+
+  // Sponsor LIVE-caught 2026-06-18: rollback toast success but grid stale.
+  // React Query cache holds stale active_release until refetch interval
+  // fires (or window refocus). Invalidate every key whose data flipped:
+  //   - builds.list(name) → deployments grid rows
+  //   - builds.detail(id) → header status
+  //   - projectStatus.detail(name) → "Serving" badge active commit
+  const handleRolledBack = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.builds.list(name) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.builds.detail(id) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.projectStatus.detail(name) });
+  };
 
   // T4.4 finding 4.4: STATUS_LABEL fallback. New BuildStatus values
   // added to BuildState in pkg/statemachine (e.g. RELEASING) would
@@ -375,6 +390,7 @@ export function DeploymentDetailPage() {
         onOpenChange={setRollbackOpen}
         projectName={name}
         targetBuild={build}
+        onRolledBack={handleRolledBack}
       />
       <PromoteDialog
         open={promoteOpen}

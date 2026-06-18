@@ -3,6 +3,7 @@ import { Undo2 } from 'lucide-react';
 import { Alert, Button, Dialog, Input, Label, useToast } from '@usetheo/ui';
 import { ensureSSEToken } from '@/lib/api';
 import { API_URL } from '@/lib/config';
+import { useStartRollback, useEndRollback } from '@/hooks/use-rollback-in-flight';
 import type { Build, RollbackResponse } from '@/lib/api/types';
 
 interface RollbackDialogProps {
@@ -25,6 +26,8 @@ export function RollbackDialog({
   const [phrase, setPhrase] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { toast, dismiss } = useToast();
+  const startRollback = useStartRollback();
+  const endRollback = useEndRollback();
 
   const isProd = targetBuild.environment === 'production';
   const requiresPhrase = isProd;
@@ -51,9 +54,22 @@ export function RollbackDialog({
     setPhrase('');
     onOpenChange(false);
 
+    // Publish in-flight state so the deployments grid + any other view
+    // can render the pulsing "Rolling back to <sha>..." badge on the
+    // target row during the ~90s sync window. Cleared in every exit path
+    // (success, 4xx/5xx, network, token expired) before the matching
+    // toast fires, so the badge never lingers past the result.
+    startRollback({
+      projectName,
+      targetBuildId: targetBuild.build_id,
+      targetSha: sha,
+      startedAt: Date.now(),
+    });
+
     try {
       const token = await ensureSSEToken();
       if (!token) {
+        endRollback(projectName);
         dismiss(progressId);
         toast({
           title: 'Rollback failed',
@@ -80,6 +96,7 @@ export function RollbackDialog({
       );
       dismiss(progressId);
       if (!resp.ok) {
+        endRollback(projectName);
         const errBody = await resp.json().catch(() => null) as
           | { message?: string; code?: string; error?: string }
           | null;
@@ -92,6 +109,10 @@ export function RollbackDialog({
         return;
       }
       const res = (await resp.json()) as RollbackResponse;
+      // Clear in-flight BEFORE onRolledBack so the grid invalidation +
+      // refetch in the parent renders the canonical "● Active" badge in
+      // the same frame the pulsing badge disappears (no visual flicker).
+      endRollback(projectName);
       onRolledBack?.(res);
       toast({
         title: `Rolled back to ${sha}`,
@@ -99,6 +120,7 @@ export function RollbackDialog({
         variant: 'success',
       });
     } catch (e) {
+      endRollback(projectName);
       dismiss(progressId);
       toast({
         title: 'Rollback failed',
