@@ -6,6 +6,25 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Added
+- **Contextual "Promote to Production" action — FAANG-canonical replacement for the legacy from→to dropdown dialog.**
+  Sponsor PRD-level deep-dive 2026-06-18: in the canonical PaaS model (preview + production only,
+  per `project_paas_envs_preview_production_only` mandate) the destination of a promote is ALWAYS
+  production and the source is ALWAYS the deploy the user is currently looking at. The legacy
+  `PromoteDialog` asked the user to pick from + to via dropdowns + offered an "Include other projects"
+  checkbox + "+ Create new environment..." sentinel — all of which were tax for zero ergonomic
+  gain (only 1 real path exists) AND introduced a race (a new deploy could replace the "active
+  release of source env" between view-open and submit). New surface adopted the Vercel/Netlify
+  pattern: a primary `Promote to Production` button on the preview deploy detail page that opens
+  a confirmation modal with phrase symmetry (`promote to production`, matching `rollback production`)
+  + sticky info toast trail + transitional badge during the ~90s sync window + automatic cache
+  invalidation on the canonical (builds.list / builds.detail / projectStatus.detail) tuple. The
+  legacy `PromoteDialog` and its 2 call sites remain functional — Phase 5 of the rollout will
+  delete them after sponsor validates the new flow. Same-day generalization: `use-rollback-in-flight`
+  → `use-mutation-in-flight` with `kind: 'rollback' | 'promote' | 'redeploy'` discriminator; the
+  rollback-specific reader is preserved as a thin back-compat wrapper so existing code paths and
+  tests stay green. 22 hermetic regression locks across the new dialog + the new generalized hook
+  + the BuildHeader visibility rules (only show for preview-env succeeded builds when callback
+  wired — production builds + non-wired call sites both stay quiet).
 - Artifact supply-chain pipeline (ROADMAP_AWS AM6): `artifacts` GitHub Actions workflow
   building the 2 theo-cloud images (`theo-cloud` cloud-API + `theo-dashboard`) via the reusable
   `build-publish` workflow hosted in the `theo` repo (cross-repo `uses:`). **Dual-channel + low-cost:**

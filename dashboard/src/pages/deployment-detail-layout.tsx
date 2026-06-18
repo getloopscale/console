@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, Outlet, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, XCircle } from 'lucide-react';
 import { Button, EmptyState, PageShell } from '@usetheo/ui';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useDeployment } from '@/hooks/use-deployment';
@@ -11,6 +12,8 @@ import { useProjectStatus } from '@/hooks/use-project-status';
 import { RollbackDialog } from '@/components/dialogs/rollback-dialog';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { CancelBuildDialog } from '@/components/dialogs/cancel-build-dialog';
+import { PromoteToProductionDialog } from '@/components/dialogs/promote-to-production-dialog';
+import { queryKeys } from '@/lib/api/query-keys';
 
 /**
  * DeploymentDetailLayout — Plan J-17 T5.1 + T5.2.
@@ -52,10 +55,25 @@ export function DeploymentDetailLayout() {
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [redeployOpen, setRedeployOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [promoteToProdOpen, setPromoteToProdOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const handleCancel = () => setCancelOpen(true);
   const handleRollback = () => setRollbackOpen(true);
   const handleRedeploy = () => setRedeployOpen(true);
+  const handlePromoteToProduction = () => setPromoteToProdOpen(true);
+
+  // Sponsor LIVE-caught 2026-06-18: long-running deploy mutations leave
+  // the grid stale until cache is invalidated. Same handler reused for
+  // rollback + promote — both mutate the canonical (active_release,
+  // grid row badges, build row status) tuple so all three keys need to
+  // be invalidated. The handler stays a single function: every mutation
+  // changes the same data sources.
+  const handleDeployMutationSettled = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.builds.list(name) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.builds.detail(id) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.projectStatus.detail(name) });
+  };
 
   if (loading) {
     return (
@@ -115,6 +133,7 @@ export function DeploymentDetailLayout() {
           onCancel={handleCancel}
           onRollback={handleRollback}
           onRedeploy={handleRedeploy}
+          onPromoteToProduction={handlePromoteToProduction}
         />
         {/* Plan deploy-timeline-canonical-5-phases — canonical 5-phase hero
             mounted above the existing tab strip so every tab inherits the
@@ -165,6 +184,7 @@ export function DeploymentDetailLayout() {
         onOpenChange={setRollbackOpen}
         projectName={name}
         targetBuild={build}
+        onRolledBack={handleDeployMutationSettled}
       />
       <RedeployDialog
         open={redeployOpen}
@@ -176,6 +196,13 @@ export function DeploymentDetailLayout() {
         open={cancelOpen}
         onOpenChange={setCancelOpen}
         build={build}
+      />
+      <PromoteToProductionDialog
+        open={promoteToProdOpen}
+        onOpenChange={setPromoteToProdOpen}
+        projectName={name}
+        sourceBuild={build}
+        onPromoted={handleDeployMutationSettled}
       />
     </PageShell>
   );

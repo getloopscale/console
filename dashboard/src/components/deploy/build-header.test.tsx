@@ -23,8 +23,20 @@ function makeBuild(overrides: Partial<Build> = {}): Build {
 
 function renderHeader(
   build: Build,
-  opts: { branch?: string; onCancel?: () => void; onRollback?: () => void; onRedeploy?: () => void } = {},
+  opts: {
+    branch?: string;
+    onCancel?: () => void;
+    onRollback?: () => void;
+    onRedeploy?: () => void;
+    onPromoteToProduction?: (() => void) | null;
+  } = {},
 ) {
+  // null = explicitly omit the prop (back-compat coverage); undefined =
+  // use a vi.fn() so the action is wired.
+  const promoteProp =
+    opts.onPromoteToProduction === null
+      ? {}
+      : { onPromoteToProduction: opts.onPromoteToProduction ?? vi.fn() };
   return render(
     <MemoryRouter>
       <BuildHeader
@@ -33,6 +45,7 @@ function renderHeader(
         onCancel={opts.onCancel ?? vi.fn()}
         onRollback={opts.onRollback ?? vi.fn()}
         onRedeploy={opts.onRedeploy ?? vi.fn()}
+        {...promoteProp}
       />
     </MemoryRouter>,
   );
@@ -100,5 +113,56 @@ describe('BuildHeader', () => {
     }
     // Three terminal statuses fire onRedeploy (succeeded + failed + cancelled).
     expect(onRedeploy).toHaveBeenCalledTimes(3);
+  });
+
+  // Sponsor LIVE 2026-06-18 PRD — contextual Promote to Production:
+  // canonical replacement for the legacy PromoteDialog from→to dropdowns.
+  // Visibility rules locked here so a future refactor cannot regress.
+
+  it('test_promote_to_production_button_only_for_preview_env_and_succeeded', async () => {
+    const onPromoteToProduction = vi.fn();
+    // Preview env + succeeded → visible
+    const { unmount } = renderHeader(
+      makeBuild({ status: 'succeeded', environment: 'preview-pr-1' }),
+      { onPromoteToProduction },
+    );
+    const btn = screen.getByRole('button', { name: /promote to production/i });
+    expect(btn).toBeInTheDocument();
+    await userEvent.click(btn);
+    expect(onPromoteToProduction).toHaveBeenCalledOnce();
+    unmount();
+
+    // Preview env + running → absent (only succeeded can promote)
+    renderHeader(makeBuild({ status: 'running', environment: 'preview-pr-1' }), {
+      onPromoteToProduction,
+    });
+    expect(
+      screen.queryByRole('button', { name: /promote to production/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('test_promote_to_production_absent_for_production_env', () => {
+    // Production env + succeeded → STILL absent. Production deploys
+    // are already in production; the action is semantically a no-op
+    // and the backend would 409 with SAME_ENVIRONMENT.
+    renderHeader(
+      makeBuild({ status: 'succeeded', environment: 'production' }),
+      { onPromoteToProduction: vi.fn() },
+    );
+    expect(
+      screen.queryByRole('button', { name: /promote to production/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('test_promote_to_production_absent_when_callback_not_wired', () => {
+    // Back-compat: existing BuildHeader call sites that don't wire
+    // the new optional callback MUST see zero behavior change.
+    renderHeader(
+      makeBuild({ status: 'succeeded', environment: 'preview-pr-1' }),
+      { onPromoteToProduction: null },
+    );
+    expect(
+      screen.queryByRole('button', { name: /promote to production/i }),
+    ).not.toBeInTheDocument();
   });
 });

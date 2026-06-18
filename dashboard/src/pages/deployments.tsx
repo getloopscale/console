@@ -15,6 +15,7 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useDeploymentsListStream } from '@/hooks/use-deployments-list-stream';
 import { useProjectStatus } from '@/hooks/use-project-status';
+import { useRollbackInFlight } from '@/hooks/use-rollback-in-flight';
 import { useBuildEnvs } from '@/hooks/use-build-envs';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { DeploymentRowVisitIcon } from '@/components/project/deployment-row-visit-icon';
@@ -167,6 +168,12 @@ export function DeploymentsPage() {
   // is RUNNING — the banner would otherwise lie that the in-flight commit
   // is already serving traffic.
   const { status: prodStatus } = useProjectStatus(name);
+  // Sponsor 2026-06-18 — honest progress badge during the ~90s sync gap
+  // between submit and DB flip. The dialog publishes the target row id;
+  // we suppress the canonical "● Active" badge on it and render a
+  // pulsing "↻ Rolling back to <sha>…" badge instead, until the DB
+  // flips and use-rollback-in-flight clears.
+  const rollbackInFlight = useRollbackInFlight(name);
   const activeBuildId = prodStatus?.active_release?.build_id;
 
   // T4.3 finding 3.2 + ADR D3: dynamic env filter chip set sourced
@@ -427,7 +434,14 @@ export function DeploymentsPage() {
             <Table.Body>
               {filtered.map((b, idx) => {
                 const sha = b.commit_sha.slice(0, 7);
-                const isActive = activeBuildId === b.build_id;
+                const isRollingBackTo =
+                  rollbackInFlight?.targetBuildId === b.build_id;
+                // While a rollback is in flight to THIS row, suppress
+                // the canonical Active badge (DB still says old release
+                // is active for another ~90s) — the pulsing badge
+                // expresses the transitional state honestly.
+                const isActive =
+                  !isRollingBackTo && activeBuildId === b.build_id;
                 // Ordering signal: filtered is already sorted by created_at
                 // desc in the hook (most recent first), so #1 is the newest.
                 const orderLabel = `#${idx + 1}`;
@@ -464,6 +478,19 @@ export function DeploymentsPage() {
                               className="border-success/50 bg-success/10 text-success text-label uppercase"
                             >
                               ● Active
+                            </Badge>
+                          )}
+                          {isRollingBackTo && (
+                            <Badge
+                              variant="outline"
+                              className="border-warning/50 bg-warning/10 text-warning text-label uppercase animate-pulse inline-flex items-center gap-1"
+                              aria-live="polite"
+                            >
+                              <RefreshCw
+                                className="size-3 animate-spin"
+                                aria-hidden="true"
+                              />
+                              Rolling back to {sha}…
                             </Badge>
                           )}
                           {b.environment && (
