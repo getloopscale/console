@@ -470,8 +470,15 @@ func main() {
 		logger.Warn("service-auth Ed25519 private key not configured — Phase 1 single-control only; set THEO_SERVICE_AUTH_ED25519_PRIVATE_KEY to enable dual-control")
 	}
 
+	// LIVE-caught 2026-06-18: 30s timeout was killing legitimate
+	// long-running engine ops (rollback waits for ArgoCD sync ≤ 120s,
+	// promote, deep status). Client timeout MUST exceed the engine
+	// handler ceiling (150s) so the engine has time to either succeed
+	// OR write its own ROLLBACK_FAILED state. Without this header,
+	// the BFF kills the request mid-sync-wait and the engine can't
+	// even surface "sync timeout" properly to the dashboard.
 	engineClient := &http.Client{
-		Timeout:   30 * time.Second,
+		Timeout:   180 * time.Second,
 		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
 	// CANONICAL FIX 2026-06-15 (FAANG): GitHub webhook authenticates via
@@ -701,11 +708,16 @@ func main() {
 	}
 
 	// Start server
+	//
+	// WriteTimeout MUST exceed the longest-running proxied operation
+	// (rollback ≤ 150s engine handler + 30s ArgoCD sync wait grace).
+	// Previous 30s caused BFF to cut the connection mid-sync wait;
+	// dashboard saw a network error with no useful body.
 	srv := &http.Server{
 		Addr:         cfg.ListenAddr,
 		Handler:      r,
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: 200 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Loader2, Undo2 } from 'lucide-react';
 import { Alert, Button, Dialog, Input, Label } from '@usetheo/ui';
-import { engineFetch } from '@/lib/api';
+import { ensureSSEToken } from '@/lib/api';
+import { API_URL } from '@/lib/config';
 import type { Build, RollbackResponse } from '@/lib/api/types';
 
 interface RollbackDialogProps {
@@ -37,40 +38,49 @@ export function RollbackDialog({
     }
     setSubmitting(true);
     try {
-      // Engine contract (api/internal/routes/rollback.go):
-      //   POST /api/v1/projects/{name}/rollback
-      //   body: { environment: string,
-      //           to_release_id?: string,  // canonical state-machine id
-      //           build_id?: string }      // dashboard sugar — engine resolves
-      //
-      // The dashboard's user intent is "rollback to THIS specific build",
-      // not "undo last deploy". We send build_id so the engine resolves
-      // the release that was created from that build via
-      // RollbackReleaseLookup. environment scopes the rollback to the
-      // correct env per the Release state machine.
-      const res = await engineFetch<RollbackResponse>(
-        `/api/v1/projects/${encodeURIComponent(projectName)}/rollback`,
+      // LIVE-caught 2026-06-18: engineFetch swallows non-OK responses
+      // → "Couldn't trigger rollback" generic message. Rollback is a
+      // critical destructive op; the user MUST see why it failed
+      // (sync timeout, no previous release, network error, etc).
+      // Direct fetch + parse the canonical TheoError body so the user
+      // gets actionable feedback.
+      const token = await ensureSSEToken();
+      if (!token) {
+        setError('Session expired. Sign in again and retry the rollback.');
+        return;
+      }
+      const resp = await fetch(
+        `${API_URL}/engine/api/v1/projects/${encodeURIComponent(projectName)}/rollback`,
         {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'Idempotency-Key': crypto.randomUUID(),
+          },
           body: JSON.stringify({
             environment: targetBuild.environment,
             build_id: targetBuild.build_id,
           }),
+          credentials: 'include',
         },
       );
-      if (res === null) {
-        setError("Couldn't trigger rollback. Try again in a moment.");
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => null) as
+          | { message?: string; code?: string; error?: string }
+          | null;
+        setError(formatRollbackError(resp.status, errBody));
         return;
       }
+      const res = (await resp.json()) as RollbackResponse;
       onRolledBack?.(res);
       setPhrase('');
       onOpenChange(false);
     } catch (e) {
-      // T0.1 TCIA — sponsor critério #6
       setError(
         e instanceof Error
           ? `Rollback failed: ${e.message}. The current release remains active. Retry, or contact support if it persists.`
-          : 'Rollback failed. The current release remains active. Retry, or contact support if it persists.',
+          : 'Rollback failed: network error. The current release remains active. Check connection and retry.',
       );
     } finally {
       setSubmitting(false);
@@ -133,4 +143,53 @@ export function RollbackDialog({
       </Dialog.Content>
     </Dialog>
   );
+}
+
+/**
+ * Translate a canonical TheoError body into actionable user-facing copy.
+ * Uses product-language only (no internal terms per Cross-Project Rule 9):
+ * we say "deployment infrastructure", never "ArgoCD" or "Kubernetes".
+ */
+function formatRollbackError(
+  status: number,
+  body: { message?: string; code?: string; error?: string } | null,
+): string {
+  const code = body?.code ?? '';
+  const detail = body?.message ?? body?.error ?? '';
+
+  // Canonical codes mapped to actionable copy.
+  if (code === 'NO_ACTIVE_RELEASE' || /no active release/i.test(detail)) {
+    return 'No active release to rollback. Deploy something first, then try again.';
+  }
+  if (code === 'NO_PREVIOUS_RELEASE' || /no previous release/i.test(detail)) {
+    return 'No previous release available. This build is the first deploy — nothing to fall back to.';
+  }
+  if (/sync wait failed/i.test(detail) || /sync timeout/i.test(detail)) {
+    return 'Rollback started but the deployment infrastructure did not finish in time. The current release is in a degraded state — please retry in a few seconds. If the issue persists, contact support.';
+  }
+  if (/sync trigger failed/i.test(detail)) {
+    return 'Rollback could not contact the deployment infrastructure. The current release remains active. Retry, or contact support if it persists.';
+  }
+  if (code === 'MISSING_FIELD' || status === 400) {
+    return detail
+      ? `Rollback rejected: ${detail}. Refresh the page and retry.`
+      : 'Rollback rejected: the request was malformed. Refresh the page and retry.';
+  }
+  if (status === 401) {
+    return 'Session expired. Sign in again and retry the rollback.';
+  }
+  if (status === 403) {
+    return 'You do not have permission to rollback this project.';
+  }
+  if (status === 404) {
+    return 'Project or build not found. The build may have been deleted — refresh the page.';
+  }
+  if (status >= 500) {
+    return detail
+      ? `Rollback failed (HTTP ${status}): ${detail}. The current release remains active. Retry, or contact support if it persists.`
+      : `Rollback failed (HTTP ${status}). The current release remains active. Retry, or contact support if it persists.`;
+  }
+  return detail
+    ? `Rollback failed (HTTP ${status}): ${detail}`
+    : `Rollback failed (HTTP ${status}). Please retry.`;
 }
