@@ -2,20 +2,24 @@ FROM golang:1.26.1-alpine3.22 AS builder
 WORKDIR /workspace
 
 ENV GOWORK=off
+ENV GOPRIVATE=github.com/usetheodev/*
 
-# Sibling theo-contracts module: go.mod uses `replace => ../theo-contracts`
-# which from /workspace/ resolves to /theo-contracts. Provided via BuildKit
-# named build context `theo-contracts` so the sibling repo is reachable inside
-# the Docker build (per M5 decomposition; see theo/docs/version-pin-cutover-runbook.md).
-# Sponsor-direct-approval 2026-06-17 ("O sistema deve rodar no k3, continue").
-COPY --from=theo-contracts . /theo-contracts
+# theo-contracts is a PINNED published module (M5 version-pin cutover — go.mod requires
+# github.com/usetheodev/theo-contracts v0.1.0, NO replace). The private module is fetched via
+# a short-lived token mounted as a buildx secret (id=gomod_token); the token is NEVER written
+# to an image layer. git is required for the module VCS fetch.
+RUN apk add --no-cache git
 
 # Post-M4 decomposition: theo-cloud is its own repo (no more cloud/ subdir).
 # Build context is theo-cloud/ root; main.go lives at cmd/main.go directly.
 COPY go.mod go.sum ./
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \
-    go mod download
+    --mount=type=secret,id=gomod_token \
+    sh -c 'if [ -s /run/secrets/gomod_token ]; then \
+      git config --global url."https://x-access-token:$(cat /run/secrets/gomod_token)@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"; \
+    fi' \
+    && go mod download
 
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/

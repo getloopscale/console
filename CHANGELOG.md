@@ -29,6 +29,11 @@ Format: Keep a Changelog + Semantic Versioning.
   roadmap. `CLAUDE.md` points to it.
 
 ### Changed
+- **BREAKING (build): pinned `github.com/usetheodev/theo-contracts` to v0.1.0 (M5 version-pin cutover).**
+  Dropped the local `replace => ../theo-contracts` in `go.mod`; consumes the published module. `Dockerfile`
+  no longer needs the `theo-contracts` BuildKit build-context — it fetches the pinned **private** module
+  via `GOPRIVATE` + a short-lived token mounted as a buildx `--secret` (never baked in a layer). Build is
+  now self-contained. Verified: `go build ./... && go test ./... -race` GREEN; resolves theo-contracts v0.1.0.
 - Rewrote `CLAUDE.md` into a full self-governing governance contract for any Claude Code
   instance working in this repo: what the repo is + its leaf position in the decomposition
   graph, where the Cycle 6+1 governance lives (the umbrella `../.claude/`), stack table,
