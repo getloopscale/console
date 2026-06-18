@@ -1,6 +1,9 @@
 # AM6 — theo-cloud repo artifact release: 2 images (cloud-API + dashboard), to GHCR.
-# Calls the reusable build-publish workflow hosted in the theo repo (cross-repo, EC-3:
-# pinned ref @v0.4.0 — the theo repo must be tagged with the reusable workflow first, tag-first).
+# Calls the reusable build-publish workflow hosted in the theo repo (cross-repo).
+# Ref = @develop today (resolves to the branch carrying build-publish.yml). Cuts over to a
+# pinned theo release tag at release time (owner-gated) — same pre-release convention as the
+# `theo-contracts` replace => ../theo-contracts → pinned-tag cutover (see theo-cloud/CLAUDE.md
+# § Invariants). EC-3 tag-first: the pinned tag must carry build-publish.yml before cutover.
 name: release-artifacts
 on:
   push:
@@ -17,7 +20,7 @@ jobs:
         include:
           - { image: theo-cloud,     dockerfile: Dockerfile,           context: . }
           - { image: theo-dashboard, dockerfile: dashboard/Dockerfile, context: dashboard }
-    uses: usetheodev/theo/.github/workflows/build-publish.yml@v0.4.0   # EC-3: pinned ref, tag-first
+    uses: usetheodev/theo/.github/workflows/build-publish.yml@develop   # cutover to pinned tag at release (owner-gated)
     with:
       image: ${{ matrix.image }}
       dockerfile: ${{ matrix.dockerfile }}
