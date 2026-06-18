@@ -5,6 +5,9 @@ Format: Keep a Changelog + Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+- cloud-API config loader now fail-fasts in production when the memory proxy is enabled but its bearer is missing (install-config-contract Slice 1, T4.1): `config.Validate()` rejects `THEMORY_API_KEY` empty while `THEMORY_BASE_URL` is set — documented as required on the field but previously unenforced (the proxy would have called theo-data unauthenticated). 3 new tests (-race).
+
 ### Added
 - Artifact supply-chain pipeline (ROADMAP_AWS AM6): `artifacts` GitHub Actions workflow
   building the 2 theo-cloud images (`theo-cloud` cloud-API + `theo-dashboard`) via the reusable

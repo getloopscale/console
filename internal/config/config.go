@@ -199,6 +199,13 @@ func (c Config) Validate() error {
 		if c.HydraAdminURL == "" {
 			return fmt.Errorf("HYDRA_ADMIN_URL is required in production")
 		}
+		// install-config-contract Slice 1 T4.1: when the memory proxy is enabled
+		// (ThemoryBaseURL set), its master bearer MUST be present — otherwise the
+		// proxy would call theo-data unauthenticated. Documented as required on the
+		// ThemoryAPIKey field; now enforced fail-fast at boot.
+		if c.ThemoryBaseURL != "" && c.ThemoryAPIKey.Value() == "" {
+			return fmt.Errorf("THEMORY_API_KEY is required in production when THEMORY_BASE_URL is set")
+		}
 	}
 	return nil
 }
