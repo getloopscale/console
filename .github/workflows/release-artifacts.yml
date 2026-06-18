@@ -1,0 +1,24 @@
+# AM6 — theo-cloud repo artifact release: 2 images (cloud-API + dashboard), to GHCR.
+# Calls the reusable build-publish workflow hosted in the theo repo (cross-repo, EC-3:
+# pinned ref @v0.4.0 — the theo repo must be tagged with the reusable workflow first, tag-first).
+name: release-artifacts
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+jobs:
+  images:
+    strategy:
+      matrix:
+        include:
+          - { image: theo-cloud,     dockerfile: Dockerfile,           context: . }
+          - { image: theo-dashboard, dockerfile: dashboard/Dockerfile, context: dashboard }
+    uses: usetheodev/theo/.github/workflows/build-publish.yml@v0.4.0   # EC-3: pinned ref, tag-first
+    with:
+      image: ${{ matrix.image }}
+      dockerfile: ${{ matrix.dockerfile }}
+      context: ${{ matrix.context }}

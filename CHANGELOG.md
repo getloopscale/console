@@ -6,6 +6,10 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Added
+- Artifact supply-chain pipeline (ROADMAP_AWS AM6): `release-artifacts` GitHub Actions
+  workflow building the 2 theo-cloud images (`theo-cloud` cloud-API + `theo-dashboard`) via
+  the reusable `build-publish` workflow hosted in the `theo` repo (cross-repo `uses:` pinned
+  ref) — buildx `--sbom --provenance` → push by digest to GHCR private → keyless cosign sign.
 - Extracted from the `theo` monorepo (`cloud/`) into this standalone repository
   via `git filter-repo` (history preserved) — M4 of the decomposition roadmap.
   Contains the Go cloud-API (`cmd/` + `internal/`) and the React/TSX dashboard
@@ -17,10 +21,15 @@ Format: Keep a Changelog + Semantic Versioning.
   roadmap. `CLAUDE.md` points to it.
 
 ### Changed
-- Expanded `CLAUDE.md` with a Durable-enforcement section (the engine-hosted
-  `acyclic-graph` gate proving theo-cloud imports no engine `pkg/*`, the cross-repo
-  contract runner for both seams, the `replace`-to-pinned cutover, and the J-19 debt
-  pointer) — M5 of the decomposition roadmap.
+- Rewrote `CLAUDE.md` into a full self-governing governance contract for any Claude Code
+  instance working in this repo: what the repo is + its leaf position in the decomposition
+  graph, where the Cycle 6+1 governance lives (the umbrella `../.claude/`), stack table,
+  real build/test commands, the Non-Negotiable Rules (CR-9 cloud abstraction, acyclic
+  invariant, idempotent+order-independent webhooks), architecture + seam map, the
+  Durable-enforcement section (engine-hosted `acyclic-graph` gate, cross-repo contract
+  matrix, `replace`-to-pinned cutover), a Common Mistakes table for the billing/auth/
+  dashboard code that migrated here, and a pre-completion checklist — M5 of the
+  decomposition roadmap.
 - Go module path renamed `github.com/usetheo/theo/cloud` → `github.com/usetheodev/theo-cloud`
   (matches the repository URL; internal imports rewritten).
 - Consumes the contract vocabulary from the standalone `github.com/usetheodev/theo-contracts`
