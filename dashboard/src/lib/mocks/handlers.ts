@@ -309,6 +309,48 @@ function registerLogStreamHandlers() {
     }, 1200);
     return () => clearInterval(interval);
   });
+
+  // Plan deploy-timeline-canonical-5-phases — canonical 5-phase mock
+  // mirrors the server's emit shape (deploy_timeline.<phase>.<status>).
+  // Used by browser-runtime E2E + visual-validation mode.
+  registerSSE('/api/v1/deploys/{id}/timeline', (es) => {
+    const seq: Array<{ phase: string; status: string; substate: string; source: string }> = [
+      { phase: 'build', status: 'in_progress', substate: 'clone · install · build image', source: 'release_db' },
+      { phase: 'build', status: 'completed', substate: 'clone · install · build image', source: 'release_db' },
+      { phase: 'sign', status: 'in_progress', substate: 'image signing · supply-chain manifest', source: 'release_db' },
+      { phase: 'sign', status: 'completed', substate: 'image signing · supply-chain manifest', source: 'release_db' },
+      { phase: 'release', status: 'in_progress', substate: 'manifest · the deployment system', source: 'release_db' },
+      { phase: 'release', status: 'completed', substate: 'manifest · the deployment system', source: 'release_db' },
+      { phase: 'deploy', status: 'in_progress', substate: 'the deployment system · pods up', source: 'argocd_app' },
+      { phase: 'deploy', status: 'completed', substate: 'the deployment system · pods up', source: 'argocd_app' },
+      { phase: 'live', status: 'in_progress', substate: 'live URL responds 200', source: 'status_url_probe' },
+      { phase: 'live', status: 'completed', substate: 'live URL responds 200', source: 'status_url_probe' },
+    ];
+    let i = 0;
+    let lastId = 0;
+    const interval = setInterval(() => {
+      if (i >= seq.length) {
+        clearInterval(interval);
+        return;
+      }
+      const item = seq[i++];
+      lastId++;
+      const payload = {
+        deploy_id: 'mock-deploy',
+        phase: item.phase,
+        status: item.status,
+        source: item.source,
+        substate_message: item.substate,
+        timestamp: new Date().toISOString(),
+      };
+      const ev = new MessageEvent(`deploy_timeline.${item.phase}.${item.status}`, {
+        data: JSON.stringify(payload),
+        lastEventId: String(lastId),
+      });
+      es.dispatchEvent(ev);
+    }, 250);
+    return () => clearInterval(interval);
+  });
 }
 
 // ============================================================================

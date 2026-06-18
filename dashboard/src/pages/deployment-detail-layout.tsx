@@ -6,6 +6,7 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useDeployment } from '@/hooks/use-deployment';
 import { BuildHeader } from '@/components/deploy/build-header';
+import { DeployTimelineHero } from '@/components/deploy/deploy-timeline-hero';
 import { RollbackDialog } from '@/components/dialogs/rollback-dialog';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { CancelBuildDialog } from '@/components/dialogs/cancel-build-dialog';
@@ -109,6 +110,10 @@ export function DeploymentDetailLayout() {
           onRollback={handleRollback}
           onRedeploy={handleRedeploy}
         />
+        {/* Plan deploy-timeline-canonical-5-phases — canonical 5-phase hero
+            mounted above the existing tab strip so every tab inherits the
+            persistent at-a-glance state. Vercel-style information hierarchy. */}
+        <DeployTimelineHero deployId={build.build_id} />
         <nav className="border-b border-border" aria-label="Deployment tabs">
           <ul className="flex gap-1 -mb-px">
             {TABS.map((t) => {

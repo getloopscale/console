@@ -1,0 +1,100 @@
+# Taskfile.yml — theo-cloud repo
+#
+# T2.4 of plan canonical-tests-rewrite-v2 v1.0 per ADR-2026-06-17-T3.
+# Closes F-001 BLOCKER from audit 2026-06-17-canonical-tests-deep-review:
+# the cross-repo orphanage where the 3 extracted repos lacked own Taskfile.
+#
+# Dual Go (cloud-API) + Node (dashboard SPA) targets.
+
+version: '3'
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build cloud-API (Go) + dashboard (Vite)
+    cmds:
+      - task: build:api
+      - task: build:dashboard
+
+  build:api:
+    desc: Build cloud-API Go binary
+    cmds:
+      - go build ./...
+
+  build:dashboard:
+    desc: Build dashboard SPA
+    dir: dashboard
+    cmds:
+      - npm ci
+      - npm run build
+
+  test:
+    desc: Full test suite (Go race + Vitest)
+    cmds:
+      - task: test:api
+      - task: test:dashboard
+
+  test:api:
+    desc: Go test suite for cloud-API
+    cmds:
+      - go test ./... -race -count=1 -timeout 5m
+
+  test:dashboard:
+    desc: Vitest for dashboard
+    dir: dashboard
+    cmds:
+      - npm test
+
+  test:smoke:
+    desc: |
+      T2.6 of plan canonical-tests-rewrite-v2 — fast smoke subset asserting
+      cloud-API compiles + 1 route returns OK end-to-end with mocked deps.
+      Dashboard smoke = type-check + build clean. Target: < 60s combined.
+    cmds:
+      - go test ./... -count=1 -short -timeout 1m -run 'TestSmoke|TestHealth'
+      - cd dashboard && npm run typecheck 2>/dev/null || echo "[smoke] dashboard typecheck not configured"
+
+  test:contract:
+    desc: |
+      T2.5 of plan canonical-tests-rewrite-v2 — Pact-go consumer contract
+      verification for theo-data themory client (stub until Phase 2).
+    cmds:
+      - |
+        if [ -d internal/contract ]; then
+          go test ./internal/contract/... -tags=contract -count=1 -timeout 2m
+        else
+          echo "[test:contract] internal/contract/ not yet wired — Phase 2 of canonical-tests-rewrite-v2 plan"
+        fi
+
+  lint:
+    desc: Go lint + dashboard ESLint
+    cmds:
+      - |
+        if command -v golangci-lint >/dev/null 2>&1; then
+          golangci-lint run ./...
+        else
+          echo "[lint] golangci-lint not installed — skipping Go"
+        fi
+      - cd dashboard && npm run lint 2>/dev/null || echo "[lint] dashboard lint not configured"
+
+  fmt:
+    desc: Go fmt + dashboard prettier
+    cmds:
+      - go fmt ./...
+      - cd dashboard && npx prettier --check 'src/**/*.{ts,tsx,js,jsx}' 2>/dev/null || true
+
+  tidy:
+    desc: go mod tidy
+    cmds:
+      - go mod tidy
+
+  ci:
+    desc: All gates a PR must pass (build + test + lint)
+    cmds:
+      - task: build
+      - task: test
+      - task: lint

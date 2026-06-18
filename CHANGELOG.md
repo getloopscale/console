@@ -12,6 +12,12 @@ Format: Keep a Changelog + Semantic Versioning.
   `develop` push builds only CHANGED images, tags `:develop`/`:develop-<sha>`, unsigned (fast/cheap);
   a `v*` tag builds BOTH with SBOM + provenance + keyless cosign and tags `:X.Y.Z`/`:latest`.
   Levers: paths-filter change-detection, GHA layer cache, amd64-only, `cancel-in-progress` on dev.
+- `Taskfile.yml` — T2.4 of plan canonical-tests-rewrite-v2 v1.0 per ADR-2026-06-17-T3.
+  Closes F-001 BLOCKER from the engine audit 2026-06-17-canonical-tests-deep-review.
+  Dual Go (cloud-API) + Node (dashboard SPA) targets: `task build:api` / `task build:dashboard`
+  / `task test:api` (Go race) / `task test:dashboard` (Vitest) / `task test:smoke` (T2.6) /
+  `task test:contract` (stub for Phase 2 Pact-go themory consumer contract) / `task lint` /
+  `task ci`. Aligns with engine task surface.
 - Extracted from the `theo` monorepo (`cloud/`) into this standalone repository
   via `git filter-repo` (history preserved) — M4 of the decomposition roadmap.
   Contains the Go cloud-API (`cmd/` + `internal/`) and the React/TSX dashboard
