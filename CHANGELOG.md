@@ -6,6 +6,12 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Added
+- Artifact supply-chain pipeline (ROADMAP_AWS AM6): `artifacts` GitHub Actions workflow
+  building the 2 theo-cloud images (`theo-cloud` cloud-API + `theo-dashboard`) via the reusable
+  `build-publish` workflow hosted in the `theo` repo (cross-repo `uses:`). **Dual-channel + low-cost:**
+  `develop` push builds only CHANGED images, tags `:develop`/`:develop-<sha>`, unsigned (fast/cheap);
+  a `v*` tag builds BOTH with SBOM + provenance + keyless cosign and tags `:X.Y.Z`/`:latest`.
+  Levers: paths-filter change-detection, GHA layer cache, amd64-only, `cancel-in-progress` on dev.
 - `Taskfile.yml` — T2.4 of plan canonical-tests-rewrite-v2 v1.0 per ADR-2026-06-17-T3.
   Closes F-001 BLOCKER from the engine audit 2026-06-17-canonical-tests-deep-review.
   Dual Go (cloud-API) + Node (dashboard SPA) targets: `task build:api` / `task build:dashboard`
@@ -23,10 +29,15 @@ Format: Keep a Changelog + Semantic Versioning.
   roadmap. `CLAUDE.md` points to it.
 
 ### Changed
-- Expanded `CLAUDE.md` with a Durable-enforcement section (the engine-hosted
-  `acyclic-graph` gate proving theo-cloud imports no engine `pkg/*`, the cross-repo
-  contract runner for both seams, the `replace`-to-pinned cutover, and the J-19 debt
-  pointer) — M5 of the decomposition roadmap.
+- Rewrote `CLAUDE.md` into a full self-governing governance contract for any Claude Code
+  instance working in this repo: what the repo is + its leaf position in the decomposition
+  graph, where the Cycle 6+1 governance lives (the umbrella `../.claude/`), stack table,
+  real build/test commands, the Non-Negotiable Rules (CR-9 cloud abstraction, acyclic
+  invariant, idempotent+order-independent webhooks), architecture + seam map, the
+  Durable-enforcement section (engine-hosted `acyclic-graph` gate, cross-repo contract
+  matrix, `replace`-to-pinned cutover), a Common Mistakes table for the billing/auth/
+  dashboard code that migrated here, and a pre-completion checklist — M5 of the
+  decomposition roadmap.
 - Go module path renamed `github.com/usetheo/theo/cloud` → `github.com/usetheodev/theo-cloud`
   (matches the repository URL; internal imports rewritten).
 - Consumes the contract vocabulary from the standalone `github.com/usetheodev/theo-contracts`
