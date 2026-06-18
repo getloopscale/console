@@ -6,10 +6,12 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Added
-- Artifact supply-chain pipeline (ROADMAP_AWS AM6): `release-artifacts` GitHub Actions
-  workflow building the 2 theo-cloud images (`theo-cloud` cloud-API + `theo-dashboard`) via
-  the reusable `build-publish` workflow hosted in the `theo` repo (cross-repo `uses:` pinned
-  ref) — buildx `--sbom --provenance` → push by digest to GHCR private → keyless cosign sign.
+- Artifact supply-chain pipeline (ROADMAP_AWS AM6): `artifacts` GitHub Actions workflow
+  building the 2 theo-cloud images (`theo-cloud` cloud-API + `theo-dashboard`) via the reusable
+  `build-publish` workflow hosted in the `theo` repo (cross-repo `uses:`). **Dual-channel + low-cost:**
+  `develop` push builds only CHANGED images, tags `:develop`/`:develop-<sha>`, unsigned (fast/cheap);
+  a `v*` tag builds BOTH with SBOM + provenance + keyless cosign and tags `:X.Y.Z`/`:latest`.
+  Levers: paths-filter change-detection, GHA layer cache, amd64-only, `cancel-in-progress` on dev.
 - Extracted from the `theo` monorepo (`cloud/`) into this standalone repository
   via `git filter-repo` (history preserved) — M4 of the decomposition roadmap.
   Contains the Go cloud-API (`cmd/` + `internal/`) and the React/TSX dashboard

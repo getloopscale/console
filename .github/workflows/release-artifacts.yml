@@ -1,27 +1,67 @@
-# AM6 — theo-cloud repo artifact release: 2 images (cloud-API + dashboard), to GHCR.
+# AM6 — theo-cloud artifact pipeline, dual-channel + low-cost.
+#   develop push  → DEV channel: build only CHANGED images, :develop/:develop-<sha>, NO sign
+#   tag v*        → RELEASE channel: build BOTH images, SBOM + provenance + keyless cosign
+#   workflow_dispatch → build BOTH (unsigned), manual
 # Calls the reusable build-publish workflow hosted in the theo repo (cross-repo).
-# Ref = @develop today (resolves to the branch carrying build-publish.yml). Cuts over to a
-# pinned theo release tag at release time (owner-gated) — same pre-release convention as the
-# `theo-contracts` replace => ../theo-contracts → pinned-tag cutover (see theo-cloud/CLAUDE.md
-# § Invariants). EC-3 tag-first: the pinned tag must carry build-publish.yml before cutover.
-name: release-artifacts
+# Ref = @develop today (resolves to the branch carrying build-publish.yml); cuts over to a pinned
+# theo release tag at release time (owner-gated) — same convention as theo-contracts replace→pin
+# (see theo-cloud/CLAUDE.md § Invariants). EC-3 tag-first: the pinned tag must carry build-publish.yml.
+name: artifacts
 on:
   push:
+    branches: [develop]
     tags: ["v*"]
   workflow_dispatch: {}
 permissions:
   contents: read
   packages: write
   id-token: write
+concurrency:
+  group: artifacts-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/develop' }}
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.set.outputs.images }}
+      sign: ${{ steps.set.outputs.sign }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: filter
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && github.event_name != 'workflow_dispatch' }}
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            theo-cloud: ['cmd/**', 'internal/**', 'go.mod', 'go.sum', 'Dockerfile']
+            theo-dashboard: ['dashboard/**']
+      - id: set
+        env:
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          IS_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
+          CHANGES: ${{ steps.filter.outputs.changes }}
+        run: |
+          set -euo pipefail
+          ALL='[{"image":"theo-cloud","dockerfile":"Dockerfile","context":"."},{"image":"theo-dashboard","dockerfile":"dashboard/Dockerfile","context":"dashboard"}]'
+          if [ "$IS_TAG" = "true" ] || [ "$IS_DISPATCH" = "true" ]; then
+            echo "images=$ALL" >> "$GITHUB_OUTPUT"
+            echo "sign=$IS_TAG" >> "$GITHUB_OUTPUT"
+          else
+            CH="${CHANGES:-[]}"
+            SEL=$(printf '%s' "$ALL" | jq -c --argjson ch "$CH" '[.[] | select(.image as $i | $ch | index($i))]')
+            echo "images=$SEL" >> "$GITHUB_OUTPUT"
+            echo "sign=false" >> "$GITHUB_OUTPUT"
+          fi
   images:
+    needs: plan
+    if: ${{ needs.plan.outputs.images != '[]' && needs.plan.outputs.images != '' }}
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - { image: theo-cloud,     dockerfile: Dockerfile,           context: . }
-          - { image: theo-dashboard, dockerfile: dashboard/Dockerfile, context: dashboard }
+        include: ${{ fromJSON(needs.plan.outputs.images) }}
     uses: usetheodev/theo/.github/workflows/build-publish.yml@develop   # cutover to pinned tag at release (owner-gated)
     with:
       image: ${{ matrix.image }}
       dockerfile: ${{ matrix.dockerfile }}
       context: ${{ matrix.context }}
+      sign: ${{ needs.plan.outputs.sign == 'true' }}
