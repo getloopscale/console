@@ -37,11 +37,25 @@ export function RollbackDialog({
     }
     setSubmitting(true);
     try {
+      // Engine contract (api/internal/routes/rollback.go):
+      //   POST /api/v1/projects/{name}/rollback
+      //   body: { environment: string,
+      //           to_release_id?: string,  // canonical state-machine id
+      //           build_id?: string }      // dashboard sugar — engine resolves
+      //
+      // The dashboard's user intent is "rollback to THIS specific build",
+      // not "undo last deploy". We send build_id so the engine resolves
+      // the release that was created from that build via
+      // RollbackReleaseLookup. environment scopes the rollback to the
+      // correct env per the Release state machine.
       const res = await engineFetch<RollbackResponse>(
         `/api/v1/projects/${encodeURIComponent(projectName)}/rollback`,
         {
           method: 'POST',
-          body: JSON.stringify({ build_id: targetBuild.build_id }),
+          body: JSON.stringify({
+            environment: targetBuild.environment,
+            build_id: targetBuild.build_id,
+          }),
         },
       );
       if (res === null) {
