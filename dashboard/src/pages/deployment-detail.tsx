@@ -27,7 +27,6 @@ import { useProjectStatus } from '@/hooks/use-project-status';
 import { DeploymentVisitButton } from '@/components/project/deployment-visit-button';
 import { useEngineApi } from '@/hooks/use-api';
 import { BuildTimelineLive } from '@/components/deploy/build-timeline-live';
-import { DeployTimelineHero } from '@/components/deploy/deploy-timeline-hero';
 import { RollbackDialog } from '@/components/dialogs/rollback-dialog';
 import { PromoteDialog } from '@/components/dialogs/promote-dialog';
 import { CancelBuildDialog } from '@/components/dialogs/cancel-build-dialog';
@@ -156,12 +155,6 @@ export function DeploymentDetailPage() {
           </Link>
         </Button>
       </div>
-
-      {/* Plan deploy-timeline-canonical-5-phases (dashboard half) — Vercel-style
-          5-phase hero visualization (Build → Sign → Release → Deploy → Live).
-          Mounted above the detail grid so users see canonical pipeline state
-          at-a-glance before drilling into the step-level BuildTimelineLive. */}
-      <DeployTimelineHero deployId={build.build_id} className="mb-6" />
 
       {/* T4.4 finding 4.8: timeline column joins at md breakpoint
           (was lg, leaving tablets in single-column with timeline at
