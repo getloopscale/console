@@ -7,6 +7,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { useDeployment } from '@/hooks/use-deployment';
 import { BuildHeader } from '@/components/deploy/build-header';
 import { DeployTimelineHero } from '@/components/deploy/deploy-timeline-hero';
+import { useProjectStatus } from '@/hooks/use-project-status';
 import { RollbackDialog } from '@/components/dialogs/rollback-dialog';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { CancelBuildDialog } from '@/components/dialogs/cancel-build-dialog';
@@ -43,6 +44,11 @@ export function DeploymentDetailLayout() {
   const { name = '', id = '' } = useParams<{ name: string; id: string }>();
   useSetPageTitle(`${name} · Deployment ${id.slice(0, 7)}`);
   const { build, loading, error } = useDeployment(id);
+  // Project-level live state — drives the "Serving" badge in the hero.
+  // Persists across tabs + refreshes; gives the user explicit
+  // confirmation that the canonical chain finished + the right
+  // commit is actually serving traffic.
+  const { status: projectStatus } = useProjectStatus(name);
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [redeployOpen, setRedeployOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -113,7 +119,15 @@ export function DeploymentDetailLayout() {
         {/* Plan deploy-timeline-canonical-5-phases — canonical 5-phase hero
             mounted above the existing tab strip so every tab inherits the
             persistent at-a-glance state. Vercel-style information hierarchy. */}
-        <DeployTimelineHero deployId={build.build_id} />
+        <DeployTimelineHero
+          deployId={build.build_id}
+          liveRelease={{
+            commitShort: projectStatus?.active_release?.git_commit?.slice(0, 7) ?? null,
+            activeSince: projectStatus?.active_release?.created_at ?? null,
+            url: projectStatus?.url ?? null,
+            repoUrl: null,
+          }}
+        />
         <nav className="border-b border-border" aria-label="Deployment tabs">
           <ul className="flex gap-1 -mb-px">
             {TABS.map((t) => {

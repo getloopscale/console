@@ -17,6 +17,7 @@ import {
   PHASE_DEFAULT_SUBSTATE,
   type PhaseStatus,
 } from '@/lib/api/deploy-timeline-events';
+import { LiveReleaseBadge } from './live-release-badge';
 
 /**
  * DeployTimelineHero — Plan deploy-timeline-canonical-5-phases (UI).
@@ -47,6 +48,19 @@ export interface DeployTimelineHeroProps {
   initialLastEventID?: string | null;
   /** Freeze updates while a parent modal is open, etc. */
   paused?: boolean;
+  /**
+   * Optional live-release evidence rendered in the hero footer.
+   * Sourced from /projects/{name}/status active_release — represents
+   * the canonical "what is serving production right now" state which
+   * may differ from the deploy being navigated when the user is
+   * looking at a historical or rolled-back build.
+   */
+  liveRelease?: {
+    commitShort?: string | null;
+    activeSince?: string | null;
+    url?: string | null;
+    repoUrl?: string | null;
+  };
   className?: string;
 }
 
@@ -54,6 +68,7 @@ export function DeployTimelineHero({
   deployId,
   initialLastEventID,
   paused,
+  liveRelease,
   className,
 }: DeployTimelineHeroProps) {
   const {
@@ -110,6 +125,16 @@ export function DeployTimelineHero({
           />
         ))}
       </ol>
+
+      {liveRelease && (liveRelease.commitShort || liveRelease.activeSince) ? (
+        <LiveReleaseBadge
+          isLive={overall === 'live'}
+          commitShort={liveRelease.commitShort}
+          activeSince={liveRelease.activeSince}
+          liveUrl={liveRelease.url}
+          repoUrl={liveRelease.repoUrl}
+        />
+      ) : null}
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {live}
