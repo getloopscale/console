@@ -157,6 +157,43 @@ describe('DeployTimelineHero', () => {
     );
   });
 
+  it('emphasizes a running step with aria-current + halo + live tick', async () => {
+    render(<DeployTimelineHero deployId="dep-running-step" />);
+    await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThanOrEqual(2));
+    const timelineStream = MockEventSource.instances.find((i) => i.url.includes('/deploys/'))!;
+    const stepStream = MockEventSource.instances.find((i) => i.url.includes('/builds/'))!;
+    // Make the build phase active so its cell defaults to expanded.
+    act(() => {
+      timelineStream.emit(
+        'deploy_timeline.build.in_progress',
+        {
+          deploy_id: 'dep-running-step',
+          phase: 'build',
+          status: 'in_progress',
+          timestamp: '2026-06-18T12:00:00Z',
+        },
+        '1',
+      );
+      stepStream.emit(
+        'build.step.started',
+        {
+          step_name: 'build-image',
+          started_at: '2026-06-18T12:00:00Z',
+          phase_group: 'build',
+        },
+        '1',
+      );
+    });
+    await waitFor(() => {
+      const list = screen.getByTestId('phase-steps-build');
+      const runningRow = list.querySelector('[data-step-status="running"]');
+      expect(runningRow).not.toBeNull();
+      expect(runningRow!.getAttribute('aria-current')).toBe('step');
+    });
+    const list = screen.getByTestId('phase-steps-build');
+    expect(within(list).getByText('in progress')).toBeTruthy();
+  });
+
   it('shows phase step count badge + expandable disclosure when steps arrive', async () => {
     render(<DeployTimelineHero deployId="dep-steps" />);
     await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThanOrEqual(2));

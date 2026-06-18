@@ -150,7 +150,11 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
         'relative rounded-md border px-3 py-3 transition-colors',
         tone.surface,
         tone.border,
-        isActive ? 'motion-safe:animate-pulse' : '',
+        // In-progress: extra emphasis — primary-tinted ring halo + thicker left
+        // accent so the active phase is unmistakable across the 5-cell row.
+        isActive
+          ? 'ring-2 ring-blue-500/30 dark:ring-blue-400/30 border-l-4 border-l-blue-500 shadow-sm'
+          : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -160,15 +164,35 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <Icon
-            size={16}
+          <span
             className={[
-              tone.icon,
-              isActive ? 'motion-safe:animate-spin-slow' : '',
+              'relative inline-flex h-5 w-5 items-center justify-center rounded-full',
+              isActive ? 'bg-blue-500/15 ring-1 ring-blue-500/40' : '',
             ].join(' ')}
-            aria-hidden="true"
-          />
-          <span className={['text-sm font-medium', tone.label].join(' ')}>
+          >
+            {isActive ? (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 rounded-full bg-blue-500/40 motion-safe:animate-ping"
+              />
+            ) : null}
+            <Icon
+              size={isActive ? 17 : 16}
+              className={[
+                'relative',
+                tone.icon,
+                isActive ? 'motion-safe:animate-spin' : '',
+              ].join(' ')}
+              aria-hidden="true"
+            />
+          </span>
+          <span
+            className={[
+              'text-sm',
+              isActive ? 'font-semibold text-blue-900 dark:text-blue-100' : 'font-medium',
+              !isActive ? tone.label : '',
+            ].join(' ')}
+          >
             {PHASE_LABEL[cell.phase]}
           </span>
           {hasSteps ? (
@@ -258,36 +282,98 @@ function PhaseCell({ cell, isLast }: PhaseCellProps) {
 /* -------------------------------------------------------------------------- */
 
 function StepRow({ step }: { step: PhaseStep }) {
-  const Icon = step.status === 'succeeded' ? Check : step.status === 'failed' ? X : Loader2;
-  const tone =
-    step.status === 'succeeded'
-      ? 'text-green-600 dark:text-green-400'
-      : step.status === 'failed'
-        ? 'text-red-600 dark:text-red-400'
-        : 'text-blue-600 dark:text-blue-400';
+  const isRunning = step.status === 'running';
+  const isFailed = step.status === 'failed';
+  const isSucceeded = step.status === 'succeeded';
+  const Icon = isSucceeded ? Check : isFailed ? X : Loader2;
+  const tone = isSucceeded
+    ? 'text-green-600 dark:text-green-400'
+    : isFailed
+      ? 'text-red-600 dark:text-red-400'
+      : 'text-blue-600 dark:text-blue-400';
   return (
     <li
-      className="flex items-center justify-between gap-2 text-xs"
+      className={[
+        'group relative flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs transition-colors',
+        // Running: emphatic highlight — left accent bar + tinted bg + ring halo + animate-pulse layer.
+        isRunning
+          ? 'bg-blue-50/70 ring-1 ring-inset ring-blue-500/30 dark:bg-blue-950/30 dark:ring-blue-400/30 border-l-2 border-l-blue-500'
+          : isFailed
+            ? 'bg-red-50/50 dark:bg-red-950/20'
+            : 'hover:bg-muted/40',
+      ].join(' ')}
       data-step-name={step.name}
       data-step-status={step.status}
+      aria-current={isRunning ? 'step' : undefined}
     >
-      <span className="flex items-center gap-1.5 min-w-0">
-        <Icon
-          size={12}
-          className={[tone, step.status === 'running' ? 'motion-safe:animate-spin' : ''].join(' ')}
+      {/* Pulse halo behind the icon for running steps (purely decorative). */}
+      {isRunning ? (
+        <span
           aria-hidden="true"
+          className="pointer-events-none absolute left-0.5 top-1/2 -translate-y-1/2 inline-flex h-3 w-3 rounded-full bg-blue-500/30 motion-safe:animate-ping"
         />
-        <span className="truncate font-medium" title={step.name}>
+      ) : null}
+      <span className="relative flex items-center gap-1.5 min-w-0">
+        <span
+          className={[
+            'relative inline-flex h-4 w-4 items-center justify-center rounded-full',
+            isRunning ? 'bg-blue-500/15 ring-1 ring-blue-500/40' : '',
+          ].join(' ')}
+        >
+          <Icon
+            size={isRunning ? 13 : 12}
+            className={[
+              tone,
+              isRunning ? 'motion-safe:animate-spin' : '',
+            ].join(' ')}
+            aria-hidden="true"
+          />
+        </span>
+        <span
+          className={[
+            'truncate',
+            isRunning ? 'font-semibold text-blue-900 dark:text-blue-100' : 'font-medium',
+          ].join(' ')}
+          title={step.name}
+        >
           {humanizeStepName(step.name)}
         </span>
+        {isRunning ? (
+          <span className="sr-only">in progress</span>
+        ) : null}
       </span>
-      <span className="font-mono tabular-nums text-muted-foreground shrink-0">
-        {step.durationSeconds != null
-          ? formatDuration(step.durationSeconds)
-          : '…'}
+      <span
+        className={[
+          'font-mono tabular-nums shrink-0',
+          isRunning ? 'text-blue-700 dark:text-blue-300' : 'text-muted-foreground',
+        ].join(' ')}
+      >
+        <StepDuration step={step} />
       </span>
     </li>
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/* StepDuration — live ticking for running steps; frozen otherwise            */
+/* -------------------------------------------------------------------------- */
+
+function StepDuration({ step }: { step: PhaseStep }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (step.status !== 'running') return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [step.status]);
+
+  if (step.durationSeconds != null) {
+    return <>{formatDuration(step.durationSeconds)}</>;
+  }
+  if (!step.startedAt) return <>…</>;
+  const start = Date.parse(step.startedAt);
+  if (!Number.isFinite(start)) return <>…</>;
+  const seconds = Math.max(0, Math.floor((now - start) / 1000));
+  return <>{formatDuration(seconds)}</>;
 }
 
 function humanizeStepName(name: string): string {
