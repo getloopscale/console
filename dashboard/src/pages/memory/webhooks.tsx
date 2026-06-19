@@ -418,9 +418,10 @@ function DeliveryCard({
   onReplayClick: () => void;
 }) {
   return (
-    <Card data-testid={`delivery-card-${delivery.id}`} className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1 min-w-0 flex-1">
+    <Card data-testid={`delivery-card-${delivery.id}`}>
+      <Card.Body>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1 min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <Badge variant={deliveryStatusVariant(delivery.status)}>{delivery.status}</Badge>
             <code className="font-mono text-xs text-muted-foreground truncate">{delivery.id}</code>
@@ -435,19 +436,20 @@ function DeliveryCard({
             </p>
           ) : null}
         </div>
-        {canReplay(delivery.status) ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onReplayClick}
-            aria-label={`Replay delivery ${delivery.id}`}
-            data-testid={`replay-button-${delivery.id}`}
-          >
-            <RotateCw className="size-3.5 mr-1" />
-            Replay
-          </Button>
-        ) : null}
-      </div>
+          {canReplay(delivery.status) ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onReplayClick}
+              aria-label={`Replay delivery ${delivery.id}`}
+              data-testid={`replay-button-${delivery.id}`}
+            >
+              <RotateCw className="size-3.5 mr-1" />
+              Replay
+            </Button>
+          ) : null}
+        </div>
+      </Card.Body>
     </Card>
   );
 }

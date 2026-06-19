@@ -195,6 +195,7 @@ export function ExportsPage() {
         loading: createMutation.isPending,
       }}
     >
+     <div className="space-y-6">
       {createMutation.isError ? (
         <Alert intent="warning" title="Could not start export">
           Try again in a moment.
@@ -211,6 +212,7 @@ export function ExportsPage() {
           <DataTable columns={columns} data={exports} rowKey={(row) => row.id} />
         </Card>
       )}
+     </div>
     </PageShell>
   );
 }

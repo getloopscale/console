@@ -30,10 +30,10 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/billing"
 	"github.com/usetheodev/theo-cloud/internal/config"
 	"github.com/usetheodev/theo-cloud/internal/consent"
+	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
-	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/routes"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
@@ -191,6 +191,7 @@ func main() {
 	var memoryHandler *routes.MemoryHandler
 	var memoryWebhooksHandler *routes.MemoryWebhooksHandler
 	var memoryExportsHandler *routes.MemoryExportsHandler
+	var dashboardMemoryHandler *routes.DashboardMemoryHandler
 	if cfg.ThemoryBaseURL != "" {
 		themoryHTTP := &http.Client{
 			Timeout:   30 * time.Second,
@@ -220,6 +221,24 @@ func main() {
 		}
 		memoryWebhooksHandler = routes.NewMemoryWebhooksHandler(db, logger)
 		memoryExportsHandler = routes.NewMemoryExportsHandler(db, themoryClient, logger, exportDir, workerDelay)
+
+		// BFF (Backend-For-Frontend) surface for the dashboard's browser
+		// sessions: /v1/dashboard/memory/* authenticates via the session JWT
+		// (requireJWT), mints a server-side theo_live_* key per subject
+		// (BFFKeyVault — the secret NEVER reaches the browser), then delegates
+		// to the same MemoryHandler the SDK surface uses. The /v1/memory/*
+		// surface stays SDK-only (theo_live_* Bearer). Without this wiring the
+		// dashboard memory page 401s (the page sends a session JWT, which the
+		// SDK RequireScope path rejects).
+		if db != nil {
+			bffVault, vErr := auth.NewBFFKeyVault(db, 24)
+			if vErr != nil {
+				logger.Error("failed to construct BFF key vault — dashboard memory disabled", "error", vErr)
+			} else {
+				dashboardMemoryHandler = routes.NewDashboardMemoryHandler(bffVault, memoryHandler, logger)
+				logger.Info("dashboard memory BFF enabled", "mount", "/v1/dashboard/memory")
+			}
+		}
 	} else {
 		logger.Warn("THEMORY_BASE_URL not set — /v1/memory/* endpoints disabled")
 	}
@@ -230,6 +249,13 @@ func main() {
 	var memoryWebhookDeliveriesHandler *routes.MemoryWebhookDeliveriesHandler
 	if memoryHandler != nil && db != nil {
 		memoryWebhookDeliveriesHandler = routes.NewMemoryWebhookDeliveriesHandler(db, logger)
+	}
+
+	// Front the ops handlers (exports/webhooks/deliveries) through the BFF too
+	// so the dashboard reaches them via the session path (gap 4 — close 401).
+	if dashboardMemoryHandler != nil {
+		dashboardMemoryHandler = dashboardMemoryHandler.WithOps(
+			memoryExportsHandler, memoryWebhooksHandler, memoryWebhookDeliveriesHandler)
 	}
 
 	// Router
@@ -416,6 +442,35 @@ func main() {
 					memoryWebhookDeliveriesHandler.Replay,
 				)
 			}
+		})
+	}
+
+	// BFF dashboard surface (/v1/dashboard/memory/*) — browser sessions
+	// (requireJWT). Mints a server-side theo_live_* key per subject and
+	// delegates to the same MemoryHandler. Distinct from the SDK /v1/memory/*
+	// surface so a session can never be used as an SDK key, and vice-versa.
+	if dashboardMemoryHandler != nil {
+		r.Route("/v1/dashboard/memory", func(r chi.Router) {
+			r.Use(requireJWT)
+			r.Get("/list", dashboardMemoryHandler.List)
+			r.Get("/metrics", dashboardMemoryHandler.Metrics)
+			r.Get("/entities", dashboardMemoryHandler.Entities)
+			r.Delete("/forget/{memoryID}", dashboardMemoryHandler.Forget)
+			r.Post("/revoke-on-logout", dashboardMemoryHandler.RevokeOnLogout)
+			// Core verbs (gaps 1-3): remember / recall / reflect.
+			r.Post("/remember", dashboardMemoryHandler.Remember)
+			r.Post("/recall", dashboardMemoryHandler.Recall)
+			r.Post("/reflect", dashboardMemoryHandler.Reflect)
+			// Ops fronted through the BFF (gap 4 — close 401). Each is a no-op
+			// 404 when its handler is nil (feature disabled).
+			r.Post("/exports", dashboardMemoryHandler.ExportsCreate)
+			r.Get("/exports/{id}/status", dashboardMemoryHandler.ExportsStatus)
+			r.Get("/exports/{id}/download", dashboardMemoryHandler.ExportsDownload)
+			r.Post("/webhooks", dashboardMemoryHandler.WebhooksCreate)
+			r.Get("/webhooks/list", dashboardMemoryHandler.WebhooksList)
+			r.Delete("/webhooks/{id}", dashboardMemoryHandler.WebhooksDelete)
+			r.Get("/webhooks/{id}/deliveries", dashboardMemoryHandler.WebhookDeliveriesList)
+			r.Post("/webhooks/{webhook_id}/deliveries/{delivery_id}/replay", dashboardMemoryHandler.WebhookDeliveryReplay)
 		})
 	}
 

@@ -1,30 +1,43 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
-// Package themory is the thin HTTP client TheoCloud uses to reach OSS
-// TheMemory. It is deliberately small — the contract between TheoCloud
-// and TheMemory is HTTP + headers, NOT a fat SDK with object mappers
-// (D1 of Plan 1: 2026-06-06-memory-shell-plan.md).
+// Package themory is the thin HTTP client TheoCloud (the gateway) uses to reach
+// OSS TheMemory. The contract is HTTP + headers, NOT a fat SDK.
 //
-// The load-bearing invariants:
+// CONFORMANCE NOTE (2026-06-18 — conform-to-provider):
+// This client conforms to TheMemory's OWN published, code-generated OpenAPI
+// spec (served at `GET /v1/openapi.json`). Earlier this client targeted a
+// hand-authored consumer-expectation spec (`openapi/themory.yaml`) that
+// diverged from the real server (`/memories`, `/metrics`, `/entities`,
+// `DELETE /memories/{id}`, `X-Theo-User-Id` scoping — none of which exist on
+// the real provider). The provider is the contract owner; the gateway conforms.
 //
-//   1. Every outbound request carries `Authorization: Bearer <master-key>`.
-//      The customer's theo_live_* key NEVER leaves the Go process
-//      (CLAUDE.md "GO-TO CTO mandate" Invariant 3 + Plan 1 ADR D1).
+// Load-bearing invariants:
 //
-//   2. Every outbound request carries `X-Theo-User-Id: <subject>` where
-//      subject is auth.GetUser(ctx).Subject from the inbound JWT/scope
-//      check. This is how tenant isolation is enforced — TheMemory
-//      itself is tenant-unaware at v0.1 (per CLAUDE.md mandate), so the
-//      Go proxy is the only thing keeping tenant A's calls from seeing
-//      tenant B's data.
+//  1. Every outbound request carries `Authorization: Bearer <master-key>`.
+//     The customer's theo_live_* key NEVER leaves the Go process — the gateway
+//     mints + holds it (internal/auth/bff_key_vault.go).
 //
-//   3. The provided *http.Client passes through verbatim. Production
-//      wires this with otelhttp.NewTransport so W3C traceparent headers
-//      propagate browser → Go → TheMemory (D4 of Plan 1).
+//  2. Tenant isolation is enforced by SCOPE-IN-PATH, not a header. TheMemory
+//     scopes a listing by the URL path `/v1/scopes/user/{subject}/memories`;
+//     the gateway puts the authenticated subject there. (The real server
+//     IGNORES `X-Theo-User-Id`, so relying on it — as the old client did —
+//     silently broke isolation.)
+//
+//  3. `forget` is ownership-checked in the gateway. TheMemory's `POST /v1/forget`
+//     deletes by id WITHIN THE WORKSPACE (the master key = one workspace for all
+//     customers), so it does NOT by itself prevent a customer from deleting
+//     another customer's memory by id (an IDOR). The gateway closes that hole by
+//     verifying the id belongs to the subject's scope BEFORE delegating. A
+//     subject-scoped forget endpoint on the provider would remove this O(scope)
+//     check — tracked on the TheMemory roadmap.
+//
+//  4. The provided *http.Client passes through verbatim. Production wires
+//     otelhttp.NewTransport so traceparent headers propagate.
 package themory
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -44,11 +57,9 @@ type Client struct {
 }
 
 // NewClient constructs a TheMemory client. baseURL is the root of the
-// TheMemory service (e.g., http://themory:3000). apiKey is the master
-// THEMORY_API_KEY — held by the Go service, NEVER returned to the
-// customer. httpClient may be nil — when nil, http.DefaultClient is used
-// (suitable for tests; production should pass an otelhttp-wrapped client
-// for D4 trace propagation).
+// TheMemory service (e.g., http://themory:8080). apiKey is the master
+// THEMORY_API_KEY — held by the gateway, NEVER returned to the customer.
+// httpClient may be nil — when nil, http.DefaultClient is used.
 func NewClient(baseURL, apiKey string, httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -60,18 +71,25 @@ func NewClient(baseURL, apiKey string, httpClient *http.Client) *Client {
 	}
 }
 
-// ListOptions are the query params accepted by GET /memories.
+// ListOptions are the supported filters for a scope listing.
+//
+// TheMemory's `GET /v1/scopes/{type}/{id}/memories` supports `limit`,
+// `category`, an opaque `cursor`, and (since ADR D3) `from`/`to` RFC3339
+// date-range filters. `Offset` is NOT supported by the provider (cursor-only
+// pagination) and is retained for API stability without being sent.
 type ListOptions struct {
 	Limit    int
-	Offset   int
 	Category string // optional filter; empty means no filter
-	From     string // RFC3339; empty means no lower bound
-	To       string // RFC3339; empty means no upper bound
+	Cursor   string // opaque pagination cursor (provider-issued)
+	From     string // RFC3339 lower bound on created_at (inclusive); empty = unset
+	To       string // RFC3339 upper bound on created_at (inclusive); empty = unset
+
+	// Not supported by the provider (cursor-only pagination); retained for
+	// API stability but never sent upstream.
+	Offset int
 }
 
-// MemoryRow is one entry in the List response. Field shape is a subset
-// of what TheMemory may return — Go intentionally accepts more than it
-// uses (Postel's law) but the dashboard renders only the documented set.
+// MemoryRow is one entry in the List response, shaped for the dashboard.
 type MemoryRow struct {
 	ID        string `json:"id"`
 	Content   string `json:"content"`
@@ -79,15 +97,21 @@ type MemoryRow struct {
 	CreatedAt string `json:"created_at,omitempty"`
 }
 
-// ListResult is the GET /memories response shape.
+// ListResult is the gateway's GET /v1/memory/list response shape.
 type ListResult struct {
-	Memories   []MemoryRow `json:"memories"`
-	NextOffset *int        `json:"next_offset,omitempty"`
-	Total      *int        `json:"total,omitempty"`
+	Memories []MemoryRow `json:"memories"`
+	// NextCursor is the provider's opaque pagination token; nil when there is
+	// no further page. (Replaces the never-functional NextOffset.)
+	NextCursor *string `json:"next_cursor,omitempty"`
+	Total      *int    `json:"total,omitempty"`
 }
 
-// MetricsResult is the GET /metrics response shape. Per D3 of Plan 1,
-// fields are always numeric — empty pgvector returns 0, NEVER null.
+// MetricsResult is the GET /metrics response shape.
+//
+// PROVIDER GAP (roadmap): TheMemory exposes no metrics endpoint. `TotalMemories`
+// is DERIVED by the gateway (counting the subject's scope). The usage counters
+// (`RetrievalAPIUsage`, `AddEvents`, `EntityCount`) are 0 until the provider
+// ships a server-side metrics endpoint — tracked on the TheMemory roadmap.
 type MetricsResult struct {
 	TotalMemories     int `json:"total_memories"`
 	RetrievalAPIUsage int `json:"retrieval_api_usage"`
@@ -95,13 +119,58 @@ type MetricsResult struct {
 	EntityCount       int `json:"entity_count"`
 }
 
-// Entity is one row in the Entities response — an aggregation over the
-// customer's memories by (scope_type, scope_id). Plan 2 D1: derived state,
-// NOT a backing table.
+// RememberOptions are the optional fields for a remember (write) call.
+type RememberOptions struct {
+	Category string            // optional category tag
+	Metadata map[string]string // optional metadata
+}
+
+// RememberResult is the gateway's POST /v1/memory/remember response shape.
+// Mirrors the provider's `{ items: MemoryItem[] }` (201), projected to the
+// dashboard MemoryRow shape.
+type RememberResult struct {
+	Items []MemoryRow `json:"items"`
+}
+
+// RecallOptions are the optional fields for a recall (semantic search) call.
+type RecallOptions struct {
+	TopK      int
+	Threshold float64 // 0 means "unset" (omitted from the request)
+}
+
+// RecallHit is one scored result from a recall call.
+type RecallHit struct {
+	ID        string  `json:"id"`
+	Content   string  `json:"content"`
+	Score     float64 `json:"score"`
+	Category  string  `json:"category,omitempty"`
+	CreatedAt string  `json:"created_at,omitempty"`
+}
+
+// RecallResult is the gateway's POST /v1/memory/recall response shape.
+// Mirrors the provider's `{ results: MemoryItemWithScore[] }` (200).
+type RecallResult struct {
+	Results []RecallHit `json:"results"`
+}
+
+// ReflectOptions are the optional fields for a reflect (consolidation) call.
+type ReflectOptions struct {
+	MaxIterations int
+}
+
+// ReflectResult is the gateway's POST /v1/memory/reflect response shape.
+// The provider returns the reflection result object directly (202); the
+// gateway passes it through verbatim so the dashboard can render whatever
+// the provider reports without coupling to its internal shape.
+type ReflectResult struct {
+	Raw json.RawMessage
+}
+
+// Entity is one row in the Entities response.
 type Entity struct {
-	ID          string `json:"id"`           // scope-typed id (e.g. "alex" under scope=user)
-	ScopeType   string `json:"scope_type"`   // user | session | agent | repo
-	MemoryCount int    `json:"memory_count"` // 0 for empty entity (D3 inheritance)
+	ID          string `json:"id"`
+	ScopeType   string `json:"scope_type"`
+	MemoryCount int    `json:"memory_count"`
 	LastSeenAt  string `json:"last_seen_at,omitempty"`
 }
 
@@ -110,89 +179,258 @@ type EntitiesResult struct {
 	Entities []Entity `json:"entities"`
 }
 
-// List proxies GET /memories for the given user subject.
+// --- provider wire shapes (GET /v1/scopes/{type}/{id}/memories) --------------
+
+type scopeMemoryItem struct {
+	ID        string         `json:"id"`
+	Text      string         `json:"text"`
+	CreatedAt string         `json:"createdAt"`
+	Metadata  map[string]any `json:"metadata"`
+}
+
+type scopeListResponse struct {
+	Items      []scopeMemoryItem `json:"items"`
+	NextCursor *string           `json:"nextCursor"`
+}
+
+const maxListPages = 1000 // defensive cap against an unbounded paging loop
+
+// userScopePath builds the provider listing path for a user subject.
+func userScopePath(userID string) string {
+	return "/v1/scopes/user/" + url.PathEscape(userID) + "/memories"
+}
+
+func toRow(item scopeMemoryItem) MemoryRow {
+	row := MemoryRow{ID: item.ID, Content: item.Text, CreatedAt: item.CreatedAt}
+	if c, ok := item.Metadata["category"].(string); ok {
+		row.Category = c
+	}
+	return row
+}
+
+// List proxies one page of the user's scope listing through the real provider
+// endpoint, scoping by subject-in-path (NOT a header).
 func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*ListResult, error) {
 	q := url.Values{}
 	if opts.Limit > 0 {
 		q.Set("limit", strconv.Itoa(opts.Limit))
 	}
-	if opts.Offset > 0 {
-		q.Set("offset", strconv.Itoa(opts.Offset))
-	}
 	if opts.Category != "" {
 		q.Set("category", opts.Category)
 	}
+	if opts.Cursor != "" {
+		q.Set("cursor", opts.Cursor)
+	}
+	// ADR D3 — date-range filter, server-side on the provider's scope list
+	// (created_at BETWEEN). Sent only when supplied; an empty value is omitted.
 	if opts.From != "" {
 		q.Set("from", opts.From)
 	}
 	if opts.To != "" {
 		q.Set("to", opts.To)
 	}
-	var out ListResult
-	if err := c.do(ctx, http.MethodGet, "/memories", userID, q, nil, &out); err != nil {
-		return nil, err
-	}
-	// D3 invariant: never return nil slice for empty result — pass-through
-	// from TheMemory would be `null` in some implementations.
-	if out.Memories == nil {
-		out.Memories = []MemoryRow{}
-	}
-	return &out, nil
-}
 
-// Metrics proxies GET /metrics for the given user subject. Empty data
-// returns zero-initialised values per D3 (NOT NaN, NOT null).
-func (c *Client) Metrics(ctx context.Context, userID string) (*MetricsResult, error) {
-	out := &MetricsResult{} // explicit zero values per D3
-	if err := c.do(ctx, http.MethodGet, "/metrics", userID, nil, nil, out); err != nil {
+	var raw scopeListResponse
+	if err := c.do(ctx, http.MethodGet, userScopePath(userID), q, nil, &raw); err != nil {
 		return nil, err
+	}
+
+	out := &ListResult{Memories: make([]MemoryRow, 0, len(raw.Items))}
+	for _, it := range raw.Items {
+		out.Memories = append(out.Memories, toRow(it))
+	}
+	if raw.NextCursor != nil && *raw.NextCursor != "" {
+		out.NextCursor = raw.NextCursor
 	}
 	return out, nil
 }
 
-// Entities proxies GET /entities?scope=<type> for the given user subject.
-// Per Plan 2 D1, when TheMemory's /entities endpoint is absent (404), the
-// client surfaces an empty result so the handler / dashboard can either
-// fall back to client-side aggregation or render an empty state cleanly —
-// 404 is NOT propagated as an error from this method.
-func (c *Client) Entities(ctx context.Context, userID, scope string) (*EntitiesResult, error) {
-	q := url.Values{}
-	q.Set("scope", scope)
-	var out EntitiesResult
-	err := c.do(ctx, http.MethodGet, "/entities", userID, q, nil, &out)
-	if err != nil && errors.Is(err, ErrNotFound) {
-		// D1 fallback: TheMemory's /entities endpoint may not exist yet
-		// at the upstream OSS sibling's frozen P0. Empty result is the
-		// honest signal — handler can decide what to do next.
-		return &EntitiesResult{Entities: []Entity{}}, nil
+// listAll pages the entire user scope. Used by ownership checks (forget) and
+// the derived metrics total. O(scope) — see the package doc invariant #3 and
+// the metrics PROVIDER GAP.
+func (c *Client) listAll(ctx context.Context, userID string) ([]MemoryRow, error) {
+	var all []MemoryRow
+	cursor := ""
+	for page := 0; page < maxListPages; page++ {
+		res, err := c.List(ctx, userID, ListOptions{Limit: 100, Cursor: cursor})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, res.Memories...)
+		if res.NextCursor == nil || *res.NextCursor == "" {
+			return all, nil
+		}
+		cursor = *res.NextCursor
 	}
+	return all, fmt.Errorf("themory: listAll exceeded %d pages for user %q", maxListPages, userID)
+}
+
+// --- remember / recall / reflect wire shapes --------------------------------
+
+type rememberRequest struct {
+	UserID   string            `json:"userId"`
+	Text     string            `json:"text"`
+	Category string            `json:"category,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+type rememberResponse struct {
+	Items []scopeMemoryItem `json:"items"`
+}
+
+type recallRequest struct {
+	UserID    string   `json:"userId"`
+	Query     string   `json:"query"`
+	TopK      int      `json:"topK,omitempty"`
+	Threshold *float64 `json:"threshold,omitempty"`
+}
+
+type recallItem struct {
+	ID        string         `json:"id"`
+	Text      string         `json:"text"`
+	Score     float64        `json:"score"`
+	CreatedAt string         `json:"createdAt"`
+	Metadata  map[string]any `json:"metadata"`
+}
+
+type recallResponse struct {
+	Results []recallItem `json:"results"`
+}
+
+type reflectRequest struct {
+	UserID        string `json:"userId"`
+	MaxIterations int    `json:"maxIterations,omitempty"`
+}
+
+// Remember writes a memory under the subject's user scope. Conforms to the
+// provider's `POST /v1/remember` (`{userId, text, ...}` → `{items}` 201).
+func (c *Client) Remember(ctx context.Context, userID, text string, opts RememberOptions) (*RememberResult, error) {
+	if text == "" {
+		return nil, errors.New("themory: remember text required")
+	}
+	reqBody := rememberRequest{UserID: userID, Text: text, Category: opts.Category, Metadata: opts.Metadata}
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("themory: marshal remember body: %w", err)
+	}
+	var raw rememberResponse
+	if err := c.do(ctx, http.MethodPost, "/v1/remember", nil, bytes.NewReader(body), &raw); err != nil {
+		return nil, err
+	}
+	out := &RememberResult{Items: make([]MemoryRow, 0, len(raw.Items))}
+	for _, it := range raw.Items {
+		out.Items = append(out.Items, toRow(it))
+	}
+	return out, nil
+}
+
+// Recall runs a semantic search under the subject's user scope. Conforms to
+// the provider's `POST /v1/recall` (`{userId, query, ...}` → `{results}` 200).
+func (c *Client) Recall(ctx context.Context, userID, query string, opts RecallOptions) (*RecallResult, error) {
+	if query == "" {
+		return nil, errors.New("themory: recall query required")
+	}
+	reqBody := recallRequest{UserID: userID, Query: query, TopK: opts.TopK}
+	if opts.Threshold > 0 {
+		reqBody.Threshold = &opts.Threshold
+	}
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("themory: marshal recall body: %w", err)
+	}
+	var raw recallResponse
+	if err := c.do(ctx, http.MethodPost, "/v1/recall", nil, bytes.NewReader(body), &raw); err != nil {
+		return nil, err
+	}
+	out := &RecallResult{Results: make([]RecallHit, 0, len(raw.Results))}
+	for _, it := range raw.Results {
+		hit := RecallHit{ID: it.ID, Content: it.Text, Score: it.Score, CreatedAt: it.CreatedAt}
+		if cat, ok := it.Metadata["category"].(string); ok {
+			hit.Category = cat
+		}
+		out.Results = append(out.Results, hit)
+	}
+	return out, nil
+}
+
+// Reflect triggers consolidation under the subject's user scope. Conforms to
+// the provider's `POST /v1/reflect` (`{userId, ...}` → result 202). The
+// provider's result object is passed through verbatim.
+func (c *Client) Reflect(ctx context.Context, userID string, opts ReflectOptions) (*ReflectResult, error) {
+	reqBody := reflectRequest{UserID: userID, MaxIterations: opts.MaxIterations}
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("themory: marshal reflect body: %w", err)
+	}
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/v1/reflect", nil, bytes.NewReader(body), &raw); err != nil {
+		return nil, err
+	}
+	return &ReflectResult{Raw: raw}, nil
+}
+
+// Metrics returns the customer's memory KPIs. `total_memories` is derived by
+// counting the subject's scope; the rest are 0 (see MetricsResult PROVIDER GAP).
+func (c *Client) Metrics(ctx context.Context, userID string) (*MetricsResult, error) {
+	rows, err := c.listAll(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	if out.Entities == nil {
-		out.Entities = []Entity{}
-	}
-	return &out, nil
+	return &MetricsResult{TotalMemories: len(rows)}, nil
 }
 
-// Forget proxies DELETE /memories/{id} for the given user subject.
-// 404 from TheMemory surfaces as ErrNotFound — the handler relies on
-// this to return 404 on cross-tenant attempts (since TheMemory will
-// not find the memory under the wrong user-id).
-func (c *Client) Forget(ctx context.Context, userID, memoryID string) error {
+// Entities returns aggregated entities for the subject.
+//
+// PROVIDER GAP (roadmap): TheMemory exposes no entities endpoint. Until it does,
+// the gateway returns an empty result rather than fabricating aggregates.
+func (c *Client) Entities(_ context.Context, _ string, _ string) (*EntitiesResult, error) {
+	return &EntitiesResult{Entities: []Entity{}}, nil
+}
+
+type forgetBody struct {
+	MemoryID string `json:"memoryId"`
+	Hard     bool   `json:"hard,omitempty"`
+}
+
+// Forget deletes one memory for the subject. Ownership is verified in the
+// gateway (invariant #3): the id MUST belong to the subject's scope, else
+// ErrNotFound is returned WITHOUT touching the provider — closing the
+// cross-tenant delete IDOR that the workspace-scoped `POST /v1/forget` alone
+// does not prevent.
+func (c *Client) Forget(ctx context.Context, userID, memoryID string, hard bool) error {
 	if memoryID == "" {
 		return errors.New("memoryID required")
 	}
-	path := "/memories/" + url.PathEscape(memoryID)
-	return c.do(ctx, http.MethodDelete, path, userID, nil, nil, nil)
+
+	// Ownership pre-check: confirm the id is in the subject's scope.
+	rows, err := c.listAll(ctx, userID)
+	if err != nil {
+		return err
+	}
+	owned := false
+	for _, r := range rows {
+		if r.ID == memoryID {
+			owned = true
+			break
+		}
+	}
+	if !owned {
+		// Same response for "doesn't exist" and "belongs to another subject" —
+		// no existence leak (mirrors the provider's own 404-not-403 discipline).
+		return ErrNotFound
+	}
+
+	body, err := json.Marshal(forgetBody{MemoryID: memoryID, Hard: hard})
+	if err != nil {
+		return fmt.Errorf("themory: marshal forget body: %w", err)
+	}
+	return c.do(ctx, http.MethodPost, "/v1/forget", nil, bytes.NewReader(body), nil)
 }
 
-// do is the shared request lifecycle. Sets the canonical headers
-// (Authorization, X-Theo-User-Id, Accept), executes via the configured
-// http.Client (which prod wraps with otelhttp for D4 propagation),
-// inspects the response for HTTP status, and decodes JSON into out
-// when out is non-nil.
-func (c *Client) do(ctx context.Context, method, path, userID string, query url.Values, body io.Reader, out any) error {
+// do is the shared request lifecycle. Sets Authorization + Accept, executes via
+// the configured http.Client, inspects status, decodes JSON into out when
+// out is non-nil.
+func (c *Client) do(ctx context.Context, method, path string, query url.Values, body io.Reader, out any) error {
 	u := c.baseURL + path
 	if len(query) > 0 {
 		u += "?" + query.Encode()
@@ -202,7 +440,6 @@ func (c *Client) do(ctx context.Context, method, path, userID string, query url.
 		return fmt.Errorf("themory: build request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	req.Header.Set("X-Theo-User-Id", userID)
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -230,19 +467,14 @@ func (c *Client) do(ctx context.Context, method, path, userID string, query url.
 	return nil
 }
 
-// ErrNotFound is returned for 404 responses. Forget handler maps this
-// directly to HTTP 404 for the customer (consistent with the Plan 0 D5
-// existence-leak rule — same response shape for "doesn't exist anywhere"
-// and "exists under a different user-id").
+// ErrNotFound is returned for 404 responses (and for gateway-side ownership
+// rejection in Forget). Handlers map it to HTTP 404 for the customer.
 var ErrNotFound = errors.New("themory: not found")
 
 // IsNotFound reports whether err is or wraps ErrNotFound.
 func IsNotFound(err error) bool { return errors.Is(err, ErrNotFound) }
 
 // Error is a typed wrapper for non-2xx responses other than 404.
-// Exposes the upstream status + body for slog without leaking secrets
-// (the body never contains the master Bearer — that's in headers, which
-// are not echoed back by TheMemory).
 type Error struct {
 	StatusCode int
 	Body       string

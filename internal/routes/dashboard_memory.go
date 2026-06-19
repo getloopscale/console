@@ -33,6 +33,13 @@ type DashboardMemoryHandler struct {
 	vault         *auth.BFFKeyVault
 	memoryHandler *MemoryHandler
 	logger        *slog.Logger
+
+	// Optional ops handlers — when set (via WithOps), the BFF also fronts
+	// exports/webhooks so the dashboard reaches them through the session path
+	// (closes the 401, gap 4). Nil when the deployment has no DB-backed ops.
+	exports    *MemoryExportsHandler
+	webhooks   *MemoryWebhooksHandler
+	deliveries *MemoryWebhookDeliveriesHandler
 }
 
 // NewDashboardMemoryHandler constructs a DashboardMemoryHandler. Both vault
@@ -43,6 +50,16 @@ func NewDashboardMemoryHandler(v *auth.BFFKeyVault, m *MemoryHandler, logger *sl
 		panic("dashboard_memory: vault, memoryHandler, and logger required")
 	}
 	return &DashboardMemoryHandler{vault: v, memoryHandler: m, logger: logger}
+}
+
+// WithOps wires the exports/webhooks/deliveries handlers so the BFF can front
+// them behind the session mint. Any may be nil (feature disabled). Returns the
+// receiver for chaining.
+func (h *DashboardMemoryHandler) WithOps(exports *MemoryExportsHandler, webhooks *MemoryWebhooksHandler, deliveries *MemoryWebhookDeliveriesHandler) *DashboardMemoryHandler {
+	h.exports = exports
+	h.webhooks = webhooks
+	h.deliveries = deliveries
+	return h
 }
 
 // mintOrFail wraps the vault MintOrFetch call shared by every BFF method.
@@ -105,6 +122,138 @@ func (h *DashboardMemoryHandler) Entities(w http.ResponseWriter, r *http.Request
 		return
 	}
 	h.memoryHandler.Entities(w, r)
+}
+
+// Remember proxies POST /v1/dashboard/memory/remember (gap 1 — write verb).
+func (h *DashboardMemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
+	if !h.mintOrFail(w, r, "remember") {
+		return
+	}
+	h.memoryHandler.Remember(w, r)
+}
+
+// Recall proxies POST /v1/dashboard/memory/recall (gap 2 — semantic search).
+func (h *DashboardMemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
+	if !h.mintOrFail(w, r, "recall") {
+		return
+	}
+	h.memoryHandler.Recall(w, r)
+}
+
+// Reflect proxies POST /v1/dashboard/memory/reflect (gap 3 — consolidation).
+func (h *DashboardMemoryHandler) Reflect(w http.ResponseWriter, r *http.Request) {
+	if !h.mintOrFail(w, r, "reflect") {
+		return
+	}
+	h.memoryHandler.Reflect(w, r)
+}
+
+// --- exports/webhooks BFF fronting (gap 4 — close the 401) -------------------
+// Each method mints (audit/revoke bookkeeping) then delegates to the existing
+// ops handler. The provider call uses the master key per Invariant 3.
+
+// opDisabled logs + returns 404 when a BFF-fronted ops feature is not wired.
+// Logging it (not just writing) surfaces misconfiguration — a dashboard call to
+// a disabled feature is an operator signal, not silent.
+func (h *DashboardMemoryHandler) opDisabled(w http.ResponseWriter, feature string) {
+	h.logger.Warn("BFF ops feature not enabled", "feature", feature)
+	writeError(w, http.StatusNotFound, "NOT_FOUND", feature+" are not enabled.")
+}
+
+// ExportsCreate proxies POST /v1/dashboard/memory/exports.
+func (h *DashboardMemoryHandler) ExportsCreate(w http.ResponseWriter, r *http.Request) {
+	if h.exports == nil {
+		h.opDisabled(w, "Exports")
+		return
+	}
+	if !h.mintOrFail(w, r, "exports.create") {
+		return
+	}
+	h.exports.Create(w, r)
+}
+
+// ExportsStatus proxies GET /v1/dashboard/memory/exports/{id}/status.
+func (h *DashboardMemoryHandler) ExportsStatus(w http.ResponseWriter, r *http.Request) {
+	if h.exports == nil {
+		h.opDisabled(w, "Exports")
+		return
+	}
+	if !h.mintOrFail(w, r, "exports.status") {
+		return
+	}
+	h.exports.Status(w, r)
+}
+
+// ExportsDownload proxies GET /v1/dashboard/memory/exports/{id}/download.
+func (h *DashboardMemoryHandler) ExportsDownload(w http.ResponseWriter, r *http.Request) {
+	if h.exports == nil {
+		h.opDisabled(w, "Exports")
+		return
+	}
+	if !h.mintOrFail(w, r, "exports.download") {
+		return
+	}
+	h.exports.Download(w, r)
+}
+
+// WebhooksCreate proxies POST /v1/dashboard/memory/webhooks.
+func (h *DashboardMemoryHandler) WebhooksCreate(w http.ResponseWriter, r *http.Request) {
+	if h.webhooks == nil {
+		h.opDisabled(w, "Webhooks")
+		return
+	}
+	if !h.mintOrFail(w, r, "webhooks.create") {
+		return
+	}
+	h.webhooks.Create(w, r)
+}
+
+// WebhooksList proxies GET /v1/dashboard/memory/webhooks/list.
+func (h *DashboardMemoryHandler) WebhooksList(w http.ResponseWriter, r *http.Request) {
+	if h.webhooks == nil {
+		h.opDisabled(w, "Webhooks")
+		return
+	}
+	if !h.mintOrFail(w, r, "webhooks.list") {
+		return
+	}
+	h.webhooks.List(w, r)
+}
+
+// WebhooksDelete proxies DELETE /v1/dashboard/memory/webhooks/{id}.
+func (h *DashboardMemoryHandler) WebhooksDelete(w http.ResponseWriter, r *http.Request) {
+	if h.webhooks == nil {
+		h.opDisabled(w, "Webhooks")
+		return
+	}
+	if !h.mintOrFail(w, r, "webhooks.delete") {
+		return
+	}
+	h.webhooks.Delete(w, r)
+}
+
+// WebhookDeliveriesList proxies GET /v1/dashboard/memory/webhooks/{id}/deliveries.
+func (h *DashboardMemoryHandler) WebhookDeliveriesList(w http.ResponseWriter, r *http.Request) {
+	if h.deliveries == nil {
+		h.opDisabled(w, "Deliveries")
+		return
+	}
+	if !h.mintOrFail(w, r, "webhooks.deliveries") {
+		return
+	}
+	h.deliveries.List(w, r)
+}
+
+// WebhookDeliveryReplay proxies POST /v1/dashboard/memory/webhooks/{webhook_id}/deliveries/{delivery_id}/replay.
+func (h *DashboardMemoryHandler) WebhookDeliveryReplay(w http.ResponseWriter, r *http.Request) {
+	if h.deliveries == nil {
+		h.opDisabled(w, "Deliveries")
+		return
+	}
+	if !h.mintOrFail(w, r, "webhooks.replay") {
+		return
+	}
+	h.deliveries.Replay(w, r)
 }
 
 // RevokeOnLogout proxies POST /v1/dashboard/memory/revoke-on-logout — clean

@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025-2026 The Theo Authors
+#
+# Minimal Ory Kratos config for the LOCAL dev stack (single-origin via Caddy on
+# http://localhost:5173). Email verification/recovery are DISABLED so that
+# registration immediately yields an active session (no SMTP needed). Run with
+# `kratos serve --dev` so session cookies work over plain http.
+version: v1.3.1
+
+dsn: postgres://theo:theo@pg-cloud:5432/kratos?sslmode=disable
+
+serve:
+  public:
+    base_url: http://localhost:5173/
+    cors:
+      enabled: true
+      allowed_origins:
+        - http://localhost:5173
+      allowed_methods: [GET, POST, PUT, DELETE, PATCH]
+      allowed_headers: [Authorization, Cookie, Content-Type, X-Session-Token]
+      exposed_headers: [Content-Type, Set-Cookie]
+      allow_credentials: true
+  admin:
+    base_url: http://kratos:4434/
+
+selfservice:
+  default_browser_return_url: http://localhost:5173/
+  allowed_return_urls:
+    - http://localhost:5173
+  methods:
+    password:
+      enabled: true
+      config:
+        min_password_length: 8
+  flows:
+    error:
+      ui_url: http://localhost:5173/login
+    settings:
+      ui_url: http://localhost:5173/settings
+    recovery:
+      enabled: false
+    verification:
+      enabled: false
+    logout:
+      after:
+        default_browser_return_url: http://localhost:5173/login
+    login:
+      ui_url: http://localhost:5173/login
+      lifespan: 30m
+    registration:
+      ui_url: http://localhost:5173/register
+      after:
+        password:
+          hooks:
+            - hook: session
+
+log:
+  level: info
+  format: text
+  leak_sensitive_values: false
+
+secrets:
+  cookie:
+    - dev-only-cookie-secret-change-me-please
+  cipher:
+    - 0123456789abcdef0123456789abcdef
+
+cookies:
+  same_site: Lax
+
+session:
+  lifespan: 24h
+  cookie:
+    same_site: Lax
+
+identity:
+  default_schema_id: default
+  schemas:
+    - id: default
+      url: file:///etc/config/kratos/identity.schema.json
+
+courier:
+  smtp:
+    connection_uri: smtps://test:test@mailslurper:1025/?skip_ssl_verify=true

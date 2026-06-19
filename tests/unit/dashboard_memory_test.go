@@ -39,6 +39,9 @@ type fakeMemoryClient struct {
 	metricsCalled  bool
 	forgetCalled   bool
 	entitiesCalled bool
+	rememberCalled bool
+	recallCalled   bool
+	reflectCalled  bool
 }
 
 func (f *fakeMemoryClient) List(_ context.Context, userID string, _ themory.ListOptions) (*themory.ListResult, error) {
@@ -49,13 +52,25 @@ func (f *fakeMemoryClient) Metrics(_ context.Context, _ string) (*themory.Metric
 	f.metricsCalled = true
 	return &themory.MetricsResult{TotalMemories: 42}, nil
 }
-func (f *fakeMemoryClient) Forget(_ context.Context, _, _ string) error {
+func (f *fakeMemoryClient) Forget(_ context.Context, _, _ string, _ bool) error {
 	f.forgetCalled = true
 	return nil
 }
 func (f *fakeMemoryClient) Entities(_ context.Context, _, _ string) (*themory.EntitiesResult, error) {
 	f.entitiesCalled = true
 	return &themory.EntitiesResult{Entities: []themory.Entity{{ID: "ent-1", ScopeType: "user", MemoryCount: 1}}}, nil
+}
+func (f *fakeMemoryClient) Remember(_ context.Context, _, text string, _ themory.RememberOptions) (*themory.RememberResult, error) {
+	f.rememberCalled = true
+	return &themory.RememberResult{Items: []themory.MemoryRow{{ID: "mem-new", Content: text}}}, nil
+}
+func (f *fakeMemoryClient) Recall(_ context.Context, _, query string, _ themory.RecallOptions) (*themory.RecallResult, error) {
+	f.recallCalled = true
+	return &themory.RecallResult{Results: []themory.RecallHit{{ID: "mem-abc", Content: "match for " + query, Score: 0.9}}}, nil
+}
+func (f *fakeMemoryClient) Reflect(_ context.Context, _ string, _ themory.ReflectOptions) (*themory.ReflectResult, error) {
+	f.reflectCalled = true
+	return &themory.ReflectResult{Raw: []byte(`{"consolidated":0}`)}, nil
 }
 
 // jwtCtx synthesizes the context shape RequireJWT would populate.
@@ -180,6 +195,61 @@ func TestDashboardMemory_Entities_MirrorsListPattern(t *testing.T) {
 	dash.Entities(w, r)
 	if w.Code != http.StatusOK || !fc.entitiesCalled {
 		t.Fatalf("entities fail: code=%d called=%v", w.Code, fc.entitiesCalled)
+	}
+}
+
+func TestDashboardMemory_Remember_MintsThenDelegates(t *testing.T) {
+	dash, fc, mock := newDashHandler(t)
+	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`INSERT INTO theo_api_keys`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("bff-mocked-id"))
+	r := httptest.NewRequest("POST", "/v1/dashboard/memory/remember", strings.NewReader(`{"text":"hi"}`))
+	r = r.WithContext(jwtCtx(r.Context(), "user-A", "tenant-1"))
+	w := httptest.NewRecorder()
+	dash.Remember(w, r)
+	if w.Code != http.StatusCreated || !fc.rememberCalled {
+		t.Fatalf("remember fail: code=%d called=%v body=%s", w.Code, fc.rememberCalled, w.Body.String())
+	}
+}
+
+func TestDashboardMemory_Recall_MintsThenDelegates(t *testing.T) {
+	dash, fc, mock := newDashHandler(t)
+	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`INSERT INTO theo_api_keys`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("bff-mocked-id"))
+	r := httptest.NewRequest("POST", "/v1/dashboard/memory/recall", strings.NewReader(`{"query":"milk"}`))
+	r = r.WithContext(jwtCtx(r.Context(), "user-A", "tenant-1"))
+	w := httptest.NewRecorder()
+	dash.Recall(w, r)
+	if w.Code != http.StatusOK || !fc.recallCalled {
+		t.Fatalf("recall fail: code=%d called=%v body=%s", w.Code, fc.recallCalled, w.Body.String())
+	}
+}
+
+func TestDashboardMemory_Reflect_MintsThenDelegates(t *testing.T) {
+	dash, fc, mock := newDashHandler(t)
+	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`INSERT INTO theo_api_keys`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("bff-mocked-id"))
+	r := httptest.NewRequest("POST", "/v1/dashboard/memory/reflect", strings.NewReader(`{}`))
+	r = r.WithContext(jwtCtx(r.Context(), "user-A", "tenant-1"))
+	w := httptest.NewRecorder()
+	dash.Reflect(w, r)
+	if w.Code != http.StatusAccepted || !fc.reflectCalled {
+		t.Fatalf("reflect fail: code=%d called=%v body=%s", w.Code, fc.reflectCalled, w.Body.String())
+	}
+}
+
+// Ops fronting: when an ops handler is NOT wired, the BFF returns 404 (not 401),
+// proving the route exists and the disabled-feature path is honest.
+func TestDashboardMemory_ExportsDisabled_Returns404(t *testing.T) {
+	dash, _, _ := newDashHandler(t)
+	r := httptest.NewRequest("POST", "/v1/dashboard/memory/exports", strings.NewReader(`{}`))
+	r = r.WithContext(jwtCtx(r.Context(), "user-A", "tenant-1"))
+	w := httptest.NewRecorder()
+	dash.ExportsCreate(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 when exports disabled, got %d", w.Code)
 	}
 }
 

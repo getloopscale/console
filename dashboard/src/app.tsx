@@ -269,6 +269,10 @@ export default function App() {
                         → API Tokens). /api-keys kept as redirect for backward compat with bookmarks
                         and any external link issued before the consolidation. */}
                     <Route path="/api-keys" element={<Navigate to="/settings/tokens" replace />} />
+                    {/* Top-level main-menu surface for API Tokens (keeps the root
+                        sidebar active — /settings/* would drill into Settings).
+                        Same ApiKeysPage as the canonical /settings/tokens route. */}
+                    <Route path="/tokens" element={<Boundaried path="/tokens"><ApiKeysPage /></Boundaried>} />
                     <Route path="/memory" element={<Boundaried path="/memory"><MemoryPage /></Boundaried>} />
                     <Route path="/memory/memories" element={<Boundaried path="/memory/memories"><MemoryListPage /></Boundaried>} />
                     <Route path="/memory/entities" element={<Boundaried path="/memory/entities"><EntitiesPage /></Boundaried>} />

@@ -76,7 +76,7 @@ export function MemoryListPage() {
   };
 
   const query = useQuery({
-    queryKey: ['cloud', '/v1/memory/list', { category, from, to, offset }] as const,
+    queryKey: ['cloud', '/v1/dashboard/memory/list', { category, from, to, offset }] as const,
     queryFn: () => {
       const params = new URLSearchParams();
       params.set('limit', String(PAGE_SIZE));
@@ -84,15 +84,15 @@ export function MemoryListPage() {
       if (category) params.set('category', category);
       if (from) params.set('from', from);
       if (to) params.set('to', to);
-      return cloudFetch<ListResult>(`/v1/memory/list?${params.toString()}`);
+      return cloudFetch<ListResult>(`/v1/dashboard/memory/list?${params.toString()}`);
     },
   });
 
   const forget = useMutation({
-    mutationFn: async (id: string) => cloudFetch<null>(`/v1/memory/forget/${id}`, { method: 'DELETE' }),
+    mutationFn: async (id: string) => cloudFetch<null>(`/v1/dashboard/memory/forget/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       setPendingDelete(null);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/memory/list'] });
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/list'] });
     },
   });
 
@@ -147,8 +147,9 @@ export function MemoryListPage() {
         title="Memories"
         description="Every memory your agent has stored. Use filters to slice by category or date."
       >
+       <div className="space-y-6">
         <Card>
-          <div className="p-4 flex flex-wrap gap-3 items-end">
+          <Card.Body className="flex flex-wrap gap-3 items-end">
             <div>
               <label htmlFor="filter-category" className="text-xs text-muted-foreground block mb-1">
                 Category
@@ -183,7 +184,7 @@ export function MemoryListPage() {
                 onChange={(e) => updateParam('to', e.target.value)}
               />
             </div>
-          </div>
+          </Card.Body>
         </Card>
 
         {query.isError ? (
@@ -206,6 +207,7 @@ export function MemoryListPage() {
             <DataTable columns={columns} data={memories} rowKey={(row) => row.id} />
           </Card>
         )}
+       </div>
       </PageShell>
 
       {pendingDelete ? (

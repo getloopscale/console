@@ -357,7 +357,7 @@ interface MemoryMetricsResponse {
 /**
  * MemoryUsageCard — Plan 4 cross-cut from dashboard-memory-section-roadmap.md.
  *
- * Reads `/v1/memory/metrics` (Plan 1 endpoint). On error OR all-zero, renders
+ * Reads `/v1/dashboard/memory/metrics` (Plan 1 endpoint). On error OR all-zero, renders
  * a "no activity yet" state with a Get-started link. On populated, renders 2
  * figures (Total memories + Retrieval API calls) + a link to /memory.
  *
@@ -365,7 +365,7 @@ interface MemoryMetricsResponse {
  * state is what avoids surfacing Memory to customers who don't use it.
  */
 function MemoryUsageCard() {
-  const { data, error } = useCloudApi<MemoryMetricsResponse>('/v1/memory/metrics');
+  const { data, error } = useCloudApi<MemoryMetricsResponse>('/v1/dashboard/memory/metrics');
   const empty = error || !data || (data.total_memories === 0 && data.retrieval_api_usage === 0);
 
   return (

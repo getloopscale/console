@@ -1,16 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025-2026 The Theo Authors
 #
-# cloud ↔ theo-data (TheMemory) — CONSUMER-EXPECTATION contract (OpenAPI 3.0.3).
-# M1.4 (plan m1-4-openapi-contract-tests). This documents the subset of the
-# TheMemory HTTP API that cloud/internal/themory/client.go actually calls. It is
-# the CLOUD's expectation of theo-data; it will be reconciled with theo-data's
-# own published spec at M4/M5 (plan Unresolved Q2). The contract test validates
-# that the client's outgoing REQUESTS conform to this spec.
+# cloud -> theo-data (TheMemory) CONSUMER contract (OpenAPI 3.0.3).
+#
+# CONFORMANCE NOTE (2026-06-18 — conform-to-provider): this file is the SUBSET
+# of TheMemory's REAL, code-generated OpenAPI (served by the provider at
+# `GET /v1/openapi.json`) that internal/themory/client.go actually calls. It
+# replaces the earlier hand-authored consumer-EXPECTATION spec, which had
+# diverged from the real server (`/memories`, `/metrics`, `/entities`,
+# `DELETE /memories/{id}`, `X-Theo-User-Id` scoping — none of which exist).
+#
+# The provider owns the contract; this is the gateway conforming to it. Keep it
+# in sync with the provider's `/v1/openapi.json`. The full end-to-end contract is
+# additionally proven by tests/e2e against the real running server.
 openapi: 3.0.3
 info:
-  title: TheMemory API (cloud consumer expectation)
-  version: "1.0.0"
+  title: TheMemory API (cloud consumer subset)
+  version: "2.0.0"
 
 servers:
   - url: /
@@ -22,73 +28,134 @@ components:
       in: header
       required: true
       schema: { type: string }
-      description: "Bearer <master TheMemory key> (held by the cloud proxy)"
-    UserId:
-      name: X-Theo-User-Id
-      in: header
-      required: true
-      schema: { type: string }
-      description: tenant scope discriminator propagated by the cloud proxy
+      description: "Bearer <master TheMemory key> (held by the gateway, never the customer)"
 
 paths:
-  /memories:
+  /v1/scopes/{type}/{id}/memories:
     get:
-      summary: List memories for a user
+      summary: List memories for a scope (subject-in-path)
       parameters:
         - { $ref: "#/components/parameters/Authorization" }
-        - { $ref: "#/components/parameters/UserId" }
+        - { name: type, in: path, required: true, schema: { type: string, enum: [user, session, agent] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
         - { name: limit, in: query, required: false, schema: { type: string } }
-        - { name: offset, in: query, required: false, schema: { type: string } }
+        - { name: category, in: query, required: false, schema: { type: string } }
+        - { name: cursor, in: query, required: false, schema: { type: string } }
+        - { name: from, in: query, required: false, schema: { type: string }, description: "RFC3339 lower bound on created_at (ADR D3)" }
+        - { name: to, in: query, required: false, schema: { type: string }, description: "RFC3339 upper bound on created_at (ADR D3)" }
       responses:
         "200":
-          description: memory list
+          description: paginated scope listing
           content:
             application/json:
-              schema: { type: object, additionalProperties: true }
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  nextCursor:
+                    type: string
+                    nullable: true
+                additionalProperties: true
 
-  /memories/{id}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema: { type: string }
-    delete:
-      summary: Forget (delete) one memory
+  /v1/forget:
+    post:
+      summary: Forget (delete) one memory by id (workspace-scoped on the provider)
       parameters:
         - { $ref: "#/components/parameters/Authorization" }
-        - { $ref: "#/components/parameters/UserId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [memoryId]
+              properties:
+                memoryId: { type: string }
+                hard: { type: boolean }
       responses:
-        "200": { description: deleted }
         "204": { description: deleted (no content) }
         "404": { description: not found (existence-leak-safe) }
 
-  /metrics:
-    get:
-      summary: Memory metrics for a user
+  /v1/remember:
+    post:
+      summary: Remember (write) a memory under a scope
       parameters:
         - { $ref: "#/components/parameters/Authorization" }
-        - { $ref: "#/components/parameters/UserId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, text]
+              properties:
+                userId: { type: string }
+                text: { type: string }
+                category: { type: string }
+                metadata: { type: object, additionalProperties: { type: string } }
       responses:
-        "200":
-          description: metrics
+        "201":
+          description: created
           content:
             application/json:
-              schema: { type: object, additionalProperties: true }
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                additionalProperties: true
 
-  /entities:
-    get:
-      summary: Entities for a user/scope
+  /v1/recall:
+    post:
+      summary: Recall (semantic search) under a scope
       parameters:
         - { $ref: "#/components/parameters/Authorization" }
-        - { $ref: "#/components/parameters/UserId" }
-        - { name: scope, in: query, required: false, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, query]
+              properties:
+                userId: { type: string }
+                query: { type: string }
+                topK: { type: integer }
+                threshold: { type: number }
       responses:
         "200":
-          description: entities
+          description: scored results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                additionalProperties: true
+
+  /v1/reflect:
+    post:
+      summary: Reflect (consolidation) under a scope
+      parameters:
+        - { $ref: "#/components/parameters/Authorization" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: string }
+                maxIterations: { type: integer }
+      responses:
+        "202":
+          description: reflection result
           content:
             application/json:
               schema: { type: object, additionalProperties: true }
-        "404":
-          description: >
-            endpoint absent at the frozen OSS P0 — the client falls back to an
-            empty result (client.go Entities 404 fallback, plan D1).

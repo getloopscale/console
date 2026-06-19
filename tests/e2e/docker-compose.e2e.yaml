@@ -1,0 +1,129 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025-2026 The Theo Authors
+#
+# End-to-end harness for the theo-cloud <-> TheMemory integration.
+#
+# Brings up the FULL real path the customer traverses:
+#
+#   go test (customer)  --theo_live_* bearer-->  theo-cloud (gateway)
+#        --master bearer + subject-in-path-->    themory (TheMemory REST)
+#        -->                                     pgvector
+#                                                ^
+#   themory --OPENAI_BASE_URL--> mock-openai ----+ (hermetic LLM + embeddings)
+#
+# Run via ./run.sh (builds host binaries + the themory image, waits for health,
+# runs the Go e2e test, tears down). Everything is hermetic: no external network,
+# no API keys, no cost.
+#
+# Binaries (theo-cloud, mock-openai) are built on the host by run.sh into
+# ./bin/ and copied via runtime.Dockerfile. The themory image is built from the
+# sibling repo Dockerfile (override with THEMORY_IMAGE).
+
+name: theo-cloud-memory-e2e
+
+services:
+  pg-themory:
+    image: ankane/pgvector:v0.5.1
+    environment:
+      POSTGRES_USER: themem
+      POSTGRES_PASSWORD: themem
+      POSTGRES_DB: themem
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U themem -d themem"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  pg-cloud:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: theocloud
+      POSTGRES_PASSWORD: theocloud
+      POSTGRES_DB: theocloud
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Exposed so the host-run `go test` can seed theo_api_keys directly.
+      - "${E2E_PG_CLOUD_PORT:-55432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U theocloud -d theocloud"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  mock-openai:
+    build:
+      context: .
+      dockerfile: runtime.Dockerfile
+      args:
+        BINARY: bin/mock-openai
+    environment:
+      PORT: "11434"
+      MOCK_EMBED_DIM: "1536"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:11434/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 2s
+
+  themory:
+    image: ${THEMORY_IMAGE:-themory-e2e:latest}
+    depends_on:
+      pg-themory:
+        condition: service_healthy
+      mock-openai:
+        condition: service_healthy
+    environment:
+      THEOMEM_PG_URI: postgres://themem:themem@pg-themory:5432/themem
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      # Master bearer the gateway uses. NEVER reaches the customer.
+      THEMEMORY_API_KEY: ${THEMORY_MASTER_KEY:-e2e-master-key}
+      # OpenAI embedder (1536) routed at the hermetic mock — no xenova download.
+      THEOMEM_EMBEDDER: openai
+      OPENAI_API_KEY: dummy-key-for-mock
+      OPENAI_BASE_URL: http://mock-openai:11434/v1
+    ports:
+      # Exposed so the host-run `go test` can seed memories via POST /v1/remember.
+      - "${E2E_THEMORY_PORT:-18080}:8080"
+    healthcheck:
+      # Distroless image: no shell/curl — probe via the bundled node binary.
+      test:
+        - "CMD"
+        - "/nodejs/bin/node"
+        - "-e"
+        - "require('node:http').get('http://127.0.0.1:8080/v1/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+
+  theo-cloud:
+    build:
+      context: .
+      dockerfile: runtime.Dockerfile
+      args:
+        BINARY: bin/theo-cloud
+    depends_on:
+      pg-cloud:
+        condition: service_healthy
+      themory:
+        condition: service_healthy
+    environment:
+      THEO_ENV: dev
+      CLOUD_LISTEN_ADDR: ":13002"
+      DATABASE_URL: postgres://theocloud:theocloud@pg-cloud:5432/theocloud?sslmode=disable
+      THEMORY_BASE_URL: http://themory:8080
+      THEMORY_API_KEY: ${THEMORY_MASTER_KEY:-e2e-master-key}
+      SESSION_TOKEN_SECRET: e2e-session-secret-at-least-32-characters-long
+    ports:
+      - "13002:13002"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:13002/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s

@@ -31,18 +31,46 @@ import (
 // canned response. Implements the routes.TheMemoryClient interface so
 // the handler can be wired without a real HTTP server.
 type fakeTheMemory struct {
-	lastUserID         string
-	lastOpts           themory.ListOptions
-	lastForget         string
-	lastEntitiesScope  string
+	lastUserID        string
+	lastOpts          themory.ListOptions
+	lastForget        string
+	lastForgetHard    bool
+	lastEntitiesScope string
+	lastRememberText  string
+	lastRecallQuery   string
+	lastReflectIter   int
 
-	listResp     *themory.ListResult
-	listErr      error
-	metricsResp  *themory.MetricsResult
-	metricsErr   error
-	forgetErr    error
-	entitiesResp *themory.EntitiesResult
-	entitiesErr  error
+	listResp      *themory.ListResult
+	listErr       error
+	metricsResp   *themory.MetricsResult
+	metricsErr    error
+	forgetErr     error
+	entitiesResp  *themory.EntitiesResult
+	entitiesErr   error
+	rememberResp  *themory.RememberResult
+	rememberErr   error
+	recallResp    *themory.RecallResult
+	recallErr     error
+	reflectResp   *themory.ReflectResult
+	reflectErr    error
+}
+
+func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, _ themory.RememberOptions) (*themory.RememberResult, error) {
+	f.lastUserID = userID
+	f.lastRememberText = text
+	return f.rememberResp, f.rememberErr
+}
+
+func (f *fakeTheMemory) Recall(_ context.Context, userID, query string, _ themory.RecallOptions) (*themory.RecallResult, error) {
+	f.lastUserID = userID
+	f.lastRecallQuery = query
+	return f.recallResp, f.recallErr
+}
+
+func (f *fakeTheMemory) Reflect(_ context.Context, userID string, opts themory.ReflectOptions) (*themory.ReflectResult, error) {
+	f.lastUserID = userID
+	f.lastReflectIter = opts.MaxIterations
+	return f.reflectResp, f.reflectErr
 }
 
 func (f *fakeTheMemory) List(_ context.Context, userID string, opts themory.ListOptions) (*themory.ListResult, error) {
@@ -56,9 +84,10 @@ func (f *fakeTheMemory) Metrics(_ context.Context, userID string) (*themory.Metr
 	return f.metricsResp, f.metricsErr
 }
 
-func (f *fakeTheMemory) Forget(_ context.Context, userID, memoryID string) error {
+func (f *fakeTheMemory) Forget(_ context.Context, userID, memoryID string, hard bool) error {
 	f.lastUserID = userID
 	f.lastForget = memoryID
+	f.lastForgetHard = hard
 	return f.forgetErr
 }
 
@@ -516,5 +545,129 @@ func TestMemoryEntities_UpstreamErrorReturns502(t *testing.T) {
 		&auth.UserContext{Subject: "u", TenantID: "t"}))
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("expected 502, got %d", rec.Code)
+	}
+}
+
+// =============================================================================
+// POST /v1/memory/{remember,recall,reflect} — T1.2
+// =============================================================================
+
+func authedBodyReq(method, target, body string, u *auth.UserContext) *http.Request {
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	if u != nil {
+		req = req.WithContext(auth.WithUser(req.Context(), u))
+	}
+	return req
+}
+
+func TestMemoryRemember_RejectsUnauthenticated(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.Remember(rec, httptest.NewRequest("POST", "/v1/memory/remember", strings.NewReader(`{"text":"x"}`)))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestMemoryRemember_DerivesSubjectFromAuthAndDelegates(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.rememberResp = &themory.RememberResult{Items: []themory.MemoryRow{{ID: "m1", Content: "Paulo likes oat milk"}}}
+
+	rec := httptest.NewRecorder()
+	h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember",
+		`{"text":"Paulo likes oat milk","category":"prefs"}`,
+		&auth.UserContext{Subject: "user-A", TenantID: "tenant-A"}))
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastUserID != "user-A" {
+		t.Fatalf("subject not derived from auth: got %q", fake.lastUserID)
+	}
+	if fake.lastRememberText != "Paulo likes oat milk" {
+		t.Fatalf("text not forwarded: got %q", fake.lastRememberText)
+	}
+	if !strings.Contains(rec.Body.String(), `"items":[`) {
+		t.Fatalf("expected items array in response, got %s", rec.Body.String())
+	}
+}
+
+func TestMemoryRemember_MissingTextReturns400(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember", `{}`,
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for missing text, got %d", rec.Code)
+	}
+}
+
+func TestMemoryRecall_DelegatesAndReturnsResults(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.recallResp = &themory.RecallResult{Results: []themory.RecallHit{{ID: "m1", Content: "oat milk", Score: 0.92}}}
+
+	rec := httptest.NewRecorder()
+	h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall",
+		`{"query":"what milk","topK":5}`,
+		&auth.UserContext{Subject: "user-A", TenantID: "tenant-A"}))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastRecallQuery != "what milk" {
+		t.Fatalf("query not forwarded: got %q", fake.lastRecallQuery)
+	}
+	if !strings.Contains(rec.Body.String(), `"score":0.92`) {
+		t.Fatalf("expected scored result, got %s", rec.Body.String())
+	}
+}
+
+func TestMemoryRecall_MissingQueryReturns400(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall", `{}`,
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for missing query, got %d", rec.Code)
+	}
+}
+
+func TestMemoryReflect_DelegatesAndPassesThroughResult(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.reflectResp = &themory.ReflectResult{Raw: []byte(`{"consolidated":3}`)}
+
+	rec := httptest.NewRecorder()
+	h.Reflect(rec, authedBodyReq("POST", "/v1/memory/reflect", `{"maxIterations":4}`,
+		&auth.UserContext{Subject: "user-A", TenantID: "tenant-A"}))
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastReflectIter != 4 {
+		t.Fatalf("maxIterations not forwarded: got %d", fake.lastReflectIter)
+	}
+	if !strings.Contains(rec.Body.String(), `"consolidated":3`) {
+		t.Fatalf("provider result not passed through: %s", rec.Body.String())
+	}
+}
+
+// ADR D4 — hard-delete is opt-in via ?hard=true; default stays soft.
+func TestMemoryForget_HardFlagThreadedToClient(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.forgetErr = nil
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("DELETE", "/v1/memory/forget/mem-aaaa1111bbbb2222?hard=true",
+		nil).WithContext(auth.WithUser(context.Background(), &auth.UserContext{Subject: "user-A", TenantID: "tenant-A"}))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("memoryID", "mem-aaaa1111bbbb2222")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	h.Forget(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", rec.Code)
+	}
+	if !fake.lastForgetHard {
+		t.Fatal("hard flag not threaded to client when ?hard=true")
 	}
 }

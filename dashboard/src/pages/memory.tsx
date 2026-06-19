@@ -19,7 +19,7 @@ import { cloudFetch } from '@/lib/api';
  * Plan 1 of dashboard-memory-section-roadmap.md, T1.6.
  *
  * /memory landing page — the first customer-visible Memory surface. Renders
- * 4 KPIs from GET /v1/memory/metrics + 2 trend charts + a Refresh button.
+ * 4 KPIs from GET /v1/dashboard/memory/metrics + 2 trend charts + a Refresh button.
  *
  * Per ADR D3 of the plan: empty pgvector returns 0 from every numeric field
  * (never null, never NaN). This page renders that 0 cleanly via StatTile —
@@ -45,8 +45,8 @@ export function MemoryPage() {
   const queryClient = useQueryClient();
 
   const metricsQuery = useQuery({
-    queryKey: ['cloud', '/v1/memory/metrics'] as const,
-    queryFn: () => cloudFetch<MemoryMetrics>('/v1/memory/metrics'),
+    queryKey: ['cloud', '/v1/dashboard/memory/metrics'] as const,
+    queryFn: () => cloudFetch<MemoryMetrics>('/v1/dashboard/memory/metrics'),
   });
 
   // D3: even if the backend hiccups and returns null, fall back to zeros
@@ -59,7 +59,7 @@ export function MemoryPage() {
   };
 
   const onRefresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/memory/metrics'] });
+    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/metrics'] });
   };
 
   // Placeholder trend until a P2-era usage aggregator ships. Plotting
@@ -82,99 +82,84 @@ export function MemoryPage() {
         loading: metricsQuery.isFetching,
       }}
     >
-      {metricsQuery.isError ? (
-        <Alert intent="warning" title="Could not load memory metrics">
-          The Memory service is not reachable right now. Try refreshing in a moment.
-        </Alert>
-      ) : null}
+      {/* PageShell wraps its content children in a single gap-less <div>, so
+          multi-section pages MUST provide their own vertical rhythm with a
+          space-y wrapper — the canonical pattern from overview.tsx +
+          project-detail.tsx. Without it the sections render flush. */}
+      <div className="space-y-6">
+        {metricsQuery.isError ? (
+          <Alert intent="warning" title="Could not load memory metrics">
+            The Memory service is not reachable right now. Try refreshing in a moment.
+          </Alert>
+        ) : null}
 
-      {/* KPI strip — 4 tiles. ContentGrid only supports up-to-3 columns,
-          so the KPI strip uses a direct Tailwind grid (2 cols on mobile,
-          4 on desktop) — matches the existing billing.tsx pattern for
-          dense KPI rows. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile
-          value={metrics.total_memories}
-          label="Total memories"
-          icon={Brain}
-        />
-        <StatTile
-          value={metrics.retrieval_api_usage}
-          label="Retrieval API calls"
-          icon={Zap}
-        />
-        <StatTile
-          value={metrics.add_events}
-          label="Add events"
-          icon={Sparkles}
-        />
-        <StatTile
-          value={metrics.entity_count}
-          label="Distinct entities"
-          icon={Database}
-        />
-      </div>
-
-      <ContentGrid columns="2-equal">
-        <Card>
-          <TokenUsageChart
-            title="Usage trend"
-            points={trendPoints}
-            height={180}
-          />
-        </Card>
-        <Card>
-          <TokenUsageChart
-            title="Entities trend"
-            points={entityTrendPoints}
-            height={180}
-          />
-        </Card>
-      </ContentGrid>
-
-      <Card>
-        <div className="p-4 space-y-2">
-          <h2 className="text-base font-semibold">Getting started</h2>
-          <p className="text-sm text-muted-foreground">
-            Use the SDK to remember facts from your agent. Anything you write
-            here is queryable via <code>theo.memory.user(&apos;u&apos;).recall()</code>.
-          </p>
-          <Button variant="ghost" onClick={() => (window.location.href = '/memory/memories')}>
-            Browse memories →
-          </Button>
+        {/* KPI strip — 4 tiles. ContentGrid only supports up-to-3 columns,
+            so the KPI strip uses a direct Tailwind grid (2 cols on mobile,
+            4 on desktop) — matches the existing billing.tsx pattern for
+            dense KPI rows. */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatTile value={metrics.total_memories} label="Total memories" icon={Brain} />
+          <StatTile value={metrics.retrieval_api_usage} label="Retrieval API calls" icon={Zap} />
+          <StatTile value={metrics.add_events} label="Add events" icon={Sparkles} />
+          <StatTile value={metrics.entity_count} label="Distinct entities" icon={Database} />
         </div>
-      </Card>
 
-      {/* Plan 2 of dashboard-memory-section-roadmap.md, T2.4 — Explore grid.
-          4 next-step CTAs surfaced once the KPIs are visible. Keeps the
-          first-run customer engaged with concrete next actions, not just
-          a wall of zeros. */}
-      <h2 className="text-base font-semibold pt-2">Explore</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <ExploreCard
-          icon={SettingsIcon}
-          title="Customize"
-          description="Tune memory categories and lifecycle rules."
-          href="/settings"
-        />
-        <ExploreCard
-          icon={Code2}
-          title="Integration examples"
-          description="Drop-in SDK snippets for your stack."
-          href="/api-keys"
-        />
-        <ExploreCard
-          icon={FlaskConical}
-          title="Try Playground"
-          description="Remember and recall live, no code required."
-          href="/memory/memories"
-        />
-        <ExploreCard
-          icon={BookOpen}
-          title="Documentation"
-          description="Read the architecture + every endpoint."
-          href="/memory/entities"
-        />
+        <ContentGrid columns="2-equal">
+          <Card>
+            <Card.Body>
+              <TokenUsageChart title="Usage trend" points={trendPoints} height={180} />
+            </Card.Body>
+          </Card>
+          <Card>
+            <Card.Body>
+              <TokenUsageChart title="Entities trend" points={entityTrendPoints} height={180} />
+            </Card.Body>
+          </Card>
+        </ContentGrid>
+
+        <Card>
+          <Card.Body className="space-y-2">
+            <h2 className="text-base font-semibold">Getting started</h2>
+            <p className="text-sm text-muted-foreground">
+              Use the SDK to remember facts from your agent. Anything you write
+              here is queryable via <code>theo.memory.user(&apos;u&apos;).recall()</code>.
+            </p>
+            <Button variant="ghost" onClick={() => (window.location.href = '/memory/memories')}>
+              Browse memories →
+            </Button>
+          </Card.Body>
+        </Card>
+
+        {/* Plan 2 of dashboard-memory-section-roadmap.md, T2.4 — Explore grid. */}
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold">Explore</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <ExploreCard
+              icon={SettingsIcon}
+              title="Customize"
+              description="Tune memory categories and lifecycle rules."
+              href="/settings"
+            />
+            <ExploreCard
+              icon={Code2}
+              title="Integration examples"
+              description="Drop-in SDK snippets for your stack."
+              href="/api-keys"
+            />
+            <ExploreCard
+              icon={FlaskConical}
+              title="Try Playground"
+              description="Remember and recall live, no code required."
+              href="/memory/memories"
+            />
+            <ExploreCard
+              icon={BookOpen}
+              title="Documentation"
+              description="Read the architecture + every endpoint."
+              href="/memory/entities"
+            />
+          </div>
+        </section>
       </div>
     </PageShell>
   );
@@ -196,14 +181,14 @@ interface ExploreCardProps {
 function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps) {
   return (
     <Card>
-      <div className="p-4 space-y-2">
+      <Card.Body className="space-y-2">
         <Icon className="size-5 text-primary" aria-hidden="true" />
         <h3 className="text-sm font-semibold">{title}</h3>
         <p className="text-xs text-muted-foreground">{description}</p>
         <Button variant="ghost" size="sm" onClick={() => (window.location.href = href)}>
           Open →
         </Button>
-      </div>
+      </Card.Body>
     </Card>
   );
 }

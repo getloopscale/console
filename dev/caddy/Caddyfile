@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025-2026 The Theo Authors
+#
+# Single-origin reverse proxy for the dev stack. Everything is served from
+# http://localhost:8088 so the browser sees ONE origin — Kratos session cookies,
+# the dashboard SPA, and the gateway API all share it (no cross-origin / SameSite
+# pain). Path routing mirrors dashboard/public/__config.js + the engine's
+# infra/local/Caddyfile.
+{
+	admin off
+	auto_https off
+}
+
+:8088 {
+	encode gzip
+
+	# Ory Kratos (login / registration / session) — same-origin paths.
+	handle /self-service/* {
+		reverse_proxy kratos:4433
+	}
+	handle /sessions/* {
+		reverse_proxy kratos:4433
+	}
+	handle /.well-known/ory/* {
+		reverse_proxy kratos:4433
+	}
+
+	# Gateway API (cloud) — /v1/*, /engine/*, health.
+	handle /v1/* {
+		reverse_proxy theo-cloud:13002
+	}
+	handle /engine/* {
+		reverse_proxy theo-cloud:13002
+	}
+	handle /health {
+		reverse_proxy theo-cloud:13002
+	}
+
+	# Everything else → the dashboard SPA (history fallback to index.html).
+	handle {
+		root * /srv/dashboard
+		try_files {path} /index.html
+		file_server
+	}
+}

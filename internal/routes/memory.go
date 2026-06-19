@@ -5,6 +5,7 @@ package routes
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -35,8 +36,11 @@ import (
 type TheMemoryClient interface {
 	List(ctx context.Context, userID string, opts themory.ListOptions) (*themory.ListResult, error)
 	Metrics(ctx context.Context, userID string) (*themory.MetricsResult, error)
-	Forget(ctx context.Context, userID, memoryID string) error
+	Forget(ctx context.Context, userID, memoryID string, hard bool) error
 	Entities(ctx context.Context, userID, scope string) (*themory.EntitiesResult, error)
+	Remember(ctx context.Context, userID, text string, opts themory.RememberOptions) (*themory.RememberResult, error)
+	Recall(ctx context.Context, userID, query string, opts themory.RecallOptions) (*themory.RecallResult, error)
+	Reflect(ctx context.Context, userID string, opts themory.ReflectOptions) (*themory.ReflectResult, error)
 }
 
 // validEntityScopes is the whitelist for the `scope` query param on
@@ -114,6 +118,7 @@ func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	opts := themory.ListOptions{
 		Category: q.Get("category"),
+		Cursor:   q.Get("cursor"),
 		From:     q.Get("from"),
 		To:       q.Get("to"),
 	}
@@ -198,7 +203,11 @@ func (h *MemoryHandler) Forget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.client.Forget(r.Context(), user.Subject, memoryID)
+	// ADR D4 — hard-delete (GDPR escape hatch) is opt-in via `?hard=true`.
+	// Default is the audit-preserving soft delete.
+	hard := r.URL.Query().Get("hard") == "true"
+
+	err := h.client.Forget(r.Context(), user.Subject, memoryID, hard)
 	if err == nil {
 		// T5.6 — emit webhook delivery rows for the memory.forgotten event.
 		// Best-effort: if the webhook fanout fails, the forget itself
@@ -206,7 +215,7 @@ func (h *MemoryHandler) Forget(w http.ResponseWriter, r *http.Request) {
 		// handler's response to mask the upstream success.
 		if h.eventPublisher != nil {
 			h.eventPublisher.Publish(r.Context(), user.Subject, user.TenantID, "memory.forgotten",
-				map[string]any{"memory_id": memoryID})
+				map[string]any{"memory_id": memoryID, "hard": hard})
 		}
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -254,4 +263,138 @@ func (h *MemoryHandler) Entities(w http.ResponseWriter, r *http.Request) {
 		result.Entities = []themory.Entity{}
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+// memoryMaxBodyBytes caps inbound write bodies (remember/recall/reflect) to
+// guard against oversized payloads (mirrors the provider's 1 MB body-limit).
+const memoryMaxBodyBytes = 1 << 20 // 1 MiB
+
+// =============================================================================
+// POST /v1/memory/remember — T1.2 (remember/recall/reflect verbs)
+// =============================================================================
+
+type rememberRequest struct {
+	Text     string            `json:"text"`
+	Category string            `json:"category,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
+// Remember proxies a write to TheMemory under the authenticated subject's user
+// scope. The subject is derived from auth ONLY (never from the body).
+func (h *MemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, memoryMaxBodyBytes)
+	var req rememberRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Request body must be valid JSON.")
+		return
+	}
+	if req.Text == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'text' is required.")
+		return
+	}
+
+	result, err := h.client.Remember(r.Context(), user.Subject, req.Text,
+		themory.RememberOptions{Category: req.Category, Metadata: req.Metadata})
+	if err != nil {
+		h.logger.Warn("memory remember: upstream failed", "error", err, "subject", user.Subject)
+		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		return
+	}
+	if result.Items == nil {
+		result.Items = []themory.MemoryRow{}
+	}
+	// best-effort webhook fanout for memory.created
+	if h.eventPublisher != nil {
+		h.eventPublisher.Publish(r.Context(), user.Subject, user.TenantID, "memory.created",
+			map[string]any{"count": len(result.Items)})
+	}
+	writeJSON(w, http.StatusCreated, result)
+}
+
+// =============================================================================
+// POST /v1/memory/recall — T1.2
+// =============================================================================
+
+type recallRequest struct {
+	Query     string  `json:"query"`
+	TopK      int     `json:"topK,omitempty"`
+	Threshold float64 `json:"threshold,omitempty"`
+}
+
+// Recall proxies a semantic search to TheMemory under the subject's user scope.
+func (h *MemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, memoryMaxBodyBytes)
+	var req recallRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Request body must be valid JSON.")
+		return
+	}
+	if req.Query == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'query' is required.")
+		return
+	}
+
+	result, err := h.client.Recall(r.Context(), user.Subject, req.Query,
+		themory.RecallOptions{TopK: req.TopK, Threshold: req.Threshold})
+	if err != nil {
+		h.logger.Warn("memory recall: upstream failed", "error", err, "subject", user.Subject)
+		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		return
+	}
+	if result.Results == nil {
+		result.Results = []themory.RecallHit{}
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// =============================================================================
+// POST /v1/memory/reflect — T1.2
+// =============================================================================
+
+type reflectRequest struct {
+	MaxIterations int `json:"maxIterations,omitempty"`
+}
+
+// Reflect triggers consolidation in TheMemory under the subject's user scope.
+// The provider's result object is passed through verbatim.
+func (h *MemoryHandler) Reflect(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, memoryMaxBodyBytes)
+	var req reflectRequest
+	// Empty body is allowed (maxIterations is optional). Decode best-effort.
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Request body must be valid JSON.")
+			return
+		}
+	}
+
+	result, err := h.client.Reflect(r.Context(), user.Subject, themory.ReflectOptions{MaxIterations: req.MaxIterations})
+	if err != nil {
+		h.logger.Warn("memory reflect: upstream failed", "error", err, "subject", user.Subject)
+		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		return
+	}
+	// Pass the provider's result object through verbatim (202 Accepted).
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	if len(result.Raw) > 0 {
+		_, _ = w.Write(result.Raw)
+	} else {
+		_, _ = w.Write([]byte("{}"))
+	}
 }

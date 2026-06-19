@@ -111,6 +111,13 @@ const MENUS: Record<string, MenuDefinition> = {
         items: [{ label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' }],
       },
       {
+        // Top-level shortcut to the API Tokens page (also reachable via
+        // Settings → Developer → API Tokens). Uses the /tokens route so the
+        // root sidebar stays active instead of drilling into Settings.
+        title: 'Developer',
+        items: [{ label: 'API Tokens', path: '/tokens', icon: KeyRound }],
+      },
+      {
         title: 'Billing',
         items: [{ label: 'Billing', path: '/billing', icon: Receipt }],
       },

@@ -605,14 +605,19 @@ function RevealedSecretDialog({ revealed, onClose }: RevealedSecretDialogProps) 
 
   if (!revealed) return null;
 
-  const handleClose = () => {
-    if (!copied) return;
+  // The (x) / ESC / overlay dismiss the dialog UNCONDITIONALLY. Dismissing
+  // without copying is an allowed (if lossy) path — the show-once secret is
+  // gone and the recovery is "revoke + create new" (the intentional friction
+  // documented above). Gating dismissal on `copied` left the (x) button dead
+  // (it fired onOpenChange → handleClose → early-returned), which is the bug
+  // users hit. The acknowledgement gate stays ONLY on the primary "Done" CTA.
+  const close = () => {
     setCopied(false);
     onClose();
   };
 
   return (
-    <Dialog open={revealed !== null} onOpenChange={(o) => !o && handleClose()}>
+    <Dialog open={revealed !== null} onOpenChange={(o) => !o && close()}>
       <Dialog.Content>
         <Dialog.Header>
           <Dialog.Title>Your new API key</Dialog.Title>
@@ -647,7 +652,7 @@ function RevealedSecretDialog({ revealed, onClose }: RevealedSecretDialogProps) 
         <Dialog.Footer>
           <Button
             type="button"
-            onClick={handleClose}
+            onClick={close}
             disabled={!copied}
             aria-disabled={!copied}
           >

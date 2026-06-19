@@ -66,8 +66,8 @@ export function EntitiesPage() {
   };
 
   const query = useQuery({
-    queryKey: ['cloud', '/v1/memory/entities', activeScope] as const,
-    queryFn: () => cloudFetch<EntitiesResult>(`/v1/memory/entities?scope=${activeScope}`),
+    queryKey: ['cloud', '/v1/dashboard/memory/entities', activeScope] as const,
+    queryFn: () => cloudFetch<EntitiesResult>(`/v1/dashboard/memory/entities?scope=${activeScope}`),
   });
 
   // D3 cascade: list memories under this entity, then forget each in
@@ -75,14 +75,14 @@ export function EntitiesPage() {
   // batch endpoint (per Plan 2 D3 ADR) — re-use the P1 Forget primitive.
   const cascadeForget = useMutation({
     mutationFn: async (_entity: Entity) => {
-      // Page through memories filtered by the entity. The /v1/memory/list
+      // Page through memories filtered by the entity. The /v1/dashboard/memory/list
       // endpoint accepts a `category` filter but not scope_type/id —
       // operator gap honestly disclosed in the plan's D3 trade-off.
       // For v0.1 we approximate: fetch the first page and forget all ids
       // we find. Real cascade requires upstream TheMemory to expose a
       // /memories?entity=<id> filter.
       const listResp = await cloudFetch<{ memories: { id: string }[] }>(
-        `/v1/memory/list?limit=200`,
+        `/v1/dashboard/memory/list?limit=200`,
       );
       const ids = (listResp?.memories ?? []).map((m) => m.id);
       // Bounded concurrency — chunks of FORGET_CONCURRENCY.
@@ -90,14 +90,14 @@ export function EntitiesPage() {
         const batch = ids.slice(i, i + FORGET_CONCURRENCY);
         await Promise.all(
           batch.map((id) =>
-            cloudFetch<null>(`/v1/memory/forget/${id}`, { method: 'DELETE' }).catch(() => null),
+            cloudFetch<null>(`/v1/dashboard/memory/forget/${id}`, { method: 'DELETE' }).catch(() => null),
           ),
         );
       }
     },
     onSuccess: () => {
       setPendingDelete(null);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/memory/entities'] });
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/entities'] });
     },
   });
 
@@ -147,6 +147,7 @@ export function EntitiesPage() {
         title="Entities"
         description="Who and what your agent remembers — grouped by scope. Pick a tab to slice."
       >
+       <div className="space-y-6">
         <Tabs value={activeScope} onValueChange={(v) => setScope(v as Scope)}>
           <Tabs.List>
             <Tabs.Trigger value="user">USER</Tabs.Trigger>
@@ -177,6 +178,7 @@ export function EntitiesPage() {
             <DataTable columns={columns} data={entities} rowKey={(row) => row.id} />
           </Card>
         )}
+       </div>
       </PageShell>
 
       {pendingDelete ? (

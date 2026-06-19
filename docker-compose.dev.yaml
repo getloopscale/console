@@ -1,0 +1,227 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025-2026 The Theo Authors
+#
+# DEV stack — run the real applications locally for end-user validation.
+# Brought up by `make dev-up` (see dev/run.sh). Persistent (no auto-teardown).
+#
+# Phase 1 (this section): the real backend + gateway.
+#   pg-cloud   — Postgres 17 loaded with the engine's REAL schema (tenants,
+#                theo_api_keys, users, …) from ../theo/api/internal/db/schema.gen.sql
+#   pg-themory — pgvector for TheMemory
+#   themory    — TheMemory REST server, REAL LLM (OPENAI_API_KEY from theo-memory/.env)
+#   theo-cloud — the gateway (host-built binary)
+#
+# Phases 2-3 (Kratos + Caddy single-origin proxy + dashboard) are appended below.
+
+name: theo-cloud-dev
+
+services:
+  pg-cloud:
+    image: postgres:17-alpine
+    # DB named `theo` to match the engine migrations (they GRANT ... ON DATABASE theo).
+    environment:
+      POSTGRES_USER: theo
+      POSTGRES_PASSWORD: theo
+      POSTGRES_DB: theo
+    volumes:
+      # Extensions need superuser; the migrations assume they pre-exist.
+      - ./dev/sql/00-extensions.sql:/docker-entrypoint-initdb.d/00-extensions.sql:ro
+      # Separate `kratos` database for Ory Kratos.
+      - ./dev/sql/01-create-kratos-db.sql:/docker-entrypoint-initdb.d/01-create-kratos-db.sql:ro
+      - dev_pgcloud:/var/lib/postgresql/data
+    ports:
+      - "${DEV_PG_CLOUD_PORT:-55433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U theo -d theo"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 8s
+
+  # Applies the engine's REAL migrations (golang-migrate format) — drift-free vs
+  # the committed schema.gen.sql dump. One-shot; the gateway waits for it.
+  cloud-migrate:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      pg-cloud:
+        condition: service_healthy
+    volumes:
+      - ../theo/api/internal/db/migrations:/migrations:ro
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://theo:theo@pg-cloud:5432/theo?sslmode=disable"
+      - "up"
+    restart: on-failure:3
+
+  pg-themory:
+    image: ankane/pgvector:v0.5.1
+    environment:
+      POSTGRES_USER: themem
+      POSTGRES_PASSWORD: themem
+      POSTGRES_DB: themem
+    volumes:
+      - dev_pgthemory:/var/lib/postgresql/data
+    ports:
+      # Host-mapped so the host-network MCP server can reach it.
+      - "${DEV_PG_THEMORY_PORT:-15432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U themem -d themem"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  # Hermetic OpenAI-compatible mock (default LLM/embeddings backend). Swap for a
+  # real provider by exporting OPENAI_API_KEY + OPENAI_BASE_URL before `make dev-up`.
+  mock-openai:
+    build:
+      context: ./dev
+      dockerfile: runtime.Dockerfile
+      args:
+        BINARY: bin/mock-openai
+    environment:
+      PORT: "11434"
+      MOCK_EMBED_DIM: "1536"
+    ports:
+      # Host-mapped so the host-network MCP server can reach it.
+      - "${DEV_MOCK_PORT:-11434}:11434"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:11434/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 2s
+
+  # --- TheMemory MCP server (OpenMemory-compatible SSE) --------------------
+  # `themory mcp --compat openmemory` exposes add_memories / search_memory /
+  # list_memories / delete_memories over SSE at /{client}/sse/{user} (port 8765)
+  # — a drop-in for OpenMemory-wired MCP clients (Cursor / Claude Desktop / …).
+  themory-mcp:
+    image: ${THEMORY_IMAGE:-themory-e2e:latest}
+    depends_on:
+      pg-themory:
+        condition: service_healthy
+      mock-openai:
+        condition: service_healthy
+    # The OpenMemory SSE compat surface is unauthenticated (local-first) and
+    # REFUSES to bind a non-localhost host without TLS (ADR-0015 guard). So we
+    # run it on the HOST network and bind 127.0.0.1:8765 — reachable by the
+    # host's MCP client (Cursor / Claude Desktop) AND guard-compliant. It then
+    # reaches pg-themory + mock-openai via their host-mapped ports.
+    network_mode: host
+    # The image entrypoint hard-codes `server`; override to run `mcp`.
+    entrypoint: ["/nodejs/bin/node", "/app/dist/agent-tools/cli.js"]
+    command: ["mcp", "--compat", "openmemory"]
+    environment:
+      THEOMEM_PG_URI: postgres://themem:themem@localhost:${DEV_PG_THEMORY_PORT:-15432}/themem
+      THEMEMORY_API_KEY: ${THEMORY_MASTER_KEY:-dev-master-key}
+      THEOMEM_EMBEDDER: openai
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-dummy-key-for-mock}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://localhost:11434/v1}
+      THEOMEM_MCP_COMPAT: openmemory
+      THEOMEM_MCP_HTTP_PORT: "8765"
+      # default THEOMEM_MCP_HTTP_HOST = 127.0.0.1 satisfies the ADR-0015 guard.
+
+  # --- Ory Kratos (identity / login) ---------------------------------------
+  kratos-migrate:
+    image: oryd/kratos:v1.3.1
+    depends_on:
+      pg-cloud:
+        condition: service_healthy
+    environment:
+      DSN: postgres://theo:theo@pg-cloud:5432/kratos?sslmode=disable
+    command: ["migrate", "sql", "-e", "--yes"]
+    restart: on-failure:3
+
+  kratos:
+    image: oryd/kratos:v1.3.1
+    depends_on:
+      kratos-migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./dev/kratos:/etc/config/kratos:ro
+    command: ["serve", "--config", "/etc/config/kratos/kratos.yml", "--dev", "--watch-courier"]
+    ports:
+      - "${DEV_KRATOS_PUBLIC_PORT:-14433}:4433"
+      - "${DEV_KRATOS_ADMIN_PORT:-14434}:4434"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4433/health/ready"]
+      interval: 4s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  themory:
+    image: ${THEMORY_IMAGE:-themory-e2e:latest}
+    depends_on:
+      pg-themory:
+        condition: service_healthy
+      mock-openai:
+        condition: service_healthy
+    environment:
+      THEOMEM_PG_URI: postgres://themem:themem@pg-themory:5432/themem
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      THEMEMORY_API_KEY: ${THEMORY_MASTER_KEY:-dev-master-key}
+      THEOMEM_EMBEDDER: openai
+      # Default: hermetic mock (deterministic, no cost). Override OPENAI_API_KEY +
+      # OPENAI_BASE_URL for a real provider (OpenAI / OpenRouter) → real recall.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-dummy-key-for-mock}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://mock-openai:11434/v1}
+    ports:
+      - "${DEV_THEMORY_PORT:-18081}:8080"
+    healthcheck:
+      test:
+        - "CMD"
+        - "/nodejs/bin/node"
+        - "-e"
+        - "require('node:http').get('http://127.0.0.1:8080/v1/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 20s
+
+  theo-cloud:
+    build:
+      context: ./dev
+      dockerfile: runtime.Dockerfile
+      args:
+        BINARY: bin/theo-cloud
+    depends_on:
+      cloud-migrate:
+        condition: service_completed_successfully
+      themory:
+        condition: service_healthy
+    environment:
+      THEO_ENV: dev
+      CLOUD_LISTEN_ADDR: ":13002"
+      DATABASE_URL: postgres://theo:theo@pg-cloud:5432/theo?sslmode=disable
+      THEMORY_BASE_URL: http://themory:8080
+      THEMORY_API_KEY: ${THEMORY_MASTER_KEY:-dev-master-key}
+      SESSION_TOKEN_SECRET: dev-session-secret-at-least-32-characters-long
+      APP_PUBLIC_URL: http://localhost:${DEV_ORIGIN_PORT:-5173}
+      BILLING_RETURN_URL: http://localhost:${DEV_ORIGIN_PORT:-5173}
+      # Kratos wiring (Phase 2). Browser-facing URL goes through the single-origin
+      # proxy; server-to-server whoami hits Kratos directly on the compose network.
+      KRATOS_PUBLIC_URL: http://localhost:${DEV_ORIGIN_PORT:-5173}
+      KRATOS_INTERNAL_URL: http://kratos:4433
+      KRATOS_ADMIN_URL: http://kratos:4434
+    ports:
+      - "${DEV_GATEWAY_PORT:-13002}:13002"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:13002/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  # NOTE: the dashboard runs as a host-side `vite dev` server (started by
+  # dev/run.sh) on http://localhost:5173 — vite's built-in proxy forwards
+  # /v1, /engine, /auth -> gateway:13002 and /self-service, /sessions ->
+  # kratos:14433 (both exposed on the host). This is the dashboard's native dev
+  # workflow and sidesteps the production-bundle manualChunks TDZ bug. Kratos +
+  # the gateway are configured with the 5173 origin so cookies stay same-origin.
+
+volumes:
+  dev_pgcloud:
+  dev_pgthemory:
