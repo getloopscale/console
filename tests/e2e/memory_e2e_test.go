@@ -295,4 +295,46 @@ func TestMemoryE2E_FullVerbSurface(t *testing.T) {
 			t.Fatalf("reflect status=%d body=%s", status, body)
 		}
 	})
+
+	// Phase 2A — attribution-write + bi-temporal asOf round-trip (T3.1).
+	t.Run("remember-attributed then recall-asOf round-trip", func(t *testing.T) {
+		// remember a fact attributed to a peer through the gateway
+		status, body := cloudPost(t, cloudURL, key, "/v1/memory/remember",
+			`{"text":"maria recommended the oat milk latte","attributedTo":"e2e-peer"}`)
+		if status != http.StatusCreated {
+			t.Fatalf("attributed remember status=%d body=%s", status, body)
+		}
+
+		// recall with a FIXED near-FUTURE asOf (EC-3) so the just-written memory
+		// is within [t_valid, asOf] regardless of clock skew. Path proof only
+		// (200 + results array) — semantic ranking deferred to the hermetic
+		// embedder caveat, as in the prior cycle.
+		recallBody := `{"query":"what milk","topK":10,"threshold":0,"asOf":"2099-01-01T00:00:00Z"}`
+		status, body = cloudPost(t, cloudURL, key, "/v1/memory/recall", recallBody)
+		if status != http.StatusOK {
+			t.Fatalf("asOf recall status=%d body=%s", status, body)
+		}
+		if !strings.Contains(body, `"results"`) {
+			t.Fatalf("asOf recall missing results array: %s", body)
+		}
+
+		// the attributed peer must surface in the entities aggregation —
+		// proves attribution-write reached the store end-to-end.
+		status, body = cloudGet(t, cloudURL, key, "/v1/memory/entities?scope=user")
+		if status != http.StatusOK {
+			t.Fatalf("entities status=%d body=%s", status, body)
+		}
+		if !strings.Contains(body, "e2e-peer") {
+			t.Fatalf("attributed peer not in entities aggregation: %s", body)
+		}
+	})
+
+	// Phase 2A — ADR D2: invalid asOf datetime → 400 (not 502).
+	t.Run("invalid asOf returns 400", func(t *testing.T) {
+		status, _ := cloudPost(t, cloudURL, key, "/v1/memory/recall",
+			`{"query":"x","asOf":"not-a-date"}`)
+		if status != http.StatusBadRequest {
+			t.Fatalf("expected 400 for invalid asOf, got %d", status)
+		}
+	})
 }
