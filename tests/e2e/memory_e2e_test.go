@@ -231,6 +231,8 @@ func TestMemoryE2E_FullVerbSurface(t *testing.T) {
 
 	subject := "e2e-verbs-user"
 	key := seedAPIKey(t, db, subject, "e2e-tenant")
+	// A second subject for cross-subject isolation of the entities aggregation.
+	betaKey := seedAPIKey(t, db, "e2e-verbs-beta", "e2e-tenant")
 
 	// remember (write through the gateway, NOT seeded directly)
 	t.Run("remember writes through the gateway", func(t *testing.T) {
@@ -326,6 +328,17 @@ func TestMemoryE2E_FullVerbSurface(t *testing.T) {
 		}
 		if !strings.Contains(body, "e2e-peer") {
 			t.Fatalf("attributed peer not in entities aggregation: %s", body)
+		}
+
+		// Cross-subject isolation (F-test-3): a DIFFERENT subject's entities must
+		// NOT contain alpha's attributed peer — entities derives the subject from
+		// auth (subject-in-path), the same isolated path list/forget already prove.
+		statusB, bodyB := cloudGet(t, cloudURL, betaKey, "/v1/memory/entities?scope=user")
+		if statusB != http.StatusOK {
+			t.Fatalf("beta entities status=%d body=%s", statusB, bodyB)
+		}
+		if strings.Contains(bodyB, "e2e-peer") {
+			t.Fatalf("isolation breach: beta's entities contain alpha's peer: %s", bodyB)
 		}
 	})
 
