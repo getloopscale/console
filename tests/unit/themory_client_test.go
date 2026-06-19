@@ -33,12 +33,18 @@ import (
 // listing (ownership) and the forget delegation.
 type recordingServer struct {
 	*httptest.Server
-	listRequests   []*http.Request
-	forgetRequests []*http.Request
-	forgetBodies   []string
+	listRequests     []*http.Request
+	forgetRequests   []*http.Request
+	forgetBodies     []string
+	metricsRequests  []*http.Request
+	entitiesRequests []*http.Request
 
 	// listItems is the canned listing returned by the scope endpoint.
 	listItems []map[string]any
+	// metricsBody is the canned body returned by the /metrics endpoint.
+	metricsBody map[string]any
+	// entitiesItems is the canned entities array returned by /entities.
+	entitiesItems []map[string]any
 	// forgetStatus is the status returned by POST /v1/forget (default 204).
 	forgetStatus int
 }
@@ -48,6 +54,22 @@ func newRecordingServer(t *testing.T) *recordingServer {
 	s := &recordingServer{forgetStatus: 204}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/metrics"):
+			s.metricsRequests = append(s.metricsRequests, r.Clone(context.Background()))
+			w.Header().Set("Content-Type", "application/json")
+			body := s.metricsBody
+			if body == nil {
+				body = map[string]any{"total_memories": 0, "entity_count": 0, "add_events": 0, "retrieval_api_usage": 0}
+			}
+			_ = json.NewEncoder(w).Encode(body)
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/entities"):
+			s.entitiesRequests = append(s.entitiesRequests, r.Clone(context.Background()))
+			w.Header().Set("Content-Type", "application/json")
+			ents := s.entitiesItems
+			if ents == nil {
+				ents = []map[string]any{}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"entities": ents})
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/v1/scopes/"):
 			s.listRequests = append(s.listRequests, r.Clone(context.Background()))
 			items := s.listItems
@@ -230,38 +252,61 @@ func TestTheMemoryClient_ForgetPropagatesProvider404(t *testing.T) {
 	}
 }
 
-// Metrics invariant: total_memories is DERIVED by counting the scope; usage
-// counters are 0 (provider has no metrics endpoint).
-func TestTheMemoryClient_MetricsDerivesTotalFromScope(t *testing.T) {
+// Metrics now maps the provider's real subject-scoped /metrics endpoint
+// (ADR D2 amendment) — total/entity_count/add_events real, retrieval 0.
+func TestTheMemoryClient_MetricsMapsProviderEndpoint(t *testing.T) {
 	stub := newRecordingServer(t)
-	stub.listItems = []map[string]any{item("a", "1"), item("b", "2"), item("c", "3")}
-
+	stub.metricsBody = map[string]any{
+		"total_memories": 7, "entity_count": 2, "add_events": 7, "retrieval_api_usage": 0,
+	}
 	client := themory.NewClient(stub.URL, "k", nil)
 	m, err := client.Metrics(context.Background(), "u")
 	if err != nil {
 		t.Fatalf("Metrics: %v", err)
 	}
-	if m.TotalMemories != 3 {
-		t.Errorf("total_memories = %d, want 3 (derived)", m.TotalMemories)
+	if m.TotalMemories != 7 || m.EntityCount != 2 || m.AddEvents != 7 {
+		t.Errorf("metrics mapping wrong: %+v", m)
 	}
-	if m.AddEvents != 0 || m.RetrievalAPIUsage != 0 || m.EntityCount != 0 {
-		t.Errorf("usage counters must be 0 (provider gap); got %+v", m)
+	if len(stub.metricsRequests) != 1 {
+		t.Errorf("expected 1 metrics call, got %d", len(stub.metricsRequests))
+	}
+	if got := stub.metricsRequests[0].URL.Path; got != "/v1/scopes/user/u/metrics" {
+		t.Errorf("metrics path = %q, want /v1/scopes/user/u/metrics", got)
 	}
 }
 
-// Entities invariant: returns empty WITHOUT calling the provider (no endpoint).
-func TestTheMemoryClient_EntitiesReturnsEmptyWithoutProviderCall(t *testing.T) {
+// Entities maps the provider's real subject-scoped /entities endpoint for the
+// user scope; non-user scopes return empty WITHOUT a provider call.
+func TestTheMemoryClient_EntitiesMapsProviderEndpoint(t *testing.T) {
 	stub := newRecordingServer(t)
+	stub.entitiesItems = []map[string]any{
+		{"id": "paulo", "scope_type": "user", "memory_count": 3, "last_seen_at": "2026-06-18T00:00:00Z"},
+	}
 	client := themory.NewClient(stub.URL, "k", nil)
 	res, err := client.Entities(context.Background(), "u", "user")
 	if err != nil {
 		t.Fatalf("Entities: %v", err)
 	}
-	if res == nil || len(res.Entities) != 0 {
-		t.Errorf("expected empty entities, got %+v", res)
+	if len(res.Entities) != 1 || res.Entities[0].ID != "paulo" || res.Entities[0].MemoryCount != 3 {
+		t.Errorf("entities mapping wrong: %+v", res.Entities)
 	}
-	if len(stub.listRequests) != 0 || len(stub.forgetRequests) != 0 {
-		t.Errorf("Entities must not call the provider; list=%d forget=%d", len(stub.listRequests), len(stub.forgetRequests))
+	if len(stub.entitiesRequests) != 1 {
+		t.Errorf("expected 1 entities call, got %d", len(stub.entitiesRequests))
+	}
+}
+
+func TestTheMemoryClient_EntitiesNonUserScopeReturnsEmptyWithoutProviderCall(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	res, err := client.Entities(context.Background(), "u", "session")
+	if err != nil {
+		t.Fatalf("Entities: %v", err)
+	}
+	if res == nil || len(res.Entities) != 0 {
+		t.Errorf("expected empty entities for non-user scope, got %+v", res)
+	}
+	if len(stub.entitiesRequests) != 0 {
+		t.Errorf("non-user scope must not call the provider; got %d", len(stub.entitiesRequests))
 	}
 }
 

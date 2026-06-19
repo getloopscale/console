@@ -8,6 +8,7 @@ import {
   BookOpen,
   Brain,
   ChevronRight,
+  FlaskConical,
   FolderKanban,
   Github,
   GitPullRequest,
@@ -193,6 +194,8 @@ const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'Overview', path: '/memory', icon: LayoutGrid },
           { label: 'Memories', path: '/memory/memories', icon: ListChecks },
+          // remember / recall / reflect live surface.
+          { label: 'Playground', path: '/memory/playground', icon: FlaskConical },
           // Plan 2 — Memory Insights. Plan 3 will add Exports + Webhooks
           // here without reflowing the root sidebar.
           { label: 'Entities', path: '/memory/entities', icon: Users },

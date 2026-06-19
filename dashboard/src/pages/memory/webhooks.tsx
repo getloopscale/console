@@ -97,8 +97,8 @@ export function WebhooksPage() {
   const queryClient = useQueryClient();
 
   const list = useQuery({
-    queryKey: ['cloud', '/v1/memory/webhooks/list'] as const,
-    queryFn: () => cloudFetch<ListResult>('/v1/memory/webhooks/list'),
+    queryKey: ['cloud', '/v1/dashboard/memory/webhooks/list'] as const,
+    queryFn: () => cloudFetch<ListResult>('/v1/dashboard/memory/webhooks/list'),
   });
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -107,22 +107,22 @@ export function WebhooksPage() {
 
   const create = useMutation({
     mutationFn: (input: { url: string; label: string; events: string[] }) =>
-      cloudFetch<Webhook>('/v1/memory/webhooks', {
+      cloudFetch<Webhook>('/v1/dashboard/memory/webhooks', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
       }),
     onSuccess: () => {
       setCreateOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/memory/webhooks/list'] });
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/webhooks/list'] });
     },
   });
 
   const revoke = useMutation({
-    mutationFn: (id: string) => cloudFetch<null>(`/v1/memory/webhooks/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => cloudFetch<null>(`/v1/dashboard/memory/webhooks/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       setPendingDelete(null);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/memory/webhooks/list'] });
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/webhooks/list'] });
     },
   });
 
@@ -190,6 +190,7 @@ export function WebhooksPage() {
           onClick: () => setCreateOpen(true),
         }}
       >
+       <div className="space-y-6">
         {list.isError ? (
           <Alert intent="warning" title="Could not load webhooks">
             Try again in a moment.
@@ -206,6 +207,7 @@ export function WebhooksPage() {
             <DataTable columns={columns} data={webhooks} rowKey={(row) => row.id} />
           </Card>
         )}
+       </div>
       </PageShell>
 
       <AddWebhookDialog
@@ -262,8 +264,8 @@ function RecentDeliveriesBadge({
   onClick: () => void;
 }) {
   const query = useQuery({
-    queryKey: ['cloud', `/v1/memory/webhooks/${webhookId}/deliveries`] as const,
-    queryFn: () => cloudFetch<DeliveriesResult>(`/v1/memory/webhooks/${webhookId}/deliveries`),
+    queryKey: ['cloud', `/v1/dashboard/memory/webhooks/${webhookId}/deliveries`] as const,
+    queryFn: () => cloudFetch<DeliveriesResult>(`/v1/dashboard/memory/webhooks/${webhookId}/deliveries`),
   });
   const deliveries = query.data?.deliveries ?? [];
   if (query.isLoading) {
@@ -307,15 +309,15 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
   const [pendingReplay, setPendingReplay] = useState<Delivery | null>(null);
 
   const query = useQuery({
-    queryKey: ['cloud', `/v1/memory/webhooks/${webhook.id}/deliveries`] as const,
-    queryFn: () => cloudFetch<DeliveriesResult>(`/v1/memory/webhooks/${webhook.id}/deliveries`),
+    queryKey: ['cloud', `/v1/dashboard/memory/webhooks/${webhook.id}/deliveries`] as const,
+    queryFn: () => cloudFetch<DeliveriesResult>(`/v1/dashboard/memory/webhooks/${webhook.id}/deliveries`),
     enabled: open,
   });
 
   const replay = useMutation({
     mutationFn: (deliveryId: string) =>
       cloudFetch<ReplayResult>(
-        `/v1/memory/webhooks/${webhook.id}/deliveries/${deliveryId}/replay`,
+        `/v1/dashboard/memory/webhooks/${webhook.id}/deliveries/${deliveryId}/replay`,
         { method: 'POST' },
       ),
     onSuccess: (data) => {
@@ -332,7 +334,7 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
         variant: 'default',
       });
       void queryClient.invalidateQueries({
-        queryKey: ['cloud', `/v1/memory/webhooks/${webhook.id}/deliveries`],
+        queryKey: ['cloud', `/v1/dashboard/memory/webhooks/${webhook.id}/deliveries`],
       });
     },
     onError: () => {

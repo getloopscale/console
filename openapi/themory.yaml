@@ -59,6 +59,47 @@ paths:
                     nullable: true
                 additionalProperties: true
 
+  /v1/scopes/{type}/{id}/metrics:
+    get:
+      summary: Subject-scoped memory KPIs
+      parameters:
+        - { $ref: "#/components/parameters/Authorization" }
+        - { name: type, in: path, required: true, schema: { type: string, enum: [user, session, agent] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: scope KPIs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_memories: { type: integer }
+                  entity_count: { type: integer }
+                  add_events: { type: integer }
+                  retrieval_api_usage: { type: integer }
+                additionalProperties: true
+
+  /v1/scopes/{type}/{id}/entities:
+    get:
+      summary: Subject-scoped entity aggregation
+      parameters:
+        - { $ref: "#/components/parameters/Authorization" }
+        - { name: type, in: path, required: true, schema: { type: string, enum: [user, session, agent] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: aggregated entities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entities:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                additionalProperties: true
+
   /v1/forget:
     post:
       summary: Forget (delete) one memory by id (workspace-scoped on the provider)

@@ -170,6 +170,34 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		validateRequest(t, router, got)
 	})
 
+	t.Run("Metrics hits the scope metrics endpoint", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"total_memories":3,"entity_count":1,"add_events":3,"retrieval_api_usage":0}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		m, err := c.Metrics(context.Background(), "user-1")
+		if err != nil {
+			t.Fatalf("Metrics: %v", err)
+		}
+		if m.TotalMemories != 3 || m.EntityCount != 1 {
+			t.Fatalf("Metrics mapping wrong: %+v", m)
+		}
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Entities hits the scope entities endpoint", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"entities":[{"id":"paulo","scope_type":"user","memory_count":2}]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		res, err := c.Entities(context.Background(), "user-1", "user")
+		if err != nil {
+			t.Fatalf("Entities: %v", err)
+		}
+		if len(res.Entities) != 1 || res.Entities[0].ID != "paulo" {
+			t.Fatalf("Entities mapping wrong: %+v", res.Entities)
+		}
+		validateRequest(t, router, got)
+	})
+
 	t.Run("List threads from/to (ADR D3)", func(t *testing.T) {
 		var got *http.Request
 		srv := captureServer(t, 200, `{"items":[]}`, &got)

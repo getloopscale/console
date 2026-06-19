@@ -416,6 +416,11 @@ func main() {
 			// Plan 2 (Memory Insights) — entities aggregated by scope.
 			// Same scope as List + Metrics per D2 (no per-feature scope explosion).
 			r.With(auth.RequireScope(db, "memory:read")).Get("/entities", memoryHandler.Entities)
+			// theo-memory-dashboard-full-integration T1.2 — the 3 core verbs on
+			// the SDK surface (remember/reflect = write; recall = read).
+			r.With(auth.RequireScope(db, "memory:write")).Post("/remember", memoryHandler.Remember)
+			r.With(auth.RequireScope(db, "memory:read")).Post("/recall", memoryHandler.Recall)
+			r.With(auth.RequireScope(db, "memory:write")).Post("/reflect", memoryHandler.Reflect)
 
 			// Plan 3 (Memory Operations) — webhooks + exports.
 			// All gated by memory:admin per least-privilege (these affect

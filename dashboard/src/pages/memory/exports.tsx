@@ -60,7 +60,7 @@ export function ExportsPage() {
   const [exports, setExports] = useState<ExportRow[]>([]);
 
   const createMutation = useMutation({
-    mutationFn: async () => cloudFetch<ExportRow>('/v1/memory/exports', { method: 'POST', body: '{}' }),
+    mutationFn: async () => cloudFetch<ExportRow>('/v1/dashboard/memory/exports', { method: 'POST', body: '{}' }),
     onSuccess: (row) => {
       if (!row?.id) return;
       const fresh: ExportRow = {
@@ -85,7 +85,7 @@ export function ExportsPage() {
       if (active.length === 0) return;
       const updates = await Promise.all(
         active.map((e) =>
-          cloudFetch<ExportRow>(`/v1/memory/exports/${e.id}/status`).catch(() => null),
+          cloudFetch<ExportRow>(`/v1/dashboard/memory/exports/${e.id}/status`).catch(() => null),
         ),
       );
       const byId = new Map<string, ExportRow>();
@@ -175,7 +175,7 @@ export function ExportsPage() {
             size="sm"
             aria-label={`Download export ${row.id}`}
             onClick={() => {
-              window.location.href = `${getApiBase()}/v1/memory/exports/${row.id}/download`;
+              window.location.href = `${getApiBase()}/v1/dashboard/memory/exports/${row.id}/download`;
             }}
           >
             <Download className="size-4" />

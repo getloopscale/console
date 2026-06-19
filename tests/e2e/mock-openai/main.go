@@ -160,6 +160,17 @@ func lastUserContent(msgs []chatMessage) string {
 	return strings.TrimSpace(strings.Join(cleaned, " "))
 }
 
+// fullPromptText concatenates every message so prompt-shape detection can run
+// against the system + user content (TheMemory puts the directive in the system
+// role for reflection/importance, and the data in the user role).
+func fullPromptText(msgs []chatMessage) string {
+	parts := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		parts = append(parts, m.Content)
+	}
+	return strings.ToLower(strings.Join(parts, "\n"))
+}
+
 func handleChat(w http.ResponseWriter, r *http.Request) {
 	log.Printf("POST /v1/chat/completions")
 	var req chatRequest
@@ -167,19 +178,37 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	fact := lastUserContent(req.Messages)
-	payload := extraction{Memory: []extractedFact{}}
-	if fact != "" {
-		payload.Memory = append(payload.Memory, extractedFact{ID: "0", Text: fact})
+
+	// Prompt-shape routing — TheMemory issues three distinct LLM prompts.
+	// The hermetic mock returns the shape each parser expects:
+	//   - reflection : a STRICT JSON array of {text, derived_from}. We return
+	//     `[]` (no consolidation) so the parser succeeds deterministically.
+	//   - importance : "Reply with JUST the number" (1-10). We return `8`.
+	//   - extraction : `{ "memory": [{id, text}] }` (default).
+	prompt := fullPromptText(req.Messages)
+	var content string
+	switch {
+	case strings.Contains(prompt, "derived_from") || strings.Contains(prompt, "consolidate"):
+		content = "[]"
+	case strings.Contains(prompt, "importance rater") || strings.Contains(prompt, "just the number"):
+		content = "8"
+	default:
+		fact := lastUserContent(req.Messages)
+		payload := extraction{Memory: []extractedFact{}}
+		if fact != "" {
+			payload.Memory = append(payload.Memory, extractedFact{ID: "0", Text: fact})
+		}
+		b, _ := json.Marshal(payload)
+		content = string(b)
 	}
-	content, _ := json.Marshal(payload)
+
 	resp := chatResponse{
 		ID:     "mock-chatcmpl",
 		Object: "chat.completion",
 		Model:  "mock-gpt",
 		Choices: []chatChoice{{
 			Index:   0,
-			Message: chatMessage{Role: "assistant", Content: string(content)},
+			Message: chatMessage{Role: "assistant", Content: content},
 			Finish:  "stop",
 		}},
 	}

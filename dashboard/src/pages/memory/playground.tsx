@@ -1,0 +1,242 @@
+import { useEffect, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { Brain, Search, Sparkles } from 'lucide-react';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Input,
+  PageShell,
+  Textarea,
+} from '@usetheo/ui';
+import { usePageMeta } from '@/hooks/use-page-meta';
+import { useRequireAuth } from '@/hooks/use-auth';
+import { cloudFetch } from '@/lib/api';
+
+/**
+ * Plan theo-memory-dashboard-full-integration, T3.1 (ADR D5).
+ *
+ * /memory/playground — the live remember / recall / reflect surface.
+ * Fulfills the "Try Playground — remember and recall live, no code required"
+ * promise from the Memory overview Explore card. All three verbs go through
+ * the dashboard BFF (`/v1/dashboard/memory/{remember,recall,reflect}`), which
+ * mints a server-side key per session; the subject is derived from the session,
+ * never sent by the browser.
+ *
+ *  - Remember: textarea + optional category → POST remember → shows created ids
+ *  - Recall: query + topK → POST recall → scored result list
+ *  - Reflect: button → POST reflect → passes through the provider result
+ */
+
+interface RememberedItem {
+  id: string;
+  content: string;
+}
+interface RememberResult {
+  items: RememberedItem[];
+}
+interface RecallHit {
+  id: string;
+  content: string;
+  score: number;
+}
+interface RecallResult {
+  results: RecallHit[];
+}
+
+export function PlaygroundPage() {
+  const { setPageTitle } = usePageMeta();
+  useEffect(() => setPageTitle('Playground'), [setPageTitle]);
+  useRequireAuth();
+
+  // --- Remember panel ---
+  const [rememberText, setRememberText] = useState('');
+  const [rememberCategory, setRememberCategory] = useState('');
+  const remember = useMutation({
+    mutationFn: async () =>
+      cloudFetch<RememberResult>('/v1/dashboard/memory/remember', {
+        method: 'POST',
+        body: JSON.stringify({
+          text: rememberText,
+          ...(rememberCategory ? { category: rememberCategory } : {}),
+        }),
+      }),
+    onSuccess: () => setRememberText(''),
+  });
+
+  // --- Recall panel ---
+  const [recallQuery, setRecallQuery] = useState('');
+  const recall = useMutation({
+    mutationFn: async () =>
+      cloudFetch<RecallResult>('/v1/dashboard/memory/recall', {
+        method: 'POST',
+        body: JSON.stringify({ query: recallQuery, topK: 10 }),
+      }),
+  });
+
+  // --- Reflect panel ---
+  const reflect = useMutation({
+    mutationFn: async () =>
+      cloudFetch<Record<string, unknown>>('/v1/dashboard/memory/reflect', {
+        method: 'POST',
+        body: '{}',
+      }),
+  });
+
+  return (
+    <PageShell
+      title="Playground"
+      description="Try the memory engine live — remember a fact, recall it semantically, and run a reflection. No code required."
+    >
+      <div className="space-y-6">
+        {/* Remember */}
+        <Card>
+          <Card.Header>
+            <div className="flex items-center gap-2">
+              <Brain className="size-4 text-muted-foreground" />
+              <h2 className="text-base font-semibold">Remember</h2>
+            </div>
+          </Card.Header>
+          <Card.Body className="space-y-3">
+            <Textarea
+              value={rememberText}
+              onChange={(e) => setRememberText(e.target.value)}
+              placeholder="e.g. Paulo prefers oat milk in his coffee."
+              rows={3}
+              aria-label="Memory text to remember"
+            />
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label htmlFor="pg-category" className="text-xs text-muted-foreground block mb-1">
+                  Category (optional)
+                </label>
+                <Input
+                  id="pg-category"
+                  value={rememberCategory}
+                  onChange={(e) => setRememberCategory(e.target.value)}
+                  placeholder="preferences"
+                  className="w-48"
+                />
+              </div>
+              <Button
+                onClick={() => remember.mutate()}
+                disabled={remember.isPending || rememberText.trim() === ''}
+              >
+                Remember
+              </Button>
+            </div>
+            {remember.isError ? (
+              <Alert intent="warning" title="Could not remember">
+                The Memory service rejected the write. Try again in a moment.
+              </Alert>
+            ) : null}
+            {remember.data && remember.data.items.length > 0 ? (
+              <Alert intent="success" title={`Stored ${remember.data.items.length} memory(ies)`}>
+                <ul className="mt-1 space-y-1 text-xs font-mono">
+                  {remember.data.items.map((it) => (
+                    <li key={it.id}>{it.id.slice(0, 18)}… — {it.content}</li>
+                  ))}
+                </ul>
+              </Alert>
+            ) : null}
+          </Card.Body>
+        </Card>
+
+        {/* Recall */}
+        <Card>
+          <Card.Header>
+            <div className="flex items-center gap-2">
+              <Search className="size-4 text-muted-foreground" />
+              <h2 className="text-base font-semibold">Recall</h2>
+            </div>
+          </Card.Header>
+          <Card.Body className="space-y-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-64">
+                <label htmlFor="pg-query" className="text-xs text-muted-foreground block mb-1">
+                  Query
+                </label>
+                <Input
+                  id="pg-query"
+                  value={recallQuery}
+                  onChange={(e) => setRecallQuery(e.target.value)}
+                  placeholder="What does Paulo like to drink?"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && recallQuery.trim() !== '') recall.mutate();
+                  }}
+                />
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => recall.mutate()}
+                disabled={recall.isPending || recallQuery.trim() === ''}
+              >
+                Recall
+              </Button>
+            </div>
+            {recall.isError ? (
+              <Alert intent="warning" title="Could not recall">
+                The Memory service is not reachable right now. Try again in a moment.
+              </Alert>
+            ) : null}
+            {recall.data ? (
+              recall.data.results.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No matches for that query.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {recall.data.results.map((hit) => (
+                    <li key={hit.id} className="flex items-start justify-between gap-3 border-b pb-2 last:border-0">
+                      <span className="text-sm">{hit.content}</span>
+                      <Badge variant="outline" className="shrink-0">
+                        {hit.score.toFixed(3)}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : null}
+          </Card.Body>
+        </Card>
+
+        {/* Reflect */}
+        <Card>
+          <Card.Header>
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-4 text-muted-foreground" />
+              <h2 className="text-base font-semibold">Reflect</h2>
+            </div>
+          </Card.Header>
+          <Card.Body className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Consolidate this scope's memories — deduplicate, distill, and resolve
+              conflicts. Runs the same pipeline the agent triggers automatically.
+            </p>
+            <Button
+              variant="secondary"
+              onClick={() => reflect.mutate()}
+              disabled={reflect.isPending}
+            >
+              Run reflection
+            </Button>
+            {reflect.isError ? (
+              <Alert intent="warning" title="Could not reflect">
+                The Memory service rejected the reflection. Try again in a moment.
+              </Alert>
+            ) : null}
+            {reflect.data ? (
+              <Alert intent="success" title="Reflection complete">
+                <pre className="mt-1 text-xs overflow-x-auto">
+                  {JSON.stringify(reflect.data, null, 2)}
+                </pre>
+              </Alert>
+            ) : null}
+          </Card.Body>
+        </Card>
+      </div>
+    </PageShell>
+  );
+}
+
+// Alias for the page-suffix naming convention used by other memory pages.
+export const MemoryPlaygroundPage = PlaygroundPage;
