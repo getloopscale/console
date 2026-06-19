@@ -24,8 +24,6 @@ Format: Keep a Changelog + Semantic Versioning.
 - **Memory proxy now conforms to TheMemory's REAL contract** (its code-generated `/v1/openapi.json`), replacing the earlier hand-authored consumer-expectation spec that had drifted (`/memories`, `/metrics`, `/entities`, `DELETE /memories/{id}`, `X-Theo-User-Id` scoping — none existed on the real server). `internal/themory/client.go`: `List` → `GET /v1/scopes/user/{subject}/memories` (tenant isolation via **subject-in-path**, not the ignored `X-Theo-User-Id` header); `Forget` → `POST /v1/forget`; field mapping `items/text/nextCursor` → `memories/content/next_cursor`. `openapi/themory.yaml` rewritten to the real provider subset; contract + client unit tests rewritten accordingly (#memory-integration).
 - `retrieval_api_usage` remains an honest `0` (TheMemory has no persisted recall counter yet) rather than a fabricated value; `total_memories`/`entity_count`/`add_events` are now real (see the metrics/entities Changed entry above) (#memory-integration).
 - cloud-API config loader now fail-fasts in production when the memory proxy is enabled but its bearer is missing (install-config-contract Slice 1, T4.1): `config.Validate()` rejects `THEMORY_API_KEY` empty while `THEMORY_BASE_URL` is set — documented as required on the field but previously unenforced (the proxy would have called theo-data unauthenticated). 3 new tests (-race).
-
-### Changed
 - **Dashboard: bumped `@usetheo/ui` 0.12.0-next.0 → 0.13.0** (latest published) to pick up the design-system's standardized spacing/token updates. `tsc -b` passes (no API breaks); app verified rendering against the dev stack (#dashboard-ux).
 
 ### Fixed

@@ -343,6 +343,16 @@ func (h *MemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'query' is required.")
 		return
 	}
+	// F-test-2: bound the search params before they reach the vector store.
+	// An unvalidated topK lets a client drive an unbounded pgvector scan.
+	if req.TopK < 0 || req.TopK > 200 {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'topK' must be between 0 and 200.")
+		return
+	}
+	if req.Threshold < 0 || req.Threshold > 1 {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'threshold' must be between 0 and 1.")
+		return
+	}
 
 	result, err := h.client.Recall(r.Context(), user.Subject, req.Query,
 		themory.RecallOptions{TopK: req.TopK, Threshold: req.Threshold})

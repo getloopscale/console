@@ -651,6 +651,77 @@ func TestMemoryReflect_DelegatesAndPassesThroughResult(t *testing.T) {
 	}
 }
 
+// F-test-2 — Recall MUST bound topK/threshold before reaching the vector store.
+func TestMemoryRecall_RejectsOutOfRangeParams(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"topK negative", `{"query":"x","topK":-1}`},
+		{"topK over cap", `{"query":"x","topK":9999999}`},
+		{"threshold over 1", `{"query":"x","threshold":5.0}`},
+		{"threshold negative", `{"query":"x","threshold":-0.5}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, fake := newMemoryHandler(t)
+			rec := httptest.NewRecorder()
+			h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall", tc.body,
+				&auth.UserContext{Subject: "u", TenantID: "t"}))
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400 for %s, got %d", tc.name, rec.Code)
+			}
+			if fake.lastRecallQuery != "" {
+				t.Fatalf("client must NOT be called on invalid params (%s)", tc.name)
+			}
+		})
+	}
+}
+
+// F-test-1 — the new verb handlers' upstream-502 branches must be covered.
+func TestMemoryVerbs_UpstreamErrorReturns502(t *testing.T) {
+	t.Run("remember 502", func(t *testing.T) {
+		h, fake := newMemoryHandler(t)
+		fake.rememberErr = errors.New("connection refused")
+		rec := httptest.NewRecorder()
+		h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember", `{"text":"x"}`,
+			&auth.UserContext{Subject: "u", TenantID: "t"}))
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("remember: expected 502, got %d", rec.Code)
+		}
+	})
+	t.Run("recall 502", func(t *testing.T) {
+		h, fake := newMemoryHandler(t)
+		fake.recallErr = errors.New("connection refused")
+		rec := httptest.NewRecorder()
+		h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall", `{"query":"x"}`,
+			&auth.UserContext{Subject: "u", TenantID: "t"}))
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("recall: expected 502, got %d", rec.Code)
+		}
+	})
+	t.Run("reflect 502", func(t *testing.T) {
+		h, fake := newMemoryHandler(t)
+		fake.reflectErr = errors.New("connection refused")
+		rec := httptest.NewRecorder()
+		h.Reflect(rec, authedBodyReq("POST", "/v1/memory/reflect", `{}`,
+			&auth.UserContext{Subject: "u", TenantID: "t"}))
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("reflect: expected 502, got %d", rec.Code)
+		}
+	})
+	t.Run("metrics 502", func(t *testing.T) {
+		h, fake := newMemoryHandler(t)
+		fake.metricsErr = errors.New("connection refused")
+		rec := httptest.NewRecorder()
+		h.Metrics(rec, authedRequest("GET", "/v1/memory/metrics",
+			&auth.UserContext{Subject: "u", TenantID: "t"}))
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("metrics: expected 502, got %d", rec.Code)
+		}
+	})
+}
+
 // ADR D4 — hard-delete is opt-in via ?hard=true; default stays soft.
 func TestMemoryForget_HardFlagThreadedToClient(t *testing.T) {
 	h, fake := newMemoryHandler(t)
