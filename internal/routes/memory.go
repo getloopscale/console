@@ -47,6 +47,11 @@ type TheMemoryClient interface {
 	// (dashboard-phase2b-skills-browse T3.1). repoID is the ALREADY-namespaced
 	// `{subject}:{repoId}` value (the handler composes it; D3 isolation).
 	ListSkills(ctx context.Context, repoID string) (*themory.SkillsResult, error)
+	// AddSkill creates a skill (skills-write-surface T3.1). repoID is the
+	// ALREADY-namespaced value. ErrSkillConflict on dedup-collision.
+	AddSkill(ctx context.Context, repoID string, draft themory.SkillDraft) (*themory.CreatedSkill, error)
+	// ForgetSkill deletes a skill (skills-write-surface T3.1). repoID namespaced.
+	ForgetSkill(ctx context.Context, repoID, skillID string) error
 }
 
 // validEntityScopes is the whitelist for the `scope` query param on
@@ -103,6 +108,20 @@ func (h *MemoryHandler) WithEventPublisher(p WebhookEventPublisher) *MemoryHandl
 // length" — anything matching `^[A-Za-z0-9_-]{1,128}$` cannot reach the
 // path filesystem or SQL injection vectors.
 var memoryIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+
+// namespaceRepo composes the upstream Repo-tier scope `{subject}:{repoId}` for
+// multi-tenant skill isolation (D3). Injectivity of the concatenation requires
+// that AT MOST one operand contains the ':' separator — the caller already
+// rejects ':' in repoId, and this asserts the subject (server-derived, never
+// wire) also contains none. Returns ok=false to fail closed if the invariant is
+// ever violated (e.g. a future IdP issuing ':'-bearing subjects), rather than
+// silently risk a cross-customer namespace collision (skills-write-surface /review).
+func namespaceRepo(subject, repoID string) (string, bool) {
+	if strings.Contains(subject, ":") {
+		return "", false
+	}
+	return subject + ":" + repoID, true
+}
 
 // =============================================================================
 // GET /v1/memory/list — T1.3
@@ -299,7 +318,11 @@ func (h *MemoryHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// D3 — namespace by the authenticated subject for cross-customer isolation.
-	namespaced := user.Subject + ":" + repoID
+	namespaced, ok := namespaceRepo(user.Subject, repoID)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Subject namespace invariant violated.")
+		return
+	}
 	result, err := h.client.ListSkills(r.Context(), namespaced)
 	if err != nil {
 		h.logger.Warn("memory skills: upstream failed", "error", err, "subject", user.Subject, "repoId", repoID)
@@ -310,6 +333,101 @@ func (h *MemoryHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 		result.Skills = []themory.Skill{}
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+// skillCreateBody is the POST /v1/memory/skills request body.
+type skillCreateBody struct {
+	Code         string `json:"code"`
+	Description  string `json:"description"`
+	CodeLanguage string `json:"codeLanguage"`
+}
+
+// AddSkill creates a skill under the authenticated subject's repo namespace
+// (skills-write-surface T3.2). POST /v1/memory/skills?repoId= with a SkillDraft
+// body. D3: upstream repoId = {subject}:{repoId}; repoId required, no ':'.
+// 201 {id,hash}; 409 on dedup-collision; 422 invalid body; 502 upstream.
+func (h *MemoryHandler) AddSkill(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+	repoID := r.URL.Query().Get("repoId")
+	if repoID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_REPO_ID", "repoId query param is required.")
+		return
+	}
+	if strings.Contains(repoID, ":") {
+		writeError(w, http.StatusBadRequest, "INVALID_REPO_ID", "repoId must not contain ':'.")
+		return
+	}
+	var body skillCreateBody
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, memoryMaxBodyBytes)).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "Malformed JSON body.")
+		return
+	}
+	if body.Code == "" || body.Description == "" || body.CodeLanguage == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_BODY", "code, description, and codeLanguage are required.")
+		return
+	}
+
+	namespaced, ok := namespaceRepo(user.Subject, repoID)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Subject namespace invariant violated.")
+		return
+	}
+	created, err := h.client.AddSkill(r.Context(), namespaced, themory.SkillDraft{
+		Code: body.Code, Description: body.Description, CodeLanguage: body.CodeLanguage,
+	})
+	if err != nil {
+		if errors.Is(err, themory.ErrSkillConflict) {
+			writeError(w, http.StatusConflict, "SKILL_ALREADY_EXISTS", "A skill with this description already exists. Revise the description or forget the existing skill.")
+			return
+		}
+		h.logger.Warn("memory add-skill: upstream failed", "error", err, "subject", user.Subject, "repoId", repoID)
+		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		return
+	}
+	writeJSON(w, http.StatusCreated, created)
+}
+
+// ForgetSkill deletes a skill (skills-write-surface T3.2). DELETE
+// /v1/memory/skills/{skillID}?repoId=. 204 success; 404 not-found; 502 upstream.
+func (h *MemoryHandler) ForgetSkill(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+	repoID := r.URL.Query().Get("repoId")
+	if repoID == "" || strings.Contains(repoID, ":") {
+		writeError(w, http.StatusBadRequest, "INVALID_REPO_ID", "repoId query param is required and must not contain ':'.")
+		return
+	}
+	skillID := chi.URLParam(r, "skillID")
+	// Pattern-validate the skillId (parity with Forget's memoryIDPattern) — a
+	// defense-in-depth 400 for malformed ids before the upstream call (the client
+	// url.PathEscapes it too). /review LOW.
+	if !memoryIDPattern.MatchString(skillID) {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "skillID is malformed.")
+		return
+	}
+
+	namespaced, ok := namespaceRepo(user.Subject, repoID)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Subject namespace invariant violated.")
+		return
+	}
+	if err := h.client.ForgetSkill(r.Context(), namespaced, skillID); err != nil {
+		if errors.Is(err, themory.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "NOT_FOUND", "Skill not found in this repo.")
+			return
+		}
+		h.logger.Warn("memory forget-skill: upstream failed", "error", err, "subject", user.Subject, "repoId", repoID)
+		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // memoryMaxBodyBytes caps inbound write bodies (remember/recall/reflect) to

@@ -135,6 +135,22 @@ func (h *DashboardMemoryHandler) ListSkills(w http.ResponseWriter, r *http.Reque
 	h.memoryHandler.ListSkills(w, r)
 }
 
+// AddSkill proxies POST /v1/dashboard/memory/skills (skills-write-surface T3.3).
+func (h *DashboardMemoryHandler) AddSkill(w http.ResponseWriter, r *http.Request) {
+	if !h.mintOrFail(w, r, "add-skill") {
+		return
+	}
+	h.memoryHandler.AddSkill(w, r)
+}
+
+// ForgetSkill proxies DELETE /v1/dashboard/memory/skills/{skillID} (curation, T3.3 / D4).
+func (h *DashboardMemoryHandler) ForgetSkill(w http.ResponseWriter, r *http.Request) {
+	if !h.mintOrFail(w, r, "forget-skill") {
+		return
+	}
+	h.memoryHandler.ForgetSkill(w, r)
+}
+
 // Remember proxies POST /v1/dashboard/memory/remember (gap 1 — write verb).
 func (h *DashboardMemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
 	if !h.mintOrFail(w, r, "remember") {

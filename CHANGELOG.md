@@ -17,6 +17,12 @@ Format: Keep a Changelog + Semantic Versioning.
 
 ### Security
 
+## [0.3.0] - 2026-06-19
+
+### Added
+- **Skills WRITE surface** through the gateway (skills-write-surface T3.1-T3.3): `POST /v1/memory/skills?repoId=` (SDK, `memory:write`) + `DELETE /v1/memory/skills/{skillID}?repoId=` (SDK, `memory:delete`) + the BFF equivalents `POST`/`DELETE /v1/dashboard/memory/skills[/{skillID}]` (JWT, mint→delegate). Client `AddSkill`/`ForgetSkill`. Upstream repoId namespaced `{subject}:{repoId}` (D3 multi-tenant isolation; repoId required, no `:`; subject-injectivity guard). Dedup-collision → 409; cross-repo/cross-workspace/non-existent forget → 404. Store-only (no executor). (#skills-write-surface)
+- Dashboard **Skills tab curation**: a delete (forget) control + ConfirmDialog on each skill row (skills-write-surface T4.1). D2 store-only — the ONLY write control is delete; NO code editor / create form / executor (agents author via SDK/MCP; humans curate).
+
 ## [0.2.0] - 2026-06-19
 
 ### Added

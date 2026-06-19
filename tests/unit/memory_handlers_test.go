@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -43,27 +44,44 @@ type fakeTheMemory struct {
 	lastRecallAsOf    string
 	lastReflectIter   int
 
-	listResp         *themory.ListResult
-	listErr          error
-	metricsResp      *themory.MetricsResult
-	metricsErr       error
-	forgetErr        error
-	entitiesResp     *themory.EntitiesResult
-	entitiesErr      error
-	rememberResp     *themory.RememberResult
-	rememberErr      error
-	recallResp       *themory.RecallResult
-	recallErr        error
-	reflectResp      *themory.ReflectResult
-	reflectErr       error
-	skillsResp       *themory.SkillsResult
-	skillsErr        error
-	lastSkillsRepoID string
+	listResp          *themory.ListResult
+	listErr           error
+	metricsResp       *themory.MetricsResult
+	metricsErr        error
+	forgetErr         error
+	entitiesResp      *themory.EntitiesResult
+	entitiesErr       error
+	rememberResp      *themory.RememberResult
+	rememberErr       error
+	recallResp        *themory.RecallResult
+	recallErr         error
+	reflectResp       *themory.ReflectResult
+	reflectErr        error
+	skillsResp        *themory.SkillsResult
+	skillsErr         error
+	lastSkillsRepoID  string
+	addSkillResp      *themory.CreatedSkill
+	addSkillErr       error
+	lastAddSkillDraft themory.SkillDraft
+	forgetSkillErr    error
+	lastForgetSkillID string
 }
 
 func (f *fakeTheMemory) ListSkills(_ context.Context, repoID string) (*themory.SkillsResult, error) {
 	f.lastSkillsRepoID = repoID
 	return f.skillsResp, f.skillsErr
+}
+
+func (f *fakeTheMemory) AddSkill(_ context.Context, repoID string, draft themory.SkillDraft) (*themory.CreatedSkill, error) {
+	f.lastSkillsRepoID = repoID
+	f.lastAddSkillDraft = draft
+	return f.addSkillResp, f.addSkillErr
+}
+
+func (f *fakeTheMemory) ForgetSkill(_ context.Context, repoID, skillID string) error {
+	f.lastSkillsRepoID = repoID
+	f.lastForgetSkillID = skillID
+	return f.forgetSkillErr
 }
 
 func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, opts themory.RememberOptions) (*themory.RememberResult, error) {
@@ -889,4 +907,113 @@ func TestMemorySkills_UpstreamErrorReturns502(t *testing.T) {
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("expected 502 on upstream error, got %d", rec.Code)
 	}
+}
+
+// =============================================================================
+// skills-write-surface T3.2 — POST/DELETE /v1/memory/skills
+// =============================================================================
+
+func TestMemoryAddSkill_RejectsUnauthenticated(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.AddSkill(rec, httptest.NewRequest("POST", "/v1/memory/skills?repoId=acme", strings.NewReader(`{}`)))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestMemoryAddSkill_NamespacesAndCreates(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.addSkillResp = &themory.CreatedSkill{ID: "sk-1", Hash: "h-1"}
+	body := `{"code":"export const x=1;","description":"a skill","codeLanguage":"typescript"}`
+	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "sub-123", TenantID: "t"})
+	r = requestWithBody(r, body)
+	rec := httptest.NewRecorder()
+	h.AddSkill(rec, r)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastSkillsRepoID != "sub-123:acme" {
+		t.Errorf("expected namespaced 'sub-123:acme', got %q", fake.lastSkillsRepoID)
+	}
+	if fake.lastAddSkillDraft.CodeLanguage != "typescript" {
+		t.Errorf("draft not threaded: %+v", fake.lastAddSkillDraft)
+	}
+}
+
+func TestMemoryAddSkill_Conflict409(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.addSkillErr = themory.ErrSkillConflict
+	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "s", TenantID: "t"})
+	r = requestWithBody(r, `{"code":"x","description":"d","codeLanguage":"typescript"}`)
+	rec := httptest.NewRecorder()
+	h.AddSkill(rec, r)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", rec.Code)
+	}
+}
+
+func TestMemoryAddSkill_InvalidBody422(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "s", TenantID: "t"})
+	r = requestWithBody(r, `{"code":"","description":"d","codeLanguage":"typescript"}`)
+	rec := httptest.NewRecorder()
+	h.AddSkill(rec, r)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", rec.Code)
+	}
+}
+
+func TestMemoryAddSkill_RejectsRepoIDWithSeparator(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	r := authedRequest("POST", "/v1/memory/skills?repoId=a:b", &auth.UserContext{Subject: "s", TenantID: "t"})
+	r = requestWithBody(r, `{"code":"x","description":"d","codeLanguage":"typescript"}`)
+	rec := httptest.NewRecorder()
+	h.AddSkill(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+}
+
+func TestMemoryForgetSkill_204(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	r := skillDeleteReq(t, "sk-1", "acme", &auth.UserContext{Subject: "sub", TenantID: "t"})
+	rec := httptest.NewRecorder()
+	h.ForgetSkill(rec, r)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastSkillsRepoID != "sub:acme" || fake.lastForgetSkillID != "sk-1" {
+		t.Errorf("namespacing/skillId wrong: repo=%q id=%q", fake.lastSkillsRepoID, fake.lastForgetSkillID)
+	}
+}
+
+func TestMemoryForgetSkill_404(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.forgetSkillErr = themory.ErrNotFound
+	r := skillDeleteReq(t, "sk-x", "acme", &auth.UserContext{Subject: "sub", TenantID: "t"})
+	rec := httptest.NewRecorder()
+	h.ForgetSkill(rec, r)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+}
+
+// requestWithBody resets the body of an authedRequest (which is created without one).
+func requestWithBody(r *http.Request, body string) *http.Request {
+	r2 := r.Clone(r.Context())
+	r2.Body = io.NopCloser(strings.NewReader(body))
+	return r2
+}
+
+// skillDeleteReq builds a DELETE with chi skillID param + repoId query + auth.
+func skillDeleteReq(t *testing.T, skillID, repoID string, u *auth.UserContext) *http.Request {
+	t.Helper()
+	req := httptest.NewRequest("DELETE", "/v1/memory/skills/"+skillID+"?repoId="+repoID, nil)
+	if u != nil {
+		req = req.WithContext(auth.WithUser(req.Context(), u))
+	}
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("skillID", skillID)
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 }
