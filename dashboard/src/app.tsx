@@ -83,6 +83,9 @@ const WebhooksPage = lazy(() =>
 const PlaygroundPage = lazy(() =>
   import('@/pages/memory/playground').then((m) => ({ default: m.PlaygroundPage })),
 );
+const SkillsPage = lazy(() =>
+  import('@/pages/memory/skills').then((m) => ({ default: m.SkillsPage })),
+);
 const LoginPage = lazy(() =>
   import('@/pages/login').then((m) => ({ default: m.LoginPage })),
 );
@@ -282,6 +285,7 @@ export default function App() {
                     <Route path="/memory/exports" element={<Boundaried path="/memory/exports"><ExportsPage /></Boundaried>} />
                     <Route path="/memory/webhooks" element={<Boundaried path="/memory/webhooks"><WebhooksPage /></Boundaried>} />
                     <Route path="/memory/playground" element={<Boundaried path="/memory/playground"><PlaygroundPage /></Boundaried>} />
+                    <Route path="/memory/skills" element={<Boundaried path="/memory/skills"><SkillsPage /></Boundaried>} />
                     <Route path="/settings" element={<Boundaried path="/settings"><SettingsPage /></Boundaried>} />
                     <Route
                       path="/settings/members"
