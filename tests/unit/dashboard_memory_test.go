@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -35,15 +36,18 @@ import (
 // Returns canned payloads so we can verify the BFF handler chained correctly
 // AND that no secret leaks through the delegate path.
 type fakeMemoryClient struct {
-	listCalled       bool
-	metricsCalled    bool
-	forgetCalled     bool
-	entitiesCalled   bool
-	rememberCalled   bool
-	recallCalled     bool
-	reflectCalled    bool
-	skillsCalled     bool
-	lastSkillsRepoID string
+	listCalled        bool
+	metricsCalled     bool
+	forgetCalled      bool
+	entitiesCalled    bool
+	rememberCalled    bool
+	recallCalled      bool
+	reflectCalled     bool
+	skillsCalled      bool
+	addSkillCalled    bool
+	forgetSkillCalled bool
+	lastSkillsRepoID  string
+	lastForgetSkillID string
 }
 
 func (f *fakeMemoryClient) List(_ context.Context, userID string, _ themory.ListOptions) (*themory.ListResult, error) {
@@ -78,6 +82,17 @@ func (f *fakeMemoryClient) ListSkills(_ context.Context, repoID string) (*themor
 	f.skillsCalled = true
 	f.lastSkillsRepoID = repoID
 	return &themory.SkillsResult{Skills: []themory.Skill{{ID: "skill-1", Description: "do x"}}}, nil
+}
+func (f *fakeMemoryClient) AddSkill(_ context.Context, repoID string, _ themory.SkillDraft) (*themory.CreatedSkill, error) {
+	f.addSkillCalled = true
+	f.lastSkillsRepoID = repoID
+	return &themory.CreatedSkill{ID: "sk-new", Hash: "h-new"}, nil
+}
+func (f *fakeMemoryClient) ForgetSkill(_ context.Context, repoID, skillID string) error {
+	f.forgetSkillCalled = true
+	f.lastSkillsRepoID = repoID
+	f.lastForgetSkillID = skillID
+	return nil
 }
 
 // jwtCtx synthesizes the context shape RequireJWT would populate.
@@ -435,6 +450,52 @@ func TestDashboardMemory_ListSkills_Returns500WhenVaultErrors(t *testing.T) {
 		t.Fatalf("expected 500 on vault error, got %d", w.Code)
 	}
 	if fc.skillsCalled {
+		t.Errorf("delegation must NOT happen when mint fails")
+	}
+}
+
+func TestDashboardMemory_AddSkill_MintsThenDelegates(t *testing.T) {
+	dash, fc, mock := newDashHandler(t)
+	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`INSERT INTO theo_api_keys`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("bff-mocked-id"))
+	r := httptest.NewRequest("POST", "/v1/dashboard/memory/skills?repoId=acme",
+		strings.NewReader(`{"code":"x","description":"d","codeLanguage":"typescript"}`))
+	r = r.WithContext(jwtCtx(r.Context(), "user-A", "tenant-1"))
+	w := httptest.NewRecorder()
+	dash.AddSkill(w, r)
+	if !fc.addSkillCalled {
+		t.Fatalf("expected AddSkill delegation after mint; code=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestDashboardMemory_ForgetSkill_MintsThenDelegates(t *testing.T) {
+	dash, fc, mock := newDashHandler(t)
+	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`INSERT INTO theo_api_keys`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("bff-mocked-id"))
+	r := httptest.NewRequest("DELETE", "/v1/dashboard/memory/skills/sk-1?repoId=acme", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("skillID", "sk-1")
+	r = r.WithContext(context.WithValue(jwtCtx(r.Context(), "user-A", "tenant-1"), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+	dash.ForgetSkill(w, r)
+	if !fc.forgetSkillCalled {
+		t.Fatalf("expected ForgetSkill delegation after mint; code=%d", w.Code)
+	}
+}
+
+func TestDashboardMemory_ForgetSkill_Returns500WhenVaultErrors(t *testing.T) {
+	dash, fc, mock := newDashHandler(t)
+	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnError(errFake("simulated PG outage"))
+	r := httptest.NewRequest("DELETE", "/v1/dashboard/memory/skills/sk-1?repoId=acme", nil)
+	r = r.WithContext(jwtCtx(r.Context(), "user-A", "tenant-1"))
+	w := httptest.NewRecorder()
+	dash.ForgetSkill(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 on vault error, got %d", w.Code)
+	}
+	if fc.forgetSkillCalled {
 		t.Errorf("delegation must NOT happen when mint fails")
 	}
 }

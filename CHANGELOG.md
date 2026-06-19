@@ -6,6 +6,7 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Added
+- **Skills WRITE surface** through the gateway (skills-write-surface T3.1-T3.3): `POST /v1/memory/skills?repoId=` (SDK, `memory:write`) + `DELETE /v1/memory/skills/{skillID}?repoId=` (SDK, `memory:delete`) + the BFF equivalents `POST`/`DELETE /v1/dashboard/memory/skills[/{skillID}]` (JWT, mint→delegate). Client `AddSkill`/`ForgetSkill`. Upstream repoId namespaced `{subject}:{repoId}` (D3 multi-tenant isolation; repoId required, no `:`). Dedup-collision → 409; cross-repo/non-existent forget → 404. Store-only (no executor). (#skills-write-surface)
 
 ### Changed
 

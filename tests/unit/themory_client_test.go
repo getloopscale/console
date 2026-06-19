@@ -38,10 +38,17 @@ type recordingServer struct {
 	forgetBodies     []string
 	metricsRequests  []*http.Request
 	entitiesRequests []*http.Request
-	skillsRequests   []*http.Request
+	skillsRequests      []*http.Request
+	addSkillRequests    []*http.Request
+	addSkillBodies      []string
+	forgetSkillRequests []*http.Request
 
-	// skillsBody is the canned body returned by the /skills endpoint.
+	// skillsBody is the canned body returned by the GET /skills endpoint.
 	skillsBody map[string]any
+	// addSkillStatus, when non-zero, overrides the POST /skills response status (e.g. 409).
+	addSkillStatus int
+	// forgetSkillStatus, when non-zero, overrides the DELETE /skills/{id} status (e.g. 404).
+	forgetSkillStatus int
 
 	// listItems is the canned listing returned by the scope endpoint.
 	listItems []map[string]any
@@ -66,6 +73,25 @@ func newRecordingServer(t *testing.T) *recordingServer {
 				body = map[string]any{"total_memories": 0, "entity_count": 0, "add_events": 0, "retrieval_api_usage": 0}
 			}
 			_ = json.NewEncoder(w).Encode(body)
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/skills"):
+			s.addSkillRequests = append(s.addSkillRequests, r.Clone(context.Background()))
+			body, _ := io.ReadAll(r.Body)
+			s.addSkillBodies = append(s.addSkillBodies, string(body))
+			w.Header().Set("Content-Type", "application/json")
+			if s.addSkillStatus != 0 {
+				w.WriteHeader(s.addSkillStatus)
+				_ = json.NewEncoder(w).Encode(map[string]any{"code": "SKILL_ALREADY_EXISTS"})
+				return
+			}
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "sk-new", "hash": "h-new"})
+		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/skills/"):
+			s.forgetSkillRequests = append(s.forgetSkillRequests, r.Clone(context.Background()))
+			if s.forgetSkillStatus != 0 {
+				w.WriteHeader(s.forgetSkillStatus)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/skills"):
 			s.skillsRequests = append(s.skillsRequests, r.Clone(context.Background()))
 			w.Header().Set("Content-Type", "application/json")
@@ -396,3 +422,64 @@ func TestTheMemoryClient_ListSkillsEscapesRepoID(t *testing.T) {
 type roundTripperFunc func(r *http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// --- skills-write-surface T3.1: AddSkill / ForgetSkill --------------------
+
+func TestTheMemoryClient_AddSkillPostsDraftAndParsesResult(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	res, err := client.AddSkill(context.Background(), "sub:acme", themory.SkillDraft{
+		Code: "export const x=1;", Description: "a skill", CodeLanguage: "typescript",
+	})
+	if err != nil {
+		t.Fatalf("AddSkill: %v", err)
+	}
+	if res.ID != "sk-new" || res.Hash != "h-new" {
+		t.Errorf("unexpected created skill: %+v", res)
+	}
+	if len(stub.addSkillRequests) != 1 {
+		t.Fatalf("expected 1 add-skill request, got %d", len(stub.addSkillRequests))
+	}
+	if got := stub.addSkillRequests[0].URL.EscapedPath(); got != "/v1/scopes/skill/sub:acme/skills" {
+		t.Errorf("unexpected escaped path %q", got)
+	}
+	if !strings.Contains(stub.addSkillBodies[0], `"codeLanguage":"typescript"`) {
+		t.Errorf("body missing codeLanguage: %s", stub.addSkillBodies[0])
+	}
+}
+
+func TestTheMemoryClient_AddSkillMaps409ToErrSkillConflict(t *testing.T) {
+	stub := newRecordingServer(t)
+	stub.addSkillStatus = http.StatusConflict
+	client := themory.NewClient(stub.URL, "k", nil)
+	_, err := client.AddSkill(context.Background(), "sub:acme", themory.SkillDraft{
+		Code: "x", Description: "dupe", CodeLanguage: "typescript",
+	})
+	if err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("expected ErrSkillConflict, got %v", err)
+	}
+}
+
+func TestTheMemoryClient_ForgetSkillDeletes(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	if err := client.ForgetSkill(context.Background(), "sub:acme", "sk-1"); err != nil {
+		t.Fatalf("ForgetSkill: %v", err)
+	}
+	if len(stub.forgetSkillRequests) != 1 {
+		t.Fatalf("expected 1 forget-skill request, got %d", len(stub.forgetSkillRequests))
+	}
+	if got := stub.forgetSkillRequests[0].URL.EscapedPath(); got != "/v1/scopes/skill/sub:acme/skills/sk-1" {
+		t.Errorf("unexpected escaped path %q", got)
+	}
+}
+
+func TestTheMemoryClient_ForgetSkillMaps404ToErrNotFound(t *testing.T) {
+	stub := newRecordingServer(t)
+	stub.forgetSkillStatus = http.StatusNotFound
+	client := themory.NewClient(stub.URL, "k", nil)
+	err := client.ForgetSkill(context.Background(), "sub:acme", "sk-x")
+	if !themory.IsNotFound(err) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}

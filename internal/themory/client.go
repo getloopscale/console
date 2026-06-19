@@ -452,6 +452,52 @@ func (c *Client) ListSkills(ctx context.Context, repoID string) (*SkillsResult, 
 	return &out, nil
 }
 
+// SkillDraft is the create-skill request body (skills-write-surface T3.1).
+type SkillDraft struct {
+	Code         string `json:"code"`
+	Description  string `json:"description"`
+	CodeLanguage string `json:"codeLanguage"`
+}
+
+// CreatedSkill is the POST /skills response (id + hash).
+type CreatedSkill struct {
+	ID   string `json:"id"`
+	Hash string `json:"hash"`
+}
+
+// ErrSkillConflict is returned by AddSkill when the skill's description collides
+// with an existing one (provider 409, dedup-collision per D1). The SDK handler
+// maps it back to a 409 for the caller.
+var ErrSkillConflict = errors.New("themory: skill already exists")
+
+// AddSkill creates a skill under a repo (skills-write-surface T3.1). repoID is
+// the ALREADY-namespaced `{subject}:{repoId}` value (the handler composes it, D3);
+// this method is transport-only and url.PathEscapes it (EC-2). A provider 409 →
+// ErrSkillConflict.
+func (c *Client) AddSkill(ctx context.Context, repoID string, draft SkillDraft) (*CreatedSkill, error) {
+	body, err := json.Marshal(draft)
+	if err != nil {
+		return nil, fmt.Errorf("themory: marshal add-skill body: %w", err)
+	}
+	var out CreatedSkill
+	path := "/v1/scopes/skill/" + url.PathEscape(repoID) + "/skills"
+	if err := c.do(ctx, http.MethodPost, path, nil, bytes.NewReader(body), &out); err != nil {
+		var e *Error
+		if errors.As(err, &e) && e.StatusCode == http.StatusConflict {
+			return nil, ErrSkillConflict
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ForgetSkill deletes a skill from a repo (skills-write-surface T3.1). A provider
+// 404 surfaces as ErrNotFound (mapped by do()).
+func (c *Client) ForgetSkill(ctx context.Context, repoID, skillID string) error {
+	path := "/v1/scopes/skill/" + url.PathEscape(repoID) + "/skills/" + url.PathEscape(skillID)
+	return c.do(ctx, http.MethodDelete, path, nil, nil, nil)
+}
+
 type forgetBody struct {
 	MemoryID string `json:"memoryId"`
 	Hard     bool   `json:"hard,omitempty"`
