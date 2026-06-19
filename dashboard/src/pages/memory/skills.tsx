@@ -19,7 +19,7 @@ import { cloudFetch } from '@/lib/api';
 /**
  * dashboard-phase2b-skills-browse T4.1 (blueprint ADR D2).
  *
- * /memory/skills — READ-ONLY browse of a repo's Voyager-style skill library.
+ * /memory/skills — READ-ONLY browse of a repo's skill library.
  *
  *  - A repoId input gates the fetch (no skills without a repo).
  *  - DataTable of {description, language, code (preview), createdAt}.
