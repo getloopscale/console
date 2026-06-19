@@ -37,7 +37,9 @@ type fakeTheMemory struct {
 	lastForgetHard    bool
 	lastEntitiesScope string
 	lastRememberText  string
+	lastRememberAttr  string
 	lastRecallQuery   string
+	lastRecallAsOf    string
 	lastReflectIter   int
 
 	listResp      *themory.ListResult
@@ -55,15 +57,17 @@ type fakeTheMemory struct {
 	reflectErr    error
 }
 
-func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, _ themory.RememberOptions) (*themory.RememberResult, error) {
+func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, opts themory.RememberOptions) (*themory.RememberResult, error) {
 	f.lastUserID = userID
 	f.lastRememberText = text
+	f.lastRememberAttr = opts.AttributedTo
 	return f.rememberResp, f.rememberErr
 }
 
-func (f *fakeTheMemory) Recall(_ context.Context, userID, query string, _ themory.RecallOptions) (*themory.RecallResult, error) {
+func (f *fakeTheMemory) Recall(_ context.Context, userID, query string, opts themory.RecallOptions) (*themory.RecallResult, error) {
 	f.lastUserID = userID
 	f.lastRecallQuery = query
+	f.lastRecallAsOf = opts.AsOf
 	return f.recallResp, f.recallErr
 }
 
@@ -720,6 +724,53 @@ func TestMemoryVerbs_UpstreamErrorReturns502(t *testing.T) {
 			t.Fatalf("metrics: expected 502, got %d", rec.Code)
 		}
 	})
+}
+
+// Phase 2A — attribution-write: attributedTo threaded to the client.
+func TestMemoryRemember_AttributedToThreaded(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.rememberResp = &themory.RememberResult{Items: []themory.MemoryRow{{ID: "m1"}}}
+	rec := httptest.NewRecorder()
+	h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember",
+		`{"text":"Paulo likes oat milk","attributedTo":"paulo"}`,
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rec.Code)
+	}
+	if fake.lastRememberAttr != "paulo" {
+		t.Fatalf("attributedTo not threaded: got %q", fake.lastRememberAttr)
+	}
+}
+
+// Phase 2A — bi-temporal: valid asOf threaded to the client.
+func TestMemoryRecall_AsOfThreaded(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.recallResp = &themory.RecallResult{Results: []themory.RecallHit{}}
+	rec := httptest.NewRecorder()
+	h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall",
+		`{"query":"x","asOf":"2026-06-01T00:00:00Z"}`,
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastRecallAsOf != "2026-06-01T00:00:00Z" {
+		t.Fatalf("asOf not threaded: got %q", fake.lastRecallAsOf)
+	}
+}
+
+// Phase 2A — ADR D2: invalid asOf datetime → 400 (not laundered to 502).
+func TestMemoryRecall_InvalidAsOfReturns400(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall",
+		`{"query":"x","asOf":"not-a-date"}`,
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid asOf, got %d", rec.Code)
+	}
+	if fake.lastRecallQuery != "" {
+		t.Fatal("client must NOT be called on invalid asOf")
+	}
 }
 
 // ADR D4 — hard-delete is opt-in via ?hard=true; default stays soft.
