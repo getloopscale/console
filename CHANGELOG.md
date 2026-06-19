@@ -6,7 +6,6 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Added
-- Read-only **Skills browse** surface for the memory dashboard: a new **Skills tab** (`/memory/skills`) backed by `GET /v1/memory/skills?repoId=` (SDK, `memory:read`) + `GET /v1/dashboard/memory/skills?repoId=` (BFF, JWT). The tab lists a repo's Voyager-style skills `{ id, hash, description, code, codeLanguage, createdAt, derivedFrom, supersededBy }` (a repoId input gates the fetch; truncation at the cap is disclosed; derived/null-code skills render gracefully). The upstream repoId is namespaced as `{subject}:{repoId}` so two customers using the same bare repoId never share a skill scope (multi-tenant isolation); repoId is required and rejected if it contains `:`. Read-only — no executor/editor/sandbox. (plan `dashboard-phase2b-skills-browse` T3.1-T4.1) (#dashboard-phase2b-skills-browse)
 
 ### Changed
 
@@ -17,6 +16,11 @@ Format: Keep a Changelog + Semantic Versioning.
 ### Fixed
 
 ### Security
+
+## [0.2.0] - 2026-06-19
+
+### Added
+- Read-only **Skills browse** surface for the memory dashboard: a new **Skills tab** (`/memory/skills`) backed by `GET /v1/memory/skills?repoId=` (SDK, `memory:read`) + `GET /v1/dashboard/memory/skills?repoId=` (BFF, JWT). The tab lists a repo's Voyager-style skills `{ id, hash, description, code, codeLanguage, createdAt, derivedFrom, supersededBy }` (a repoId input gates the fetch; truncation at the cap is disclosed; derived/null-code skills render gracefully). The upstream repoId is namespaced as `{subject}:{repoId}` so two customers using the same bare repoId never share a skill scope (multi-tenant isolation); repoId is required and rejected if it contains `:`. Read-only — no executor/editor/sandbox. (plan `dashboard-phase2b-skills-browse` T3.1-T4.1) (#dashboard-phase2b-skills-browse)
 
 ## [0.1.0] - 2026-06-19
 
