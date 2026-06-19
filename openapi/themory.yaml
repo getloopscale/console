@@ -136,6 +136,7 @@ paths:
                 text: { type: string }
                 category: { type: string }
                 metadata: { type: object, additionalProperties: { type: string } }
+                attributedTo: { type: string, description: "multi-peer attribution (v1.1)" }
       responses:
         "201":
           description: created
@@ -166,6 +167,8 @@ paths:
                 query: { type: string }
                 topK: { type: integer }
                 threshold: { type: number }
+                asOf: { type: string, description: "RFC3339 bi-temporal point-in-time (v1.1)" }
+                attributedTo: { type: string }
       responses:
         "200":
           description: scored results

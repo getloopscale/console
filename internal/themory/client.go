@@ -120,8 +120,9 @@ type MetricsResult struct {
 
 // RememberOptions are the optional fields for a remember (write) call.
 type RememberOptions struct {
-	Category string            // optional category tag
-	Metadata map[string]string // optional metadata
+	Category     string            // optional category tag
+	Metadata     map[string]string // optional metadata
+	AttributedTo string            // optional multi-peer attribution (v1.1); empty = omitted
 }
 
 // RememberResult is the gateway's POST /v1/memory/remember response shape.
@@ -135,6 +136,7 @@ type RememberResult struct {
 type RecallOptions struct {
 	TopK      int
 	Threshold float64 // 0 means "unset" (omitted from the request)
+	AsOf      string  // optional RFC3339 bi-temporal point-in-time (v1.1); empty = omitted
 }
 
 // RecallHit is one scored result from a recall call.
@@ -267,10 +269,11 @@ func (c *Client) listAll(ctx context.Context, userID string) ([]MemoryRow, error
 // --- remember / recall / reflect wire shapes --------------------------------
 
 type rememberRequest struct {
-	UserID   string            `json:"userId"`
-	Text     string            `json:"text"`
-	Category string            `json:"category,omitempty"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	UserID       string            `json:"userId"`
+	Text         string            `json:"text"`
+	Category     string            `json:"category,omitempty"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	AttributedTo string            `json:"attributedTo,omitempty"`
 }
 
 type rememberResponse struct {
@@ -282,6 +285,7 @@ type recallRequest struct {
 	Query     string   `json:"query"`
 	TopK      int      `json:"topK,omitempty"`
 	Threshold *float64 `json:"threshold,omitempty"`
+	AsOf      string   `json:"asOf,omitempty"`
 }
 
 type recallItem struct {
@@ -307,7 +311,7 @@ func (c *Client) Remember(ctx context.Context, userID, text string, opts Remembe
 	if text == "" {
 		return nil, errors.New("themory: remember text required")
 	}
-	reqBody := rememberRequest{UserID: userID, Text: text, Category: opts.Category, Metadata: opts.Metadata}
+	reqBody := rememberRequest{UserID: userID, Text: text, Category: opts.Category, Metadata: opts.Metadata, AttributedTo: opts.AttributedTo}
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("themory: marshal remember body: %w", err)
@@ -329,7 +333,7 @@ func (c *Client) Recall(ctx context.Context, userID, query string, opts RecallOp
 	if query == "" {
 		return nil, errors.New("themory: recall query required")
 	}
-	reqBody := recallRequest{UserID: userID, Query: query, TopK: opts.TopK}
+	reqBody := recallRequest{UserID: userID, Query: query, TopK: opts.TopK, AsOf: opts.AsOf}
 	if opts.Threshold > 0 {
 		reqBody.Threshold = &opts.Threshold
 	}

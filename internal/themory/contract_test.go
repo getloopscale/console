@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -153,6 +154,37 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		if len(res.Results) != 1 || res.Results[0].Score != 0.9 || res.Results[0].Content != "hi" {
 			t.Fatalf("Recall mapping wrong: %+v", res.Results)
 		}
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Remember sends attributedTo (Phase 2A)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 201, `{"items":[{"id":"m1","text":"hi","createdAt":"2026-06-19T00:00:00Z"}]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Remember(context.Background(), "user-1", "hi", RememberOptions{AttributedTo: "paulo"}); err != nil {
+			t.Fatalf("Remember: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		if !strings.Contains(string(body), `"attributedTo":"paulo"`) {
+			t.Fatalf("attributedTo not sent: %s", body)
+		}
+		// re-attach for spec validation
+		got.Body = io.NopCloser(bytes.NewReader(body))
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Recall sends asOf (Phase 2A)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{AsOf: "2026-06-01T00:00:00Z"}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		if !strings.Contains(string(body), `"asOf":"2026-06-01T00:00:00Z"`) {
+			t.Fatalf("asOf not sent: %s", body)
+		}
+		got.Body = io.NopCloser(bytes.NewReader(body))
 		validateRequest(t, router, got)
 	})
 
