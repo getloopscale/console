@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Boxes } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Boxes, Trash2 } from 'lucide-react';
 import {
   Alert,
+  Button,
   Card,
+  ConfirmDialog,
   DataTable,
   type DataTableColumn,
   EmptyState,
@@ -17,16 +19,18 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
 
 /**
- * dashboard-phase2b-skills-browse T4.1 (blueprint ADR D2).
+ * dashboard-phase2b-skills-browse T4.1 (browse) + skills-write-surface T4.1 (curation).
  *
- * /memory/skills — READ-ONLY browse of a repo's skill library.
+ * /memory/skills — browse + CURATE a repo's skill library.
  *
  *  - A repoId input gates the fetch (no skills without a repo).
  *  - DataTable of {description, language, code (preview), createdAt}.
  *  - EmptyState when the repo has no skills; hint when no repoId entered.
  *  - EC-3: skills with null code (derived/consolidated) render gracefully.
  *  - EC-4: truncation at the topK cap is disclosed ("showing the first N").
- *  - D4 scope guardrail: READ-ONLY — no run/edit/delete controls, no sandbox.
+ *  - D2 scope guardrail: the only WRITE control is DELETE (forget) curation —
+ *    NO code editor, NO create form, NO executor/sandbox. Agents author via
+ *    REST/MCP; humans curate (delete) here.
  */
 
 interface Skill {
@@ -50,6 +54,8 @@ export function SkillsPage() {
   useEffect(() => setPageTitle('Skills'), [setPageTitle]);
   useRequireAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const [pendingDelete, setPendingDelete] = useState<Skill | null>(null);
 
   const repoId = searchParams.get('repoId') ?? '';
 
@@ -74,6 +80,20 @@ export function SkillsPage() {
 
   const skills = query.data?.skills ?? [];
   const truncated = query.data?.truncated ?? false;
+
+  // D2 curation: forget (delete) a bad skill. NO create/edit code path here.
+  const forgetSkill = useMutation({
+    mutationFn: async (skill: Skill) => {
+      await cloudFetch<null>(
+        `/v1/dashboard/memory/skills/${encodeURIComponent(skill.id)}?repoId=${encodeURIComponent(repoId)}`,
+        { method: 'DELETE' },
+      );
+    },
+    onSuccess: () => {
+      setPendingDelete(null);
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/skills'] });
+    },
+  });
 
   const columns: DataTableColumn<Skill>[] = [
     {
@@ -116,12 +136,27 @@ export function SkillsPage() {
       label: 'Created',
       render: (row) => <Timestamp value={row.createdAt} />,
     },
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      render: (row) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`Forget skill ${row.description}`}
+          onClick={() => setPendingDelete(row)}
+        >
+          <Trash2 className="size-4 text-destructive" />
+        </Button>
+      ),
+    },
   ];
 
   return (
     <PageShell
       title="Skills"
-      description="Browse the executable skills your agent has learned, grouped by repo. Read-only."
+      description="Browse the executable skills your agent has learned, grouped by repo. Delete a bad one to curate the library — authoring happens via the agent (SDK/MCP)."
     >
       <div className="space-y-6">
         <div className="max-w-sm">
@@ -167,6 +202,31 @@ export function SkillsPage() {
           </div>
         )}
       </div>
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          open={pendingDelete !== null}
+          onOpenChange={(o) => !o && setPendingDelete(null)}
+          title="Forget this skill?"
+          description={
+            <div className="space-y-2 text-sm">
+              <p>
+                This will permanently forget the skill{' '}
+                <strong>{pendingDelete.description}</strong> from{' '}
+                <code className="font-mono">{repoId}</code>.
+              </p>
+              <p className="text-muted-foreground">
+                Your agent will no longer recall this skill. This cannot be undone.
+              </p>
+            </div>
+          }
+          confirmLabel={forgetSkill.isPending ? 'Forgetting…' : 'Forget skill'}
+          cancelLabel="Cancel"
+          intent="destructive"
+          loading={forgetSkill.isPending}
+          onConfirm={() => forgetSkill.mutate(pendingDelete)}
+        />
+      ) : null}
     </PageShell>
   );
 }

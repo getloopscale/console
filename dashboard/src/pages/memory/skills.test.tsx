@@ -108,7 +108,7 @@ describe('SkillsPage (/memory/skills)', () => {
     expect(await screen.findByText(/showing the first/i)).toBeInTheDocument();
   });
 
-  it('renders NO delete/run/edit controls (read-only, D4)', async () => {
+  it('D2: curation = delete only; NO run/edit/create-code controls', async () => {
     mockCloudFetch.mockResolvedValue({
       skills: [
         {
@@ -116,7 +116,7 @@ describe('SkillsPage (/memory/skills)', () => {
           hash: 'h1',
           description: 'one',
           code: 'x',
-          codeLanguage: 'bash',
+          codeLanguage: 'typescript',
           createdAt: '2026-06-01T00:00:00Z',
           derivedFrom: [],
           supersededBy: null,
@@ -128,6 +128,39 @@ describe('SkillsPage (/memory/skills)', () => {
     const input = await screen.findByLabelText(/repo/i);
     await userEvent.type(input, 'acme');
     await screen.findByText('one');
-    expect(screen.queryByRole('button', { name: /delete|forget|run|edit/i })).toBeNull();
+    // A forget (delete) curation control IS present...
+    expect(screen.getByRole('button', { name: /forget skill/i })).toBeInTheDocument();
+    // ...but NO run/edit/create code controls (D2 store-only — agent authors).
+    expect(screen.queryByRole('button', { name: /run|execute|edit code|create skill|new skill/i })).toBeNull();
+  });
+
+  it('delete curation: clicking forget opens a confirm then DELETEs the skill', async () => {
+    mockCloudFetch.mockResolvedValue({
+      skills: [
+        {
+          id: 's1',
+          hash: 'h1',
+          description: 'deploy thing',
+          code: 'x',
+          codeLanguage: 'typescript',
+          createdAt: '2026-06-01T00:00:00Z',
+          derivedFrom: [],
+          supersededBy: null,
+        },
+      ],
+      truncated: false,
+    });
+    render(<SkillsPage />);
+    const input = await screen.findByLabelText(/repo/i);
+    await userEvent.type(input, 'acme');
+    await screen.findByText('deploy thing');
+    await userEvent.click(screen.getByRole('button', { name: /forget skill/i }));
+    // ConfirmDialog appears; confirm.
+    const confirm = await screen.findByRole('button', { name: /^forget skill$/i });
+    await userEvent.click(confirm);
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/v1/dashboard/memory/skills/s1?repoId=acme'),
+      expect.objectContaining({ method: 'DELETE' }),
+    );
   });
 });
