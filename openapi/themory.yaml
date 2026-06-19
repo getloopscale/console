@@ -59,6 +59,47 @@ paths:
                     nullable: true
                 additionalProperties: true
 
+  /v1/scopes/{type}/{id}/metrics:
+    get:
+      summary: Subject-scoped memory KPIs
+      parameters:
+        - { $ref: "#/components/parameters/Authorization" }
+        - { name: type, in: path, required: true, schema: { type: string, enum: [user, session, agent] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: scope KPIs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_memories: { type: integer }
+                  entity_count: { type: integer }
+                  add_events: { type: integer }
+                  retrieval_api_usage: { type: integer }
+                additionalProperties: true
+
+  /v1/scopes/{type}/{id}/entities:
+    get:
+      summary: Subject-scoped entity aggregation
+      parameters:
+        - { $ref: "#/components/parameters/Authorization" }
+        - { name: type, in: path, required: true, schema: { type: string, enum: [user, session, agent] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: aggregated entities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entities:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                additionalProperties: true
+
   /v1/forget:
     post:
       summary: Forget (delete) one memory by id (workspace-scoped on the provider)
@@ -95,6 +136,8 @@ paths:
                 text: { type: string }
                 category: { type: string }
                 metadata: { type: object, additionalProperties: { type: string } }
+                attributedTo: { type: string, description: "multi-peer attribution (v1.1)" }
+                infer: { type: boolean, description: "false = verbatim path (required for caller attributedTo to persist)" }
       responses:
         "201":
           description: created
@@ -125,6 +168,8 @@ paths:
                 query: { type: string }
                 topK: { type: integer }
                 threshold: { type: number }
+                asOf: { type: string, description: "RFC3339 bi-temporal point-in-time (v1.1)" }
+                attributedTo: { type: string }
       responses:
         "200":
           description: scored results

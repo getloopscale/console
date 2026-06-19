@@ -3,3 +3,6 @@
 pnpm-lock.yaml
 yarn.lock
 .npmrc.tmp
+
+# TypeScript incremental build cache (never tracked)
+*.tsbuildinfo

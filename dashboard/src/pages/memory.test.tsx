@@ -40,7 +40,7 @@ describe('MemoryPage (/memory landing)', () => {
     // Backend was hit at the canonical path — the value-rendering happy
     // path is exercised separately by the D3 empty-zero test below
     // (where the fallback guarantees zeros render without NaN).
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/memory/metrics');
+    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/memory/metrics');
   });
 
   it('D3 absorption — empty pgvector renders 0 everywhere, not NaN', async () => {

@@ -37,7 +37,10 @@ type fakeTheMemory struct {
 	lastForgetHard    bool
 	lastEntitiesScope string
 	lastRememberText  string
+	lastRememberAttr  string
+	lastRememberInfer *bool
 	lastRecallQuery   string
+	lastRecallAsOf    string
 	lastReflectIter   int
 
 	listResp      *themory.ListResult
@@ -55,15 +58,18 @@ type fakeTheMemory struct {
 	reflectErr    error
 }
 
-func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, _ themory.RememberOptions) (*themory.RememberResult, error) {
+func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, opts themory.RememberOptions) (*themory.RememberResult, error) {
 	f.lastUserID = userID
 	f.lastRememberText = text
+	f.lastRememberAttr = opts.AttributedTo
+	f.lastRememberInfer = opts.Infer
 	return f.rememberResp, f.rememberErr
 }
 
-func (f *fakeTheMemory) Recall(_ context.Context, userID, query string, _ themory.RecallOptions) (*themory.RecallResult, error) {
+func (f *fakeTheMemory) Recall(_ context.Context, userID, query string, opts themory.RecallOptions) (*themory.RecallResult, error) {
 	f.lastUserID = userID
 	f.lastRecallQuery = query
+	f.lastRecallAsOf = opts.AsOf
 	return f.recallResp, f.recallErr
 }
 
@@ -648,6 +654,143 @@ func TestMemoryReflect_DelegatesAndPassesThroughResult(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"consolidated":3`) {
 		t.Fatalf("provider result not passed through: %s", rec.Body.String())
+	}
+}
+
+// F-test-2 — Recall MUST bound topK/threshold before reaching the vector store.
+func TestMemoryRecall_RejectsOutOfRangeParams(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"topK negative", `{"query":"x","topK":-1}`},
+		{"topK over cap", `{"query":"x","topK":9999999}`},
+		{"threshold over 1", `{"query":"x","threshold":5.0}`},
+		{"threshold negative", `{"query":"x","threshold":-0.5}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, fake := newMemoryHandler(t)
+			rec := httptest.NewRecorder()
+			h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall", tc.body,
+				&auth.UserContext{Subject: "u", TenantID: "t"}))
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400 for %s, got %d", tc.name, rec.Code)
+			}
+			if fake.lastRecallQuery != "" {
+				t.Fatalf("client must NOT be called on invalid params (%s)", tc.name)
+			}
+		})
+	}
+}
+
+// F-test-1 — the new verb handlers' upstream-502 branches must be covered.
+func TestMemoryVerbs_UpstreamErrorReturns502(t *testing.T) {
+	t.Run("remember 502", func(t *testing.T) {
+		h, fake := newMemoryHandler(t)
+		fake.rememberErr = errors.New("connection refused")
+		rec := httptest.NewRecorder()
+		h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember", `{"text":"x"}`,
+			&auth.UserContext{Subject: "u", TenantID: "t"}))
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("remember: expected 502, got %d", rec.Code)
+		}
+	})
+	t.Run("recall 502", func(t *testing.T) {
+		h, fake := newMemoryHandler(t)
+		fake.recallErr = errors.New("connection refused")
+		rec := httptest.NewRecorder()
+		h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall", `{"query":"x"}`,
+			&auth.UserContext{Subject: "u", TenantID: "t"}))
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("recall: expected 502, got %d", rec.Code)
+		}
+	})
+	t.Run("reflect 502", func(t *testing.T) {
+		h, fake := newMemoryHandler(t)
+		fake.reflectErr = errors.New("connection refused")
+		rec := httptest.NewRecorder()
+		h.Reflect(rec, authedBodyReq("POST", "/v1/memory/reflect", `{}`,
+			&auth.UserContext{Subject: "u", TenantID: "t"}))
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("reflect: expected 502, got %d", rec.Code)
+		}
+	})
+	t.Run("metrics 502", func(t *testing.T) {
+		h, fake := newMemoryHandler(t)
+		fake.metricsErr = errors.New("connection refused")
+		rec := httptest.NewRecorder()
+		h.Metrics(rec, authedRequest("GET", "/v1/memory/metrics",
+			&auth.UserContext{Subject: "u", TenantID: "t"}))
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("metrics: expected 502, got %d", rec.Code)
+		}
+	})
+}
+
+// Phase 2A — attribution-write: attributedTo threaded to the client.
+func TestMemoryRemember_AttributedToThreaded(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.rememberResp = &themory.RememberResult{Items: []themory.MemoryRow{{ID: "m1"}}}
+	rec := httptest.NewRecorder()
+	h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember",
+		`{"text":"Paulo likes oat milk","attributedTo":"paulo"}`,
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rec.Code)
+	}
+	if fake.lastRememberAttr != "paulo" {
+		t.Fatalf("attributedTo not threaded: got %q", fake.lastRememberAttr)
+	}
+	// v1.1 contract: a peer forces the verbatim path so attribution persists.
+	if fake.lastRememberInfer == nil || *fake.lastRememberInfer != false {
+		t.Fatalf("expected infer=false when attributedTo present, got %v", fake.lastRememberInfer)
+	}
+}
+
+// Without a peer, remember keeps the default extraction path (infer unset).
+func TestMemoryRemember_NoPeerKeepsDefaultInfer(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.rememberResp = &themory.RememberResult{Items: []themory.MemoryRow{{ID: "m1"}}}
+	rec := httptest.NewRecorder()
+	h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember", `{"text":"plain fact"}`,
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rec.Code)
+	}
+	if fake.lastRememberInfer != nil {
+		t.Fatalf("expected infer unset (default extraction) without a peer, got %v", *fake.lastRememberInfer)
+	}
+}
+
+// Phase 2A — bi-temporal: valid asOf threaded to the client.
+func TestMemoryRecall_AsOfThreaded(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.recallResp = &themory.RecallResult{Results: []themory.RecallHit{}}
+	rec := httptest.NewRecorder()
+	h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall",
+		`{"query":"x","asOf":"2026-06-01T00:00:00Z"}`,
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastRecallAsOf != "2026-06-01T00:00:00Z" {
+		t.Fatalf("asOf not threaded: got %q", fake.lastRecallAsOf)
+	}
+}
+
+// Phase 2A — ADR D2: invalid asOf datetime → 400 (not laundered to 502).
+func TestMemoryRecall_InvalidAsOfReturns400(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.Recall(rec, authedBodyReq("POST", "/v1/memory/recall",
+		`{"query":"x","asOf":"not-a-date"}`,
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid asOf, got %d", rec.Code)
+	}
+	if fake.lastRecallQuery != "" {
+		t.Fatal("client must NOT be called on invalid asOf")
 	}
 }
 

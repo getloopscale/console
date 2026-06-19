@@ -150,7 +150,7 @@ export function MemoryPage() {
               icon={FlaskConical}
               title="Try Playground"
               description="Remember and recall live, no code required."
-              href="/memory/memories"
+              href="/memory/playground"
             />
             <ExploreCard
               icon={BookOpen}

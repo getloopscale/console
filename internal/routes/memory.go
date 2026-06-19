@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -274,9 +275,10 @@ const memoryMaxBodyBytes = 1 << 20 // 1 MiB
 // =============================================================================
 
 type rememberRequest struct {
-	Text     string            `json:"text"`
-	Category string            `json:"category,omitempty"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Text         string            `json:"text"`
+	Category     string            `json:"category,omitempty"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	AttributedTo string            `json:"attributedTo,omitempty"`
 }
 
 // Remember proxies a write to TheMemory under the authenticated subject's user
@@ -298,8 +300,17 @@ func (h *MemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.client.Remember(r.Context(), user.Subject, req.Text,
-		themory.RememberOptions{Category: req.Category, Metadata: req.Metadata})
+	opts := themory.RememberOptions{Category: req.Category, Metadata: req.Metadata, AttributedTo: req.AttributedTo}
+	// v1.1 attribution-write contract: TheMemory applies the caller's
+	// attributedTo ONLY on the verbatim path (infer:false). On the default
+	// extraction path it uses the LLM's per-fact attribution. So when the
+	// caller supplies a peer, request verbatim so the attribution persists
+	// (owner decision 2026-06-19: infer:false when a peer is given).
+	if req.AttributedTo != "" {
+		verbatim := false
+		opts.Infer = &verbatim
+	}
+	result, err := h.client.Remember(r.Context(), user.Subject, req.Text, opts)
 	if err != nil {
 		h.logger.Warn("memory remember: upstream failed", "error", err, "subject", user.Subject)
 		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
@@ -324,6 +335,7 @@ type recallRequest struct {
 	Query     string  `json:"query"`
 	TopK      int     `json:"topK,omitempty"`
 	Threshold float64 `json:"threshold,omitempty"`
+	AsOf      string  `json:"asOf,omitempty"`
 }
 
 // Recall proxies a semantic search to TheMemory under the subject's user scope.
@@ -343,9 +355,27 @@ func (h *MemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'query' is required.")
 		return
 	}
+	// F-test-2: bound the search params before they reach the vector store.
+	// An unvalidated topK lets a client drive an unbounded pgvector scan.
+	if req.TopK < 0 || req.TopK > 200 {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'topK' must be between 0 and 200.")
+		return
+	}
+	if req.Threshold < 0 || req.Threshold > 1 {
+		writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'threshold' must be between 0 and 1.")
+		return
+	}
+	// ADR D2: validate asOf is RFC3339 at the boundary, so a bad datetime is a
+	// clear 400 rather than a 502 laundered from the provider's 422.
+	if req.AsOf != "" {
+		if _, perr := time.Parse(time.RFC3339, req.AsOf); perr != nil {
+			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'asOf' must be an RFC3339 datetime.")
+			return
+		}
+	}
 
 	result, err := h.client.Recall(r.Context(), user.Subject, req.Query,
-		themory.RecallOptions{TopK: req.TopK, Threshold: req.Threshold})
+		themory.RecallOptions{TopK: req.TopK, Threshold: req.Threshold, AsOf: req.AsOf})
 	if err != nil {
 		h.logger.Warn("memory recall: upstream failed", "error", err, "subject", user.Subject)
 		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")

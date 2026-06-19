@@ -106,12 +106,11 @@ type ListResult struct {
 	Total      *int    `json:"total,omitempty"`
 }
 
-// MetricsResult is the GET /metrics response shape.
-//
-// PROVIDER GAP (roadmap): TheMemory exposes no metrics endpoint. `TotalMemories`
-// is DERIVED by the gateway (counting the subject's scope). The usage counters
-// (`RetrievalAPIUsage`, `AddEvents`, `EntityCount`) are 0 until the provider
-// ships a server-side metrics endpoint — tracked on the TheMemory roadmap.
+// MetricsResult is the GET /metrics response shape, mapped from the provider's
+// real subject-scoped `GET /v1/scopes/user/{subject}/metrics` (ADR D2 amendment).
+// `TotalMemories`, `EntityCount` (distinct attributed_to), and `AddEvents` are
+// real; `RetrievalAPIUsage` is 0 — the provider has no persisted recall counter
+// yet (honest, not fabricated; a recall counter is a tracked follow-up).
 type MetricsResult struct {
 	TotalMemories     int `json:"total_memories"`
 	RetrievalAPIUsage int `json:"retrieval_api_usage"`
@@ -121,8 +120,14 @@ type MetricsResult struct {
 
 // RememberOptions are the optional fields for a remember (write) call.
 type RememberOptions struct {
-	Category string            // optional category tag
-	Metadata map[string]string // optional metadata
+	Category     string            // optional category tag
+	Metadata     map[string]string // optional metadata
+	AttributedTo string            // optional multi-peer attribution (v1.1); empty = omitted
+	// Infer controls TheMemory's extraction mode. nil = provider default (true,
+	// LLM extraction). Set to &false for the verbatim path — REQUIRED for the
+	// caller's AttributedTo to persist (v1.1 applies options.attributedTo only on
+	// infer:false; on infer:true attribution comes from the LLM per-fact).
+	Infer *bool
 }
 
 // RememberResult is the gateway's POST /v1/memory/remember response shape.
@@ -136,6 +141,7 @@ type RememberResult struct {
 type RecallOptions struct {
 	TopK      int
 	Threshold float64 // 0 means "unset" (omitted from the request)
+	AsOf      string  // optional RFC3339 bi-temporal point-in-time (v1.1); empty = omitted
 }
 
 // RecallHit is one scored result from a recall call.
@@ -268,10 +274,12 @@ func (c *Client) listAll(ctx context.Context, userID string) ([]MemoryRow, error
 // --- remember / recall / reflect wire shapes --------------------------------
 
 type rememberRequest struct {
-	UserID   string            `json:"userId"`
-	Text     string            `json:"text"`
-	Category string            `json:"category,omitempty"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	UserID       string            `json:"userId"`
+	Text         string            `json:"text"`
+	Category     string            `json:"category,omitempty"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+	AttributedTo string            `json:"attributedTo,omitempty"`
+	Infer        *bool             `json:"infer,omitempty"`
 }
 
 type rememberResponse struct {
@@ -283,6 +291,7 @@ type recallRequest struct {
 	Query     string   `json:"query"`
 	TopK      int      `json:"topK,omitempty"`
 	Threshold *float64 `json:"threshold,omitempty"`
+	AsOf      string   `json:"asOf,omitempty"`
 }
 
 type recallItem struct {
@@ -308,7 +317,7 @@ func (c *Client) Remember(ctx context.Context, userID, text string, opts Remembe
 	if text == "" {
 		return nil, errors.New("themory: remember text required")
 	}
-	reqBody := rememberRequest{UserID: userID, Text: text, Category: opts.Category, Metadata: opts.Metadata}
+	reqBody := rememberRequest{UserID: userID, Text: text, Category: opts.Category, Metadata: opts.Metadata, AttributedTo: opts.AttributedTo, Infer: opts.Infer}
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("themory: marshal remember body: %w", err)
@@ -330,7 +339,7 @@ func (c *Client) Recall(ctx context.Context, userID, query string, opts RecallOp
 	if query == "" {
 		return nil, errors.New("themory: recall query required")
 	}
-	reqBody := recallRequest{UserID: userID, Query: query, TopK: opts.TopK}
+	reqBody := recallRequest{UserID: userID, Query: query, TopK: opts.TopK, AsOf: opts.AsOf}
 	if opts.Threshold > 0 {
 		reqBody.Threshold = &opts.Threshold
 	}
@@ -369,22 +378,39 @@ func (c *Client) Reflect(ctx context.Context, userID string, opts ReflectOptions
 	return &ReflectResult{Raw: raw}, nil
 }
 
-// Metrics returns the customer's memory KPIs. `total_memories` is derived by
-// counting the subject's scope; the rest are 0 (see MetricsResult PROVIDER GAP).
+// Metrics returns the customer's memory KPIs from the provider's real
+// subject-scoped `GET /v1/scopes/user/{subject}/metrics` (ADR D2 amendment).
+// `total_memories` + `entity_count` + `add_events` are real; `retrieval_api_usage`
+// is 0 (no persisted source on the provider — honest, not fabricated).
 func (c *Client) Metrics(ctx context.Context, userID string) (*MetricsResult, error) {
-	rows, err := c.listAll(ctx, userID)
-	if err != nil {
+	var out MetricsResult
+	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/metrics"
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &out); err != nil {
 		return nil, err
 	}
-	return &MetricsResult{TotalMemories: len(rows)}, nil
+	return &out, nil
 }
 
-// Entities returns aggregated entities for the subject.
+// Entities returns aggregated entities for the subject from the provider's real
+// subject-scoped `GET /v1/scopes/user/{subject}/entities` (ADR D2 amendment).
+// Entities are the distinct `attributed_to` peers across the subject's memories.
 //
-// PROVIDER GAP (roadmap): TheMemory exposes no entities endpoint. Until it does,
-// the gateway returns an empty result rather than fabricating aggregates.
-func (c *Client) Entities(_ context.Context, _ string, _ string) (*EntitiesResult, error) {
-	return &EntitiesResult{Entities: []Entity{}}, nil
+// In the gateway's shared-key model each customer is a single USER subject, so
+// only the `user` scope tab carries entities; session/agent/repo tabs return
+// empty (no such sub-subject exists for the customer) — honest, not an error.
+func (c *Client) Entities(ctx context.Context, userID, scope string) (*EntitiesResult, error) {
+	if scope != "" && scope != "user" {
+		return &EntitiesResult{Entities: []Entity{}}, nil
+	}
+	var out EntitiesResult
+	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/entities"
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Entities == nil {
+		out.Entities = []Entity{}
+	}
+	return &out, nil
 }
 
 type forgetBody struct {

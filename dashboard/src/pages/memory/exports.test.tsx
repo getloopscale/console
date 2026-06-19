@@ -50,7 +50,7 @@ describe('ExportsPage (/memory/exports)', () => {
     await user.click(
       (await screen.findAllByRole('button', { name: /create export/i }))[0],
     );
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/memory/exports', expect.objectContaining({ method: 'POST' }));
+    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/memory/exports', expect.objectContaining({ method: 'POST' }));
     // Wait for the row to appear with `pending` status badge.
     expect(await screen.findByTestId('status-export-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')).toBeInTheDocument();
   });

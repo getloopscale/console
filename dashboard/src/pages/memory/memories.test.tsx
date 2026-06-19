@@ -82,7 +82,8 @@ describe('MemoryListPage (/memory/memories)', () => {
     // until the typed phrase equals the memory id. We only assert that
     // the dialog renders the warning copy; the typed-verification logic
     // itself is owned by @usetheo/ui ConfirmDialog (covered there).
-    expect(await screen.findByText(/permanently forgotten/i)).toBeInTheDocument();
-    expect(screen.getByText(/this cannot be undone/i)).toBeInTheDocument();
+    expect(await screen.findByText(/will be forgotten/i)).toBeInTheDocument();
+    // ADR D4 — the hard-delete (GDPR) opt-in checkbox is present.
+    expect(screen.getByLabelText(/permanently erase/i)).toBeInTheDocument();
   });
 });

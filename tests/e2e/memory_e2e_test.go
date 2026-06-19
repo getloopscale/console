@@ -196,3 +196,145 @@ func TestMemoryE2E_GatewayProxyRoundTrip(t *testing.T) {
 		}
 	})
 }
+
+// cloudPost issues an authenticated POST to the gateway SDK surface.
+func cloudPost(t *testing.T, cloudURL, bearer, path, body string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodPost, cloudURL+path, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	req.Header.Set("Content-Type", "application/json")
+	resp := mustDo(t, req)
+	defer resp.Body.Close()
+	return resp.StatusCode, readBody(resp)
+}
+
+func cloudGet(t *testing.T, cloudURL, bearer, path string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodGet, cloudURL+path, nil)
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	resp := mustDo(t, req)
+	defer resp.Body.Close()
+	return resp.StatusCode, readBody(resp)
+}
+
+// Full-surface round-trip: remember -> recall -> reflect + metrics/entities,
+// all through the gateway against real TheMemory + real pgvector (T4.1).
+func TestMemoryE2E_FullVerbSurface(t *testing.T) {
+	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theocloud:theocloud@localhost:55432/theocloud?sslmode=disable")
+
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open cloud pg: %v", err)
+	}
+	defer db.Close()
+
+	subject := "e2e-verbs-user"
+	key := seedAPIKey(t, db, subject, "e2e-tenant")
+
+	// remember (write through the gateway, NOT seeded directly)
+	t.Run("remember writes through the gateway", func(t *testing.T) {
+		status, body := cloudPost(t, cloudURL, key, "/v1/memory/remember",
+			`{"text":"my favorite drink is oat milk latte","category":"prefs"}`)
+		if status != http.StatusCreated {
+			t.Fatalf("remember status=%d body=%s", status, body)
+		}
+		if !strings.Contains(body, `"items"`) {
+			t.Fatalf("remember response missing items: %s", body)
+		}
+	})
+
+	// recall (semantic search) — the FULL path is exercised end-to-end through
+	// the gateway → TheMemory → real pgvector. We assert the path (200 + a
+	// `results` array), NOT semantic ranking: the hermetic mock embedder is a
+	// deterministic hash, so cosine similarity between the query and the stored
+	// fact is not meaningful. Semantic-quality recall is validated separately
+	// against a real embedder (TheMemory's own GOAL TEST). threshold=0 ensures
+	// the path returns whatever the store holds rather than gating on a score.
+	t.Run("recall path returns 200 with a results array", func(t *testing.T) {
+		status, body := cloudPost(t, cloudURL, key, "/v1/memory/recall",
+			`{"query":"what do I like to drink","topK":10,"threshold":0}`)
+		if status != http.StatusOK {
+			t.Fatalf("recall status=%d body=%s", status, body)
+		}
+		if !strings.Contains(body, `"results"`) {
+			t.Fatalf("recall response missing results array: %s", body)
+		}
+	})
+
+	// metrics (real subject-scoped counts)
+	t.Run("metrics returns real total_memories", func(t *testing.T) {
+		status, body := cloudGet(t, cloudURL, key, "/v1/memory/metrics")
+		if status != http.StatusOK {
+			t.Fatalf("metrics status=%d body=%s", status, body)
+		}
+		var m struct {
+			Total int `json:"total_memories"`
+		}
+		_ = json.Unmarshal([]byte(body), &m)
+		if m.Total < 1 {
+			t.Fatalf("expected total_memories >= 1 after remember, got %d (%s)", m.Total, body)
+		}
+	})
+
+	// entities (subject-scoped aggregation — may be empty if no attributed_to)
+	t.Run("entities endpoint returns 200 with an array", func(t *testing.T) {
+		status, body := cloudGet(t, cloudURL, key, "/v1/memory/entities?scope=user")
+		if status != http.StatusOK {
+			t.Fatalf("entities status=%d body=%s", status, body)
+		}
+		if !strings.Contains(body, `"entities"`) {
+			t.Fatalf("entities response missing array: %s", body)
+		}
+	})
+
+	// reflect (consolidation) — accepted (202) through the gateway.
+	t.Run("reflect runs through the gateway", func(t *testing.T) {
+		status, body := cloudPost(t, cloudURL, key, "/v1/memory/reflect", `{}`)
+		if status != http.StatusAccepted {
+			t.Fatalf("reflect status=%d body=%s", status, body)
+		}
+	})
+
+	// Phase 2A — attribution-write + bi-temporal asOf round-trip (T3.1).
+	t.Run("remember-attributed then recall-asOf round-trip", func(t *testing.T) {
+		// remember a fact attributed to a peer through the gateway
+		status, body := cloudPost(t, cloudURL, key, "/v1/memory/remember",
+			`{"text":"maria recommended the oat milk latte","attributedTo":"e2e-peer"}`)
+		if status != http.StatusCreated {
+			t.Fatalf("attributed remember status=%d body=%s", status, body)
+		}
+
+		// recall with a FIXED near-FUTURE asOf (EC-3) so the just-written memory
+		// is within [t_valid, asOf] regardless of clock skew. Path proof only
+		// (200 + results array) — semantic ranking deferred to the hermetic
+		// embedder caveat, as in the prior cycle.
+		recallBody := `{"query":"what milk","topK":10,"threshold":0,"asOf":"2099-01-01T00:00:00Z"}`
+		status, body = cloudPost(t, cloudURL, key, "/v1/memory/recall", recallBody)
+		if status != http.StatusOK {
+			t.Fatalf("asOf recall status=%d body=%s", status, body)
+		}
+		if !strings.Contains(body, `"results"`) {
+			t.Fatalf("asOf recall missing results array: %s", body)
+		}
+
+		// the attributed peer must surface in the entities aggregation —
+		// proves attribution-write reached the store end-to-end.
+		status, body = cloudGet(t, cloudURL, key, "/v1/memory/entities?scope=user")
+		if status != http.StatusOK {
+			t.Fatalf("entities status=%d body=%s", status, body)
+		}
+		if !strings.Contains(body, "e2e-peer") {
+			t.Fatalf("attributed peer not in entities aggregation: %s", body)
+		}
+	})
+
+	// Phase 2A — ADR D2: invalid asOf datetime → 400 (not 502).
+	t.Run("invalid asOf returns 400", func(t *testing.T) {
+		status, _ := cloudPost(t, cloudURL, key, "/v1/memory/recall",
+			`{"query":"x","asOf":"not-a-date"}`)
+		if status != http.StatusBadRequest {
+			t.Fatalf("expected 400 for invalid asOf, got %d", status)
+		}
+	})
+}

@@ -416,6 +416,11 @@ func main() {
 			// Plan 2 (Memory Insights) — entities aggregated by scope.
 			// Same scope as List + Metrics per D2 (no per-feature scope explosion).
 			r.With(auth.RequireScope(db, "memory:read")).Get("/entities", memoryHandler.Entities)
+			// theo-memory-dashboard-full-integration T1.2 — the 3 core verbs on
+			// the SDK surface (remember/reflect = write; recall = read).
+			r.With(auth.RequireScope(db, "memory:write")).Post("/remember", memoryHandler.Remember)
+			r.With(auth.RequireScope(db, "memory:read")).Post("/recall", memoryHandler.Recall)
+			r.With(auth.RequireScope(db, "memory:write")).Post("/reflect", memoryHandler.Reflect)
 
 			// Plan 3 (Memory Operations) — webhooks + exports.
 			// All gated by memory:admin per least-privilege (these affect
@@ -463,6 +468,19 @@ func main() {
 			r.Post("/reflect", dashboardMemoryHandler.Reflect)
 			// Ops fronted through the BFF (gap 4 — close 401). Each is a no-op
 			// 404 when its handler is nil (feature disabled).
+			//
+			// SECURITY INVARIANT (F-xval-3): these exports/webhooks ops are
+			// memory:admin on the SDK surface (programmatic-key least-privilege).
+			// Here they sit behind requireJWT ONLY — which is correct for the
+			// dashboard's single-subject-per-customer model: a browser session
+			// authenticates as exactly ONE subject (its own workspace owner via
+			// Kratos), and every ops handler scopes strictly to auth.GetUser(...).
+			// .Subject (exports + webhooks are per-subject rows). A session can
+			// therefore reach ONLY its own ops — never another tenant's — so no
+			// memory:admin gate is needed at the browser boundary. The SDK
+			// memory:admin gate governs API keys, not the owner's own console.
+			// If a future RBAC member/non-admin dashboard session is introduced,
+			// gate these with requireRole(admin).
 			r.Post("/exports", dashboardMemoryHandler.ExportsCreate)
 			r.Get("/exports/{id}/status", dashboardMemoryHandler.ExportsStatus)
 			r.Get("/exports/{id}/download", dashboardMemoryHandler.ExportsDownload)

@@ -61,6 +61,8 @@ export function MemoryListPage() {
   const offset = Number(searchParams.get('offset') ?? '0');
 
   const [pendingDelete, setPendingDelete] = useState<MemoryRow | null>(null);
+  // ADR D4 — hard-delete (GDPR) is opt-in per forget; default stays soft.
+  const [hardDelete, setHardDelete] = useState(false);
 
   const updateParam = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -82,16 +84,23 @@ export function MemoryListPage() {
       params.set('limit', String(PAGE_SIZE));
       if (offset > 0) params.set('offset', String(offset));
       if (category) params.set('category', category);
-      if (from) params.set('from', from);
-      if (to) params.set('to', to);
+      // <input type="date"> yields YYYY-MM-DD; the provider's from/to expect
+      // RFC3339 datetimes (ADR D3). Widen the day to its full inclusive range.
+      if (from) params.set('from', `${from}T00:00:00Z`);
+      if (to) params.set('to', `${to}T23:59:59Z`);
       return cloudFetch<ListResult>(`/v1/dashboard/memory/list?${params.toString()}`);
     },
   });
 
   const forget = useMutation({
-    mutationFn: async (id: string) => cloudFetch<null>(`/v1/dashboard/memory/forget/${id}`, { method: 'DELETE' }),
+    mutationFn: async (vars: { id: string; hard: boolean }) =>
+      cloudFetch<null>(
+        `/v1/dashboard/memory/forget/${vars.id}${vars.hard ? '?hard=true' : ''}`,
+        { method: 'DELETE' },
+      ),
     onSuccess: () => {
       setPendingDelete(null);
+      setHardDelete(false);
       void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/list'] });
     },
   });
@@ -213,24 +222,47 @@ export function MemoryListPage() {
       {pendingDelete ? (
         <ConfirmDialog
           open={pendingDelete !== null}
-          onOpenChange={(o) => !o && setPendingDelete(null)}
+          onOpenChange={(o) => {
+            if (!o) {
+              setPendingDelete(null);
+              setHardDelete(false);
+            }
+          }}
           title={`Forget memory ${pendingDelete.id.slice(0, 12)}…`}
           description={
             <div className="space-y-2 text-sm">
               <p className="font-mono bg-muted p-2 rounded">{pendingDelete.content}</p>
               <p>
-                This memory will be permanently forgotten. Your agent will no
-                longer recall it.
+                This memory will be {hardDelete ? 'permanently erased' : 'forgotten'}. Your
+                agent will no longer recall it.
               </p>
-              <p className="text-muted-foreground">This cannot be undone.</p>
+              <label className="flex items-start gap-2 text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={hardDelete}
+                  onChange={(e) => setHardDelete(e.target.checked)}
+                  aria-label="Permanently erase (GDPR, cannot be recovered)"
+                />
+                <span>
+                  Permanently erase (GDPR). Skips the soft-delete audit trail — this
+                  cannot be recovered.
+                </span>
+              </label>
             </div>
           }
-          confirmLabel={forget.isPending ? 'Forgetting…' : 'Forget memory'}
+          confirmLabel={
+            forget.isPending
+              ? 'Forgetting…'
+              : hardDelete
+                ? 'Permanently erase'
+                : 'Forget memory'
+          }
           cancelLabel="Cancel"
           intent="destructive"
           confirmationPhrase={pendingDelete.id}
           loading={forget.isPending}
-          onConfirm={() => forget.mutate(pendingDelete.id)}
+          onConfirm={() => forget.mutate({ id: pendingDelete.id, hard: hardDelete })}
         />
       ) : null}
     </>

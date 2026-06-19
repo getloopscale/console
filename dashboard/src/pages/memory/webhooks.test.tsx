@@ -42,7 +42,7 @@ describe('WebhooksPage (/memory/webhooks)', () => {
 
   it('T5.7 — Recent deliveries column hits the per-webhook deliveries endpoint', async () => {
     mockCloudFetch.mockImplementation((path: string) => {
-      if (String(path).includes('/v1/memory/webhooks/list')) {
+      if (String(path).includes('/v1/dashboard/memory/webhooks/list')) {
         return Promise.resolve({
           webhooks: [
             { id: 'mwh-aaaa1111bbbb2222', url: 'https://hook.example.com', label: 'prod', events: ['memory.forgotten'], created_at: new Date().toISOString() },
