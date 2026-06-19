@@ -153,7 +153,11 @@ export function PlaygroundPage() {
                   onChange={(e) => setRememberPeer(e.target.value)}
                   placeholder="e.g. maria"
                   className="w-48"
+                  aria-describedby="pg-peer-hint"
                 />
+                <p id="pg-peer-hint" className="text-xs text-muted-foreground mt-1 max-w-48">
+                  Stores the fact verbatim (skips auto fact-extraction).
+                </p>
               </div>
               <Button
                 onClick={() => remember.mutate()}
