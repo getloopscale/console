@@ -81,4 +81,48 @@ describe('Memory Playground (T3.1)', () => {
     });
     expect(await screen.findByText(/Reflection complete/i)).toBeInTheDocument();
   });
+
+  // Phase 2A — attribution-write.
+  it('remember includes attributedTo when a peer is given', async () => {
+    mockCloudFetch.mockResolvedValueOnce({ items: [{ id: 'm1', content: 'x' }] });
+    render(<PlaygroundPage />, { initialEntries: ['/memory/playground'] });
+
+    await userEvent.type(screen.getByLabelText('Memory text to remember'), 'Paulo likes oat milk');
+    await userEvent.type(screen.getByLabelText('Attributed to (peer, optional)'), 'maria');
+    await userEvent.click(screen.getByRole('button', { name: 'Remember' }));
+
+    await waitFor(() => expect(mockCloudFetch).toHaveBeenCalled());
+    const body = JSON.parse(mockCloudFetch.mock.calls.at(-1)![1].body as string);
+    expect(body.attributedTo).toBe('maria');
+  });
+
+  // EC-2 — whitespace-only peer is omitted.
+  it('remember omits attributedTo when the peer field is whitespace', async () => {
+    mockCloudFetch.mockResolvedValueOnce({ items: [{ id: 'm1', content: 'x' }] });
+    render(<PlaygroundPage />, { initialEntries: ['/memory/playground'] });
+
+    await userEvent.type(screen.getByLabelText('Memory text to remember'), 'fact');
+    await userEvent.type(screen.getByLabelText('Attributed to (peer, optional)'), '   ');
+    await userEvent.click(screen.getByRole('button', { name: 'Remember' }));
+
+    await waitFor(() => expect(mockCloudFetch).toHaveBeenCalled());
+    const body = JSON.parse(mockCloudFetch.mock.calls.at(-1)![1].body as string);
+    expect(body).not.toHaveProperty('attributedTo');
+  });
+
+  // Phase 2A — bi-temporal asOf + EC-1 RFC3339 widening validity.
+  it('recall includes a valid RFC3339 asOf from the datetime-local picker', async () => {
+    mockCloudFetch.mockResolvedValueOnce({ results: [] });
+    render(<PlaygroundPage />, { initialEntries: ['/memory/playground'] });
+
+    await userEvent.type(screen.getByLabelText('Query'), 'what milk');
+    // datetime-local yields minute precision: YYYY-MM-DDTHH:mm
+    await userEvent.type(screen.getByLabelText('As of (UTC, optional)'), '2026-06-01T10:30');
+    await userEvent.click(screen.getByRole('button', { name: 'Recall' }));
+
+    await waitFor(() => expect(mockCloudFetch).toHaveBeenCalled());
+    const body = JSON.parse(mockCloudFetch.mock.calls.at(-1)![1].body as string);
+    expect(body.asOf).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    expect(body.asOf).toBe('2026-06-01T10:30:00Z');
+  });
 });

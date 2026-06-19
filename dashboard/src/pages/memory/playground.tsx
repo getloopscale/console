@@ -45,6 +45,18 @@ interface RecallResult {
   results: RecallHit[];
 }
 
+/**
+ * Widen a `datetime-local` value (minute precision, no zone) to an RFC3339 UTC
+ * instant the provider's `asOf` (z.string().datetime()) accepts. EC-1: the
+ * input is minute-precision (no `step` attribute), so a 16-char value gets
+ * `:00Z`; a 19-char value (seconds present) gets `Z`. Treated as UTC.
+ */
+function toRfc3339Utc(local: string): string {
+  if (local.length === 16) return `${local}:00Z`; // YYYY-MM-DDTHH:mm
+  if (local.length === 19) return `${local}Z`; // YYYY-MM-DDTHH:mm:ss
+  return local; // already zoned or unexpected — let the gateway 400 it
+}
+
 export function PlaygroundPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Playground'), [setPageTitle]);
@@ -53,25 +65,37 @@ export function PlaygroundPage() {
   // --- Remember panel ---
   const [rememberText, setRememberText] = useState('');
   const [rememberCategory, setRememberCategory] = useState('');
+  const [rememberPeer, setRememberPeer] = useState(''); // attributedTo (v1.1)
   const remember = useMutation({
-    mutationFn: async () =>
-      cloudFetch<RememberResult>('/v1/dashboard/memory/remember', {
+    mutationFn: async () => {
+      const peer = rememberPeer.trim(); // EC-2: whitespace-only is omitted
+      return cloudFetch<RememberResult>('/v1/dashboard/memory/remember', {
         method: 'POST',
         body: JSON.stringify({
           text: rememberText,
           ...(rememberCategory ? { category: rememberCategory } : {}),
+          ...(peer ? { attributedTo: peer } : {}),
         }),
-      }),
+      });
+    },
     onSuccess: () => setRememberText(''),
   });
 
   // --- Recall panel ---
   const [recallQuery, setRecallQuery] = useState('');
+  const [recallAsOf, setRecallAsOf] = useState(''); // datetime-local; widened to RFC3339 (asOf, v1.1)
   const recall = useMutation({
     mutationFn: async () =>
       cloudFetch<RecallResult>('/v1/dashboard/memory/recall', {
         method: 'POST',
-        body: JSON.stringify({ query: recallQuery, topK: 10 }),
+        body: JSON.stringify({
+          query: recallQuery,
+          topK: 10,
+          // EC-1: <input type="datetime-local"> yields minute precision
+          // (YYYY-MM-DDTHH:mm, no step set) → append ":00Z"; if it ever carries
+          // seconds (length 19), append "Z". Treated as UTC (label says UTC).
+          ...(recallAsOf ? { asOf: toRfc3339Utc(recallAsOf) } : {}),
+        }),
       }),
   });
 
@@ -116,6 +140,18 @@ export function PlaygroundPage() {
                   value={rememberCategory}
                   onChange={(e) => setRememberCategory(e.target.value)}
                   placeholder="preferences"
+                  className="w-48"
+                />
+              </div>
+              <div>
+                <label htmlFor="pg-peer" className="text-xs text-muted-foreground block mb-1">
+                  Attributed to (peer, optional)
+                </label>
+                <Input
+                  id="pg-peer"
+                  value={rememberPeer}
+                  onChange={(e) => setRememberPeer(e.target.value)}
+                  placeholder="e.g. maria"
                   className="w-48"
                 />
               </div>
@@ -165,6 +201,17 @@ export function PlaygroundPage() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && recallQuery.trim() !== '') recall.mutate();
                   }}
+                />
+              </div>
+              <div>
+                <label htmlFor="pg-asof" className="text-xs text-muted-foreground block mb-1">
+                  As of (UTC, optional)
+                </label>
+                <Input
+                  id="pg-asof"
+                  type="datetime-local"
+                  value={recallAsOf}
+                  onChange={(e) => setRecallAsOf(e.target.value)}
                 />
               </div>
               <Button
