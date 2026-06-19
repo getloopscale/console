@@ -20,6 +20,7 @@ package unit
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -33,11 +34,11 @@ import (
 // listing (ownership) and the forget delegation.
 type recordingServer struct {
 	*httptest.Server
-	listRequests     []*http.Request
-	forgetRequests   []*http.Request
-	forgetBodies     []string
-	metricsRequests  []*http.Request
-	entitiesRequests []*http.Request
+	listRequests        []*http.Request
+	forgetRequests      []*http.Request
+	forgetBodies        []string
+	metricsRequests     []*http.Request
+	entitiesRequests    []*http.Request
 	skillsRequests      []*http.Request
 	addSkillRequests    []*http.Request
 	addSkillBodies      []string
@@ -455,7 +456,7 @@ func TestTheMemoryClient_AddSkillMaps409ToErrSkillConflict(t *testing.T) {
 	_, err := client.AddSkill(context.Background(), "sub:acme", themory.SkillDraft{
 		Code: "x", Description: "dupe", CodeLanguage: "typescript",
 	})
-	if err == nil || !strings.Contains(err.Error(), "already exists") {
+	if !errors.Is(err, themory.ErrSkillConflict) {
 		t.Fatalf("expected ErrSkillConflict, got %v", err)
 	}
 }

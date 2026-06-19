@@ -109,6 +109,20 @@ func (h *MemoryHandler) WithEventPublisher(p WebhookEventPublisher) *MemoryHandl
 // path filesystem or SQL injection vectors.
 var memoryIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
+// namespaceRepo composes the upstream Repo-tier scope `{subject}:{repoId}` for
+// multi-tenant skill isolation (D3). Injectivity of the concatenation requires
+// that AT MOST one operand contains the ':' separator — the caller already
+// rejects ':' in repoId, and this asserts the subject (server-derived, never
+// wire) also contains none. Returns ok=false to fail closed if the invariant is
+// ever violated (e.g. a future IdP issuing ':'-bearing subjects), rather than
+// silently risk a cross-customer namespace collision (skills-write-surface /review).
+func namespaceRepo(subject, repoID string) (string, bool) {
+	if strings.Contains(subject, ":") {
+		return "", false
+	}
+	return subject + ":" + repoID, true
+}
+
 // =============================================================================
 // GET /v1/memory/list — T1.3
 // =============================================================================
@@ -304,7 +318,11 @@ func (h *MemoryHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// D3 — namespace by the authenticated subject for cross-customer isolation.
-	namespaced := user.Subject + ":" + repoID
+	namespaced, ok := namespaceRepo(user.Subject, repoID)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Subject namespace invariant violated.")
+		return
+	}
 	result, err := h.client.ListSkills(r.Context(), namespaced)
 	if err != nil {
 		h.logger.Warn("memory skills: upstream failed", "error", err, "subject", user.Subject, "repoId", repoID)
@@ -353,7 +371,11 @@ func (h *MemoryHandler) AddSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	namespaced := user.Subject + ":" + repoID
+	namespaced, ok := namespaceRepo(user.Subject, repoID)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Subject namespace invariant violated.")
+		return
+	}
 	created, err := h.client.AddSkill(r.Context(), namespaced, themory.SkillDraft{
 		Code: body.Code, Description: body.Description, CodeLanguage: body.CodeLanguage,
 	})
@@ -383,12 +405,19 @@ func (h *MemoryHandler) ForgetSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	skillID := chi.URLParam(r, "skillID")
-	if skillID == "" {
-		writeError(w, http.StatusBadRequest, "INVALID_ID", "skillID path segment is required.")
+	// Pattern-validate the skillId (parity with Forget's memoryIDPattern) — a
+	// defense-in-depth 400 for malformed ids before the upstream call (the client
+	// url.PathEscapes it too). /review LOW.
+	if !memoryIDPattern.MatchString(skillID) {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "skillID is malformed.")
 		return
 	}
 
-	namespaced := user.Subject + ":" + repoID
+	namespaced, ok := namespaceRepo(user.Subject, repoID)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Subject namespace invariant violated.")
+		return
+	}
 	if err := h.client.ForgetSkill(r.Context(), namespaced, skillID); err != nil {
 		if errors.Is(err, themory.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "Skill not found in this repo.")
