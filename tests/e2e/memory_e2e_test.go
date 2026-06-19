@@ -217,6 +217,15 @@ func cloudGet(t *testing.T, cloudURL, bearer, path string) (int, string) {
 	return resp.StatusCode, readBody(resp)
 }
 
+func cloudDelete(t *testing.T, cloudURL, bearer, path string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodDelete, cloudURL+path, nil)
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	resp := mustDo(t, req)
+	defer resp.Body.Close()
+	return resp.StatusCode, readBody(resp)
+}
+
 // Full-surface round-trip: remember -> recall -> reflect + metrics/entities,
 // all through the gateway against real TheMemory + real pgvector (T4.1).
 func TestMemoryE2E_FullVerbSurface(t *testing.T) {
@@ -436,6 +445,75 @@ func TestMemoryE2E_SkillsBrowse(t *testing.T) {
 		status, _ := cloudGet(t, cloudURL, alphaKey, "/v1/memory/skills?repoId=")
 		if status != http.StatusBadRequest {
 			t.Fatalf("expected 400 for empty repoId, got %d", status)
+		}
+	})
+}
+
+// TestMemoryE2E_SkillsWrite proves the WRITE surface end-to-end through the
+// gateway: an agent authors a skill (POST), sees it (GET), deletes it (DELETE);
+// a duplicate description -> 409; a different customer cannot delete it (D3
+// isolation -> 404). skills-write-surface T5.1.
+func TestMemoryE2E_SkillsWrite(t *testing.T) {
+	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theocloud:theocloud@localhost:55432/theocloud?sslmode=disable")
+
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open cloud pg: %v", err)
+	}
+	defer db.Close()
+
+	const tenant = "e2e-tenant"
+	alphaKey := seedAPIKey(t, db, "e2e-skw-alpha", tenant)
+	betaKey := seedAPIKey(t, db, "e2e-skw-beta", tenant)
+	const repoID = "write-repo"
+	const draft = `{"code":"export const deploy = () => {};","description":"deploy via gateway","codeLanguage":"typescript"}`
+
+	var createdID string
+	t.Run("agent authors a skill via POST -> 201", func(t *testing.T) {
+		status, body := cloudPost(t, cloudURL, alphaKey, "/v1/memory/skills?repoId="+repoID, draft)
+		if status != http.StatusCreated {
+			t.Fatalf("expected 201, got %d body=%s", status, body)
+		}
+		var out struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal([]byte(body), &out); err != nil || out.ID == "" {
+			t.Fatalf("expected {id}, got %s (err %v)", body, err)
+		}
+		createdID = out.ID
+	})
+
+	t.Run("owner sees the authored skill via GET", func(t *testing.T) {
+		status, body := cloudGet(t, cloudURL, alphaKey, "/v1/memory/skills?repoId="+repoID)
+		if status != http.StatusOK || !strings.Contains(body, "deploy via gateway") {
+			t.Fatalf("expected the authored skill, got %d %s", status, body)
+		}
+	})
+
+	t.Run("duplicate description -> 409", func(t *testing.T) {
+		status, _ := cloudPost(t, cloudURL, alphaKey, "/v1/memory/skills?repoId="+repoID,
+			`{"code":"different","description":"deploy via gateway","codeLanguage":"typescript"}`)
+		if status != http.StatusConflict {
+			t.Fatalf("expected 409, got %d", status)
+		}
+	})
+
+	t.Run("D3 isolation: another customer cannot delete it (404)", func(t *testing.T) {
+		status, _ := cloudDelete(t, cloudURL, betaKey, "/v1/memory/skills/"+createdID+"?repoId="+repoID)
+		if status != http.StatusNotFound {
+			t.Fatalf("CROSS-CUSTOMER: beta deleting alpha's skill expected 404, got %d", status)
+		}
+	})
+
+	t.Run("owner deletes -> 204; listing no longer shows it", func(t *testing.T) {
+		status, _ := cloudDelete(t, cloudURL, alphaKey, "/v1/memory/skills/"+createdID+"?repoId="+repoID)
+		if status != http.StatusNoContent {
+			t.Fatalf("expected 204, got %d", status)
+		}
+		_, body := cloudGet(t, cloudURL, alphaKey, "/v1/memory/skills?repoId="+repoID)
+		if strings.Contains(body, "deploy via gateway") {
+			t.Fatalf("skill still present after delete: %s", body)
 		}
 	})
 }
