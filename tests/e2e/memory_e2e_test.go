@@ -351,3 +351,91 @@ func TestMemoryE2E_FullVerbSurface(t *testing.T) {
 		}
 	})
 }
+
+// zeroVector1536 is a deterministic dummy embedding for skill seeding. The
+// skills listing query filters by kind/agent_id/superseded/soft-delete and does
+// NOT use the embedding, so a zero vector is sufficient (the e2e themory runs
+// THEOMEM_EMBEDDER=openai → vector(1536)).
+func zeroVector1536() string {
+	return "[" + strings.Repeat("0,", 1535) + "0]"
+}
+
+// seedSkill inserts a kind='skill' row directly into TheMemory's DB under the
+// given agent_id (the namespaced repoId the gateway computes: `{subject}:{repoId}`).
+// There is no skill-WRITE REST surface (skills are read-only via the gateway),
+// so the e2e seeds at the storage layer. dashboard-phase2b-skills-browse T5.1.
+func seedSkill(t *testing.T, themoryDSN, agentID, hash, description, code string) {
+	t.Helper()
+	db, err := sql.Open("pgx", themoryDSN)
+	if err != nil {
+		t.Fatalf("open themory pg: %v", err)
+	}
+	defer db.Close()
+	_, err = db.Exec(
+		`INSERT INTO memories (text, hash, embedding, payload, agent_id, workspace_id, kind, code, description, code_language)
+		 VALUES ($1, $2, $3::vector, '{}'::jsonb, $4, 'default', 'skill', $5, $6, 'typescript')`,
+		description, hash, zeroVector1536(), agentID, code, description,
+	)
+	if err != nil {
+		t.Fatalf("seed skill (agent_id=%s): %v", agentID, err)
+	}
+}
+
+// TestMemoryE2E_SkillsBrowse proves the read-only skills browse path end-to-end
+// through the gateway → TheMemory, including the D3 per-customer repo namespacing
+// + cross-customer isolation. dashboard-phase2b-skills-browse T5.1.
+func TestMemoryE2E_SkillsBrowse(t *testing.T) {
+	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theocloud:theocloud@localhost:55432/theocloud?sslmode=disable")
+	themoryDSN := env(t, "E2E_PG_THEMORY_DSN", "postgres://themem:themem@localhost:55433/themem?sslmode=disable")
+
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open cloud pg: %v", err)
+	}
+	defer db.Close()
+
+	const tenant = "e2e-tenant"
+	alpha := "e2e-skills-alpha"
+	beta := "e2e-skills-beta"
+	alphaKey := seedAPIKey(t, db, alpha, tenant)
+	betaKey := seedAPIKey(t, db, beta, tenant)
+
+	// The gateway computes the upstream repoId as `{subject}:{repoId}` (D3). Seed
+	// a skill under alpha's namespace for the bare repoId "shared".
+	const repoID = "shared"
+	seedSkill(t, themoryDSN, alpha+":"+repoID, "e2e-skill-hash-1", "deploy the alpha service", "kubectl apply -f alpha")
+
+	t.Run("owner sees the seeded skill via the gateway", func(t *testing.T) {
+		status, body := cloudGet(t, cloudURL, alphaKey, "/v1/memory/skills?repoId="+repoID)
+		if status != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", status, body)
+		}
+		if !strings.Contains(body, "deploy the alpha service") {
+			t.Fatalf("expected the seeded skill in the listing, got %s", body)
+		}
+		if !strings.Contains(body, "kubectl apply -f alpha") {
+			t.Fatalf("expected the skill code in the listing, got %s", body)
+		}
+	})
+
+	t.Run("D3 isolation: a different customer with the same bare repoId sees none", func(t *testing.T) {
+		status, body := cloudGet(t, cloudURL, betaKey, "/v1/memory/skills?repoId="+repoID)
+		if status != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", status, body)
+		}
+		if strings.Contains(body, "deploy the alpha service") {
+			t.Fatalf("CROSS-CUSTOMER LEAK: beta saw alpha's skill (D3 namespacing failed). body=%s", body)
+		}
+		if !strings.Contains(body, `"skills":[]`) {
+			t.Fatalf("expected empty skills for beta, got %s", body)
+		}
+	})
+
+	t.Run("empty repoId rejected with 400", func(t *testing.T) {
+		status, _ := cloudGet(t, cloudURL, alphaKey, "/v1/memory/skills?repoId=")
+		if status != http.StatusBadRequest {
+			t.Fatalf("expected 400 for empty repoId, got %d", status)
+		}
+	})
+}

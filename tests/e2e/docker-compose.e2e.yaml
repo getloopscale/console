@@ -28,6 +28,11 @@ services:
       POSTGRES_USER: themem
       POSTGRES_PASSWORD: themem
       POSTGRES_DB: themem
+    ports:
+      # Exposed so the host-run `go test` can seed skill rows directly (there is
+      # no skill-WRITE REST surface — skills are read-only via the gateway).
+      # dashboard-phase2b-skills-browse T5.1.
+      - "${E2E_PG_THEMORY_PORT:-55434}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U themem -d themem"]
       interval: 3s

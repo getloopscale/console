@@ -31,7 +31,8 @@ export THEMORY_MASTER_KEY
 E2E_CLOUD_PORT="${E2E_CLOUD_PORT:-13002}"
 E2E_THEMORY_PORT="${E2E_THEMORY_PORT:-18080}"
 E2E_PG_CLOUD_PORT="${E2E_PG_CLOUD_PORT:-55432}"
-export E2E_THEMORY_PORT E2E_PG_CLOUD_PORT
+E2E_PG_THEMORY_PORT="${E2E_PG_THEMORY_PORT:-55434}"
+export E2E_THEMORY_PORT E2E_PG_CLOUD_PORT E2E_PG_THEMORY_PORT
 
 log()  { printf '\033[1;36m[e2e]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[e2e] FAIL:\033[0m %s\n' "$*" >&2; }
@@ -91,6 +92,7 @@ log "stack healthy."
 export E2E_CLOUD_URL="http://localhost:${E2E_CLOUD_PORT}"
 export E2E_THEMORY_URL="http://localhost:${E2E_THEMORY_PORT}"
 export E2E_PG_CLOUD_DSN="postgres://theocloud:theocloud@localhost:${E2E_PG_CLOUD_PORT}/theocloud?sslmode=disable"
+export E2E_PG_THEMORY_DSN="postgres://themem:themem@localhost:${E2E_PG_THEMORY_PORT}/themem?sslmode=disable"
 
 log "running Go e2e test against real endpoints…"
 if ! ( cd "${ROOT}" && go test -tags e2e -count=1 -v ./tests/e2e/... ); then
