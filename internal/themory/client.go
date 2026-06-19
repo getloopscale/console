@@ -123,6 +123,11 @@ type RememberOptions struct {
 	Category     string            // optional category tag
 	Metadata     map[string]string // optional metadata
 	AttributedTo string            // optional multi-peer attribution (v1.1); empty = omitted
+	// Infer controls TheMemory's extraction mode. nil = provider default (true,
+	// LLM extraction). Set to &false for the verbatim path — REQUIRED for the
+	// caller's AttributedTo to persist (v1.1 applies options.attributedTo only on
+	// infer:false; on infer:true attribution comes from the LLM per-fact).
+	Infer *bool
 }
 
 // RememberResult is the gateway's POST /v1/memory/remember response shape.
@@ -274,6 +279,7 @@ type rememberRequest struct {
 	Category     string            `json:"category,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
 	AttributedTo string            `json:"attributedTo,omitempty"`
+	Infer        *bool             `json:"infer,omitempty"`
 }
 
 type rememberResponse struct {
@@ -311,7 +317,7 @@ func (c *Client) Remember(ctx context.Context, userID, text string, opts Remembe
 	if text == "" {
 		return nil, errors.New("themory: remember text required")
 	}
-	reqBody := rememberRequest{UserID: userID, Text: text, Category: opts.Category, Metadata: opts.Metadata, AttributedTo: opts.AttributedTo}
+	reqBody := rememberRequest{UserID: userID, Text: text, Category: opts.Category, Metadata: opts.Metadata, AttributedTo: opts.AttributedTo, Infer: opts.Infer}
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("themory: marshal remember body: %w", err)

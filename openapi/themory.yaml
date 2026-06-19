@@ -137,6 +137,7 @@ paths:
                 category: { type: string }
                 metadata: { type: object, additionalProperties: { type: string } }
                 attributedTo: { type: string, description: "multi-peer attribution (v1.1)" }
+                infer: { type: boolean, description: "false = verbatim path (required for caller attributedTo to persist)" }
       responses:
         "201":
           description: created

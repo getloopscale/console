@@ -300,8 +300,17 @@ func (h *MemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.client.Remember(r.Context(), user.Subject, req.Text,
-		themory.RememberOptions{Category: req.Category, Metadata: req.Metadata, AttributedTo: req.AttributedTo})
+	opts := themory.RememberOptions{Category: req.Category, Metadata: req.Metadata, AttributedTo: req.AttributedTo}
+	// v1.1 attribution-write contract: TheMemory applies the caller's
+	// attributedTo ONLY on the verbatim path (infer:false). On the default
+	// extraction path it uses the LLM's per-fact attribution. So when the
+	// caller supplies a peer, request verbatim so the attribution persists
+	// (owner decision 2026-06-19: infer:false when a peer is given).
+	if req.AttributedTo != "" {
+		verbatim := false
+		opts.Infer = &verbatim
+	}
+	result, err := h.client.Remember(r.Context(), user.Subject, req.Text, opts)
 	if err != nil {
 		h.logger.Warn("memory remember: upstream failed", "error", err, "subject", user.Subject)
 		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")

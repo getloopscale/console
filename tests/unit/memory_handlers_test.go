@@ -38,6 +38,7 @@ type fakeTheMemory struct {
 	lastEntitiesScope string
 	lastRememberText  string
 	lastRememberAttr  string
+	lastRememberInfer *bool
 	lastRecallQuery   string
 	lastRecallAsOf    string
 	lastReflectIter   int
@@ -61,6 +62,7 @@ func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, opts th
 	f.lastUserID = userID
 	f.lastRememberText = text
 	f.lastRememberAttr = opts.AttributedTo
+	f.lastRememberInfer = opts.Infer
 	return f.rememberResp, f.rememberErr
 }
 
@@ -739,6 +741,25 @@ func TestMemoryRemember_AttributedToThreaded(t *testing.T) {
 	}
 	if fake.lastRememberAttr != "paulo" {
 		t.Fatalf("attributedTo not threaded: got %q", fake.lastRememberAttr)
+	}
+	// v1.1 contract: a peer forces the verbatim path so attribution persists.
+	if fake.lastRememberInfer == nil || *fake.lastRememberInfer != false {
+		t.Fatalf("expected infer=false when attributedTo present, got %v", fake.lastRememberInfer)
+	}
+}
+
+// Without a peer, remember keeps the default extraction path (infer unset).
+func TestMemoryRemember_NoPeerKeepsDefaultInfer(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.rememberResp = &themory.RememberResult{Items: []themory.MemoryRow{{ID: "m1"}}}
+	rec := httptest.NewRecorder()
+	h.Remember(rec, authedBodyReq("POST", "/v1/memory/remember", `{"text":"plain fact"}`,
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rec.Code)
+	}
+	if fake.lastRememberInfer != nil {
+		t.Fatalf("expected infer unset (default extraction) without a peer, got %v", *fake.lastRememberInfer)
 	}
 }
 
