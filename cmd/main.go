@@ -416,6 +416,9 @@ func main() {
 			// Plan 2 (Memory Insights) — entities aggregated by scope.
 			// Same scope as List + Metrics per D2 (no per-feature scope explosion).
 			r.With(auth.RequireScope(db, "memory:read")).Get("/entities", memoryHandler.Entities)
+			// dashboard-phase2b-skills-browse T3.2 — read-only Repo-tier skills
+			// listing (same memory:read scope; repoId namespaced by subject, D3).
+			r.With(auth.RequireScope(db, "memory:read")).Get("/skills", memoryHandler.ListSkills)
 			// theo-memory-dashboard-full-integration T1.2 — the 3 core verbs on
 			// the SDK surface (remember/reflect = write; recall = read).
 			r.With(auth.RequireScope(db, "memory:write")).Post("/remember", memoryHandler.Remember)
@@ -460,6 +463,8 @@ func main() {
 			r.Get("/list", dashboardMemoryHandler.List)
 			r.Get("/metrics", dashboardMemoryHandler.Metrics)
 			r.Get("/entities", dashboardMemoryHandler.Entities)
+			// dashboard-phase2b-skills-browse T3.3 — read-only skills browse (BFF).
+			r.Get("/skills", dashboardMemoryHandler.ListSkills)
 			r.Delete("/forget/{memoryID}", dashboardMemoryHandler.Forget)
 			r.Post("/revoke-on-logout", dashboardMemoryHandler.RevokeOnLogout)
 			// Core verbs (gaps 1-3): remember / recall / reflect.
