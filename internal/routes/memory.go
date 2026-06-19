@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -42,6 +43,10 @@ type TheMemoryClient interface {
 	Remember(ctx context.Context, userID, text string, opts themory.RememberOptions) (*themory.RememberResult, error)
 	Recall(ctx context.Context, userID, query string, opts themory.RecallOptions) (*themory.RecallResult, error)
 	Reflect(ctx context.Context, userID string, opts themory.ReflectOptions) (*themory.ReflectResult, error)
+	// ListSkills returns the read-only skill listing for a repo
+	// (dashboard-phase2b-skills-browse T3.1). repoID is the ALREADY-namespaced
+	// `{subject}:{repoId}` value (the handler composes it; D3 isolation).
+	ListSkills(ctx context.Context, repoID string) (*themory.SkillsResult, error)
 }
 
 // validEntityScopes is the whitelist for the `scope` query param on
@@ -262,6 +267,47 @@ func (h *MemoryHandler) Entities(w http.ResponseWriter, r *http.Request) {
 	// D3: always emit array, never null.
 	if result.Entities == nil {
 		result.Entities = []themory.Entity{}
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// =============================================================================
+// GET /v1/memory/skills?repoId= — dashboard-phase2b-skills-browse T3.2
+// =============================================================================
+
+// ListSkills returns the read-only skill listing for a repo owned by the
+// authenticated subject. Per plan D3, the upstream repoId is namespaced as
+// `{subject}:{repoId}` so two customers using the same bare repoId never share a
+// skill scope (multi-tenant isolation — the same class of guard the entities /
+// metrics subject-scoping enforces). The bare repoId is REQUIRED and must NOT
+// contain the `:` separator (anti-spoof). Gated by RequireScope("memory:read").
+func (h *MemoryHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+
+	repoID := r.URL.Query().Get("repoId")
+	if repoID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_REPO_ID", "repoId query param is required.")
+		return
+	}
+	if strings.Contains(repoID, ":") {
+		writeError(w, http.StatusBadRequest, "INVALID_REPO_ID", "repoId must not contain ':'.")
+		return
+	}
+
+	// D3 — namespace by the authenticated subject for cross-customer isolation.
+	namespaced := user.Subject + ":" + repoID
+	result, err := h.client.ListSkills(r.Context(), namespaced)
+	if err != nil {
+		h.logger.Warn("memory skills: upstream failed", "error", err, "subject", user.Subject, "repoId", repoID)
+		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		return
+	}
+	if result.Skills == nil {
+		result.Skills = []themory.Skill{}
 	}
 	writeJSON(w, http.StatusOK, result)
 }

@@ -185,6 +185,27 @@ type EntitiesResult struct {
 	Entities []Entity `json:"entities"`
 }
 
+// Skill is one row of a repo's read-only skill listing
+// (dashboard-phase2b-skills-browse). Mirrors the TheMemory
+// GET /v1/scopes/skill/{repoId}/skills DTO.
+type Skill struct {
+	ID           string   `json:"id"`
+	Hash         string   `json:"hash"`
+	Description  string   `json:"description"`
+	Code         *string  `json:"code"`
+	CodeLanguage *string  `json:"codeLanguage"`
+	CreatedAt    string   `json:"createdAt"`
+	DerivedFrom  []string `json:"derivedFrom"`
+	SupersededBy *string  `json:"supersededBy"`
+}
+
+// SkillsResult is the gateway's skills-listing response. `Truncated` echoes the
+// provider's honest topK-cap disclosure (EC-4).
+type SkillsResult struct {
+	Skills    []Skill `json:"skills"`
+	Truncated bool    `json:"truncated"`
+}
+
 // --- provider wire shapes (GET /v1/scopes/{type}/{id}/memories) --------------
 
 type scopeMemoryItem struct {
@@ -409,6 +430,24 @@ func (c *Client) Entities(ctx context.Context, userID, scope string) (*EntitiesR
 	}
 	if out.Entities == nil {
 		out.Entities = []Entity{}
+	}
+	return &out, nil
+}
+
+// ListSkills returns the read-only skill listing for a repo
+// (dashboard-phase2b-skills-browse T3.1). The caller passes the ALREADY
+// namespaced repoId (the handler composes `{subject}:{repoId}` per plan D3 for
+// multi-tenant isolation); this method is transport-only and does NOT namespace
+// (SRP). The repoId is url.PathEscaped so a `/`- or `:`-bearing segment yields a
+// well-formed path (EC-2).
+func (c *Client) ListSkills(ctx context.Context, repoID string) (*SkillsResult, error) {
+	var out SkillsResult
+	path := "/v1/scopes/skill/" + url.PathEscape(repoID) + "/skills"
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Skills == nil {
+		out.Skills = []Skill{}
 	}
 	return &out, nil
 }

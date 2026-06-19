@@ -38,6 +38,10 @@ type recordingServer struct {
 	forgetBodies     []string
 	metricsRequests  []*http.Request
 	entitiesRequests []*http.Request
+	skillsRequests   []*http.Request
+
+	// skillsBody is the canned body returned by the /skills endpoint.
+	skillsBody map[string]any
 
 	// listItems is the canned listing returned by the scope endpoint.
 	listItems []map[string]any
@@ -60,6 +64,14 @@ func newRecordingServer(t *testing.T) *recordingServer {
 			body := s.metricsBody
 			if body == nil {
 				body = map[string]any{"total_memories": 0, "entity_count": 0, "add_events": 0, "retrieval_api_usage": 0}
+			}
+			_ = json.NewEncoder(w).Encode(body)
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/skills"):
+			s.skillsRequests = append(s.skillsRequests, r.Clone(context.Background()))
+			w.Header().Set("Content-Type", "application/json")
+			body := s.skillsBody
+			if body == nil {
+				body = map[string]any{"skills": []map[string]any{}, "truncated": false}
 			}
 			_ = json.NewEncoder(w).Encode(body)
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/entities"):
@@ -307,6 +319,76 @@ func TestTheMemoryClient_EntitiesNonUserScopeReturnsEmptyWithoutProviderCall(t *
 	}
 	if len(stub.entitiesRequests) != 0 {
 		t.Errorf("non-user scope must not call the provider; got %d", len(stub.entitiesRequests))
+	}
+}
+
+// --- dashboard-phase2b-skills-browse T3.1: ListSkills -----------------------
+
+// ListSkills hits /v1/scopes/skill/{repoId}/skills and parses the result.
+func TestTheMemoryClient_ListSkillsParsesResult(t *testing.T) {
+	stub := newRecordingServer(t)
+	code := "kubectl rollout restart"
+	stub.skillsBody = map[string]any{
+		"skills": []map[string]any{
+			{"id": "s1", "hash": "h1", "description": "restart", "code": code, "codeLanguage": "bash", "createdAt": "2026-06-01T00:00:00Z", "derivedFrom": []string{}, "supersededBy": nil},
+		},
+		"truncated": false,
+	}
+	client := themory.NewClient(stub.URL, "k", nil)
+	res, err := client.ListSkills(context.Background(), "acme")
+	if err != nil {
+		t.Fatalf("ListSkills: %v", err)
+	}
+	if len(res.Skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(res.Skills))
+	}
+	if res.Skills[0].ID != "s1" || res.Skills[0].Description != "restart" {
+		t.Errorf("unexpected skill: %+v", res.Skills[0])
+	}
+	if res.Skills[0].Code == nil || *res.Skills[0].Code != code {
+		t.Errorf("expected code %q, got %v", code, res.Skills[0].Code)
+	}
+	if len(stub.skillsRequests) != 1 {
+		t.Fatalf("expected 1 skills request, got %d", len(stub.skillsRequests))
+	}
+	if got := stub.skillsRequests[0].URL.Path; got != "/v1/scopes/skill/acme/skills" {
+		t.Errorf("unexpected path %q", got)
+	}
+}
+
+// ListSkills normalizes a nil skills array to an empty slice.
+func TestTheMemoryClient_ListSkillsNormalizesNil(t *testing.T) {
+	stub := newRecordingServer(t)
+	stub.skillsBody = map[string]any{"truncated": false} // no "skills" key
+	client := themory.NewClient(stub.URL, "k", nil)
+	res, err := client.ListSkills(context.Background(), "acme")
+	if err != nil {
+		t.Fatalf("ListSkills: %v", err)
+	}
+	if res.Skills == nil {
+		t.Errorf("expected non-nil empty slice, got nil")
+	}
+	if len(res.Skills) != 0 {
+		t.Errorf("expected empty, got %d", len(res.Skills))
+	}
+}
+
+// EC-2: ListSkills url.PathEscapes the namespaced repoId so a ':'/'/'-bearing
+// segment produces a well-formed single-segment path.
+func TestTheMemoryClient_ListSkillsEscapesRepoID(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	_, err := client.ListSkills(context.Background(), "sub-123:org/repo")
+	if err != nil {
+		t.Fatalf("ListSkills: %v", err)
+	}
+	if len(stub.skillsRequests) != 1 {
+		t.Fatalf("expected 1 skills request, got %d", len(stub.skillsRequests))
+	}
+	// EscapedPath() keeps %2F/%3A encoded; the repoId stays one path segment.
+	got := stub.skillsRequests[0].URL.EscapedPath()
+	if got != "/v1/scopes/skill/sub-123:org%2Frepo/skills" {
+		t.Errorf("expected escaped single-segment path, got %q", got)
 	}
 }
 

@@ -153,6 +153,12 @@ export function MemoryPage() {
               href="/memory/playground"
             />
             <ExploreCard
+              icon={Code2}
+              title="Browse Skills"
+              description="See the executable skills your agent has learned, per repo."
+              href="/memory/skills"
+            />
+            <ExploreCard
               icon={BookOpen}
               title="Documentation"
               description="Read the architecture + every endpoint."

@@ -124,6 +124,17 @@ func (h *DashboardMemoryHandler) Entities(w http.ResponseWriter, r *http.Request
 	h.memoryHandler.Entities(w, r)
 }
 
+// ListSkills proxies /v1/dashboard/memory/skills (dashboard-phase2b-skills-browse
+// T3.3 — read-only Repo-tier skills browse). After mint, delegates to
+// MemoryHandler.ListSkills, which namespaces repoId by the authenticated subject
+// (D3) before the upstream TheMemory call.
+func (h *DashboardMemoryHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
+	if !h.mintOrFail(w, r, "skills") {
+		return
+	}
+	h.memoryHandler.ListSkills(w, r)
+}
+
 // Remember proxies POST /v1/dashboard/memory/remember (gap 1 — write verb).
 func (h *DashboardMemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
 	if !h.mintOrFail(w, r, "remember") {

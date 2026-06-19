@@ -43,19 +43,27 @@ type fakeTheMemory struct {
 	lastRecallAsOf    string
 	lastReflectIter   int
 
-	listResp      *themory.ListResult
-	listErr       error
-	metricsResp   *themory.MetricsResult
-	metricsErr    error
-	forgetErr     error
-	entitiesResp  *themory.EntitiesResult
-	entitiesErr   error
-	rememberResp  *themory.RememberResult
-	rememberErr   error
-	recallResp    *themory.RecallResult
-	recallErr     error
-	reflectResp   *themory.ReflectResult
-	reflectErr    error
+	listResp         *themory.ListResult
+	listErr          error
+	metricsResp      *themory.MetricsResult
+	metricsErr       error
+	forgetErr        error
+	entitiesResp     *themory.EntitiesResult
+	entitiesErr      error
+	rememberResp     *themory.RememberResult
+	rememberErr      error
+	recallResp       *themory.RecallResult
+	recallErr        error
+	reflectResp      *themory.ReflectResult
+	reflectErr       error
+	skillsResp       *themory.SkillsResult
+	skillsErr        error
+	lastSkillsRepoID string
+}
+
+func (f *fakeTheMemory) ListSkills(_ context.Context, repoID string) (*themory.SkillsResult, error) {
+	f.lastSkillsRepoID = repoID
+	return f.skillsResp, f.skillsErr
 }
 
 func (f *fakeTheMemory) Remember(_ context.Context, userID, text string, opts themory.RememberOptions) (*themory.RememberResult, error) {
@@ -322,7 +330,7 @@ func TestMemoryForget_MalformedIDRejectedBeforeClient(t *testing.T) {
 	cases := []string{
 		"../../etc/passwd",
 		"'; DROP TABLE--",
-		"", // empty
+		"",                       // empty
 		strings.Repeat("a", 200), // too long
 	}
 	for _, malformed := range cases {
@@ -812,5 +820,73 @@ func TestMemoryForget_HardFlagThreadedToClient(t *testing.T) {
 	}
 	if !fake.lastForgetHard {
 		t.Fatal("hard flag not threaded to client when ?hard=true")
+	}
+}
+
+// =============================================================================
+// dashboard-phase2b-skills-browse T3.2 — GET /v1/memory/skills?repoId=
+// =============================================================================
+
+func TestMemorySkills_RejectsUnauthenticated(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.ListSkills(rec, httptest.NewRequest("GET", "/v1/memory/skills?repoId=acme", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestMemorySkills_RejectsEmptyRepoID(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.ListSkills(rec, authedRequest("GET", "/v1/memory/skills", &auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 on empty repoId, got %d", rec.Code)
+	}
+}
+
+func TestMemorySkills_RejectsRepoIDWithSeparator(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.ListSkills(rec, authedRequest("GET", "/v1/memory/skills?repoId=a:b", &auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 on repoId containing ':', got %d", rec.Code)
+	}
+}
+
+// D3: the handler namespaces the upstream repoId as {subject}:{repoId}.
+func TestMemorySkills_NamespacesRepoIDBySubject(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.skillsResp = &themory.SkillsResult{Skills: []themory.Skill{{ID: "s1"}}, Truncated: false}
+	rec := httptest.NewRecorder()
+	h.ListSkills(rec, authedRequest("GET", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "sub-123", TenantID: "t"}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastSkillsRepoID != "sub-123:acme" {
+		t.Errorf("expected namespaced repoId 'sub-123:acme', got %q", fake.lastSkillsRepoID)
+	}
+}
+
+func TestMemorySkills_EmptyResultIsArray(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.skillsResp = &themory.SkillsResult{Skills: nil}
+	rec := httptest.NewRecorder()
+	h.ListSkills(rec, authedRequest("GET", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"skills":[]`) {
+		t.Errorf("expected empty skills array, got %s", rec.Body.String())
+	}
+}
+
+func TestMemorySkills_UpstreamErrorReturns502(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.skillsErr = errors.New("connection refused")
+	rec := httptest.NewRecorder()
+	h.ListSkills(rec, authedRequest("GET", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 on upstream error, got %d", rec.Code)
 	}
 }

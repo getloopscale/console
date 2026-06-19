@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Bell,
   Box,
+  Boxes,
   BookOpen,
   Brain,
   ChevronRight,
@@ -199,6 +200,8 @@ const MENUS: Record<string, MenuDefinition> = {
           // Plan 2 — Memory Insights. Plan 3 will add Exports + Webhooks
           // here without reflowing the root sidebar.
           { label: 'Entities', path: '/memory/entities', icon: Users },
+          // dashboard-phase2b-skills-browse — read-only Repo-tier skill library.
+          { label: 'Skills', path: '/memory/skills', icon: Boxes },
           // Plan 3 — Memory Operations.
           { label: 'Exports', path: '/memory/exports', icon: BookOpen },
           { label: 'Webhooks', path: '/memory/webhooks', icon: Webhook },

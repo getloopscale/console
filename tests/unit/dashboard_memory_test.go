@@ -35,13 +35,15 @@ import (
 // Returns canned payloads so we can verify the BFF handler chained correctly
 // AND that no secret leaks through the delegate path.
 type fakeMemoryClient struct {
-	listCalled     bool
-	metricsCalled  bool
-	forgetCalled   bool
-	entitiesCalled bool
-	rememberCalled bool
-	recallCalled   bool
-	reflectCalled  bool
+	listCalled       bool
+	metricsCalled    bool
+	forgetCalled     bool
+	entitiesCalled   bool
+	rememberCalled   bool
+	recallCalled     bool
+	reflectCalled    bool
+	skillsCalled     bool
+	lastSkillsRepoID string
 }
 
 func (f *fakeMemoryClient) List(_ context.Context, userID string, _ themory.ListOptions) (*themory.ListResult, error) {
@@ -71,6 +73,11 @@ func (f *fakeMemoryClient) Recall(_ context.Context, _, query string, _ themory.
 func (f *fakeMemoryClient) Reflect(_ context.Context, _ string, _ themory.ReflectOptions) (*themory.ReflectResult, error) {
 	f.reflectCalled = true
 	return &themory.ReflectResult{Raw: []byte(`{"consolidated":0}`)}, nil
+}
+func (f *fakeMemoryClient) ListSkills(_ context.Context, repoID string) (*themory.SkillsResult, error) {
+	f.skillsCalled = true
+	f.lastSkillsRepoID = repoID
+	return &themory.SkillsResult{Skills: []themory.Skill{{ID: "skill-1", Description: "do x"}}}, nil
 }
 
 // jwtCtx synthesizes the context shape RequireJWT would populate.
@@ -276,10 +283,10 @@ func TestDashboardMemory_RevokeOnLogout_CallsVaultRevoke(t *testing.T) {
 // Across all 4 BFF handlers, response body MUST NOT contain "theo_live_".
 func TestDashboardMemory_ResponseNeverContainsTheoLiveSubstring_SECURITY_GATE(t *testing.T) {
 	scenarios := []struct {
-		name    string
-		method  string
-		path    string
-		invoke  func(d *routes.DashboardMemoryHandler, w http.ResponseWriter, r *http.Request)
+		name   string
+		method string
+		path   string
+		invoke func(d *routes.DashboardMemoryHandler, w http.ResponseWriter, r *http.Request)
 	}{
 		{"list", "GET", "/v1/dashboard/memory/list", (*routes.DashboardMemoryHandler).List},
 		{"metrics", "GET", "/v1/dashboard/memory/metrics", (*routes.DashboardMemoryHandler).Metrics},
@@ -394,5 +401,40 @@ func TestDashboardMemory_OTelSpanAttributeBffMintedSet(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected attribute bff.minted=true on span; got %v", bffSpan.Attributes)
+	}
+}
+
+// dashboard-phase2b-skills-browse T3.3 — BFF skills proxy mints then delegates.
+func TestDashboardMemory_ListSkills_MintsThenDelegates(t *testing.T) {
+	dash, fc, mock := newDashHandler(t)
+	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`INSERT INTO theo_api_keys`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("bff-mocked-id"))
+	r := httptest.NewRequest("GET", "/v1/dashboard/memory/skills?repoId=acme", nil)
+	r = r.WithContext(jwtCtx(r.Context(), "user-A", "tenant-1"))
+	w := httptest.NewRecorder()
+	dash.ListSkills(w, r)
+	if w.Code != http.StatusOK || !fc.skillsCalled {
+		t.Fatalf("skills fail: code=%d called=%v body=%s", w.Code, fc.skillsCalled, w.Body.String())
+	}
+	// D3: the upstream repoId was namespaced by the authenticated subject.
+	if fc.lastSkillsRepoID != "user-A:acme" {
+		t.Errorf("expected namespaced 'user-A:acme', got %q", fc.lastSkillsRepoID)
+	}
+}
+
+// BFF skills proxy short-circuits when the vault cannot mint (no delegation).
+func TestDashboardMemory_ListSkills_Returns500WhenVaultErrors(t *testing.T) {
+	dash, fc, mock := newDashHandler(t)
+	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnError(errFake("simulated PG outage"))
+	r := httptest.NewRequest("GET", "/v1/dashboard/memory/skills?repoId=acme", nil)
+	r = r.WithContext(jwtCtx(r.Context(), "user-A", "tenant-1"))
+	w := httptest.NewRecorder()
+	dash.ListSkills(w, r)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 on vault error, got %d", w.Code)
+	}
+	if fc.skillsCalled {
+		t.Errorf("delegation must NOT happen when mint fails")
 	}
 }
