@@ -40,6 +40,7 @@ type fakeMemoryClient struct {
 	metricsCalled     bool
 	forgetCalled      bool
 	entitiesCalled    bool
+	graphCalled       bool
 	rememberCalled    bool
 	recallCalled      bool
 	reflectCalled     bool
@@ -65,6 +66,13 @@ func (f *fakeMemoryClient) Forget(_ context.Context, _, _ string, _ bool) error 
 func (f *fakeMemoryClient) Entities(_ context.Context, _, _ string) (*themory.EntitiesResult, error) {
 	f.entitiesCalled = true
 	return &themory.EntitiesResult{Entities: []themory.Entity{{ID: "ent-1", ScopeType: "user", MemoryCount: 1}}}, nil
+}
+func (f *fakeMemoryClient) Graph(_ context.Context, _, _ string) (*themory.GraphResult, error) {
+	f.graphCalled = true
+	return &themory.GraphResult{
+		Nodes: []themory.GraphNode{{ID: "John Smith", ScopeType: "user", MemoryCount: 1}},
+		Edges: []themory.GraphEdge{{Source: "John Smith", Relation: "works at", Target: "Google", MemoryCount: 1}},
+	}, nil
 }
 func (f *fakeMemoryClient) Remember(_ context.Context, _, text string, _ themory.RememberOptions) (*themory.RememberResult, error) {
 	f.rememberCalled = true
@@ -306,6 +314,7 @@ func TestDashboardMemory_ResponseNeverContainsTheoLiveSubstring_SECURITY_GATE(t 
 		{"list", "GET", "/v1/dashboard/memory/list", (*routes.DashboardMemoryHandler).List},
 		{"metrics", "GET", "/v1/dashboard/memory/metrics", (*routes.DashboardMemoryHandler).Metrics},
 		{"entities", "GET", "/v1/dashboard/memory/entities?scope=user", (*routes.DashboardMemoryHandler).Entities},
+		{"graph", "GET", "/v1/dashboard/memory/graph?scope=user", (*routes.DashboardMemoryHandler).Graph},
 	}
 	for _, sc := range scenarios {
 		t.Run(sc.name, func(t *testing.T) {

@@ -51,6 +51,9 @@ type fakeTheMemory struct {
 	forgetErr         error
 	entitiesResp      *themory.EntitiesResult
 	entitiesErr       error
+	graphResp         *themory.GraphResult
+	graphErr          error
+	lastGraphScope    string
 	rememberResp      *themory.RememberResult
 	rememberErr       error
 	recallResp        *themory.RecallResult
@@ -475,6 +478,13 @@ func (f *fakeTheMemory) Entities(_ context.Context, userID, scope string) (*them
 	return f.entitiesResp, f.entitiesErr
 }
 
+// Graph — themory-graph-gateway-dashboard. Mirrors Entities.
+func (f *fakeTheMemory) Graph(_ context.Context, userID, scope string) (*themory.GraphResult, error) {
+	f.lastUserID = userID
+	f.lastGraphScope = scope
+	return f.graphResp, f.graphErr
+}
+
 func TestMemoryEntities_RejectsUnauthenticated(t *testing.T) {
 	h, _ := newMemoryHandler(t)
 	rec := httptest.NewRecorder()
@@ -574,6 +584,74 @@ func TestMemoryEntities_UpstreamErrorReturns502(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.Entities(rec, authedRequest("GET", "/v1/memory/entities?scope=user",
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502, got %d", rec.Code)
+	}
+}
+
+// =============================================================================
+// GET /v1/memory/graph — themory-graph-gateway-dashboard
+// =============================================================================
+
+func TestMemoryGraph_ReturnsNodesAndEdges(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.graphResp = &themory.GraphResult{
+		Nodes: []themory.GraphNode{{ID: "John Smith", ScopeType: "user", MemoryCount: 2}},
+		Edges: []themory.GraphEdge{{Source: "John Smith", Relation: "works at", Target: "Google", MemoryCount: 1}},
+	}
+	rec := httptest.NewRecorder()
+	h.Graph(rec, authedRequest("GET", "/v1/memory/graph?scope=user",
+		&auth.UserContext{Subject: "user-A", TenantID: "t"}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastUserID != "user-A" {
+		t.Fatalf("subject isolation: client got %q, want user-A", fake.lastUserID)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"edges":[`) || !strings.Contains(body, "Google") {
+		t.Fatalf("expected edges with Google, got %s", body)
+	}
+}
+
+func TestMemoryGraph_InvalidScopeReturns400(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	req := authedRequest("GET", "/v1/memory/graph", &auth.UserContext{Subject: "u", TenantID: "t"})
+	req.URL.RawQuery = "scope=" + url.QueryEscape("bogus")
+	h.Graph(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid scope, got %d", rec.Code)
+	}
+	if fake.lastGraphScope != "" {
+		t.Errorf("client called before whitelist check — gate violated")
+	}
+}
+
+func TestMemoryGraph_EmptyResultSerialisesAsArrays(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.graphResp = &themory.GraphResult{Nodes: nil, Edges: nil}
+	rec := httptest.NewRecorder()
+	h.Graph(rec, authedRequest("GET", "/v1/memory/graph?scope=user",
+		&auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, `"nodes":null`) || strings.Contains(body, `"edges":null`) {
+		t.Errorf("D5 violated: null array. body=%s", body)
+	}
+	if !strings.Contains(body, `"nodes":[`) || !strings.Contains(body, `"edges":[`) {
+		t.Errorf("expected nodes+edges as arrays, got %s", body)
+	}
+}
+
+func TestMemoryGraph_UpstreamErrorReturns502(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.graphErr = errors.New("connection refused")
+	rec := httptest.NewRecorder()
+	h.Graph(rec, authedRequest("GET", "/v1/memory/graph?scope=user",
 		&auth.UserContext{Subject: "u", TenantID: "t"}))
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("expected 502, got %d", rec.Code)

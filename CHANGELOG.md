@@ -6,6 +6,7 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Added
+- **`GET /v1/memory/graph`** + BFF **`GET /v1/dashboard/memory/graph`** — proxy TheMemory's entity relation graph (`{nodes, edges}`) through the gateway (shared `Graph` handler, `memory:read` scope; `scope!="user"`→empty; nodes+edges always arrays). Mirrors the entities integration. (themory-graph-gateway-dashboard)
 
 ### Changed
 

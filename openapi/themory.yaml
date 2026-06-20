@@ -100,6 +100,29 @@ paths:
                     items: { type: object, additionalProperties: true }
                 additionalProperties: true
 
+  /v1/scopes/{type}/{id}/graph:
+    get:
+      summary: Subject-scoped entity relation graph ({nodes, edges})
+      parameters:
+        - { $ref: "#/components/parameters/Authorization" }
+        - { name: type, in: path, required: true, schema: { type: string, enum: [user, session, agent] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: entity relation graph
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  edges:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                additionalProperties: true
+
   /v1/forget:
     post:
       summary: Forget (delete) one memory by id (workspace-scoped on the provider)

@@ -124,6 +124,15 @@ func (h *DashboardMemoryHandler) Entities(w http.ResponseWriter, r *http.Request
 	h.memoryHandler.Entities(w, r)
 }
 
+// Graph proxies /v1/dashboard/memory/graph (themory-graph-gateway-dashboard).
+// After mint, delegates to MemoryHandler.Graph (shared handler, D2).
+func (h *DashboardMemoryHandler) Graph(w http.ResponseWriter, r *http.Request) {
+	if !h.mintOrFail(w, r, "graph") {
+		return
+	}
+	h.memoryHandler.Graph(w, r)
+}
+
 // ListSkills proxies /v1/dashboard/memory/skills (dashboard-phase2b-skills-browse
 // T3.3 — read-only Repo-tier skills browse). After mint, delegates to
 // MemoryHandler.ListSkills, which namespaces repoId by the authenticated subject
