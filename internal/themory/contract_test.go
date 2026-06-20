@@ -230,6 +230,34 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		validateRequest(t, router, got)
 	})
 
+	t.Run("Graph hits the scope graph endpoint", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"nodes":[{"id":"John Smith","scope_type":"user","memory_count":2}],"edges":[{"source":"John Smith","relation":"works at","target":"Google","memory_count":1}]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		res, err := c.Graph(context.Background(), "user-1", "user")
+		if err != nil {
+			t.Fatalf("Graph: %v", err)
+		}
+		if len(res.Nodes) != 1 || res.Nodes[0].ID != "John Smith" {
+			t.Fatalf("Graph nodes mapping wrong: %+v", res.Nodes)
+		}
+		if len(res.Edges) != 1 || res.Edges[0].Target != "Google" || res.Edges[0].Relation != "works at" {
+			t.Fatalf("Graph edges mapping wrong: %+v", res.Edges)
+		}
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Graph non-user scope returns empty without HTTP call", func(t *testing.T) {
+		c := NewClient("http://unused.invalid", "test-key", http.DefaultClient)
+		res, err := c.Graph(context.Background(), "user-1", "session")
+		if err != nil {
+			t.Fatalf("Graph(session): %v", err)
+		}
+		if res.Nodes == nil || res.Edges == nil || len(res.Edges) != 0 {
+			t.Fatalf("Graph(session) should be empty non-nil: %+v", res)
+		}
+	})
+
 	t.Run("List threads from/to (ADR D3)", func(t *testing.T) {
 		var got *http.Request
 		srv := captureServer(t, 200, `{"items":[]}`, &got)

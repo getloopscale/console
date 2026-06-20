@@ -416,6 +416,9 @@ func main() {
 			// Plan 2 (Memory Insights) — entities aggregated by scope.
 			// Same scope as List + Metrics per D2 (no per-feature scope explosion).
 			r.With(auth.RequireScope(db, "memory:read")).Get("/entities", memoryHandler.Entities)
+			// themory-graph-gateway-dashboard — entity relation graph ({nodes,edges}).
+			// Same memory:read scope as entities (shared handler, D2).
+			r.With(auth.RequireScope(db, "memory:read")).Get("/graph", memoryHandler.Graph)
 			// dashboard-phase2b-skills-browse T3.2 — read-only Repo-tier skills
 			// listing (same memory:read scope; repoId namespaced by subject, D3).
 			r.With(auth.RequireScope(db, "memory:read")).Get("/skills", memoryHandler.ListSkills)
@@ -466,6 +469,8 @@ func main() {
 			r.Get("/list", dashboardMemoryHandler.List)
 			r.Get("/metrics", dashboardMemoryHandler.Metrics)
 			r.Get("/entities", dashboardMemoryHandler.Entities)
+			// themory-graph-gateway-dashboard — entity relation graph (BFF).
+			r.Get("/graph", dashboardMemoryHandler.Graph)
 			// dashboard-phase2b-skills-browse T3.3 — read-only skills browse (BFF).
 			r.Get("/skills", dashboardMemoryHandler.ListSkills)
 			// skills-write-surface T3.3 — author + curate skills from the dashboard (BFF).

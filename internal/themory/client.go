@@ -185,6 +185,30 @@ type EntitiesResult struct {
 	Entities []Entity `json:"entities"`
 }
 
+// GraphNode is one node (entity) in the Graph response. Same shape as Entity.
+type GraphNode struct {
+	ID          string `json:"id"`
+	ScopeType   string `json:"scope_type"`
+	MemoryCount int    `json:"memory_count"`
+	LastSeenAt  string `json:"last_seen_at,omitempty"`
+}
+
+// GraphEdge is one relation edge in the Graph response. source/target are node
+// IDs (entity names); relation is the human label; memory_count = distinct
+// memories that asserted the triple.
+type GraphEdge struct {
+	Source      string `json:"source"`
+	Relation    string `json:"relation"`
+	Target      string `json:"target"`
+	MemoryCount int    `json:"memory_count"`
+}
+
+// GraphResult is the GET /graph response shape (themory-graph-gateway-dashboard).
+type GraphResult struct {
+	Nodes []GraphNode `json:"nodes"`
+	Edges []GraphEdge `json:"edges"`
+}
+
 // Skill is one row of a repo's read-only skill listing
 // (dashboard-phase2b-skills-browse). Mirrors the TheMemory
 // GET /v1/scopes/skill/{repoId}/skills DTO.
@@ -430,6 +454,29 @@ func (c *Client) Entities(ctx context.Context, userID, scope string) (*EntitiesR
 	}
 	if out.Entities == nil {
 		out.Entities = []Entity{}
+	}
+	return &out, nil
+}
+
+// Graph returns the subject's entity relation graph from the provider's real
+// `GET /v1/scopes/user/{subject}/graph` (themory-graph-gateway-dashboard). Same
+// shared-key rule as Entities (D3): scope!="user" → empty graph (no sub-subject
+// exists for the customer) — honest, not an error. Nodes AND edges are always
+// non-nil slices (D5 — the dashboard never sees null).
+func (c *Client) Graph(ctx context.Context, userID, scope string) (*GraphResult, error) {
+	if scope != "" && scope != "user" {
+		return &GraphResult{Nodes: []GraphNode{}, Edges: []GraphEdge{}}, nil
+	}
+	var out GraphResult
+	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/graph"
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Nodes == nil {
+		out.Nodes = []GraphNode{}
+	}
+	if out.Edges == nil {
+		out.Edges = []GraphEdge{}
 	}
 	return &out, nil
 }

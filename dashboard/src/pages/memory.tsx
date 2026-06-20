@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Sparkles, Zap } from 'lucide-react';
+import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Share2, Sparkles, Zap } from 'lucide-react';
 import {
   Alert,
   Button,
@@ -157,6 +157,12 @@ export function MemoryPage() {
               title="Browse Skills"
               description="See the executable skills your agent has learned, per repo."
               href="/memory/skills"
+            />
+            <ExploreCard
+              icon={Share2}
+              title="View Graph"
+              description="See how the entities your agent remembers relate to each other."
+              href="/memory/graph"
             />
             <ExploreCard
               icon={BookOpen}

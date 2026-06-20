@@ -40,6 +40,9 @@ type TheMemoryClient interface {
 	Metrics(ctx context.Context, userID string) (*themory.MetricsResult, error)
 	Forget(ctx context.Context, userID, memoryID string, hard bool) error
 	Entities(ctx context.Context, userID, scope string) (*themory.EntitiesResult, error)
+	// Graph returns the subject's entity relation graph ({nodes, edges})
+	// (themory-graph-gateway-dashboard). Same scope rule as Entities.
+	Graph(ctx context.Context, userID, scope string) (*themory.GraphResult, error)
 	Remember(ctx context.Context, userID, text string, opts themory.RememberOptions) (*themory.RememberResult, error)
 	Recall(ctx context.Context, userID, query string, opts themory.RecallOptions) (*themory.RecallResult, error)
 	Reflect(ctx context.Context, userID string, opts themory.ReflectOptions) (*themory.ReflectResult, error)
@@ -286,6 +289,44 @@ func (h *MemoryHandler) Entities(w http.ResponseWriter, r *http.Request) {
 	// D3: always emit array, never null.
 	if result.Entities == nil {
 		result.Entities = []themory.Entity{}
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// =============================================================================
+// GET /v1/memory/graph — themory-graph-gateway-dashboard
+// =============================================================================
+
+// Graph returns the authenticated subject's entity relation graph ({nodes, edges})
+// under the requested scope. Mirrors Entities: gated by RequireScope("memory:read")
+// at the router; `validEntityScopes` 400 guard; upstream failure → 502; nodes AND
+// edges always arrays, never null (D5). Shared by the SDK + dashboard BFF routes.
+func (h *MemoryHandler) Graph(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+
+	scope := r.URL.Query().Get("scope")
+	if !validEntityScopes[scope] {
+		writeError(w, http.StatusBadRequest, "INVALID_SCOPE",
+			`Scope must be one of: user, session, agent, repo.`)
+		return
+	}
+
+	result, err := h.client.Graph(r.Context(), user.Subject, scope)
+	if err != nil {
+		h.logger.Warn("memory graph: upstream failed", "error", err, "subject", user.Subject, "scope", scope)
+		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		return
+	}
+	// D5: always emit arrays, never null.
+	if result.Nodes == nil {
+		result.Nodes = []themory.GraphNode{}
+	}
+	if result.Edges == nil {
+		result.Edges = []themory.GraphEdge{}
 	}
 	writeJSON(w, http.StatusOK, result)
 }

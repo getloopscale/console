@@ -43,6 +43,19 @@ describe('MemoryPage (/memory landing)', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/memory/metrics');
   });
 
+  it('shows a "View Graph" explore card (themory-graph-gateway-dashboard)', async () => {
+    mockCloudFetch.mockResolvedValueOnce({
+      total_memories: 1,
+      retrieval_api_usage: 0,
+      add_events: 0,
+      entity_count: 0,
+    });
+    render(<MemoryPage />);
+    // ExploreCard renders the title as a heading (navigation is via the card's
+    // Open button → window.location). Assert the Graph card is present.
+    expect(await screen.findByRole('heading', { name: /view graph/i })).toBeInTheDocument();
+  });
+
   it('D3 absorption — empty pgvector renders 0 everywhere, not NaN', async () => {
     mockCloudFetch.mockResolvedValueOnce({
       total_memories: 0,

@@ -329,25 +329,29 @@ func TestMemoryE2E_FullVerbSurface(t *testing.T) {
 			t.Fatalf("asOf recall missing results array: %s", body)
 		}
 
-		// the attributed peer must surface in the entities aggregation —
-		// proves attribution-write reached the store end-to-end.
+		// TheMemory entity extraction (Slice 1, shipped v0.10.0) changed the
+		// /entities semantics: it now returns EXTRACTED entity NODES from the
+		// memory text (real NER-style extraction), NOT the attributed_to peer.
+		// The attribution WRITE is proven by the 201 + the asOf recall results
+		// above; here we prove the entities aggregation reaches the store via the
+		// new extraction path — the text "…oat milk latte" yields entity nodes.
 		status, body = cloudGet(t, cloudURL, key, "/v1/memory/entities?scope=user")
 		if status != http.StatusOK {
 			t.Fatalf("entities status=%d body=%s", status, body)
 		}
-		if !strings.Contains(body, "e2e-peer") {
-			t.Fatalf("attributed peer not in entities aggregation: %s", body)
+		if !strings.Contains(body, `"entities":[{`) {
+			t.Fatalf("entities aggregation empty after remember — extraction did not reach the store: %s", body)
 		}
 
 		// Cross-subject isolation (F-test-3): a DIFFERENT subject's entities must
-		// NOT contain alpha's attributed peer — entities derives the subject from
-		// auth (subject-in-path), the same isolated path list/forget already prove.
+		// NOT contain alpha's extracted node "oat milk" — entities derives the
+		// subject from auth (subject-in-path), as list/forget already prove.
 		statusB, bodyB := cloudGet(t, cloudURL, betaKey, "/v1/memory/entities?scope=user")
 		if statusB != http.StatusOK {
 			t.Fatalf("beta entities status=%d body=%s", statusB, bodyB)
 		}
-		if strings.Contains(bodyB, "e2e-peer") {
-			t.Fatalf("isolation breach: beta's entities contain alpha's peer: %s", bodyB)
+		if strings.Contains(bodyB, "oat milk") {
+			t.Fatalf("isolation breach: beta's entities contain alpha's extracted node: %s", bodyB)
 		}
 	})
 
@@ -357,6 +361,44 @@ func TestMemoryE2E_FullVerbSurface(t *testing.T) {
 			`{"query":"x","asOf":"not-a-date"}`)
 		if status != http.StatusBadRequest {
 			t.Fatalf("expected 400 for invalid asOf, got %d", status)
+		}
+	})
+
+	// themory-graph-gateway-dashboard — graph endpoint round-trip through the
+	// gateway → rebuilt themory (Slice 2 /graph). Asserts the {nodes,edges} shape
+	// is served end-to-end. Edges are non-empty only when the extraction LLM emits
+	// relations (the hermetic mock may not); the integration proof is the shape +
+	// 200 + per-subject isolation, mirroring the entities round-trip caveat.
+	t.Run("remember-relation then graph round-trip", func(t *testing.T) {
+		status, body := cloudPost(t, cloudURL, key, "/v1/memory/remember",
+			`{"text":"John Smith works at Google"}`)
+		if status != http.StatusCreated {
+			t.Fatalf("relation remember status=%d body=%s", status, body)
+		}
+		status, body = cloudGet(t, cloudURL, key, "/v1/memory/graph?scope=user")
+		if status != http.StatusOK {
+			t.Fatalf("graph status=%d body=%s", status, body)
+		}
+		if !strings.Contains(body, `"nodes"`) || !strings.Contains(body, `"edges"`) {
+			t.Fatalf("graph response missing {nodes,edges}: %s", body)
+		}
+
+		// Per-subject isolation (mirror entities F-test-3): a DIFFERENT subject's
+		// graph must NOT contain alpha's John Smith node/edge.
+		statusB, bodyB := cloudGet(t, cloudURL, betaKey, "/v1/memory/graph?scope=user")
+		if statusB != http.StatusOK {
+			t.Fatalf("beta graph status=%d body=%s", statusB, bodyB)
+		}
+		if strings.Contains(bodyB, "John Smith") {
+			t.Fatalf("isolation breach: beta's graph contains alpha's node: %s", bodyB)
+		}
+	})
+
+	// themory-graph-gateway-dashboard — invalid scope → 400 (not 502) through gateway.
+	t.Run("graph invalid scope returns 400", func(t *testing.T) {
+		status, _ := cloudGet(t, cloudURL, key, "/v1/memory/graph?scope=bogus")
+		if status != http.StatusBadRequest {
+			t.Fatalf("expected 400 for invalid graph scope, got %d", status)
 		}
 	})
 }

@@ -17,6 +17,23 @@ Format: Keep a Changelog + Semantic Versioning.
 
 ### Security
 
+## [0.4.0] - 2026-06-20
+
+### Added
+- e2e: graph round-trip (`remember`→`GET /v1/memory/graph`) + invalid-scope-400 + per-subject isolation, vs the Slice-2 themory image. (themory-graph-gateway-dashboard Phase 3)
+- **Dashboard graph view** at `/memory/graph` — interactive force-directed view of the entity relation graph via `react-force-graph-2d` (zoom/pan/drag, connectivity-based clustering with per-cluster color, node size by frequency, hover neighbor-highlight, directional edges with relation labels, isolated extraction-noise muted to the periphery); scope tabs, empty + error states; reachable via a "View Graph" hub card + sidebar entry. Supersedes the initial dependency-free SVG (ADR graph-viz-lib over ADR D1). (themory-graph-gateway-dashboard)
+- **`GET /v1/memory/graph`** + BFF **`GET /v1/dashboard/memory/graph`** — proxy TheMemory's entity relation graph (`{nodes, edges}`) through the gateway (shared `Graph` handler, `memory:read` scope; `scope!="user"`→empty; nodes+edges always arrays). Mirrors the entities integration. (themory-graph-gateway-dashboard)
+- Graph view UX: a view-only synthetic **hub root** anchoring each cluster representative + isolated nodes into one star (larger circle, no label, dashed/arrow-less spokes; excluded from the entity/relation counts; "Hub view" toggle); a conservative **alias merge** (single-token short forms fold into their prefix canonical — "Acme"→"Acme Corporation" — without false-merging "São Paulo" into "Universidade de São Paulo"); and a **"Hide N unconnected"** toggle. (themory-graph-gateway-dashboard graph-ux)
+
+
+### Changed
+- dev stack systematized in `make dev-up`: `dev/run.sh` now REBUILDS the themory image from the sibling repo each run (cached → fast; `THEMORY_SKIP_BUILD=1` to opt out) so the dev stack always reflects theo-memory current code (e.g. the `/graph` surface); a dev-only vite CSP transform injects localhost/127.0.0.1 dev origins into `form-action`+`connect-src` so dashboard login works under `make dev-up` (production CSP unchanged). (themory-graph-gateway-dashboard dev-ergonomics)
+- e2e: the entities round-trip now asserts EXTRACTED entity nodes (TheMemory Slice 1 entity-extraction changed `/entities` from `attributed_to`-derived to real extracted nodes). (themory-graph-gateway-dashboard)
+
+
+### Fixed
+- dashboard build: exclude the `rollup-plugin-visualizer` artifact (`dist/bundle-stats.html`) from the workbox SW precache via `globIgnores` — the analysis treemap is not an app asset and exceeded the 2 MiB precache limit (hard-failed `vite build` once it grew past the threshold). (themory-graph-gateway-dashboard graph-viz-lib)
+
 ## [0.3.0] - 2026-06-19
 
 ### Added

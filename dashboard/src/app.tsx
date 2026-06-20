@@ -74,6 +74,9 @@ const MemoryListPage = lazy(() =>
 const EntitiesPage = lazy(() =>
   import('@/pages/memory/entities').then((m) => ({ default: m.EntitiesPage })),
 );
+const GraphPage = lazy(() =>
+  import('@/pages/memory/graph').then((m) => ({ default: m.GraphPage })),
+);
 const ExportsPage = lazy(() =>
   import('@/pages/memory/exports').then((m) => ({ default: m.ExportsPage })),
 );
@@ -282,6 +285,7 @@ export default function App() {
                     <Route path="/memory" element={<Boundaried path="/memory"><MemoryPage /></Boundaried>} />
                     <Route path="/memory/memories" element={<Boundaried path="/memory/memories"><MemoryListPage /></Boundaried>} />
                     <Route path="/memory/entities" element={<Boundaried path="/memory/entities"><EntitiesPage /></Boundaried>} />
+                    <Route path="/memory/graph" element={<Boundaried path="/memory/graph"><GraphPage /></Boundaried>} />
                     <Route path="/memory/exports" element={<Boundaried path="/memory/exports"><ExportsPage /></Boundaried>} />
                     <Route path="/memory/webhooks" element={<Boundaried path="/memory/webhooks"><WebhooksPage /></Boundaried>} />
                     <Route path="/memory/playground" element={<Boundaried path="/memory/playground"><PlaygroundPage /></Boundaried>} />

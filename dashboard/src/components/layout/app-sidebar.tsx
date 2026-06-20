@@ -27,6 +27,7 @@ import {
   Search,
   Settings,
   ShieldAlert,
+  Share2,
   ShieldCheck,
   SlidersHorizontal,
   User,
@@ -200,6 +201,8 @@ const MENUS: Record<string, MenuDefinition> = {
           // Plan 2 — Memory Insights. Plan 3 will add Exports + Webhooks
           // here without reflowing the root sidebar.
           { label: 'Entities', path: '/memory/entities', icon: Users },
+          // themory-graph-gateway-dashboard — entity relation graph view.
+          { label: 'Graph', path: '/memory/graph', icon: Share2 },
           // dashboard-phase2b-skills-browse — read-only Repo-tier skill library.
           { label: 'Skills', path: '/memory/skills', icon: Boxes },
           // Plan 3 — Memory Operations.

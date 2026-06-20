@@ -36,15 +36,24 @@ else
   log "using hermetic mock LLM (deterministic; export OPENAI_API_KEY for real recall)."
 fi
 
-# --- themory image (reuse the e2e build; build from sibling if missing) ------
+# --- themory image -----------------------------------------------------------
+# Default: REBUILD from the sibling theo-memory repo each run so the dev stack
+# always reflects theo-memory's current code (e.g. the entity /graph surface).
+# Docker layer cache makes a no-change rebuild fast. Escapes:
+#   THEMORY_IMAGE=<tag>    use a specific prebuilt image (skip build entirely)
+#   THEMORY_SKIP_BUILD=1   reuse an existing themory-e2e:latest (no rebuild)
 if [[ -z "${THEMORY_IMAGE:-}" ]]; then
-  if docker image inspect themory-e2e:latest >/dev/null 2>&1; then
-    export THEMORY_IMAGE="themory-e2e:latest"
-  else
-    log "building themory image from ${THEMORY_DIR} (first run is slow)…"
+  if [[ "${THEMORY_SKIP_BUILD:-}" == "1" ]] && docker image inspect themory-e2e:latest >/dev/null 2>&1; then
+    log "themory: reusing existing themory-e2e:latest (THEMORY_SKIP_BUILD=1)"
+  elif [[ -d "${THEMORY_DIR}" ]]; then
+    log "themory: rebuilding from ${THEMORY_DIR} (cached layers — fast when unchanged)…"
     docker build -t themory-e2e:latest -f "${THEMORY_DIR}/Dockerfile" "${THEMORY_DIR}"
-    export THEMORY_IMAGE="themory-e2e:latest"
+  elif docker image inspect themory-e2e:latest >/dev/null 2>&1; then
+    log "themory: ${THEMORY_DIR} not found — reusing existing themory-e2e:latest"
+  else
+    fail "themory image missing AND ${THEMORY_DIR} not found — set THEMORY_DIR or THEMORY_IMAGE"
   fi
+  export THEMORY_IMAGE="themory-e2e:latest"
 fi
 log "themory image: ${THEMORY_IMAGE}"
 

@@ -1,9 +1,34 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
+
+/**
+ * Dev-only CSP relaxation. The index.html `<meta>` CSP is PRODUCTION-shaped
+ * (`form-action 'self' https://auth.usetheo.dev …`). In the local dev stack the
+ * login/registration forms POST to the vite-proxied Kratos at the dev origin
+ * (localhost:5173 → kratos:14433). When the page is opened via 127.0.0.1 (vite
+ * `--host` binds 0.0.0.0), `'self'` no longer matches the localhost form-action
+ * URL and the browser blocks the login POST. This plugin runs ONLY in `vite dev`
+ * (apply:'serve') and injects the dev origins into `form-action` + `connect-src`
+ * so `make dev-up` login works from localhost AND 127.0.0.1. The production
+ * build never runs this transform — the shipped CSP is unchanged.
+ */
+function devCspRelax(): Plugin {
+  const devOrigins =
+    'http://localhost:5173 http://127.0.0.1:5173 http://localhost:14433 http://127.0.0.1:14433';
+  return {
+    name: 'dev-csp-relax',
+    apply: 'serve',
+    transformIndexHtml(html) {
+      return html
+        .replace("form-action 'self'", `form-action 'self' ${devOrigins}`)
+        .replace("connect-src 'self' ws: wss:", `connect-src 'self' ws: wss: ${devOrigins}`);
+    },
+  };
+}
 
 /**
  * Vite config with manualChunks vendor split (T-H.3 final optimization).
@@ -18,6 +43,8 @@ import path from 'path';
  */
 export default defineConfig({
   plugins: [
+    // dev-only: relax the production CSP so localhost/127.0.0.1 login works under `make dev-up`.
+    devCspRelax(),
     // T0.2: React Compiler (auto-memoization). React 19 GA, babel-plugin@1.0.
     // Auto-memoiza components + hooks sem useMemo/useCallback/memo() manuais.
     // Build-time only, zero runtime overhead. Existing 6 manual memos convivem.
@@ -79,6 +106,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // The rollup-plugin-visualizer treemap (dist/bundle-stats.html) is a
+        // build-analysis artifact, not an app asset — it must never enter the
+        // SW precache manifest (and it exceeds the 2 MiB workbox limit, which
+        // hard-fails the build). Exclude it explicitly.
+        globIgnores: ['**/bundle-stats.html'],
         // EC-04: NEVER cache auth/session endpoints — would serve stale
         // tokens making user appear logged-in when session is gone.
         navigateFallbackDenylist: [
@@ -151,7 +183,7 @@ export default defineConfig({
     // re-discover it on every page (the heavy library was triggering serial
     // re-optimizations and 504s on outdated optimize-dep). Listing it here
     // pins the entry to the app's React, not @usetheo/ui's peer copy.
-    include: ['@usetheo/ui', 'react', 'react-dom', 'react-dom/client'],
+    include: ['@usetheo/ui', 'react', 'react-dom', 'react-dom/client', 'react-force-graph-2d'],
   },
   // Dev-only: same-origin against the local theo-cloud + Kratos port-forwards
   // via vite proxy (avoids browser CORS). In prod, the dashboard is served
@@ -180,7 +212,11 @@ export default defineConfig({
           if (id.includes('node_modules/lucide-react')) return 'lucide';
           if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) return 'react-vendor';
           if (id.includes('node_modules/react-router')) return 'router';
-          // All other vendor code → general vendor chunk
+          // NOTE (F-fe-1, /review follow-up): the react-force-graph-2d + d3 family
+          // currently lands in the app-wide `vendor` chunk. A naive manualChunks
+          // split produced a circular vendor↔force-graph chunk that Rollup still
+          // modulepreloads app-wide (shared d3 deps), so true route-isolation needs
+          // dedicated work (deferred — non-blocking perf hygiene).
           if (id.includes('node_modules/')) return 'vendor';
         },
       },
