@@ -11,6 +11,7 @@ Format: Keep a Changelog + Semantic Versioning.
 - **`GET /v1/memory/graph`** + BFF **`GET /v1/dashboard/memory/graph`** — proxy TheMemory's entity relation graph (`{nodes, edges}`) through the gateway (shared `Graph` handler, `memory:read` scope; `scope!="user"`→empty; nodes+edges always arrays). Mirrors the entities integration. (themory-graph-gateway-dashboard)
 
 ### Changed
+- dev stack systematized in `make dev-up`: `dev/run.sh` now REBUILDS the themory image from the sibling repo each run (cached → fast; `THEMORY_SKIP_BUILD=1` to opt out) so the dev stack always reflects theo-memory current code (e.g. the `/graph` surface); a dev-only vite CSP transform injects localhost/127.0.0.1 dev origins into `form-action`+`connect-src` so dashboard login works under `make dev-up` (production CSP unchanged). (themory-graph-gateway-dashboard dev-ergonomics)
 - e2e: the entities round-trip now asserts EXTRACTED entity nodes (TheMemory Slice 1 entity-extraction changed `/entities` from `attributed_to`-derived to real extracted nodes). (themory-graph-gateway-dashboard)
 
 ### Deprecated

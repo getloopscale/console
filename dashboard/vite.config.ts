@@ -1,9 +1,34 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
+
+/**
+ * Dev-only CSP relaxation. The index.html `<meta>` CSP is PRODUCTION-shaped
+ * (`form-action 'self' https://auth.usetheo.dev …`). In the local dev stack the
+ * login/registration forms POST to the vite-proxied Kratos at the dev origin
+ * (localhost:5173 → kratos:14433). When the page is opened via 127.0.0.1 (vite
+ * `--host` binds 0.0.0.0), `'self'` no longer matches the localhost form-action
+ * URL and the browser blocks the login POST. This plugin runs ONLY in `vite dev`
+ * (apply:'serve') and injects the dev origins into `form-action` + `connect-src`
+ * so `make dev-up` login works from localhost AND 127.0.0.1. The production
+ * build never runs this transform — the shipped CSP is unchanged.
+ */
+function devCspRelax(): Plugin {
+  const devOrigins =
+    'http://localhost:5173 http://127.0.0.1:5173 http://localhost:14433 http://127.0.0.1:14433';
+  return {
+    name: 'dev-csp-relax',
+    apply: 'serve',
+    transformIndexHtml(html) {
+      return html
+        .replace("form-action 'self'", `form-action 'self' ${devOrigins}`)
+        .replace("connect-src 'self' ws: wss:", `connect-src 'self' ws: wss: ${devOrigins}`);
+    },
+  };
+}
 
 /**
  * Vite config with manualChunks vendor split (T-H.3 final optimization).
@@ -18,6 +43,8 @@ import path from 'path';
  */
 export default defineConfig({
   plugins: [
+    // dev-only: relax the production CSP so localhost/127.0.0.1 login works under `make dev-up`.
+    devCspRelax(),
     // T0.2: React Compiler (auto-memoization). React 19 GA, babel-plugin@1.0.
     // Auto-memoiza components + hooks sem useMemo/useCallback/memo() manuais.
     // Build-time only, zero runtime overhead. Existing 6 manual memos convivem.
