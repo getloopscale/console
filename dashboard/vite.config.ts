@@ -106,6 +106,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // The rollup-plugin-visualizer treemap (dist/bundle-stats.html) is a
+        // build-analysis artifact, not an app asset — it must never enter the
+        // SW precache manifest (and it exceeds the 2 MiB workbox limit, which
+        // hard-fails the build). Exclude it explicitly.
+        globIgnores: ['**/bundle-stats.html'],
         // EC-04: NEVER cache auth/session endpoints — would serve stale
         // tokens making user appear logged-in when session is gone.
         navigateFallbackDenylist: [
@@ -178,7 +183,7 @@ export default defineConfig({
     // re-discover it on every page (the heavy library was triggering serial
     // re-optimizations and 504s on outdated optimize-dep). Listing it here
     // pins the entry to the app's React, not @usetheo/ui's peer copy.
-    include: ['@usetheo/ui', 'react', 'react-dom', 'react-dom/client'],
+    include: ['@usetheo/ui', 'react', 'react-dom', 'react-dom/client', 'react-force-graph-2d'],
   },
   // Dev-only: same-origin against the local theo-cloud + Kratos port-forwards
   // via vite proxy (avoids browser CORS). In prod, the dashboard is served
