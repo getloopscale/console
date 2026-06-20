@@ -6,10 +6,12 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Added
+- e2e: graph round-trip (`remember`→`GET /v1/memory/graph`) + invalid-scope-400 + per-subject isolation, vs the Slice-2 themory image. (themory-graph-gateway-dashboard Phase 3)
 - **Dashboard graph view** at `/memory/graph` — dependency-free SVG node-link diagram of the entity relation graph (scope tabs, empty state, edge labels); reachable via a "View Graph" hub card + sidebar entry. (themory-graph-gateway-dashboard)
 - **`GET /v1/memory/graph`** + BFF **`GET /v1/dashboard/memory/graph`** — proxy TheMemory's entity relation graph (`{nodes, edges}`) through the gateway (shared `Graph` handler, `memory:read` scope; `scope!="user"`→empty; nodes+edges always arrays). Mirrors the entities integration. (themory-graph-gateway-dashboard)
 
 ### Changed
+- e2e: the entities round-trip now asserts EXTRACTED entity nodes (TheMemory Slice 1 entity-extraction changed `/entities` from `attributed_to`-derived to real extracted nodes). (themory-graph-gateway-dashboard)
 
 ### Deprecated
 
