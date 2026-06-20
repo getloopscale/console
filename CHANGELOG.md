@@ -6,6 +6,7 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Added
+- **Dashboard graph view** at `/memory/graph` — dependency-free SVG node-link diagram of the entity relation graph (scope tabs, empty state, edge labels); reachable via a "View Graph" hub card + sidebar entry. (themory-graph-gateway-dashboard)
 - **`GET /v1/memory/graph`** + BFF **`GET /v1/dashboard/memory/graph`** — proxy TheMemory's entity relation graph (`{nodes, edges}`) through the gateway (shared `Graph` handler, `memory:read` scope; `scope!="user"`→empty; nodes+edges always arrays). Mirrors the entities integration. (themory-graph-gateway-dashboard)
 
 ### Changed
