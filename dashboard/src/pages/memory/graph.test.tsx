@@ -65,6 +65,21 @@ describe('GraphPage (/memory/graph)', () => {
     expect(screen.getAllByTestId('graph-node').length).toBe(2);
   });
 
+  it('renders an error Alert when the backend is unreachable (F2)', async () => {
+    mockCloudFetch.mockRejectedValueOnce(new Error('network down'));
+    render(<GraphPage />);
+    expect(await screen.findByText(/could not load the graph/i)).toBeInTheDocument();
+  });
+
+  it('non-user scope shows the empty state (D3 — F3)', async () => {
+    // The gateway client returns an empty graph for non-user scopes (shared-key
+    // model); the view renders the empty state, not a broken SVG.
+    mockCloudFetch.mockResolvedValueOnce({ nodes: [], edges: [] });
+    render(<GraphPage />, { initialEntries: ['/memory/graph?scope=session'] });
+    expect(await screen.findByText(/no graph under/i)).toBeInTheDocument();
+    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=session'));
+  });
+
   it('skips an edge whose endpoint is not in nodes (no crash)', async () => {
     mockCloudFetch.mockResolvedValueOnce({
       nodes: [{ id: 'John Smith', scope_type: 'user', memory_count: 1 }],
