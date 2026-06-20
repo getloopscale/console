@@ -64,7 +64,7 @@ not DOM text.
 
 ## Validation
 
-`tsc -b` 0 · `eslint` 0 · `vitest src/pages/memory/graph.test.tsx` 10/10 ·
+`tsc -b` 0 · `eslint` 0 · `vitest src/pages/memory/graph.test.tsx` 15/15 ·
 `vite build` green (graph in its own lazy chunk). Live: real OpenAI-populated
 graph (User↔Maria↔Carlos cluster, Acme↔DataFlow cluster) renders with clusters +
 zoom at `http://localhost:5173/memory/graph`.

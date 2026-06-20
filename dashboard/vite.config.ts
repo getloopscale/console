@@ -212,7 +212,11 @@ export default defineConfig({
           if (id.includes('node_modules/lucide-react')) return 'lucide';
           if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) return 'react-vendor';
           if (id.includes('node_modules/react-router')) return 'router';
-          // All other vendor code → general vendor chunk
+          // NOTE (F-fe-1, /review follow-up): the react-force-graph-2d + d3 family
+          // currently lands in the app-wide `vendor` chunk. A naive manualChunks
+          // split produced a circular vendor↔force-graph chunk that Rollup still
+          // modulepreloads app-wide (shared d3 deps), so true route-isolation needs
+          // dedicated work (deferred — non-blocking perf hygiene).
           if (id.includes('node_modules/')) return 'vendor';
         },
       },
