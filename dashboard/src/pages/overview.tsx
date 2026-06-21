@@ -22,7 +22,7 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/use-projects';
 import { useCloudApi } from '@/hooks/use-api';
-import { formatNumber } from '@/lib/format';
+import { formatNumber, isZeroTime } from '@/lib/format';
 
 interface UsageMetricShape {
   used: number;
@@ -207,12 +207,36 @@ export function OverviewPage() {
                       name: p.name,
                       branch: 'main',
                       commitSha: '',
-                      // Honest status: 'live' only when project has a deploy timestamp
-                      // (plan v1.2 T0.6 — backend `last_deploy_status` audit pending).
-                      // 'queued' as fallback because ProjectCard accepts DeploymentStatus
-                      // (not 'idle'); 'queued' reads as "pending first deploy" — true.
-                      status: p.last_deploy ? 'live' : 'queued',
-                      lastDeployedAt: p.last_deploy ?? new Date().toISOString(),
+                      // Release-aware status (#119, qa-dogfood-cleanup-2026-06-21
+                      // T3.2 / ADR-Q2): backend already maps the aggregate
+                      // status via pkg/enforcement.MapProjectStatus, exposed
+                      // as `last_deploy_status` enum ('live'|'building'|
+                      // 'failed'|'idle'|'queued'). Consume it directly rather
+                      // than deriving from `last_deploy ? 'live' : 'queued'`
+                      // which contradicts the hero/list state when releases
+                      // are absent. Fallback 'queued' preserves prior shape
+                      // when older backends omit the field.
+                      // Map backend ProjectStatus ('idle' included) to the
+                      // UI DeploymentStatus enum (no 'idle' — collapse to
+                      // 'queued' which renders "Queued" / pending first deploy).
+                      status: (p.last_deploy_status === 'idle'
+                        ? 'queued'
+                        : (p.last_deploy_status ?? 'queued')) as
+                        | 'queued'
+                        | 'building'
+                        | 'live'
+                        | 'failed',
+                      // Zero-time guard (#118 T3.1): backend now serializes
+                      // *time.Time omitempty so absent → undefined here;
+                      // isZeroTime catches legacy zero-literal regress.
+                      // ProjectCard requires a string — pass empty string so
+                      // the card's own internal null-guard renders the empty
+                      // state ("Never deployed") rather than a relative-time
+                      // print of `new Date('')`.
+                      lastDeployedAt:
+                        !p.last_deploy || isZeroTime(p.last_deploy)
+                          ? ''
+                          : p.last_deploy,
                       framework: p.apps?.[0]?.framework,
                     }}
                     href={`/projects/${p.name}`}

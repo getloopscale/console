@@ -1,5 +1,37 @@
 import { describe, it, expect } from 'vitest';
-import { formatDate, formatNumber, maskEmail } from './format';
+import { formatDate, formatNumber, isZeroTime, maskEmail } from './format';
+
+describe('isZeroTime (#118, qa-dogfood-cleanup-2026-06-21 T3.1)', () => {
+  it('returns true for nullish + empty', () => {
+    expect(isZeroTime(undefined)).toBe(true);
+    expect(isZeroTime(null)).toBe(true);
+    expect(isZeroTime('')).toBe(true);
+  });
+
+  it('returns true for the canonical Go zero-time JSON literal', () => {
+    expect(isZeroTime('0001-01-01T00:00:00Z')).toBe(true);
+  });
+
+  // EC-4 — prefix-match handles RFC3339Nano + +00:00 suffix variants
+  it('returns true for RFC3339Nano / suffix variants of the zero literal', () => {
+    expect(isZeroTime('0001-01-01T00:00:00.000000000Z')).toBe(true);
+    expect(isZeroTime('0001-01-01T00:00:00+00:00')).toBe(true);
+    expect(isZeroTime('0001-01-01T00:00:00.123+02:00')).toBe(true);
+  });
+
+  it('returns false for non-zero ISO strings', () => {
+    expect(isZeroTime('2026-05-25T06:42:00Z')).toBe(false);
+    expect(isZeroTime('2025-12-31T23:59:59Z')).toBe(false);
+  });
+});
+
+describe('formatDate handles Go zero-time as em-dash (#118)', () => {
+  it('test_format_date_zero_time_to_em_dash', () => {
+    expect(formatDate('0001-01-01T00:00:00Z', 'date')).toBe('—');
+    expect(formatDate('0001-01-01T00:00:00Z', 'relative')).toBe('—');
+    expect(formatDate('0001-01-01T00:00:00.000000000Z', 'datetime')).toBe('—');
+  });
+});
 
 describe('formatDate', () => {
   it('test_format_date_handles_4_intents', () => {
