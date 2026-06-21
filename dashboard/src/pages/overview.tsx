@@ -205,6 +205,16 @@ export function OverviewPage() {
                     project={{
                       id: p.name,
                       name: p.name,
+                      // #120 (qa-dogfood-cleanup-2026-06-21 T4.1 / ADR-Q3):
+                      // hardcoded 'main' is the legacy placeholder until
+                      // the wire payload exposes `deploy_branch` for the
+                      // listing. Until then, render 'main' as a sensible
+                      // default WITH a follow-up note: the Repository
+                      // panel surfaces the canonical deploy branch with
+                      // an explicit "Deploy branch (Theo)" label per the
+                      // same ADR. Tracked by #120 follow-up — wire-side
+                      // exposure of connection.branch on the projects
+                      // summary is additive and non-breaking.
                       branch: 'main',
                       commitSha: '',
                       // Release-aware status (#119, qa-dogfood-cleanup-2026-06-21

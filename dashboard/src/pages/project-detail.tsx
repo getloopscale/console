@@ -224,11 +224,15 @@ export function ProjectDetailPage() {
               <EmptyState
                 icon={Rocket}
                 title="No deployments yet"
-                description="Run `theo deploy` from your project directory, or connect a Git repository to ship on every push."
+                /* #121 (qa-dogfood-cleanup-2026-06-21 T3.3): deploy-centric
+                   message. The connect surface stays one click away via
+                   the Repository tab; do not assume the user needs to
+                   connect again on a project that may already be ACTIVE. */
+                description="Trigger a deploy with `theo deploy` from your project directory, or push to the connected branch to ship automatically. Open the Repository tab to link a Git repo."
                 action={
                   <Button asChild variant="primary" size="sm">
                     <Link to={`/projects/${encodeURIComponent(project.name)}/connect`}>
-                      Connect repository
+                      Open repository tab
                     </Link>
                   </Button>
                 }

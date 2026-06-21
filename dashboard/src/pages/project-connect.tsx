@@ -404,8 +404,11 @@ export function ProjectConnectPage() {
                 </dd>
               </div>
               <div>
+                {/* #120 (qa-dogfood-cleanup-2026-06-21 T4.1 / ADR-Q3):
+                    explicit "Deploy branch (Theo)" label so the user
+                    distinguishes this from GitHub's default_branch. */}
                 <dt className="text-label uppercase text-muted-foreground">
-                  Branch
+                  Deploy branch (Theo)
                 </dt>
                 <dd className="mt-1 font-mono text-foreground">{conn.branch ?? '—'}</dd>
               </div>
