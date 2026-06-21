@@ -36,7 +36,12 @@ export function AddSecretSheet({
   open,
   onOpenChange,
   defaultEnvs = ['production'],
-  availableEnvs = ['production', 'staging'],
+  // Canonical PaaS lexicon (ADR-Q6 of qa-dogfood-cleanup-2026-06-21-plan):
+  // exactly TWO permanent environments per project — preview + production.
+  // The legacy `'staging'` literal was an off-model term flagged by the
+  // 2026-06-21 QA dogfooding run (#127). See ADR-Q5 (preview-permanent)
+  // + ADR-Q6 (lexicon lock).
+  availableEnvs = ['preview', 'production'],
   project,
   onCreated,
 }: AddSecretSheetProps) {
