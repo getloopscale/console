@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -274,6 +275,90 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		}
 		validateRequest(t, router, got)
 	})
+}
+
+// Provider-capability boot guard (themory-gateway-provider-capability-guard F1):
+// the gateway probes /v1/openapi.json at boot and must distinguish "provider
+// advertises the scoped-forget DELETE" from "reachable but route absent" (deploy
+// ordering bug → fatal) and from "unreachable/error" (transient → non-fatal).
+func TestThemoryClient_ScopedForgetCapability(t *testing.T) {
+	const openapiWith = `{"paths":{"/v1/scopes/{type}/{id}/memories/{memId}":{"delete":{"operationId":"scopedForget"}}}}`
+	const openapiWithout = `{"paths":{"/v1/scopes/{type}/{id}/memories":{"get":{"operationId":"listScope"}}}}`
+
+	t.Run("nil when the provider advertises the scopedForget DELETE", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, http.StatusOK, openapiWith, &got)
+		c := NewClient(srv.URL, "k", srv.Client())
+		if err := c.AssertScopedForgetSupported(context.Background()); err != nil {
+			t.Fatalf("expected nil, got %v", err)
+		}
+		if got.URL.Path != "/v1/openapi.json" {
+			t.Fatalf("expected probe of /v1/openapi.json, got %s", got.URL.Path)
+		}
+	})
+
+	t.Run("ErrProviderCapabilityMissing when the route is absent (reachable + parseable)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, http.StatusOK, openapiWithout, &got)
+		c := NewClient(srv.URL, "k", srv.Client())
+		err := c.AssertScopedForgetSupported(context.Background())
+		if !IsProviderCapabilityMissing(err) {
+			t.Fatalf("expected ErrProviderCapabilityMissing, got %v", err)
+		}
+	})
+
+	t.Run("404 on the openapi probe IS capability-missing (reachable, no contract doc → fatal)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, http.StatusNotFound, `{}`, &got)
+		c := NewClient(srv.URL, "k", srv.Client())
+		err := c.AssertScopedForgetSupported(context.Background())
+		if !IsProviderCapabilityMissing(err) {
+			t.Fatalf("a 404 openapi probe must be capability-missing (provably old provider), got %v", err)
+		}
+	})
+
+	t.Run("server error is NOT capability-missing (transient → non-fatal)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, http.StatusServiceUnavailable, `down`, &got)
+		c := NewClient(srv.URL, "k", srv.Client())
+		err := c.AssertScopedForgetSupported(context.Background())
+		if err == nil {
+			t.Fatal("expected an error on 503")
+		}
+		if IsProviderCapabilityMissing(err) {
+			t.Fatalf("a 503 must NOT be capability-missing, got %v", err)
+		}
+	})
+
+	t.Run("malformed openapi is NOT capability-missing (fail-open → non-fatal)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, http.StatusOK, `not json`, &got)
+		c := NewClient(srv.URL, "k", srv.Client())
+		err := c.AssertScopedForgetSupported(context.Background())
+		if err == nil {
+			t.Fatal("expected a parse error on malformed openapi")
+		}
+		if IsProviderCapabilityMissing(err) {
+			t.Fatalf("malformed openapi must NOT be capability-missing, got %v", err)
+		}
+	})
+}
+
+// ClassifyBootCapability is the boot policy: fatal ONLY on provable capability
+// absence; nil → proceed; everything else (transient) → warn (non-fatal).
+func TestClassifyBootCapability(t *testing.T) {
+	if got := ClassifyBootCapability(nil); got != BootProceed {
+		t.Errorf("nil → %v, want BootProceed", got)
+	}
+	if got := ClassifyBootCapability(ErrProviderCapabilityMissing); got != BootFatal {
+		t.Errorf("capability-missing → %v, want BootFatal", got)
+	}
+	if got := ClassifyBootCapability(fmt.Errorf("wrap: %w", ErrProviderCapabilityMissing)); got != BootFatal {
+		t.Errorf("wrapped capability-missing → %v, want BootFatal", got)
+	}
+	if got := ClassifyBootCapability(errors.New("connection refused")); got != BootWarn {
+		t.Errorf("transport error → %v, want BootWarn", got)
+	}
 }
 
 // Failure scenarios (plan § Failure scenarios): external theo-data I/O.

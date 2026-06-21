@@ -198,6 +198,34 @@ func main() {
 			Transport: otelhttp.NewTransport(http.DefaultTransport), // D4 W3C trace propagation
 		}
 		themoryClient := themory.NewClient(cfg.ThemoryBaseURL, cfg.ThemoryAPIKey.Value(), themoryHTTP)
+
+		// themory-gateway-provider-capability-guard (F1): fail boot if the provider
+		// is REACHABLE but does NOT advertise the scoped-forget DELETE route — a
+		// deploy-ordering bug (gateway ahead of TheMemory v0.12.0) that would make
+		// forget 404-collapse into a silent not-deleted. Transient failures
+		// (unreachable / non-2xx / unparseable openapi) WARN + proceed (ADR D2).
+		if cfg.ThemorySkipCapabilityCheck {
+			logger.Warn("themory capability guard SKIPPED via THEMORY_SKIP_CAPABILITY_CHECK — forget-by-id correctness is not verified against the provider")
+		} else {
+			capCtx, capCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			capErr := themoryClient.AssertScopedForgetSupported(capCtx)
+			capCancel()
+			switch themory.ClassifyBootCapability(capErr) {
+			case themory.BootFatal:
+				logger.Error("themory capability guard: provider does not advertise the scoped-forget DELETE route — refusing to start (deploy TheMemory v0.12.0+ first, or set THEMORY_SKIP_CAPABILITY_CHECK=true to override)",
+					"error", capErr, "themory_base_url", cfg.ThemoryBaseURL)
+				// os.Exit skips deferred cleanup (db.Close/cancel); acceptable on this
+				// fatal-boot path — listeners are not started yet and the OS reclaims
+				// the just-opened pool on exit (mirrors the other boot os.Exit calls).
+				os.Exit(1)
+			case themory.BootWarn:
+				logger.Warn("themory capability guard: could not verify provider scoped-forget capability (transient) — proceeding",
+					"error", capErr)
+			case themory.BootProceed:
+				logger.Info("themory capability guard: provider advertises scoped-forget DELETE")
+			}
+		}
+
 		// Memory Webhook Delivery plan T5.6: wire the event publisher so
 		// `memory.forgotten` mutations fan out to active webhooks.
 		webhookEventPublisher := routes.NewMemoryWebhookEventPublisher(db, logger)
