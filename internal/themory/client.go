@@ -542,6 +542,68 @@ func (c *Client) Forget(ctx context.Context, userID, memoryID string, hard bool)
 	return c.do(ctx, http.MethodDelete, path, query, nil, nil)
 }
 
+// ErrProviderCapabilityMissing means the provider is REACHABLE and served a
+// parseable OpenAPI doc that does NOT advertise the scoped-forget DELETE route —
+// an unambiguous deploy-ordering bug (gateway ahead of TheMemory v0.12.0). The
+// boot guard treats ONLY this as fatal; transport/parse failures are transient.
+var ErrProviderCapabilityMissing = errors.New("themory: provider does not advertise the scoped-forget DELETE route (needs v0.12.0+)")
+
+// IsProviderCapabilityMissing reports whether err is or wraps ErrProviderCapabilityMissing.
+func IsProviderCapabilityMissing(err error) bool { return errors.Is(err, ErrProviderCapabilityMissing) }
+
+// BootCapabilityDecision is the boot policy for an AssertScopedForgetSupported result.
+type BootCapabilityDecision int
+
+const (
+	// BootProceed: route advertised — start normally.
+	BootProceed BootCapabilityDecision = iota
+	// BootWarn: transient failure (unreachable / non-2xx / unparseable openapi) —
+	// log a warning and proceed; the per-request error path covers a down provider.
+	BootWarn
+	// BootFatal: provider reachable + parseable but route ABSENT — deploy-ordering
+	// bug; the gateway MUST NOT start (else forget 404-collapses into not-deleted).
+	BootFatal
+)
+
+// ClassifyBootCapability maps an AssertScopedForgetSupported error to the boot
+// policy: fatal ONLY when the capability is provably missing (D2). Keeping this a
+// pure function makes the os.Exit policy unit-testable without running main.
+func ClassifyBootCapability(err error) BootCapabilityDecision {
+	switch {
+	case err == nil:
+		return BootProceed
+	case IsProviderCapabilityMissing(err):
+		return BootFatal
+	default:
+		return BootWarn
+	}
+}
+
+// AssertScopedForgetSupported probes the provider's GET /v1/openapi.json once and
+// confirms it advertises the scoped-forget DELETE (matched by operationId
+// "scopedForget" on a `delete` op — robust to path-template formatting). Returns:
+//   - nil                            → route advertised (safe to enable forget-by-id)
+//   - ErrProviderCapabilityMissing   → reachable + parseable, route ABSENT (fatal: deploy-order bug)
+//   - any other error                → unreachable / non-2xx / unparseable openapi (transient, NON-fatal)
+//
+// themory-gateway-provider-capability-guard (F1).
+func (c *Client) AssertScopedForgetSupported(ctx context.Context) error {
+	var doc struct {
+		Paths map[string]map[string]struct {
+			OperationID string `json:"operationId"`
+		} `json:"paths"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/v1/openapi.json", nil, nil, &doc); err != nil {
+		return fmt.Errorf("themory: capability probe failed: %w", err)
+	}
+	for _, ops := range doc.Paths {
+		if op, ok := ops["delete"]; ok && op.OperationID == "scopedForget" {
+			return nil
+		}
+	}
+	return ErrProviderCapabilityMissing
+}
+
 // do is the shared request lifecycle. Sets Authorization + Accept, executes via
 // the configured http.Client, inspects status, decodes JSON into out when
 // out is non-nil.

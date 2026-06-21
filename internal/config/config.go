@@ -16,11 +16,11 @@ import (
 // Secret is a string that redacts itself in logs, fmt output, and JSON serialization.
 type Secret string
 
-func (s Secret) String() string                { return "***" }
-func (s Secret) GoString() string              { return "***" }
-func (s Secret) MarshalJSON() ([]byte, error)  { return []byte(`"***"`), nil }
-func (s Secret) MarshalText() ([]byte, error)  { return []byte("***"), nil }
-func (s Secret) Value() string                 { return string(s) }
+func (s Secret) String() string               { return "***" }
+func (s Secret) GoString() string             { return "***" }
+func (s Secret) MarshalJSON() ([]byte, error) { return []byte(`"***"`), nil }
+func (s Secret) MarshalText() ([]byte, error) { return []byte("***"), nil }
+func (s Secret) Value() string                { return string(s) }
 
 // Config holds all configuration for the cloud auth service.
 // All fields are loaded from environment variables.
@@ -102,6 +102,12 @@ type Config struct {
 	// Env: THEMORY_API_KEY (required when ThemoryBaseURL is set in prod)
 	ThemoryAPIKey Secret
 
+	// ThemorySkipCapabilityCheck disables the boot-time provider-capability guard
+	// (themory-gateway-provider-capability-guard F1). Default false (safe prod
+	// posture). Escape hatch for emergencies (e.g. provider openapi shape change).
+	// Env: THEMORY_SKIP_CAPABILITY_CHECK ("true" to skip).
+	ThemorySkipCapabilityCheck bool
+
 	// SessionTokenSecretPrevious is the previous HMAC key for zero-downtime rotation (§2.2).
 	// Tokens signed with this key are accepted during the rotation window.
 	// Env: SESSION_TOKEN_SECRET_PREVIOUS (optional)
@@ -137,15 +143,15 @@ type Config struct {
 // Load reads configuration from environment variables with sensible defaults.
 func Load() Config {
 	cfg := Config{
-		ListenAddr:      envOr("CLOUD_LISTEN_ADDR", ":13002"),
+		ListenAddr:        envOr("CLOUD_LISTEN_ADDR", ":13002"),
 		KratosPublicURL:   envOr("KRATOS_PUBLIC_URL", "http://ory-kratos-public.theo-system:80"),
 		KratosInternalURL: envOr("KRATOS_INTERNAL_URL", envOr("KRATOS_PUBLIC_URL", "http://ory-kratos-public.theo-system:80")),
 		KratosAdminURL:    envOr("KRATOS_ADMIN_URL", "http://ory-kratos-admin.theo-system:80"),
-		HydraPublicURL:  envOr("HYDRA_PUBLIC_URL", "http://ory-hydra-public.theo-system:4444"),
-		HydraAdminURL:   envOr("HYDRA_ADMIN_URL", "http://ory-hydra-admin.theo-system:4445"),
-		HydraClientID:   envOr("HYDRA_CLIENT_ID", "theo-cli"),
-		EngineAPIURL:    envOr("ENGINE_API_URL", "http://theo-api.theo-system:8080"),
-		Environment:     envOr("THEO_ENV", "dev"),
+		HydraPublicURL:    envOr("HYDRA_PUBLIC_URL", "http://ory-hydra-public.theo-system:4444"),
+		HydraAdminURL:     envOr("HYDRA_ADMIN_URL", "http://ory-hydra-admin.theo-system:4445"),
+		HydraClientID:     envOr("HYDRA_CLIENT_ID", "theo-cli"),
+		EngineAPIURL:      envOr("ENGINE_API_URL", "http://theo-api.theo-system:8080"),
+		Environment:       envOr("THEO_ENV", "dev"),
 	}
 	cfg.JWTIssuer = envOr("JWT_ISSUER", cfg.HydraPublicURL+"/")
 	cfg.StripeAPIKey = Secret(envOr("STRIPE_API_KEY", ""))
@@ -165,6 +171,7 @@ func Load() Config {
 
 	cfg.ThemoryBaseURL = envOr("THEMORY_BASE_URL", "")
 	cfg.ThemoryAPIKey = Secret(envOr("THEMORY_API_KEY", ""))
+	cfg.ThemorySkipCapabilityCheck = envOr("THEMORY_SKIP_CAPABILITY_CHECK", "") == "true"
 	cfg.BFFKeyTTLHours = envOrInt("THEOCLOUD_BFF_KEY_TTL_HOURS", 24)
 	return cfg
 }
