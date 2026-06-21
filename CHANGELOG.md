@@ -6,7 +6,6 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Added
-- Boot-time provider-capability guard (F1): when `THEMORY_BASE_URL` is set, the gateway probes the provider's `GET /v1/openapi.json` at startup and **refuses to boot** if the provider is reachable but does NOT advertise the scoped-forget `DELETE` route (deploy-ordering bug — gateway ahead of TheMemory v0.12.0 — that would make forget-by-id silently not-delete). Transient failures (provider unreachable / non-2xx / unparseable openapi) log a warning and proceed. Escape hatch: `THEMORY_SKIP_CAPABILITY_CHECK=true`. (#themory-gateway-provider-capability-guard)
 
 ### Changed
 
@@ -17,6 +16,11 @@ Format: Keep a Changelog + Semantic Versioning.
 ### Fixed
 
 ### Security
+
+## [0.6.0] - 2026-06-21
+
+### Added
+- Boot-time provider-capability guard (F1): when `THEMORY_BASE_URL` is set, the gateway probes the provider's `GET /v1/openapi.json` at startup and **refuses to boot** if the provider is reachable but does NOT advertise the scoped-forget `DELETE` route (deploy-ordering bug — gateway ahead of TheMemory v0.12.0 — that would make forget-by-id silently not-delete). Transient failures (provider unreachable / non-2xx / unparseable openapi) log a warning and proceed. Escape hatch: `THEMORY_SKIP_CAPABILITY_CHECK=true`. (#themory-gateway-provider-capability-guard)
 
 ## [0.5.0] - 2026-06-21
 
