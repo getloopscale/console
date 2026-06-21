@@ -307,6 +307,16 @@ func TestThemoryClient_ScopedForgetCapability(t *testing.T) {
 		}
 	})
 
+	t.Run("404 on the openapi probe IS capability-missing (reachable, no contract doc → fatal)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, http.StatusNotFound, `{}`, &got)
+		c := NewClient(srv.URL, "k", srv.Client())
+		err := c.AssertScopedForgetSupported(context.Background())
+		if !IsProviderCapabilityMissing(err) {
+			t.Fatalf("a 404 openapi probe must be capability-missing (provably old provider), got %v", err)
+		}
+	})
+
 	t.Run("server error is NOT capability-missing (transient → non-fatal)", func(t *testing.T) {
 		var got *http.Request
 		srv := captureServer(t, http.StatusServiceUnavailable, `down`, &got)

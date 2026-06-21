@@ -214,6 +214,9 @@ func main() {
 			case themory.BootFatal:
 				logger.Error("themory capability guard: provider does not advertise the scoped-forget DELETE route — refusing to start (deploy TheMemory v0.12.0+ first, or set THEMORY_SKIP_CAPABILITY_CHECK=true to override)",
 					"error", capErr, "themory_base_url", cfg.ThemoryBaseURL)
+				// os.Exit skips deferred cleanup (db.Close/cancel); acceptable on this
+				// fatal-boot path — listeners are not started yet and the OS reclaims
+				// the just-opened pool on exit (mirrors the other boot os.Exit calls).
 				os.Exit(1)
 			case themory.BootWarn:
 				logger.Warn("themory capability guard: could not verify provider scoped-forget capability (transient) — proceeding",

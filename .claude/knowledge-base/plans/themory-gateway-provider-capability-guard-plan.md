@@ -110,8 +110,9 @@ VERIFY: go test ./... -race
 
 ## Failure scenarios (external theo-data I/O)
 
-- **Provider reachable, openapi lacks route:** `ErrProviderCapabilityMissing` → boot fatal (the protected case).
-- **Provider unreachable / 5xx at boot:** transport error → WARN + proceed (transient; not fatal).
+- **Provider reachable, openapi 200 lacks route:** `ErrProviderCapabilityMissing` → boot fatal (the protected case).
+- **Provider reachable, openapi probe 404 (predates the contract doc):** `ErrProviderCapabilityMissing` → boot fatal. A 404 is reachable-but-provably-no-contract, NOT a transient blip (F-1 from `/review`).
+- **Provider unreachable / 5xx at boot:** transport error → WARN + proceed (transient; not fatal — a 5xx is a server-side blip, retried on next boot).
 - **Boot GET hangs:** bounded `context.WithTimeout` → transport error → WARN + proceed.
 - **Malformed openapi JSON:** parse error → treat as transport-class (WARN + proceed), NOT capability-missing (we cannot prove absence from unparseable doc — fail-open here is safer than blocking boot on a parser quirk; logged loudly).
 

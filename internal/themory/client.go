@@ -594,6 +594,14 @@ func (c *Client) AssertScopedForgetSupported(ctx context.Context) error {
 		} `json:"paths"`
 	}
 	if err := c.do(ctx, http.MethodGet, "/v1/openapi.json", nil, nil, &doc); err != nil {
+		// A 404 on the openapi probe is NOT transient: the provider is reachable
+		// but does not even serve the contract doc — it predates the scoped-forget
+		// route entirely. Treat as provably missing (fatal), like a 200 that lacks
+		// the op. Genuine transient failures (5xx, connection error, unparseable
+		// body) fall through to a non-capability error → BootWarn (D2).
+		if errors.Is(err, ErrNotFound) {
+			return ErrProviderCapabilityMissing
+		}
 		return fmt.Errorf("themory: capability probe failed: %w", err)
 	}
 	for _, ops := range doc.Paths {

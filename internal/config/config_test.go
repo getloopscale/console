@@ -23,6 +23,18 @@ func TestConfig_ParsesBFFKeyTTLHoursFromEnv(t *testing.T) {
 	}
 }
 
+func TestConfig_ParsesThemorySkipCapabilityCheck(t *testing.T) {
+	t.Setenv("THEMORY_SKIP_CAPABILITY_CHECK", "true")
+	if cfg := Load(); !cfg.ThemorySkipCapabilityCheck {
+		t.Fatal("expected ThemorySkipCapabilityCheck=true when env is \"true\"")
+	}
+	// Any non-"true" value (incl. unset) must default to the safe false posture.
+	t.Setenv("THEMORY_SKIP_CAPABILITY_CHECK", "1")
+	if cfg := Load(); cfg.ThemorySkipCapabilityCheck {
+		t.Fatal("expected ThemorySkipCapabilityCheck=false for non-\"true\" value")
+	}
+}
+
 func TestConfig_DefaultsBFFKeyTTLHoursTo24WhenEnvUnset(t *testing.T) {
 	// Ensure env var absent
 	_ = os.Unsetenv("THEOCLOUD_BFF_KEY_TTL_HOURS")
@@ -47,11 +59,11 @@ func TestConfig_ParsesNumericEdgeValues(t *testing.T) {
 		envValue string
 		expected int
 	}{
-		{"1", 1},     // floor
-		{"168", 168}, // ceiling (1 week)
-		{"24", 24},   // default
-		{"0", 0},     // invalid range but parses; vault constructor rejects
-		{"-5", -5},   // invalid; vault rejects
+		{"1", 1},       // floor
+		{"168", 168},   // ceiling (1 week)
+		{"24", 24},     // default
+		{"0", 0},       // invalid range but parses; vault constructor rejects
+		{"-5", -5},     // invalid; vault rejects
 		{"1000", 1000}, // invalid; vault rejects
 	}
 	for _, tc := range cases {
