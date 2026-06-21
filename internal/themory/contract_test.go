@@ -100,31 +100,35 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		validateRequest(t, router, got)
 	})
 
-	t.Run("Forget delegates POST /v1/forget for an owned id", func(t *testing.T) {
-		// Forget is now two requests: the ownership listing (GET 200 + items)
-		// then the delegated delete (POST 204). Route by method, capturing the
-		// POST for spec validation.
+	t.Run("Forget issues a single scope-checked DELETE for an owned id", func(t *testing.T) {
+		// Cutover (themory-gateway-forget-cutover): Forget is now ONE request — a
+		// scope-checked DELETE on the provider — not the old GET-listing + POST.
+		// The provider enforces ownership server-side (cross-scope → 404), so the
+		// gateway drops its O(scope) listAll pre-check.
 		var got *http.Request
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet {
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"items":[{"id":"mem-123","text":"x","createdAt":"2026-06-18T00:00:00Z"}]}`))
-				return
-			}
-			buf, _ := io.ReadAll(r.Body)
-			clone := r.Clone(context.Background())
-			clone.Body = io.NopCloser(bytes.NewReader(buf))
-			got = clone
-			w.WriteHeader(http.StatusNoContent)
-		}))
-		t.Cleanup(srv.Close)
-
+		srv := captureServer(t, http.StatusNoContent, "", &got)
 		c := NewClient(srv.URL, "test-key", srv.Client())
 		if err := c.Forget(context.Background(), "user-1", "mem-123", false); err != nil {
 			t.Fatalf("Forget: %v", err)
 		}
-		if got == nil || got.Method != http.MethodPost {
-			t.Fatalf("expected captured POST /v1/forget, got %+v", got)
+		if got == nil || got.Method != http.MethodDelete {
+			t.Fatalf("expected a single captured DELETE, got %+v", got)
+		}
+		if got.URL.Path != "/v1/scopes/user/user-1/memories/mem-123" {
+			t.Fatalf("unexpected delete path: %s", got.URL.Path)
+		}
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Forget propagates ?hard=true for GDPR erasure", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, http.StatusNoContent, "", &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if err := c.Forget(context.Background(), "user-1", "mem-123", true); err != nil {
+			t.Fatalf("Forget hard: %v", err)
+		}
+		if got.URL.Query().Get("hard") != "true" {
+			t.Fatalf("expected ?hard=true, got query %q", got.URL.RawQuery)
 		}
 		validateRequest(t, router, got)
 	})

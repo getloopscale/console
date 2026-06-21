@@ -8,6 +8,11 @@ Format: Keep a Changelog + Semantic Versioning.
 ### Added
 
 ### Changed
+- Gateway `Forget` now deletes via TheMemory's scope-checked `DELETE /v1/scopes/user/{subject}/memories/{id}` (+`?hard`) instead of an O(scope) `listAll()` ownership pre-check + workspace-only `POST /v1/forget`. Ownership is enforced server-side (cross-scope/missing → 404, no existence leak); the gateway issues one DELETE. External behavior (signature, 404 semantics) is unchanged. **DEPLOY-GATE:** requires TheMemory **v0.12.0** deployed (the DELETE endpoint); do not ship the gateway ahead of the provider. (#themory-gateway-forget-cutover)
+- `MetricsResult.RetrievalAPIUsage` / metrics doc corrected: `retrieval_api_usage` is now REAL (TheMemory v0.12.0 persists a per-scope recall counter), no longer hardcoded 0. Parse code was already correct; only the comments were stale. (#themory-gateway-forget-cutover)
+
+### Removed
+- Dead `listAll()` + `maxListPages` + `forgetBody` from `internal/themory/client.go` (the forget ownership pre-check was their only caller; the cutover removes it). (#themory-gateway-forget-cutover)
 
 ### Deprecated
 

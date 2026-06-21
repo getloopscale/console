@@ -24,13 +24,12 @@
 //     IGNORES `X-Theo-User-Id`, so relying on it — as the old client did —
 //     silently broke isolation.)
 //
-//  3. `forget` is ownership-checked in the gateway. TheMemory's `POST /v1/forget`
-//     deletes by id WITHIN THE WORKSPACE (the master key = one workspace for all
-//     customers), so it does NOT by itself prevent a customer from deleting
-//     another customer's memory by id (an IDOR). The gateway closes that hole by
-//     verifying the id belongs to the subject's scope BEFORE delegating. A
-//     subject-scoped forget endpoint on the provider would remove this O(scope)
-//     check — tracked on the TheMemory roadmap.
+//  3. `forget` is ownership-checked BY THE PROVIDER. TheMemory's
+//     `DELETE /v1/scopes/user/{subject}/memories/{id}` (v0.12.0) deletes the id
+//     ONLY if it belongs to the subject's scope (cross-scope/cross-workspace →
+//     404, no existence leak), so the gateway delegates directly — no O(scope)
+//     listAll() pre-check. (Earlier this was synthesized gateway-side against the
+//     workspace-only `POST /v1/forget`, which alone could not prevent the IDOR.)
 //
 //  4. The provided *http.Client passes through verbatim. Production wires
 //     otelhttp.NewTransport so traceparent headers propagate.
@@ -108,9 +107,9 @@ type ListResult struct {
 
 // MetricsResult is the GET /metrics response shape, mapped from the provider's
 // real subject-scoped `GET /v1/scopes/user/{subject}/metrics` (ADR D2 amendment).
-// `TotalMemories`, `EntityCount` (distinct attributed_to), and `AddEvents` are
-// real; `RetrievalAPIUsage` is 0 — the provider has no persisted recall counter
-// yet (honest, not fabricated; a recall counter is a tracked follow-up).
+// All four fields are real: `TotalMemories`, `EntityCount` (distinct
+// attributed_to), `AddEvents`, and (as of TheMemory v0.12.0) `RetrievalAPIUsage`
+// — the provider now persists a per-scope recall counter, so this is no longer 0.
 type MetricsResult struct {
 	TotalMemories     int `json:"total_memories"`
 	RetrievalAPIUsage int `json:"retrieval_api_usage"`
@@ -244,8 +243,6 @@ type scopeListResponse struct {
 	NextCursor *string           `json:"nextCursor"`
 }
 
-const maxListPages = 1000 // defensive cap against an unbounded paging loop
-
 // userScopePath builds the provider listing path for a user subject.
 func userScopePath(userID string) string {
 	return "/v1/scopes/user/" + url.PathEscape(userID) + "/memories"
@@ -294,26 +291,6 @@ func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*Li
 		out.NextCursor = raw.NextCursor
 	}
 	return out, nil
-}
-
-// listAll pages the entire user scope. Used by ownership checks (forget) and
-// the derived metrics total. O(scope) — see the package doc invariant #3 and
-// the metrics PROVIDER GAP.
-func (c *Client) listAll(ctx context.Context, userID string) ([]MemoryRow, error) {
-	var all []MemoryRow
-	cursor := ""
-	for page := 0; page < maxListPages; page++ {
-		res, err := c.List(ctx, userID, ListOptions{Limit: 100, Cursor: cursor})
-		if err != nil {
-			return nil, err
-		}
-		all = append(all, res.Memories...)
-		if res.NextCursor == nil || *res.NextCursor == "" {
-			return all, nil
-		}
-		cursor = *res.NextCursor
-	}
-	return all, fmt.Errorf("themory: listAll exceeded %d pages for user %q", maxListPages, userID)
 }
 
 // --- remember / recall / reflect wire shapes --------------------------------
@@ -425,8 +402,8 @@ func (c *Client) Reflect(ctx context.Context, userID string, opts ReflectOptions
 
 // Metrics returns the customer's memory KPIs from the provider's real
 // subject-scoped `GET /v1/scopes/user/{subject}/metrics` (ADR D2 amendment).
-// `total_memories` + `entity_count` + `add_events` are real; `retrieval_api_usage`
-// is 0 (no persisted source on the provider — honest, not fabricated).
+// All four fields are real, including `retrieval_api_usage` (TheMemory v0.12.0
+// persists a per-scope recall counter; previously hardcoded 0).
 func (c *Client) Metrics(ctx context.Context, userID string) (*MetricsResult, error) {
 	var out MetricsResult
 	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/metrics"
@@ -545,44 +522,24 @@ func (c *Client) ForgetSkill(ctx context.Context, repoID, skillID string) error 
 	return c.do(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-type forgetBody struct {
-	MemoryID string `json:"memoryId"`
-	Hard     bool   `json:"hard,omitempty"`
-}
-
-// Forget deletes one memory for the subject. Ownership is verified in the
-// gateway (invariant #3): the id MUST belong to the subject's scope, else
-// ErrNotFound is returned WITHOUT touching the provider — closing the
-// cross-tenant delete IDOR that the workspace-scoped `POST /v1/forget` alone
-// does not prevent.
+// Forget deletes one memory for the subject via the provider's scope-checked
+// DELETE endpoint (themory-gateway-forget-cutover). Ownership is enforced
+// SERVER-SIDE: the provider deletes the id ONLY if it belongs to the subject's
+// scope, returning 404 for a cross-scope / cross-workspace / missing id — the
+// same existence-leak-safe response the gateway used to synthesize. This drops
+// the old O(scope) listAll() pre-check (invariant #3, now provider-enforced).
+// `hard=true` requests GDPR hard erasure (default soft). `do()` maps the
+// provider 204→nil, 404→ErrNotFound, 422 (non-UUID)→*Error.
 func (c *Client) Forget(ctx context.Context, userID, memoryID string, hard bool) error {
 	if memoryID == "" {
 		return errors.New("memoryID required")
 	}
-
-	// Ownership pre-check: confirm the id is in the subject's scope.
-	rows, err := c.listAll(ctx, userID)
-	if err != nil {
-		return err
+	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/memories/" + url.PathEscape(memoryID)
+	var query url.Values
+	if hard {
+		query = url.Values{"hard": []string{"true"}}
 	}
-	owned := false
-	for _, r := range rows {
-		if r.ID == memoryID {
-			owned = true
-			break
-		}
-	}
-	if !owned {
-		// Same response for "doesn't exist" and "belongs to another subject" —
-		// no existence leak (mirrors the provider's own 404-not-403 discipline).
-		return ErrNotFound
-	}
-
-	body, err := json.Marshal(forgetBody{MemoryID: memoryID, Hard: hard})
-	if err != nil {
-		return fmt.Errorf("themory: marshal forget body: %w", err)
-	}
-	return c.do(ctx, http.MethodPost, "/v1/forget", nil, bytes.NewReader(body), nil)
+	return c.do(ctx, http.MethodDelete, path, query, nil, nil)
 }
 
 // do is the shared request lifecycle. Sets Authorization + Accept, executes via
