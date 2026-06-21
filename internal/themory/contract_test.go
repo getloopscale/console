@@ -24,9 +24,9 @@ import (
 // cloud is the CONSUMER of theo-data (TheMemory); these tests validate that the
 // client's outgoing REQUESTS conform to openapi/themory.yaml — now the SUBSET of
 // TheMemory's REAL /v1/openapi.json the client calls (GET /v1/scopes/{type}/{id}/
-// memories + POST /v1/forget). They drive the real client against an httptest
-// stub that captures the request, then validate it with openapi3filter. Plus the
-// failure scenarios (404 → ErrNotFound; 5xx → *Error).
+// memories + DELETE /v1/scopes/{type}/{id}/memories/{memId}). They drive the real
+// client against an httptest stub that captures the request, then validate it with
+// openapi3filter. Plus the failure scenarios (404 → ErrNotFound; 422/5xx → *Error).
 //
 // The full real-server contract is additionally proven by tests/e2e.
 
@@ -54,7 +54,7 @@ func captureServer(t *testing.T, status int, body string, captured **http.Reques
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Buffer the request body and re-attach it so openapi3filter can read it
-		// during validation (the POST /v1/forget body must survive the clone).
+		// during validation (a POST body — remember/recall/reflect — must survive the clone).
 		buf, _ := io.ReadAll(r.Body)
 		clone := r.Clone(context.Background())
 		clone.Body = io.NopCloser(bytes.NewReader(buf))
@@ -100,31 +100,35 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		validateRequest(t, router, got)
 	})
 
-	t.Run("Forget delegates POST /v1/forget for an owned id", func(t *testing.T) {
-		// Forget is now two requests: the ownership listing (GET 200 + items)
-		// then the delegated delete (POST 204). Route by method, capturing the
-		// POST for spec validation.
+	t.Run("Forget issues a single scope-checked DELETE for an owned id", func(t *testing.T) {
+		// Cutover (themory-gateway-forget-cutover): Forget is now ONE request — a
+		// scope-checked DELETE on the provider — not the old GET-listing + POST.
+		// The provider enforces ownership server-side (cross-scope → 404), so the
+		// gateway drops its O(scope) listAll pre-check.
 		var got *http.Request
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodGet {
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(`{"items":[{"id":"mem-123","text":"x","createdAt":"2026-06-18T00:00:00Z"}]}`))
-				return
-			}
-			buf, _ := io.ReadAll(r.Body)
-			clone := r.Clone(context.Background())
-			clone.Body = io.NopCloser(bytes.NewReader(buf))
-			got = clone
-			w.WriteHeader(http.StatusNoContent)
-		}))
-		t.Cleanup(srv.Close)
-
+		srv := captureServer(t, http.StatusNoContent, "", &got)
 		c := NewClient(srv.URL, "test-key", srv.Client())
 		if err := c.Forget(context.Background(), "user-1", "mem-123", false); err != nil {
 			t.Fatalf("Forget: %v", err)
 		}
-		if got == nil || got.Method != http.MethodPost {
-			t.Fatalf("expected captured POST /v1/forget, got %+v", got)
+		if got == nil || got.Method != http.MethodDelete {
+			t.Fatalf("expected a single captured DELETE, got %+v", got)
+		}
+		if got.URL.Path != "/v1/scopes/user/user-1/memories/mem-123" {
+			t.Fatalf("unexpected delete path: %s", got.URL.Path)
+		}
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Forget propagates ?hard=true for GDPR erasure", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, http.StatusNoContent, "", &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if err := c.Forget(context.Background(), "user-1", "mem-123", true); err != nil {
+			t.Fatalf("Forget hard: %v", err)
+		}
+		if got.URL.Query().Get("hard") != "true" {
+			t.Fatalf("expected ?hard=true, got query %q", got.URL.RawQuery)
 		}
 		validateRequest(t, router, got)
 	})
@@ -281,6 +285,22 @@ func TestThemoryClient_FailureScenarios(t *testing.T) {
 		err := c.Forget(context.Background(), "user-1", "missing", false)
 		if !IsNotFound(err) {
 			t.Fatalf("expected ErrNotFound on 404, got: %v", err)
+		}
+	})
+
+	t.Run("422 (non-UUID memId) maps to *Error (no panic)", func(t *testing.T) {
+		// The provider rejects a non-UUID memId on the scope-checked DELETE with
+		// 422; do() must surface it as a typed *Error, not a panic or ErrNotFound.
+		var got *http.Request
+		srv := captureServer(t, http.StatusUnprocessableEntity, `{"error":"memId must be a UUID"}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		err := c.Forget(context.Background(), "user-1", "not-a-uuid", false)
+		var te *Error
+		if !errors.As(err, &te) {
+			t.Fatalf("expected *themory.Error on 422, got %T: %v", err, err)
+		}
+		if te.StatusCode != http.StatusUnprocessableEntity {
+			t.Errorf("Error.StatusCode = %d, want 422", te.StatusCode)
 		}
 	})
 

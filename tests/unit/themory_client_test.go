@@ -9,8 +9,9 @@
 //   - List   -> GET  /v1/scopes/user/{subject}/memories  (scope-in-path; NO
 //                X-Theo-User-Id header — the real server ignores it)
 //                response: {items:[{id,text,createdAt,metadata}], nextCursor}
-//   - Forget -> ownership pre-check via the listing, then POST /v1/forget
-//                {memoryId}; not-owned -> ErrNotFound WITHOUT touching provider
+//   - Forget -> DELETE /v1/scopes/user/{subject}/memories/{id} (+?hard); the
+//                provider enforces scope ownership (cross-scope -> 404 ->
+//                ErrNotFound); no gateway-side listAll pre-check (cutover)
 //   - Metrics-> total_memories DERIVED by counting the scope (provider has no
 //                metrics endpoint)
 //   - Entities-> empty (provider has no entities endpoint)
@@ -35,8 +36,7 @@ import (
 type recordingServer struct {
 	*httptest.Server
 	listRequests        []*http.Request
-	forgetRequests      []*http.Request
-	forgetBodies        []string
+	deleteRequests      []*http.Request
 	metricsRequests     []*http.Request
 	entitiesRequests    []*http.Request
 	skillsRequests      []*http.Request
@@ -57,7 +57,7 @@ type recordingServer struct {
 	metricsBody map[string]any
 	// entitiesItems is the canned entities array returned by /entities.
 	entitiesItems []map[string]any
-	// forgetStatus is the status returned by POST /v1/forget (default 204).
+	// forgetStatus is the status returned by the DELETE memories endpoint (default 204).
 	forgetStatus int
 }
 
@@ -117,10 +117,8 @@ func newRecordingServer(t *testing.T) *recordingServer {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
-		case r.Method == http.MethodPost && r.URL.Path == "/v1/forget":
-			body, _ := io.ReadAll(r.Body)
-			s.forgetRequests = append(s.forgetRequests, r.Clone(context.Background()))
-			s.forgetBodies = append(s.forgetBodies, string(body))
+		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/memories/"):
+			s.deleteRequests = append(s.deleteRequests, r.Clone(context.Background()))
 			w.WriteHeader(s.forgetStatus)
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -238,50 +236,66 @@ func TestTheMemoryClient_UsesProvidedHTTPClient(t *testing.T) {
 	}
 }
 
-// Forget invariant 1 (IDOR closed): when the id is NOT in the subject's scope,
-// Forget returns ErrNotFound WITHOUT ever calling POST /v1/forget.
+// Forget cutover invariant 1: ownership is now PROVIDER-enforced. A cross-scope
+// id makes the provider's scope-checked DELETE return 404 → ErrNotFound. The
+// gateway no longer pages the scope (no listAll) — it delegates one DELETE.
 func TestTheMemoryClient_ForgetDeniesUnownedMemory(t *testing.T) {
 	stub := newRecordingServer(t)
-	stub.listItems = []map[string]any{item("mem-owned", "mine")}
+	stub.forgetStatus = 404 // provider rejects: id not in this subject's scope
 
 	client := themory.NewClient(stub.URL, "k", nil)
 	err := client.Forget(context.Background(), "victim-subject", "mem-belongs-to-someone-else", false)
 	if !themory.IsNotFound(err) {
-		t.Fatalf("expected ErrNotFound for unowned id, got %v", err)
+		t.Fatalf("expected ErrNotFound for cross-scope id, got %v", err)
 	}
-	if len(stub.forgetRequests) != 0 {
-		t.Errorf("provider forget must NOT be called for an unowned id (IDOR); called %d times", len(stub.forgetRequests))
+	if len(stub.listRequests) != 0 {
+		t.Errorf("cutover: Forget must NOT page the scope (listAll removed); listed %d times", len(stub.listRequests))
+	}
+	if len(stub.deleteRequests) != 1 {
+		t.Errorf("expected exactly 1 delegated DELETE, got %d", len(stub.deleteRequests))
 	}
 }
 
-// Forget invariant 2: an owned id is deleted via POST /v1/forget {memoryId}.
+// Forget cutover invariant 2: an owned id is deleted via a single scope-checked
+// DELETE /v1/scopes/user/{subject}/memories/{id} (no GET listing, no POST body).
 func TestTheMemoryClient_ForgetDeletesOwnedMemory(t *testing.T) {
 	stub := newRecordingServer(t)
-	stub.listItems = []map[string]any{item("mem-owned", "mine")}
 
 	client := themory.NewClient(stub.URL, "owner", nil)
 	if err := client.Forget(context.Background(), "owner-subject", "mem-owned", false); err != nil {
 		t.Fatalf("Forget owned: %v", err)
 	}
-	if len(stub.forgetRequests) != 1 {
-		t.Fatalf("expected 1 forget call, got %d", len(stub.forgetRequests))
+	if len(stub.deleteRequests) != 1 {
+		t.Fatalf("expected 1 delete call, got %d", len(stub.deleteRequests))
 	}
-	var body struct {
-		MemoryID string `json:"memoryId"`
+	gotPath := stub.deleteRequests[0].URL.Path
+	if gotPath != "/v1/scopes/user/owner-subject/memories/mem-owned" {
+		t.Errorf("delete path = %q, want /v1/scopes/user/owner-subject/memories/mem-owned", gotPath)
 	}
-	if err := json.Unmarshal([]byte(stub.forgetBodies[0]), &body); err != nil {
-		t.Fatalf("forget body not JSON: %v", err)
-	}
-	if body.MemoryID != "mem-owned" {
-		t.Errorf("forget body memoryId = %q, want mem-owned", body.MemoryID)
+	if q := stub.deleteRequests[0].URL.Query().Get("hard"); q != "" {
+		t.Errorf("soft forget must not set ?hard, got %q", q)
 	}
 }
 
-// Forget invariant 3: a 404 from the provider on the delegated delete surfaces
-// as ErrNotFound.
+// Forget cutover invariant 3: ?hard=true propagates for GDPR erasure.
+func TestTheMemoryClient_ForgetHardPropagates(t *testing.T) {
+	stub := newRecordingServer(t)
+
+	client := themory.NewClient(stub.URL, "owner", nil)
+	if err := client.Forget(context.Background(), "owner-subject", "mem-owned", true); err != nil {
+		t.Fatalf("Forget hard: %v", err)
+	}
+	if len(stub.deleteRequests) != 1 {
+		t.Fatalf("expected 1 delete call, got %d", len(stub.deleteRequests))
+	}
+	if q := stub.deleteRequests[0].URL.Query().Get("hard"); q != "true" {
+		t.Errorf("hard forget must set ?hard=true, got %q", q)
+	}
+}
+
+// Forget cutover invariant 4: a 404 from the provider surfaces as ErrNotFound.
 func TestTheMemoryClient_ForgetPropagatesProvider404(t *testing.T) {
 	stub := newRecordingServer(t)
-	stub.listItems = []map[string]any{item("mem-owned", "mine")}
 	stub.forgetStatus = 404
 
 	client := themory.NewClient(stub.URL, "k", nil)

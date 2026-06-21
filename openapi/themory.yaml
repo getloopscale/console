@@ -59,6 +59,20 @@ paths:
                     nullable: true
                 additionalProperties: true
 
+  /v1/scopes/{type}/{id}/memories/{memId}:
+    delete:
+      summary: Subject-scoped forget — delete a memory only if it belongs to the scope
+      parameters:
+        - { $ref: "#/components/parameters/Authorization" }
+        - { name: type, in: path, required: true, schema: { type: string, enum: [user, session, agent] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: memId, in: path, required: true, schema: { type: string } }
+        - { name: hard, in: query, required: false, schema: { type: string, enum: ["true"] }, description: "true = GDPR hard erasure (default soft)" }
+      responses:
+        "204": { description: deleted (no content) }
+        "404": { description: not found / cross-scope (existence-leak-safe) }
+        "422": { description: memId is not a UUID }
+
   /v1/scopes/{type}/{id}/metrics:
     get:
       summary: Subject-scoped memory KPIs
