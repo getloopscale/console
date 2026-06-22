@@ -54,6 +54,10 @@ type fakeTheMemory struct {
 	graphResp         *themory.GraphResult
 	graphErr          error
 	lastGraphScope    string
+	episodesResp      *themory.EpisodesResult
+	episodesErr       error
+	lastEpisodesScope string
+	lastEpisodeOpts   themory.EpisodeOptions
 	rememberResp      *themory.RememberResult
 	rememberErr       error
 	recallResp        *themory.RecallResult
@@ -485,12 +489,78 @@ func (f *fakeTheMemory) Graph(_ context.Context, userID, scope string) (*themory
 	return f.graphResp, f.graphErr
 }
 
+// Episodes — episodes-gateway-dashboard. Mirrors Entities.
+func (f *fakeTheMemory) Episodes(_ context.Context, userID, scope string, opts themory.EpisodeOptions) (*themory.EpisodesResult, error) {
+	f.lastUserID = userID
+	f.lastEpisodesScope = scope
+	f.lastEpisodeOpts = opts
+	return f.episodesResp, f.episodesErr
+}
+
 func TestMemoryEntities_RejectsUnauthenticated(t *testing.T) {
 	h, _ := newMemoryHandler(t)
 	rec := httptest.NewRecorder()
 	h.Entities(rec, httptest.NewRequest("GET", "/v1/memory/entities?scope=user", nil))
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+// episodes-gateway-dashboard — MemoryHandler.Episodes mirrors Entities.
+func TestMemoryEpisodes_RejectsUnauthenticated(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.Episodes(rec, httptest.NewRequest("GET", "/v1/memory/episodes?scope=user", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestMemoryEpisodes_InvalidScopeReturns400(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	req := authedRequest("GET", "/v1/memory/episodes", &auth.UserContext{Subject: "u", TenantID: "t"})
+	req.URL.RawQuery = "scope=" + url.QueryEscape("User")
+	h.Episodes(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if fake.lastEpisodesScope != "" {
+		t.Errorf("client called before whitelist check — gate violated")
+	}
+}
+
+func TestMemoryEpisodes_InvalidLimitReturns400(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	req := authedRequest("GET", "/v1/memory/episodes", &auth.UserContext{Subject: "u", TenantID: "t"})
+	req.URL.RawQuery = "scope=user&limit=notanint"
+	h.Episodes(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for bad limit, got %d", rec.Code)
+	}
+}
+
+func TestMemoryEpisodes_HappyPathForwardsOptsAndReturnsItems(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	cur := "CUR1"
+	fake.episodesResp = &themory.EpisodesResult{
+		Items:      []themory.EpisodeItem{{ID: "ep-1", Text: "moved to Lisbon", ScopeType: "user", CreatedAt: "2026-06-22T10:00:00.000Z"}},
+		NextCursor: &cur,
+	}
+	rec := httptest.NewRecorder()
+	req := authedRequest("GET", "/v1/memory/episodes", &auth.UserContext{Subject: "u", TenantID: "t"})
+	req.URL.RawQuery = "scope=user&limit=2&order=desc&after=PREV&asOf=2026-06-22T11:00:00Z&q=Lisbon"
+	h.Episodes(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastEpisodeOpts.Limit != 2 || fake.lastEpisodeOpts.Order != "desc" ||
+		fake.lastEpisodeOpts.After != "PREV" || fake.lastEpisodeOpts.AsOf == "" || fake.lastEpisodeOpts.Query != "Lisbon" {
+		t.Fatalf("opts not forwarded: %+v", fake.lastEpisodeOpts)
+	}
+	if !strings.Contains(rec.Body.String(), "moved to Lisbon") || !strings.Contains(rec.Body.String(), "CUR1") {
+		t.Fatalf("body missing item/cursor: %s", rec.Body.String())
 	}
 }
 

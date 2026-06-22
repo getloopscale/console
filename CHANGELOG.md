@@ -92,6 +92,7 @@ Format: Keep a Changelog + Semantic Versioning.
   Wire contract change in sibling theo commit (`*time.Time` + `omitempty`).
 
 ### Added
+- Episodes timeline (episodes-gateway-dashboard): proxies TheMemory v0.14.0's `GET /v1/scopes/{type}/{id}/episodes` through the gateway — `GET /v1/memory/episodes` (SDK, `memory:read`) + `GET /v1/dashboard/memory/episodes` (BFF) — forwarding cursor/order/asOf/text-filter params. New dashboard "Episodes" tab: a cursor-paginated, bi-temporal-aware (`asOf` replay) event timeline over the subject's memories with newest/oldest toggle and literal text filter. Shared-key D3 rule (scope≠user → empty page). (episodes-gateway-dashboard)
 
 ### Changed
 

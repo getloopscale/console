@@ -208,6 +208,36 @@ type GraphResult struct {
 	Edges []GraphEdge `json:"edges"`
 }
 
+// EpisodeItem is one row of the episodic / message-log read surface
+// (TheMemory v0.14.0 GET /v1/scopes/{type}/{id}/episodes). A temporal projection
+// of a memory: id + text + the scope tier + created_at + flat metadata.
+type EpisodeItem struct {
+	ID        string         `json:"id"`
+	Text      string         `json:"text"`
+	ScopeType string         `json:"scope_type"`
+	CreatedAt string         `json:"created_at"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+}
+
+// EpisodesResult is the GET /episodes response shape: one cursor-paginated page.
+// NextCursor is non-nil only when more rows follow in the active order.
+type EpisodesResult struct {
+	Items      []EpisodeItem `json:"items"`
+	NextCursor *string       `json:"nextCursor,omitempty"`
+}
+
+// EpisodeOptions are the cursor/order/asOf/text-filter knobs forwarded to the
+// provider's episodes endpoint. All optional; an empty value is omitted from the
+// query (mirrors ListOptions). At most one of After/Before is honored upstream.
+type EpisodeOptions struct {
+	After  string
+	Before string
+	Limit  int
+	Order  string // "asc" | "desc"
+	AsOf   string // ISO-8601 instant for bi-temporal replay
+	Query  string // literal partial-text filter (NOT semantic)
+}
+
 // Skill is one row of a repo's read-only skill listing
 // (dashboard-phase2b-skills-browse). Mirrors the TheMemory
 // GET /v1/scopes/skill/{repoId}/skills DTO.
@@ -431,6 +461,49 @@ func (c *Client) Entities(ctx context.Context, userID, scope string) (*EntitiesR
 	}
 	if out.Entities == nil {
 		out.Entities = []Entity{}
+	}
+	return &out, nil
+}
+
+// Episodes returns one cursor-paginated page of the subject's episodic /
+// message-log read surface from the provider's real
+// `GET /v1/scopes/user/{subject}/episodes` (TheMemory v0.14.0). A temporal,
+// bi-temporal-aware (asOf) projection of the subject's memories — distinct from
+// the flat List (semantic-free, cursor-paged, order + text filter).
+//
+// Same shared-key rule as Entities/Graph (D3): scope!="user" → empty page (no
+// sub-subject exists for the customer) — honest, not an error. Items is always a
+// non-nil slice (the dashboard never sees null).
+func (c *Client) Episodes(ctx context.Context, userID, scope string, opts EpisodeOptions) (*EpisodesResult, error) {
+	if scope != "" && scope != "user" {
+		return &EpisodesResult{Items: []EpisodeItem{}}, nil
+	}
+	q := url.Values{}
+	if opts.After != "" {
+		q.Set("after", opts.After)
+	}
+	if opts.Before != "" {
+		q.Set("before", opts.Before)
+	}
+	if opts.Limit > 0 {
+		q.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	if opts.Order != "" {
+		q.Set("order", opts.Order)
+	}
+	if opts.AsOf != "" {
+		q.Set("asOf", opts.AsOf)
+	}
+	if opts.Query != "" {
+		q.Set("q", opts.Query)
+	}
+	var out EpisodesResult
+	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/episodes"
+	if err := c.do(ctx, http.MethodGet, path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Items == nil {
+		out.Items = []EpisodeItem{}
 	}
 	return &out, nil
 }

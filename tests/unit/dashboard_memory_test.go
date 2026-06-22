@@ -41,6 +41,7 @@ type fakeMemoryClient struct {
 	forgetCalled      bool
 	entitiesCalled    bool
 	graphCalled       bool
+	episodesCalled    bool
 	rememberCalled    bool
 	recallCalled      bool
 	reflectCalled     bool
@@ -73,6 +74,10 @@ func (f *fakeMemoryClient) Graph(_ context.Context, _, _ string) (*themory.Graph
 		Nodes: []themory.GraphNode{{ID: "John Smith", ScopeType: "user", MemoryCount: 1}},
 		Edges: []themory.GraphEdge{{Source: "John Smith", Relation: "works at", Target: "Google", MemoryCount: 1}},
 	}, nil
+}
+func (f *fakeMemoryClient) Episodes(_ context.Context, _, _ string, _ themory.EpisodeOptions) (*themory.EpisodesResult, error) {
+	f.episodesCalled = true
+	return &themory.EpisodesResult{Items: []themory.EpisodeItem{{ID: "ep-1", Text: "moved to Lisbon", ScopeType: "user", CreatedAt: "2026-06-22T10:00:00.000Z"}}}, nil
 }
 func (f *fakeMemoryClient) Remember(_ context.Context, _, text string, _ themory.RememberOptions) (*themory.RememberResult, error) {
 	f.rememberCalled = true
@@ -228,6 +233,20 @@ func TestDashboardMemory_Entities_MirrorsListPattern(t *testing.T) {
 	}
 }
 
+func TestDashboardMemory_Episodes_MirrorsListPattern(t *testing.T) {
+	dash, fc, mock := newDashHandler(t)
+	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`INSERT INTO theo_api_keys`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("bff-mocked-id"))
+	r := httptest.NewRequest("GET", "/v1/dashboard/memory/episodes?scope=user&limit=2&order=desc", nil)
+	r = r.WithContext(jwtCtx(r.Context(), "user-A", "tenant-1"))
+	w := httptest.NewRecorder()
+	dash.Episodes(w, r)
+	if w.Code != http.StatusOK || !fc.episodesCalled {
+		t.Fatalf("episodes fail: code=%d called=%v", w.Code, fc.episodesCalled)
+	}
+}
+
 func TestDashboardMemory_Remember_MintsThenDelegates(t *testing.T) {
 	dash, fc, mock := newDashHandler(t)
 	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnResult(sqlmock.NewResult(0, 0))
@@ -315,6 +334,7 @@ func TestDashboardMemory_ResponseNeverContainsTheoLiveSubstring_SECURITY_GATE(t 
 		{"metrics", "GET", "/v1/dashboard/memory/metrics", (*routes.DashboardMemoryHandler).Metrics},
 		{"entities", "GET", "/v1/dashboard/memory/entities?scope=user", (*routes.DashboardMemoryHandler).Entities},
 		{"graph", "GET", "/v1/dashboard/memory/graph?scope=user", (*routes.DashboardMemoryHandler).Graph},
+		{"episodes", "GET", "/v1/dashboard/memory/episodes?scope=user", (*routes.DashboardMemoryHandler).Episodes},
 	}
 	for _, sc := range scenarios {
 		t.Run(sc.name, func(t *testing.T) {

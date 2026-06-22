@@ -263,6 +263,39 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		}
 	})
 
+	t.Run("Episodes hits the scope episodes endpoint + maps items + nextCursor", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"items":[{"id":"m1","text":"moved to Lisbon","scope_type":"user","created_at":"2026-06-22T10:00:00.000Z","metadata":{}}],"nextCursor":"CUR1"}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		res, err := c.Episodes(context.Background(), "user-1", "user", EpisodeOptions{Limit: 2, Order: "desc", After: "PREV", AsOf: "2026-06-22T11:00:00Z", Query: "Lisbon"})
+		if err != nil {
+			t.Fatalf("Episodes: %v", err)
+		}
+		if len(res.Items) != 1 || res.Items[0].ID != "m1" || res.Items[0].Text != "moved to Lisbon" {
+			t.Fatalf("Episodes item mapping wrong: %+v", res.Items)
+		}
+		if res.NextCursor == nil || *res.NextCursor != "CUR1" {
+			t.Fatalf("Episodes nextCursor mapping wrong: %+v", res.NextCursor)
+		}
+		// query params forwarded
+		gq := got.URL.Query()
+		if gq.Get("limit") != "2" || gq.Get("order") != "desc" || gq.Get("after") != "PREV" || gq.Get("asOf") == "" || gq.Get("q") != "Lisbon" {
+			t.Fatalf("Episodes query not forwarded: %s", got.URL.RawQuery)
+		}
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Episodes non-user scope returns empty without HTTP call", func(t *testing.T) {
+		c := NewClient("http://unused.invalid", "test-key", http.DefaultClient)
+		res, err := c.Episodes(context.Background(), "user-1", "session", EpisodeOptions{})
+		if err != nil {
+			t.Fatalf("Episodes(session): %v", err)
+		}
+		if res.Items == nil || len(res.Items) != 0 || res.NextCursor != nil {
+			t.Fatalf("Episodes(session) should be empty non-nil with no cursor: %+v", res)
+		}
+	})
+
 	t.Run("List threads from/to (ADR D3)", func(t *testing.T) {
 		var got *http.Request
 		srv := captureServer(t, 200, `{"items":[]}`, &got)
