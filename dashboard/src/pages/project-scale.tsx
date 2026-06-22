@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Alert, Button, Card, PageShell } from '@usetheo/ui';
@@ -6,10 +6,15 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useScale } from '@/hooks/use-scale';
 import { useScaleCost } from '@/hooks/use-scale-cost';
+import { useCloudApi } from '@/hooks/use-api';
 import { ScaleSlider } from '@/components/scale/scale-slider';
 import { HPAToggle, type HPAMode } from '@/components/scale/hpa-toggle';
 import { KEDAToggle } from '@/components/scale/keda-toggle';
 import { ScaleConfirmDialog } from '@/components/scale/scale-confirm-dialog';
+
+interface BillingPlanResponse {
+  plan: string;
+}
 
 // Until the project status endpoint surfaces the current scaling config,
 // derive the initial state from a conservative default. The first
@@ -57,9 +62,24 @@ export function ProjectScalePage() {
   const [kedaEnabled, setKedaEnabled] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Until the page bootstraps from /v1/projects/:name/status, assume the
-  // conservative defaults — the FIRST save response rehydrates these.
+  // Initial tier from /v1/billing (tenant-scoped). Until 2026-06-22 the
+  // page only rehydrated tier from the Apply-scale mutation response, so
+  // a freshly-loaded Scale page always rendered the "starter" ceiling
+  // even when the engine had the tenant resolved as team/pro. Issue #123
+  // (qa-dogfood-cleanup-2026-06-21). The mutation response still wins
+  // post-save (server-authoritative per ADR D1 EC-2); the billing read
+  // only seeds the pre-save UI so the slider ceiling reflects reality.
+  const { data: billing } = useCloudApi<BillingPlanResponse>('/v1/billing');
   const [resolvedPlanTier, setResolvedPlanTier] = useState('starter');
+  useEffect(() => {
+    if (billing?.plan && billing.plan !== resolvedPlanTier) {
+      setResolvedPlanTier(billing.plan);
+    }
+    // resolvedPlanTier intentionally excluded from deps so a post-save
+    // mutation response (which sets a different tier echo via the engine)
+    // does not get clobbered by a stale billing read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billing?.plan]);
   const [clusterKedaInstalled] = useState(true);
   const [currentReplicas, setCurrentReplicas] = useState(
     DEFAULT_CURRENT_REPLICAS,

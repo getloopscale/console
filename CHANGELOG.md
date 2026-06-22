@@ -43,6 +43,15 @@ Format: Keep a Changelog + Semantic Versioning.
       audit at `lib/env-terminology.test.ts` with anchored EC-1 regex
       (`(availableEnvs|defaultEnvs)\s*[:=].*['"]staging['"]`) so generic test
       fixtures + dev-mocks data do not false-positive.
+    - (#123) `pages/project-scale.tsx` initial `resolvedPlanTier` now seeds
+      from `/v1/billing.plan` on page load via `useCloudApi`. Until this fix
+      the Scale page always rendered the "starter" ceiling on first paint
+      because tier only rehydrated from the Apply-scale mutation response
+      (server-authoritative per ADR D1 EC-2). The mutation response still
+      wins post-save; the billing read only seeds the pre-save UI so the
+      slider ceiling reflects the engine's resolved tenant tier. Type-check
+      clean; `pages.smoke.test.ts > exports ProjectScalePage` ✓ 117ms
+      isolated.
   Wire contract change in sibling theo commit (`*time.Time` + `omitempty`).
 
 ### Added
