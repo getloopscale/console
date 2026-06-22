@@ -226,16 +226,23 @@ export function OverviewPage() {
                       // which contradicts the hero/list state when releases
                       // are absent. Fallback 'queued' preserves prior shape
                       // when older backends omit the field.
-                      // Map backend ProjectStatus ('idle' included) to the
-                      // UI DeploymentStatus enum (no 'idle' — collapse to
-                      // 'queued' which renders "Queued" / pending first deploy).
+                      // Map backend ProjectStatus to UI DeploymentStatus enum
+                      // (no 'idle' in @usetheo/ui — collapse to 'cancelled'
+                      // which renders muted/gray rather than amber-pulsing
+                      // 'queued'. QA #119 round 2 caught the wrong visual
+                      // intent: 'queued' suggests "deploy in progress"
+                      // when reality is "never deployed". 'cancelled' is
+                      // the closest neutral tone available in the current
+                      // UI lib. Upstream fix: extend DeploymentStatus
+                      // with 'idle' — tracked separately.)
                       status: (p.last_deploy_status === 'idle'
-                        ? 'queued'
-                        : (p.last_deploy_status ?? 'queued')) as
+                        ? 'cancelled'
+                        : (p.last_deploy_status ?? 'cancelled')) as
                         | 'queued'
                         | 'building'
                         | 'live'
-                        | 'failed',
+                        | 'failed'
+                        | 'cancelled',
                       // Zero-time guard (#118 T3.1): backend now serializes
                       // *time.Time omitempty so absent → undefined here;
                       // isZeroTime catches legacy zero-literal regress.
