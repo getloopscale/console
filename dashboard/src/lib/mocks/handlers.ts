@@ -627,7 +627,7 @@ function registerAuditHandlers() {
     const actor = url.searchParams.get('actor');
     let entries = auditEntriesFixture;
     if (action) entries = entries.filter((e) => e.action.startsWith(action));
-    if (actor) entries = entries.filter((e) => e.actor_email.includes(actor));
+    if (actor) entries = entries.filter((e) => (e.actor ?? e.actor_email ?? '').includes(actor));
     const body: AuditListResponse = { entries, total: entries.length };
     return Response.json(body);
   });

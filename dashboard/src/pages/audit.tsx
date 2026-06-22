@@ -188,23 +188,30 @@ export function AuditPage() {
                 <Table.Row key={e.id ? e.id : `idx:${idx}`}>
                   <Table.Cell>
                     <span className="font-mono text-label text-muted-foreground tabular-nums">
-                      {formatDate(e.ts, 'relative')}
+                      {/* QA Run-3 #126: wire shape canonical is
+                          `timestamp` (per api/internal/domain/types.go
+                          AuditEntryResult json:"timestamp"); legacy
+                          `ts` alias kept as fallback. */}
+                      {formatDate(e.timestamp || e.ts, 'relative')}
                     </span>
                   </Table.Cell>
                   <Table.Cell>
                     <span className="text-body-sm text-foreground">
-                      {/* #126: ACTOR fallback per ADR-Q4 — show explicit
-                          "[unknown]" when actor metadata is absent
-                          rather than rendering empty string which renders
-                          as "—" identical to WHEN missing. */}
-                      {e.actor_email || '[unknown]'}
+                      {/* QA Run-3 #126: wire shape is `actor` (email
+                          or system identifier); legacy `actor_email`
+                          kept as fallback. Explicit "[unknown]" when
+                          truly absent (distinct from WHEN missing). */}
+                      {e.actor || e.actor_email || '[unknown]'}
                     </span>
-                    <Badge
-                      variant="outline"
-                      className="ml-2 text-label uppercase"
-                    >
-                      {e.actor_kind}
-                    </Badge>
+                    {(e.actor_kind || (e.actor && e.actor.includes('@'))) && (
+                      <Badge
+                        variant="outline"
+                        className="ml-2 text-label uppercase"
+                      >
+                        {/* Derive actor_kind: emails → user, else system. */}
+                        {e.actor_kind ?? (e.actor && e.actor.includes('@') ? 'user' : 'system')}
+                      </Badge>
+                    )}
                   </Table.Cell>
                   <Table.Cell>
                     <span className="font-mono text-label text-foreground">
@@ -233,15 +240,23 @@ export function AuditPage() {
                     )}
                   </Table.Cell>
                   <Table.Cell align="right">
-                    <Badge
-                      variant={SEVERITY_BADGE[e.severity]}
-                      className="text-label uppercase"
-                    >
-                      {e.severity === 'critical' && (
-                        <ShieldAlert className="size-3 mr-1" aria-hidden="true" />
-                      )}
-                      {e.severity}
-                    </Badge>
+                    {/* QA Run-3 #126: backend wire shape lacks `severity`
+                        today; render 'info' default until upstream
+                        domain.AuditEntryResult adds the field. */}
+                    {(() => {
+                      const sev = e.severity ?? 'info';
+                      return (
+                        <Badge
+                          variant={SEVERITY_BADGE[sev]}
+                          className="text-label uppercase"
+                        >
+                          {sev === 'critical' && (
+                            <ShieldAlert className="size-3 mr-1" aria-hidden="true" />
+                          )}
+                          {sev}
+                        </Badge>
+                      );
+                    })()}
                   </Table.Cell>
                 </Table.Row>
               ))}

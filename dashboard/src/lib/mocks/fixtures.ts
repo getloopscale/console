@@ -305,6 +305,8 @@ export function makeProjectConnection(project: string): ProjectConnection {
 export const auditEntriesFixture: AuditEntry[] = [
   {
     id: 'aud-001',
+    actor: 'paulo@usetheo.dev',
+    timestamp: '2026-05-26T06:42:00Z',
     ts: '2026-05-26T06:42:00Z',
     actor_email: 'paulo@usetheo.dev',
     actor_kind: 'user',
@@ -315,6 +317,8 @@ export const auditEntriesFixture: AuditEntry[] = [
   },
   {
     id: 'aud-002',
+    actor: 'alice@acme.com',
+    timestamp: '2026-05-26T05:30:00Z',
     ts: '2026-05-26T05:30:00Z',
     actor_email: 'alice@acme.com',
     actor_kind: 'user',
@@ -325,6 +329,8 @@ export const auditEntriesFixture: AuditEntry[] = [
   },
   {
     id: 'aud-003',
+    actor: 'bob@acme.com',
+    timestamp: '2026-05-25T18:13:42Z',
     ts: '2026-05-25T18:13:42Z',
     actor_email: 'bob@acme.com',
     actor_kind: 'user',
