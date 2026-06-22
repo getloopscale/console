@@ -5,6 +5,23 @@ Format: Keep a Changelog + Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+- (#119 canonical end-to-end) Bump `@usetheo/ui` 0.13.0 → 0.13.1 +
+  `overview.tsx` now passes `'idle'` directly to the ProjectCard
+  `status` prop. The published `@usetheo/ui@0.13.1` (mirror of
+  `@theokit/ui@0.18.0` from `usetheodev/theo-ui` PR #16 / merge
+  commit `a3719c0`) adds `'idle'` to the canonical
+  `DeploymentStatus` union with neutral gray variant + dot tone +
+  "Idle" label. Replaces the 2026-06-18 stopgap that collapsed
+  backend `'idle'` to `'cancelled'` because the UI lib didn't
+  expose it. Projects that have never deployed now render with a
+  neutral Idle badge — visually distinguished from amber-pulsing
+  `'queued'` ("deploy in progress") AND from `'cancelled'`
+  ("explicitly stopped"). Closes #119 of
+  `qa-dogfood-cleanup-2026-06-21` end-to-end: canonical surface
+  ships at `theo-ui` source + LIVE reaches dev-public via npm
+  publish + dashboard bump.
+
 ### Fixed
 - `qa-dogfood-cleanup-2026-06-21` — dashboard slice closing 7 of 11 issues from the
   2026-06-21 QA dogfooding run against `https://app-dev.usetheo.dev`:

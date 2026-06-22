@@ -227,22 +227,21 @@ export function OverviewPage() {
                       // are absent. Fallback 'queued' preserves prior shape
                       // when older backends omit the field.
                       // Map backend ProjectStatus to UI DeploymentStatus enum
-                      // (no 'idle' in @usetheo/ui — collapse to 'cancelled'
-                      // which renders muted/gray rather than amber-pulsing
-                      // 'queued'. QA #119 round 2 caught the wrong visual
-                      // intent: 'queued' suggests "deploy in progress"
-                      // when reality is "never deployed". 'cancelled' is
-                      // the closest neutral tone available in the current
-                      // UI lib. Upstream fix: extend DeploymentStatus
-                      // with 'idle' — tracked separately.)
-                      status: (p.last_deploy_status === 'idle'
-                        ? 'cancelled'
-                        : (p.last_deploy_status ?? 'cancelled')) as
+                      // @usetheo/ui@0.13.1 / @theokit/ui@0.18.0 added
+                      // 'idle' to DeploymentStatus — projects that have
+                      // never deployed now render with a neutral gray
+                      // badge + "Idle" label (vs the prior stopgap that
+                      // collapsed 'idle' to 'cancelled'). Distinguishes
+                      // from amber-pulsing 'queued' (deploy in progress).
+                      // Closes #119 canonical end-to-end (qa-dogfood-
+                      // cleanup-2026-06-21).
+                      status: (p.last_deploy_status ?? 'idle') as
                         | 'queued'
                         | 'building'
                         | 'live'
                         | 'failed'
-                        | 'cancelled',
+                        | 'cancelled'
+                        | 'idle',
                       // Zero-time guard (#118 T3.1): backend now serializes
                       // *time.Time omitempty so absent → undefined here;
                       // isZeroTime catches legacy zero-literal regress.
