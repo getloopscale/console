@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Alert, Button, Card, PageShell } from '@usetheo/ui';
@@ -6,15 +6,10 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useScale } from '@/hooks/use-scale';
 import { useScaleCost } from '@/hooks/use-scale-cost';
-import { useCloudApi } from '@/hooks/use-api';
 import { ScaleSlider } from '@/components/scale/scale-slider';
 import { HPAToggle, type HPAMode } from '@/components/scale/hpa-toggle';
 import { KEDAToggle } from '@/components/scale/keda-toggle';
 import { ScaleConfirmDialog } from '@/components/scale/scale-confirm-dialog';
-
-interface BillingPlanResponse {
-  plan: string;
-}
 
 // Until the project status endpoint surfaces the current scaling config,
 // derive the initial state from a conservative default. The first
@@ -62,24 +57,19 @@ export function ProjectScalePage() {
   const [kedaEnabled, setKedaEnabled] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Initial tier from /v1/billing (tenant-scoped). Until 2026-06-22 the
-  // page only rehydrated tier from the Apply-scale mutation response, so
-  // a freshly-loaded Scale page always rendered the "starter" ceiling
-  // even when the engine had the tenant resolved as team/pro. Issue #123
-  // (qa-dogfood-cleanup-2026-06-21). The mutation response still wins
-  // post-save (server-authoritative per ADR D1 EC-2); the billing read
-  // only seeds the pre-save UI so the slider ceiling reflects reality.
-  const { data: billing } = useCloudApi<BillingPlanResponse>('/v1/billing');
+  // Known stopgap (#123 / #142 follow-up): the initial render assumes
+  // 'starter' tier until the FIRST Apply-scale mutation echoes the
+  // engine-resolved tier via res.plan_tier. There is no engine GET
+  // endpoint that exposes the resolved tier (only POST /scale carries
+  // it in the response), and /v1/billing on the cloud BFF is 404
+  // pending Known Gap #116 (billing read-side incomplete). Engine
+  // enforcement is correct (POST /scale with replicas=3 succeeds on a
+  // team-tier tenant — the slider ceiling is only a UX hint, not a
+  // gate). The canonical fix requires extending engine
+  // GET /api/v1/projects/{name}/status with plan_tier OR exposing a
+  // dedicated GET /api/v1/scale read endpoint — tracked as #142
+  // (T2 engine change per pre-release-governance, requires meeting).
   const [resolvedPlanTier, setResolvedPlanTier] = useState('starter');
-  useEffect(() => {
-    if (billing?.plan && billing.plan !== resolvedPlanTier) {
-      setResolvedPlanTier(billing.plan);
-    }
-    // resolvedPlanTier intentionally excluded from deps so a post-save
-    // mutation response (which sets a different tier echo via the engine)
-    // does not get clobbered by a stale billing read.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [billing?.plan]);
   const [clusterKedaInstalled] = useState(true);
   const [currentReplicas, setCurrentReplicas] = useState(
     DEFAULT_CURRENT_REPLICAS,

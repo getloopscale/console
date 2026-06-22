@@ -43,15 +43,22 @@ Format: Keep a Changelog + Semantic Versioning.
       audit at `lib/env-terminology.test.ts` with anchored EC-1 regex
       (`(availableEnvs|defaultEnvs)\s*[:=].*['"]staging['"]`) so generic test
       fixtures + dev-mocks data do not false-positive.
-    - (#123) `pages/project-scale.tsx` initial `resolvedPlanTier` now seeds
-      from `/v1/billing.plan` on page load via `useCloudApi`. Until this fix
-      the Scale page always rendered the "starter" ceiling on first paint
-      because tier only rehydrated from the Apply-scale mutation response
-      (server-authoritative per ADR D1 EC-2). The mutation response still
-      wins post-save; the billing read only seeds the pre-save UI so the
-      slider ceiling reflects the engine's resolved tenant tier. Type-check
-      clean; `pages.smoke.test.ts > exports ProjectScalePage` ✓ 117ms
-      isolated.
+    - (#123) **REVERT of 2026-06-22 fix** — the earlier attempt to seed
+      `resolvedPlanTier` from `useCloudApi('/v1/billing')` was wrong: the
+      `/v1/billing` route on the cloud BFF is 404 pending Known Gap #116
+      (billing read-side incomplete). QA caught LIVE 2026-06-22 — the
+      Scale page still rendered "starter" because the fallback default
+      survives a 404 fetch. **Honest status:** there is no engine GET
+      endpoint exposing the resolved `plan_tier` (only POST
+      `/api/v1/projects/{name}/scale` carries it in the response).
+      Reverted to the pre-fix stopgap (initial='starter', mutation echo
+      rehydrates) and opened **#142** to extend either
+      `GET /api/v1/projects/{name}/status` with `plan_tier` OR a
+      dedicated `GET /api/v1/scale` read endpoint — T2 engine change per
+      pre-release-governance (requires meeting). Engine enforcement is
+      already correct (`POST /scale` with replicas=3 succeeds on a team
+      tenant); the slider ceiling is a UX hint, not a gate. QA may flag
+      the visible "starter" label as known stopgap.
   Wire contract change in sibling theo commit (`*time.Time` + `omitempty`).
 
 ### Added
