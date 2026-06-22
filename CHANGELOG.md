@@ -6,6 +6,22 @@ Format: Keep a Changelog + Semantic Versioning.
 ## [Unreleased]
 
 ### Changed
+- **Card border visual consistency (canonical end-to-end).** Bump
+  `@usetheo/ui` 0.13.1 → 0.13.2 (mirror of `@theokit/ui@0.18.1` from
+  `usetheodev/theo-ui` PR #17 / merge commit `65496a0`). The upstream
+  PR fixed a long-standing inconsistency: the `Card` primitive used
+  `border` alone (no token suffix), which fell back to the browser's
+  user-agent stylesheet `currentColor` in Tailwind v4 — rendering a
+  visible light/white border against the violet-forge dark theme.
+  `UsageMeter` was the only canonical-correct surface, using
+  `border border-border` (semantic token via `--color-border`).
+  QA caught this on theo-cloud dev-public Overview screen: USAGE card
+  had no white border, but Projects + Quick actions did. Upstream
+  patched 14 components (`Card` primitive + 13 composites including
+  `ProjectCard`, `PreviewEnvCard`, `EnvVarEditor`, etc.) to use
+  `border border-border` consistently. Affects every Card-based surface
+  across the dashboard — no dashboard source change required; pure
+  npm bump.
 - (#119 canonical end-to-end) Bump `@usetheo/ui` 0.13.0 → 0.13.1 +
   `overview.tsx` now passes `'idle'` directly to the ProjectCard
   `status` prop. The published `@usetheo/ui@0.13.1` (mirror of

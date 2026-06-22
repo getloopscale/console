@@ -69,7 +69,7 @@
     "@tanstack/react-query-devtools": "^5.100.14",
     "@tanstack/react-virtual": "^3.13.26",
     "@types/canvas-confetti": "^1.9.0",
-    "@usetheo/ui": "^0.13.1",
+    "@usetheo/ui": "^0.13.2",
     "ansi-to-html": "^0.7.2",
     "canvas-confetti": "^1.9.4",
     "cmdk": "^1.1.1",
