@@ -130,6 +130,7 @@ export function DeploymentDetailLayout() {
       <div className="mb-6 space-y-4">
         <BuildHeader
           build={build}
+          projectName={name}
           onCancel={handleCancel}
           onRollback={handleRollback}
           onRedeploy={handleRedeploy}

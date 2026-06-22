@@ -611,15 +611,25 @@ export interface BillingPortalResponse {
 // ============================================================================
 
 export interface AuditEntry {
-  id: string;
-  ts: string;
-  actor_email: string;
-  actor_kind: AuditActorKind;
-  action: string;             // e.g., "project.create", "team.member.remove"
-  resource_type?: string;     // e.g., "project", "team", "secret"
+  // Wire shape per api/internal/domain/types.go AuditEntryResult.
+  // Legacy aliases (`ts`, `actor_email`, `actor_kind`, `id`,
+  // `severity`) remain optional for forward-compat with backends that
+  // emit them, but consumers MUST read the canonical fields below
+  // first per QA Run-3 #126.
+  action: string;
+  resource_type?: string;
   resource_id?: string;
-  severity: AuditSeverity;
+  actor: string;              // canonical (email OR system identifier)
+  timestamp: string;          // canonical (ISO from CreatedAt)
+  correlation_id?: string;
   metadata?: Record<string, unknown>;
+
+  // Legacy aliases — backend MAY add these later for richer UX.
+  id?: string;
+  ts?: string;
+  actor_email?: string;
+  actor_kind?: AuditActorKind;
+  severity?: AuditSeverity;
 }
 
 export type AuditActorKind = 'user' | 'system' | 'admin' | 'api';

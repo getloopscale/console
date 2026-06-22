@@ -28,15 +28,18 @@ beforeEach(() => {
 
 describe('AddSecretSheet — J-22 T3.2', () => {
   it('test_default_envs_preselected_d4', () => {
+    // Canonical PaaS lexicon (ADR-Q6 of qa-dogfood-cleanup-2026-06-21):
+    // preview + production are the two permanent envs (legacy `staging`
+    // was off-model per #127).
     render(
       <Wrapper>
-        <AddSecretSheet open onOpenChange={vi.fn()} defaultEnvs={['production', 'staging']} />
+        <AddSecretSheet open onOpenChange={vi.fn()} defaultEnvs={['preview', 'production']} />
       </Wrapper>,
     );
     const prod = screen.getByLabelText('Scope to production') as HTMLInputElement;
-    const stg = screen.getByLabelText('Scope to staging') as HTMLInputElement;
+    const prev = screen.getByLabelText('Scope to preview') as HTMLInputElement;
     expect(prod.checked).toBe(true);
-    expect(stg.checked).toBe(true);
+    expect(prev.checked).toBe(true);
   });
 
   it('test_invalid_key_shows_error_no_post', async () => {
@@ -63,7 +66,7 @@ describe('AddSecretSheet — J-22 T3.2', () => {
           open
           onOpenChange={onOpenChange}
           defaultEnvs={['production']}
-          availableEnvs={['production', 'staging']}
+          availableEnvs={['preview', 'production']}
           project="teste"
           onCreated={onCreated}
         />
@@ -71,7 +74,7 @@ describe('AddSecretSheet — J-22 T3.2', () => {
     );
     fireEvent.change(screen.getByLabelText(/^Key$/i), { target: { value: 'API_KEY' } });
     fireEvent.change(screen.getByLabelText(/^Value$/i), { target: { value: 'sk_live_x' } });
-    fireEvent.click(screen.getByLabelText('Scope to staging')); // add staging too
+    fireEvent.click(screen.getByLabelText('Scope to preview')); // add preview too
 
     fireEvent.click(screen.getByRole('button', { name: /add secret/i }));
 
@@ -86,7 +89,7 @@ describe('AddSecretSheet — J-22 T3.2', () => {
     expect(body.secrets).toHaveLength(1);
     expect(body.secrets[0].name).toBe('API_KEY');
     expect(body.secrets[0].value).toBe('sk_live_x');
-    expect(body.secrets[0].envs).toEqual(['production', 'staging']);
+    expect(body.secrets[0].envs).toEqual(['production', 'preview']);
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(onCreated).toHaveBeenCalled();

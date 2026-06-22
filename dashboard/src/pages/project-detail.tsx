@@ -10,7 +10,7 @@ import { LiveUrlHero } from '@/components/project/live-url-hero';
 import { ProjectHealthCard } from '@/components/project/project-health-card';
 import { engineFetch } from '@/lib/api';
 import { normalizeBuildStatus } from '@/lib/api/types';
-import { formatDate } from '@/lib/format';
+import { formatDate, isZeroTime } from '@/lib/format';
 import { useState } from 'react';
 
 /**
@@ -127,7 +127,15 @@ export function ProjectDetailPage() {
   const appsFromBuild = latestSuccessful?.apps ?? latestBuild?.apps ?? [];
   const appsCount = project.apps_count ?? appsFromBuild.length;
   const framework = project.latest_framework || appsFromBuild[0]?.type;
-  const lastDeployAt = project.last_deploy ?? latestBuild?.created_at;
+  // Zero-time guard (#118, qa-dogfood-cleanup-2026-06-21 T3.1): the
+  // Go backend used to emit `"0001-01-01T00:00:00Z"` for projects with
+  // no builds — truthy in JS so `??` did not fall through and the hero
+  // rendered "2,027 years ago". Defense-in-depth + backend pointer-omitempty
+  // means the wire is `undefined`; the dashboard helper isZeroTime
+  // additionally catches any legacy backend that still emits the literal.
+  const lastDeployAt = !isZeroTime(project.last_deploy)
+    ? project.last_deploy
+    : latestBuild?.created_at;
   const envCount = project.environment_count ?? (project.environment ? 1 : 0);
 
   return (
@@ -216,11 +224,15 @@ export function ProjectDetailPage() {
               <EmptyState
                 icon={Rocket}
                 title="No deployments yet"
-                description="Run `theo deploy` from your project directory, or connect a Git repository to ship on every push."
+                /* #121 (qa-dogfood-cleanup-2026-06-21 T3.3): deploy-centric
+                   message. The connect surface stays one click away via
+                   the Repository tab; do not assume the user needs to
+                   connect again on a project that may already be ACTIVE. */
+                description="Trigger a deploy with `theo deploy` from your project directory, or push to the connected branch to ship automatically. Open the Repository tab to link a Git repo."
                 action={
                   <Button asChild variant="primary" size="sm">
                     <Link to={`/projects/${encodeURIComponent(project.name)}/connect`}>
-                      Connect repository
+                      Open repository tab
                     </Link>
                   </Button>
                 }

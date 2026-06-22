@@ -75,7 +75,7 @@ describe('BulkUploadSheet — J-22 T3.5', () => {
           onOpenChange={onOpenChange}
           project="teste"
           defaultEnvs={['production']}
-          availableEnvs={['production', 'staging']}
+          availableEnvs={['preview', 'production']}
           onUploaded={onUploaded}
         />
       </Wrapper>,

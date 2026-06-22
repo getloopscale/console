@@ -249,9 +249,15 @@ export function DeploymentsPage() {
           ? {
               icon: Rocket,
               title: 'No deployments yet',
-              description: `Connect a Git repository to auto-deploy on push, OR run \`theo deploy --project ${name}\` from your terminal.`,
+              // #121 (qa-dogfood-cleanup-2026-06-21 T3.3): deploy-centric
+              // primary CTA. The connection panel is the right surface
+              // when the user actually needs to connect — the empty
+              // deployments state should not assume disconnection.
+              // Runs `theo deploy` from the CLI; the connect link is
+              // still available via the secondary description.
+              description: `Trigger a deploy with \`theo deploy --project ${name}\` from your terminal, or push to a connected Git branch to auto-deploy. Not connected yet? Open the Repository tab to link a repo.`,
               action: {
-                label: 'Connect a repository',
+                label: 'View deploy instructions',
                 onClick: () => {
                   window.location.assign(
                     `/projects/${encodeURIComponent(name)}/connect`,

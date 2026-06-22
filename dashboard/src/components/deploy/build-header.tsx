@@ -6,8 +6,9 @@ import {
   Undo2,
   XCircle,
 } from 'lucide-react';
-import { Button, StatusDot, type StatusKind } from '@usetheo/ui';
+import { Badge, Button, StatusDot, type StatusKind } from '@usetheo/ui';
 import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
+import { useMutationInFlight } from '@/hooks/use-mutation-in-flight';
 
 /**
  * BuildHeader — Plan J-17 T3.5.
@@ -42,6 +43,17 @@ export interface BuildHeaderProps {
    * preserving back-compat with call sites that don't wire it yet.
    */
   onPromoteToProduction?: () => void;
+  /**
+   * Optional project name (slug). When provided, the header subscribes
+   * to the shared mutation-in-flight store and swaps the action button
+   * for a transitional badge while a promote/rollback is mid-flight on
+   * this build. Sponsor LIVE-caught 2026-06-18: after clicking Promote,
+   * the toast trail was visible but the detail page's action region
+   * stayed quiet, looking unchanged. The transitional badge here makes
+   * the in-flight state visible on the same page the user took the
+   * action from (the grid badge is for /deployments).
+   */
+  projectName?: string;
 }
 
 const STATUS_MAP: Record<BuildStatus, StatusKind> = {
@@ -81,24 +93,44 @@ export function BuildHeader({
   onRollback,
   onRedeploy,
   onPromoteToProduction,
+  projectName,
 }: BuildHeaderProps) {
   const sha = build.commit_sha.slice(0, 7);
   // Backend returns CAPS statuses; normalize once so every comparison
   // and lookup below works uniformly.
   const ns = normalizeBuildStatus(build.status);
   const inFlight = isInFlight(ns);
+  // Mutation-in-flight subscription. When the caller passes
+  // projectName, we read the shared store and check whether a
+  // promote/rollback is mid-flight on THIS build. If so, we swap the
+  // action buttons for a transitional badge so the user sees the
+  // mutation taking effect on the same surface they triggered it
+  // from (not just the global toast trail).
+  const mutationInFlight = useMutationInFlight(projectName);
+  const inFlightHere =
+    mutationInFlight?.targetBuildId === build.build_id
+      ? mutationInFlight
+      : null;
+  const isPromotingHere = inFlightHere?.kind === 'promote';
+  const isRollingBackHere = inFlightHere?.kind === 'rollback';
   const showCancel = inFlight;
-  const showRollback = ns === 'succeeded';
+  // While a promote/rollback is mid-flight on this build, hide the
+  // raw action buttons so the user can't double-fire (backend lock
+  // would 409 anyway, but the transitional badge is the canonical
+  // UX signal).
+  const showRollback = ns === 'succeeded' && !inFlightHere;
   // Promote-to-Production visibility:
   //   - callback wired by the caller (back-compat: hidden when absent)
   //   - build is succeeded (no point promoting an in-flight / failed)
   //   - the deploy is in a preview env (production deploys obviously
   //     don't promote to themselves; this is also enforced backend-side
   //     via SAME_ENVIRONMENT)
+  //   - no mutation already in flight on this build (avoid double-fire)
   const showPromoteToProduction =
     Boolean(onPromoteToProduction) &&
     ns === 'succeeded' &&
-    build.environment !== 'production';
+    build.environment !== 'production' &&
+    !inFlightHere;
 
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -152,6 +184,29 @@ export function BuildHeader({
             <ArrowUpToLine className="size-4" aria-hidden="true" />
             Promote to Production
           </Button>
+        )}
+        {isPromotingHere && (
+          <Badge
+            variant="outline"
+            className="border-primary/50 bg-primary/10 text-primary text-label uppercase animate-pulse inline-flex items-center gap-1"
+            aria-live="polite"
+          >
+            <ArrowUpToLine className="size-3" aria-hidden="true" />
+            Promoting to production…
+          </Badge>
+        )}
+        {isRollingBackHere && (
+          <Badge
+            variant="outline"
+            className="border-warning/50 bg-warning/10 text-warning text-label uppercase animate-pulse inline-flex items-center gap-1"
+            aria-live="polite"
+          >
+            <RefreshCw
+              className="size-3 animate-spin"
+              aria-hidden="true"
+            />
+            Rolling back to {sha}…
+          </Badge>
         )}
         <Button
           variant="secondary"
