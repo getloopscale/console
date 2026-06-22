@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Alert, Button, Card, PageShell } from '@usetheo/ui';
@@ -6,6 +6,7 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useScale } from '@/hooks/use-scale';
 import { useScaleCost } from '@/hooks/use-scale-cost';
+import { useProjectStatus } from '@/hooks/use-project-status';
 import { ScaleSlider } from '@/components/scale/scale-slider';
 import { HPAToggle, type HPAMode } from '@/components/scale/hpa-toggle';
 import { KEDAToggle } from '@/components/scale/keda-toggle';
@@ -57,19 +58,25 @@ export function ProjectScalePage() {
   const [kedaEnabled, setKedaEnabled] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Known stopgap (#123 / #142 follow-up): the initial render assumes
-  // 'starter' tier until the FIRST Apply-scale mutation echoes the
-  // engine-resolved tier via res.plan_tier. There is no engine GET
-  // endpoint that exposes the resolved tier (only POST /scale carries
-  // it in the response), and /v1/billing on the cloud BFF is 404
-  // pending Known Gap #116 (billing read-side incomplete). Engine
-  // enforcement is correct (POST /scale with replicas=3 succeeds on a
-  // team-tier tenant — the slider ceiling is only a UX hint, not a
-  // gate). The canonical fix requires extending engine
-  // GET /api/v1/projects/{name}/status with plan_tier OR exposing a
-  // dedicated GET /api/v1/scale read endpoint — tracked as #142
-  // (T2 engine change per pre-release-governance, requires meeting).
+  // Initial tier from engine GET /api/v1/projects/{name}/status (#142
+  // canonical, closes #123 of qa-dogfood-cleanup-2026-06-21). Engine
+  // surfaces the resolved tier from PlanTierStore (same store
+  // ScaleHandler.resolveTier uses for enforcement), so this is now a
+  // single canonical SoT — no /v1/billing dependency on Known Gap #116.
+  // Mutation response still wins post-save (server-authoritative per
+  // ADR D1 EC-2). Falls back to 'starter' when status hasn't loaded yet
+  // OR engine omits plan_tier (older deployments).
+  const { status } = useProjectStatus(name);
   const [resolvedPlanTier, setResolvedPlanTier] = useState('starter');
+  useEffect(() => {
+    if (status?.plan_tier && status.plan_tier !== resolvedPlanTier) {
+      setResolvedPlanTier(status.plan_tier);
+    }
+    // resolvedPlanTier intentionally excluded from deps so a post-save
+    // mutation response (which sets a fresh tier echo via /scale response)
+    // does not get clobbered by a stale status poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status?.plan_tier]);
   const [clusterKedaInstalled] = useState(true);
   const [currentReplicas, setCurrentReplicas] = useState(
     DEFAULT_CURRENT_REPLICAS,

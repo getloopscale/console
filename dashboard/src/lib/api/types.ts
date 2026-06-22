@@ -473,6 +473,15 @@ export interface ProjectStatusDetail {
     max: number;
     scaled_to_zero: boolean;
   };
+  // Resolved canonical plan tier for the project's tenant — `starter` /
+  // `pro` / `team` / `enterprise` (mirrors pkg/domain.PlanTier). Engine
+  // sources via PlanTierStore.GetTenantPlan (same store ScaleHandler uses
+  // to enforce). Closes #123 of qa-dogfood-cleanup-2026-06-21 canonically
+  // (the prior /v1/billing seed depended on Known Gap #116 cloud BFF
+  // billing read-side, which is 404). Read by project-scale to seed the
+  // slider ceiling pre-Apply. Optional — older engines omit it; callers
+  // fall back to 'starter'. #142 of qa-dogfood-cleanup-2026-06-21.
+  plan_tier?: string;
 }
 
 // J-20 Scale plan v1.1 — wire shape mirrors api/internal/routes/scale.go
