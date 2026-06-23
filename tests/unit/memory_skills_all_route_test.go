@@ -93,5 +93,9 @@ func TestMemorySkillsAllRoute_Forbidden_WithoutMemoryRead(t *testing.T) {
 	if fake.lastSkillsAllSubject != "" {
 		t.Error("handler MUST NOT be reached on a 403 (scope denied before delegation)")
 	}
-	_ = mock.ExpectationsWereMet()
+	// Deny path has no async UPDATE (it returns before the goroutine), so the SELECT
+	// is the only expectation — assert it was met (deterministic; no race to swallow).
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet/unexpected sqlmock expectations on the 403 path: %v", err)
+	}
 }
