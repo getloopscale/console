@@ -90,6 +90,21 @@ describe('SkillsPage (/memory/skills)', () => {
     expect(mockCloudFetch).toHaveBeenLastCalledWith(expect.stringContaining('offset=25'));
   });
 
+  it('code is NOT a table column; View details opens a dialog with the full code', async () => {
+    mockCloudFetch.mockResolvedValue({
+      skills: [skill('s1', 'repo-a', 'deploy the service', 'kubectl apply -f deploy.yaml')],
+      total: 1,
+      truncated: false,
+    });
+    render(<SkillsPage />);
+    await screen.findByText('deploy the service');
+    // The raw code is NOT shown inline in the list (kept out of the scannable table).
+    expect(screen.queryByText('kubectl apply -f deploy.yaml')).toBeNull();
+    // Opening the details view surfaces the full code.
+    await userEvent.click(screen.getByRole('button', { name: /view details for skill/i }));
+    expect(await screen.findByText('kubectl apply -f deploy.yaml')).toBeInTheDocument();
+  });
+
   it('EC-3: renders a skill with null code without crashing', async () => {
     mockCloudFetch.mockResolvedValue({
       skills: [skill('d1', 'repo-a', 'derived skill', null)],

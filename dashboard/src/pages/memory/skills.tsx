@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Boxes, Trash2 } from 'lucide-react';
+import { Boxes, Eye, Trash2 } from 'lucide-react';
 import {
   Alert,
   Button,
@@ -9,6 +9,7 @@ import {
   ConfirmDialog,
   DataTable,
   type DataTableColumn,
+  Dialog,
   EmptyState,
   Input,
   PageShell,
@@ -57,6 +58,9 @@ export function SkillsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [pendingDelete, setPendingDelete] = useState<SkillWithRepo | null>(null);
+  // Code/instructions belong in a details view, NOT a table column (keeps the
+  // list scannable). A row's "View details" opens this dialog with the full code.
+  const [detail, setDetail] = useState<SkillWithRepo | null>(null);
 
   const q = searchParams.get('q') ?? '';
   const offset = Number(searchParams.get('offset') ?? '0');
@@ -135,16 +139,6 @@ export function SkillsPage() {
         ),
     },
     {
-      key: 'code',
-      label: 'Code',
-      render: (row) =>
-        row.code ? (
-          <code className="font-mono text-xs line-clamp-2 max-w-md block">{row.code}</code>
-        ) : (
-          <span className="text-muted-foreground text-xs">—</span>
-        ),
-    },
-    {
       key: 'createdAt',
       label: 'Created',
       render: (row) => <Timestamp value={row.createdAt} />,
@@ -154,14 +148,24 @@ export function SkillsPage() {
       label: '',
       align: 'right',
       render: (row) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={`Forget skill ${row.description}`}
-          onClick={() => setPendingDelete(row)}
-        >
-          <Trash2 className="size-4 text-destructive" />
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`View details for skill ${row.description}`}
+            onClick={() => setDetail(row)}
+          >
+            <Eye className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Forget skill ${row.description}`}
+            onClick={() => setPendingDelete(row)}
+          >
+            <Trash2 className="size-4 text-destructive" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -231,6 +235,53 @@ export function SkillsPage() {
           </div>
         )}
       </div>
+
+      {detail ? (
+        <Dialog open={detail !== null} onOpenChange={(o) => !o && setDetail(null)}>
+          <Dialog.Content>
+            <Dialog.Header>
+              <Dialog.Title>{detail.description}</Dialog.Title>
+              <Dialog.Description>
+                <span className="font-mono">{detail.repoId}</span>
+                {detail.codeLanguage ? ` · ${detail.codeLanguage}` : ''}
+              </Dialog.Description>
+            </Dialog.Header>
+            <Dialog.Body>
+              <div className="space-y-3 text-sm">
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-muted-foreground text-xs">
+                  <span>
+                    Created: <Timestamp value={detail.createdAt} />
+                  </span>
+                  {detail.derivedFrom.length > 0 ? (
+                    <span>
+                      Derived from {detail.derivedFrom.length} source
+                      {detail.derivedFrom.length === 1 ? '' : 's'}
+                    </span>
+                  ) : null}
+                  {detail.supersededBy ? <span>Superseded</span> : null}
+                </div>
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">Code</span>
+                  {detail.code ? (
+                    <pre className="mt-1 max-h-96 overflow-auto rounded bg-muted p-3 font-mono text-xs whitespace-pre-wrap break-words">
+                      {detail.code}
+                    </pre>
+                  ) : (
+                    <p className="mt-1 text-muted-foreground text-xs">
+                      No code — this is a derived/consolidated skill (narrative only).
+                    </p>
+                  )}
+                </div>
+              </div>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <Button variant="secondary" onClick={() => setDetail(null)}>
+                Close
+              </Button>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog>
+      ) : null}
 
       {pendingDelete ? (
         <ConfirmDialog
