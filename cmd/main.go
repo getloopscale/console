@@ -452,6 +452,11 @@ func main() {
 			// dashboard-phase2b-skills-browse T3.2 — read-only Repo-tier skills
 			// listing (same memory:read scope; repoId namespaced by subject, D3).
 			r.With(auth.RequireScope(db, "memory:read")).Get("/skills", memoryHandler.ListSkills)
+			// skills-cross-repo-sdk-symmetry M3 — cross-repo flat skills list on the
+			// SDK surface (SDK twin of the BFF /skills/all). Same memory:read scope
+			// as per-repo /skills; bare subject (D1). Static `/skills/all` does not
+			// collide with `/skills` or `/skills/{skillID}` in chi.
+			r.With(auth.RequireScope(db, "memory:read")).Get("/skills/all", memoryHandler.ListSkillsAll)
 			// skills-write-surface T3.2 — author (write) + curate (delete) skills.
 			r.With(auth.RequireScope(db, "memory:write")).Post("/skills", memoryHandler.AddSkill)
 			r.With(auth.RequireScope(db, "memory:delete")).Delete("/skills/{skillID}", memoryHandler.ForgetSkill)

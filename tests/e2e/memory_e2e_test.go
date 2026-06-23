@@ -498,6 +498,61 @@ func TestMemoryE2E_SkillsBrowse(t *testing.T) {
 	})
 }
 
+// TestMemoryE2E_SkillsAllCrossRepo proves the SDK-surface cross-repo flat skills
+// list (GET /v1/memory/skills/all) end-to-end through the real gateway mux →
+// TheMemory: the route is actually MOUNTED under RequireScope("memory:read"),
+// passes the BARE authenticated subject, returns every repo's skills with a
+// per-row repoId, and isolates other customers. skills-cross-repo-sdk-symmetry M3.
+func TestMemoryE2E_SkillsAllCrossRepo(t *testing.T) {
+	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theocloud:theocloud@localhost:55432/theocloud?sslmode=disable")
+	themoryDSN := env(t, "E2E_PG_THEMORY_DSN", "postgres://themem:themem@localhost:55433/themem?sslmode=disable")
+
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open cloud pg: %v", err)
+	}
+	defer db.Close()
+
+	const tenant = "e2e-tenant"
+	alpha := "e2e-skillsall-alpha"
+	beta := "e2e-skillsall-beta"
+	alphaKey := seedAPIKey(t, db, alpha, tenant)
+	betaKey := seedAPIKey(t, db, beta, tenant)
+
+	// Two skills under alpha's subject, in two DIFFERENT bare repos. The gateway
+	// passes the BARE subject; TheMemory prefix-scans agent_id LIKE 'alpha:%' and
+	// returns each row's bare repoId.
+	seedSkill(t, themoryDSN, alpha+":repo-a", "e2e-skillsall-hash-a", "alpha parser util", "parse(x)")
+	seedSkill(t, themoryDSN, alpha+":repo-b", "e2e-skillsall-hash-b", "beta csv loader", "loadCsv(p)")
+
+	t.Run("owner sees ALL its skills across repos with per-row repoId", func(t *testing.T) {
+		status, body := cloudGet(t, cloudURL, alphaKey, "/v1/memory/skills/all")
+		if status != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", status, body)
+		}
+		if !strings.Contains(body, "alpha parser util") || !strings.Contains(body, "beta csv loader") {
+			t.Fatalf("expected BOTH repos' skills in the flat list, got %s", body)
+		}
+		if !strings.Contains(body, `"repoId":"repo-a"`) || !strings.Contains(body, `"repoId":"repo-b"`) {
+			t.Fatalf("expected per-row bare repoId (repo-a + repo-b), got %s", body)
+		}
+	})
+
+	t.Run("isolation: a different customer sees none of alpha's skills", func(t *testing.T) {
+		status, body := cloudGet(t, cloudURL, betaKey, "/v1/memory/skills/all")
+		if status != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", status, body)
+		}
+		if strings.Contains(body, "alpha parser util") || strings.Contains(body, "beta csv loader") {
+			t.Fatalf("CROSS-CUSTOMER LEAK: beta saw alpha's cross-repo skills. body=%s", body)
+		}
+		if !strings.Contains(body, `"skills":[]`) {
+			t.Fatalf("expected empty skills for beta, got %s", body)
+		}
+	})
+}
+
 // TestMemoryE2E_SkillsWrite proves the WRITE surface end-to-end through the
 // gateway: an agent authors a skill (POST), sees it (GET), deletes it (DELETE);
 // a duplicate description -> 409; a different customer cannot delete it (D3

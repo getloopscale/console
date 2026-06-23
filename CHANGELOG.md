@@ -5,6 +5,11 @@ Format: Keep a Changelog + Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-23
+
+### Added
+- **Cross-repo flat skills list on the programmatic SDK surface (`GET /v1/memory/skills/all`).** The cross-repo flat skills listing — previously only on the dashboard BFF (`/v1/dashboard/memory/skills/all`, JWT/session) — is now also on the SDK surface (`/v1/memory/*`, `theo_live_*` Bearer + `RequireScope("memory:read")`), at scope parity with the per-repo `GET /v1/memory/skills`. So an SDK-key consumer (not just the dashboard) can list ALL skills for its subject across every repo (each row carrying its bare `repoId`, with `limit`/`offset`/`q`). Thin one-route addition: it reuses the EXISTING generic `MemoryHandler.ListSkillsAll` (bare authed subject, anti-spoof — `?subject` ignored; 502 on upstream error) — no handler change, no themory change, BFF route unchanged. Closes the programmatic-vs-dashboard asymmetry flagged by the `skills-cross-repo-flat-list-gateway` `/review`. (skills-cross-repo-sdk-symmetry, M3)
+
 ## [0.8.1] - 2026-06-23
 
 ### Fixed
