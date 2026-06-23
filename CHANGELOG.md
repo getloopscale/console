@@ -5,6 +5,8 @@ Format: Keep a Changelog + Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-23
+
 ### Added
 - **Skills tab lists ALL skills across repos (cross-repo flat list).** The dashboard Skills tab now lists every skill the agent has learned across EVERY repo by default — no more "enter a repo" gate. New themory client method `ListSkillsAll(subject, opts)` + BFF route `GET /v1/dashboard/memory/skills/all` proxy to the themory v0.21.0 endpoint `GET /v1/scopes/skill/:subject/all` (the BFF passes the BARE authenticated subject; the provider prefix-scans `{subject}:%` for tenant isolation). The tab gains a Repo column, a description search (`q`), and offset pagination; delete (curation) uses each row's own `repoId`. The skill code is NOT a table column — it lives in a per-row "View details" dialog (keeps the list scannable; code/instructions belong in a details view). Store-only guardrail preserved (delete-only; no code editor/executor). **Deploy-gated on themory v0.21.0.** (skills-cross-repo-flat-list-gateway)
 
