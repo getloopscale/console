@@ -153,6 +153,16 @@ func (h *DashboardMemoryHandler) ListSkills(w http.ResponseWriter, r *http.Reque
 	h.memoryHandler.ListSkills(w, r)
 }
 
+// ListSkillsAll proxies GET /v1/dashboard/memory/skills/all
+// (skills-cross-repo-flat-list-gateway T1.2). After mint, delegates to
+// MemoryHandler.ListSkillsAll, which passes the BARE authenticated subject (D1).
+func (h *DashboardMemoryHandler) ListSkillsAll(w http.ResponseWriter, r *http.Request) {
+	if !h.mintOrFail(w, r, "skills-all") {
+		return
+	}
+	h.memoryHandler.ListSkillsAll(w, r)
+}
+
 // AddSkill proxies POST /v1/dashboard/memory/skills (skills-write-surface T3.3).
 func (h *DashboardMemoryHandler) AddSkill(w http.ResponseWriter, r *http.Request) {
 	if !h.mintOrFail(w, r, "add-skill") {

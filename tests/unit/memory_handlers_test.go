@@ -70,13 +70,23 @@ type fakeTheMemory struct {
 	addSkillResp      *themory.CreatedSkill
 	addSkillErr       error
 	lastAddSkillDraft themory.SkillDraft
-	forgetSkillErr    error
-	lastForgetSkillID string
+	forgetSkillErr       error
+	lastForgetSkillID    string
+	skillsAllResp        *themory.SkillsAllResult
+	skillsAllErr         error
+	lastSkillsAllSubject string
+	lastSkillsAllOpts    themory.SkillsAllOptions
 }
 
 func (f *fakeTheMemory) ListSkills(_ context.Context, repoID string) (*themory.SkillsResult, error) {
 	f.lastSkillsRepoID = repoID
 	return f.skillsResp, f.skillsErr
+}
+
+func (f *fakeTheMemory) ListSkillsAll(_ context.Context, subject string, opts themory.SkillsAllOptions) (*themory.SkillsAllResult, error) {
+	f.lastSkillsAllSubject = subject
+	f.lastSkillsAllOpts = opts
+	return f.skillsAllResp, f.skillsAllErr
 }
 
 func (f *fakeTheMemory) AddSkill(_ context.Context, repoID string, draft themory.SkillDraft) (*themory.CreatedSkill, error) {
@@ -1054,6 +1064,67 @@ func TestMemorySkills_UpstreamErrorReturns502(t *testing.T) {
 	h.ListSkills(rec, authedRequest("GET", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "u", TenantID: "t"}))
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("expected 502 on upstream error, got %d", rec.Code)
+	}
+}
+
+// =============================================================================
+// skills-cross-repo-flat-list-gateway — GET /v1/memory/skills/all
+// =============================================================================
+
+// ADR D1: the handler passes the BARE authenticated subject (NOT namespaced).
+func TestMemorySkillsAll_PassesBareSubjectNotNamespaced(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.skillsAllResp = &themory.SkillsAllResult{
+		Skills: []themory.SkillWithRepo{{Skill: themory.Skill{ID: "s1"}, RepoID: "repo-a"}},
+		Total:  1,
+	}
+	rec := httptest.NewRecorder()
+	// F-1 (/review): a competing ?subject=attacker MUST be ignored — the subject
+	// comes ONLY from the authenticated session, never from request input.
+	h.ListSkillsAll(rec, authedRequest("GET", "/v1/memory/skills/all?limit=25&offset=10&q=csv&subject=attacker-supplied", &auth.UserContext{Subject: "sub-123", TenantID: "t"}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if fake.lastSkillsAllSubject != "sub-123" {
+		t.Errorf("expected BARE authed subject 'sub-123' (query ?subject ignored), got %q", fake.lastSkillsAllSubject)
+	}
+	if fake.lastSkillsAllOpts.Limit != 25 || fake.lastSkillsAllOpts.Offset != 10 || fake.lastSkillsAllOpts.Query != "csv" {
+		t.Errorf("query params not forwarded: %+v", fake.lastSkillsAllOpts)
+	}
+	if !strings.Contains(rec.Body.String(), `"repoId":"repo-a"`) {
+		t.Errorf("expected per-row repoId in body, got %s", rec.Body.String())
+	}
+}
+
+func TestMemorySkillsAll_RejectsUnauthenticated(t *testing.T) {
+	h, _ := newMemoryHandler(t)
+	rec := httptest.NewRecorder()
+	h.ListSkillsAll(rec, httptest.NewRequest("GET", "/v1/memory/skills/all", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestMemorySkillsAll_UpstreamErrorReturns502(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.skillsAllErr = errors.New("connection refused")
+	rec := httptest.NewRecorder()
+	h.ListSkillsAll(rec, authedRequest("GET", "/v1/memory/skills/all", &auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 on upstream error, got %d", rec.Code)
+	}
+}
+
+func TestMemorySkillsAll_EmptyResultIsArray(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.skillsAllResp = &themory.SkillsAllResult{Skills: nil, Total: 0}
+	rec := httptest.NewRecorder()
+	h.ListSkillsAll(rec, authedRequest("GET", "/v1/memory/skills/all", &auth.UserContext{Subject: "u", TenantID: "t"}))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"skills":[]`) {
+		t.Errorf("expected empty skills array, got %s", rec.Body.String())
 	}
 }
 

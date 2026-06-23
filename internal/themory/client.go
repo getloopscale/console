@@ -277,6 +277,33 @@ type SkillsResult struct {
 	Truncated bool    `json:"truncated"`
 }
 
+// SkillWithRepo is one row of the cross-repo flat skills listing
+// (skills-cross-repo-flat-list-gateway). Mirrors the TheMemory
+// GET /v1/scopes/skill/{subject}/all DTO: a Skill plus the bare repo it belongs
+// to (the provider strips the `{subject}:` namespace prefix from agent_id).
+type SkillWithRepo struct {
+	Skill
+	RepoID string `json:"repoId"`
+}
+
+// SkillsAllResult is the gateway's cross-repo flat skills-listing response.
+// `Total` is the full match count across every repo for the subject; `Truncated`
+// is true when more rows exist beyond the returned page.
+type SkillsAllResult struct {
+	Skills    []SkillWithRepo `json:"skills"`
+	Total     int             `json:"total"`
+	Truncated bool            `json:"truncated"`
+}
+
+// SkillsAllOptions are the cross-repo flat-listing query params (offset
+// pagination + optional case-insensitive description substring filter).
+type SkillsAllOptions struct {
+	Limit             int
+	Offset            int
+	Query             string // literal description substring filter
+	IncludeSuperseded bool
+}
+
 // --- provider wire shapes (GET /v1/scopes/{type}/{id}/memories) --------------
 
 type scopeMemoryItem struct {
@@ -564,6 +591,36 @@ func (c *Client) ListSkills(ctx context.Context, repoID string) (*SkillsResult, 
 	}
 	if out.Skills == nil {
 		out.Skills = []Skill{}
+	}
+	return &out, nil
+}
+
+// ListSkillsAll returns the cross-repo flat skills listing for a subject
+// (skills-cross-repo-flat-list-gateway T1.1, ADR D1). The subject is passed BARE
+// (NOT `{subject}:{repoId}` — the provider prefix-scans `agent_id LIKE
+// '{subject}:%'` and returns each row's bare repoId); transport-only +
+// url.PathEscaped (EC-2). Offset pagination + optional literal `q` filter.
+func (c *Client) ListSkillsAll(ctx context.Context, subject string, opts SkillsAllOptions) (*SkillsAllResult, error) {
+	q := url.Values{}
+	if opts.Limit > 0 {
+		q.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	if opts.Offset > 0 {
+		q.Set("offset", strconv.Itoa(opts.Offset))
+	}
+	if opts.Query != "" {
+		q.Set("q", opts.Query)
+	}
+	if opts.IncludeSuperseded {
+		q.Set("includeSuperseded", "true")
+	}
+	var out SkillsAllResult
+	path := "/v1/scopes/skill/" + url.PathEscape(subject) + "/all"
+	if err := c.do(ctx, http.MethodGet, path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Skills == nil {
+		out.Skills = []SkillWithRepo{}
 	}
 	return &out, nil
 }
