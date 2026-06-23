@@ -193,6 +193,63 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		validateRequest(t, router, got)
 	})
 
+	t.Run("Recall forwards graphExpand in the body (EG-1 T1.1)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{GraphExpand: &GraphExpand{Hops: 1}}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		if !strings.Contains(string(body), `"graphExpand":{"hops":1}`) {
+			t.Fatalf("graphExpand not sent: %s", body)
+		}
+		got.Body = io.NopCloser(bytes.NewReader(body))
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Recall omits graphExpand when unset (EG-1 T1.1)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{TopK: 5}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		if strings.Contains(string(body), "graphExpand") {
+			t.Fatalf("graphExpand should be omitted: %s", body)
+		}
+	})
+
+	t.Run("Recall forwards empty graphExpand{} as enable-with-defaults (EG-1 EC-2)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{GraphExpand: &GraphExpand{}}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		// hops/limit omitempty → graphExpand serializes to {} (enable, provider default hops).
+		if !strings.Contains(string(body), `"graphExpand":{}`) {
+			t.Fatalf("empty graphExpand not sent as {}: %s", body)
+		}
+	})
+
+	t.Run("GOAL: graphExpand{hops,limit} reaches the provider /v1/recall body (EG-1 T3.1)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{GraphExpand: &GraphExpand{Hops: 2, Limit: 10}}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		if !strings.Contains(string(body), `"graphExpand":{"hops":2,"limit":10}`) {
+			t.Fatalf("graphExpand{hops:2,limit:10} not forwarded: %s", body)
+		}
+		got.Body = io.NopCloser(bytes.NewReader(body))
+		validateRequest(t, router, got)
+	})
+
 	t.Run("Reflect hits POST /v1/reflect", func(t *testing.T) {
 		var got *http.Request
 		srv := captureServer(t, 202, `{"consolidated":2}`, &got)

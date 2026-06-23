@@ -595,10 +595,20 @@ func (h *MemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
 // =============================================================================
 
 type recallRequest struct {
-	Query     string  `json:"query"`
-	TopK      int     `json:"topK,omitempty"`
-	Threshold float64 `json:"threshold,omitempty"`
-	AsOf      string  `json:"asOf,omitempty"`
+	Query       string          `json:"query"`
+	TopK        int             `json:"topK,omitempty"`
+	Threshold   float64         `json:"threshold,omitempty"`
+	AsOf        string          `json:"asOf,omitempty"`
+	GraphExpand *graphExpandReq `json:"graphExpand,omitempty"`
+}
+
+// graphExpandReq is the inbound entity-graph expansion (theo-memory v0.20.0).
+// Both fields optional (0 = omitted → provider applies its default), mirroring
+// TheMemory's `z.union([1,2]).optional()` — so `graphExpand:{}` is valid
+// "enable with defaults", NOT a 400 (EG-1 EC-1).
+type graphExpandReq struct {
+	Hops  int `json:"hops,omitempty"`
+	Limit int `json:"limit,omitempty"`
 }
 
 // Recall proxies a semantic search to TheMemory under the subject's user scope.
@@ -636,9 +646,24 @@ func (h *MemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// EG-1 D2: boundary-validate graphExpand (mirror TheMemory's strict zod:
+	// hops ∈ {1,2} optional, limit 1..100 optional). 0 = omitted (forwarded as
+	// the provider default), so only out-of-range values are a clear 400.
+	var graphExpand *themory.GraphExpand
+	if req.GraphExpand != nil {
+		if req.GraphExpand.Hops < 0 || req.GraphExpand.Hops > 2 {
+			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'graphExpand.hops' must be 1 or 2.")
+			return
+		}
+		if req.GraphExpand.Limit < 0 || req.GraphExpand.Limit > 100 {
+			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'graphExpand.limit' must be between 1 and 100.")
+			return
+		}
+		graphExpand = &themory.GraphExpand{Hops: req.GraphExpand.Hops, Limit: req.GraphExpand.Limit}
+	}
 
 	result, err := h.client.Recall(r.Context(), user.Subject, req.Query,
-		themory.RecallOptions{TopK: req.TopK, Threshold: req.Threshold, AsOf: req.AsOf})
+		themory.RecallOptions{TopK: req.TopK, Threshold: req.Threshold, AsOf: req.AsOf, GraphExpand: graphExpand})
 	if err != nil {
 		h.logger.Warn("memory recall: upstream failed", "error", err, "subject", user.Subject)
 		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")

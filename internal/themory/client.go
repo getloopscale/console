@@ -136,11 +136,22 @@ type RememberResult struct {
 	Items []MemoryRow `json:"items"`
 }
 
+// GraphExpand is the optional entity-graph expansion for a recall (theo-memory
+// v0.20.0). Forwarded to TheMemory's POST /v1/recall `graphExpand` field, which
+// pool-expands results with memories connected by a shared entity (1 hop) or a
+// relation edge (2nd hop). Both fields are optional (0 = omitted via omitempty,
+// so TheMemory applies its default) — mirrors the provider's `z.union([1,2]).optional()`.
+type GraphExpand struct {
+	Hops  int `json:"hops,omitempty"`
+	Limit int `json:"limit,omitempty"`
+}
+
 // RecallOptions are the optional fields for a recall (semantic search) call.
 type RecallOptions struct {
-	TopK      int
-	Threshold float64 // 0 means "unset" (omitted from the request)
-	AsOf      string  // optional RFC3339 bi-temporal point-in-time (v1.1); empty = omitted
+	TopK        int
+	Threshold   float64      // 0 means "unset" (omitted from the request)
+	AsOf        string       // optional RFC3339 bi-temporal point-in-time (v1.1); empty = omitted
+	GraphExpand *GraphExpand // optional entity-graph expansion (v0.20.0); nil = omitted
 }
 
 // RecallHit is one scored result from a recall call.
@@ -339,11 +350,12 @@ type rememberResponse struct {
 }
 
 type recallRequest struct {
-	UserID    string   `json:"userId"`
-	Query     string   `json:"query"`
-	TopK      int      `json:"topK,omitempty"`
-	Threshold *float64 `json:"threshold,omitempty"`
-	AsOf      string   `json:"asOf,omitempty"`
+	UserID      string       `json:"userId"`
+	Query       string       `json:"query"`
+	TopK        int          `json:"topK,omitempty"`
+	Threshold   *float64     `json:"threshold,omitempty"`
+	AsOf        string       `json:"asOf,omitempty"`
+	GraphExpand *GraphExpand `json:"graphExpand,omitempty"`
 }
 
 type recallItem struct {
@@ -391,7 +403,7 @@ func (c *Client) Recall(ctx context.Context, userID, query string, opts RecallOp
 	if query == "" {
 		return nil, errors.New("themory: recall query required")
 	}
-	reqBody := recallRequest{UserID: userID, Query: query, TopK: opts.TopK, AsOf: opts.AsOf}
+	reqBody := recallRequest{UserID: userID, Query: query, TopK: opts.TopK, AsOf: opts.AsOf, GraphExpand: opts.GraphExpand}
 	if opts.Threshold > 0 {
 		reqBody.Threshold = &opts.Threshold
 	}
