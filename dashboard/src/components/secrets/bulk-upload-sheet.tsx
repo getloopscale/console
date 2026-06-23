@@ -31,7 +31,10 @@ export function BulkUploadSheet({
   onOpenChange,
   project,
   defaultEnvs = ['production'],
-  availableEnvs = ['production', 'staging'],
+  // Canonical PaaS lexicon (ADR-Q6 of qa-dogfood-cleanup-2026-06-21):
+  // preview + production are the two permanent envs per project.
+  // Legacy `'staging'` was off-model (#127, 2026-06-21 QA dogfooding).
+  availableEnvs = ['preview', 'production'],
   onUploaded,
 }: BulkUploadSheetProps) {
   const [source, setSource] = useState('');

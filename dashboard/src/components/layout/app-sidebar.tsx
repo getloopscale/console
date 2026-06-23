@@ -196,6 +196,9 @@ const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'Overview', path: '/memory', icon: LayoutGrid },
           { label: 'Memories', path: '/memory/memories', icon: ListChecks },
+          // episodes-gateway-dashboard — cursor-paginated, bi-temporal (asOf)
+          // event timeline over the subject's memories.
+          { label: 'Episodes', path: '/memory/episodes', icon: History },
           // remember / recall / reflect live surface.
           { label: 'Playground', path: '/memory/playground', icon: FlaskConical },
           // Plan 2 — Memory Insights. Plan 3 will add Exports + Webhooks

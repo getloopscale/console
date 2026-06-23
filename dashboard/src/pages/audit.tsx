@@ -18,6 +18,34 @@ const SEVERITY_BADGE: Record<
 };
 
 /**
+ * #126 (qa-dogfood-cleanup-2026-06-21 T5.2 / ADR-Q4 dashboard-side
+ * fallback): legacy audit rows surfaced raw DB ops (`INSERT`, `UPDATE`,
+ * `DELETE`) with the table name in `resource_type`. The boundary-side
+ * canonical fix (closed enum at emitter) is tracked separately; this
+ * helper is the defense-in-depth so the user never sees a SQL leak.
+ * Returns the original action string when no remap applies.
+ */
+export function displayAction(action: string, resourceType?: string | null): string {
+  if (!action) return '[unmapped]';
+  const a = action.toUpperCase();
+  if (a === 'INSERT' && resourceType === 'tenant_members')
+    return 'tenant.member.added';
+  if (a === 'DELETE' && resourceType === 'tenant_members')
+    return 'tenant.member.removed';
+  if (a === 'INSERT' && resourceType === 'projects')
+    return 'project.created';
+  if (a === 'DELETE' && resourceType === 'projects')
+    return 'project.deleted';
+  // Any other raw SQL op: mark explicitly so the row is honest about
+  // the leak without crashing on missing label lookups.
+  if (a === 'INSERT' || a === 'UPDATE' || a === 'DELETE') {
+    const suffix = resourceType ? ` ${resourceType}` : '';
+    return `[unmapped: ${action.toLowerCase()}${suffix}]`;
+  }
+  return action;
+}
+
+/**
  * AuditPage — Plan v1.0 T5.1.
  *
  * Workspace-wide audit log. Shows actor + action + resource + severity +
@@ -147,27 +175,54 @@ export function AuditPage() {
               </Table.Row>
             </Table.Header>
             <Table.Body>
-              {visibleEntries.map((e) => (
-                <Table.Row key={e.id}>
+              {visibleEntries.map((e, idx) => (
+                // #125 (qa-dogfood-cleanup-2026-06-21 T5.1): composite key
+                // — `e.id` is the canonical key, but legacy audit rows
+                // surfaced with `id === ''` (or null) under #126, which
+                // collapses to a single React key and emits the "unique
+                // key prop" warning. Falling back to `idx` for those rows
+                // is safe because the list is read-only + non-reordered
+                // within a render (entries[] is replaced wholesale on
+                // each fetch, so React's reconciliation by-index is
+                // never wrong).
+                <Table.Row key={e.id ? e.id : `idx:${idx}`}>
                   <Table.Cell>
                     <span className="font-mono text-label text-muted-foreground tabular-nums">
-                      {formatDate(e.ts, 'relative')}
+                      {/* QA Run-3 #126: wire shape canonical is
+                          `timestamp` (per api/internal/domain/types.go
+                          AuditEntryResult json:"timestamp"); legacy
+                          `ts` alias kept as fallback. */}
+                      {formatDate(e.timestamp || e.ts, 'relative')}
                     </span>
                   </Table.Cell>
                   <Table.Cell>
                     <span className="text-body-sm text-foreground">
-                      {e.actor_email}
+                      {/* QA Run-3 #126: wire shape is `actor` (email
+                          or system identifier); legacy `actor_email`
+                          kept as fallback. Explicit "[unknown]" when
+                          truly absent (distinct from WHEN missing). */}
+                      {e.actor || e.actor_email || '[unknown]'}
                     </span>
-                    <Badge
-                      variant="outline"
-                      className="ml-2 text-label uppercase"
-                    >
-                      {e.actor_kind}
-                    </Badge>
+                    {(e.actor_kind || (e.actor && e.actor.includes('@'))) && (
+                      <Badge
+                        variant="outline"
+                        className="ml-2 text-label uppercase"
+                      >
+                        {/* Derive actor_kind: emails → user, else system. */}
+                        {e.actor_kind ?? (e.actor && e.actor.includes('@') ? 'user' : 'system')}
+                      </Badge>
+                    )}
                   </Table.Cell>
                   <Table.Cell>
                     <span className="font-mono text-label text-foreground">
-                      {e.action}
+                      {/* #126 (qa-dogfood-cleanup-2026-06-21 T5.2): map
+                          raw SQL ops to the closest domain event for
+                          display. Boundary-side filter still owes the
+                          canonical fix (ADR-Q4 closed enum at emitter);
+                          this is the dashboard defense-in-depth fallback
+                          so legacy rows render readable text instead of
+                          leaking `INSERT tenant_members`. */}
+                      {displayAction(e.action, e.resource_type)}
                     </span>
                   </Table.Cell>
                   <Table.Cell className="hidden md:table-cell">
@@ -185,15 +240,23 @@ export function AuditPage() {
                     )}
                   </Table.Cell>
                   <Table.Cell align="right">
-                    <Badge
-                      variant={SEVERITY_BADGE[e.severity]}
-                      className="text-label uppercase"
-                    >
-                      {e.severity === 'critical' && (
-                        <ShieldAlert className="size-3 mr-1" aria-hidden="true" />
-                      )}
-                      {e.severity}
-                    </Badge>
+                    {/* QA Run-3 #126: backend wire shape lacks `severity`
+                        today; render 'info' default until upstream
+                        domain.AuditEntryResult adds the field. */}
+                    {(() => {
+                      const sev = e.severity ?? 'info';
+                      return (
+                        <Badge
+                          variant={SEVERITY_BADGE[sev]}
+                          className="text-label uppercase"
+                        >
+                          {sev === 'critical' && (
+                            <ShieldAlert className="size-3 mr-1" aria-hidden="true" />
+                          )}
+                          {sev}
+                        </Badge>
+                      );
+                    })()}
                   </Table.Cell>
                 </Table.Row>
               ))}

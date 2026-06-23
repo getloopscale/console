@@ -84,6 +84,11 @@ export function PlaygroundPage() {
   // --- Recall panel ---
   const [recallQuery, setRecallQuery] = useState('');
   const [recallAsOf, setRecallAsOf] = useState(''); // datetime-local; widened to RFC3339 (asOf, v1.1)
+  // graphExpand (EG-1, theo-memory v0.20.0): opt-in entity-graph recall. Default
+  // OFF so a normal recall body is byte-unchanged; when on, surface memories
+  // connected by a shared entity (1 hop) or relation edge (2 hops).
+  const [graphExpandOn, setGraphExpandOn] = useState(false);
+  const [graphExpandHops, setGraphExpandHops] = useState(1);
   const recall = useMutation({
     mutationFn: async () =>
       cloudFetch<RecallResult>('/v1/dashboard/memory/recall', {
@@ -95,6 +100,7 @@ export function PlaygroundPage() {
           // (YYYY-MM-DDTHH:mm, no step set) → append ":00Z"; if it ever carries
           // seconds (length 19), append "Z". Treated as UTC (label says UTC).
           ...(recallAsOf ? { asOf: toRfc3339Utc(recallAsOf) } : {}),
+          ...(graphExpandOn ? { graphExpand: { hops: graphExpandHops } } : {}),
         }),
       }),
   });
@@ -217,6 +223,30 @@ export function PlaygroundPage() {
                   value={recallAsOf}
                   onChange={(e) => setRecallAsOf(e.target.value)}
                 />
+              </div>
+              <div>
+                <label htmlFor="pg-graph-expand" className="text-xs text-muted-foreground block mb-1">
+                  Graph expand (surface connected memories)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="pg-graph-expand"
+                    type="checkbox"
+                    checked={graphExpandOn}
+                    onChange={(e) => setGraphExpandOn(e.target.checked)}
+                    aria-label="Graph expand"
+                  />
+                  <select
+                    aria-label="Graph expand hops"
+                    className="text-sm bg-transparent border rounded px-1 py-0.5 disabled:opacity-50"
+                    value={graphExpandHops}
+                    onChange={(e) => setGraphExpandHops(Number(e.target.value))}
+                    disabled={!graphExpandOn}
+                  >
+                    <option value={1}>1 hop</option>
+                    <option value={2}>2 hops</option>
+                  </select>
+                </div>
               </div>
               <Button
                 variant="secondary"

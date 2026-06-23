@@ -27,12 +27,33 @@ const EMDASH = '—';
  *   formatDate('', 'date')                         // "—" (EC-2 guard)
  *   formatDate('invalid', 'date')                  // "—" (Invalid Date guard)
  */
+/**
+ * Detect the Go `time.Time` zero-value serialized into JSON. Per
+ * issue #118 (qa-dogfood-cleanup-2026-06-21 T3.1) the engine used to
+ * emit `"0001-01-01T00:00:00Z"` for projects without any builds, which
+ * JS truthy-checks pass — so `?:` and `??` guards on the dashboard
+ * never fired and the relative-time renderer printed
+ * "2,027 years ago" on Overview / project-detail hero.
+ *
+ * The backend now uses `*time.Time` + `omitempty` so the field is
+ * absent on the wire. This helper is the dashboard-side defense in
+ * depth that catches the zero literal even if a legacy backend slips
+ * through. EC-4 absorption: prefix-match covers RFC3339Nano
+ * (`"0001-01-01T00:00:00.000000000Z"`) and `+00:00` suffix variants.
+ */
+export function isZeroTime(iso: string | undefined | null): boolean {
+  if (iso === undefined || iso === null) return true;
+  if (iso === '') return true;
+  return iso.startsWith('0001-01-01T00:00:00');
+}
+
 export function formatDate(
   iso: string | undefined | null,
   intent: 'date' | 'datetime' | 'relative' | 'long',
 ): string {
   // EC-2: empty string + null + undefined all collapse to em-dash via !iso
-  if (!iso) return EMDASH;
+  // EC-4 (qa-dogfood-cleanup-2026-06-21 #118): zero-time sentinel too.
+  if (!iso || isZeroTime(iso)) return EMDASH;
   const d = new Date(iso);
   // Invalid Date guard — Number.isNaN of date.getTime() is the canonical check
   if (Number.isNaN(d.getTime())) return EMDASH;

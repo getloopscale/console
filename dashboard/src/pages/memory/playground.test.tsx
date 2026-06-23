@@ -67,6 +67,30 @@ describe('Memory Playground (T3.1)', () => {
     expect(await screen.findByText('0.912')).toBeInTheDocument();
   });
 
+  it('recall omits graphExpand by default (toggle off) — EG-1', async () => {
+    mockCloudFetch.mockResolvedValueOnce({ results: [] });
+    render(<PlaygroundPage />, { initialEntries: ['/memory/playground'] });
+    await userEvent.type(screen.getByLabelText('Query'), 'what milk');
+    await userEvent.click(screen.getByRole('button', { name: 'Recall' }));
+    await waitFor(() => expect(mockCloudFetch).toHaveBeenCalled());
+    const call = mockCloudFetch.mock.calls.find((c) => c[0] === '/v1/dashboard/memory/recall');
+    const body = JSON.parse((call?.[1] as { body: string }).body) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('graphExpand');
+  });
+
+  it('recall sends graphExpand when the toggle is on — EG-1', async () => {
+    mockCloudFetch.mockResolvedValueOnce({ results: [] });
+    render(<PlaygroundPage />, { initialEntries: ['/memory/playground'] });
+    await userEvent.type(screen.getByLabelText('Query'), 'what milk');
+    await userEvent.click(screen.getByLabelText('Graph expand'));
+    await userEvent.selectOptions(screen.getByLabelText('Graph expand hops'), '2');
+    await userEvent.click(screen.getByRole('button', { name: 'Recall' }));
+    await waitFor(() => expect(mockCloudFetch).toHaveBeenCalled());
+    const call = mockCloudFetch.mock.calls.find((c) => c[0] === '/v1/dashboard/memory/recall');
+    const body = JSON.parse((call?.[1] as { body: string }).body) as { graphExpand?: { hops: number } };
+    expect(body.graphExpand).toEqual({ hops: 2 });
+  });
+
   it('reflect posts to the BFF and shows the result', async () => {
     mockCloudFetch.mockResolvedValueOnce({ consolidated: 2 });
     render(<PlaygroundPage />, { initialEntries: ['/memory/playground'] });

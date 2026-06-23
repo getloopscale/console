@@ -5,17 +5,98 @@ Format: Keep a Changelog + Semantic Versioning.
 
 ## [Unreleased]
 
-### Added
+## [0.7.0] - 2026-06-23
 
 ### Changed
-
-### Deprecated
-
-### Removed
+- **Card border visual consistency (canonical end-to-end).** Bump
+  `@usetheo/ui` 0.13.1 → 0.13.2 (mirror of `@theokit/ui@0.18.1` from
+  `usetheodev/theo-ui` PR #17 / merge commit `65496a0`). The upstream
+  PR fixed a long-standing inconsistency: the `Card` primitive used
+  `border` alone (no token suffix), which fell back to the browser's
+  user-agent stylesheet `currentColor` in Tailwind v4 — rendering a
+  visible light/white border against the violet-forge dark theme.
+  `UsageMeter` was the only canonical-correct surface, using
+  `border border-border` (semantic token via `--color-border`).
+  QA caught this on theo-cloud dev-public Overview screen: USAGE card
+  had no white border, but Projects + Quick actions did. Upstream
+  patched 14 components (`Card` primitive + 13 composites including
+  `ProjectCard`, `PreviewEnvCard`, `EnvVarEditor`, etc.) to use
+  `border border-border` consistently. Affects every Card-based surface
+  across the dashboard — no dashboard source change required; pure
+  npm bump.
+- (#119 canonical end-to-end) Bump `@usetheo/ui` 0.13.0 → 0.13.1 +
+  `overview.tsx` now passes `'idle'` directly to the ProjectCard
+  `status` prop. The published `@usetheo/ui@0.13.1` (mirror of
+  `@theokit/ui@0.18.0` from `usetheodev/theo-ui` PR #16 / merge
+  commit `a3719c0`) adds `'idle'` to the canonical
+  `DeploymentStatus` union with neutral gray variant + dot tone +
+  "Idle" label. Replaces the 2026-06-18 stopgap that collapsed
+  backend `'idle'` to `'cancelled'` because the UI lib didn't
+  expose it. Projects that have never deployed now render with a
+  neutral Idle badge — visually distinguished from amber-pulsing
+  `'queued'` ("deploy in progress") AND from `'cancelled'`
+  ("explicitly stopped"). Closes #119 of
+  `qa-dogfood-cleanup-2026-06-21` end-to-end: canonical surface
+  ships at `theo-ui` source + LIVE reaches dev-public via npm
+  publish + dashboard bump.
 
 ### Fixed
+- `qa-dogfood-cleanup-2026-06-21` — dashboard slice closing 7 of 11 issues from the
+  2026-06-21 QA dogfooding run against `https://app-dev.usetheo.dev`:
+    - (#118) `lib/format.ts` adds `isZeroTime()` pure helper with prefix-match per
+      EC-4 (handles `0001-01-01T00:00:00Z`, RFC3339Nano, `+00:00` suffix variants).
+      `overview.tsx` + `project-detail.tsx` use it as defense-in-depth on top of the
+      backend pointer + `omitempty` switch. `formatDate()` returns em-dash for
+      zero-time literals.
+    - (#119) `overview.tsx` ProjectCard `status` now consumes canonical
+      `p.last_deploy_status` (already release-aware via the engine's
+      `pkg/enforcement.MapProjectStatus`) instead of deriving from `last_deploy ?
+      'live' : 'queued'` which contradicted the hero/list state when releases were
+      absent. Maps backend `'idle'` to UI `'queued'` because `@usetheo/ui`
+      DeploymentStatus enum has no `'idle'`.
+    - (#120) `project-connect.tsx` Repository panel branch label renamed to
+      "Deploy branch (Theo)" so the user distinguishes it from GitHub's
+      `default_branch`. Overview-side branch surfacing tracked as additive wire
+      follow-up (rendering `'main'` as documented placeholder per ADR-Q3).
+    - (#121) `deployments.tsx` + `project-detail.tsx` empty-state CTAs are
+      deploy-centric ("Trigger a deploy with `theo deploy`…" + "Open repository
+      tab") instead of the legacy "Connect a repository" affordance that
+      contradicted the actual `Connected ACTIVE` state.
+    - (#125) `audit.tsx` Table.Row `key` switched to composite `key={e.id ||
+      'idx:' + idx}` so legacy audit rows with empty/null IDs no longer collapse
+      to a single React key.
+    - (#126) `audit.tsx` adds `displayAction(action, resource_type)` pure helper
+      that remaps known raw-SQL ops to canonical domain events
+      (`tenant.member.added`, `project.created`, etc.) and renders unknown raw
+      verbs as `[unmapped: insert audit_entries]` instead of silently leaking
+      the SQL verb. ACTOR fallback flipped from `'—'` to `'[unknown]'` so a
+      reader distinguishes WHEN-missing from ACTOR-missing.
+    - (#127) `components/secrets/add-secret-sheet.tsx` +
+      `components/secrets/bulk-upload-sheet.tsx` default `availableEnvs` flipped
+      from `['production', 'staging']` to `['preview', 'production']` per
+      ADR-Q6 — canonical PaaS lexicon is preview + production. NEW hermetic
+      audit at `lib/env-terminology.test.ts` with anchored EC-1 regex
+      (`(availableEnvs|defaultEnvs)\s*[:=].*['"]staging['"]`) so generic test
+      fixtures + dev-mocks data do not false-positive.
+    - (#123 / #142) **Canonical fix shipped** — `pages/project-scale.tsx`
+      now seeds `resolvedPlanTier` from
+      `useProjectStatus(name).status.plan_tier` (engine `GET
+      /api/v1/projects/{name}/status` — sibling theo commit adds the
+      field). Single canonical SoT: the same `PlanTierStore` the engine
+      uses to enforce `POST /scale` now also feeds the slider ceiling
+      pre-Apply. Mutation response still wins post-save
+      (server-authoritative per ADR D1 EC-2). Replaces the
+      2026-06-22 stopgap that depended on Known Gap #116 cloud BFF
+      `/v1/billing` (404). Type added at `lib/api/types.ts`
+      `ProjectStatusDetail.plan_tier?: string`. Older engines that omit
+      the field cause the page to keep the 'starter' fallback — graceful
+      degradation.
+  Wire contract change in sibling theo commit (`*time.Time` + `omitempty`).
+- TheMemory e2e oracle (`tests/e2e/memory_e2e_test.go`): the gateway round-trip now asserts memory presence/isolation/survival by **memory ID** instead of literal content substrings (`"blue"` / `"Lisbon"`). A real extraction LLM normalizes — and may translate — the raw text into a canonical fact (gpt-4o-mini stored `"i live in Lisbon"` as `"user mora em Lisboa"`), which broke the content-substring assertions when the e2e ran against real OpenAI instead of the verbatim echo-mock. The ID-based oracle is real-LLM-robust and strictly stronger (a leak that survives translation would have slipped past the old `!Contains("Lisbon")` isolation check). Surfaced by a live theo-cloud ↔ TheMemory v0.20.0 integration run with a real LLM. (live-test-real-llm-oracle)
 
-### Security
+### Added
+- Episodes timeline (episodes-gateway-dashboard): proxies TheMemory v0.14.0's `GET /v1/scopes/{type}/{id}/episodes` through the gateway — `GET /v1/memory/episodes` (SDK, `memory:read`) + `GET /v1/dashboard/memory/episodes` (BFF) — forwarding cursor/order/asOf/text-filter params. New dashboard "Episodes" tab: a cursor-paginated, bi-temporal-aware (`asOf` replay) event timeline over the subject's memories with newest/oldest toggle and literal text filter. Shared-key D3 rule (scope≠user → empty page). (episodes-gateway-dashboard)
+- Graph-aware recall over the gateway + dashboard (gateway-graphexpand-recall-ui, EG-1): the recall path now forwards TheMemory v0.20.0's `graphExpand` option — `RecallOptions.GraphExpand` + the `recallRequest` body field (omitempty) on the SDK client, a boundary-validated `graphExpand` (`hops` 1|2, `limit` 1..100; 0/omitted → provider default) on `POST /v1/memory/recall` (shared by the dashboard BFF `/v1/dashboard/memory/recall`), and the OpenAPI `/v1/recall` request schema documents it. New dashboard Playground "Graph expand" toggle (hops 1|2) that surfaces memories connected by a shared entity (1 hop) or relation edge (2 hops). DEFAULT OFF → recall byte-unchanged. Thin passthrough (TheMemory owns the traversal); ZERO new dependency, no new route. (gateway-graphexpand-recall-ui)
 
 ## [0.6.0] - 2026-06-21
 

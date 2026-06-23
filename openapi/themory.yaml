@@ -137,6 +137,33 @@ paths:
                     items: { type: object, additionalProperties: true }
                 additionalProperties: true
 
+  /v1/scopes/{type}/{id}/episodes:
+    get:
+      summary: Subject-scoped episodic / message-log read (cursor + asOf, TheMemory v0.14.0)
+      parameters:
+        - { $ref: "#/components/parameters/Authorization" }
+        - { name: type, in: path, required: true, schema: { type: string, enum: [user, session, agent] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: after, in: query, required: false, schema: { type: string } }
+        - { name: before, in: query, required: false, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer } }
+        - { name: order, in: query, required: false, schema: { type: string, enum: [asc, desc] } }
+        - { name: asOf, in: query, required: false, schema: { type: string } }
+        - { name: q, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: one cursor-paginated page of episode items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  nextCursor: { type: string }
+                additionalProperties: true
+
   /v1/forget:
     post:
       summary: Forget (delete) one memory by id (workspace-scoped on the provider)
@@ -207,6 +234,12 @@ paths:
                 threshold: { type: number }
                 asOf: { type: string, description: "RFC3339 bi-temporal point-in-time (v1.1)" }
                 attributedTo: { type: string }
+                graphExpand:
+                  type: object
+                  description: "Entity-graph expansion (TheMemory v0.20.0). Surfaces memories connected by a shared entity (1 hop) or relation edge (2 hops). Both fields optional (omit for provider default)."
+                  properties:
+                    hops: { type: integer, enum: [1, 2] }
+                    limit: { type: integer, minimum: 1, maximum: 100 }
       responses:
         "200":
           description: scored results

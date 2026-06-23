@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Alert, Button, Card, PageShell } from '@usetheo/ui';
@@ -6,6 +6,7 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useScale } from '@/hooks/use-scale';
 import { useScaleCost } from '@/hooks/use-scale-cost';
+import { useProjectStatus } from '@/hooks/use-project-status';
 import { ScaleSlider } from '@/components/scale/scale-slider';
 import { HPAToggle, type HPAMode } from '@/components/scale/hpa-toggle';
 import { KEDAToggle } from '@/components/scale/keda-toggle';
@@ -57,9 +58,25 @@ export function ProjectScalePage() {
   const [kedaEnabled, setKedaEnabled] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Until the page bootstraps from /v1/projects/:name/status, assume the
-  // conservative defaults — the FIRST save response rehydrates these.
+  // Initial tier from engine GET /api/v1/projects/{name}/status (#142
+  // canonical, closes #123 of qa-dogfood-cleanup-2026-06-21). Engine
+  // surfaces the resolved tier from PlanTierStore (same store
+  // ScaleHandler.resolveTier uses for enforcement), so this is now a
+  // single canonical SoT — no /v1/billing dependency on Known Gap #116.
+  // Mutation response still wins post-save (server-authoritative per
+  // ADR D1 EC-2). Falls back to 'starter' when status hasn't loaded yet
+  // OR engine omits plan_tier (older deployments).
+  const { status } = useProjectStatus(name);
   const [resolvedPlanTier, setResolvedPlanTier] = useState('starter');
+  useEffect(() => {
+    if (status?.plan_tier && status.plan_tier !== resolvedPlanTier) {
+      setResolvedPlanTier(status.plan_tier);
+    }
+    // resolvedPlanTier intentionally excluded from deps so a post-save
+    // mutation response (which sets a fresh tier echo via /scale response)
+    // does not get clobbered by a stale status poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status?.plan_tier]);
   const [clusterKedaInstalled] = useState(true);
   const [currentReplicas, setCurrentReplicas] = useState(
     DEFAULT_CURRENT_REPLICAS,

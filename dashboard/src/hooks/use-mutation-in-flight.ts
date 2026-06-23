@@ -45,8 +45,26 @@ export interface MutationInFlight {
 
 type Listener = () => void;
 
-const store = new Map<string, MutationInFlight>();
-const listeners = new Set<Listener>();
+// HMR-safe singleton: store + listener set live on globalThis so a Vite
+// hot-update that re-instantiates this module does NOT create a fresh
+// Map and a fresh listener Set. Sponsor LIVE-caught 2026-06-18: after
+// HMR'ing the dialog and the grid in different reloads, the dialog
+// published into one Map instance and the grid subscribed to another,
+// so the transitional badge never lit up in /deployments even though
+// the publish path ran correctly. globalThis bridges the two module
+// instances across HMR boundaries; in production builds (single module
+// instance) the behavior is identical.
+interface MutationInFlightGlobals {
+  __theoMutationInFlightStore?: Map<string, MutationInFlight>;
+  __theoMutationInFlightListeners?: Set<Listener>;
+}
+const g = globalThis as MutationInFlightGlobals;
+const store: Map<string, MutationInFlight> =
+  g.__theoMutationInFlightStore ??
+  (g.__theoMutationInFlightStore = new Map());
+const listeners: Set<Listener> =
+  g.__theoMutationInFlightListeners ??
+  (g.__theoMutationInFlightListeners = new Set());
 
 function notify() {
   for (const listener of listeners) listener();

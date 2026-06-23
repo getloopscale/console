@@ -447,6 +447,8 @@ func main() {
 			// themory-graph-gateway-dashboard — entity relation graph ({nodes,edges}).
 			// Same memory:read scope as entities (shared handler, D2).
 			r.With(auth.RequireScope(db, "memory:read")).Get("/graph", memoryHandler.Graph)
+			// episodes-gateway-dashboard — cursor-paginated bi-temporal episode log.
+			r.With(auth.RequireScope(db, "memory:read")).Get("/episodes", memoryHandler.Episodes)
 			// dashboard-phase2b-skills-browse T3.2 — read-only Repo-tier skills
 			// listing (same memory:read scope; repoId namespaced by subject, D3).
 			r.With(auth.RequireScope(db, "memory:read")).Get("/skills", memoryHandler.ListSkills)
@@ -499,6 +501,8 @@ func main() {
 			r.Get("/entities", dashboardMemoryHandler.Entities)
 			// themory-graph-gateway-dashboard — entity relation graph (BFF).
 			r.Get("/graph", dashboardMemoryHandler.Graph)
+			// episodes-gateway-dashboard — cursor-paginated bi-temporal episode log (BFF).
+			r.Get("/episodes", dashboardMemoryHandler.Episodes)
 			// dashboard-phase2b-skills-browse T3.3 — read-only skills browse (BFF).
 			r.Get("/skills", dashboardMemoryHandler.ListSkills)
 			// skills-write-surface T3.3 — author + curate skills from the dashboard (BFF).

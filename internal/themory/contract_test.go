@@ -193,6 +193,81 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		validateRequest(t, router, got)
 	})
 
+	t.Run("Recall forwards graphExpand in the body (EG-1 T1.1)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{GraphExpand: &GraphExpand{Hops: 1}}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		if !strings.Contains(string(body), `"graphExpand":{"hops":1}`) {
+			t.Fatalf("graphExpand not sent: %s", body)
+		}
+		got.Body = io.NopCloser(bytes.NewReader(body))
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Recall omits graphExpand when unset (EG-1 T1.1)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{TopK: 5}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		if strings.Contains(string(body), "graphExpand") {
+			t.Fatalf("graphExpand should be omitted: %s", body)
+		}
+	})
+
+	t.Run("Recall forwards empty graphExpand{} as enable-with-defaults (EG-1 EC-2)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{GraphExpand: &GraphExpand{}}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		// hops/limit omitempty → graphExpand serializes to {} (enable, provider default hops).
+		if !strings.Contains(string(body), `"graphExpand":{}`) {
+			t.Fatalf("empty graphExpand not sent as {}: %s", body)
+		}
+	})
+
+	t.Run("GOAL: graphExpand{hops,limit} reaches the provider /v1/recall body (EG-1 T3.1)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{GraphExpand: &GraphExpand{Hops: 2, Limit: 10}}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		if !strings.Contains(string(body), `"graphExpand":{"hops":2,"limit":10}`) {
+			t.Fatalf("graphExpand{hops:2,limit:10} not forwarded: %s", body)
+		}
+		got.Body = io.NopCloser(bytes.NewReader(body))
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Recall drops limit:0 (omitempty invariant — F-dom-1)", func(t *testing.T) {
+		// limit:0 is the OMIT signal; TheMemory's zod is limit.min(1), so a
+		// forwarded limit:0 would 422. omitempty must drop it → graphExpand:{"hops":1}.
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{GraphExpand: &GraphExpand{Hops: 1, Limit: 0}}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		if strings.Contains(string(body), `"limit"`) {
+			t.Fatalf("limit:0 must be omitted (TheMemory limit.min(1) would 422): %s", body)
+		}
+		if !strings.Contains(string(body), `"graphExpand":{"hops":1}`) {
+			t.Fatalf("graphExpand should serialize to {hops:1} with no limit: %s", body)
+		}
+	})
+
 	t.Run("Reflect hits POST /v1/reflect", func(t *testing.T) {
 		var got *http.Request
 		srv := captureServer(t, 202, `{"consolidated":2}`, &got)
@@ -260,6 +335,39 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		}
 		if res.Nodes == nil || res.Edges == nil || len(res.Edges) != 0 {
 			t.Fatalf("Graph(session) should be empty non-nil: %+v", res)
+		}
+	})
+
+	t.Run("Episodes hits the scope episodes endpoint + maps items + nextCursor", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"items":[{"id":"m1","text":"moved to Lisbon","scope_type":"user","created_at":"2026-06-22T10:00:00.000Z","metadata":{}}],"nextCursor":"CUR1"}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		res, err := c.Episodes(context.Background(), "user-1", "user", EpisodeOptions{Limit: 2, Order: "desc", After: "PREV", AsOf: "2026-06-22T11:00:00Z", Query: "Lisbon"})
+		if err != nil {
+			t.Fatalf("Episodes: %v", err)
+		}
+		if len(res.Items) != 1 || res.Items[0].ID != "m1" || res.Items[0].Text != "moved to Lisbon" {
+			t.Fatalf("Episodes item mapping wrong: %+v", res.Items)
+		}
+		if res.NextCursor == nil || *res.NextCursor != "CUR1" {
+			t.Fatalf("Episodes nextCursor mapping wrong: %+v", res.NextCursor)
+		}
+		// query params forwarded
+		gq := got.URL.Query()
+		if gq.Get("limit") != "2" || gq.Get("order") != "desc" || gq.Get("after") != "PREV" || gq.Get("asOf") == "" || gq.Get("q") != "Lisbon" {
+			t.Fatalf("Episodes query not forwarded: %s", got.URL.RawQuery)
+		}
+		validateRequest(t, router, got)
+	})
+
+	t.Run("Episodes non-user scope returns empty without HTTP call", func(t *testing.T) {
+		c := NewClient("http://unused.invalid", "test-key", http.DefaultClient)
+		res, err := c.Episodes(context.Background(), "user-1", "session", EpisodeOptions{})
+		if err != nil {
+			t.Fatalf("Episodes(session): %v", err)
+		}
+		if res.Items == nil || len(res.Items) != 0 || res.NextCursor != nil {
+			t.Fatalf("Episodes(session) should be empty non-nil with no cursor: %+v", res)
 		}
 	})
 

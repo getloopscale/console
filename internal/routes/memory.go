@@ -43,6 +43,9 @@ type TheMemoryClient interface {
 	// Graph returns the subject's entity relation graph ({nodes, edges})
 	// (themory-graph-gateway-dashboard). Same scope rule as Entities.
 	Graph(ctx context.Context, userID, scope string) (*themory.GraphResult, error)
+	// Episodes returns one cursor-paginated page of the subject's episodic
+	// read surface (TheMemory v0.14.0). Same scope rule as Entities.
+	Episodes(ctx context.Context, userID, scope string, opts themory.EpisodeOptions) (*themory.EpisodesResult, error)
 	Remember(ctx context.Context, userID, text string, opts themory.RememberOptions) (*themory.RememberResult, error)
 	Recall(ctx context.Context, userID, query string, opts themory.RecallOptions) (*themory.RecallResult, error)
 	Reflect(ctx context.Context, userID string, opts themory.ReflectOptions) (*themory.ReflectResult, error)
@@ -332,6 +335,61 @@ func (h *MemoryHandler) Graph(w http.ResponseWriter, r *http.Request) {
 }
 
 // =============================================================================
+// GET /v1/memory/episodes — episodes-gateway-dashboard
+// =============================================================================
+
+// Episodes returns one cursor-paginated page of the authenticated subject's
+// episodic / message-log read surface (TheMemory v0.14.0). A temporal,
+// bi-temporal-aware (asOf) projection of the subject's memories. Mirrors Entities:
+// gated by RequireScope("memory:read"); `validEntityScopes` 400 guard; upstream
+// failure → 502; Items always an array, never null. Cursor/order/asOf/q query
+// params are forwarded; `limit` is parsed as a non-negative int (0/absent →
+// provider default; the provider caps it at 200 → 422 forwarded as-is). Shared by
+// the SDK + dashboard BFF routes.
+func (h *MemoryHandler) Episodes(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+
+	q := r.URL.Query()
+	scope := q.Get("scope")
+	if !validEntityScopes[scope] {
+		writeError(w, http.StatusBadRequest, "INVALID_SCOPE",
+			`Scope must be one of: user, session, agent, repo.`)
+		return
+	}
+
+	opts := themory.EpisodeOptions{
+		After:  q.Get("after"),
+		Before: q.Get("before"),
+		Order:  q.Get("order"),
+		AsOf:   q.Get("asOf"),
+		Query:  q.Get("q"),
+	}
+	if raw := q.Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			writeError(w, http.StatusBadRequest, "INVALID_LIMIT", "limit must be a non-negative integer.")
+			return
+		}
+		opts.Limit = n
+	}
+
+	result, err := h.client.Episodes(r.Context(), user.Subject, scope, opts)
+	if err != nil {
+		h.logger.Warn("memory episodes: upstream failed", "error", err, "subject", user.Subject, "scope", scope)
+		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		return
+	}
+	if result.Items == nil {
+		result.Items = []themory.EpisodeItem{}
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// =============================================================================
 // GET /v1/memory/skills?repoId= — dashboard-phase2b-skills-browse T3.2
 // =============================================================================
 
@@ -537,10 +595,20 @@ func (h *MemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
 // =============================================================================
 
 type recallRequest struct {
-	Query     string  `json:"query"`
-	TopK      int     `json:"topK,omitempty"`
-	Threshold float64 `json:"threshold,omitempty"`
-	AsOf      string  `json:"asOf,omitempty"`
+	Query       string          `json:"query"`
+	TopK        int             `json:"topK,omitempty"`
+	Threshold   float64         `json:"threshold,omitempty"`
+	AsOf        string          `json:"asOf,omitempty"`
+	GraphExpand *graphExpandReq `json:"graphExpand,omitempty"`
+}
+
+// graphExpandReq is the inbound entity-graph expansion (theo-memory v0.20.0).
+// Both fields optional (0 = omitted → provider applies its default), mirroring
+// TheMemory's `z.union([1,2]).optional()` — so `graphExpand:{}` is valid
+// "enable with defaults", NOT a 400 (EG-1 EC-1).
+type graphExpandReq struct {
+	Hops  int `json:"hops,omitempty"`
+	Limit int `json:"limit,omitempty"`
 }
 
 // Recall proxies a semantic search to TheMemory under the subject's user scope.
@@ -578,9 +646,24 @@ func (h *MemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// EG-1 D2: boundary-validate graphExpand (mirror TheMemory's strict zod:
+	// hops ∈ {1,2} optional, limit 1..100 optional). 0 = omitted (forwarded as
+	// the provider default), so only out-of-range values are a clear 400.
+	var graphExpand *themory.GraphExpand
+	if req.GraphExpand != nil {
+		if req.GraphExpand.Hops < 0 || req.GraphExpand.Hops > 2 {
+			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'graphExpand.hops' must be 1 or 2 (omit for the provider default).")
+			return
+		}
+		if req.GraphExpand.Limit < 0 || req.GraphExpand.Limit > 100 {
+			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'graphExpand.limit' must be between 1 and 100 (omit for the provider default).")
+			return
+		}
+		graphExpand = &themory.GraphExpand{Hops: req.GraphExpand.Hops, Limit: req.GraphExpand.Limit}
+	}
 
 	result, err := h.client.Recall(r.Context(), user.Subject, req.Query,
-		themory.RecallOptions{TopK: req.TopK, Threshold: req.Threshold, AsOf: req.AsOf})
+		themory.RecallOptions{TopK: req.TopK, Threshold: req.Threshold, AsOf: req.AsOf, GraphExpand: graphExpand})
 	if err != nil {
 		h.logger.Warn("memory recall: upstream failed", "error", err, "subject", user.Subject)
 		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")

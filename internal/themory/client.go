@@ -136,11 +136,29 @@ type RememberResult struct {
 	Items []MemoryRow `json:"items"`
 }
 
+// GraphExpand is the optional entity-graph expansion for a recall (theo-memory
+// v0.20.0). Forwarded to TheMemory's POST /v1/recall `graphExpand` field, which
+// pool-expands results with memories connected by a shared entity (1 hop) or a
+// relation edge (2nd hop). Both fields are optional (0 = omitted via omitempty,
+// so TheMemory applies its default) — mirrors the provider's `z.union([1,2]).optional()`.
+// MUST stay `int` + `omitempty` (NOT *int): 0 is the OMIT signal here. TheMemory's
+// zod is `hops: union([1,2]).optional()` + `limit: int.min(1).max(100).optional()`,
+// so it 422s `limit:0`. omitempty drops a 0 from the wire → TheMemory applies its
+// default. Converting either field to *int (to distinguish 0 from absent, as
+// `recallRequest.Threshold` does) WITHOUT changing the 0=omit semantics would
+// forward `limit:0` → provider 422 → laundered 502, defeating ADR D2. The
+// contract test `Recall drops limit:0 (omitempty invariant)` fails RED if broken.
+type GraphExpand struct {
+	Hops  int `json:"hops,omitempty"`
+	Limit int `json:"limit,omitempty"`
+}
+
 // RecallOptions are the optional fields for a recall (semantic search) call.
 type RecallOptions struct {
-	TopK      int
-	Threshold float64 // 0 means "unset" (omitted from the request)
-	AsOf      string  // optional RFC3339 bi-temporal point-in-time (v1.1); empty = omitted
+	TopK        int
+	Threshold   float64      // 0 means "unset" (omitted from the request)
+	AsOf        string       // optional RFC3339 bi-temporal point-in-time (v1.1); empty = omitted
+	GraphExpand *GraphExpand // optional entity-graph expansion (v0.20.0); nil = omitted
 }
 
 // RecallHit is one scored result from a recall call.
@@ -206,6 +224,36 @@ type GraphEdge struct {
 type GraphResult struct {
 	Nodes []GraphNode `json:"nodes"`
 	Edges []GraphEdge `json:"edges"`
+}
+
+// EpisodeItem is one row of the episodic / message-log read surface
+// (TheMemory v0.14.0 GET /v1/scopes/{type}/{id}/episodes). A temporal projection
+// of a memory: id + text + the scope tier + created_at + flat metadata.
+type EpisodeItem struct {
+	ID        string         `json:"id"`
+	Text      string         `json:"text"`
+	ScopeType string         `json:"scope_type"`
+	CreatedAt string         `json:"created_at"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+}
+
+// EpisodesResult is the GET /episodes response shape: one cursor-paginated page.
+// NextCursor is non-nil only when more rows follow in the active order.
+type EpisodesResult struct {
+	Items      []EpisodeItem `json:"items"`
+	NextCursor *string       `json:"nextCursor,omitempty"`
+}
+
+// EpisodeOptions are the cursor/order/asOf/text-filter knobs forwarded to the
+// provider's episodes endpoint. All optional; an empty value is omitted from the
+// query (mirrors ListOptions). At most one of After/Before is honored upstream.
+type EpisodeOptions struct {
+	After  string
+	Before string
+	Limit  int
+	Order  string // "asc" | "desc"
+	AsOf   string // ISO-8601 instant for bi-temporal replay
+	Query  string // literal partial-text filter (NOT semantic)
 }
 
 // Skill is one row of a repo's read-only skill listing
@@ -309,11 +357,12 @@ type rememberResponse struct {
 }
 
 type recallRequest struct {
-	UserID    string   `json:"userId"`
-	Query     string   `json:"query"`
-	TopK      int      `json:"topK,omitempty"`
-	Threshold *float64 `json:"threshold,omitempty"`
-	AsOf      string   `json:"asOf,omitempty"`
+	UserID      string       `json:"userId"`
+	Query       string       `json:"query"`
+	TopK        int          `json:"topK,omitempty"`
+	Threshold   *float64     `json:"threshold,omitempty"`
+	AsOf        string       `json:"asOf,omitempty"`
+	GraphExpand *GraphExpand `json:"graphExpand,omitempty"`
 }
 
 type recallItem struct {
@@ -361,7 +410,7 @@ func (c *Client) Recall(ctx context.Context, userID, query string, opts RecallOp
 	if query == "" {
 		return nil, errors.New("themory: recall query required")
 	}
-	reqBody := recallRequest{UserID: userID, Query: query, TopK: opts.TopK, AsOf: opts.AsOf}
+	reqBody := recallRequest{UserID: userID, Query: query, TopK: opts.TopK, AsOf: opts.AsOf, GraphExpand: opts.GraphExpand}
 	if opts.Threshold > 0 {
 		reqBody.Threshold = &opts.Threshold
 	}
@@ -431,6 +480,49 @@ func (c *Client) Entities(ctx context.Context, userID, scope string) (*EntitiesR
 	}
 	if out.Entities == nil {
 		out.Entities = []Entity{}
+	}
+	return &out, nil
+}
+
+// Episodes returns one cursor-paginated page of the subject's episodic /
+// message-log read surface from the provider's real
+// `GET /v1/scopes/user/{subject}/episodes` (TheMemory v0.14.0). A temporal,
+// bi-temporal-aware (asOf) projection of the subject's memories — distinct from
+// the flat List (semantic-free, cursor-paged, order + text filter).
+//
+// Same shared-key rule as Entities/Graph (D3): scope!="user" → empty page (no
+// sub-subject exists for the customer) — honest, not an error. Items is always a
+// non-nil slice (the dashboard never sees null).
+func (c *Client) Episodes(ctx context.Context, userID, scope string, opts EpisodeOptions) (*EpisodesResult, error) {
+	if scope != "" && scope != "user" {
+		return &EpisodesResult{Items: []EpisodeItem{}}, nil
+	}
+	q := url.Values{}
+	if opts.After != "" {
+		q.Set("after", opts.After)
+	}
+	if opts.Before != "" {
+		q.Set("before", opts.Before)
+	}
+	if opts.Limit > 0 {
+		q.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	if opts.Order != "" {
+		q.Set("order", opts.Order)
+	}
+	if opts.AsOf != "" {
+		q.Set("asOf", opts.AsOf)
+	}
+	if opts.Query != "" {
+		q.Set("q", opts.Query)
+	}
+	var out EpisodesResult
+	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/episodes"
+	if err := c.do(ctx, http.MethodGet, path, q, nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Items == nil {
+		out.Items = []EpisodeItem{}
 	}
 	return &out, nil
 }
