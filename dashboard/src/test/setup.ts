@@ -35,3 +35,19 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function () {};
 }
+
+// Polyfill Pointer Capture for jsdom (Radix Select/Dropdown triggers call
+// hasPointerCapture/setPointerCapture on pointerdown; jsdom implements none, so
+// without these the Radix listbox never OPENS in tests and `role="option"`
+// queries find nothing — the J-19 TimeRangePicker test failure mode).
+if (typeof Element !== 'undefined') {
+  if (!Element.prototype.hasPointerCapture) {
+    Element.prototype.hasPointerCapture = () => false;
+  }
+  if (!Element.prototype.setPointerCapture) {
+    Element.prototype.setPointerCapture = () => {};
+  }
+  if (!Element.prototype.releasePointerCapture) {
+    Element.prototype.releasePointerCapture = () => {};
+  }
+}

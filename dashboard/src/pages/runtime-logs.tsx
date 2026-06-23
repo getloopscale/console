@@ -6,23 +6,27 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useLogStream } from '@/hooks/use-log-stream';
 import { LogViewer } from '@/components/logs/log-viewer';
+import { TimeRangePicker } from '@/components/logs/time-range-picker';
 
 /**
- * RuntimeLogsPage — Plan v1.0 T2.1.
+ * RuntimeLogsPage — Plan v1.0 T2.1 + J-19 T1.1 (TimeRangePicker wire).
  *
- * Streams runtime logs from /api/v1/projects/{name}/logs/stream via SSE.
- * Reuses LogViewer composite + useLogStream hook from Phase 1 — only the
- * path differs from build logs. Mock emitter (handlers.ts) keeps emitting
- * lines indefinitely (vs build logs which finish after 10 lines).
+ * Streams runtime logs from /api/v1/projects/{name}/logs/stream?env=production&since={range}
+ * via SSE. Reuses LogViewer composite + useLogStream hook from Phase 1. The
+ * `?since=` query is driven by the TimeRangePicker dropdown; `env=production`
+ * precedes `since` (canonical query order). Mock emitter (handlers.ts) keeps
+ * emitting lines indefinitely (vs build logs which finish after 10 lines).
  */
 export function RuntimeLogsPage() {
   useRequireAuth();
   const { name = '' } = useParams<{ name: string }>();
   useSetPageTitle(`${name} · Runtime logs`);
   const [paused, setPaused] = useState(false);
+  // J-19 T1.1: time-range selector (default last 5 minutes). Drives `?since=`.
+  const [selectedRange, setSelectedRange] = useState('5m');
 
   const streamPath = name
-    ? `/engine/api/v1/projects/${encodeURIComponent(name)}/logs/stream`
+    ? `/engine/api/v1/projects/${encodeURIComponent(name)}/logs/stream?env=production&since=${selectedRange}`
     : null;
   const { lines, connected, error, clear } = useLogStream(streamPath, { paused });
 
@@ -31,7 +35,7 @@ export function RuntimeLogsPage() {
       title="Runtime logs"
       description={`Live log stream for ${name}.`}
     >
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <Button asChild variant="ghost" size="sm">
           <Link
             to={`/projects/${encodeURIComponent(name)}`}
@@ -41,6 +45,7 @@ export function RuntimeLogsPage() {
             <span>Back to project</span>
           </Link>
         </Button>
+        <TimeRangePicker value={selectedRange} onChange={setSelectedRange} />
       </div>
 
       <Card className="overflow-hidden">

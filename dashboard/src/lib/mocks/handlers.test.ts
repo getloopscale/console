@@ -47,8 +47,9 @@ describe('mocks/handlers — full API coverage', () => {
   });
 
   it('test_registers_sse_streams', () => {
-    // builds logs, runtime logs, build stream = 3 emitters
-    expect(getSSERegistrationCount()).toBe(3);
+    // builds logs, runtime logs, build stream, deploy timeline = 4 emitters
+    // (the deploy-timeline SSE was added with DeployTimelineHero, commit 416f6fd).
+    expect(getSSERegistrationCount()).toBe(4);
   });
 
   // ==========================================================================
@@ -154,8 +155,11 @@ describe('mocks/handlers — full API coverage', () => {
     const res = await call('GET', '/api/v1/builds/bld_01HXYZ_acme_web_001/sbom');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.bomFormat).toBe('CycloneDX');
-    expect(body.components).toBeInstanceOf(Array);
+    // API contract is metadata-per-app + presigned download URLs (BuildSBOM),
+    // NOT an inline CycloneDX payload (backend "LIVE bug 2026-06-06" change).
+    expect(body.build_id).toBeDefined();
+    expect(body.apps).toBeInstanceOf(Array);
+    expect(body.apps[0].sbom_format).toBe('cyclonedx-json');
   });
 
   // ==========================================================================

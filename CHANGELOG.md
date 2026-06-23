@@ -5,6 +5,9 @@ Format: Keep a Changelog + Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+- **Dashboard test suite is globally green again + restored regressed J-19 runtime-logs feature.** `cd dashboard && npm run test` had 16 failing tests across 6 logs/SSE files. Root-cause triage found 10 were real REGRESSIONS (J-19 feature code lost in a develop merge / an incomplete scaffold), not stale tests: (1) `useLogStream` dropped `eventTypes: ['log']` + the theo-api `{timestamp,line,step}→{ts,msg,source}` mapping — named log frames were silently dropped; restored. (2) `runtime-logs` lost the `?env=production&since=<range>` stream-path query + the `TimeRangePicker` mount; restored. (3) `LogViewer` was missing ANSI rendering (`parseAnsi`), the 3s empty-state delay (cancelled on disconnect), and the line-click `#L<i>` permalink; restored. The remaining failures were a real root cause in the TEST ENV, not stale assertions: jsdom lacked Pointer Capture polyfills, so Radix `Select` never opened in tests (the `TimeRangePicker` `role="option"` failures) — added `hasPointerCapture`/`setPointerCapture`/`releasePointerCapture` to the test setup, which fixed all 4 Radix-option failures with ZERO test rewrites. Two genuinely-stale mock-handler assertions were aligned (SSE-stream count 3→4 after the deploy-timeline stream; SBOM response shape to the current `{build_id, apps[]}` contract). No `@skip`, no deleted tests; full suite green across 2 consecutive runs (143 files, 1005 passed). (dashboard-logs-sse-suite-repair)
+
 ## [0.8.0] - 2026-06-23
 
 ### Added
