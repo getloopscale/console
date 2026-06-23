@@ -5,6 +5,8 @@ Format: Keep a Changelog + Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-23
+
 ### Changed
 - **Card border visual consistency (canonical end-to-end).** Bump
   `@usetheo/ui` 0.13.1 → 0.13.2 (mirror of `@theokit/ui@0.18.1` from
