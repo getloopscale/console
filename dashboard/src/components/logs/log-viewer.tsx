@@ -81,6 +81,24 @@ export function LogViewer({
     el.scrollTop = el.scrollHeight;
   }, [lines]);
 
+  // J-19 T2.1 (R5) — per-line permalink READ side. On mount, parse the hash;
+  // if `#L<n>` matches a valid line index, scroll that line into view and
+  // disable auto-scroll so the target stays put (the click WRITE side sets the
+  // hash below). Index-based for v0.1; if FIFO drops happen between click and
+  // reload the target may shift — the droppedCount indicator (R3) makes that
+  // discoverable. Runs once after mount.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const m = window.location.hash.match(/^#L(\d+)$/);
+    if (!m || m[1] === undefined) return;
+    const idx = Number.parseInt(m[1], 10);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= lines.length) return;
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-line-index="${String(idx)}"]`);
+    el?.scrollIntoView({ block: 'center' });
+    autoScrollRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;

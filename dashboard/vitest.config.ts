@@ -15,6 +15,14 @@ export default defineConfig({
     globals: false,
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['./src/test/setup.ts'],
+    // The suite is jsdom + import-heavy (143 files). Under full-suite worker
+    // contention a per-test/-hook timeout can fire on an otherwise-fine test
+    // (observed: import-smoke + render tests timing out at 10-27s while the
+    // default 5s elapses under starvation). Raise the ceilings so worker
+    // contention does NOT produce false failures — the tests are starved, not
+    // wrong. Deterministic-green guard (dashboard-logs-sse-suite-repair F-XV-1).
+    testTimeout: 20000,
+    hookTimeout: 20000,
   },
   resolve: {
     alias: {

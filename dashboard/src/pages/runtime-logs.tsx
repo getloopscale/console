@@ -28,7 +28,7 @@ export function RuntimeLogsPage() {
   const streamPath = name
     ? `/engine/api/v1/projects/${encodeURIComponent(name)}/logs/stream?env=production&since=${selectedRange}`
     : null;
-  const { lines, connected, error, clear } = useLogStream(streamPath, { paused });
+  const { lines, connected, error, droppedCount, clear } = useLogStream(streamPath, { paused });
 
   return (
     <PageShell
@@ -55,6 +55,7 @@ export function RuntimeLogsPage() {
             connected={connected}
             error={error}
             paused={paused}
+            droppedCount={droppedCount}
             onTogglePause={() => setPaused((p) => !p)}
             onClear={clear}
           />
