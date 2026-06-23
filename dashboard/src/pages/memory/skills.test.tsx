@@ -1,5 +1,6 @@
-// dashboard-phase2b-skills-browse T4.1 — Skills browse tab.
-// Read-only: repoId input → fetch → DataTable. No executor/editor/delete (D4).
+// skills-cross-repo-flat-list-gateway — Skills tab (flat cross-repo listing).
+// Lists ALL skills by default (no repoId gate) with a Repo column + search +
+// pagination. D2 guardrail preserved: delete-only curation (no editor/executor).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
@@ -20,146 +21,112 @@ vi.mock('@/lib/api', () => ({
 
 import { SkillsPage } from './skills';
 
+function skill(id: string, repoId: string, description: string, code: string | null = 'x'): unknown {
+  return {
+    id,
+    hash: `h-${id}`,
+    description,
+    code,
+    codeLanguage: code === null ? null : 'typescript',
+    createdAt: '2026-06-01T00:00:00Z',
+    derivedFrom: [],
+    supersededBy: null,
+    repoId,
+  };
+}
+
 describe('SkillsPage (/memory/skills)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('shows a repo-required hint and does NOT fetch when repoId is empty', async () => {
-    render(<SkillsPage />);
-    expect(await screen.findByText(/enter a repo/i)).toBeInTheDocument();
-    expect(mockCloudFetch).not.toHaveBeenCalled();
-  });
-
-  it('fetches and renders skill rows after entering a repoId', async () => {
+  it('lists skills across repos by default (no repoId gate) with a Repo column', async () => {
     mockCloudFetch.mockResolvedValue({
-      skills: [
-        {
-          id: 's1',
-          hash: 'h1',
-          description: 'deploy the service',
-          code: 'kubectl apply',
-          codeLanguage: 'bash',
-          createdAt: '2026-06-01T00:00:00Z',
-          derivedFrom: [],
-          supersededBy: null,
-        },
-      ],
+      skills: [skill('s1', 'repo-a', 'deploy the service'), skill('s2', 'repo-b', 'parse csv')],
+      total: 2,
       truncated: false,
     });
     render(<SkillsPage />);
-    const input = await screen.findByLabelText(/repo/i);
-    await userEvent.type(input, 'acme');
+    // Fetches the flat endpoint WITHOUT requiring a repoId.
     expect(await screen.findByText('deploy the service')).toBeInTheDocument();
+    expect(screen.getByText('parse csv')).toBeInTheDocument();
+    // The Repo column surfaces each row's repoId.
+    expect(screen.getByText('repo-a')).toBeInTheDocument();
+    expect(screen.getByText('repo-b')).toBeInTheDocument();
     expect(mockCloudFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/v1/dashboard/memory/skills?repoId=acme'),
+      expect.stringContaining('/v1/dashboard/memory/skills/all?'),
     );
   });
 
-  it('shows the empty message when the repo has no skills', async () => {
-    mockCloudFetch.mockResolvedValue({ skills: [], truncated: false });
+  it('shows an empty-state (not a repo hint) when the subject has no skills', async () => {
+    mockCloudFetch.mockResolvedValue({ skills: [], total: 0, truncated: false });
     render(<SkillsPage />);
-    const input = await screen.findByLabelText(/repo/i);
-    await userEvent.type(input, 'empty');
-    expect(await screen.findByText(/no skills/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no skills yet/i)).toBeInTheDocument();
+    // It STILL fetched (no repoId gate) — the key behavior change.
+    expect(mockCloudFetch).toHaveBeenCalled();
+  });
+
+  it('search forwards the q query param', async () => {
+    mockCloudFetch.mockResolvedValue({ skills: [], total: 0, truncated: false });
+    render(<SkillsPage />);
+    const input = await screen.findByLabelText(/search/i);
+    await userEvent.type(input, 'csv');
+    // last call carries q=csv
+    expect(mockCloudFetch).toHaveBeenLastCalledWith(expect.stringContaining('q=csv'));
+  });
+
+  it('pagination: Next advances offset; Previous is disabled on the first page', async () => {
+    mockCloudFetch.mockResolvedValue({
+      skills: Array.from({ length: 25 }, (_, i) => skill(`s${i}`, 'repo-a', `skill ${i}`)),
+      total: 60,
+      truncated: true,
+    });
+    render(<SkillsPage />);
+    await screen.findByText('skill 0');
+    expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
+    const next = screen.getByRole('button', { name: /next/i });
+    expect(next).toBeEnabled();
+    await userEvent.click(next);
+    expect(mockCloudFetch).toHaveBeenLastCalledWith(expect.stringContaining('offset=25'));
   });
 
   it('EC-3: renders a skill with null code without crashing', async () => {
     mockCloudFetch.mockResolvedValue({
-      skills: [
-        {
-          id: 'd1',
-          hash: 'h',
-          description: 'derived skill',
-          code: null,
-          codeLanguage: null,
-          createdAt: '2026-06-01T00:00:00Z',
-          derivedFrom: ['a', 'b'],
-          supersededBy: null,
-        },
-      ],
+      skills: [skill('d1', 'repo-a', 'derived skill', null)],
+      total: 1,
       truncated: false,
     });
     render(<SkillsPage />);
-    const input = await screen.findByLabelText(/repo/i);
-    await userEvent.type(input, 'acme');
     expect(await screen.findByText('derived skill')).toBeInTheDocument();
-  });
-
-  it('EC-4: discloses truncation when the response is capped', async () => {
-    mockCloudFetch.mockResolvedValue({
-      skills: [
-        {
-          id: 's1',
-          hash: 'h1',
-          description: 'one',
-          code: 'x',
-          codeLanguage: 'bash',
-          createdAt: '2026-06-01T00:00:00Z',
-          derivedFrom: [],
-          supersededBy: null,
-        },
-      ],
-      truncated: true,
-    });
-    render(<SkillsPage />);
-    const input = await screen.findByLabelText(/repo/i);
-    await userEvent.type(input, 'acme');
-    expect(await screen.findByText(/showing the first/i)).toBeInTheDocument();
   });
 
   it('D2: curation = delete only; NO run/edit/create-code controls', async () => {
     mockCloudFetch.mockResolvedValue({
-      skills: [
-        {
-          id: 's1',
-          hash: 'h1',
-          description: 'one',
-          code: 'x',
-          codeLanguage: 'typescript',
-          createdAt: '2026-06-01T00:00:00Z',
-          derivedFrom: [],
-          supersededBy: null,
-        },
-      ],
+      skills: [skill('s1', 'repo-a', 'one')],
+      total: 1,
       truncated: false,
     });
     render(<SkillsPage />);
-    const input = await screen.findByLabelText(/repo/i);
-    await userEvent.type(input, 'acme');
     await screen.findByText('one');
-    // A forget (delete) curation control IS present...
     expect(screen.getByRole('button', { name: /forget skill/i })).toBeInTheDocument();
-    // ...but NO run/edit/create code controls (D2 store-only — agent authors).
-    expect(screen.queryByRole('button', { name: /run|execute|edit code|create skill|new skill/i })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: /run|execute|edit code|create skill|new skill/i }),
+    ).toBeNull();
   });
 
-  it('delete curation: clicking forget opens a confirm then DELETEs the skill', async () => {
+  it('delete uses the ROW repoId in the DELETE url', async () => {
     mockCloudFetch.mockResolvedValue({
-      skills: [
-        {
-          id: 's1',
-          hash: 'h1',
-          description: 'deploy thing',
-          code: 'x',
-          codeLanguage: 'typescript',
-          createdAt: '2026-06-01T00:00:00Z',
-          derivedFrom: [],
-          supersededBy: null,
-        },
-      ],
+      skills: [skill('s1', 'repo-b', 'deploy thing')],
+      total: 1,
       truncated: false,
     });
     render(<SkillsPage />);
-    const input = await screen.findByLabelText(/repo/i);
-    await userEvent.type(input, 'acme');
     await screen.findByText('deploy thing');
     await userEvent.click(screen.getByRole('button', { name: /forget skill/i }));
-    // ConfirmDialog appears; confirm.
     const confirm = await screen.findByRole('button', { name: /^forget skill$/i });
     await userEvent.click(confirm);
     expect(mockCloudFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/v1/dashboard/memory/skills/s1?repoId=acme'),
+      expect.stringContaining('/v1/dashboard/memory/skills/s1?repoId=repo-b'),
       expect.objectContaining({ method: 'DELETE' }),
     );
   });

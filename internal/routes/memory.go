@@ -53,6 +53,10 @@ type TheMemoryClient interface {
 	// (dashboard-phase2b-skills-browse T3.1). repoID is the ALREADY-namespaced
 	// `{subject}:{repoId}` value (the handler composes it; D3 isolation).
 	ListSkills(ctx context.Context, repoID string) (*themory.SkillsResult, error)
+	// ListSkillsAll returns the cross-repo flat skills listing for a subject
+	// (skills-cross-repo-flat-list-gateway T1.2, ADR D1). subject is passed BARE
+	// (NOT namespaced — the provider prefix-scans `{subject}:%`).
+	ListSkillsAll(ctx context.Context, subject string, opts themory.SkillsAllOptions) (*themory.SkillsAllResult, error)
 	// AddSkill creates a skill (skills-write-surface T3.1). repoID is the
 	// ALREADY-namespaced value. ErrSkillConflict on dedup-collision.
 	AddSkill(ctx context.Context, repoID string, draft themory.SkillDraft) (*themory.CreatedSkill, error)
@@ -430,6 +434,49 @@ func (h *MemoryHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 	}
 	if result.Skills == nil {
 		result.Skills = []themory.Skill{}
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// ListSkillsAll returns the cross-repo flat skills listing for the authenticated
+// subject (skills-cross-repo-flat-list-gateway T1.2). Unlike ListSkills, it does
+// NOT namespace `{subject}:{repoId}` — per ADR D1 it passes the BARE subject as
+// the provider `:subject` segment; the provider prefix-scans `agent_id LIKE
+// '{subject}:%'` and returns each row's bare repoId. Offset pagination + optional
+// `q` description filter. Gated by RequireScope("memory:read").
+func (h *MemoryHandler) ListSkillsAll(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+
+	q := r.URL.Query()
+	opts := themory.SkillsAllOptions{
+		Query:             q.Get("q"),
+		IncludeSuperseded: q.Get("includeSuperseded") == "true",
+	}
+	if v := q.Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
+			opts.Limit = n
+		}
+	}
+	if v := q.Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			opts.Offset = n
+		}
+	}
+
+	// ADR D1 — the BARE authenticated subject (NOT namespaced). The session is
+	// the tenant boundary; query params named "subject" are ignored.
+	result, err := h.client.ListSkillsAll(r.Context(), user.Subject, opts)
+	if err != nil {
+		h.logger.Warn("memory skills/all: upstream failed", "error", err, "subject", user.Subject)
+		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		return
+	}
+	if result.Skills == nil {
+		result.Skills = []themory.SkillWithRepo{}
 	}
 	writeJSON(w, http.StatusOK, result)
 }

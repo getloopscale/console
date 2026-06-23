@@ -19,21 +19,18 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
 
 /**
- * dashboard-phase2b-skills-browse T4.1 (browse) + skills-write-surface T4.1 (curation).
+ * skills-cross-repo-flat-list-gateway — /memory/skills browse + CURATE.
  *
- * /memory/skills — browse + CURATE a repo's skill library.
- *
- *  - A repoId input gates the fetch (no skills without a repo).
- *  - DataTable of {description, language, code (preview), createdAt}.
- *  - EmptyState when the repo has no skills; hint when no repoId entered.
+ *  - Lists ALL of the subject's skills across EVERY repo BY DEFAULT (no repoId
+ *    gate) via GET /v1/dashboard/memory/skills/all. Each row carries its `repoId`
+ *    (rendered as a Repo column).
+ *  - Search (`q`, literal description substring) + offset pagination, URL-driven.
+ *  - D2 guardrail preserved: the only WRITE control is DELETE (forget) curation —
+ *    NO code editor, NO create form, NO executor. Delete uses the row's `repoId`.
  *  - EC-3: skills with null code (derived/consolidated) render gracefully.
- *  - EC-4: truncation at the topK cap is disclosed ("showing the first N").
- *  - D2 scope guardrail: the only WRITE control is DELETE (forget) curation —
- *    NO code editor, NO create form, NO executor/sandbox. Agents author via
- *    REST/MCP; humans curate (delete) here.
  */
 
-interface Skill {
+interface SkillWithRepo {
   id: string;
   hash: string;
   description: string;
@@ -42,12 +39,16 @@ interface Skill {
   createdAt: string;
   derivedFrom: string[];
   supersededBy: string | null;
+  repoId: string;
 }
 
-interface SkillsResult {
-  skills: Skill[];
+interface SkillsAllResult {
+  skills: SkillWithRepo[];
+  total: number;
   truncated: boolean;
 }
+
+const PAGE_SIZE = 25;
 
 export function SkillsPage() {
   const { setPageTitle } = usePageMeta();
@@ -55,47 +56,59 @@ export function SkillsPage() {
   useRequireAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const [pendingDelete, setPendingDelete] = useState<Skill | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<SkillWithRepo | null>(null);
 
-  const repoId = searchParams.get('repoId') ?? '';
+  const q = searchParams.get('q') ?? '';
+  const offset = Number(searchParams.get('offset') ?? '0');
 
-  const setRepoId = (next: string) => {
-    const params = new URLSearchParams(searchParams);
-    if (next === '') {
-      params.delete('repoId');
+  const updateParam = (key: string, value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === '') {
+      next.delete(key);
     } else {
-      params.set('repoId', next);
+      next.set(key, value);
     }
-    setSearchParams(params, { replace: true });
+    // any filter change resets pagination
+    if (key !== 'offset') next.delete('offset');
+    setSearchParams(next, { replace: true });
   };
 
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/skills', repoId] as const,
-    queryFn: () =>
-      cloudFetch<SkillsResult>(
-        `/v1/dashboard/memory/skills?repoId=${encodeURIComponent(repoId)}`,
-      ),
-    enabled: repoId !== '',
+    queryKey: ['cloud', '/v1/dashboard/memory/skills/all', { q, offset }] as const,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set('limit', String(PAGE_SIZE));
+      if (offset > 0) params.set('offset', String(offset));
+      if (q !== '') params.set('q', q);
+      return cloudFetch<SkillsAllResult>(`/v1/dashboard/memory/skills/all?${params.toString()}`);
+    },
   });
 
   const skills = query.data?.skills ?? [];
-  const truncated = query.data?.truncated ?? false;
+  const total = query.data?.total ?? 0;
+  const hasPrev = offset > 0;
+  const hasNext = offset + skills.length < total;
 
-  // D2 curation: forget (delete) a bad skill. NO create/edit code path here.
+  // D2 curation: forget (delete) a bad skill via its OWN repoId. NO create/edit.
   const forgetSkill = useMutation({
-    mutationFn: async (skill: Skill) => {
+    mutationFn: async (skill: SkillWithRepo) => {
       await cloudFetch<null>(
-        `/v1/dashboard/memory/skills/${encodeURIComponent(skill.id)}?repoId=${encodeURIComponent(repoId)}`,
+        `/v1/dashboard/memory/skills/${encodeURIComponent(skill.id)}?repoId=${encodeURIComponent(skill.repoId)}`,
         { method: 'DELETE' },
       );
     },
     onSuccess: () => {
       setPendingDelete(null);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/skills'] });
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/skills/all'] });
     },
   });
 
-  const columns: DataTableColumn<Skill>[] = [
+  const columns: DataTableColumn<SkillWithRepo>[] = [
+    {
+      key: 'repoId',
+      label: 'Repo',
+      render: (row) => <span className="font-mono text-xs">{row.repoId}</span>,
+    },
     {
       key: 'description',
       label: 'Skill',
@@ -156,28 +169,22 @@ export function SkillsPage() {
   return (
     <PageShell
       title="Skills"
-      description="Browse the executable skills your agent has learned, grouped by repo. Delete a bad one to curate the library — authoring happens via the agent (SDK/MCP)."
+      description="Every executable skill your agent has learned, across all repos. Delete a bad one to curate the library — authoring happens via the agent (SDK/MCP)."
     >
       <div className="space-y-6">
         <div className="max-w-sm">
-          <label htmlFor="skills-repo" className="text-sm font-medium">
-            Repo
+          <label htmlFor="skills-search" className="text-sm font-medium">
+            Search
           </label>
           <Input
-            id="skills-repo"
-            placeholder="e.g. my-repo"
-            value={repoId}
-            onChange={(e) => setRepoId(e.target.value)}
+            id="skills-search"
+            placeholder="Filter by description…"
+            value={q}
+            onChange={(e) => updateParam('q', e.target.value)}
           />
         </div>
 
-        {repoId === '' ? (
-          <EmptyState
-            icon={Boxes}
-            title="Enter a repo to browse its skills"
-            description="Skills are scoped per repo. Type a repo above to list the skills your agent has learned there."
-          />
-        ) : query.isError ? (
+        {query.isError ? (
           <Alert intent="warning" title="Could not load skills">
             The Memory service is not reachable right now. Try refreshing in a moment.
           </Alert>
@@ -186,19 +193,41 @@ export function SkillsPage() {
         ) : skills.length === 0 ? (
           <EmptyState
             icon={Boxes}
-            title="No skills found for this repo"
-            description={`Your agent has not learned any skills under "${repoId}" yet.`}
+            title={q !== '' ? 'No skills match your search' : 'No skills yet'}
+            description={
+              q !== ''
+                ? 'Try a different search term, or clear the filter.'
+                : 'Your agent has not learned any skills yet. Skills are authored by the agent via the SDK/MCP.'
+            }
           />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Card>
               <DataTable columns={columns} data={skills} rowKey={(row) => row.id} />
             </Card>
-            {truncated ? (
-              <p className="text-muted-foreground text-xs">
-                Showing the first {skills.length} skills. Narrow the repo to see more.
-              </p>
-            ) : null}
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground text-xs">
+                {total} skill{total === 1 ? '' : 's'} across all repos
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!hasPrev}
+                  onClick={() => updateParam('offset', String(Math.max(0, offset - PAGE_SIZE)))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!hasNext}
+                  onClick={() => updateParam('offset', String(offset + PAGE_SIZE))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -213,7 +242,7 @@ export function SkillsPage() {
               <p>
                 This will permanently forget the skill{' '}
                 <strong>{pendingDelete.description}</strong> from{' '}
-                <code className="font-mono">{repoId}</code>.
+                <code className="font-mono">{pendingDelete.repoId}</code>.
               </p>
               <p className="text-muted-foreground">
                 Your agent will no longer recall this skill. This cannot be undone.

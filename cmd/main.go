@@ -505,6 +505,8 @@ func main() {
 			r.Get("/episodes", dashboardMemoryHandler.Episodes)
 			// dashboard-phase2b-skills-browse T3.3 — read-only skills browse (BFF).
 			r.Get("/skills", dashboardMemoryHandler.ListSkills)
+			// skills-cross-repo-flat-list-gateway — flat cross-repo skills listing (BFF).
+			r.Get("/skills/all", dashboardMemoryHandler.ListSkillsAll)
 			// skills-write-surface T3.3 — author + curate skills from the dashboard (BFF).
 			r.Post("/skills", dashboardMemoryHandler.AddSkill)
 			r.Delete("/skills/{skillID}", dashboardMemoryHandler.ForgetSkill)

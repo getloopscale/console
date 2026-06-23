@@ -48,8 +48,9 @@ type fakeMemoryClient struct {
 	skillsCalled      bool
 	addSkillCalled    bool
 	forgetSkillCalled bool
-	lastSkillsRepoID  string
-	lastForgetSkillID string
+	lastSkillsRepoID     string
+	lastForgetSkillID    string
+	lastSkillsAllSubject string
 }
 
 func (f *fakeMemoryClient) List(_ context.Context, userID string, _ themory.ListOptions) (*themory.ListResult, error) {
@@ -95,6 +96,14 @@ func (f *fakeMemoryClient) ListSkills(_ context.Context, repoID string) (*themor
 	f.skillsCalled = true
 	f.lastSkillsRepoID = repoID
 	return &themory.SkillsResult{Skills: []themory.Skill{{ID: "skill-1", Description: "do x"}}}, nil
+}
+
+func (f *fakeMemoryClient) ListSkillsAll(_ context.Context, subject string, _ themory.SkillsAllOptions) (*themory.SkillsAllResult, error) {
+	f.lastSkillsAllSubject = subject
+	return &themory.SkillsAllResult{
+		Skills: []themory.SkillWithRepo{{Skill: themory.Skill{ID: "skill-1", Description: "do x"}, RepoID: "repo-a"}},
+		Total:  1,
+	}, nil
 }
 func (f *fakeMemoryClient) AddSkill(_ context.Context, repoID string, _ themory.SkillDraft) (*themory.CreatedSkill, error) {
 	f.addSkillCalled = true
@@ -464,6 +473,26 @@ func TestDashboardMemory_ListSkills_MintsThenDelegates(t *testing.T) {
 	// D3: the upstream repoId was namespaced by the authenticated subject.
 	if fc.lastSkillsRepoID != "user-A:acme" {
 		t.Errorf("expected namespaced 'user-A:acme', got %q", fc.lastSkillsRepoID)
+	}
+}
+
+// skills-cross-repo-flat-list-gateway — BFF flat-skills proxy mints then delegates
+// with the BARE subject (NOT namespaced).
+func TestDashboardMemory_ListSkillsAll_MintsThenDelegatesBareSubject(t *testing.T) {
+	dash, fc, mock := newDashHandler(t)
+	mock.ExpectExec(`UPDATE theo_api_keys`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`INSERT INTO theo_api_keys`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("bff-mocked-id"))
+	r := httptest.NewRequest("GET", "/v1/dashboard/memory/skills/all", nil)
+	r = r.WithContext(jwtCtx(r.Context(), "user-A", "tenant-1"))
+	w := httptest.NewRecorder()
+	dash.ListSkillsAll(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("skills/all fail: code=%d body=%s", w.Code, w.Body.String())
+	}
+	// ADR D1: the BARE authenticated subject is forwarded (NOT `user-A:...`).
+	if fc.lastSkillsAllSubject != "user-A" {
+		t.Errorf("expected BARE subject 'user-A', got %q", fc.lastSkillsAllSubject)
 	}
 }
 
