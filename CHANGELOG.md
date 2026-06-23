@@ -94,6 +94,7 @@ Format: Keep a Changelog + Semantic Versioning.
 
 ### Added
 - Episodes timeline (episodes-gateway-dashboard): proxies TheMemory v0.14.0's `GET /v1/scopes/{type}/{id}/episodes` through the gateway — `GET /v1/memory/episodes` (SDK, `memory:read`) + `GET /v1/dashboard/memory/episodes` (BFF) — forwarding cursor/order/asOf/text-filter params. New dashboard "Episodes" tab: a cursor-paginated, bi-temporal-aware (`asOf` replay) event timeline over the subject's memories with newest/oldest toggle and literal text filter. Shared-key D3 rule (scope≠user → empty page). (episodes-gateway-dashboard)
+- Graph-aware recall over the gateway + dashboard (gateway-graphexpand-recall-ui, EG-1): the recall path now forwards TheMemory v0.20.0's `graphExpand` option — `RecallOptions.GraphExpand` + the `recallRequest` body field (omitempty) on the SDK client, a boundary-validated `graphExpand` (`hops` 1|2, `limit` 1..100; 0/omitted → provider default) on `POST /v1/memory/recall` (shared by the dashboard BFF `/v1/dashboard/memory/recall`), and the OpenAPI `/v1/recall` request schema documents it. New dashboard Playground "Graph expand" toggle (hops 1|2) that surfaces memories connected by a shared entity (1 hop) or relation edge (2 hops). DEFAULT OFF → recall byte-unchanged. Thin passthrough (TheMemory owns the traversal); ZERO new dependency, no new route. (gateway-graphexpand-recall-ui)
 
 ## [0.6.0] - 2026-06-21
 
