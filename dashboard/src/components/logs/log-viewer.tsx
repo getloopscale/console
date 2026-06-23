@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge, Button, Input } from '@usetheo/ui';
 import type { LogLine, LogLevel } from '@/lib/api/types';
+import { parseAnsi } from '@/lib/ansi';
 
 interface LogViewerProps {
   lines: LogLine[];
@@ -80,6 +81,24 @@ export function LogViewer({
     el.scrollTop = el.scrollHeight;
   }, [lines]);
 
+  // J-19 T2.1 (R5) — per-line permalink READ side. On mount, parse the hash;
+  // if `#L<n>` matches a valid line index, scroll that line into view and
+  // disable auto-scroll so the target stays put (the click WRITE side sets the
+  // hash below). Index-based for v0.1; if FIFO drops happen between click and
+  // reload the target may shift — the droppedCount indicator (R3) makes that
+  // discoverable. Runs once after mount.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const m = window.location.hash.match(/^#L(\d+)$/);
+    if (!m || m[1] === undefined) return;
+    const idx = Number.parseInt(m[1], 10);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= lines.length) return;
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-line-index="${String(idx)}"]`);
+    el?.scrollIntoView({ block: 'center' });
+    autoScrollRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -92,6 +111,21 @@ export function LogViewer({
     if (search && !l.msg.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  // J-19 T1.4 (R4): the truly-empty "No log lines yet" message is delayed 3s so
+  // a freshly-connected stream that simply hasn't emitted yet doesn't flash an
+  // alarming empty state. The timer is gated on `connected` — disconnecting (or
+  // lines arriving) cancels it (EC7), so a disconnected stream never shows it.
+  const noLinesAtAll = lines.length === 0;
+  const [showEmptyState, setShowEmptyState] = useState(false);
+  useEffect(() => {
+    if (noLinesAtAll && connected) {
+      const t = setTimeout(() => setShowEmptyState(true), 3000);
+      return () => clearTimeout(t);
+    }
+    setShowEmptyState(false);
+    return undefined;
+  }, [noLinesAtAll, connected]);
 
   return (
     <div className="flex h-full flex-col">
@@ -186,17 +220,30 @@ export function LogViewer({
         className="flex-1 overflow-y-auto bg-surface-1 font-mono text-label"
       >
         {filtered.length === 0 ? (
-          // T0.2 D4 — empty state com what/why/action context
-          <div className="px-4 py-12 text-center text-muted-foreground">
-            {lines.length === 0
-              ? 'No log lines yet. Logs stream here as your app runs — trigger a request or wait for the next event.'
-              : 'No lines match your filter. Clear search or change severity to see more lines.'}
-          </div>
+          // T0.2 D4 — empty state with what/why/action context. The truly-empty
+          // case is delayed 3s (R4); the filtered-to-empty case shows immediately.
+          noLinesAtAll ? (
+            showEmptyState ? (
+              <div className="px-4 py-12 text-center text-muted-foreground">
+                No log lines yet. Logs stream here as your app runs — trigger a request or wait for the next event.
+              </div>
+            ) : null
+          ) : (
+            <div className="px-4 py-12 text-center text-muted-foreground">
+              No lines match your filter. Clear search or change severity to see more lines.
+            </div>
+          )
         ) : (
           filtered.map((line, i) => (
             <div
               key={`${line.ts}-${i}`}
-              className="flex items-start gap-3 border-b border-border/30 px-4 py-1.5"
+              data-line-index={i}
+              onClick={() => {
+                // J-19 T2.1 (R5): permalink — clicking a line sets the URL hash
+                // so a line is shareable/deep-linkable.
+                window.location.hash = `#L${String(i)}`;
+              }}
+              className="flex items-start gap-3 border-b border-border/30 px-4 py-1.5 cursor-pointer"
             >
               <span className="shrink-0 tabular-nums text-muted-foreground">
                 {line.ts.slice(11, 19)}
@@ -213,7 +260,7 @@ export function LogViewer({
                 </Badge>
               )}
               <span className={`flex-1 break-all ${LEVEL_COLOR[line.level]}`}>
-                {line.msg}
+                {parseAnsi(line.msg)}
               </span>
             </div>
           ))
