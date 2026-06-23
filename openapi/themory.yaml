@@ -234,6 +234,12 @@ paths:
                 threshold: { type: number }
                 asOf: { type: string, description: "RFC3339 bi-temporal point-in-time (v1.1)" }
                 attributedTo: { type: string }
+                graphExpand:
+                  type: object
+                  description: "Entity-graph expansion (TheMemory v0.20.0). Surfaces memories connected by a shared entity (1 hop) or relation edge (2 hops). Both fields optional (omit for provider default)."
+                  properties:
+                    hops: { type: integer, enum: [1, 2] }
+                    limit: { type: integer, minimum: 1, maximum: 100 }
       responses:
         "200":
           description: scored results

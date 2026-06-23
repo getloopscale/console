@@ -652,11 +652,11 @@ func (h *MemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
 	var graphExpand *themory.GraphExpand
 	if req.GraphExpand != nil {
 		if req.GraphExpand.Hops < 0 || req.GraphExpand.Hops > 2 {
-			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'graphExpand.hops' must be 1 or 2.")
+			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'graphExpand.hops' must be 1 or 2 (omit for the provider default).")
 			return
 		}
 		if req.GraphExpand.Limit < 0 || req.GraphExpand.Limit > 100 {
-			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'graphExpand.limit' must be between 1 and 100.")
+			writeError(w, http.StatusBadRequest, "INVALID_BODY", "Field 'graphExpand.limit' must be between 1 and 100 (omit for the provider default).")
 			return
 		}
 		graphExpand = &themory.GraphExpand{Hops: req.GraphExpand.Hops, Limit: req.GraphExpand.Limit}

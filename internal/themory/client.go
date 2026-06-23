@@ -141,6 +141,13 @@ type RememberResult struct {
 // pool-expands results with memories connected by a shared entity (1 hop) or a
 // relation edge (2nd hop). Both fields are optional (0 = omitted via omitempty,
 // so TheMemory applies its default) — mirrors the provider's `z.union([1,2]).optional()`.
+// MUST stay `int` + `omitempty` (NOT *int): 0 is the OMIT signal here. TheMemory's
+// zod is `hops: union([1,2]).optional()` + `limit: int.min(1).max(100).optional()`,
+// so it 422s `limit:0`. omitempty drops a 0 from the wire → TheMemory applies its
+// default. Converting either field to *int (to distinguish 0 from absent, as
+// `recallRequest.Threshold` does) WITHOUT changing the 0=omit semantics would
+// forward `limit:0` → provider 422 → laundered 502, defeating ADR D2. The
+// contract test `Recall drops limit:0 (omitempty invariant)` fails RED if broken.
 type GraphExpand struct {
 	Hops  int `json:"hops,omitempty"`
 	Limit int `json:"limit,omitempty"`

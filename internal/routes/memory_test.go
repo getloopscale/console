@@ -59,6 +59,16 @@ func TestRecall_GraphExpandBadLimit_400(t *testing.T) {
 	}
 }
 
+func TestRecall_GraphExpandNegativeHops_400(t *testing.T) {
+	// F-test-2: the lower-bound branch (Hops < 0) — only reachable via an explicit
+	// negative literal (omitempty makes absent decode to 0, the valid omit case).
+	h, _ := newRecallHandler()
+	w := recallWithBody(t, h, `{"query":"q","graphExpand":{"hops":-1}}`)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for hops=-1, got %d", w.Code)
+	}
+}
+
 func TestRecall_GraphExpandPassthrough(t *testing.T) {
 	h, stub := newRecallHandler()
 	w := recallWithBody(t, h, `{"query":"q","graphExpand":{"hops":2}}`)

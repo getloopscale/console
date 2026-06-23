@@ -250,6 +250,24 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		validateRequest(t, router, got)
 	})
 
+	t.Run("Recall drops limit:0 (omitempty invariant — F-dom-1)", func(t *testing.T) {
+		// limit:0 is the OMIT signal; TheMemory's zod is limit.min(1), so a
+		// forwarded limit:0 would 422. omitempty must drop it → graphExpand:{"hops":1}.
+		var got *http.Request
+		srv := captureServer(t, 200, `{"results":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Recall(context.Background(), "user-1", "q", RecallOptions{GraphExpand: &GraphExpand{Hops: 1, Limit: 0}}); err != nil {
+			t.Fatalf("Recall: %v", err)
+		}
+		body, _ := io.ReadAll(got.Body)
+		if strings.Contains(string(body), `"limit"`) {
+			t.Fatalf("limit:0 must be omitted (TheMemory limit.min(1) would 422): %s", body)
+		}
+		if !strings.Contains(string(body), `"graphExpand":{"hops":1}`) {
+			t.Fatalf("graphExpand should serialize to {hops:1} with no limit: %s", body)
+		}
+	})
+
 	t.Run("Reflect hits POST /v1/reflect", func(t *testing.T) {
 		var got *http.Request
 		srv := captureServer(t, 202, `{"consolidated":2}`, &got)
