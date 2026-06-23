@@ -1079,12 +1079,14 @@ func TestMemorySkillsAll_PassesBareSubjectNotNamespaced(t *testing.T) {
 		Total:  1,
 	}
 	rec := httptest.NewRecorder()
-	h.ListSkillsAll(rec, authedRequest("GET", "/v1/memory/skills/all?limit=25&offset=10&q=csv", &auth.UserContext{Subject: "sub-123", TenantID: "t"}))
+	// F-1 (/review): a competing ?subject=attacker MUST be ignored — the subject
+	// comes ONLY from the authenticated session, never from request input.
+	h.ListSkillsAll(rec, authedRequest("GET", "/v1/memory/skills/all?limit=25&offset=10&q=csv&subject=attacker-supplied", &auth.UserContext{Subject: "sub-123", TenantID: "t"}))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
 	if fake.lastSkillsAllSubject != "sub-123" {
-		t.Errorf("expected BARE subject 'sub-123', got %q", fake.lastSkillsAllSubject)
+		t.Errorf("expected BARE authed subject 'sub-123' (query ?subject ignored), got %q", fake.lastSkillsAllSubject)
 	}
 	if fake.lastSkillsAllOpts.Limit != 25 || fake.lastSkillsAllOpts.Offset != 10 || fake.lastSkillsAllOpts.Query != "csv" {
 		t.Errorf("query params not forwarded: %+v", fake.lastSkillsAllOpts)
