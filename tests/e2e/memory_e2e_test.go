@@ -151,35 +151,42 @@ func TestMemoryE2E_GatewayProxyRoundTrip(t *testing.T) {
 	alphaMemID := seedMemory(t, themoryURL, masterKey, alpha, alphaText)
 	betaMemID := seedMemory(t, themoryURL, masterKey, beta, betaText)
 
+	// Assertions are by memory ID, NOT by content substring. A real extraction
+	// LLM normalizes (and may translate) the raw text into a canonical fact —
+	// e.g. "i live in Lisbon" is stored as "user mora em Lisboa" by gpt-4o-mini.
+	// A content-substring oracle holds only against the verbatim echo-mock and
+	// is additionally weaker (a leak that survives translation would pass a
+	// `!Contains("Lisbon")` isolation check). The memory ID is stable across
+	// extraction, so it is the real-LLM-robust oracle for presence/isolation.
+
 	// 1. Customer lists their memories through the gateway.
 	t.Run("list returns own memories", func(t *testing.T) {
 		status, body := cloudList(t, cloudURL, alphaKey)
 		if status != http.StatusOK {
 			t.Fatalf("list status=%d body=%s", status, body)
 		}
-		if !strings.Contains(body, "blue") {
-			t.Fatalf("expected alpha's memory in list; got %s", body)
+		if !strings.Contains(body, alphaMemID) {
+			t.Fatalf("expected alpha's memory id %s in list; got %s", alphaMemID, body)
 		}
 	})
 
-	// 2. Cross-tenant isolation: alpha must NOT see beta's data, and a list
-	//    body must never carry beta's content for alpha.
+	// 2. Cross-tenant isolation: alpha must NOT see beta's memory id.
 	t.Run("list is scope-isolated", func(t *testing.T) {
 		_, body := cloudList(t, cloudURL, alphaKey)
-		if strings.Contains(body, "Lisbon") {
-			t.Fatalf("isolation breach: alpha's list contains beta's memory: %s", body)
+		if strings.Contains(body, betaMemID) {
+			t.Fatalf("isolation breach: alpha's list contains beta's memory id %s: %s", betaMemID, body)
 		}
 	})
 
 	// 3. IDOR: alpha tries to forget beta's memory id -> must be 404, and
-	//    beta's memory must survive.
+	//    beta's memory must survive (asserted by id).
 	t.Run("cross-tenant forget is denied (IDOR closed)", func(t *testing.T) {
 		status := cloudForget(t, cloudURL, alphaKey, betaMemID)
 		if status != http.StatusNotFound {
 			t.Fatalf("expected 404 on cross-tenant forget, got %d", status)
 		}
 		s, body := cloudList(t, cloudURL, betaKey)
-		if s != http.StatusOK || !strings.Contains(body, "Lisbon") {
+		if s != http.StatusOK || !strings.Contains(body, betaMemID) {
 			t.Fatalf("beta's memory was wrongly affected by alpha's forget: status=%d body=%s", s, body)
 		}
 	})

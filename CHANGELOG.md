@@ -101,6 +101,7 @@ Format: Keep a Changelog + Semantic Versioning.
 ### Removed
 
 ### Fixed
+- TheMemory e2e oracle (`tests/e2e/memory_e2e_test.go`): the gateway round-trip now asserts memory presence/isolation/survival by **memory ID** instead of literal content substrings (`"blue"` / `"Lisbon"`). A real extraction LLM normalizes — and may translate — the raw text into a canonical fact (gpt-4o-mini stored `"i live in Lisbon"` as `"user mora em Lisboa"`), which broke the content-substring assertions when the e2e ran against real OpenAI instead of the verbatim echo-mock. The ID-based oracle is real-LLM-robust and strictly stronger (a leak that survives translation would have slipped past the old `!Contains("Lisbon")` isolation check). Surfaced by a live theo-cloud ↔ TheMemory v0.20.0 integration run with a real LLM. (live-test-real-llm-oracle)
 
 ### Security
 
