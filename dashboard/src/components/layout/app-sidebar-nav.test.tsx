@@ -1,7 +1,9 @@
-// live-test-gaps-fix F-4 — the Memory/main sub-nav must navigate via react-router
-// v7's NATIVE viewTransition option so the panel re-renders on click. Regression
-// guard against the prior raw document.startViewTransition wrapper that left the
-// panel stale until reload.
+// live-test-gaps-fix F-4 — the Memory/main sub-nav must navigate via PLAIN
+// react-router navigate (NO View Transition) so the lazy+Suspense route panel
+// re-renders on click. Regression guard against re-introducing ANY View Transition
+// wrapper (raw document.startViewTransition OR RR-native { viewTransition: true }),
+// which snapshots the old DOM before the lazy chunk commits → stale panel until
+// reload (verified live in Chrome 2026-06-24).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent } from '@testing-library/react';
 
@@ -23,13 +25,15 @@ function makeSession(): Session {
 describe('AppSidebar navigation (F-4)', () => {
   beforeEach(() => navigateSpy.mockClear());
 
-  it('navigates with react-router native viewTransition on sub-nav click', () => {
+  it('navigates with PLAIN react-router navigate (no view transition) on sub-nav click', () => {
     render(<AppSidebar session={makeSession()} />);
     fireEvent.click(screen.getByRole('button', { name: /Projects/i }));
-    expect(navigateSpy).toHaveBeenCalledWith('/projects', { viewTransition: true });
+    // PLAIN navigate — path only, NO viewTransition option (F-4 correction).
+    expect(navigateSpy).toHaveBeenCalledWith('/projects');
+    expect(navigateSpy.mock.calls[0]).toHaveLength(1);
   });
 
-  it('navigates back with react-router native viewTransition', () => {
+  it('navigates back with PLAIN react-router navigate (no view transition)', () => {
     // The `memory` menu has parent 'main', so rendering at /memory surfaces the
     // "Back to TheoCloud" control wired to handleBack (the 2nd F-4 call site).
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/memory'] });
@@ -37,6 +41,6 @@ describe('AppSidebar navigation (F-4)', () => {
     navigateSpy.mockClear();
     fireEvent.click(back);
     expect(navigateSpy).toHaveBeenCalledTimes(1);
-    expect(navigateSpy.mock.calls[0][1]).toEqual({ viewTransition: true });
+    expect(navigateSpy.mock.calls[0]).toHaveLength(1); // path only, no viewTransition
   });
 });
