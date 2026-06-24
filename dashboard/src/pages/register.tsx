@@ -6,6 +6,9 @@ import { GoogleBrandIcon } from '@/components/google-brand-icon';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { getSession } from '@/lib/auth';
 import { API_URL, AUTH_URL } from '@/lib/config';
+// T1.2/T1.3 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #18 + #28.
+import { KRATOS_PASSWORD_MIN_LENGTH } from '@/lib/auth-policy';
+import { validateRequired, validateEmail, validatePasswordMinLength } from '@/lib/validation';
 
 const KRATOS_URL = AUTH_URL || API_URL;
 
@@ -42,6 +45,11 @@ export function RegisterPage() {
   // (line ~138); setter no longer fires.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [registered, _setRegistered] = useState(false);
+
+  // T1.3 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — client-side validation errors
+  // surfaced from app-controlled (NOT native browser) validation pipeline.
+  // Keyed by field name. Empty record = no errors.
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     getSession().then((s) => {
@@ -104,6 +112,27 @@ export function RegisterPage() {
   const submitPassword = (e: React.FormEvent) => {
     e.preventDefault();
     if (!flow) return;
+
+    // T1.3 + EC-1 + EC-2 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes
+    // #18 + #28. App-controlled validation runs BEFORE form submission so the
+    // user sees EN error messages (matching UI lang) instead of native browser
+    // popups in their browser locale (pt-BR was the QA repro). The gate also
+    // prevents short-password round-trip after `noValidate` disabled HTML
+    // minLength enforcement.
+    const errors: Record<string, string> = {};
+    const nameErr = validateRequired(name, 'Name');
+    if (nameErr) errors.name = nameErr;
+    const emailErr = validateEmail(email);
+    if (emailErr) errors.email = emailErr;
+    const passwordErr = validatePasswordMinLength(password, KRATOS_PASSWORD_MIN_LENGTH);
+    if (passwordErr) errors.password = passwordErr;
+    setValidationErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      // Validation failed — do NOT proceed to form.submit(). preventDefault()
+      // already called at top; returning here keeps the form unsubmitted.
+      return;
+    }
+
     setSubmitting(true);
     const csrfNode = flow.ui.nodes.find((n) => n.attributes.name === 'csrf_token');
     try {
@@ -235,7 +264,14 @@ export function RegisterPage() {
             </div>
           </div>
 
-          <form onSubmit={submitPassword} className="space-y-3">
+          {/* T1.3 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #28.
+            * `noValidate` disables native browser validation (which uses
+            * browser locale, NOT page `lang=en`) so all validation messages
+            * come from app-controlled `lib/validation.ts` in EN locale.
+            * The visible `minLength` + `required` HTML attributes remain as
+            * a11y/assistive-tech hints; the submit gate lives in the
+            * onSubmit handler (see submitPassword). */}
+          <form onSubmit={submitPassword} className="space-y-3" noValidate>
             <Input
               size="lg"
               type="text"
@@ -244,7 +280,11 @@ export function RegisterPage() {
               placeholder="Name"
               autoComplete="name"
               aria-label="Name"
+              aria-invalid={validationErrors.name ? true : undefined}
             />
+            {validationErrors.name && (
+              <p role="alert" className="text-body-sm text-destructive -mt-1">{validationErrors.name}</p>
+            )}
             <Input
               size="lg"
               type="email"
@@ -254,17 +294,26 @@ export function RegisterPage() {
               placeholder="Email"
               autoComplete="email"
               aria-label="Email"
+              aria-invalid={validationErrors.email ? true : undefined}
             />
+            {validationErrors.email && (
+              <p role="alert" className="text-body-sm text-destructive -mt-1">{validationErrors.email}</p>
+            )}
             <Input
               size="lg"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              placeholder="Password (min. 8 characters)"
+              minLength={KRATOS_PASSWORD_MIN_LENGTH}
+              placeholder={`Password (min. ${KRATOS_PASSWORD_MIN_LENGTH} characters)`}
               autoComplete="new-password"
               aria-label="Password"
+              aria-invalid={validationErrors.password ? true : undefined}
             />
+            {validationErrors.password && (
+              <p role="alert" className="text-body-sm text-destructive -mt-1">{validationErrors.password}</p>
+            )}
             <Button
               type="submit"
               variant="primary"

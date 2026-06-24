@@ -216,6 +216,10 @@ export default function App() {
           <Routes>
           <Route path="/login" element={<Boundaried path="/login"><LoginPage /></Boundaried>} />
           <Route path="/register" element={<Boundaried path="/register"><RegisterPage /></Boundaried>} />
+          {/* T1.4 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #22.
+            * /signup is the intuitive URL new users try; map to /register via
+            * SPA-side Navigate per ADR D5. `replace` keeps history clean. */}
+          <Route path="/signup" element={<Navigate to="/register" replace />} />
           <Route path="/verification" element={<Boundaried path="/verification"><VerificationPage /></Boundaried>} />
           <Route path="/recovery" element={<Boundaried path="/recovery"><RecoveryPage /></Boundaried>} />
           <Route path="/device-success" element={<Boundaried path="/device-success"><DeviceSuccessPage /></Boundaried>} />

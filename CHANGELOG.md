@@ -41,7 +41,18 @@
 
 ## [0.7.0] - 2026-06-23
 
+### Fixed
+
+- **QA Sprint 1 cleanup (5-issue batch) — closes usetheodev/theo-cloud #18 #19 #22 #28 + cross-repo #20.** Per plan `qa-sprint1-cleanup-2026-06-24-plan.md` v1.2 (SHIPPABLE_WITH_CAVEATS 70). Cycle 6+1 chain: /to-plan → /edge-case-plan (3 MUST FIX absorbed) → /deps-audit (PASS_WITH_CAVEATS) → /plan-confidence → /implement (TDD per task).
+  - **#18 register.Web password copy/contract** — placeholder updated `"min. 8 characters"` → `"min. 10 characters"` to mirror Kratos backend `password.min_length: 10`. Added `lib/auth-policy.ts` with `KRATOS_PASSWORD_MIN_LENGTH = 10` constant as the SoT mirror point. Added `minLength={10}` HTML attribute on password input. Form clears-all-fields-on-error regression closed by client-side gate (T1.3 below).
+  - **#19 login.Web focus ring contrast (WCAG 2.4.11)** — `dashboard/src/index.css :root` now overrides `--ring: 260 80% 45%` (canonical violet HSL triplet, ~5:1 contrast vs white card). Light-theme keyboard focus indicators now visible across all auth pages.
+  - **#22 signup.Web /signup dead-end** — added `<Route path="/signup" element={<Navigate to="/register" replace />} />` to `dashboard/src/app.tsx`. Navigates new users with SPA-side replace semantics (browser Back-button friendly). No more `/login?reason=expired` for users who never had a session.
+  - **#28 register.Web native-validation locale mismatch** — added `noValidate` attribute to `<form>` (disabling native browser validation popup). Added `lib/validation.ts` with `validateRequired` + `validateEmail` + `validatePasswordMinLength` pure-function helpers returning EN messages aligned with UI `lang="en"`. JS-controlled validation messages render via `aria-invalid` + `role="alert"`. EC-1 + EC-2 absorbed: onSubmit handler runs validation BEFORE form.submit() — failure returns early after `e.preventDefault()` already fired (form NEVER submits on validation failure).
+
 ### Changed
+
+- (engine cross-repo) — paired with `usetheodev/theo` v0.2.0 ship of #20 fix: engine `/admin/tenants/evict` 500 response no longer leaks k8s ServiceAccount / namespace / ArgoCD APIgroup (CWE-209 sanitization). Client receives generic `"Eviction queue temporarily unavailable. Please retry."`; ops detail flows to `slog.Error` (Loki ingest).
+
 - **Card border visual consistency (canonical end-to-end).** Bump
   `@usetheo/ui` 0.13.1 → 0.13.2 (mirror of `@theokit/ui@0.18.1` from
   `usetheodev/theo-ui` PR #17 / merge commit `65496a0`). The upstream
