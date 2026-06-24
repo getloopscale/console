@@ -345,21 +345,25 @@ export function AppSidebar({ session }: AppSidebarProps) {
   // existentes continuam funcionando.
   const handleItemClick = (item: MenuItem) => {
     const resolvedPath = resolvePlaceholders(item.path, resolved.projectName);
-    // react-router v7 native View Transition: RR sequences the startViewTransition
-    // snapshot AROUND its own route commit, so the panel re-renders on click. A raw
-    // document.startViewTransition wrapper snapshots BEFORE React commits → stale
-    // panel until reload (live-test-gaps-fix F-4).
-    navigate(resolvedPath, { viewTransition: true });
+    // PLAIN navigate — NO View Transition (live-test-gaps-fix F-4, corrected after
+    // live verification). The sub-nav routes are lazy + Suspense with no Outlet;
+    // wrapping navigate in a View Transition (raw document.startViewTransition OR
+    // react-router v7's native `{ viewTransition: true }`) snapshots the old DOM
+    // before the lazy route chunk commits, leaving the panel stale until reload
+    // (React 19 + RR v7). Plain navigate is the proven pre-T5.3 behavior: the panel
+    // re-renders on click. Crossfade is sacrificed for correctness.
+    navigate(resolvedPath);
   };
 
   const handleBack = () => {
     if (!parentMenu) return;
     // Pop to parent context. Project drill-down → /projects (list user came
     // from). Settings/profile drill-down → root (no natural "previous page").
+    // PLAIN navigate (no View Transition) — see handleItemClick (F-4).
     if (activeMenuId === 'project') {
-      navigate('/projects', { viewTransition: true });
+      navigate('/projects');
     } else {
-      navigate('/', { viewTransition: true });
+      navigate('/');
     }
   };
 
