@@ -81,18 +81,23 @@ func TestHandlerErrorVisibility(t *testing.T) {
 					return true
 				}
 
-				// Check if this block contains writeError calls.
-				hasWriteError := blockContainsCall(blk, "writeError", "writeJSONError", "respondError")
+				// Check if this block contains an error-write call. writeUpstreamError
+				// (live-test-gaps-fix F-1) is a self-logging error writer: it maps a
+				// themory upstream error to an HTTP response AND logs status+body
+				// internally — so it counts as both an error site and a logged one.
+				hasWriteError := blockContainsCall(blk, "writeError", "writeJSONError", "respondError", "writeUpstreamError")
 				if !hasWriteError {
 					return true
 				}
 
-				// Check if same block ALSO contains a logging call.
-				hasLogging := blockContainsCall(blk, "Error", "Warn", "Errorf", "Warnf")
+				// Check if same block ALSO contains a logging call. writeUpstreamError
+				// satisfies the observability requirement by construction (it logs
+				// internally), so its presence in the block counts as logging.
+				hasLogging := blockContainsCall(blk, "Error", "Warn", "Errorf", "Warnf", "writeUpstreamError")
 				// Walk parent function body too — sometimes logging is at function start
 				// before branch into block.
 				if !hasLogging {
-					hasLogging = blockContainsCall(fn.Body, "Error", "Warn", "Errorf", "Warnf")
+					hasLogging = blockContainsCall(fn.Body, "Error", "Warn", "Errorf", "Warnf", "writeUpstreamError")
 				}
 
 				pos := fset.Position(blk.Pos())

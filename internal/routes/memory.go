@@ -133,6 +133,83 @@ func namespaceRepo(subject, repoID string) (string, bool) {
 	return subject + ":" + repoID, true
 }
 
+// writeUpstreamError maps a themory client error to an HTTP response (live-test-gaps-fix F-1).
+//
+// A themory upstream CLIENT error (4xx — e.g. 422 on an unsupported skill
+// codeLanguage) is the CALLER's fault: propagate the SAME status with the
+// upstream's `{code,message}` so the consumer can fix their request — NOT a
+// misleading 502 "try again" (retry can't fix an invalid body). Everything else
+// (themory 5xx, timeout, network, unwrapped error) means the upstream IS
+// unavailable from the consumer's view → 502.
+//
+// Callers MUST still run their domain sentinel pre-checks (ErrNotFound → 404,
+// ErrSkillConflict → 409) BEFORE this helper; it only decides 4xx-passthrough vs 502.
+func (h *MemoryHandler) writeUpstreamError(w http.ResponseWriter, err error, logMsg string, logArgs ...any) {
+	var ue *themory.Error
+	if errors.As(err, &ue) && isConsumerFaultStatus(ue.StatusCode) {
+		// CONSUMER-fault 4xx (bad body/params): propagate the real status with the
+		// upstream {code,message} so the caller can fix the request.
+		code, message := parseUpstreamBody(ue.Body)
+		h.logger.Warn(logMsg+": upstream rejected request",
+			append(logArgs, "status", ue.StatusCode, "body", sanitizeForLog(ue.Body))...)
+		writeError(w, ue.StatusCode, code, message)
+		return
+	}
+	// Everything else → 502. Fail-closed allowlist (SEC-STATUS-2): only the
+	// documented consumer-fault 4xx pass through; EVERY other status (themory
+	// 5xx/timeout/network, an upstream 401/403/429 which is a GATEWAY-side
+	// master-key condition never the consumer's fault, and any unexpected/future
+	// 4xx) is laundered to 502 so provider drift fails closed rather than
+	// mis-attributing a gateway/infra condition to the consumer.
+	h.logger.Warn(logMsg+": upstream failed", append(logArgs, "error", err)...)
+	writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE",
+		"Memory service is temporarily unavailable. Try again.")
+}
+
+// isConsumerFaultStatus is the fail-closed allowlist of themory upstream statuses
+// that reflect the CONSUMER's request (so they pass through to the SDK consumer
+// with the real status), pinned to themory's documented consumer-fault 4xx:
+//   - 400 Bad Request      — malformed request
+//   - 413 Payload Too Large — body exceeds themory's 1 MB limit
+//   - 422 Unprocessable     — zod validation (e.g. unsupported skill codeLanguage)
+//
+// Every other status is laundered to 502 by the caller. 404/409 never reach here
+// (the client maps them to the ErrNotFound/ErrSkillConflict sentinels, handled by
+// per-handler pre-checks). Adding a status requires confirming it is genuinely the
+// consumer's fault, not a gateway↔themory master-credential / infra condition.
+func isConsumerFaultStatus(status int) bool {
+	return status == http.StatusBadRequest || // 400
+		status == http.StatusRequestEntityTooLarge || // 413
+		status == http.StatusUnprocessableEntity // 422
+}
+
+// parseUpstreamBody extracts the consumer-facing {code,message} from a themory
+// error body (themory's REST errors are `{"code":..,"message":..}`). Falls back
+// to a generic code/message when the body is not the expected JSON shape, so the
+// raw upstream body is never blindly echoed to the consumer.
+func parseUpstreamBody(body string) (code, message string) {
+	var parsed struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(body), &parsed); err == nil && parsed.Code != "" {
+		message = parsed.Message
+		if message == "" {
+			message = "The memory service rejected the request."
+		}
+		return parsed.Code, message
+	}
+	return "MEMORY_REQUEST_REJECTED", "The memory service rejected the request."
+}
+
+// sanitizeForLog strips CR/LF from a value before it is logged as an slog
+// attribute, neutralizing log-forging via attacker-influenced newlines in an
+// upstream body even under a non-quoting log handler (SEC-LOGINJ-1). The body is
+// already 4 KB-capped at the client layer.
+func sanitizeForLog(s string) string {
+	return strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
+}
+
 // =============================================================================
 // GET /v1/memory/list — T1.3
 // =============================================================================
@@ -170,8 +247,7 @@ func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.client.List(r.Context(), user.Subject, opts)
 	if err != nil {
-		h.logger.Warn("memory list: upstream failed", "error", err, "subject", user.Subject)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory list", "subject", user.Subject)
 		return
 	}
 	// D3: ensure memories is an array even if upstream returns nil.
@@ -197,8 +273,7 @@ func (h *MemoryHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.client.Metrics(r.Context(), user.Subject)
 	if err != nil {
-		h.logger.Warn("memory metrics: upstream failed", "error", err, "subject", user.Subject)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory metrics", "subject", user.Subject)
 		return
 	}
 
@@ -261,8 +336,7 @@ func (h *MemoryHandler) Forget(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "Memory not found.")
 		return
 	}
-	h.logger.Warn("memory forget: upstream failed", "error", err, "subject", user.Subject, "memory_id", memoryID)
-	writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+	h.writeUpstreamError(w, err, "memory forget", "subject", user.Subject, "memory_id", memoryID)
 }
 
 // =============================================================================
@@ -289,8 +363,7 @@ func (h *MemoryHandler) Entities(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.client.Entities(r.Context(), user.Subject, scope)
 	if err != nil {
-		h.logger.Warn("memory entities: upstream failed", "error", err, "subject", user.Subject, "scope", scope)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory entities", "subject", user.Subject, "scope", scope)
 		return
 	}
 	// D3: always emit array, never null.
@@ -324,8 +397,7 @@ func (h *MemoryHandler) Graph(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.client.Graph(r.Context(), user.Subject, scope)
 	if err != nil {
-		h.logger.Warn("memory graph: upstream failed", "error", err, "subject", user.Subject, "scope", scope)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory graph", "subject", user.Subject, "scope", scope)
 		return
 	}
 	// D5: always emit arrays, never null.
@@ -383,8 +455,7 @@ func (h *MemoryHandler) Episodes(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.client.Episodes(r.Context(), user.Subject, scope, opts)
 	if err != nil {
-		h.logger.Warn("memory episodes: upstream failed", "error", err, "subject", user.Subject, "scope", scope)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory episodes", "subject", user.Subject, "scope", scope)
 		return
 	}
 	if result.Items == nil {
@@ -428,8 +499,7 @@ func (h *MemoryHandler) ListSkills(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.client.ListSkills(r.Context(), namespaced)
 	if err != nil {
-		h.logger.Warn("memory skills: upstream failed", "error", err, "subject", user.Subject, "repoId", repoID)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory skills", "subject", user.Subject, "repoId", repoID)
 		return
 	}
 	if result.Skills == nil {
@@ -471,8 +541,7 @@ func (h *MemoryHandler) ListSkillsAll(w http.ResponseWriter, r *http.Request) {
 	// the tenant boundary; query params named "subject" are ignored.
 	result, err := h.client.ListSkillsAll(r.Context(), user.Subject, opts)
 	if err != nil {
-		h.logger.Warn("memory skills/all: upstream failed", "error", err, "subject", user.Subject)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory skills/all", "subject", user.Subject)
 		return
 	}
 	if result.Skills == nil {
@@ -530,8 +599,7 @@ func (h *MemoryHandler) AddSkill(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, "SKILL_ALREADY_EXISTS", "A skill with this description already exists. Revise the description or forget the existing skill.")
 			return
 		}
-		h.logger.Warn("memory add-skill: upstream failed", "error", err, "subject", user.Subject, "repoId", repoID)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory add-skill", "subject", user.Subject, "repoId", repoID)
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -569,8 +637,7 @@ func (h *MemoryHandler) ForgetSkill(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "NOT_FOUND", "Skill not found in this repo.")
 			return
 		}
-		h.logger.Warn("memory forget-skill: upstream failed", "error", err, "subject", user.Subject, "repoId", repoID)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory forget-skill", "subject", user.Subject, "repoId", repoID)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -622,8 +689,7 @@ func (h *MemoryHandler) Remember(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.client.Remember(r.Context(), user.Subject, req.Text, opts)
 	if err != nil {
-		h.logger.Warn("memory remember: upstream failed", "error", err, "subject", user.Subject)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory remember", "subject", user.Subject)
 		return
 	}
 	if result.Items == nil {
@@ -712,8 +778,7 @@ func (h *MemoryHandler) Recall(w http.ResponseWriter, r *http.Request) {
 	result, err := h.client.Recall(r.Context(), user.Subject, req.Query,
 		themory.RecallOptions{TopK: req.TopK, Threshold: req.Threshold, AsOf: req.AsOf, GraphExpand: graphExpand})
 	if err != nil {
-		h.logger.Warn("memory recall: upstream failed", "error", err, "subject", user.Subject)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory recall", "subject", user.Subject)
 		return
 	}
 	if result.Results == nil {
@@ -750,8 +815,7 @@ func (h *MemoryHandler) Reflect(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.client.Reflect(r.Context(), user.Subject, themory.ReflectOptions{MaxIterations: req.MaxIterations})
 	if err != nil {
-		h.logger.Warn("memory reflect: upstream failed", "error", err, "subject", user.Subject)
-		writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE", "Memory service is temporarily unavailable. Try again.")
+		h.writeUpstreamError(w, err, "memory reflect", "subject", user.Subject)
 		return
 	}
 	// Pass the provider's result object through verbatim (202 Accepted).

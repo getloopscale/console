@@ -1236,3 +1236,113 @@ func skillDeleteReq(t *testing.T, skillID, repoID string, u *auth.UserContext) *
 	rctx.URLParams.Add("skillID", skillID)
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 }
+
+// =============================================================================
+// live-test-gaps-fix F-1 — gateway propagates themory upstream 4xx (not 502)
+// =============================================================================
+
+// A themory upstream 422 (e.g. unsupported skill codeLanguage) is a CLIENT
+// error — it MUST pass through as 422 with the upstream code/message, NOT be
+// laundered into a misleading 502 "try again".
+func TestMemoryAddSkill_Upstream422PassesThrough(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.addSkillErr = &themory.Error{
+		StatusCode: http.StatusUnprocessableEntity,
+		Body:       `{"code":"INVALID_BODY","message":"Invalid enum value. Expected 'typescript' | 'javascript', received 'python'"}`,
+	}
+	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "s", TenantID: "t"})
+	r = requestWithBody(r, `{"code":"x","description":"d","codeLanguage":"python"}`)
+	rec := httptest.NewRecorder()
+	h.AddSkill(rec, r)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 upstream passthrough, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "INVALID_BODY") {
+		t.Errorf("expected upstream code INVALID_BODY echoed, got %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "MEMORY_UPSTREAM_UNAVAILABLE") {
+		t.Errorf("upstream 4xx must NOT be laundered to 502, got %s", rec.Body.String())
+	}
+}
+
+// Representative verb handler: an upstream 4xx on recall also passes through.
+func TestMemoryRecall_Upstream400PassesThrough(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.recallErr = &themory.Error{
+		StatusCode: http.StatusBadRequest,
+		Body:       `{"code":"INVALID_QUERY","message":"query too long"}`,
+	}
+	r := authedRequest("POST", "/v1/memory/recall", &auth.UserContext{Subject: "s", TenantID: "t"})
+	r = requestWithBody(r, `{"query":"x"}`)
+	rec := httptest.NewRecorder()
+	h.Recall(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 upstream passthrough, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "INVALID_QUERY") {
+		t.Errorf("expected upstream code echoed, got %s", rec.Body.String())
+	}
+}
+
+// A themory upstream 5xx is NOT a client error — it stays 502 (upstream is
+// genuinely unavailable from the consumer's view).
+func TestMemoryAddSkill_Upstream5xxStays502(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.addSkillErr = &themory.Error{StatusCode: http.StatusInternalServerError, Body: `{"code":"INTERNAL"}`}
+	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "s", TenantID: "t"})
+	r = requestWithBody(r, `{"code":"x","description":"d","codeLanguage":"typescript"}`)
+	rec := httptest.NewRecorder()
+	h.AddSkill(rec, r)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 on upstream 5xx, got %d", rec.Code)
+	}
+}
+
+// F-1 security refinement: a themory upstream 401/403/429 is a GATEWAY-side
+// condition (master key invalid/unscoped/rate-limited), NOT the consumer's
+// fault — it must be laundered to 502, never surfaced as the consumer's own
+// auth/rate-limit failure.
+func TestMemoryRecall_Upstream401Becomes502(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests} {
+		h, fake := newMemoryHandler(t)
+		fake.recallErr = &themory.Error{StatusCode: status, Body: `{"code":"X"}`}
+		r := authedRequest("POST", "/v1/memory/recall", &auth.UserContext{Subject: "s", TenantID: "t"})
+		r = requestWithBody(r, `{"query":"x"}`)
+		rec := httptest.NewRecorder()
+		h.Recall(rec, r)
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("upstream %d must become 502 (gateway-side), got %d", status, rec.Code)
+		}
+	}
+}
+
+// SEC-STATUS-2 fail-closed: an UNEXPECTED upstream 4xx (outside the
+// {400,413,422} consumer-fault allowlist) is laundered to 502, NOT passed
+// through — provider drift must fail closed, not mis-attribute an infra/gateway
+// condition as the consumer's fault.
+func TestMemoryRecall_UnexpectedUpstream4xxBecomes502(t *testing.T) {
+	for _, status := range []int{http.StatusConflict, http.StatusLocked, http.StatusUnavailableForLegalReasons, http.StatusNotAcceptable} {
+		h, fake := newMemoryHandler(t)
+		fake.recallErr = &themory.Error{StatusCode: status, Body: `{"code":"X","message":"y"}`}
+		r := authedRequest("POST", "/v1/memory/recall", &auth.UserContext{Subject: "s", TenantID: "t"})
+		r = requestWithBody(r, `{"query":"x"}`)
+		rec := httptest.NewRecorder()
+		h.Recall(rec, r)
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("unexpected upstream 4xx %d must fail closed to 502, got %d", status, rec.Code)
+		}
+	}
+}
+
+// 413 (body too large) is a consumer-fault status in the allowlist → passthrough.
+func TestMemoryAddSkill_Upstream413PassesThrough(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.addSkillErr = &themory.Error{StatusCode: http.StatusRequestEntityTooLarge, Body: `{"code":"PAYLOAD_TOO_LARGE","message":"body exceeds 1MB"}`}
+	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "s", TenantID: "t"})
+	r = requestWithBody(r, `{"code":"x","description":"d","codeLanguage":"typescript"}`)
+	rec := httptest.NewRecorder()
+	h.AddSkill(rec, r)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413 passthrough, got %d", rec.Code)
+	}
+}
