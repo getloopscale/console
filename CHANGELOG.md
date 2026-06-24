@@ -1,10 +1,6 @@
-# Changelog
-
-All notable changes to `github.com/usetheodev/theo-cloud` are documented here.
-Format: Keep a Changelog + Semantic Versioning.
-
 ## [Unreleased]
 
+## [0.9.1] - 2026-06-24
 ### Fixed
 - **Gateway no longer launders a TheMemory upstream 4xx into a misleading 502 (F-1).** When TheMemory rejects a request with a client error (e.g. `422 INVALID_BODY` on an unsupported skill `codeLanguage`), the gateway now propagates the SAME 4xx status with the upstream `{code,message}` so the consumer can fix their request — instead of collapsing it to `502 MEMORY_UPSTREAM_UNAVAILABLE` ("try again", which a bad body can never satisfy). A shared `writeUpstreamError` helper uses a FAIL-CLOSED consumer-fault allowlist: only `{400, 413, 422}` (bad body/params/oversized) pass through with the upstream `{code,message}`; EVERYTHING else — upstream 5xx/timeout/network, gateway-master-key `401/403/429`, and any unexpected/future 4xx — is laundered to `502 MEMORY_UPSTREAM_UNAVAILABLE` so provider drift fails closed rather than mis-attributing an infra condition to the consumer. Applied to all 13 memory handlers (404/409 sentinel pre-checks unchanged); the logged upstream body is CR/LF-sanitized. Discovered in the 2026-06-24 complete live test. (live-test-gaps-fix, F-1)
 - **Dashboard Memory sub-nav now re-renders on click (F-4).** The sidebar wrapped `navigate()` in a raw `document.startViewTransition`, which snapshots the DOM before React commits the route → the URL changed but the panel stayed stale until a manual reload (live in Chrome/Edge/Safari; invisible to jsdom tests). Switched to react-router v7's native `navigate(path, { viewTransition: true })`, which sequences the transition around the route commit. Removed the now-dead `lib/view-transitions.ts` helper. (live-test-gaps-fix, F-4)
