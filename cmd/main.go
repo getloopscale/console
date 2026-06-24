@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -197,7 +198,37 @@ func main() {
 			Timeout:   30 * time.Second,
 			Transport: otelhttp.NewTransport(http.DefaultTransport), // D4 W3C trace propagation
 		}
-		themoryClient := themory.NewClient(cfg.ThemoryBaseURL, cfg.ThemoryAPIKey.Value(), themoryHTTP)
+		// Model B (ADR D1) — control-plane / data-plane credential separation.
+		// Control plane: the platform-admin key mints per-tenant data keys via the
+		// admin API. Sourced from THEMORY_PLATFORM_ADMIN_KEY (falls back to the
+		// legacy THEMORY_API_KEY only as the control-plane credential — NEVER on
+		// the data path).
+		platformKey := cfg.ThemoryPlatformAdminKey.Value()
+		if platformKey == "" {
+			platformKey = cfg.ThemoryAPIKey.Value()
+		}
+		adminClient := themory.NewAdminClient(cfg.ThemoryBaseURL, platformKey, themoryHTTP)
+		themoryBroker, brErr := themory.NewBroker(adminClient, 1024, time.Hour,
+			[]string{"memory:read", "memory:write", "memory:delete"})
+		if brErr != nil {
+			logger.Error("failed to construct themory credential broker — refusing to start", "error", brErr)
+			os.Exit(1)
+		}
+		// Data plane: the Bearer is a PER-TENANT theo_live_* resolved from the
+		// request's authenticated tenant. The data client holds NO master/platform
+		// credential, so a path bug cannot cross tenants — and a mint failure fails
+		// the request CLOSED (no master fallback). This closes the confused deputy.
+		keyResolver := func(ctx context.Context) (string, error) {
+			u := auth.GetUser(ctx)
+			if u == nil || u.TenantID == "" {
+				return "", fmt.Errorf("themory: no authenticated tenant in context")
+			}
+			return themoryBroker.KeyForTenant(ctx, u.TenantID)
+		}
+		dataClient := themory.NewClient(cfg.ThemoryBaseURL, "", themoryHTTP).WithKeyResolver(keyResolver)
+		// Control-plane client for the boot capability probe (GET /v1/openapi.json):
+		// uses the platform credential, never a per-tenant key.
+		probeClient := themory.NewClient(cfg.ThemoryBaseURL, platformKey, themoryHTTP)
 
 		// themory-gateway-provider-capability-guard (F1): fail boot if the provider
 		// is REACHABLE but does NOT advertise the scoped-forget DELETE route — a
@@ -208,7 +239,7 @@ func main() {
 			logger.Warn("themory capability guard SKIPPED via THEMORY_SKIP_CAPABILITY_CHECK — forget-by-id correctness is not verified against the provider")
 		} else {
 			capCtx, capCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			capErr := themoryClient.AssertScopedForgetSupported(capCtx)
+			capErr := probeClient.AssertScopedForgetSupported(capCtx)
 			capCancel()
 			switch themory.ClassifyBootCapability(capErr) {
 			case themory.BootFatal:
@@ -229,7 +260,7 @@ func main() {
 		// Memory Webhook Delivery plan T5.6: wire the event publisher so
 		// `memory.forgotten` mutations fan out to active webhooks.
 		webhookEventPublisher := routes.NewMemoryWebhookEventPublisher(db, logger)
-		memoryHandler = routes.NewMemoryHandler(themoryClient, logger).WithEventPublisher(webhookEventPublisher)
+		memoryHandler = routes.NewMemoryHandler(dataClient, logger).WithEventPublisher(webhookEventPublisher)
 		logger.Info("memory proxy enabled", "themory_base_url", cfg.ThemoryBaseURL)
 
 		// Plan 3 — Memory Operations (exports + webhooks).
@@ -248,7 +279,7 @@ func main() {
 			}
 		}
 		memoryWebhooksHandler = routes.NewMemoryWebhooksHandler(db, logger)
-		memoryExportsHandler = routes.NewMemoryExportsHandler(db, themoryClient, logger, exportDir, workerDelay)
+		memoryExportsHandler = routes.NewMemoryExportsHandler(db, dataClient, logger, exportDir, workerDelay)
 
 		// BFF (Backend-For-Frontend) surface for the dashboard's browser
 		// sessions: /v1/dashboard/memory/* authenticates via the session JWT

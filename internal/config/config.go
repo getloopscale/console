@@ -97,10 +97,18 @@ type Config struct {
 	// Env: THEMORY_BASE_URL (default: "http://themory:3000" — operator overrides in prod)
 	ThemoryBaseURL string
 
-	// ThemoryAPIKey is the master Bearer the Go proxy uses to authenticate
-	// against TheMemory. NEVER returned to the customer (Plan 1 D1 + CLAUDE.md Invariant 3).
-	// Env: THEMORY_API_KEY (required when ThemoryBaseURL is set in prod)
+	// ThemoryAPIKey is the LEGACY master Bearer. Model B (credential-broker)
+	// demotes it OFF the data path; it remains a transition fallback for the
+	// control-plane (admin/probe) client when ThemoryPlatformAdminKey is unset.
+	// Env: THEMORY_API_KEY
 	ThemoryAPIKey Secret
+
+	// ThemoryPlatformAdminKey is the CONTROL-PLANE credential (carrying
+	// memory:platform-admin) the gateway uses ONLY to mint/rotate/revoke
+	// per-tenant data keys via TheMemory's admin API. NEVER on the data path
+	// (Model B ADR D1). When unset, falls back to ThemoryAPIKey during transition.
+	// Env: THEMORY_PLATFORM_ADMIN_KEY
+	ThemoryPlatformAdminKey Secret
 
 	// ThemorySkipCapabilityCheck disables the boot-time provider-capability guard
 	// (themory-gateway-provider-capability-guard F1). Default false (safe prod
@@ -171,6 +179,7 @@ func Load() Config {
 
 	cfg.ThemoryBaseURL = envOr("THEMORY_BASE_URL", "")
 	cfg.ThemoryAPIKey = Secret(envOr("THEMORY_API_KEY", ""))
+	cfg.ThemoryPlatformAdminKey = Secret(envOr("THEMORY_PLATFORM_ADMIN_KEY", ""))
 	cfg.ThemorySkipCapabilityCheck = envOr("THEMORY_SKIP_CAPABILITY_CHECK", "") == "true"
 	cfg.BFFKeyTTLHours = envOrInt("THEOCLOUD_BFF_KEY_TTL_HOURS", 24)
 	return cfg

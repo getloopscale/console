@@ -115,8 +115,9 @@ func (h *MemoryExportsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Spawn the worker. Per EC-21 spirit: detach from request ctx so the
-	// request's cancellation does not cancel the worker mid-flight.
-	go h.runWorker(id, user.Subject)
+	// request's cancellation does not cancel the worker mid-flight. Model B: the
+	// tenant is threaded so the worker's data calls resolve the per-tenant key.
+	go h.runWorker(id, user.Subject, user.TenantID)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":     id,
@@ -234,12 +235,15 @@ func (h *MemoryExportsHandler) Download(w http.ResponseWriter, r *http.Request) 
 // fetch a single page of memories, write a JSON file, update the row.
 // Production should add: pagination over the full set, error reporting,
 // stale-job reaper. Documented Out of Scope in the plan's Risks table.
-func (h *MemoryExportsHandler) runWorker(id, subject string) {
+func (h *MemoryExportsHandler) runWorker(id, subject, tenantID string) {
 	if h.workerDelay > 0 {
 		time.Sleep(h.workerDelay)
 	}
 	bg, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+	// Model B: inject the authenticated tenant into the detached worker context so
+	// the data client's per-tenant key resolver (broker) resolves the right key.
+	bg = auth.WithUser(bg, &auth.UserContext{Subject: subject, TenantID: tenantID})
 
 	// Move to 'running' so the dashboard can show progress.
 	_, _ = h.db.ExecContext(bg, `UPDATE memory_exports SET status = 'running' WHERE id = $1`, id)
