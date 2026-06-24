@@ -1,5 +1,6 @@
 ## [Unreleased]
 
+## [0.9.2] - 2026-06-24
 ### Fixed
 - **F-4 follow-up: dashboard Memory sub-nav now genuinely re-renders on click (corrects v0.9.1).** The v0.9.1 F-4 fix (react-router v7 native `navigate(path, { viewTransition: true })`) was verified live in Chrome to be INSUFFICIENT: the unit test asserted the call shape, but in the running app the panel still stayed stale until reload. Root cause: the `/memory/*` routes are lazy + Suspense with no `Outlet`, so ANY View Transition wrapper (raw `document.startViewTransition` OR RR-native `viewTransition`) snapshots the old DOM before the lazy chunk commits (React 19 + RR v7). Corrected to PLAIN `navigate(path)` — the proven pre-T5.3 behavior — verified live: clicking Skills→Episodes re-renders each panel without reload. Crossfade animation sacrificed for correctness. Unit test rewritten to assert plain navigate (no viewTransition arg) as a regression guard. (live-test-gaps-fix, F-4 correction)
 
