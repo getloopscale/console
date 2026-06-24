@@ -1297,3 +1297,21 @@ func TestMemoryAddSkill_Upstream5xxStays502(t *testing.T) {
 		t.Fatalf("expected 502 on upstream 5xx, got %d", rec.Code)
 	}
 }
+
+// F-1 security refinement: a themory upstream 401/403/429 is a GATEWAY-side
+// condition (master key invalid/unscoped/rate-limited), NOT the consumer's
+// fault — it must be laundered to 502, never surfaced as the consumer's own
+// auth/rate-limit failure.
+func TestMemoryRecall_Upstream401Becomes502(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests} {
+		h, fake := newMemoryHandler(t)
+		fake.recallErr = &themory.Error{StatusCode: status, Body: `{"code":"X"}`}
+		r := authedRequest("POST", "/v1/memory/recall", &auth.UserContext{Subject: "s", TenantID: "t"})
+		r = requestWithBody(r, `{"query":"x"}`)
+		rec := httptest.NewRecorder()
+		h.Recall(rec, r)
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("upstream %d must become 502 (gateway-side), got %d", status, rec.Code)
+		}
+	}
+}
