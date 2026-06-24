@@ -1,4 +1,6 @@
 ## [Unreleased]
+### Added
+- **Model B (slice 2, in progress): TheMemory control-plane admin client + per-tenant credential broker.** `internal/themory.AdminClient` mints/revokes per-tenant `theo_live_*` keys via TheMemory's `POST /v1/admin/keys` using a `memory:platform-admin` credential (control-plane only). `internal/themory.Broker` resolves a per-tenant key for the data path via a lazy cache-aside LRU+TTL with `singleflight` coalescing (one mint per tenant under concurrency) and **fails closed** on a mint error (never falls back to the master key). Foundation for demoting the gateway master key off the data path and closing the confused-deputy (CWE-441). (model-b-credential-broker T1.1/T2.1, ADR D1/D3)
 
 ## [0.9.2] - 2026-06-24
 ### Fixed
