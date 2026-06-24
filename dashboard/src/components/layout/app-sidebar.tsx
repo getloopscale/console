@@ -39,7 +39,6 @@ import type { Session } from '@/lib/auth';
 import { TeamSwitcher } from '@/components/team/team-switcher';
 import { useOnboardingState } from '@/hooks/use-onboarding-state';
 import { reportEvent } from '@/lib/rum';
-import { withViewTransition } from '@/lib/view-transitions';
 
 interface AppSidebarProps {
   session: Session;
@@ -346,20 +345,22 @@ export function AppSidebar({ session }: AppSidebarProps) {
   // existentes continuam funcionando.
   const handleItemClick = (item: MenuItem) => {
     const resolvedPath = resolvePlaceholders(item.path, resolved.projectName);
-    withViewTransition(() => navigate(resolvedPath));
+    // react-router v7 native View Transition: RR sequences the startViewTransition
+    // snapshot AROUND its own route commit, so the panel re-renders on click. A raw
+    // document.startViewTransition wrapper snapshots BEFORE React commits → stale
+    // panel until reload (live-test-gaps-fix F-4).
+    navigate(resolvedPath, { viewTransition: true });
   };
 
   const handleBack = () => {
     if (!parentMenu) return;
-    withViewTransition(() => {
-      // Pop to parent context. Project drill-down → /projects (list user came
-      // from). Settings/profile drill-down → root (no natural "previous page").
-      if (activeMenuId === 'project') {
-        navigate('/projects');
-      } else {
-        navigate('/');
-      }
-    });
+    // Pop to parent context. Project drill-down → /projects (list user came
+    // from). Settings/profile drill-down → root (no natural "previous page").
+    if (activeMenuId === 'project') {
+      navigate('/projects', { viewTransition: true });
+    } else {
+      navigate('/', { viewTransition: true });
+    }
   };
 
   // Panel content (shared between push/pop animations)

@@ -96,9 +96,32 @@ services:
   # `themory mcp --compat openmemory` exposes add_memories / search_memory /
   # list_memories / delete_memories over SSE at /{client}/sse/{user} (port 8765)
   # — a drop-in for OpenMemory-wired MCP clients (Cursor / Claude Desktop / …).
+  # One-shot migrate init (live-test-gaps-fix LT-1). themory (REST) + themory-mcp
+  # both run migrate-on-boot; before this, both depended only on pg-themory and
+  # raced each other applying a new migration (CREATE INDEX IF NOT EXISTS is not
+  # atomic under concurrent DDL → one container crashed). This dedicated one-shot
+  # (mirrors cloud-migrate / kratos-migrate) applies migrations ONCE; the
+  # long-running containers wait for its completion → zero boot-time concurrency.
+  themory-migrate:
+    image: ${THEMORY_IMAGE:-themory-e2e:latest}
+    depends_on:
+      pg-themory:
+        condition: service_healthy
+    entrypoint: ["/nodejs/bin/node", "/app/dist/agent-tools/cli.js"]
+    command: ["migrate"]
+    environment:
+      THEOMEM_PG_URI: postgres://themem:themem@pg-themory:5432/themem
+      # MUST match the runtime embedder so the vector column dim aligns.
+      THEOMEM_EMBEDDER: openai
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-dummy-key-for-mock}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://mock-openai:11434/v1}
+    restart: on-failure:3
+
   themory-mcp:
     image: ${THEMORY_IMAGE:-themory-e2e:latest}
     depends_on:
+      themory-migrate:
+        condition: service_completed_successfully
       pg-themory:
         condition: service_healthy
       mock-openai:
@@ -154,6 +177,8 @@ services:
   themory:
     image: ${THEMORY_IMAGE:-themory-e2e:latest}
     depends_on:
+      themory-migrate:
+        condition: service_completed_successfully
       pg-themory:
         condition: service_healthy
       mock-openai:
@@ -163,6 +188,9 @@ services:
       PORT: "8080"
       HOST: "0.0.0.0"
       THEMEMORY_API_KEY: ${THEMORY_MASTER_KEY:-dev-master-key}
+      # Migrations are applied by the one-shot themory-migrate init (LT-1); the
+      # long-running server skips its own migrate-on-boot (no concurrent DDL).
+      THEMEMORY_SKIP_MIGRATIONS: "true"
       THEOMEM_EMBEDDER: openai
       # Default: hermetic mock (deterministic, no cost). Override OPENAI_API_KEY +
       # OPENAI_BASE_URL for a real provider (OpenAI / OpenRouter) → real recall.
