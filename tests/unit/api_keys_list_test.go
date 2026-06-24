@@ -85,6 +85,36 @@ func TestListKeys_EmptyResult(t *testing.T) {
 	}
 }
 
+// Model B leak-fix (GAP-4): the list query MUST exclude bff_minted shadow rows
+// so an internal gateway artifact never surfaces in a customer's key list. The
+// ExpectQuery regex requires the COALESCE(bff_minted,...) clause — if a refactor
+// drops the filter, the query won't match the mock and the handler 500s, failing
+// this test (regression guard for the security fix).
+func TestListKeys_ExcludesBffMintedRows(t *testing.T) {
+	h, mock := newAPIKeysHandler(t)
+	mock.ExpectQuery(`COALESCE\(bff_minted, false\) = false`).
+		WithArgs("user-A", "tenant-A").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "key_name", "key_prefix", "scopes", "created_at", "last_used_at", "expires_at",
+		}).AddRow("apk-real0000000a", "real", "theo_live_", `["memory:read"]`, time.Now(), nil, nil))
+
+	rec := httptest.NewRecorder()
+	h.ListKeys(rec, authedRequest("GET", "/v1/api-keys/list", &auth.UserContext{Subject: "user-A", TenantID: "tenant-A"}))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 (list query must carry the bff_minted exclusion), got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Keys []map[string]any `json:"keys"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(resp.Keys) != 1 || resp.Keys[0]["name"] != "real" {
+		t.Fatalf("expected only the real (non-bff) key, got %+v", resp.Keys)
+	}
+}
+
 // T0.3 case 2: 3 active keys filtered by (subject, tenant_id).
 // Plan invariant D5: every list query MUST filter by (subject, tenant_id) —
 // failure mode would leak other users' keys.

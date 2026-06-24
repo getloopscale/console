@@ -69,6 +69,11 @@ func NewBroker(admin minter, size int, ttl time.Duration, scopes []string) (*Bro
 // KeyForTenant returns the per-tenant data-plane secret, minting + caching it on
 // a miss. Fails closed: a mint error propagates with an empty secret.
 func (b *Broker) KeyForTenant(ctx context.Context, tenantID string) (string, error) {
+	// Defense-in-depth: an empty tenant must NEVER resolve to a key (a future
+	// caller bypassing the resolver guard would otherwise mint against workspace "").
+	if tenantID == "" {
+		return "", fmt.Errorf("themory broker: empty tenant id")
+	}
 	if v, ok := b.cache.Get(tenantID); ok && b.now().Before(v.expiresAt) {
 		return v.secret, nil
 	}

@@ -241,7 +241,8 @@ func (h *APIKeysHandler) RevokeKey(w http.ResponseWriter, r *http.Request) {
 
 	const q = `UPDATE theo_api_keys
 		SET revoked_at = NOW()
-		WHERE id = $1 AND subject = $2 AND tenant_id = $3 AND revoked_at IS NULL`
+		WHERE id = $1 AND subject = $2 AND tenant_id = $3 AND revoked_at IS NULL
+		  AND COALESCE(bff_minted, false) = false`
 
 	res, err := h.db.ExecContext(r.Context(), q, keyID, user.Subject, user.TenantID)
 	if err != nil {
@@ -460,6 +461,7 @@ func (h *APIKeysHandler) RotateKey(w http.ResponseWriter, r *http.Request) {
 	const sel = `SELECT key_name, scopes, revoked_at, expires_at
 		FROM theo_api_keys
 		WHERE id = $1 AND subject = $2 AND tenant_id = $3
+		  AND COALESCE(bff_minted, false) = false
 		FOR UPDATE`
 	var (
 		oldName    string
@@ -591,6 +593,7 @@ func (h *APIKeysHandler) LineageKey(w http.ResponseWriter, r *http.Request) {
 		    SELECT id, key_name, key_prefix, created_at, revoked_at, expires_at, rotated_from
 		    FROM theo_api_keys
 		    WHERE id = $1 AND subject = $2 AND tenant_id = $3
+		      AND COALESCE(bff_minted, false) = false
 		    UNION
 		    SELECT k.id, k.key_name, k.key_prefix, k.created_at, k.revoked_at, k.expires_at, k.rotated_from
 		    FROM theo_api_keys k
@@ -601,6 +604,7 @@ func (h *APIKeysHandler) LineageKey(w http.ResponseWriter, r *http.Request) {
 		    SELECT id, key_name, key_prefix, created_at, revoked_at, expires_at, rotated_from
 		    FROM theo_api_keys
 		    WHERE id = $1 AND subject = $2 AND tenant_id = $3
+		      AND COALESCE(bff_minted, false) = false
 		    UNION
 		    SELECT k.id, k.key_name, k.key_prefix, k.created_at, k.revoked_at, k.expires_at, k.rotated_from
 		    FROM theo_api_keys k

@@ -14,15 +14,20 @@
 //
 // Load-bearing invariants:
 //
-//  1. Every outbound request carries `Authorization: Bearer <master-key>`.
-//     The customer's theo_live_* key NEVER leaves the Go process — the gateway
-//     mints + holds it (internal/auth/bff_key_vault.go).
+//  1. Model B: every DATA request carries a PER-TENANT `Authorization: Bearer
+//     <theo_live_*>` resolved per-request from the authenticated tenant by the
+//     credential broker (see broker.go + WithKeyResolver). The data client holds
+//     NO master/platform key, so a path bug cannot cross tenants and a resolver
+//     failure FAILS CLOSED (no master fallback). The control-plane platform
+//     credential lives only on AdminClient (mint/rotate/revoke). The per-tenant
+//     secret NEVER leaves the Go process — never logged, traced, or returned.
 //
-//  2. Tenant isolation is enforced by SCOPE-IN-PATH, not a header. TheMemory
-//     scopes a listing by the URL path `/v1/scopes/user/{subject}/memories`;
-//     the gateway puts the authenticated subject there. (The real server
-//     IGNORES `X-Theo-User-Id`, so relying on it — as the old client did —
-//     silently broke isolation.)
+//  2. Tenant isolation is enforced by the PROVIDER from the credential
+//     (workspace bound to the per-tenant key), PLUS scope-in-path within the
+//     workspace. TheMemory scopes a listing by `/v1/scopes/user/{subject}/...`;
+//     the gateway puts the authenticated subject there. (The real server IGNORES
+//     `X-Theo-User-Id`, so relying on it — as the old client did — silently
+//     broke isolation.)
 //
 //  3. `forget` is ownership-checked BY THE PROVIDER. TheMemory's
 //     `DELETE /v1/scopes/user/{subject}/memories/{id}` (v0.12.0) deletes the id
