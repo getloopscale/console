@@ -28,4 +28,15 @@ describe('AppSidebar navigation (F-4)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Projects/i }));
     expect(navigateSpy).toHaveBeenCalledWith('/projects', { viewTransition: true });
   });
+
+  it('navigates back with react-router native viewTransition', () => {
+    // The `memory` menu has parent 'main', so rendering at /memory surfaces the
+    // "Back to TheoCloud" control wired to handleBack (the 2nd F-4 call site).
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/memory'] });
+    const back = screen.getByRole('button', { name: /back to/i });
+    navigateSpy.mockClear();
+    fireEvent.click(back);
+    expect(navigateSpy).toHaveBeenCalledTimes(1);
+    expect(navigateSpy.mock.calls[0][1]).toEqual({ viewTransition: true });
+  });
 });

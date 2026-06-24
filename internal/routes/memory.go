@@ -146,31 +146,41 @@ func namespaceRepo(subject, repoID string) (string, bool) {
 // ErrSkillConflict → 409) BEFORE this helper; it only decides 4xx-passthrough vs 502.
 func (h *MemoryHandler) writeUpstreamError(w http.ResponseWriter, err error, logMsg string, logArgs ...any) {
 	var ue *themory.Error
-	if errors.As(err, &ue) && ue.StatusCode >= 400 && ue.StatusCode < 500 && !isUpstreamInfraStatus(ue.StatusCode) {
-		// CONSUMER-fault 4xx (e.g. 400/422 bad body/params): propagate the real
-		// status so the caller can fix the request.
+	if errors.As(err, &ue) && isConsumerFaultStatus(ue.StatusCode) {
+		// CONSUMER-fault 4xx (bad body/params): propagate the real status with the
+		// upstream {code,message} so the caller can fix the request.
 		code, message := parseUpstreamBody(ue.Body)
 		h.logger.Warn(logMsg+": upstream rejected request",
-			append(logArgs, "status", ue.StatusCode, "body", ue.Body)...)
+			append(logArgs, "status", ue.StatusCode, "body", sanitizeForLog(ue.Body))...)
 		writeError(w, ue.StatusCode, code, message)
 		return
 	}
-	// Everything else → 502: themory 5xx/timeout/network, OR an upstream
-	// 401/403/429 which is a GATEWAY-side condition (the gateway↔themory master
-	// key is invalid/unscoped/rate-limited) — NEVER the consumer's fault, so it
-	// must NOT surface as the consumer's own auth/rate-limit failure.
+	// Everything else → 502. Fail-closed allowlist (SEC-STATUS-2): only the
+	// documented consumer-fault 4xx pass through; EVERY other status (themory
+	// 5xx/timeout/network, an upstream 401/403/429 which is a GATEWAY-side
+	// master-key condition never the consumer's fault, and any unexpected/future
+	// 4xx) is laundered to 502 so provider drift fails closed rather than
+	// mis-attributing a gateway/infra condition to the consumer.
 	h.logger.Warn(logMsg+": upstream failed", append(logArgs, "error", err)...)
 	writeError(w, http.StatusBadGateway, "MEMORY_UPSTREAM_UNAVAILABLE",
 		"Memory service is temporarily unavailable. Try again.")
 }
 
-// isUpstreamInfraStatus reports whether a themory 4xx reflects a GATEWAY/upstream
-// infrastructure condition (master-key auth or shared-key rate-limit) rather than
-// the consumer's request — these are laundered to 502, not passed through.
-func isUpstreamInfraStatus(status int) bool {
-	return status == http.StatusUnauthorized || // 401 — gateway master key invalid
-		status == http.StatusForbidden || // 403 — gateway master key unscoped
-		status == http.StatusTooManyRequests // 429 — shared master-key rate limit
+// isConsumerFaultStatus is the fail-closed allowlist of themory upstream statuses
+// that reflect the CONSUMER's request (so they pass through to the SDK consumer
+// with the real status), pinned to themory's documented consumer-fault 4xx:
+//   - 400 Bad Request      — malformed request
+//   - 413 Payload Too Large — body exceeds themory's 1 MB limit
+//   - 422 Unprocessable     — zod validation (e.g. unsupported skill codeLanguage)
+//
+// Every other status is laundered to 502 by the caller. 404/409 never reach here
+// (the client maps them to the ErrNotFound/ErrSkillConflict sentinels, handled by
+// per-handler pre-checks). Adding a status requires confirming it is genuinely the
+// consumer's fault, not a gateway↔themory master-credential / infra condition.
+func isConsumerFaultStatus(status int) bool {
+	return status == http.StatusBadRequest || // 400
+		status == http.StatusRequestEntityTooLarge || // 413
+		status == http.StatusUnprocessableEntity // 422
 }
 
 // parseUpstreamBody extracts the consumer-facing {code,message} from a themory
@@ -190,6 +200,14 @@ func parseUpstreamBody(body string) (code, message string) {
 		return parsed.Code, message
 	}
 	return "MEMORY_REQUEST_REJECTED", "The memory service rejected the request."
+}
+
+// sanitizeForLog strips CR/LF from a value before it is logged as an slog
+// attribute, neutralizing log-forging via attacker-influenced newlines in an
+// upstream body even under a non-quoting log handler (SEC-LOGINJ-1). The body is
+// already 4 KB-capped at the client layer.
+func sanitizeForLog(s string) string {
+	return strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
 }
 
 // =============================================================================

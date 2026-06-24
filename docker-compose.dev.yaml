@@ -135,6 +135,13 @@ services:
     # The image entrypoint hard-codes `server`; override to run `mcp`.
     entrypoint: ["/nodejs/bin/node", "/app/dist/agent-tools/cli.js"]
     command: ["mcp", "--compat", "openmemory"]
+    # NOTE (LT-1): the MCP runtime runs runMigrations() UNCONDITIONALLY on boot
+    # (run-mcp-server has no THEMEMORY_SKIP_MIGRATIONS flag — unlike `server`).
+    # The race is already eliminated: this container waits for themory-migrate's
+    # service_completed_successfully, so its own migrate is a post-init,
+    # single-process, idempotent no-op (no concurrent DDL). Setting the skip env
+    # here would be a no-op (the MCP path ignores it) — true parity is a
+    # theo-memory follow-up: add THEMEMORY_SKIP_MIGRATIONS to run-mcp-server.
     environment:
       THEOMEM_PG_URI: postgres://themem:themem@localhost:${DEV_PG_THEMORY_PORT:-15432}/themem
       THEMEMORY_API_KEY: ${THEMORY_MASTER_KEY:-dev-master-key}

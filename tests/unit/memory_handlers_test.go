@@ -1315,3 +1315,34 @@ func TestMemoryRecall_Upstream401Becomes502(t *testing.T) {
 		}
 	}
 }
+
+// SEC-STATUS-2 fail-closed: an UNEXPECTED upstream 4xx (outside the
+// {400,413,422} consumer-fault allowlist) is laundered to 502, NOT passed
+// through — provider drift must fail closed, not mis-attribute an infra/gateway
+// condition as the consumer's fault.
+func TestMemoryRecall_UnexpectedUpstream4xxBecomes502(t *testing.T) {
+	for _, status := range []int{http.StatusConflict, http.StatusLocked, http.StatusUnavailableForLegalReasons, http.StatusNotAcceptable} {
+		h, fake := newMemoryHandler(t)
+		fake.recallErr = &themory.Error{StatusCode: status, Body: `{"code":"X","message":"y"}`}
+		r := authedRequest("POST", "/v1/memory/recall", &auth.UserContext{Subject: "s", TenantID: "t"})
+		r = requestWithBody(r, `{"query":"x"}`)
+		rec := httptest.NewRecorder()
+		h.Recall(rec, r)
+		if rec.Code != http.StatusBadGateway {
+			t.Fatalf("unexpected upstream 4xx %d must fail closed to 502, got %d", status, rec.Code)
+		}
+	}
+}
+
+// 413 (body too large) is a consumer-fault status in the allowlist → passthrough.
+func TestMemoryAddSkill_Upstream413PassesThrough(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.addSkillErr = &themory.Error{StatusCode: http.StatusRequestEntityTooLarge, Body: `{"code":"PAYLOAD_TOO_LARGE","message":"body exceeds 1MB"}`}
+	r := authedRequest("POST", "/v1/memory/skills?repoId=acme", &auth.UserContext{Subject: "s", TenantID: "t"})
+	r = requestWithBody(r, `{"code":"x","description":"d","codeLanguage":"typescript"}`)
+	rec := httptest.NewRecorder()
+	h.AddSkill(rec, r)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413 passthrough, got %d", rec.Code)
+	}
+}
