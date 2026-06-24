@@ -45,8 +45,9 @@ func env(t *testing.T, key, def string) string {
 	return def
 }
 
-// seedAPIKey inserts a customer theo_live_* key the exact way the gateway's BFF
-// vault does: key_hash = hex(sha256(bearer)). Returns the bearer to send.
+// seedAPIKey inserts a legitimate customer theo_live_* key (key_hash =
+// hex(sha256(bearer))). Returns the bearer to send. Model B: bff_minted=false —
+// the BFF vault (which set it true) is removed; a customer key is never a shadow row.
 func seedAPIKey(t *testing.T, db *sql.DB, subject, tenant string) string {
 	t.Helper()
 	bearer := "theo_live_" + subject + "_e2e_secret"
@@ -56,7 +57,7 @@ func seedAPIKey(t *testing.T, db *sql.DB, subject, tenant string) string {
 	_, err := db.Exec(`
 		INSERT INTO theo_api_keys
 			(id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, expires_at, bff_minted, created_at)
-		VALUES ($1,$2,$3,'e2e',$4,'theo_live_',$5::jsonb, NOW() + interval '1 hour', true, NOW())
+		VALUES ($1,$2,$3,'e2e',$4,'theo_live_',$5::jsonb, NOW() + interval '1 hour', false, NOW())
 		ON CONFLICT (key_hash) DO NOTHING`,
 		id, subject, tenant, keyHash, `["memory:read","memory:write","memory:delete"]`)
 	if err != nil {

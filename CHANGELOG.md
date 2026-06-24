@@ -1,6 +1,15 @@
 ## [Unreleased]
 ### Added
-- **Model B (slice 2, in progress): TheMemory control-plane admin client + per-tenant credential broker.** `internal/themory.AdminClient` mints/revokes per-tenant `theo_live_*` keys via TheMemory's `POST /v1/admin/keys` using a `memory:platform-admin` credential (control-plane only). `internal/themory.Broker` resolves a per-tenant key for the data path via a lazy cache-aside LRU+TTL with `singleflight` coalescing (one mint per tenant under concurrency) and **fails closed** on a mint error (never falls back to the master key). Foundation for demoting the gateway master key off the data path and closing the confused-deputy (CWE-441). (model-b-credential-broker T1.1/T2.1, ADR D1/D3)
+- **Model B: TheMemory control-plane admin client + per-tenant credential broker.** `internal/themory.AdminClient` mints/revokes per-tenant `theo_live_*` keys via TheMemory's `POST /v1/admin/keys` using a `memory:platform-admin` credential (control-plane only). `internal/themory.Broker` resolves a per-tenant key for the data path via a lazy cache-aside LRU+TTL with `singleflight` coalescing (one mint per tenant under concurrency) and **fails closed** on a mint error (never falls back to the master key). New env `THEMORY_PLATFORM_ADMIN_KEY`. (model-b-credential-broker T1.1/T2.1, ADR D1/D3)
+
+### Changed
+- **Gateway → TheMemory data path now authenticates with a PER-TENANT key, not a shared master key.** The `themory.Client` resolves the per-request Bearer from the authenticated tenant via the broker; the data client holds NO master credential, so TheMemory enforces tenant isolation from the credential and a gateway path bug can no longer cross tenants. The master/platform credential is now control-plane only (mint/rotate/revoke). The boot capability probe uses a separate platform-keyed client; the memory-export worker threads the tenant into its detached context. (model-b-credential-broker T3.1, ADR D1)
+
+### Removed
+- **`BFFKeyVault` + the ~21 `/v1/dashboard/memory/*` pass-through wrappers.** The vault minted per-user `theo_live_*` keys into the cloud's own Postgres (which TheMemory never validated) and discarded the secret — dead machinery. The dashboard surface now registers the shared `MemoryHandler` directly under the session-JWT chain; the per-tenant key comes from the broker. Removed the dead `THEOCLOUD_BFF_KEY_TTL_HOURS` config. (model-b-credential-broker T4.1, ADR D4)
+
+### Security
+- **Closed the gateway confused-deputy (CWE-441) on the interactive memory data path.** Combined with the per-tenant key cutover above, a key bound to tenant A can no longer read tenant B's memory through the gateway (provider-enforced). **Leak fix (GAP-4):** the user-facing `GET /v1/admin/keys` listing now excludes legacy `bff_minted` shadow rows, so an internal gateway artifact never surfaces in a customer's key list. (model-b-credential-broker, ADR D1/D4)
 
 ## [0.9.2] - 2026-06-24
 ### Fixed

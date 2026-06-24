@@ -158,9 +158,15 @@ func (h *APIKeysHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 	// EC-1: LIMIT 100 cap. Even if a customer accumulates many keys, the
 	// response stays bounded. Combined with the D7 soft-delete filter, the
 	// query rides the partial index idx_theo_api_keys_tenant.
+	// Model B leak-fix (GAP-4): exclude legacy BFF-minted shadow rows
+	// (key_name='bff-dashboard', bff_minted=true) — they were an internal
+	// gateway artifact, never user-created, and must never surface in the
+	// customer's own key list. The BFFKeyVault that wrote them is removed; this
+	// filter hides any rows that predate the removal.
 	const q = `SELECT id, key_name, key_prefix, scopes, created_at, last_used_at, expires_at
 		FROM theo_api_keys
 		WHERE subject = $1 AND tenant_id = $2 AND revoked_at IS NULL
+		  AND COALESCE(bff_minted, false) = false
 		ORDER BY created_at DESC
 		LIMIT 100`
 

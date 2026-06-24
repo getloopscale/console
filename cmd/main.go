@@ -192,7 +192,6 @@ func main() {
 	var memoryHandler *routes.MemoryHandler
 	var memoryWebhooksHandler *routes.MemoryWebhooksHandler
 	var memoryExportsHandler *routes.MemoryExportsHandler
-	var dashboardMemoryHandler *routes.DashboardMemoryHandler
 	if cfg.ThemoryBaseURL != "" {
 		themoryHTTP := &http.Client{
 			Timeout:   30 * time.Second,
@@ -282,22 +281,12 @@ func main() {
 		memoryExportsHandler = routes.NewMemoryExportsHandler(db, dataClient, logger, exportDir, workerDelay)
 
 		// BFF (Backend-For-Frontend) surface for the dashboard's browser
-		// sessions: /v1/dashboard/memory/* authenticates via the session JWT
-		// (requireJWT), mints a server-side theo_live_* key per subject
-		// (BFFKeyVault — the secret NEVER reaches the browser), then delegates
-		// to the same MemoryHandler the SDK surface uses. The /v1/memory/*
-		// surface stays SDK-only (theo_live_* Bearer). Without this wiring the
-		// dashboard memory page 401s (the page sends a session JWT, which the
-		// SDK RequireScope path rejects).
-		if db != nil {
-			bffVault, vErr := auth.NewBFFKeyVault(db, 24)
-			if vErr != nil {
-				logger.Error("failed to construct BFF key vault — dashboard memory disabled", "error", vErr)
-			} else {
-				dashboardMemoryHandler = routes.NewDashboardMemoryHandler(bffVault, memoryHandler, logger)
-				logger.Info("dashboard memory BFF enabled", "mount", "/v1/dashboard/memory")
-			}
-		}
+		// Model B: the dashboard surface (/v1/dashboard/memory/*) registers the
+		// shared MemoryHandler directly under requireJWT (see route block below) —
+		// the per-tenant data key is resolved by the broker from the JWT-derived
+		// tenant. The old per-user BFFKeyVault (which minted into the cloud DB and
+		// discarded the secret) is removed.
+		logger.Info("dashboard memory enabled (per-tenant broker)", "mount", "/v1/dashboard/memory")
 	} else {
 		logger.Warn("THEMORY_BASE_URL not set — /v1/memory/* endpoints disabled")
 	}
@@ -308,13 +297,6 @@ func main() {
 	var memoryWebhookDeliveriesHandler *routes.MemoryWebhookDeliveriesHandler
 	if memoryHandler != nil && db != nil {
 		memoryWebhookDeliveriesHandler = routes.NewMemoryWebhookDeliveriesHandler(db, logger)
-	}
-
-	// Front the ops handlers (exports/webhooks/deliveries) through the BFF too
-	// so the dashboard reaches them via the session path (gap 4 — close 401).
-	if dashboardMemoryHandler != nil {
-		dashboardMemoryHandler = dashboardMemoryHandler.WithOps(
-			memoryExportsHandler, memoryWebhooksHandler, memoryWebhookDeliveriesHandler)
 	}
 
 	// Router
@@ -525,56 +507,48 @@ func main() {
 		})
 	}
 
-	// BFF dashboard surface (/v1/dashboard/memory/*) — browser sessions
-	// (requireJWT). Mints a server-side theo_live_* key per subject and
-	// delegates to the same MemoryHandler. Distinct from the SDK /v1/memory/*
-	// surface so a session can never be used as an SDK key, and vice-versa.
-	if dashboardMemoryHandler != nil {
+	// Dashboard surface (/v1/dashboard/memory/*) — browser sessions (requireJWT).
+	// Model B: registers the SAME handlers the SDK surface uses, under the
+	// session-JWT chain. The per-tenant data key is resolved by the broker from
+	// the JWT-derived tenant — no per-user vault, no master key (BFFKeyVault +
+	// the ~21 mintOrFail wrappers were removed). Distinct mount from /v1/memory/*
+	// so a session can never be used as an SDK key, and vice-versa.
+	//
+	// SECURITY INVARIANT (F-xval-3, preserved): exports/webhooks ops are
+	// memory:admin on the SDK surface; here they sit behind requireJWT ONLY,
+	// correct for the dashboard's single-subject-per-customer model — every ops
+	// handler scopes strictly to auth.GetUser(...).Subject. If a future RBAC
+	// member/non-admin dashboard session is introduced, gate with requireRole(admin).
+	if memoryHandler != nil {
 		r.Route("/v1/dashboard/memory", func(r chi.Router) {
 			r.Use(requireJWT)
-			r.Get("/list", dashboardMemoryHandler.List)
-			r.Get("/metrics", dashboardMemoryHandler.Metrics)
-			r.Get("/entities", dashboardMemoryHandler.Entities)
-			// themory-graph-gateway-dashboard — entity relation graph (BFF).
-			r.Get("/graph", dashboardMemoryHandler.Graph)
-			// episodes-gateway-dashboard — cursor-paginated bi-temporal episode log (BFF).
-			r.Get("/episodes", dashboardMemoryHandler.Episodes)
-			// dashboard-phase2b-skills-browse T3.3 — read-only skills browse (BFF).
-			r.Get("/skills", dashboardMemoryHandler.ListSkills)
-			// skills-cross-repo-flat-list-gateway — flat cross-repo skills listing (BFF).
-			r.Get("/skills/all", dashboardMemoryHandler.ListSkillsAll)
-			// skills-write-surface T3.3 — author + curate skills from the dashboard (BFF).
-			r.Post("/skills", dashboardMemoryHandler.AddSkill)
-			r.Delete("/skills/{skillID}", dashboardMemoryHandler.ForgetSkill)
-			r.Delete("/forget/{memoryID}", dashboardMemoryHandler.Forget)
-			r.Post("/revoke-on-logout", dashboardMemoryHandler.RevokeOnLogout)
-			// Core verbs (gaps 1-3): remember / recall / reflect.
-			r.Post("/remember", dashboardMemoryHandler.Remember)
-			r.Post("/recall", dashboardMemoryHandler.Recall)
-			r.Post("/reflect", dashboardMemoryHandler.Reflect)
-			// Ops fronted through the BFF (gap 4 — close 401). Each is a no-op
-			// 404 when its handler is nil (feature disabled).
-			//
-			// SECURITY INVARIANT (F-xval-3): these exports/webhooks ops are
-			// memory:admin on the SDK surface (programmatic-key least-privilege).
-			// Here they sit behind requireJWT ONLY — which is correct for the
-			// dashboard's single-subject-per-customer model: a browser session
-			// authenticates as exactly ONE subject (its own workspace owner via
-			// Kratos), and every ops handler scopes strictly to auth.GetUser(...).
-			// .Subject (exports + webhooks are per-subject rows). A session can
-			// therefore reach ONLY its own ops — never another tenant's — so no
-			// memory:admin gate is needed at the browser boundary. The SDK
-			// memory:admin gate governs API keys, not the owner's own console.
-			// If a future RBAC member/non-admin dashboard session is introduced,
-			// gate these with requireRole(admin).
-			r.Post("/exports", dashboardMemoryHandler.ExportsCreate)
-			r.Get("/exports/{id}/status", dashboardMemoryHandler.ExportsStatus)
-			r.Get("/exports/{id}/download", dashboardMemoryHandler.ExportsDownload)
-			r.Post("/webhooks", dashboardMemoryHandler.WebhooksCreate)
-			r.Get("/webhooks/list", dashboardMemoryHandler.WebhooksList)
-			r.Delete("/webhooks/{id}", dashboardMemoryHandler.WebhooksDelete)
-			r.Get("/webhooks/{id}/deliveries", dashboardMemoryHandler.WebhookDeliveriesList)
-			r.Post("/webhooks/{webhook_id}/deliveries/{delivery_id}/replay", dashboardMemoryHandler.WebhookDeliveryReplay)
+			r.Get("/list", memoryHandler.List)
+			r.Get("/metrics", memoryHandler.Metrics)
+			r.Get("/entities", memoryHandler.Entities)
+			r.Get("/graph", memoryHandler.Graph)
+			r.Get("/episodes", memoryHandler.Episodes)
+			r.Get("/skills", memoryHandler.ListSkills)
+			r.Get("/skills/all", memoryHandler.ListSkillsAll)
+			r.Post("/skills", memoryHandler.AddSkill)
+			r.Delete("/skills/{skillID}", memoryHandler.ForgetSkill)
+			r.Delete("/forget/{memoryID}", memoryHandler.Forget)
+			r.Post("/remember", memoryHandler.Remember)
+			r.Post("/recall", memoryHandler.Recall)
+			r.Post("/reflect", memoryHandler.Reflect)
+			if memoryExportsHandler != nil {
+				r.Post("/exports", memoryExportsHandler.Create)
+				r.Get("/exports/{id}/status", memoryExportsHandler.Status)
+				r.Get("/exports/{id}/download", memoryExportsHandler.Download)
+			}
+			if memoryWebhooksHandler != nil {
+				r.Post("/webhooks", memoryWebhooksHandler.Create)
+				r.Get("/webhooks/list", memoryWebhooksHandler.List)
+				r.Delete("/webhooks/{id}", memoryWebhooksHandler.Delete)
+			}
+			if memoryWebhookDeliveriesHandler != nil {
+				r.Get("/webhooks/{id}/deliveries", memoryWebhookDeliveriesHandler.List)
+				r.Post("/webhooks/{webhook_id}/deliveries/{delivery_id}/replay", memoryWebhookDeliveriesHandler.Replay)
+			}
 		})
 	}
 
