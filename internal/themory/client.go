@@ -794,8 +794,13 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		return fmt.Errorf("themory: build request: %w", err)
 	}
 	// Model B (ADR D1): resolve the per-tenant Bearer from context when a resolver
-	// is wired; else fall back to apiKey (tests / legacy single-tenant). A resolver
-	// error FAILS CLOSED — the request is never sent with a master credential.
+	// is wired; else fall back to apiKey (tests / boot-probe / legacy single-tenant).
+	// A resolver error FAILS CLOSED — the request is never sent with a master
+	// credential. INVARIANT: the production DATA client is constructed with an
+	// EMPTY apiKey + a resolver (cmd/main.go), so this fallback is unreachable for
+	// it; a data client with a non-empty apiKey + nil resolver would bypass
+	// per-tenant isolation and MUST NOT be constructed (only the control-plane
+	// probe/admin clients carry a standing key).
 	bearer := c.apiKey
 	if c.keyResolver != nil {
 		bearer, err = c.keyResolver(ctx)

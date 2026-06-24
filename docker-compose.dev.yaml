@@ -201,7 +201,10 @@ services:
       # so the stack boots before the gateway's platform-admin key is bootstrapped
       # (see dev/README § Model B). Set THEMORY_REQUIRE_CREDENTIAL=true once the
       # gateway is provisioned with a real platform-admin theo_live_* key.
-      THEMEMORY_REQUIRE_CREDENTIAL: "${THEMORY_REQUIRE_CREDENTIAL:-false}"
+      # NOTE: the canonical name is double-M THEMEMORY_ (TheMemory reads
+      # process.env['THEMEMORY_REQUIRE_CREDENTIAL']); the host override token
+      # below MUST match it exactly or the flip is silently ignored.
+      THEMEMORY_REQUIRE_CREDENTIAL: "${THEMEMORY_REQUIRE_CREDENTIAL:-false}"
       # Bootstrap token to mint the first platform-admin key (Model B provisioning).
       THEMORY_ADMIN_BOOTSTRAP_TOKEN: ${THEMORY_ADMIN_BOOTSTRAP_TOKEN:-dev-bootstrap-token-change-me-min-32-chars}
       # Migrations are applied by the one-shot themory-migrate init (LT-1); the
