@@ -230,6 +230,11 @@ async function fetchWithAuth<T>(base: string, path: string, token: string, optio
       const newToken = await ensureToken();
       if (!newToken) {
         redirectToLogin('expired');
+        // Coherent error contract (F-api-1): under throwOnError the auth-expiry
+        // surfaces as ApiError(401) so an opted-in mutation rejects → isError
+        // (the form is retained) rather than resolving null → onSuccess (which
+        // would silently clear it). The redirect still fires regardless.
+        if (throwOnError) throw new ApiError(401, undefined, 'session expired — re-authentication required');
         return null;
       }
       // Retry with new token

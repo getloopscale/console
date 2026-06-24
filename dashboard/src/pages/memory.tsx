@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   PageShell,
+  Skeleton,
   StatTile,
   TokenUsageChart,
   type TokenUsagePoint,
@@ -97,11 +98,29 @@ export function MemoryPage() {
           </Alert>
         ) : null}
 
-        {/* KPI strip + trends render ONLY when the metrics query did not error
-            (ADR D2: never substitute fabricated zeros for an outage — the error
-            Alert above is the honest state). ContentGrid only supports up-to-3
-            columns, so the KPI strip uses a direct Tailwind grid. */}
-        {!metricsQuery.isError ? (
+        {/* Loading state (ADR D2, /review F-fe-1/F-fe-2): while the query is
+            pending — including the retry window before isError settles — show a
+            skeleton, NEVER the `data ?? zeros` fallback. Gating the strip on a
+            settled success is what guarantees fabricated 0/0/0/0 can never paint
+            over an outage OR a slow load. */}
+        {metricsQuery.isPending ? (
+          <div
+            data-testid="memory-metrics-loading"
+            role="status"
+            aria-label="Loading memory metrics"
+            className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          >
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : null}
+
+        {/* KPI strip + trends render ONLY on a settled success (ADR D2: never
+            substitute fabricated zeros for an outage or a pending load — the
+            error Alert / skeleton above are the honest states). ContentGrid only
+            supports up-to-3 columns, so the KPI strip uses a direct Tailwind grid. */}
+        {metricsQuery.isSuccess ? (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatTile value={metrics.total_memories} label="Total memories" icon={Brain} />

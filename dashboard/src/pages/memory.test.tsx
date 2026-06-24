@@ -58,6 +58,24 @@ describe('MemoryPage (/memory landing)', () => {
     expect(screen.queryByText('Distinct entities')).not.toBeInTheDocument();
   });
 
+  // dashboard-memory-error-surfacing /review fix (F-fe-1/F-fe-2) — the KPI strip
+  // must render ONLY on a settled success, never during the loading/retry window.
+  // Pre-fix the strip was gated on `!isError`, so while the query was still
+  // pending (data undefined → `data ?? zeros`) it painted fabricated 0/0/0/0 —
+  // the exact masking ADR D2 forbids. A never-resolving fetch keeps the query
+  // pending so we can assert the zeros are absent and a loading affordance shows.
+  it('does NOT render fabricated zeros while the metrics query is still pending', async () => {
+    mockCloudFetch.mockReturnValueOnce(new Promise(() => {})); // never resolves → stays pending
+    render(<MemoryPage />);
+    // The Explore section always renders, so the page is mounted…
+    expect(await screen.findByRole('heading', { name: /view graph/i })).toBeInTheDocument();
+    // …but the KPI tiles (which would show "0") must be ABSENT during loading.
+    expect(screen.queryByText('Total memories')).not.toBeInTheDocument();
+    expect(screen.queryByText('Distinct entities')).not.toBeInTheDocument();
+    // A loading affordance is shown in their place (skeleton, role=status).
+    expect(screen.getByTestId('memory-metrics-loading')).toBeInTheDocument();
+  });
+
   it('shows a "View Graph" explore card (themory-graph-gateway-dashboard)', async () => {
     mockCloudFetch.mockResolvedValueOnce({
       total_memories: 1,
