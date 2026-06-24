@@ -46,11 +46,15 @@ export function MemoryPage() {
 
   const metricsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/memory/metrics'] as const,
-    queryFn: () => cloudFetch<MemoryMetrics>('/v1/dashboard/memory/metrics'),
+    // dashboard-memory-error-surfacing T1.3 (ADR D2): opt into throwOnError so a
+    // backend non-2xx routes to `isError` (showing the error Alert) instead of
+    // resolving to null + masking the outage as fabricated zeros.
+    queryFn: () => cloudFetch<MemoryMetrics>('/v1/dashboard/memory/metrics', {}, { throwOnError: true }),
   });
 
-  // D3: even if the backend hiccups and returns null, fall back to zeros
-  // so the dashboard never renders NaN.
+  // A successful-but-empty 2xx (null body edge) falls back to zeros so the
+  // dashboard never renders NaN. On ERROR the KPI strip is NOT rendered (ADR D2),
+  // so these zeros are never used to mask an outage.
   const metrics: MemoryMetrics = metricsQuery.data ?? {
     total_memories: 0,
     retrieval_api_usage: 0,
@@ -93,29 +97,33 @@ export function MemoryPage() {
           </Alert>
         ) : null}
 
-        {/* KPI strip — 4 tiles. ContentGrid only supports up-to-3 columns,
-            so the KPI strip uses a direct Tailwind grid (2 cols on mobile,
-            4 on desktop) — matches the existing billing.tsx pattern for
-            dense KPI rows. */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatTile value={metrics.total_memories} label="Total memories" icon={Brain} />
-          <StatTile value={metrics.retrieval_api_usage} label="Retrieval API calls" icon={Zap} />
-          <StatTile value={metrics.add_events} label="Add events" icon={Sparkles} />
-          <StatTile value={metrics.entity_count} label="Distinct entities" icon={Database} />
-        </div>
+        {/* KPI strip + trends render ONLY when the metrics query did not error
+            (ADR D2: never substitute fabricated zeros for an outage — the error
+            Alert above is the honest state). ContentGrid only supports up-to-3
+            columns, so the KPI strip uses a direct Tailwind grid. */}
+        {!metricsQuery.isError ? (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatTile value={metrics.total_memories} label="Total memories" icon={Brain} />
+              <StatTile value={metrics.retrieval_api_usage} label="Retrieval API calls" icon={Zap} />
+              <StatTile value={metrics.add_events} label="Add events" icon={Sparkles} />
+              <StatTile value={metrics.entity_count} label="Distinct entities" icon={Database} />
+            </div>
 
-        <ContentGrid columns="2-equal">
-          <Card>
-            <Card.Body>
-              <TokenUsageChart title="Usage trend" points={trendPoints} height={180} />
-            </Card.Body>
-          </Card>
-          <Card>
-            <Card.Body>
-              <TokenUsageChart title="Entities trend" points={entityTrendPoints} height={180} />
-            </Card.Body>
-          </Card>
-        </ContentGrid>
+            <ContentGrid columns="2-equal">
+              <Card>
+                <Card.Body>
+                  <TokenUsageChart title="Usage trend" points={trendPoints} height={180} />
+                </Card.Body>
+              </Card>
+              <Card>
+                <Card.Body>
+                  <TokenUsageChart title="Entities trend" points={entityTrendPoints} height={180} />
+                </Card.Body>
+              </Card>
+            </ContentGrid>
+          </>
+        ) : null}
 
         <Card>
           <Card.Body className="space-y-2">

@@ -16,6 +16,37 @@ const API_BASE = API_URL;
 
 export function getApiBase() { return API_BASE; }
 
+/**
+ * Typed error thrown by `cloudFetch`/`engineFetch` ONLY when the caller opts in
+ * via `{ throwOnError: true }`. Carries the HTTP `status` (+ parsed `body` when
+ * available) so call-sites can tailor copy (404 "not configured" vs 5xx "retry")
+ * and React Query routes it to `isError`. A network failure surfaces as
+ * `status: 0`. The DEFAULT (`T | null`) path never throws — see `cloudFetch`.
+ *
+ * @see .claude/knowledge-base/plans/dashboard-memory-error-surfacing-plan.md § T1.1 (ADR D3)
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly body?: unknown;
+  constructor(status: number, body?: unknown, message?: string) {
+    super(message ?? `API request failed with status ${status}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
+/** Opt-in behavior flags for `cloudFetch`/`engineFetch`. */
+export interface CloudFetchConfig {
+  /**
+   * When true, a non-2xx response (after the 401-refresh retry) and a network
+   * rejection throw an {@link ApiError} instead of resolving to `null`. Opt-in
+   * so the existing `T | null` callers (queries that treat null as "no data")
+   * are unaffected; surfaces with `isError`/error-boundary handling pass it.
+   */
+  readonly throwOnError?: boolean;
+}
+
 // In-memory JWT token (never localStorage — XSS risk)
 let accessToken: string | null = null;
 let tokenExpiresAt = 0;
@@ -144,7 +175,7 @@ export function logout(): void {
 // MEET-040: Unified API fetch. All paths relative to same origin.
 // /v1/billing, /v1/auth/* → cloud service (direct, same origin)
 // /engine/api/v1/* → cloud service proxy → engine API (BFF pattern)
-export async function cloudFetch<T>(path: string, options: RequestInit = {}): Promise<T | null> {
+export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg: CloudFetchConfig = {}): Promise<T | null> {
   // Plan v1.0 (2026-05-26): mock mode no longer short-circuits via FIXTURES
   // map. Instead, lib/mocks/server.ts wraps window.fetch and intercepts all
   // /api/v1/* paths transparently — covering 47+ endpoints vs the old 5.
@@ -155,18 +186,25 @@ export async function cloudFetch<T>(path: string, options: RequestInit = {}): Pr
     redirectToLogin('expired');
     return null;
   }
-  return fetchWithAuth<T>(API_BASE, path, token, options, true);
+  return fetchWithAuth<T>(API_BASE, path, token, options, true, cfg.throwOnError === true);
 }
 
 // Alias for backward compatibility during migration
 export { cloudFetch as apiFetch };
 
 // Engine API calls proxied through cloud service.
-export async function engineFetch<T>(path: string, options: RequestInit = {}): Promise<T | null> {
-  return cloudFetch<T>(`/engine${path}`, options);
+export async function engineFetch<T>(path: string, options: RequestInit = {}, cfg: CloudFetchConfig = {}): Promise<T | null> {
+  return cloudFetch<T>(`/engine${path}`, options, cfg);
 }
 
-async function fetchWithAuth<T>(base: string, path: string, token: string, options: RequestInit = {}, redirectOnAuthFailure = true): Promise<T | null> {
+/** Build a typed ApiError from a non-2xx response (best-effort JSON body). */
+async function toApiError(resp: Response): Promise<ApiError> {
+  let body: unknown;
+  try { body = await resp.clone().json(); } catch { /* non-JSON body — leave undefined */ }
+  return new ApiError(resp.status, body);
+}
+
+async function fetchWithAuth<T>(base: string, path: string, token: string, options: RequestInit = {}, redirectOnAuthFailure = true, throwOnError = false): Promise<T | null> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`,
@@ -199,16 +237,23 @@ async function fetchWithAuth<T>(base: string, path: string, token: string, optio
       const retry = await fetch(`${base}${path}`, { ...options, headers });
       if (!retry.ok) {
         await maybeEmitPaymentRequired(retry);
+        if (throwOnError) throw await toApiError(retry);
         return null;
       }
       return await retry.json() as T;
     }
     if (!resp.ok) {
       await maybeEmitPaymentRequired(resp);
+      if (throwOnError) throw await toApiError(resp);
       return null;
     }
     return await resp.json() as T;
-  } catch {
+  } catch (err) {
+    // Re-throw our own typed error (don't let the catch-all swallow it back to null).
+    if (err instanceof ApiError) throw err;
+    // Network failure (fetch rejected): surface as ApiError(0) when opted in,
+    // else preserve the legacy silent-null contract.
+    if (throwOnError) throw new ApiError(0, undefined, 'network request failed');
     return null;
   }
 }

@@ -2,7 +2,7 @@
 // Copyright 2025-2026 The Theo Authors
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { engineFetch, exchangeSessionToken } from './api';
+import { engineFetch, exchangeSessionToken, cloudFetch, ApiError } from './api';
 
 vi.mock('./config', () => ({ API_URL: 'http://test.local' }));
 
@@ -125,5 +125,64 @@ describe('fetchWithAuth — Idempotency-Key auto-gen (T5.0 / EC-09)', () => {
   it('test_caller_explicit_key_wins_over_auto_gen', async () => {
     const headers = await primeTokenAndCapture('POST', 'caller-deliberate-replay-key-001');
     expect(headers['Idempotency-Key']).toBe('caller-deliberate-replay-key-001');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// dashboard-memory-error-surfacing T1.1 — opt-in throwOnError + ApiError.
+// Root cause of the live-test silent failure: cloudFetch swallowed non-2xx into
+// null, so React Query reported success. The opt-in throws a typed ApiError so
+// isError fires; the DEFAULT path stays `T | null` (49 callers unchanged).
+// ---------------------------------------------------------------------------
+
+describe('cloudFetch — opt-in throwOnError (dashboard-memory-error-surfacing T1.1)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function mockStatus(status: number): Promise<void> {
+    let n = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      n++;
+      if (n === 1) return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
+      return new Response(JSON.stringify({ code: 'X', message: 'no' }), { status });
+    });
+    await exchangeSessionToken();
+  }
+
+  it('throwOnError throws ApiError carrying the status on a 404', async () => {
+    await mockStatus(404);
+    await expect(cloudFetch('/v1/x', { method: 'POST', body: '{}' }, { throwOnError: true }))
+      .rejects.toMatchObject({ name: 'ApiError', status: 404 });
+  });
+
+  it('throwOnError throws ApiError(500) on a server error', async () => {
+    await mockStatus(500);
+    let caught: unknown;
+    try {
+      await cloudFetch('/v1/x', { method: 'POST', body: '{}' }, { throwOnError: true });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ApiError);
+    expect((caught as ApiError).status).toBe(500);
+  });
+
+  it('default (no flag) STILL returns null on a 404 — the T|null contract is unchanged', async () => {
+    await mockStatus(404);
+    const r = await cloudFetch('/v1/x', { method: 'POST', body: '{}' });
+    expect(r).toBeNull();
+  });
+
+  it('throwOnError re-throws a network rejection as an ApiError (not silent null)', async () => {
+    let n = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      n++;
+      if (n === 1) return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
+      throw new Error('network down');
+    });
+    await exchangeSessionToken();
+    await expect(cloudFetch('/v1/x', { method: 'POST', body: '{}' }, { throwOnError: true }))
+      .rejects.toBeInstanceOf(ApiError);
   });
 });

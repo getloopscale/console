@@ -40,7 +40,22 @@ describe('MemoryPage (/memory landing)', () => {
     // Backend was hit at the canonical path — the value-rendering happy
     // path is exercised separately by the D3 empty-zero test below
     // (where the fallback guarantees zeros render without NaN).
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/memory/metrics');
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/memory/metrics',
+      expect.anything(),
+      expect.objectContaining({ throwOnError: true }),
+    );
+  });
+
+  // dashboard-memory-error-surfacing T1.3 — metrics must NOT mask an outage as
+  // fabricated zeros. On a backend error the error Alert renders and the KPI
+  // tiles are absent (the live-test finding: app-dev 404 rendered 0/0/0/0).
+  it('surfaces an error (no fake zeros) when the metrics backend fails', async () => {
+    mockCloudFetch.mockRejectedValueOnce(new Error('backend 404'));
+    render(<MemoryPage />);
+    expect(await screen.findByText(/Could not load memory metrics/i)).toBeInTheDocument();
+    expect(screen.queryByText('Total memories')).not.toBeInTheDocument();
+    expect(screen.queryByText('Distinct entities')).not.toBeInTheDocument();
   });
 
   it('shows a "View Graph" explore card (themory-graph-gateway-dashboard)', async () => {
