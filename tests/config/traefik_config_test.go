@@ -12,11 +12,40 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/usetheodev/theo-cloud/internal/routes"
 )
+
+// routerHeaderRe matches a router key at the 4-space indent under `http.routers:`
+// (e.g. "    memory-edge:"). Used to scope a priority lookup to one router block.
+var routerHeaderRe = regexp.MustCompile(`^    [a-z][a-z0-9-]*:\s*$`)
+
+// routerPriority returns the explicit numeric `priority:` of a named router, or 0
+// if absent. It resets at every router header so it only reads the priority that
+// belongs to the target router's block (no bleed into the next router).
+func routerPriority(t *testing.T, cfg, router string) int {
+	t.Helper()
+	in := false
+	for _, ln := range strings.Split(cfg, "\n") {
+		if routerHeaderRe.MatchString(ln) {
+			in = strings.TrimSpace(ln) == router+":"
+			continue
+		}
+		if in && strings.HasPrefix(strings.TrimSpace(ln), "priority:") {
+			raw := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(ln), "priority:"))
+			n, err := strconv.Atoi(raw)
+			if err != nil {
+				t.Fatalf("router %s: bad priority %q: %v", router, raw, err)
+			}
+			return n
+		}
+	}
+	return 0
+}
 
 func readConfig(t *testing.T, name string) string {
 	t.Helper()
@@ -53,11 +82,31 @@ func TestTraefikDynamicConfig_RewritesNamespaceToThemoryDirect(t *testing.T) {
 	mustContain(t, cfg, "replacePathRegex", "capability namespace is rewritten to themory's native path")
 	mustContain(t, cfg, "^/v1/memory/(.*)", "rewrite source is the /v1/memory namespace")
 	mustContain(t, cfg, "/v1/$1", "rewrite target is themory's /v1/* path")
-	// ADR D7: the data upstream is theo-memory DIRECTLY, never theo-cloud's BFF.
-	mustContain(t, cfg, "http://themory:8080", "upstream is theo-memory REST direct (ADR D7)")
-	if strings.Contains(cfg, "url: \"http://theo-cloud:13002\"") {
-		t.Error("D7 violation: the data upstream must NOT be theo-cloud's BFF (double-auth)")
+	// ADR D7: the CAPABILITY data upstream is theo-memory DIRECTLY, never the BFF.
+	// (slice-3a: the BFF url http://theo-cloud:13002 now legitimately appears as the
+	// `bff` router's own upstream for /v1/* non-capability traffic — D7 is about the
+	// /v1/memory capability route, not a blanket ban on the BFF url.)
+	mustContain(t, cfg, "http://themory:8080", "capability upstream is theo-memory REST direct (ADR D7)")
+	if memoryRouteTargetsBff(cfg) {
+		t.Error("D7 violation: the /v1/memory capability must route to themory, NOT theo-cloud's BFF (double-auth)")
 	}
+}
+
+// memoryRouteTargetsBff reports whether the memory-edge router's `service:` is the
+// BFF (a D7 violation). It scopes the lookup to the memory-edge router block.
+func memoryRouteTargetsBff(cfg string) bool {
+	in := false
+	for _, ln := range strings.Split(cfg, "\n") {
+		if routerHeaderRe.MatchString(ln) {
+			in = strings.TrimSpace(ln) == "memory-edge:"
+			continue
+		}
+		if in && strings.HasPrefix(strings.TrimSpace(ln), "service:") {
+			svc := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(ln), "service:"))
+			return svc == "theo-cloud-bff" || svc == "bff"
+		}
+	}
+	return false
 }
 
 func TestTraefikStaticConfig_TracingDisabled(t *testing.T) {
@@ -72,4 +121,50 @@ func TestTraefikStaticConfig_TracingDisabled(t *testing.T) {
 			t.Errorf("D4 violation: tracing must be OFF in the dev edge (found %q)", trimmed)
 		}
 	}
+}
+
+// --- M8 slice-3a: unified-edge routers ---
+
+func TestTraefikDynamicConfig_HasKratosRouter(t *testing.T) {
+	cfg := readConfig(t, "dynamic.yml")
+	mustContain(t, cfg, "PathPrefix(`/self-service`)", "kratos router fronts the self-service auth flows")
+	mustContain(t, cfg, "http://kratos:4433", "kratos upstream is the Ory Kratos public API")
+}
+
+func TestTraefikDynamicConfig_HasBffRouter(t *testing.T) {
+	cfg := readConfig(t, "dynamic.yml")
+	mustContain(t, cfg, "PathPrefix(`/v1`)", "bff router fronts the cloud-API /v1 surface")
+	mustContain(t, cfg, "PathPrefix(`/engine`)", "bff router fronts the /engine proxy")
+	mustContain(t, cfg, "http://theo-cloud:13002", "bff upstream is the theo-cloud cloud-API")
+}
+
+func TestTraefikDynamicConfig_HasSpaCatchAll(t *testing.T) {
+	cfg := readConfig(t, "dynamic.yml")
+	mustContain(t, cfg, "PathPrefix(`/`)", "SPA catch-all router fronts the dashboard")
+	mustContain(t, cfg, "http://dashboard", "SPA catch-all upstream is the nginx dashboard static service")
+}
+
+func TestTraefikDynamicConfig_CapabilityRoutePrecedence(t *testing.T) {
+	// ADR D3: rule-length already makes /v1/memory beat /v1, but explicit priority is
+	// defense-in-depth. memory > bff > spa must hold so a capability never falls into
+	// the BFF or the SPA catch-all.
+	cfg := readConfig(t, "dynamic.yml")
+	mem := routerPriority(t, cfg, "memory-edge")
+	bff := routerPriority(t, cfg, "bff")
+	spa := routerPriority(t, cfg, "dashboard-spa")
+	if !(mem > bff && bff > spa) {
+		t.Errorf("precedence must be memory(%d) > bff(%d) > spa(%d) — capability must beat the catch-alls", mem, bff, spa)
+	}
+	if spa == 0 {
+		t.Error("dashboard-spa must carry an explicit priority (the lowest), not rely on default")
+	}
+}
+
+func TestTraefikDynamicConfig_MemoryPrefixBoundary(t *testing.T) {
+	// EC-2: PathPrefix(`/v1/memory`) also matches /v1/memoryfoo, but the rewrite regex
+	// only fires with a trailing slash. Pin the accepted M6-carryover behavior so it
+	// cannot silently change: the rule is the bare prefix and the rewrite is slash-gated.
+	cfg := readConfig(t, "dynamic.yml")
+	mustContain(t, cfg, "PathPrefix(`/v1/memory`)", "memory route uses the bare-prefix rule (M6 carryover)")
+	mustContain(t, cfg, "^/v1/memory/(.*)", "rewrite is slash-gated: /v1/memoryfoo is forwarded unrewritten (themory 404s — harmless)")
 }
