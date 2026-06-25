@@ -275,6 +275,24 @@ services:
   # workflow and sidesteps the production-bundle manualChunks TDZ bug. Kratos +
   # the gateway are configured with the 5173 origin so cookies stay same-origin.
 
+  # platform-api-gateway-edge-slice1 (M6): the Traefik dev edge. Fronts the
+  # consumer /v1/memory/* namespace on :8090, delegates authZ to theo-cloud's
+  # ForwardAuth endpoint (/internal/authz/forward), and routes the data path to
+  # themory:8080 DIRECTLY (ADR D7 — not theo-cloud's BFF, which would double-auth).
+  # No healthcheck: nothing depends on it, and `--wait` treats it as started.
+  traefik:
+    image: traefik:v3.3
+    depends_on:
+      theo-cloud:
+        condition: service_healthy
+      themory:
+        condition: service_healthy
+    volumes:
+      - ./dev/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dev/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    ports:
+      - "${DEV_EDGE_PORT:-8090}:8090"
+
 volumes:
   dev_pgcloud:
   dev_pgthemory:

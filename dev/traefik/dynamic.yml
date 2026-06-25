@@ -1,0 +1,49 @@
+# platform-api-gateway-edge-slice1 (M6) — Traefik DYNAMIC config (dev edge).
+#
+# Routes the consumer capability namespace /v1/memory/* to theo-memory REST
+# DIRECTLY (themory:8080, ADR D7 — NOT theo-cloud's BFF, which would double-auth
+# with RequireScope), delegating authZ to the theo-cloud ForwardAuth authz-brain.
+#
+# Request flow for `POST /v1/memory/recall  Authorization: Bearer theo_live_<consumer>`:
+#   1. forward-auth → theo-cloud /internal/authz/forward validates the consumer key,
+#      mints the per-tenant theo_live_, returns it as the Authorization response header.
+#   2. Traefik's authResponseHeaders=[Authorization] does Del-then-set: it ALWAYS
+#      removes the client's Authorization and sets the minted one (D3 — the client's
+#      key can never reach themory; on a DENY/200-without-Authorization the header is
+#      simply absent and themory fails closed). Verified by the T2.1 e2e (EC-4).
+#   3. memory-rewrite: /v1/memory/recall → /v1/recall (themory's native path).
+#   4. upstream: themory:8080.
+
+http:
+  routers:
+    memory-edge:
+      rule: "PathPrefix(`/v1/memory`)"
+      entryPoints:
+        - web
+      service: themory
+      middlewares:
+        - forward-auth
+        - memory-rewrite
+
+  middlewares:
+    # D3 (+ credential exchange): delegate authZ to theo-cloud; copy ONLY the
+    # minted Authorization onto the upstream request (Del-then-set strips the
+    # client's). On a non-2xx from the authz endpoint, Traefik denies (no upstream).
+    forward-auth:
+      forwardAuth:
+        address: "http://theo-cloud:13002/internal/authz/forward"
+        authResponseHeaders:
+          - "Authorization"
+        trustForwardHeader: false
+
+    # Capability namespace → themory native path: /v1/memory/recall → /v1/recall.
+    memory-rewrite:
+      replacePathRegex:
+        regex: "^/v1/memory/(.*)"
+        replacement: "/v1/$1"
+
+  services:
+    themory:
+      loadBalancer:
+        servers:
+          - url: "http://themory:8080"
