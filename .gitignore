@@ -12,3 +12,4 @@ node_modules/
 # Local / editor
 *.local
 .DS_Store
+dashboard/test-results/

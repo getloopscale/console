@@ -128,7 +128,19 @@ export function BillingPage() {
     try {
       const portal = await cloudFetch<{ url: string }>('/v1/billing/portal');
       if (portal?.url) {
-        window.open(portal.url, '_blank');
+        // qa-sprint2-cleanup-2026-06-24 T2.2 — closes theo-cloud#15
+        // (BLOCKER ux_friction: Manage Plan click was inert).
+        //
+        // Pre-fix: window.open(portal.url, '_blank') from an async callback
+        // (after `await cloudFetch`) is silently blocked by modern browser
+        // popup blockers because the user gesture activation expires across
+        // the await. The user saw no modal, no redirect, no new tab.
+        //
+        // Fix: use window.location.href same-window navigation, matching the
+        // existing upgradePlan handler below AND Stripe's documented canonical
+        // Customer Portal pattern (https://docs.stripe.com/billing/customer/
+        // integration#redirect-to-portal). No gesture-activation requirement.
+        window.location.href = portal.url;
       } else {
         setActionError('Failed to open billing portal. Please try again.');
       }

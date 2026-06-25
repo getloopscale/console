@@ -44,13 +44,41 @@ describe('BillingPage', () => {
     expect(screen.getByText('acme')).toBeInTheDocument();
   });
 
-  it('test_billing_portal_button_calls_endpoint', async () => {
+  // qa-sprint2-cleanup-2026-06-24 T2.1 — closes theo-cloud#15
+  // (BLOCKER ux_friction: Manage Plan click was inert).
+  //
+  // Pre-fix: handler called window.open(portal.url, '_blank') from an async
+  // callback after `await cloudFetch`. Modern browsers (Chrome 119+, Safari 17+,
+  // Firefox 122+) BLOCK popups opened from async callbacks because the user
+  // gesture activation expires. The popup was silently suppressed.
+  //
+  // T2.2 fix: swap window.open → window.location.href, matching the existing
+  // upgradePlan handler (which uses window.location.href correctly) and Stripe's
+  // documented canonical Customer Portal pattern (same-window navigation).
+  it('test_billing_portal_button_navigates_same_window_on_success', async () => {
     mockUseCloudApi.mockReturnValue({
       data: { plan: 'pro', team: 'acme', usage: {} },
       loading: false,
       error: false,
     });
     mockCloudFetch.mockResolvedValue({ url: 'https://billing.stripe.com/portal/xyz' });
+
+    // jsdom does not implement navigation; stub the location.href setter so we
+    // can observe what the click handler attempted to assign.
+    const hrefSetter = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      writable: true,
+      value: {
+        ...originalLocation,
+        set href(v: string) { hrefSetter(v); },
+        get href() { return originalLocation.href; },
+      },
+    });
+
+    // EC-11 defense: window.open MUST NOT be called post-fix (would mean the
+    // async-callback popup-blocker bug is back).
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
     const user = userEvent.setup();
@@ -58,8 +86,35 @@ describe('BillingPage', () => {
     await user.click(screen.getByRole('button', { name: /manage plan/i }));
 
     expect(mockCloudFetch).toHaveBeenCalledWith('/v1/billing/portal');
-    expect(openSpy).toHaveBeenCalledWith('https://billing.stripe.com/portal/xyz', '_blank');
+    expect(hrefSetter).toHaveBeenCalledWith('https://billing.stripe.com/portal/xyz');
+    expect(openSpy).not.toHaveBeenCalled();
+
     openSpy.mockRestore();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      writable: true,
+      value: originalLocation,
+    });
+  });
+
+  it('test_billing_portal_button_renders_alert_on_null_response', async () => {
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'pro', team: 'acme', usage: {} },
+      loading: false,
+      error: false,
+    });
+    // Failure path: backend returns null OR a response with no `url` field.
+    mockCloudFetch.mockResolvedValue(null);
+
+    const user = userEvent.setup();
+    render(<BillingPage />);
+    await user.click(screen.getByRole('button', { name: /manage plan/i }));
+
+    // Assert a destructive Alert renders with the failure copy — proves the
+    // click produces an OBSERVABLE effect even on the failure path (the
+    // canonical FAANG anti-inert assertion that closes the #15 BLOCKER).
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent ?? '').toMatch(/failed to open billing portal/i);
   });
 
   it('test_billing_renders_invoice_table_with_data', () => {
