@@ -272,45 +272,61 @@ export function RegisterPage() {
             * a11y/assistive-tech hints; the submit gate lives in the
             * onSubmit handler (see submitPassword). */}
           <form onSubmit={submitPassword} className="space-y-3" noValidate>
-            <Input
-              size="lg"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Name"
-              autoComplete="name"
-              aria-label="Name"
-              aria-invalid={validationErrors.name ? true : undefined}
-            />
+            {/* Sprint 3 Phase 6 (#26) v1.1 ADR D4 — WCAG 3.3.2 Labels or
+                Instructions. Replace `placeholder + aria-label` anti-pattern
+                with explicit <label htmlFor> + <Input id> (id is forwarded
+                through InputHTMLAttributes per the @usetheo/ui InputProps). */}
+            <label htmlFor="register-name" className="block text-body-sm font-medium text-foreground">
+              Name
+              <Input
+                id="register-name"
+                size="lg"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Name"
+                autoComplete="name"
+                aria-invalid={validationErrors.name ? true : undefined}
+                className="mt-1"
+              />
+            </label>
             {validationErrors.name && (
               <p role="alert" className="text-body-sm text-destructive -mt-1">{validationErrors.name}</p>
             )}
-            <Input
-              size="lg"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="Email"
-              autoComplete="email"
-              aria-label="Email"
-              aria-invalid={validationErrors.email ? true : undefined}
-            />
+            <label htmlFor="register-email" className="block text-body-sm font-medium text-foreground">
+              Email
+              <Input
+                id="register-email"
+                size="lg"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="Email"
+                autoComplete="email"
+                aria-invalid={validationErrors.email ? true : undefined}
+                className="mt-1"
+              />
+            </label>
             {validationErrors.email && (
               <p role="alert" className="text-body-sm text-destructive -mt-1">{validationErrors.email}</p>
             )}
-            <Input
-              size="lg"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={KRATOS_PASSWORD_MIN_LENGTH}
-              placeholder={`Password (min. ${KRATOS_PASSWORD_MIN_LENGTH} characters)`}
-              autoComplete="new-password"
-              aria-label="Password"
-              aria-invalid={validationErrors.password ? true : undefined}
-            />
+            <label htmlFor="register-password" className="block text-body-sm font-medium text-foreground">
+              Password
+              <Input
+                id="register-password"
+                size="lg"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={KRATOS_PASSWORD_MIN_LENGTH}
+                placeholder={`Password (min. ${KRATOS_PASSWORD_MIN_LENGTH} characters)`}
+                autoComplete="new-password"
+                aria-invalid={validationErrors.password ? true : undefined}
+                className="mt-1"
+              />
+            </label>
             {validationErrors.password && (
               <p role="alert" className="text-body-sm text-destructive -mt-1">{validationErrors.password}</p>
             )}
