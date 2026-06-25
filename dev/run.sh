@@ -74,6 +74,33 @@ fi
 
 log "backend stack healthy."
 
+# --- Model B platform-admin provisioning (platform-api-gateway M6) ------------
+# The credential broker (per-tenant data keys + the ForwardAuth edge) needs a
+# real `memory:platform-admin` theo_live_* key to mint with. Auto-provision it
+# from themory's bootstrap token so `make dev-up` (and the edge e2e) work out of
+# the box — closing the gap the dev/README § Model B documented. Skipped if the
+# operator already exported THEMORY_PLATFORM_ADMIN_KEY.
+if [ -z "${THEMORY_PLATFORM_ADMIN_KEY:-}" ]; then
+  BOOTSTRAP="${THEMORY_ADMIN_BOOTSTRAP_TOKEN:-dev-bootstrap-token-change-me-min-32-chars}"
+  THEMORY_HOST_PORT="${DEV_THEMORY_PORT:-18081}"
+  log "provisioning Model B platform-admin key via the themory bootstrap token…"
+  PA_KEY="$(curl -s -m 10 -X POST "http://localhost:${THEMORY_HOST_PORT}/v1/admin/keys" \
+    -H "Authorization: Bearer ${BOOTSTRAP}" -H "Content-Type: application/json" \
+    -d '{"name":"theo-cloud-platform-admin","scopes":["memory:platform-admin"]}' \
+    2>/dev/null | grep -oE '"secret":"theo_live_[^"]+"' | sed 's/^"secret":"//; s/"$//')"
+  if [ -n "${PA_KEY}" ]; then
+    export THEMORY_PLATFORM_ADMIN_KEY="${PA_KEY}"
+    log "minted platform-admin key; recreating the gateway with it…"
+    compose up -d --no-deps theo-cloud
+    for _ in $(seq 1 20); do
+      curl -fsS -o /dev/null "http://localhost:${DEV_GATEWAY_PORT:-13002}/health" 2>/dev/null && break
+      sleep 2
+    done
+  else
+    fail "could not mint the platform-admin key (bootstrap may be consumed). Model B per-tenant mint + the edge will fail CLOSED until provisioned — see dev/README § Model B."
+  fi
+fi
+
 # --- dashboard: host-side vite dev server (native workflow) ------------------
 # vite's built-in proxy forwards /v1, /self-service, /sessions to the
 # docker-exposed gateway + kratos. Runs detached; make dev-down stops it.
