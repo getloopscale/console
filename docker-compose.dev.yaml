@@ -276,15 +276,15 @@ services:
   # workflow and sidesteps the production-bundle manualChunks TDZ bug. Kratos +
   # the gateway are configured with the 5173 origin so cookies stay same-origin.
 
-  # M8 slice-3a (ADR D2): the dashboard SPA static server. Traefik's catch-all
-  # PathPrefix(`/`) routes here; nginx serves the production bundle (dashboard/dist)
-  # with a history-API fallback (dev/dashboard/nginx.conf). Coexists with the
-  # host-side `vite dev` HMR workflow on :5173 (the NOTE above).
+  # M8 slice-3a + dashboard-manualchunks-tdz-fix (ADR D3): the dashboard SPA static
+  # server. Traefik's catch-all PathPrefix(`/`) routes here. The image BUILDS the SPA
+  # from source (dev/dashboard.Dockerfile: npm ci + npm run build → nginx) so the edge
+  # serves the FIXED bundle reproducibly — `dashboard/dist` is gitignored and not built
+  # by dev/run.sh. Coexists with the host-side `vite dev` HMR workflow on :5173.
   dashboard:
-    image: nginx:alpine
-    volumes:
-      - ./dashboard/dist:/usr/share/nginx/html:ro
-      - ./dev/dashboard/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    build:
+      context: .
+      dockerfile: dev/dashboard.Dockerfile
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
       interval: 3s

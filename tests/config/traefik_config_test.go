@@ -63,6 +63,28 @@ func mustContain(t *testing.T, haystack, needle, why string) {
 	}
 }
 
+func TestDashboardServiceBuildsFromSource(t *testing.T) {
+	// dashboard-manualchunks-tdz-fix T2.1 (ADR D3): the edge dashboard must build the
+	// SPA bundle FROM SOURCE (reproducible) rather than mount the gitignored
+	// ./dashboard/dist (stale, not built by the dev flow). And the build context must
+	// exclude host node_modules (EC-1) so the image build is reproducible.
+	compose, err := os.ReadFile(filepath.Join("..", "..", "docker-compose.dev.yaml"))
+	if err != nil {
+		t.Fatalf("read docker-compose.dev.yaml: %v", err)
+	}
+	mustContain(t, string(compose), "dev/dashboard.Dockerfile",
+		"dashboard service builds from source via the multi-stage Dockerfile")
+	if strings.Contains(string(compose), "./dashboard/dist:/usr/share/nginx/html") {
+		t.Error("dashboard must NOT mount the gitignored ./dashboard/dist — it builds from source (T2.1)")
+	}
+	di, err := os.ReadFile(filepath.Join("..", "..", ".dockerignore"))
+	if err != nil {
+		t.Fatalf("read .dockerignore: %v", err)
+	}
+	mustContain(t, string(di), "node_modules",
+		".dockerignore excludes node_modules from the build context (EC-1)")
+}
+
 func TestTraefikDynamicConfig_HasForwardAuthOnMemoryRoute(t *testing.T) {
 	cfg := readConfig(t, "dynamic.yml")
 
