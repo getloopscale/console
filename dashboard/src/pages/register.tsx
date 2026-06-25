@@ -347,7 +347,12 @@ export function RegisterPage() {
 
           <p className="text-center text-body-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link to="/login" className="text-primary hover:text-primary/80">
+            {/* Sprint 3 a11y addendum (#24 symmetry) — same min-h-[44px]
+                tap target as login.tsx "Create account" / "Forgot password?". */}
+            <Link
+              to="/login"
+              className="text-primary hover:text-primary/80 min-h-[44px] inline-flex items-center"
+            >
               Sign in
             </Link>
           </p>
