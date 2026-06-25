@@ -160,6 +160,17 @@ func TestTraefikDynamicConfig_CapabilityRoutePrecedence(t *testing.T) {
 	}
 }
 
+func TestDashboardNginxConf_HasSpaFallback(t *testing.T) {
+	// ADR D2: the dashboard SPA is served by nginx (Traefik has no file server).
+	// The history-API fallback (Caddy's `try_files {path} /index.html`) must live
+	// in nginx.conf so deep links resolve to the SPA shell.
+	b, err := os.ReadFile(filepath.Join("..", "..", "dev", "dashboard", "nginx.conf"))
+	if err != nil {
+		t.Fatalf("read dev/dashboard/nginx.conf: %v", err)
+	}
+	mustContain(t, string(b), "try_files $uri $uri/ /index.html", "SPA history-API fallback to index.html")
+}
+
 func TestTraefikDynamicConfig_MemoryPrefixBoundary(t *testing.T) {
 	// EC-2: PathPrefix(`/v1/memory`) also matches /v1/memoryfoo, but the rewrite regex
 	// only fires with a trailing slash. Pin the accepted M6-carryover behavior so it
