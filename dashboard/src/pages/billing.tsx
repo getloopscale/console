@@ -294,10 +294,19 @@ export function BillingPage() {
                                   Contact-only — see CLAUDE.md § Pricing)
             team / enterprise:    no card (already on a top tier)
         */}
+        {/* Sprint 3 Phase 7 (#27) v1.1 ADR D4 — replace the outer <Card
+            onClick> with a real <button type="button"> wrapping <Card.Body>
+            (which renders a <div> so no nested-interactive trap). Card root
+            has no `as`/`asChild` polymorphic prop in its @usetheo/ui .d.ts
+            (probed during v1.1 EC-3 absorption). The button preserves the
+            previous card visuals (border + padding + hover) AND surfaces a
+            real accessible name + focus ring for keyboard users. */}
         {planTier === 'free' && (
-          <Card
-            className="cursor-pointer hover:border-primary/30 transition-colors"
+          <button
+            type="button"
             onClick={() => upgradePlan('pro')}
+            aria-label="Upgrade to Pro — $29 per month"
+            className="text-left rounded-lg border border-border bg-card text-card-foreground cursor-pointer hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Card.Body className="p-6">
               <Sparkles className="size-5 text-primary mb-3" aria-hidden="true" />
@@ -308,12 +317,14 @@ export function BillingPage() {
                 10 projects, 3 environments, 1000 builds/month
               </p>
             </Card.Body>
-          </Card>
+          </button>
         )}
         {planTier === 'pro' && (
-          <Card
-            className="cursor-pointer hover:border-primary/30 transition-colors"
+          <button
+            type="button"
             onClick={() => upgradePlan('team')}
+            aria-label="Upgrade to Team — $99 per month"
+            className="text-left rounded-lg border border-border bg-card text-card-foreground cursor-pointer hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Card.Body className="p-6">
               <Sparkles className="size-5 text-primary mb-3" aria-hidden="true" />
@@ -330,7 +341,7 @@ export function BillingPage() {
                 <li>Priority support</li>
               </ul>
             </Card.Body>
-          </Card>
+          </button>
         )}
       </ContentGrid>
 

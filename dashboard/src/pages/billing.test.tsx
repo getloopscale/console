@@ -187,6 +187,27 @@ describe('BillingPage', () => {
     expect(screen.getByText('Includes')).toBeInTheDocument();
   });
 
+  it('test_billing_upsell_is_focusable_button_with_accessible_name_closes_27', () => {
+    // Sprint 3 Phase 7 (#27) v1.1 ADR D4 — upsell card was a <Card onClick>
+    // with <p> content (not focusable, no role). Now a real <button> wrapping
+    // <Card.Body>. v1.1 EC-3: dropped <Card as="button"> polymorphic gamble
+    // (the @usetheo/ui Card .d.ts has no `as`/`asChild` prop).
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'starter', team: 'acme', usage: {} },
+      loading: false,
+      error: false,
+    });
+    render(<BillingPage />);
+    const upgradeBtn = screen.getByRole('button', { name: /upgrade to pro/i });
+    expect(upgradeBtn).toBeInTheDocument();
+    expect(upgradeBtn.tagName).toBe('BUTTON');
+    // Focusable + keyboard activation contract (Enter AND Space both fire
+    // `click` natively on <button>; jsdom doesn't dispatch synthesized key
+    // → click bridging, so we lock the structural invariant instead).
+    expect(upgradeBtn.getAttribute('type')).toBe('button');
+    expect(upgradeBtn.className).toMatch(/focus-visible:ring/);
+  });
+
   it('test_billing_memory_metrics_query_disabled_on_non_memory_route_closes_21', () => {
     // Sprint 3 Phase 3 (#21) v1.1 ADR D2 — MemoryUsageCard on /billing must
     // pass `{ enabled: false }` to useCloudApi for `/v1/dashboard/memory/metrics`
