@@ -9,7 +9,7 @@
 // and the cloud-API BFF. The /v1/memory capability isolation is proven by the M6
 // TestEdgeForwardAuthTenantIsolationE2E through this SAME edge (unchanged).
 //
-// Reuses the package harness (env from tenant_isolation_e2e_test.go). Each test
+// Reuses the package harness (env from memory_e2e_test.go). Each test
 // SKIPS (not fails) when the unified stack is not reachable (EC-7), so the suite is
 // safe to run without the compose up. Run via `make e2e` (with the traefik+dashboard
 // services up) or:

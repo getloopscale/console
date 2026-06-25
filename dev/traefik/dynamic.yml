@@ -34,9 +34,12 @@ http:
         - web
       service: theo-cloud-bff
 
-    # Ory Kratos auth flows (disjoint paths; rule-length priority already beats the
-    # SPA catch-all — no explicit priority needed).
+    # Ory Kratos auth flows. Explicit priority (50) — above the SPA catch-all and
+    # the BFF, below the memory capability — so ADR D3's defense-in-depth covers ALL
+    # routers (not just memory/bff/spa), guarding against a future rule edit silently
+    # reordering kratos relative to the catch-all. Paths are disjoint from /v1 anyway.
     kratos:
+      priority: 50
       rule: "PathPrefix(`/self-service`) || PathPrefix(`/sessions`) || PathPrefix(`/.well-known/ory`)"
       entryPoints:
         - web
