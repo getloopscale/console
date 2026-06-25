@@ -23,10 +23,12 @@ const AuthzForwardPath = "/internal/authz/forward"
 // testable without a database; in production it closes over auth.ResolveAPIKey.
 type APIKeyResolver func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error)
 
-// TenantKeyMinter mints/loads the per-tenant downstream credential. Satisfied by
-// *themory.Broker (Model B); an interface here keeps the handler DIP-clean.
+// TenantKeyMinter mints/loads the per-tenant downstream credential scoped to the
+// consumer's OWN scopes (least privilege — a read-only consumer never receives a
+// write/delete key). Satisfied by *themory.Broker.KeyForTenantScoped (Model B);
+// an interface here keeps the handler DIP-clean.
 type TenantKeyMinter interface {
-	KeyForTenant(ctx context.Context, tenantID string) (string, error)
+	KeyForTenantScoped(ctx context.Context, tenantID string, scopes []string) (string, error)
 }
 
 // ForwardAuthHandler is the authz-brain endpoint the Traefik edge delegates to.
@@ -65,7 +67,10 @@ func (h *ForwardAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	minted, err := h.minter.KeyForTenant(r.Context(), uc.TenantID)
+	// Mint with the CONSUMER's own scopes (least privilege) — the broker
+	// intersects with the gateway's supported set, so the minted key can never
+	// exceed what the consumer's key holds (no intra-tenant scope escalation).
+	minted, err := h.minter.KeyForTenantScoped(r.Context(), uc.TenantID, scopes)
 	// Fail-closed: a mint error OR an empty minted key (EC-2) MUST NEVER set an
 	// Authorization header — the edge then denies (no upstream call). The broker's
 	// own invariant is to never fall back to a master key (TestBroker_MintFailure_*).

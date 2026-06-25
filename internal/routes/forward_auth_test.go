@@ -22,19 +22,21 @@ import (
 
 // stubMinter is a test double for the per-tenant key broker.
 type stubMinter struct {
-	mu        sync.Mutex
-	key       string
-	err       error
-	perTenant map[string]int
+	mu         sync.Mutex
+	key        string
+	err        error
+	perTenant  map[string]int
+	lastScopes []string // captured for the least-privilege assertion
 }
 
-func (m *stubMinter) KeyForTenant(_ context.Context, tenantID string) (string, error) {
+func (m *stubMinter) KeyForTenantScoped(_ context.Context, tenantID string, scopes []string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.perTenant == nil {
 		m.perTenant = map[string]int{}
 	}
 	m.perTenant[tenantID]++
+	m.lastScopes = scopes
 	return m.key, m.err
 }
 
@@ -131,6 +133,24 @@ func TestForwardAuth_EmptyMint_FailsClosed(t *testing.T) {
 	}
 	if rec.Header().Get("Authorization") != "" {
 		t.Fatalf("empty mint must not set Authorization, got %q", rec.Header().Get("Authorization"))
+	}
+}
+
+func TestForwardAuth_MintsWithConsumerScopes_NoEscalation(t *testing.T) {
+	// /review HIGH (least privilege): a read-only consumer must NOT receive a
+	// write/delete-capable minted key. The handler mints with the CONSUMER's own
+	// scopes, not a fixed superset.
+	minter := &stubMinter{key: "theo_live_mintedForA"}
+	h := NewForwardAuthHandler(
+		resolveTo(&auth.UserContext{TenantID: "tenant-a"}, []string{"memory:read"}, nil),
+		minter, "memory:read", quietLogger(),
+	)
+	rec := serveForwardAuth(t, h)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", rec.Code)
+	}
+	if len(minter.lastScopes) != 1 || minter.lastScopes[0] != "memory:read" {
+		t.Fatalf("SCOPE ESCALATION: minted with %v, want only the consumer's [memory:read]", minter.lastScopes)
 	}
 }
 

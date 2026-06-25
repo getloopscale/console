@@ -112,3 +112,49 @@ func TestBroker_ConcurrentColdMissMintsOnce(t *testing.T) {
 		t.Fatalf("singleflight failed: expected 1 mint for concurrent cold misses, got %d", m.mints.Load())
 	}
 }
+
+// --- platform-api-gateway M6: KeyForTenantScoped least-privilege --------------
+
+type scopeCapturingMinter struct {
+	lastScopes []string
+}
+
+func (m *scopeCapturingMinter) MintKey(_ context.Context, workspaceID, _ string, scopes []string) (*MintResult, error) {
+	m.lastScopes = scopes
+	return &MintResult{ID: "apk-" + workspaceID, Secret: "sec-" + workspaceID}, nil
+}
+
+func TestBroker_KeyForTenantScoped_MintsLeastPrivilegeIntersection(t *testing.T) {
+	m := &scopeCapturingMinter{}
+	b, err := NewBroker(m, 64, time.Hour, []string{"memory:read", "memory:write"})
+	if err != nil {
+		t.Fatalf("NewBroker: %v", err)
+	}
+
+	// A read-only consumer must mint a read-only key — never the gateway superset.
+	if _, err := b.KeyForTenantScoped(context.Background(), "tn-x", []string{"memory:read"}); err != nil {
+		t.Fatalf("KeyForTenantScoped: %v", err)
+	}
+	if len(m.lastScopes) != 1 || m.lastScopes[0] != "memory:read" {
+		t.Fatalf("escalation: minted %v, want [memory:read]", m.lastScopes)
+	}
+
+	// A consumer asking for more than the gateway supports gets the intersection
+	// (memory:delete is filtered — the gateway broker only grants read+write).
+	if _, err := b.KeyForTenantScoped(context.Background(), "tn-y",
+		[]string{"memory:read", "memory:write", "memory:delete"}); err != nil {
+		t.Fatalf("KeyForTenantScoped: %v", err)
+	}
+	if len(m.lastScopes) != 2 || m.lastScopes[0] != "memory:read" || m.lastScopes[1] != "memory:write" {
+		t.Fatalf("intersection wrong: minted %v, want [memory:read memory:write]", m.lastScopes)
+	}
+}
+
+func TestBroker_KeyForTenantScoped_NoGrantableScope_FailsClosed(t *testing.T) {
+	m := &scopeCapturingMinter{}
+	b, _ := NewBroker(m, 64, time.Hour, []string{"memory:read"})
+	// The consumer holds only a scope the gateway does not grant → fail closed.
+	if _, err := b.KeyForTenantScoped(context.Background(), "tn-z", []string{"memory:delete"}); err == nil {
+		t.Fatal("want error when no scope is grantable (fail-closed), got nil")
+	}
+}

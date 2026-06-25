@@ -18,6 +18,8 @@ package themory
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -69,27 +71,66 @@ func NewBroker(admin minter, size int, ttl time.Duration, scopes []string) (*Bro
 // KeyForTenant returns the per-tenant data-plane secret, minting + caching it on
 // a miss. Fails closed: a mint error propagates with an empty secret.
 func (b *Broker) KeyForTenant(ctx context.Context, tenantID string) (string, error) {
+	return b.KeyForTenantScoped(ctx, tenantID, b.scopes)
+}
+
+// KeyForTenantScoped mints/loads a per-tenant key carrying ONLY the LEAST-
+// PRIVILEGE intersection of `want` and the gateway's supported scopes. The edge
+// (ForwardAuth) passes the CONSUMER's own scopes here so a read-only consumer can
+// never receive a write/delete-capable minted key (closes the intra-tenant
+// scope-escalation /review finding). Cache is keyed by (tenant, granted scopes)
+// so two consumers in the same tenant with different scopes get distinct keys.
+// Fails closed: a mint error (or no grantable scope) returns an empty secret.
+func (b *Broker) KeyForTenantScoped(ctx context.Context, tenantID string, want []string) (string, error) {
 	// Defense-in-depth: an empty tenant must NEVER resolve to a key (a future
 	// caller bypassing the resolver guard would otherwise mint against workspace "").
 	if tenantID == "" {
 		return "", fmt.Errorf("themory broker: empty tenant id")
 	}
-	if v, ok := b.cache.Get(tenantID); ok && b.now().Before(v.expiresAt) {
+	scopes := intersectScopes(want, b.scopes)
+	if len(scopes) == 0 {
+		return "", fmt.Errorf("themory broker: no grantable scopes for tenant %q", tenantID)
+	}
+	cacheKey := tenantID + "\x00" + strings.Join(scopes, ",")
+	if v, ok := b.cache.Get(cacheKey); ok && b.now().Before(v.expiresAt) {
 		return v.secret, nil
 	}
-	// Coalesce concurrent cold misses for the same tenant → exactly one mint.
-	res, err, _ := b.sf.Do(tenantID, func() (any, error) {
-		r, mErr := b.admin.MintKey(ctx, tenantID, "gw-"+tenantID, b.scopes)
+	// Coalesce concurrent cold misses for the same (tenant, scopes) → exactly one mint.
+	res, err, _ := b.sf.Do(cacheKey, func() (any, error) {
+		r, mErr := b.admin.MintKey(ctx, tenantID, "gw-"+tenantID, scopes)
 		if mErr != nil {
 			return nil, mErr // fail-closed: no fallback, no cache write
 		}
-		b.cache.Add(tenantID, cachedSecret{secret: r.Secret, expiresAt: b.now().Add(b.ttl)})
+		b.cache.Add(cacheKey, cachedSecret{secret: r.Secret, expiresAt: b.now().Add(b.ttl)})
 		return r.Secret, nil
 	})
 	if err != nil {
 		return "", err
 	}
 	return res.(string), nil
+}
+
+// intersectScopes returns the sorted, deduped intersection of want ∩ allowed —
+// the minted key never carries a scope the gateway does not support.
+func intersectScopes(want, allowed []string) []string {
+	allow := make(map[string]struct{}, len(allowed))
+	for _, s := range allowed {
+		allow[s] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(want))
+	out := make([]string, 0, len(want))
+	for _, s := range want {
+		if _, ok := allow[s]; !ok {
+			continue
+		}
+		if _, dup := seen[s]; dup {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Evict drops a tenant's cached secret (out-of-band revoke / offboarding) so the
