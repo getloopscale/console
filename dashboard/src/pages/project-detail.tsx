@@ -158,7 +158,10 @@ export function ProjectDetailPage() {
 
         <Card>
           <Card.Header>
-            <Card.Title>Overview</Card.Title>
+            {/* Sprint 3 Phase 5 (#25) v1.1 ADR D4 — promote Card.Title default
+                <h3> to <h2> via Radix asChild so heading hierarchy under
+                PageShell's h1 is unbroken (WCAG 1.3.1 Info and Relationships). */}
+            <Card.Title asChild><h2>Overview</h2></Card.Title>
             <Card.Description>
               {appsCount === 0
                 ? 'No apps yet. Apps appear after the first deploy.'
@@ -188,7 +191,7 @@ export function ProjectDetailPage() {
         {appsCount > 0 && (
           <Card>
             <Card.Header>
-              <Card.Title>Apps</Card.Title>
+              <Card.Title asChild><h2>Apps</h2></Card.Title>
             </Card.Header>
             <Card.Body>
               <ul className="divide-y divide-border">
@@ -243,7 +246,7 @@ export function ProjectDetailPage() {
           <Card>
             <Card.Header>
               <div className="flex items-center justify-between">
-                <Card.Title>Recent deployments</Card.Title>
+                <Card.Title asChild><h2>Recent deployments</h2></Card.Title>
                 <Button asChild variant="ghost" size="sm">
                   <Link
                     to={`/projects/${encodeURIComponent(project.name)}/deployments`}
@@ -282,7 +285,7 @@ export function ProjectDetailPage() {
 
         <Card>
           <Card.Header>
-            <Card.Title className="text-body-sm">Open in your terminal</Card.Title>{/* T0.2 closes recent-deploys ternary */}
+            <Card.Title asChild className="text-body-sm"><h2>Open in your terminal</h2></Card.Title>{/* T0.2 closes recent-deploys ternary; Sprint 3 #25 asChild h2 */}
             <Card.Description>Use the CLI for full control of this project.</Card.Description>
           </Card.Header>
           <Card.Body>
