@@ -84,3 +84,15 @@ http:
       loadBalancer:
         servers:
           - url: "http://dashboard:80"
+
+  # ADR D4 — TLS-to-backend scaffold for the internal authz hop. DEFINED but NOT
+  # referenced by any dev service (dev stays http:// so `up` is one command — R3).
+  # The PROD overlay sets the authz/BFF service `serversTransport: internal-tls` and
+  # flips its url to https://; `certificates:` (client certs for mTLS) are added in
+  # the prod overlay where the cert material exists. See dev/traefik/README.md.
+  serversTransports:
+    internal-tls:
+      serverName: "theo-cloud.internal"
+      rootCAs:
+        - "/etc/traefik/certs/dev-ca.pem"
+      insecureSkipVerify: false

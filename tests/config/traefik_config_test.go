@@ -160,6 +160,25 @@ func TestTraefikDynamicConfig_CapabilityRoutePrecedence(t *testing.T) {
 	}
 }
 
+func TestTraefikDynamicConfig_HasInternalTlsServersTransport(t *testing.T) {
+	// ADR D4: define the TLS-to-backend transport for the authz hop so prod can flip
+	// the BFF/authz service to https:// without a missing-config error.
+	cfg := readConfig(t, "dynamic.yml")
+	mustContain(t, cfg, "serversTransports:", "TLS-to-backend scaffold exists (ADR D4)")
+	mustContain(t, cfg, "internal-tls", "the internal-tls serversTransport is defined")
+	mustContain(t, cfg, "serverName:", "internal-tls verifies the backend cert name (SNI)")
+	mustContain(t, cfg, "rootCAs:", "internal-tls trusts the platform CA")
+}
+
+func TestTraefikDynamicConfig_InternalTlsUnreferencedInDev(t *testing.T) {
+	// ADR D4 (R3): the transport is DEFINED but NOT wired in dev — every service stays
+	// http:// so `up` stays one command. The prod overlay flips the authz hop to https.
+	cfg := readConfig(t, "dynamic.yml")
+	if strings.Contains(cfg, "serversTransport: internal-tls") {
+		t.Error("dev must NOT reference internal-tls (would force mTLS to run the stack); the prod overlay wires it")
+	}
+}
+
 func TestDashboardNginxConf_HasSpaFallback(t *testing.T) {
 	// ADR D2: the dashboard SPA is served by nginx (Traefik has no file server).
 	// The history-API fallback (Caddy's `try_files {path} /index.html`) must live
