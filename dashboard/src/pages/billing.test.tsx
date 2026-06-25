@@ -11,8 +11,10 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const mockUseCloudApi = vi.fn();
 vi.mock('@/hooks/use-api', () => ({
-  useCloudApi: () => mockUseCloudApi(),
-  useEngineApi: () => mockUseCloudApi(),
+  // Sprint 3 Phase 3 (#21) — mock forwards (path, options) so the v1.1 route
+  // gate (`{ enabled }`) can be observed by the new regression test below.
+  useCloudApi: (path: string, options?: { enabled?: boolean }) => mockUseCloudApi(path, options),
+  useEngineApi: (path: string, options?: { enabled?: boolean }) => mockUseCloudApi(path, options),
 }));
 
 const mockCloudFetch = vi.fn();
@@ -183,5 +185,23 @@ describe('BillingPage', () => {
     });
     render(<BillingPage />);
     expect(screen.getByText('Includes')).toBeInTheDocument();
+  });
+
+  it('test_billing_memory_metrics_query_disabled_on_non_memory_route_closes_21', () => {
+    // Sprint 3 Phase 3 (#21) v1.1 ADR D2 — MemoryUsageCard on /billing must
+    // pass `{ enabled: false }` to useCloudApi for `/v1/dashboard/memory/metrics`
+    // (because pathname.startsWith('/memory') is false on /billing). This
+    // prevents the noisy 404 console spam reported by QA against dev-public.
+    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
+    render(<BillingPage />);
+    // The MemoryUsageCard call site MUST appear in the mock log with enabled=false.
+    const memoryCalls = mockUseCloudApi.mock.calls.filter(
+      (args) => args[0] === '/v1/dashboard/memory/metrics',
+    );
+    expect(memoryCalls.length).toBeGreaterThan(0);
+    // Every memory-metrics call from /billing route must have enabled=false.
+    for (const call of memoryCalls) {
+      expect(call[1]?.enabled).toBe(false);
+    }
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Brain, Loader2, Sparkles } from 'lucide-react';
 import {
   Alert,
@@ -377,7 +377,20 @@ interface MemoryMetricsResponse {
  * state is what avoids surfacing Memory to customers who don't use it.
  */
 function MemoryUsageCard() {
-  const { data, error } = useCloudApi<MemoryMetricsResponse>('/v1/dashboard/memory/metrics');
+  // Sprint 3 Phase 3 (#21) v1.1 ADR D2 — gate the memory-metrics query to the
+  // /memory route via react-router-dom's useLocation hook (the codebase's
+  // canonical pattern — see src/components/layout/{app-sidebar,top-bar}.tsx).
+  // MemoryUsageCard renders ONLY on /billing today, so this gate effectively
+  // disables the fetch on every page that currently mounts the widget — which
+  // is the right behaviour: dev-public has the memory backend unmounted and
+  // the 404 was polluting the console. The empty state below is the canonical
+  // fallback per the D1 invariant in the docstring above.
+  const { pathname } = useLocation();
+  const enabled = pathname.startsWith('/memory');
+  const { data, error } = useCloudApi<MemoryMetricsResponse>(
+    '/v1/dashboard/memory/metrics',
+    { enabled },
+  );
   const empty = error || !data || (data.total_memories === 0 && data.retrieval_api_usage === 0);
 
   return (
