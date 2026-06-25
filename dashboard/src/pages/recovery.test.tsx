@@ -554,4 +554,16 @@ describe('RecoveryPage', () => {
     const [, , body] = mockSubmitFlow.mock.calls[1];
     expect(body.email).toBe('b@x.com');
   });
+
+  it('test_recovery_back_to_login_link_meets_wcag_258_closes_24', async () => {
+    // Sprint 3 Phase 4 (#24) v1.1 ADR D4 — WCAG 2.5.8 Target Size Minimum.
+    // QA Red Team 2026-06-24 measured "Back to login" 78×17 — below the
+    // 24×24 floor. Fix adds `min-h-[44px] inline-flex items-center justify-center`.
+    render(<RecoveryPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /back to login/i })).toBeInTheDocument();
+    });
+    const backLink = screen.getByRole('link', { name: /back to login/i });
+    expect(backLink.className).toMatch(/min-h-\[44px\]|min-h-11|h-11|py-3|py-4/);
+  });
 });

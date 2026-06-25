@@ -539,4 +539,23 @@ describe('LoginPage', () => {
     });
     expect(googleBtn.className).toContain('ring-2');
   });
+
+  it('test_login_tap_targets_meet_wcag_258_closes_24', async () => {
+    // Sprint 3 Phase 4 (#24) v1.1 ADR D4 — WCAG 2.5.8 Target Size Minimum.
+    // QA Red Team 2026-06-24 measured "Create account" 91×19 and "Forgot
+    // password?" 107×19 — both below the 24×24 floor. Fix adds
+    // `min-h-[44px] inline-flex items-center` to both links.
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
+    render(<LoginPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /create account/i })).toBeInTheDocument();
+    });
+    const createAccount = screen.getByRole('link', { name: /create account/i });
+    const forgotPassword = screen.getByRole('link', { name: /forgot password/i });
+    // jsdom can't compute the rendered pixel box, so assert the canonical
+    // Tailwind utility is present in the className. This is the same shape
+    // QA's DOM probe asserts ("min-h-[44px]" OR "h-11" OR "py-3"/"py-4").
+    expect(createAccount.className).toMatch(/min-h-\[44px\]|min-h-11|h-11|py-3|py-4/);
+    expect(forgotPassword.className).toMatch(/min-h-\[44px\]|min-h-11|h-11|py-3|py-4/);
+  });
 });

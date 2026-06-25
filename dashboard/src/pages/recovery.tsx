@@ -596,7 +596,11 @@ export function RecoveryPage() {
 
           {!showReloadFallback && (
             <p className="text-center text-body-sm">
-              <Link to="/login" className="text-primary hover:text-primary/80">
+              {/* Sprint 3 Phase 4 (#24) v1.1 ADR D4 — WCAG 2.5.8 tap target ≥44px. */}
+              <Link
+                to="/login"
+                className="text-primary hover:text-primary/80 min-h-[44px] inline-flex items-center justify-center"
+              >
                 Back to login
               </Link>
             </p>
