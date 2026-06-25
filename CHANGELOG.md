@@ -1,5 +1,6 @@
 ## [Unreleased]
 ### Added
+- **Platform API Gateway M6 (slice 1): inbound `theo_live_*` validation extracted as `auth.ResolveAPIKey`.** The `theo_api_keys` lookup + tenant resolution is now a single shared path (`auth.lookupAPIKey`) reused by `RequireScope` (middleware) and the upcoming ForwardAuth authz endpoint — so the Traefik edge delegates inbound auth to the SAME validation as the in-process middleware (DRY, Rule 9). Typed errors `ErrInvalidCredential` / `ErrBackendUnavailable` make an infra outage fail-closed (never reported as a bad key — EC-1); an empty-tenant row is rejected at the boundary (EC-3); a non-Bearer scheme is rejected without a DB hit (EC-6). `RequireScope` behavior is unchanged. (platform-api-gateway-edge-slice1 T0.1, ADR D1)
 - **Model B: TheMemory control-plane admin client + per-tenant credential broker.** `internal/themory.AdminClient` mints/revokes per-tenant `theo_live_*` keys via TheMemory's `POST /v1/admin/keys` using a `memory:platform-admin` credential (control-plane only). `internal/themory.Broker` resolves a per-tenant key for the data path via a lazy cache-aside LRU+TTL with `singleflight` coalescing (one mint per tenant under concurrency) and **fails closed** on a mint error (never falls back to the master key). New env `THEMORY_PLATFORM_ADMIN_KEY`. (model-b-credential-broker T1.1/T2.1, ADR D1/D3)
 
 ### Changed

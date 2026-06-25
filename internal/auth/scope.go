@@ -50,16 +50,126 @@ const (
 	sunsetWarningThreshold = 7 * 24 * time.Hour
 )
 
+// Typed errors returned by lookupAPIKey / ResolveAPIKey. The ForwardAuth authz
+// endpoint (platform-api-gateway M6) maps ErrBackendUnavailable → 503 (fail-closed)
+// and every credential error → 401; RequireScope maps them to its existing
+// HTTP responses below.
+var (
+	// ErrInvalidCredential — the credential is malformed, unknown, expired,
+	// revoked, or carries an empty tenant. 401-class. These collapse by design
+	// (no keyspace-probing distinction; D5 invariant).
+	ErrInvalidCredential = errors.New("auth: invalid or missing API key")
+	// ErrBackendUnavailable — a DB/infra error or corrupt key row. Fail-closed
+	// (503 at the ForwardAuth handler, 500 in RequireScope); NEVER reported as a
+	// bad key (EC-1: an infra outage must not tell a valid key it is invalid).
+	ErrBackendUnavailable = errors.New("auth: backend unavailable")
+	// errMalformedCredential — bad Bearer shape; internal so RequireScope can
+	// keep its distinct "provide Authorization: Bearer theo_live_*" message.
+	errMalformedCredential = errors.New("auth: malformed credential")
+)
+
+// apiKeyRow is a resolved, active theo_api_keys row.
+type apiKeyRow struct {
+	keyID, subject, tenantID string
+	scopes                   []string
+	expiresAt                sql.NullTime
+}
+
+// extractTheoLiveBearerFromHeader parses a raw Authorization header value.
+// Returns (secret, true) only for a well-formed `Bearer theo_live_*`.
+func extractTheoLiveBearerFromHeader(h string) (string, bool) {
+	if !strings.HasPrefix(h, bearerPrefix) {
+		return "", false
+	}
+	secret := strings.TrimSpace(h[len(bearerPrefix):])
+	if !strings.HasPrefix(secret, secretPrefixLP) {
+		return "", false
+	}
+	return secret, true
+}
+
+// lookupAPIKey hashes the theo_live_* secret, queries the active key row, and
+// parses scopes. It is the single authoritative inbound-key-validation path,
+// shared by RequireScope (middleware) and ResolveAPIKey (ForwardAuth authz) —
+// DRY (ADR D1). Diagnostic logs for the backend-error cases live here so both
+// callers preserve the existing observability. Errors:
+//
+//	errMalformedCredential — bad Bearer shape (no DB hit)
+//	ErrInvalidCredential   — no active row (unknown / expired / revoked)
+//	ErrBackendUnavailable  — db error OR corrupt scopes jsonb (logged here)
+func lookupAPIKey(ctx context.Context, db *sql.DB, rawAuthHeader string) (*apiKeyRow, error) {
+	secret, ok := extractTheoLiveBearerFromHeader(rawAuthHeader)
+	if !ok {
+		return nil, errMalformedCredential
+	}
+
+	sum := sha256.Sum256([]byte(secret))
+	keyHash := hex.EncodeToString(sum[:])
+
+	// API Key Rotation plan D3: also fetch expires_at so RequireScope can emit
+	// Sunset + Deprecation headers when the key is in its rotation grace window.
+	const q = `SELECT id, subject, tenant_id, scopes, expires_at
+		FROM theo_api_keys
+		WHERE key_hash = $1
+		  AND revoked_at IS NULL
+		  AND (expires_at IS NULL OR expires_at > NOW())`
+
+	var (
+		row       apiKeyRow
+		scopesRaw []byte
+	)
+	err := db.QueryRowContext(ctx, q, keyHash).Scan(&row.keyID, &row.subject, &row.tenantID, &scopesRaw, &row.expiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		// (a) key never existed, (b) revoked, (c) expired — collapsed by design
+		// so an attacker cannot probe the keyspace.
+		return nil, ErrInvalidCredential
+	}
+	if err != nil {
+		slog.Warn("scope check: db query failed", "error", err)
+		return nil, ErrBackendUnavailable
+	}
+
+	// EC-7: jsonb scopes corruption must NOT silently degrade to a 403 "missing
+	// scope" — that would falsely tell the customer their key was downgraded.
+	// Honest backend error + audit log so support can root-cause the bad row.
+	if err := json.Unmarshal(scopesRaw, &row.scopes); err != nil {
+		slog.Error("scope check: scopes jsonb corruption",
+			"key_id", row.keyID, "error", err, "raw_prefix", safePrefix(scopesRaw))
+		return nil, ErrBackendUnavailable
+	}
+	return &row, nil
+}
+
+// ResolveAPIKey validates an inbound theo_live_* Authorization header and returns
+// the resolved UserContext + scopes, or a typed error. Reused by the ForwardAuth
+// authz endpoint so the edge delegates inbound auth to the SAME path as the
+// in-process middleware (Rule 9 / DRY). EC-3: an empty tenant is rejected as an
+// invalid credential (never propagated to the broker). EC-6: a non-Bearer scheme
+// is rejected without a DB hit.
+func ResolveAPIKey(ctx context.Context, db *sql.DB, rawAuthHeader string) (*UserContext, []string, error) {
+	row, err := lookupAPIKey(ctx, db, rawAuthHeader)
+	if err != nil {
+		if errors.Is(err, errMalformedCredential) {
+			return nil, nil, ErrInvalidCredential // collapse to 401-class for the caller
+		}
+		return nil, nil, err // ErrInvalidCredential or ErrBackendUnavailable
+	}
+	if row.tenantID == "" {
+		return nil, nil, ErrInvalidCredential // EC-3: never propagate an empty-tenant identity
+	}
+	return &UserContext{Subject: row.subject, TenantID: row.tenantID}, row.scopes, nil
+}
+
 // RequireScope returns chi middleware that authenticates with a theo_live_*
 // Bearer and authorises with the named scope. Failures map to typed HTTP
 // codes per plan T0.6 acceptance criteria:
 //
-//   missing/garbled Bearer       → 401 Unauthorized
-//   hash not in DB / expired      → 401 Unauthorized (no distinction — D5 invariant)
-//   missing required scope        → 403 Forbidden + {error.code: scope_required, missing:[scope]}
-//   jsonb scopes column corrupt   → 500 INTERNAL (NOT silent 403; EC-7)
-//   query error                    → 500 INTERNAL
-//   success                        → ctx populated; next.ServeHTTP runs
+//	missing/garbled Bearer       → 401 Unauthorized
+//	hash not in DB / expired      → 401 Unauthorized (no distinction — D5 invariant)
+//	missing required scope        → 403 Forbidden + {error.code: scope_required, missing:[scope]}
+//	jsonb scopes column corrupt   → 500 INTERNAL (NOT silent 403; EC-7)
+//	query error                    → 500 INTERNAL
+//	success                        → ctx populated; next.ServeHTTP runs
 //
 // The async last_used_at update fires after a successful auth check and
 // MUST NOT block the response path — observability data is best-effort
@@ -71,57 +181,21 @@ func RequireScope(db *sql.DB, required string) func(http.Handler) http.Handler {
 			defer span.End()
 			span.SetAttributes(attribute.String("scope.required", required))
 
-			secret, ok := extractTheoLiveBearer(r)
-			if !ok {
+			// Shared inbound-key validation (DRY — also used by ResolveAPIKey /
+			// the ForwardAuth authz endpoint). lookupAPIKey logs the backend-error
+			// causes internally; the span reject_reason + HTTP response are mapped here.
+			row, err := lookupAPIKey(ctx, db, r.Header.Get("Authorization"))
+			switch {
+			case errors.Is(err, errMalformedCredential):
 				span.SetAttributes(attribute.String("scope.reject_reason", "bad_bearer_shape"))
 				writeAuthError(w, "Invalid or missing API key. Provide Authorization: Bearer theo_live_*")
 				return
-			}
-
-			sum := sha256.Sum256([]byte(secret))
-			keyHash := hex.EncodeToString(sum[:])
-
-			// API Key Rotation plan D3: also fetch expires_at so we can
-			// emit Sunset + Deprecation headers when the key is in its
-			// rotation grace window (expiry within 7 days from now).
-			const q = `SELECT id, subject, tenant_id, scopes, expires_at
-				FROM theo_api_keys
-				WHERE key_hash = $1
-				  AND revoked_at IS NULL
-				  AND (expires_at IS NULL OR expires_at > NOW())`
-
-			var (
-				keyID, subject, tenantID string
-				scopesRaw                []byte
-				expiresAt                sql.NullTime
-			)
-			err := db.QueryRowContext(ctx, q, keyHash).Scan(&keyID, &subject, &tenantID, &scopesRaw, &expiresAt)
-			if errors.Is(err, sql.ErrNoRows) {
-				// Three possibilities collapse into one response — by design:
-				//   (a) key never existed
-				//   (b) key revoked
-				//   (c) key expired
-				// Distinguishing them would let an attacker probe the keyspace.
+			case errors.Is(err, ErrInvalidCredential):
 				span.SetAttributes(attribute.String("scope.reject_reason", "key_not_found_or_inactive"))
 				writeAuthError(w, "Invalid or expired API key.")
 				return
-			}
-			if err != nil {
-				slog.Warn("scope check: db query failed", "error", err, "path", r.URL.Path)
-				span.SetAttributes(attribute.String("scope.reject_reason", "db_error"))
-				writeScopeInternalError(w)
-				return
-			}
-
-			// EC-7: jsonb scopes corruption must NOT silently degrade to
-			// "missing scope" 403 — that would falsely tell the customer
-			// their key was revoked or downgraded. Honest 500 + audit log
-			// so support can root-cause the bad row.
-			var scopes []string
-			if err := json.Unmarshal(scopesRaw, &scopes); err != nil {
-				slog.Error("scope check: scopes jsonb corruption",
-					"key_id", keyID, "error", err, "raw_prefix", safePrefix(scopesRaw))
-				span.SetAttributes(attribute.String("scope.reject_reason", "scopes_jsonb_corruption"))
+			case errors.Is(err, ErrBackendUnavailable):
+				span.SetAttributes(attribute.String("scope.reject_reason", "backend_unavailable"))
 				writeScopeInternalError(w)
 				return
 			}
@@ -129,31 +203,28 @@ func RequireScope(db *sql.DB, required string) func(http.Handler) http.Handler {
 			// API Key Rotation plan D3 (RFC 8594) — when this key is within
 			// its grace window (expiry approaching), set Sunset + Deprecation
 			// + Link headers so well-written consumer SDKs can auto-migrate.
-			// Triggered only when expires_at is NOT NULL AND within 7 days.
-			if expiresAt.Valid {
-				if delta := time.Until(expiresAt.Time); delta > 0 && delta <= sunsetWarningThreshold {
-					w.Header().Set("Sunset", expiresAt.Time.UTC().Format(time.RFC1123))
+			if row.expiresAt.Valid {
+				if delta := time.Until(row.expiresAt.Time); delta > 0 && delta <= sunsetWarningThreshold {
+					w.Header().Set("Sunset", row.expiresAt.Time.UTC().Format(time.RFC1123))
 					w.Header().Set("Deprecation", "true")
 					w.Header().Set("Link", `</docs/api-keys#rotation>; rel="deprecation"`)
 				}
 			}
 
-			if !sliceContains(scopes, required) {
+			if !sliceContains(row.scopes, required) {
 				span.SetAttributes(
 					attribute.Bool("scope.granted", false),
-					attribute.StringSlice("scope.held", scopes),
+					attribute.StringSlice("scope.held", row.scopes),
 				)
 				writeScopeRequired(w, required)
 				return
 			}
 			span.SetAttributes(attribute.Bool("scope.granted", true))
 
-			// EC-21: fire-and-forget last_used_at update. The middleware
-			// MUST return immediately; a slow write in the goroutine is
-			// invisible to the caller.
-			// Context.Background() (not r.Context()) is intentional — the
-			// request context is canceled when the response writes finish,
-			// which would cancel the UPDATE mid-flight.
+			// EC-21: fire-and-forget last_used_at update. The middleware MUST
+			// return immediately; a slow write in the goroutine is invisible to
+			// the caller. Context.Background() (not r.Context()) is intentional —
+			// the request context is canceled when the response writes finish.
 			go func(id string) {
 				bgCtx, cancel := context.WithTimeout(context.Background(), asyncWriteBudgt)
 				defer cancel()
@@ -162,28 +233,13 @@ func RequireScope(db *sql.DB, required string) func(http.Handler) http.Handler {
 				); err != nil {
 					slog.Debug("scope check: async last_used_at update failed", "error", err, "key_id", id)
 				}
-			}(keyID)
+			}(row.keyID)
 
-			user := &UserContext{Subject: subject, TenantID: tenantID}
+			user := &UserContext{Subject: row.subject, TenantID: row.tenantID}
 			ctx = WithUser(ctx, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-// extractTheoLiveBearer parses the Authorization header. Returns (secret, true)
-// only if the header is well-formed Bearer + the secret carries the
-// theo_live_ prefix. Anything else is `("", false)`.
-func extractTheoLiveBearer(r *http.Request) (string, bool) {
-	h := r.Header.Get("Authorization")
-	if !strings.HasPrefix(h, bearerPrefix) {
-		return "", false
-	}
-	secret := strings.TrimSpace(h[len(bearerPrefix):])
-	if !strings.HasPrefix(secret, secretPrefixLP) {
-		return "", false
-	}
-	return secret, true
 }
 
 // writeScopeRequired emits the structured 403 body that the SDK depends on
