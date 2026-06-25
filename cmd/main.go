@@ -192,6 +192,9 @@ func main() {
 	var memoryHandler *routes.MemoryHandler
 	var memoryWebhooksHandler *routes.MemoryWebhooksHandler
 	var memoryExportsHandler *routes.MemoryExportsHandler
+	// platform-api-gateway-edge-slice1 (M6): the ForwardAuth authz-brain the
+	// Traefik edge delegates to. Reuses the broker (per-tenant mint) + ResolveAPIKey.
+	var forwardAuthHandler *routes.ForwardAuthHandler
 	if cfg.ThemoryBaseURL != "" {
 		themoryHTTP := &http.Client{
 			Timeout:   30 * time.Second,
@@ -228,6 +231,19 @@ func main() {
 		// Control-plane client for the boot capability probe (GET /v1/openapi.json):
 		// uses the platform credential, never a per-tenant key.
 		probeClient := themory.NewClient(cfg.ThemoryBaseURL, platformKey, themoryHTTP)
+
+		// platform-api-gateway-edge-slice1 (M6, ADR D1/D7): the ForwardAuth authz
+		// endpoint the Traefik edge calls per request. It reuses the SAME inbound
+		// validation as RequireScope (auth.ResolveAPIKey) and the SAME per-tenant
+		// broker, then returns the minted key for the edge to inject upstream.
+		forwardAuthHandler = routes.NewForwardAuthHandler(
+			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+			},
+			themoryBroker,
+			"memory:read",
+			logger,
+		)
 
 		// themory-gateway-provider-capability-guard (F1): fail boot if the provider
 		// is REACHABLE but does NOT advertise the scoped-forget DELETE route — a
@@ -364,6 +380,14 @@ func main() {
 
 	// §4.1+4.2: Metrics endpoint (Prometheus text format)
 	r.Get("/metrics", cloudmetrics.Handler())
+
+	// platform-api-gateway-edge-slice1 (M6, ADR D7): internal ForwardAuth authz
+	// endpoint. Only the Traefik edge calls it (subrequest) — it is NOT under any
+	// auth middleware because it IS the auth. GET + POST so any edge transport works.
+	if forwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardPath, forwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardPath, forwardAuthHandler.ServeHTTP)
+	}
 
 	// Auth endpoints (no auth — these ARE the auth flow)
 	r.Route("/v1/auth", func(r chi.Router) {
