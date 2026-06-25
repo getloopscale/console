@@ -190,7 +190,7 @@ export function OverviewPage() {
                     <>
                       Run{' '}
                       <code className="bg-muted px-2 py-0.5 rounded font-mono">
-                        theo init
+                        theo project create my-app
                       </code>{' '}
                       in your terminal to connect a repo and ship.
                     </>
