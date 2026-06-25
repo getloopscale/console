@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025-2026 The Theo Authors
 #
-# Minimal Ory Kratos config for the LOCAL dev stack (single-origin via Caddy on
-# http://localhost:5173). Email verification/recovery are DISABLED so that
+# Minimal Ory Kratos config for the LOCAL dev stack (single-origin via the dev
+# edge: vite-dev on :5173 for the dashboard HMR workflow, Traefik on :8090 as the
+# unified platform edge). Email verification/recovery are DISABLED so that
 # registration immediately yields an active session (no SMTP needed). Run with
 # `kratos serve --dev` so session cookies work over plain http.
 version: v1.3.1

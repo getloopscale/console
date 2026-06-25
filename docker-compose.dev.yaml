@@ -11,7 +11,8 @@
 #   themory    — TheMemory REST server, REAL LLM (OPENAI_API_KEY from theo-memory/.env)
 #   theo-cloud — the gateway (host-built binary)
 #
-# Phases 2-3 (Kratos + Caddy single-origin proxy + dashboard) are appended below.
+# Kratos + the Traefik single edge (:8090, kratos+dashboard+BFF+capability) +
+# the nginx dashboard static service are appended below (M8 slice-3a retired Caddy).
 
 name: theo-cloud-dev
 

@@ -160,6 +160,40 @@ func TestTraefikDynamicConfig_CapabilityRoutePrecedence(t *testing.T) {
 	}
 }
 
+func TestNoCaddyReferencesRemain(t *testing.T) {
+	// M8 slice-3a (EC-3): Traefik is the single edge — the Caddyfile is retired and no
+	// FUNCTIONAL caddy reference (a compose service/image, a run invocation in dev/)
+	// survives. Explanatory comments noting the retirement ARE allowed (they document
+	// history); the scan only flags non-comment lines.
+	root := filepath.Join("..", "..")
+	if _, err := os.Stat(filepath.Join(root, "dev", "caddy", "Caddyfile")); !os.IsNotExist(err) {
+		t.Errorf("dev/caddy/Caddyfile must be deleted (Traefik is the single edge); stat err=%v", err)
+	}
+	scan := func(path string) {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return
+		}
+		for i, ln := range strings.Split(string(b), "\n") {
+			tr := strings.TrimSpace(ln)
+			if tr == "" || strings.HasPrefix(tr, "#") {
+				continue
+			}
+			if strings.Contains(strings.ToLower(tr), "caddy") {
+				t.Errorf("functional caddy reference at %s:%d: %q (Traefik is the single edge)", path, i+1, tr)
+			}
+		}
+	}
+	scan(filepath.Join(root, "docker-compose.dev.yaml"))
+	_ = filepath.WalkDir(filepath.Join(root, "dev"), func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		scan(p)
+		return nil
+	})
+}
+
 func TestTraefikDynamicConfig_HasInternalTlsServersTransport(t *testing.T) {
 	// ADR D4: define the TLS-to-backend transport for the authz hop so prod can flip
 	// the BFF/authz service to https:// without a missing-config error.
