@@ -17,6 +17,9 @@ COPY dashboard/ ./
 RUN npm run build
 
 # --- serve stage ---
+# Dev edge image (plain nginx:alpine). The HARDENED production counterpart is
+# dashboard/Dockerfile (nginx-unprivileged, non-root, CSP/security headers). The TDZ
+# fix lives in the shared vite build, so it reaches BOTH images (review BUILD-6).
 FROM nginx:alpine
 # Static SPA output + the history-API fallback config (the slice-3a nginx.conf).
 COPY --from=build /app/dashboard/dist /usr/share/nginx/html

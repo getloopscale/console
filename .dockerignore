@@ -11,3 +11,11 @@ bin
 *.log
 coverage.out
 *.testcoverage.yml
+# Secrets / local env — belt-and-suspenders so a developer's local override
+# (Vite's .env.local convention) can never enter the build context (review SEC-tdz-02).
+.env
+*.env
+.env.*
+*.pem
+*.key
+credentials*

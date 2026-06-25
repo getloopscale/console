@@ -59,15 +59,18 @@ export default defineConfig({
         ],
       },
     }),
-    // T-DR-5.5 v1.2 (Phase 5) — Bundle analyzer per-route attribution.
-    // Outputs dist/bundle-stats.html on every build (open via npm run bundle:analyze).
-    // Resolves G5 FAANG gap (Vercel bundle analyzer parity).
-    visualizer({
-      filename: 'dist/bundle-stats.html',
-      template: 'treemap',
-      gzipSize: true,
-      brotliSize: true,
-    }),
+    // T-DR-5.5 v1.2 (Phase 5) — Bundle analyzer per-route attribution. GATED behind
+    // ANALYZE=true (`npm run bundle:analyze`) so the build-internals treemap
+    // (dist/bundle-stats.html) is NOT emitted into the served/deployed bundle — it
+    // would otherwise be reachable at GET /bundle-stats.html through the edge and
+    // leak the module graph (review SEC-tdz-01; same class as slice-3a SEC-3a-06).
+    process.env.ANALYZE === 'true' &&
+      visualizer({
+        filename: 'dist/bundle-stats.html',
+        template: 'treemap',
+        gzipSize: true,
+        brotliSize: true,
+      }),
     // T4.2: Service Worker via vite-plugin-pwa + Workbox.
     // EC-04 critical: auth endpoints MUST NEVER cache — stale token =
     // security hole (user sees logged-in UI but session is expired).
