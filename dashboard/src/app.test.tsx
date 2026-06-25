@@ -141,3 +141,27 @@ describe('App routing — /previews → /environments redirect (post-M2 single-s
     );
   });
 });
+
+/**
+ * Sprint 3 Phase 2 (#17) v1.1 — SPA stale-content fix.
+ *
+ * Asserts the React Suspense fallback during route transitions surfaces a
+ * `role="status"` element so AT users hear the navigation in progress AND so
+ * a future regression cannot strip the loading state silently. The lazy-route
+ * resolution is hard to deterministically reproduce in jsdom (dynamic `import()`
+ * resolves synchronously when chunks are pre-fetched), so this test pins the
+ * contract on the standalone <RouteLoading /> component that the Suspense
+ * boundaries in `app.tsx` use as their fallback.
+ */
+describe('Sprint 3 Phase 2 #17 — Suspense fallback contract', () => {
+  it('RouteLoading renders a role="status" element with an aria-label', async () => {
+    const { RouteLoading } = await import('@/components/loading/route-loading');
+    const { container } = render(<RouteLoading />);
+    const status = container.querySelector('[role="status"]');
+    expect(status).not.toBeNull();
+    expect(status?.getAttribute('aria-label')).toBe('Loading');
+    expect(status?.getAttribute('aria-live')).toBe('polite');
+    // sr-only fallback text for screen readers that ignore aria-label.
+    expect(status?.textContent).toMatch(/loading/i);
+  });
+});

@@ -4,7 +4,6 @@ import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import {
   Bell,
   Link2,
-  Loader2,
   Lock,
   Receipt,
   ShieldAlert,
@@ -15,6 +14,7 @@ import { DashboardLayout } from '@/components/layout';
 import { SubPagePlaceholder } from '@/pages/sub-page-placeholder';
 import { RouteBoundary } from '@/components/error/route-boundary';
 import { PlanLimitUpgradeModal } from '@/components/dialogs/plan-limit-upgrade-modal';
+import { RouteLoading } from '@/components/loading/route-loading';
 
 /**
  * T0.1: helper para wrap cada <Route element> em <RouteBoundary>.
@@ -191,16 +191,10 @@ const ProjectReadinessPage = lazy(() =>
   import('@/pages/project-readiness').then((m) => ({ default: m.ProjectReadinessPage })),
 );
 
-function PageLoader() {
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <Loader2
-        className="size-6 text-primary animate-spin"
-        aria-label="Loading page"
-      />
-    </div>
-  );
-}
+// Sprint 3 Phase 2 (#17) v1.1 ADR D1 — `PageLoader` superseded by
+// `<RouteLoading />` (`src/components/loading/route-loading.tsx`). The new
+// component adds `role="status"` so AT announces the transition AND so the
+// QA Red Team regression test at `app.test.tsx` can detect the loading state.
 
 export default function App() {
   return (
@@ -212,7 +206,7 @@ export default function App() {
             projects / future verticals). Modal is closed by default; opens
             only on 402. */}
         <PlanLimitUpgradeModal />
-        <Suspense fallback={<PageLoader />}>
+        <Suspense fallback={<RouteLoading />}>
           <Routes>
           <Route path="/login" element={<Boundaried path="/login"><LoginPage /></Boundaried>} />
           <Route path="/register" element={<Boundaried path="/register"><RegisterPage /></Boundaried>} />
@@ -228,7 +222,7 @@ export default function App() {
             path="*"
             element={
               <DashboardLayout>
-                <Suspense fallback={<PageLoader />}>
+                <Suspense fallback={<RouteLoading />}>
                   <Routes>
                     <Route path="/" element={<Boundaried path="/"><OverviewPage /></Boundaried>} />
                     <Route path="/projects" element={<Boundaried path="/projects"><ProjectsPage /></Boundaried>} />
