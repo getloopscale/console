@@ -173,9 +173,16 @@ func TestTraefikDynamicConfig_HasInternalTlsServersTransport(t *testing.T) {
 func TestTraefikDynamicConfig_InternalTlsUnreferencedInDev(t *testing.T) {
 	// ADR D4 (R3): the transport is DEFINED but NOT wired in dev — every service stays
 	// http:// so `up` stays one command. The prod overlay flips the authz hop to https.
+	// Comment lines (which describe the prod overlay) are allowed to mention it.
 	cfg := readConfig(t, "dynamic.yml")
-	if strings.Contains(cfg, "serversTransport: internal-tls") {
-		t.Error("dev must NOT reference internal-tls (would force mTLS to run the stack); the prod overlay wires it")
+	for _, ln := range strings.Split(cfg, "\n") {
+		trimmed := strings.TrimSpace(ln)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if strings.Contains(trimmed, "serversTransport: internal-tls") {
+			t.Error("dev must NOT reference internal-tls (would force mTLS to run the stack); the prod overlay wires it")
+		}
 	}
 }
 
