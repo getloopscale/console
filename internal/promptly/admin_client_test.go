@@ -81,6 +81,26 @@ func TestAdminClient_PlatformKeyNeverInError(t *testing.T) {
 	}
 }
 
+func TestNewAdminClient_NilHTTPClientDefaults(t *testing.T) {
+	// Construct with nil httpClient → falls back to http.DefaultClient (no panic).
+	ac := NewAdminClient("http://example.test/", testPlatformKey, nil)
+	if ac == nil || ac.httpClient == nil {
+		t.Fatal("nil httpClient must default to http.DefaultClient")
+	}
+	if ac.baseURL != "http://example.test" {
+		t.Errorf("baseURL must be right-trimmed, got %q", ac.baseURL)
+	}
+}
+
+func TestAdminClient_NetworkErrorIsFailClosed(t *testing.T) {
+	// An unreachable upstream → MintKey returns an error (fail-closed), no secret.
+	ac := NewAdminClient("http://127.0.0.1:1/", testPlatformKey, &http.Client{})
+	_, err := ac.MintKey(context.Background(), "ws-a", "gw", []string{"prompt:read"})
+	if err == nil {
+		t.Fatal("expected a network error to fail closed")
+	}
+}
+
 func TestAdminClient_EmptySecretIsError(t *testing.T) {
 	// EC-1: a 201 without `secret` must be an error, never cached as empty.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

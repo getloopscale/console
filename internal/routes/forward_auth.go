@@ -31,8 +31,9 @@ type APIKeyResolver func(ctx context.Context, rawAuthHeader string) (*auth.UserC
 
 // TenantKeyMinter mints/loads the per-tenant downstream credential scoped to the
 // consumer's OWN scopes (least privilege — a read-only consumer never receives a
-// write/delete key). Satisfied by *themory.Broker.KeyForTenantScoped (Model B);
-// an interface here keeps the handler DIP-clean.
+// write/delete key). Satisfied by *themory.Broker (memory) and *promptly.Broker
+// (M11) — both implement KeyForTenantScoped (Model B); an interface here keeps the
+// handler DIP-clean and lets one generic handler serve both capabilities.
 type TenantKeyMinter interface {
 	KeyForTenantScoped(ctx context.Context, tenantID string, scopes []string) (string, error)
 }
