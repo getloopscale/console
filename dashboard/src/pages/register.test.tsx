@@ -179,4 +179,20 @@ describe('RegisterPage', () => {
       expect(labelEl?.textContent ?? '').toMatch(new RegExp(field, 'i'));
     }
   });
+
+  // theo-cloud#65 closure (Red Team 2026-06-26): the /register Name field had
+  // no length cap (Kratos schema maxLength: -1 + no HTML maxLength), so a
+  // 20 000-char Name was accepted, persisted, embedded in the session JWT
+  // (root cause of #64 ~27 KB Authorization header → 431). Fix: HTML
+  // maxLength=256 on the <Input> + JS validateMaxLength gate + Kratos schema
+  // maxLength: 256. This test locks the HTML attribute structurally.
+  it('test_register_name_input_has_maxLength_256_closes_65', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
+    render(<RegisterPage />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name')).toBeInTheDocument();
+    });
+    const nameInput = screen.getByLabelText('Name') as HTMLInputElement;
+    expect(nameInput.maxLength).toBe(256);
+  });
 });

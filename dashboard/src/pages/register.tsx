@@ -8,7 +8,7 @@ import { getSession } from '@/lib/auth';
 import { API_URL, AUTH_URL } from '@/lib/config';
 // T1.2/T1.3 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #18 + #28.
 import { KRATOS_PASSWORD_MIN_LENGTH } from '@/lib/auth-policy';
-import { validateRequired, validateEmail, validatePasswordMinLength } from '@/lib/validation';
+import { validateRequired, validateEmail, validatePasswordMinLength, validateMaxLength } from '@/lib/validation';
 
 const KRATOS_URL = AUTH_URL || API_URL;
 
@@ -122,6 +122,15 @@ export function RegisterPage() {
     const errors: Record<string, string> = {};
     const nameErr = validateRequired(name, 'Name');
     if (nameErr) errors.name = nameErr;
+    // theo-cloud#65 closure: cap Name at 256 chars at the form gate. Mirrors
+    // the Kratos identity schema cap (theo/infra/helm/ory-kratos/identity.
+    // schema.json → traits.name.maxLength: 256). Without this, a 20 000-char
+    // Name bloats the session JWT to ~27 KB (root cause of #64). The HTML
+    // maxLength={256} on the <Input> below is a defense-in-depth ceiling
+    // (paste cap); this JS gate is the canonical validation that surfaces
+    // the error message to the user.
+    const nameMaxErr = validateMaxLength(name, 'Name', 256);
+    if (nameMaxErr) errors.name = nameMaxErr;
     const emailErr = validateEmail(email);
     if (emailErr) errors.email = emailErr;
     const passwordErr = validatePasswordMinLength(password, KRATOS_PASSWORD_MIN_LENGTH);
@@ -286,6 +295,13 @@ export function RegisterPage() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Name"
                 autoComplete="name"
+                // theo-cloud#65 closure: HTML maxLength caps typed + pasted
+                // input at 256 chars (defense-in-depth). The JS validateMax
+                // Length gate above surfaces the user-visible error message
+                // when paste-from-clipboard somehow exceeds (older browsers).
+                // 256 mirrors the Kratos identity schema cap (theo/infra/
+                // helm/ory-kratos/identity.schema.json).
+                maxLength={256}
                 aria-invalid={validationErrors.name ? true : undefined}
                 className="mt-1"
               />
