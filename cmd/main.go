@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -33,6 +34,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
+	"github.com/usetheodev/theo-cloud/internal/promptly"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
 	"github.com/usetheodev/theo-cloud/internal/themory"
@@ -191,13 +193,83 @@ func main() {
 	var memoryHandler *routes.MemoryHandler
 	var memoryWebhooksHandler *routes.MemoryWebhooksHandler
 	var memoryExportsHandler *routes.MemoryExportsHandler
-	var dashboardMemoryHandler *routes.DashboardMemoryHandler
+	// M11 (theo-promptly Model B L2): a 2nd ForwardAuth handler for the
+	// /v1/promptly capability. Reuses the generic handler (ADR D5) wired with the
+	// promptly broker + "promptly:read"; only registered when PROMPTLY_BASE_URL is
+	// set. The broker translates promptly:* -> prompt:* and mints per-tenant.
+	var promptlyForwardAuthHandler *routes.ForwardAuthHandler
+	if cfg.PromptlyBaseURL != "" {
+		promptlyHTTP := &http.Client{Timeout: 10 * time.Second}
+		promptlyAdmin := promptly.NewAdminClient(cfg.PromptlyBaseURL, cfg.PromptlyPlatformAdminKey.Value(), promptlyHTTP)
+		promptlyBroker, pErr := promptly.NewBroker(promptlyAdmin, 1024, time.Hour,
+			[]string{"prompt:read", "prompt:write"})
+		if pErr != nil {
+			logger.Error("failed to construct promptly credential broker — refusing to start", "error", pErr)
+			os.Exit(1)
+		}
+		promptlyForwardAuthHandler = routes.NewForwardAuthHandler(
+			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+			},
+			promptlyBroker,
+			"promptly:read",
+			logger,
+		)
+		logger.Info("theo-promptly Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
+	}
+
+	// platform-api-gateway-edge-slice1 (M6): the ForwardAuth authz-brain the
+	// Traefik edge delegates to. Reuses the broker (per-tenant mint) + ResolveAPIKey.
+	var forwardAuthHandler *routes.ForwardAuthHandler
 	if cfg.ThemoryBaseURL != "" {
 		themoryHTTP := &http.Client{
 			Timeout:   30 * time.Second,
 			Transport: otelhttp.NewTransport(http.DefaultTransport), // D4 W3C trace propagation
 		}
-		themoryClient := themory.NewClient(cfg.ThemoryBaseURL, cfg.ThemoryAPIKey.Value(), themoryHTTP)
+		// Model B (ADR D1) — control-plane / data-plane credential separation.
+		// Control plane: the platform-admin key mints per-tenant data keys via the
+		// admin API. Sourced from THEMORY_PLATFORM_ADMIN_KEY (falls back to the
+		// legacy THEMORY_API_KEY only as the control-plane credential — NEVER on
+		// the data path).
+		platformKey := cfg.ThemoryPlatformAdminKey.Value()
+		if platformKey == "" {
+			platformKey = cfg.ThemoryAPIKey.Value()
+		}
+		adminClient := themory.NewAdminClient(cfg.ThemoryBaseURL, platformKey, themoryHTTP)
+		themoryBroker, brErr := themory.NewBroker(adminClient, 1024, time.Hour,
+			[]string{"memory:read", "memory:write", "memory:delete"})
+		if brErr != nil {
+			logger.Error("failed to construct themory credential broker — refusing to start", "error", brErr)
+			os.Exit(1)
+		}
+		// Data plane: the Bearer is a PER-TENANT theo_live_* resolved from the
+		// request's authenticated tenant. The data client holds NO master/platform
+		// credential, so a path bug cannot cross tenants — and a mint failure fails
+		// the request CLOSED (no master fallback). This closes the confused deputy.
+		keyResolver := func(ctx context.Context) (string, error) {
+			u := auth.GetUser(ctx)
+			if u == nil || u.TenantID == "" {
+				return "", fmt.Errorf("themory: no authenticated tenant in context")
+			}
+			return themoryBroker.KeyForTenant(ctx, u.TenantID)
+		}
+		dataClient := themory.NewClient(cfg.ThemoryBaseURL, "", themoryHTTP).WithKeyResolver(keyResolver)
+		// Control-plane client for the boot capability probe (GET /v1/openapi.json):
+		// uses the platform credential, never a per-tenant key.
+		probeClient := themory.NewClient(cfg.ThemoryBaseURL, platformKey, themoryHTTP)
+
+		// platform-api-gateway-edge-slice1 (M6, ADR D1/D7): the ForwardAuth authz
+		// endpoint the Traefik edge calls per request. It reuses the SAME inbound
+		// validation as RequireScope (auth.ResolveAPIKey) and the SAME per-tenant
+		// broker, then returns the minted key for the edge to inject upstream.
+		forwardAuthHandler = routes.NewForwardAuthHandler(
+			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+			},
+			themoryBroker,
+			"memory:read",
+			logger,
+		)
 
 		// themory-gateway-provider-capability-guard (F1): fail boot if the provider
 		// is REACHABLE but does NOT advertise the scoped-forget DELETE route — a
@@ -208,7 +280,7 @@ func main() {
 			logger.Warn("themory capability guard SKIPPED via THEMORY_SKIP_CAPABILITY_CHECK — forget-by-id correctness is not verified against the provider")
 		} else {
 			capCtx, capCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			capErr := themoryClient.AssertScopedForgetSupported(capCtx)
+			capErr := probeClient.AssertScopedForgetSupported(capCtx)
 			capCancel()
 			switch themory.ClassifyBootCapability(capErr) {
 			case themory.BootFatal:
@@ -229,7 +301,7 @@ func main() {
 		// Memory Webhook Delivery plan T5.6: wire the event publisher so
 		// `memory.forgotten` mutations fan out to active webhooks.
 		webhookEventPublisher := routes.NewMemoryWebhookEventPublisher(db, logger)
-		memoryHandler = routes.NewMemoryHandler(themoryClient, logger).WithEventPublisher(webhookEventPublisher)
+		memoryHandler = routes.NewMemoryHandler(dataClient, logger).WithEventPublisher(webhookEventPublisher)
 		logger.Info("memory proxy enabled", "themory_base_url", cfg.ThemoryBaseURL)
 
 		// Plan 3 — Memory Operations (exports + webhooks).
@@ -248,25 +320,15 @@ func main() {
 			}
 		}
 		memoryWebhooksHandler = routes.NewMemoryWebhooksHandler(db, logger)
-		memoryExportsHandler = routes.NewMemoryExportsHandler(db, themoryClient, logger, exportDir, workerDelay)
+		memoryExportsHandler = routes.NewMemoryExportsHandler(db, dataClient, logger, exportDir, workerDelay)
 
 		// BFF (Backend-For-Frontend) surface for the dashboard's browser
-		// sessions: /v1/dashboard/memory/* authenticates via the session JWT
-		// (requireJWT), mints a server-side theo_live_* key per subject
-		// (BFFKeyVault — the secret NEVER reaches the browser), then delegates
-		// to the same MemoryHandler the SDK surface uses. The /v1/memory/*
-		// surface stays SDK-only (theo_live_* Bearer). Without this wiring the
-		// dashboard memory page 401s (the page sends a session JWT, which the
-		// SDK RequireScope path rejects).
-		if db != nil {
-			bffVault, vErr := auth.NewBFFKeyVault(db, 24)
-			if vErr != nil {
-				logger.Error("failed to construct BFF key vault — dashboard memory disabled", "error", vErr)
-			} else {
-				dashboardMemoryHandler = routes.NewDashboardMemoryHandler(bffVault, memoryHandler, logger)
-				logger.Info("dashboard memory BFF enabled", "mount", "/v1/dashboard/memory")
-			}
-		}
+		// Model B: the dashboard surface (/v1/dashboard/memory/*) registers the
+		// shared MemoryHandler directly under requireJWT (see route block below) —
+		// the per-tenant data key is resolved by the broker from the JWT-derived
+		// tenant. The old per-user BFFKeyVault (which minted into the cloud DB and
+		// discarded the secret) is removed.
+		logger.Info("dashboard memory enabled (per-tenant broker)", "mount", "/v1/dashboard/memory")
 	} else {
 		logger.Warn("THEMORY_BASE_URL not set — /v1/memory/* endpoints disabled")
 	}
@@ -277,13 +339,6 @@ func main() {
 	var memoryWebhookDeliveriesHandler *routes.MemoryWebhookDeliveriesHandler
 	if memoryHandler != nil && db != nil {
 		memoryWebhookDeliveriesHandler = routes.NewMemoryWebhookDeliveriesHandler(db, logger)
-	}
-
-	// Front the ops handlers (exports/webhooks/deliveries) through the BFF too
-	// so the dashboard reaches them via the session path (gap 4 — close 401).
-	if dashboardMemoryHandler != nil {
-		dashboardMemoryHandler = dashboardMemoryHandler.WithOps(
-			memoryExportsHandler, memoryWebhooksHandler, memoryWebhookDeliveriesHandler)
 	}
 
 	// Router
@@ -351,6 +406,20 @@ func main() {
 
 	// §4.1+4.2: Metrics endpoint (Prometheus text format)
 	r.Get("/metrics", cloudmetrics.Handler())
+
+	// platform-api-gateway-edge-slice1 (M6, ADR D7): internal ForwardAuth authz
+	// endpoint. Only the Traefik edge calls it (subrequest) — it is NOT under any
+	// auth middleware because it IS the auth. GET + POST so any edge transport works.
+	if forwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardPath, forwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardPath, forwardAuthHandler.ServeHTTP)
+	}
+	// M11: the theo-promptly ForwardAuth endpoint the edge's forward-auth-promptly
+	// middleware calls. Same generic handler, distinct path + promptly broker.
+	if promptlyForwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
+	}
 
 	// Auth endpoints (no auth — these ARE the auth flow)
 	r.Route("/v1/auth", func(r chi.Router) {
@@ -494,56 +563,48 @@ func main() {
 		})
 	}
 
-	// BFF dashboard surface (/v1/dashboard/memory/*) — browser sessions
-	// (requireJWT). Mints a server-side theo_live_* key per subject and
-	// delegates to the same MemoryHandler. Distinct from the SDK /v1/memory/*
-	// surface so a session can never be used as an SDK key, and vice-versa.
-	if dashboardMemoryHandler != nil {
+	// Dashboard surface (/v1/dashboard/memory/*) — browser sessions (requireJWT).
+	// Model B: registers the SAME handlers the SDK surface uses, under the
+	// session-JWT chain. The per-tenant data key is resolved by the broker from
+	// the JWT-derived tenant — no per-user vault, no master key (BFFKeyVault +
+	// the ~21 mintOrFail wrappers were removed). Distinct mount from /v1/memory/*
+	// so a session can never be used as an SDK key, and vice-versa.
+	//
+	// SECURITY INVARIANT (F-xval-3, preserved): exports/webhooks ops are
+	// memory:admin on the SDK surface; here they sit behind requireJWT ONLY,
+	// correct for the dashboard's single-subject-per-customer model — every ops
+	// handler scopes strictly to auth.GetUser(...).Subject. If a future RBAC
+	// member/non-admin dashboard session is introduced, gate with requireRole(admin).
+	if memoryHandler != nil {
 		r.Route("/v1/dashboard/memory", func(r chi.Router) {
 			r.Use(requireJWT)
-			r.Get("/list", dashboardMemoryHandler.List)
-			r.Get("/metrics", dashboardMemoryHandler.Metrics)
-			r.Get("/entities", dashboardMemoryHandler.Entities)
-			// themory-graph-gateway-dashboard — entity relation graph (BFF).
-			r.Get("/graph", dashboardMemoryHandler.Graph)
-			// episodes-gateway-dashboard — cursor-paginated bi-temporal episode log (BFF).
-			r.Get("/episodes", dashboardMemoryHandler.Episodes)
-			// dashboard-phase2b-skills-browse T3.3 — read-only skills browse (BFF).
-			r.Get("/skills", dashboardMemoryHandler.ListSkills)
-			// skills-cross-repo-flat-list-gateway — flat cross-repo skills listing (BFF).
-			r.Get("/skills/all", dashboardMemoryHandler.ListSkillsAll)
-			// skills-write-surface T3.3 — author + curate skills from the dashboard (BFF).
-			r.Post("/skills", dashboardMemoryHandler.AddSkill)
-			r.Delete("/skills/{skillID}", dashboardMemoryHandler.ForgetSkill)
-			r.Delete("/forget/{memoryID}", dashboardMemoryHandler.Forget)
-			r.Post("/revoke-on-logout", dashboardMemoryHandler.RevokeOnLogout)
-			// Core verbs (gaps 1-3): remember / recall / reflect.
-			r.Post("/remember", dashboardMemoryHandler.Remember)
-			r.Post("/recall", dashboardMemoryHandler.Recall)
-			r.Post("/reflect", dashboardMemoryHandler.Reflect)
-			// Ops fronted through the BFF (gap 4 — close 401). Each is a no-op
-			// 404 when its handler is nil (feature disabled).
-			//
-			// SECURITY INVARIANT (F-xval-3): these exports/webhooks ops are
-			// memory:admin on the SDK surface (programmatic-key least-privilege).
-			// Here they sit behind requireJWT ONLY — which is correct for the
-			// dashboard's single-subject-per-customer model: a browser session
-			// authenticates as exactly ONE subject (its own workspace owner via
-			// Kratos), and every ops handler scopes strictly to auth.GetUser(...).
-			// .Subject (exports + webhooks are per-subject rows). A session can
-			// therefore reach ONLY its own ops — never another tenant's — so no
-			// memory:admin gate is needed at the browser boundary. The SDK
-			// memory:admin gate governs API keys, not the owner's own console.
-			// If a future RBAC member/non-admin dashboard session is introduced,
-			// gate these with requireRole(admin).
-			r.Post("/exports", dashboardMemoryHandler.ExportsCreate)
-			r.Get("/exports/{id}/status", dashboardMemoryHandler.ExportsStatus)
-			r.Get("/exports/{id}/download", dashboardMemoryHandler.ExportsDownload)
-			r.Post("/webhooks", dashboardMemoryHandler.WebhooksCreate)
-			r.Get("/webhooks/list", dashboardMemoryHandler.WebhooksList)
-			r.Delete("/webhooks/{id}", dashboardMemoryHandler.WebhooksDelete)
-			r.Get("/webhooks/{id}/deliveries", dashboardMemoryHandler.WebhookDeliveriesList)
-			r.Post("/webhooks/{webhook_id}/deliveries/{delivery_id}/replay", dashboardMemoryHandler.WebhookDeliveryReplay)
+			r.Get("/list", memoryHandler.List)
+			r.Get("/metrics", memoryHandler.Metrics)
+			r.Get("/entities", memoryHandler.Entities)
+			r.Get("/graph", memoryHandler.Graph)
+			r.Get("/episodes", memoryHandler.Episodes)
+			r.Get("/skills", memoryHandler.ListSkills)
+			r.Get("/skills/all", memoryHandler.ListSkillsAll)
+			r.Post("/skills", memoryHandler.AddSkill)
+			r.Delete("/skills/{skillID}", memoryHandler.ForgetSkill)
+			r.Delete("/forget/{memoryID}", memoryHandler.Forget)
+			r.Post("/remember", memoryHandler.Remember)
+			r.Post("/recall", memoryHandler.Recall)
+			r.Post("/reflect", memoryHandler.Reflect)
+			if memoryExportsHandler != nil {
+				r.Post("/exports", memoryExportsHandler.Create)
+				r.Get("/exports/{id}/status", memoryExportsHandler.Status)
+				r.Get("/exports/{id}/download", memoryExportsHandler.Download)
+			}
+			if memoryWebhooksHandler != nil {
+				r.Post("/webhooks", memoryWebhooksHandler.Create)
+				r.Get("/webhooks/list", memoryWebhooksHandler.List)
+				r.Delete("/webhooks/{id}", memoryWebhooksHandler.Delete)
+			}
+			if memoryWebhookDeliveriesHandler != nil {
+				r.Get("/webhooks/{id}/deliveries", memoryWebhookDeliveriesHandler.List)
+				r.Post("/webhooks/{webhook_id}/deliveries/{delivery_id}/replay", memoryWebhookDeliveriesHandler.Replay)
+			}
 		})
 	}
 

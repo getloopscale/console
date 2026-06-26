@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025-2026 The Theo Authors
+#
+# cloud -> theo-data (theo-promptly) CONTROL-PLANE consumer contract (OpenAPI 3.0.3).
+#
+# This is the SUBSET of theo-promptly's admin API that internal/promptly/admin_client.go
+# actually calls — the per-tenant key mint (POST /admin/keys). The path is NATIVE
+# (no /v1 prefix — M5 ADR D2): the broker talks directly to the host-run service,
+# not through the edge. Keep in sync with theo-promptly packages/api/src/server/app.ts
+# (AdminMintBody / the 201 response). The contract_test validates the admin_client's
+# outgoing requests against this spec so a drift fails fast (M11 Risk-2).
+openapi: 3.0.3
+info:
+  title: theo-promptly admin API (cloud control-plane subset)
+  version: "0.7.0"
+
+servers:
+  - url: /
+
+components:
+  parameters:
+    Authorization:
+      name: Authorization
+      in: header
+      required: true
+      schema: { type: string }
+      description: "Bearer <prompt:platform-admin key> (held by the gateway, never the customer)"
+
+paths:
+  /admin/keys:
+    post:
+      summary: Mint a per-tenant theo-promptly API key (Model B).
+      parameters:
+        - $ref: "#/components/parameters/Authorization"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes, workspace_id]
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                scopes:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    enum:
+                      - "prompt:read"
+                      - "prompt:write"
+                      - "prompt:admin"
+                      - "prompt:platform-admin"
+                workspace_id:
+                  type: string
+                  minLength: 1
+                user_id:
+                  type: string
+                  minLength: 1
+      responses:
+        "201":
+          description: Key minted. The secret is shown once.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, secret, keyPrefix]
+                properties:
+                  id: { type: string }
+                  secret: { type: string }
+                  keyPrefix: { type: string }
+        "400":
+          description: Invalid body (unknown scope, empty workspace_id/user_id).
+        "401":
+          description: Unauthorized (missing/invalid platform-admin credential).
+        "403":
+          description: Forbidden (anti-escalation guard).

@@ -76,7 +76,7 @@ export function PlaygroundPage() {
           ...(rememberCategory ? { category: rememberCategory } : {}),
           ...(peer ? { attributedTo: peer } : {}),
         }),
-      });
+      }, { throwOnError: true });
     },
     onSuccess: () => setRememberText(''),
   });
@@ -102,7 +102,7 @@ export function PlaygroundPage() {
           ...(recallAsOf ? { asOf: toRfc3339Utc(recallAsOf) } : {}),
           ...(graphExpandOn ? { graphExpand: { hops: graphExpandHops } } : {}),
         }),
-      }),
+      }, { throwOnError: true }),
   });
 
   // --- Reflect panel ---
@@ -111,7 +111,7 @@ export function PlaygroundPage() {
       cloudFetch<Record<string, unknown>>('/v1/dashboard/memory/reflect', {
         method: 'POST',
         body: '{}',
-      }),
+      }, { throwOnError: true }),
   });
 
   return (

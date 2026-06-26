@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"strconv"
 )
 
 // Secret is a string that redacts itself in logs, fmt output, and JSON serialization.
@@ -97,16 +96,38 @@ type Config struct {
 	// Env: THEMORY_BASE_URL (default: "http://themory:3000" — operator overrides in prod)
 	ThemoryBaseURL string
 
-	// ThemoryAPIKey is the master Bearer the Go proxy uses to authenticate
-	// against TheMemory. NEVER returned to the customer (Plan 1 D1 + CLAUDE.md Invariant 3).
-	// Env: THEMORY_API_KEY (required when ThemoryBaseURL is set in prod)
+	// ThemoryAPIKey is the LEGACY master Bearer. Model B (credential-broker)
+	// demotes it OFF the data path; it remains a transition fallback for the
+	// control-plane (admin/probe) client when ThemoryPlatformAdminKey is unset.
+	// Env: THEMORY_API_KEY
 	ThemoryAPIKey Secret
+
+	// ThemoryPlatformAdminKey is the CONTROL-PLANE credential (carrying
+	// memory:platform-admin) the gateway uses ONLY to mint/rotate/revoke
+	// per-tenant data keys via TheMemory's admin API. NEVER on the data path
+	// (Model B ADR D1). When unset, falls back to ThemoryAPIKey during transition.
+	// Env: THEMORY_PLATFORM_ADMIN_KEY
+	ThemoryPlatformAdminKey Secret
 
 	// ThemorySkipCapabilityCheck disables the boot-time provider-capability guard
 	// (themory-gateway-provider-capability-guard F1). Default false (safe prod
 	// posture). Escape hatch for emergencies (e.g. provider openapi shape change).
 	// Env: THEMORY_SKIP_CAPABILITY_CHECK ("true" to skip).
 	ThemorySkipCapabilityCheck bool
+
+	// PromptlyBaseURL is the theo-promptly REST URL (M11 — Model B L2). Native
+	// path, NO /v1 prefix: the broker POSTs to {base}/admin/keys directly at the
+	// host-run service (e.g. http://host.docker.internal:18083), never via the
+	// edge. Empty disables the promptly broker + its ForwardAuth handler.
+	// Env: PROMPTLY_BASE_URL
+	PromptlyBaseURL string
+
+	// PromptlyPlatformAdminKey is the CONTROL-PLANE credential (carrying
+	// prompt:platform-admin) the gateway uses ONLY to mint per-tenant theo-promptly
+	// keys via POST /admin/keys. NEVER on the data path (Model B). Required when
+	// PromptlyBaseURL is set.
+	// Env: PROMPTLY_PLATFORM_ADMIN_KEY
+	PromptlyPlatformAdminKey Secret
 
 	// SessionTokenSecretPrevious is the previous HMAC key for zero-downtime rotation (§2.2).
 	// Tokens signed with this key are accepted during the rotation window.
@@ -132,12 +153,6 @@ type Config struct {
 	// empty so the cookie is host-only on localhost.
 	// Env: AUTH_COOKIE_DOMAIN (default: "")
 	AuthCookieDomain string
-
-	// BFFKeyTTLHours is the TTL (in hours) for BFF-minted API keys held by the
-	// server-side key vault (auth.NewBFFKeyVault). Range validation [1,168] is
-	// enforced fail-loud in the vault constructor, not here — Load only parses.
-	// Env: THEOCLOUD_BFF_KEY_TTL_HOURS (default: 24; fallback 24 on parse error)
-	BFFKeyTTLHours int
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -171,8 +186,10 @@ func Load() Config {
 
 	cfg.ThemoryBaseURL = envOr("THEMORY_BASE_URL", "")
 	cfg.ThemoryAPIKey = Secret(envOr("THEMORY_API_KEY", ""))
+	cfg.ThemoryPlatformAdminKey = Secret(envOr("THEMORY_PLATFORM_ADMIN_KEY", ""))
 	cfg.ThemorySkipCapabilityCheck = envOr("THEMORY_SKIP_CAPABILITY_CHECK", "") == "true"
-	cfg.BFFKeyTTLHours = envOrInt("THEOCLOUD_BFF_KEY_TTL_HOURS", 24)
+	cfg.PromptlyBaseURL = envOr("PROMPTLY_BASE_URL", "")
+	cfg.PromptlyPlatformAdminKey = Secret(envOr("PROMPTLY_PLATFORM_ADMIN_KEY", ""))
 	return cfg
 }
 
@@ -213,6 +230,12 @@ func (c Config) Validate() error {
 		if c.ThemoryBaseURL != "" && c.ThemoryAPIKey.Value() == "" {
 			return fmt.Errorf("THEMORY_API_KEY is required in production when THEMORY_BASE_URL is set")
 		}
+		// M11 (theo-promptly Model B L2): the platform-admin key MUST be present
+		// when the promptly broker is enabled — otherwise the gateway would try
+		// to mint per-tenant keys unauthenticated. Fail-fast at boot.
+		if c.PromptlyBaseURL != "" && c.PromptlyPlatformAdminKey.Value() == "" {
+			return fmt.Errorf("PROMPTLY_PLATFORM_ADMIN_KEY is required in production when PROMPTLY_BASE_URL is set")
+		}
 	}
 	return nil
 }
@@ -222,21 +245,6 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-// envOrInt reads an integer env var, returning fallback when the var is unset
-// or cannot be parsed. It does NOT range-check — that is the consumer's job
-// (e.g. auth.NewBFFKeyVault enforces [1,168] fail-loud).
-func envOrInt(key string, fallback int) int {
-	v := os.Getenv(key)
-	if v == "" {
-		return fallback
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return fallback
-	}
-	return n
 }
 
 // devSecretFor returns an auto-generated secret in non-production environments,

@@ -43,6 +43,7 @@ describe('Memory Playground (T3.1)', () => {
       expect(mockCloudFetch).toHaveBeenCalledWith(
         '/v1/dashboard/memory/remember',
         expect.objectContaining({ method: 'POST' }),
+        expect.objectContaining({ throwOnError: true }),
       );
     });
     expect(await screen.findByText(/Stored 1 memory/i)).toBeInTheDocument();
@@ -61,6 +62,7 @@ describe('Memory Playground (T3.1)', () => {
       expect(mockCloudFetch).toHaveBeenCalledWith(
         '/v1/dashboard/memory/recall',
         expect.objectContaining({ method: 'POST' }),
+        expect.objectContaining({ throwOnError: true }),
       );
     });
     expect(await screen.findByText('oat milk')).toBeInTheDocument();
@@ -101,9 +103,42 @@ describe('Memory Playground (T3.1)', () => {
       expect(mockCloudFetch).toHaveBeenCalledWith(
         '/v1/dashboard/memory/reflect',
         expect.objectContaining({ method: 'POST' }),
+        expect.objectContaining({ throwOnError: true }),
       );
     });
     expect(await screen.findByText(/Reflection complete/i)).toBeInTheDocument();
+  });
+
+  // dashboard-memory-error-surfacing T1.2 — the live-test silent-failure fix.
+  it('surfaces an error and does NOT clear the form when remember fails', async () => {
+    // With the fix, the mutation opts into throwOnError, so a backend non-2xx
+    // rejects the mutation -> isError -> the existing Alert renders and the
+    // form is NOT cleared (onSuccess never runs).
+    mockCloudFetch.mockRejectedValueOnce(new Error('backend 404'));
+    render(<PlaygroundPage />, { initialEntries: ['/memory/playground'] });
+
+    const ta = screen.getByLabelText('Memory text to remember');
+    await userEvent.type(ta, 'Paulo likes oat milk');
+    await userEvent.click(screen.getByRole('button', { name: 'Remember' }));
+
+    // (a) the error Alert renders (no longer dead code)
+    expect(await screen.findByText(/Could not remember/i)).toBeInTheDocument();
+    // (b) the form is retained (not silently cleared on failure)
+    expect((ta as HTMLTextAreaElement).value).toBe('Paulo likes oat milk');
+    // (c) the wiring: remember opted into throwOnError (regression guard for the fix)
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/memory/remember',
+      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ throwOnError: true }),
+    );
+  });
+
+  it('recall surfaces an error when the backend fails', async () => {
+    mockCloudFetch.mockRejectedValueOnce(new Error('backend 500'));
+    render(<PlaygroundPage />, { initialEntries: ['/memory/playground'] });
+    await userEvent.type(screen.getByLabelText('Query'), 'what milk');
+    await userEvent.click(screen.getByRole('button', { name: 'Recall' }));
+    expect(await screen.findByText(/Could not recall/i)).toBeInTheDocument();
   });
 
   // Phase 2A — attribution-write.

@@ -1,0 +1,21 @@
+# Build-context hygiene for image builds that use the repo root as context
+# (dev/dashboard.Dockerfile). Keeps host-native + heavy artifacts OUT of the
+# context/image so the build is small and reproducible (dashboard-manualchunks-tdz-fix
+# T2.1 / EC-1). Without this, host node_modules (host-native esbuild/rollup binaries)
+# would be copied in and break `npm ci`.
+**/node_modules
+.git
+**/.git
+dashboard/dist
+bin
+*.log
+coverage.out
+*.testcoverage.yml
+# Secrets / local env — belt-and-suspenders so a developer's local override
+# (Vite's .env.local convention) can never enter the build context (review SEC-tdz-02).
+.env
+*.env
+.env.*
+*.pem
+*.key
+credentials*

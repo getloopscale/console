@@ -1,0 +1,21 @@
+# platform-api-gateway-edge-slice1 (M6) — Traefik STATIC config (dev edge).
+#
+# D4 (security blocker): tracing is intentionally NOT configured. Traefik's
+# ForwardAuth captures the auth-response headers (incl. the minted Authorization)
+# into trace spans (forward.go) — leaving tracing OFF guarantees the minted
+# theo_live_* never reaches a trace exporter. Do NOT add a `tracing:` block here
+# without first redacting the ForwardAuth auth-response Authorization.
+
+entryPoints:
+  web:
+    address: ":8090"
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+log:
+  level: INFO
+
+# api/dashboard intentionally omitted (no insecure API surface in the dev edge).

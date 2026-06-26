@@ -40,7 +40,40 @@ describe('MemoryPage (/memory landing)', () => {
     // Backend was hit at the canonical path — the value-rendering happy
     // path is exercised separately by the D3 empty-zero test below
     // (where the fallback guarantees zeros render without NaN).
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/memory/metrics');
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/memory/metrics',
+      expect.anything(),
+      expect.objectContaining({ throwOnError: true }),
+    );
+  });
+
+  // dashboard-memory-error-surfacing T1.3 — metrics must NOT mask an outage as
+  // fabricated zeros. On a backend error the error Alert renders and the KPI
+  // tiles are absent (the live-test finding: app-dev 404 rendered 0/0/0/0).
+  it('surfaces an error (no fake zeros) when the metrics backend fails', async () => {
+    mockCloudFetch.mockRejectedValueOnce(new Error('backend 404'));
+    render(<MemoryPage />);
+    expect(await screen.findByText(/Could not load memory metrics/i)).toBeInTheDocument();
+    expect(screen.queryByText('Total memories')).not.toBeInTheDocument();
+    expect(screen.queryByText('Distinct entities')).not.toBeInTheDocument();
+  });
+
+  // dashboard-memory-error-surfacing /review fix (F-fe-1/F-fe-2) — the KPI strip
+  // must render ONLY on a settled success, never during the loading/retry window.
+  // Pre-fix the strip was gated on `!isError`, so while the query was still
+  // pending (data undefined → `data ?? zeros`) it painted fabricated 0/0/0/0 —
+  // the exact masking ADR D2 forbids. A never-resolving fetch keeps the query
+  // pending so we can assert the zeros are absent and a loading affordance shows.
+  it('does NOT render fabricated zeros while the metrics query is still pending', async () => {
+    mockCloudFetch.mockReturnValueOnce(new Promise(() => {})); // never resolves → stays pending
+    render(<MemoryPage />);
+    // The Explore section always renders, so the page is mounted…
+    expect(await screen.findByRole('heading', { name: /view graph/i })).toBeInTheDocument();
+    // …but the KPI tiles (which would show "0") must be ABSENT during loading.
+    expect(screen.queryByText('Total memories')).not.toBeInTheDocument();
+    expect(screen.queryByText('Distinct entities')).not.toBeInTheDocument();
+    // A loading affordance is shown in their place (skeleton, role=status).
+    expect(screen.getByTestId('memory-metrics-loading')).toBeInTheDocument();
   });
 
   it('shows a "View Graph" explore card (themory-graph-gateway-dashboard)', async () => {

@@ -5,6 +5,10 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
 
+// manualChunks extracted to a pure, unit-tested module (dashboard-manualchunks-tdz-fix,
+// ADR D1/D2) — keeps the react+react-dom+scheduler co-location invariant testable.
+import { manualChunks } from './src/build/manual-chunks';
+
 /**
  * Dev-only CSP relaxation. The index.html `<meta>` CSP is PRODUCTION-shaped
  * (`form-action 'self' https://auth.usetheo.dev …`). In the local dev stack the
@@ -55,15 +59,18 @@ export default defineConfig({
         ],
       },
     }),
-    // T-DR-5.5 v1.2 (Phase 5) — Bundle analyzer per-route attribution.
-    // Outputs dist/bundle-stats.html on every build (open via npm run bundle:analyze).
-    // Resolves G5 FAANG gap (Vercel bundle analyzer parity).
-    visualizer({
-      filename: 'dist/bundle-stats.html',
-      template: 'treemap',
-      gzipSize: true,
-      brotliSize: true,
-    }),
+    // T-DR-5.5 v1.2 (Phase 5) — Bundle analyzer per-route attribution. GATED behind
+    // ANALYZE=true (`npm run bundle:analyze`) so the build-internals treemap
+    // (dist/bundle-stats.html) is NOT emitted into the served/deployed bundle — it
+    // would otherwise be reachable at GET /bundle-stats.html through the edge and
+    // leak the module graph (review SEC-tdz-01; same class as slice-3a SEC-3a-06).
+    process.env.ANALYZE === 'true' &&
+      visualizer({
+        filename: 'dist/bundle-stats.html',
+        template: 'treemap',
+        gzipSize: true,
+        brotliSize: true,
+      }),
     // T4.2: Service Worker via vite-plugin-pwa + Workbox.
     // EC-04 critical: auth endpoints MUST NEVER cache — stale token =
     // security hole (user sees logged-in UI but session is expired).
@@ -206,19 +213,12 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes('node_modules/@usetheo/ui')) return 'theo-ui';
-          if (id.includes('node_modules/@radix-ui')) return 'radix';
-          if (id.includes('node_modules/lucide-react')) return 'lucide';
-          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) return 'react-vendor';
-          if (id.includes('node_modules/react-router')) return 'router';
-          // NOTE (F-fe-1, /review follow-up): the react-force-graph-2d + d3 family
-          // currently lands in the app-wide `vendor` chunk. A naive manualChunks
-          // split produced a circular vendor↔force-graph chunk that Rollup still
-          // modulepreloads app-wide (shared d3 deps), so true route-isolation needs
-          // dedicated work (deferred — non-blocking perf hygiene).
-          if (id.includes('node_modules/')) return 'vendor';
-        },
+        // The split logic (incl. the react+react-dom+scheduler co-location that fixes
+        // the unstable_now TDZ crash) lives in src/build/manual-chunks.ts and is
+        // unit-tested in src/build/manual-chunks.test.ts. NOTE (F-fe-1, deferred): the
+        // react-force-graph-2d + d3 family still lands in the app-wide `vendor` chunk;
+        // true route-isolation needs dedicated work (non-blocking perf hygiene).
+        manualChunks,
       },
     },
   },

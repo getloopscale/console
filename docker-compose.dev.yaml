@@ -11,7 +11,8 @@
 #   themory    — TheMemory REST server, REAL LLM (OPENAI_API_KEY from theo-memory/.env)
 #   theo-cloud — the gateway (host-built binary)
 #
-# Phases 2-3 (Kratos + Caddy single-origin proxy + dashboard) are appended below.
+# Kratos + the Traefik single edge (:8090, kratos+dashboard+BFF+capability) +
+# the nginx dashboard static service are appended below (M8 slice-3a retired Caddy).
 
 name: theo-cloud-dev
 
@@ -195,6 +196,18 @@ services:
       PORT: "8080"
       HOST: "0.0.0.0"
       THEMEMORY_API_KEY: ${THEMORY_MASTER_KEY:-dev-master-key}
+      # Model B (confused-deputy closure): fail-closed multi-tenant mode. PROD
+      # sets this true so a no-credential/verify-only request is rejected rather
+      # than collapsing to the shared `default` workspace. Defaults FALSE in dev
+      # so the stack boots before the gateway's platform-admin key is bootstrapped
+      # (see dev/README § Model B). Set THEMORY_REQUIRE_CREDENTIAL=true once the
+      # gateway is provisioned with a real platform-admin theo_live_* key.
+      # NOTE: the canonical name is double-M THEMEMORY_ (TheMemory reads
+      # process.env['THEMEMORY_REQUIRE_CREDENTIAL']); the host override token
+      # below MUST match it exactly or the flip is silently ignored.
+      THEMEMORY_REQUIRE_CREDENTIAL: "${THEMEMORY_REQUIRE_CREDENTIAL:-false}"
+      # Bootstrap token to mint the first platform-admin key (Model B provisioning).
+      THEMORY_ADMIN_BOOTSTRAP_TOKEN: ${THEMORY_ADMIN_BOOTSTRAP_TOKEN:-dev-bootstrap-token-change-me-min-32-chars}
       # Migrations are applied by the one-shot themory-migrate init (LT-1); the
       # long-running server skips its own migrate-on-boot (no concurrent DDL).
       THEMEMORY_SKIP_MIGRATIONS: "true"
@@ -233,6 +246,12 @@ services:
       DATABASE_URL: postgres://theo:theo@pg-cloud:5432/theo?sslmode=disable
       THEMORY_BASE_URL: http://themory:8080
       THEMORY_API_KEY: ${THEMORY_MASTER_KEY:-dev-master-key}
+      # Model B: control-plane credential the broker uses to MINT per-tenant data
+      # keys (memory:platform-admin). NEVER on the data path. When unset, the
+      # gateway sources the control-plane credential from THEMORY_API_KEY as a
+      # transition fallback; provision a real platform-admin theo_live_* key
+      # (via themory's bootstrap token) for true per-tenant isolation.
+      THEMORY_PLATFORM_ADMIN_KEY: ${THEMORY_PLATFORM_ADMIN_KEY:-}
       SESSION_TOKEN_SECRET: dev-session-secret-at-least-32-characters-long
       APP_PUBLIC_URL: http://localhost:${DEV_ORIGIN_PORT:-5173}
       BILLING_RETURN_URL: http://localhost:${DEV_ORIGIN_PORT:-5173}
@@ -256,6 +275,41 @@ services:
   # kratos:14433 (both exposed on the host). This is the dashboard's native dev
   # workflow and sidesteps the production-bundle manualChunks TDZ bug. Kratos +
   # the gateway are configured with the 5173 origin so cookies stay same-origin.
+
+  # M8 slice-3a + dashboard-manualchunks-tdz-fix (ADR D3): the dashboard SPA static
+  # server. Traefik's catch-all PathPrefix(`/`) routes here. The image BUILDS the SPA
+  # from source (dev/dashboard.Dockerfile: npm ci + npm run build → nginx) so the edge
+  # serves the FIXED bundle reproducibly — `dashboard/dist` is gitignored and not built
+  # by dev/run.sh. Coexists with the host-side `vite dev` HMR workflow on :5173.
+  dashboard:
+    build:
+      context: .
+      dockerfile: dev/dashboard.Dockerfile
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 3s
+
+  # platform-api-gateway edge: the Traefik SINGLE dev edge (M8 slice-3a unifies
+  # kratos + dashboard + BFF + the /v1/memory capability; retires dev/caddy). Delegates
+  # capability authZ to theo-cloud's ForwardAuth (/internal/authz/forward); the
+  # /v1/memory data path goes to themory:8080 DIRECTLY (ADR D7).
+  traefik:
+    image: traefik:v3.3
+    depends_on:
+      theo-cloud:
+        condition: service_healthy
+      themory:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+    volumes:
+      - ./dev/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dev/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    ports:
+      - "${DEV_EDGE_PORT:-8090}:8090"
 
 volumes:
   dev_pgcloud:

@@ -7,21 +7,8 @@
 package config
 
 import (
-	"os"
 	"testing"
 )
-
-// =========================================================================
-// envOrInt — promised by plan v1.2 § T3.1 TDD block (4 of 7 tests)
-// =========================================================================
-
-func TestConfig_ParsesBFFKeyTTLHoursFromEnv(t *testing.T) {
-	t.Setenv("THEOCLOUD_BFF_KEY_TTL_HOURS", "12")
-	cfg := Load()
-	if cfg.BFFKeyTTLHours != 12 {
-		t.Fatalf("expected BFFKeyTTLHours=12; got %d", cfg.BFFKeyTTLHours)
-	}
-}
 
 func TestConfig_ParsesThemorySkipCapabilityCheck(t *testing.T) {
 	t.Setenv("THEMORY_SKIP_CAPABILITY_CHECK", "true")
@@ -32,48 +19,6 @@ func TestConfig_ParsesThemorySkipCapabilityCheck(t *testing.T) {
 	t.Setenv("THEMORY_SKIP_CAPABILITY_CHECK", "1")
 	if cfg := Load(); cfg.ThemorySkipCapabilityCheck {
 		t.Fatal("expected ThemorySkipCapabilityCheck=false for non-\"true\" value")
-	}
-}
-
-func TestConfig_DefaultsBFFKeyTTLHoursTo24WhenEnvUnset(t *testing.T) {
-	// Ensure env var absent
-	_ = os.Unsetenv("THEOCLOUD_BFF_KEY_TTL_HOURS")
-	cfg := Load()
-	if cfg.BFFKeyTTLHours != 24 {
-		t.Fatalf("expected default BFFKeyTTLHours=24; got %d", cfg.BFFKeyTTLHours)
-	}
-}
-
-func TestConfig_FallsBackToDefaultOnInvalidEnv(t *testing.T) {
-	t.Setenv("THEOCLOUD_BFF_KEY_TTL_HOURS", "not-a-number")
-	cfg := Load()
-	// envOrInt returns fallback (24) on parse failure; range validation
-	// happens in NewBFFKeyVault constructor (fail-loud at consumer).
-	if cfg.BFFKeyTTLHours != 24 {
-		t.Fatalf("expected fallback BFFKeyTTLHours=24 on parse error; got %d", cfg.BFFKeyTTLHours)
-	}
-}
-
-func TestConfig_ParsesNumericEdgeValues(t *testing.T) {
-	cases := []struct {
-		envValue string
-		expected int
-	}{
-		{"1", 1},       // floor
-		{"168", 168},   // ceiling (1 week)
-		{"24", 24},     // default
-		{"0", 0},       // invalid range but parses; vault constructor rejects
-		{"-5", -5},     // invalid; vault rejects
-		{"1000", 1000}, // invalid; vault rejects
-	}
-	for _, tc := range cases {
-		t.Run(tc.envValue, func(t *testing.T) {
-			t.Setenv("THEOCLOUD_BFF_KEY_TTL_HOURS", tc.envValue)
-			cfg := Load()
-			if cfg.BFFKeyTTLHours != tc.expected {
-				t.Fatalf("env=%q: expected %d; got %d", tc.envValue, tc.expected, cfg.BFFKeyTTLHours)
-			}
-		})
 	}
 }
 
@@ -121,5 +66,31 @@ func TestValidate_prod_passes_when_themory_disabled(t *testing.T) {
 	c := prodValidBaseline() // ThemoryBaseURL empty → themory check must not fire
 	if err := c.Validate(); err != nil {
 		t.Fatalf("expected Validate() to pass when themory disabled; got %v", err)
+	}
+}
+
+// M11 (theo-promptly L2 broker): mirror the themory base-url ⇒ key invariant.
+func TestValidate_prod_requires_promptly_key_when_promptly_base_url_set(t *testing.T) {
+	c := prodValidBaseline()
+	c.PromptlyBaseURL = "http://host.docker.internal:18083"
+	c.PromptlyPlatformAdminKey = Secret("")
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected Validate() to fail when PROMPTLY_BASE_URL is set but PROMPTLY_PLATFORM_ADMIN_KEY is empty in prod")
+	}
+}
+
+func TestValidate_prod_passes_when_promptly_fully_configured(t *testing.T) {
+	c := prodValidBaseline()
+	c.PromptlyBaseURL = "http://host.docker.internal:18083"
+	c.PromptlyPlatformAdminKey = Secret("promptly_live_platform_admin")
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected Validate() to pass when promptly fully configured; got %v", err)
+	}
+}
+
+func TestValidate_prod_passes_when_promptly_disabled(t *testing.T) {
+	c := prodValidBaseline() // PromptlyBaseURL empty → promptly check must not fire
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected Validate() to pass when promptly disabled; got %v", err)
 	}
 }

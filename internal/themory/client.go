@@ -14,15 +14,20 @@
 //
 // Load-bearing invariants:
 //
-//  1. Every outbound request carries `Authorization: Bearer <master-key>`.
-//     The customer's theo_live_* key NEVER leaves the Go process — the gateway
-//     mints + holds it (internal/auth/bff_key_vault.go).
+//  1. Model B: every DATA request carries a PER-TENANT `Authorization: Bearer
+//     <theo_live_*>` resolved per-request from the authenticated tenant by the
+//     credential broker (see broker.go + WithKeyResolver). The data client holds
+//     NO master/platform key, so a path bug cannot cross tenants and a resolver
+//     failure FAILS CLOSED (no master fallback). The control-plane platform
+//     credential lives only on AdminClient (mint/rotate/revoke). The per-tenant
+//     secret NEVER leaves the Go process — never logged, traced, or returned.
 //
-//  2. Tenant isolation is enforced by SCOPE-IN-PATH, not a header. TheMemory
-//     scopes a listing by the URL path `/v1/scopes/user/{subject}/memories`;
-//     the gateway puts the authenticated subject there. (The real server
-//     IGNORES `X-Theo-User-Id`, so relying on it — as the old client did —
-//     silently broke isolation.)
+//  2. Tenant isolation is enforced by the PROVIDER from the credential
+//     (workspace bound to the per-tenant key), PLUS scope-in-path within the
+//     workspace. TheMemory scopes a listing by `/v1/scopes/user/{subject}/...`;
+//     the gateway puts the authenticated subject there. (The real server IGNORES
+//     `X-Theo-User-Id`, so relying on it — as the old client did — silently
+//     broke isolation.)
 //
 //  3. `forget` is ownership-checked BY THE PROVIDER. TheMemory's
 //     `DELETE /v1/scopes/user/{subject}/memories/{id}` (v0.12.0) deletes the id
@@ -53,6 +58,21 @@ type Client struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
+	// keyResolver (Model B slice 2, ADR D1) resolves the PER-TENANT data-plane
+	// Bearer from the request context (the broker reads the tenant and returns
+	// its theo_live_* key). When set, it REPLACES apiKey on every call — the
+	// production data client is constructed with an EMPTY apiKey + a resolver, so
+	// it structurally cannot wield the master/platform credential. When nil
+	// (tests / legacy single-tenant), apiKey is used. A resolver error fails the
+	// request CLOSED (no master fallback).
+	keyResolver func(ctx context.Context) (string, error)
+}
+
+// WithKeyResolver returns the Client wired to resolve a per-tenant Bearer per
+// request (Model B). The data path uses the resolved key instead of apiKey.
+func (c *Client) WithKeyResolver(r func(ctx context.Context) (string, error)) *Client {
+	c.keyResolver = r
+	return c
 }
 
 // NewClient constructs a TheMemory client. baseURL is the root of the
@@ -773,7 +793,22 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	if err != nil {
 		return fmt.Errorf("themory: build request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	// Model B (ADR D1): resolve the per-tenant Bearer from context when a resolver
+	// is wired; else fall back to apiKey (tests / boot-probe / legacy single-tenant).
+	// A resolver error FAILS CLOSED — the request is never sent with a master
+	// credential. INVARIANT: the production DATA client is constructed with an
+	// EMPTY apiKey + a resolver (cmd/main.go), so this fallback is unreachable for
+	// it; a data client with a non-empty apiKey + nil resolver would bypass
+	// per-tenant isolation and MUST NOT be constructed (only the control-plane
+	// probe/admin clients carry a standing key).
+	bearer := c.apiKey
+	if c.keyResolver != nil {
+		bearer, err = c.keyResolver(ctx)
+		if err != nil {
+			return fmt.Errorf("themory: resolve per-tenant key: %w", err)
+		}
+	}
+	req.Header.Set("Authorization", "Bearer "+bearer)
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
