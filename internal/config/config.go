@@ -115,6 +115,20 @@ type Config struct {
 	// Env: THEMORY_SKIP_CAPABILITY_CHECK ("true" to skip).
 	ThemorySkipCapabilityCheck bool
 
+	// PromptlyBaseURL is the theo-promptly REST URL (M11 — Model B L2). Native
+	// path, NO /v1 prefix: the broker POSTs to {base}/admin/keys directly at the
+	// host-run service (e.g. http://host.docker.internal:18083), never via the
+	// edge. Empty disables the promptly broker + its ForwardAuth handler.
+	// Env: PROMPTLY_BASE_URL
+	PromptlyBaseURL string
+
+	// PromptlyPlatformAdminKey is the CONTROL-PLANE credential (carrying
+	// prompt:platform-admin) the gateway uses ONLY to mint per-tenant theo-promptly
+	// keys via POST /admin/keys. NEVER on the data path (Model B). Required when
+	// PromptlyBaseURL is set.
+	// Env: PROMPTLY_PLATFORM_ADMIN_KEY
+	PromptlyPlatformAdminKey Secret
+
 	// SessionTokenSecretPrevious is the previous HMAC key for zero-downtime rotation (§2.2).
 	// Tokens signed with this key are accepted during the rotation window.
 	// Env: SESSION_TOKEN_SECRET_PREVIOUS (optional)
@@ -174,6 +188,8 @@ func Load() Config {
 	cfg.ThemoryAPIKey = Secret(envOr("THEMORY_API_KEY", ""))
 	cfg.ThemoryPlatformAdminKey = Secret(envOr("THEMORY_PLATFORM_ADMIN_KEY", ""))
 	cfg.ThemorySkipCapabilityCheck = envOr("THEMORY_SKIP_CAPABILITY_CHECK", "") == "true"
+	cfg.PromptlyBaseURL = envOr("PROMPTLY_BASE_URL", "")
+	cfg.PromptlyPlatformAdminKey = Secret(envOr("PROMPTLY_PLATFORM_ADMIN_KEY", ""))
 	return cfg
 }
 
@@ -213,6 +229,12 @@ func (c Config) Validate() error {
 		// ThemoryAPIKey field; now enforced fail-fast at boot.
 		if c.ThemoryBaseURL != "" && c.ThemoryAPIKey.Value() == "" {
 			return fmt.Errorf("THEMORY_API_KEY is required in production when THEMORY_BASE_URL is set")
+		}
+		// M11 (theo-promptly Model B L2): the platform-admin key MUST be present
+		// when the promptly broker is enabled — otherwise the gateway would try
+		// to mint per-tenant keys unauthenticated. Fail-fast at boot.
+		if c.PromptlyBaseURL != "" && c.PromptlyPlatformAdminKey.Value() == "" {
+			return fmt.Errorf("PROMPTLY_PLATFORM_ADMIN_KEY is required in production when PROMPTLY_BASE_URL is set")
 		}
 	}
 	return nil

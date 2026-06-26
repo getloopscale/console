@@ -68,3 +68,29 @@ func TestValidate_prod_passes_when_themory_disabled(t *testing.T) {
 		t.Fatalf("expected Validate() to pass when themory disabled; got %v", err)
 	}
 }
+
+// M11 (theo-promptly L2 broker): mirror the themory base-url ⇒ key invariant.
+func TestValidate_prod_requires_promptly_key_when_promptly_base_url_set(t *testing.T) {
+	c := prodValidBaseline()
+	c.PromptlyBaseURL = "http://host.docker.internal:18083"
+	c.PromptlyPlatformAdminKey = Secret("")
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected Validate() to fail when PROMPTLY_BASE_URL is set but PROMPTLY_PLATFORM_ADMIN_KEY is empty in prod")
+	}
+}
+
+func TestValidate_prod_passes_when_promptly_fully_configured(t *testing.T) {
+	c := prodValidBaseline()
+	c.PromptlyBaseURL = "http://host.docker.internal:18083"
+	c.PromptlyPlatformAdminKey = Secret("promptly_live_platform_admin")
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected Validate() to pass when promptly fully configured; got %v", err)
+	}
+}
+
+func TestValidate_prod_passes_when_promptly_disabled(t *testing.T) {
+	c := prodValidBaseline() // PromptlyBaseURL empty → promptly check must not fire
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected Validate() to pass when promptly disabled; got %v", err)
+	}
+}
