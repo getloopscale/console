@@ -131,8 +131,15 @@ func intersectScopes(want, allowed []string) []string {
 	return out
 }
 
-// Evict drops a tenant's cached secret (out-of-band revoke / offboarding) so the
-// next request re-mints. Idempotent.
+// Evict drops ALL of a tenant's cached secrets (one per scope-set) on an
+// out-of-band revoke / offboarding so the next request re-mints. Idempotent.
+// The cache is keyed by (tenant "\x00" scopes), so eviction matches on the
+// tenant prefix — a plain Remove(tenantID) would never hit a scoped key.
 func (b *Broker) Evict(tenantID string) {
-	b.cache.Remove(tenantID)
+	prefix := tenantID + "\x00"
+	for _, k := range b.cache.Keys() {
+		if strings.HasPrefix(k, prefix) {
+			b.cache.Remove(k)
+		}
+	}
 }

@@ -15,13 +15,13 @@ import (
 
 // stubMinter counts MintKey calls and records the last request, for broker tests.
 type stubMinter struct {
-	calls       atomic.Int64
-	mu          sync.Mutex
-	lastWS      string
-	lastScopes  []string
-	err         error
-	delay       time.Duration
-	secretSeq   atomic.Int64
+	calls      atomic.Int64
+	mu         sync.Mutex
+	lastWS     string
+	lastScopes []string
+	err        error
+	delay      time.Duration
+	secretSeq  atomic.Int64
 }
 
 func (s *stubMinter) MintKey(ctx context.Context, workspaceID, name string, scopes []string) (*MintResult, error) {
@@ -182,6 +182,29 @@ func TestBroker_SingleflightCoalesces(t *testing.T) {
 		if secrets[i] != secrets[0] {
 			t.Fatalf("coalesced callers got different secrets: %q != %q", secrets[i], secrets[0])
 		}
+	}
+}
+
+func TestNewBroker_RejectsInvalidArgs(t *testing.T) {
+	if _, err := NewBroker(nil, 16, time.Hour, nil); err == nil {
+		t.Error("nil minter must error")
+	}
+	if _, err := NewBroker(&stubMinter{}, 0, time.Hour, nil); err == nil {
+		t.Error("size < 1 must error")
+	}
+	if _, err := NewBroker(&stubMinter{}, 16, 0, nil); err == nil {
+		t.Error("ttl <= 0 must error")
+	}
+}
+
+func TestBroker_EvictForcesRemint(t *testing.T) {
+	m := &stubMinter{}
+	b := newTestBroker(t, m)
+	_, _ = b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	b.Evict("ws-a") // evict by tenant — must match the scoped cache key
+	_, _ = b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	if m.calls.Load() != 2 {
+		t.Errorf("expected re-mint after Evict(tenant), got %d mints", m.calls.Load())
 	}
 }
 

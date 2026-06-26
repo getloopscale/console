@@ -34,9 +34,9 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
+	"github.com/usetheodev/theo-cloud/internal/promptly"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
-	"github.com/usetheodev/theo-cloud/internal/promptly"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
 )
