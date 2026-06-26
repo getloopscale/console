@@ -18,6 +18,12 @@ import (
 // env knob (parsimony — YAGNI).
 const AuthzForwardPath = "/internal/authz/forward"
 
+// AuthzForwardPromptlyPath is the internal ForwardAuth endpoint for the
+// theo-promptly capability (M11 — Model B L2). The generic ForwardAuthHandler is
+// reused (a 2nd instance wired with the promptly broker + "promptly:read"); only
+// the path differs so the Traefik `forward-auth-promptly` middleware targets it.
+const AuthzForwardPromptlyPath = "/internal/authz/forward-promptly"
+
 // APIKeyResolver validates an inbound Authorization header and resolves the
 // tenant. Injected (not a concrete *sql.DB dependency) so the handler is unit-
 // testable without a database; in production it closes over auth.ResolveAPIKey.

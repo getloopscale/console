@@ -36,6 +36,7 @@ import (
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/promptly"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
 )
@@ -192,6 +193,31 @@ func main() {
 	var memoryHandler *routes.MemoryHandler
 	var memoryWebhooksHandler *routes.MemoryWebhooksHandler
 	var memoryExportsHandler *routes.MemoryExportsHandler
+	// M11 (theo-promptly Model B L2): a 2nd ForwardAuth handler for the
+	// /v1/promptly capability. Reuses the generic handler (ADR D5) wired with the
+	// promptly broker + "promptly:read"; only registered when PROMPTLY_BASE_URL is
+	// set. The broker translates promptly:* -> prompt:* and mints per-tenant.
+	var promptlyForwardAuthHandler *routes.ForwardAuthHandler
+	if cfg.PromptlyBaseURL != "" {
+		promptlyHTTP := &http.Client{Timeout: 10 * time.Second}
+		promptlyAdmin := promptly.NewAdminClient(cfg.PromptlyBaseURL, cfg.PromptlyPlatformAdminKey.Value(), promptlyHTTP)
+		promptlyBroker, pErr := promptly.NewBroker(promptlyAdmin, 1024, time.Hour,
+			[]string{"prompt:read", "prompt:write"})
+		if pErr != nil {
+			logger.Error("failed to construct promptly credential broker — refusing to start", "error", pErr)
+			os.Exit(1)
+		}
+		promptlyForwardAuthHandler = routes.NewForwardAuthHandler(
+			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+			},
+			promptlyBroker,
+			"promptly:read",
+			logger,
+		)
+		logger.Info("theo-promptly Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
+	}
+
 	// platform-api-gateway-edge-slice1 (M6): the ForwardAuth authz-brain the
 	// Traefik edge delegates to. Reuses the broker (per-tenant mint) + ResolveAPIKey.
 	var forwardAuthHandler *routes.ForwardAuthHandler
@@ -387,6 +413,12 @@ func main() {
 	if forwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardPath, forwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardPath, forwardAuthHandler.ServeHTTP)
+	}
+	// M11: the theo-promptly ForwardAuth endpoint the edge's forward-auth-promptly
+	// middleware calls. Same generic handler, distinct path + promptly broker.
+	if promptlyForwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
 	}
 
 	// Auth endpoints (no auth — these ARE the auth flow)
