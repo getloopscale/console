@@ -17,10 +17,17 @@ interface Template {
   cliCommand: string;
 }
 
+// Sprint 4 qa-sprint4-cleanup-2026-06-25 #32 (closes "theo init" inexistente):
+// `theo init` is NOT a real subcommand in @usetheo/cli@0.3.1. Replaced with the
+// canonical `theo project create <name>` per the CLI's actual surface.
+// EC-5 absorption: per-template names (my-nextjs-app / my-express-api /
+// my-go-service) preserve the per-stack UX signal — without them, the Copy
+// button on all 3 cards would emit the IDENTICAL string `theo project create
+// my-app`, defeating the purpose of presenting 3 distinct starter options.
 const TEMPLATES: Template[] = [
-  { name: 'Next.js', description: 'React framework with SSR', cliCommand: 'theo init nextjs-starter' },
-  { name: 'Express', description: 'Node.js API server', cliCommand: 'theo init express-starter' },
-  { name: 'Go', description: 'Lightweight HTTP service', cliCommand: 'theo init go-starter' },
+  { name: 'Next.js', description: 'React framework with SSR', cliCommand: 'theo project create my-nextjs-app' },
+  { name: 'Express', description: 'Node.js API server', cliCommand: 'theo project create my-express-api' },
+  { name: 'Go', description: 'Lightweight HTTP service', cliCommand: 'theo project create my-go-service' },
 ];
 
 interface EmptyProjectsHeroProps {
@@ -65,7 +72,7 @@ export function EmptyProjectsHero({ onCreateFromDashboard }: EmptyProjectsHeroPr
           <p className="text-label uppercase text-muted-foreground">Or from your own repo</p>
           <CodeBlock
             caption=""
-            code="theo init"
+            code="theo project create my-app"
             terminal
             copyable
           />

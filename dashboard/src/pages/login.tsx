@@ -460,17 +460,19 @@ export function LoginPage() {
             </Button>
           </form>
 
-          {/* Footer links */}
+          {/* Footer links. Sprint 3 Phase 4 (#24) v1.1 ADR D4 —
+              `min-h-[44px] inline-flex items-center` satisfies WCAG 2.5.8
+              Target Size Minimum (Level AAA mobile recommendation). */}
           <div className="flex justify-between text-body-sm">
             <Link
               to="/register"
-              className="text-primary hover:text-primary/80"
+              className="text-primary hover:text-primary/80 min-h-[44px] inline-flex items-center"
             >
               Create account
             </Link>
             <Link
               to="/recovery"
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground min-h-[44px] inline-flex items-center"
             >
               Forgot password?
             </Link>

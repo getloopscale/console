@@ -106,9 +106,9 @@ export function OverviewPage() {
         {/* Left column — Usage + Alerts */}
         <div className="space-y-6">
           <section>
-            <p className="text-label-caps text-muted-foreground uppercase mb-3 tracking-wider">
+            <h2 className="text-label-caps text-muted-foreground uppercase mb-3 tracking-wider">
               Usage
-            </p>
+            </h2>
             {/* T-DR-2.5 v1.2 (closes V-8 from Vercel benchmark): max-h
                 + overflow-y-auto acomoda 5+ KPIs sem inflar página.
                 Vercel pattern: panel scrolls internally rather than
@@ -167,9 +167,9 @@ export function OverviewPage() {
         {/* Right column — Projects + Recent Previews */}
         <div className="space-y-6">
           <section>
-            <p className="text-label-caps text-muted-foreground uppercase mb-3 tracking-wider">
+            <h2 className="text-label-caps text-muted-foreground uppercase mb-3 tracking-wider">
               Projects
-            </p>
+            </h2>
             {loading ? (
               <Card>
                 <Card.Body className="py-8 text-center">
@@ -190,7 +190,7 @@ export function OverviewPage() {
                     <>
                       Run{' '}
                       <code className="bg-muted px-2 py-0.5 rounded font-mono">
-                        theo init
+                        theo project create my-app
                       </code>{' '}
                       in your terminal to connect a repo and ship.
                     </>
@@ -267,9 +267,9 @@ export function OverviewPage() {
               sem inventar dados. Cada action é navegação real para surface
               existente; nenhuma depende de backend novo. */}
           <section>
-            <p className="text-label-caps text-muted-foreground uppercase mb-3 tracking-wider">
+            <h2 className="text-label-caps text-muted-foreground uppercase mb-3 tracking-wider">
               Quick actions
-            </p>
+            </h2>
             <Card>
               <ul className="divide-y divide-border">
                 <li>

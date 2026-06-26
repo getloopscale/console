@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025-2026 The Theo Authors
+#
+# OPERATOR LOCAL-REBUILD Dockerfile — uses local theo-contracts via go.mod replace
+# (the canonical local-dev path per theo-cloud/CLAUDE.md § Invariants: "theo-contracts
+# is consumed via `replace => ../theo-contracts` today (local)") so the GHCR rebuild
+# does NOT depend on the sponsor-managed gomod_token PAT.
+#
+# Build context: /home/paulo/theo-cloud (META-DIR), so both `theo-cloud/` and
+# `theo-contracts/` are in the BuildKit context.
+#
+# Usage (operator):
+#   cd /home/paulo/theo-cloud
+#   docker buildx build --platform linux/amd64 \
+#     -f theo-cloud/Dockerfile.local \
+#     -t ghcr.io/usetheodev/theo-cloud:develop \
+#     -t ghcr.io/usetheodev/theo-cloud:release-blockers-<sha> \
+#     --push .
+#
+# This file is SIBLING of the canonical Dockerfile (which fetches theo-contracts from
+# GitHub via gomod_token). The canonical Dockerfile remains the source of truth for
+# CI / GHCR canonical builds; this file is the OPERATOR escape hatch for local-replace
+# rebuilds when the token is unavailable. Per CLAUDE.md "Local equals production":
+# both files produce the SAME distroless image with the SAME CGO_ENABLED=0 static
+# binary — the only difference is HOW theo-contracts is resolved during go mod download.
+
+FROM golang:1.26.1-alpine3.22 AS builder
+WORKDIR /workspace
+
+ENV GOWORK=off
+# GOPRIVATE intentionally unset — local replace avoids the private-module fetch path.
+
+# git is still required (some transitive deps may VCS-resolve).
+RUN apk add --no-cache git
+
+# Stage theo-contracts INTO the build context so the local replace points at a
+# concrete path INSIDE the container, not at a host-relative ../ path that
+# the BuildKit chroot cannot resolve.
+COPY theo-contracts/ /theo-contracts/
+
+# Stage theo-cloud go.mod + go.sum and inject the local replace at build time.
+# The replace target is the in-container path /theo-contracts (NOT a relative path
+# — relative paths cannot escape the BuildKit chroot).
+COPY theo-cloud/go.mod theo-cloud/go.sum ./
+RUN echo "" >> go.mod && \
+    echo "replace github.com/usetheodev/theo-contracts => /theo-contracts" >> go.mod
+
+# Download deps WITHOUT a gomod_token mount — the replace resolves theo-contracts
+# locally, and every OTHER dep is public.
+RUN --mount=type=cache,target=/root/go/pkg/mod \
+    go mod download
+
+COPY theo-cloud/cmd/ ./cmd/
+COPY theo-cloud/internal/ ./internal/
+COPY theo-cloud/openapi/ ./openapi/
+
+RUN --mount=type=cache,target=/root/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /cloud-api ./cmd/main.go
+
+# Distroless static runtime — byte-identical posture vs. canonical Dockerfile.
+FROM gcr.io/distroless/static-debian12:nonroot
+
+LABEL org.opencontainers.image.source="https://github.com/usetheodev/theo-cloud"
+LABEL org.opencontainers.image.title="theo-cloud"
+LABEL org.opencontainers.image.description="TheoCloud service (operator local-replace build)"
+
+COPY --from=builder /cloud-api /cloud-api
+USER nonroot:nonroot
+EXPOSE 13002
+
+CMD ["/cloud-api"]

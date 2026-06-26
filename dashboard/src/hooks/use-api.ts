@@ -23,15 +23,28 @@ interface UseApiResult<T> {
   error: boolean;
 }
 
-export function useCloudApi<T>(path: string): UseApiResult<T> {
+/**
+ * Sprint 3 Phase 3 (#21) v1.1 ADR D2 — optional `{ enabled }` flag so callers
+ * can scope a query to a specific route (e.g. MemoryUsageCard on /billing
+ * should NOT fire `/v1/dashboard/memory/metrics` because the memory backend
+ * may be unmounted in dev-public, polluting the console with 404s). Default
+ * `enabled: true` preserves backward compatibility for all existing callers.
+ */
+interface UseApiOptions {
+  enabled?: boolean;
+}
+
+export function useCloudApi<T>(path: string, options: UseApiOptions = {}): UseApiResult<T> {
+  const enabled = options.enabled ?? true;
   const query = useQuery({
     queryKey: ['cloud', path] as const,
     queryFn: () => cloudFetch<T>(path),
+    enabled,
   });
   return {
     data: query.data ?? null,
-    loading: query.isLoading,
-    error: query.isError || (query.isFetched && query.data === null),
+    loading: query.isLoading && enabled,
+    error: enabled && (query.isError || (query.isFetched && query.data === null)),
   };
 }
 

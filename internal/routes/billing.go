@@ -181,9 +181,31 @@ func (h *BillingHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Plan release-blockers-2026-06-25-set T4.2 — closes theo-cloud#39.
+	// The Red Team flagged a self-contradicting "Invalid plan. Available:
+	// pro, team" when the user sent the valid plan name "pro". Root cause:
+	// PriceIDForPlan reads os.Getenv("STRIPE_PRICE_PRO") raw — when the
+	// dev-public env var is unset (operator config gap), it returns "" →
+	// the handler emits 400 INVALID_PLAN despite the plan name being
+	// canonical. The fix distinguishes the two failure modes:
+	//   1. plan name NOT in allow-list → 400 INVALID_PLAN (user error)
+	//   2. plan name valid but price NOT configured → 503 BILLING_NOT_CONFIGURED
+	//      (operator action: set STRIPE_PRICE_<PLAN> env + rollout-restart)
+	if !billing.IsValidPlanName(body.Plan) {
+		writeError(w, http.StatusBadRequest, "INVALID_PLAN", "Invalid plan. Available: starter, pro, team")
+		return
+	}
+
 	priceID := billing.LoadPlanConfig().PriceIDForPlan(body.Plan)
 	if priceID == "" {
-		writeError(w, http.StatusBadRequest, "INVALID_PLAN", "Invalid plan. Available: pro, team")
+		// Operator signal: the env var is the canonical lever per
+		// internal/billing/plans.go LoadPlanConfig.
+		slog.Warn("billing checkout: plan name valid but price not configured — operator must set STRIPE_PRICE_<PLAN> env",
+			"plan", body.Plan,
+			"tenant", user.TenantID,
+		)
+		writeError(w, http.StatusServiceUnavailable, "BILLING_NOT_CONFIGURED",
+			"Plan '"+body.Plan+"' is not available for purchase yet. Please contact support.")
 		return
 	}
 

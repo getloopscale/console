@@ -157,4 +157,26 @@ describe('RegisterPage', () => {
       expect(screen.getByText('Email already exists.')).toBeInTheDocument();
     });
   });
+
+  it('test_register_inputs_have_visible_labels_closes_26', async () => {
+    // Sprint 3 Phase 6 (#26) v1.1 ADR D4 — WCAG 3.3.2 Labels or Instructions.
+    // Replace `placeholder + aria-label` anti-pattern with explicit
+    // <label htmlFor> + <Input id> (id forwards through @usetheo/ui Input
+    // because InputProps extends InputHTMLAttributes per v1.1 EC-5 probe).
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
+    render(<RegisterPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /^name$/i })).toBeInTheDocument();
+    });
+    // Accept either wiring per v1.1 EC-5: htmlFor attribute OR nested-label parent.
+    for (const field of ['name', 'email', 'password']) {
+      const inputId = `register-${field}`;
+      const labelEl =
+        document.querySelector(`label[for="${inputId}"]`) ??
+        document.getElementById(inputId)?.closest('label');
+      expect(labelEl, `<label> for ${field} input`).toBeTruthy();
+      expect(labelEl?.className ?? '').not.toMatch(/sr-only/);
+      expect(labelEl?.textContent ?? '').toMatch(new RegExp(field, 'i'));
+    }
+  });
 });

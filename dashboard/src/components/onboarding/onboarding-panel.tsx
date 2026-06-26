@@ -50,7 +50,10 @@ const STEPS: ChecklistStep[] = [
     key: 'project_initialized',
     title: 'Initialize your first project',
     description: 'Connect a repo or start from a starter template.',
-    cliCommand: 'theo init',
+    // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `theo init` is NOT a real
+    // subcommand in @usetheo/cli@0.3.1. Replaced with the canonical
+    // `theo project create my-app` per the CLI's actual surface.
+    cliCommand: 'theo project create my-app',
   },
   {
     key: 'deploy_succeeded',

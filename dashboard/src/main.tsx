@@ -8,8 +8,15 @@ import { queryClient } from './lib/query-client';
 import { initWebVitals } from './lib/rum';
 import './index.css';
 
-// DevTools only em dev — dynamic import so Vite tree-shakes em prod.
-const ReactQueryDevtools = import.meta.env.DEV
+// DevTools only em dev — Sprint 3 (#23) v1.1 ADR D3 defense in depth:
+// switched from `import.meta.env.DEV` (which proved bypass-able in the
+// dev-public prod build per QA evidence 2026-06-24) to a build-time
+// `__DEV__` literal injected via Vite's `define:` block in vite.config.ts.
+// The Vite define produces literal-text substitution → guaranteed
+// statically eliminable by the tree-shaker. Bundle-grep test at
+// `main.test.tsx` is the load-bearing companion gate.
+declare const __DEV__: boolean;
+const ReactQueryDevtools = __DEV__
   ? lazy(() =>
       import('@tanstack/react-query-devtools').then((m) => ({
         default: m.ReactQueryDevtools,
