@@ -18,10 +18,30 @@ vi.mock('@/hooks/use-api', () => ({
 }));
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
-  cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
-  engineFetch: (...args: unknown[]) => mockCloudFetch(...args),
-}));
+vi.mock('@/lib/api', () => {
+  // Declare ApiError inside the factory closure — vi.mock hoists, so a top-
+  // level class would be in the TDZ when the mock executes (vitest error
+  // "Cannot access 'ApiError' before initialization").
+  class ApiError extends Error {
+    readonly status: number;
+    readonly body?: unknown;
+    constructor(status: number, body?: unknown, message?: string) {
+      super(message ?? `API request failed with status ${status}`);
+      this.name = 'ApiError';
+      this.status = status;
+      this.body = body;
+    }
+  }
+  return {
+    cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
+    engineFetch: (...args: unknown[]) => mockCloudFetch(...args),
+    ApiError,
+  };
+});
+
+// Import the same mocked ApiError so the test's instanceof checks line up with
+// the real module's export (the production catch branch checks instanceof).
+import { ApiError } from '@/lib/api';
 
 import { BillingPage } from './billing';
 
@@ -206,6 +226,44 @@ describe('BillingPage', () => {
     // → click bridging, so we lock the structural invariant instead).
     expect(upgradeBtn.getAttribute('type')).toBe('button');
     expect(upgradeBtn.className).toMatch(/focus-visible:ring/);
+  });
+
+  // theo-cloud#63 (BLOCKER functional_bug): POST /v1/billing/checkout {plan:'pro'}
+  // returns 503 + actionable body `{"code":"BILLING_NOT_CONFIGURED","message":
+  // "Plan 'pro' is not available for purchase yet. Please contact support."}` per
+  // release-blockers-2026-06-25-set T4.2 backend fix. Pre-fix the UI catch block
+  // showed the generic toast "Failed to start checkout. Please try again." which
+  // (a) discarded the server's actionable message and (b) suggested retry for a
+  // non-transitory condition (every retry → 503 again, user stuck). Fix opts the
+  // billing checkout mutation into cloudFetch `{ throwOnError: true }` so the
+  // ApiError surfaces with the server's body, and the catch block reads
+  // `error.body.message` for actionable copy (KISS: no new UI invented).
+  it('test_billing_upgrade_surfaces_server_actionable_message_when_503_BILLING_NOT_CONFIGURED_closes_63', async () => {
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'starter', team: 'acme', usage: {} },
+      loading: false,
+      error: false,
+    });
+    // Backend canonical 503 shape per Sprint 4 release-blockers fix.
+    mockCloudFetch.mockRejectedValue(new ApiError(503, {
+      code: 'BILLING_NOT_CONFIGURED',
+      message: "Plan 'pro' is not available for purchase yet. Please contact support.",
+    }));
+
+    const user = userEvent.setup();
+    render(<BillingPage />);
+    await user.click(screen.getByRole('button', { name: /upgrade to pro/i }));
+
+    // UI surfaces the SERVER's actionable message.
+    const alert = await screen.findByRole('alert');
+    const text = alert.textContent ?? '';
+    expect(text).toMatch(/Plan 'pro' is not available for purchase yet/);
+    expect(text).toMatch(/contact support/i);
+
+    // Anti-regression: the misleading "Please try again" copy MUST NOT appear
+    // for a non-transitory 503 (Sprint 4 #39 distinguished the 4xx user-input
+    // class from the 5xx operator-action class; #63 closes the UI parity).
+    expect(text).not.toMatch(/please try again/i);
   });
 
   it('test_billing_memory_metrics_query_disabled_on_non_memory_route_closes_21', () => {

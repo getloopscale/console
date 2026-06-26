@@ -15,7 +15,34 @@ import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useCloudApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch, ApiError } from '@/lib/api';
+
+/**
+ * theo-cloud#63: extract the actionable error copy when the backend rejected
+ * a checkout/portal request. Order of preference (KISS — no new UI invented):
+ *
+ *   1. ApiError + parsed JSON body with a non-empty `message` → use it verbatim.
+ *      The backend (Sprint 4 release-blockers-2026-06-25-set T4.2) emits
+ *      `{code: "BILLING_NOT_CONFIGURED", message: "Plan 'pro' is not available
+ *      for purchase yet. Please contact support."}` and similar — these are
+ *      already user-grade copy (CR-9 compliant — no internal terms).
+ *   2. Any non-blank Error message (e.g. network failure → "Failed to fetch")
+ *      is too low-signal to surface; fall back to the generic toast.
+ *   3. Anything else → generic retry copy (the existing pre-fix behavior).
+ *
+ * The "Please try again" generic copy stays as the FINAL fallback so a
+ * truly transient failure still reads canonically; the bug was using it as
+ * the ONLY message for every failure, including non-transitory 503.
+ */
+function extractActionableErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && typeof err.body === 'object' && err.body !== null) {
+    const body = err.body as { message?: unknown };
+    if (typeof body.message === 'string' && body.message.trim().length > 0) {
+      return body.message;
+    }
+  }
+  return 'Failed to start checkout. Please try again.';
+}
 import { formatDate, formatNumber } from '@/lib/format';
 
 interface UsageMetric {
@@ -155,17 +182,27 @@ export function BillingPage() {
     setActionLoading(true);
     setActionError('');
     try {
-      const result = await cloudFetch<{ url: string }>('/v1/billing/checkout', {
-        method: 'POST',
-        body: JSON.stringify({ plan }),
-      });
+      // theo-cloud#63 closure: opt into throwOnError so a non-2xx (e.g. 503
+      // BILLING_NOT_CONFIGURED) surfaces an ApiError carrying the server's
+      // actionable body — the UI then renders the operator's message verbatim
+      // rather than the misleading generic "Please try again" that suggested
+      // retry for a non-transitory condition. Backend canonical 503 shape is
+      // {code, message} per Sprint 4 release-blockers-2026-06-25-set T4.2.
+      const result = await cloudFetch<{ url: string }>(
+        '/v1/billing/checkout',
+        { method: 'POST', body: JSON.stringify({ plan }) },
+        { throwOnError: true },
+      );
       if (result?.url) {
         window.location.href = result.url;
       } else {
+        // throwOnError makes this branch unreachable for non-2xx, but the
+        // contract `T | null` still permits a 2xx with no `url` field — keep
+        // the safety net (it preserves the existing Sprint-2 #15 contract).
         setActionError('Failed to start checkout. Please try again.');
       }
-    } catch {
-      setActionError('Failed to start checkout. Please try again.');
+    } catch (err) {
+      setActionError(extractActionableErrorMessage(err));
     } finally {
       setActionLoading(false);
     }
