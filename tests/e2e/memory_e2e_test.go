@@ -48,22 +48,66 @@ func env(t *testing.T, key, def string) string {
 // seedAPIKey inserts a legitimate customer theo_live_* key (key_hash =
 // hex(sha256(bearer))). Returns the bearer to send. Model B: bff_minted=false —
 // the BFF vault (which set it true) is removed; a customer key is never a shadow row.
+//
+// M3: theo_api_keys.account_id (and tenants.account_id) are NOT NULL (000044).
+// The key must carry an account that OWNS its tenant (else the M1 ForwardAuth
+// cross-account guard rejects it). This helper inherits the tenant's account when
+// the tenant already exists (e.g. seeded via seedTenant), otherwise it provisions
+// a synthetic owner + account + tenant for the given tenant id so the key's
+// account owns it. Idempotent: all keys for the same tenant share one account.
 func seedAPIKey(t *testing.T, db *sql.DB, subject, tenant string) string {
 	t.Helper()
+	accountID := ensureTenantAccount(t, db, tenant)
+
 	bearer := "theo_live_" + subject + "_e2e_secret"
 	sum := sha256.Sum256([]byte(bearer))
 	keyHash := hex.EncodeToString(sum[:])
 	id := "e2e-" + keyHash[:16]
 	_, err := db.Exec(`
 		INSERT INTO theo_api_keys
-			(id, subject, tenant_id, key_name, key_hash, key_prefix, scopes, expires_at, bff_minted, created_at)
-		VALUES ($1,$2,$3,'e2e',$4,'theo_live_',$5::jsonb, NOW() + interval '1 hour', false, NOW())
+			(id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, bff_minted, created_at)
+		VALUES ($1,$2,$3,$4,'e2e',$5,'theo_live_',$6::jsonb, NOW() + interval '1 hour', false, NOW())
 		ON CONFLICT (key_hash) DO NOTHING`,
-		id, subject, tenant, keyHash, `["memory:read","memory:write","memory:delete"]`)
+		id, subject, tenant, accountID, keyHash, `["memory:read","memory:write","memory:delete"]`)
 	if err != nil {
 		t.Fatalf("seed api key for %s: %v", subject, err)
 	}
 	return bearer
+}
+
+// ensureTenantAccount returns the account_id that owns `tenant`, provisioning a
+// synthetic owner + account + tenant when the tenant row does not yet exist.
+// Post-M3 (000044) every tenant has a NOT NULL account_id, so an existing tenant
+// always resolves; the provisioning branch covers tests that seed only a key.
+func ensureTenantAccount(t *testing.T, db *sql.DB, tenant string) string {
+	t.Helper()
+	var acct string
+	err := db.QueryRow(`SELECT account_id FROM tenants WHERE id = $1`, tenant).Scan(&acct)
+	if err == nil && acct != "" {
+		return acct // inherit the existing tenant's account
+	}
+	// Provision owner + account + tenant for this tenant id (idempotent).
+	owner := "owner-" + tenant
+	acct = "acct-seed-" + tenant
+	if _, err := db.Exec(
+		`INSERT INTO users (id, email, username, display_name)
+		 VALUES ($1, $1 || '@e2e.test', $1, $1) ON CONFLICT (id) DO NOTHING`, owner); err != nil {
+		t.Fatalf("ensure owner for %s: %v", tenant, err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO accounts (id, display_name, plan, owner_id, created_at, updated_at)
+		 VALUES ($1, $1, 'starter', $2, NOW(), NOW()) ON CONFLICT (owner_id) DO NOTHING`, acct, owner); err != nil {
+		t.Fatalf("ensure account for %s: %v", tenant, err)
+	}
+	if err := db.QueryRow(`SELECT id FROM accounts WHERE owner_id = $1`, owner).Scan(&acct); err != nil {
+		t.Fatalf("resolve account for %s: %v", tenant, err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO tenants (id, display_name, slug, owner_id, account_id, cell_id)
+		 VALUES ($1, $1, $1, $2, $3, 'cell-1') ON CONFLICT (id) DO NOTHING`, tenant, owner, acct); err != nil {
+		t.Fatalf("ensure tenant %s: %v", tenant, err)
+	}
+	return acct
 }
 
 // seedMemory writes a memory into TheMemory under user scope == subject, via the

@@ -193,26 +193,13 @@ func TestAccountBrokerM1_CrossAccount_403_NoMint(t *testing.T) {
 	}
 }
 
-// Scenario 3 — a legacy key (NULL account_id) skips the check → 200 (M0 compat).
-func TestAccountBrokerM1_LegacyNullAccount_200(t *testing.T) {
-	db := openM1DB(t)
-	const owner, ten = "m1-leg-uid", "tn-m1leg"
-	cleanupM1(t, db, owner)
-	seedUser(t, db, owner, "m1leg@e2e.test")
-	if _, err := db.Exec(`INSERT INTO tenants (id,display_name,slug,owner_id,cell_id) VALUES ($1,'T','m1leg',$2,'cell-1')`, ten, owner); err != nil {
-		t.Fatalf("seed tenant: %v", err)
-	}
-	bearer := seedAccountKey(t, db, owner, ten, sql.NullString{Valid: false}) // NULL account
-
-	cm := &captureMinter{}
-	rec := serveM1(t, m1Handler(t, db, cm), bearer)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("legacy NULL-account key must mint (200), got %d", rec.Code)
-	}
-	if cm.workspace() != ten {
-		t.Fatalf("minted workspace=%q, want %q", cm.workspace(), ten)
-	}
-}
+// NOTE (M3): the former Scenario 3 — "legacy key (NULL account_id) skips the
+// check → 200" — was REMOVED. M3 migration 000044 makes theo_api_keys.account_id
+// (and tenants.account_id) NOT NULL, so a NULL-account key can no longer exist in
+// the database and this e2e could no longer seed the state it asserted. The
+// defensive empty-account skip branch it exercised is schema-independent and
+// stays covered at the unit layer:
+// internal/routes/forward_auth_test.go::TestForwardAuth_LegacyNullAccount_SkipsCheck_200.
 
 // Concurrency — N distinct account-aware credentials drive ForwardAuth against
 // real pg under -race; all 200, no data race.
