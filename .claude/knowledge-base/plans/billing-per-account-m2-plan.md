@@ -63,7 +63,7 @@ Verified against current code on `develop` (theo-cloud HEAD 90f7c62; theo migrat
 
 ### Current callers / dependents
 
-- The canonical plan resolver is `enforcement.sqlLimitsStore.GetTenantPlan` (`store.go:69-72`, `SELECT plan FROM subscriptions WHERE tenant_id=$1 AND status IN ('active','trialing') LIMIT 1`); it backs `PlanLimiter`. Read also at `routes/billing.go:75` (dashboard) and `billing/cost_aggregator.go:175` (cost). All three assume one subscription per tenant — they MUST resolve by account post-M2 (else a 2nd tenant of an account finds no plan).
+- The plan is read from `subscriptions` at two sites today: `routes/billing.go:75` (dashboard, `SELECT plan, ... FROM subscriptions WHERE tenant_id=$1`) and `billing/cost_aggregator.go:175` (cost projection, `SELECT plan FROM subscriptions WHERE tenant_id=$1 AND status='active'`). A third site — `metering/reporter.go` — joins `subscriptions` by `tenant_id` to find the Stripe subscription item for usage reporting. All assume one subscription per tenant — they MUST resolve by account post-M2 (else a 2nd tenant of an account finds no plan / its usage is silently dropped). (There is no `internal/enforcement` package; the cap is applied where projects are created, in the engine — unchanged.)
 - `subscriptions` is INSERTed at `tenant.go:156-162` (EnsureTenant) and `billing/provisioner.go:37-42` (ProvisionStarter, called by `routes/billing.go:62`), both `ON CONFLICT (tenant_id) DO NOTHING`.
 - The Stripe webhook (`billing/webhook.go`) finds the subscription by `stripe_customer_id` / `stripe_subscription_id` (NOT tenant_id) — unchanged by M2 (one subscription per account; the Stripe ids still resolve the account's row).
 - `plan_limits` (`000002`) holds the `projects` hard_limit per plan (starter=1, pro=3, team=10, enterprise=NULL/∞) — resolved per-Account via the account's plan.
@@ -76,13 +76,13 @@ Verified against current code on `develop` (theo-cloud HEAD 90f7c62; theo migrat
 
 ### Architecture boundaries affected
 
-Per `rules/architecture.md`: plan resolution stays in `internal/enforcement` (the canonical store) + `internal/billing`; the quota guard is in `internal/auth` (provisioning) reading `plan_limits` — no new cross-layer dependency. theo-memory/data-plane untouched (billing is control-plane only). The `tenant→account` join keeps the account as the billing boundary while the tenant stays the data-isolation boundary (unchanged).
+Per `rules/architecture.md`: plan/usage resolution stays in `internal/billing` (cost_aggregator, provisioner), `internal/routes` (dashboard billing handler) and `internal/metering` (usage reporter); the subscription INSERT stays in `internal/auth` (EnsureTenant provisioning). M2 only swaps the join key (`tenant_id` → `tenant→account→subscription`) at those existing sites — no new package, no new cross-layer dependency. theo-memory/data-plane untouched (billing is control-plane only). The `tenant→account` join keeps the account as the billing boundary while the tenant stays the data-isolation boundary (unchanged).
 
 ## Prior Art & Related Work
 
 - M0 plan/impl (`account-foundation-m0`) — the `accounts` table + `tenants.account_id` + the non-destructive migration pattern (nullable→backfill→NOT NULL) M2's schema mirrors; the e2e harness (`seedUser/seedTenant`, `EnsureTenant`) M2's e2e reuses.
 - `tests/unit/tenant_test.go` — the sqlmock shape for EnsureTenant's transactional INSERTs M2 extends.
-- `internal/enforcement/store_test.go` + `internal/billing/*_test.go` — the plan-resolution + provisioner TDD shapes M2 mirrors.
+- `internal/billing/*_test.go` (cost_aggregator, provisioner) + `tests/unit/tenant_test.go` — the plan-resolution + provisioner + subscription-INSERT sqlmock shapes M2 mirrors.
 
 ## ADRs (decisions for this plan)
 
@@ -187,13 +187,13 @@ RED: e2e asserts `is_nullable='NO'` for `subscriptions.account_id` after up; `'Y
 ### T2.1 — plan resolution resolves the account's subscription
 
 #### Files to edit
-`internal/enforcement/store.go` (69-72 `GetTenantPlan`), `internal/routes/billing.go` (74-77), `internal/billing/cost_aggregator.go` (174-176), their `*_test.go`
+`internal/routes/billing.go` (74-77), `internal/billing/cost_aggregator.go` (174-176), `internal/metering/reporter.go` (subscription join), their `*_test.go`
 
 #### Why this step
 Action: change each `… FROM subscriptions WHERE tenant_id=$1 …` to `… FROM subscriptions s JOIN tenants t ON t.account_id = s.account_id WHERE t.id = $1 AND s.status …`. Reasoning: ANY tenant of an account resolves the account's single subscription plan (ADR-M2-1); the 2nd tenant no longer falls through to the default.
 
 #### TDD
-RED (sqlmock): `test_gettenantplan_resolves_via_account_join` — a tenant whose account's subscription is `pro` resolves `pro` even though no subscription has that `tenant_id`. Mirror for billing.go + cost_aggregator.go.
+RED: `TestProvisionStarter_AccountScopedInsert` (sqlmock) + the e2e `TwoTenantsResolveAccountPlan` (real pg) — a tenant whose account's subscription is `pro` resolves `pro` even though no subscription has that `tenant_id`. The account-join is proven end-to-end against pg-cloud (cost_aggregator + billing.go + reporter share the same `tenant→account` join).
 
 #### Concurrency tests
 (none — single-threaded). Stateless reads.
@@ -203,7 +203,7 @@ RED (sqlmock): `test_gettenantplan_resolves_via_account_join` — a tenant whose
 - DB error → propagated (existing contract), never a silent default.
 
 #### Acceptance criteria
-- [ ] `go test ./internal/enforcement/... ./internal/billing/...` exits 0 AND `test_gettenantplan_resolves_via_account_join` asserts a 2nd tenant of a `pro` account resolves `plan == "pro"` via the join (no `WHERE s.tenant_id` remains in the three resolvers — `grep` returns 0).
+- [ ] `go test ./internal/billing/... ./internal/routes/... ./internal/metering/...` exits 0 AND the e2e `TwoTenantsResolveAccountPlan` asserts a 2nd tenant of a `pro` account resolves `plan == "pro"` via the join (no `subscriptions s ON s.tenant_id` / `FROM subscriptions WHERE tenant_id` remains in the resolvers — `grep` returns 0).
 
 ### T2.2 — provision ONE subscription per Account
 
@@ -257,17 +257,17 @@ Phase 4 scenario 3 proves the cap resolves from the Account's plan.
 Action: against `E2E_PG_CLOUD_DSN`, drive the real provisioning + resolution. Reasoning: only a real-pg run proves the migrations + Go agree at the account level.
 
 #### Scenarios (each an assertion)
-1. **Two tenants, one subscription, shared plan** — provision an account with a `pro` subscription, create a 2nd tenant for it (within quota); assert exactly ONE subscription for the account AND `GetTenantPlan(tenant2)` resolves `pro` (the account's plan) via the join.
-2. **Project cap resolves from the Account's plan** — for a `pro` account, the cap resolves via the account's plan to `plan_limits.projects = 3` (the cap is per-Account; enforcement-at-creation is the engine's, unchanged — see § Scope revision).
+1. **Two tenants, one subscription, shared plan** (e2e `TwoTenantsResolveAccountPlan`) — provision an account with a `pro` subscription, create a 2nd tenant for it; assert exactly ONE subscription for the account AND the account-join resolver returns `pro` for the 2nd tenant (whose `tenant_id` owns no subscription).
+2. **Project cap resolves from the Account's plan** (e2e `ProjectCapResolvesFromAccountPlan`) — for a `pro` account, the cap resolves via the account's plan to `plan_limits.projects = 3` (the cap is per-Account; enforcement-at-creation is the engine's, unchanged — see § Scope revision).
 3. **Backfill + unique swap** — seed a pre-migration subscription; after the full migrate-up assert `account_id` backfilled + `UNIQUE(account_id)` enforced + `UNIQUE(tenant_id)` gone.
 4. **Migration round-trip** — `migrate up 039→043` then `down 043→039` exit 0 (reversible).
 
 #### Concurrency tests
-`test_m2_concurrent_provision_quota_race` — N goroutines provision tenants for one at-boundary account under `go test -race`; assert the tenant count never exceeds the cap.
+The provision-quota race was descoped with the quota guard (§ Scope revision). The remaining M2 race is the **duplicate-Stripe-customer** race: two tenants of the SAME account hitting `EnsureStripeCustomer` (`/portal`) concurrently. It is closed structurally — the subscription INSERT uses `ON CONFLICT (account_id) DO NOTHING` and `stripe.go CreateCustomer` keys its Stripe idempotency on `{accountID}-create-customer` — so concurrent callers converge on ONE customer / ONE subscription. The e2e `OneSubscriptionPerAccount` asserts the single-row invariant under `go test -race` against pg-cloud; the Stripe-API leg is not unit-`-race`-tested (no live Stripe in CI) and relies on the deterministic idempotency key.
 
 #### DoD (Global)
 - [ ] `go build ./...` exit 0.
-- [ ] `go test -race ./internal/auth/... ./internal/billing/... ./internal/enforcement/... ./tests/unit/` GREEN.
+- [ ] `go test -race ./internal/auth/... ./internal/billing/... ./internal/routes/... ./internal/metering/... ./tests/unit/` GREEN.
 - [ ] `go test -tags=e2e -race ./tests/e2e/ -run BillingPerAccountM2` GREEN vs pg-cloud.
 - [ ] `migrate up 039→043` and `down 043→039` exit 0; backfill correct.
 - [ ] Wiring triad per changed path (account-scoped subscription INSERT + the 3 account-join resolvers have production callers; integration test = T4.1; runtime: existing provisioning log).

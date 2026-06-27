@@ -63,15 +63,16 @@ type PortalSession struct {
 }
 
 // CreateCustomer creates a Stripe customer for a new tenant.
-func (c *StripeClient) CreateCustomer(email, tenantID, name string) (*Customer, error) {
+func (c *StripeClient) CreateCustomer(email, accountID, name string) (*Customer, error) {
 	data := url.Values{
-		"email":               {email},
-		"name":                {name},
-		"metadata[tenant_id]": {tenantID},
+		"email":                {email},
+		"name":                 {name},
+		"metadata[account_id]": {accountID}, // M2: the Stripe customer is per-Account
 	}
 
-	// Idempotency key prevents duplicate customers on crash/retry
-	idempotencyKey := fmt.Sprintf("%s-create-customer", tenantID)
+	// Idempotency key prevents duplicate customers on crash/retry AND on a race
+	// between two tenants of the same Account (M2 — account-scoped, not per-tenant).
+	idempotencyKey := fmt.Sprintf("%s-create-customer", accountID)
 
 	var customer Customer
 	if err := c.post("/customers", data, &customer, idempotencyKey); err != nil {

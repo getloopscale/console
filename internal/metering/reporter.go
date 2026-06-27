@@ -54,10 +54,15 @@ func (r *Reporter) ReportPending() error {
 	// reuses this connection.
 	drain := func() ([]pending, error) {
 		rows, err := tx.Query(
+			// M2: billing is per-Account. Resolve each usage record's subscription
+			// via its tenant's Account (a 2nd tenant of an Account has no subscription
+			// of its own — joining by tenant_id would silently drop its usage and
+			// under-bill the Account).
 			`SELECT ur.id, ur.tenant_id, ur.metric, ur.quantity, ur.created_at,
 			        COALESCE(s.stripe_subscription_item_id, '')
 			 FROM usage_records ur
-			 JOIN subscriptions s ON s.tenant_id = ur.tenant_id
+			 JOIN tenants t ON t.id = ur.tenant_id
+			 JOIN subscriptions s ON s.account_id = t.account_id
 			 WHERE ur.reported_to_stripe = false
 			 AND ur.quantity > 0
 			 ORDER BY ur.created_at ASC

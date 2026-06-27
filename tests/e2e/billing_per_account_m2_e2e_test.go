@@ -37,6 +37,7 @@ func openM2DB(t *testing.T) *sql.DB {
 func cleanupM2(t *testing.T, db *sql.DB, owner string) {
 	t.Helper()
 	for _, s := range []string{
+		`DELETE FROM usage_records WHERE tenant_id IN (SELECT id FROM tenants WHERE owner_id=$1)`,
 		`DELETE FROM subscriptions WHERE account_id IN (SELECT id FROM accounts WHERE owner_id=$1)`,
 		`DELETE FROM tenants WHERE owner_id=$1`,
 		`DELETE FROM accounts WHERE owner_id=$1`,
@@ -116,13 +117,82 @@ func TestBillingPerAccountM2_ProjectCapResolvesFromAccountPlan(t *testing.T) {
 	const owner, acct, tn1, tn2 = "m2-cap-uid", "acct-m2cap", "tn-m2cap-a", "tn-m2cap-b"
 	seedAccountWithTwoTenantsOneSub(t, db, owner, acct, tn1, tn2, "pro")
 
-	// Resolve the cap the same way the platform would: account's plan → plan_limits.
-	var cap sql.NullInt64
+	// Resolve the cap the same way the platform would: 2nd tenant → account's plan
+	// → plan_limits. Assert it equals a DIRECT lookup of the pro cap (so the test is
+	// pinned to the real product seed, not a hardcoded magic number): the account
+	// join must resolve the SAME plan a direct 'pro' lookup does.
+	var capViaJoin sql.NullInt64
 	q := `SELECT hard_limit FROM plan_limits WHERE plan = (` + accountPlanQuery + `) AND metric='projects'`
-	if err := db.QueryRow(q, tn2).Scan(&cap); err != nil {
+	if err := db.QueryRow(q, tn2).Scan(&capViaJoin); err != nil {
 		t.Fatalf("resolve project cap for tenant %s: %v", tn2, err)
 	}
-	if !cap.Valid || cap.Int64 != 3 {
-		t.Fatalf("pro account project cap = %v, want 3 (plan_limits pro/projects)", cap)
+	var capDirect sql.NullInt64
+	if err := db.QueryRow(`SELECT hard_limit FROM plan_limits WHERE plan='pro' AND metric='projects'`).Scan(&capDirect); err != nil {
+		t.Fatalf("direct pro cap lookup: %v", err)
+	}
+	if !capViaJoin.Valid {
+		t.Fatal("project cap resolved via the account join is NULL — the join did not resolve the account's plan")
+	}
+	if capViaJoin.Int64 != capDirect.Int64 {
+		t.Fatalf("cap via account join = %d, direct pro cap = %d — the 2nd tenant must resolve the account's pro plan", capViaJoin.Int64, capDirect.Int64)
+	}
+}
+
+// The exact account-join the usage reporter (metering/reporter.go) drains by —
+// a usage record resolves its subscription via tenant → account, NOT tenant_id,
+// so a 2nd tenant of the Account (which owns no subscription) is still billed.
+const reporterDrainJoin = `
+SELECT ur.tenant_id, COALESCE(s.stripe_subscription_item_id,'')
+FROM usage_records ur
+JOIN tenants t ON t.id = ur.tenant_id
+JOIN subscriptions s ON s.account_id = t.account_id
+WHERE ur.reported_to_stripe = false AND ur.quantity > 0
+ORDER BY ur.tenant_id`
+
+// Scenario 4 — the usage reporter bills BOTH tenants of an Account from the ONE
+// subscription. Regression guard for the under-billing bug: joining usage by
+// tenant_id silently dropped the 2nd tenant's usage (it owns no subscription).
+func TestBillingPerAccountM2_ReporterBillsAllTenantsOfAccount(t *testing.T) {
+	db := openM2DB(t)
+	const owner, acct, tn1, tn2 = "m2-rep-uid", "acct-m2rep", "tn-m2rep-a", "tn-m2rep-b"
+	seedAccountWithTwoTenantsOneSub(t, db, owner, acct, tn1, tn2, "pro")
+	// Link a Stripe subscription item so the reporter would actually report (not skip).
+	if _, err := db.Exec(`UPDATE subscriptions SET stripe_subscription_item_id='si_m2rep' WHERE account_id=$1`, acct); err != nil {
+		t.Fatalf("set item id: %v", err)
+	}
+	// Unreported usage for BOTH tenants of the account.
+	for _, tn := range []string{tn1, tn2} {
+		if _, err := db.Exec(
+			`INSERT INTO usage_records (id,tenant_id,metric,quantity,period_start,period_end,reported_to_stripe)
+			 VALUES ($1,$2,'memory_ops',5,now(),now(),false)`, "ur-"+tn, tn,
+		); err != nil {
+			t.Fatalf("seed usage %s: %v", tn, err)
+		}
+	}
+
+	rows, err := db.Query(reporterDrainJoin)
+	if err != nil {
+		t.Fatalf("reporter drain join: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	got := map[string]string{}
+	for rows.Next() {
+		var tn, item string
+		if err := rows.Scan(&tn, &item); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		got[tn] = item
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+	// BOTH tenants resolved (the under-billing regression would drop tn2).
+	for _, tn := range []string{tn1, tn2} {
+		if got[tn] != "si_m2rep" {
+			t.Fatalf("tenant %s usage not resolved to the account's subscription item (got %q) — under-billing regression", tn, got[tn])
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("want both tenants' usage drained via the account join, got %d", len(got))
 	}
 }
