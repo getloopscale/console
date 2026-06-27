@@ -166,6 +166,13 @@ func main() {
 	// Billing mutations are per authenticated user.
 	deviceLimiter := ratelimit.NewInMemoryLimiter(60, time.Minute)
 	billingLimiter := ratelimit.NewInMemoryLimiter(30, time.Minute)
+	// F-sec-1 absorption: BFF-layer defense-in-depth for /v1/auth/register.
+	// Caddy edge `register_throttle` (5/min) matches /self-service/registration/*
+	// on auth-dev.usetheo.dev only — the BFF endpoint on cloud-dev / app-dev
+	// is reachable without that edge gate (k8s NodePort, cross-cluster, dev
+	// direct hits). 5/min/IP keeps brute-force registration infeasible even
+	// when Caddy is bypassed. Per Red Team theo-cloud#43 closure plan.
+	registerLimiter := ratelimit.NewInMemoryLimiter(5, time.Minute)
 	ipKey := func(r *http.Request) string { return ratelimit.Key("", r.RemoteAddr) }
 	userKey := func(r *http.Request) string {
 		if u := auth.GetUser(r.Context()); u != nil {
@@ -447,13 +454,27 @@ func main() {
 
 		// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 —
 		// response-shape unifier middleware. Unauthenticated (the dashboard
-		// register page POSTs without a session); edge rate_limit
-		// register_throttle (T1.2) caps per-IP abuse.
-		r.Post("/register", registerProxyHandler.Post)
+		// register page POSTs without a session). Defense-in-depth:
+		// (a) Caddy edge `register_throttle` (5/min, T1.2) on auth-dev block, AND
+		// (b) BFF `registerLimiter` (5/min/IP, F-sec-1 absorption) here, which
+		// holds even when traffic bypasses the edge (k8s NodePort, dev direct).
+		r.With(ratelimit.Middleware(registerLimiter, 5, ipKey)).
+			Post("/register", registerProxyHandler.Post)
 
 		// /me requires JWT
 		r.With(requireJWT).Get("/me", meHandler.Get)
 	})
+
+	// F-arch-1 absorption: alias mount of the BFF register handler at the
+	// canonical Kratos self-service path. The Caddy auth-dev block
+	// `handle /self-service/registration/methods/password { reverse_proxy
+	// localhost:13002 }` preserves the inbound path (Caddyfile `handle`,
+	// not `handle_path`). Without this alias the BFF returns 404 for every
+	// auth-dev-origin registration submission — Slice C closure of
+	// theo-cloud#43 would silently fail end-to-end on that host. Mounted
+	// outside /v1/auth so the canonical Kratos URL space is honored.
+	r.With(ratelimit.Middleware(registerLimiter, 5, ipKey)).
+		Post("/self-service/registration/methods/password", registerProxyHandler.Post)
 
 	// Telemetry — T1.2 of plan 2026-05-27-backend-frontend-integration v1.1.
 	// PUBLIC (no JWT) — sendBeacon API cannot set custom Authorization

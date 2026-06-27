@@ -237,3 +237,134 @@ func TestRegisterProxy_DashboardCanContinue_WithoutFlowToken_OnNewEmailSuccess(t
 			got["redirect"])
 	}
 }
+
+// F-sec-3 absorption regression-protector: malformed `?flow=` query parameter
+// MUST NOT be concatenated raw into the upstream URL. A flow that fails the
+// canonical UUID shape returns the universal response WITHOUT making the
+// upstream call (universal response also ensures no enumeration leak).
+func TestRegisterProxy_RejectsMalformedFlowID_NoSSRFConcat(t *testing.T) {
+	var upstreamHit bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHit = true
+		// If the upstream IS hit, ensure the malformed flow did not slip
+		// through as a raw query injection.
+		if got := r.URL.Query().Get("flow"); strings.Contains(got, "&admin=true") || strings.Contains(got, "#") {
+			t.Errorf("SSRF: malformed flow leaked to upstream: %q", got)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer upstream.Close()
+
+	h := newProxyWithUpstream(t, upstream)
+	// Adversarial query: not-a-UUID with attempted parameter injection.
+	req := httptest.NewRequest(http.MethodPost,
+		"/v1/auth/register?flow=abc&admin=true",
+		bytes.NewReader([]byte(`{"email":"x@example.com","password":"valid-13c-pwd!"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.Post(rr, req)
+
+	if upstreamHit {
+		t.Fatalf("upstream MUST NOT be called when flow_id is malformed (defense-in-depth against SSRF)")
+	}
+	if rr.Code != http.StatusOK {
+		t.Errorf("want 200 universal response on malformed flow, got %d", rr.Code)
+	}
+	got := mustReadJSON(t, rr.Body)
+	if got["message"] != "If the email is valid, we sent verification instructions." {
+		t.Errorf("want canonical universal message, got %q", got["message"])
+	}
+}
+
+// F-sec-3 absorption: a well-formed UUID flow_id IS forwarded to upstream,
+// canonically encoded via url.Values (no raw concat).
+func TestRegisterProxy_AcceptsCanonicalFlowID_EncodesViaURLValues(t *testing.T) {
+	const canonicalFlow = "23abd533-a011-419d-9c88-052032827663"
+	var observedFlow string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		observedFlow = r.URL.Query().Get("flow")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer upstream.Close()
+
+	h := newProxyWithUpstream(t, upstream)
+	req := httptest.NewRequest(http.MethodPost,
+		"/v1/auth/register?flow="+canonicalFlow,
+		bytes.NewReader([]byte(`{"email":"x@example.com","password":"valid-13c-pwd!"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.Post(rr, req)
+
+	if observedFlow != canonicalFlow {
+		t.Errorf("upstream observed flow=%q, want %q (canonical UUID propagated)", observedFlow, canonicalFlow)
+	}
+	if rr.Code != http.StatusOK {
+		t.Errorf("want 200, got %d", rr.Code)
+	}
+}
+
+// F-sec-5 absorption: bodies larger than maxRegisterBodyBytes (64 KiB) MUST
+// be rejected without unbounded allocation. The universal response still
+// fires (no enumeration leak).
+func TestRegisterProxy_RejectsOversizedBody_NoUnboundedAllocation(t *testing.T) {
+	var upstreamHit bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHit = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	h := newProxyWithUpstream(t, upstream)
+	// 128 KiB body — twice the cap.
+	huge := bytes.Repeat([]byte("A"), 128*1024)
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register",
+		bytes.NewReader(huge))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.Post(rr, req)
+
+	if upstreamHit {
+		t.Fatalf("upstream MUST NOT be called when body exceeds cap")
+	}
+	if rr.Code != http.StatusOK {
+		t.Errorf("want 200 universal (per EC-4 no-leak invariant), got %d", rr.Code)
+	}
+}
+
+// F-sec-8 absorption: cache-control headers stamped on the universal +
+// redirect + 503 branches so a CDN / browser back-button cannot surface a
+// stale response (which includes the redirect hint) to an unrelated user.
+func TestRegisterProxy_ResponsesHaveCacheControlNoStore(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer upstream.Close()
+
+	h := newProxyWithUpstream(t, upstream)
+
+	// JSON branch — universal 200.
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register",
+		bytes.NewReader([]byte(`{"email":"x@example.com"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.Post(rr, req)
+	if cc := rr.Header().Get("Cache-Control"); cc != "no-store, private" {
+		t.Errorf("universal 200: want Cache-Control=no-store, private; got %q", cc)
+	}
+
+	// Form-encoded branch — 303 redirect.
+	req2 := httptest.NewRequest(http.MethodPost, "/v1/auth/register",
+		bytes.NewReader([]byte(`email=x@example.com`)))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr2 := httptest.NewRecorder()
+	h.Post(rr2, req2)
+	if cc := rr2.Header().Get("Cache-Control"); cc != "no-store, private" {
+		t.Errorf("303 redirect: want Cache-Control=no-store, private; got %q", cc)
+	}
+}

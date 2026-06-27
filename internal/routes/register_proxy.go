@@ -9,9 +9,23 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
+
+// Maximum size of the inbound request body. Registration payloads are
+// well under 4 KiB in practice; 64 KiB is a generous ceiling that bounds
+// memory allocation per request (F-sec-5 absorption — defense vs OOM
+// when the BFF is reached without an upstream Caddy request_body cap).
+const maxRegisterBodyBytes int64 = 64 * 1024
+
+// flowIDPattern is the canonical UUID v4 shape emitted by the upstream
+// identity-store on flow init (F-sec-3 absorption — SSRF defense:
+// reject malformed `?flow=` query so the upstream URL cannot have
+// arbitrary `&extra=`/`#fragment` injected via raw string concat).
+var flowIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 (EC-4 + EC-13).
 //
@@ -90,25 +104,54 @@ func canonicalBody() universalResponse {
 // universal response on any upstream non-5xx outcome. On upstream timeout
 // or 5xx, returns a generic 503 with no body details (no leak).
 func (h *RegisterProxyHandler) Post(w http.ResponseWriter, r *http.Request) {
+	// F-sec-5 absorption: bound the request body. http.MaxBytesReader
+	// closes the connection and returns an error from Read once the cap
+	// is exceeded, so io.ReadAll cannot allocate unbounded memory.
+	r.Body = http.MaxBytesReader(w, r.Body, maxRegisterBodyBytes)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		// EC-4: even malformed input gets the canonical response (no leak
-		// of "we couldn't parse your input" — that itself is a probe vector).
+		// EC-4: even malformed/over-cap input gets the canonical response
+		// (no leak of "we couldn't parse your input" — that itself is a
+		// probe vector). Log so ops can see body-cap hits / parse errors.
+		if h.Logger != nil {
+			h.Logger.Warn("register-proxy: body read failed (capped or malformed); emitting universal response",
+				"err", err.Error())
+		}
 		h.writeUniversal(w)
 		return
 	}
 	defer r.Body.Close()
 
-	// Build the upstream request. Use the path from the URL query so flow
-	// continuation works for legitimate browser flows; the upstream
-	// validates flow_id on its side.
-	upstreamPath := "/self-service/registration"
+	// Build the upstream request using net/url (F-sec-3 absorption —
+	// SSRF defense: never concat user-controlled `?flow=` into the
+	// upstream URL string). Validate flow_id against the canonical UUID
+	// shape; reject malformed values silently with the universal
+	// response (no leak of "your flow_id is malformed").
+	upstreamURL, err := url.Parse(h.UpstreamURL + "/self-service/registration")
+	if err != nil {
+		if h.Logger != nil {
+			h.Logger.Warn("register-proxy: upstream URL parse failed",
+				"err", err.Error())
+		}
+		h.writeError503(w)
+		return
+	}
 	flow := r.URL.Query().Get("flow")
 	if flow != "" {
-		upstreamPath += "?flow=" + flow
+		if !flowIDPattern.MatchString(flow) {
+			// EC-4: malformed flow_id → universal response (no enum leak).
+			if h.Logger != nil {
+				h.Logger.Warn("register-proxy: rejected malformed flow_id; emitting universal response")
+			}
+			h.writeUniversal(w)
+			return
+		}
+		q := upstreamURL.Query()
+		q.Set("flow", flow)
+		upstreamURL.RawQuery = q.Encode()
 	}
 	upstreamReq, err := http.NewRequestWithContext(
-		r.Context(), http.MethodPost, h.UpstreamURL+upstreamPath, bytes.NewReader(body))
+		r.Context(), http.MethodPost, upstreamURL.String(), bytes.NewReader(body))
 	if err != nil {
 		if h.Logger != nil {
 			h.Logger.Warn("register-proxy: upstream request build failed",
@@ -172,7 +215,17 @@ func isFormEncoded(r *http.Request) bool {
 		strings.HasPrefix(ct, "multipart/form-data")
 }
 
+// applyNoCache stamps the no-store / no-cache headers shared by all 3
+// response branches. F-sec-8 absorption — defense vs CDN / browser
+// back-button surfacing a stale universal response that includes a
+// redirect hint to an unrelated user.
+func applyNoCache(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store, private")
+	w.Header().Set("Pragma", "no-cache")
+}
+
 func (h *RegisterProxyHandler) writeUniversal(w http.ResponseWriter) {
+	applyNoCache(w)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(canonicalBody())
@@ -183,11 +236,13 @@ func (h *RegisterProxyHandler) writeUniversal(w http.ResponseWriter) {
 // /auth/check-email regardless of new-vs-existing email branch (EC-4
 // invariant preserved for form-encoded clients).
 func (h *RegisterProxyHandler) writeRedirect303(w http.ResponseWriter) {
+	applyNoCache(w)
 	w.Header().Set("Location", canonicalBody().Redirect)
 	w.WriteHeader(http.StatusSeeOther)
 }
 
 func (h *RegisterProxyHandler) writeError503(w http.ResponseWriter) {
+	applyNoCache(w)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusServiceUnavailable)
 	_ = json.NewEncoder(w).Encode(map[string]string{
