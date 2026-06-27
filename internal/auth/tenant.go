@@ -170,6 +170,7 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 
 	p.logger.Info("auto-provisioned tenant for new user",
 		"tenant_id", tenantID,
+		"account_id", accountID,
 		"slug", finalSlug,
 		"user_id", userID,
 		"email", email,
