@@ -1,0 +1,212 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025-2026 The Theo Authors
+
+package routes
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 — register-proxy
+// response-shape unifier middleware tests. 5 tests covering all 4 plan
+// scenarios + the EC-4 absorption (dashboard continuation guarantee).
+
+func newProxyWithUpstream(t *testing.T, upstream *httptest.Server) *RegisterProxyHandler {
+	t.Helper()
+	return NewRegisterProxyHandler(upstream.URL, nil)
+}
+
+func mustReadJSON(t *testing.T, body io.Reader) map[string]string {
+	t.Helper()
+	all, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	m := map[string]string{}
+	if err := json.Unmarshal(all, &m); err != nil {
+		t.Fatalf("unmarshal body=%q: %v", string(all), err)
+	}
+	return m
+}
+
+func TestRegisterProxy_NewEmail_Returns200UniversalMessage(t *testing.T) {
+	// Upstream simulates new-email path: 200 + canonical Kratos-like success body.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"identity":{"id":"abc123"}}`))
+	}))
+	defer upstream.Close()
+
+	h := newProxyWithUpstream(t, upstream)
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register",
+		bytes.NewReader([]byte(`{"email":"new@example.com","password":"valid-13c-pwd!"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.Post(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("want 200 universal response, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	got := mustReadJSON(t, rr.Body)
+	if !strings.Contains(got["message"], "If the email is valid") {
+		t.Errorf("want canonical message, got %q", got["message"])
+	}
+	if got["redirect"] != "/auth/check-email" {
+		t.Errorf("want redirect=/auth/check-email, got %q", got["redirect"])
+	}
+}
+
+func TestRegisterProxy_ExistingEmail_Returns200UniversalMessageNotLeakingExistence(t *testing.T) {
+	// Upstream simulates existing-email path: 400 + error body saying "exists".
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"An account with the same identifier exists already."}}`))
+	}))
+	defer upstream.Close()
+
+	h := newProxyWithUpstream(t, upstream)
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register",
+		bytes.NewReader([]byte(`{"email":"existing@example.com","password":"valid-13c-pwd!"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.Post(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("want 200 universal response (no leak via status), got %d body=%s",
+			rr.Code, rr.Body.String())
+	}
+	got := mustReadJSON(t, rr.Body)
+	// Critical: response body MUST NOT contain "exists" / "already" or any
+	// hint that the email is known to the system.
+	bodyStr := strings.ToLower(rr.Body.String())
+	for _, leak := range []string{"exists", "already", "in use", "identifier", "duplicate"} {
+		if strings.Contains(bodyStr, leak) {
+			t.Errorf("response leaks existence hint %q in body: %s", leak, rr.Body.String())
+		}
+	}
+	if !strings.Contains(got["message"], "If the email is valid") {
+		t.Errorf("want canonical message, got %q", got["message"])
+	}
+}
+
+func TestRegisterProxy_UpstreamError_Returns503OrGenericError(t *testing.T) {
+	// Upstream simulates 5xx outage.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":{"message":"backend exploded"}}`))
+	}))
+	defer upstream.Close()
+
+	h := newProxyWithUpstream(t, upstream)
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register",
+		bytes.NewReader([]byte(`{"email":"any@example.com","password":"x"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.Post(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("want 503 on upstream 5xx, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	// Body must NOT leak upstream error details.
+	bodyStr := strings.ToLower(rr.Body.String())
+	for _, leak := range []string{"backend exploded", "kratos", "ory"} {
+		if strings.Contains(bodyStr, leak) {
+			t.Errorf("503 response leaks upstream details %q in body: %s", leak, rr.Body.String())
+		}
+	}
+}
+
+func TestRegisterProxy_ResponseShape_IsIdenticalAcrossNewVsExistingEmail(t *testing.T) {
+	// Side-by-side check: both branches MUST produce byte-identical body.
+	upstreamNew := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"identity":{"id":"new"}}`))
+	}))
+	defer upstreamNew.Close()
+	upstreamExisting := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"exists"}}`))
+	}))
+	defer upstreamExisting.Close()
+
+	hNew := newProxyWithUpstream(t, upstreamNew)
+	hExisting := newProxyWithUpstream(t, upstreamExisting)
+
+	makeReq := func() *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/v1/auth/register",
+			bytes.NewReader([]byte(`{"email":"probe@example.com","password":"x"}`)))
+		r.Header.Set("Content-Type", "application/json")
+		return r
+	}
+
+	rrNew := httptest.NewRecorder()
+	hNew.Post(rrNew, makeReq())
+	rrExisting := httptest.NewRecorder()
+	hExisting.Post(rrExisting, makeReq())
+
+	if rrNew.Code != rrExisting.Code {
+		t.Fatalf("status code diverges: new=%d existing=%d", rrNew.Code, rrExisting.Code)
+	}
+	if rrNew.Body.String() != rrExisting.Body.String() {
+		t.Fatalf("body diverges — enumeration leak. new=%s existing=%s",
+			rrNew.Body.String(), rrExisting.Body.String())
+	}
+}
+
+// EC-4 absorption: dashboard-continuation guarantee. The universal redirect
+// field MUST point to a generic continuation path that does NOT require a
+// flow token — so legitimate new users can advance to verification without
+// any branch-specific state leaking.
+func TestRegisterProxy_DashboardCanContinue_WithoutFlowToken_OnNewEmailSuccess(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// Upstream returns a real flow continuation token; canonical handler
+		// MUST NOT propagate it into the response body.
+		_, _ = w.Write([]byte(`{"identity":{"id":"new"},"continue_with":[{"action":"show_verification_ui","flow":{"id":"flow-secret-deadbeef","url":"https://kratos.example.com/self-service/verification?flow=flow-secret-deadbeef"}}]}`))
+	}))
+	defer upstream.Close()
+
+	h := newProxyWithUpstream(t, upstream)
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register",
+		bytes.NewReader([]byte(`{"email":"new@example.com","password":"valid-13c-pwd!"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h.Post(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	got := mustReadJSON(t, rr.Body)
+	// Redirect MUST be the canonical generic path — NOT a flow-specific URL.
+	if got["redirect"] != "/auth/check-email" {
+		t.Errorf("want redirect=/auth/check-email (generic, no flow token), got %q",
+			got["redirect"])
+	}
+	// Flow token MUST NOT appear anywhere in the response.
+	bodyStr := rr.Body.String()
+	if strings.Contains(bodyStr, "flow-secret-deadbeef") {
+		t.Errorf("flow token from upstream leaked into response body: %s", bodyStr)
+	}
+	if strings.Contains(bodyStr, "kratos.example.com") {
+		t.Errorf("upstream URL leaked into response body: %s", bodyStr)
+	}
+	// Dashboard navigation primitive: redirect must be a relative path that
+	// works without any flow_id parameter — proves the dashboard can
+	// continue without branch-specific state.
+	if !strings.HasPrefix(got["redirect"], "/") {
+		t.Errorf("redirect must be a relative path for dashboard continuation, got %q",
+			got["redirect"])
+	}
+}

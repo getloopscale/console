@@ -177,6 +177,12 @@ func main() {
 	// Handlers
 	deviceHandler := routes.NewDeviceHandler(hydra, cfg.BillingReturnURL)
 	meHandler := routes.NewMeHandler()
+	// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 — response-shape
+	// unifier middleware closing Red Team theo-cloud#43 (account enumeration via
+	// register response shape divergence). Proxies POST /v1/auth/register to the
+	// upstream identity-store and ALWAYS returns the canonical universal body
+	// regardless of new-vs-existing-email branch.
+	registerProxyHandler := routes.NewRegisterProxyHandler(cfg.KratosInternalURL, logger)
 	consentHandler := consent.NewHandler(hydra, tenantProvisioner, cfg.KratosPublicURL, cfg.KratosInternalURL, cfg.KratosAdminURL, logger)
 
 	// Plan 0 of dashboard-memory-section-roadmap.md: unified theo_live_* API keys.
@@ -438,6 +444,12 @@ func main() {
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/device/token", deviceHandler.Token)
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/token/refresh", deviceHandler.Refresh)
 		r.Post("/session/token", sessionTokenHandler.Exchange) // Dashboard: Kratos session → JWT (rate-limited inside the handler)
+
+		// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 —
+		// response-shape unifier middleware. Unauthenticated (the dashboard
+		// register page POSTs without a session); edge rate_limit
+		// register_throttle (T1.2) caps per-IP abuse.
+		r.Post("/register", registerProxyHandler.Post)
 
 		// /me requires JWT
 		r.With(requireJWT).Get("/me", meHandler.Get)
