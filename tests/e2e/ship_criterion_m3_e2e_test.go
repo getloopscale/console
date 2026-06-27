@@ -15,7 +15,9 @@
 //  4. legacy → 200: a session JWT minted before M3 (no account_id claim) still
 //     authenticates (the additive-claim backward-compat M3 introduces; a
 //     NULL-account *key* can no longer exist post-000044, see scenario 5);
-//  5. NOT NULL holds — inserting a tenant with a NULL account_id is rejected (M3).
+//  5. NOT NULL holds — inserting tenants/theo_api_keys with a NULL account_id is
+//     rejected with SQLSTATE 23502 on account_id (M3);
+//  6. the migration pre-flight guard RAISEs on a residual NULL (EC-5).
 //
 // Build-tagged e2e; run under -race:
 //
@@ -25,16 +27,38 @@ package e2e
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	theojwt "github.com/usetheodev/theo-contracts/jwt"
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
 )
+
+// assertNotNullViolation fails unless err is a Postgres not_null_violation
+// (SQLSTATE 23502) on the named column — so the test proves the RIGHT constraint
+// fired, not an incidental FK/typo error (false green).
+func assertNotNullViolation(t *testing.T, err error, column string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected a NOT NULL violation on %q, got nil", column)
+	}
+	var pg *pgconn.PgError
+	if !errors.As(err, &pg) {
+		t.Fatalf("expected a *pgconn.PgError on %q, got %T: %v", column, err, err)
+	}
+	if pg.Code != "23502" {
+		t.Fatalf("expected SQLSTATE 23502 (not_null_violation) on %q, got %s: %s", column, pg.Code, pg.Message)
+	}
+	if pg.ColumnName != column {
+		t.Fatalf("NOT NULL violation on column %q, want %q", pg.ColumnName, column)
+	}
+}
 
 func cleanupShip(t *testing.T, db *sql.DB, owners ...string) {
 	t.Helper()
@@ -198,12 +222,61 @@ func TestShipCriterionM3(t *testing.T) {
 
 	// --- 5. NOT NULL holds: a tenant with NULL account_id is rejected (M3 000044) ---
 	t.Run("AccountIDNotNullEnforced", func(t *testing.T) {
-		_, err := db.Exec(
+		// tenants.account_id NOT NULL — assert the SPECIFIC constraint (23502 on
+		// account_id), not just "some error" (which an FK/typo could fake).
+		_, errT := db.Exec(
 			`INSERT INTO tenants (id, display_name, slug, owner_id, account_id, cell_id)
 			 VALUES ('tn-ship-null', 'N', 'tn-ship-null', $1, NULL, 'cell-1')`, ownerAcme)
-		if err == nil {
+		if errT == nil {
 			_, _ = db.Exec(`DELETE FROM tenants WHERE id = 'tn-ship-null'`)
-			t.Fatal("inserting a tenant with NULL account_id must be rejected (000044 NOT NULL)")
 		}
+		assertNotNullViolation(t, errT, "account_id")
+
+		// theo_api_keys.account_id NOT NULL — the OTHER table 000044 enforces.
+		_, errK := db.Exec(
+			`INSERT INTO theo_api_keys (id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at, created_at)
+			 VALUES ('key-ship-null', $1, $2, NULL, 'n', 'hash-ship-null', 'theo_live_', '["memory:read"]'::jsonb, NOW() + interval '1 hour', NOW())`,
+			ownerAcme, tenant1)
+		if errK == nil {
+			_, _ = db.Exec(`DELETE FROM theo_api_keys WHERE id = 'key-ship-null'`)
+		}
+		assertNotNullViolation(t, errK, "account_id")
+	})
+
+	// --- 6. the migration's PRE-FLIGHT GUARD fires on a residual NULL with the
+	//        specific operator message (EC-5: a guard that never fires is untested).
+	//        Run the exact guard logic from 000044 inside a rolled-back tx after
+	//        seeding a NULL, so the assertion exercises the RAISE path, not just
+	//        the column constraint. ---
+	t.Run("PreflightGuardFiresOnResidualNull", func(t *testing.T) {
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+
+		if _, err := tx.Exec(`ALTER TABLE tenants ALTER COLUMN account_id DROP NOT NULL`); err != nil {
+			t.Fatalf("drop not null (in tx): %v", err)
+		}
+		if _, err := tx.Exec(
+			`INSERT INTO tenants (id, display_name, slug, owner_id, account_id, cell_id)
+			 VALUES ('tn-ship-guard', 'G', 'tn-ship-guard', $1, NULL, 'cell-1')`, ownerAcme); err != nil {
+			t.Fatalf("seed NULL tenant (in tx): %v", err)
+		}
+		// The exact pre-flight guard from migration 000044_*.up.sql.
+		_, gerr := tx.Exec(`DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM tenants WHERE account_id IS NULL) THEN
+    RAISE EXCEPTION 'tenants.account_id has NULLs — run the 000038 backfill before enforcing NOT NULL';
+  END IF;
+END $$;`)
+		if gerr == nil {
+			t.Fatal("pre-flight guard must RAISE on a residual NULL (EC-5)")
+		}
+		var pg *pgconn.PgError
+		if !errors.As(gerr, &pg) || pg.Code != "P0001" {
+			t.Fatalf("guard must raise a P0001 raise_exception, got %T %v", gerr, gerr)
+		}
+		// rolled back via defer — m2test stays NOT NULL + NULL-free.
 	})
 }
