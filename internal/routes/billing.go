@@ -6,6 +6,7 @@ package routes
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -72,10 +73,17 @@ func (h *BillingHandler) GetBilling(w http.ResponseWriter, r *http.Request) {
 		var ps, pe sql.NullTime
 		var sid sql.NullString
 		err := h.db.QueryRowContext(r.Context(),
-			"SELECT plan, current_period_start, current_period_end, stripe_subscription_id FROM subscriptions WHERE tenant_id = $1 AND status = 'active' LIMIT 1",
+			// M2: resolve the Account's single subscription (one plan per account).
+			"SELECT plan, current_period_start, current_period_end, stripe_subscription_id FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND status = 'active' LIMIT 1",
 			tenantID,
 		).Scan(&plan, &ps, &pe, &sid)
 		if err != nil {
+			// No active subscription → starter is the correct default (free tier,
+			// or account not yet provisioned). A real DB error is NOT that — surface
+			// it so a transient outage does not silently downgrade a paid account.
+			if !errors.Is(err, sql.ErrNoRows) {
+				slog.Warn("resolve account plan failed — defaulting to starter", "tenant", tenantID, "error", err)
+			}
 			plan = "starter"
 		}
 		if ps.Valid {

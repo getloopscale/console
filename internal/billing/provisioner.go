@@ -36,9 +36,12 @@ func (p *Provisioner) ProvisionStarter(ctx context.Context, userID, email, tenan
 	// Insert subscription row for starter plan (DB-only, no Stripe)
 	id := generateSubscriptionID()
 	_, err := p.db.ExecContext(ctx,
-		`INSERT INTO subscriptions (id, tenant_id, plan, status, created_at, updated_at)
-		 VALUES ($1, $2, 'starter', 'active', now(), now())
-		 ON CONFLICT (tenant_id) DO NOTHING`,
+		// M2: one subscription per Account. Derive account_id from the tenant and
+		// conflict on account_id, so a 2nd tenant of an existing account does NOT
+		// create a 2nd subscription.
+		`INSERT INTO subscriptions (id, tenant_id, account_id, plan, status, created_at, updated_at)
+		 VALUES ($1, $2, (SELECT account_id FROM tenants WHERE id = $2), 'starter', 'active', now(), now())
+		 ON CONFLICT (account_id) DO NOTHING`,
 		id, tenantID,
 	)
 	if err != nil {
@@ -64,11 +67,20 @@ func (p *Provisioner) EnsureStripeCustomer(ctx context.Context, tenantID, email,
 		return "", nil
 	}
 
-	// Check if customer already exists
+	// M2: the Stripe customer is per-Account (one billing entity). Resolve the
+	// tenant's Account once and key everything (lookup, create, link) by it.
+	var accountID string
+	if err := p.db.QueryRowContext(ctx,
+		"SELECT account_id FROM tenants WHERE id = $1", tenantID,
+	).Scan(&accountID); err != nil {
+		return "", fmt.Errorf("resolve account for stripe customer: %w", err)
+	}
+
+	// Check if the Account already has a Stripe customer.
 	var customerID sql.NullString
 	err := p.db.QueryRowContext(ctx,
-		"SELECT stripe_customer_id FROM subscriptions WHERE tenant_id = $1",
-		tenantID,
+		"SELECT stripe_customer_id FROM subscriptions WHERE account_id = $1",
+		accountID,
 	).Scan(&customerID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return "", err
@@ -77,8 +89,10 @@ func (p *Provisioner) EnsureStripeCustomer(ctx context.Context, tenantID, email,
 		return customerID.String, nil // Already has a Stripe customer
 	}
 
-	// Create Stripe customer (idempotent via Idempotency-Key in StripeClient)
-	customer, err := p.stripe.CreateCustomer(email, tenantID, name)
+	// Create the per-Account Stripe customer. The idempotency key is account-scoped
+	// (inside CreateCustomer), so two tenants of the SAME account hitting /portal
+	// concurrently converge on ONE customer (no duplicate-customer race).
+	customer, err := p.stripe.CreateCustomer(email, accountID, name)
 	if err != nil {
 		p.logger.Error("failed to create Stripe customer",
 			"tenant_id", tenantID,
@@ -89,8 +103,8 @@ func (p *Provisioner) EnsureStripeCustomer(ctx context.Context, tenantID, email,
 
 	// Store customer ID — §1.4: DB failure returns error, not orphan ID
 	_, err = p.db.ExecContext(ctx,
-		"UPDATE subscriptions SET stripe_customer_id = $1, updated_at = now() WHERE tenant_id = $2",
-		customer.ID, tenantID,
+		"UPDATE subscriptions SET stripe_customer_id = $1, updated_at = now() WHERE account_id = $2",
+		customer.ID, accountID,
 	)
 	if err != nil {
 		p.logger.Error("failed to store Stripe customer ID — customer created in Stripe but not linked",

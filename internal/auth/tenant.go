@@ -152,13 +152,15 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 		return "", "", fmt.Errorf("create membership: %w", err)
 	}
 
-	// 4. Create starter subscription (§1.1: subscriptions is single source of truth for plan).
+	// 4. Create the Account's starter subscription (M2: one subscription per
+	//    Account — billing is per-account). ON CONFLICT (account_id) DO NOTHING so
+	//    a 2nd tenant of an existing account does NOT create a 2nd subscription.
 	subID := generateSubscriptionID()
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO subscriptions (id, tenant_id, plan, status, created_at, updated_at)
-		 VALUES ($1, $2, 'starter', 'active', now(), now())
-		 ON CONFLICT (tenant_id) DO NOTHING`,
-		subID, tenantID,
+		`INSERT INTO subscriptions (id, tenant_id, account_id, plan, status, created_at, updated_at)
+		 VALUES ($1, $2, $3, 'starter', 'active', now(), now())
+		 ON CONFLICT (account_id) DO NOTHING`,
+		subID, tenantID, accountID,
 	)
 	if err != nil {
 		return "", "", fmt.Errorf("create subscription: %w", err)

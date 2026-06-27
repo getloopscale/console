@@ -130,7 +130,11 @@ func TestEnsureTenant_InsertsUsernameOnNewUser(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`INSERT INTO tenant_members`).
 		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(`INSERT INTO subscriptions`).
+	// M2: subscription is account-scoped — the INSERT carries account_id and
+	// conflicts on account_id, so a 2nd tenant of the account does NOT create a
+	// 2nd subscription. (?s) lets `.` span the multi-line SQL.
+	mock.ExpectExec(`(?s)INSERT INTO subscriptions.*account_id.*ON CONFLICT \(account_id\)`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "acct-test0000000000").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
