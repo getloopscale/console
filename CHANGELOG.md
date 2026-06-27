@@ -1,7 +1,6 @@
 ## [Unreleased]
 
 ### Added
-- **Account-level tenancy (M1): per-Account broker mint + ForwardAuth cross-account guard (lazy validation).** The per-tenant credential broker is now Account-aware — `KeyForTenantScoped(ctx, accountID, tenantID, scopes)` keys its cache by `account ∥ tenant ∥ scopes` (no cross-account cache sharing) but **never sends the account to the data-plane**: the minted key's `workspace_id` stays `== tenantID`, so theo-memory's isolation unit remains the tenant (unchanged seam). ForwardAuth gains an injected ownership authorizer (`auth.AccountOwnsTenant`): an Account-aware credential whose `account_id` does **not** own the targeted `tenant_id` is rejected with **403** (no Authorization header, no mint); a legacy NULL-account key (pre-M0) **skips** the check and still mints (200, backward-compat); a DB error in the check **fails closed** (503). The broker lazily trusts the ForwardAuth-validated relationship (it does not re-validate). Both the memory and theo-promptly brokers + their `Evict(tenantID)` (now matching the tenant as the middle cache-key segment) are updated. Proven under `go test -race` + an integration suite against pg-cloud (account-owns→200 with workspace==tenant, cross-account→403 no-mint, legacy→200, concurrent). (plan `account-broker-m1`, ROADMAP M1, ADR `account-level-tenancy`)
 
 ### Changed
 
@@ -12,6 +11,11 @@
 ### Fixed
 
 ### Security
+
+## [0.11.0] - 2026-06-27
+
+### Added
+- **Account-level tenancy (M1): per-Account broker mint + ForwardAuth cross-account guard (lazy validation).** The per-tenant credential broker is now Account-aware — `KeyForTenantScoped(ctx, accountID, tenantID, scopes)` keys its cache by `account ∥ tenant ∥ scopes` (no cross-account cache sharing) but **never sends the account to the data-plane**: the minted key's `workspace_id` stays `== tenantID`, so theo-memory's isolation unit remains the tenant (unchanged seam). ForwardAuth gains an injected ownership authorizer (`auth.AccountOwnsTenant`): an Account-aware credential whose `account_id` does **not** own the targeted `tenant_id` is rejected with **403** (no Authorization header, no mint); a legacy NULL-account key (pre-M0) **skips** the check and still mints (200, backward-compat); a DB error in the check **fails closed** (503). The broker lazily trusts the ForwardAuth-validated relationship (it does not re-validate). Both the memory and theo-promptly brokers + their `Evict(tenantID)` (now matching the tenant as the middle cache-key segment) are updated. Proven under `go test -race` + an integration suite against pg-cloud (account-owns→200 with workspace==tenant, cross-account→403 no-mint, legacy→200, concurrent). (plan `account-broker-m1`, ROADMAP M1, ADR `account-level-tenancy`)
 
 ## [0.10.0] - 2026-06-27
 
