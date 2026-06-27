@@ -36,9 +36,12 @@ func (p *Provisioner) ProvisionStarter(ctx context.Context, userID, email, tenan
 	// Insert subscription row for starter plan (DB-only, no Stripe)
 	id := generateSubscriptionID()
 	_, err := p.db.ExecContext(ctx,
-		`INSERT INTO subscriptions (id, tenant_id, plan, status, created_at, updated_at)
-		 VALUES ($1, $2, 'starter', 'active', now(), now())
-		 ON CONFLICT (tenant_id) DO NOTHING`,
+		// M2: one subscription per Account. Derive account_id from the tenant and
+		// conflict on account_id, so a 2nd tenant of an existing account does NOT
+		// create a 2nd subscription.
+		`INSERT INTO subscriptions (id, tenant_id, account_id, plan, status, created_at, updated_at)
+		 VALUES ($1, $2, (SELECT account_id FROM tenants WHERE id = $2), 'starter', 'active', now(), now())
+		 ON CONFLICT (account_id) DO NOTHING`,
 		id, tenantID,
 	)
 	if err != nil {
@@ -67,7 +70,9 @@ func (p *Provisioner) EnsureStripeCustomer(ctx context.Context, tenantID, email,
 	// Check if customer already exists
 	var customerID sql.NullString
 	err := p.db.QueryRowContext(ctx,
-		"SELECT stripe_customer_id FROM subscriptions WHERE tenant_id = $1",
+		// M2: the Stripe customer is per-Account (one billing entity); resolve the
+		// account's single subscription for any of its tenants.
+		"SELECT stripe_customer_id FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1)",
 		tenantID,
 	).Scan(&customerID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -89,7 +94,7 @@ func (p *Provisioner) EnsureStripeCustomer(ctx context.Context, tenantID, email,
 
 	// Store customer ID — §1.4: DB failure returns error, not orphan ID
 	_, err = p.db.ExecContext(ctx,
-		"UPDATE subscriptions SET stripe_customer_id = $1, updated_at = now() WHERE tenant_id = $2",
+		"UPDATE subscriptions SET stripe_customer_id = $1, updated_at = now() WHERE account_id = (SELECT account_id FROM tenants WHERE id = $2)",
 		customer.ID, tenantID,
 	)
 	if err != nil {

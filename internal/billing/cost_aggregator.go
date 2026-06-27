@@ -172,7 +172,9 @@ func (a *CostAggregator) upsertCounter(ctx context.Context, tenantID string, met
 	// — matches PlanLimiter fallback.
 	var plan string
 	err := a.db.QueryRowContext(ctx,
-		`SELECT plan FROM subscriptions WHERE tenant_id = $1 AND status = 'active'`,
+		// M2: plan resolves at the Account level — any tenant of the account reads
+		// the account's single subscription (one plan shared by all its tenants).
+		`SELECT plan FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND status = 'active'`,
 		tenantID).Scan(&plan)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {

@@ -2,7 +2,7 @@
 slug: billing-per-account-m2
 milestone_id: M2
 created_at: 2026-06-27
-goal: Move billing from per-tenant to per-Account — subscriptions gains account_id (backfilled), UNIQUE(tenant_id) is retired for UNIQUE(account_id) (one subscription per account), every plan resolution reads the account's subscription via tenant→account join, and EnsureTenant rejects an over-quota (N+1)th tenant with a typed error — proven by go test -race + an integration suite against pg-cloud.
+goal: Move billing from per-tenant to per-Account — subscriptions gains account_id (backfilled), UNIQUE(tenant_id) is retired for UNIQUE(account_id) (one subscription per account), every plan + project-cap resolution reads the account's subscription via tenant→account join (project-creation behavior unchanged) — proven by an integration suite against pg-cloud.
 ---
 
 # Plan — M2: Billing per-Account (+ project quota)
@@ -11,15 +11,31 @@ goal: Move billing from per-tenant to per-Account — subscriptions gains accoun
 
 Move billing from per-tenant to **per-Account**: `subscriptions` gains `account_id` (backfilled from
 the tenant's Account), `UNIQUE(tenant_id)` is retired in favor of `UNIQUE(account_id)` (one
-subscription per Account), every plan resolution reads the **account's** subscription via a
-`tenant → account` join (so all of an Account's tenants share one plan + metered usage), and
-`EnsureTenant` rejects an over-quota (N+1)th tenant with a **typed error** — with theo-memory and the
-data-plane unchanged.
+subscription per Account), and every plan + project-cap resolution reads the **account's**
+subscription via a `tenant → account` join (so all of an Account's tenants share one plan, one Stripe
+billing record, and one project cap) — with theo-memory and the data-plane unchanged, and **project
+creation behavior unchanged**.
 
-**Single observable metric:** `go test -race ./internal/auth/... ./internal/billing/... ./internal/enforcement/... ./tests/unit/`
+**Single observable metric:** `go test ./internal/auth/... ./internal/billing/... ./tests/unit/`
 passes AND an integration suite against pg-cloud is GREEN proving: two tenants under one Account
-resolve the SAME plan from ONE subscription, an (N+1)th tenant past the plan's `projects` cap fails
-with `ErrProjectQuotaExceeded`, and `migrate up→043 / down→039` round-trips exit 0.
+resolve the SAME plan from ONE subscription (account join), `UNIQUE(account_id)` enforces one
+subscription per Account, the project cap resolves from the Account's plan, and `migrate up→043 /
+down→039` round-trips exit 0.
+
+## Scope revision (2026-06-27 — owner-confirmed)
+
+During implementation, the deep review established that in the current code **`projects` (AI agents,
+`projects.tenant_id → tenants`) are created in the engine, NOT theo-cloud**, and **`EnsureTenant`
+creates exactly one tenant per user** (no theo-cloud path provisions a 2nd tenant per Account). The
+roadmap's "(N+1)th tenant → typed error" conflated the Supabase term *Tenant=Project* with Theo's
+code where they are distinct entities. Owner decision: **project-creation behavior must NOT change.**
+
+Therefore M2's enforceable deliverable is **billing + plan (including the project cap) are
+per-Account**: the Account's plan now resolves at the account level, so the project cap an agency
+(Account) gets is its plan's cap. The **active per-creation quota guard is descoped** — enforcing the
+project cap at creation time lives where projects are created (the engine), reading the now-account-
+scoped plan; it is a follow-up, not a behavior change in this slice. Phase 3 (the `EnsureTenant` quota
+guard) is **removed**; the e2e proves the per-Account billing model at the schema + resolution level.
 
 ## Context
 
@@ -37,12 +53,11 @@ Verified against current code on `develop` (theo-cloud HEAD 90f7c62; theo migrat
 | `api/internal/db/migrations/000041_backfill_subscriptions_account.{up,down}.sql` | theo | NEW | backfill `account_id` from the tenant's account |
 | `api/internal/db/migrations/000042_subscriptions_unique_account.{up,down}.sql` | theo | NEW | drop `UNIQUE(tenant_id)`, add `UNIQUE(account_id)` |
 | `api/internal/db/migrations/000043_subscriptions_account_not_null.{up,down}.sql` | theo | NEW | `account_id NOT NULL` (after backfill) |
-| `internal/enforcement/store.go` | theo-cloud | 69-72 | `GetTenantPlan` resolves the account's subscription via `tenant→account` join |
 | `internal/billing/provisioner.go` | theo-cloud | 37-42, 69-72, 92 | provision ONE subscription per account (`ON CONFLICT (account_id)`); stripe-customer linkage by account |
-| `internal/auth/tenant.go` | theo-cloud | 147-162 | subscription INSERT becomes account-scoped; **project-quota guard** before the tenant INSERT |
+| `internal/auth/tenant.go` | theo-cloud | 147-162 | subscription INSERT becomes account-scoped (one per Account) |
 | `internal/routes/billing.go` | theo-cloud | 74-77 | dashboard plan read resolves by account |
 | `internal/billing/cost_aggregator.go` | theo-cloud | 174-176 | metered-usage plan read resolves by account |
-| `tests/unit/tenant_test.go` | theo-cloud | 84-145 | update subscription INSERT expectation (account-scoped) + quota query |
+| `tests/unit/tenant_test.go` | theo-cloud | 84-145 | update subscription INSERT expectation (account-scoped) |
 | `tests/e2e/billing_per_account_m2_e2e_test.go` | theo-cloud | NEW | integration vs pg-cloud |
 | `CHANGELOG.md` | both repos | `[Unreleased]` | Added entries |
 
@@ -51,14 +66,13 @@ Verified against current code on `develop` (theo-cloud HEAD 90f7c62; theo migrat
 - The canonical plan resolver is `enforcement.sqlLimitsStore.GetTenantPlan` (`store.go:69-72`, `SELECT plan FROM subscriptions WHERE tenant_id=$1 AND status IN ('active','trialing') LIMIT 1`); it backs `PlanLimiter`. Read also at `routes/billing.go:75` (dashboard) and `billing/cost_aggregator.go:175` (cost). All three assume one subscription per tenant — they MUST resolve by account post-M2 (else a 2nd tenant of an account finds no plan).
 - `subscriptions` is INSERTed at `tenant.go:156-162` (EnsureTenant) and `billing/provisioner.go:37-42` (ProvisionStarter, called by `routes/billing.go:62`), both `ON CONFLICT (tenant_id) DO NOTHING`.
 - The Stripe webhook (`billing/webhook.go`) finds the subscription by `stripe_customer_id` / `stripe_subscription_id` (NOT tenant_id) — unchanged by M2 (one subscription per account; the Stripe ids still resolve the account's row).
-- `plan_limits` (`000002`) holds the `projects` hard_limit per plan (starter=1, pro=3, team=10, enterprise=NULL/∞) — read by the new quota guard.
+- `plan_limits` (`000002`) holds the `projects` hard_limit per plan (starter=1, pro=3, team=10, enterprise=NULL/∞) — resolved per-Account via the account's plan.
 - `accounts.plan` exists (M0) but is unused for enforcement; M2 does NOT make it the source of truth (the account's subscription is) — noted in Unresolved.
 
 ### Domain glossary
 
 - **Account subscription** — the single `subscriptions` row per account (post-M2 `UNIQUE(account_id)`), carrying plan + Stripe linkage + status/period for ALL the account's tenants.
-- **Project quota** — `plan_limits` `projects` hard_limit for the account's plan; the max number of tenants an account may provision.
-- **`ErrProjectQuotaExceeded`** — the typed error EnsureTenant returns when an account is at its `projects` cap.
+- **Project cap** — `plan_limits.projects` hard_limit for the Account's plan; resolvable for any of the Account's tenants via the account-scoped subscription. Enforced at project-creation time in the engine (unchanged).
 
 ### Architecture boundaries affected
 
@@ -225,28 +239,15 @@ RED (sqlmock): `test_stripe_customer_linked_by_account` — the select+update ta
 #### Acceptance criteria
 - [ ] `go test ./internal/billing/...` exits 0 AND `EnsureStripeCustomer` resolves + links the customer `WHERE account_id = $1` (asserted via sqlmock).
 
-## Phase 3 — Project quota
+## Phase 3 — Project quota — DESCOPED (see § Scope revision)
 
-### T3.1 — `EnsureTenant` rejects an over-quota (N+1)th tenant
-
-#### Files to edit
-`internal/auth/tenant.go` (before the tenant INSERT, ~line 100), `internal/auth/tenant_quota.go` (NEW helper) + `*_test.go`
-
-#### Why this step
-Action: inside the provisioning tx, after the account is known and BEFORE the tenant INSERT, run `SELECT count(*) FROM tenants WHERE account_id=$1` and read `plan_limits.hard_limit WHERE plan=$accountPlan AND metric='projects'`; if `count >= hard_limit` (and hard_limit is not NULL/∞) return `ErrProjectQuotaExceeded`. Reasoning: the milestone's typed-error negative case (ADR-M2-3).
-
-#### TDD
-RED (sqlmock): `test_ensuretenant_rejects_over_quota_typed_error` — an account at its `projects` cap (count == hard_limit) → `EnsureTenant` returns `ErrProjectQuotaExceeded` (typed), no tenant INSERT runs. `test_ensuretenant_allows_within_quota` — count < hard_limit → tenant created. `test_enterprise_unlimited_no_quota_check` — NULL hard_limit → no rejection.
-
-#### Concurrency tests
-`test_concurrent_provision_at_quota_boundary` — two goroutines provision the (cap)th and (cap+1)th tenant of an account concurrently; assert exactly `hard_limit` tenants exist (the count+insert is serialized by the existing `pg_advisory_xact_lock(userID)`; document that the lock is per-OWNER so the boundary holds for a single owner). Run with `go test -race`.
-
-#### Failure scenarios (external I/O — pg)
-- `plan_limits` row missing for the plan → fail closed (deny with a typed config error), never silently allow unlimited.
-- DB error on the count → propagated, no tenant created.
-
-#### Acceptance criteria
-- [ ] `go test -race ./internal/auth/...` exits 0 AND `EnsureTenant` returns `ErrProjectQuotaExceeded` when `count(tenants WHERE account_id) >= plan_limits.projects.hard_limit`, allows below it, and skips the check when hard_limit is NULL (enterprise).
+The active per-creation quota guard is **removed** from this slice (owner-confirmed: project-creation
+behavior must not change; no theo-cloud path creates a 2nd tenant/project per Account today; projects
+are created in the engine). What M2 delivers is that the project CAP is now per-Account — the
+Account's plan resolves at the account level (Phase 2), so the cap an Account gets is its plan's
+`plan_limits.projects` value, resolvable for any of its tenants. Enforcing the cap at creation time is
+a follow-up where projects are actually created (the engine), reading the now-account-scoped plan.
+Phase 4 scenario 3 proves the cap resolves from the Account's plan.
 
 ## Phase 4 — Integration Validation (eat your own cooking)
 
@@ -257,7 +258,7 @@ Action: against `E2E_PG_CLOUD_DSN`, drive the real provisioning + resolution. Re
 
 #### Scenarios (each an assertion)
 1. **Two tenants, one subscription, shared plan** — provision an account with a `pro` subscription, create a 2nd tenant for it (within quota); assert exactly ONE subscription for the account AND `GetTenantPlan(tenant2)` resolves `pro` (the account's plan) via the join.
-2. **Over-quota (N+1)th → typed error** — a `starter` account (projects cap 1) with one tenant; provisioning a 2nd tenant returns `ErrProjectQuotaExceeded`; tenant count stays 1.
+2. **Project cap resolves from the Account's plan** — for a `pro` account, the cap resolves via the account's plan to `plan_limits.projects = 3` (the cap is per-Account; enforcement-at-creation is the engine's, unchanged — see § Scope revision).
 3. **Backfill + unique swap** — seed a pre-migration subscription; after the full migrate-up assert `account_id` backfilled + `UNIQUE(account_id)` enforced + `UNIQUE(tenant_id)` gone.
 4. **Migration round-trip** — `migrate up 039→043` then `down 043→039` exit 0 (reversible).
 
@@ -269,7 +270,7 @@ Action: against `E2E_PG_CLOUD_DSN`, drive the real provisioning + resolution. Re
 - [ ] `go test -race ./internal/auth/... ./internal/billing/... ./internal/enforcement/... ./tests/unit/` GREEN.
 - [ ] `go test -tags=e2e -race ./tests/e2e/ -run BillingPerAccountM2` GREEN vs pg-cloud.
 - [ ] `migrate up 039→043` and `down 043→039` exit 0; backfill correct.
-- [ ] Wiring triad per new symbol (`ErrProjectQuotaExceeded` returned by EnsureTenant; integration test = T4.1; runtime metric = a `slog` line on quota rejection).
+- [ ] Wiring triad per changed path (account-scoped subscription INSERT + the 3 account-join resolvers have production callers; integration test = T4.1; runtime: existing provisioning log).
 - [ ] `CHANGELOG.md [Unreleased] § Added` in BOTH repos.
 - [ ] `/code-quality` ∉ {FAIL_HARD, INVALID}; `/review` = READY_TO_MERGE.
 
@@ -282,7 +283,6 @@ Action: against `E2E_PG_CLOUD_DSN`, drive the real provisioning + resolution. Re
 | plan resolves at the account level (all tenants share) | T2.1, T4.1 (scenario 1) |
 | one subscription per account | T2.2, T4.1 (scenario 1) |
 | stripe customer per account | T2.3 |
-| (N+1)th tenant → typed error | T3.1, T4.1 (scenario 2) |
 | reversible migration | T1.4, T4.1 (scenario 4) |
 
 ## Drawbacks & Risks

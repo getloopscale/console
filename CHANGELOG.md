@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **Account-level tenancy (M2 — billing per-Account).** Billing moves from per-tenant to per-Account: the `subscriptions` row is now account-scoped (one per Account, `UNIQUE(account_id)` — see the `theo` migrations `000040`–`000043`), and every plan + project-cap resolution reads the Account's single subscription via a `tenant → account` join (`internal/billing/cost_aggregator.go`, `internal/routes/billing.go`) so **all of an Account's tenants share one plan, one Stripe billing record, and one project cap**. Provisioning creates ONE subscription per Account (`internal/auth/tenant.go`, `internal/billing/provisioner.go` — `ON CONFLICT (account_id)`); the Stripe customer is linked per-Account. The data-plane (theo-memory) and **project-creation behavior are unchanged**. Proven against real pg-cloud (`tests/e2e/billing_per_account_m2_e2e_test.go`, build-tag `e2e`): two tenants of one Account resolve the same `pro` plan from one subscription, `UNIQUE(account_id)` rejects a 2nd, and the project cap resolves from the Account's plan. Scope note: the roadmap's "(N+1)th tenant quota" was descoped — projects (AI agents) are created in the engine and project-creation behavior is unchanged; the cap is now per-Account via the account-scoped plan, enforced where projects are created (engine, follow-up). (plan `billing-per-account-m2`, ADR `account-level-tenancy`)
 
 ### Changed
 
