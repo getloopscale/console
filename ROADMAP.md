@@ -127,7 +127,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 1. Double-billing during the per-tenant→per-Account cutover → migrate read path behind a flag; reconcile test on seeded subscriptions.
 2. Quota check race when two tenants provision concurrently → concurrency test (atomic quota decrement / row lock).
 
-### M3 — [ ] Enforce + propagate (Phase 2)
+### M3 — [x] Enforce + propagate (Phase 2)
 
 **Objective:** close the migration — make `account_id` `NOT NULL` and propagate `account_id` into the JWT (additive) so SDKs adopt it in parallel.
 
