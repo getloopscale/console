@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -149,13 +150,41 @@ func (h *RegisterProxyHandler) Post(w http.ResponseWriter, r *http.Request) {
 	// EC-4: any non-5xx upstream outcome (200 new-user success, 400
 	// validation error, 409 conflict / email-exists) maps to the canonical
 	// universal response — identical for both new and existing branches.
+	// Submission Content-Type detection: a form-encoded submission (the
+	// canonical dashboard register form) receives an HTTP 303 redirect to
+	// the canonical redirect path so the browser navigates to the generic
+	// check-email page. A JSON / API client receives the canonical JSON
+	// body so it can drive its own continuation logic. EC-4 invariant
+	// holds: both shapes are byte-identical between new and existing email
+	// branches (no enumeration).
+	if isFormEncoded(r) {
+		h.writeRedirect303(w)
+		return
+	}
 	h.writeUniversal(w)
+}
+
+// isFormEncoded reports whether the request is form-encoded (the canonical
+// dashboard register form submission shape).
+func isFormEncoded(r *http.Request) bool {
+	ct := r.Header.Get("Content-Type")
+	return strings.HasPrefix(ct, "application/x-www-form-urlencoded") ||
+		strings.HasPrefix(ct, "multipart/form-data")
 }
 
 func (h *RegisterProxyHandler) writeUniversal(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(canonicalBody())
+}
+
+// writeRedirect303 emits HTTP 303 + Location header pointing at the canonical
+// redirect path. The browser will follow with a GET, landing on
+// /auth/check-email regardless of new-vs-existing email branch (EC-4
+// invariant preserved for form-encoded clients).
+func (h *RegisterProxyHandler) writeRedirect303(w http.ResponseWriter) {
+	w.Header().Set("Location", canonicalBody().Redirect)
+	w.WriteHeader(http.StatusSeeOther)
 }
 
 func (h *RegisterProxyHandler) writeError503(w http.ResponseWriter) {

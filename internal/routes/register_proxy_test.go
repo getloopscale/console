@@ -164,6 +164,33 @@ func TestRegisterProxy_ResponseShape_IsIdenticalAcrossNewVsExistingEmail(t *test
 	}
 }
 
+// T3.4 wiring: form-encoded submissions (the canonical dashboard register
+// form shape) MUST receive HTTP 303 + Location header instead of JSON body,
+// so the browser navigates to the canonical redirect path on form.submit().
+// EC-4 invariant holds: identical 303 redirect for both new + existing email.
+func TestRegisterProxy_FormEncoded_Returns303RedirectToCheckEmail(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"identity":{"id":"abc"}}`))
+	}))
+	defer upstream.Close()
+
+	h := newProxyWithUpstream(t, upstream)
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register",
+		bytes.NewReader([]byte(`csrf_token=x&method=password&traits.email=new%40example.com&traits.name=N&password=valid-13c-pwd`)))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+
+	h.Post(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("want 303 for form-encoded submission, got %d", rr.Code)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/auth/check-email" {
+		t.Errorf("want Location=/auth/check-email, got %q", loc)
+	}
+}
+
 // EC-4 absorption: dashboard-continuation guarantee. The universal redirect
 // field MUST point to a generic continuation path that does NOT require a
 // flow token — so legitimate new users can advance to verification without
