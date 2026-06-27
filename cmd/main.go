@@ -212,6 +212,10 @@ func main() {
 				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
 			},
 			promptlyBroker,
+			// M1: cross-account guard (same DB-backed ownership check).
+			func(ctx context.Context, accountID, tenantID string) (bool, error) {
+				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+			},
 			"promptly:read",
 			logger,
 		)
@@ -251,7 +255,7 @@ func main() {
 			if u == nil || u.TenantID == "" {
 				return "", fmt.Errorf("themory: no authenticated tenant in context")
 			}
-			return themoryBroker.KeyForTenant(ctx, u.TenantID)
+			return themoryBroker.KeyForTenant(ctx, u.AccountID, u.TenantID)
 		}
 		dataClient := themory.NewClient(cfg.ThemoryBaseURL, "", themoryHTTP).WithKeyResolver(keyResolver)
 		// Control-plane client for the boot capability probe (GET /v1/openapi.json):
@@ -267,6 +271,10 @@ func main() {
 				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
 			},
 			themoryBroker,
+			// M1: cross-account guard — does the resolved account own this tenant?
+			func(ctx context.Context, accountID, tenantID string) (bool, error) {
+				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+			},
 			"memory:read",
 			logger,
 		)

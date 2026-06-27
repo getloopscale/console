@@ -108,8 +108,8 @@ func TestContract_TenantIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBroker: %v", err)
 	}
-	_, _ = b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
-	_, _ = b.KeyForTenantScoped(context.Background(), "ws-b", []string{"promptly:read"})
+	_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
+	_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", "ws-b", []string{"promptly:read"})
 
 	if len(seen) != 2 || seen[0] == seen[1] {
 		t.Fatalf("expected two distinct workspace_ids, got %v", seen)
@@ -136,7 +136,7 @@ func TestContract_ScopeEnforcement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBroker: %v", err)
 	}
-	_, _ = b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
 
 	if len(gotScopes) != 1 || gotScopes[0] != "prompt:read" {
 		t.Fatalf("least-privilege violated: minted scopes %v, want [prompt:read]", gotScopes)

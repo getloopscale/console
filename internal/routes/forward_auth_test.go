@@ -10,6 +10,7 @@ package routes
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -22,22 +23,34 @@ import (
 
 // stubMinter is a test double for the per-tenant key broker.
 type stubMinter struct {
-	mu         sync.Mutex
-	key        string
-	err        error
-	perTenant  map[string]int
-	lastScopes []string // captured for the least-privilege assertion
+	mu          sync.Mutex
+	key         string
+	err         error
+	perTenant   map[string]int
+	lastAccount string   // M1: captured accountID threaded by the handler
+	lastScopes  []string // captured for the least-privilege assertion
 }
 
-func (m *stubMinter) KeyForTenantScoped(_ context.Context, tenantID string, scopes []string) (string, error) {
+func (m *stubMinter) KeyForTenantScoped(_ context.Context, accountID, tenantID string, scopes []string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.perTenant == nil {
 		m.perTenant = map[string]int{}
 	}
 	m.perTenant[tenantID]++
+	m.lastAccount = accountID
 	m.lastScopes = scopes
 	return m.key, m.err
+}
+
+func (m *stubMinter) mintCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for _, c := range m.perTenant {
+		n += c
+	}
+	return n
 }
 
 func resolveTo(uc *auth.UserContext, scopes []string, err error) APIKeyResolver {
@@ -45,6 +58,15 @@ func resolveTo(uc *auth.UserContext, scopes []string, err error) APIKeyResolver 
 		return uc, scopes, err
 	}
 }
+
+// authReturns is a stub ownership authorizer. allowAuth is the default used by
+// tests whose resolved UserContext has no AccountID (the check is skipped, so the
+// authorizer is never actually invoked).
+func authReturns(owns bool, err error) AccountTenantAuthorizer {
+	return func(_ context.Context, _, _ string) (bool, error) { return owns, err }
+}
+
+var allowAuth = authReturns(true, nil)
 
 func quietLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
@@ -61,7 +83,7 @@ func TestForwardAuth_ValidKey_Returns200WithMintedAuthorization(t *testing.T) {
 	h := NewForwardAuthHandler(
 		resolveTo(&auth.UserContext{Subject: "u", TenantID: "tenant-a"}, []string{"memory:read"}, nil),
 		&stubMinter{key: "theo_live_mintedForA"},
-		"memory:read", quietLogger(),
+		allowAuth, "memory:read", quietLogger(),
 	)
 	rec := serveForwardAuth(t, h)
 
@@ -76,7 +98,7 @@ func TestForwardAuth_ValidKey_Returns200WithMintedAuthorization(t *testing.T) {
 func TestForwardAuth_InvalidKey_Returns401_NoAuthorizationHeader(t *testing.T) {
 	h := NewForwardAuthHandler(
 		resolveTo(nil, nil, auth.ErrInvalidCredential),
-		&stubMinter{key: "x"}, "memory:read", quietLogger(),
+		&stubMinter{key: "x"}, allowAuth, "memory:read", quietLogger(),
 	)
 	rec := serveForwardAuth(t, h)
 
@@ -92,7 +114,7 @@ func TestForwardAuth_DBError_Returns503_NotBadKey(t *testing.T) {
 	// EC-1: an infra error is fail-closed (503), never 401 "bad key".
 	h := NewForwardAuthHandler(
 		resolveTo(nil, nil, auth.ErrBackendUnavailable),
-		&stubMinter{key: "x"}, "memory:read", quietLogger(),
+		&stubMinter{key: "x"}, allowAuth, "memory:read", quietLogger(),
 	)
 	rec := serveForwardAuth(t, h)
 
@@ -107,7 +129,7 @@ func TestForwardAuth_DBError_Returns503_NotBadKey(t *testing.T) {
 func TestForwardAuth_MintFailure_FailsClosed_NoAuthorization(t *testing.T) {
 	h := NewForwardAuthHandler(
 		resolveTo(&auth.UserContext{TenantID: "tenant-a"}, []string{"memory:read"}, nil),
-		&stubMinter{err: context.DeadlineExceeded}, "memory:read", quietLogger(),
+		&stubMinter{err: context.DeadlineExceeded}, allowAuth, "memory:read", quietLogger(),
 	)
 	rec := serveForwardAuth(t, h)
 
@@ -124,7 +146,7 @@ func TestForwardAuth_EmptyMint_FailsClosed(t *testing.T) {
 	// never inject "Bearer " (empty) upstream.
 	h := NewForwardAuthHandler(
 		resolveTo(&auth.UserContext{TenantID: "tenant-a"}, []string{"memory:read"}, nil),
-		&stubMinter{key: ""}, "memory:read", quietLogger(),
+		&stubMinter{key: ""}, allowAuth, "memory:read", quietLogger(),
 	)
 	rec := serveForwardAuth(t, h)
 
@@ -143,7 +165,7 @@ func TestForwardAuth_MintsWithConsumerScopes_NoEscalation(t *testing.T) {
 	minter := &stubMinter{key: "theo_live_mintedForA"}
 	h := NewForwardAuthHandler(
 		resolveTo(&auth.UserContext{TenantID: "tenant-a"}, []string{"memory:read"}, nil),
-		minter, "memory:read", quietLogger(),
+		minter, allowAuth, "memory:read", quietLogger(),
 	)
 	rec := serveForwardAuth(t, h)
 	if rec.Code != http.StatusOK {
@@ -157,7 +179,7 @@ func TestForwardAuth_MintsWithConsumerScopes_NoEscalation(t *testing.T) {
 func TestForwardAuth_MissingScope_Returns403(t *testing.T) {
 	h := NewForwardAuthHandler(
 		resolveTo(&auth.UserContext{TenantID: "tenant-a"}, []string{"memory:write"}, nil),
-		&stubMinter{key: "x"}, "memory:read", quietLogger(),
+		&stubMinter{key: "x"}, allowAuth, "memory:read", quietLogger(),
 	)
 	rec := serveForwardAuth(t, h)
 	if rec.Code != http.StatusForbidden {
@@ -169,7 +191,7 @@ func TestForwardAuth_EmptyScopes_Returns403(t *testing.T) {
 	// EC-8: a valid key with an empty scopes set yields 403, no panic.
 	h := NewForwardAuthHandler(
 		resolveTo(&auth.UserContext{TenantID: "tenant-a"}, []string{}, nil),
-		&stubMinter{key: "x"}, "memory:read", quietLogger(),
+		&stubMinter{key: "x"}, allowAuth, "memory:read", quietLogger(),
 	)
 	rec := serveForwardAuth(t, h)
 	if rec.Code != http.StatusForbidden {
@@ -185,7 +207,7 @@ func TestForwardAuth_ConcurrentRequestsSameTenant_MintOnce(t *testing.T) {
 	minter := &stubMinter{key: "theo_live_mintedForA"}
 	h := NewForwardAuthHandler(
 		resolveTo(&auth.UserContext{TenantID: "tenant-a"}, []string{"memory:read"}, nil),
-		minter, "memory:read", quietLogger(),
+		minter, allowAuth, "memory:read", quietLogger(),
 	)
 	const n = 32
 	var wg sync.WaitGroup
@@ -200,4 +222,74 @@ func TestForwardAuth_ConcurrentRequestsSameTenant_MintOnce(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// --- M1: cross-account guard (lazy validation) --------------------------------
+
+func TestForwardAuth_AccountOwnsTenant_Mints200_ThreadsAccount(t *testing.T) {
+	minter := &stubMinter{key: "theo_live_minted"}
+	h := NewForwardAuthHandler(
+		resolveTo(&auth.UserContext{TenantID: "tenant-a", AccountID: "acct-a"}, []string{"memory:read"}, nil),
+		minter, authReturns(true, nil), "memory:read", quietLogger(),
+	)
+	rec := serveForwardAuth(t, h)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200 for account-owned tenant, got %d", rec.Code)
+	}
+	if rec.Header().Get("Authorization") != "Bearer theo_live_minted" {
+		t.Fatalf("want minted Authorization, got %q", rec.Header().Get("Authorization"))
+	}
+	if minter.lastAccount != "acct-a" {
+		t.Fatalf("handler must thread accountID to the broker, got %q", minter.lastAccount)
+	}
+}
+
+func TestForwardAuth_CrossAccount_Returns403_NoMint_NoAuthorization(t *testing.T) {
+	minter := &stubMinter{key: "theo_live_minted"}
+	h := NewForwardAuthHandler(
+		resolveTo(&auth.UserContext{TenantID: "tenant-a", AccountID: "acct-evil"}, []string{"memory:read"}, nil),
+		minter, authReturns(false, nil), "memory:read", quietLogger(),
+	)
+	rec := serveForwardAuth(t, h)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403 for cross-account credential, got %d", rec.Code)
+	}
+	if rec.Header().Get("Authorization") != "" {
+		t.Fatal("cross-account deny must NOT set Authorization")
+	}
+	if minter.mintCount() != 0 {
+		t.Fatalf("cross-account must NOT mint, got %d mints", minter.mintCount())
+	}
+}
+
+func TestForwardAuth_LegacyNullAccount_SkipsCheck_200(t *testing.T) {
+	// A legacy key (AccountID == "") predates accounts; the ownership check is
+	// skipped (M0 backward-compat) even if the authorizer would deny/error.
+	minter := &stubMinter{key: "theo_live_minted"}
+	h := NewForwardAuthHandler(
+		resolveTo(&auth.UserContext{TenantID: "tenant-a", AccountID: ""}, []string{"memory:read"}, nil),
+		minter, authReturns(false, errors.New("must not be called")), "memory:read", quietLogger(),
+	)
+	rec := serveForwardAuth(t, h)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("legacy NULL-account key must mint (200), got %d", rec.Code)
+	}
+}
+
+func TestForwardAuth_AuthorizeDBError_FailsClosed503(t *testing.T) {
+	minter := &stubMinter{key: "theo_live_minted"}
+	h := NewForwardAuthHandler(
+		resolveTo(&auth.UserContext{TenantID: "tenant-a", AccountID: "acct-a"}, []string{"memory:read"}, nil),
+		minter, authReturns(false, errors.New("db down")), "memory:read", quietLogger(),
+	)
+	rec := serveForwardAuth(t, h)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("authorize DB error must fail closed (503), got %d", rec.Code)
+	}
+	if rec.Header().Get("Authorization") != "" {
+		t.Fatal("authorize error must NOT set Authorization")
+	}
+	if minter.mintCount() != 0 {
+		t.Fatalf("must not mint on authorize error, got %d", minter.mintCount())
+	}
 }

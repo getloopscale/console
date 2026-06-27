@@ -52,7 +52,7 @@ func newTestBroker(t *testing.T, m minter) *Broker {
 func TestBroker_MintsPerTenantScoped(t *testing.T) {
 	m := &stubMinter{}
 	b := newTestBroker(t, m)
-	secret, err := b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	secret, err := b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
 	if err != nil {
 		t.Fatalf("KeyForTenantScoped: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestBroker_MintsPerTenantScoped(t *testing.T) {
 func TestBroker_FailClosedOnMintError(t *testing.T) {
 	m := &stubMinter{err: errors.New("upstream down")}
 	b := newTestBroker(t, m)
-	secret, err := b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	secret, err := b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -80,7 +80,7 @@ func TestBroker_FailClosedOnMintError(t *testing.T) {
 		t.Errorf("expected empty secret on fail-closed, got %q", secret)
 	}
 	// Not cached: a second call re-attempts (counter increments).
-	_, _ = b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
 	if m.calls.Load() != 2 {
 		t.Errorf("expected 2 mint attempts (no cache on error), got %d", m.calls.Load())
 	}
@@ -89,8 +89,8 @@ func TestBroker_FailClosedOnMintError(t *testing.T) {
 func TestBroker_TenantIsolation(t *testing.T) {
 	m := &stubMinter{}
 	b := newTestBroker(t, m)
-	sa, _ := b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
-	sb, _ := b.KeyForTenantScoped(context.Background(), "ws-b", []string{"promptly:read"})
+	sa, _ := b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
+	sb, _ := b.KeyForTenantScoped(context.Background(), "acct-1", "ws-b", []string{"promptly:read"})
 	if sa == sb {
 		t.Errorf("tenant-a and tenant-b got the same secret %q", sa)
 	}
@@ -102,7 +102,7 @@ func TestBroker_TenantIsolation(t *testing.T) {
 func TestBroker_NoGrantableScopes(t *testing.T) {
 	m := &stubMinter{}
 	b := newTestBroker(t, m)
-	_, err := b.KeyForTenantScoped(context.Background(), "ws-a", []string{"memory:read"})
+	_, err := b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"memory:read"})
 	if err == nil {
 		t.Fatal("expected error when no promptly: scope is grantable")
 	}
@@ -114,7 +114,7 @@ func TestBroker_NoGrantableScopes(t *testing.T) {
 func TestBroker_EmptyTenantRejected(t *testing.T) {
 	m := &stubMinter{}
 	b := newTestBroker(t, m)
-	_, err := b.KeyForTenantScoped(context.Background(), "", []string{"promptly:read"})
+	_, err := b.KeyForTenantScoped(context.Background(), "acct-1", "", []string{"promptly:read"})
 	if err == nil {
 		t.Fatal("expected error for empty tenant id (EC-4)")
 	}
@@ -126,8 +126,8 @@ func TestBroker_EmptyTenantRejected(t *testing.T) {
 func TestBroker_CacheHitDoesNotRemint(t *testing.T) {
 	m := &stubMinter{}
 	b := newTestBroker(t, m)
-	s1, _ := b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
-	s2, _ := b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	s1, _ := b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
+	s2, _ := b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
 	if s1 != s2 {
 		t.Errorf("cache miss: %q != %q", s1, s2)
 	}
@@ -146,9 +146,9 @@ func TestBroker_CacheRespectsTTL(t *testing.T) {
 	}
 	now := time.Unix(1000, 0)
 	b.now = func() time.Time { return now }
-	_, _ = b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
 	now = now.Add(2 * time.Hour) // past the 1h TTL
-	_, _ = b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
 	if m.calls.Load() != 2 {
 		t.Errorf("expected re-mint after TTL, got %d mints", m.calls.Load())
 	}
@@ -168,7 +168,7 @@ func TestBroker_SingleflightCoalesces(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			<-start // barrier: all goroutines fire simultaneously
-			s, _ := b.KeyForTenantScoped(context.Background(), "ws-hot", []string{"promptly:read"})
+			s, _ := b.KeyForTenantScoped(context.Background(), "acct-1", "ws-hot", []string{"promptly:read"})
 			secrets[idx] = s
 		}(i)
 	}
@@ -200,9 +200,9 @@ func TestNewBroker_RejectsInvalidArgs(t *testing.T) {
 func TestBroker_EvictForcesRemint(t *testing.T) {
 	m := &stubMinter{}
 	b := newTestBroker(t, m)
-	_, _ = b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
 	b.Evict("ws-a") // evict by tenant — must match the scoped cache key
-	_, _ = b.KeyForTenantScoped(context.Background(), "ws-a", []string{"promptly:read"})
+	_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", "ws-a", []string{"promptly:read"})
 	if m.calls.Load() != 2 {
 		t.Errorf("expected re-mint after Evict(tenant), got %d mints", m.calls.Load())
 	}
@@ -217,7 +217,7 @@ func TestBroker_ConcurrentDistinctTenants(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			_, _ = b.KeyForTenantScoped(context.Background(), fmt.Sprintf("ws-%d", idx), []string{"promptly:read"})
+			_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", fmt.Sprintf("ws-%d", idx), []string{"promptly:read"})
 		}(i)
 	}
 	wg.Wait()

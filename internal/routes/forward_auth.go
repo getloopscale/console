@@ -35,8 +35,13 @@ type APIKeyResolver func(ctx context.Context, rawAuthHeader string) (*auth.UserC
 // (M11) — both implement KeyForTenantScoped (Model B); an interface here keeps the
 // handler DIP-clean and lets one generic handler serve both capabilities.
 type TenantKeyMinter interface {
-	KeyForTenantScoped(ctx context.Context, tenantID string, scopes []string) (string, error)
+	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, scopes []string) (string, error)
 }
+
+// AccountTenantAuthorizer reports whether accountID owns tenantID — the M1
+// cross-account guard. Injected (not a concrete *sql.DB) so the handler stays
+// unit-testable without a DB (DIP); production closes over auth.AccountOwnsTenant.
+type AccountTenantAuthorizer func(ctx context.Context, accountID, tenantID string) (bool, error)
 
 // ForwardAuthHandler is the authz-brain endpoint the Traefik edge delegates to.
 // It validates the inbound theo_live_*, checks the required scope, mints the
@@ -45,16 +50,19 @@ type TenantKeyMinter interface {
 // carries an Authorization header — so the edge copies nothing and makes no
 // upstream call without an explicit ALLOW.
 type ForwardAuthHandler struct {
-	resolve  APIKeyResolver
-	minter   TenantKeyMinter
-	required string
-	logger   *slog.Logger
+	resolve   APIKeyResolver
+	minter    TenantKeyMinter
+	authorize AccountTenantAuthorizer
+	required  string
+	logger    *slog.Logger
 }
 
 // NewForwardAuthHandler wires the authz endpoint. requiredScope is the scope the
-// fronted capability needs (e.g. "memory:read").
-func NewForwardAuthHandler(resolve APIKeyResolver, minter TenantKeyMinter, requiredScope string, logger *slog.Logger) *ForwardAuthHandler {
-	return &ForwardAuthHandler{resolve: resolve, minter: minter, required: requiredScope, logger: logger}
+// fronted capability needs (e.g. "memory:read"). authorize is the M1 cross-account
+// guard (ownership of tenant by account); it is consulted only for Account-aware
+// credentials (legacy NULL-account keys skip it — M0 backward-compat).
+func NewForwardAuthHandler(resolve APIKeyResolver, minter TenantKeyMinter, authorize AccountTenantAuthorizer, requiredScope string, logger *slog.Logger) *ForwardAuthHandler {
+	return &ForwardAuthHandler{resolve: resolve, minter: minter, authorize: authorize, required: requiredScope, logger: logger}
 }
 
 func (h *ForwardAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -74,10 +82,30 @@ func (h *ForwardAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// M1 cross-account guard. An Account-aware credential (AccountID set) MUST own
+	// the tenant it targets; otherwise 403 (the broker LAZILY trusts this check and
+	// does not re-validate). A legacy NULL-account key (AccountID == "") SKIPS the
+	// check — it predates accounts (M0 backward-compat). A DB error in the check is
+	// FAIL-CLOSED (503), never a silent allow.
+	if uc.AccountID != "" {
+		owns, aerr := h.authorize(r.Context(), uc.AccountID, uc.TenantID)
+		if aerr != nil {
+			h.logger.Warn("forward-auth: ownership check failed", "account", uc.AccountID, "tenant", uc.TenantID, "error", aerr)
+			writeError(w, http.StatusServiceUnavailable, "AUTH_BACKEND_UNAVAILABLE", "Authorization backend unavailable. Try again.")
+			return
+		}
+		if !owns {
+			h.logger.Warn("forward-auth: cross-account credential rejected", "account", uc.AccountID, "tenant", uc.TenantID)
+			writeError(w, http.StatusForbidden, "CROSS_ACCOUNT", "This credential's account does not own the target tenant.")
+			return
+		}
+	}
+
 	// Mint with the CONSUMER's own scopes (least privilege) — the broker
 	// intersects with the gateway's supported set, so the minted key can never
 	// exceed what the consumer's key holds (no intra-tenant scope escalation).
-	minted, err := h.minter.KeyForTenantScoped(r.Context(), uc.TenantID, scopes)
+	// accountID is threaded for cache-keying but never reaches the data-plane.
+	minted, err := h.minter.KeyForTenantScoped(r.Context(), uc.AccountID, uc.TenantID, scopes)
 	// Fail-closed: a mint error OR an empty minted key (EC-2) MUST NEVER set an
 	// Authorization header — the edge then denies (no upstream call). The broker's
 	// own invariant is to never fall back to a master key (TestBroker_MintFailure_*).

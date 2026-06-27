@@ -80,7 +80,12 @@ func NewBroker(admin minter, size int, ttl time.Duration, scopes []string) (*Bro
 // cache is keyed by (tenant, granted scopes) so two consumers in the same tenant
 // with different scopes get distinct keys. Fails closed: a mint error, an empty
 // tenant, or no grantable scope returns an empty secret.
-func (b *Broker) KeyForTenantScoped(ctx context.Context, tenantID string, want []string) (string, error) {
+// M1: accountID is part of the cache key (no cross-account cache sharing) but is
+// NEVER sent to the minter — the minted key's workspace_id stays == tenantID
+// (theo-promptly isolation unit is the tenant). Legacy NULL-account (accountID=="")
+// is valid. The broker lazily trusts the account→tenant relationship ForwardAuth
+// authorized.
+func (b *Broker) KeyForTenantScoped(ctx context.Context, accountID, tenantID string, want []string) (string, error) {
 	// Defense-in-depth (EC-4): an empty tenant must NEVER resolve to a key.
 	if tenantID == "" {
 		return "", fmt.Errorf("promptly broker: empty tenant id")
@@ -89,7 +94,7 @@ func (b *Broker) KeyForTenantScoped(ctx context.Context, tenantID string, want [
 	if len(scopes) == 0 {
 		return "", fmt.Errorf("promptly broker: no grantable scopes for tenant %q", tenantID)
 	}
-	cacheKey := tenantID + "\x00" + strings.Join(scopes, ",")
+	cacheKey := accountID + "\x00" + tenantID + "\x00" + strings.Join(scopes, ",")
 	if v, ok := b.cache.Get(cacheKey); ok && b.now().Before(v.expiresAt) {
 		return v.secret, nil
 	}
@@ -136,9 +141,12 @@ func intersectScopes(want, allowed []string) []string {
 // The cache is keyed by (tenant "\x00" scopes), so eviction matches on the
 // tenant prefix — a plain Remove(tenantID) would never hit a scoped key.
 func (b *Broker) Evict(tenantID string) {
-	prefix := tenantID + "\x00"
+	// M1: cache key is `account "\x00" tenant "\x00" scopes`, so the tenant is the
+	// MIDDLE NUL-delimited segment — evict every entry for this tenant across all
+	// accounts and scope-sets.
+	mid := "\x00" + tenantID + "\x00"
 	for _, k := range b.cache.Keys() {
-		if strings.HasPrefix(k, prefix) {
+		if strings.Contains(k, mid) {
 			b.cache.Remove(k)
 		}
 	}

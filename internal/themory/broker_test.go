@@ -49,7 +49,7 @@ func newTestBroker(t *testing.T, m minter) *Broker {
 func TestBroker_CacheMiss_MintsOnce(t *testing.T) {
 	m := &countingMinter{secret: "sek"}
 	b := newTestBroker(t, m)
-	got, err := b.KeyForTenant(context.Background(), "tn-1")
+	got, err := b.KeyForTenant(context.Background(), "acct-1", "tn-1")
 	if err != nil || got != "sek-tn-1" {
 		t.Fatalf("got %q err %v", got, err)
 	}
@@ -61,8 +61,8 @@ func TestBroker_CacheMiss_MintsOnce(t *testing.T) {
 func TestBroker_CacheHit_NoSecondMint(t *testing.T) {
 	m := &countingMinter{secret: "sek"}
 	b := newTestBroker(t, m)
-	_, _ = b.KeyForTenant(context.Background(), "tn-1")
-	_, _ = b.KeyForTenant(context.Background(), "tn-1")
+	_, _ = b.KeyForTenant(context.Background(), "acct-1", "tn-1")
+	_, _ = b.KeyForTenant(context.Background(), "acct-1", "tn-1")
 	if m.mints.Load() != 1 {
 		t.Fatalf("expected 1 mint (cache hit), got %d", m.mints.Load())
 	}
@@ -71,7 +71,7 @@ func TestBroker_CacheHit_NoSecondMint(t *testing.T) {
 func TestBroker_MintFailure_ReturnsErrorNoFallback(t *testing.T) {
 	m := &countingMinter{fail: true}
 	b := newTestBroker(t, m)
-	got, err := b.KeyForTenant(context.Background(), "tn-1")
+	got, err := b.KeyForTenant(context.Background(), "acct-1", "tn-1")
 	if err == nil {
 		t.Fatal("expected fail-closed error, got nil")
 	}
@@ -85,9 +85,9 @@ func TestBroker_TTLExpiry_ReMints(t *testing.T) {
 	b := newTestBroker(t, m)
 	now := time.Now()
 	b.now = func() time.Time { return now }
-	_, _ = b.KeyForTenant(context.Background(), "tn-1")
+	_, _ = b.KeyForTenant(context.Background(), "acct-1", "tn-1")
 	now = now.Add(2 * time.Hour) // advance past the 1h TTL
-	_, _ = b.KeyForTenant(context.Background(), "tn-1")
+	_, _ = b.KeyForTenant(context.Background(), "acct-1", "tn-1")
 	if m.mints.Load() != 2 {
 		t.Fatalf("expected re-mint after TTL, got %d mints", m.mints.Load())
 	}
@@ -104,7 +104,7 @@ func TestBroker_ConcurrentColdMissMintsOnce(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			_, _ = b.KeyForTenant(context.Background(), "tn-hot")
+			_, _ = b.KeyForTenant(context.Background(), "acct-1", "tn-hot")
 		}()
 	}
 	wg.Wait()
@@ -132,7 +132,7 @@ func TestBroker_KeyForTenantScoped_MintsLeastPrivilegeIntersection(t *testing.T)
 	}
 
 	// A read-only consumer must mint a read-only key — never the gateway superset.
-	if _, err := b.KeyForTenantScoped(context.Background(), "tn-x", []string{"memory:read"}); err != nil {
+	if _, err := b.KeyForTenantScoped(context.Background(), "acct-1", "tn-x", []string{"memory:read"}); err != nil {
 		t.Fatalf("KeyForTenantScoped: %v", err)
 	}
 	if len(m.lastScopes) != 1 || m.lastScopes[0] != "memory:read" {
@@ -141,7 +141,7 @@ func TestBroker_KeyForTenantScoped_MintsLeastPrivilegeIntersection(t *testing.T)
 
 	// A consumer asking for more than the gateway supports gets the intersection
 	// (memory:delete is filtered — the gateway broker only grants read+write).
-	if _, err := b.KeyForTenantScoped(context.Background(), "tn-y",
+	if _, err := b.KeyForTenantScoped(context.Background(), "acct-1", "tn-y",
 		[]string{"memory:read", "memory:write", "memory:delete"}); err != nil {
 		t.Fatalf("KeyForTenantScoped: %v", err)
 	}
@@ -154,7 +154,94 @@ func TestBroker_KeyForTenantScoped_NoGrantableScope_FailsClosed(t *testing.T) {
 	m := &scopeCapturingMinter{}
 	b, _ := NewBroker(m, 64, time.Hour, []string{"memory:read"})
 	// The consumer holds only a scope the gateway does not grant → fail closed.
-	if _, err := b.KeyForTenantScoped(context.Background(), "tn-z", []string{"memory:delete"}); err == nil {
+	if _, err := b.KeyForTenantScoped(context.Background(), "acct-1", "tn-z", []string{"memory:delete"}); err == nil {
 		t.Fatal("want error when no scope is grantable (fail-closed), got nil")
+	}
+}
+
+// --- M1: Account-aware mint (lazy validation) ---------------------------------
+
+// wsCapturingMinter records the workspaceID the broker mints against.
+type wsCapturingMinter struct {
+	mu           sync.Mutex
+	lastWorkspace string
+	mints        atomic.Int64
+}
+
+func (m *wsCapturingMinter) MintKey(_ context.Context, workspaceID, _ string, _ []string) (*MintResult, error) {
+	m.mu.Lock()
+	m.lastWorkspace = workspaceID
+	m.mu.Unlock()
+	m.mints.Add(1)
+	return &MintResult{ID: "apk-" + workspaceID, Secret: "sec-" + workspaceID}, nil
+}
+
+// M1 T1.1 — accountID is threaded into the cache key but NEVER to the minter:
+// the minted key's workspace_id stays == tenantID (theo-memory isolation unit is
+// the tenant, unchanged). This is the seam-preservation invariant (ADR-M1-3).
+func TestBroker_KeyForTenantScoped_ThreadsAccountID_WorkspaceStaysTenant(t *testing.T) {
+	m := &wsCapturingMinter{}
+	b := newTestBroker(t, m)
+	if _, err := b.KeyForTenantScoped(context.Background(), "acct-AAA", "tn-X", []string{"memory:read"}); err != nil {
+		t.Fatalf("KeyForTenantScoped: %v", err)
+	}
+	if m.lastWorkspace != "tn-X" {
+		t.Fatalf("workspace leaked the account: minted workspace_id=%q, want tenantID %q (account must NOT cross to the data-plane)", m.lastWorkspace, "tn-X")
+	}
+}
+
+// M1 T1.1 — the cache key includes accountID: the same tenant under two distinct
+// accounts mints two distinct cached secrets (no cross-account cache sharing),
+// while the same (account, tenant) hits the cache.
+func TestBroker_CacheKeyIncludesAccount(t *testing.T) {
+	m := &countingMinter{secret: "sek"}
+	b := newTestBroker(t, m)
+	ctx := context.Background()
+	if _, err := b.KeyForTenantScoped(ctx, "acct-A", "tn-shared", []string{"memory:read"}); err != nil {
+		t.Fatalf("mint A: %v", err)
+	}
+	if _, err := b.KeyForTenantScoped(ctx, "acct-B", "tn-shared", []string{"memory:read"}); err != nil {
+		t.Fatalf("mint B: %v", err)
+	}
+	if m.mints.Load() != 2 {
+		t.Fatalf("distinct accounts on the same tenant must NOT share a cache entry: want 2 mints, got %d", m.mints.Load())
+	}
+	// Same (account, tenant, scopes) again → cache hit, no third mint.
+	if _, err := b.KeyForTenantScoped(ctx, "acct-A", "tn-shared", []string{"memory:read"}); err != nil {
+		t.Fatalf("mint A again: %v", err)
+	}
+	if m.mints.Load() != 2 {
+		t.Fatalf("same (account,tenant,scopes) must hit cache: want 2 mints, got %d", m.mints.Load())
+	}
+}
+
+// M1 T1.1 — N goroutines minting for N distinct (account, tenant) pairs each mint
+// exactly once with no cross-pair collision. Run under `go test -race`.
+func TestBroker_ConcurrentDistinctAccounts_NoCollision(t *testing.T) {
+	m := &countingMinter{secret: "sek"}
+	b := newTestBroker(t, m)
+	const n = 16
+	var wg sync.WaitGroup
+	wg.Add(n)
+	secrets := make([]string, n)
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			defer wg.Done()
+			acc := "acct-" + string(rune('A'+i))
+			ten := "tn-" + string(rune('A'+i))
+			s, _ := b.KeyForTenantScoped(context.Background(), acc, ten, []string{"memory:read"})
+			secrets[i] = s
+		}(i)
+	}
+	wg.Wait()
+	if m.mints.Load() != n {
+		t.Fatalf("distinct pairs must each mint once: want %d mints, got %d", n, m.mints.Load())
+	}
+	seen := map[string]bool{}
+	for i, s := range secrets {
+		if s == "" || seen[s] {
+			t.Fatalf("secret collision/empty at %d: %q", i, s)
+		}
+		seen[s] = true
 	}
 }
