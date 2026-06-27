@@ -70,8 +70,8 @@ func NewBroker(admin minter, size int, ttl time.Duration, scopes []string) (*Bro
 
 // KeyForTenant returns the per-tenant data-plane secret, minting + caching it on
 // a miss. Fails closed: a mint error propagates with an empty secret.
-func (b *Broker) KeyForTenant(ctx context.Context, tenantID string) (string, error) {
-	return b.KeyForTenantScoped(ctx, tenantID, b.scopes)
+func (b *Broker) KeyForTenant(ctx context.Context, accountID, tenantID string) (string, error) {
+	return b.KeyForTenantScoped(ctx, accountID, tenantID, b.scopes)
 }
 
 // KeyForTenantScoped mints/loads a per-tenant key carrying ONLY the LEAST-
@@ -81,7 +81,14 @@ func (b *Broker) KeyForTenant(ctx context.Context, tenantID string) (string, err
 // scope-escalation /review finding). Cache is keyed by (tenant, granted scopes)
 // so two consumers in the same tenant with different scopes get distinct keys.
 // Fails closed: a mint error (or no grantable scope) returns an empty secret.
-func (b *Broker) KeyForTenantScoped(ctx context.Context, tenantID string, want []string) (string, error) {
+//
+// M1: accountID is part of the cache key (an Account-aware key never shares a
+// cached secret across accounts — defense-in-depth) but is NEVER sent to the
+// minter — the minted key's workspace_id stays == tenantID, so the theo-memory
+// isolation unit is the tenant, unchanged. accountID == "" (legacy NULL-account
+// key) is valid and caches under the empty-account slot. The broker LAZILY trusts
+// the account→tenant relationship already authorized by ForwardAuth.
+func (b *Broker) KeyForTenantScoped(ctx context.Context, accountID, tenantID string, want []string) (string, error) {
 	// Defense-in-depth: an empty tenant must NEVER resolve to a key (a future
 	// caller bypassing the resolver guard would otherwise mint against workspace "").
 	if tenantID == "" {
@@ -91,7 +98,7 @@ func (b *Broker) KeyForTenantScoped(ctx context.Context, tenantID string, want [
 	if len(scopes) == 0 {
 		return "", fmt.Errorf("themory broker: no grantable scopes for tenant %q", tenantID)
 	}
-	cacheKey := tenantID + "\x00" + strings.Join(scopes, ",")
+	cacheKey := accountID + "\x00" + tenantID + "\x00" + strings.Join(scopes, ",")
 	if v, ok := b.cache.Get(cacheKey); ok && b.now().Before(v.expiresAt) {
 		return v.secret, nil
 	}
@@ -134,7 +141,15 @@ func intersectScopes(want, allowed []string) []string {
 }
 
 // Evict drops a tenant's cached secret (out-of-band revoke / offboarding) so the
-// next request re-mints. Idempotent.
+// next request re-mints. Idempotent. The cache key is
+// `account "\x00" tenant "\x00" scopes`, so eviction matches the tenant as the
+// MIDDLE NUL-delimited segment across all accounts + scope-sets (a plain
+// Remove(tenantID) would never hit a scoped key).
 func (b *Broker) Evict(tenantID string) {
-	b.cache.Remove(tenantID)
+	mid := "\x00" + tenantID + "\x00"
+	for _, k := range b.cache.Keys() {
+		if strings.Contains(k, mid) {
+			b.cache.Remove(k)
+		}
+	}
 }

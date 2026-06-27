@@ -31,6 +31,8 @@ func resolve(uc *auth.UserContext, scopes []string, err error) routes.APIKeyReso
 	return func(context.Context, string) (*auth.UserContext, []string, error) { return uc, scopes, err }
 }
 
+func allowOwn(_ context.Context, _, _ string) (bool, error) { return true, nil }
+
 // brokerWithUpstream builds a real promptly.Broker over an httptest theo-promptly
 // admin stub that always mints, capturing the minted scopes.
 func brokerWithUpstream(t *testing.T, capturedScopes *[]any) *promptly.Broker {
@@ -69,7 +71,7 @@ func TestForwardPromptly_DelThenSetAuthorization(t *testing.T) {
 	b := brokerWithUpstream(t, &minted)
 	h := routes.NewForwardAuthHandler(
 		resolve(&auth.UserContext{Subject: "u", TenantID: "tenant-a"}, []string{"promptly:read"}, nil),
-		b, "promptly:read", quiet())
+		b, allowOwn, "promptly:read", quiet())
 
 	rec := serve(h)
 	if rec.Code != http.StatusOK {
@@ -89,7 +91,7 @@ func TestForwardPromptly_403WithoutScope(t *testing.T) {
 	b := brokerWithUpstream(t, nil)
 	h := routes.NewForwardAuthHandler(
 		resolve(&auth.UserContext{Subject: "u", TenantID: "tenant-a"}, []string{"memory:read"}, nil),
-		b, "promptly:read", quiet())
+		b, allowOwn, "promptly:read", quiet())
 
 	rec := serve(h)
 	if rec.Code != http.StatusForbidden {
@@ -109,7 +111,7 @@ func TestForwardPromptly_503OnMintError(t *testing.T) {
 	b, _ := promptly.NewBroker(promptly.NewAdminClient(srv.URL, "k", srv.Client()), 16, time.Hour, []string{"prompt:read"})
 	h := routes.NewForwardAuthHandler(
 		resolve(&auth.UserContext{Subject: "u", TenantID: "tenant-a"}, []string{"promptly:read"}, nil),
-		b, "promptly:read", quiet())
+		b, allowOwn, "promptly:read", quiet())
 
 	rec := serve(h)
 	if rec.Code != http.StatusServiceUnavailable {
