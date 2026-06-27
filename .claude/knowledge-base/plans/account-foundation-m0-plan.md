@@ -47,7 +47,7 @@ Verified against current code on `develop` (2026-06-27) via deep review.
 | `internal/auth/scope.go` | theo-cloud | 72-76, 100-161 | `apiKeyRow.accountID` + SELECT `account_id` (NULL-tolerant) → `UserContext.AccountID` |
 | `internal/auth/scope_resolve_test.go` | theo-cloud | 23-31 (pattern) | NULL account_id legacy-key case + populated case |
 | `internal/auth/tenant.go` | theo-cloud | 35-169, 106-108 | `EnsureTenant` calls `EnsureAccount` first; tenant INSERT sets `account_id` |
-| `internal/routes/api_keys.go` | theo-cloud | 365-370 | `CreateKey` writes `account_id` (from `user.AccountID`, NULL-tolerant) |
+| `internal/routes/api_keys.go` | theo-cloud | 365-370 | `CreateKey` writes `account_id` **derived from the tenant** via subquery (NULL-tolerant) — revised during review: `/v1/api-keys` is behind `RequireJWT`, whose `UserContext` has no `AccountID` in M0, so the key inherits its tenant's account instead of trusting an empty `user.AccountID` |
 | `tests/e2e/account_m0_e2e_test.go` | theo-cloud | NEW | integration vs pg-cloud (legacy 200 + new signup 1 account owns tenant + backfill) |
 | `CHANGELOG.md` | both repos | `[Unreleased]` | Added entries |
 
@@ -291,7 +291,7 @@ RED: `test_ensure_tenant_provisions_account_then_tenant` (sqlmock) — expects a
 `internal/routes/api_keys.go` (365-370)
 
 #### Why this step
-Action: add `account_id` to the INSERT, value `user.AccountID` (empty → SQL NULL via `sql.NullString`). Reasoning: a key minted by an Account-aware caller must carry the Account; a legacy-JWT caller (no AccountID) must still mint a key (NULL).
+Action: add `account_id` to the INSERT, **derived from the tenant** via a correlated subquery `(SELECT account_id FROM tenants WHERE id = $3)` (NULL when the tenant's is NULL). Reasoning (revised during review): the `/v1/api-keys` route is behind `RequireJWT`, whose `UserContext` carries no `AccountID` in M0 — trusting `user.AccountID` would write NULL for every dashboard-minted key. Deriving from the tenant makes the key inherit the correct Account; `$3` is the authenticated `user.TenantID`, not request input.
 
 #### TDD
 RED (sqlmock): `test_create_key_writes_account_id_when_present` + `test_create_key_writes_null_when_absent`.
