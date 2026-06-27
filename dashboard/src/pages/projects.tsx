@@ -43,15 +43,26 @@ function ProjectRow({
   // "last_deploy presence" heuristic. FAILED builds no longer render
   // as Idle.
   const projectStatus = p.last_deploy_status ?? 'idle';
-  // Map our 5-value enum onto @usetheo/ui's StatusKind (which lacks
-  // 'queued'). Queued semantically belongs with `building` (both
-  // in-flight, not-yet-live).
+  // Map our 6-value enum onto @usetheo/ui's StatusKind (which lacks
+  // 'queued' and 'preview'). Queued semantically belongs with `building`
+  // (both in-flight, not-yet-live). Red Team theo-cloud#41 absorption
+  // (2026-06-27): 'preview' is its own state — preview-only project
+  // (succeeded preview builds, no active production release). The label
+  // says "Preview" but the StatusKind dot uses the neutral 'idle' tone
+  // so the row doesn't show a green "serving" indicator for a project
+  // that has nothing serving in production.
   const statusKind: StatusKind =
-    projectStatus === 'queued' ? 'building' : projectStatus;
+    projectStatus === 'queued'
+      ? 'building'
+      : projectStatus === 'preview'
+        ? 'idle'
+        : projectStatus;
   const statusLabel =
     projectStatus === 'live'
       ? 'Live'
-      : projectStatus.charAt(0).toUpperCase() + projectStatus.slice(1);
+      : projectStatus === 'preview'
+        ? 'Preview'
+        : projectStatus.charAt(0).toUpperCase() + projectStatus.slice(1);
   // T4.2 finding 2.1 + T2.1: prefer the new server-derived
   // environment_count; fall back to 1 if only the legacy singular
   // `environment` is present.

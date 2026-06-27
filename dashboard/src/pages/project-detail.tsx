@@ -151,8 +151,16 @@ export function ProjectDetailPage() {
         </div>
 
         {/* T1.1 of plan 2026-06-12-...j25...: Live URL hero card above health
-            (Vercel-canonical hero slot per ADR D2; data path ADR D1 = useProjectStatus.url). */}
-        <LiveUrlHero status={status} loading={statusLoading} />
+            (Vercel-canonical hero slot per ADR D2; data path ADR D1 = useProjectStatus.url).
+            Red Team theo-cloud#41 (2026-06-27): flag preview-only projects so
+            the hero renders the canonical "Preview only" empty state instead of
+            "URL pending" — eliminates the divergence the Red Team caught
+            (badge said Live, URL field said PENDING). */}
+        <LiveUrlHero
+          status={status}
+          loading={statusLoading}
+          isPreviewOnly={project.last_deploy_status === 'preview'}
+        />
 
         {status && <ProjectHealthCard status={status} />}
 
