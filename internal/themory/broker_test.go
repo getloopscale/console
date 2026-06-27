@@ -245,3 +245,28 @@ func TestBroker_ConcurrentDistinctAccounts_NoCollision(t *testing.T) {
 		seen[s] = true
 	}
 }
+
+// M1 (review MEDIUM) — Evict(tenant) must match the tenant as the MIDDLE segment
+// of the account∥tenant∥scopes cache key (the old Remove(tenantID) never hit a
+// scoped key — a latent no-op this PR corrected). Mirrors promptly's coverage.
+func TestBroker_EvictForcesRemint(t *testing.T) {
+	m := &countingMinter{secret: "sek"}
+	b := newTestBroker(t, m)
+	_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", "tn-a", []string{"memory:read"})
+	b.Evict("tn-a")
+	_, _ = b.KeyForTenantScoped(context.Background(), "acct-1", "tn-a", []string{"memory:read"})
+	if m.mints.Load() != 2 {
+		t.Fatalf("expected re-mint after Evict(tenant), got %d mints", m.mints.Load())
+	}
+}
+
+// M1 (review LOW — symmetry with promptly) — an empty tenant id is rejected
+// (defense-in-depth: a future caller bypassing the resolver guard must never mint
+// against workspace "").
+func TestBroker_EmptyTenantRejected(t *testing.T) {
+	m := &countingMinter{secret: "sek"}
+	b := newTestBroker(t, m)
+	if _, err := b.KeyForTenantScoped(context.Background(), "acct-1", "", []string{"memory:read"}); err == nil {
+		t.Fatal("want error for empty tenant id, got nil")
+	}
+}
