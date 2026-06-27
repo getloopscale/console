@@ -80,4 +80,39 @@ describe('ReadinessChecklist', () => {
     expect(screen.queryAllByRole('link', { name: /Fix it/i })).toHaveLength(0);
     expect(screen.queryAllByText(/Coming soon/i)).toHaveLength(0);
   });
+
+  // Red Team theo-cloud#94 regression-protector (2026-06-27): when a
+  // signal is `pass` (Ready), the row MUST NOT render a "Fix it" CTA —
+  // the label would contradict the state. Closes the bug the Red Team
+  // captured in the Projects-surface live test.
+  it('test_checklist_pass_signal_does_not_render_fix_link (#94)', () => {
+    // All signals pass (Ready) → zero "Fix it" links AND zero "Coming
+    // soon" spans. A Ready row is not actionable; CTA would contradict
+    // the displayed state.
+    const signals = buildSignals(
+      Object.fromEntries(SIGNALS.map((s) => [s.name, { status: 'pass' }])),
+    );
+    renderWith(signals);
+    expect(screen.queryAllByRole('link', { name: /Fix it/i })).toHaveLength(0);
+    expect(screen.queryAllByText(/Coming soon/i)).toHaveLength(0);
+  });
+
+  // Red Team theo-cloud#94 follow-on: `warn` MUST also render Fix it
+  // (per-status enumeration coverage). This locks the tri-state
+  // contract: pass → no CTA; warn → CTA; fail → CTA; unknown → no CTA.
+  it('test_checklist_warn_signal_renders_fix_link (#94)', () => {
+    const signals = buildSignals(
+      Object.fromEntries(SIGNALS.map((s) => [s.name, { status: 'unknown' }])),
+    );
+    signals.hpa_configured = {
+      name: 'hpa_configured',
+      status: 'warn',
+      weight: 20,
+      fixPath: '/projects/:name/scale',
+    };
+    renderWith(signals);
+    const links = screen.getAllByRole('link', { name: /Fix it/i });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute('href', '/projects/my-api/scale');
+  });
 });
