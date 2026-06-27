@@ -93,7 +93,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 1. Backfill picks the wrong owner→Account mapping → assert one Account per distinct `tenants.owner_id`; integration test on a seeded multi-tenant fixture.
 2. A read path forgets NULL-tolerance and 500s on a legacy key → negative-case test with a pre-migration key.
 
-### M1 — [ ] Broker per-Account-scoped mint (lazy validation)
+### M1 — [x] Broker per-Account-scoped mint (lazy validation)
 
 **Objective:** make ForwardAuth/broker Account-aware — authorize `account → tenant` ownership and mint the per-tenant downstream key with `accountID` in the cache key — while theo-memory stays unchanged.
 
