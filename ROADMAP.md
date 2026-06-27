@@ -75,7 +75,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 > Each milestone has a checkbox in its header. Flip `[ ]` → `[x]` as you complete it (or let `cycle-release` flip it post-merge when the plan carries `milestone_id`). Status lives in this document.
 
-## M0 — [ ] Account foundation (walking skeleton, backward-compatible)
+### M0 — [x] Account foundation (walking skeleton, backward-compatible)
 
 **Objective:** introduce the Account entity end-to-end (schema → provisioning → `UserContext.AccountID`) with everything NULL-tolerant, so the architecture is proven without breaking any existing flow.
 
@@ -93,7 +93,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 1. Backfill picks the wrong owner→Account mapping → assert one Account per distinct `tenants.owner_id`; integration test on a seeded multi-tenant fixture.
 2. A read path forgets NULL-tolerance and 500s on a legacy key → negative-case test with a pre-migration key.
 
-## M1 — [ ] Broker per-Account-scoped mint (lazy validation)
+### M1 — [ ] Broker per-Account-scoped mint (lazy validation)
 
 **Objective:** make ForwardAuth/broker Account-aware — authorize `account → tenant` ownership and mint the per-tenant downstream key with `accountID` in the cache key — while theo-memory stays unchanged.
 
@@ -110,7 +110,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 1. Cache-key collision if `accountID` omitted → unit test proving two accounts with same tenant-name mint distinct keys.
 2. Lazy validation trusting an unvalidated relationship → ensure the resolver (not the broker) is the single authorization point; integration test for the cross-account 403.
 
-## M2 — [ ] Billing per-Account (+ project quota)
+### M2 — [ ] Billing per-Account (+ project quota)
 
 **Objective:** move billing from per-tenant to per-Account so all of an Account's tenants share one plan + metered usage, with tenant (project) count quotaed per Account.
 
@@ -127,7 +127,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 1. Double-billing during the per-tenant→per-Account cutover → migrate read path behind a flag; reconcile test on seeded subscriptions.
 2. Quota check race when two tenants provision concurrently → concurrency test (atomic quota decrement / row lock).
 
-## M3 — [ ] Enforce + propagate (Phase 2)
+### M3 — [ ] Enforce + propagate (Phase 2)
 
 **Objective:** close the migration — make `account_id` `NOT NULL` and propagate `account_id` into the JWT (additive) so SDKs adopt it in parallel.
 
