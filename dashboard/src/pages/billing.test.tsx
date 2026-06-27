@@ -11,15 +11,37 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const mockUseCloudApi = vi.fn();
 vi.mock('@/hooks/use-api', () => ({
-  useCloudApi: () => mockUseCloudApi(),
-  useEngineApi: () => mockUseCloudApi(),
+  // Sprint 3 Phase 3 (#21) — mock forwards (path, options) so the v1.1 route
+  // gate (`{ enabled }`) can be observed by the new regression test below.
+  useCloudApi: (path: string, options?: { enabled?: boolean }) => mockUseCloudApi(path, options),
+  useEngineApi: (path: string, options?: { enabled?: boolean }) => mockUseCloudApi(path, options),
 }));
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
-  cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
-  engineFetch: (...args: unknown[]) => mockCloudFetch(...args),
-}));
+vi.mock('@/lib/api', () => {
+  // Declare ApiError inside the factory closure — vi.mock hoists, so a top-
+  // level class would be in the TDZ when the mock executes (vitest error
+  // "Cannot access 'ApiError' before initialization").
+  class ApiError extends Error {
+    readonly status: number;
+    readonly body?: unknown;
+    constructor(status: number, body?: unknown, message?: string) {
+      super(message ?? `API request failed with status ${status}`);
+      this.name = 'ApiError';
+      this.status = status;
+      this.body = body;
+    }
+  }
+  return {
+    cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
+    engineFetch: (...args: unknown[]) => mockCloudFetch(...args),
+    ApiError,
+  };
+});
+
+// Import the same mocked ApiError so the test's instanceof checks line up with
+// the real module's export (the production catch branch checks instanceof).
+import { ApiError } from '@/lib/api';
 
 import { BillingPage } from './billing';
 
@@ -44,13 +66,41 @@ describe('BillingPage', () => {
     expect(screen.getByText('acme')).toBeInTheDocument();
   });
 
-  it('test_billing_portal_button_calls_endpoint', async () => {
+  // qa-sprint2-cleanup-2026-06-24 T2.1 — closes theo-cloud#15
+  // (BLOCKER ux_friction: Manage Plan click was inert).
+  //
+  // Pre-fix: handler called window.open(portal.url, '_blank') from an async
+  // callback after `await cloudFetch`. Modern browsers (Chrome 119+, Safari 17+,
+  // Firefox 122+) BLOCK popups opened from async callbacks because the user
+  // gesture activation expires. The popup was silently suppressed.
+  //
+  // T2.2 fix: swap window.open → window.location.href, matching the existing
+  // upgradePlan handler (which uses window.location.href correctly) and Stripe's
+  // documented canonical Customer Portal pattern (same-window navigation).
+  it('test_billing_portal_button_navigates_same_window_on_success', async () => {
     mockUseCloudApi.mockReturnValue({
       data: { plan: 'pro', team: 'acme', usage: {} },
       loading: false,
       error: false,
     });
     mockCloudFetch.mockResolvedValue({ url: 'https://billing.stripe.com/portal/xyz' });
+
+    // jsdom does not implement navigation; stub the location.href setter so we
+    // can observe what the click handler attempted to assign.
+    const hrefSetter = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      writable: true,
+      value: {
+        ...originalLocation,
+        set href(v: string) { hrefSetter(v); },
+        get href() { return originalLocation.href; },
+      },
+    });
+
+    // EC-11 defense: window.open MUST NOT be called post-fix (would mean the
+    // async-callback popup-blocker bug is back).
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
     const user = userEvent.setup();
@@ -58,8 +108,35 @@ describe('BillingPage', () => {
     await user.click(screen.getByRole('button', { name: /manage plan/i }));
 
     expect(mockCloudFetch).toHaveBeenCalledWith('/v1/billing/portal');
-    expect(openSpy).toHaveBeenCalledWith('https://billing.stripe.com/portal/xyz', '_blank');
+    expect(hrefSetter).toHaveBeenCalledWith('https://billing.stripe.com/portal/xyz');
+    expect(openSpy).not.toHaveBeenCalled();
+
     openSpy.mockRestore();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      writable: true,
+      value: originalLocation,
+    });
+  });
+
+  it('test_billing_portal_button_renders_alert_on_null_response', async () => {
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'pro', team: 'acme', usage: {} },
+      loading: false,
+      error: false,
+    });
+    // Failure path: backend returns null OR a response with no `url` field.
+    mockCloudFetch.mockResolvedValue(null);
+
+    const user = userEvent.setup();
+    render(<BillingPage />);
+    await user.click(screen.getByRole('button', { name: /manage plan/i }));
+
+    // Assert a destructive Alert renders with the failure copy — proves the
+    // click produces an OBSERVABLE effect even on the failure path (the
+    // canonical FAANG anti-inert assertion that closes the #15 BLOCKER).
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent ?? '').toMatch(/failed to open billing portal/i);
   });
 
   it('test_billing_renders_invoice_table_with_data', () => {
@@ -128,5 +205,82 @@ describe('BillingPage', () => {
     });
     render(<BillingPage />);
     expect(screen.getByText('Includes')).toBeInTheDocument();
+  });
+
+  it('test_billing_upsell_is_focusable_button_with_accessible_name_closes_27', () => {
+    // Sprint 3 Phase 7 (#27) v1.1 ADR D4 — upsell card was a <Card onClick>
+    // with <p> content (not focusable, no role). Now a real <button> wrapping
+    // <Card.Body>. v1.1 EC-3: dropped <Card as="button"> polymorphic gamble
+    // (the @usetheo/ui Card .d.ts has no `as`/`asChild` prop).
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'starter', team: 'acme', usage: {} },
+      loading: false,
+      error: false,
+    });
+    render(<BillingPage />);
+    const upgradeBtn = screen.getByRole('button', { name: /upgrade to pro/i });
+    expect(upgradeBtn).toBeInTheDocument();
+    expect(upgradeBtn.tagName).toBe('BUTTON');
+    // Focusable + keyboard activation contract (Enter AND Space both fire
+    // `click` natively on <button>; jsdom doesn't dispatch synthesized key
+    // → click bridging, so we lock the structural invariant instead).
+    expect(upgradeBtn.getAttribute('type')).toBe('button');
+    expect(upgradeBtn.className).toMatch(/focus-visible:ring/);
+  });
+
+  // theo-cloud#63 (BLOCKER functional_bug): POST /v1/billing/checkout {plan:'pro'}
+  // returns 503 + actionable body `{"code":"BILLING_NOT_CONFIGURED","message":
+  // "Plan 'pro' is not available for purchase yet. Please contact support."}` per
+  // release-blockers-2026-06-25-set T4.2 backend fix. Pre-fix the UI catch block
+  // showed the generic toast "Failed to start checkout. Please try again." which
+  // (a) discarded the server's actionable message and (b) suggested retry for a
+  // non-transitory condition (every retry → 503 again, user stuck). Fix opts the
+  // billing checkout mutation into cloudFetch `{ throwOnError: true }` so the
+  // ApiError surfaces with the server's body, and the catch block reads
+  // `error.body.message` for actionable copy (KISS: no new UI invented).
+  it('test_billing_upgrade_surfaces_server_actionable_message_when_503_BILLING_NOT_CONFIGURED_closes_63', async () => {
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'starter', team: 'acme', usage: {} },
+      loading: false,
+      error: false,
+    });
+    // Backend canonical 503 shape per Sprint 4 release-blockers fix.
+    mockCloudFetch.mockRejectedValue(new ApiError(503, {
+      code: 'BILLING_NOT_CONFIGURED',
+      message: "Plan 'pro' is not available for purchase yet. Please contact support.",
+    }));
+
+    const user = userEvent.setup();
+    render(<BillingPage />);
+    await user.click(screen.getByRole('button', { name: /upgrade to pro/i }));
+
+    // UI surfaces the SERVER's actionable message.
+    const alert = await screen.findByRole('alert');
+    const text = alert.textContent ?? '';
+    expect(text).toMatch(/Plan 'pro' is not available for purchase yet/);
+    expect(text).toMatch(/contact support/i);
+
+    // Anti-regression: the misleading "Please try again" copy MUST NOT appear
+    // for a non-transitory 503 (Sprint 4 #39 distinguished the 4xx user-input
+    // class from the 5xx operator-action class; #63 closes the UI parity).
+    expect(text).not.toMatch(/please try again/i);
+  });
+
+  it('test_billing_memory_metrics_query_disabled_on_non_memory_route_closes_21', () => {
+    // Sprint 3 Phase 3 (#21) v1.1 ADR D2 — MemoryUsageCard on /billing must
+    // pass `{ enabled: false }` to useCloudApi for `/v1/dashboard/memory/metrics`
+    // (because pathname.startsWith('/memory') is false on /billing). This
+    // prevents the noisy 404 console spam reported by QA against dev-public.
+    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
+    render(<BillingPage />);
+    // The MemoryUsageCard call site MUST appear in the mock log with enabled=false.
+    const memoryCalls = mockUseCloudApi.mock.calls.filter(
+      (args) => args[0] === '/v1/dashboard/memory/metrics',
+    );
+    expect(memoryCalls.length).toBeGreaterThan(0);
+    // Every memory-metrics call from /billing route must have enabled=false.
+    for (const call of memoryCalls) {
+      expect(call[1]?.enabled).toBe(false);
+    }
   });
 });

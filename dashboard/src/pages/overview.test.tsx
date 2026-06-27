@@ -176,4 +176,19 @@ describe('OverviewPage', () => {
     // UsageMeter primitive applies text-warning class to over-quota value
     expect(container.querySelector('.text-warning')).toBeInTheDocument();
   });
+
+  it('test_overview_heading_hierarchy_h1_to_h2_no_skip_closes_25', () => {
+    // Sprint 3 Phase 5 (#25) v1.1 — WCAG 1.3.1 Info and Relationships.
+    // PageShell renders the page h1; section labels (Usage, Projects, Quick
+    // actions) must be h2 (not h3 / h4) so AT users navigate unbroken.
+    render(<OverviewPage />);
+    const headings = screen.getAllByRole('heading');
+    const levels = headings.map((h) => parseInt(h.tagName.slice(1), 10));
+    // Walk the document order — no step may jump by more than +1.
+    for (let i = 1; i < levels.length; i++) {
+      expect(levels[i]).toBeLessThanOrEqual(levels[i - 1] + 1);
+    }
+    // At least one h2 must exist (the section labels we promoted).
+    expect(levels).toContain(2);
+  });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Brain, Loader2, Sparkles } from 'lucide-react';
 import {
   Alert,
@@ -15,7 +15,34 @@ import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useCloudApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch, ApiError } from '@/lib/api';
+
+/**
+ * theo-cloud#63: extract the actionable error copy when the backend rejected
+ * a checkout/portal request. Order of preference (KISS — no new UI invented):
+ *
+ *   1. ApiError + parsed JSON body with a non-empty `message` → use it verbatim.
+ *      The backend (Sprint 4 release-blockers-2026-06-25-set T4.2) emits
+ *      `{code: "BILLING_NOT_CONFIGURED", message: "Plan 'pro' is not available
+ *      for purchase yet. Please contact support."}` and similar — these are
+ *      already user-grade copy (CR-9 compliant — no internal terms).
+ *   2. Any non-blank Error message (e.g. network failure → "Failed to fetch")
+ *      is too low-signal to surface; fall back to the generic toast.
+ *   3. Anything else → generic retry copy (the existing pre-fix behavior).
+ *
+ * The "Please try again" generic copy stays as the FINAL fallback so a
+ * truly transient failure still reads canonically; the bug was using it as
+ * the ONLY message for every failure, including non-transitory 503.
+ */
+function extractActionableErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && typeof err.body === 'object' && err.body !== null) {
+    const body = err.body as { message?: unknown };
+    if (typeof body.message === 'string' && body.message.trim().length > 0) {
+      return body.message;
+    }
+  }
+  return 'Failed to start checkout. Please try again.';
+}
 import { formatDate, formatNumber } from '@/lib/format';
 
 interface UsageMetric {
@@ -128,7 +155,19 @@ export function BillingPage() {
     try {
       const portal = await cloudFetch<{ url: string }>('/v1/billing/portal');
       if (portal?.url) {
-        window.open(portal.url, '_blank');
+        // qa-sprint2-cleanup-2026-06-24 T2.2 — closes theo-cloud#15
+        // (BLOCKER ux_friction: Manage Plan click was inert).
+        //
+        // Pre-fix: window.open(portal.url, '_blank') from an async callback
+        // (after `await cloudFetch`) is silently blocked by modern browser
+        // popup blockers because the user gesture activation expires across
+        // the await. The user saw no modal, no redirect, no new tab.
+        //
+        // Fix: use window.location.href same-window navigation, matching the
+        // existing upgradePlan handler below AND Stripe's documented canonical
+        // Customer Portal pattern (https://docs.stripe.com/billing/customer/
+        // integration#redirect-to-portal). No gesture-activation requirement.
+        window.location.href = portal.url;
       } else {
         setActionError('Failed to open billing portal. Please try again.');
       }
@@ -143,17 +182,27 @@ export function BillingPage() {
     setActionLoading(true);
     setActionError('');
     try {
-      const result = await cloudFetch<{ url: string }>('/v1/billing/checkout', {
-        method: 'POST',
-        body: JSON.stringify({ plan }),
-      });
+      // theo-cloud#63 closure: opt into throwOnError so a non-2xx (e.g. 503
+      // BILLING_NOT_CONFIGURED) surfaces an ApiError carrying the server's
+      // actionable body — the UI then renders the operator's message verbatim
+      // rather than the misleading generic "Please try again" that suggested
+      // retry for a non-transitory condition. Backend canonical 503 shape is
+      // {code, message} per Sprint 4 release-blockers-2026-06-25-set T4.2.
+      const result = await cloudFetch<{ url: string }>(
+        '/v1/billing/checkout',
+        { method: 'POST', body: JSON.stringify({ plan }) },
+        { throwOnError: true },
+      );
       if (result?.url) {
         window.location.href = result.url;
       } else {
+        // throwOnError makes this branch unreachable for non-2xx, but the
+        // contract `T | null` still permits a 2xx with no `url` field — keep
+        // the safety net (it preserves the existing Sprint-2 #15 contract).
         setActionError('Failed to start checkout. Please try again.');
       }
-    } catch {
-      setActionError('Failed to start checkout. Please try again.');
+    } catch (err) {
+      setActionError(extractActionableErrorMessage(err));
     } finally {
       setActionLoading(false);
     }
@@ -282,10 +331,19 @@ export function BillingPage() {
                                   Contact-only — see CLAUDE.md § Pricing)
             team / enterprise:    no card (already on a top tier)
         */}
+        {/* Sprint 3 Phase 7 (#27) v1.1 ADR D4 — replace the outer <Card
+            onClick> with a real <button type="button"> wrapping <Card.Body>
+            (which renders a <div> so no nested-interactive trap). Card root
+            has no `as`/`asChild` polymorphic prop in its @usetheo/ui .d.ts
+            (probed during v1.1 EC-3 absorption). The button preserves the
+            previous card visuals (border + padding + hover) AND surfaces a
+            real accessible name + focus ring for keyboard users. */}
         {planTier === 'free' && (
-          <Card
-            className="cursor-pointer hover:border-primary/30 transition-colors"
+          <button
+            type="button"
             onClick={() => upgradePlan('pro')}
+            aria-label="Upgrade to Pro — $29 per month"
+            className="text-left rounded-lg border border-border bg-card text-card-foreground cursor-pointer hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Card.Body className="p-6">
               <Sparkles className="size-5 text-primary mb-3" aria-hidden="true" />
@@ -296,12 +354,14 @@ export function BillingPage() {
                 10 projects, 3 environments, 1000 builds/month
               </p>
             </Card.Body>
-          </Card>
+          </button>
         )}
         {planTier === 'pro' && (
-          <Card
-            className="cursor-pointer hover:border-primary/30 transition-colors"
+          <button
+            type="button"
             onClick={() => upgradePlan('team')}
+            aria-label="Upgrade to Team — $99 per month"
+            className="text-left rounded-lg border border-border bg-card text-card-foreground cursor-pointer hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Card.Body className="p-6">
               <Sparkles className="size-5 text-primary mb-3" aria-hidden="true" />
@@ -318,7 +378,7 @@ export function BillingPage() {
                 <li>Priority support</li>
               </ul>
             </Card.Body>
-          </Card>
+          </button>
         )}
       </ContentGrid>
 
@@ -365,7 +425,20 @@ interface MemoryMetricsResponse {
  * state is what avoids surfacing Memory to customers who don't use it.
  */
 function MemoryUsageCard() {
-  const { data, error } = useCloudApi<MemoryMetricsResponse>('/v1/dashboard/memory/metrics');
+  // Sprint 3 Phase 3 (#21) v1.1 ADR D2 — gate the memory-metrics query to the
+  // /memory route via react-router-dom's useLocation hook (the codebase's
+  // canonical pattern — see src/components/layout/{app-sidebar,top-bar}.tsx).
+  // MemoryUsageCard renders ONLY on /billing today, so this gate effectively
+  // disables the fetch on every page that currently mounts the widget — which
+  // is the right behaviour: dev-public has the memory backend unmounted and
+  // the 404 was polluting the console. The empty state below is the canonical
+  // fallback per the D1 invariant in the docstring above.
+  const { pathname } = useLocation();
+  const enabled = pathname.startsWith('/memory');
+  const { data, error } = useCloudApi<MemoryMetricsResponse>(
+    '/v1/dashboard/memory/metrics',
+    { enabled },
+  );
   const empty = error || !data || (data.total_memories === 0 && data.retrieval_api_usage === 0);
 
   return (

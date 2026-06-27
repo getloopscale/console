@@ -157,4 +157,42 @@ describe('RegisterPage', () => {
       expect(screen.getByText('Email already exists.')).toBeInTheDocument();
     });
   });
+
+  it('test_register_inputs_have_visible_labels_closes_26', async () => {
+    // Sprint 3 Phase 6 (#26) v1.1 ADR D4 — WCAG 3.3.2 Labels or Instructions.
+    // Replace `placeholder + aria-label` anti-pattern with explicit
+    // <label htmlFor> + <Input id> (id forwards through @usetheo/ui Input
+    // because InputProps extends InputHTMLAttributes per v1.1 EC-5 probe).
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
+    render(<RegisterPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /^name$/i })).toBeInTheDocument();
+    });
+    // Accept either wiring per v1.1 EC-5: htmlFor attribute OR nested-label parent.
+    for (const field of ['name', 'email', 'password']) {
+      const inputId = `register-${field}`;
+      const labelEl =
+        document.querySelector(`label[for="${inputId}"]`) ??
+        document.getElementById(inputId)?.closest('label');
+      expect(labelEl, `<label> for ${field} input`).toBeTruthy();
+      expect(labelEl?.className ?? '').not.toMatch(/sr-only/);
+      expect(labelEl?.textContent ?? '').toMatch(new RegExp(field, 'i'));
+    }
+  });
+
+  // theo-cloud#65 closure (Red Team 2026-06-26): the /register Name field had
+  // no length cap (Kratos schema maxLength: -1 + no HTML maxLength), so a
+  // 20 000-char Name was accepted, persisted, embedded in the session JWT
+  // (root cause of #64 ~27 KB Authorization header → 431). Fix: HTML
+  // maxLength=256 on the <Input> + JS validateMaxLength gate + Kratos schema
+  // maxLength: 256. This test locks the HTML attribute structurally.
+  it('test_register_name_input_has_maxLength_256_closes_65', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
+    render(<RegisterPage />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name')).toBeInTheDocument();
+    });
+    const nameInput = screen.getByLabelText('Name') as HTMLInputElement;
+    expect(nameInput.maxLength).toBe(256);
+  });
 });

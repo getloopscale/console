@@ -15,11 +15,12 @@ import (
 
 // UserContext holds authenticated user info, set by the auth middleware.
 type UserContext struct {
-	Subject  string
-	Email    string
-	Name     string
-	TenantID string
-	Role     string // owner, admin, member (§5.1)
+	Subject   string
+	Email     string
+	Name      string
+	TenantID  string
+	AccountID string // M0: the Account ("Cliente Theo") owning this tenant; "" for legacy keys (NULL-tolerant)
+	Role      string // owner, admin, member (§5.1)
 }
 
 type contextKey string

@@ -45,7 +45,15 @@ function devCspRelax(): Plugin {
  * after first visit, design-system code is cached separately from app
  * code that changes more frequently.
  */
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // Sprint 3 (#23) v1.1 ADR D3 defense in depth: replace the runtime
+  // `import.meta.env.DEV` check (proved bypass-able in dev-public per QA)
+  // with a literal `__DEV__` substitution at build time. Vite's `define:`
+  // produces text replacement → guaranteed eliminable by the tree-shaker.
+  // Bundle-grep test at `src/main.test.tsx` is the load-bearing companion.
+  define: {
+    __DEV__: JSON.stringify(mode === 'development'),
+  },
   plugins: [
     // dev-only: relax the production CSP so localhost/127.0.0.1 login works under `make dev-up`.
     devCspRelax(),
@@ -227,4 +235,4 @@ export default defineConfig({
     // (config.ts, BroadcastChannel) run under test (find_cicd_007).
     environment: 'jsdom',
   },
-});
+}));

@@ -425,16 +425,21 @@ export function RecoveryPage() {
                 }}
                 className="space-y-4"
               >
-                <Input
-                  size="lg"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  aria-label="Email"
-                />
+                {/* Sprint 3 Phase 6 (#26) v1.1 ADR D4 — WCAG 3.3.2. */}
+                <label htmlFor="recovery-email" className="block text-body-sm font-medium text-foreground">
+                  Email
+                  <Input
+                    id="recovery-email"
+                    size="lg"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    className="mt-1"
+                  />
+                </label>
                 <Button
                   type="submit"
                   variant="primary"
@@ -483,16 +488,20 @@ export function RecoveryPage() {
                 }}
                 className="space-y-4"
               >
-                <Input
-                  size="lg"
-                  type="text"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  required
-                  placeholder="Enter code"
-                  aria-label="Recovery code"
-                  className="text-center tracking-widest"
-                />
+                {/* Sprint 3 Phase 6 (#26) v1.1 ADR D4 — WCAG 3.3.2. */}
+                <label htmlFor="recovery-code" className="block text-body-sm font-medium text-foreground">
+                  Recovery code
+                  <Input
+                    id="recovery-code"
+                    size="lg"
+                    type="text"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    required
+                    placeholder="Enter code"
+                    className="mt-1 text-center tracking-widest"
+                  />
+                </label>
                 <Button
                   type="submit"
                   variant="primary"
@@ -534,26 +543,35 @@ export function RecoveryPage() {
                 }}
                 className="space-y-4"
               >
-                <Input
-                  size="lg"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  placeholder="New password"
-                  autoComplete="new-password"
-                  aria-label="New password"
-                />
-                <Input
-                  size="lg"
-                  type="password"
-                  value={newPasswordConfirm}
-                  onChange={(e) => setNewPasswordConfirm(e.target.value)}
-                  required
-                  placeholder="Confirm password"
-                  autoComplete="new-password"
-                  aria-label="Confirm password"
-                />
+                {/* Sprint 3 Phase 6 (#26) v1.1 ADR D4 — WCAG 3.3.2. */}
+                <label htmlFor="recovery-new-password" className="block text-body-sm font-medium text-foreground">
+                  New password
+                  <Input
+                    id="recovery-new-password"
+                    size="lg"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    placeholder="New password"
+                    autoComplete="new-password"
+                    className="mt-1"
+                  />
+                </label>
+                <label htmlFor="recovery-confirm-password" className="block text-body-sm font-medium text-foreground">
+                  Confirm password
+                  <Input
+                    id="recovery-confirm-password"
+                    size="lg"
+                    type="password"
+                    value={newPasswordConfirm}
+                    onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                    required
+                    placeholder="Confirm password"
+                    autoComplete="new-password"
+                    className="mt-1"
+                  />
+                </label>
                 <Button
                   type="submit"
                   variant="primary"
@@ -596,7 +614,11 @@ export function RecoveryPage() {
 
           {!showReloadFallback && (
             <p className="text-center text-body-sm">
-              <Link to="/login" className="text-primary hover:text-primary/80">
+              {/* Sprint 3 Phase 4 (#24) v1.1 ADR D4 — WCAG 2.5.8 tap target ≥44px. */}
+              <Link
+                to="/login"
+                className="text-primary hover:text-primary/80 min-h-[44px] inline-flex items-center justify-center"
+              >
                 Back to login
               </Link>
             </p>

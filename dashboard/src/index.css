@@ -89,6 +89,14 @@
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --easing-decelerate: cubic-bezier(0, 0, 0, 1);
   --easing-accelerate: cubic-bezier(0.3, 0, 1, 1);
+
+  /* T1.1 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #19 (WCAG 2.4.11
+   * Focus Appearance, contrast ≥ 3:1). Light-theme `--ring` was resolving to
+   * white-on-white (oklch(1 0 0)) at @usetheo/ui defaults, making the focus
+   * indicator invisible on auth pages. Canonical violet (HSL 260 80% 45%)
+   * yields ~5:1 contrast vs card backgrounds — passes WCAG AA. Per ADR D2
+   * (canonical violet over black/red; matches comment line 27 + brand). */
+  --ring: 260 80% 45%;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -29,6 +29,27 @@ func LoadPlanConfig() PlanConfig {
 	}
 }
 
+// IsValidPlanName reports whether the given string is one of the
+// canonical user-purchasable plan tiers. Per CLAUDE.md Common Mistakes
+// ("enumeration-by-negation"), this enumerates positively over the
+// canonical {starter, pro, team} set. Enterprise is sales-led with no
+// public signup (per MEET-2026-05-12 D4) and intentionally excluded.
+//
+// Plan release-blockers-2026-06-25-set T4.1 — closes theo-cloud#39:
+// distinguishes "plan name is in allow-list" (this check) from "Stripe
+// Price ID env var is configured" (PriceIDForPlan returning ""). The
+// handler ladder MUST run IsValidPlanName BEFORE PriceIDForPlan so that
+// an unconfigured Pro price emits 503 BILLING_NOT_CONFIGURED (operator
+// action) instead of the self-contradicting 400 INVALID_PLAN.
+func IsValidPlanName(plan string) bool {
+	switch plan {
+	case "starter", "pro", "team":
+		return true
+	default:
+		return false
+	}
+}
+
 // PriceIDForPlan returns the Stripe Price ID for a plan name.
 func (c PlanConfig) PriceIDForPlan(plan string) string {
 	switch plan {

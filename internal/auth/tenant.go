@@ -14,6 +14,8 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/usetheodev/theo-cloud/internal/account"
 )
 
 // TenantProvisioner automatically creates a tenant for new users on first signup.
@@ -98,14 +100,22 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 		return "", "", fmt.Errorf("ensure user record: %w", err)
 	}
 
+	// 1b. Ensure the user's Account exists (M0: 1:1 owner<->account) BEFORE the
+	// tenant INSERT, so the new tenant belongs to its Account. Runs inside this
+	// transaction (same advisory lock), so it is atomic with tenant creation.
+	accountID, err := account.EnsureAccount(ctx, tx, userID, email)
+	if err != nil {
+		return "", "", fmt.Errorf("ensure account: %w", err)
+	}
+
 	// 2. Create tenant with UUID-based ID.
 	// Plan is NOT stored on tenants — subscriptions table is the single source of truth (§1.1).
 	// Slug collision on display name is handled gracefully.
 	finalSlug := slug
 	result, err := tx.ExecContext(ctx,
-		`INSERT INTO tenants (id, display_name, slug, owner_id, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, now(), now())`,
-		tenantID, slug, finalSlug, userID,
+		`INSERT INTO tenants (id, display_name, slug, owner_id, account_id, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, now(), now())`,
+		tenantID, slug, finalSlug, userID, accountID,
 	)
 	if err != nil {
 		// Slug collision — try with UUID suffix for uniqueness
@@ -113,9 +123,9 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 			shortID := tenantID[3:11] // first 8 chars of UUID portion
 			finalSlug = fmt.Sprintf("%s-%s", slug, shortID)
 			result, err = tx.ExecContext(ctx,
-				`INSERT INTO tenants (id, display_name, slug, owner_id, created_at, updated_at)
-				 VALUES ($1, $2, $3, $4, now(), now())`,
-				tenantID, slug, finalSlug, userID,
+				`INSERT INTO tenants (id, display_name, slug, owner_id, account_id, created_at, updated_at)
+				 VALUES ($1, $2, $3, $4, $5, now(), now())`,
+				tenantID, slug, finalSlug, userID, accountID,
 			)
 			if err != nil {
 				return "", "", fmt.Errorf("create tenant (retry): %w", err)
@@ -160,6 +170,7 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 
 	p.logger.Info("auto-provisioned tenant for new user",
 		"tenant_id", tenantID,
+		"account_id", accountID,
 		"slug", finalSlug,
 		"user_id", userID,
 		"email", email,

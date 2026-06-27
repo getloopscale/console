@@ -12,3 +12,14 @@ node_modules/
 # Local / editor
 *.local
 .DS_Store
+dashboard/test-results/
+
+# Cycle kit (.claude/) — Python bytecode + tool caches + runtime artifacts
+.claude/**/__pycache__/
+.claude/**/*.pyc
+.claude/**/.pytest_cache/
+.claude/**/.ruff_cache/
+.claude/**/.mypy_cache/
+.claude/.compaction-snapshots/
+.claude/knowledge-base/implementations/.progress-*.json
+.claude/knowledge-base/references/*/

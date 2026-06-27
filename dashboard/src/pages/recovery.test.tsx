@@ -554,4 +554,34 @@ describe('RecoveryPage', () => {
     const [, , body] = mockSubmitFlow.mock.calls[1];
     expect(body.email).toBe('b@x.com');
   });
+
+  it('test_recovery_back_to_login_link_meets_wcag_258_closes_24', async () => {
+    // Sprint 3 Phase 4 (#24) v1.1 ADR D4 — WCAG 2.5.8 Target Size Minimum.
+    // QA Red Team 2026-06-24 measured "Back to login" 78×17 — below the
+    // 24×24 floor. Fix adds `min-h-[44px] inline-flex items-center justify-center`.
+    render(<RecoveryPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /back to login/i })).toBeInTheDocument();
+    });
+    const backLink = screen.getByRole('link', { name: /back to login/i });
+    expect(backLink.className).toMatch(/min-h-\[44px\]|min-h-11|h-11|py-3|py-4/);
+  });
+
+  it('test_recovery_email_input_has_visible_label_closes_26', async () => {
+    // Sprint 3 Phase 6 (#26) v1.1 ADR D4 — WCAG 3.3.2 Labels or Instructions.
+    // The recovery flow has 4 inputs across 3 phases (email / code / new pw /
+    // confirm pw). Only the email phase is reachable at initial render; the
+    // other phases are gated by Kratos flow progression. Lock the email-phase
+    // contract here — register.test.tsx covers the analogous shape.
+    render(<RecoveryPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument();
+    });
+    const labelEl =
+      document.querySelector('label[for="recovery-email"]') ??
+      document.getElementById('recovery-email')?.closest('label');
+    expect(labelEl, '<label> for recovery email input').toBeTruthy();
+    expect(labelEl?.className ?? '').not.toMatch(/sr-only/);
+    expect(labelEl?.textContent ?? '').toMatch(/email/i);
+  });
 });

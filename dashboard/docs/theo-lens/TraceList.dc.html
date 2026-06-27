@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="Executions — Trace List" description="Primary observability screen: app shell, summary strip, filter toolbar and a dense, scannable trace table with span-kind badges and states." -->
+<helmet>
+<script src="./ds-base.js"></script>
+<style>
+  body { margin: 0; background: #0a0a0a; font-family: var(--font-body); color: #f5f5f5; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  @keyframes tl_pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+  /* Violet Forge dark palette, scoped to the screen root (self-contained) */
+  .tl-root {
+    color-scheme: dark;
+    --background: oklch(0.146 0 0); --foreground: oklch(0.97 0 0);
+    --card: oklch(0.182 0 0); --card-foreground: oklch(0.97 0 0);
+    --popover: oklch(0.204 0 0); --popover-foreground: oklch(0.97 0 0);
+    --primary: oklch(0.628 0.225 296); --primary-foreground: oklch(1 0 0);
+    --secondary: oklch(0.227 0 0); --secondary-foreground: oklch(0.97 0 0);
+    --accent: oklch(0.621 0.132 39); --accent-foreground: oklch(1 0 0);
+    --muted: oklch(0.227 0 0); --muted-foreground: oklch(0.683 0 0);
+    --border: oklch(0.28 0 0); --input: oklch(0.227 0 0); --ring: oklch(0.628 0.225 296);
+    --success: oklch(0.814 0.192 155.7); --warning: oklch(0.77 0.165 70.6);
+    --destructive: oklch(0.677 0.213 15.6); --info: oklch(0.732 0.142 254.4);
+    --k-agent: var(--primary);
+    --k-llm: oklch(0.72 0.17 52);
+    --k-tool: var(--warning);
+    --k-retriever: var(--info);
+    --k-embedding: var(--success);
+    --k-unknown: var(--muted-foreground);
+  }
+  .kchip { display: inline-flex; align-items: center; gap: 6px; height: 21px; padding: 0 9px 0 7px; border-radius: 9999px;
+    font: 500 11px/1 var(--font-mono); letter-spacing: .04em; border: 1px solid; white-space: nowrap;
+    color: var(--kc); background: color-mix(in oklch, var(--kc) 13%, transparent); border-color: color-mix(in oklch, var(--kc) 34%, transparent); }
+  .kchip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--kc); flex: none; }
+  .trow[data-kind="AGENT"] { --kc: var(--k-agent) }
+  .trow[data-kind="LLM"] { --kc: var(--k-llm) }
+  .trow[data-kind="TOOL"] { --kc: var(--k-tool) }
+  .trow[data-kind="RETRIEVER"] { --kc: var(--k-retriever) }
+  .trow[data-kind="EMBEDDING"] { --kc: var(--k-embedding) }
+  .trow[data-kind="UNKNOWN"] { --kc: var(--k-unknown) }
+  .barfill { background: var(--kc) }
+  .sicon[data-status="ok"] { color: var(--success) }
+  .sicon[data-status="error"] { color: var(--destructive) }
+  .sicon[data-status="warn"] { color: var(--warning) }
+  .trow { transition: background var(--duration-fast) ease; }
+  .trow:hover { background: color-mix(in oklch, var(--foreground) 4%, transparent); }
+  .trow[data-selected="true"] { background: color-mix(in oklch, var(--primary) 14%, transparent); box-shadow: inset 2px 0 0 var(--primary); }
+  .navitem { transition: background var(--duration-fast) ease, color var(--duration-fast) ease; }
+  .navitem:hover { background: color-mix(in oklch, var(--foreground) 5%, transparent); color: var(--foreground); }
+  .navitem[data-active="true"] { background: color-mix(in oklch, var(--primary) 14%, transparent); color: var(--foreground); }
+  .navitem[data-active="true"] .navico { color: var(--primary) }
+  .tab { transition: color var(--duration-fast) ease; }
+  .tab:hover { color: var(--foreground) }
+  .tab[data-active="true"] { color: var(--foreground); box-shadow: inset 0 -2px 0 var(--primary) }
+  .gbtn { transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease; }
+  .gbtn:hover { background: color-mix(in oklch, var(--foreground) 6%, transparent); border-color: color-mix(in oklch, var(--foreground) 22%, transparent); }
+</style>
+</helmet>
+
+<div class="tl-root dark" style="display:flex; height:100vh; width:100%; overflow:hidden; font-size:14px; background:var(--background);">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside style="width:236px; flex:none; display:flex; flex-direction:column; background:var(--background); border-right:1px solid var(--border);">
+    <div style="display:flex; align-items:center; gap:10px; padding:16px 16px 14px;">
+      <span style="display:grid; place-items:center; width:30px; height:30px; border-radius:8px; background:var(--primary); color:var(--primary-foreground); font:600 13px/1 var(--font-mono); box-shadow:var(--shadow-glow);">TL</span>
+      <div style="display:grid; line-height:1.1;">
+        <span style="font:600 15px/1.1 var(--font-display); letter-spacing:-.02em;">Theo Lens</span>
+        <span style="font:500 11px/1.2 var(--font-mono); color:var(--muted-foreground);">observability</span>
+      </div>
+    </div>
+
+    <div style="padding:0 12px 10px;">
+      <button class="gbtn" style="display:flex; align-items:center; gap:8px; width:100%; height:34px; padding:0 10px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--muted-foreground); cursor:pointer; font:500 13px var(--font-body);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 21l-4.3-4.3"/><circle cx="11" cy="11" r="7"/></svg>
+        <span style="flex:1; text-align:left;">Search…</span>
+        <span style="font:500 10px/1 var(--font-mono); padding:2px 5px; border:1px solid var(--border); border-radius:4px;">⌘K</span>
+      </button>
+    </div>
+
+    <nav style="flex:1; overflow-y:auto; padding:4px 12px;">
+      <div style="font:500 11px/1 var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--muted-foreground); padding:12px 8px 6px;">Observe</div>
+      <sc-for list="{{ navObserve }}" as="item" hint-placeholder-count="3">
+        <a class="navitem" data-active="{{ item.active }}" href="#" style="display:flex; align-items:center; gap:10px; height:34px; padding:0 8px; border-radius:7px; text-decoration:none; color:var(--muted-foreground); font:500 13px var(--font-body);">
+          <svg class="navico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="{{ item.iconPath }}"/></svg>
+          <span style="flex:1;">{{ item.label }}</span>
+          <sc-if value="{{ item.count }}" hint-placeholder-val="x"><span style="font:500 11px/1 var(--font-mono); color:var(--muted-foreground);">{{ item.count }}</span></sc-if>
+        </a>
+      </sc-for>
+
+      <div style="font:500 11px/1 var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--muted-foreground); padding:14px 8px 6px;">Evaluate</div>
+      <sc-for list="{{ navEvaluate }}" as="item" hint-placeholder-count="2">
+        <a class="navitem" data-active="{{ item.active }}" href="#" style="display:flex; align-items:center; gap:10px; height:34px; padding:0 8px; border-radius:7px; text-decoration:none; color:var(--muted-foreground); font:500 13px var(--font-body);">
+          <svg class="navico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="{{ item.iconPath }}"/></svg>
+          <span style="flex:1;">{{ item.label }}</span>
+          <sc-if value="{{ item.count }}" hint-placeholder-val="x"><span style="font:500 11px/1 var(--font-mono); color:var(--muted-foreground);">{{ item.count }}</span></sc-if>
+        </a>
+      </sc-for>
+
+      <div style="font:500 11px/1 var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--muted-foreground); padding:14px 8px 6px;">Agents</div>
+      <sc-for list="{{ navAgents }}" as="item" hint-placeholder-count="3">
+        <a class="navitem" data-active="{{ item.active }}" href="#" style="display:flex; align-items:center; gap:10px; height:34px; padding:0 8px; border-radius:7px; text-decoration:none; color:var(--muted-foreground); font:500 13px var(--font-body);">
+          <svg class="navico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="{{ item.iconPath }}"/></svg>
+          <span style="flex:1;">{{ item.label }}</span>
+          <sc-if value="{{ item.count }}" hint-placeholder-val="x"><span style="font:500 11px/1 var(--font-mono); color:var(--muted-foreground);">{{ item.count }}</span></sc-if>
+        </a>
+      </sc-for>
+    </nav>
+
+    <div style="border-top:1px solid var(--border); padding:12px; display:flex; align-items:center; gap:10px;">
+      <span style="display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--accent); color:var(--accent-foreground); font:600 11px/1 var(--font-mono);">PH</span>
+      <div style="display:grid; line-height:1.2; flex:1; min-width:0;">
+        <span style="font:500 13px var(--font-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">paulohenrique</span>
+        <span style="font:500 11px var(--font-mono); color:var(--muted-foreground);">Pro plan</span>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div style="flex:1; display:flex; flex-direction:column; min-width:0; background:var(--background);">
+
+    <!-- TOP BAR -->
+    <header style="display:flex; align-items:center; gap:12px; height:56px; flex:none; padding:0 20px; border-bottom:1px solid var(--border);">
+      <h1 style="margin:0; font:600 18px/1 var(--font-display); letter-spacing:-.02em;">travel-agent</h1>
+      <span style="display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 8px; border-radius:6px; border:1px solid var(--border); background:var(--card); color:var(--muted-foreground); font:500 11px/1 var(--font-mono);">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4V4h11v1"/></svg> proj_8f1c
+      </span>
+      <div style="flex:1;"></div>
+
+      <button class="gbtn" style="display:flex; align-items:center; gap:8px; height:34px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); cursor:pointer; font:500 13px var(--font-mono);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Jun 8 – Jun 15
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+
+      <button class="gbtn" data-on="{{ live }}" onClick="{{ toggleLive }}" style="display:flex; align-items:center; gap:7px; height:34px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); cursor:pointer; font:500 13px var(--font-body);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="{{ liveFill }}" stroke="{{ liveStroke }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="animation: {{ liveAnim }};"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
+        {{ liveLabel }}
+      </button>
+
+      <x-import component-from-global-scope="TheoUI.Button" variant="primary" hint-size="180px,36px">+ Add Online Evaluator</x-import>
+    </header>
+
+    <!-- TABS -->
+    <nav style="display:flex; align-items:center; gap:4px; height:44px; flex:none; padding:0 20px; border-bottom:1px solid var(--border);">
+      <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="5">
+        <a class="tab" data-active="{{ tab.active }}" href="#" style="display:inline-flex; align-items:center; gap:7px; height:44px; padding:0 12px; text-decoration:none; color:var(--muted-foreground); font:500 13px var(--font-body);">
+          {{ tab.label }}
+          <sc-if value="{{ tab.count }}" hint-placeholder-val="x"><span style="display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 5px; border-radius:9999px; background:var(--muted); color:var(--muted-foreground); font:500 11px/1 var(--font-mono);">{{ tab.count }}</span></sc-if>
+        </a>
+      </sc-for>
+    </nav>
+
+    <!-- QUERY BAR -->
+    <div style="display:flex; align-items:center; gap:10px; height:52px; flex:none; padding:0 20px; border-bottom:1px solid var(--border);">
+      <button class="gbtn" style="display:flex; align-items:center; gap:8px; height:34px; padding:0 11px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); cursor:pointer; font:500 13px var(--font-body);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        Theo Default
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div style="flex:1; display:flex; align-items:center; gap:8px; height:34px; padding:0 11px; border-radius:8px; border:1px solid var(--border); background:var(--card);">
+        <span style="display:grid; place-items:center; width:18px; height:18px; border-radius:4px; background:color-mix(in oklch, var(--success) 16%, transparent); color:var(--success); font:600 11px/1 var(--font-mono);">⌖</span>
+        <span style="color:var(--muted-foreground); font:400 13px var(--font-mono);">kind:llm status:error model:gpt-4o</span>
+      </div>
+      <button class="gbtn" style="display:flex; align-items:center; gap:7px; height:34px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); cursor:pointer; font:500 13px var(--font-body);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Add Span Query
+      </button>
+    </div>
+
+    <!-- SCROLLING CONTENT -->
+    <div class="tl-content" style="flex:1; overflow-y:auto; padding:24px;">
+
+      <!-- PAGE HEADER -->
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:20px;">
+        <div>
+          <h2 style="margin:0 0 4px; font:600 28px/1.1 var(--font-display); letter-spacing:-.035em;">Executions</h2>
+          <p style="margin:0; color:var(--muted-foreground); font:400 14px var(--font-body);">Every agent run in the selected range. Click a trace to inspect its spans.</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="gbtn" style="display:flex; align-items:center; gap:7px; height:34px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); cursor:pointer; font:500 13px var(--font-body);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M9 4v16M15 4v16"/></svg>
+            Columns
+          </button>
+          <x-import component-from-global-scope="TheoUI.Button" variant="secondary" hint-size="120px,36px">Export CSV</x-import>
+        </div>
+      </div>
+
+      <!-- SUMMARY STRIP -->
+      <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:20px;">
+        <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+          <div style="border:1px solid var(--border); border-radius:12px; background:var(--card); padding:14px 16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span style="font:500 12px/1 var(--font-mono); letter-spacing:.03em; text-transform:uppercase; color:var(--muted-foreground);">{{ s.label }}</span>
+              <span style="display:inline-flex; align-items:center; gap:3px; font:500 11px/1 var(--font-mono); color:{{ s.deltaColor }};">{{ s.delta }}</span>
+            </div>
+            <div style="display:flex; align-items:flex-end; gap:8px; margin-top:8px;">
+              <span style="font:600 26px/1 var(--font-display); letter-spacing:-.02em; font-variant-numeric:tabular-nums;">{{ s.value }}</span>
+              <span style="font:400 12px var(--font-mono); color:var(--muted-foreground); padding-bottom:3px;">{{ s.sub }}</span>
+            </div>
+            <svg viewBox="0 0 120 28" preserveAspectRatio="none" style="width:100%; height:28px; margin-top:8px; display:block;">
+              <polyline points="{{ s.spark }}" fill="none" stroke="{{ s.sparkColor }}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+            </svg>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- FILTER BAR -->
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+        <div style="display:flex; align-items:center; gap:8px; height:34px; padding:0 11px; border-radius:8px; border:1px solid var(--border); background:var(--card); width:260px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21l-4.3-4.3"/><circle cx="11" cy="11" r="7"/></svg>
+          <span style="color:var(--muted-foreground); font:400 13px var(--font-body);">Search traces…</span>
+        </div>
+        <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+          <button class="gbtn" style="display:flex; align-items:center; gap:7px; height:34px; padding:0 11px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); cursor:pointer; font:500 13px var(--font-body);">
+            <span style="color:var(--muted-foreground);">{{ f.label }}</span>
+            <span>{{ f.value }}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </sc-for>
+        <div style="flex:1;"></div>
+        <span style="font:500 13px var(--font-mono); color:var(--muted-foreground);">{{ traceCount }} traces</span>
+      </div>
+
+      <!-- TABLE -->
+      <div style="border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--card);">
+        <div style="overflow-x:auto;">
+          <table style="width:100%; border-collapse:collapse; min-width:1080px; --rowpad:{{ rowPad }};">
+            <thead>
+              <tr style="background:color-mix(in oklch, var(--foreground) 3%, transparent);">
+                <th style="text-align:left; font:500 11px/1 var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--muted-foreground); padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;">Status</th>
+                <th style="text-align:left; font:500 11px/1 var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--muted-foreground); padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;">Kind</th>
+                <th style="text-align:left; font:500 11px/1 var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--muted-foreground); padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;">Name</th>
+                <sc-if value="{{ showPreviews }}" hint-placeholder-val="{{ true }}">
+                  <th style="text-align:left; font:500 11px/1 var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--muted-foreground); padding:10px 12px; border-bottom:1px solid var(--border);">Input → Output</th>
+                </sc-if>
+                <th style="text-align:left; font:500 11px/1 var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--muted-foreground); padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;">Model</th>
+                <th style="text-align:left; font:500 11px/1 var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--muted-foreground); padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;">Duration</th>
+                <th style="text-align:right; font:500 11px/1 var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--muted-foreground); padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;">Tokens</th>
+                <th style="text-align:right; font:500 11px/1 var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--muted-foreground); padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;">Cost</th>
+                <th style="text-align:right; font:500 11px/1 var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--muted-foreground); padding:10px 16px 10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ traces }}" as="row" hint-placeholder-count="12">
+                <tr class="trow" data-kind="{{ row.kind }}" data-selected="{{ row.selected }}" onClick="{{ row.onSelect }}" style="cursor:pointer; border-bottom:1px solid color-mix(in oklch, var(--border) 60%, transparent);">
+                  <td style="padding:var(--rowpad) 12px;">
+                    <span class="sicon" data-status="{{ row.status }}" style="display:inline-grid; place-items:center;">
+                      <sc-if value="{{ row.statusOk }}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></sc-if>
+                      <sc-if value="{{ row.statusError }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></sc-if>
+                      <sc-if value="{{ row.statusWarn }}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg></sc-if>
+                    </span>
+                  </td>
+                  <td style="padding:var(--rowpad) 12px;"><span class="kchip">{{ row.kind }}</span></td>
+                  <td style="padding:var(--rowpad) 12px; white-space:nowrap;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font:500 13px var(--font-mono); color:var(--foreground);">{{ row.name }}</span>
+                      <sc-if value="{{ row.hasEvals }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:3px; height:18px; padding:0 6px; border-radius:9999px; border:1px solid color-mix(in oklch, var(--primary) 30%, transparent); color:var(--primary); font:500 10px/1 var(--font-mono);">◆ {{ row.evals }}</span></sc-if>
+                    </div>
+                  </td>
+                  <sc-if value="{{ showPreviews }}" hint-placeholder-val="{{ true }}">
+                    <td style="padding:var(--rowpad) 12px; max-width:340px;">
+                      <div style="font:400 12px/1.5 var(--font-mono); color:var(--muted-foreground); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;"><span style="color:color-mix(in oklch, var(--foreground) 78%, transparent);">{{ row.input }}</span> <span style="color:var(--primary);">→</span> {{ row.output }}</div>
+                    </td>
+                  </sc-if>
+                  <td style="padding:var(--rowpad) 12px; white-space:nowrap;"><span style="font:400 12px var(--font-mono); color:var(--muted-foreground);">{{ row.model }}</span></td>
+                  <td style="padding:var(--rowpad) 12px; white-space:nowrap;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font:500 12px var(--font-mono); font-variant-numeric:tabular-nums; width:56px; text-align:right; color:var(--foreground);">{{ row.duration }}</span>
+                      <span style="display:block; width:84px; height:6px; border-radius:3px; background:color-mix(in oklch, var(--foreground) 8%, transparent); overflow:hidden;"><span class="barfill" style="display:block; height:100%; border-radius:3px; width:{{ row.durPct }}%;"></span></span>
+                    </div>
+                  </td>
+                  <td style="padding:var(--rowpad) 12px; text-align:right; white-space:nowrap;"><span style="font:500 12px var(--font-mono); font-variant-numeric:tabular-nums; color:var(--foreground);">{{ row.tokens }}</span></td>
+                  <td style="padding:var(--rowpad) 12px; text-align:right; white-space:nowrap;"><span style="font:500 12px var(--font-mono); font-variant-numeric:tabular-nums; color:var(--foreground);">{{ row.cost }}</span></td>
+                  <td style="padding:var(--rowpad) 16px var(--rowpad) 12px; text-align:right; white-space:nowrap;"><span style="font:400 12px var(--font-mono); color:var(--muted-foreground);">{{ row.time }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-top:1px solid var(--border); background:color-mix(in oklch, var(--foreground) 2%, transparent);">
+          <span style="font:400 12px var(--font-mono); color:var(--muted-foreground);">Showing {{ traceCount }} of 199 traces</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button class="gbtn" style="height:28px; padding:0 10px; border-radius:6px; border:1px solid var(--border); background:var(--card); color:var(--muted-foreground); font:500 12px var(--font-mono); cursor:pointer;">Prev</button>
+            <span style="font:500 12px var(--font-mono); color:var(--foreground); padding:0 4px;">1 / 17</span>
+            <button class="gbtn" style="height:28px; padding:0 10px; border-radius:6px; border:1px solid var(--border); background:var(--card); color:var(--foreground); font:500 12px var(--font-mono); cursor:pointer;">Next</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;compact&quot;],&quot;default&quot;:&quot;compact&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showPreviews&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = { selectedId: 't3', live: false };
+
+  renderVals() {
+    const sel = this.state.selectedId;
+    const live = this.state.live;
+
+    const navObserve = [
+      { label: 'Executions', active: true, count: '199', iconPath: 'M22 12h-4l-3 9L9 3l-3 9H2' },
+      { label: 'Sessions', count: '71', iconPath: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
+      { label: 'Dashboards', iconPath: 'M3 3h8v8H3zM13 3h8v5h-8zM13 12h8v9h-8zM3 14h8v7H3z' },
+    ];
+    const navEvaluate = [
+      { label: 'Evals & Metrics', count: '5', iconPath: 'M9 3h6M10 3v5l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3' },
+      { label: 'Datasets', iconPath: 'M12 8c4.4 0 8-1.1 8-2.5S16.4 3 12 3 4 4.1 4 5.5 7.6 8 12 8zM4 5.5v6c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-6M4 11.5v6c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-6' },
+    ];
+    const navAgents = [
+      { label: 'Agents', iconPath: 'M12 2v3M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM9 14h.01M15 14h.01M2 13h2M20 13h2' },
+      { label: 'Tools', iconPath: 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.7-.6-.6-2.7 2.6-2.6z' },
+      { label: 'Cost', iconPath: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
+    ];
+
+    const tabs = [
+      { label: 'Traces', active: true },
+      { label: 'Spans' },
+      { label: 'Agent Graph' },
+      { label: 'Agent Path' },
+      { label: 'Evals & Metrics', count: '5' },
+    ];
+
+    const stats = [
+      { label: 'Traces', value: '199', sub: 'Spans 4,624', delta: '↑ 12%', deltaColor: 'var(--success)', spark: '0,20 17,17 34,18 51,14 68,15 85,11 102,12 120,8', sparkColor: 'var(--primary)' },
+      { label: 'Error rate', value: '2.5%', sub: '5 failed', delta: '↓ 0.8%', deltaColor: 'var(--success)', spark: '0,10 17,12 34,9 51,14 68,11 85,16 102,13 120,18', sparkColor: 'var(--destructive)' },
+      { label: 'Cost', value: '$48.20', sub: '71 sessions', delta: '↑ 18%', deltaColor: 'var(--muted-foreground)', spark: '0,22 17,20 34,21 51,16 68,17 85,12 102,13 120,9', sparkColor: 'oklch(0.72 0.17 52)' },
+      { label: 'Tokens', value: '706.1k', sub: 'avg 3.5k', delta: '↑ 9%', deltaColor: 'var(--muted-foreground)', spark: '0,16 17,15 34,17 51,13 68,14 85,11 102,12 120,10', sparkColor: 'var(--info)' },
+    ];
+
+    const filters = [
+      { label: 'Status', value: 'All' },
+      { label: 'Model', value: 'All' },
+      { label: 'Kind', value: 'All' },
+    ];
+
+    const raw = [
+      { id: 't1', name: 'ChatOpenAI', kind: 'LLM', status: 'warn', time: '2m ago', duration: '1.21s', durPct: 14, tokens: '—', model: 'gpt-3.5-turbo', cost: '—', input: 'You are a local guide. Use the retrieved travel notes…', output: '(no output — truncated)', evals: 0 },
+      { id: 't2', name: 'TripAgentGraph', kind: 'AGENT', status: 'ok', time: '18m ago', duration: '12.22s', durPct: 100, tokens: '3,863', model: 'gpt-3.5-turbo', cost: '$0.31', input: '{"trip_request": {"destination": "Rome, Italy"…', output: 'Day 1: Arrival and Discovering Ancient Rome…', evals: 2 },
+      { id: 't3', name: 'TripAgentGraph', kind: 'AGENT', status: 'ok', time: '32m ago', duration: '11.79s', durPct: 96, tokens: '3,347', model: 'gpt-4o', cost: '$0.42', input: '{"trip_request": {"destination": "Lisbon, Portugal"…', output: 'Day 1: Arrival in Lisbon — Check into your hotel…', evals: 2 },
+      { id: 't4', name: 'budget_agent', kind: 'AGENT', status: 'error', time: '41m ago', duration: '6.50s', durPct: 53, tokens: '2,180', model: 'gpt-4o', cost: '$0.12', input: '{"trip_request": {"destination": "Seoul, South Korea"…', output: 'RateLimitError: 429 Too Many Requests', evals: 1 },
+      { id: 't5', name: 'VectorStoreRetriever', kind: 'RETRIEVER', status: 'ok', time: '52m ago', duration: '249ms', durPct: 4, tokens: '—', model: '—', cost: '—', input: 'Rome, Italy with interests: local culture…', output: '{"documents": [{"id": "b78cb549-793b…', evals: 0 },
+      { id: 't6', name: 'ChatOpenAI', kind: 'LLM', status: 'ok', time: '1h ago', duration: '449ms', durPct: 7, tokens: '360', model: 'gpt-3.5-turbo', cost: '$0.02', input: 'You are a local guide. Suggest authentic…', output: 'hidden_gems({ "destination": "Rome" })', evals: 1 },
+      { id: 't7', name: 'hidden_gems', kind: 'TOOL', status: 'ok', time: '1h ago', duration: '484ms', durPct: 8, tokens: '—', model: '—', cost: '—', input: "{'destination': 'Rome'}", output: 'Explore the Catacombs of San Callisto early…', evals: 0 },
+      { id: 't8', name: 'text-embedding-3', kind: 'EMBEDDING', status: 'ok', time: '2h ago', duration: '88ms', durPct: 2, tokens: '512', model: 'text-embedding-3-small', cost: '$0.00', input: 'Marrakech medina riads near Jemaa el-Fnaa', output: '[0.0123, −0.0456, …] · 1536 dims', evals: 0 },
+      { id: 't9', name: 'TripAgentGraph', kind: 'AGENT', status: 'ok', time: '3h ago', duration: '8.61s', durPct: 70, tokens: '4,293', model: 'gpt-4o', cost: '$0.48', input: '{"trip_request": {"destination": "Paris, France"…', output: 'Day 1: Arrival and Le Marais Exploration…', evals: 3 },
+      { id: 't10', name: 'research_agent', kind: 'AGENT', status: 'ok', time: '3h ago', duration: '1.25s', durPct: 11, tokens: '154', model: 'gpt-3.5-turbo', cost: '$0.01', input: '{"trip_request": {"destination": "Rome, Italy"…', output: 'Rome has a Mediterranean climate, best visited…', evals: 0 },
+      { id: 't11', name: 'essential_info', kind: 'TOOL', status: 'ok', time: '4h ago', duration: '686ms', durPct: 11, tokens: '—', model: '—', cost: '—', input: 'Rome climate, safety and transit basics', output: 'Rome has a Mediterranean climate, be mindful…', evals: 0 },
+      { id: 't12', name: 'ChatOpenAI', kind: 'LLM', status: 'ok', time: '5h ago', duration: '956ms', durPct: 13, tokens: '100', model: 'gpt-3.5-turbo', cost: '$0.01', input: 'Respond with 200 characters or less. Marrakech…', output: 'Visit Jardin Majorelle early to beat the crowds…', evals: 1 },
+    ];
+
+    const traces = raw.map(r => ({
+      ...r,
+      selected: r.id === sel,
+      statusOk: r.status === 'ok',
+      statusError: r.status === 'error',
+      statusWarn: r.status === 'warn',
+      hasEvals: r.evals > 0,
+      onSelect: () => this.setState({ selectedId: r.id }),
+    }));
+
+    const density = this.props.density ?? 'comfortable';
+    const rowPad = density === 'compact' ? '7px' : '12px';
+    const showPreviews = this.props.showPreviews ?? true;
+
+    return {
+      navObserve, navEvaluate, navAgents, tabs, stats, filters, traces,
+      traceCount: traces.length,
+      rowPad, showPreviews,
+      live,
+      liveLabel: live ? 'Live' : 'Live',
+      liveFill: live ? 'var(--success)' : 'none',
+      liveStroke: live ? 'var(--success)' : 'var(--muted-foreground)',
+      liveAnim: live ? 'tl_pulse 1.5s ease-in-out infinite' : 'none',
+      toggleLive: () => this.setState(s => ({ live: !s.live })),
+    };
+  }
+}
+</script>
+</body>
+</html>
