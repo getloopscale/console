@@ -15,6 +15,11 @@ import { SubPagePlaceholder } from '@/pages/sub-page-placeholder';
 import { RouteBoundary } from '@/components/error/route-boundary';
 import { PlanLimitUpgradeModal } from '@/components/dialogs/plan-limit-upgrade-modal';
 import { RouteLoading } from '@/components/loading/route-loading';
+// Red Team #93 — parent-project existence guard for every per-project
+// sub-route. Renders "Project not found" instead of letting the sub-view
+// render functional UI on top of an empty data set when the URL slug is
+// a deleted/non-existent project.
+import { ProjectGuard } from '@/components/project/project-guard';
 
 /**
  * T0.1: helper para wrap cada <Route element> em <RouteBoundary>.
@@ -229,13 +234,13 @@ export default function App() {
                     <Route path="/projects/:name" element={<Boundaried path="/projects/:name"><ProjectDetailPage /></Boundaried>} />
                     <Route
                       path="/projects/:name/deployments"
-                      element={<Boundaried path="/projects/:name/deployments"><DeploymentsPage /></Boundaried>}
+                      element={<Boundaried path="/projects/:name/deployments"><ProjectGuard><DeploymentsPage /></ProjectGuard></Boundaried>}
                     />
                     {/* Plan J-17 T5.1: nested layout with Outlet replaces
                         the four sibling routes. Index = TimelineTab. */}
                     <Route
                       path="/projects/:name/deployments/:id"
-                      element={<Boundaried path="/projects/:name/deployments/:id"><DeploymentDetailLayout /></Boundaried>}
+                      element={<Boundaried path="/projects/:name/deployments/:id"><ProjectGuard><DeploymentDetailLayout /></ProjectGuard></Boundaried>}
                     >
                       <Route index element={<TimelineTab />} />
                       <Route path="logs" element={<LogsTab />} />
@@ -244,32 +249,32 @@ export default function App() {
                     </Route>
                     <Route
                       path="/projects/:name/logs"
-                      element={<Boundaried path="/projects/:name/logs"><RuntimeLogsPage /></Boundaried>}
+                      element={<Boundaried path="/projects/:name/logs"><ProjectGuard><RuntimeLogsPage /></ProjectGuard></Boundaried>}
                     />
                     <Route
                       path="/projects/:name/status"
-                      element={<Boundaried path="/projects/:name/status"><ProjectStatusPage /></Boundaried>}
+                      element={<Boundaried path="/projects/:name/status"><ProjectGuard><ProjectStatusPage /></ProjectGuard></Boundaried>}
                     />
                     <Route
                       path="/projects/:name/secrets"
-                      element={<Boundaried path="/projects/:name/secrets"><SecretsPage /></Boundaried>}
+                      element={<Boundaried path="/projects/:name/secrets"><ProjectGuard><SecretsPage /></ProjectGuard></Boundaried>}
                     />
                     <Route
                       path="/projects/:name/previews"
-                      element={<PreviewsRedirect />}
+                      element={<ProjectGuard><PreviewsRedirect /></ProjectGuard>}
                     />
                     <Route
                       path="/projects/:name/connect"
-                      element={<Boundaried path="/projects/:name/connect"><ProjectConnectPage /></Boundaried>}
+                      element={<Boundaried path="/projects/:name/connect"><ProjectGuard><ProjectConnectPage /></ProjectGuard></Boundaried>}
                     />
                     <Route path="/audit" element={<Boundaried path="/audit"><AuditPage /></Boundaried>} />
                     <Route
                       path="/projects/:name/scale"
-                      element={<Boundaried path="/projects/:name/scale"><ProjectScalePage /></Boundaried>}
+                      element={<Boundaried path="/projects/:name/scale"><ProjectGuard><ProjectScalePage /></ProjectGuard></Boundaried>}
                     />
                     <Route
                       path="/projects/:name/readiness"
-                      element={<Boundaried path="/projects/:name/readiness"><ProjectReadinessPage /></Boundaried>}
+                      element={<Boundaried path="/projects/:name/readiness"><ProjectGuard><ProjectReadinessPage /></ProjectGuard></Boundaried>}
                     />
                     <Route path="/environments" element={<Boundaried path="/environments"><EnvironmentsPage /></Boundaried>} />
                     <Route path="/team" element={<Boundaried path="/team"><TeamPage /></Boundaried>} />

@@ -95,4 +95,31 @@ describe('LiveUrlHero', () => {
       expect(live).toHaveTextContent(/copied/i);
     });
   });
+
+  // Red Team theo-cloud#41 regression-protector (2026-06-27): when
+  // isPreviewOnly=true AND url is absent, the hero MUST render the
+  // canonical "Preview only" empty state — NOT the misleading
+  // "URL pending" + "appears after first successful deploy" copy that
+  // contradicts the user's mental model when ~12 successful preview
+  // deploys exist (the exact Red Team scenario).
+  it('renders Preview-only empty state when isPreviewOnly=true and url absent (#41)', () => {
+    render(
+      <LiveUrlHero status={makeStatus({ url: undefined })} loading={false} isPreviewOnly={true} />,
+    );
+    expect(
+      screen.getByText(/Preview deploys only — promote a release to production/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Preview only/i)).toBeInTheDocument();
+    // The misleading default copy MUST NOT render.
+    expect(screen.queryByText(/URL pending/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/No production deploy yet — URL appears after/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders default URL-pending state when isPreviewOnly=false and url absent', () => {
+    render(<LiveUrlHero status={makeStatus({ url: undefined })} loading={false} />);
+    expect(screen.getByText(/URL pending/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Preview only/i)).not.toBeInTheDocument();
+  });
 });

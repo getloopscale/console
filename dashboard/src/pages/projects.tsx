@@ -43,19 +43,38 @@ function ProjectRow({
   // "last_deploy presence" heuristic. FAILED builds no longer render
   // as Idle.
   const projectStatus = p.last_deploy_status ?? 'idle';
-  // Map our 5-value enum onto @usetheo/ui's StatusKind (which lacks
-  // 'queued'). Queued semantically belongs with `building` (both
-  // in-flight, not-yet-live).
+  // Map our 6-value enum onto @usetheo/ui's StatusKind (which lacks
+  // 'queued' and 'preview'). Queued semantically belongs with `building`
+  // (both in-flight, not-yet-live). Red Team theo-cloud#41 absorption
+  // (2026-06-27): 'preview' is its own state — preview-only project
+  // (succeeded preview builds, no active production release). The label
+  // says "Preview" but the StatusKind dot uses the neutral 'idle' tone
+  // so the row doesn't show a green "serving" indicator for a project
+  // that has nothing serving in production.
   const statusKind: StatusKind =
-    projectStatus === 'queued' ? 'building' : projectStatus;
+    projectStatus === 'queued'
+      ? 'building'
+      : projectStatus === 'preview'
+        ? 'idle'
+        : projectStatus;
   const statusLabel =
     projectStatus === 'live'
       ? 'Live'
-      : projectStatus.charAt(0).toUpperCase() + projectStatus.slice(1);
+      : projectStatus === 'preview'
+        ? 'Preview'
+        : projectStatus.charAt(0).toUpperCase() + projectStatus.slice(1);
   // T4.2 finding 2.1 + T2.1: prefer the new server-derived
   // environment_count; fall back to 1 if only the legacy singular
   // `environment` is present.
-  const envCount = p.environment_count ?? (p.environment ? 1 : 0);
+  //
+  // Red Team theo-cloud#41 absorption (2026-06-27): the "Live envs"
+  // column MUST use `production_env_count` (kind='permanent' subset)
+  // — the legacy `environment_count` collapses preview env_targets
+  // into the count and rendered "Live envs: 1" + "URL PENDING" side
+  // by side for preview-only projects. When the new field is absent
+  // (legacy server), fall back to environment_count so the table
+  // still renders (backwards compat).
+  const liveEnvCount = p.production_env_count ?? p.environment_count ?? (p.environment ? 1 : 0);
 
   return (
     // T4.2 finding 2.3: full-row click navigation. onClick routes to
@@ -90,7 +109,7 @@ function ProjectRow({
       </Table.Cell>
       <Table.Cell className="hidden md:table-cell">
         <span className="font-mono text-label text-muted-foreground tabular-nums">
-          {envCount}
+          {liveEnvCount}
         </span>
       </Table.Cell>
       <Table.Cell>

@@ -86,12 +86,26 @@ func seedUser(t *testing.T, db *sql.DB, userID, email string) {
 // seedTenant inserts a minimal tenant row so theo_api_keys.tenant_id FK resolves.
 func seedTenant(t *testing.T, db *sql.DB, tenantID, ownerID string) {
 	t.Helper()
-	_, err := db.Exec(`
-		INSERT INTO tenants (id, slug, owner_id, display_name)
-		VALUES ($1, $1, $2, $1)
+	// M3: tenants.account_id is NOT NULL (migration 000044). Ensure a default
+	// account for the owner (1:1, UNIQUE(owner_id)) and link the tenant to it so
+	// the seed produces a valid post-M3 row. Deterministic id keeps it idempotent.
+	acctID := "acct-seed-" + ownerID
+	if _, err := db.Exec(`
+		INSERT INTO accounts (id, display_name, plan, owner_id, created_at, updated_at)
+		VALUES ($1, $2, 'starter', $2, NOW(), NOW()) ON CONFLICT (owner_id) DO NOTHING`,
+		acctID, ownerID); err != nil {
+		t.Fatalf("seed account for %s: %v", ownerID, err)
+	}
+	// Resolve the owner's actual account id (it may pre-exist from a prior seed).
+	var ownerAccount string
+	if err := db.QueryRow(`SELECT id FROM accounts WHERE owner_id = $1`, ownerID).Scan(&ownerAccount); err != nil {
+		t.Fatalf("resolve account for %s: %v", ownerID, err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO tenants (id, slug, owner_id, display_name, account_id)
+		VALUES ($1, $1, $2, $1, $3)
 		ON CONFLICT (id) DO NOTHING`,
-		tenantID, ownerID)
-	if err != nil {
+		tenantID, ownerID, ownerAccount); err != nil {
 		t.Fatalf("seed tenant %s: %v", tenantID, err)
 	}
 }

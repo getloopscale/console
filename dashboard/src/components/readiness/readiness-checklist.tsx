@@ -31,9 +31,17 @@ export function ReadinessChecklist({ signals, projectName }: ReadinessChecklistP
         <ul className="divide-y divide-border" aria-label="Readiness checklist">
           {SIGNALS.map((def) => {
             const sig = signals[def.name];
-            const visual = STATUS_VISUALS[sig?.status ?? 'unknown'];
+            const status = sig?.status ?? 'unknown';
+            const visual = STATUS_VISUALS[status];
             const Icon = visual.icon;
-            const isUnknown = sig?.status === 'unknown';
+            // Red Team theo-cloud#94 absorption (2026-06-27): "Fix it" CTA
+            // ONLY renders when the signal is actionable — i.e., the status
+            // is `warn` or `fail`. A `pass` signal is already Ready (CTA
+            // would contradict the state); an `unknown` signal cannot be
+            // fixed (we don't know what's wrong). This enumerates the
+            // POSITIVE set (per `theo-cloud/CLAUDE.md § Common Mistakes —
+            // Enumeration-by-negation in the dashboard`).
+            const isFixable = status === 'warn' || status === 'fail';
             const resolvedPath = def.fixPath.replace(':name', projectName);
             const known = isKnownRoute(def.fixPath);
             return (
@@ -45,7 +53,7 @@ export function ReadinessChecklist({ signals, projectName }: ReadinessChecklistP
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-3">
                     <p className="text-body font-medium text-foreground">{def.label}</p>
-                    {!isUnknown && (known ? (
+                    {isFixable && (known ? (
                       <Link
                         to={resolvedPath}
                         className="text-body-sm text-primary hover:underline shrink-0"

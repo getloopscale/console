@@ -25,9 +25,19 @@ import type { ProjectStatusDetail } from '@/lib/api/types';
 interface LiveUrlHeroProps {
   status: ProjectStatusDetail | null;
   loading: boolean;
+  /**
+   * Red Team theo-cloud#41 absorption (2026-06-27): when the parent
+   * project is preview-only (`last_deploy_status === 'preview'`), the
+   * hero renders a Preview-specific empty state — NEVER "URL pending"
+   * with the misleading "appears after the first successful deploy"
+   * subtitle, which contradicts the user's mental model when ~12
+   * successful preview deploys exist. Optional + default false; legacy
+   * call sites are untouched.
+   */
+  isPreviewOnly?: boolean;
 }
 
-export function LiveUrlHero({ status, loading }: LiveUrlHeroProps) {
+export function LiveUrlHero({ status, loading, isPreviewOnly = false }: LiveUrlHeroProps) {
   const [copyMessage, setCopyMessage] = useState<string>('');
 
   useEffect(() => {
@@ -49,6 +59,21 @@ export function LiveUrlHero({ status, loading }: LiveUrlHeroProps) {
   const url = status?.url;
 
   if (!url) {
+    if (isPreviewOnly) {
+      return (
+        <Card>
+          <Card.Body className="flex items-center justify-between py-4">
+            <div>
+              <div className="text-label text-muted-foreground uppercase">Live URL</div>
+              <div className="mt-1 text-body-sm text-muted-foreground">
+                Preview deploys only — promote a release to production to assign a live URL.
+              </div>
+            </div>
+            <Badge variant="outline">Preview only</Badge>
+          </Card.Body>
+        </Card>
+      );
+    }
     return (
       <Card>
         <Card.Body className="flex items-center justify-between py-4">

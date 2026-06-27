@@ -34,22 +34,28 @@ func NewTenantProvisioner(db *sql.DB, logger *slog.Logger) *TenantProvisioner {
 
 // EnsureTenant checks if the user has a tenant. If not, creates one with a UUID-based ID.
 // Returns the tenant ID and role. The operation is idempotent — safe to call on every login.
-func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email string) (tenantID string, role string, err error) {
+// M3: returns accountID (the Account the tenant belongs to) as the 2nd value so
+// the JWT mint can carry it. account_id is NULL-tolerant (empty string for a
+// legacy/pre-backfill tenant), never an error.
+func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email string) (tenantID string, accountID string, role string, err error) {
 	if p.db == nil {
-		return "dev-tenant", "owner", nil // Dev mode without DB
+		return "dev-tenant", "", "owner", nil // Dev mode without DB
 	}
 
 	// Fast path: check if user already has a tenant membership.
 	// This is the 99% case for returning users — one SELECT, no transaction.
+	// M3: surface account_id from the existing tenant row so returning users
+	// also get the claim (EC-1 — the 99% path).
+	var acct sql.NullString
 	err = p.db.QueryRowContext(ctx,
-		"SELECT t.id, tm.role FROM tenants t JOIN tenant_members tm ON t.id = tm.tenant_id WHERE tm.user_id = $1 LIMIT 1",
+		"SELECT t.id, t.account_id, tm.role FROM tenants t JOIN tenant_members tm ON t.id = tm.tenant_id WHERE tm.user_id = $1 LIMIT 1",
 		userID,
-	).Scan(&tenantID, &role)
+	).Scan(&tenantID, &acct, &role)
 	if err == nil {
-		return tenantID, role, nil // Already has a tenant
+		return tenantID, acct.String, role, nil // Already has a tenant
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return "", "", fmt.Errorf("query tenant membership: %w", err)
+		return "", "", "", fmt.Errorf("query tenant membership: %w", err)
 	}
 
 	// No tenant — create one.
@@ -57,7 +63,7 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", "", fmt.Errorf("begin tx: %w", err)
+		return "", "", "", fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -66,20 +72,21 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 	// can proceed past this point for a given user. Released automatically on commit/rollback.
 	_, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtext($1))", userID)
 	if err != nil {
-		return "", "", fmt.Errorf("advisory lock: %w", err)
+		return "", "", "", fmt.Errorf("advisory lock: %w", err)
 	}
 
 	// Re-check membership inside the lock. If a concurrent request already created
 	// a tenant while we were waiting for the lock, return it instead of creating a duplicate.
+	// M3: surface account_id here too (EC-1 — the concurrent-create-won branch).
 	err = tx.QueryRowContext(ctx,
-		"SELECT t.id, tm.role FROM tenants t JOIN tenant_members tm ON t.id = tm.tenant_id WHERE tm.user_id = $1 LIMIT 1",
+		"SELECT t.id, t.account_id, tm.role FROM tenants t JOIN tenant_members tm ON t.id = tm.tenant_id WHERE tm.user_id = $1 LIMIT 1",
 		userID,
-	).Scan(&tenantID, &role)
+	).Scan(&tenantID, &acct, &role)
 	if err == nil {
-		return tenantID, role, nil
+		return tenantID, acct.String, role, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return "", "", fmt.Errorf("re-check tenant membership: %w", err)
+		return "", "", "", fmt.Errorf("re-check tenant membership: %w", err)
 	}
 
 	// Tenant ID is UUID-based: no collision possible, no TOCTOU race.
@@ -97,15 +104,15 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 		userID, email, slug, userID,
 	)
 	if err != nil {
-		return "", "", fmt.Errorf("ensure user record: %w", err)
+		return "", "", "", fmt.Errorf("ensure user record: %w", err)
 	}
 
 	// 1b. Ensure the user's Account exists (M0: 1:1 owner<->account) BEFORE the
 	// tenant INSERT, so the new tenant belongs to its Account. Runs inside this
 	// transaction (same advisory lock), so it is atomic with tenant creation.
-	accountID, err := account.EnsureAccount(ctx, tx, userID, email)
+	accountID, err = account.EnsureAccount(ctx, tx, userID, email)
 	if err != nil {
-		return "", "", fmt.Errorf("ensure account: %w", err)
+		return "", "", "", fmt.Errorf("ensure account: %w", err)
 	}
 
 	// 2. Create tenant with UUID-based ID.
@@ -128,17 +135,17 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 				tenantID, slug, finalSlug, userID, accountID,
 			)
 			if err != nil {
-				return "", "", fmt.Errorf("create tenant (retry): %w", err)
+				return "", "", "", fmt.Errorf("create tenant (retry): %w", err)
 			}
 		} else {
-			return "", "", fmt.Errorf("create tenant: %w", err)
+			return "", "", "", fmt.Errorf("create tenant: %w", err)
 		}
 	}
 
 	// Verify the tenant was actually created by this transaction.
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		return "", "", fmt.Errorf("tenant creation failed: no rows inserted")
+		return "", "", "", fmt.Errorf("tenant creation failed: no rows inserted")
 	}
 
 	// 3. Create membership — this user is the owner.
@@ -149,7 +156,7 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 		tenantID, userID,
 	)
 	if err != nil {
-		return "", "", fmt.Errorf("create membership: %w", err)
+		return "", "", "", fmt.Errorf("create membership: %w", err)
 	}
 
 	// 4. Create the Account's starter subscription (M2: one subscription per
@@ -163,11 +170,11 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 		subID, tenantID, accountID,
 	)
 	if err != nil {
-		return "", "", fmt.Errorf("create subscription: %w", err)
+		return "", "", "", fmt.Errorf("create subscription: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return "", "", fmt.Errorf("commit: %w", err)
+		return "", "", "", fmt.Errorf("commit: %w", err)
 	}
 
 	p.logger.Info("auto-provisioned tenant for new user",
@@ -178,7 +185,7 @@ func (p *TenantProvisioner) EnsureTenant(ctx context.Context, userID, email stri
 		"email", email,
 		"plan", "starter",
 	)
-	return tenantID, "owner", nil
+	return tenantID, accountID, "owner", nil
 }
 
 // GetRole resolves the authoritative role for a user from tenant_members.

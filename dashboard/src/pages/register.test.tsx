@@ -125,8 +125,14 @@ describe('RegisterPage', () => {
     expect(formCalls.length).toBeGreaterThanOrEqual(1);
 
     const forms = Array.from(document.querySelectorAll('form'));
+    // T3.4 of plan kratos-self-service-rate-limit-systemic v1.1 — form
+    // action now points at the theo-cloud BFF response-shape unifier
+    // (/v1/auth/register) instead of the upstream identity-store directly.
+    // BFF returns 303 redirect to /auth/check-email so dashboard navigates
+    // uniformly regardless of new-vs-existing email branch (closes Red
+    // Team theo-cloud#43 enumeration).
     const regForm = forms
-      .filter((f) => f.action.includes('self-service/registration'))
+      .filter((f) => f.action.includes('/v1/auth/register'))
       .find((f) => {
         const methodInput = Array.from(
           f.querySelectorAll('input[type=hidden][name=method]'),

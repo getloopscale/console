@@ -110,7 +110,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 1. Cache-key collision if `accountID` omitted → unit test proving two accounts with same tenant-name mint distinct keys.
 2. Lazy validation trusting an unvalidated relationship → ensure the resolver (not the broker) is the single authorization point; integration test for the cross-account 403.
 
-### M2 — [ ] Billing per-Account (+ project quota)
+### M2 — [x] Billing per-Account (+ project quota)
 
 **Objective:** move billing from per-tenant to per-Account so all of an Account's tenants share one plan + metered usage, with tenant (project) count quotaed per Account.
 

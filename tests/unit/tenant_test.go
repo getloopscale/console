@@ -17,15 +17,47 @@ import (
 
 func TestTenantProvisionerNilDB(t *testing.T) {
 	prov := auth.NewTenantProvisioner(nil, nil)
-	tid, role, err := prov.EnsureTenant(context.TODO(), "user-123", "test@example.com")
+	tid, acct, role, err := prov.EnsureTenant(context.TODO(), "user-123", "test@example.com")
 	if err != nil {
 		t.Fatalf("EnsureTenant with nil DB should not error: %v", err)
 	}
 	if tid != "dev-tenant" {
 		t.Errorf("tenant_id = %q, want %q", tid, "dev-tenant")
 	}
+	if acct != "" {
+		t.Errorf("account_id = %q, want empty in dev mode", acct)
+	}
 	if role != "owner" {
 		t.Errorf("role = %q, want %q", role, "owner")
+	}
+}
+
+// M3 EC-1: the 99% returning-user fast path MUST surface the existing tenant's
+// account_id. Missing it on this branch silently breaks JWT account_id
+// propagation for everyone who already has a tenant.
+func TestEnsureTenant_ReturningUser_SurfacesAccountID(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	prov := auth.NewTenantProvisioner(db, slog.New(slog.NewTextHandler(httptest.NewRecorder().Body, nil)))
+
+	const userID, wantTenant, wantAccount = "user-ret", "tn-ret", "acct-ret000000000"
+	// Fast-path SELECT now returns id, account_id, role for the existing tenant.
+	mock.ExpectQuery(`SELECT t\.id, t\.account_id, tm\.role FROM tenants t JOIN tenant_members tm`).
+		WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "account_id", "role"}).AddRow(wantTenant, wantAccount, "owner"))
+
+	tid, acct, role, err := prov.EnsureTenant(context.TODO(), userID, "ret@e2e.test")
+	if err != nil {
+		t.Fatalf("EnsureTenant: %v", err)
+	}
+	if tid != wantTenant || acct != wantAccount || role != "owner" {
+		t.Fatalf("got (tenant=%q account=%q role=%q), want (%q, %q, owner) — returning-user account_id not surfaced (EC-1)", tid, acct, role, wantTenant, wantAccount)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("expectations: %v", err)
 	}
 }
 
@@ -93,10 +125,11 @@ func TestEnsureTenant_InsertsUsernameOnNewUser(t *testing.T) {
 
 	userID := "3095bb15-0b35-47c2-b6d6-3af72676f40d"
 	email := "paulo@theo.test"
-	noRows := sqlmock.NewRows([]string{"id", "role"})
+	// M3: fast-path + re-check now SELECT t.id, t.account_id, tm.role (3 columns).
+	noRows := sqlmock.NewRows([]string{"id", "account_id", "role"})
 
 	// 1) Fast-path SELECT — no existing membership.
-	mock.ExpectQuery(`SELECT t\.id, tm\.role FROM tenants t JOIN tenant_members tm`).
+	mock.ExpectQuery(`SELECT t\.id, t\.account_id, tm\.role FROM tenants t JOIN tenant_members tm`).
 		WithArgs(userID).
 		WillReturnRows(noRows)
 
@@ -105,9 +138,9 @@ func TestEnsureTenant_InsertsUsernameOnNewUser(t *testing.T) {
 		WithArgs(userID).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	// 2) Re-check inside the lock — still no membership.
-	mock.ExpectQuery(`SELECT t\.id, tm\.role FROM tenants t JOIN tenant_members tm`).
+	mock.ExpectQuery(`SELECT t\.id, t\.account_id, tm\.role FROM tenants t JOIN tenant_members tm`).
 		WithArgs(userID).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "role"}))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "account_id", "role"}))
 
 	// 3) THE assertion this test exists for: INSERT into users includes the
 	//    `username` column, and username==userID for global uniqueness.
@@ -138,7 +171,7 @@ func TestEnsureTenant_InsertsUsernameOnNewUser(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	_, _, err = prov.EnsureTenant(context.TODO(), userID, email)
+	_, _, _, err = prov.EnsureTenant(context.TODO(), userID, email)
 	if err != nil {
 		t.Fatalf("EnsureTenant: %v", err)
 	}

@@ -145,9 +145,16 @@ export function RegisterPage() {
     setSubmitting(true);
     const csrfNode = flow.ui.nodes.find((n) => n.attributes.name === 'csrf_token');
     try {
+      // T3.4 of plan kratos-self-service-rate-limit-systemic v1.1 — route
+      // through the theo-cloud BFF response-shape unifier (closes Red Team
+      // theo-cloud#43). The BFF (theo-cloud /v1/auth/register) proxies to
+      // the upstream identity-store and returns the canonical universal
+      // response identically for both new and existing email branches,
+      // so an attacker cannot distinguish account existence by reading
+      // the response.
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = flow.ui.action;
+      form.action = '/v1/auth/register';
       for (const [k, v] of [
         ['csrf_token', csrfNode?.attributes.value || ''],
         ['method', 'password'],
@@ -168,7 +175,7 @@ export function RegisterPage() {
       /* network error */
     } finally {
       // submitting state remains true until the navigation lands on a new
-      // page (success → /, failure → /register?flow=X re-rendered).
+      // page (success → /auth/check-email, failure → /register re-rendered).
       // We don't clear it here because form.submit() doesn't return synchronously.
     }
   };

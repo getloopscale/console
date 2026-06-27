@@ -16,7 +16,16 @@ interface Project {
   // server-derived per-project total env count and 5-value status enum.
   // Backend additive — legacy CLI consumers ignore unknown fields.
   environment_count?: number;
-  last_deploy_status?: 'live' | 'building' | 'failed' | 'idle' | 'queued';
+  // Red Team theo-cloud#41 (2026-06-27): production-only env_targets count
+  // — the canonical "Live envs" metric. Aligned with src/lib/api/types.ts.
+  production_env_count?: number;
+  // Red Team theo-cloud#41 (2026-06-27): 'preview' added — preview-only
+  // project (succeeded preview builds, no active production release).
+  // Aligned with the canonical type in src/lib/api/types.ts ProjectStatus.
+  last_deploy_status?: 'live' | 'building' | 'failed' | 'idle' | 'queued' | 'preview';
+  // Red Team theo-cloud#41 (2026-06-27): latest_build.environment from the
+  // backend LATERAL join — feeds the preview-only disambiguation.
+  latest_build_environment?: string;
   // T5.3 LIVE-bug fix 2026-06-08 — additive completion of T2.1's summary
   // contract (sponsor walkthrough caught list page rendering 0/— in Apps
   // and Framework columns).

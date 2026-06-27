@@ -68,25 +68,13 @@ func cleanupOwner(t *testing.T, db *sql.DB, ownerID string) {
 	}
 }
 
-// Scenario 1 — a legacy key (NULL account_id) still resolves, AccountID == "".
-func TestAccountM0_LegacyKeyResolvesWithEmptyAccount(t *testing.T) {
-	db := openM0DB(t)
-	cleanupOwner(t, db, "m0-legacy-uid")
-	seedUser(t, db, "m0-legacy-uid", "m0-legacy@e2e.test")
-	seedTenant(t, db, "tn-m0-legacy", "m0-legacy-uid")
-	bearer := seedAPIKey(t, db, "m0-legacy-uid", "tn-m0-legacy") // inserts NULL account_id
-
-	uc, _, err := auth.ResolveAPIKey(context.Background(), db, "Bearer "+bearer)
-	if err != nil {
-		t.Fatalf("legacy key must resolve (200), got error: %v", err)
-	}
-	if uc.TenantID != "tn-m0-legacy" {
-		t.Fatalf("tenant must resolve, got %q", uc.TenantID)
-	}
-	if uc.AccountID != "" {
-		t.Fatalf("legacy key must have empty AccountID (NULL-tolerant), got %q", uc.AccountID)
-	}
-}
+// NOTE (M3): the former Scenario 1 — "legacy key (NULL account_id) still
+// resolves, AccountID == ''" — was REMOVED. M3 migration 000044 makes
+// theo_api_keys.account_id NOT NULL, so a NULL-account key can no longer exist in
+// the database and this e2e could no longer seed the state it asserted. The
+// defensive NULL-tolerant scan it exercised is schema-independent and stays
+// covered at the unit layer:
+// internal/auth/scope_resolve_test.go::TestResolveAPIKey_ToleratesNullAccountID.
 
 // Scenario 2 — a new signup yields exactly ONE Account owning its tenant.
 func TestAccountM0_NewSignupOneAccountOwnsTenant(t *testing.T) {
@@ -94,7 +82,7 @@ func TestAccountM0_NewSignupOneAccountOwnsTenant(t *testing.T) {
 	const uid = "m0-signup-uid"
 	cleanupOwner(t, db, uid)
 
-	tenantID, _, err := quietProvisioner(db).EnsureTenant(context.Background(), uid, "m0-signup@e2e.test")
+	tenantID, _, _, err := quietProvisioner(db).EnsureTenant(context.Background(), uid, "m0-signup@e2e.test")
 	if err != nil {
 		t.Fatalf("EnsureTenant: %v", err)
 	}
@@ -127,7 +115,7 @@ func TestAccountM0_NewKeyInheritsTenantAccount(t *testing.T) {
 	const uid = "m0-keyacct-uid"
 	cleanupOwner(t, db, uid)
 
-	tenantID, _, err := quietProvisioner(db).EnsureTenant(context.Background(), uid, "m0-keyacct@e2e.test")
+	tenantID, _, _, err := quietProvisioner(db).EnsureTenant(context.Background(), uid, "m0-keyacct@e2e.test")
 	if err != nil {
 		t.Fatalf("EnsureTenant: %v", err)
 	}
@@ -176,7 +164,7 @@ func TestAccountM0_ConcurrentSignupsDistinctAccounts(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, _, errs[i] = prov.EnsureTenant(context.Background(), uids[i], fmt.Sprintf("c%d@e2e.test", i))
+			_, _, _, errs[i] = prov.EnsureTenant(context.Background(), uids[i], fmt.Sprintf("c%d@e2e.test", i))
 		}(i)
 	}
 	wg.Wait()
@@ -212,7 +200,7 @@ func TestAccountM0_ConcurrentSameSubjectSingleAccount(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _, _ = prov.EnsureTenant(context.Background(), uid, "race@e2e.test")
+			_, _, _, _ = prov.EnsureTenant(context.Background(), uid, "race@e2e.test")
 		}()
 	}
 	wg.Wait()

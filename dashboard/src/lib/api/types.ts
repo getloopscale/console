@@ -81,6 +81,13 @@ export interface Project {
   // renders this as "Live envs" instead of the legacy singular
   // `environment` field.
   environment_count?: number;
+  // Red Team theo-cloud#41 absorption (2026-06-27): subset of
+  // environment_count that includes ONLY env_targets with kind='permanent'
+  // (production-like envs). The dashboard's "Live envs" column / hero
+  // metric MUST use this — `environment_count` collapses preview
+  // env_targets too, producing the misleading "Live envs: 1 + URL pending"
+  // pair the Red Team caught.
+  production_env_count?: number;
   // T2.1 additive completion (T5.3 LIVE-bug fix 2026-06-08): backend
   // now populates these via the latest_build LATERAL join so the
   // /projects table no longer shows "—" / 0 in Apps + Framework
@@ -91,10 +98,20 @@ export interface Project {
   // LIVE catch).
   latest_framework?: string;
   apps_count?: number;
+  // Red Team theo-cloud#41 (2026-06-27): the latest build's environment
+  // ("preview" / "production" / "staging" / ...). Drives the
+  // preview-only-project disambiguation in projects.tsx / LiveUrlHero
+  // so a preview-only project does NOT render "Live" + "URL PENDING".
+  latest_build_environment?: string;
   created_at?: string;
 }
 
-export type ProjectStatus = 'live' | 'building' | 'failed' | 'idle' | 'queued';
+// Red Team theo-cloud#41 absorption (2026-06-27): 'preview' value
+// indicates a project whose only deploys are preview-environment builds
+// (no active production release). The dashboard renders a distinct
+// "Preview" badge — never "Live" with a contradictory "URL PENDING"
+// hint. Backend mapper is `pkg/enforcement.MapProjectStatus`.
+export type ProjectStatus = 'live' | 'building' | 'failed' | 'idle' | 'queued' | 'preview';
 
 export interface ProjectListResponse {
   projects: Project[];

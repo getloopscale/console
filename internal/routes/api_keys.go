@@ -363,11 +363,12 @@ func (h *APIKeysHandler) CreateKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// M0: persist the key's Account, DERIVED FROM ITS TENANT in the same INSERT
-	// (the key inherits the Account of the tenant it is scoped to). This is the
-	// authoritative source — the /v1/api-keys route is behind RequireJWT, whose
-	// UserContext has no AccountID until M3, so trusting user.AccountID here would
-	// write NULL for every dashboard-minted key. NULL-tolerant: if the tenant's
-	// account_id is NULL (legacy tenant), the key's is NULL too.
+	// (the key inherits the Account of the tenant it is scoped to). The tenant is
+	// the authoritative source: deriving account_id from the tenant row keeps the
+	// key consistent with its tenant regardless of how the request authenticated.
+	// (Post-M3 the session JWT does carry account_id via UserContext.AccountID, but
+	// the tenant subquery remains the source of truth — it can't drift from the
+	// tenant the key is scoped to. Post-000044 tenant.account_id is NOT NULL.)
 	const q = `INSERT INTO theo_api_keys
 		(id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at)
 		VALUES ($1, $2, $3, (SELECT account_id FROM tenants WHERE id = $3), $4, $5, $6, $7, $8)`
@@ -403,13 +404,13 @@ func (h *APIKeysHandler) CreateKey(w http.ResponseWriter, r *http.Request) {
 // Body (optional): {"grace_window_hours": <int 1-168>} — default 24.
 //
 // Atomic single-tx:
-//   1. SELECT FOR UPDATE old row (must exist, belong to authenticated
-//      subject+tenant, not revoked, not already-expired). 404 otherwise.
-//   2. INSERT new row with rotated_from = old.id, same scopes, fresh
-//      `theo_live_*` secret + apk-{16hex} id, name suffixed with rotation date.
-//   3. UPDATE old row's expires_at = NOW() + grace_window.
-//   4. COMMIT.
-//   5. Return 200 with new id + secret (shown ONCE per Plan 0 D3).
+//  1. SELECT FOR UPDATE old row (must exist, belong to authenticated
+//     subject+tenant, not revoked, not already-expired). 404 otherwise.
+//  2. INSERT new row with rotated_from = old.id, same scopes, fresh
+//     `theo_live_*` secret + apk-{16hex} id, name suffixed with rotation date.
+//  3. UPDATE old row's expires_at = NOW() + grace_window.
+//  4. COMMIT.
+//  5. Return 200 with new id + secret (shown ONCE per Plan 0 D3).
 //
 // D5: after grace, the existing RequireScope middleware naturally 401s
 // the old key — no new dispatcher needed.
@@ -470,10 +471,10 @@ func (h *APIKeysHandler) RotateKey(w http.ResponseWriter, r *http.Request) {
 		  AND COALESCE(bff_minted, false) = false
 		FOR UPDATE`
 	var (
-		oldName    string
-		scopesRaw  []byte
-		revokedAt  sql.NullTime
-		expiresAt  sql.NullTime
+		oldName   string
+		scopesRaw []byte
+		revokedAt sql.NullTime
+		expiresAt sql.NullTime
 	)
 	if err := tx.QueryRowContext(r.Context(), sel, oldID, user.Subject, user.TenantID).
 		Scan(&oldName, &scopesRaw, &revokedAt, &expiresAt); err != nil {
@@ -548,12 +549,12 @@ func (h *APIKeysHandler) RotateKey(w http.ResponseWriter, r *http.Request) {
 	rollback = false
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"id":         newID,
-		"name":       newName,
-		"key_prefix": newKeyPrefix,
-		"secret":     newSecret,
-		"old_id":     oldID,
-		"old_expires_at": newExpiry.UTC().Format(time.RFC3339),
+		"id":                 newID,
+		"name":               newName,
+		"key_prefix":         newKeyPrefix,
+		"secret":             newSecret,
+		"old_id":             oldID,
+		"old_expires_at":     newExpiry.UTC().Format(time.RFC3339),
 		"grace_window_hours": graceHours,
 	})
 }
@@ -564,8 +565,8 @@ func (h *APIKeysHandler) RotateKey(w http.ResponseWriter, r *http.Request) {
 //
 // Walk strategy (D2): recursive CTE that traverses both directions
 //
-//   ancestors:   walk rotated_from backward from {id}
-//   descendants: walk rows whose rotated_from points to any ancestor
+//	ancestors:   walk rotated_from backward from {id}
+//	descendants: walk rows whose rotated_from points to any ancestor
 //
 // All filtered by the authenticated (subject, tenant_id) — defense in
 // depth on top of the FK guarantee that rotations never cross tenants.

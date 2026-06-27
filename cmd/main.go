@@ -34,6 +34,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
+	"github.com/usetheodev/theo-cloud/internal/normalize"
 	"github.com/usetheodev/theo-cloud/internal/promptly"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
@@ -166,6 +167,13 @@ func main() {
 	// Billing mutations are per authenticated user.
 	deviceLimiter := ratelimit.NewInMemoryLimiter(60, time.Minute)
 	billingLimiter := ratelimit.NewInMemoryLimiter(30, time.Minute)
+	// F-sec-1 absorption: BFF-layer defense-in-depth for /v1/auth/register.
+	// Caddy edge `register_throttle` (5/min) matches /self-service/registration/*
+	// on auth-dev.usetheo.dev only — the BFF endpoint on cloud-dev / app-dev
+	// is reachable without that edge gate (k8s NodePort, cross-cluster, dev
+	// direct hits). 5/min/IP keeps brute-force registration infeasible even
+	// when Caddy is bypassed. Per Red Team theo-cloud#43 closure plan.
+	registerLimiter := ratelimit.NewInMemoryLimiter(5, time.Minute)
 	ipKey := func(r *http.Request) string { return ratelimit.Key("", r.RemoteAddr) }
 	userKey := func(r *http.Request) string {
 		if u := auth.GetUser(r.Context()); u != nil {
@@ -177,6 +185,12 @@ func main() {
 	// Handlers
 	deviceHandler := routes.NewDeviceHandler(hydra, cfg.BillingReturnURL)
 	meHandler := routes.NewMeHandler()
+	// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 — response-shape
+	// unifier middleware closing Red Team theo-cloud#43 (account enumeration via
+	// register response shape divergence). Proxies POST /v1/auth/register to the
+	// upstream identity-store and ALWAYS returns the canonical universal body
+	// regardless of new-vs-existing-email branch.
+	registerProxyHandler := routes.NewRegisterProxyHandler(cfg.KratosInternalURL, logger)
 	consentHandler := consent.NewHandler(hydra, tenantProvisioner, cfg.KratosPublicURL, cfg.KratosInternalURL, cfg.KratosAdminURL, logger)
 
 	// Plan 0 of dashboard-memory-section-roadmap.md: unified theo_live_* API keys.
@@ -355,6 +369,14 @@ func main() {
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
 
+	// Red Team theo-cloud#86 closure (CWE-16 Security Misconfiguration):
+	// detect consecutive slashes in the raw request URI (Caddy's
+	// `path_regexp` matcher cannot — Caddy normalizes path BEFORE
+	// routing) and 308-redirect to the canonical single-slash form.
+	// Wired BEFORE auth + log so probing requests never reach handler
+	// dispatch and the audit trail records the redirect cleanly.
+	r.Use(normalize.PathSlashes)
+
 	// OTel HTTP tracing middleware -- creates a span per request with route info.
 	r.Use(func(next http.Handler) http.Handler {
 		return otelhttp.NewHandler(next, "cloud-service",
@@ -439,9 +461,36 @@ func main() {
 		r.With(ratelimit.Middleware(deviceLimiter, 60, ipKey)).Post("/token/refresh", deviceHandler.Refresh)
 		r.Post("/session/token", sessionTokenHandler.Exchange) // Dashboard: Kratos session → JWT (rate-limited inside the handler)
 
+		// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 —
+		// response-shape unifier middleware. Unauthenticated (the dashboard
+		// register page POSTs without a session). Defense-in-depth:
+		// (a) Caddy edge `register_throttle` (5/min, T1.2) on auth-dev block, AND
+		// (b) BFF `registerLimiter` (5/min/IP, F-sec-1 absorption) here, which
+		// holds even when traffic bypasses the edge (k8s NodePort, dev direct).
+		r.With(ratelimit.Middleware(registerLimiter, 5, ipKey)).
+			Post("/register", registerProxyHandler.Post)
+
 		// /me requires JWT
 		r.With(requireJWT).Get("/me", meHandler.Get)
 	})
+
+	// F-arch-1 + Red Team post-fix-verification absorption 2026-06-27:
+	// alias mount of the BFF register handler at BOTH Kratos self-service
+	// submit paths:
+	//   - `/self-service/registration/methods/password` — Kratos API flow
+	//     (old shape, kept for compat with direct API clients).
+	//   - `/self-service/registration` — Kratos BROWSER flow canonical
+	//     (per `ui.action` URL emitted by /self-service/registration/browser).
+	//     This is the path the dashboard form actually POSTs to AND the
+	//     enumeration attack vector the Red Team exercised: existing email
+	//     leaked HTTP 400 "exists" vs new email HTTP 200. The BFF unifier
+	//     normalizes both to byte-identical universal 200.
+	// The Caddy auth-dev block routes both paths via `handle` (path-
+	// preserving) so the BFF must register both URLs explicitly.
+	r.With(ratelimit.Middleware(registerLimiter, 5, ipKey)).
+		Post("/self-service/registration/methods/password", registerProxyHandler.Post)
+	r.With(ratelimit.Middleware(registerLimiter, 5, ipKey)).
+		Post("/self-service/registration", registerProxyHandler.Post)
 
 	// Telemetry — T1.2 of plan 2026-05-27-backend-frontend-integration v1.1.
 	// PUBLIC (no JWT) — sendBeacon API cannot set custom Authorization
