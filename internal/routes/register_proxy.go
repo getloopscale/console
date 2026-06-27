@@ -167,6 +167,24 @@ func (h *RegisterProxyHandler) Post(w http.ResponseWriter, r *http.Request) {
 	if acc := r.Header.Get("Accept"); acc != "" {
 		upstreamReq.Header.Set("Accept", acc)
 	}
+	// Red Team post-fix absorption 2026-06-27: when this handler serves the
+	// canonical Kratos browser flow submit at `/self-service/registration`,
+	// the upstream REQUIRES the inbound Cookie (CSRF token + flow cookie) to
+	// validate the flow. Without forwarding, every browser submit returns
+	// 403 CSRF and the enumeration leak path stays exposed. The BFF still
+	// REWRITES the response body — Set-Cookie from upstream is propagated
+	// to the client below so the browser session continuation works.
+	if cookie := r.Header.Get("Cookie"); cookie != "" {
+		upstreamReq.Header.Set("Cookie", cookie)
+	}
+	// Origin + Referer let Kratos honor the security.return_to allowlist
+	// on success-redirect emission (when configured).
+	if origin := r.Header.Get("Origin"); origin != "" {
+		upstreamReq.Header.Set("Origin", origin)
+	}
+	if ref := r.Header.Get("Referer"); ref != "" {
+		upstreamReq.Header.Set("Referer", ref)
+	}
 
 	resp, err := h.HTTPClient.Do(upstreamReq)
 	if err != nil {
@@ -188,6 +206,14 @@ func (h *RegisterProxyHandler) Post(w http.ResponseWriter, r *http.Request) {
 		}
 		h.writeError503(w)
 		return
+	}
+
+	// Red Team post-fix absorption 2026-06-27: propagate Set-Cookie from
+	// upstream so the browser flow's session/CSRF state survives the unifier.
+	// Canonical for the `/self-service/registration` browser submit path;
+	// harmless for the JSON API submit (Kratos emits no Set-Cookie there).
+	for _, cookie := range resp.Header.Values("Set-Cookie") {
+		w.Header().Add("Set-Cookie", cookie)
 	}
 
 	// EC-4: any non-5xx upstream outcome (200 new-user success, 400

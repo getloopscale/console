@@ -465,16 +465,23 @@ func main() {
 		r.With(requireJWT).Get("/me", meHandler.Get)
 	})
 
-	// F-arch-1 absorption: alias mount of the BFF register handler at the
-	// canonical Kratos self-service path. The Caddy auth-dev block
-	// `handle /self-service/registration/methods/password { reverse_proxy
-	// localhost:13002 }` preserves the inbound path (Caddyfile `handle`,
-	// not `handle_path`). Without this alias the BFF returns 404 for every
-	// auth-dev-origin registration submission — Slice C closure of
-	// theo-cloud#43 would silently fail end-to-end on that host. Mounted
-	// outside /v1/auth so the canonical Kratos URL space is honored.
+	// F-arch-1 + Red Team post-fix-verification absorption 2026-06-27:
+	// alias mount of the BFF register handler at BOTH Kratos self-service
+	// submit paths:
+	//   - `/self-service/registration/methods/password` — Kratos API flow
+	//     (old shape, kept for compat with direct API clients).
+	//   - `/self-service/registration` — Kratos BROWSER flow canonical
+	//     (per `ui.action` URL emitted by /self-service/registration/browser).
+	//     This is the path the dashboard form actually POSTs to AND the
+	//     enumeration attack vector the Red Team exercised: existing email
+	//     leaked HTTP 400 "exists" vs new email HTTP 200. The BFF unifier
+	//     normalizes both to byte-identical universal 200.
+	// The Caddy auth-dev block routes both paths via `handle` (path-
+	// preserving) so the BFF must register both URLs explicitly.
 	r.With(ratelimit.Middleware(registerLimiter, 5, ipKey)).
 		Post("/self-service/registration/methods/password", registerProxyHandler.Post)
+	r.With(ratelimit.Middleware(registerLimiter, 5, ipKey)).
+		Post("/self-service/registration", registerProxyHandler.Post)
 
 	// Telemetry — T1.2 of plan 2026-05-27-backend-frontend-integration v1.1.
 	// PUBLIC (no JWT) — sendBeacon API cannot set custom Authorization
