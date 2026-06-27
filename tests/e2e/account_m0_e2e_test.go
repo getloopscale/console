@@ -19,10 +19,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/routes"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -112,6 +116,46 @@ func TestAccountM0_NewSignupOneAccountOwnsTenant(t *testing.T) {
 	}
 	if tenantAcc == "" || tenantAcc != ownerAcc {
 		t.Fatalf("tenant.account_id %q must equal owner's account %q", tenantAcc, ownerAcc)
+	}
+}
+
+// HIGH-1 regression — a key minted through the REAL CreateKey handler inherits
+// its tenant's Account, even though the RequireJWT UserContext carries NO
+// AccountID in M0. Guards against new keys silently persisting account_id=NULL.
+func TestAccountM0_NewKeyInheritsTenantAccount(t *testing.T) {
+	db := openM0DB(t)
+	const uid = "m0-keyacct-uid"
+	cleanupOwner(t, db, uid)
+
+	tenantID, _, err := quietProvisioner(db).EnsureTenant(context.Background(), uid, "m0-keyacct@e2e.test")
+	if err != nil {
+		t.Fatalf("EnsureTenant: %v", err)
+	}
+	var tenantAcc string
+	if err := db.QueryRow(`SELECT account_id FROM tenants WHERE id=$1`, tenantID).Scan(&tenantAcc); err != nil {
+		t.Fatalf("tenant account: %v", err)
+	}
+	if tenantAcc == "" {
+		t.Fatalf("precondition failed: tenant has no account")
+	}
+
+	// Drive the real handler with a UserContext that has NO AccountID (the
+	// RequireJWT path in M0). The key must STILL get the tenant's account.
+	h := routes.NewAPIKeysHandler(db, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	req := httptest.NewRequest("POST", "/v1/api-keys", strings.NewReader(`{"name":"m0-key","scopes":["memory:read"]}`))
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.UserContext{Subject: uid, TenantID: tenantID, AccountID: ""}))
+	rec := httptest.NewRecorder()
+	h.CreateKey(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("CreateKey: want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var keyAcc sql.NullString
+	if err := db.QueryRow(`SELECT account_id FROM theo_api_keys WHERE subject=$1 AND key_name='m0-key'`, uid).Scan(&keyAcc); err != nil {
+		t.Fatalf("query created key: %v", err)
+	}
+	if !keyAcc.Valid || keyAcc.String != tenantAcc {
+		t.Fatalf("new key account_id = %v; want tenant's account %q (derived from tenant, NOT empty user.AccountID)", keyAcc, tenantAcc)
 	}
 }
 

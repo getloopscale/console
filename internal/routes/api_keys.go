@@ -362,16 +362,18 @@ func (h *APIKeysHandler) CreateKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// M0: persist the caller's Account on the key. NULL-tolerant — a legacy-JWT
-	// caller without an AccountID still mints a key (account_id stays NULL).
+	// M0: persist the key's Account, DERIVED FROM ITS TENANT in the same INSERT
+	// (the key inherits the Account of the tenant it is scoped to). This is the
+	// authoritative source — the /v1/api-keys route is behind RequireJWT, whose
+	// UserContext has no AccountID until M3, so trusting user.AccountID here would
+	// write NULL for every dashboard-minted key. NULL-tolerant: if the tenant's
+	// account_id is NULL (legacy tenant), the key's is NULL too.
 	const q = `INSERT INTO theo_api_keys
 		(id, subject, tenant_id, account_id, key_name, key_hash, key_prefix, scopes, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+		VALUES ($1, $2, $3, (SELECT account_id FROM tenants WHERE id = $3), $4, $5, $6, $7, $8)`
 
 	if _, err := h.db.ExecContext(r.Context(), q,
-		id, user.Subject, user.TenantID,
-		sql.NullString{String: user.AccountID, Valid: user.AccountID != ""},
-		trimmed, keyHash, keyPrefix, scopesJSON, req.ExpiresAt,
+		id, user.Subject, user.TenantID, trimmed, keyHash, keyPrefix, scopesJSON, req.ExpiresAt,
 	); err != nil {
 		// Unique-violation on key_hash is astronomically unlikely (collision
 		// in 256-bit space) but is the one branch we differentiate so we

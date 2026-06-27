@@ -240,7 +240,10 @@ func RequireScope(db *sql.DB, required string) func(http.Handler) http.Handler {
 				}
 			}(row.keyID)
 
-			user := &UserContext{Subject: row.subject, TenantID: row.tenantID}
+			// AccountID is NULL-tolerant (M0): same row as ResolveAPIKey, so the
+			// Bearer/`/v1/memory/*` path carries the Account consistently ("" for
+			// legacy keys).
+			user := &UserContext{Subject: row.subject, TenantID: row.tenantID, AccountID: row.accountID.String}
 			ctx = WithUser(ctx, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

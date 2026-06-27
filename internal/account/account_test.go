@@ -77,6 +77,22 @@ func TestEnsureAccount_PropagatesQueryError(t *testing.T) {
 	}
 }
 
+func TestEnsureAccount_PropagatesCreateError(t *testing.T) {
+	// Negative case for the create path: SELECT misses, INSERT...ON CONFLICT fails
+	// => the wrapped "create account" error propagates (never a silent empty id).
+	db, mock := newMock(t)
+	mock.ExpectQuery("SELECT id FROM accounts WHERE owner_id").
+		WithArgs("usrNew").
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("INSERT INTO accounts").
+		WillReturnError(errors.New("deadlock detected"))
+
+	got, err := EnsureAccount(context.Background(), db, "usrNew", "new@x.io")
+	if err == nil {
+		t.Fatalf("want wrapped create error, got nil (id=%q)", got)
+	}
+}
+
 func TestEnsureAccount_RejectsEmptyOwner(t *testing.T) {
 	db, _ := newMock(t)
 	if _, err := EnsureAccount(context.Background(), db, "", "a@x.io"); err == nil {

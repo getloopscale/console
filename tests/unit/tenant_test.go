@@ -116,8 +116,17 @@ func TestEnsureTenant_InsertsUsernameOnNewUser(t *testing.T) {
 		WithArgs(userID, email, "paulo", userID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	// 4) Tenant + membership + subscription — we don't assert form, only that they fire.
+	// 3b) EnsureAccount (M0) — find-or-create the owner's Account inside the tx,
+	//     BEFORE the tenant INSERT (which now carries account_id). Find path.
+	mock.ExpectQuery(`SELECT id FROM accounts WHERE owner_id`).
+		WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("acct-test0000000000"))
+
+	// 4) Tenant INSERT now carries account_id (M0). Assert the EnsureAccount result
+	//    ("acct-test0000000000") is passed as the tenant's account_id (5th arg:
+	//    id, display_name, slug, owner_id, account_id).
 	mock.ExpectExec(`INSERT INTO tenants`).
+		WithArgs(sqlmock.AnyArg(), "paulo", "paulo", userID, "acct-test0000000000").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`INSERT INTO tenant_members`).
 		WillReturnResult(sqlmock.NewResult(1, 1))

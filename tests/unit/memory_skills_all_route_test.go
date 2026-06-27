@@ -38,10 +38,10 @@ func TestMemorySkillsAllRoute_Ok_WithMemoryRead(t *testing.T) {
 	mw := auth.RequireScope(db, "memory:read")
 
 	secret := "theo_live_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd"
-	mock.ExpectQuery("SELECT id, subject, tenant_id, scopes, expires_at FROM theo_api_keys").
+	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM theo_api_keys").
 		WithArgs(hashOf(secret)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "scopes", "expires_at"}).
-			AddRow("apk-skills-all-1", "sub-xyz", "tenant-A", []byte(`["memory:read"]`), nil))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
+			AddRow("apk-skills-all-1", "sub-xyz", "tenant-A", nil, []byte(`["memory:read"]`), nil))
 	mock.ExpectExec("UPDATE theo_api_keys SET last_used_at").
 		WithArgs("apk-skills-all-1").
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -74,10 +74,10 @@ func TestMemorySkillsAllRoute_Forbidden_WithoutMemoryRead(t *testing.T) {
 	mw := auth.RequireScope(db, "memory:read")
 
 	secret := "theo_live_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcd"
-	mock.ExpectQuery("SELECT id, subject, tenant_id, scopes, expires_at FROM theo_api_keys").
+	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM theo_api_keys").
 		WithArgs(hashOf(secret)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "scopes", "expires_at"}).
-			AddRow("apk-skills-all-2", "sub-xyz", "tenant-A", []byte(`["memory:write"]`), nil)) // no memory:read
+		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
+			AddRow("apk-skills-all-2", "sub-xyz", "tenant-A", nil, []byte(`["memory:write"]`), nil)) // no memory:read
 
 	req := httptest.NewRequest("GET", "/v1/memory/skills/all", nil)
 	req.Header.Set("Authorization", "Bearer "+secret)
