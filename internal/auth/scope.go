@@ -71,8 +71,11 @@ var (
 // apiKeyRow is a resolved, active theo_api_keys row.
 type apiKeyRow struct {
 	keyID, subject, tenantID string
-	scopes                   []string
-	expiresAt                sql.NullTime
+	// accountID is M0's nullable Account link. NULL for legacy keys minted before
+	// migration 000036 — read as "" (NULL-tolerant), never an error.
+	accountID sql.NullString
+	scopes    []string
+	expiresAt sql.NullTime
 }
 
 // extractTheoLiveBearerFromHeader parses a raw Authorization header value.
@@ -108,7 +111,7 @@ func lookupAPIKey(ctx context.Context, db *sql.DB, rawAuthHeader string) (*apiKe
 
 	// API Key Rotation plan D3: also fetch expires_at so RequireScope can emit
 	// Sunset + Deprecation headers when the key is in its rotation grace window.
-	const q = `SELECT id, subject, tenant_id, scopes, expires_at
+	const q = `SELECT id, subject, tenant_id, account_id, scopes, expires_at
 		FROM theo_api_keys
 		WHERE key_hash = $1
 		  AND revoked_at IS NULL
@@ -118,7 +121,7 @@ func lookupAPIKey(ctx context.Context, db *sql.DB, rawAuthHeader string) (*apiKe
 		row       apiKeyRow
 		scopesRaw []byte
 	)
-	err := db.QueryRowContext(ctx, q, keyHash).Scan(&row.keyID, &row.subject, &row.tenantID, &scopesRaw, &row.expiresAt)
+	err := db.QueryRowContext(ctx, q, keyHash).Scan(&row.keyID, &row.subject, &row.tenantID, &row.accountID, &scopesRaw, &row.expiresAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		// (a) key never existed, (b) revoked, (c) expired — collapsed by design
 		// so an attacker cannot probe the keyspace.
@@ -157,7 +160,9 @@ func ResolveAPIKey(ctx context.Context, db *sql.DB, rawAuthHeader string) (*User
 	if row.tenantID == "" {
 		return nil, nil, ErrInvalidCredential // EC-3: never propagate an empty-tenant identity
 	}
-	return &UserContext{Subject: row.subject, TenantID: row.tenantID}, row.scopes, nil
+	// AccountID is NULL-tolerant: a legacy key (minted before 000036) has a NULL
+	// account_id, surfaced here as "" — never an error (M0 backward-compat).
+	return &UserContext{Subject: row.subject, TenantID: row.tenantID, AccountID: row.accountID.String}, row.scopes, nil
 }
 
 // RequireScope returns chi middleware that authenticates with a theo_live_*

@@ -32,8 +32,8 @@ func newAuthMock(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
 
 func TestResolveAPIKey_ValidKey_ReturnsUserAndScopes(t *testing.T) {
 	db, mock := newAuthMock(t)
-	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "scopes", "expires_at"}).
-		AddRow("k1", "user-a", "tenant-a", []byte(`["memory:read","memory:write"]`), nil)
+	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
+		AddRow("k1", "user-a", "tenant-a", nil, []byte(`["memory:read","memory:write"]`), nil)
 	mock.ExpectQuery("FROM theo_api_keys").WillReturnRows(rows)
 
 	uc, scopes, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_abc"))
@@ -82,8 +82,8 @@ func TestResolveAPIKey_EmptyTenant_ReturnsInvalid(t *testing.T) {
 	// a UserContext with empty TenantID — that would reach the broker with an
 	// empty tenant. Reject at the boundary.
 	db, mock := newAuthMock(t)
-	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "scopes", "expires_at"}).
-		AddRow("k1", "user-a", "", []byte(`["memory:read"]`), nil)
+	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
+		AddRow("k1", "user-a", "", nil, []byte(`["memory:read"]`), nil)
 	mock.ExpectQuery("FROM theo_api_keys").WillReturnRows(rows)
 
 	_, _, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_x"))
@@ -107,12 +107,48 @@ func TestResolveAPIKey_ScopesCorruption_ReturnsBackendUnavailable(t *testing.T) 
 	// A corrupt scopes jsonb is a fail-closed backend condition (500/503), never
 	// a silent downgrade to "missing scope".
 	db, mock := newAuthMock(t)
-	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "scopes", "expires_at"}).
-		AddRow("k1", "user-a", "tenant-a", []byte(`not-json`), nil)
+	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
+		AddRow("k1", "user-a", "tenant-a", nil, []byte(`not-json`), nil)
 	mock.ExpectQuery("FROM theo_api_keys").WillReturnRows(rows)
 
 	_, _, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_x"))
 	if !errors.Is(err, ErrBackendUnavailable) {
 		t.Fatalf("want ErrBackendUnavailable for corrupt scopes, got %v", err)
+	}
+}
+
+func TestResolveAPIKey_PopulatesAccountID(t *testing.T) {
+	// M0 T2.3: a key carrying account_id surfaces it on the UserContext.
+	db, mock := newAuthMock(t)
+	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
+		AddRow("k1", "user-a", "tenant-a", "acct-0123456789abcdef", []byte(`["memory:read"]`), nil)
+	mock.ExpectQuery("FROM theo_api_keys").WillReturnRows(rows)
+
+	uc, _, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_x"))
+	if err != nil {
+		t.Fatalf("want nil err, got %v", err)
+	}
+	if uc.AccountID != "acct-0123456789abcdef" {
+		t.Fatalf("want AccountID populated, got %q", uc.AccountID)
+	}
+}
+
+func TestResolveAPIKey_ToleratesNullAccountID(t *testing.T) {
+	// M0 T2.3 (backward-compat): a legacy key with NULL account_id must resolve
+	// to AccountID == "" WITHOUT error — never a 500/503.
+	db, mock := newAuthMock(t)
+	rows := sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
+		AddRow("k1", "user-a", "tenant-a", nil, []byte(`["memory:read"]`), nil)
+	mock.ExpectQuery("FROM theo_api_keys").WillReturnRows(rows)
+
+	uc, _, err := ResolveAPIKey(context.Background(), db, bearerOf("theo_live_legacy"))
+	if err != nil {
+		t.Fatalf("legacy NULL account_id must not error, got %v", err)
+	}
+	if uc.AccountID != "" {
+		t.Fatalf("want empty AccountID for NULL, got %q", uc.AccountID)
+	}
+	if uc.TenantID != "tenant-a" {
+		t.Fatalf("tenant must still resolve, got %q", uc.TenantID)
 	}
 }
