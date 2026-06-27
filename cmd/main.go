@@ -34,6 +34,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
+	"github.com/usetheodev/theo-cloud/internal/normalize"
 	"github.com/usetheodev/theo-cloud/internal/promptly"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
@@ -367,6 +368,14 @@ func main() {
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
+
+	// Red Team theo-cloud#86 closure (CWE-16 Security Misconfiguration):
+	// detect consecutive slashes in the raw request URI (Caddy's
+	// `path_regexp` matcher cannot — Caddy normalizes path BEFORE
+	// routing) and 308-redirect to the canonical single-slash form.
+	// Wired BEFORE auth + log so probing requests never reach handler
+	// dispatch and the audit trail records the redirect cleanly.
+	r.Use(normalize.PathSlashes)
 
 	// OTel HTTP tracing middleware -- creates a span per request with route info.
 	r.Use(func(next http.Handler) http.Handler {
