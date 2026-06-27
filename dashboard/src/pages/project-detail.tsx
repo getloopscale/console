@@ -136,7 +136,27 @@ export function ProjectDetailPage() {
   const lastDeployAt = !isZeroTime(project.last_deploy)
     ? project.last_deploy
     : latestBuild?.created_at;
-  const envCount = project.environment_count ?? (project.environment ? 1 : 0);
+  // Red Team theo-cloud#41 absorption (2026-06-27): the "Live envs"
+  // metric MUST use `production_env_count` (kind='permanent' subset)
+  // — `environment_count` was the bug source for the "Live envs: 1 +
+  // URL PENDING" pair the Red Team caught. Legacy fallback preserved.
+  const liveEnvCount = project.production_env_count ?? project.environment_count ?? (project.environment ? 1 : 0);
+
+  // Red Team theo-cloud#41 absorption (2026-06-27, follow-up): the
+  // `isPreviewOnly` heuristic now uses the canonical signal pair
+  // server-side computes — production_env_count === 0 means no
+  // production env wired, AND latest_build_environment === 'preview'
+  // means the latest deploy targeted preview. Both true → preview-only
+  // project; the LiveUrlHero renders "Preview deploys only" + the
+  // status badge falls through ProjectStatusPreview when SQL has the
+  // active_release_status_raw = ''. The legacy `last_deploy_status ===
+  // 'preview'` check is kept as a secondary signal because the engine
+  // mapper emits "preview" when SUCCEEDED + preview env + no active
+  // release; this catches the rendered-status path canonically.
+  const isPreviewOnly =
+    project.last_deploy_status === 'preview' ||
+    (project.production_env_count === 0 &&
+      project.latest_build_environment === 'preview');
 
   return (
     <PageShell title={project.name}>
@@ -155,11 +175,14 @@ export function ProjectDetailPage() {
             Red Team theo-cloud#41 (2026-06-27): flag preview-only projects so
             the hero renders the canonical "Preview only" empty state instead of
             "URL pending" — eliminates the divergence the Red Team caught
-            (badge said Live, URL field said PENDING). */}
+            (badge said Live, URL field said PENDING). isPreviewOnly is the
+            UNION of last_deploy_status === 'preview' (mapper canonical) and
+            production_env_count === 0 && latest_build_environment === 'preview'
+            (catches the SQL-direct path on legacy mapper). */}
         <LiveUrlHero
           status={status}
           loading={statusLoading}
-          isPreviewOnly={project.last_deploy_status === 'preview'}
+          isPreviewOnly={isPreviewOnly}
         />
 
         {status && <ProjectHealthCard status={status} />}
@@ -180,7 +203,7 @@ export function ProjectDetailPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-body-sm">
               <div>
                 <div className="text-label text-muted-foreground uppercase">Live envs</div>
-                <div className="text-foreground mt-1 tabular-nums">{envCount}</div>
+                <div className="text-foreground mt-1 tabular-nums">{liveEnvCount}</div>
               </div>
               <div>
                 <div className="text-label text-muted-foreground uppercase">Last deploy</div>

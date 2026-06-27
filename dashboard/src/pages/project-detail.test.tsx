@@ -30,15 +30,9 @@ vi.mock('@/hooks/use-page-meta', async () => {
   return { ...actual, useSetPageTitle: () => {} };
 });
 
+const mockUseProjects = vi.fn();
 vi.mock('@/hooks/use-projects', () => ({
-  useProjects: () => ({
-    projects: [{
-      name: 'my-project',
-      apps: [{ name: 'web' }],
-      created_at: '2026-06-01T00:00:00Z',
-    }],
-    loading: false,
-  }),
+  useProjects: () => mockUseProjects(),
 }));
 
 vi.mock('@/hooks/use-project-status', () => ({
@@ -56,6 +50,16 @@ describe('ProjectDetailPage', () => {
     vi.clearAllMocks();
     mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
     mockUseEngineApi.mockReturnValue({ data: null, loading: false, error: false });
+    // Default project that satisfies the existing test suite. Per-test
+    // overrides re-mock with the scenario-specific shape.
+    mockUseProjects.mockReturnValue({
+      projects: [{
+        name: 'my-project',
+        apps: [{ name: 'web' }],
+        created_at: '2026-06-01T00:00:00Z',
+      }],
+      loading: false,
+    });
   });
 
   it('test_project_detail_heading_hierarchy_h1_to_h2_no_skip_closes_25', () => {
@@ -71,5 +75,57 @@ describe('ProjectDetailPage', () => {
     }
     // At least one h2 must exist (the Card.Title we promoted via asChild).
     expect(levels).toContain(2);
+  });
+
+  // Red Team theo-cloud#41 regression-protector (2026-06-27 UI follow-up):
+  // when production_env_count === 0 AND latest_build_environment ===
+  // 'preview', the LiveUrlHero MUST render the "Preview only" empty
+  // state — NOT the misleading "URL pending" hint. Catches the case
+  // where the mapper's `last_deploy_status` field is NOT 'preview' (e.g.
+  // a failed preview build still mapped to 'failed' via the legacy path)
+  // but the SQL signals still indicate preview-only project shape.
+  it('test_project_detail_renders_preview_only_when_no_prod_env_and_preview_build (#41)', () => {
+    mockUseProjects.mockReturnValue({
+      projects: [{
+        name: 'my-project',
+        apps: [{ name: 'web' }],
+        created_at: '2026-06-01T00:00:00Z',
+        last_deploy_status: 'failed',  // legacy mapper path; NOT 'preview'
+        production_env_count: 0,        // canonical signal — no production env
+        environment_count: 0,
+        latest_build_environment: 'preview',
+      }],
+      loading: false,
+    });
+    render(<ProjectDetailPage />);
+    // The hero MUST surface the preview-only copy + Badge.
+    expect(screen.getByText(/Preview deploys only/i)).toBeInTheDocument();
+    expect(screen.getByText(/Preview only/i)).toBeInTheDocument();
+    // The misleading default copy MUST NOT render.
+    expect(screen.queryByText(/URL pending/i)).not.toBeInTheDocument();
+  });
+
+  // Red Team theo-cloud#41 regression-protector: the "Live envs" metric
+  // MUST come from production_env_count (kind='permanent' subset), NOT
+  // the legacy environment_count which collapses preview env_targets.
+  // The Red Team scenario: environment_count=1 but production_env_count=0
+  // → "Live envs" must show 0 (truth), not 1 (legacy bug).
+  it('test_project_detail_uses_production_env_count_for_live_envs_metric (#41)', () => {
+    mockUseProjects.mockReturnValue({
+      projects: [{
+        name: 'my-project',
+        apps: [{ name: 'web' }],
+        created_at: '2026-06-01T00:00:00Z',
+        last_deploy_status: 'live',
+        environment_count: 1,
+        production_env_count: 0,
+        latest_build_environment: 'preview',
+      }],
+      loading: false,
+    });
+    render(<ProjectDetailPage />);
+    const liveEnvsLabel = screen.getByText(/Live envs/i);
+    const liveEnvsValueNode = liveEnvsLabel.parentElement?.querySelector('.tabular-nums');
+    expect(liveEnvsValueNode?.textContent).toBe('0');
   });
 });

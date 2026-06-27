@@ -16,6 +16,9 @@ interface Project {
   // server-derived per-project total env count and 5-value status enum.
   // Backend additive — legacy CLI consumers ignore unknown fields.
   environment_count?: number;
+  // Red Team theo-cloud#41 (2026-06-27): production-only env_targets count
+  // — the canonical "Live envs" metric. Aligned with src/lib/api/types.ts.
+  production_env_count?: number;
   // Red Team theo-cloud#41 (2026-06-27): 'preview' added — preview-only
   // project (succeeded preview builds, no active production release).
   // Aligned with the canonical type in src/lib/api/types.ts ProjectStatus.
