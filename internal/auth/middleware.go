@@ -118,6 +118,9 @@ func RequireJWT(rsaValidator *theojwt.Validator, sessValidator *theojwt.SessionT
 						Email:    claims.Email,
 						Name:     claims.Name,
 						TenantID: tenantID,
+						// M3: surface account_id from the session JWT (additive).
+						// Legacy tokens without the claim yield "" — still authorized.
+						AccountID: claims.AccountID,
 					})
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return

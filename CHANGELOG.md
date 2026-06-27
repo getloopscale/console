@@ -1,8 +1,10 @@
 ## [Unreleased]
 
 ### Added
+- **Account-level tenancy (M3 — propagate).** The dashboard session JWT now carries `account_id` (additive, `omitempty`): `EnsureTenant` surfaces the Account it already provisions as its 2nd return value (all three return points — fast path, in-lock re-check, create path — so returning users get it too), `session_token.Exchange` passes it to the issuer, and `RequireJWT` populates `UserContext.AccountID` from the claim. **Forward-compatible:** a token minted before M3 (or for a tenant without an account) omits the claim and still authenticates with `AccountID == ""` (no 401). Depends on `theo-contracts` v0.2.0 (`SessionClaims.AccountID` + `Issue(accountID)`). Unit-proven under `-race`: the issuer carries account_id, the Exchange handler propagates it into the minted token, the middleware surfaces it, and a legacy token without the claim still returns 200. (plan `m3-enforce-propagate`, ADR `account-level-tenancy`)
 
 ### Changed
+- Bumped `github.com/usetheodev/theo-contracts` v0.1.0 → v0.2.0 (additive `account_id` session claim). The theo engine stays on v0.1.0 and ignores the additive claim (JSON forward-compat). (plan `m3-enforce-propagate`)
 
 ### Deprecated
 

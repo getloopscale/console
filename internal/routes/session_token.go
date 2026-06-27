@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	theojwt "github.com/usetheodev/theo-contracts/jwt"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
@@ -40,7 +40,7 @@ func NewSessionTokenHandler(issuer *theojwt.SessionTokenIssuer, tenantProv *auth
 			Timeout:   5 * time.Second,
 			Transport: otelhttp.NewTransport(http.DefaultTransport),
 		},
-		limiter:           ratelimit.NewInMemoryLimiter(rateLimitMaxCalls, rateLimitWindow),
+		limiter: ratelimit.NewInMemoryLimiter(rateLimitMaxCalls, rateLimitWindow),
 	}
 }
 
@@ -97,25 +97,28 @@ func (h *SessionTokenHandler) Exchange(w http.ResponseWriter, r *http.Request) {
 	// Resolve or create tenant for this user.
 	// This MUST succeed — never issue a JWT with "default" tenant.
 	tenantID := ""
+	accountID := "" // M3: the Account the tenant belongs to ("" for dev/legacy).
 	if h.tenantProvisioner != nil {
-		tid, _, tErr := h.tenantProvisioner.EnsureTenant(r.Context(), session.Identity.ID, session.Identity.Traits.Email)
+		tid, aid, _, tErr := h.tenantProvisioner.EnsureTenant(r.Context(), session.Identity.ID, session.Identity.Traits.Email)
 		if tErr != nil {
 			writeError(w, http.StatusInternalServerError, "TENANT_ERROR",
 				"Failed to set up your account. Try again or contact support.")
 			return
 		}
 		tenantID = tid
+		accountID = aid
 	}
 	if tenantID == "" {
 		tenantID = "personal" // Only in dev without DB
 	}
 
-	// Issue JWT
+	// Issue JWT — M3: carry account_id additively (empty for dev/legacy tenants).
 	token, expiresIn, err := h.issuer.Issue(
 		session.Identity.ID,
 		session.Identity.Traits.Email,
 		session.Identity.Traits.Name,
 		tenantID,
+		accountID,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "TOKEN_ERROR", "Failed to create access token.")

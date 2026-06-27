@@ -50,7 +50,7 @@ func buildSSEChain(t *testing.T) (http.Handler, *theojwt.SessionTokenIssuer, *st
 
 func mintSSEToken(t *testing.T, issuer *theojwt.SessionTokenIssuer) string {
 	t.Helper()
-	token, _, err := issuer.Issue("kratos-user-id-sse-1", "sse@theo.dev", "Sse User", "tn-sse-1")
+	token, _, err := issuer.Issue("kratos-user-id-sse-1", "sse@theo.dev", "Sse User", "tn-sse-1", "")
 	if err != nil {
 		t.Fatalf("mint token: %v", err)
 	}
@@ -103,8 +103,8 @@ func TestSSEAuth_HeaderWinsOverQueryParam(t *testing.T) {
 	// security model.
 	handler, issuer, state := buildSSEChain(t)
 
-	headerToken, _, _ := issuer.Issue("user-from-header", "h@h.h", "H", "tn-h")
-	queryToken, _, _ := issuer.Issue("user-from-query", "q@q.q", "Q", "tn-q")
+	headerToken, _, _ := issuer.Issue("user-from-header", "h@h.h", "H", "tn-h", "")
+	queryToken, _, _ := issuer.Issue("user-from-query", "q@q.q", "Q", "tn-q", "")
 
 	req := httptest.NewRequest(http.MethodGet, "/x?token="+queryToken, nil)
 	req.Header.Set("Authorization", "Bearer "+headerToken)
@@ -150,7 +150,7 @@ func TestSSEAuth_RejectsInvalidQueryToken(t *testing.T) {
 func TestSSEAuth_RejectsExpiredQueryToken(t *testing.T) {
 	// Mint a token with TTL 1ns then wait — validator must reject.
 	expIssuer := theojwt.NewSessionTokenIssuer(sseTestSecret, sseTestIssuer, sseTestAudience, time.Nanosecond)
-	expired, _, _ := expIssuer.Issue("u", "e@e.e", "E", "tn-e")
+	expired, _, _ := expIssuer.Issue("u", "e@e.e", "E", "tn-e", "")
 	time.Sleep(2 * time.Millisecond)
 
 	handler, _, state := buildSSEChain(t)
@@ -172,7 +172,7 @@ func TestSSEAuth_RejectsWrongSecretQueryToken(t *testing.T) {
 		"different-secret-also-at-least-32-bytes!",
 		sseTestIssuer, sseTestAudience, 3600*time.Second,
 	)
-	bogus, _, _ := bogusIssuer.Issue("u", "x@x.x", "X", "tn-x")
+	bogus, _, _ := bogusIssuer.Issue("u", "x@x.x", "X", "tn-x", "")
 
 	handler, _, _ := buildSSEChain(t)
 	req := httptest.NewRequest(http.MethodGet, "/x?token="+bogus, nil)

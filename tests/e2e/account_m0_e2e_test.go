@@ -94,7 +94,7 @@ func TestAccountM0_NewSignupOneAccountOwnsTenant(t *testing.T) {
 	const uid = "m0-signup-uid"
 	cleanupOwner(t, db, uid)
 
-	tenantID, _, err := quietProvisioner(db).EnsureTenant(context.Background(), uid, "m0-signup@e2e.test")
+	tenantID, _, _, err := quietProvisioner(db).EnsureTenant(context.Background(), uid, "m0-signup@e2e.test")
 	if err != nil {
 		t.Fatalf("EnsureTenant: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestAccountM0_NewKeyInheritsTenantAccount(t *testing.T) {
 	const uid = "m0-keyacct-uid"
 	cleanupOwner(t, db, uid)
 
-	tenantID, _, err := quietProvisioner(db).EnsureTenant(context.Background(), uid, "m0-keyacct@e2e.test")
+	tenantID, _, _, err := quietProvisioner(db).EnsureTenant(context.Background(), uid, "m0-keyacct@e2e.test")
 	if err != nil {
 		t.Fatalf("EnsureTenant: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestAccountM0_ConcurrentSignupsDistinctAccounts(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, _, errs[i] = prov.EnsureTenant(context.Background(), uids[i], fmt.Sprintf("c%d@e2e.test", i))
+			_, _, _, errs[i] = prov.EnsureTenant(context.Background(), uids[i], fmt.Sprintf("c%d@e2e.test", i))
 		}(i)
 	}
 	wg.Wait()
@@ -212,7 +212,7 @@ func TestAccountM0_ConcurrentSameSubjectSingleAccount(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _, _ = prov.EnsureTenant(context.Background(), uid, "race@e2e.test")
+			_, _, _, _ = prov.EnsureTenant(context.Background(), uid, "race@e2e.test")
 		}()
 	}
 	wg.Wait()

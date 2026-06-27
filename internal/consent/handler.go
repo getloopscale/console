@@ -51,7 +51,7 @@ func NewHandler(hydra *auth.HydraClient, tenantProv *auth.TenantProvisioner, kra
 			Timeout:   5 * time.Second,
 			Transport: otelhttp.NewTransport(http.DefaultTransport),
 		},
-		logger:           logger,
+		logger: logger,
 	}
 }
 
@@ -224,7 +224,7 @@ func (h *Handler) fetchIdentityClaims(ctx context.Context, subject string) map[s
 	// silently falling back to a "default" tenant.
 	// This decouples authentication availability from DB availability.
 	if h.tenantProvisioner != nil && identity.Traits.Email != "" {
-		tenantID, _, err := h.tenantProvisioner.EnsureTenant(ctx, subject, identity.Traits.Email)
+		tenantID, _, _, err := h.tenantProvisioner.EnsureTenant(ctx, subject, identity.Traits.Email)
 		if err == nil && tenantID != "" {
 			claims["tenant_id"] = tenantID
 		} else if err != nil {
