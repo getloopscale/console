@@ -157,7 +157,14 @@ export function RecoveryPage() {
 
   // D5 + D5b + EC-3 + EC-7: stale flow (410/404/any) triggers re-init; cascading
   // failure shows Reload Page fallback. Generic catch covers all error codes.
+  // Red Team theo-cloud#54 re-open: the bootstrap-to-Kratos-browser-flow path
+  // MUST wait for the session check (authNotice !== 'pending'). Without the
+  // gate, an authenticated user lands here, the bootstrap fires synchronously
+  // BEFORE getSession() resolves, and window.location.href navigates away —
+  // the "you're already signed in" notice never gets a chance to render.
   useEffect(() => {
+    if (authNotice === 'pending') return;
+    if (authNotice === 'shown') return; // notice will render; don't bootstrap.
     const flowId = searchParams.get('flow');
     if (flowId) {
       getFlow('recovery', flowId)
@@ -193,7 +200,7 @@ export function RecoveryPage() {
       // No flow ID → bootstrap browser flow (canonical Kratos redirect)
       window.location.href = `${ACCOUNTS_URL}/self-service/recovery/browser?return_to=${encodeURIComponent(window.location.origin + '/recovery')}`;
     }
-  }, [searchParams]);
+  }, [searchParams, authNotice]);
 
   // Detect HTTP 5xx vs network error vs Kratos 4xx in catch blocks.
   // Network/5xx → product-language D6. Kratos 4xx → enrichKratosError.

@@ -599,6 +599,41 @@ describe('RecoveryPage', () => {
     ).toBeInTheDocument();
   });
 
+  // Red Team theo-cloud#54 re-open: the bug is on the path WITHOUT a flow ID
+  // (the user clicks "Forgot password?" while signed in). The bootstrap
+  // useEffect fires synchronously BEFORE getSession resolves and navigates
+  // to the upstream identity-store flow — the notice never gets a chance to
+  // render. The fix gates the bootstrap on the auth-check completing.
+  it('does NOT bootstrap to upstream when session detected on /recovery without flow (#54 re-open)', async () => {
+    const originalLocation = window.location;
+    // Stub the location setter so the test can observe whether the bootstrap
+    // tried to navigate. Without this the test runner emits a "Not implemented:
+    // navigation" warning when the bug fires.
+    const hrefSetter = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        origin: 'http://localhost',
+        get href() { return originalLocation.href; },
+        set href(v: string) { hrefSetter(v); },
+      },
+    });
+    mockGetSession.mockResolvedValueOnce({
+      active: true,
+      identity: { id: 'sess-54r', traits: { email: 'p@x' } },
+    });
+    render(<RecoveryPage />, { initialEntries: ['/recovery'] });
+    await waitFor(() => {
+      expect(screen.getByText(/you're already signed in/i)).toBeInTheDocument();
+    });
+    expect(hrefSetter).not.toHaveBeenCalled();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    });
+  });
+
   // Red Team theo-cloud#80 closure: the recovery code input MUST set
   // inputmode=numeric so mobile keyboards open the numeric pad, and
   // autocomplete=one-time-code so iOS / Android / Chrome offer the

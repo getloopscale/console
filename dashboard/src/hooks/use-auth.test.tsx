@@ -15,6 +15,15 @@ vi.mock('@/lib/api', () => ({
   exchangeSessionToken: () => mockExchangeSessionToken(),
 }));
 
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
 import { useRequireAuth } from './use-auth';
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -72,5 +81,24 @@ describe('useRequireAuth — Red Team theo-cloud#50 LCP closure', () => {
       expect(result.current).not.toBeNull();
     });
     expect(mockExchangeSessionToken).not.toHaveBeenCalled();
+  });
+
+  // Red Team theo-cloud#110: a stale Kratos session cookie returns active
+  // from /sessions/whoami but the BFF cannot mint a JWT — the exchange
+  // resolves to `false`. The prior fire-and-forget `void exchangeSessionToken()`
+  // ignored the result, so the shell kept rendering, every cloudFetch/
+  // engineFetch retried 401 forever, and the dashboard hung in "Loading".
+  // The hook MUST navigate to /login when the deferred exchange fails.
+  it('navigates to /login when the deferred JWT exchange resolves to false (stale Kratos cookie)', async () => {
+    mockGetSession.mockResolvedValue({
+      active: true,
+      identity: { id: 'u', traits: { email: 'u@x.com' } },
+    });
+    mockExchangeSessionToken.mockResolvedValue(false);
+    renderHook(() => useRequireAuth(), { wrapper });
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
+    });
   });
 });

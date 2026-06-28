@@ -1,0 +1,15 @@
+diff --git a/node_modules/@usetheo/ui/dist/chunk-ZEFOXF2I.js b/node_modules/@usetheo/ui/dist/chunk-ZEFOXF2I.js
+index 879cd12..09e24f7 100644
+--- a/node_modules/@usetheo/ui/dist/chunk-ZEFOXF2I.js
++++ b/node_modules/@usetheo/ui/dist/chunk-ZEFOXF2I.js
+@@ -31,6 +31,10 @@ var ActionBar = forwardRef(
+               {
+                 type: "search",
+                 placeholder: search.placeholder,
++                // Red Team theo-cloud#57: derive a persistent aria-label from
++                // the placeholder so screen readers announce the field even
++                // after the user starts typing (placeholder vanishes).
++                "aria-label": search.placeholder.replace(/[.…]+$/, ""),
+                 value: search.value,
+                 onChange: (e) => search.onChange(e.target.value),
+                 className: cn(
