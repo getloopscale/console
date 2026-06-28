@@ -63,13 +63,31 @@ vi.mock('@/lib/api', () => ({
 // which would conflict with the MemoryRouter the test render helper provides.
 // Pinning the behavior in isolation keeps the regression contract sharp and
 // independent of unrelated route additions to app.tsx.
+// Red Team theo-cloud#102 closure: same shape as PreviewsRedirect, but
+// /projects/:name/repository → /projects/:name/connect.
+function RepositoryAliasStub() {
+  const { name } = useParams();
+  return <Navigate to={`/projects/${encodeURIComponent(name ?? '')}/connect`} replace />;
+}
+
+function ConnectStub() {
+  return <div data-testid="connect-page-stub">repository connection stub</div>;
+}
+
 function RoutingHarness() {
   return (
     <Routes>
       <Route path="/api-keys" element={<Navigate to="/settings/tokens" replace />} />
       <Route path="/settings/tokens" element={<ApiKeysPage />} />
       <Route path="/projects/:name/previews" element={<PreviewsRedirect />} />
+      <Route path="/projects/:name/repository" element={<RepositoryAliasStub />} />
+      <Route path="/projects/:name/connect" element={<ConnectStub />} />
       <Route path="/environments" element={<EnvironmentsStub />} />
+      {/* Red Team theo-cloud#55 closure: /registration is an alias of
+          /register. We pin the route here in isolation so the regression
+          is locked even if app.tsx churns. */}
+      <Route path="/registration" element={<Navigate to="/register" replace />} />
+      <Route path="/register" element={<div>register page stub</div>} />
     </Routes>
   );
 }
@@ -99,6 +117,26 @@ describe('App routing — API tokens consolidation', () => {
     // via context not window.location; observing the rendered output is the
     // user-equivalent signal anyway.
     expect(await screen.findByText(/No API keys yet/i)).toBeInTheDocument();
+  });
+});
+
+describe('App routing — Red Team theo-cloud#102 closure', () => {
+  it('/projects/:name/repository redirects to /projects/:name/connect', async () => {
+    render(<RoutingHarness />, {
+      initialEntries: ['/projects/theokit-example/repository'],
+    });
+    expect(await screen.findByTestId('connect-page-stub')).toBeInTheDocument();
+  });
+});
+
+describe('App routing — Red Team theo-cloud#55 closure', () => {
+  it('/registration redirects to /register without falsely claiming "Session expired"', async () => {
+    render(<RoutingHarness />, { initialEntries: ['/registration'] });
+    // After the Navigate replace, the stub for /register renders.
+    expect(await screen.findByText(/register page stub/i)).toBeInTheDocument();
+    // The misleading "Session expired" toast MUST not appear on a fresh
+    // browser context that never had a session to expire.
+    expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument();
   });
 });
 

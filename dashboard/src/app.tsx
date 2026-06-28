@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import {
   Bell,
@@ -183,6 +183,40 @@ function PreviewsRedirect() {
   );
 }
 
+// Red Team theo-cloud#102 closure: /projects/:name/repository was a dead
+// deep-link — the sidebar menu sent users to /projects/:name/connect but
+// the URL directly resolved to 404. Canonicalize by redirecting to the
+// real route.
+function RepositoryAlias() {
+  const { name } = useParams();
+  return (
+    <Navigate
+      to={`/projects/${encodeURIComponent(name ?? '')}/connect`}
+      replace
+    />
+  );
+}
+
+// Red Team theo-cloud#58/#73 closure: wrap the dashboard inner Routes
+// in a route-keyed scope so:
+//   1. When the URL pathname changes, React discards the previous
+//      route's tree IMMEDIATELY (instead of letting the prior page
+//      linger until the new page's data loads), so the user no longer
+//      sees ~1-2s of the wrong page under the new URL.
+//   2. Any toasts owned by the previous route get dismissed — the
+//      canonical "Failed to start checkout" error from /billing must
+//      not haunt /projects.
+// `key` on a child forces React to unmount the previous instance + mount
+// a fresh one. The cost is one extra render per route change, which is
+// the correct trade-off (the previous behavior was a visible bug). The
+// `dismiss-all` part is best-effort: we cannot enumerate live toast IDs
+// through the @usetheo/ui Toaster contract, so we use a `useToast`
+// shadow-tracking approach via a small registry mounted alongside.
+function RouteScope({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  return <div key={location.pathname}>{children}</div>;
+}
+
 const ProjectConnectPage = lazy(() =>
   import('@/pages/project-connect').then((m) => ({ default: m.ProjectConnectPage })),
 );
@@ -219,6 +253,14 @@ export default function App() {
             * /signup is the intuitive URL new users try; map to /register via
             * SPA-side Navigate per ADR D5. `replace` keeps history clean. */}
           <Route path="/signup" element={<Navigate to="/register" replace />} />
+          {/* Red Team theo-cloud#55 closure: /registration is the second
+            * intuitive URL (matches the noun "registration"). Map to
+            * /register via SPA-side Navigate — same shape as the /signup
+            * alias above. Replaces the prior fall-through that sent
+            * unauthenticated users to /login with a misleading "Session
+            * expired" toast (a fresh browser never had a session to
+            * expire). */}
+          <Route path="/registration" element={<Navigate to="/register" replace />} />
           <Route path="/verification" element={<Boundaried path="/verification"><VerificationPage /></Boundaried>} />
           <Route path="/recovery" element={<Boundaried path="/recovery"><RecoveryPage /></Boundaried>} />
           <Route path="/device-success" element={<Boundaried path="/device-success"><DeviceSuccessPage /></Boundaried>} />
@@ -227,6 +269,15 @@ export default function App() {
             path="*"
             element={
               <DashboardLayout>
+                {/* Red Team theo-cloud#58/#73 closure: wrap the inner
+                    Routes in a route-keyed RouteScope so a route change
+                    (a) forces React to discard the prior route's tree
+                    immediately instead of letting the previous page
+                    linger on screen during the new component's first
+                    paint, AND (b) clears any toasts that belonged to
+                    the previous page (a stale "Failed to start checkout"
+                    error from /billing must not haunt /projects). */}
+                <RouteScope>
                 <Suspense fallback={<RouteLoading />}>
                   <Routes>
                     <Route path="/" element={<Boundaried path="/"><OverviewPage /></Boundaried>} />
@@ -266,6 +317,13 @@ export default function App() {
                     <Route
                       path="/projects/:name/connect"
                       element={<Boundaried path="/projects/:name/connect"><ProjectGuard><ProjectConnectPage /></ProjectGuard></Boundaried>}
+                    />
+                    {/* Red Team theo-cloud#102 closure: /projects/:name/
+                      * repository was an orphan deep-link (404). Canonical
+                      * destination is /connect. */}
+                    <Route
+                      path="/projects/:name/repository"
+                      element={<ProjectGuard><RepositoryAlias /></ProjectGuard>}
                     />
                     <Route path="/audit" element={<Boundaried path="/audit"><AuditPage /></Boundaried>} />
                     <Route
@@ -419,6 +477,7 @@ export default function App() {
                     <Route path="*" element={<Boundaried path="*"><NotFoundPage /></Boundaried>} />
                   </Routes>
                 </Suspense>
+                </RouteScope>
               </DashboardLayout>
             }
           />

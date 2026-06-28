@@ -5,6 +5,7 @@ package routes
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
@@ -160,4 +162,67 @@ func TestCheckout_ValidPlanPriced_NoBillingPath(t *testing.T) {
 // (would silently pass tests with anonymous user → AUTH_REQUIRED 401).
 var _ = func() context.Context {
 	return auth.WithUser(context.Background(), &auth.UserContext{})
+}
+
+// Red Team theo-cloud#42 closure: the billing usage map used to source
+// every metric from `usage_records` (a counter feed). Stateful capacity
+// metrics (seats) were always 0 even for accounts with members. The fix
+// reads seats canonically from `tenant_members` so the dashboard shows
+// the real owner-included headcount instead of a misleading 0.
+func TestGetBilling_Seats_FromTenantMembers_RedTeam42(t *testing.T) {
+	dbConn, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	t.Cleanup(func() { _ = dbConn.Close() })
+
+	// No active subscription → starter plan is the default.
+	mock.ExpectQuery("SELECT plan, current_period_start, current_period_end, stripe_subscription_id FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND status = 'active' LIMIT 1").
+		WithArgs("tn-test").
+		WillReturnError(sqlError())
+
+	// usage_records empty (capacity metrics aren't there).
+	mock.ExpectQuery("SELECT metric, COALESCE(SUM(quantity), 0) FROM usage_records WHERE tenant_id = $1 AND period_start >= $2 GROUP BY metric").
+		WillReturnRows(sqlmock.NewRows([]string{"metric", "quantity"}))
+
+	// tenant_members has the owner → seats=1.
+	mock.ExpectQuery("SELECT COUNT(*) FROM tenant_members WHERE tenant_id = $1").
+		WithArgs("tn-test").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+	h := &BillingHandler{db: dbConn}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/v1/billing", nil)
+	r = r.WithContext(auth.WithUser(r.Context(), &auth.UserContext{
+		Subject:  "user-test",
+		Email:    "test@example.com",
+		TenantID: "tn-test",
+	}))
+
+	h.GetBilling(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Usage map[string]struct {
+			Used  int  `json:"used"`
+			Limit *int `json:"limit"`
+		} `json:"usage"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	seats, ok := body.Usage["seats"]
+	if !ok {
+		t.Fatalf("Red Team #42: response MUST surface a 'seats' usage entry, got: %+v", body.Usage)
+	}
+	if seats.Used != 1 {
+		t.Errorf("Red Team #42: want seats.used=1 (the owner), got %d", seats.Used)
+	}
+}
+
+// sqlError is a small helper so we don't import database/sql twice.
+func sqlError() error {
+	return sql.ErrNoRows
 }

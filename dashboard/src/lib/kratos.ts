@@ -138,6 +138,19 @@ export function enrichKratosError(rawMessage: string, context: KratosErrorContex
     return "Choose a password that doesn't contain your email or username.";
   }
 
+  // Red Team theo-cloud#75 closure: the duplicate-account error from
+  // Kratos is "An account with the same identifier (email, phone,
+  // username, ...) exists already." — but the /register form only
+  // collects Name + Email + Password. Override the message with copy
+  // scoped to the field the user actually filled in. Detection works
+  // on a contiguous substring so locale/wording variants still match.
+  if (
+    lower.includes('account with the same identifier') ||
+    lower.includes('an account with this email')
+  ) {
+    return 'An account with this email already exists. Sign in instead, or reset your password if you forgot it.';
+  }
+
   const isGeneric = GENERIC_KRATOS_PHRASES.some((p) => lower.includes(p));
   if (!isGeneric) return rawMessage;
   return `${rawMessage}. ${ACTION_BY_CONTEXT[context]}`;

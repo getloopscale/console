@@ -177,6 +177,36 @@ describe('OverviewPage', () => {
     expect(container.querySelector('.text-warning')).toBeInTheDocument();
   });
 
+  // Red Team theo-cloud#53/#76 closure: the Overview project card used to
+  // pass the raw RFC3339Nano ISO string (e.g. "2026-06-26T14:16:43.712767Z")
+  // to ProjectCard.lastDeployedAt, which rendered it verbatim. The
+  // /projects list humanizes the same field via formatDate(..., 'relative').
+  // The card MUST now render a humanized "X ago" form — never the raw ISO.
+  it('overview project card renders humanized relative timestamp (#53/#76)', () => {
+    const recent = new Date(Date.now() - 32 * 60 * 1000).toISOString(); // ~32min ago
+    mockUseProjects.mockReturnValue({
+      projects: [
+        {
+          name: 'theokit-example',
+          last_deploy: recent,
+          last_deploy_status: 'live',
+          apps: [],
+        },
+      ],
+      loading: false,
+    });
+    render(<OverviewPage />);
+    // RED #53/#76: the raw ISO MUST NOT appear anywhere.
+    expect(screen.queryByText(recent)).not.toBeInTheDocument();
+    // RED #53/#76: a relative phrase ("ago" / "yesterday" / "in") MUST
+    // render somewhere within the card. The Intl.RelativeTimeFormat
+    // English locale always emits these tokens for past times.
+    const card = screen
+      .getByRole('link', { name: /theokit-example/i })
+      .closest('article, div, section');
+    expect(card?.textContent ?? '').toMatch(/ago|yesterday|just now/i);
+  });
+
   it('test_overview_heading_hierarchy_h1_to_h2_no_skip_closes_25', () => {
     // Sprint 3 Phase 5 (#25) v1.1 — WCAG 1.3.1 Info and Relationships.
     // PageShell renders the page h1; section labels (Usage, Projects, Quick

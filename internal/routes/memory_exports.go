@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -50,6 +51,13 @@ type MemoryExportsHandler struct {
 	logger      *slog.Logger
 	exportDir   string
 	workerDelay time.Duration
+	// Red Team theo-cloud#104 closure: the test suite needs a way to
+	// wait for the detached worker goroutines to finish so `t.TempDir`
+	// cleanup + sqlmock teardown don't race the worker writing the
+	// JSON file / hitting the DB. `workers` is intentionally a
+	// sync.WaitGroup (not a buffered channel) so the production
+	// hot-path stays a single Add/Done pair with zero allocations.
+	workers sync.WaitGroup
 }
 
 // NewMemoryExportsHandler constructs the handler. workerDelay is the
@@ -117,7 +125,14 @@ func (h *MemoryExportsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Spawn the worker. Per EC-21 spirit: detach from request ctx so the
 	// request's cancellation does not cancel the worker mid-flight. Model B: the
 	// tenant is threaded so the worker's data calls resolve the per-tenant key.
-	go h.runWorker(id, user.Subject, user.TenantID)
+	//
+	// #104 closure: bookend the goroutine with workers.Add / workers.Done so
+	// tests can WaitForWorkers() before tearing down the TempDir + sqlmock.
+	h.workers.Add(1)
+	go func() {
+		defer h.workers.Done()
+		h.runWorker(id, user.Subject, user.TenantID)
+	}()
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":     id,
@@ -229,6 +244,15 @@ func (h *MemoryExportsHandler) Download(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.json"`, id))
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(w, f)
+}
+
+// WaitForWorkers blocks until every in-flight export worker has returned.
+// Test-helper only; production never calls it. Closes the Red Team
+// theo-cloud#104 race where `t.TempDir` cleanup and the test's sqlmock
+// teardown ran while a worker goroutine was still writing the file /
+// running its final UPDATE.
+func (h *MemoryExportsHandler) WaitForWorkers() {
+	h.workers.Wait()
 }
 
 // runWorker materialises the export on disk. v0.1 is intentionally simple:

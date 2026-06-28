@@ -43,7 +43,15 @@ export function ActionBar({
           aria-hidden="true"
         />
         <Input
+          // Red Team theo-cloud#57 closure: a search input MUST carry a
+          // persistent accessible name. The placeholder vanishes on
+          // typing and screen readers don't always announce it. We
+          // derive a stable aria-label from the placeholder so AT users
+          // hear "Search projects" while sighted users keep the
+          // existing placeholder UX.
+          aria-label={searchPlaceholder.replace(/\.\.\.$/, '')}
           type="search"
+          name="search"
           placeholder={searchPlaceholder}
           value={searchValue ?? ''}
           onChange={(e) => onSearchChange?.(e.target.value)}

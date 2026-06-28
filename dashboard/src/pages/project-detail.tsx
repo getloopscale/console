@@ -10,7 +10,7 @@ import { LiveUrlHero } from '@/components/project/live-url-hero';
 import { ProjectHealthCard } from '@/components/project/project-health-card';
 import { engineFetch } from '@/lib/api';
 import { normalizeBuildStatus } from '@/lib/api/types';
-import { formatDate, isZeroTime } from '@/lib/format';
+import { formatDate, humanizeAuthor, isZeroTime } from '@/lib/format';
 import { useState } from 'react';
 
 /**
@@ -289,26 +289,56 @@ export function ProjectDetailPage() {
             </Card.Header>
             <Card.Body>
               <ul className="divide-y divide-border">
-                {recentBuilds.map((b) => (
-                  <li
-                    key={b.build_id}
-                    className="flex items-center justify-between py-3"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="font-mono text-label text-foreground">
-                        {b.commit_sha.slice(0, 7)}
+                {recentBuilds.map((b) => {
+                  // Red Team theo-cloud#97 closure: each row MUST surface
+                  // status + environment (parity with the full Deployments
+                  // table). Otherwise five "preview · FAILED" rows look
+                  // identical to five "preview · SUCCEEDED" rows and the
+                  // user can't tell apart a working preview from a broken
+                  // one.
+                  const ns = normalizeBuildStatus(b.status);
+                  return (
+                    <li
+                      key={b.build_id}
+                      className="flex items-center justify-between gap-3 py-3"
+                      data-testid={`recent-deploy-${b.build_id}`}
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <span className="font-mono text-label text-foreground">
+                          {b.commit_sha.slice(0, 7)}
+                        </span>
+                        <Badge
+                          variant={
+                            ns === 'succeeded'
+                              ? 'success'
+                              : ns === 'failed'
+                                ? 'destructive'
+                                : 'outline'
+                          }
+                          className="capitalize"
+                        >
+                          {ns}
+                        </Badge>
+                        {b.environment && (
+                          <Badge variant="outline" className="capitalize">
+                            {b.environment}
+                          </Badge>
+                        )}
+                        <span
+                          className="truncate text-body-sm text-muted-foreground"
+                          title={b.created_by}
+                        >
+                          {humanizeAuthor(b.created_by)}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-label text-muted-foreground tabular-nums">
+                        {b.started_at
+                          ? formatDate(b.started_at, 'relative')
+                          : '—'}
                       </span>
-                      <span className="text-body-sm text-muted-foreground truncate">
-                        {b.created_by}
-                      </span>
-                    </div>
-                    <span className="text-label text-muted-foreground tabular-nums">
-                      {b.started_at
-                        ? formatDate(b.started_at, 'relative')
-                        : '—'}
-                    </span>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </Card.Body>
           </Card>

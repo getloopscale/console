@@ -110,6 +110,23 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
     expect(screen.getByText('optional')).toBeInTheDocument();
   });
 
+  // Red Team theo-cloud#81 closure: the onboarding progress used to ship
+  // as a generic <div> with only aria-label — AT users heard the label as
+  // static text and never as a progress indicator. The track now renders
+  // with role=progressbar + aria-valuenow/min/max so it matches the
+  // billing usage meters' shape.
+  it('progress track is role=progressbar with aria-valuenow (#81)', async () => {
+    mockUseOnboardingState.mockReturnValue(makeHookResult({ completed: 3, percent: 60 }));
+    render(<OnboardingPanel />);
+    // Expand the panel so the progress bar is visible.
+    await userEvent.click(screen.getByLabelText(/3 of 5 done/i));
+    const bar = screen.getByRole('progressbar', { name: /onboarding progress/i });
+    expect(bar).toBeInTheDocument();
+    expect(bar.getAttribute('aria-valuenow')).toBe('60');
+    expect(bar.getAttribute('aria-valuemin')).toBe('0');
+    expect(bar.getAttribute('aria-valuemax')).toBe('100');
+  });
+
   it('test_mark_cli_installed_via_override_button', async () => {
     const markStepDone = vi.fn();
     mockUseOnboardingState.mockReturnValue(makeHookResult({ markStepDone }));

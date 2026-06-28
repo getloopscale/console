@@ -37,6 +37,16 @@ describe('ActionBar', () => {
     expect(onFilterClick).toHaveBeenCalledTimes(1);
   });
 
+  // Red Team theo-cloud#57 closure: the search input now carries a
+  // stable accessible name derived from the placeholder so AT users
+  // don't lose context when typing makes the placeholder vanish.
+  it('search input has accessible name + name attribute (#57)', () => {
+    render(<ActionBar searchPlaceholder="Search projects..." />);
+    const input = screen.getByRole('searchbox', { name: /search projects/i });
+    expect(input).toBeInTheDocument();
+    expect(input.getAttribute('name')).toBe('search');
+  });
+
   it('test_action_bar_primary_action_renders_with_icon_and_fires_onClick', async () => {
     const onClick = vi.fn();
     const user = userEvent.setup();

@@ -184,3 +184,41 @@ export function maskEmail(email: string): string {
   if (local.length === 1) return `*@${domain}`;
   return `${local[0]}${'*'.repeat(Math.min(local.length - 1, 8))}@${domain}`;
 }
+
+/**
+ * Red Team theo-cloud#52/#78 closure: humanize a backend "author" field
+ * (e.g. `created_by` on builds) which can arrive as a UUID, an email,
+ * or an already-friendly display name. The Red Team caught the
+ * /deployments table rendering verbatim UUIDs ("4d6ae2dd-baa2-…") on
+ * every row.
+ *
+ * Rules (cheapest-first):
+ *   1. `null` / empty → '—'
+ *   2. UUID (canonical 8-4-4-4-12 hex) → first 8 chars (e.g. "4d6ae2dd")
+ *      so duplicates STILL look distinct AND the original is preserved in
+ *      a `title` tooltip at the call site.
+ *   3. email → local-part (e.g. "paulo@usetheo.dev" → "paulo")
+ *   4. anything else (a real name like "Paulo Henrique") → as-is.
+ *
+ * @example
+ *   humanizeAuthor('4d6ae2dd-baa2-4c01-8d33-a96e20c23d1a') // "4d6ae2dd"
+ *   humanizeAuthor('paulo@usetheo.dev')                    // "paulo"
+ *   humanizeAuthor('Paulo Henrique')                       // "Paulo Henrique"
+ *   humanizeAuthor('')                                     // "—"
+ */
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function humanizeAuthor(raw: string | null | undefined): string {
+  if (!raw) return EMDASH;
+  const trimmed = raw.trim();
+  if (!trimmed) return EMDASH;
+  if (UUID_PATTERN.test(trimmed)) return trimmed.slice(0, 8);
+  // Email — assume the simplest form `local@domain`; multi-@ malformed
+  // strings fall through to the as-is branch.
+  const at = trimmed.indexOf('@');
+  if (at > 0 && at === trimmed.lastIndexOf('@')) {
+    return trimmed.slice(0, at);
+  }
+  return trimmed;
+}

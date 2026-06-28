@@ -192,6 +192,31 @@ describe('RegisterPage', () => {
   // (root cause of #64 ~27 KB Authorization header → 431). Fix: HTML
   // maxLength=256 on the <Input> + JS validateMaxLength gate + Kratos schema
   // maxLength: 256. This test locks the HTML attribute structurally.
+  // Red Team theo-cloud#74 closure: a benign "account exists" error
+  // round-trips through the BFF as a full-page navigation, which wipes
+  // React state on re-mount. The fix persists name + email (NOT
+  // password) to sessionStorage on submit and re-hydrates them on
+  // mount, so the user only has to retype the password.
+  it('rehydrates name + email from sessionStorage on mount (#74)', async () => {
+    sessionStorage.setItem(
+      'theo-register-form-restore',
+      JSON.stringify({ name: 'Paulo Henrique', email: 'paulo@example.com' }),
+    );
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
+    render(<RegisterPage />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name')).toBeInTheDocument();
+    });
+    const nameInput = screen.getByLabelText('Name') as HTMLInputElement;
+    const emailInput = screen.getByLabelText('Email') as HTMLInputElement;
+    const passwordInput = screen.getByLabelText('Password') as HTMLInputElement;
+    expect(nameInput.value).toBe('Paulo Henrique');
+    expect(emailInput.value).toBe('paulo@example.com');
+    // Password MUST stay empty — never persisted.
+    expect(passwordInput.value).toBe('');
+    sessionStorage.removeItem('theo-register-form-restore');
+  });
+
   it('test_register_name_input_has_maxLength_256_closes_65', async () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
     render(<RegisterPage />);

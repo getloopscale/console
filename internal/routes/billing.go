@@ -4,6 +4,7 @@
 package routes
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -344,5 +345,39 @@ func (h *BillingHandler) getUsageForTenant(r *http.Request, tenantID string) map
 	if err := rows.Err(); err != nil {
 		return map[string]int{}
 	}
+
+	// Red Team theo-cloud#42 closure: usage_records is an append-only
+	// counter feed for usage-style metrics (build minutes, etc.). It is
+	// the wrong source for STATEFUL capacity metrics — projects + seats
+	// don't emit a +1 event per existence; they have a current count
+	// you read at request time. Before this fix, the /billing page
+	// showed Seats 0/3 for an account whose owner was demonstrably
+	// signed in. Source the seats count from tenant_members
+	// canonically.
+	if seats, ok := h.countSeats(r.Context(), tenantID); ok {
+		result["seats"] = seats
+	}
 	return result
+}
+
+// countSeats returns the canonical seat count for a tenant by querying
+// the local tenant_members table (the same SoT the auth path reads). The
+// boolean indicates whether the count was resolved cleanly — a DB error
+// returns (0, false) so the caller can leave the value 0 instead of
+// over-reporting.
+func (h *BillingHandler) countSeats(ctx context.Context, tenantID string) (int, bool) {
+	if h.db == nil {
+		return 0, false
+	}
+	var n int
+	err := h.db.QueryRowContext(
+		ctx,
+		"SELECT COUNT(*) FROM tenant_members WHERE tenant_id = $1",
+		tenantID,
+	).Scan(&n)
+	if err != nil {
+		slog.Warn("count seats failed", "tenant", tenantID, "error", err)
+		return 0, false
+	}
+	return n, true
 }
