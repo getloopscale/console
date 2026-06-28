@@ -150,7 +150,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 **Definition of done:**
 
-- [ ] Engine project-creation resolves the Account's cap (`tenant → account → plan_limits`) and rejects the (N+1)th project beyond the cap with a typed error + HTTP 422 (`PROJECT_CAP_EXCEEDED`), mirroring the canonical `REPLICAS_EXCEED_PLAN` pattern (Red Team theo-cloud#101).
+- [ ] Engine project-creation resolves the Account's cap (`tenant → account → plan_limits`) and rejects the (N+1)th project beyond the cap with a typed error + HTTP 422 (`PROJECTS_EXCEED_PLAN`), mirroring the canonical `REPLICAS_EXCEED_PLAN` pattern (Red Team theo-cloud#101).
 - [ ] Negative-case test: a Starter Account (cap=1) creating a 2nd project gets the typed error (closes the M2-descoped quota bullet).
 - [ ] Concurrency: two simultaneous creations at the cap boundary cannot both succeed (atomic count+insert — per-account advisory lock OR conditional/unique insert), proven under `go test -race`.
 - [ ] Unlimited plan (enterprise, cap=NULL) is never blocked; grandfathered over-cap accounts keep their existing projects (block-new-only — no retroactive break or read failure).
