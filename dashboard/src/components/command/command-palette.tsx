@@ -76,6 +76,7 @@ export function CommandPalette({ open, onOpenChange, commands }: CommandPaletteP
         >
           <Command.Input
             placeholder="Type a command or search…"
+            aria-label="Search commands"
             autoFocus
             className="w-full bg-transparent border-0 border-b border-border/40 px-4 py-3 text-body-sm placeholder:text-muted-foreground focus:outline-none"
           />

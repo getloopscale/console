@@ -101,7 +101,12 @@ export function ProjectHealthCard({ status }: ProjectHealthCardProps) {
     return (
       <Card>
         <Card.Header>
-          <Card.Title>Health</Card.Title>
+          <Card.Title asChild>
+            {/* Red Team theo-cloud#79: promote h3 → h2 so the heading
+                hierarchy on /projects/{name} goes h1 → h2 → h3 without
+                skipping a level. */}
+            <h2>Health</h2>
+          </Card.Title>
           <Card.Description>
             {status.project} · {status.environment}
           </Card.Description>
@@ -116,7 +121,12 @@ export function ProjectHealthCard({ status }: ProjectHealthCardProps) {
   return (
     <Card>
       <Card.Header>
-        <Card.Title>Health</Card.Title>
+        <Card.Title asChild>
+            {/* Red Team theo-cloud#79: promote h3 → h2 so the heading
+                hierarchy on /projects/{name} goes h1 → h2 → h3 without
+                skipping a level. */}
+            <h2>Health</h2>
+          </Card.Title>
         <Card.Description>
           {status.project} · {status.environment}
         </Card.Description>

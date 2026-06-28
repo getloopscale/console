@@ -39,8 +39,9 @@ vi.mock('@/hooks/use-project-status', () => ({
   useProjectStatus: () => ({ status: null, loading: false }),
 }));
 
+const mockUseDeployments = vi.fn(() => ({ builds: [], loading: false }));
 vi.mock('@/hooks/use-deployments', () => ({
-  useDeployments: () => ({ builds: [], loading: false }),
+  useDeployments: () => mockUseDeployments(),
 }));
 
 import { ProjectDetailPage } from './project-detail';
@@ -110,6 +111,40 @@ describe('ProjectDetailPage', () => {
   // the legacy environment_count which collapses preview env_targets.
   // The Red Team scenario: environment_count=1 but production_env_count=0
   // → "Live envs" must show 0 (truth), not 1 (legacy bug).
+  // Red Team theo-cloud#97 closure: each "Recent deployments" row MUST
+  // surface status + environment badges so the user can tell a failed
+  // preview deploy apart from a successful one.
+  it('renders status + environment badges per Recent deployments row (#97)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (mockUseDeployments as any).mockReturnValueOnce({
+      builds: [
+        {
+          build_id: 'b1',
+          commit_sha: 'abc1234abcdefabcdef',
+          created_by: 'paulo',
+          environment: 'preview',
+          status: 'succeeded',
+          started_at: '2026-06-27T10:00:00Z',
+        },
+        {
+          build_id: 'b2',
+          commit_sha: 'def5678abcdefabcdef',
+          created_by: 'paulo',
+          environment: 'preview',
+          status: 'failed',
+          started_at: '2026-06-27T09:00:00Z',
+        },
+      ],
+      loading: false,
+    });
+    render(<ProjectDetailPage />);
+    // Both badges (succeeded + failed) MUST render somewhere on the page.
+    expect(screen.getByText(/^succeeded$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^failed$/i)).toBeInTheDocument();
+    // Environment text MUST render too — verifies the env badge fires.
+    expect(screen.getAllByText(/^preview$/i).length).toBeGreaterThanOrEqual(2);
+  });
+
   it('test_project_detail_uses_production_env_count_for_live_envs_metric (#41)', () => {
     mockUseProjects.mockReturnValue({
       projects: [{

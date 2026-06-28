@@ -115,6 +115,44 @@ export function ProjectStatusPage() {
     );
   }
 
+  // Red Team theo-cloud#98 closure: a preview-only project (no last_build
+  // and no active_release in the queried env) used to default to
+  // "Progressing" with a perpetual 5s auto-refresh. Both signals were
+  // dishonest — there was nothing to refresh into existence, and the
+  // status was decidedly NOT "Progressing". When the engine surfaces
+  // `other_envs_with_releases` (per the #70/#62 closure), render an
+  // honest empty state pointing the user at the sibling env's release
+  // page; skip the auto-refresh subtitle entirely.
+  const isPreviewOnly =
+    !status.last_build &&
+    !status.active_release &&
+    Array.isArray(status.other_envs_with_releases) &&
+    status.other_envs_with_releases.length > 0;
+
+  if (isPreviewOnly) {
+    const sibling = status.other_envs_with_releases![0];
+    return (
+      <PageShell title="Status">
+        <div className="mb-4">
+          <Button asChild variant="ghost" size="sm">
+            <Link
+              to={`/projects/${encodeURIComponent(name)}`}
+              className="inline-flex items-center gap-1"
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              <span>Back to project</span>
+            </Link>
+          </Button>
+        </div>
+        <EmptyState
+          icon={Activity}
+          title="No production deployment yet"
+          description={`Preview deploys only — promote a release to production to see status here. The latest preview release is on the ${sibling.environment} environment.`}
+        />
+      </PageShell>
+    );
+  }
+
   const env = status.environment ?? 'production';
 
   // Derive KPI values from status snapshot. When T1.3 SSE wires up, these come

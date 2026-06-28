@@ -150,12 +150,25 @@ export function OnboardingPanel() {
           </div>
         </div>
 
-        {/* Larger progress bar — prominent visual */}
-        <div className="h-2 rounded-full bg-muted overflow-hidden">
+        {/* Larger progress bar — prominent visual.
+            Red Team theo-cloud#81 closure: promote the outer track to
+            role=progressbar with aria-valuenow/min/max so assistive
+            tech announces the percentage as a progress indicator
+            (consistent with the billing usage meters). The inner bar
+            stays purely presentational. */}
+        <div
+          className="h-2 rounded-full bg-muted overflow-hidden"
+          role="progressbar"
+          aria-label="Onboarding progress"
+          aria-valuenow={percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuetext={`${percent}%`}
+        >
           <div
             className="h-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-500 ease-out"
             style={{ width: `${percent}%` }}
-            aria-label={`Onboarding progress ${percent}%`}
+            aria-hidden="true"
           />
         </div>
       </div>

@@ -22,7 +22,6 @@
 package e2e
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -43,6 +42,31 @@ func env(t *testing.T, key, def string) string {
 		return v
 	}
 	return def
+}
+
+// requireE2EStack skips the test unless the e2e stack endpoints are explicitly
+// exported (run.sh sets them). Without this, a plain `go test -tags e2e ./...`
+// with no stack would try the localhost defaults and FAIL loudly instead of
+// SKIPping — M6 (full-chain-e2e) hygiene so the suite is clean off-stack.
+func requireE2EStack(t *testing.T) {
+	t.Helper()
+	if os.Getenv("E2E_CLOUD_URL") == "" || os.Getenv("E2E_PG_CLOUD_DSN") == "" {
+		t.Skip("E2E_CLOUD_URL / E2E_PG_CLOUD_DSN not set — skipping (run via tests/e2e/run.sh / make e2e)")
+	}
+}
+
+// requireE2EEdge returns the Traefik edge URL or SKIPs. The hermetic e2e harness
+// (run.sh / make e2e) does NOT run Traefik — the edge ForwardAuth tests need a
+// configured edge, exercised against a dev stack (make dev-up) where E2E_EDGE_URL
+// is exported. Skipping here avoids flakily passing off a FOREIGN traefik that
+// happens to listen on :8090 (e.g. another project's dev stack). M6 hygiene.
+func requireE2EEdge(t *testing.T) string {
+	t.Helper()
+	edge := os.Getenv("E2E_EDGE_URL")
+	if edge == "" {
+		t.Skip("E2E_EDGE_URL not set — the hermetic e2e harness has no Traefik edge (run edge tests against a dev stack)")
+	}
+	return edge
 }
 
 // seedAPIKey inserts a legitimate customer theo_live_* key (key_hash =
@@ -110,30 +134,26 @@ func ensureTenantAccount(t *testing.T, db *sql.DB, tenant string) string {
 	return acct
 }
 
-// seedMemory writes a memory into TheMemory under user scope == subject, via the
-// real POST /v1/remember (master bearer). Returns the created memory id.
-func seedMemory(t *testing.T, themoryURL, masterKey, subject, text string) string {
+// gatewayRemember writes a memory through the REAL gateway customer path
+// (POST /v1/memory/remember with a theo_live_* key → broker per-tenant mint →
+// themory) and returns the created memory id. M6: the master key is control-plane
+// only — themory rejects it for data writes — so seeding goes through the gateway
+// exactly like a real customer (replaces the legacy master-direct seedMemory for
+// the gateway round-trip test).
+func gatewayRemember(t *testing.T, cloudURL, bearer, text string) string {
 	t.Helper()
-	body, _ := json.Marshal(map[string]any{"text": text, "userId": subject})
-	req, _ := http.NewRequest(http.MethodPost, themoryURL+"/v1/remember", bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+masterKey)
-	req.Header.Set("Content-Type", "application/json")
-	resp := mustDo(t, req)
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("seed memory: POST /v1/remember status=%d body=%s", resp.StatusCode, readBody(resp))
+	payload, _ := json.Marshal(map[string]string{"text": text})
+	status, body := cloudPost(t, cloudURL, bearer, "/v1/memory/remember", string(payload))
+	if status < 200 || status > 299 {
+		t.Fatalf("gateway remember: status=%d body=%s", status, body)
 	}
 	var out struct {
 		Items []struct {
-			ID   string `json:"id"`
-			Text string `json:"text"`
+			ID string `json:"id"`
 		} `json:"items"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		t.Fatalf("seed memory: decode: %v", err)
-	}
-	if len(out.Items) == 0 {
-		t.Fatalf("seed memory: extraction returned 0 items for %q (mock-openai wiring?)", text)
+	if err := json.Unmarshal([]byte(body), &out); err != nil || len(out.Items) == 0 {
+		t.Fatalf("gateway remember: no item id in body=%s (err=%v)", body, err)
 	}
 	return out.Items[0].ID
 }
@@ -173,10 +193,9 @@ func cloudForget(t *testing.T, cloudURL, bearer, memoryID string) int {
 }
 
 func TestMemoryE2E_GatewayProxyRoundTrip(t *testing.T) {
+	requireE2EStack(t)
 	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
-	themoryURL := env(t, "E2E_THEMORY_URL", "http://localhost:18080")
-	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theocloud:theocloud@localhost:55432/theocloud?sslmode=disable")
-	masterKey := env(t, "THEMORY_MASTER_KEY", "e2e-master-key")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theo:theo@localhost:55432/theo?sslmode=disable")
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -193,8 +212,10 @@ func TestMemoryE2E_GatewayProxyRoundTrip(t *testing.T) {
 
 	alphaText := "my favorite color is blue"
 	betaText := "i live in Lisbon"
-	alphaMemID := seedMemory(t, themoryURL, masterKey, alpha, alphaText)
-	betaMemID := seedMemory(t, themoryURL, masterKey, beta, betaText)
+	// Seed through the REAL gateway customer path (broker → themory), not the
+	// master-direct write (themory rejects the control-plane master for data).
+	alphaMemID := gatewayRemember(t, cloudURL, alphaKey, alphaText)
+	betaMemID := gatewayRemember(t, cloudURL, betaKey, betaText)
 
 	// Assertions are by memory ID, NOT by content substring. A real extraction
 	// LLM normalizes (and may translate) the raw text into a canonical fact —
@@ -281,8 +302,9 @@ func cloudDelete(t *testing.T, cloudURL, bearer, path string) (int, string) {
 // Full-surface round-trip: remember -> recall -> reflect + metrics/entities,
 // all through the gateway against real TheMemory + real pgvector (T4.1).
 func TestMemoryE2E_FullVerbSurface(t *testing.T) {
+	requireE2EStack(t)
 	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
-	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theocloud:theocloud@localhost:55432/theocloud?sslmode=disable")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theo:theo@localhost:55432/theo?sslmode=disable")
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -467,7 +489,12 @@ func zeroVector1536() string {
 // given agent_id (the namespaced repoId the gateway computes: `{subject}:{repoId}`).
 // There is no skill-WRITE REST surface (skills are read-only via the gateway),
 // so the e2e seeds at the storage layer. dashboard-phase2b-skills-browse T5.1.
-func seedSkill(t *testing.T, themoryDSN, agentID, hash, description, code string) {
+// seedSkill inserts a skill row directly into themory under the given workspace.
+// M6: the workspace MUST be the TENANT id — the gateway browse resolves a
+// per-tenant key whose themory workspace == tenantID (the M1 invariant), so a
+// skill seeded under any other workspace (e.g. the legacy 'default') is invisible
+// to the real per-tenant browse path.
+func seedSkill(t *testing.T, themoryDSN, workspace, agentID, hash, description, code string) {
 	t.Helper()
 	db, err := sql.Open("pgx", themoryDSN)
 	if err != nil {
@@ -476,8 +503,8 @@ func seedSkill(t *testing.T, themoryDSN, agentID, hash, description, code string
 	defer db.Close()
 	_, err = db.Exec(
 		`INSERT INTO memories (text, hash, embedding, payload, agent_id, workspace_id, kind, code, description, code_language)
-		 VALUES ($1, $2, $3::vector, '{}'::jsonb, $4, 'default', 'skill', $5, $6, 'typescript')`,
-		description, hash, zeroVector1536(), agentID, code, description,
+		 VALUES ($1, $2, $3::vector, '{}'::jsonb, $4, $5, 'skill', $6, $7, 'typescript')`,
+		description, hash, zeroVector1536(), agentID, workspace, code, description,
 	)
 	if err != nil {
 		t.Fatalf("seed skill (agent_id=%s): %v", agentID, err)
@@ -488,8 +515,9 @@ func seedSkill(t *testing.T, themoryDSN, agentID, hash, description, code string
 // through the gateway → TheMemory, including the D3 per-customer repo namespacing
 // + cross-customer isolation. dashboard-phase2b-skills-browse T5.1.
 func TestMemoryE2E_SkillsBrowse(t *testing.T) {
+	requireE2EStack(t)
 	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
-	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theocloud:theocloud@localhost:55432/theocloud?sslmode=disable")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theo:theo@localhost:55432/theo?sslmode=disable")
 	themoryDSN := env(t, "E2E_PG_THEMORY_DSN", "postgres://themem:themem@localhost:55433/themem?sslmode=disable")
 
 	db, err := sql.Open("pgx", dsn)
@@ -507,7 +535,7 @@ func TestMemoryE2E_SkillsBrowse(t *testing.T) {
 	// The gateway computes the upstream repoId as `{subject}:{repoId}` (D3). Seed
 	// a skill under alpha's namespace for the bare repoId "shared".
 	const repoID = "shared"
-	seedSkill(t, themoryDSN, alpha+":"+repoID, "e2e-skill-hash-1", "deploy the alpha service", "kubectl apply -f alpha")
+	seedSkill(t, themoryDSN, tenant, alpha+":"+repoID, "e2e-skill-hash-1", "deploy the alpha service", "kubectl apply -f alpha")
 
 	t.Run("owner sees the seeded skill via the gateway", func(t *testing.T) {
 		status, body := cloudGet(t, cloudURL, alphaKey, "/v1/memory/skills?repoId="+repoID)
@@ -549,8 +577,9 @@ func TestMemoryE2E_SkillsBrowse(t *testing.T) {
 // passes the BARE authenticated subject, returns every repo's skills with a
 // per-row repoId, and isolates other customers. skills-cross-repo-sdk-symmetry M3.
 func TestMemoryE2E_SkillsAllCrossRepo(t *testing.T) {
+	requireE2EStack(t)
 	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
-	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theocloud:theocloud@localhost:55432/theocloud?sslmode=disable")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theo:theo@localhost:55432/theo?sslmode=disable")
 	themoryDSN := env(t, "E2E_PG_THEMORY_DSN", "postgres://themem:themem@localhost:55433/themem?sslmode=disable")
 
 	db, err := sql.Open("pgx", dsn)
@@ -568,8 +597,8 @@ func TestMemoryE2E_SkillsAllCrossRepo(t *testing.T) {
 	// Two skills under alpha's subject, in two DIFFERENT bare repos. The gateway
 	// passes the BARE subject; TheMemory prefix-scans agent_id LIKE 'alpha:%' and
 	// returns each row's bare repoId.
-	seedSkill(t, themoryDSN, alpha+":repo-a", "e2e-skillsall-hash-a", "alpha parser util", "parse(x)")
-	seedSkill(t, themoryDSN, alpha+":repo-b", "e2e-skillsall-hash-b", "beta csv loader", "loadCsv(p)")
+	seedSkill(t, themoryDSN, tenant, alpha+":repo-a", "e2e-skillsall-hash-a", "alpha parser util", "parse(x)")
+	seedSkill(t, themoryDSN, tenant, alpha+":repo-b", "e2e-skillsall-hash-b", "beta csv loader", "loadCsv(p)")
 
 	t.Run("owner sees ALL its skills across repos with per-row repoId", func(t *testing.T) {
 		status, body := cloudGet(t, cloudURL, alphaKey, "/v1/memory/skills/all")
@@ -603,8 +632,9 @@ func TestMemoryE2E_SkillsAllCrossRepo(t *testing.T) {
 // a duplicate description -> 409; a different customer cannot delete it (D3
 // isolation -> 404). skills-write-surface T5.1.
 func TestMemoryE2E_SkillsWrite(t *testing.T) {
+	requireE2EStack(t)
 	cloudURL := env(t, "E2E_CLOUD_URL", "http://localhost:13002")
-	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theocloud:theocloud@localhost:55432/theocloud?sslmode=disable")
+	dsn := env(t, "E2E_PG_CLOUD_DSN", "postgres://theo:theo@localhost:55432/theo?sslmode=disable")
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {

@@ -540,6 +540,26 @@ describe('LoginPage', () => {
     expect(googleBtn.className).toContain('ring-2');
   });
 
+  // Red Team theo-cloud#51 closure: every form field on /login MUST
+  // carry an `id` + `name` so the browser's "form field element should
+  // have an id or name attribute" warning stops firing AND password
+  // managers can label the field. (Previously the email/password
+  // <Input>s lacked both, even though their <FormField.Label> rendered
+  // text — the visible label was decorative, not programmatically tied.)
+  it('login email + password inputs have id + name (#51)', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => flowFixture() });
+    render(<LoginPage />);
+    await waitFor(() => {
+      expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+    });
+    const email = screen.getByLabelText(/email/i) as HTMLInputElement;
+    const password = screen.getByLabelText(/password/i) as HTMLInputElement;
+    expect(email.id).toBe('login-email');
+    expect(email.name).toBe('email');
+    expect(password.id).toBe('login-password');
+    expect(password.name).toBe('password');
+  });
+
   it('test_login_tap_targets_meet_wcag_258_closes_24', async () => {
     // Sprint 3 Phase 4 (#24) v1.1 ADR D4 — WCAG 2.5.8 Target Size Minimum.
     // QA Red Team 2026-06-24 measured "Create account" 91×19 and "Forgot

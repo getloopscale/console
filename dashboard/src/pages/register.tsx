@@ -28,14 +28,59 @@ interface Flow {
   };
 }
 
+// Red Team theo-cloud#74 closure: the form POST navigates the page so
+// React state is wiped on re-render. The user lands back here with empty
+// inputs after a benign "account exists" error and is forced to retype
+// everything (especially a long password). Persist non-secret fields
+// across the navigation via sessionStorage so the user only has to fix
+// what was wrong. Password is NOT persisted (security) — the canonical
+// 2026 UX pattern (Vercel, Linear, Stripe) is "preserve name + email,
+// re-ask for password".
+const REGISTER_FORM_RESTORE_KEY = 'theo-register-form-restore';
+
+function readPersistedRegisterForm(): { name?: string; email?: string } | null {
+  try {
+    const raw = sessionStorage.getItem(REGISTER_FORM_RESTORE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { name?: string; email?: string };
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistRegisterForm(name: string, email: string): void {
+  try {
+    sessionStorage.setItem(
+      REGISTER_FORM_RESTORE_KEY,
+      JSON.stringify({ name, email }),
+    );
+  } catch {
+    // sessionStorage may be unavailable (private browsing on some
+    // browsers); preserve-on-error is a UX win, not a hard guarantee.
+  }
+}
+
+function clearPersistedRegisterForm(): void {
+  try {
+    sessionStorage.removeItem(REGISTER_FORM_RESTORE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function RegisterPage() {
   useSetPageTitle('Sign up');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [flow, setFlow] = useState<Flow | null>(null);
   const [loading, setLoading] = useState(true);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  // #74 closure: hydrate name/email from the prior submission when the
+  // Kratos POST round-tripped here with an error. The persisted blob is
+  // cleared as soon as the user lands on /auth/check-email after a
+  // successful signup (see the useEffect below).
+  const [name, setName] = useState<string>(() => readPersistedRegisterForm()?.name ?? '');
+  const [email, setEmail] = useState<string>(() => readPersistedRegisterForm()?.email ?? '');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   // `registered` was set by the deprecated XHR submit path which received
@@ -53,8 +98,15 @@ export function RegisterPage() {
 
   useEffect(() => {
     getSession().then((s) => {
-      if (s) navigate('/', { replace: true });
-      else setLoading(false);
+      if (s) {
+        // #74 closure: a session means the prior submission succeeded;
+        // wipe the persisted form so a future signup attempt (after
+        // logout) starts clean.
+        clearPersistedRegisterForm();
+        navigate('/', { replace: true });
+      } else {
+        setLoading(false);
+      }
     });
   }, [navigate]);
 
@@ -168,6 +220,10 @@ export function RegisterPage() {
         input.value = v;
         form.appendChild(input);
       }
+      // #74 closure: persist name + email immediately before the
+      // page navigates so the post-error re-render can rehydrate
+      // them. Password is intentionally NOT persisted.
+      persistRegisterForm(name, email);
       document.body.appendChild(form);
       form.submit();
       return;
@@ -296,6 +352,11 @@ export function RegisterPage() {
               Name
               <Input
                 id="register-name"
+                // Red Team theo-cloud#51 closure: add `name` so the
+                // browser-issued "form field element should have an
+                // id or name" warning stops firing and password
+                // managers can label the field properly.
+                name="traits.name"
                 size="lg"
                 type="text"
                 value={name}
@@ -320,6 +381,7 @@ export function RegisterPage() {
               Email
               <Input
                 id="register-email"
+                name="traits.email"
                 size="lg"
                 type="email"
                 value={email}
@@ -338,6 +400,7 @@ export function RegisterPage() {
               Password
               <Input
                 id="register-password"
+                name="password"
                 size="lg"
                 type="password"
                 value={password}

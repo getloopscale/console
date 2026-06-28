@@ -6,11 +6,12 @@
 # § Durable enforcement); this Makefile covers the day-to-day local loop.
 
 COMPOSE_E2E := docker compose -p theo-cloud-memory-e2e -f tests/e2e/docker-compose.e2e.yaml
+COMPOSE_E2E_EDGE := docker compose -p theo-cloud-memory-e2e -f tests/e2e/docker-compose.e2e.yaml -f tests/e2e/docker-compose.edge.e2e.yaml
 COMPOSE_DEV := docker compose -p theo-cloud-dev -f docker-compose.dev.yaml
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build test vet e2e e2e-up e2e-down e2e-logs e2e-clean dev-up dev-down dev-logs dev-restart
+.PHONY: help build test vet e2e e2e-edge e2e-up e2e-down e2e-logs e2e-clean dev-up dev-down dev-logs dev-restart
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -27,6 +28,9 @@ vet: ## Static analysis
 
 e2e: ## Run the full theo-cloud <-> TheMemory e2e against real endpoints (build + up + test + down)
 	bash tests/e2e/run.sh
+
+e2e-edge: ## Run the edge ForwardAuth e2e through the Traefik edge (#113; build + up + test + down)
+	EDGE=1 bash tests/e2e/run.sh
 
 e2e-up: ## Boot the e2e stack and LEAVE IT RUNNING (KEEP_UP=1) for debugging
 	KEEP_UP=1 bash tests/e2e/run.sh

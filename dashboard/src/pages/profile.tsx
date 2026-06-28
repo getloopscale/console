@@ -50,7 +50,11 @@ export function ProfilePage() {
       <Card>
         <Card.Header className="flex flex-row items-start justify-between gap-4">
           <div>
-            <Card.Title>Account</Card.Title>
+            <Card.Title asChild>
+              {/* Red Team theo-cloud#79: promote h3 → h2 so /profile
+                  heading hierarchy goes h1 → h2 → h3 without skipping. */}
+              <h2>Account</h2>
+            </Card.Title>
             <Card.Description>Your identity and session info.</Card.Description>
           </div>
           {/* T-DR-1.5 v1.2: Sign out moved to Account card header (right-aligned),
@@ -66,7 +70,12 @@ export function ProfilePage() {
             </Avatar>
             <div className="space-y-0.5">
               {name && (
-                <p className="text-body-sm font-medium text-foreground">
+                <p
+                  className="text-body-sm font-medium text-foreground max-w-[28ch] break-words"
+                  style={{ overflowWrap: 'anywhere' }}
+                  title={name}
+                  data-testid="profile-name"
+                >
                   {name}
                 </p>
               )}
@@ -87,7 +96,11 @@ export function ProfilePage() {
           (~38% whitespace below). CLI-first per DSS § 9.1. */}
       <Card>
         <Card.Header>
-          <Card.Title>Or use the CLI</Card.Title>
+          <Card.Title asChild>
+            {/* Red Team theo-cloud#79: cards on /profile MUST stay at
+                h2 so the page outline is contiguous. */}
+            <h2>Or use the CLI</h2>
+          </Card.Title>
           <Card.Description>Profile actions are also available via terminal.</Card.Description>
         </Card.Header>
         <Card.Body>

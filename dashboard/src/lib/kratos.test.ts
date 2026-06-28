@@ -29,4 +29,22 @@ describe('enrichKratosError (T0.1 EC-02)', () => {
     // Empty isn't matched as generic; pass-through
     expect(out).toBe('');
   });
+
+  // Red Team theo-cloud#75 closure: the raw Kratos duplicate-account
+  // message references phone/username fields the /register form
+  // never collects. Override with copy scoped to the actual fields
+  // (email) plus an inline retry path.
+  it('rewrites duplicate-account error to email-only copy with CTA hints (#75)', () => {
+    const raw =
+      'An account with the same identifier (email, phone, username, ...) exists already.';
+    const out = enrichKratosError(raw, 'registration');
+    // Phone + username MUST NOT appear in user-facing copy for the
+    // /register flow.
+    expect(out.toLowerCase()).not.toContain('phone');
+    expect(out.toLowerCase()).not.toContain('username');
+    expect(out.toLowerCase()).toContain('this email already exists');
+    // Inline next-step CTAs.
+    expect(out.toLowerCase()).toContain('sign in');
+    expect(out.toLowerCase()).toContain('reset');
+  });
 });

@@ -18,12 +18,16 @@ export function useRequireAuth(): Session | null {
         return;
       }
       setSession(s);
-
-      // Exchange Kratos session for JWT (BFF token exchange)
+      // Defer the JWT exchange so the shell paints at session-detect
+      // (one RTT, not two). But watch the resolution: a stale Kratos
+      // cookie returns `false` here, and without redirecting to /login
+      // every cloudFetch/engineFetch retries 401 forever — the dashboard
+      // hangs in "Loading". Closes Red Team theo-cloud#110.
       if (!hasValidToken()) {
-        await exchangeSessionToken();
+        exchangeSessionToken().then((ok) => {
+          if (!ok) navigate('/login', { replace: true });
+        });
       }
-
       setChecked(true);
     }
     init();

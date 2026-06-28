@@ -11,9 +11,13 @@
       we no longer need cross-origin allow-list entries for api/accounts/auth
       subdomains.
 
-      - script-src 'unsafe-inline' kept for /__config.js runtime injection
-        (no nonce per-request — that would need container entrypoint refactor,
-        deferred to v1.1 per Phase 3 acceptance).
+      - script-src is 'self' only (no 'unsafe-inline') — Red Team theo-cloud#67
+        closure (CWE-693). /__config.js is loaded via <script src="..."> which
+        is an EXTERNAL script (covered by 'self'); the prior 'unsafe-inline'
+        directive was dead CSP space (no inline <script> blocks or on*= event
+        handlers exist in the bundle — React uses synthetic events). The prod
+        nginx CSP (dashboard/nginx.conf:26) already ships 'self' alone — this
+        change aligns the meta CSP with the canonical prod posture.
       - style-src 'unsafe-inline' required for Radix + Tailwind v4 inline styles.
       - connect-src 'self' covers all dashboard egress (BFF proxies the rest).
         ws:/wss: kept for Vite HMR in dev (unused in prod).
@@ -45,7 +49,7 @@
          hosted at app-dev.usetheo.dev can complete the same flows against
          the dev-public Kratos/cloud. Stripe + Google + GitHub allowlists
          unchanged (same OAuth/Stripe apps shared between envs per D5). -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://checkout.stripe.com https://*.stripe.com https://auth.usetheo.dev https://auth-dev.usetheo.dev https://cloud.usetheo.dev https://cloud-dev.usetheo.dev; form-action 'self' https://auth.usetheo.dev https://auth-dev.usetheo.dev https://accounts.google.com https://github.com; base-uri 'self'; object-src 'none'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://checkout.stripe.com https://*.stripe.com https://auth.usetheo.dev https://auth-dev.usetheo.dev https://cloud.usetheo.dev https://cloud-dev.usetheo.dev; form-action 'self' https://auth.usetheo.dev https://auth-dev.usetheo.dev https://accounts.google.com https://github.com; base-uri 'self'; object-src 'none'" />
     <!-- Theo brand favicons. The PNG assets in public/ are the canonical
          Theo mascot (committed 2026-05-19); these <link> tags re-wire them
          after the previous inline-SVG placeholder (#3ecf8e raio) shadowed

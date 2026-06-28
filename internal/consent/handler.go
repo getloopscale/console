@@ -11,6 +11,7 @@ package consent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -22,6 +23,54 @@ import (
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
 )
+
+// expiredLinkHTML is the canonical error page rendered when the Hydra
+// login/consent challenge has expired, was already consumed, or is otherwise
+// unknown. Red Team theo-cloud#117 closure — replaces the previous silent
+// empty-redirect (browser → /auth/login/ → 404 "Page not found") with an
+// honest message that tells the operator exactly what to do next.
+//
+// Per Cross-Project Rule 9 / public-copy: no internal terms (Hydra, OAuth,
+// Kratos) are exposed to the user. Inline styles only (CSP `style-src
+// 'self' 'unsafe-inline'` on the dashboard surface; this is a small static
+// page rendered by the BFF, no React, so the CSP cost is zero).
+const expiredLinkHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login link expired — Theo</title>
+<style>
+  body { margin: 0; min-height: 100vh; background: #09090b; color: #fafafa;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+         display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card { max-width: 480px; background: #18181b; border: 1px solid #27272a;
+          border-radius: 12px; padding: 32px; }
+  h1 { margin: 0 0 16px 0; font-size: 20px; font-weight: 600; }
+  p  { margin: 0 0 16px 0; color: #a1a1aa; line-height: 1.5; }
+  code { background: #27272a; padding: 2px 6px; border-radius: 4px;
+         font-family: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", monospace;
+         font-size: 13px; color: #fafafa; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Your login link has expired</h1>
+    <p>This sign-in link has expired or was already used. Login links are single-use and valid for a few minutes.</p>
+    <p>To finish signing in, re-run <code>theo login</code> in your terminal and open the new link the CLI prints.</p>
+  </div>
+</body>
+</html>`
+
+// renderExpiredLink emits the canonical "login link expired" page with
+// HTTP 410 Gone. 410 is semantically correct: the challenge previously
+// existed and is now permanently unavailable.
+func renderExpiredLink(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusGone)
+	_, _ = w.Write([]byte(expiredLinkHTML))
+}
 
 // Handler manages Hydra's login and consent callbacks.
 type Handler struct {
@@ -68,6 +117,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	loginReq, err := h.hydra.GetLoginRequest(challenge)
 	if err != nil {
+		if errors.Is(err, auth.ErrChallengeNotFound) {
+			h.logger.Info("login link expired or already consumed", "challenge", challenge)
+			renderExpiredLink(w)
+			return
+		}
 		h.logger.Error("failed to get login request", "error", err)
 		http.Error(w, "Authentication service error", http.StatusBadGateway)
 		return
@@ -77,6 +131,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if loginReq.Skip {
 		redirectTo, err := h.hydra.AcceptLogin(challenge, loginReq.Subject)
 		if err != nil {
+			if errors.Is(err, auth.ErrChallengeNotFound) {
+				h.logger.Info("login link expired between fetch and accept", "challenge", challenge)
+				renderExpiredLink(w)
+				return
+			}
 			h.logger.Error("failed to accept login", "error", err)
 			http.Error(w, "Authentication service error", http.StatusBadGateway)
 			return
@@ -117,6 +176,16 @@ func (h *Handler) LoginComplete(w http.ResponseWriter, r *http.Request) {
 
 	redirectTo, err := h.hydra.AcceptLogin(challenge, subject)
 	if err != nil {
+		if errors.Is(err, auth.ErrChallengeNotFound) {
+			// Red Team theo-cloud#117 closure: this is the canonical
+			// hit-path that surfaced the original "Page not found" bug.
+			// User finished Kratos sign-in, came back here, and Hydra
+			// had already expired/consumed the challenge → silent empty
+			// redirect → /auth/login/ 404. Now: honest 410 + clear copy.
+			h.logger.Info("login link expired or already consumed", "challenge", challenge)
+			renderExpiredLink(w)
+			return
+		}
 		h.logger.Error("failed to accept login", "error", err)
 		http.Error(w, "Authentication service error", http.StatusBadGateway)
 		return
@@ -252,6 +321,11 @@ func (h *Handler) Consent(w http.ResponseWriter, r *http.Request) {
 
 	consentReq, err := h.hydra.GetConsentRequest(challenge)
 	if err != nil {
+		if errors.Is(err, auth.ErrChallengeNotFound) {
+			h.logger.Info("consent link expired or already consumed", "challenge", challenge)
+			renderExpiredLink(w)
+			return
+		}
 		h.logger.Error("failed to get consent request", "error", err)
 		http.Error(w, "Authentication service error", http.StatusBadGateway)
 		return
@@ -273,6 +347,11 @@ func (h *Handler) Consent(w http.ResponseWriter, r *http.Request) {
 	// Forward requested audience so Hydra sets aud in the token.
 	redirectTo, err := h.hydra.AcceptConsent(challenge, consentReq.RequestedScope, consentReq.RequestedAccessTokenAud, tokenClaims)
 	if err != nil {
+		if errors.Is(err, auth.ErrChallengeNotFound) {
+			h.logger.Info("consent link expired between fetch and accept", "challenge", challenge)
+			renderExpiredLink(w)
+			return
+		}
 		h.logger.Error("failed to accept consent", "error", err)
 		http.Error(w, "Authentication service error", http.StatusBadGateway)
 		return

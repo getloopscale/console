@@ -14,6 +14,7 @@ import {
   getFieldErrors,
   enrichKratosError,
 } from '@/lib/kratos';
+import { getSession, logout } from '@/lib/auth';
 import { API_URL } from '@/lib/config';
 
 const ACCOUNTS_URL = API_URL;
@@ -86,6 +87,14 @@ function OidcEducationalLinks(): React.ReactElement {
 export function RecoveryPage() {
   useSetPageTitle('Recover account');
   const [searchParams] = useSearchParams();
+  // Red Team theo-cloud#54 closure: when an authenticated user lands on
+  // /recovery (e.g. clicked "Forgot password?" while still signed in),
+  // do NOT let Kratos silently bounce them to the dashboard. Render an
+  // explicit notice + a sign-out CTA so the user understands the redirect
+  // is intentional and how to proceed.
+  const [authNotice, setAuthNotice] = useState<'pending' | 'shown' | 'dismissed'>(
+    'pending',
+  );
   const [flow, setFlow] = useState<Flow | null>(null);
   const [phase, setPhase] = useState<Phase>('email');
   const [email, setEmail] = useState('');
@@ -133,9 +142,29 @@ export function RecoveryPage() {
     return () => clearInterval(id);
   }, [cooldownEndsAt]);
 
+  // Red Team theo-cloud#54 closure: detect an active session on mount;
+  // if present, surface a notice before kicking off the Kratos flow.
+  useEffect(() => {
+    let cancelled = false;
+    getSession().then((s) => {
+      if (cancelled) return;
+      setAuthNotice(s ? 'shown' : 'dismissed');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // D5 + D5b + EC-3 + EC-7: stale flow (410/404/any) triggers re-init; cascading
   // failure shows Reload Page fallback. Generic catch covers all error codes.
+  // Red Team theo-cloud#54 re-open: the bootstrap-to-Kratos-browser-flow path
+  // MUST wait for the session check (authNotice !== 'pending'). Without the
+  // gate, an authenticated user lands here, the bootstrap fires synchronously
+  // BEFORE getSession() resolves, and window.location.href navigates away —
+  // the "you're already signed in" notice never gets a chance to render.
   useEffect(() => {
+    if (authNotice === 'pending') return;
+    if (authNotice === 'shown') return; // notice will render; don't bootstrap.
     const flowId = searchParams.get('flow');
     if (flowId) {
       getFlow('recovery', flowId)
@@ -171,7 +200,7 @@ export function RecoveryPage() {
       // No flow ID → bootstrap browser flow (canonical Kratos redirect)
       window.location.href = `${ACCOUNTS_URL}/self-service/recovery/browser?return_to=${encodeURIComponent(window.location.origin + '/recovery')}`;
     }
-  }, [searchParams]);
+  }, [searchParams, authNotice]);
 
   // Detect HTTP 5xx vs network error vs Kratos 4xx in catch blocks.
   // Network/5xx → product-language D6. Kratos 4xx → enrichKratosError.
@@ -369,6 +398,45 @@ export function RecoveryPage() {
 
   const isCooldownActive = cooldownEndsAt !== null && cooldownSeconds > 0;
 
+  // Red Team theo-cloud#54 closure: short-circuit the whole recovery
+  // flow when the visitor already has a session. The previous behavior
+  // was a silent Kratos bounce to /, which made "Forgot password?"
+  // look broken. Render an explicit notice + two CTAs (sign out OR
+  // back to dashboard) so the redirect is honest.
+  if (authNotice === 'shown') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <Card className="w-full max-w-sm">
+          <Card.Body className="p-8 space-y-6">
+            <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 mx-auto">
+              <KeyRound className="size-6 text-primary" aria-hidden="true" />
+            </div>
+            <Alert
+              intent="info"
+              title="You're already signed in"
+              description="If you want to set a new password, sign out first so we can verify your email. The dashboard stays just the way you left it."
+            />
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="primary"
+                size="lg"
+                className="flex-1 justify-center"
+                onClick={() => {
+                  void logout();
+                }}
+              >
+                Sign out and continue
+              </Button>
+              <Button asChild variant="secondary" size="lg" className="flex-1 justify-center">
+                <Link to="/">Back to dashboard</Link>
+              </Button>
+            </div>
+          </Card.Body>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <Card className="w-full max-w-sm">
@@ -493,8 +561,20 @@ export function RecoveryPage() {
                   Recovery code
                   <Input
                     id="recovery-code"
+                    name="code"
                     size="lg"
                     type="text"
+                    // Red Team theo-cloud#80 closure: mobile keyboards open
+                    // the numeric pad via inputmode=numeric (better UX than
+                    // type="number" which strips leading zeros + cancels
+                    // the OS one-time-code autofill prompt). The "one-time-
+                    // code" autocomplete tells iOS/Android/Chrome to offer
+                    // the value straight from the user's SMS/email Sender
+                    // window. Both are RFC-3 / WHATWG canonical.
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]*"
+                    maxLength={8}
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     required

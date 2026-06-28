@@ -107,7 +107,14 @@ describe('BillingPage', () => {
     render(<BillingPage />);
     await user.click(screen.getByRole('button', { name: /manage plan/i }));
 
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/billing/portal');
+    // The Manage Plan handler also forwards `{ throwOnError: true }` per
+    // theo-cloud#49/#69 closure so non-2xx no longer falls into the
+    // silent null branch; match the path argument loosely.
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/billing/portal',
+      undefined,
+      expect.objectContaining({ throwOnError: true }),
+    );
     expect(hrefSetter).toHaveBeenCalledWith('https://billing.stripe.com/portal/xyz');
     expect(openSpy).not.toHaveBeenCalled();
 
@@ -264,6 +271,105 @@ describe('BillingPage', () => {
     // for a non-transitory 503 (Sprint 4 #39 distinguished the 4xx user-input
     // class from the 5xx operator-action class; #63 closes the UI parity).
     expect(text).not.toMatch(/please try again/i);
+  });
+
+  // Red Team theo-cloud#72 closure: a double-tap on the Upgrade button
+  // used to fire two POST /v1/billing/checkout requests in a row. The
+  // disabled={actionLoading} guard ensures the first click locks the
+  // button until the promise resolves.
+  it('upgrade button is disabled while the checkout request is in flight (#72)', async () => {
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'free', team: 'acme', usage: {}, period_end: '2026-12-31' },
+      loading: false,
+      error: false,
+    });
+    // Resolve only after we observe the button getting disabled. A never-
+    // resolving promise would leave the test hanging on the timeout.
+    let releaseFetch!: (v: { url: string }) => void;
+    mockCloudFetch.mockReturnValue(
+      new Promise<{ url: string }>((resolve) => {
+        releaseFetch = resolve;
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<BillingPage />);
+    const button = screen.getByRole('button', { name: /upgrade to pro/i });
+    expect(button).toBeEnabled();
+    await user.click(button);
+    expect(button).toBeDisabled();
+    // Cleanup so the test exits cleanly.
+    releaseFetch({ url: 'https://checkout.stripe.com/x' });
+  });
+
+  // Red Team theo-cloud#72 re-open: React 18 batches setActionLoading until
+  // the click handler returns, so disabled={actionLoading} alone does NOT
+  // block a SYNCHRONOUS double-click. Two clicks fired before the next
+  // render both see disabled=false and both POST. A ref guard short-circuits
+  // the 2nd click synchronously; this test fires both clicks before the
+  // promise resolves and asserts cloudFetch was called exactly once.
+  it('synchronous double-click on Upgrade fires the request only once (#72 re-open)', async () => {
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'free', team: 'acme', usage: {}, period_end: '2026-12-31' },
+      loading: false,
+      error: false,
+    });
+    let releaseFetch!: (v: { url: string }) => void;
+    mockCloudFetch.mockReturnValue(
+      new Promise<{ url: string }>((resolve) => {
+        releaseFetch = resolve;
+      }),
+    );
+    render(<BillingPage />);
+    const button = screen.getByRole('button', { name: /upgrade to pro/i }) as HTMLButtonElement;
+    // Two synchronous clicks before React can re-render — the ref guard
+    // is the only thing that can prevent both from firing.
+    button.click();
+    button.click();
+    expect(mockCloudFetch).toHaveBeenCalledTimes(1);
+    releaseFetch({ url: 'https://checkout.stripe.com/x' });
+  });
+
+  // Red Team theo-cloud#40 closure: when the backend returns a 4xx with
+  // no actionable body, the prior copy was "Please try again." — which
+  // misleads the user into hammering a permanently non-retryable
+  // endpoint. The new copy points to support.
+  // Red Team theo-cloud#49/#69 closure: a Free-tier visitor clicking
+  // Manage Plan used to see no feedback — the cloudFetch silent-null
+  // path swallowed the 4xx. Opt-in to throwOnError + surface the
+  // canonical "contact support" message so the button is no longer a
+  // dead-end.
+  it('Manage Plan surfaces a contact-support alert on 4xx (#49/#69)', async () => {
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'pro', team: 'acme', usage: {}, period_end: '2026-12-31' },
+      loading: false,
+      error: false,
+    });
+    mockCloudFetch.mockRejectedValueOnce(new ApiError(400, {}));
+    const user = userEvent.setup();
+    render(<BillingPage />);
+    const button = screen.getByRole('button', { name: /manage plan/i });
+    await user.click(button);
+    const alert = await screen.findByRole('alert');
+    const text = alert.textContent ?? '';
+    expect(text.toLowerCase()).toContain('contact support');
+  });
+
+  it('4xx without body surfaces "contact support" copy, NOT "try again" (#40)', async () => {
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'free', team: 'acme', usage: {}, period_end: '2026-12-31' },
+      loading: false,
+      error: false,
+    });
+    mockCloudFetch.mockRejectedValueOnce(new ApiError(400, {}));
+    const user = userEvent.setup();
+    render(<BillingPage />);
+    const button = screen.getByRole('button', { name: /upgrade to pro/i });
+    await user.click(button);
+    const alert = await screen.findByRole('alert');
+    const text = alert.textContent ?? '';
+    expect(text.toLowerCase()).toContain('contact support');
+    expect(text.toLowerCase()).not.toContain('please try again');
   });
 
   it('test_billing_memory_metrics_query_disabled_on_non_memory_route_closes_21', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDate, formatNumber, isZeroTime, maskEmail } from './format';
+import { formatDate, formatNumber, humanizeAuthor, isZeroTime, maskEmail } from './format';
 
 describe('isZeroTime (#118, qa-dogfood-cleanup-2026-06-21 T3.1)', () => {
   it('returns true for nullish + empty', () => {
@@ -133,5 +133,36 @@ describe('maskEmail (T-D.1 / P-3 / EC-10)', () => {
   it('test_mask_email_handles_missing_domain', () => {
     expect(maskEmail('x@')).toBe('x@');
     expect(maskEmail('@y.com')).toBe('@y.com');
+  });
+});
+
+// Red Team theo-cloud#52/#78 closure: the /deployments table used to
+// render the backend `created_by` UUID verbatim. humanizeAuthor maps a
+// UUID to its first 8 chars, an email to its local-part, and passes
+// through anything else.
+describe('humanizeAuthor (#52/#78)', () => {
+  it('collapses a UUID to its first 8 chars', () => {
+    expect(humanizeAuthor('4d6ae2dd-baa2-4c01-8d33-a96e20c23d1a')).toBe('4d6ae2dd');
+  });
+
+  it('keeps the local-part of an email', () => {
+    expect(humanizeAuthor('paulo@usetheo.dev')).toBe('paulo');
+  });
+
+  it('passes through a real name', () => {
+    expect(humanizeAuthor('Paulo Henrique')).toBe('Paulo Henrique');
+  });
+
+  it('falls back to em-dash for null / empty', () => {
+    expect(humanizeAuthor('')).toBe('—');
+    expect(humanizeAuthor(null)).toBe('—');
+    expect(humanizeAuthor(undefined)).toBe('—');
+    expect(humanizeAuthor('   ')).toBe('—');
+  });
+
+  it('passes through a malformed multi-@ string', () => {
+    // The maskEmail defensive passthrough is reused here: if the
+    // string isn't a clean email, leave it alone.
+    expect(humanizeAuthor('a@b@c')).toBe('a@b@c');
   });
 });

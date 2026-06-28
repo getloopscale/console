@@ -10,7 +10,7 @@ import { LiveUrlHero } from '@/components/project/live-url-hero';
 import { ProjectHealthCard } from '@/components/project/project-health-card';
 import { engineFetch } from '@/lib/api';
 import { normalizeBuildStatus } from '@/lib/api/types';
-import { formatDate, isZeroTime } from '@/lib/format';
+import { formatDate, humanizeAuthor, isZeroTime } from '@/lib/format';
 import { useState } from 'react';
 
 /**
@@ -33,6 +33,19 @@ export function ProjectDetailPage() {
   useSetPageTitle(name || 'Project');
   const { projects, loading } = useProjects();
   const { status, loading: statusLoading } = useProjectStatus(name);
+  // Red Team theo-cloud#115 closure (2026-06-28): when the project is
+  // preview-only the production status query returns no URL even though
+  // the preview env has an ACTIVE release serving HTTP 200 (the CTO
+  // LIVE-validated this 2026-06-28). The backend already surfaces the
+  // sibling env in `status.other_envs_with_releases` (Red Team #70/#62
+  // groundwork) — pick the first one and query its status to expose the
+  // real URL via LiveUrlHero with a "Preview" badge. The hook is enabled
+  // only when there IS a sibling to query, so no wasted RTT.
+  const previewEnvName = status?.other_envs_with_releases?.[0]?.environment;
+  const { status: previewStatus } = useProjectStatus(name, {
+    env: previewEnvName,
+    enabled: Boolean(previewEnvName),
+  });
   const { builds } = useDeployments(name);
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -183,6 +196,7 @@ export function ProjectDetailPage() {
           status={status}
           loading={statusLoading}
           isPreviewOnly={isPreviewOnly}
+          previewStatus={previewStatus}
         />
 
         {status && <ProjectHealthCard status={status} />}
@@ -289,26 +303,56 @@ export function ProjectDetailPage() {
             </Card.Header>
             <Card.Body>
               <ul className="divide-y divide-border">
-                {recentBuilds.map((b) => (
-                  <li
-                    key={b.build_id}
-                    className="flex items-center justify-between py-3"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="font-mono text-label text-foreground">
-                        {b.commit_sha.slice(0, 7)}
+                {recentBuilds.map((b) => {
+                  // Red Team theo-cloud#97 closure: each row MUST surface
+                  // status + environment (parity with the full Deployments
+                  // table). Otherwise five "preview · FAILED" rows look
+                  // identical to five "preview · SUCCEEDED" rows and the
+                  // user can't tell apart a working preview from a broken
+                  // one.
+                  const ns = normalizeBuildStatus(b.status);
+                  return (
+                    <li
+                      key={b.build_id}
+                      className="flex items-center justify-between gap-3 py-3"
+                      data-testid={`recent-deploy-${b.build_id}`}
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <span className="font-mono text-label text-foreground">
+                          {b.commit_sha.slice(0, 7)}
+                        </span>
+                        <Badge
+                          variant={
+                            ns === 'succeeded'
+                              ? 'success'
+                              : ns === 'failed'
+                                ? 'destructive'
+                                : 'outline'
+                          }
+                          className="capitalize"
+                        >
+                          {ns}
+                        </Badge>
+                        {b.environment && (
+                          <Badge variant="outline" className="capitalize">
+                            {b.environment}
+                          </Badge>
+                        )}
+                        <span
+                          className="truncate text-body-sm text-muted-foreground"
+                          title={b.created_by}
+                        >
+                          {humanizeAuthor(b.created_by)}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-label text-muted-foreground tabular-nums">
+                        {b.started_at
+                          ? formatDate(b.started_at, 'relative')
+                          : '—'}
                       </span>
-                      <span className="text-body-sm text-muted-foreground truncate">
-                        {b.created_by}
-                      </span>
-                    </div>
-                    <span className="text-label text-muted-foreground tabular-nums">
-                      {b.started_at
-                        ? formatDate(b.started_at, 'relative')
-                        : '—'}
-                    </span>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </Card.Body>
           </Card>

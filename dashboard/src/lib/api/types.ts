@@ -475,6 +475,14 @@ export interface ProjectStatusDetail {
   };
   sync_status?: string;
   url?: string;
+  // Red Team theo-cloud#70/#62/#98 closure: when the queried env has no
+  // last_build and no active_release, the engine lists sibling environments
+  // (≠ queried) that DO have a SUCCEEDED build under this field. The
+  // dashboard uses it to render an honest "No production deployment yet —
+  // preview has a release" hint instead of a misleading 'Progressing'
+  // empty-state. Optional (omitempty on the wire); zero-length / missing
+  // means no siblings qualify.
+  other_envs_with_releases?: Array<{ environment: string; has_release: boolean }>;
   // T1.1 of plan 2026-06-06-dashboard-journey-j18-status-runtime-health v1.1:
   // backend statusResponse adds Grafana deep-link templated URL + canonical
   // prom_query_keys list. metrics_range_url is empty string when operator did

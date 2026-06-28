@@ -18,6 +18,7 @@ import {
   Table,
   type StatusKind,
 } from '@usetheo/ui';
+import { humanizeAuthor } from '@/lib/format';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useDeploymentsListStream } from '@/hooks/use-deployments-list-stream';
@@ -553,8 +554,19 @@ export function DeploymentsPage() {
                       </div>
                     </Table.Cell>
                     <Table.Cell className="hidden md:table-cell">
-                      <span className="text-body-sm text-muted-foreground">
-                        {b.created_by}
+                      {/* Red Team theo-cloud#52/#78 closure: the backend
+                          field `created_by` is the user's UUID — rendering
+                          it verbatim leaks an opaque 36-char identifier
+                          that means nothing to the operator. Humanize via
+                          the canonical helper so an email becomes the
+                          local-part (`paulo@example.com → paulo`), a UUID
+                          collapses to a short suffix (`4d6ae2dd`), and a
+                          real name stays as-is. */}
+                      <span
+                        className="text-body-sm text-muted-foreground"
+                        title={b.created_by}
+                      >
+                        {humanizeAuthor(b.created_by)}
                       </span>
                     </Table.Cell>
                     <Table.Cell className="hidden md:table-cell">

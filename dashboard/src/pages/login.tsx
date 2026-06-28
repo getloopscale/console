@@ -410,12 +410,19 @@ export function LoginPage() {
             </div>
           </div>
 
-          {/* Email/password form — T2.1 FormField + visible Label (D4) */}
+          {/* Email/password form — T2.1 FormField + visible Label (D4).
+              Red Team theo-cloud#51 closure: pass `id` through FormField
+              (the wrapper threads htmlFor + id automatically) so password
+              managers + screen readers + autofill attach cleanly. The
+              Input also carries `name` directly so the browser-issued
+              "form field element should have an id or name" warning
+              clears. */}
           <form onSubmit={submitPassword} className="space-y-3">
-            <FormField>
+            <FormField id="login-email">
               <FormField.Label>Email</FormField.Label>
               <FormField.Control>
                 <Input
+                  name="email"
                   size="lg"
                   type="email"
                   value={email}
@@ -431,10 +438,11 @@ export function LoginPage() {
                 />
               </FormField.Control>
             </FormField>
-            <FormField>
+            <FormField id="login-password">
               <FormField.Label>Password</FormField.Label>
               <FormField.Control>
                 <Input
+                  name="password"
                   size="lg"
                   type="password"
                   value={password}

@@ -56,12 +56,11 @@ This rule forces minimum structural state PRESENT before the aggregate matters.
 
 ## § 6 — When this rule may change
 
-Only via explicit ADR signed by the project owner. Any change that softens enforcement MUST:
+Per `cycle-rule-schema.md § Golden Rule Change Protocol` (ADR signed by the project
+owner). Rule-specific deviations:
 
-1. Cite the ADR in `knowledge-base/adrs/`.
-2. Document the change in `## § 3 — Rules that cannot be bent`.
-3. Bump `rules/discover-blueprint-thresholds.txt` reference to the new ADR (when that file exists).
-4. Add CHANGELOG entry under `[Unreleased] § Changed`.
+- Document the change in `## § 3 — Rules that cannot be bent`.
+- Bump the `rules/discover-blueprint-thresholds.txt` reference to the new ADR.
 
 ## § 7 — Failure modes the rule guards against
 

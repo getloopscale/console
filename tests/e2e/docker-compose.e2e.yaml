@@ -1,23 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2025-2026 The Theo Authors
 #
-# End-to-end harness for the theo-cloud <-> TheMemory integration.
+# End-to-end harness for the theo-cloud <-> TheMemory integration AND the M6
+# full-chain journey (real Kratos login -> JWT -> BFF -> broker -> themory).
 #
 # Brings up the FULL real path the customer traverses:
 #
-#   go test (customer)  --theo_live_* bearer-->  theo-cloud (gateway)
-#        --master bearer + subject-in-path-->    themory (TheMemory REST)
-#        -->                                     pgvector
-#                                                ^
-#   themory --OPENAI_BASE_URL--> mock-openai ----+ (hermetic LLM + embeddings)
+#   go test (real Kratos login) --session cookie--> theo-cloud /v1/auth/session/token
+#        --theo_session_* JWT-->  theo-cloud (gateway) --broker mint-->
+#        themory (TheMemory REST) --> pgvector
+#                                ^
+#   themory --OPENAI_BASE_URL--> mock-openai (hermetic LLM + embeddings)
+#
+# pg-cloud runs the engine's REAL migrations (cloud-migrate) so the full
+# account-tenancy schema (users/accounts/tenants/subscriptions/projects/
+# theo_api_keys) is present — drift-free vs the dev stack. Kratos provides real
+# identity/login (M6). Everything is hermetic: no external network, no API keys.
 #
 # Run via ./run.sh (builds host binaries + the themory image, waits for health,
-# runs the Go e2e test, tears down). Everything is hermetic: no external network,
-# no API keys, no cost.
-#
-# Binaries (theo-cloud, mock-openai) are built on the host by run.sh into
-# ./bin/ and copied via runtime.Dockerfile. The themory image is built from the
-# sibling repo Dockerfile (override with THEMORY_IMAGE).
+# runs the Go e2e test, tears down). Override with THEMORY_IMAGE / E2E_*_PORT.
 
 name: theo-cloud-memory-e2e
 
@@ -31,7 +32,6 @@ services:
     ports:
       # Exposed so the host-run `go test` can seed skill rows directly (there is
       # no skill-WRITE REST surface — skills are read-only via the gateway).
-      # dashboard-phase2b-skills-browse T5.1.
       - "${E2E_PG_THEMORY_PORT:-55434}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U themem -d themem"]
@@ -41,19 +41,74 @@ services:
       start_period: 5s
 
   pg-cloud:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
+    # DB named `theo` (user `theo`) to match the engine migrations — they
+    # GRANT ... ON DATABASE theo and migration 000023 asserts the owner is `theo`.
     environment:
-      POSTGRES_USER: theocloud
-      POSTGRES_PASSWORD: theocloud
-      POSTGRES_DB: theocloud
+      POSTGRES_USER: theo
+      POSTGRES_PASSWORD: theo
+      POSTGRES_DB: theo
     volumes:
+      # initdb (superuser): extensions the migrations assume + the separate
+      # `kratos` database. The cloud schema itself comes from cloud-migrate.
       - ./sql:/docker-entrypoint-initdb.d:ro
     ports:
-      # Exposed so the host-run `go test` can seed theo_api_keys directly.
+      # Exposed so the host-run `go test` can seed tenants/accounts/keys directly.
       - "${E2E_PG_CLOUD_PORT:-55432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U theocloud -d theocloud"]
+      test: ["CMD-SHELL", "pg_isready -U theo -d theo"]
       interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  # Applies the engine's REAL golang-migrate migrations to the `theo` DB so the
+  # full account-tenancy schema exists (drift-free vs hand-maintained SQL).
+  cloud-migrate:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      pg-cloud:
+        condition: service_healthy
+    volumes:
+      - ../../../theo/api/internal/db/migrations:/migrations:ro
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://theo:theo@pg-cloud:5432/theo?sslmode=disable"
+      - "up"
+    restart: on-failure:3
+
+  # Applies Kratos's schema to the `kratos` database (created at initdb).
+  kratos-migrate:
+    image: oryd/kratos:v1.3.1
+    depends_on:
+      pg-cloud:
+        condition: service_healthy
+    environment:
+      DSN: postgres://theo:theo@pg-cloud:5432/kratos?sslmode=disable
+    command: ["migrate", "sql", "-e", "--yes"]
+    restart: on-failure:3
+
+  # Real Ory Kratos (M6) — same config as dev (password login, email
+  # verification disabled so registration yields an active session). The public
+  # base_url is overridden to the e2e-exposed port so login-flow `action` URLs
+  # resolve to localhost:${E2E_KRATOS_PUBLIC_PORT}, not the dev edge.
+  kratos:
+    image: oryd/kratos:v1.3.1
+    depends_on:
+      kratos-migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ../../dev/kratos:/etc/config/kratos:ro
+    environment:
+      DSN: postgres://theo:theo@pg-cloud:5432/kratos?sslmode=disable
+      SERVE_PUBLIC_BASE_URL: http://localhost:${E2E_KRATOS_PUBLIC_PORT:-14433}/
+    command: ["serve", "--config", "/etc/config/kratos/kratos.yml", "--dev"]
+    ports:
+      - "${E2E_KRATOS_PUBLIC_PORT:-14433}:4433"
+      - "${E2E_KRATOS_ADMIN_PORT:-14434}:4434"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4433/health/ready"]
+      interval: 4s
       timeout: 3s
       retries: 20
       start_period: 5s
@@ -87,6 +142,9 @@ services:
       HOST: "0.0.0.0"
       # Master bearer the gateway uses. NEVER reaches the customer.
       THEMEMORY_API_KEY: ${THEMORY_MASTER_KEY:-e2e-master-key}
+      # M6: bootstrap token run.sh uses to mint the Model-B platform-admin key
+      # (the credential broker needs it to mint per-tenant data keys).
+      THEMORY_ADMIN_BOOTSTRAP_TOKEN: ${THEMORY_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
       # OpenAI embedder (1536) routed at the hermetic mock — no xenova download.
       THEOMEM_EMBEDDER: openai
       OPENAI_API_KEY: dummy-key-for-mock
@@ -115,17 +173,28 @@ services:
     depends_on:
       pg-cloud:
         condition: service_healthy
+      cloud-migrate:
+        condition: service_completed_successfully
+      kratos:
+        condition: service_healthy
       themory:
         condition: service_healthy
     environment:
       THEO_ENV: dev
       CLOUD_LISTEN_ADDR: ":13002"
-      DATABASE_URL: postgres://theocloud:theocloud@pg-cloud:5432/theocloud?sslmode=disable
+      DATABASE_URL: postgres://theo:theo@pg-cloud:5432/theo?sslmode=disable
       THEMORY_BASE_URL: http://themory:8080
       THEMORY_API_KEY: ${THEMORY_MASTER_KEY:-e2e-master-key}
+      # M6: Model-B control-plane credential the broker mints per-tenant keys with.
+      # run.sh provisions it from themory's bootstrap token after the stack is up,
+      # then recreates this service with the minted value injected here.
+      THEMORY_PLATFORM_ADMIN_KEY: ${THEMORY_PLATFORM_ADMIN_KEY:-}
       SESSION_TOKEN_SECRET: e2e-session-secret-at-least-32-characters-long
+      # M6: real Kratos session validation for /v1/auth/session/token.
+      KRATOS_INTERNAL_URL: http://kratos:4433
+      KRATOS_PUBLIC_URL: http://localhost:${E2E_KRATOS_PUBLIC_PORT:-14433}
     ports:
-      - "13002:13002"
+      - "${E2E_CLOUD_PORT:-13002}:13002"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:13002/health"]
       interval: 3s
