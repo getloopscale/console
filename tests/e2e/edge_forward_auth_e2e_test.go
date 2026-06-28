@@ -30,7 +30,7 @@ import (
 // TestEdgeForwardAuthTenantIsolationE2E drives two customers in DIFFERENT tenants
 // THROUGH THE EDGE and asserts cross-tenant reads are empty.
 func TestEdgeForwardAuthTenantIsolationE2E(t *testing.T) {
-	edgeURL := env(t, "E2E_EDGE_URL", "http://localhost:8090")
+	edgeURL := requireE2EEdge(t)
 	pgDSN := env(t, "E2E_PG_CLOUD_DSN", "")
 	if pgDSN == "" {
 		t.Skip("E2E_PG_CLOUD_DSN not set — skipping edge ForwardAuth e2e")
@@ -114,7 +114,7 @@ func seedTenant(t *testing.T, db *sql.DB, tenantID, ownerID string) {
 // with no valid theo_live_* is DENIED by ForwardAuth (401/403) and never reaches
 // themory (Traefik makes no upstream call without an explicit ALLOW — EC-7).
 func TestEdgeForwardAuth_NoKey_DeniedAtEdge(t *testing.T) {
-	edgeURL := env(t, "E2E_EDGE_URL", "http://localhost:8090")
+	edgeURL := requireE2EEdge(t)
 
 	req, _ := http.NewRequest(http.MethodPost, edgeURL+"/v1/memory/recall", nil)
 	// No Authorization header at all.

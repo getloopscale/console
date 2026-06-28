@@ -40,9 +40,9 @@ asserts through the gateway:
 
 | File | Role |
 |---|---|
-| `docker-compose.e2e.yaml` | 5 services: `pg-themory` (pgvector), `pg-cloud` (postgres), `mock-openai`, `themory`, `theo-cloud` |
+| `docker-compose.e2e.yaml` | `pg-themory` (pgvector), `pg-cloud` (postgres) + `cloud-migrate` (engine REAL migrations → full account-tenancy schema), `mock-openai`, `themory`, `kratos` (+ `kratos-migrate`), `theo-cloud` |
 | `mock-openai/` | hermetic OpenAI-compatible server (`/v1/chat/completions` extraction + `/v1/embeddings`, honors `encoding_format=base64`) |
-| `sql/01-cloud-schema.sql` | minimal `theo_api_keys` table (theo-cloud ships no migrations of its own — the prod schema lives in the engine) |
+| `sql/` | initdb (superuser): extensions the migrations assume + the `kratos` database. The cloud schema itself comes from `cloud-migrate` (the engine's golang-migrate migrations — drift-free, M6) |
 | `runtime.Dockerfile` | wraps the host-built static Go binaries (theo-cloud, mock-openai) |
 | `run.sh` | the orchestrator `make e2e` calls |
 | `memory_e2e_test.go` | the Go test (build tag `e2e`) |
@@ -54,3 +54,38 @@ asserts through the gateway:
   SDK mis-decode the bytes (the 1536→384 dimension bug).
 - The TheMemory image runs with `THEOMEM_EMBEDDER=openai` pointed at the mock
   (1536-dim) so no model download is needed at runtime.
+- A host port already taken (e.g. another stack on `55432`) is resolved by
+  exporting the matching `E2E_*_PORT` (e.g. `E2E_PG_CLOUD_PORT=55442`).
+
+## M6 — the full-chain test + the coverage seam
+
+`fullchain_e2e_test.go` is the FIRST automated test of the **real user journey**,
+with ZERO mocks and ZERO synthetic seeds:
+
+```
+real Kratos login (pre-verified identity, headless API flow)
+  → POST /v1/auth/session/token   (Kratos cookie → theo_session_* JWT)
+    → POST /v1/dashboard/memory/{remember,recall}   (session-JWT chain)
+      → the REAL Model-B broker mints a per-tenant key → REAL themory
+```
+
+- `TestFullChainE2E_RealLoginToMemory` — the chain returns the written content.
+- `TestFullChainE2E_CrossTenantIsolationRealChain` — tenant-A's real session
+  cannot read tenant-B's memory; each reads its own. This replaces the
+  `captureMinter` STUB the M1/M3 isolation e2e used — isolation is now proven on
+  the fully-real broker → themory path.
+
+**What this does NOT cover (don't over-read the green):**
+
+- **The engine project-cap (M4/M5).** The `theo` engine is not in this stack (nor
+  in the dev compose); the BFF's `/engine/*` proxy has no upstream here. The
+  per-Account project cap is proven at the **engine layer** (M5 integration, 7
+  `-race` scenarios), not through this chain. (ADR-M6-3.)
+- **The browser/UI.** The dashboard Playwright suite (`dashboard/e2e`) runs with
+  `VITE_USE_MOCKS=true` by design; it exercises the UI against mocked responses,
+  not this stack. The full-chain test covers the API journey headlessly.
+
+Off-stack, `go test -tags e2e ./tests/e2e/...` SKIPs cleanly (tests guard on
+`E2E_CLOUD_URL`/`E2E_PG_CLOUD_DSN`). CI runs the whole harness via
+`.github/workflows/test-e2e.yml` (its first real run happens on push — Actions
+can't be executed from a dev box; `make e2e` green locally is the proxy oracle).

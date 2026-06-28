@@ -1,0 +1,75 @@
+# M6 (full-chain-e2e) — the FIRST test stage in theo-cloud CI.
+#
+# Brings up the hermetic Model-B stack (pg-cloud + engine migrations, pg-themory,
+# mock-openai, themory, kratos, theo-cloud) and runs the full e2e suite — including
+# the M6 full-chain test (real Kratos login -> JWT -> BFF -> broker -> themory ->
+# tenancy isolation). Mirrors `tests/e2e/run.sh` exactly (`make e2e`).
+#
+# NOTE: this workflow's FIRST real execution happens on push/PR — GitHub Actions
+# cannot be run from a dev box. The proxy oracle is `make e2e` green locally
+# (which runs the identical harness). Until the first CI run, treat the green as
+# "locally proven; CI pending first push".
+name: test-e2e
+on:
+  pull_request: {}
+  push:
+    branches: [develop]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: test-e2e-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      # Replicate the dev sibling layout so the compose relative mounts resolve:
+      #   theo-cloud/theo-cloud  (this repo — tests/e2e lives here)
+      #   theo-cloud/theo        (engine — its migrations are mounted by cloud-migrate)
+      #   theo-data/theo-memory  (themory source — run.sh builds its image)
+      - name: Checkout theo-cloud
+        uses: actions/checkout@v4
+        with:
+          path: theo-cloud/theo-cloud
+      - name: Checkout theo (engine — migrations)
+        uses: actions/checkout@v4
+        with:
+          repository: usetheodev/theo
+          # GITHUB_TOKEN is scoped to THIS repo; cross-repo private checkout needs a
+          # PAT with read access to usetheodev/theo (+ theo-memory, theo-contracts).
+          token: ${{ secrets.GOMOD_TOKEN }}
+          path: theo-cloud/theo
+      - name: Checkout theo-memory (themory image source)
+        uses: actions/checkout@v4
+        with:
+          repository: usetheodev/theo-memory
+          token: ${{ secrets.GOMOD_TOKEN }}
+          path: theo-data/theo-memory
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: theo-cloud/theo-cloud/go.mod
+          cache-dependency-path: theo-cloud/theo-cloud/go.sum
+
+      # theo-contracts is a private module — let `go build` (run by make e2e) fetch
+      # it over HTTPS with the PAT. NEVER printed; same mechanism as the Dockerfile.
+      - name: Configure private module access (theo-contracts)
+        run: |
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
+        env:
+          GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+
+      - name: Run the full e2e suite (make e2e)
+        working-directory: theo-cloud/theo-cloud
+        env:
+          GOPRIVATE: github.com/usetheodev/*
+          # run.sh builds the themory image from this sibling checkout.
+          THEMORY_DIR: ${{ github.workspace }}/theo-data/theo-memory
+        run: make e2e
+
+      - name: Dump stack logs on failure
+        if: failure()
+        working-directory: theo-cloud/theo-cloud
+        run: |
+          docker compose -p theo-cloud-memory-e2e -f tests/e2e/docker-compose.e2e.yaml logs --tail=200 || true
