@@ -42,15 +42,24 @@ function ProjectRow({
   // last_deploy_status (5-value enum) instead of the legacy
   // "last_deploy presence" heuristic. FAILED builds no longer render
   // as Idle.
-  const projectStatus = p.last_deploy_status ?? 'idle';
+  const rawStatus = p.last_deploy_status ?? 'idle';
+  // Red Team theo-cloud#77 re-open (2026-06-28): the engine mapper
+  // `pkg/enforcement.MapProjectStatus` returns 'live' for projects whose
+  // only ACTIVE release lives in a preview env_target — so theokit-example
+  // surfaces last_deploy_status='live' while production_env_count=0 AND
+  // latest_build_environment='preview'. The user-path proof (#77) requires
+  // the projects-list badge to call those preview-only projects "Preview",
+  // not "Live". Derive the override from the two server-side signals that
+  // are not in dispute and force the preview label regardless of the
+  // mapper's verdict. See feedback_ready_to_read_team_user_path_not_serverside_2026_06_25.
+  const isPreviewOnly =
+    p.production_env_count === 0 && p.latest_build_environment === 'preview';
+  const projectStatus = isPreviewOnly ? 'preview' : rawStatus;
   // Map our 6-value enum onto @usetheo/ui's StatusKind (which lacks
   // 'queued' and 'preview'). Queued semantically belongs with `building`
-  // (both in-flight, not-yet-live). Red Team theo-cloud#41 absorption
-  // (2026-06-27): 'preview' is its own state — preview-only project
-  // (succeeded preview builds, no active production release). The label
-  // says "Preview" but the StatusKind dot uses the neutral 'idle' tone
-  // so the row doesn't show a green "serving" indicator for a project
-  // that has nothing serving in production.
+  // (both in-flight, not-yet-live). 'preview' renders with the neutral
+  // 'idle' tone so the row doesn't show a green "serving" indicator for
+  // a project that has nothing serving in production.
   const statusKind: StatusKind =
     projectStatus === 'queued'
       ? 'building'

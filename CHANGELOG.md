@@ -9,6 +9,7 @@
 ### Removed
 
 ### Fixed
+- **Red Team theo-cloud#77 re-open (2026-06-28) — Projects list now shows "Preview" instead of "Live" for preview-only projects.** The engine `pkg/enforcement.MapProjectStatus` returns `last_deploy_status='live'` for a project whose only ACTIVE release lives in a preview env_target (e.g. `theokit-example` had `production_env_count=0` and `latest_build_environment='preview'` yet the dashboard list rendered "Live"). The dashboard now derives `isPreviewOnly = production_env_count === 0 && latest_build_environment === 'preview'` in `dashboard/src/pages/projects.tsx` BEFORE selecting the badge, and forces the `'preview'` enum (StatusKind=`idle`, label=`Preview`) regardless of the engine's misleading `'live'` verdict. RED→GREEN: failing vitest `renders Preview badge when production_env_count=0 and latest_build_environment=preview, overriding last_deploy_status=live (#77 re-open)` flips from FAIL to PASS; full suite 1110/1110 GREEN; prod bundle `projects-B0InLQ84.js` contains the new derivation (verified via grep on `production_env_count` + `latest_build_environment`). Frontend-only fix — engine `MapProjectStatus` unchanged. Per `feedback_ready_to_read_team_user_path_not_serverside_2026_06_25` INQUEBRÁVEL: the user-path render is the canonical proof, not the server-side response.
 
 ### Security
 
