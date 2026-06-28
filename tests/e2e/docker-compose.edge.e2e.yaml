@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2025-2026 The Theo Authors
+#
+# EDGE overlay for the hermetic e2e stack (issue #113). Adds the Traefik single
+# edge (:8090) on top of docker-compose.e2e.yaml so the edge ForwardAuth
+# confused-deputy tests (TestEdgeForwardAuth*) run in CI instead of SKIPping.
+#
+# Compose with the base file (same project name so it shares the network):
+#   docker compose -f docker-compose.e2e.yaml -f docker-compose.edge.e2e.yaml up -d
+# Driven by `EDGE=1 bash tests/e2e/run.sh` (make e2e-edge).
+#
+# Scope: ONLY the /v1/memory ForwardAuth router (see traefik/dynamic.e2e.yml). The
+# unified SPA/Kratos/BFF edge (M8 slice-3a) needs the dashboard image and is out of
+# scope for the ForwardAuth coverage gap this overlay closes.
+
+services:
+  traefik:
+    image: traefik:v3.3
+    depends_on:
+      themory:
+        condition: service_healthy
+      theo-cloud:
+        condition: service_healthy
+    volumes:
+      # Reuse the dev STATIC config verbatim (entrypoint :8090, file provider,
+      # tracing OFF — the minted Authorization must never reach a trace exporter,
+      # ADR D4). DRY: the edge under test stays identical to dev.
+      - ../../dev/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      # Trimmed DYNAMIC config: the /v1/memory ForwardAuth router only.
+      - ./traefik/dynamic.e2e.yml:/etc/traefik/dynamic.yml:ro
+    ports:
+      - "${E2E_EDGE_PORT:-8090}:8090"

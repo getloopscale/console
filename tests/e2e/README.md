@@ -89,3 +89,35 @@ Off-stack, `go test -tags e2e ./tests/e2e/...` SKIPs cleanly (tests guard on
 `E2E_CLOUD_URL`/`E2E_PG_CLOUD_DSN`). CI runs the whole harness via
 `.github/workflows/test-e2e.yml` (its first real run happens on push — Actions
 can't be executed from a dev box; `make e2e` green locally is the proxy oracle).
+
+## The edge ForwardAuth job (#113 — `make e2e-edge`)
+
+The default `make e2e` stack runs **no Traefik**, so the edge ForwardAuth tests
+(`edge_forward_auth_e2e_test.go`) are SKIP-guarded by `requireE2EEdge` (they need
+`E2E_EDGE_URL`). `make e2e-edge` closes that coverage gap:
+
+```bash
+make e2e-edge      # EDGE=1 tests/e2e/run.sh
+```
+
+It layers `docker-compose.edge.e2e.yaml` (the **Traefik single edge** on `:8090`)
+onto the SAME hermetic stack via a trimmed `traefik/dynamic.e2e.yml` — only the
+`/v1/memory` ForwardAuth router (a faithful subset of `dev/traefik/dynamic.yml`,
+reusing the dev static config verbatim). `run.sh` waits until the edge
+fail-closed-denies an unauthenticated `/v1/memory`, then runs **only**
+`go test -run TestEdgeForwardAuth` through the edge:
+
+```
+go test (customer) --theo_live_* bearer--> Traefik :8090 /v1/memory/*
+   --ForwardAuth--> theo-cloud /internal/authz/forward (mints per-tenant key,
+                    Del-then-set Authorization strips the client key, D3)
+   --memory-rewrite--> themory:8080 DIRECT (ADR D7) --> pgvector
+```
+
+This proves cross-tenant isolation END-TO-END through the real edge mint +
+rewrite + direct-to-themory path (CWE-441 closure). A second `e2e-edge` job in
+`.github/workflows/test-e2e.yml` runs it in CI.
+
+**Out of scope:** the unified SPA/Kratos/BFF edge tests (`edge_unify_e2e_test.go`,
+`TestEdge_*`, M8 slice-3a) — they need the dashboard SPA image; the trimmed edge
+overlay intentionally omits the dashboard/kratos routers. Tracked separately.

@@ -21,6 +21,10 @@ set -euo pipefail
 E2E_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${E2E_DIR}/../.." && pwd)"
 COMPOSE_FILE="${E2E_DIR}/docker-compose.e2e.yaml"
+# EDGE=1 (issue #113): also bring up the Traefik single edge (:8090) and run ONLY
+# the edge ForwardAuth confused-deputy tests through it (TestEdgeForwardAuth*).
+EDGE="${EDGE:-0}"
+EDGE_COMPOSE_FILE="${E2E_DIR}/docker-compose.edge.e2e.yaml"
 BIN_DIR="${E2E_DIR}/bin"
 
 THEMORY_DIR="${THEMORY_DIR:-${ROOT}/../../theo-data/theo-memory}"
@@ -36,12 +40,16 @@ E2E_PG_CLOUD_PORT="${E2E_PG_CLOUD_PORT:-55432}"
 E2E_PG_THEMORY_PORT="${E2E_PG_THEMORY_PORT:-55434}"
 E2E_KRATOS_PUBLIC_PORT="${E2E_KRATOS_PUBLIC_PORT:-14433}"
 E2E_KRATOS_ADMIN_PORT="${E2E_KRATOS_ADMIN_PORT:-14434}"
-export E2E_CLOUD_PORT E2E_THEMORY_PORT E2E_PG_CLOUD_PORT E2E_PG_THEMORY_PORT E2E_KRATOS_PUBLIC_PORT E2E_KRATOS_ADMIN_PORT
+E2E_EDGE_PORT="${E2E_EDGE_PORT:-8090}"
+export E2E_CLOUD_PORT E2E_THEMORY_PORT E2E_PG_CLOUD_PORT E2E_PG_THEMORY_PORT E2E_KRATOS_PUBLIC_PORT E2E_KRATOS_ADMIN_PORT E2E_EDGE_PORT
 
 log()  { printf '\033[1;36m[e2e]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[e2e] FAIL:\033[0m %s\n' "$*" >&2; }
 
-compose() { docker compose -p theo-cloud-memory-e2e -f "${COMPOSE_FILE}" "$@"; }
+# In EDGE mode, layer the Traefik overlay on top of the base compose file.
+COMPOSE_ARGS=(-f "${COMPOSE_FILE}")
+if [[ "${EDGE}" == "1" ]]; then COMPOSE_ARGS+=(-f "${EDGE_COMPOSE_FILE}"); fi
+compose() { docker compose -p theo-cloud-memory-e2e "${COMPOSE_ARGS[@]}" "$@"; }
 
 teardown() {
   if [[ "${KEEP_UP:-0}" == "1" ]]; then
@@ -56,6 +64,7 @@ dump_logs() {
   fail "harness failed — recent service logs:"
   compose ps || true
   compose logs --tail=80 themory theo-cloud mock-openai || true
+  if [[ "${EDGE}" == "1" ]]; then compose logs --tail=80 traefik || true; fi
 }
 
 # --- preflight ---------------------------------------------------------------
@@ -118,7 +127,7 @@ if [[ -z "${THEMORY_PLATFORM_ADMIN_KEY:-}" ]]; then
   compose up -d --no-deps --wait --wait-timeout 90 theo-cloud
 fi
 
-# --- 4. run the e2e test against the real endpoints --------------------------
+# --- 4. test environment (URLs + DSNs the Go tests read) ---------------------
 export E2E_CLOUD_URL="http://localhost:${E2E_CLOUD_PORT}"
 export E2E_THEMORY_URL="http://localhost:${E2E_THEMORY_PORT}"
 # pg-cloud is the engine-migrated `theo` DB (M6 — full account-tenancy schema).
@@ -128,10 +137,43 @@ export E2E_PG_THEMORY_DSN="postgres://themem:themem@localhost:${E2E_PG_THEMORY_P
 export E2E_KRATOS_PUBLIC_URL="http://localhost:${E2E_KRATOS_PUBLIC_PORT}"
 export E2E_KRATOS_ADMIN_URL="http://localhost:${E2E_KRATOS_ADMIN_PORT}"
 
-log "running Go e2e test against real endpoints…"
-if ! ( cd "${ROOT}" && go test -tags e2e -count=1 -v ./tests/e2e/... ); then
-  dump_logs
-  exit 1
+# --- 4.5 EDGE readiness (issue #113) -----------------------------------------
+# In EDGE mode, wait until Traefik routes /v1/memory -> ForwardAuth and the
+# fail-closed deny (401/403, no key) is observable before running the tests —
+# proves the edge + authz hop are wired (the recreate above briefly cycles the
+# forward-auth target). Then export E2E_EDGE_URL so requireE2EEdge does not SKIP.
+if [[ "${EDGE}" == "1" ]]; then
+  export E2E_EDGE_URL="http://localhost:${E2E_EDGE_PORT}"
+  log "waiting for the Traefik edge (${E2E_EDGE_URL}) to deny an unauthenticated /v1/memory…"
+  edge_ready=0
+  for _ in $(seq 1 30); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' -m 5 -X POST "${E2E_EDGE_URL}/v1/memory/recall" 2>/dev/null || echo 000)"
+    if [[ "${code}" == "401" || "${code}" == "403" ]]; then edge_ready=1; break; fi
+    sleep 2
+  done
+  if [[ "${edge_ready}" != "1" ]]; then
+    dump_logs
+    fail "Traefik edge never reached the fail-closed deny on /v1/memory (last code: ${code:-none})."
+    exit 1
+  fi
+  log "edge ready (ForwardAuth denies unauthenticated requests)."
 fi
 
-log "e2e PASSED ✔"
+# --- 5. run the e2e test against the real endpoints --------------------------
+# EDGE mode runs ONLY the ForwardAuth confused-deputy tests through the edge; the
+# full suite (non-edge) runs in the default mode (its edge tests SKIP — no Traefik).
+if [[ "${EDGE}" == "1" ]]; then
+  log "running edge ForwardAuth e2e tests through the Traefik edge…"
+  if ! ( cd "${ROOT}" && go test -tags e2e -count=1 -v -run TestEdgeForwardAuth ./tests/e2e/... ); then
+    dump_logs
+    exit 1
+  fi
+  log "edge e2e PASSED ✔"
+else
+  log "running Go e2e test against real endpoints…"
+  if ! ( cd "${ROOT}" && go test -tags e2e -count=1 -v ./tests/e2e/... ); then
+    dump_logs
+    exit 1
+  fi
+  log "e2e PASSED ✔"
+fi
