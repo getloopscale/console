@@ -28,11 +28,15 @@ THEMORY_MASTER_KEY="${THEMORY_MASTER_KEY:-e2e-master-key}"
 export THEMORY_MASTER_KEY
 
 # Host-mapped ports (kept in sync with docker-compose.e2e.yaml defaults).
+# A port already taken on the host (e.g. another stack on 55432) is resolved by
+# exporting the matching E2E_*_PORT before running — the compose honors them.
 E2E_CLOUD_PORT="${E2E_CLOUD_PORT:-13002}"
 E2E_THEMORY_PORT="${E2E_THEMORY_PORT:-18080}"
 E2E_PG_CLOUD_PORT="${E2E_PG_CLOUD_PORT:-55432}"
 E2E_PG_THEMORY_PORT="${E2E_PG_THEMORY_PORT:-55434}"
-export E2E_THEMORY_PORT E2E_PG_CLOUD_PORT E2E_PG_THEMORY_PORT
+E2E_KRATOS_PUBLIC_PORT="${E2E_KRATOS_PUBLIC_PORT:-14433}"
+E2E_KRATOS_ADMIN_PORT="${E2E_KRATOS_ADMIN_PORT:-14434}"
+export E2E_CLOUD_PORT E2E_THEMORY_PORT E2E_PG_CLOUD_PORT E2E_PG_THEMORY_PORT E2E_KRATOS_PUBLIC_PORT E2E_KRATOS_ADMIN_PORT
 
 log()  { printf '\033[1;36m[e2e]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[e2e] FAIL:\033[0m %s\n' "$*" >&2; }
@@ -88,11 +92,41 @@ if ! compose up -d --build --wait --wait-timeout 240; then
 fi
 log "stack healthy."
 
+# --- 3.5 Model-B platform-admin provisioning (M6 full-chain) -----------------
+# The credential broker (per-tenant data keys for the dashboard memory surface)
+# needs a real memory:platform-admin theo_live_* key to mint with. Auto-provision
+# it from themory's bootstrap token (mirrors dev/run.sh § Model B) and recreate
+# the gateway with it — otherwise the full-chain memory write fails CLOSED with
+# "resolve per-tenant key: not found".
+if [[ -z "${THEMORY_PLATFORM_ADMIN_KEY:-}" ]]; then
+  BOOTSTRAP="${THEMORY_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}"
+  log "provisioning Model B platform-admin key via the themory bootstrap token…"
+  # `|| true` on the pipe so a no-match grep (e.g. bootstrap already consumed on a
+  # KEEP_UP re-run) does NOT trip `set -e`/`pipefail` before the explicit guard +
+  # dump_logs below — otherwise a mint failure is an opaque, log-less red.
+  PA_KEY="$( (curl -s -m 10 -X POST "http://localhost:${E2E_THEMORY_PORT}/v1/admin/keys" \
+    -H "Authorization: Bearer ${BOOTSTRAP}" -H "Content-Type: application/json" \
+    -d '{"name":"theo-cloud-platform-admin","scopes":["memory:platform-admin"]}' \
+    2>/dev/null | grep -oE '"secret":"theo_live_[^"]+"' | sed 's/^"secret":"//; s/"$//') || true)"
+  if [[ -z "${PA_KEY}" ]]; then
+    dump_logs
+    fail "could not mint the platform-admin key (bootstrap may be consumed) — the broker mint will fail CLOSED."
+    exit 1
+  fi
+  export THEMORY_PLATFORM_ADMIN_KEY="${PA_KEY}"
+  log "minted platform-admin key; recreating the gateway with it…"
+  compose up -d --no-deps --wait --wait-timeout 90 theo-cloud
+fi
+
 # --- 4. run the e2e test against the real endpoints --------------------------
 export E2E_CLOUD_URL="http://localhost:${E2E_CLOUD_PORT}"
 export E2E_THEMORY_URL="http://localhost:${E2E_THEMORY_PORT}"
-export E2E_PG_CLOUD_DSN="postgres://theocloud:theocloud@localhost:${E2E_PG_CLOUD_PORT}/theocloud?sslmode=disable"
+# pg-cloud is the engine-migrated `theo` DB (M6 — full account-tenancy schema).
+export E2E_PG_CLOUD_DSN="postgres://theo:theo@localhost:${E2E_PG_CLOUD_PORT}/theo?sslmode=disable"
 export E2E_PG_THEMORY_DSN="postgres://themem:themem@localhost:${E2E_PG_THEMORY_PORT}/themem?sslmode=disable"
+# M6: real Kratos endpoints for the full-chain login flow.
+export E2E_KRATOS_PUBLIC_URL="http://localhost:${E2E_KRATOS_PUBLIC_PORT}"
+export E2E_KRATOS_ADMIN_URL="http://localhost:${E2E_KRATOS_ADMIN_PORT}"
 
 log "running Go e2e test against real endpoints…"
 if ! ( cd "${ROOT}" && go test -tags e2e -count=1 -v ./tests/e2e/... ); then
