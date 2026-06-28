@@ -187,7 +187,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 ---
 
-### M6 — [ ] True full-chain e2e (the real user journey)
+### M6 — [x] True full-chain e2e (the real user journey)
 
 **Objective:** close the most material test-coverage gap — there is no automated test that drives the REAL ecosystem chain. Today the frontend is tested with `VITE_USE_MOCKS=true` (never hits the BFF) and the backend e2e inject synthetic JWTs (never go through Kratos/browser); the two halves meet at a mocked seam. Build ONE automated full-chain test that drives a real session through every layer and asserts the outcome the user would see.
 
