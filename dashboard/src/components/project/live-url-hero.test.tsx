@@ -122,4 +122,46 @@ describe('LiveUrlHero', () => {
     expect(screen.getByText(/URL pending/i)).toBeInTheDocument();
     expect(screen.queryByText(/Preview only/i)).not.toBeInTheDocument();
   });
+
+  // Red Team theo-cloud#115 closure (2026-06-28): when a preview-only
+  // project has an ACTIVE preview release whose URL is serving HTTP 200,
+  // the hero MUST show that URL with a Visit button — NOT the misleading
+  // "promote a release to production to assign a live URL" copy, which
+  // contradicts the running state (`curl <url>` already returns 200).
+  // The CTO LIVE-validated 2026-06-28 with theokit-example deployed to
+  // --env preview: build SUCCEEDED, release ACTIVE, Live URL serving 200,
+  // yet the dashboard rendered "promote a release" — actively lying.
+  //
+  // Contract: when `isPreviewOnly && previewStatus?.url` exists, the
+  // canonical preview URL is rendered with the same Visit + Copy controls
+  // as the production happy path, plus a "Preview" badge to make the
+  // environment classification honest.
+  it('renders preview URL with Visit button when isPreviewOnly=true and previewStatus.url present (#115)', () => {
+    const PREVIEW_URL =
+      'https://tn-cbeb584e569d5a20-theokit-example-app-preview.prod-dev.usetheo.dev';
+    render(
+      <LiveUrlHero
+        status={makeStatus({ url: undefined })}
+        loading={false}
+        isPreviewOnly={true}
+        previewStatus={makeStatus({
+          project: 'theokit-example',
+          environment: 'preview',
+          url: PREVIEW_URL,
+        })}
+      />,
+    );
+    // Visit anchor MUST render and point at the preview URL.
+    const link = screen.getByRole('link', { name: /visit/i });
+    expect(link).toHaveAttribute('href', PREVIEW_URL);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+    // Preview classification badge MUST render.
+    expect(screen.getByText(/^preview$/i)).toBeInTheDocument();
+    // The misleading "promote to production" copy MUST NOT render.
+    expect(
+      screen.queryByText(/promote a release to production/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/URL pending/i)).not.toBeInTheDocument();
+  });
 });

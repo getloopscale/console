@@ -77,7 +77,17 @@ export function DeploymentDetailPage() {
   // T2.1 J-25 — Visit button anti-trap UX: hide on previous deploys.
   // useProjectStatus delivers status.url + active_release.build_id used to
   // gate Visit visibility (only the currently-serving build renders Visit).
-  const { status: projectStatus } = useProjectStatus(name);
+  //
+  // Red Team theo-cloud#115 closure (2026-06-28): query the status for
+  // THIS build's environment, not the default production. Without this
+  // the CTO's preview-only deploy of theokit-example returned no URL
+  // (production has no release) and the Visit button rendered null even
+  // though `curl <preview-url>` already returned HTTP 200. Falls back to
+  // default while the build is loading (env undefined → backend treats
+  // as production, same as the legacy behavior).
+  const { status: projectStatus } = useProjectStatus(name, {
+    env: build?.environment,
+  });
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const [promoteOpen, setPromoteOpen] = useState(false);
   // T4.4 finding 4.1 + EC-7 absorption: cancel build now goes through

@@ -12,6 +12,13 @@ import { queryKeys } from '@/lib/api/query-keys';
 export interface UseProjectStatusOptions {
   intervalMs?: number;
   env?: string;
+  /**
+   * Optional gate that overrides `enabled = !!projectName`. Used by
+   * project-detail (#115 closure) to call this hook twice — once for
+   * the default production view, and once for the sibling preview env
+   * — without the second call firing when no sibling exists.
+   */
+  enabled?: boolean;
 }
 
 export function useProjectStatus(
@@ -25,7 +32,7 @@ export function useProjectStatus(
   // Backend (api/internal/routes/status.go) defaults env to "production"
   // when the query param is absent — clients only need to pass it when
   // querying a non-prod environment (preview, staging).
-  const { intervalMs = 5000, env } = options;
+  const { intervalMs = 5000, env, enabled: enabledOpt } = options;
   const path = env
     ? `/api/v1/projects/${encodeURIComponent(projectName!)}/status?env=${encodeURIComponent(env)}`
     : `/api/v1/projects/${encodeURIComponent(projectName!)}/status`;
@@ -39,7 +46,7 @@ export function useProjectStatus(
     // 404 (and any other 4xx) must short-circuit retry.
     queryFn: () =>
       engineFetch<ProjectStatusDetail>(path, undefined, { throwOnError: true }),
-    enabled: !!projectName,
+    enabled: !!projectName && (enabledOpt ?? true),
     refetchInterval: intervalMs,
     refetchIntervalInBackground: false,
     // Red Team theo-cloud#96 closure: do not retry on 4xx. They're

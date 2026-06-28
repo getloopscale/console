@@ -128,7 +128,19 @@ export default defineConfig(({ mode }) => ({
         globIgnores: ['**/bundle-stats.html'],
         // EC-04: NEVER cache auth/session endpoints — would serve stale
         // tokens making user appear logged-in when session is gone.
+        //
+        // Red Team theo-cloud#112 caveat closure (2026-06-28): include
+        // /auth/* — the BFF Hydra consent/device-flow routes
+        // (/auth/login, /auth/login/complete, /auth/consent, /auth/device).
+        // Without this entry, the SW from any tab that opened the
+        // dashboard before the #112 fix landed serves the SPA shell from
+        // precache → React Router has no `/auth/login` route → "Page
+        // not found" → CLI `theo login --device-flow` chain breaks for
+        // every existing user with a warm SW (same class as #100 MIME
+        // outage). Mirror in runtimeCaching below as NetworkOnly so the
+        // path never enters any cache, even after warmup.
         navigateFallbackDenylist: [
+          /^\/auth\//,
           /\/api\/v1\/auth\//,
           /\/sessions\//,
           /\/self-service\//,
@@ -138,6 +150,7 @@ export default defineConfig(({ mode }) => ({
           // Auth/session — NetworkOnly (no fallback, no cache).
           {
             urlPattern: ({ url }) =>
+              /^\/auth\//.test(url.pathname) ||
               /\/api\/v1\/auth\//.test(url.pathname) ||
               /\/sessions\//.test(url.pathname) ||
               /\/self-service\//.test(url.pathname) ||

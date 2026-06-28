@@ -33,6 +33,19 @@ export function ProjectDetailPage() {
   useSetPageTitle(name || 'Project');
   const { projects, loading } = useProjects();
   const { status, loading: statusLoading } = useProjectStatus(name);
+  // Red Team theo-cloud#115 closure (2026-06-28): when the project is
+  // preview-only the production status query returns no URL even though
+  // the preview env has an ACTIVE release serving HTTP 200 (the CTO
+  // LIVE-validated this 2026-06-28). The backend already surfaces the
+  // sibling env in `status.other_envs_with_releases` (Red Team #70/#62
+  // groundwork) — pick the first one and query its status to expose the
+  // real URL via LiveUrlHero with a "Preview" badge. The hook is enabled
+  // only when there IS a sibling to query, so no wasted RTT.
+  const previewEnvName = status?.other_envs_with_releases?.[0]?.environment;
+  const { status: previewStatus } = useProjectStatus(name, {
+    env: previewEnvName,
+    enabled: Boolean(previewEnvName),
+  });
   const { builds } = useDeployments(name);
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -183,6 +196,7 @@ export function ProjectDetailPage() {
           status={status}
           loading={statusLoading}
           isPreviewOnly={isPreviewOnly}
+          previewStatus={previewStatus}
         />
 
         {status && <ProjectHealthCard status={status} />}

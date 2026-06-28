@@ -35,9 +35,26 @@ interface LiveUrlHeroProps {
    * call sites are untouched.
    */
   isPreviewOnly?: boolean;
+  /**
+   * Red Team theo-cloud#115 absorption (2026-06-28): the production
+   * `status` for a preview-only project has no URL — but the preview env
+   * DOES have an active release serving a real Live URL. The parent
+   * (project-detail) queries the sibling preview env from
+   * `status.other_envs_with_releases` and passes its status here so the
+   * hero can show the real URL with a "Preview" badge instead of the
+   * misleading "promote a release to production to assign a live URL"
+   * copy, which actively lied while `curl <url>` already returned 200.
+   * Optional; only consulted when `isPreviewOnly=true && !status.url`.
+   */
+  previewStatus?: ProjectStatusDetail | null;
 }
 
-export function LiveUrlHero({ status, loading, isPreviewOnly = false }: LiveUrlHeroProps) {
+export function LiveUrlHero({
+  status,
+  loading,
+  isPreviewOnly = false,
+  previewStatus = null,
+}: LiveUrlHeroProps) {
   const [copyMessage, setCopyMessage] = useState<string>('');
 
   useEffect(() => {
@@ -56,7 +73,12 @@ export function LiveUrlHero({ status, loading, isPreviewOnly = false }: LiveUrlH
     );
   }
 
-  const url = status?.url;
+  // Red Team theo-cloud#115 closure: when production has no URL but the
+  // sibling preview env has an active release serving HTTP 200, render
+  // THAT URL with a "Preview" badge. Resolution order: production URL
+  // (canonical) → preview URL (preview-only project) → empty states.
+  const url = status?.url || (isPreviewOnly ? previewStatus?.url : undefined);
+  const isShowingPreview = !status?.url && Boolean(url);
 
   if (!url) {
     if (isPreviewOnly) {
@@ -102,7 +124,13 @@ export function LiveUrlHero({ status, loading, isPreviewOnly = false }: LiveUrlH
     <Card>
       <Card.Body className="flex items-center justify-between gap-4 py-4">
         <div className="min-w-0 flex-1">
-          <div className="text-label text-muted-foreground uppercase">Live URL</div>
+          <div className="flex items-center gap-2">
+            <div className="text-label text-muted-foreground uppercase">Live URL</div>
+            {/* Red Team theo-cloud#115 closure: when serving from the
+                preview env (no production URL yet), label the badge
+                honestly so the user knows which environment is live. */}
+            {isShowingPreview && <Badge variant="outline">Preview</Badge>}
+          </div>
           <div className="mt-1 truncate text-body font-mono text-foreground">{url}</div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
