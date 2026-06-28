@@ -7,6 +7,7 @@ package auth
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,14 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
+
+// ErrChallengeNotFound is returned by GetLoginRequest / AcceptLogin /
+// GetConsentRequest / AcceptConsent when Hydra responds with 404
+// (challenge expired, already consumed, or otherwise unknown). Callers
+// SHOULD render a friendly "this login link has expired — please re-run
+// `theo login`" page rather than letting the error bubble up as a generic
+// 502 (or, worse, silently swallowing it — see Red Team theo-cloud#117).
+var ErrChallengeNotFound = errors.New("hydra: challenge not found (expired or already consumed)")
 
 // HydraClient communicates with Ory Hydra's public and admin APIs.
 type HydraClient struct {
@@ -205,6 +214,21 @@ func (c *HydraClient) GetLoginRequest(challenge string) (*LoginRequest, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Red Team theo-cloud#117 closure: Hydra returns 404 for expired /
+	// replayed / unknown challenges. Without this check, the decoder
+	// silently returns the zero-value LoginRequest with err == nil, and
+	// the LoginComplete handler proceeds as if the challenge were valid
+	// — the operator browser ends up at /auth/login/ (trailing slash) →
+	// 404 "Page not found" instead of a clear "this login link has
+	// expired" message. Fail-fast per Unbreakable Rule 8.
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+			return nil, fmt.Errorf("get login request: %w (status %d, body=%s)", ErrChallengeNotFound, resp.StatusCode, body)
+		}
+		return nil, fmt.Errorf("hydra get login request failed (status %d): %s", resp.StatusCode, body)
+	}
+
 	var req LoginRequest
 	if err := json.NewDecoder(resp.Body).Decode(&req); err != nil {
 		return nil, err
@@ -241,6 +265,16 @@ func (c *HydraClient) AcceptLogin(challenge, subject string) (string, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Red Team theo-cloud#117 closure — see GetLoginRequest above for
+	// the silent-swallow → "Page not found" failure mode this prevents.
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+			return "", fmt.Errorf("accept login: %w (status %d, body=%s)", ErrChallengeNotFound, resp.StatusCode, body)
+		}
+		return "", fmt.Errorf("hydra accept login failed (status %d): %s", resp.StatusCode, body)
+	}
+
 	var result struct {
 		RedirectTo string `json:"redirect_to"`
 	}
@@ -258,6 +292,15 @@ func (c *HydraClient) GetConsentRequest(challenge string) (*ConsentRequest, erro
 		return nil, fmt.Errorf("get consent request failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	// Red Team theo-cloud#117 closure — see GetLoginRequest above.
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+			return nil, fmt.Errorf("get consent request: %w (status %d, body=%s)", ErrChallengeNotFound, resp.StatusCode, body)
+		}
+		return nil, fmt.Errorf("hydra get consent request failed (status %d): %s", resp.StatusCode, body)
+	}
 
 	var req ConsentRequest
 	if err := json.NewDecoder(resp.Body).Decode(&req); err != nil {
@@ -307,6 +350,15 @@ func (c *HydraClient) AcceptConsent(challenge string, grantScope, grantAudience 
 		return "", fmt.Errorf("accept consent failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	// Red Team theo-cloud#117 closure — see GetLoginRequest above.
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+			return "", fmt.Errorf("accept consent: %w (status %d, body=%s)", ErrChallengeNotFound, resp.StatusCode, body)
+		}
+		return "", fmt.Errorf("hydra accept consent failed (status %d): %s", resp.StatusCode, body)
+	}
 
 	var result struct {
 		RedirectTo string `json:"redirect_to"`
