@@ -130,11 +130,15 @@ describe('useOnboardingState (Sprint 3 T3.1)', () => {
     }
   });
 
-  // EC-06: replay must show widget even when completed === total
+  // EC-06: replay must show widget when the user hasn't fully completed
+  // the auto-derived steps yet. Use a pre-deploy scenario so cli_installed
+  // depends on the persisted flag (the Red Team theo-cloud#56 auto-flip
+  // requires a successful deploy, which this scenario does NOT have).
   it('test_replay_resets_completion_when_already_complete', () => {
     mockUseWhoami.mockReturnValue({ whoami: { email: 'a@b.com' }, loading: false, error: false });
     mockUseProjects.mockReturnValue({ projects: [{ name: 'p' }], loading: false });
-    mockUseDeployments.mockReturnValue({ builds: [{ status: 'succeeded' }], loading: false, error: false });
+    // No deploys yet → cli_installed is governed by the user-confirmed flag.
+    mockUseDeployments.mockReturnValue({ builds: [], loading: false, error: false });
     mockUseEngineApi.mockReturnValue({
       data: { domains: [{ domain: 'a.com' }] },
       loading: false,
@@ -142,11 +146,11 @@ describe('useOnboardingState (Sprint 3 T3.1)', () => {
     });
     const { result } = renderHook(() => useOnboardingState());
     act(() => result.current.markStepDone('cli_installed'));
-    expect(result.current.completed).toBe(5);
-    expect(result.current.isVisible).toBe(false);
+    // Whoami + project + cli + domain = 4 (deploy not done yet).
+    expect(result.current.completed).toBe(4);
     act(() => result.current.replay());
     // After replay: cli_installed reset to false (user-confirmed step),
-    // but auto-derived steps remain. completed=4, isVisible=true.
+    // deploy stays auto-false. completed=3, isVisible=true.
     expect(result.current.state.steps.cli_installed).toBe(false);
     expect(result.current.isVisible).toBe(true);
   });
@@ -157,6 +161,30 @@ describe('useOnboardingState (Sprint 3 T3.1)', () => {
     const { result } = renderHook(() => useOnboardingState());
     expect(result.current.state.steps.cli_installed).toBe(false);
     act(() => result.current.markStepDone('cli_installed'));
+    expect(result.current.state.steps.cli_installed).toBe(true);
+  });
+
+  // Red Team theo-cloud#56 closure: a SUCCEEDED build is rigorous proof
+  // the user installed the CLI (no other path writes to the engine), so
+  // cli_installed MUST auto-flip true when deploy_succeeded does. The
+  // EC-14 user-confirmed rule still applies BEFORE a deploy lands: the
+  // CTA stays available for the pre-deploy phase.
+  it('cli_installed auto-flips when a deploy succeeded (#56)', () => {
+    mockUseWhoami.mockReturnValue({
+      whoami: { email: 'a@b.com' },
+      loading: false,
+      error: false,
+    });
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'theokit-example', apps: [] }],
+      loading: false,
+    });
+    mockUseDeployments.mockReturnValue({
+      builds: [{ id: 'b1', status: 'succeeded' }],
+      loading: false,
+    });
+    const { result } = renderHook(() => useOnboardingState());
+    expect(result.current.state.steps.deploy_succeeded).toBe(true);
     expect(result.current.state.steps.cli_installed).toBe(true);
   });
 });

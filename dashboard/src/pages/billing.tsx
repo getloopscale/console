@@ -41,7 +41,17 @@ function extractActionableErrorMessage(err: unknown): string {
       return body.message;
     }
   }
-  return 'Failed to start checkout. Please try again.';
+  // Red Team theo-cloud#40 closure: when the backend returns a 4xx with
+  // no actionable body, "Please try again" misleads the user into
+  // hammering a permanently broken endpoint. A 4xx is non-retryable by
+  // definition (client-side fault OR backend feature-flag off), so
+  // route the user to contact support — the only path that actually
+  // unblocks them.
+  if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+    return "Upgrade isn't available right now. Contact support@usetheo.dev — they'll get you unblocked.";
+  }
+  // 5xx + network failures stay retryable.
+  return 'Failed to start checkout. Please try again in a moment.';
 }
 import { formatDate, formatNumber } from '@/lib/format';
 
@@ -153,7 +163,18 @@ export function BillingPage() {
     setActionLoading(true);
     setActionError('');
     try {
-      const portal = await cloudFetch<{ url: string }>('/v1/billing/portal');
+      // Red Team theo-cloud#49/#69 closure: previously this fetch ran in
+      // the default `T | null` mode, so a non-2xx (the canonical case for
+      // a Free-tier visitor — there's no Stripe subscription to manage
+      // yet) returned null silently and the button looked like a no-op.
+      // Opt into throwOnError so the catch branch surfaces the server's
+      // actionable message (or the canonical 4xx→support copy) just
+      // like upgradePlan does.
+      const portal = await cloudFetch<{ url: string }>(
+        '/v1/billing/portal',
+        undefined,
+        { throwOnError: true },
+      );
       if (portal?.url) {
         // qa-sprint2-cleanup-2026-06-24 T2.2 — closes theo-cloud#15
         // (BLOCKER ux_friction: Manage Plan click was inert).
@@ -169,10 +190,14 @@ export function BillingPage() {
         // integration#redirect-to-portal). No gesture-activation requirement.
         window.location.href = portal.url;
       } else {
-        setActionError('Failed to open billing portal. Please try again.');
+        // 2xx with no `url` is the contract gap; preserve the existing
+        // safety-net copy.
+        setActionError('Failed to open billing portal. Please try again in a moment.');
       }
-    } catch {
-      setActionError('Failed to open billing portal. Please try again.');
+    } catch (err) {
+      // Reuse the same 4xx→support / 5xx→retry routing as upgradePlan
+      // so the user gets one consistent message family.
+      setActionError(extractActionableErrorMessage(err));
     } finally {
       setActionLoading(false);
     }
@@ -342,8 +367,15 @@ export function BillingPage() {
           <button
             type="button"
             onClick={() => upgradePlan('pro')}
+            disabled={actionLoading}
+            // Red Team theo-cloud#72 closure: disable on the first
+            // click so a double-tap can't fire two POST /v1/billing/
+            // checkout requests in quick succession. This is the
+            // client-side guard; the Stripe Idempotency-Key bucket
+            // (internal/billing) is the server-side guard.
+            aria-busy={actionLoading || undefined}
             aria-label="Upgrade to Pro — $29 per month"
-            className="text-left rounded-lg border border-border bg-card text-card-foreground cursor-pointer hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="text-left rounded-lg border border-border bg-card text-card-foreground cursor-pointer hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Card.Body className="p-6">
               <Sparkles className="size-5 text-primary mb-3" aria-hidden="true" />
@@ -360,8 +392,10 @@ export function BillingPage() {
           <button
             type="button"
             onClick={() => upgradePlan('team')}
+            disabled={actionLoading}
+            aria-busy={actionLoading || undefined}
             aria-label="Upgrade to Team — $99 per month"
-            className="text-left rounded-lg border border-border bg-card text-card-foreground cursor-pointer hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="text-left rounded-lg border border-border bg-card text-card-foreground cursor-pointer hover:border-primary/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Card.Body className="p-6">
               <Sparkles className="size-5 text-primary mb-3" aria-hidden="true" />

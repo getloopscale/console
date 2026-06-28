@@ -67,7 +67,7 @@ export function CreateProjectSheet({ open, onOpenChange, onCreated }: CreateProj
           <Sheet.Header className="px-6 py-5 border-b border-border/60">
             <Sheet.Title>New project</Sheet.Title>
             <Sheet.Description>
-              Register a new project. The full GitHub picker + framework detect wizard lands in a future iter.
+              Give your project a name. Connect it to a repository in the next step.
             </Sheet.Description>
           </Sheet.Header>
 
@@ -82,13 +82,33 @@ export function CreateProjectSheet({ open, onOpenChange, onCreated }: CreateProj
                 onChange={(e) => setName(e.target.value.toLowerCase())}
                 autoFocus
                 required
+                // Red Team theo-cloud#83 closure: tie the input to its
+                // inline help + (when present) the destructive Alert so
+                // screen readers announce the validation error when the
+                // field has focus instead of forcing the user to hunt
+                // for the detached Alert region.
+                aria-invalid={error ? true : undefined}
+                aria-describedby={
+                  error
+                    ? 'project-name-help project-name-error'
+                    : 'project-name-help'
+                }
               />
-              <p className="mt-1 text-label text-muted-foreground">
+              <p
+                id="project-name-help"
+                className="mt-1 text-label text-muted-foreground"
+              >
                 Lowercase, 3-40 chars, hyphens allowed. Used in URLs.
               </p>
             </div>
 
-            {error && <Alert intent="destructive" description={error} />}
+            {error && (
+              <Alert
+                id="project-name-error"
+                intent="destructive"
+                description={error}
+              />
+            )}
           </Sheet.Body>
 
           <Sheet.Footer className="px-6 py-4 border-t border-border/60 gap-2">

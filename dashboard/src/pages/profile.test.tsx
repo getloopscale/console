@@ -55,4 +55,45 @@ describe('ProfilePage', () => {
     // ConfirmDialog opens with confirmationPhrase={email} (paulo@example.com)
     expect(screen.getByText(/This will permanently delete your account/i)).toBeInTheDocument();
   });
+
+  // Red Team theo-cloud#79 closure: the /profile page used to jump h1
+  // ("Profile") → h3 ("Account"), skipping h2. The Card.Title default of
+  // h3 was promoted to h2 via asChild so the heading outline reads
+  // unbroken to screen readers.
+  it('profile page heading hierarchy goes h1 → h2 without skipping (#79)', () => {
+    render(<ProfilePage />);
+    const headings = screen.getAllByRole('heading');
+    const levels = headings.map((h) => parseInt(h.tagName.slice(1), 10));
+    for (let i = 1; i < levels.length; i++) {
+      expect(levels[i]).toBeLessThanOrEqual(levels[i - 1] + 1);
+    }
+    expect(levels).toContain(2);
+  });
+
+  // Red Team theo-cloud#71 closure: a 20 000-char display name made
+  // document.body.scrollWidth balloon to 179 512px (vs viewport 1850px).
+  // The fix is structural — the name <p> MUST carry max-width + overflowWrap
+  // so a runaway string can never blow out the page layout regardless of
+  // what shipped through Kratos (the server-side schema cap closes #65 in
+  // parallel; this protects against any future bypass).
+  it('long display name is layout-bounded via max-width + overflowWrap (#71)', () => {
+    // Re-mock identity with a 20 000-char name to exercise the path.
+    vi.doMock('@/hooks/use-auth', () => ({
+      useRequireAuth: () => ({
+        active: true,
+        identity: {
+          id: 'sess-71',
+          traits: { email: 'paulo@example.com', name: 'A'.repeat(20_000) },
+        },
+      }),
+    }));
+    render(<ProfilePage />);
+    const nameEl = screen.getByTestId('profile-name') as HTMLElement;
+    // RED #71: the inline style MUST set overflowWrap so a giant token
+    // breaks intra-word (browsers honor `anywhere` strictly).
+    expect(nameEl.style.overflowWrap).toBe('anywhere');
+    // RED #71: a max-width class MUST be present so the column refuses
+    // to grow horizontally past the card edge.
+    expect(nameEl.className).toMatch(/max-w-/);
+  });
 });

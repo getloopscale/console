@@ -24,6 +24,16 @@ vi.mock('@/lib/kratos', async () => {
   };
 });
 
+// Red Team theo-cloud#54 closure: the recovery page now calls getSession()
+// on mount to detect an active session and surface the explicit notice.
+// Tests default to `null` (no session) so the existing flow tests are
+// unaffected; the #54 test flips this to a truthy session.
+const mockGetSession = vi.fn().mockResolvedValue(null);
+vi.mock('@/lib/auth', () => ({
+  getSession: (...args: unknown[]) => mockGetSession(...args),
+  logout: vi.fn(),
+}));
+
 import { RecoveryPage } from './recovery';
 
 function emailPhaseFlow() {
@@ -95,6 +105,10 @@ describe('RecoveryPage', () => {
     // resetAllMocks clears BOTH call history AND queued mockResolvedValueOnce
     // implementations — prevents test pollution from leaked queued mocks.
     vi.resetAllMocks();
+    // Re-seed the canonical default for getSession (null = anonymous).
+    // Without this, the post-reset mock returns undefined and the
+    // RecoveryPage useEffect blows up trying to .then() it.
+    mockGetSession.mockResolvedValue(null);
   });
 
   it('test_recovery_renders_email_input', async () => {
@@ -565,6 +579,40 @@ describe('RecoveryPage', () => {
     });
     const backLink = screen.getByRole('link', { name: /back to login/i });
     expect(backLink.className).toMatch(/min-h-\[44px\]|min-h-11|h-11|py-3|py-4/);
+  });
+
+  // Red Team theo-cloud#54 closure: an authenticated visitor at /recovery
+  // MUST see an explicit "you're already signed in" notice instead of
+  // being silently bounced to the dashboard by Kratos.
+  it('shows explicit notice when an active session is detected (#54)', async () => {
+    mockGetFlow.mockResolvedValueOnce(emailPhaseFlow());
+    mockGetSession.mockResolvedValueOnce({
+      active: true,
+      identity: { id: 'sess-54', traits: { email: 'p@x' } },
+    });
+    render(<RecoveryPage />, { initialEntries: ['/recovery?flow=rec-flow-1'] });
+    await waitFor(() => {
+      expect(screen.getByText(/you're already signed in/i)).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole('button', { name: /sign out and continue/i }),
+    ).toBeInTheDocument();
+  });
+
+  // Red Team theo-cloud#80 closure: the recovery code input MUST set
+  // inputmode=numeric so mobile keyboards open the numeric pad, and
+  // autocomplete=one-time-code so iOS / Android / Chrome offer the
+  // OS-extracted SMS / email code as autofill. Both are tiny no-cost
+  // attribute additions that unlock a measurable UX win.
+  it('recovery code input has inputmode=numeric + autocomplete=one-time-code (#80)', async () => {
+    mockGetFlow.mockResolvedValueOnce(codePhaseFlow());
+    render(<RecoveryPage />, { initialEntries: ['/recovery?flow=rec-flow-1'] });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Recovery code')).toBeInTheDocument();
+    });
+    const codeInput = screen.getByLabelText('Recovery code') as HTMLInputElement;
+    expect(codeInput.getAttribute('inputmode')).toBe('numeric');
+    expect(codeInput.getAttribute('autocomplete')).toBe('one-time-code');
   });
 
   it('test_recovery_email_input_has_visible_label_closes_26', async () => {

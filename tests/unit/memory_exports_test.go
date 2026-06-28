@@ -31,7 +31,6 @@ func newExportsHandler(t *testing.T) (*routes.MemoryExportsHandler, sqlmock.Sqlm
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
 	fake := &fakeTheMemory{
 		listResp: &themory.ListResult{Memories: []themory.MemoryRow{
 			{ID: "m1", Content: "fact"},
@@ -39,7 +38,17 @@ func newExportsHandler(t *testing.T) (*routes.MemoryExportsHandler, sqlmock.Sqlm
 	}
 	// Worker delay 0 → completes synchronously in tests (no goroutine wait).
 	// Export dir is a t.TempDir so files clean up automatically.
-	return routes.NewMemoryExportsHandler(db, fake, nil, t.TempDir(), 0), mock
+	h := routes.NewMemoryExportsHandler(db, fake, nil, t.TempDir(), 0)
+	// Red Team theo-cloud#104 closure: wait for the detached worker
+	// goroutines BEFORE the TempDir cleanup + sqlmock close fire,
+	// otherwise the worker can race the test teardown — observable as
+	// `sql: database is closed` warnings and `directory not empty`
+	// TempDir errors under `-race`. The Cleanup stack is LIFO, so we
+	// register the wait FIRST (it runs LAST), then the db.Close (runs
+	// AFTER the worker is joined).
+	t.Cleanup(h.WaitForWorkers)
+	t.Cleanup(func() { _ = db.Close() })
+	return h, mock
 }
 
 func TestMemoryExports_CreateRejectsUnauthenticated(t *testing.T) {

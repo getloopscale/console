@@ -89,11 +89,21 @@ export function useOnboardingState() {
 
   // Derive auto-tracked steps from API state. User-confirmed step
   // (cli_installed) reads from persisted localStorage only (EC-14).
+  //
+  // Red Team theo-cloud#56 closure: a successful deploy is rigorous
+  // proof the user installed the CLI — the deploy command is the only
+  // path to write to the engine. When `deploy_succeeded` is true,
+  // cli_installed auto-flips too, regardless of whether the user
+  // ticked the "I installed it" CTA. This closes the case where an
+  // experienced user goes "Sign in → CLI install → deploy" without
+  // ever visiting the onboarding panel and is then told they still
+  // need to do steps 1 + 4.
+  const deploySucceeded = builds.some((b) => b.status === 'succeeded');
   const steps: OnboardingSteps = {
-    cli_installed: persistedState.steps.cli_installed,
+    cli_installed: persistedState.steps.cli_installed || deploySucceeded,
     logged_in: !!whoami,
     project_initialized: projects.length > 0,
-    deploy_succeeded: builds.some((b) => b.status === 'succeeded'),
+    deploy_succeeded: deploySucceeded,
     domain_added: (domainsData?.domains?.length ?? 0) > 0,
   };
 

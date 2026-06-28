@@ -22,7 +22,7 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/use-projects';
 import { useCloudApi } from '@/hooks/use-api';
-import { formatNumber, isZeroTime } from '@/lib/format';
+import { formatDate, formatNumber, isZeroTime } from '@/lib/format';
 
 interface UsageMetricShape {
   used: number;
@@ -245,14 +245,20 @@ export function OverviewPage() {
                       // Zero-time guard (#118 T3.1): backend now serializes
                       // *time.Time omitempty so absent → undefined here;
                       // isZeroTime catches legacy zero-literal regress.
-                      // ProjectCard requires a string — pass empty string so
-                      // the card's own internal null-guard renders the empty
-                      // state ("Never deployed") rather than a relative-time
-                      // print of `new Date('')`.
+                      // Red Team theo-cloud#53/#76 closure: previously we
+                      // forwarded the raw RFC3339Nano ISO string and let
+                      // ProjectCard render it verbatim — producing the
+                      // "2026-06-26T14:16:43.712767Z" leak the Red Team
+                      // caught. We now humanize via the same canonical
+                      // `formatDate(..., 'relative')` helper the /projects
+                      // list uses on line 126, so both views render
+                      // identical "32 minutes ago"-style copy. Empty
+                      // string still routes ProjectCard's internal
+                      // null-guard to "Never deployed".
                       lastDeployedAt:
                         !p.last_deploy || isZeroTime(p.last_deploy)
                           ? ''
-                          : p.last_deploy,
+                          : formatDate(p.last_deploy, 'relative'),
                       framework: p.apps?.[0]?.framework,
                     }}
                     href={`/projects/${p.name}`}
