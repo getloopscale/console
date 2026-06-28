@@ -144,7 +144,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 1. `NOT NULL` flip with residual NULLs → pre-flight `COUNT(*) WHERE account_id IS NULL` gate before the migration; abort if non-zero.
 2. SDK breakage from JWT change → keep `account_id` optional in the contract for the transition; consumer-driven contract test in `theo-contracts`.
 
-### M4 — [ ] Engine project-cap enforcement
+### M4 — [x] Engine project-cap enforcement
 
 **Objective:** make the per-Account project cap actually BIND — enforce it at the engine's project-creation path, closing the enforcement descoped from M2 (M2 resolved the cap per-Account but never enforced it at creation, because projects/AI-agents are created in the engine, not via tenant-creation in theo-cloud). Implementation lands in the `theo` engine repo; tracked here as the account-tenancy follow-up, like the M2/M3 migrations.
 
