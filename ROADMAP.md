@@ -144,6 +144,25 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 1. `NOT NULL` flip with residual NULLs → pre-flight `COUNT(*) WHERE account_id IS NULL` gate before the migration; abort if non-zero.
 2. SDK breakage from JWT change → keep `account_id` optional in the contract for the transition; consumer-driven contract test in `theo-contracts`.
 
+### M4 — [ ] Engine project-cap enforcement
+
+**Objective:** make the per-Account project cap actually BIND — enforce it at the engine's project-creation path, closing the enforcement descoped from M2 (M2 resolved the cap per-Account but never enforced it at creation, because projects/AI-agents are created in the engine, not via tenant-creation in theo-cloud). Implementation lands in the `theo` engine repo; tracked here as the account-tenancy follow-up, like the M2/M3 migrations.
+
+**Definition of done:**
+
+- [ ] Engine project-creation resolves the Account's cap (`tenant → account → plan_limits`) and rejects the (N+1)th project beyond the cap with a typed error + HTTP 422 (`PROJECT_CAP_EXCEEDED`), mirroring the canonical `REPLICAS_EXCEED_PLAN` pattern (Red Team theo-cloud#101).
+- [ ] Negative-case test: a Starter Account (cap=1) creating a 2nd project gets the typed error (closes the M2-descoped quota bullet).
+- [ ] Concurrency: two simultaneous creations at the cap boundary cannot both succeed (atomic count+insert — per-account advisory lock OR conditional/unique insert), proven under `go test -race`.
+- [ ] Unlimited plan (enterprise, cap=NULL) is never blocked; grandfathered over-cap accounts keep their existing projects (block-new-only — no retroactive break or read failure).
+- [ ] Runtime metric `plan_limit_violations{metric="max_projects_per_account"}` increments on rejection (wiring triad pillar c — observability).
+
+**Dependencies:** M2, M3.
+
+**Top risks:**
+
+1. Check-then-create race → two concurrent creations both read `count < cap` and both insert, overrunning the cap. Mitigation: atomic count+insert (per-account advisory lock OR conditional/unique insert) + `-race` boundary test.
+2. Mutable cap / grandfathered accounts → a plan downgrade (cap drops below current count) or accounts already over cap. Enforcement bars NEW creation without breaking existing projects or failing reads (explicit block-new-only, tested).
+
 ---
 
 ## State-of-the-art references
