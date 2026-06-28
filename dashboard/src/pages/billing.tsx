@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Brain, Loader2, Sparkles } from 'lucide-react';
 import {
@@ -158,8 +158,15 @@ export function BillingPage() {
 
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
+  // Red Team theo-cloud#72 closure: React 18 batches setActionLoading until
+  // the click handler returns, so two synchronous clicks both see disabled=false
+  // before the first re-render lands. A ref guard short-circuits the 2nd click
+  // SYNCHRONOUSLY (same pattern as components/domains/reverify-button.tsx EC-4).
+  const billingActionInFlightRef = useRef(false);
 
   const openPortal = async () => {
+    if (billingActionInFlightRef.current) return;
+    billingActionInFlightRef.current = true;
     setActionLoading(true);
     setActionError('');
     try {
@@ -200,10 +207,13 @@ export function BillingPage() {
       setActionError(extractActionableErrorMessage(err));
     } finally {
       setActionLoading(false);
+      billingActionInFlightRef.current = false;
     }
   };
 
   const upgradePlan = async (plan: string) => {
+    if (billingActionInFlightRef.current) return;
+    billingActionInFlightRef.current = true;
     setActionLoading(true);
     setActionError('');
     try {
@@ -230,6 +240,7 @@ export function BillingPage() {
       setActionError(extractActionableErrorMessage(err));
     } finally {
       setActionLoading(false);
+      billingActionInFlightRef.current = false;
     }
   };
 

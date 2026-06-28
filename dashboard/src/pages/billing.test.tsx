@@ -302,6 +302,34 @@ describe('BillingPage', () => {
     releaseFetch({ url: 'https://checkout.stripe.com/x' });
   });
 
+  // Red Team theo-cloud#72 re-open: React 18 batches setActionLoading until
+  // the click handler returns, so disabled={actionLoading} alone does NOT
+  // block a SYNCHRONOUS double-click. Two clicks fired before the next
+  // render both see disabled=false and both POST. A ref guard short-circuits
+  // the 2nd click synchronously; this test fires both clicks before the
+  // promise resolves and asserts cloudFetch was called exactly once.
+  it('synchronous double-click on Upgrade fires the request only once (#72 re-open)', async () => {
+    mockUseCloudApi.mockReturnValue({
+      data: { plan: 'free', team: 'acme', usage: {}, period_end: '2026-12-31' },
+      loading: false,
+      error: false,
+    });
+    let releaseFetch!: (v: { url: string }) => void;
+    mockCloudFetch.mockReturnValue(
+      new Promise<{ url: string }>((resolve) => {
+        releaseFetch = resolve;
+      }),
+    );
+    render(<BillingPage />);
+    const button = screen.getByRole('button', { name: /upgrade to pro/i }) as HTMLButtonElement;
+    // Two synchronous clicks before React can re-render — the ref guard
+    // is the only thing that can prevent both from firing.
+    button.click();
+    button.click();
+    expect(mockCloudFetch).toHaveBeenCalledTimes(1);
+    releaseFetch({ url: 'https://checkout.stripe.com/x' });
+  });
+
   // Red Team theo-cloud#40 closure: when the backend returns a 4xx with
   // no actionable body, the prior copy was "Please try again." — which
   // misleads the user into hammering a permanently non-retryable

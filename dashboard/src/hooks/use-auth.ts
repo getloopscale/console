@@ -18,18 +18,15 @@ export function useRequireAuth(): Session | null {
         return;
       }
       setSession(s);
-      // Red Team theo-cloud#50 closure: previously this awaited the
-      // JWT exchange before flipping `checked` to true, serializing
-      // TWO blocking network calls (Kratos /sessions/whoami + the
-      // BFF /v1/auth/exchange) on every page load. The exchange is
-      // NOT required for the page shell to render — `cloudFetch` /
-      // `engineFetch` call `ensureToken()` which lazily exchanges
-      // on first use. Kick off the exchange in the background so the
-      // shell paints at session-detect (one RTT, not two). Data
-      // fetchers only block on the exchange if it's still in flight
-      // when they fire, which the cached-token branch handles.
+      // Defer the JWT exchange so the shell paints at session-detect
+      // (one RTT, not two). But watch the resolution: a stale Kratos
+      // cookie returns `false` here, and without redirecting to /login
+      // every cloudFetch/engineFetch retries 401 forever — the dashboard
+      // hangs in "Loading". Closes Red Team theo-cloud#110.
       if (!hasValidToken()) {
-        void exchangeSessionToken();
+        exchangeSessionToken().then((ok) => {
+          if (!ok) navigate('/login', { replace: true });
+        });
       }
       setChecked(true);
     }

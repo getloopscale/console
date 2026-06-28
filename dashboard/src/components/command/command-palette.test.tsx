@@ -18,6 +18,18 @@ describe('CommandPalette (Sprint 2 T2.1)', () => {
     expect(input).toBeInTheDocument();
   });
 
+  // Red Team theo-cloud#57 closure: the command-palette search input was the
+  // last remaining search field without an explicit aria-label. cmdk's
+  // Command.Input has no implicit accessible name; screen readers announce it
+  // as "Edit" because the Dialog.Title is sr-only and not referenced via
+  // aria-labelledby. Add aria-label so AT users hear the field's purpose.
+  it('exposes an aria-label on the search input (#57)', () => {
+    render(
+      <CommandPalette open={true} onOpenChange={() => {}} commands={COMMANDS} />,
+    );
+    expect(screen.getByLabelText(/search commands/i)).toBeInTheDocument();
+  });
+
   it('test_renders_commands_grouped_by_category', () => {
     render(
       <CommandPalette open={true} onOpenChange={() => {}} commands={COMMANDS} />,
