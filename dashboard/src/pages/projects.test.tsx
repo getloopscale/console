@@ -84,4 +84,15 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('alpha')).toBeInTheDocument();
     expect(screen.queryByText('beta')).not.toBeInTheDocument();
   });
+
+  // Red Team theo-cloud#57 re-open: the page-level search input on /projects
+  // is rendered by PageShell.search (packaged @usetheo/ui ActionBar) which
+  // did NOT carry aria-label. A patch-package patch derives aria-label from
+  // the placeholder so screen readers announce the field even after the
+  // user starts typing (placeholder vanishes).
+  it('page-level search input has aria-label derived from placeholder (#57 re-open)', () => {
+    mockUseProjects.mockReturnValue({ projects: [], loading: false });
+    render(<ProjectsPage />);
+    expect(screen.getByLabelText('Search projects')).toBeInTheDocument();
+  });
 });
