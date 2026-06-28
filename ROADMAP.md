@@ -165,6 +165,49 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 ---
 
+### M5 — [ ] Hermetic project-cap (close deploy-path bypass #106)
+
+**Objective:** make the per-Account project cap airtight on BOTH creation paths. M4 enforced the explicit `POST /api/v1/projects` path; the deploy-time `EnsureProject` safety-net (`theo deploy <new-name>` → build-orchestrator auto-create) is a SECOND project-row insert path that does NOT consult the cap. Close it without introducing a nested-lock deadlock in the team's build-submit transaction. Tracked as `usetheodev/theo-cloud#106`. Implementation lands in the `theo` engine repo.
+
+**Definition of done:**
+
+- [ ] `EnsureProject` (deploy-time auto-create) consults the same per-Account cap as `CreateProject` before inserting a new project row; over-cap → typed rejection surfaced to the deploy flow (not a silent 500).
+- [ ] Deadlock-safe: the cap check composes with the existing build-submit transaction without nesting two advisory locks on overlapping keyspaces (discovery MUST map the build-submit tx lock order first).
+- [ ] Existing deploys to ALREADY-EXISTING projects are never blocked (cap applies only to the NEW-project branch of `EnsureProject`).
+- [ ] Concurrency: a `theo deploy <new>` racing a `POST /api/v1/projects` at the boundary can't both create — exactly one wins, `-race` proven.
+- [ ] Metric `plan_limit_violation{metric=max_projects_per_account}` increments on the deploy-path rejection too (parity with M4).
+- [ ] `#106` closed with the verification comment + evidence.
+
+**Dependencies:** M4.
+
+**Top risks:**
+
+1. Nested advisory lock → if the build-submit tx already holds a lock and the cap check takes another on a different keyspace, two concurrent deploys can deadlock. Mitigation: discovery maps the existing lock order; reuse the SAME advisory-lock key (hashtext(accountID)) or do the count+insert in the build-submit tx itself, never a second nested lock.
+2. Surfacing the typed rejection through a deploy flow that historically returned generic errors → ensure the 422-equivalent reaches the CLI/user honestly instead of being swallowed as a build failure.
+
+---
+
+### M6 — [ ] True full-chain e2e (the real user journey)
+
+**Objective:** close the most material test-coverage gap — there is no automated test that drives the REAL ecosystem chain. Today the frontend is tested with `VITE_USE_MOCKS=true` (never hits the BFF) and the backend e2e inject synthetic JWTs (never go through Kratos/browser); the two halves meet at a mocked seam. Build ONE automated full-chain test that drives a real session through every layer and asserts the outcome the user would see.
+
+**Definition of done:**
+
+- [ ] A single automated e2e drives: real Kratos login → JWT exchange at `/v1/auth/session/token` → authenticated call through the theo-cloud BFF → engine/memory data path → assertion on the real response (no `VITE_USE_MOCKS`, no synthetic seeded JWT).
+- [ ] The test proves account-tenancy holds across the REAL chain: a tenant-A session cannot read tenant-B data end-to-end (not stubbed `captureMinter` — real broker → real themory).
+- [ ] Includes a project-cap scenario across the chain (ties in M5: a deploy/create beyond cap is rejected end-to-end).
+- [ ] Runs in CI: a workflow stage spins up the Model B stack (themory + pgvector + mock-openai + theo-cloud + kratos) and runs the chain; full-stack e2e (`memory_e2e`, `edge_forward_auth_e2e`) gain proper skip-guards so `go test ./...` stays clean while CI runs the real thing.
+- [ ] Honest seam documentation: a short doc records exactly what the full-chain test covers vs. what stays unit/mocked, so future readers don't mistake coverage.
+
+**Dependencies:** M3 (JWT account_id propagation), M5 (hermetic cap, so the cap scenario is meaningful), the Model B dev stack (`make dev-up`).
+
+**Top risks:**
+
+1. Headless Kratos login flakiness → driving the real auth flow in CI can be brittle (CSRF tokens, redirects, email verification). Mitigation: discovery maps the dev-stack auth shortcuts already used by `dev/run.sh`; use the same provisioning path, not the production email loop.
+2. CI cost/time → spinning the full Model B stack per run is heavy. Mitigation: gate the full-chain stage to run on release PRs / nightly, not every push; keep the fast Go/vitest suites on every push.
+
+---
+
 ## State-of-the-art references
 
 No peers were cloned for this roadmap: the design is locked in the ADR and the reference model is
