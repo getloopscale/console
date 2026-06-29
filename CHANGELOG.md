@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- MCP-aware authz endpoint `POST/GET /internal/authz/mcp-resolve` for the Theo MCP Gateway (gateway-themory-integration). Unlike the Traefik `/internal/authz/forward` (which returns only the minted `Authorization` header for the edge to copy upstream), this endpoint returns the full **principal** as JSON `{tenant_id, downstream_key, scopes}` so the gateway can run its own per-tenant tool gate + tenant attribution. It reuses the SAME auth fabric (`auth.ResolveAPIKey`), per-tenant broker (`themory.Broker.KeyForTenantScoped`, least-privilege), and 3 guards as ForwardAuth (resolve → scope → M1 cross-account), preserving the identical fail-closed deny matrix (503 infra / 401 invalid / 403 scope|cross-account / 503 mint — never a principal on deny). MCP-aware + multiplexing: the fronted capability is selected by the `X-Theo-Capability` header against a binding map (a new capability is one map entry, not a new handler + redeploy); an unknown capability is a fail-closed 403 before any validation. Secret-free (the minted/consumer key is never logged). Mounted only when the themory broker is configured; internal-only (the gateway is the sole caller, outside any auth middleware because it IS the auth).
 
 ### Changed
 
