@@ -121,4 +121,31 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Preview')).toBeInTheDocument();
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
   });
+
+  // Red Team theo-cloud#77 second-pass (2026-06-29): the previous fix
+  // required production_env_count===0, but the LIVE state captured is
+  // production_env_count===1 (env PROVISIONED but with active_release=null)
+  // — the latest deploy was preview, prod was never released. Detail
+  // page correctly says "URL PENDING / no production release" yet the
+  // list shows "Live". Per Red Team prescription: badge MUST derive
+  // from `latest_build_environment === 'preview'` ALONE (preview deploy
+  // ⇒ preview badge), regardless of prod env shell existence.
+  it('renders Preview badge when production_env_count=1 but latest_build_environment=preview (env provisioned, no prod release — #77 second-pass)', () => {
+    mockUseProjects.mockReturnValue({
+      projects: [
+        {
+          name: 'theokit-example',
+          last_deploy_status: 'live',
+          production_env_count: 1,
+          latest_build_environment: 'preview',
+          apps: [],
+        },
+      ],
+      loading: false,
+    });
+    render(<ProjectsPage />);
+    expect(screen.getByText('theokit-example')).toBeInTheDocument();
+    expect(screen.getByText('Preview')).toBeInTheDocument();
+    expect(screen.queryByText('Live')).not.toBeInTheDocument();
+  });
 });

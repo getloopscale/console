@@ -43,17 +43,17 @@ function ProjectRow({
   // "last_deploy presence" heuristic. FAILED builds no longer render
   // as Idle.
   const rawStatus = p.last_deploy_status ?? 'idle';
-  // Red Team theo-cloud#77 re-open (2026-06-28): the engine mapper
-  // `pkg/enforcement.MapProjectStatus` returns 'live' for projects whose
-  // only ACTIVE release lives in a preview env_target — so theokit-example
-  // surfaces last_deploy_status='live' while production_env_count=0 AND
-  // latest_build_environment='preview'. The user-path proof (#77) requires
-  // the projects-list badge to call those preview-only projects "Preview",
-  // not "Live". Derive the override from the two server-side signals that
-  // are not in dispute and force the preview label regardless of the
-  // mapper's verdict. See feedback_ready_to_read_team_user_path_not_serverside_2026_06_25.
-  const isPreviewOnly =
-    p.production_env_count === 0 && p.latest_build_environment === 'preview';
+  // Red Team theo-cloud#77 second-pass (2026-06-29): the previous fix
+  // required production_env_count===0, but the LIVE state Red Team captured
+  // is production_env_count===1 with active_release=null — the prod env
+  // shell was provisioned but no release ever served it; the latest deploy
+  // was a preview. The detail page correctly shows "URL PENDING / no
+  // production release" yet the list says "Live". The list badge MUST
+  // derive solely from the latest build target: a preview deploy ⇒ Preview
+  // badge, regardless of how many prod env shells exist. The engine mapper
+  // pkg/enforcement.MapProjectStatus aggregates across envs and is therefore
+  // unreliable for this list-level question.
+  const isPreviewOnly = p.latest_build_environment === 'preview';
   const projectStatus = isPreviewOnly ? 'preview' : rawStatus;
   // Map our 6-value enum onto @usetheo/ui's StatusKind (which lacks
   // 'queued' and 'preview'). Queued semantically belongs with `building`
