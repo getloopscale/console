@@ -15,6 +15,22 @@
 
 http:
   routers:
+    # theo-workspace#7: gateway-OWNED customer paths under /v1/memory. These are
+    # theo-cloud's own scope-guarded (theo_live_*) mounts (skills authoring/list,
+    # exports, webhooks) — NOT themory data verbs. They MUST reach the BFF, not be
+    # rewritten to themory (→ 404). Priority 110 beats memory-edge(100). NO
+    # middlewares: (a) no memory-rewrite — theo-cloud owns the /v1/memory/* path
+    # verbatim; (b) no forward-auth — the customer's theo_live_* key must reach
+    # theo-cloud's RequireScope intact (forward-auth would Del-then-set it to a
+    # themory-minted key that pg-cloud cannot resolve → 401). theo-cloud does its
+    # OWN Model B broker exchange downstream to themory.
+    memory-gateway-edge:
+      priority: 110
+      rule: "PathPrefix(`/v1/memory/skills`) || PathPrefix(`/v1/memory/exports`) || PathPrefix(`/v1/memory/webhooks`)"
+      entryPoints:
+        - web
+      service: theo-cloud-bff
+
     # Capability namespace — highest priority so it always beats the /v1 BFF route.
     memory-edge:
       priority: 100

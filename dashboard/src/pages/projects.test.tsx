@@ -95,4 +95,57 @@ describe('ProjectsPage', () => {
     render(<ProjectsPage />);
     expect(screen.getByLabelText('Search projects')).toBeInTheDocument();
   });
+
+  // Red Team theo-cloud#77 re-open (2026-06-28): the engine
+  // MapProjectStatus returns last_deploy_status='live' for theokit-example
+  // even when production_env_count===0 AND latest_build_environment==='preview'
+  // (preview-only project). The /projects table MUST derive isPreviewOnly
+  // from those two fields and render the "Preview" badge regardless of
+  // the engine's misleading 'live' verdict. User-path proof per
+  // feedback_ready_to_read_team_user_path_not_serverside_2026_06_25.
+  it('renders Preview badge when production_env_count=0 and latest_build_environment=preview, overriding last_deploy_status=live (#77 re-open)', () => {
+    mockUseProjects.mockReturnValue({
+      projects: [
+        {
+          name: 'theokit-example',
+          last_deploy_status: 'live',
+          production_env_count: 0,
+          latest_build_environment: 'preview',
+          apps: [],
+        },
+      ],
+      loading: false,
+    });
+    render(<ProjectsPage />);
+    expect(screen.getByText('theokit-example')).toBeInTheDocument();
+    expect(screen.getByText('Preview')).toBeInTheDocument();
+    expect(screen.queryByText('Live')).not.toBeInTheDocument();
+  });
+
+  // Red Team theo-cloud#77 second-pass (2026-06-29): the previous fix
+  // required production_env_count===0, but the LIVE state captured is
+  // production_env_count===1 (env PROVISIONED but with active_release=null)
+  // — the latest deploy was preview, prod was never released. Detail
+  // page correctly says "URL PENDING / no production release" yet the
+  // list shows "Live". Per Red Team prescription: badge MUST derive
+  // from `latest_build_environment === 'preview'` ALONE (preview deploy
+  // ⇒ preview badge), regardless of prod env shell existence.
+  it('renders Preview badge when production_env_count=1 but latest_build_environment=preview (env provisioned, no prod release — #77 second-pass)', () => {
+    mockUseProjects.mockReturnValue({
+      projects: [
+        {
+          name: 'theokit-example',
+          last_deploy_status: 'live',
+          production_env_count: 1,
+          latest_build_environment: 'preview',
+          apps: [],
+        },
+      ],
+      loading: false,
+    });
+    render(<ProjectsPage />);
+    expect(screen.getByText('theokit-example')).toBeInTheDocument();
+    expect(screen.getByText('Preview')).toBeInTheDocument();
+    expect(screen.queryByText('Live')).not.toBeInTheDocument();
+  });
 });

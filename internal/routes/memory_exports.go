@@ -255,10 +255,16 @@ func (h *MemoryExportsHandler) WaitForWorkers() {
 	h.workers.Wait()
 }
 
-// runWorker materialises the export on disk. v0.1 is intentionally simple:
-// fetch a single page of memories, write a JSON file, update the row.
-// Production should add: pagination over the full set, error reporting,
-// stale-job reaper. Documented Out of Scope in the plan's Risks table.
+// exportPageSize is the per-request page size when listing memories for an
+// export. TheMemory caps the scope-list `limit` at 100 (zod `.max(100)`, same
+// as recall `topK`); requesting more 422s and fails the whole export
+// (usetheodev/theo-workspace#6). The worker pages through the full set in
+// chunks of this size, following the provider's opaque cursor.
+const exportPageSize = 100
+
+// runWorker materialises the export on disk: page through ALL the subject's
+// memories within the provider's page-size cap, write a JSON file, update the
+// row. Stale-job reaper remains Out of Scope (plan Risks table).
 func (h *MemoryExportsHandler) runWorker(id, subject, tenantID string) {
 	if h.workerDelay > 0 {
 		time.Sleep(h.workerDelay)
@@ -272,10 +278,23 @@ func (h *MemoryExportsHandler) runWorker(id, subject, tenantID string) {
 	// Move to 'running' so the dashboard can show progress.
 	_, _ = h.db.ExecContext(bg, `UPDATE memory_exports SET status = 'running' WHERE id = $1`, id)
 
-	memories, err := h.client.List(bg, subject, themory.ListOptions{Limit: 200})
-	if err != nil {
-		h.failExport(bg, id, fmt.Sprintf("memory list failed: %v", err))
-		return
+	// Page through the full set in <=exportPageSize chunks, following the
+	// provider's opaque cursor. A single oversized request (Limit:200) 422s and
+	// fails every export (#6); a naive clamp to one page would silently truncate
+	// to the first 100 — data loss. Both are avoided by exhausting the cursor.
+	memories := make([]themory.MemoryRow, 0)
+	cursor := ""
+	for {
+		page, err := h.client.List(bg, subject, themory.ListOptions{Limit: exportPageSize, Cursor: cursor})
+		if err != nil {
+			h.failExport(bg, id, fmt.Sprintf("memory list failed: %v", err))
+			return
+		}
+		memories = append(memories, page.Memories...)
+		if page.NextCursor == nil || *page.NextCursor == "" {
+			break
+		}
+		cursor = *page.NextCursor
 	}
 
 	if err := os.MkdirAll(h.exportDir, 0o750); err != nil {
@@ -292,7 +311,9 @@ func (h *MemoryExportsHandler) runWorker(id, subject, tenantID string) {
 	}
 	defer func() { _ = f.Close() }()
 
-	if err := json.NewEncoder(f).Encode(memories); err != nil {
+	// Preserve the on-disk shape ({"memories":[...]}) the single-page worker
+	// wrote (it encoded the *ListResult). NextCursor is nil here (set exhausted).
+	if err := json.NewEncoder(f).Encode(&themory.ListResult{Memories: memories}); err != nil {
 		h.failExport(bg, id, fmt.Sprintf("encode failed: %v", err))
 		return
 	}

@@ -239,6 +239,7 @@ func main() {
 	// platform-api-gateway-edge-slice1 (M6): the ForwardAuth authz-brain the
 	// Traefik edge delegates to. Reuses the broker (per-tenant mint) + ResolveAPIKey.
 	var forwardAuthHandler *routes.ForwardAuthHandler
+	var mcpResolveHandler *routes.MCPResolveHandler
 	if cfg.ThemoryBaseURL != "" {
 		themoryHTTP := &http.Client{
 			Timeout:   30 * time.Second,
@@ -290,6 +291,24 @@ func main() {
 				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
 			},
 			"memory:read",
+			logger,
+		)
+
+		// gateway-themory-integration (D1/D2): the MCP-aware resolve endpoint the
+		// Theo MCP Gateway's BrokerResolver calls. Reuses the SAME auth fabric +
+		// per-tenant broker as ForwardAuth, but returns the full principal as JSON
+		// (tenant + minted key + scopes) so the gateway can run its own M2 tool gate.
+		// Capability is selected by the X-Theo-Capability header (multiplexing).
+		mcpResolveHandler = routes.NewMCPResolveHandler(
+			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+			},
+			func(ctx context.Context, accountID, tenantID string) (bool, error) {
+				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+			},
+			map[string]routes.MCPCapabilityBinding{
+				"memory": {Minter: themoryBroker, RequiredScope: "memory:read"},
+			},
 			logger,
 		)
 
@@ -449,6 +468,13 @@ func main() {
 	if promptlyForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
+	}
+	// gateway-themory-integration: the MCP-aware resolve endpoint the Theo MCP
+	// Gateway's BrokerResolver calls. Internal-only (the gateway is the caller),
+	// outside any auth middleware because it IS the auth. GET + POST.
+	if mcpResolveHandler != nil {
+		r.Get(routes.AuthzMCPResolvePath, mcpResolveHandler.ServeHTTP)
+		r.Post(routes.AuthzMCPResolvePath, mcpResolveHandler.ServeHTTP)
 	}
 
 	// Auth endpoints (no auth — these ARE the auth flow)

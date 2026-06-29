@@ -131,6 +131,59 @@ func memoryRouteTargetsBff(cfg string) bool {
 	return false
 }
 
+// routerBlock returns the YAML lines belonging to a named router block (from its
+// 4-space header until the next router header at the same indent).
+func routerBlock(cfg, router string) string {
+	in := false
+	var b strings.Builder
+	for _, ln := range strings.Split(cfg, "\n") {
+		if routerHeaderRe.MatchString(ln) {
+			if in {
+				break // reached the next router
+			}
+			if strings.TrimSpace(ln) == router+":" {
+				in = true
+				continue
+			}
+		}
+		if in {
+			b.WriteString(ln)
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
+func TestTraefikDynamicConfig_GatewaySubpathsReachBffNotThemory(t *testing.T) {
+	// theo-workspace#7: theo-cloud's customer-facing /v1/memory/{skills,exports,webhooks}
+	// mount (RequireScope on theo_live_*) was shadowed by memory-edge (priority 100),
+	// which rewrites /v1/memory/* to themory's native path → 404 for these gateway-owned
+	// routes. A dedicated higher-priority router must front them to the BFF, with:
+	//   - NO memory-rewrite (theo-cloud owns the /v1/memory/* path verbatim), and
+	//   - NO forward-auth (the customer theo_live_* must reach RequireScope intact;
+	//     forward-auth swaps it for a themory-minted key pg-cloud cannot resolve → 401).
+	cfg := readConfig(t, "dynamic.yml")
+
+	for _, p := range []string{"/v1/memory/skills", "/v1/memory/exports", "/v1/memory/webhooks"} {
+		mustContain(t, cfg, "PathPrefix(`"+p+"`)", "gateway-edge router fronts "+p)
+	}
+	gw := routerPriority(t, cfg, "memory-gateway-edge")
+	mem := routerPriority(t, cfg, "memory-edge")
+	if !(gw > mem) {
+		t.Errorf("memory-gateway-edge(%d) must out-rank memory-edge(%d) so the gateway paths are not shadowed → themory 404", gw, mem)
+	}
+	block := routerBlock(cfg, "memory-gateway-edge")
+	if !strings.Contains(block, "theo-cloud-bff") {
+		t.Error("memory-gateway-edge must route to theo-cloud-bff (the gateway owns these paths)")
+	}
+	if strings.Contains(block, "memory-rewrite") {
+		t.Error("memory-gateway-edge must NOT apply memory-rewrite — theo-cloud owns /v1/memory/* verbatim")
+	}
+	if strings.Contains(block, "forward-auth") {
+		t.Error("memory-gateway-edge must NOT apply forward-auth — the customer theo_live_* key must reach RequireScope intact")
+	}
+}
+
 func TestTraefikStaticConfig_TracingDisabled(t *testing.T) {
 	// D4: a `tracing:` block would capture the minted Authorization into spans.
 	cfg := readConfig(t, "traefik.yml")
