@@ -14,6 +14,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -187,3 +190,88 @@ func TestMemoryExports_CrossTenantStatusReturns404(t *testing.T) {
 // sqlNoRowsErr returns the sentinel sqlmock surfaces when a QueryRow Scan
 // finds zero rows. Mirrors sqlmockErrNoRows() from the scope_middleware_test.go.
 func sqlNoRowsErr() error { return sqlmockErrNoRows() }
+
+// issue #6 regression: the export worker must page through ALL memories in
+// <=100 chunks (themory caps list page size at 100; a single Limit:200 call
+// 422s and fails every export). Drives an export to completion across 3 cursor
+// pages (100 + 100 + 50 = 250) and asserts: (a) the export file contains all
+// 250 memories (no truncation / no failure), and (b) every upstream List call
+// respected the <=100 cap and followed the provider cursor.
+func TestMemoryExports_WorkerPaginatesPastProviderCap(t *testing.T) {
+	mkRows := func(prefix string, n int) []themory.MemoryRow {
+		rows := make([]themory.MemoryRow, n)
+		for i := range rows {
+			rows[i] = themory.MemoryRow{ID: prefix + strconv.Itoa(i), Content: "fact " + prefix + strconv.Itoa(i)}
+		}
+		return rows
+	}
+	cur1, cur2 := "cursor-page-2", "cursor-page-3"
+	fake := &fakeTheMemory{
+		listLimitCap: 100, // provider rejects Limit > 100 (422 INVALID_QUERY)
+		listPagesByCursor: map[string]*themory.ListResult{
+			"":   {Memories: mkRows("a", 100), NextCursor: &cur1},
+			cur1: {Memories: mkRows("b", 100), NextCursor: &cur2},
+			cur2: {Memories: mkRows("c", 50)}, // last page — no NextCursor
+		},
+	}
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	mock.MatchExpectationsInOrder(false)
+	mock.ExpectExec("INSERT INTO memory_exports").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("UPDATE memory_exports SET status = 'running'").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("UPDATE memory_exports SET status = 'succeeded'").WillReturnResult(sqlmock.NewResult(1, 1))
+
+	dir := t.TempDir()
+	h := routes.NewMemoryExportsHandler(db, fake, nil, dir, 0)
+	t.Cleanup(h.WaitForWorkers)
+	t.Cleanup(func() { _ = db.Close() })
+
+	req := httptest.NewRequest("POST", "/v1/memory/exports", strings.NewReader(`{}`))
+	req = req.WithContext(auth.WithUser(req.Context(), &auth.UserContext{Subject: "user-A", TenantID: "tenant-A"}))
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Create: expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid Create JSON: %v", err)
+	}
+
+	h.WaitForWorkers()
+
+	// The export file must exist (a failed export writes nothing).
+	data, err := os.ReadFile(filepath.Join(dir, resp.ID+".json"))
+	if err != nil {
+		t.Fatalf("export file not written — worker failed (this is the bug: Limit:200 → 422): %v", err)
+	}
+	var parsed themory.ListResult
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("export file is not valid ListResult JSON: %v\n%s", err, data)
+	}
+	if len(parsed.Memories) != 250 {
+		t.Fatalf("export truncated/incomplete: expected 250 memories, got %d", len(parsed.Memories))
+	}
+
+	// Every upstream call must respect the cap and there must be exactly 3 pages.
+	if len(fake.listAllOpts) != 3 {
+		t.Errorf("expected 3 paged List calls, got %d (%+v)", len(fake.listAllOpts), fake.listAllOpts)
+	}
+	for i, o := range fake.listAllOpts {
+		if o.Limit > 100 {
+			t.Errorf("List call %d used Limit=%d (>100 → provider 422)", i, o.Limit)
+		}
+	}
+	// Cursor must be threaded across pages (1st empty, then provider-issued).
+	if len(fake.listAllOpts) == 3 {
+		if fake.listAllOpts[0].Cursor != "" || fake.listAllOpts[1].Cursor != cur1 || fake.listAllOpts[2].Cursor != cur2 {
+			t.Errorf("cursor not threaded across pages: %q, %q, %q",
+				fake.listAllOpts[0].Cursor, fake.listAllOpts[1].Cursor, fake.listAllOpts[2].Cursor)
+		}
+	}
+}

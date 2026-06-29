@@ -234,8 +234,11 @@ func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		From:     q.Get("from"),
 		To:       q.Get("to"),
 	}
+	// TheMemory caps the scope-list `limit` at 100 (zod `.max(100)`); forwarding
+	// more 422s INVALID_QUERY (issue #6 sibling). Out-of-range values are dropped
+	// so the provider applies its default page size instead of erroring.
 	if v := q.Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
 			opts.Limit = n
 		}
 	}

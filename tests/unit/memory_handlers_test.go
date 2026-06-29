@@ -46,6 +46,13 @@ type fakeTheMemory struct {
 
 	listResp          *themory.ListResult
 	listErr           error
+	// issue #6 (export pagination): when set, List serves pages keyed by the
+	// inbound cursor ("" = first page) and records EVERY call's opts. listLimitCap
+	// (>0) makes List reject opts.Limit > cap with a 422-shaped error, reproducing
+	// the provider's `limit <= 100` zod cap.
+	listPagesByCursor map[string]*themory.ListResult
+	listAllOpts       []themory.ListOptions
+	listLimitCap      int
 	metricsResp       *themory.MetricsResult
 	metricsErr        error
 	forgetErr         error
@@ -125,6 +132,17 @@ func (f *fakeTheMemory) Reflect(_ context.Context, userID string, opts themory.R
 func (f *fakeTheMemory) List(_ context.Context, userID string, opts themory.ListOptions) (*themory.ListResult, error) {
 	f.lastUserID = userID
 	f.lastOpts = opts
+	f.listAllOpts = append(f.listAllOpts, opts)
+	if f.listLimitCap > 0 && opts.Limit > f.listLimitCap {
+		// Reproduce the provider's 422 INVALID_QUERY when page size exceeds the cap.
+		return nil, errors.New(`themory: upstream status 422: {"code":"INVALID_QUERY","message":"Number must be less than or equal to 100"}`)
+	}
+	if f.listPagesByCursor != nil {
+		if page, ok := f.listPagesByCursor[opts.Cursor]; ok {
+			return page, nil
+		}
+		return &themory.ListResult{}, nil
+	}
 	return f.listResp, f.listErr
 }
 
@@ -194,6 +212,27 @@ func TestMemoryList_PropagatesPaginationParams(t *testing.T) {
 	}
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+// issue #6 sibling-check: the list endpoint MUST NOT forward a page size above
+// TheMemory's cap (100), or the provider 422s the same way the export worker
+// did. A caller-supplied limit > 100 must be dropped (provider applies its
+// default), never forwarded as-is.
+func TestMemoryList_DoesNotForwardLimitAboveProviderCap(t *testing.T) {
+	h, fake := newMemoryHandler(t)
+	fake.listResp = &themory.ListResult{Memories: []themory.MemoryRow{}}
+
+	req := authedRequest("GET", "/v1/memory/list?limit=150",
+		&auth.UserContext{Subject: "u", TenantID: "t"})
+	rec := httptest.NewRecorder()
+	h.List(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if fake.lastOpts.Limit > 100 {
+		t.Errorf("forwarded Limit=%d > 100 — provider would 422 (issue #6 sibling)", fake.lastOpts.Limit)
 	}
 }
 
