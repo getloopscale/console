@@ -11,7 +11,7 @@ COMPOSE_DEV := docker compose -p theo-cloud-dev -f docker-compose.dev.yaml
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build test vet e2e e2e-edge e2e-up e2e-down e2e-logs e2e-clean dev-up dev-down dev-logs dev-restart
+.PHONY: help build test vet e2e e2e-edge e2e-up e2e-down e2e-logs e2e-clean dev-up dev-down dev-logs dev-restart mcp-broker-help
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -46,6 +46,13 @@ e2e-clean: e2e-down ## Tear down + remove built e2e binaries
 
 dev-up: ## Bring up the real dev stack (apps + real LLM) for end-user validation
 	bash dev/run.sh
+
+mcp-broker-help: ## theo-cloud's role as the MCP Model B broker (mcp-resolve) in the integrated path
+	@echo "theo-cloud is the MCP Model B broker: POST /internal/authz/mcp-resolve mints a"
+	@echo "per-tenant downstream key for the Theo MCP Gateway. In the theo-workspace stack it"
+	@echo "runs as the 'theo-cloud' compose service (THEO_MCP_BROKER_URL=http://theo-cloud:13002)."
+	@echo "Integrated bring-up: theo-workspace 'make up' + 'make memory-up MODE=--mcp'."
+	@echo "See docs/mcp-model-b-broker.md."
 
 dev-down: ## Stop the dev stack (backend containers + host vite dev server)
 	-@[ -f dev/.vite.pid ] && kill "$$(cat dev/.vite.pid)" 2>/dev/null && rm -f dev/.vite.pid && echo "stopped vite dev" || true
