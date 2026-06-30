@@ -6,6 +6,8 @@
 ### Changed
 - **CI/CD runs on the self-hosted runner (GitHub-hosted minutes are billing-blocked).** Every `test-e2e` / `artifacts` run was failing in ~4 s (`"the job was not started because recent account payments have failed…"`). `test-e2e.yml` (both `e2e` + `e2e-edge` jobs) and `release-artifacts.yml` (`plan` job) now declare `runs-on: [self-hosted, linux, x64]` — the `theo-ci-theo-cloud` runner on the `theo-ci-runner` droplet. Private-module fetch (`GOMOD_TOKEN` secret) + docker-compose e2e + `-race` (host `build-essential`) all work on the runner. (Image build via the reusable `theo/build-publish.yml` becomes self-hosted once its `runner` input lands — see `theo` CHANGELOG.) (`.github/workflows/{test-e2e,release-artifacts}.yml`)
 
+- **A skill `release` + `cycle-release.md` agora consideram a geração das imagens.** Novo Step 7.4 (pós-tag): espera o workflow `artifacts` disparado pela tag `v*` no self-hosted runner — que constrói + assina (cosign keyless + SBOM/SLSA) **ambas** as imagens (`theo-cloud` + `theo-dashboard`) via o reutilizável `theo/build-publish.yml` — captura os 2 digests + verifica os 2 cosign legs, e grava `IMAGE_STATUS` no release log. Soft gate: a tag/release continuam válidas se a imagem falhar, mas o `/release` NUNCA reporta `RELEASED` limpo escondendo uma imagem que falhou (WARN + comando de backfill). (`.claude/skills/release/SKILL.md`, `.claude/rules/cycle-release.md`)
+
 ### Deprecated
 
 ### Removed
