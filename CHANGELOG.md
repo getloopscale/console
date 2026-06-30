@@ -10,6 +10,7 @@
 ### Removed
 
 ### Fixed
+- **MCP Gateway granted zero tools to real customer keys** — `mcp-resolve` now translates a consumer's data scopes (`memory:read`/`write`/`delete`) into the MCP tool names the gateway allowlist matches (`recall`, `remember`, `forget`, …) via a per-capability `ScopeTools` map, instead of passing the raw data scopes through. The downstream minted key still carries the raw data scopes (themory stays the per-verb gate); only the gateway-facing `scopes` field now carries tool names. Mirrors theo-memory's REST per-verb scope map (#77). Previously every dashboard-issued key produced an empty tool allowlist → `tools/list` returned nothing. (theo-workspace#10)
 
 ### Security
 

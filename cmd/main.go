@@ -307,7 +307,15 @@ func main() {
 				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
 			},
 			map[string]routes.MCPCapabilityBinding{
-				"memory": {Minter: themoryBroker, RequiredScope: "memory:read"},
+				// theo-workspace#10 — data scope → MCP tool names (the gateway allowlist
+				// matches scope==tool exactly). Mirrors theo-memory's REST per-verb scope
+				// map (#77): read=retrieve, write=create, delete=remove. The downstream
+				// minted key keeps the raw data scopes; themory is the per-verb gate.
+				"memory": {Minter: themoryBroker, RequiredScope: "memory:read", ScopeTools: map[string][]string{
+					"memory:read":   {"recall", "episodes", "search_memory", "list_memories"},
+					"memory:write":  {"remember", "reflect", "add_skill", "execute_skill", "add_memories"},
+					"memory:delete": {"forget", "forget_skill", "delete_memories"},
+				}},
 			},
 			logger,
 		)
