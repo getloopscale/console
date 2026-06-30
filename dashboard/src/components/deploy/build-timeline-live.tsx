@@ -1,5 +1,6 @@
 import { useDeploymentStream, type DeploymentStatus } from '@/hooks/use-deployment-stream';
 import type { BuildStep, PhaseGroup } from '@/lib/api/sse-events';
+import type { BuildStatus } from '@/lib/api/types';
 import { BuildStepCard } from './build-step-card';
 import { BuildErrorPill } from './build-error-pill';
 
@@ -23,6 +24,16 @@ export interface BuildTimelineLiveProps {
   projectName: string;
   /** Optional Last-Event-ID hint seeded from REST (EC-5). */
   initialLastEventID?: string | null;
+  /**
+   * REST-derived terminal status for the build (parent's `build.status` from
+   * `useDeployment`). Red Team theo-cloud#122 — when a build dies BEFORE any
+   * SSE step event (e.g. Argo submit Unauthorized), `steps.length === 0`
+   * AND the SSE-derived status defaults to 'queued', so the skeleton
+   * "Waiting for build to start… / Connecting to build stream…" rendered
+   * forever — contradicting the header "Failed" badge. Plumbing the REST
+   * status lets us surface an honest terminal-empty state instead.
+   */
+  restBuildStatus?: BuildStatus;
 }
 
 const PHASE_ORDER: PhaseGroup[] = ['clone', 'install', 'build', 'sign', 'deliver', 'other'];
@@ -36,17 +47,32 @@ const PHASE_LABEL: Record<PhaseGroup, string> = {
   other: 'Other',
 };
 
-export function BuildTimelineLive({ buildId, projectName, initialLastEventID }: BuildTimelineLiveProps) {
+export function BuildTimelineLive({
+  buildId,
+  projectName,
+  initialLastEventID,
+  restBuildStatus,
+}: BuildTimelineLiveProps) {
   const { steps, currentStep, status, error, connected } = useDeploymentStream(buildId, {
     initialLastEventID,
   });
 
   const grouped = groupByPhase(steps);
   const empty = steps.length === 0;
+  // Red Team theo-cloud#122 — when the REST build status is terminal-failure
+  // AND no SSE events arrived (build died at submit, before emitting any
+  // step), render the honest empty-state instead of the misleading
+  // "Connecting to build stream…" skeleton. `cancelled` is terminal in the
+  // same shape (no steps to surface) — the canonical Build state machine
+  // (pkg/statemachine) makes both `failed` and `cancelled` terminal.
+  const terminalEmpty =
+    empty && (restBuildStatus === 'failed' || restBuildStatus === 'cancelled');
 
   return (
     <div className="space-y-6" data-status={status}>
-      {empty ? (
+      {terminalEmpty ? (
+        <TerminalEmptyState status={restBuildStatus as 'failed' | 'cancelled'} />
+      ) : empty ? (
         <Skeleton connected={connected} />
       ) : (
         PHASE_ORDER.map((phase) => {
@@ -104,6 +130,26 @@ function groupByPhase(steps: BuildStep[]): Partial<Record<PhaseGroup, BuildStep[
 
 interface SkeletonProps {
   connected: boolean;
+}
+
+// Red Team theo-cloud#122 — honest empty-state for builds that died before
+// emitting any SSE step. Rendered in lieu of `<Skeleton>` when REST status
+// is terminal-failure (`failed` / `cancelled`) AND zero step events arrived.
+// The header's BuildErrorPanel carries the API `error` (e.g. "argo: create
+// workflow: Unauthorized"); this surface gives the timeline a matching
+// honest signal instead of "Connecting to build stream…" forever.
+function TerminalEmptyState({ status }: { status: 'failed' | 'cancelled' }) {
+  return (
+    <div
+      className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-body-sm text-destructive"
+      role="status"
+      aria-label={status === 'failed' ? 'Build failed before any step ran' : 'Build cancelled before any step ran'}
+    >
+      {status === 'failed'
+        ? 'Build failed before any step ran — see the error above for the cause. No step logs were emitted.'
+        : 'Build cancelled before any step ran. No step logs were emitted.'}
+    </div>
+  );
 }
 
 function Skeleton({ connected }: SkeletonProps) {
