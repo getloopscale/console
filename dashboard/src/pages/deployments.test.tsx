@@ -177,6 +177,136 @@ describe('DeploymentsPage', () => {
     expect(buildsCalls.length).toBe(1);
   });
 
+  // Red Team theo-cloud#121 (P0 eixo 2 — UI honesty): when production's
+  // active release was promoted FROM a preview build, the production
+  // env_target.active_release.build_id IS the preview build's id (promote
+  // copies the build reference, doesn't rebuild). Pre-fix `isActive`
+  // compared `activeBuildId === b.build_id` GLOBALLY, so the PREVIEW row
+  // (whose build_id matched) got the "● Active" badge + Live URL → production
+  // — while the row labeled [PRODUCTION] (an older superseded build) got
+  // nothing. The UI was lying about which row was serving production.
+  //
+  // Post-fix: ACTIVE badge is per-env — preview row gets ACTIVE only if it
+  // matches preview env's active build_id; production row gets ACTIVE only
+  // if it matches production env's active build_id. Live URL per row reflects
+  // THAT row's env (preview → preview URL, production → production URL).
+  it('test_active_badge_is_per_env_not_global_buildid_match_121', async () => {
+    // Two builds, BOTH with commit 013e5ca (the canonical "promote of same
+    // source code" scenario from #121 evidence):
+    //   - build-bba6f3b9 origin=production (older — superseded by promote)
+    //   - build-b431fb74 origin=preview (the actually-serving release in BOTH envs)
+    const builds: Build[] = [
+      makeBuild('build-bba6f3b997377da1', {
+        environment: 'production',
+        commit_sha: '013e5ca017a1f01b04fa3850f40d1f7392266674',
+        created_at: '2026-06-29T15:00:00Z',
+      }),
+      makeBuild('build-b431fb74a6dfc7cc', {
+        environment: 'preview',
+        commit_sha: '013e5ca017a1f01b04fa3850f40d1f7392266674',
+        created_at: '2026-06-29T14:00:00Z',
+      }),
+    ];
+    // Both env status endpoints return active_release.build_id =
+    // build-b431fb74 (production's release was promoted from preview;
+    // preview's release is still the same preview build).
+    mockedEngineFetch.mockImplementation(async (path: unknown) => {
+      const url = String(path);
+      if (url.includes('/status?env=production') || (url.includes('/status') && !url.includes('env='))) {
+        return {
+          active_release: {
+            build_id: 'build-b431fb74a6dfc7cc',
+            git_commit: '013e5ca017a1f01b04fa3850f40d1f7392266674',
+            created_at: '2026-06-30T06:11:26Z',
+          },
+          url: 'https://example-app-production.prod-dev.usetheo.dev',
+          last_build: { build_id: 'build-bba6f3b997377da1', environment: 'production' },
+        };
+      }
+      if (url.includes('/status?env=preview')) {
+        return {
+          active_release: {
+            build_id: 'build-b431fb74a6dfc7cc',
+            git_commit: '013e5ca017a1f01b04fa3850f40d1f7392266674',
+            created_at: '2026-06-29T14:50:00Z',
+          },
+          url: 'https://example-app-preview.prod-dev.usetheo.dev',
+          last_build: { build_id: 'build-b431fb74a6dfc7cc', environment: 'preview' },
+        };
+      }
+      if (url.includes('/builds')) {
+        return { builds, total: builds.length } as BuildListResponse;
+      }
+      return {} as BuildListResponse;
+    });
+
+    renderPage();
+
+    // Wait for both rows to render — the View link for each build_id
+    // is the canonical row anchor (env badge text is "Production" /
+    // "Preview" but both rows display the same SHA "013e5ca" so SHA-text
+    // queries cannot disambiguate). The activeSha banner above the table
+    // also renders "013e5ca", contributing a 3rd match.
+    await waitFor(() => {
+      const prodAnchor = document.querySelector(
+        'a[href="/projects/teste/deployments/build-bba6f3b997377da1"]',
+      );
+      const previewAnchor = document.querySelector(
+        'a[href="/projects/teste/deployments/build-b431fb74a6dfc7cc"]',
+      );
+      expect(prodAnchor).not.toBeNull();
+      expect(previewAnchor).not.toBeNull();
+    });
+
+    // Find each row by its build_id-derived View link INSIDE a table row
+    // (the activeSha banner ALSO links to /deployments/{activeBuildId},
+    // so a naive querySelector picks the banner not the row — scope by
+    // <tr> ancestry to disambiguate).
+    const rows = Array.from(document.querySelectorAll('tbody tr'));
+    const prodRow = rows.find((tr) =>
+      tr.querySelector('a[href="/projects/teste/deployments/build-bba6f3b997377da1"]'),
+    ) as HTMLElement | undefined;
+    const previewRow = rows.find((tr) =>
+      tr.querySelector('a[href="/projects/teste/deployments/build-b431fb74a6dfc7cc"]'),
+    ) as HTMLElement | undefined;
+
+    expect(prodRow).toBeDefined();
+    expect(previewRow).toBeDefined();
+
+    // Red Team #121 invariant — neither row should get the production
+    // ACTIVE badge when its OWN env's active build_id doesn't match.
+    // The preview row's build IS the preview env's active build → it
+    // legitimately gets ACTIVE (for preview). The production row's build
+    // is NOT the production env's active build (it was superseded) →
+    // no ACTIVE badge.
+    //
+    // PRE-FIX assertion that would FAIL: the global isActive check
+    // (activeBuildId === b.build_id) put ACTIVE on the preview row
+    // matching the production endpoint's response — i.e., the PRODUCTION
+    // row would NOT get ACTIVE and the PREVIEW row would get ACTIVE +
+    // Live URL → production.
+    //
+    // POST-FIX: ACTIVE on a row means "this row's env is serving this
+    // build NOW". Live URL on a row is THAT env's URL.
+    const prodActive = within(prodRow!).queryByText(/●\s*Active/i);
+    const previewActive = within(previewRow!).queryByText(/●\s*Active/i);
+
+    // The production row's build is superseded → no ACTIVE here.
+    expect(prodActive).toBeNull();
+
+    // The preview row's build IS the preview env's active → ACTIVE here.
+    expect(previewActive).not.toBeNull();
+
+    // Live URL — preview row's Visit link must point to PREVIEW URL,
+    // never to production URL.
+    const previewVisitLink = previewRow!.querySelector('a[href*="-preview."]');
+    const previewVisitLinkProd = previewRow!.querySelector('a[href*="-production."]');
+    expect(previewVisitLinkProd).toBeNull();
+    // Note: the Visit icon component renders a link only when isActive;
+    // since previewActive is set above, the preview URL link should exist.
+    expect(previewVisitLink).not.toBeNull();
+  });
+
   it('test_status_filter_chips_work', async () => {
     mockedEngineFetch.mockResolvedValue({
       builds: [makeBuild('b-1', { commit_sha: 'aaaaaaa' })],

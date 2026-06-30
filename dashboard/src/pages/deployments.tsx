@@ -176,6 +176,21 @@ export function DeploymentsPage() {
   // is RUNNING — the banner would otherwise lie that the in-flight commit
   // is already serving traffic.
   const { status: prodStatus } = useProjectStatus(name);
+  // Red Team theo-cloud#121 (P0 eixo 2 — UI honesty): pre-fix `isActive`
+  // compared the global production active_release.build_id against
+  // every row regardless of the row's env. When production's active
+  // release was PROMOTED from a preview build, both env_targets carry
+  // the SAME build_id (promote copies the build reference; per
+  // promotion_orchestrator.go:155-165 the new release row points at
+  // the source build), so the preview row matched and incorrectly got
+  // the production ACTIVE badge + Live URL → production. The row
+  // labeled [PRODUCTION] (an older superseded build) got nothing.
+  //
+  // Fix: fetch each env's status independently and key the per-row
+  // active marker + Live URL by the ROW's own environment. A row is
+  // "active" when ITS env's active_release.build_id matches the row's
+  // build_id. Live URL on a row reflects THAT env's URL.
+  const { status: previewStatus } = useProjectStatus(name, { env: 'preview' });
   // Sponsor 2026-06-18 — honest progress badge during the ~90s sync gap
   // between submit and DB flip. The dialog publishes the target row id;
   // we suppress the canonical "● Active" badge on it and render a
@@ -187,6 +202,18 @@ export function DeploymentsPage() {
   // of the same day (sponsor caught the missing badge LIVE).
   const mutationInFlight = useMutationInFlight(name);
   const activeBuildId = prodStatus?.active_release?.build_id;
+  // Per-env active build_id map for #121 fix. The dashboard treats env
+  // as the row identity for "active" — only production-style envs we
+  // know about ship explicit status calls; other env names fall back
+  // to the no-match path (no badge / no URL), which is honest.
+  const activeBuildIdByEnv: Record<string, string | undefined> = {
+    production: prodStatus?.active_release?.build_id,
+    preview: previewStatus?.active_release?.build_id,
+  };
+  const urlByEnv: Record<string, string | undefined> = {
+    production: prodStatus?.url,
+    preview: previewStatus?.url,
+  };
 
   // T4.3 finding 3.2 + ADR D3: dynamic env filter chip set sourced
   // from the build-envs endpoint. While loading OR for cold projects
@@ -463,8 +490,17 @@ export function DeploymentsPage() {
                 // release is active for another ~90s) — the pulsing
                 // transitional badge expresses the in-flight state
                 // honestly. Same logic covers rollback + promote.
+                //
+                // Red Team theo-cloud#121: ACTIVE per the ROW's own env,
+                // not the global production active. The page fetches both
+                // env statuses (prod + preview); each row marks active when
+                // its env's active_release.build_id matches the row's
+                // build_id. Cross-env contamination (a preview row matching
+                // production's active just because both releases share a
+                // build_id via promote) is no longer possible.
+                const rowEnvActiveBuildId = activeBuildIdByEnv[b.environment];
                 const isActive =
-                  inFlightHere == null && activeBuildId === b.build_id;
+                  inFlightHere == null && rowEnvActiveBuildId === b.build_id;
                 // Ordering signal: filtered is already sorted by created_at
                 // desc in the hook (most recent first), so #1 is the newest.
                 const orderLabel = `#${idx + 1}`;
@@ -592,10 +628,15 @@ export function DeploymentsPage() {
                       <div className="inline-flex items-center gap-1">
                         {/* T3.1 J-25 — active-only ExternalLink icon
                             (anti-trap UX: only currently-serving row
-                            gets the open-in-new-tab affordance). */}
+                            gets the open-in-new-tab affordance).
+                            Red Team theo-cloud#121: URL is the ROW's
+                            env URL (preview → preview URL, production
+                            → production URL) — pre-fix this passed
+                            prodStatus?.url unconditionally, so a preview
+                            row marked active would link to production. */}
                         <DeploymentRowVisitIcon
                           isActive={isActive}
-                          url={prodStatus?.url}
+                          url={urlByEnv[b.environment]}
                         />
                         <Button variant="ghost" size="sm" asChild>
                           <Link
