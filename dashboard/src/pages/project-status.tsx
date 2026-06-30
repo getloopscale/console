@@ -164,9 +164,31 @@ export function ProjectStatusPage() {
   const errorRate: number | null = null;
   const rps: number | null = null;
 
+  // Red Team theo-cloud#124 — health-truth fix.
+  // Pre-fix: `Healthy` was emitted from active_release.status === 'ACTIVE'
+  // ALONE — control-plane SYNC confirmation by ArgoCD. But `synced ≠ serving`.
+  // LIVE repro (2026-06-30): build SUCCEEDED + release ACTIVE + sync synced +
+  // URL populated, while the Live URL served HTTP 502 sustained ~13min. The
+  // UI lied "Status: Healthy" while the data plane was down.
+  // Post-fix (family #41/#77/#94): the verdict requires release-active AND
+  // at least one data-plane signal. When release is ACTIVE but every serving
+  // signal is absent (no replicas_ready, no scaling.replicas, no Prometheus
+  // KPI yet wired), emit `Unknown` — the platform must not assert health it
+  // cannot prove. Mirrors the empty-state pattern in ProjectHealthCard.
+  const replicasReady = status.replicas_ready ?? replicas;
+  const hasServingSignal =
+    (replicasReady !== null && replicasReady !== undefined && replicasReady > 0) ||
+    uptime24h !== null ||
+    p95LatencyMs !== null ||
+    errorRate !== null ||
+    rps !== null ||
+    (status.traffic_5xx_pct_1h !== undefined) ||
+    (status.alerts_active !== undefined);
+  const releaseActive = status.active_release?.status === 'ACTIVE';
+
   // 8 signals for the grid — same null pattern.
   const signals = {
-    status: status.active_release?.status === 'ACTIVE' ? 'Healthy' : 'Progressing',
+    status: releaseActive ? (hasServingSignal ? 'Healthy' : 'Unknown') : 'Progressing',
     replicas,
     uptime_24h: uptime24h,
     p95_latency: p95LatencyMs,

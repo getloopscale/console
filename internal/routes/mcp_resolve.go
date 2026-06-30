@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sort"
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
 )
@@ -28,6 +29,13 @@ const AuthzMCPResolvePath = "/internal/authz/mcp-resolve"
 type MCPCapabilityBinding struct {
 	Minter        TenantKeyMinter
 	RequiredScope string
+	// ScopeTools maps each data scope (e.g. "memory:read") to the MCP tool names it
+	// grants (e.g. "recall", "episodes"). The gateway's allowlist matches scope==tool
+	// name exactly, so the principal's `scopes` field MUST carry tool names, not the
+	// raw data scopes (theo-workspace#10). The DOWNSTREAM minted key still carries the
+	// raw data scopes — themory remains the authoritative per-verb gate. When nil, the
+	// raw scopes pass through unchanged (backward-compat for capabilities without a map).
+	ScopeTools map[string][]string
 }
 
 // mcpPrincipal is the JSON the gateway consumes. DownstreamKey is a secret (same
@@ -118,5 +126,28 @@ func (h *MCPResolveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// upstream leg and maps Scopes to its per-tenant tool allowlist.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(mcpPrincipal{TenantID: uc.TenantID, DownstreamKey: minted, Scopes: scopes})
+	_ = json.NewEncoder(w).Encode(mcpPrincipal{TenantID: uc.TenantID, DownstreamKey: minted, Scopes: binding.grantedTools(scopes)})
+}
+
+// grantedTools translates the consumer's data scopes into the MCP tool names the
+// gateway allowlist expects (theo-workspace#10). The gateway matches scope==tool name
+// exactly, so a data scope like "memory:read" must become its verbs ("recall", …).
+// Deterministic (sorted, deduped). When the binding has no ScopeTools map, the raw
+// scopes pass through (backward-compat for capabilities that have not declared one).
+func (b MCPCapabilityBinding) grantedTools(scopes []string) []string {
+	if b.ScopeTools == nil {
+		return scopes
+	}
+	set := make(map[string]struct{})
+	for _, s := range scopes {
+		for _, tool := range b.ScopeTools[s] {
+			set[tool] = struct{}{}
+		}
+	}
+	tools := make([]string, 0, len(set))
+	for t := range set {
+		tools = append(tools, t)
+	}
+	sort.Strings(tools)
+	return tools
 }

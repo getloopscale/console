@@ -6,7 +6,7 @@
 # Ref = @develop today (resolves to the branch carrying build-publish.yml); cuts over to a pinned
 # theo release tag at release time (owner-gated) — same convention as theo-contracts replace→pin
 # (see theo-cloud/CLAUDE.md § Invariants). EC-3 tag-first: the pinned tag must carry build-publish.yml.
-name: artifacts
+name: publish
 on:
   push:
     branches: [develop]
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref == 'refs/heads/develop' }}
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64] # self-hosted (GitHub-hosted billing-blocked) — theo-ci-runner droplet
     outputs:
       images: ${{ steps.set.outputs.images }}
       sign: ${{ steps.set.outputs.sign }}
@@ -65,4 +65,6 @@ jobs:
       dockerfile: ${{ matrix.dockerfile }}
       context: ${{ matrix.context }}
       sign: ${{ needs.plan.outputs.sign == 'true' }}
+      verify: ${{ needs.plan.outputs.sign == 'true' }} # identity-pinned cosign verify on release (same gate as sign)
+      runner: '["self-hosted","linux","x64"]' # GitHub-hosted minutes are billing-blocked — build on the theo-ci-runner droplet (build-publish.yml gained this input @develop)
     secrets: inherit

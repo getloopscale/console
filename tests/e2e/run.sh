@@ -62,7 +62,12 @@ teardown() {
 
 dump_logs() {
   fail "harness failed — recent service logs:"
-  compose ps || true
+  compose ps -a || true
+  # The schema-bearing one-shots (cloud-migrate / kratos-migrate) are the #1 silent
+  # failure on a fresh/slow runner — a missing accounts table means migrate didn't apply.
+  # Dump them FIRST + verbatim so the root cause isn't invisible.
+  echo "── cloud-migrate ──"; compose logs --no-color cloud-migrate || true
+  echo "── pg-cloud ──";      compose logs --no-color --tail=40 pg-cloud || true
   compose logs --tail=80 themory theo-cloud mock-openai || true
   if [[ "${EDGE}" == "1" ]]; then compose logs --tail=80 traefik || true; fi
 }

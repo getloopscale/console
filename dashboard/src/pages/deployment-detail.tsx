@@ -387,9 +387,15 @@ export function DeploymentDetailPage() {
           <Card.Body>
             {/* T5.3 — realtime swap. The hook resumes via Last-Event-ID
                 so even mid-tab navigation never drops events. */}
+            {/* Red Team theo-cloud#122 — pass REST build.status so the
+                timeline renders an honest terminal-empty state when the
+                build died before any SSE step (Argo submit Unauthorized,
+                etc.), instead of the misleading "Connecting to build
+                stream…" skeleton that contradicted the header "Failed". */}
             <BuildTimelineLive
               buildId={build.build_id}
               projectName={name}
+              restBuildStatus={build.status}
             />
           </Card.Body>
         </Card>

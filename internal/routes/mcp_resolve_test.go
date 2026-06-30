@@ -74,6 +74,63 @@ func TestMCPResolve_Allow_ReturnsPrincipalJSON(t *testing.T) {
 	}
 }
 
+// theo-workspace#10 — when the capability carries a ScopeTools mapping, the
+// principal's `scopes` field MUST be the TRANSLATED MCP tool names (the gateway maps
+// `scopes` → its tool allowlist via exact name match), NOT the raw data scopes. The
+// DOWNSTREAM key is still minted with the raw data scopes (themory's per-verb gate).
+func TestMCPResolve_Allow_TranslatesDataScopesToTools(t *testing.T) {
+	minter := &stubMinter{key: "theo_live_minted_for_t1"}
+	caps := map[string]MCPCapabilityBinding{"memory": {
+		Minter:        minter,
+		RequiredScope: "memory:read",
+		ScopeTools: map[string][]string{
+			"memory:read":   {"recall", "episodes", "search_memory", "list_memories"},
+			"memory:write":  {"remember", "reflect", "add_skill", "execute_skill", "add_memories"},
+			"memory:delete": {"forget", "forget_skill", "delete_memories"},
+		},
+	}}
+	h := NewMCPResolveHandler(
+		resolveTo(&auth.UserContext{TenantID: "t1", AccountID: "acc1"}, []string{"memory:read", "memory:write"}, nil),
+		authzReturning(true, nil),
+		caps,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, mcpRequest("memory", "Bearer theo_live_consumer"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var p mcpPrincipal
+	if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil {
+		t.Fatalf("decode principal: %v", err)
+	}
+	got := map[string]bool{}
+	for _, s := range p.Scopes {
+		got[s] = true
+	}
+	// read+write tools present:
+	for _, want := range []string{"recall", "episodes", "remember", "reflect", "add_skill"} {
+		if !got[want] {
+			t.Errorf("expected tool %q in translated scopes, got %+v", want, p.Scopes)
+		}
+	}
+	// delete-only tools absent (key lacks memory:delete):
+	for _, forbidden := range []string{"forget", "delete_memories"} {
+		if got[forbidden] {
+			t.Errorf("delete tool %q must be ABSENT (no memory:delete), got %+v", forbidden, p.Scopes)
+		}
+	}
+	// raw data scopes must NOT leak through as "tools":
+	if got["memory:read"] || got["memory:write"] {
+		t.Errorf("raw data scopes must be translated, not passed through: %+v", p.Scopes)
+	}
+	// the DOWNSTREAM key is still minted with the raw data scopes (themory per-verb gate):
+	if gotS := minter.lastScopes; len(gotS) != 2 || gotS[0] != "memory:read" || gotS[1] != "memory:write" {
+		t.Fatalf("broker must mint with the raw data scopes, got %+v", gotS)
+	}
+}
+
 // T1.1 — an unknown capability is denied 403 BEFORE any resolve (fail-closed).
 func TestMCPResolve_UnknownCapability_403(t *testing.T) {
 	resolved := false

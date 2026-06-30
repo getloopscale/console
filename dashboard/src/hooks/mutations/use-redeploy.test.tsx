@@ -84,6 +84,35 @@ describe('useRedeploy', () => {
     });
   });
 
+  // Red Team theo-cloud#122 surface 2 — the redeploy dialog SWALLOWED 4xx
+  // errors silently because useRedeploy called engineFetch WITHOUT
+  // { throwOnError: true }. Default behavior of engineFetch on 4xx is to
+  // resolve `null` (not throw), so the mutation succeeded with null, the
+  // dialog `if (!resp) return;` closed silently, and `redeploy.error`
+  // stayed null — no Alert, no toast, console-only generic 400. Fix
+  // surfaces 4xx as a typed ApiError via engineFetch's throwOnError opt-in.
+  // Contract assertion: the hook MUST opt into throwOnError so the dialog
+  // catches the rejection and renders the problem+json detail.
+  it('Red Team theo-cloud#122 — passes { throwOnError: true } to engineFetch (4xx must reject, not return null)', async () => {
+    mockedEngineFetch.mockResolvedValue({
+      build_id: 'b-new',
+      stream_url: '/api/v1/builds/b-new/stream',
+    });
+
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useRedeploy(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync('b-source');
+    });
+
+    expect(mockedEngineFetch).toHaveBeenCalledOnce();
+    // engineFetch(path, options, cfg) — cfg is the THIRD arg.
+    const [, , cfg] = mockedEngineFetch.mock.calls[0];
+    expect(cfg, '#122: useRedeploy must pass cfg.throwOnError so 4xx rejects instead of resolving null').toBeDefined();
+    expect((cfg as { throwOnError?: boolean })?.throwOnError, '#122: throwOnError must be true so the dialog surfaces problem+json detail').toBe(true);
+  });
+
   it('test_surfaces_typed_error_on_409', async () => {
     mockedEngineFetch.mockRejectedValue(new Error('BUILD_NOT_TERMINAL'));
 

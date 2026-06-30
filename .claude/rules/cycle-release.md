@@ -33,6 +33,11 @@ Do NOT trigger when:
      ↓ wait for human approval (hard gate — Unbreakable Rule 4 mandate)
      ↓ on merge: create annotated tag {next-version} pointing at the merge commit
      ↓ push tag; gh release create
+     ↓ POST-MERGE image verify — the `v*` tag triggers the `artifacts` workflow on the self-hosted
+     ↓   runner, which builds + keyless-cosign-signs BOTH images (theo-cloud + theo-dashboard) via the
+     ↓   reusable `theo/build-publish.yml`. Wait for that run; capture both digests + cosign-verify;
+     ↓   record IMAGE_STATUS (soft gate on failure — the tag/release stand, but never report a clean
+     ↓   RELEASED while an image silently failed).
      ↓ POST-MERGE checkbox flip — see § Post-merge ROADMAP.md checkbox flip
 ```
 
@@ -45,6 +50,7 @@ Do NOT trigger when:
 | changelog-rewrite | CHANGELOG.md | CHANGELOG with [Unreleased] empty and a new versioned section | [Unreleased] had ≥ 1 entry before the rewrite |
 | pr-open | release branch state | PR URL | `gh pr create` exit 0; PR body = release notes |
 | tag-cut (post-merge) | merged commit on main | annotated tag + GitHub release | `git tag --verify` resolves AND tag points at the merge commit |
+| image-verify (post-merge) | the pushed `v*` tag | `IMAGE_STATUS` recorded in the release log (`published <theo-cloud digest> + <theo-dashboard digest>, cosign verified` / `FAILED + backfill cmd`) | the `artifacts` run for the tag completed (soft — on failure the tag/release stand, but the release is NOT artifact-complete: WARN + backfill, never a silent clean `RELEASED`). Both matrix legs (theo-cloud + theo-dashboard) must publish + sign |
 | roadmap-checkbox-flip (post-merge) | plan frontmatter `milestone_id` + ROADMAP.md | ROADMAP.md edited: `## M<N> — [ ] ...` → `## M<N> — [x] ...`; commit `chore(roadmap): mark M<N> done`; roadmap-runs file updated | plan declared `milestone_id`; matching milestone exists in ROADMAP.md; current state is `[ ]` (idempotent — if already `[x]`, skip with INFO) |
 
 ## Post-merge ROADMAP.md checkbox flip
@@ -110,6 +116,8 @@ If the rule cannot pick deterministically, the chain pauses and the human choose
 - **Flipping multiple checkboxes from one release.** Each release maps to exactly one milestone via plan `milestone_id`. Bundling milestones into one release corrupts traceability — split releases instead.
 - **Flipping a checkbox without writing the roadmap-runs file.** The flip must be auditable: which release, which SHA, when.
 - **Blocking the release if `milestone_id` is missing.** Ad-hoc work (hotfixes, off-roadmap fixes) is by design — emit WARN, continue as RELEASED, skip the flip.
+- **Declaring `RELEASED` without verifying the images.** The git tag is not the deliverable — the published + signed images (theo-cloud + theo-dashboard) are. A silent `artifacts`-workflow failure means consumers pull a stale/absent tag. Wait for the tag-triggered `artifacts` run, capture both digests + cosign result, record `IMAGE_STATUS`; never hide a failed/absent image behind a clean verdict.
+- **Building the images inside `/release`.** The images are built by the `artifacts` workflow (reusable `theo/build-publish.yml`) on the self-hosted runner (cosign sign + SBOM/SLSA) — `/release` only verifies them. A local `docker build` skips every gate.
 
 ## Output
 
@@ -117,6 +125,7 @@ If the rule cannot pick deterministically, the chain pauses and the human choose
 - `[Unreleased]` empty (until the next change lands).
 - `git tag v{version}` annotated, pushed.
 - GitHub release published.
+- `IMAGE_STATUS` recorded in the release log: both image refs + digests + cosign-verify result, or `FAILED + backfill`.
 - `ROADMAP.md` edited: `## M<N> — [ ]` → `[x]` when the plan declared `milestone_id` (skipped with WARN otherwise).
 - `knowledge-base/roadmap-runs/{milestone-id}-{date}.md` appended with `status: completed`, `checkbox_flipped_at`, `flip_commit_sha` (only when the flip ran).
 
