@@ -72,9 +72,12 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
   });
 
   // Negative-axis regression-protector: when a real production active_release
-  // is present, the existing UI continues to render (Status: Healthy + the
-  // auto-refresh subtitle).
-  it('production active release: still shows Healthy + auto-refresh subtitle (happy path preserved)', () => {
+  // is present AND there is at least one proof of serving (replicas_ready > 0),
+  // the existing UI continues to render (Status: Healthy + the auto-refresh
+  // subtitle).
+  // Red Team theo-cloud#124 contract: Healthy requires release-active AND a
+  // serving signal — `scaling.replicas` OR `replicas_ready` > 0.
+  it('production active release WITH replica proof: still shows Healthy + auto-refresh subtitle (happy path preserved)', () => {
     mockUseProjectStatus.mockReturnValue({
       status: makeStatus({
         environment: 'production',
@@ -91,6 +94,9 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
           created_at: '2026-06-27T10:00:00Z',
         },
         url: 'https://acme-prod.usetheo.dev',
+        // Serving proof: replicas_ready > 0 corroborates the data plane is up.
+        replicas_ready: 2,
+        replicas_desired: 2,
       }),
       loading: false,
       error: null,
@@ -100,5 +106,50 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
 
     // Auto-refresh blurb still visible on the happy path.
     expect(screen.getByText(/auto-refresh every 5s/i)).toBeInTheDocument();
+  });
+});
+
+// Red Team theo-cloud#124 — health-truth divergence.
+// Repro (LIVE 2026-06-30): build SUCCEEDED + release ACTIVE + sync_status=synced +
+// URL populated, BUT the Live URL serves HTTP 502 sustained ~13min. The dashboard
+// emitted `Status: Healthy` based on `active_release.status === 'ACTIVE'` alone,
+// without consulting ANY data-plane signal (replicas_ready / 5xx / alerts).
+// Family of #41/#77/#94 — the platform must not assert "healthy" without proof
+// of serving. The fix makes the SignalGrid status verdict signal-aware: emits
+// 'Unknown' when release is ACTIVE but every serving signal is absent.
+describe('ProjectStatusPage — Red Team theo-cloud#124 closure (health-truth)', () => {
+  it('active release + sync synced + URL populated BUT zero serving signals → Status: Unknown, NOT Healthy', () => {
+    mockUseProjectStatus.mockReturnValue({
+      status: makeStatus({
+        environment: 'preview',
+        active_release: {
+          id: 'rel-8871a12bedc024dc',
+          build_id: 'build-c9d67ba338ef6a28',
+          status: 'ACTIVE',
+          created_at: '2026-06-30T15:36:16Z',
+        },
+        last_build: {
+          id: 'build-c9d67ba338ef6a28',
+          status: 'SUCCEEDED',
+          commit_sha: '013e5ca017a1f01b04fa3850f40d1f7392266674',
+          created_at: '2026-06-30T15:28:49Z',
+        },
+        sync_status: 'synced',
+        url: 'https://tn-0f13cba71527997c-theokit-example-app-preview.prod-dev.usetheo.dev',
+        // Repro: NO scaling, NO replicas_ready, NO 5xx, NO alerts. The
+        // control plane is fully green but the data plane is unproven.
+      }),
+      loading: false,
+      error: null,
+    });
+
+    renderAt('/projects/theokit-example/status');
+
+    // Pre-fix (#124 verbatim): UI showed `Status: Healthy` here.
+    // Post-fix: must emit `Status: Unknown` because nothing on the response
+    // proves the data plane is serving. ACTIVE = sync confirmed by ArgoCD;
+    // `synced ≠ serving`. Pod may be 502 (CrashLoop / ImagePull / network).
+    expect(screen.queryByRole('button', { name: /Status: Healthy/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Status: Unknown/i })).toBeInTheDocument();
   });
 });
