@@ -6,7 +6,7 @@
 # Ref = @develop today (resolves to the branch carrying build-publish.yml); cuts over to a pinned
 # theo release tag at release time (owner-gated) — same convention as theo-contracts replace→pin
 # (see theo-cloud/CLAUDE.md § Invariants). EC-3 tag-first: the pinned tag must carry build-publish.yml.
-name: artifacts
+name: publish
 on:
   push:
     branches: [develop]

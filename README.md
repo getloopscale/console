@@ -12,10 +12,13 @@ Both workflows run on a **self-hosted runner** — the `usetheodev` org's GitHub
 currently billing-blocked, so CI executes on a DigitalOcean droplet (runner `theo-ci-theo-cloud`;
 cross-repo runbook in the `theo-data` workspace).
 
+The org convention is `ci.yml` (the per-repo test gate) + `publish.yml` (the image build, a thin
+caller of the shared reusable `theo/build-publish.yml`).
+
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `test-e2e.yml` | push / PR to `develop` | two jobs — **`e2e`** (full `docker compose` stack: pg + themory + Kratos + theo-cloud, `-race`) and **`e2e-edge`** (the same flow through the Traefik ForwardAuth edge). The sibling repos (`theo`, `theo-memory`) are checked out at `develop` so the test runs against the current engine schema. |
-| `release-artifacts.yml` | push to `develop` (preview) · tag `v*` (release) · manual | builds two images — **`theo-cloud`** + **`theo-dashboard`**. On a tag, both are **cosign-signed** (keyless, GitHub OIDC) with SBOM + SLSA provenance via the reusable `usetheodev/theo/.github/workflows/build-publish.yml`. On a `develop` push only the changed image is rebuilt (`:develop` / `:develop-<sha>`, unsigned). |
+| `ci.yml` | push / PR to `develop` | two jobs — **`e2e`** (full `docker compose` stack: pg + themory + Kratos + theo-cloud, `-race`) and **`e2e-edge`** (the same flow through the Traefik ForwardAuth edge). The sibling repos (`theo`, `theo-memory`) are checked out at `develop` so the test runs against the current engine schema. |
+| `publish.yml` | push to `develop` (preview) · tag `v*` (release) · manual | builds two images — **`theo-cloud`** + **`theo-dashboard`** — via the reusable `usetheodev/theo/.github/workflows/build-publish.yml`. On a tag, both are **cosign-signed** (keyless, GitHub OIDC) + **identity-pinned verify** + SBOM + SLSA (mode=max). On a `develop` push only the changed image is rebuilt (`:develop` / `:develop-<sha>`, unsigned). |
 
 A release is cut through the `/release` cycle — a human-approved `develop → main` PR tags the merge
 commit; the tag triggers the signed image build, and `/release` Step 7.4 verifies the published

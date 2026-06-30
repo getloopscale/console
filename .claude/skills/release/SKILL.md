@@ -149,7 +149,7 @@ gh release create "v${NEXT_VERSION}" \
 
 ### Step 7.4 — Verify + record the published images
 
-The `v*` tag triggers the **`artifacts`** workflow (`.github/workflows/release-artifacts.yml`) on the
+The `v*` tag triggers the **`publish`** workflow (`.github/workflows/publish.yml`) on the
 self-hosted runner (see the `theo-data/CI-RUNNER-VM-GUIDE.md` runbook). On a tag, it builds + keyless-
 cosign-signs **BOTH** images — `theo-cloud` and `theo-dashboard` — via the reusable
 `theo/build-publish.yml` (matrix, `sign=true`, + SBOM + SLSA provenance). **The release is not
@@ -157,21 +157,21 @@ artifact-complete until that run is green** — the git tag alone is not the del
 
 Unlike a repo whose own workflow runs `docker/build-push-action` inline, theo-cloud's image build is a
 **reusable cross-repo call**, so do NOT auto-detect by grepping for `build-push-action` — target the
-`artifacts` workflow by name.
+`publish` workflow by name.
 
 ```bash
 REPO_NWO="usetheodev/theo-cloud"
-echo "== waiting for the artifacts (image) workflow on tag v${NEXT_VERSION} =="
-# The tag push triggered an `artifacts` run on the self-hosted runner; find it (headBranch == tag name).
+echo "== waiting for the publish (image) workflow on tag v${NEXT_VERSION} =="
+# The tag push triggered a `publish` run on the self-hosted runner; find it (headBranch == tag name).
 RID=""
 for _ in $(seq 1 60); do
-  RID=$(gh run list -R "$REPO_NWO" --workflow artifacts --limit 15 \
+  RID=$(gh run list -R "$REPO_NWO" --workflow publish --limit 15 \
         --json databaseId,headBranch \
         --jq "[.[] | select(.headBranch==\"v${NEXT_VERSION}\")][0].databaseId" 2>/dev/null)
   [ -n "$RID" ] && break; sleep 5
 done
 if [ -z "$RID" ]; then
-  echo "WARN image: no artifacts run found for v${NEXT_VERSION} — is the runner online? (see theo-data/CI-RUNNER-VM-GUIDE.md)"
+  echo "WARN image: no publish run found for v${NEXT_VERSION} — is the runner online? (see theo-data/CI-RUNNER-VM-GUIDE.md)"
   IMAGE_STATUS="unknown"
 else
   gh run watch "$RID" -R "$REPO_NWO" --exit-status >/dev/null 2>&1 && IMG_OK=1 || IMG_OK=0
@@ -187,8 +187,8 @@ else
     [ "$VERIFIED" -lt 2 ] && echo "WARN image: expected 2 signed legs (theo-cloud + theo-dashboard); got ${VERIFIED} — inspect run $RID"
   else
     IMAGE_STATUS="FAILED (run $RID)"
-    echo "WARN image: the artifacts workflow FAILED — the tag/release exist but the images were NOT published/signed."
-    echo "      Backfill: gh workflow run artifacts -R $REPO_NWO --ref v${NEXT_VERSION}  (after fixing the cause)"
+    echo "WARN image: the publish workflow FAILED — the tag/release exist but the images were NOT published/signed."
+    echo "      Backfill: gh workflow run publish -R $REPO_NWO --ref v${NEXT_VERSION}  (after fixing the cause)"
     echo "      Or re-run: gh run rerun $RID -R $REPO_NWO --failed"
   fi
 fi
@@ -287,7 +287,7 @@ Next: nothing — release is published. Start a new cycle with /to-plan or /gril
 
 1. **CI not green on develop** — warn but proceed; the human catches it at PR approval.
 2. **Bump-level ambiguous from CHANGELOG** — AskUserQuestion ONCE per release run.
-3. **Image build failed / unknown (Step 7.4)** — the tag + GitHub release stand, but the release is NOT artifact-complete. Record `IMAGE_STATUS` honestly, WARN with the backfill command (`gh workflow run artifacts --ref v{X}`), and surface to the human. NEVER report a clean `RELEASED` while an image silently failed.
+3. **Image build failed / unknown (Step 7.4)** — the tag + GitHub release stand, but the release is NOT artifact-complete. Record `IMAGE_STATUS` honestly, WARN with the backfill command (`gh workflow run publish --ref v{X}`), and surface to the human. NEVER report a clean `RELEASED` while an image silently failed.
 
 ## Anti-patterns
 
@@ -300,8 +300,8 @@ Next: nothing — release is published. Start a new cycle with /to-plan or /gril
 7. **Fuzzy-matching the milestone for the checkbox flip in Step 7.5.** Plan declares `milestone_id: M3` → flip M3 by literal header match, never M4.
 8. **Flipping multiple checkboxes from one release.** Each release maps to one milestone via plan `milestone_id`.
 9. **Blocking the release if `milestone_id` is missing.** Ad-hoc / hotfix work skips the flip with WARN — never blocks.
-10. **Declaring `RELEASED` without verifying the images (Step 7.4).** The git tag is not the deliverable — the published + signed `theo-cloud` + `theo-dashboard` images are. Wait for the `artifacts` run, capture both digests + cosign result, record `IMAGE_STATUS`. A failed/absent image hidden behind a clean verdict is a Rule 3 (honesty) violation.
-11. **Building the images locally inside `/release`.** The images are built by the `artifacts` workflow (reusable `theo/build-publish.yml`) on the self-hosted runner with cosign sign + SBOM/SLSA — `/release` only verifies. A local `docker build` skips every gate.
+10. **Declaring `RELEASED` without verifying the images (Step 7.4).** The git tag is not the deliverable — the published + signed `theo-cloud` + `theo-dashboard` images are. Wait for the `publish` run, capture both digests + cosign result, record `IMAGE_STATUS`. A failed/absent image hidden behind a clean verdict is a Rule 3 (honesty) violation.
+11. **Building the images locally inside `/release`.** The images are built by the `publish` workflow (reusable `theo/build-publish.yml`) on the self-hosted runner with cosign sign + SBOM/SLSA — `/release` only verifies. A local `docker build` skips every gate.
 
 ## Cycle contract
 

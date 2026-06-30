@@ -9,7 +9,7 @@
 # cannot be run from a dev box. The proxy oracle is `make e2e` green locally
 # (which runs the identical harness). Until the first CI run, treat the green as
 # "locally proven; CI pending first push".
-name: test-e2e
+name: ci
 on:
   pull_request: {}
   push:
