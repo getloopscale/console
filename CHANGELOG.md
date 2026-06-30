@@ -4,6 +4,7 @@
 - **`docs/mcp-model-b-broker.md` + `make mcp-broker-help`** — documents theo-cloud's role as the MCP Model B broker (`POST /internal/authz/mcp-resolve` mints a per-tenant downstream key for the Theo MCP Gateway) and how the integrated theo-workspace stack consumes it (`theo-cloud` compose service, `THEO_MCP_BROKER_URL=http://theo-cloud:13002`; the endpoint ships since v0.15.0). No code change — documentation + a help target for the integrated MCP path.
 
 ### Changed
+- **CI/CD runs on the self-hosted runner (GitHub-hosted minutes are billing-blocked).** Every `test-e2e` / `artifacts` run was failing in ~4 s (`"the job was not started because recent account payments have failed…"`). `test-e2e.yml` (both `e2e` + `e2e-edge` jobs) and `release-artifacts.yml` (`plan` job) now declare `runs-on: [self-hosted, linux, x64]` — the `theo-ci-theo-cloud` runner on the `theo-ci-runner` droplet. Private-module fetch (`GOMOD_TOKEN` secret) + docker-compose e2e + `-race` (host `build-essential`) all work on the runner. (Image build via the reusable `theo/build-publish.yml` becomes self-hosted once its `runner` input lands — see `theo` CHANGELOG.) (`.github/workflows/{test-e2e,release-artifacts}.yml`)
 
 ### Deprecated
 

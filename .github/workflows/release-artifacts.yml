@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref == 'refs/heads/develop' }}
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64] # self-hosted (GitHub-hosted billing-blocked) — theo-ci-runner droplet
     outputs:
       images: ${{ steps.set.outputs.images }}
       sign: ${{ steps.set.outputs.sign }}

@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64] # self-hosted (GitHub-hosted billing-blocked) — theo-ci-runner droplet
     steps:
       # Replicate the dev sibling layout so the compose relative mounts resolve:
       #   theo-cloud/theo-cloud  (this repo — tests/e2e lives here)
@@ -79,7 +79,7 @@ jobs:
   # edge (:8090) and runs ONLY the ForwardAuth tests THROUGH the edge
   # (TestEdgeForwardAuth*), which the default `e2e` job SKIPs (it runs no Traefik).
   e2e-edge:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64] # self-hosted (GitHub-hosted billing-blocked) — theo-ci-runner droplet
     steps:
       - name: Checkout theo-cloud
         uses: actions/checkout@v4
