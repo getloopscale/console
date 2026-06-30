@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **README (`README.md`) — new, with a `## CI/CD` section** documenting the pipeline: `test-e2e.yml` (e2e + e2e-edge) and `release-artifacts.yml` (cosign-signed `theo-cloud` + `theo-dashboard` images via the reusable `theo/build-publish.yml`), both on the self-hosted runner. (`README.md`)
 - **`docs/mcp-model-b-broker.md` + `make mcp-broker-help`** — documents theo-cloud's role as the MCP Model B broker (`POST /internal/authz/mcp-resolve` mints a per-tenant downstream key for the Theo MCP Gateway) and how the integrated theo-workspace stack consumes it (`theo-cloud` compose service, `THEO_MCP_BROKER_URL=http://theo-cloud:13002`; the endpoint ships since v0.15.0). No code change — documentation + a help target for the integrated MCP path.
 
 ### Changed
