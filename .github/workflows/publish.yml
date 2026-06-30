@@ -65,5 +65,6 @@ jobs:
       dockerfile: ${{ matrix.dockerfile }}
       context: ${{ matrix.context }}
       sign: ${{ needs.plan.outputs.sign == 'true' }}
+      verify: ${{ needs.plan.outputs.sign == 'true' }} # identity-pinned cosign verify on release (same gate as sign)
       runner: '["self-hosted","linux","x64"]' # GitHub-hosted minutes are billing-blocked — build on the theo-ci-runner droplet (build-publish.yml gained this input @develop)
     secrets: inherit
