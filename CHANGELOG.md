@@ -11,6 +11,7 @@
 ### Removed
 
 ### Fixed
+- **e2e bootava os siblings no branch errado → `relation "accounts" does not exist`.** Os checkouts de `usetheodev/theo` e `usetheodev/theo-memory` no `test-e2e.yml` não pinavam `ref:`, então pegavam o branch default (`main`) — que está atrás de `develop` e não tem o schema atual (a tabela `accounts` chega na migration `000034`). O `cloud-migrate` aplicava migrations 1→33 e parava (não havia 34+ no diretório montado), e a suíte falhava porque a tabela não existia. Ambos os jobs (`e2e` + `e2e-edge`) agora pinam `ref: develop` nos dois checkouts de sibling — testando develop-contra-develop, como o harness local. (`.github/workflows/test-e2e.yml`)
 - **MCP Gateway granted zero tools to real customer keys** — `mcp-resolve` now translates a consumer's data scopes (`memory:read`/`write`/`delete`) into the MCP tool names the gateway allowlist matches (`recall`, `remember`, `forget`, …) via a per-capability `ScopeTools` map, instead of passing the raw data scopes through. The downstream minted key still carries the raw data scopes (themory stays the per-verb gate); only the gateway-facing `scopes` field now carries tool names. Mirrors theo-memory's REST per-verb scope map (#77). Previously every dashboard-issued key produced an empty tool allowlist → `tools/list` returned nothing. (theo-workspace#10)
 
 ### Security
