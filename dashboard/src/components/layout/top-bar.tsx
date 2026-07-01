@@ -97,7 +97,13 @@ export function TopBar({ showProjectSelector = true, onCommandPaletteOpen }: Top
             type="button"
             onClick={onCommandPaletteOpen}
             className="inline-flex items-center gap-2.5 px-4 py-2 min-w-[200px] rounded-md border border-border/40 text-body-sm text-muted-foreground hover:text-foreground hover:border-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            aria-label={`Open command palette (${SHORTCUT_LABEL})`}
+            /* Red Team theo/theo#163 — WCAG 2.5.3 Label in Name: the
+             * accessible name MUST contain the visible text. The button's
+             * visible text is "Search…"; the previous aria-label started
+             * with "Open" and never mentioned Search — voice-control
+             * activation by "Click Search" failed. New form starts with
+             * the visible text verbatim, preserves the shortcut hint. */
+            aria-label={`Search — open command palette (${SHORTCUT_LABEL})`}
           >
             <Search className="size-4" aria-hidden="true" />
             <span className="flex-1 text-left">Search…</span>
