@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **`/projects` list badge is data-plane-aware (T4.1 + T4.2 + T4.3 of plan `dashboard-badge-data-plane-poller`, closes Red Team theo-cloud#128).** Pre-fix the row rendered `● Live` from the control-plane `active_release.status='ACTIVE'` alone — the same trap #124 fixed for `/projects/{name}/status`, now closed on the list. Post-fix the row derives a 4-state honest verdict from the DataPlanePoller snapshot surfaced via new `Project` fields `last_replicas_ready_value` + `last_replicas_ready_at` (T4.1): (Live) release ACTIVE + replicas>0 + staleness < 90 s; (Deployed) release ACTIVE + replicas>0 + 90 s ≤ staleness < 5 min; (Down) release ACTIVE + replicas=0 + staleness < 5 min — Red Team #128's core regression case; (Unknown) snapshot absent (Cleanroom warm-up before the first poller tick) OR staleness ≥ 5 min (Prometheus outage / poller crash). Mirrors `hasServingSignal` from `project-status.tsx:179` (family #124) via a co-located `deriveDataPlaneBadge` helper (parsimony rung 5 — the two sites read different signal shapes; forced shared abstraction would drag the KPI grid into the row derivation). CR-9-compliant labels — no internal terms in visible copy. **RED-first:** 5 vitest tests A-E in `projects.test.tsx` lock the truth table; `vi.useFakeTimers()` + `vi.setSystemTime(2026-07-01T12:00:00Z)` freezes staleness math for determinism. 12/12 PASS post-implement (all pre-existing tests untouched). (`dashboard/src/pages/projects.tsx`, `dashboard/src/pages/projects.test.tsx`, `dashboard/src/lib/api/types.ts`)
 
 ### Changed
 
