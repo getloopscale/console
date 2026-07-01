@@ -133,11 +133,11 @@ function ProjectRow({
             : projectStatus === 'preview'
               ? 'idle'
               : projectStatus;
-  // When the data-plane verdict fires it OVERRIDES the projectStatus
-  // label — the whole point of #128 is that control-plane 'live' + zero
-  // replicas must render "Down", not "Live". Fall through to the legacy
-  // 5-value enum ONLY when dataPlaneVerdict is null (release not active,
-  // preview row, or non-live status).
+  // The data-plane verdict is the ONLY source of the badge label when
+  // the release is control-plane 'live' — that's the whole point of
+  // #128. Non-live rows (preview / queued / building / failed / idle)
+  // keep their own status-driven label; dataPlaneVerdict is null on
+  // those rows by construction (see gate above).
   const statusLabel =
     dataPlaneVerdict === 'live'
       ? 'Live'
@@ -147,11 +147,9 @@ function ProjectRow({
           ? 'Down'
           : dataPlaneVerdict === 'unknown'
             ? 'Unknown'
-            : projectStatus === 'live'
-              ? 'Live'
-              : projectStatus === 'preview'
-                ? 'Preview'
-                : projectStatus.charAt(0).toUpperCase() + projectStatus.slice(1);
+            : projectStatus === 'preview'
+              ? 'Preview'
+              : projectStatus.charAt(0).toUpperCase() + projectStatus.slice(1);
   // T4.2 finding 2.1 + T2.1: prefer the new server-derived
   // environment_count; fall back to 1 if only the legacy singular
   // `environment` is present.
