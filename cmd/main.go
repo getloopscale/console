@@ -74,7 +74,7 @@ type ragDashMinter interface {
 	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, scopes []string) (string, error)
 }
 
-// newRagDashboardKeyResolver returns the per-request keyResolver for the read-only rag
+// newRagDashboardKeyResolver returns the per-request keyResolver for the read+write (M21) rag
 // dashboard BFF (M17). It reads the tenant from the JWT-derived context ONLY (never a
 // request param) and mints a rag:READ-ONLY per-tenant key (least privilege — the
 // dashboard can never write/delete). Fail-closed: no authenticated tenant → error, so
@@ -86,18 +86,30 @@ func newRagDashboardKeyResolver(minter ragDashMinter) func(ctx context.Context) 
 		if u == nil || u.TenantID == "" {
 			return "", fmt.Errorf("rag dashboard: no authenticated tenant in context")
 		}
-		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"rag:read"})
+		// M21: the dashboard session mints read+write+delete so a human can manage RAG
+		// from the UI (mirrors theo-memory's read+write dashboard broker). theo-rag's
+		// per-verb scope still gates every verb; workspace_id == tenant_id is preserved.
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"rag:read", "rag:write", "rag:delete"})
 	}
 }
 
-// mountRagDashboard registers the read-only /v1/dashboard/rag BFF route group (M17).
-// Extracted so the read-only route-set invariant is unit-testable (main_test.go walks
-// the routes and asserts GET-only). A mutating verb here is a build-failing test.
+// mountRagDashboard registers the /v1/dashboard/rag BFF route group. M17 shipped it
+// read-only; M21 lifts it to read+write (create/delete collections + documents, ask) so
+// the dashboard UI can manage RAG. The route-set invariant test (main_test.go) asserts
+// the expected read+write set; the SDK/edge surface /v1/rag/* stays a distinct mount.
 func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, requireJWT func(http.Handler) http.Handler) {
 	r.Route("/v1/dashboard/rag", func(r chi.Router) {
 		r.Use(requireJWT)
+		// reads (M17)
 		r.Get("/collections", h.ListCollections)
 		r.Get("/analytics", h.Analytics)
+		r.Get("/documents", h.ListDocuments)
+		// writes (M21)
+		r.Post("/collections", h.CreateCollection)
+		r.Delete("/collections/{id}", h.DeleteCollection)
+		r.Post("/documents", h.IngestDocument)
+		r.Delete("/documents/{id}", h.DeleteDocument)
+		r.Post("/answers", h.Ask)
 	})
 }
 
@@ -317,7 +329,7 @@ func main() {
 		logger.Info("theo-rag Model B broker wired (M14)", "base_url", cfg.RagBaseURL)
 	}
 
-	// M17: the read-only /v1/dashboard/rag BFF. Wired only when the rag broker is
+	// M17: the read+write /v1/dashboard/rag BFF (M21). Wired only when the rag broker is
 	// configured. The dashboard keyResolver mints a rag:READ-ONLY per-tenant key from
 	// the JWT-derived tenant (least privilege — the dashboard can never write/delete),
 	// mirroring the memory dashboard BFF but stricter (memory mints full scopes).
@@ -326,7 +338,7 @@ func main() {
 		ragDataClient := rag.NewDataClient(cfg.RagBaseURL, &http.Client{Timeout: 10 * time.Second}).
 			WithKeyResolver(newRagDashboardKeyResolver(ragBroker))
 		ragDashboardHandler = routes.NewRagDashboardHandler(ragDataClient, logger)
-		logger.Info("dashboard rag enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/rag")
+		logger.Info("dashboard rag enabled (per-tenant read+write broker)", "mount", "/v1/dashboard/rag")
 	}
 
 	// platform-api-gateway-edge-slice1 (M6): the ForwardAuth authz-brain the
@@ -813,9 +825,9 @@ func main() {
 		})
 	}
 
-	// M17: read-only /v1/dashboard/rag BFF (browser sessions, requireJWT). GET ONLY —
+	// M17: read+write /v1/dashboard/rag BFF (M21) (browser sessions, requireJWT). read+write (M21) —
 	// no mutating verb (the read-only route-set test enforces this); the per-tenant key
-	// is minted rag:read-only. Distinct mount from /v1/rag/* (the SDK/edge surface).
+	// is minted rag:read+write+delete (M21). Distinct mount from /v1/rag/* (the SDK/edge surface).
 	if ragDashboardHandler != nil {
 		mountRagDashboard(r, ragDashboardHandler, requireJWT)
 	}

@@ -149,11 +149,17 @@ export function ProjectDetailPage() {
   const lastDeployAt = !isZeroTime(project.last_deploy)
     ? project.last_deploy
     : latestBuild?.created_at;
-  // Red Team theo-cloud#41 absorption (2026-06-27): the "Live envs"
-  // metric MUST use `production_env_count` (kind='permanent' subset)
-  // — `environment_count` was the bug source for the "Live envs: 1 +
-  // URL PENDING" pair the Red Team caught. Legacy fallback preserved.
-  const liveEnvCount = project.production_env_count ?? project.environment_count ?? (project.environment ? 1 : 0);
+  // Red Team theo-cloud#134 absorption (2026-07-02): the "Live envs"
+  // metric MUST use `active_env_count` (env_targets with a corresponding
+  // ACTIVE release, any kind). Legacy `production_env_count` returned 0
+  // for preview-only projects with Live URLs serving, contradicting the
+  // Live URL exposed on the SAME page. Fallback chain preserves
+  // backwards compat across engine versions:
+  //   1. active_env_count (canonical — post-2026-07-02 engine)
+  //   2. production_env_count (2026-06-27 #41 semantic — permanent-only)
+  //   3. environment_count (2026-06-08 T2.1 semantic — all kinds)
+  //   4. legacy singular `environment ? 1 : 0`
+  const liveEnvCount = project.active_env_count ?? project.production_env_count ?? project.environment_count ?? (project.environment ? 1 : 0);
 
   // Red Team theo-cloud#41 absorption (2026-06-27, follow-up): the
   // `isPreviewOnly` heuristic now uses the canonical signal pair

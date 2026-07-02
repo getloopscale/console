@@ -19,6 +19,13 @@ interface Project {
   // Red Team theo-cloud#41 (2026-06-27): production-only env_targets count
   // — the canonical "Live envs" metric. Aligned with src/lib/api/types.ts.
   production_env_count?: number;
+  // Red Team theo-cloud#134 (2026-07-02): env_targets with an ACTIVE release
+  // — the truest "Live envs" signal (any kind, permanent OR preview).
+  // Preferred over production_env_count for preview-only projects that serve
+  // real traffic via a preview env with an ACTIVE release. Aligned with
+  // src/lib/api/types.ts Project + engine api/internal/domain/types.go
+  // ProjectSummary.ActiveEnvCount.
+  active_env_count?: number;
   // Red Team theo-cloud#41 (2026-06-27): 'preview' added — preview-only
   // project (succeeded preview builds, no active production release).
   // Aligned with the canonical type in src/lib/api/types.ts ProjectStatus.

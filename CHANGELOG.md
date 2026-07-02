@@ -9,8 +9,14 @@
 ### Removed
 
 ### Fixed
+- **Dashboard `Live envs` metric prefere `active_env_count` sobre `production_env_count` (closes Red Team theo-cloud#134 MAJOR).** Root cause: `project-detail.tsx:156` + `projects.tsx:164` derivavam a métrica via `production_env_count ?? environment_count`, mas `production_env_count` conta apenas `env_targets.kind='permanent'` — para theokit-example que servia produção via **preview env** com release ACTIVE, essa contagem retornava 0 enquanto o Live URL renderizado na mesma tela apontava para um ambiente ativo. Sintoma: rótulo enganoso "Live envs: 0" contradizendo o Live URL exposto. Fix: (a) `dashboard/src/lib/api/types.ts` — novo campo opcional `active_env_count?: number` no `Project` type; (b) `dashboard/src/pages/project-detail.tsx:156` — fallback chain agora `active_env_count ?? production_env_count ?? environment_count ?? (environment ? 1 : 0)`; (c) `dashboard/src/pages/projects.tsx:164` — mesma fallback chain para consistência cross-view (fecha classe de bug #77 / #124). Engine-side companion em `theo/api/internal/domain/types.go` + `theo/api/internal/db/queries/projects.sql` (LATERAL JOIN `env_targets` com release ACTIVE) surface `active_env_count` no wire response. Vitest regression-protector: `test_project_detail_uses_active_env_count_for_live_envs_metric (#134)` em `project-detail.test.tsx` (5/5 GREEN). Requires rebuild + push + rollout do theo-api + theo-cloud dashboard image para o Red Team ver o fix (per `feedback_always_rebuild_push_rollout_for_red_team_2026_06_27`). Per `feedback_issue_fix_requires_failing_e2e_test_2026_06_25` INQUEBRÁVEL. (`dashboard/src/lib/api/types.ts`, `dashboard/src/pages/project-detail.tsx`, `dashboard/src/pages/projects.tsx`, `dashboard/src/pages/project-detail.test.tsx`)
 
 ### Security
+
+## [0.20.0] - 2026-07-02
+
+### Added
+- **RAG management dashboard UI (M21)** — the theo-cloud dashboard gains a full RAG section (`/rag`: Collections create/list/delete, Documents upload/list/status/delete, Ask query→cited answer, Analytics), mirroring the theo-memory dashboard. The `/v1/dashboard/rag` BFF is lifted from M17 read-only to **read+write+delete**: new write proxy methods + handlers + routes (POST/DELETE collections+documents, POST answers, GET documents), and the dashboard key resolver now mints `rag:read`+`rag:write`+`rag:delete` per-tenant (was read-only). theo-rag's per-verb scope still gates every write (the 6 data-plane invariants hold); cross-tenant isolation + fail-closed proven on the resolver. Frontend: 4 lazy pages + a RAG nav section; go/tsc/lint/build + Go route tests + React component tests green. (`internal/rag/data_client.go`, `internal/routes/rag_dashboard.go`, `cmd/main.go`, `dashboard/src/pages/rag/*`, `dashboard/src/app.tsx`, `dashboard/src/components/layout/app-sidebar.tsx`)
 
 ## [0.19.0] - 2026-07-02
 

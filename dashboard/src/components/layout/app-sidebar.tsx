@@ -113,6 +113,11 @@ const MENUS: Record<string, MenuDefinition> = {
         items: [{ label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' }],
       },
       {
+        // M21 — RAG section. Drills into a submenu (Collections/Documents/Ask/Analytics).
+        title: 'RAG',
+        items: [{ label: 'RAG', path: '/rag', icon: BookOpen, drillsInto: 'rag' }],
+      },
+      {
         // Top-level shortcut to the API Tokens page (also reachable via
         // Settings → Developer → API Tokens). Uses the /tokens route so the
         // root sidebar stays active instead of drilling into Settings.
@@ -186,6 +191,21 @@ const MENUS: Record<string, MenuDefinition> = {
   // Memory drill-down — Plan 1 ships Overview + Memories; Plan 2 will add
   // Entities; Plan 3 will add Exports + Webhooks. Items added to this menu in
   // subsequent plans do NOT reflow the root sidebar — that's why we drill.
+  rag: {
+    id: 'rag',
+    title: 'RAG',
+    parent: 'main',
+    groups: [
+      {
+        items: [
+          { label: 'Collections', path: '/rag', icon: Boxes },
+          { label: 'Documents', path: '/rag/documents', icon: ScrollText },
+          { label: 'Ask', path: '/rag/ask', icon: Search },
+          { label: 'Analytics', path: '/rag/analytics', icon: Activity },
+        ],
+      },
+    ],
+  },
   memory: {
     id: 'memory',
     title: 'Memory',
@@ -265,6 +285,7 @@ function resolveActiveMenu(pathname: string): ResolvedMenu {
   }
   if (pathname.startsWith('/settings')) return { id: 'settings' };
   if (pathname.startsWith('/profile')) return { id: 'profile' };
+  if (pathname.startsWith('/rag')) return { id: 'rag' };
   if (pathname.startsWith('/memory')) return { id: 'memory' };
   return { id: 'main' };
 }

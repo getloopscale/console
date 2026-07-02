@@ -88,6 +88,22 @@ export interface Project {
   // env_targets too, producing the misleading "Live envs: 1 + URL pending"
   // pair the Red Team caught.
   production_env_count?: number;
+  // Red Team theo-cloud#134 absorption (2026-07-02): count of env_targets
+  // that currently have a corresponding release with status='ACTIVE'
+  // (preview OR permanent kind). The dashboard "LIVE ENVS" counter
+  // MUST use this — `production_env_count` returns 0 for preview-only
+  // projects, contradicting the Live URL exposed on the SAME page when
+  // a preview env is serving.
+  //
+  // Semantic distinction (all three coexist on the same wire response):
+  //   - environment_count    — all env_targets (any kind, any release)
+  //   - production_env_count — kind='permanent' subset (any release)
+  //   - active_env_count     — any kind WITH active release ("live")
+  //
+  // The `isPreviewOnly` heuristic keeps using `production_env_count`
+  // because it asks a different question ("was any permanent env
+  // provisioned?" — semantic of "wired for production, not just preview").
+  active_env_count?: number;
   // T2.1 additive completion (T5.3 LIVE-bug fix 2026-06-08): backend
   // now populates these via the latest_build LATERAL join so the
   // /projects table no longer shows "—" / 0 in Apps + Framework
