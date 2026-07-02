@@ -43,6 +43,30 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/tracing"
 )
 
+// buildRagForwardAuth constructs the theo-rag Model-B ForwardAuth handler (M14).
+// Returns (nil, nil) when RAG_BASE_URL is unset (feature off), (nil, error) when
+// the broker cannot be constructed (caller refuses to start — fail-closed at
+// boot), and (handler, nil) when configured. Extracted from main() so the boot
+// path is unit-testable (the three branches) without booting the process.
+func buildRagForwardAuth(
+	cfg config.Config,
+	resolve routes.APIKeyResolver,
+	authorize routes.AccountTenantAuthorizer,
+	logger *slog.Logger,
+) (*routes.ForwardAuthHandler, error) {
+	if cfg.RagBaseURL == "" {
+		return nil, nil
+	}
+	ragHTTP := &http.Client{Timeout: 10 * time.Second}
+	ragAdmin := rag.NewAdminClient(cfg.RagBaseURL, cfg.RagPlatformAdminKey.Value(), ragHTTP)
+	ragBroker, err := rag.NewBroker(ragAdmin, 1024, time.Hour,
+		[]string{"rag:read", "rag:write", "rag:delete"})
+	if err != nil {
+		return nil, fmt.Errorf("rag broker: %w", err)
+	}
+	return routes.NewForwardAuthHandler(resolve, ragBroker, authorize, "rag:read", logger), nil
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
@@ -238,31 +262,24 @@ func main() {
 	}
 
 	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
-	// capability. Reuses the generic handler wired with the rag broker +
-	// "rag:read"; only registered when RAG_BASE_URL is set. The broker mints
-	// per-tenant rag_live_* keys carrying the consumer's own scopes (least privilege).
-	var ragForwardAuthHandler *routes.ForwardAuthHandler
-	if cfg.RagBaseURL != "" {
-		ragHTTP := &http.Client{Timeout: 10 * time.Second}
-		ragAdmin := rag.NewAdminClient(cfg.RagBaseURL, cfg.RagPlatformAdminKey.Value(), ragHTTP)
-		ragBroker, rErr := rag.NewBroker(ragAdmin, 1024, time.Hour,
-			[]string{"rag:read", "rag:write", "rag:delete"})
-		if rErr != nil {
-			logger.Error("failed to construct rag credential broker — refusing to start", "error", rErr)
-			os.Exit(1)
-		}
-		ragForwardAuthHandler = routes.NewForwardAuthHandler(
-			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
-				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
-			},
-			ragBroker,
-			// cross-account guard (same DB-backed ownership check).
-			func(ctx context.Context, accountID, tenantID string) (bool, error) {
-				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
-			},
-			"rag:read",
-			logger,
-		)
+	// capability. Built via buildRagForwardAuth (testable) — nil when RAG_BASE_URL
+	// is unset (feature off), error → refuse to start (boot-failure).
+	ragForwardAuthHandler, ragErr := buildRagForwardAuth(
+		cfg,
+		func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+			return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+		},
+		// cross-account guard (same DB-backed ownership check).
+		func(ctx context.Context, accountID, tenantID string) (bool, error) {
+			return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+		},
+		logger,
+	)
+	if ragErr != nil {
+		logger.Error("failed to construct rag credential broker — refusing to start", "error", ragErr)
+		os.Exit(1)
+	}
+	if ragForwardAuthHandler != nil {
 		logger.Info("theo-rag Model B broker wired (M14)", "base_url", cfg.RagBaseURL)
 	}
 
