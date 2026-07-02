@@ -14,12 +14,89 @@
 # scope for the ForwardAuth coverage gap this overlay closes.
 
 services:
+  # M18 (KEYSTONE) — the hermetic rag ForwardAuth proof. A REAL theo-rag container
+  # (built from the sibling checkout, pinned M11/M12/M13) + its pgvector DB + a
+  # one-shot migrate that applies theo-rag's drizzle SQLs. Mirrors the themory service.
+  pg-rag:
+    image: ankane/pgvector:v0.5.1   # theo-rag's 0000 migration uses the `vector` type + HNSW index
+    environment:
+      POSTGRES_USER: therag
+      POSTGRES_PASSWORD: therag
+      POSTGRES_DB: therag
+    ports:
+      - "${E2E_PG_RAG_PORT:-55435}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U therag -d therag"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: apply `CREATE EXTENSION vector` + theo-rag's drizzle migration SQLs (D2 —
+  # theo-rag has no boot migrator; the SQLs are plain + idempotent). Exits 0 on success;
+  # `rag` depends on service_completed_successfully so it never boots on a partial schema.
+  rag-migrate:
+    image: postgres:17-alpine
+    depends_on:
+      pg-rag:
+        condition: service_healthy
+    environment:
+      PGURI: postgres://therag:therag@pg-rag:5432/therag
+    volumes:
+      - ./sql/rag/00-extensions.sql:/mig/00-extensions.sql:ro
+      - ../../../../theo-data/theo-rag/packages/core/src/infrastructure/db/migrations:/mig/drizzle:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        psql "$$PGURI" -v ON_ERROR_STOP=1 -f /mig/00-extensions.sql
+        for f in $$(ls /mig/drizzle/*.sql | sort); do
+          echo "applying $$f"
+          psql "$$PGURI" -v ON_ERROR_STOP=1 -f "$$f"
+        done
+
+  rag:
+    image: ${THEORAG_IMAGE:-theo-rag-e2e:latest}   # built from the sibling checkout (D1)
+    depends_on:
+      rag-migrate:
+        condition: service_completed_successfully
+      mock-openai:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      THEORAG_PG_URI: postgres://therag:therag@pg-rag:5432/therag
+      THEORAG_ADMIN_BOOTSTRAP_TOKEN: ${THEORAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}
+      # M13 fail-closed — the direct-to-service no-key → 401 proof (D4). Without it a
+      # no-key direct request would resolve a dev-mode owner Principal (not a 401).
+      THEORAG_REQUIRE_CREDENTIAL: "true"
+      # Hermetic embedder — collections CRUD never embeds, but point at mock-openai so
+      # boot is identical to themory (no real key/network).
+      OPENAI_API_KEY: dummy-key-for-mock
+      OPENAI_BASE_URL: http://mock-openai:11434/v1
+    ports:
+      - "${E2E_RAG_PORT:-18082}:8080"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/v1/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 3s
+
+  # theo-cloud override: wire the rag broker (M14) so /internal/authz/forward-rag is
+  # mounted. RAG_PLATFORM_ADMIN_KEY is minted at setup by run.sh and injected on recreate.
+  theo-cloud:
+    environment:
+      RAG_BASE_URL: http://rag:8080
+      RAG_PLATFORM_ADMIN_KEY: ${RAG_PLATFORM_ADMIN_KEY:-}
+
   traefik:
     image: traefik:v3.3
     depends_on:
       themory:
         condition: service_healthy
       theo-cloud:
+        condition: service_healthy
+      rag:
         condition: service_healthy
     volumes:
       # Reuse the dev STATIC config verbatim (entrypoint :8090, file provider,

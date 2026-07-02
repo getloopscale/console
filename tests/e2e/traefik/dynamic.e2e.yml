@@ -28,6 +28,20 @@ http:
         - forward-auth
         - memory-rewrite
 
+    # M18 (KEYSTONE) — the rag capability router. /v1/rag/* --forward-auth-rag-->
+    # theo-cloud /internal/authz/forward-rag (mints a per-tenant rag_live_*; D3
+    # Del-then-set strips the client key) --rag-rewrite--> /v1/* --> rag:8080 DIRECT.
+    # Priority 92 (non-colliding with memory-edge 100).
+    rag-edge:
+      priority: 92
+      rule: "PathPrefix(`/v1/rag`)"
+      entryPoints:
+        - web
+      service: rag
+      middlewares:
+        - forward-auth-rag
+        - rag-rewrite
+
   middlewares:
     # D3 + credential exchange: delegate authZ to theo-cloud; copy ONLY the minted
     # Authorization onto the upstream (Del-then-set strips the client's). On a
@@ -46,8 +60,27 @@ http:
         regex: "^/v1/memory/(.*)"
         replacement: "/v1/$1"
 
+    # M18 — the rag ForwardAuth (mints a per-tenant rag_live_*; Del-then-set strips the
+    # client key). Distinct address (M14 /internal/authz/forward-rag). Non-2xx → deny.
+    forward-auth-rag:
+      forwardAuth:
+        address: "http://theo-cloud:13002/internal/authz/forward-rag"
+        authResponseHeaders:
+          - "Authorization"
+        trustForwardHeader: false
+
+    # theo-rag KEEPS its /v1 prefix (memory-style): /v1/rag/collections -> /v1/collections.
+    rag-rewrite:
+      replacePathRegex:
+        regex: "^/v1/rag/(.*)"
+        replacement: "/v1/$1"
+
   services:
     themory:
       loadBalancer:
         servers:
           - url: "http://themory:8080"
+    rag:
+      loadBalancer:
+        servers:
+          - url: "http://rag:8080"

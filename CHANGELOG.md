@@ -12,6 +12,11 @@
 
 ### Security
 
+## [0.19.0] - 2026-07-02
+
+### Added
+- **Hermetic ForwardAuth e2e for the rag capability — the KEYSTONE proof of invariant #6 (M18).** `make e2e-edge` now brings up a REAL theo-rag container (built from the sibling checkout, pinned M11/M12/M13 — not a floating GHCR tag) behind the REAL Traefik edge + REAL ForwardAuth, and proves rag isolation END-TO-END. New: `pg-rag` + a `rag-migrate` one-shot (applies `CREATE EXTENSION vector` + theo-rag's drizzle SQLs — theo-rag has no boot migrator) + the `rag` service in the edge overlay; `rag-edge` + `forward-auth-rag` + `rag-rewrite` → `http://rag:8080` in `dynamic.e2e.yml`; `RAG_BASE_URL` + `RAG_PLATFORM_ADMIN_KEY` on the e2e theo-cloud + a run.sh rag-admin mint (theo-rag's `raw_key` M12 response). `edge_rag_forward_auth_e2e_test.go` asserts, through Traefik: cross-tenant isolation (tenant A cannot see tenant B's collection), the per-verb wall (a minted `rag:read` key → 403 on a write), no-key → 401 at the edge, no-key → 401 direct-to-service (theo-rag `THEORAG_REQUIRE_CREDENTIAL=true`, M13), and the raw customer key → 401 direct-to-service (minted ≠ customer — the Del-then-set proof). Hermetic: container upstreams, mock-openai, no secrets/real-network. Verified green: all 5 edge tests (3 rag + 2 memory) PASS. (`tests/e2e/docker-compose.edge.e2e.yaml`, `tests/e2e/traefik/dynamic.e2e.yml`, `tests/e2e/run.sh`, `tests/e2e/edge_rag_forward_auth_e2e_test.go`, `tests/e2e/sql/rag/00-extensions.sql`) (#roadmap-M18)
+
 ## [0.18.0] - 2026-07-02
 
 ### Added
