@@ -68,6 +68,39 @@ func buildRagForwardAuth(
 	return routes.NewForwardAuthHandler(resolve, ragBroker, authorize, "rag:read", logger), ragBroker, nil
 }
 
+// ragDashMinter is the least-privilege minting surface the dashboard resolver needs
+// (ISP — only KeyForTenantScoped). Satisfied by the rag broker (routes.TenantKeyMinter).
+type ragDashMinter interface {
+	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, scopes []string) (string, error)
+}
+
+// newRagDashboardKeyResolver returns the per-request keyResolver for the read-only rag
+// dashboard BFF (M17). It reads the tenant from the JWT-derived context ONLY (never a
+// request param) and mints a rag:READ-ONLY per-tenant key (least privilege — the
+// dashboard can never write/delete). Fail-closed: no authenticated tenant → error, so
+// the data client sends no request. Extracted (not inline) so the least-privilege +
+// fail-closed invariants are unit-tested on the SHIPPED code path.
+func newRagDashboardKeyResolver(minter ragDashMinter) func(ctx context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		u := auth.GetUser(ctx)
+		if u == nil || u.TenantID == "" {
+			return "", fmt.Errorf("rag dashboard: no authenticated tenant in context")
+		}
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"rag:read"})
+	}
+}
+
+// mountRagDashboard registers the read-only /v1/dashboard/rag BFF route group (M17).
+// Extracted so the read-only route-set invariant is unit-testable (main_test.go walks
+// the routes and asserts GET-only). A mutating verb here is a build-failing test.
+func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, requireJWT func(http.Handler) http.Handler) {
+	r.Route("/v1/dashboard/rag", func(r chi.Router) {
+		r.Use(requireJWT)
+		r.Get("/collections", h.ListCollections)
+		r.Get("/analytics", h.Analytics)
+	})
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
@@ -282,6 +315,18 @@ func main() {
 	}
 	if ragForwardAuthHandler != nil {
 		logger.Info("theo-rag Model B broker wired (M14)", "base_url", cfg.RagBaseURL)
+	}
+
+	// M17: the read-only /v1/dashboard/rag BFF. Wired only when the rag broker is
+	// configured. The dashboard keyResolver mints a rag:READ-ONLY per-tenant key from
+	// the JWT-derived tenant (least privilege — the dashboard can never write/delete),
+	// mirroring the memory dashboard BFF but stricter (memory mints full scopes).
+	var ragDashboardHandler *routes.RagDashboardHandler
+	if ragBroker != nil {
+		ragDataClient := rag.NewDataClient(cfg.RagBaseURL, &http.Client{Timeout: 10 * time.Second}).
+			WithKeyResolver(newRagDashboardKeyResolver(ragBroker))
+		ragDashboardHandler = routes.NewRagDashboardHandler(ragDataClient, logger)
+		logger.Info("dashboard rag enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/rag")
 	}
 
 	// platform-api-gateway-edge-slice1 (M6): the ForwardAuth authz-brain the
@@ -766,6 +811,13 @@ func main() {
 				r.Post("/webhooks/{webhook_id}/deliveries/{delivery_id}/replay", memoryWebhookDeliveriesHandler.Replay)
 			}
 		})
+	}
+
+	// M17: read-only /v1/dashboard/rag BFF (browser sessions, requireJWT). GET ONLY —
+	// no mutating verb (the read-only route-set test enforces this); the per-tenant key
+	// is minted rag:read-only. Distinct mount from /v1/rag/* (the SDK/edge surface).
+	if ragDashboardHandler != nil {
+		mountRagDashboard(r, ragDashboardHandler, requireJWT)
 	}
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
