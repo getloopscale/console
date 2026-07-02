@@ -1,7 +1,6 @@
 ## [Unreleased]
 
 ### Added
-- **Read-only `/v1/dashboard/rag/*` BFF (M17).** Browser dashboard sessions (`requireJWT`) can now read the workspace's theo-rag surface — `GET /collections` (list) + `GET /analytics` (the M5 summary) — workspace-scoped via a per-tenant key the broker mints from the JWT-derived tenant. Mirrors the memory dashboard BFF, but **stricter**: the dashboard key is minted **rag:read-only** (`KeyForTenantScoped(…, ["rag:read"])` — least privilege; the memory BFF mints full scopes) and the route group is **GET-only** (a `chi.Walk` route-set test fails the build if any mutating verb appears). A new read-only `internal/rag/data_client.go` proxies to theo-rag with the per-tenant Bearer (fail-closed: a key-resolver error sends no request; a non-2xx is a typed error, no key leak). Cross-tenant isolation: tenant A's request resolves A's key, never B's; no JWT tenant → 401. Wired only when `RAG_BASE_URL` is set. Live dashboard render needs the browser + JWT + stack; the automated proof is the Go route-set + isolation tests. (`internal/rag/data_client.go`, `internal/routes/rag_dashboard.go`, `cmd/main.go`) (#roadmap-M17)
 
 ### Changed
 
@@ -12,6 +11,11 @@
 ### Fixed
 
 ### Security
+
+## [0.18.0] - 2026-07-02
+
+### Added
+- **Read-only `/v1/dashboard/rag/*` BFF (M17).** Browser dashboard sessions (`requireJWT`) can now read the workspace's theo-rag surface — `GET /collections` (list) + `GET /analytics` (the M5 summary) — workspace-scoped via a per-tenant key the broker mints from the JWT-derived tenant. Mirrors the memory dashboard BFF, but **stricter**: the dashboard key is minted **rag:read-only** (`KeyForTenantScoped(…, ["rag:read"])` — least privilege; the memory BFF mints full scopes) and the route group is **GET-only** (a `chi.Walk` route-set test fails the build if any mutating verb appears). A new read-only `internal/rag/data_client.go` proxies to theo-rag with the per-tenant Bearer (fail-closed: a key-resolver error sends no request; a non-2xx is a typed error, no key leak). Cross-tenant isolation: tenant A's request resolves A's key, never B's; no JWT tenant → 401. Wired only when `RAG_BASE_URL` is set. Live dashboard render needs the browser + JWT + stack; the automated proof is the Go route-set + isolation tests. (`internal/rag/data_client.go`, `internal/routes/rag_dashboard.go`, `cmd/main.go`) (#roadmap-M17)
 
 ## [0.17.0] - 2026-07-02
 
