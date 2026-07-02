@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **Model-B RAG credential broker (M14):** the gateway can now provision per-tenant `rag_live_*` keys for the theo-rag data plane, mirroring the existing themory/promptly brokers. A new `internal/rag` package holds a control-plane `AdminClient` (carries `rag:platform-admin`, mints via theo-rag's `POST /v1/admin/keys`, NEVER on the data path — NIST AC-5/6 control/data split) and a `Broker` (LRU + singleflight + fail-closed; mints the consumer's OWN scopes via `intersect(want, allowed)` for least privilege). `RAG_BASE_URL` + `RAG_PLATFORM_ADMIN_KEY` config (base-url set ⇒ admin-key required in prod, fail-fast at boot); when set, a third ForwardAuth handler is wired at `/internal/authz/forward-rag` (required scope `rag:read`). The broker adapts theo-rag's nested `{key, raw_key}` mint response (distinct from themory's flat `{id, secret}`) and fails closed on a malformed body. Zero new Go module. (#roadmap-M14)
 
 ### Changed
 

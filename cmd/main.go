@@ -36,6 +36,7 @@ import (
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/normalize"
 	"github.com/usetheodev/theo-cloud/internal/promptly"
+	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
 	"github.com/usetheodev/theo-cloud/internal/themory"
@@ -234,6 +235,35 @@ func main() {
 			logger,
 		)
 		logger.Info("theo-promptly Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
+	}
+
+	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
+	// capability. Reuses the generic handler wired with the rag broker +
+	// "rag:read"; only registered when RAG_BASE_URL is set. The broker mints
+	// per-tenant rag_live_* keys carrying the consumer's own scopes (least privilege).
+	var ragForwardAuthHandler *routes.ForwardAuthHandler
+	if cfg.RagBaseURL != "" {
+		ragHTTP := &http.Client{Timeout: 10 * time.Second}
+		ragAdmin := rag.NewAdminClient(cfg.RagBaseURL, cfg.RagPlatformAdminKey.Value(), ragHTTP)
+		ragBroker, rErr := rag.NewBroker(ragAdmin, 1024, time.Hour,
+			[]string{"rag:read", "rag:write", "rag:delete"})
+		if rErr != nil {
+			logger.Error("failed to construct rag credential broker — refusing to start", "error", rErr)
+			os.Exit(1)
+		}
+		ragForwardAuthHandler = routes.NewForwardAuthHandler(
+			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+			},
+			ragBroker,
+			// cross-account guard (same DB-backed ownership check).
+			func(ctx context.Context, accountID, tenantID string) (bool, error) {
+				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+			},
+			"rag:read",
+			logger,
+		)
+		logger.Info("theo-rag Model B broker wired (M14)", "base_url", cfg.RagBaseURL)
 	}
 
 	// platform-api-gateway-edge-slice1 (M6): the ForwardAuth authz-brain the
@@ -476,6 +506,12 @@ func main() {
 	if promptlyForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
+	}
+	// M14: the theo-rag ForwardAuth endpoint the edge's forward-auth-rag middleware
+	// calls. Same generic handler, distinct path + rag broker.
+	if ragForwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardRagPath, ragForwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardRagPath, ragForwardAuthHandler.ServeHTTP)
 	}
 	// gateway-themory-integration: the MCP-aware resolve endpoint the Theo MCP
 	// Gateway's BrokerResolver calls. Internal-only (the gateway is the caller),

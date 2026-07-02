@@ -24,6 +24,12 @@ const AuthzForwardPath = "/internal/authz/forward"
 // the path differs so the Traefik `forward-auth-promptly` middleware targets it.
 const AuthzForwardPromptlyPath = "/internal/authz/forward-promptly"
 
+// AuthzForwardRagPath is the internal ForwardAuth endpoint for the theo-rag
+// capability (M14 — Model B). The generic ForwardAuthHandler is reused (a 3rd
+// instance wired with the rag broker + "rag:read"); only the path differs so the
+// Traefik `forward-auth-rag` middleware targets it.
+const AuthzForwardRagPath = "/internal/authz/forward-rag"
+
 // APIKeyResolver validates an inbound Authorization header and resolves the
 // tenant. Injected (not a concrete *sql.DB dependency) so the handler is unit-
 // testable without a database; in production it closes over auth.ResolveAPIKey.
