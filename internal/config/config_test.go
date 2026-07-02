@@ -94,3 +94,43 @@ func TestValidate_prod_passes_when_promptly_disabled(t *testing.T) {
 		t.Fatalf("expected Validate() to pass when promptly disabled; got %v", err)
 	}
 }
+
+// M14 edge-rag-broker — RAG_PLATFORM_ADMIN_KEY required in prod when RAG_BASE_URL set.
+func TestValidate_prod_requires_rag_admin_key_when_rag_base_url_set(t *testing.T) {
+	c := prodValidBaseline()
+	c.RagBaseURL = "http://theo-rag:8787"
+	c.RagPlatformAdminKey = Secret("")
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected Validate() to fail when RAG_BASE_URL is set but RAG_PLATFORM_ADMIN_KEY is empty in prod")
+	}
+}
+
+func TestValidate_prod_passes_when_rag_fully_configured(t *testing.T) {
+	c := prodValidBaseline()
+	c.RagBaseURL = "http://theo-rag:8787"
+	c.RagPlatformAdminKey = Secret("rag_live_platform_admin")
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected Validate() to pass when rag fully configured; got %v", err)
+	}
+}
+
+func TestValidate_prod_passes_when_rag_disabled(t *testing.T) {
+	c := prodValidBaseline() // RagBaseURL empty → rag check must not fire
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected Validate() to pass when rag disabled; got %v", err)
+	}
+}
+
+// M14 — Load() reads RAG_BASE_URL / RAG_PLATFORM_ADMIN_KEY into the fields
+// (guards against an envOr key typo that struct-only Validate tests would miss).
+func TestLoad_RagFields(t *testing.T) {
+	t.Setenv("RAG_BASE_URL", "http://theo-rag:8787")
+	t.Setenv("RAG_PLATFORM_ADMIN_KEY", "rag_live_platform_env")
+	c := Load()
+	if c.RagBaseURL != "http://theo-rag:8787" {
+		t.Errorf("RagBaseURL = %q, want http://theo-rag:8787 (RAG_BASE_URL not read)", c.RagBaseURL)
+	}
+	if c.RagPlatformAdminKey.Value() != "rag_live_platform_env" {
+		t.Errorf("RagPlatformAdminKey = %q, want rag_live_platform_env (RAG_PLATFORM_ADMIN_KEY not read)", c.RagPlatformAdminKey.Value())
+	}
+}

@@ -88,7 +88,12 @@ export function OnboardingPanel() {
         type="button"
         onClick={() => setExpanded(true)}
         className="fixed bottom-6 right-6 z-50 size-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform flex items-center justify-center group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        aria-label={`Get your app live — ${completed} of ${total} done. Click to expand.`}
+        /* Red Team theo/theo#163 — WCAG 2.5.3 Label in Name: the collapsed
+         * FAB renders only an icon + the badge "{completed}/{total}" as
+         * visible text (the "Get your app live" heading is only shown in the
+         * expanded panel). Accessible name must lead with the badge visible
+         * text so voice-control activation by "Click 2 slash 5" works. */
+        aria-label={`${completed}/${total} — Get your app live. Click to expand.`}
       >
         <ProgressRing percent={percent} size={56} />
         <Rocket

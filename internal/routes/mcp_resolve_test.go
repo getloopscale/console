@@ -208,3 +208,105 @@ func TestMCPResolve_NeverLogsSecret(t *testing.T) {
 		t.Fatalf("secret leaked into logs:\n%s", out)
 	}
 }
+
+// M16 T2.2 — a rag:read key exposes ONLY read tools; a rag:read+rag:write key adds the
+// write tools; NO write tool is ever reachable under read-only (the confused-deputy guard,
+// roadmap risk 1). Uses the PRODUCTION RagScopeTools map (drift-proof).
+func TestMCPResolve_Rag_TranslatesDataScopesToTools(t *testing.T) {
+	minter := &stubMinter{key: "theo_live_minted_for_t1"}
+	caps := map[string]MCPCapabilityBinding{"rag": {
+		Minter:        minter,
+		RequiredScope: "rag:read",
+		ScopeTools:    RagScopeTools,
+	}}
+
+	// (1) read-only key → only read tools, NO write tool.
+	hRead := NewMCPResolveHandler(
+		resolveTo(&auth.UserContext{TenantID: "t1", AccountID: "acc1"}, []string{"rag:read"}, nil),
+		authzReturning(true, nil),
+		caps,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	rec := httptest.NewRecorder()
+	hRead.ServeHTTP(rec, mcpRequest("rag", "Bearer theo_live_consumer"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("read: want 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var pr mcpPrincipal
+	if err := json.Unmarshal(rec.Body.Bytes(), &pr); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	gotRead := map[string]bool{}
+	for _, s := range pr.Scopes {
+		gotRead[s] = true
+	}
+	for _, want := range []string{"ask", "list_collections", "retrieve"} {
+		if !gotRead[want] {
+			t.Errorf("rag:read must grant %q, got %+v", want, pr.Scopes)
+		}
+	}
+	for _, forbidden := range []string{"create_collection", "ingest_document"} {
+		if gotRead[forbidden] {
+			t.Errorf("write tool %q MUST be ABSENT under rag:read (confused-deputy), got %+v", forbidden, pr.Scopes)
+		}
+	}
+	if gotRead["rag:read"] {
+		t.Errorf("raw data scope must be translated, not passed through: %+v", pr.Scopes)
+	}
+
+	// (2) read+write key → write tools now present.
+	hRW := NewMCPResolveHandler(
+		resolveTo(&auth.UserContext{TenantID: "t1", AccountID: "acc1"}, []string{"rag:read", "rag:write"}, nil),
+		authzReturning(true, nil),
+		caps,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	rec2 := httptest.NewRecorder()
+	hRW.ServeHTTP(rec2, mcpRequest("rag", "Bearer theo_live_consumer"))
+	var prw mcpPrincipal
+	_ = json.Unmarshal(rec2.Body.Bytes(), &prw)
+	gotRW := map[string]bool{}
+	for _, s := range prw.Scopes {
+		gotRW[s] = true
+	}
+	for _, want := range []string{"create_collection", "ingest_document"} {
+		if !gotRW[want] {
+			t.Errorf("rag:read+rag:write must grant %q, got %+v", want, prw.Scopes)
+		}
+	}
+}
+
+// M16 T2.2 — every @usetheo/rag-mcp tool is in EXACTLY one RagScopeTools bucket: no tool
+// unmapped, no tool double-mapped (the tool-drift guard, roadmap risk 2). Guards the
+// PRODUCTION map against a new tool landing without a scope.
+func TestRagScopeTools_EveryToolInExactlyOneBucket(t *testing.T) {
+	seen := map[string]int{}
+	for scope, tools := range RagScopeTools {
+		for _, tool := range tools {
+			seen[tool]++
+			if seen[tool] > 1 {
+				t.Errorf("tool %q is in more than one bucket (double-mapped) — scope %q", tool, scope)
+			}
+		}
+	}
+	// every canonical tool mapped exactly once
+	for _, tool := range RagMCPTools {
+		if seen[tool] == 0 {
+			t.Errorf("tool %q is not mapped to any rag scope (tool drift — add it to RagScopeTools)", tool)
+		}
+	}
+	// no bucket maps a tool that isn't a real @usetheo/rag-mcp tool
+	canonical := map[string]bool{}
+	for _, tool := range RagMCPTools {
+		canonical[tool] = true
+	}
+	for tool := range seen {
+		if !canonical[tool] {
+			t.Errorf("RagScopeTools maps %q which is not a known @usetheo/rag-mcp tool (RagMCPTools)", tool)
+		}
+	}
+	// count sanity: total mapped == total canonical (exactly-once ⇒ equal sizes)
+	if len(seen) != len(RagMCPTools) {
+		t.Errorf("mapped tool count %d != canonical tool count %d", len(seen), len(RagMCPTools))
+	}
+}

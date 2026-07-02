@@ -36,11 +36,37 @@ import (
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/normalize"
 	"github.com/usetheodev/theo-cloud/internal/promptly"
+	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
 )
+
+// buildRagForwardAuth constructs the theo-rag Model-B ForwardAuth handler + its broker
+// (M14/M16). Returns (nil, nil, nil) when RAG_BASE_URL is unset (feature off),
+// (nil, nil, error) when the broker cannot be constructed (caller refuses to start —
+// fail-closed at boot), and (handler, broker, nil) when configured. M16 (D2): the broker
+// is returned so the SAME broker (one mint cache) serves BOTH the REST ForwardAuth handler
+// AND the MCP-resolve rag binding — consistent per-tenant keys across REST + MCP.
+func buildRagForwardAuth(
+	cfg config.Config,
+	resolve routes.APIKeyResolver,
+	authorize routes.AccountTenantAuthorizer,
+	logger *slog.Logger,
+) (*routes.ForwardAuthHandler, routes.TenantKeyMinter, error) {
+	if cfg.RagBaseURL == "" {
+		return nil, nil, nil
+	}
+	ragHTTP := &http.Client{Timeout: 10 * time.Second}
+	ragAdmin := rag.NewAdminClient(cfg.RagBaseURL, cfg.RagPlatformAdminKey.Value(), ragHTTP)
+	ragBroker, err := rag.NewBroker(ragAdmin, 1024, time.Hour,
+		[]string{"rag:read", "rag:write", "rag:delete"})
+	if err != nil {
+		return nil, nil, fmt.Errorf("rag broker: %w", err)
+	}
+	return routes.NewForwardAuthHandler(resolve, ragBroker, authorize, "rag:read", logger), ragBroker, nil
+}
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -236,10 +262,37 @@ func main() {
 		logger.Info("theo-promptly Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
 	}
 
+	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
+	// capability. Built via buildRagForwardAuth (testable) — nil when RAG_BASE_URL
+	// is unset (feature off), error → refuse to start (boot-failure).
+	ragForwardAuthHandler, ragBroker, ragErr := buildRagForwardAuth(
+		cfg,
+		func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+			return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+		},
+		// cross-account guard (same DB-backed ownership check).
+		func(ctx context.Context, accountID, tenantID string) (bool, error) {
+			return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+		},
+		logger,
+	)
+	if ragErr != nil {
+		logger.Error("failed to construct rag credential broker — refusing to start", "error", ragErr)
+		os.Exit(1)
+	}
+	if ragForwardAuthHandler != nil {
+		logger.Info("theo-rag Model B broker wired (M14)", "base_url", cfg.RagBaseURL)
+	}
+
 	// platform-api-gateway-edge-slice1 (M6): the ForwardAuth authz-brain the
 	// Traefik edge delegates to. Reuses the broker (per-tenant mint) + ResolveAPIKey.
 	var forwardAuthHandler *routes.ForwardAuthHandler
 	var mcpResolveHandler *routes.MCPResolveHandler
+	// M16 (D2): the MCP-resolve capability bindings, populated by whichever brokers are
+	// configured (memory in the block below; rag after it). The resolve handler is built
+	// once, after both, so it exists whenever ANY capability is configured — the rag MCP
+	// binding is no longer coupled to memory being enabled.
+	mcpCaps := map[string]routes.MCPCapabilityBinding{}
 	if cfg.ThemoryBaseURL != "" {
 		themoryHTTP := &http.Client{
 			Timeout:   30 * time.Second,
@@ -294,31 +347,18 @@ func main() {
 			logger,
 		)
 
-		// gateway-themory-integration (D1/D2): the MCP-aware resolve endpoint the
-		// Theo MCP Gateway's BrokerResolver calls. Reuses the SAME auth fabric +
-		// per-tenant broker as ForwardAuth, but returns the full principal as JSON
-		// (tenant + minted key + scopes) so the gateway can run its own M2 tool gate.
-		// Capability is selected by the X-Theo-Capability header (multiplexing).
-		mcpResolveHandler = routes.NewMCPResolveHandler(
-			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
-				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
-			},
-			func(ctx context.Context, accountID, tenantID string) (bool, error) {
-				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
-			},
-			map[string]routes.MCPCapabilityBinding{
-				// theo-workspace#10 — data scope → MCP tool names (the gateway allowlist
-				// matches scope==tool exactly). Mirrors theo-memory's REST per-verb scope
-				// map (#77): read=retrieve, write=create, delete=remove. The downstream
-				// minted key keeps the raw data scopes; themory is the per-verb gate.
-				"memory": {Minter: themoryBroker, RequiredScope: "memory:read", ScopeTools: map[string][]string{
-					"memory:read":   {"recall", "episodes", "search_memory", "list_memories"},
-					"memory:write":  {"remember", "reflect", "add_skill", "execute_skill", "add_memories"},
-					"memory:delete": {"forget", "forget_skill", "delete_memories"},
-				}},
-			},
-			logger,
-		)
+		// gateway-themory-integration (D1/D2): register the memory capability with the
+		// MCP-aware resolve endpoint the Theo MCP Gateway's BrokerResolver calls. The
+		// handler itself is built AFTER this block (M16 D2) so it exists whenever ANY
+		// capability (memory OR rag) is configured. theo-workspace#10 — data scope → MCP
+		// tool names (the gateway allowlist matches scope==tool exactly). Mirrors
+		// theo-memory's REST per-verb scope map (#77): read=recall, write=remember,
+		// delete=forget. The downstream minted key keeps the raw data scopes.
+		mcpCaps["memory"] = routes.MCPCapabilityBinding{Minter: themoryBroker, RequiredScope: "memory:read", ScopeTools: map[string][]string{
+			"memory:read":   {"recall", "episodes", "search_memory", "list_memories"},
+			"memory:write":  {"remember", "reflect", "add_skill", "execute_skill", "add_memories"},
+			"memory:delete": {"forget", "forget_skill", "delete_memories"},
+		}}
 
 		// themory-gateway-provider-capability-guard (F1): fail boot if the provider
 		// is REACHABLE but does NOT advertise the scoped-forget DELETE route — a
@@ -380,6 +420,29 @@ func main() {
 		logger.Info("dashboard memory enabled (per-tenant broker)", "mount", "/v1/dashboard/memory")
 	} else {
 		logger.Warn("THEMORY_BASE_URL not set — /v1/memory/* endpoints disabled")
+	}
+
+	// M16 (D2/D4): register the theo-rag MCP capability when the rag broker is configured
+	// (RAG_BASE_URL set) — independent of memory. ScopeTools maps rag data scopes → the
+	// @usetheo/rag-mcp tool names, so a rag:read key exposes NO write tool; the delete
+	// bucket is empty today (rag-mcp has no delete tool). The SAME broker serves the REST
+	// ForwardAuth handler AND this MCP binding (one mint cache — consistent per-tenant keys).
+	if ragBroker != nil {
+		mcpCaps["rag"] = routes.MCPCapabilityBinding{Minter: ragBroker, RequiredScope: "rag:read", ScopeTools: routes.RagScopeTools}
+	}
+	// Build the MCP-resolve handler once, if ANY capability is registered (memory and/or
+	// rag). Internal-only (the gateway is the caller); it IS the auth, so no middleware.
+	if len(mcpCaps) > 0 {
+		mcpResolveHandler = routes.NewMCPResolveHandler(
+			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+			},
+			func(ctx context.Context, accountID, tenantID string) (bool, error) {
+				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+			},
+			mcpCaps,
+			logger,
+		)
 	}
 
 	// Memory Webhook Delivery plan T5.5 — background dispatcher worker.
@@ -476,6 +539,12 @@ func main() {
 	if promptlyForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
+	}
+	// M14: the theo-rag ForwardAuth endpoint the edge's forward-auth-rag middleware
+	// calls. Same generic handler, distinct path + rag broker.
+	if ragForwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardRagPath, ragForwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardRagPath, ragForwardAuthHandler.ServeHTTP)
 	}
 	// gateway-themory-integration: the MCP-aware resolve endpoint the Theo MCP
 	// Gateway's BrokerResolver calls. Internal-only (the gateway is the caller),

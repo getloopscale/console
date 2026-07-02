@@ -11,6 +11,51 @@ import { EmptyProjectsHero } from '@/components/onboarding/empty-projects-hero';
 import { formatDate } from '@/lib/format';
 import type { Project } from '@/lib/api/types';
 
+// Data-plane staleness thresholds — T4.2 of plan
+// dashboard-badge-data-plane-poller closing Red Team theo-cloud#128.
+// The poller emits a snapshot every 30s (canonical operator default);
+// STALENESS_LIVE_MS = 3 tick intervals absorbs a single missed scrape
+// without flickering Live→Deployed. STALENESS_UNKNOWN_MS bounds the
+// window past which the signal is discarded and the badge falls back
+// to the honest "Unknown" state (Prometheus outage / poller crashed /
+// scrape target gone). See blueprint Q6 + EC-7 no-flicker headroom.
+const STALENESS_LIVE_MS = 90 * 1000;
+const STALENESS_UNKNOWN_MS = 5 * 60 * 1000;
+
+// deriveDataPlaneBadge — 4-state honest verdict from the DataPlanePoller
+// snapshot when the release is control-plane ACTIVE. Mirrors the
+// `hasServingSignal` pattern in project-status.tsx d21fdf2 without
+// canonically extracting a shared helper (parsimony rung 5 — the two
+// sites read different snapshot shapes; forcing a shared abstraction
+// would drag the KPI grid's uptime/p95/rps signals into a per-row
+// derivation that only needs replicas_ready).
+//
+// Returns null when the derivation does not apply (release not active
+// OR the row is not a release-active surface) — the caller falls back
+// to the legacy 5-value last_deploy_status enum.
+function deriveDataPlaneBadge(
+  replicasValue: number | undefined,
+  replicasAt: string | undefined,
+  nowMs: number,
+): 'live' | 'deployed' | 'down' | 'unknown' {
+  if (replicasAt === undefined || replicasAt === null) {
+    // Cold Cleanroom — no snapshot yet. Honest Unknown.
+    return 'unknown';
+  }
+  const stalenessMs = nowMs - Date.parse(replicasAt);
+  if (stalenessMs > STALENESS_UNKNOWN_MS) {
+    // Prometheus outage / poller crash — stale signal is not evidence.
+    return 'unknown';
+  }
+  const replicas = replicasValue ?? 0;
+  if (replicas > 0) {
+    return stalenessMs < STALENESS_LIVE_MS ? 'live' : 'deployed';
+  }
+  // Red Team #128 core: control-plane ACTIVE + data-plane replicas=0
+  // with a fresh scrape is the "badge lies Live while serving 502" case.
+  return 'down';
+}
+
 // ProjectRow — T4.4 of plan 2026-06-11-code-review-remediation v1.2
 // + ADR D6. Extracted from ProjectsPage to keep the page's CC tractable
 // (pre-refactor CC=32 mixed per-row derivation + parent orchestration).
@@ -55,23 +100,56 @@ function ProjectRow({
   // unreliable for this list-level question.
   const isPreviewOnly = p.latest_build_environment === 'preview';
   const projectStatus = isPreviewOnly ? 'preview' : rawStatus;
-  // Map our 6-value enum onto @usetheo/ui's StatusKind (which lacks
-  // 'queued' and 'preview'). Queued semantically belongs with `building`
-  // (both in-flight, not-yet-live). 'preview' renders with the neutral
-  // 'idle' tone so the row doesn't show a green "serving" indicator for
-  // a project that has nothing serving in production.
-  const statusKind: StatusKind =
-    projectStatus === 'queued'
-      ? 'building'
-      : projectStatus === 'preview'
-        ? 'idle'
-        : projectStatus;
-  const statusLabel =
+  // T4.2 of plan dashboard-badge-data-plane-poller (Red Team #128).
+  // When the row's release is 'live' (control-plane ACTIVE) AND the
+  // project is production-flavor (NOT preview-only), the data-plane
+  // snapshot governs the badge — no signal or a stale signal degrades
+  // Live → Unknown; a fresh zero-replicas signal reveals Down. Preview
+  // rows keep the existing preview-only branch (their badge is a
+  // release-vs-env classification, not a serving-signal question).
+  const dataPlaneVerdict =
     projectStatus === 'live'
+      ? deriveDataPlaneBadge(
+          p.last_replicas_ready_value,
+          p.last_replicas_ready_at,
+          Date.now(),
+        )
+      : null;
+  // Map our 6-value enum + 4-state data-plane verdict onto @usetheo/ui's
+  // StatusKind (which is "live" | "building" | "failed" | "idle" | "warning").
+  // Queued semantically belongs with `building` (both in-flight, not-yet-
+  // live). 'preview' renders with the neutral 'idle' tone. Data-plane
+  // verdicts map: live→live (green), deployed→building (neutral),
+  // down→failed (red), unknown→warning (yellow).
+  const statusKind: StatusKind =
+    dataPlaneVerdict === 'deployed'
+      ? 'building'
+      : dataPlaneVerdict === 'down'
+        ? 'failed'
+        : dataPlaneVerdict === 'unknown'
+          ? 'warning'
+          : projectStatus === 'queued'
+            ? 'building'
+            : projectStatus === 'preview'
+              ? 'idle'
+              : projectStatus;
+  // The data-plane verdict is the ONLY source of the badge label when
+  // the release is control-plane 'live' — that's the whole point of
+  // #128. Non-live rows (preview / queued / building / failed / idle)
+  // keep their own status-driven label; dataPlaneVerdict is null on
+  // those rows by construction (see gate above).
+  const statusLabel =
+    dataPlaneVerdict === 'live'
       ? 'Live'
-      : projectStatus === 'preview'
-        ? 'Preview'
-        : projectStatus.charAt(0).toUpperCase() + projectStatus.slice(1);
+      : dataPlaneVerdict === 'deployed'
+        ? 'Deployed'
+        : dataPlaneVerdict === 'down'
+          ? 'Down'
+          : dataPlaneVerdict === 'unknown'
+            ? 'Unknown'
+            : projectStatus === 'preview'
+              ? 'Preview'
+              : projectStatus.charAt(0).toUpperCase() + projectStatus.slice(1);
   // T4.2 finding 2.1 + T2.1: prefer the new server-derived
   // environment_count; fall back to 1 if only the legacy singular
   // `environment` is present.

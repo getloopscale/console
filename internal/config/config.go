@@ -129,6 +129,19 @@ type Config struct {
 	// Env: PROMPTLY_PLATFORM_ADMIN_KEY
 	PromptlyPlatformAdminKey Secret
 
+	// RagBaseURL is the theo-rag REST URL (M14 — Model B). The broker POSTs to
+	// {base}/v1/admin/keys (theo-rag's mint endpoint carries the /v1 prefix). Empty
+	// disables the rag broker + its ForwardAuth handler.
+	// Env: RAG_BASE_URL
+	RagBaseURL string
+
+	// RagPlatformAdminKey is the CONTROL-PLANE credential (carrying
+	// rag:platform-admin) the gateway uses ONLY to mint per-tenant theo-rag keys
+	// via POST /v1/admin/keys. NEVER on the data path (Model B). Required when
+	// RagBaseURL is set.
+	// Env: RAG_PLATFORM_ADMIN_KEY
+	RagPlatformAdminKey Secret
+
 	// SessionTokenSecretPrevious is the previous HMAC key for zero-downtime rotation (§2.2).
 	// Tokens signed with this key are accepted during the rotation window.
 	// Env: SESSION_TOKEN_SECRET_PREVIOUS (optional)
@@ -190,6 +203,8 @@ func Load() Config {
 	cfg.ThemorySkipCapabilityCheck = envOr("THEMORY_SKIP_CAPABILITY_CHECK", "") == "true"
 	cfg.PromptlyBaseURL = envOr("PROMPTLY_BASE_URL", "")
 	cfg.PromptlyPlatformAdminKey = Secret(envOr("PROMPTLY_PLATFORM_ADMIN_KEY", ""))
+	cfg.RagBaseURL = envOr("RAG_BASE_URL", "")
+	cfg.RagPlatformAdminKey = Secret(envOr("RAG_PLATFORM_ADMIN_KEY", ""))
 	return cfg
 }
 
@@ -235,6 +250,12 @@ func (c Config) Validate() error {
 		// to mint per-tenant keys unauthenticated. Fail-fast at boot.
 		if c.PromptlyBaseURL != "" && c.PromptlyPlatformAdminKey.Value() == "" {
 			return fmt.Errorf("PROMPTLY_PLATFORM_ADMIN_KEY is required in production when PROMPTLY_BASE_URL is set")
+		}
+		// M14 (theo-rag Model B): the platform-admin key MUST be present when the
+		// rag broker is enabled — otherwise the gateway would try to mint per-tenant
+		// keys unauthenticated. Fail-fast at boot.
+		if c.RagBaseURL != "" && c.RagPlatformAdminKey.Value() == "" {
+			return fmt.Errorf("RAG_PLATFORM_ADMIN_KEY is required in production when RAG_BASE_URL is set")
 		}
 	}
 	return nil
