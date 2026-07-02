@@ -161,7 +161,12 @@ function ProjectRow({
   // by side for preview-only projects. When the new field is absent
   // (legacy server), fall back to environment_count so the table
   // still renders (backwards compat).
-  const liveEnvCount = p.production_env_count ?? p.environment_count ?? (p.environment ? 1 : 0);
+  // Red Team theo-cloud#134 (2026-07-02): active_env_count is the truth
+  // for "how many envs are currently live?" — see sibling comment in
+  // project-detail.tsx for the fallback chain rationale. This closes the
+  // preview-env-with-ACTIVE-release-and-Live-URL rendering "LIVE ENVS: 0"
+  // divergence the Red Team caught on the SAME page as the Visit button.
+  const liveEnvCount = p.active_env_count ?? p.production_env_count ?? p.environment_count ?? (p.environment ? 1 : 0);
 
   return (
     // T4.2 finding 2.3: full-row click navigation. onClick routes to

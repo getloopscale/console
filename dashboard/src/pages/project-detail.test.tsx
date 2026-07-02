@@ -163,4 +163,30 @@ describe('ProjectDetailPage', () => {
     const liveEnvsValueNode = liveEnvsLabel.parentElement?.querySelector('.tabular-nums');
     expect(liveEnvsValueNode?.textContent).toBe('0');
   });
+
+  // Red Team theo-cloud#134 regression-protector: preview env WITH an
+  // ACTIVE release + Live URL serving MUST render "Live envs: 1" — the
+  // pre-fix legacy semantics used production_env_count which returned 0
+  // for preview-only projects, contradicting the Live URL exposed on
+  // the SAME page. active_env_count is the new canonical field that
+  // counts env_targets (any kind) with a corresponding release ACTIVE.
+  it('test_project_detail_uses_active_env_count_for_live_envs_metric (#134)', () => {
+    mockUseProjects.mockReturnValue({
+      projects: [{
+        name: 'my-project',
+        apps: [{ name: 'web' }],
+        created_at: '2026-06-01T00:00:00Z',
+        last_deploy_status: 'live',
+        environment_count: 1,
+        production_env_count: 0, // no permanent env wired (preview-only)
+        active_env_count: 1,     // preview env has ACTIVE release
+        latest_build_environment: 'preview',
+      }],
+      loading: false,
+    });
+    render(<ProjectDetailPage />);
+    const liveEnvsLabel = screen.getByText(/Live envs/i);
+    const liveEnvsValueNode = liveEnvsLabel.parentElement?.querySelector('.tabular-nums');
+    expect(liveEnvsValueNode?.textContent).toBe('1');
+  });
 });
