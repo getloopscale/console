@@ -83,6 +83,7 @@ func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 	want := []string{
 		"GET /v1/dashboard/rag/collections",
 		"GET /v1/dashboard/rag/analytics",
+		"GET /v1/dashboard/rag/documents",
 		"POST /v1/dashboard/rag/collections",
 		"DELETE /v1/dashboard/rag/collections/{id}",
 		"POST /v1/dashboard/rag/documents",

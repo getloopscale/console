@@ -128,6 +128,43 @@ type IngestInput struct {
 	Name         string `json:"name,omitempty"`
 }
 
+// Document is one row of GET /v1/documents (async-ingest status surfaced to the UI).
+type Document struct {
+	ID           string `json:"id"`
+	CollectionID string `json:"collection_id,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Status       string `json:"status,omitempty"`
+	CreatedAt    string `json:"created_at,omitempty"`
+}
+
+// DocumentsResult is the GET /v1/documents response.
+type DocumentsResult struct {
+	Items []Document `json:"items"`
+}
+
+// ListDocuments proxies GET /v1/documents?collection_id&limit&offset (M21 — the UI lists
+// a collection's documents + their ingest status).
+func (c *DataClient) ListDocuments(ctx context.Context, collectionID string, limit, offset int) (*DocumentsResult, error) {
+	q := url.Values{}
+	if collectionID != "" {
+		q.Set("collection_id", collectionID)
+	}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	if offset > 0 {
+		q.Set("offset", strconv.Itoa(offset))
+	}
+	var out DocumentsResult
+	if err := c.getJSON(ctx, "/v1/documents", q, &out); err != nil {
+		return nil, err
+	}
+	if out.Items == nil {
+		out.Items = []Document{}
+	}
+	return &out, nil
+}
+
 // CreateCollection proxies POST /v1/collections. Returns the created row.
 func (c *DataClient) CreateCollection(ctx context.Context, in CreateCollectionInput) (*Collection, error) {
 	var out Collection

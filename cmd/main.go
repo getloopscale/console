@@ -103,6 +103,7 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, requireJWT f
 		// reads (M17)
 		r.Get("/collections", h.ListCollections)
 		r.Get("/analytics", h.Analytics)
+		r.Get("/documents", h.ListDocuments)
 		// writes (M21)
 		r.Post("/collections", h.CreateCollection)
 		r.Delete("/collections/{id}", h.DeleteCollection)

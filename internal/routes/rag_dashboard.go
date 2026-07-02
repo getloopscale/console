@@ -18,6 +18,7 @@ import (
 // (create/delete collections + documents, ask) alongside the M17 reads.
 type RagDataClient interface {
 	ListCollections(ctx context.Context, limit, offset int) (*rag.CollectionsResult, error)
+	ListDocuments(ctx context.Context, collectionID string, limit, offset int) (*rag.DocumentsResult, error)
 	Analytics(ctx context.Context, since string) (*rag.AnalyticsResult, error)
 	CreateCollection(ctx context.Context, in rag.CreateCollectionInput) (*rag.Collection, error)
 	DeleteCollection(ctx context.Context, id string) error
@@ -81,6 +82,33 @@ func (h *RagDashboardHandler) Analytics(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		h.logger.Warn("rag dashboard: analytics failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load analytics.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// ListDocuments serves GET /v1/dashboard/rag/documents?collection_id — the caller
+// workspace's documents + ingest status, via the per-tenant key.
+func (h *RagDashboardHandler) ListDocuments(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	q := r.URL.Query()
+	limit, offset := 0, 0
+	if v := q.Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+	if v := q.Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	res, err := h.client.ListDocuments(r.Context(), q.Get("collection_id"), limit, offset)
+	if err != nil {
+		h.logger.Warn("rag dashboard: list documents failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not list documents.")
 		return
 	}
 	writeJSON(w, http.StatusOK, res)

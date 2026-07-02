@@ -43,6 +43,14 @@ func (s *stubRagDataClient) Analytics(_ context.Context, _ string) (*rag.Analyti
 	return &rag.AnalyticsResult{}, nil
 }
 
+func (s *stubRagDataClient) ListDocuments(_ context.Context, _ string, _, _ int) (*rag.DocumentsResult, error) {
+	s.listCalls++
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return &rag.DocumentsResult{Items: []rag.Document{{ID: "doc_1", Status: "ready"}}}, nil
+}
+
 func (s *stubRagDataClient) CreateCollection(_ context.Context, in rag.CreateCollectionInput) (*rag.Collection, error) {
 	s.createCalls++
 	if s.writeErr != nil {

@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **RAG management dashboard UI (M21)** — the theo-cloud dashboard gains a full RAG section (`/rag`: Collections create/list/delete, Documents upload/list/status/delete, Ask query→cited answer, Analytics), mirroring the theo-memory dashboard. The `/v1/dashboard/rag` BFF is lifted from M17 read-only to **read+write+delete**: new write proxy methods + handlers + routes (POST/DELETE collections+documents, POST answers, GET documents), and the dashboard key resolver now mints `rag:read`+`rag:write`+`rag:delete` per-tenant (was read-only). theo-rag's per-verb scope still gates every write (the 6 data-plane invariants hold); cross-tenant isolation + fail-closed proven on the resolver. Frontend: 4 lazy pages + a RAG nav section; go/tsc/lint/build + Go route tests + React component tests green. (`internal/rag/data_client.go`, `internal/routes/rag_dashboard.go`, `cmd/main.go`, `dashboard/src/pages/rag/*`, `dashboard/src/app.tsx`, `dashboard/src/components/layout/app-sidebar.tsx`)
 
 ### Changed
 
