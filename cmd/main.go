@@ -68,6 +68,28 @@ func buildRagForwardAuth(
 	return routes.NewForwardAuthHandler(resolve, ragBroker, authorize, "rag:read", logger), ragBroker, nil
 }
 
+// ragDashMinter is the least-privilege minting surface the dashboard resolver needs
+// (ISP — only KeyForTenantScoped). Satisfied by the rag broker (routes.TenantKeyMinter).
+type ragDashMinter interface {
+	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, scopes []string) (string, error)
+}
+
+// newRagDashboardKeyResolver returns the per-request keyResolver for the read-only rag
+// dashboard BFF (M17). It reads the tenant from the JWT-derived context ONLY (never a
+// request param) and mints a rag:READ-ONLY per-tenant key (least privilege — the
+// dashboard can never write/delete). Fail-closed: no authenticated tenant → error, so
+// the data client sends no request. Extracted (not inline) so the least-privilege +
+// fail-closed invariants are unit-tested on the SHIPPED code path.
+func newRagDashboardKeyResolver(minter ragDashMinter) func(ctx context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		u := auth.GetUser(ctx)
+		if u == nil || u.TenantID == "" {
+			return "", fmt.Errorf("rag dashboard: no authenticated tenant in context")
+		}
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"rag:read"})
+	}
+}
+
 // mountRagDashboard registers the read-only /v1/dashboard/rag BFF route group (M17).
 // Extracted so the read-only route-set invariant is unit-testable (main_test.go walks
 // the routes and asserts GET-only). A mutating verb here is a build-failing test.
@@ -301,15 +323,8 @@ func main() {
 	// mirroring the memory dashboard BFF but stricter (memory mints full scopes).
 	var ragDashboardHandler *routes.RagDashboardHandler
 	if ragBroker != nil {
-		ragDashKeyResolver := func(ctx context.Context) (string, error) {
-			u := auth.GetUser(ctx)
-			if u == nil || u.TenantID == "" {
-				return "", fmt.Errorf("rag dashboard: no authenticated tenant in context")
-			}
-			return ragBroker.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"rag:read"})
-		}
 		ragDataClient := rag.NewDataClient(cfg.RagBaseURL, &http.Client{Timeout: 10 * time.Second}).
-			WithKeyResolver(ragDashKeyResolver)
+			WithKeyResolver(newRagDashboardKeyResolver(ragBroker))
 		ragDashboardHandler = routes.NewRagDashboardHandler(ragDataClient, logger)
 		logger.Info("dashboard rag enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/rag")
 	}
