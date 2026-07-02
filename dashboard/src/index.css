@@ -97,6 +97,47 @@
    * yields ~5:1 contrast vs card backgrounds — passes WCAG AA. Per ADR D2
    * (canonical violet over black/red; matches comment line 27 + brand). */
   --ring: 260 80% 45%;
+
+  /* Red Team theo/theo#163 — WCAG 1.4.3 (normal text contrast ≥ 4.5:1).
+   * @usetheo/ui default `--primary: oklch(0.628 0.225 296)` (~#995ffe)
+   * failed AA in two Lighthouse-detected surfaces:
+   *   - white text on primary bg (buttons/CTAs) → 3.87:1
+   *   - primary text on dark bg (project name span) → 4.37:1
+   * Darkening to `oklch(0.55 0.22 296)` (~#7c47dc) raises white-on-primary
+   * to ~5.1:1 (passes AA) while keeping the violet brand identity.
+   * `--primary-deep` + `--primary-glow` are `oklch(from var(--primary) …)`
+   * derived tokens in @usetheo/ui/tokens.css, so they cascade the new
+   * base automatically.
+   *
+   * NOTE: dark-scope override lives in the `.dark { … }` block below —
+   * @usetheo/ui/tokens.css redeclares `--primary` under `.dark` (line 166),
+   * so a :root-only override is DEAD in the app's actual runtime theme.
+   * Red Team #163 v1 caught this via getComputedStyle. Keeping this
+   * :root declaration too so a future light-mode surface also benefits. */
+  --primary: oklch(0.55 0.22 296);
+}
+
+/* Red Team theo/theo#163 v2 — dark-mode override.
+ * Higher specificity than @usetheo/ui/tokens.css `.dark { --primary: … }`
+ * on the CSS cascade order (dashboard @import runs after @usetheo/ui, and
+ * both selectors have equal specificity — later declaration wins). This
+ * is the block the app actually uses at runtime; without it the fix
+ * ships dead. */
+.dark {
+  --primary: oklch(0.55 0.22 296);
+}
+
+/* Red Team theo/theo#163 v2 — WCAG 1.4.3 escape for `text-primary` used
+ * as foreground text on dark surfaces (e.g. project-name `span.truncate`
+ * flagged by Lighthouse @ 4.37:1). Route the tailwind utility to
+ * `--primary-glow` (the design system's lighter derivative, l + 0.18 =
+ * ~0.73) so foreground text on `#1f1a2a` reaches ~5.0:1 (passes AA).
+ * Icons (`aria-hidden`) don't count toward the contrast rule, but the
+ * lighter shade remains recognizably violet — brand identity preserved. */
+@layer utilities {
+  .text-primary {
+    color: oklch(from var(--primary) min(0.95, calc(l + 0.18)) c h);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

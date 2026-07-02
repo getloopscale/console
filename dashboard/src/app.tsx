@@ -103,6 +103,11 @@ const LoginPage = lazy(() =>
 const RegisterPage = lazy(() =>
   import('@/pages/register').then((m) => ({ default: m.RegisterPage })),
 );
+// Red Team theo/theo#162 (2026-07-01): SPA-side page for the post-signup
+// redirect target /auth/check-email that previously 404'd against the BFF.
+const CheckEmailPage = lazy(() =>
+  import('@/pages/check-email').then((m) => ({ default: m.CheckEmailPage })),
+);
 const VerificationPage = lazy(() =>
   import('@/pages/verification').then((m) => ({ default: m.VerificationPage })),
 );
@@ -262,6 +267,17 @@ export default function App() {
             * expire). */}
           <Route path="/registration" element={<Navigate to="/register" replace />} />
           <Route path="/verification" element={<Boundaried path="/verification"><VerificationPage /></Boundaried>} />
+          {/*
+            * Red Team theo/theo#162 (2026-07-01): the post-signup redirect
+            * target /auth/check-email + email verify link /auth/verify used
+            * to return 404 Caddy raw because the Caddyfile handle /auth/*
+            * proxied everything to the theo-cloud BFF (which only serves
+            * 4 OAuth routes). Caddyfile is now narrowed with a named
+            * @auth_bff matcher so these paths fall through to the SPA.
+            * /auth/verify → canonical Kratos /verification page.
+            */}
+          <Route path="/auth/check-email" element={<Boundaried path="/auth/check-email"><CheckEmailPage /></Boundaried>} />
+          <Route path="/auth/verify" element={<Navigate to="/verification" replace />} />
           <Route path="/recovery" element={<Boundaried path="/recovery"><RecoveryPage /></Boundaried>} />
           <Route path="/device-success" element={<Boundaried path="/device-success"><DeviceSuccessPage /></Boundaried>} />
           <Route path="/device-verify" element={<Boundaried path="/device-verify"><DeviceVerifyPage /></Boundaried>} />

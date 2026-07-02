@@ -104,6 +104,26 @@ export interface Project {
   // so a preview-only project does NOT render "Live" + "URL PENDING".
   latest_build_environment?: string;
   created_at?: string;
+  // Data-plane snapshot fields — T4.1 of plan
+  // dashboard-badge-data-plane-poller closing Red Team theo-cloud#128
+  // (badge lies "Live" when control-plane ACTIVE + data-plane 502).
+  // Populated by the DataPlanePoller Runnable in theo-app-operator via
+  // migration 000045 columns; ABSENT (both fields undefined) when the
+  // Cleanroom is warming up before the first poller tick OR the operator
+  // env-gate is off. The dashboard's 4-state badge derivation
+  // (`ProjectRow`) maps absence to the honest "Unknown" state — no signal
+  // is NOT collapsed to "Live" or "Down".
+  //
+  // last_replicas_ready_value = kube_deployment_status_replicas_ready
+  // scraped from Prometheus and persisted to environment_targets. 0 with
+  // a fresh timestamp is the release-active-but-data-plane-DOWN signal
+  // (Red Team #128 closure).
+  //
+  // last_replicas_ready_at = ISO8601 timestamp of the scrape. Staleness
+  // beyond the derivation thresholds degrades to "Unknown" rather than
+  // asserting a stale Live/Down verdict (EC-7 no-flicker headroom).
+  last_replicas_ready_value?: number;
+  last_replicas_ready_at?: string;
 }
 
 // Red Team theo-cloud#41 absorption (2026-06-27): 'preview' value

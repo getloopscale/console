@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 
@@ -147,5 +147,138 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('theokit-example')).toBeInTheDocument();
     expect(screen.getByText('Preview')).toBeInTheDocument();
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
+  });
+
+  // T4.2 of plan dashboard-badge-data-plane-poller closing Red Team
+  // theo-cloud#128 (badge lies "Live" when control-plane ACTIVE +
+  // data-plane 502). 4-state derivation Live/Deployed/Unknown/Down
+  // from the DataPlanePoller snapshot surfaced via last_replicas_ready_*.
+  // Time-frozen against 2026-07-01T12:00:00Z so the staleness math is
+  // deterministic (avoids Date.now() drift between test start and assert).
+  describe('4-state data-plane-aware badge (#128)', () => {
+    const NOW = new Date('2026-07-01T12:00:00Z');
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(NOW);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    // Test A — replicas>0 AND staleness < LIVE_MS (90s) → Live badge.
+    // The canonical Live case: poller has fresh evidence the data plane
+    // is serving at least one replica.
+    it('renders Live badge when last_replicas_ready_value=3 and snapshot is fresh (#128 test A)', () => {
+      mockUseProjects.mockReturnValue({
+        projects: [
+          {
+            name: 'hello-world',
+            last_deploy_status: 'live',
+            production_env_count: 1,
+            latest_build_environment: 'production',
+            last_replicas_ready_value: 3,
+            last_replicas_ready_at: '2026-07-01T11:59:30Z', // 30s ago — fresh
+            apps: [],
+          },
+        ],
+        loading: false,
+      });
+      render(<ProjectsPage />);
+      expect(screen.getByText('Live')).toBeInTheDocument();
+    });
+
+    // Test B — Red Team #128 core regression test. replicas=0 with fresh
+    // scrape MUST NOT render Live; renders Down instead so the operator
+    // sees the honest verdict that matches HTTP 502.
+    it('renders Down badge (not Live) when last_replicas_ready_value=0 with fresh scrape (#128 test B, core regression)', () => {
+      mockUseProjects.mockReturnValue({
+        projects: [
+          {
+            name: 'hello-world',
+            last_deploy_status: 'live',
+            production_env_count: 1,
+            latest_build_environment: 'production',
+            last_replicas_ready_value: 0,
+            last_replicas_ready_at: '2026-07-01T11:59:30Z', // 30s ago
+            apps: [],
+          },
+        ],
+        loading: false,
+      });
+      render(<ProjectsPage />);
+      expect(screen.getByText('Down')).toBeInTheDocument();
+      expect(screen.queryByText('Live')).not.toBeInTheDocument();
+    });
+
+    // Test C — replicas>0 but staleness in [LIVE_MS, DEPLOYED_MS) window
+    // (90s < age < 5min) → Deployed badge. The data plane was serving at
+    // last scrape but the signal is not fresh enough to assert "Live" — a
+    // less committal verdict prevents false Live during Prometheus hiccups.
+    it('renders Deployed badge when replicas=3 but snapshot is 2 minutes old (#128 test C, staleness in Deployed window)', () => {
+      mockUseProjects.mockReturnValue({
+        projects: [
+          {
+            name: 'hello-world',
+            last_deploy_status: 'live',
+            production_env_count: 1,
+            latest_build_environment: 'production',
+            last_replicas_ready_value: 3,
+            last_replicas_ready_at: '2026-07-01T11:58:00Z', // 2 min ago
+            apps: [],
+          },
+        ],
+        loading: false,
+      });
+      render(<ProjectsPage />);
+      expect(screen.getByText('Deployed')).toBeInTheDocument();
+      expect(screen.queryByText('Live')).not.toBeInTheDocument();
+    });
+
+    // Test D — no snapshot yet (both fields absent). Cleanroom warm-up
+    // window before the first DataPlanePoller tick populates the row.
+    // Absence is honestly reported as Unknown — NOT collapsed to Live/Down.
+    it('renders Unknown badge when last_replicas_ready_* fields are absent (#128 test D, cold Cleanroom)', () => {
+      mockUseProjects.mockReturnValue({
+        projects: [
+          {
+            name: 'hello-world',
+            last_deploy_status: 'live',
+            production_env_count: 1,
+            latest_build_environment: 'production',
+            // last_replicas_ready_value + last_replicas_ready_at intentionally
+            // omitted — the poller has not emitted a snapshot yet.
+            apps: [],
+          },
+        ],
+        loading: false,
+      });
+      render(<ProjectsPage />);
+      expect(screen.getByText('Unknown')).toBeInTheDocument();
+    });
+
+    // Test E — snapshot exists but staleness > UNKNOWN_MS (5 min).
+    // Prometheus outage OR poller crashed OR scrape target gone. The
+    // stale signal is not evidence — degrade to Unknown, not "Live".
+    it('renders Unknown badge when snapshot is 10 minutes stale (#128 test E, Prometheus outage)', () => {
+      mockUseProjects.mockReturnValue({
+        projects: [
+          {
+            name: 'hello-world',
+            last_deploy_status: 'live',
+            production_env_count: 1,
+            latest_build_environment: 'production',
+            last_replicas_ready_value: 3,
+            last_replicas_ready_at: '2026-07-01T11:50:00Z', // 10 min ago
+            apps: [],
+          },
+        ],
+        loading: false,
+      });
+      render(<ProjectsPage />);
+      expect(screen.getByText('Unknown')).toBeInTheDocument();
+      expect(screen.queryByText('Live')).not.toBeInTheDocument();
+    });
   });
 });
