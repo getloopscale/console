@@ -60,32 +60,42 @@ func TestBuildRagForwardAuth_Wired_WhenConfigured(t *testing.T) {
 	}
 }
 
-// M17 T3.1 — the /v1/dashboard/rag BFF route set is READ-ONLY: every registered route
-// is a GET; a mutating verb (POST/PUT/PATCH/DELETE) must be structurally absent (the
-// roadmap risk-1 guard). Walks the actual mounted routes via chi.Walk.
-func TestRagDashboard_ReadOnlyRouteSet(t *testing.T) {
+// M21 T1.2 — the /v1/dashboard/rag BFF route set is READ+WRITE (lifted from the M17
+// read-only): the reads (GET collections/analytics) AND the writes (POST collections,
+// DELETE collections/{id}, POST documents, DELETE documents/{id}, POST answers) are all
+// mounted, and NO unexpected verb slips in. Walks the actual mounted routes via chi.Walk.
+func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 	r := chi.NewRouter()
 	h := routes.NewRagDashboardHandler(nil, quietLogger())
 	passthrough := func(next http.Handler) http.Handler { return next } // stand-in for requireJWT
 	mountRagDashboard(r, h, passthrough)
 
-	methods := map[string]int{}
+	got := map[string]bool{}
 	err := chi.Walk(r, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		if strings.HasPrefix(route, "/v1/dashboard/rag") {
-			methods[method]++
+			got[method+" "+route] = true
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk: %v", err)
 	}
-	if methods["GET"] == 0 {
-		t.Fatal("expected GET routes under /v1/dashboard/rag")
+	want := []string{
+		"GET /v1/dashboard/rag/collections",
+		"GET /v1/dashboard/rag/analytics",
+		"POST /v1/dashboard/rag/collections",
+		"DELETE /v1/dashboard/rag/collections/{id}",
+		"POST /v1/dashboard/rag/documents",
+		"DELETE /v1/dashboard/rag/documents/{id}",
+		"POST /v1/dashboard/rag/answers",
 	}
-	for _, mutating := range []string{"POST", "PUT", "PATCH", "DELETE"} {
-		if methods[mutating] != 0 {
-			t.Fatalf("MUTATING verb %s found under /v1/dashboard/rag — the BFF MUST be read-only (%d routes)", mutating, methods[mutating])
+	for _, w := range want {
+		if !got[w] {
+			t.Fatalf("expected route %q mounted under /v1/dashboard/rag; got %+v", w, got)
 		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("unexpected extra route under /v1/dashboard/rag: got %d routes, want %d (%+v)", len(got), len(want), got)
 	}
 }
 
@@ -103,9 +113,9 @@ func (s *stubDashMinter) KeyForTenantScoped(_ context.Context, accountID, tenant
 	return "rag_live_" + tenantID, nil
 }
 
-// M17 T3.1 — the SHIPPED dashboard keyResolver mints a rag:READ-ONLY key from the JWT
-// tenant (least privilege). A regression to full scopes or a param-derived tenant fails here.
-func TestNewRagDashboardKeyResolver_MintsReadOnlyFromJWTTenant(t *testing.T) {
+// M21 T1.2 — the SHIPPED dashboard keyResolver mints a rag:read+write+delete key from the
+// JWT tenant (the UI manages RAG). The tenant/account MUST come from the JWT, never a param.
+func TestNewRagDashboardKeyResolver_MintsReadWriteFromJWTTenant(t *testing.T) {
 	stub := &stubDashMinter{}
 	resolve := newRagDashboardKeyResolver(stub)
 
@@ -120,8 +130,14 @@ func TestNewRagDashboardKeyResolver_MintsReadOnlyFromJWTTenant(t *testing.T) {
 	if stub.gotTenant != "tenantA" || stub.gotAccount != "accA" {
 		t.Fatalf("resolver must mint from the JWT tenant/account, got tenant=%q account=%q", stub.gotTenant, stub.gotAccount)
 	}
-	if len(stub.gotScopes) != 1 || stub.gotScopes[0] != "rag:read" {
-		t.Fatalf("dashboard key MUST be minted rag:read-only (least privilege), got %+v", stub.gotScopes)
+	want := map[string]bool{"rag:read": true, "rag:write": true, "rag:delete": true}
+	if len(stub.gotScopes) != len(want) {
+		t.Fatalf("dashboard key MUST be minted rag:read+write+delete, got %+v", stub.gotScopes)
+	}
+	for _, s := range stub.gotScopes {
+		if !want[s] {
+			t.Fatalf("unexpected scope %q in the dashboard key (want exactly read+write+delete), got %+v", s, stub.gotScopes)
+		}
 	}
 }
 

@@ -105,9 +105,75 @@ func (c *DataClient) Analytics(ctx context.Context, since string) (*AnalyticsRes
 	return &out, nil
 }
 
-// getJSON resolves the per-tenant Bearer (fail-closed) and performs the GET, decoding a
-// 2xx JSON body into out. A resolver error means NO request is sent (no master fallback).
+// --- Write surface (M21 dashboard read+write) --------------------------------
+// The dashboard session mints a rag:read+write+delete per-tenant key; these proxy
+// the mutating verbs so a human can manage RAG from the UI. Every write goes through
+// `do` (same fail-closed per-tenant-bearer discipline as the reads).
+
+// CreateCollectionInput is the POST /v1/collections body.
+type CreateCollectionInput struct {
+	Name string `json:"name"`
+}
+
+// AskInput is the POST /v1/answers body (query + collection).
+type AskInput struct {
+	CollectionID string `json:"collection_id"`
+	Question     string `json:"question"`
+}
+
+// IngestInput is the POST /v1/documents/raw body (text ingest; async 202).
+type IngestInput struct {
+	CollectionID string `json:"collection_id"`
+	Text         string `json:"text"`
+	Name         string `json:"name,omitempty"`
+}
+
+// CreateCollection proxies POST /v1/collections. Returns the created row.
+func (c *DataClient) CreateCollection(ctx context.Context, in CreateCollectionInput) (*Collection, error) {
+	var out Collection
+	if err := c.do(ctx, http.MethodPost, "/v1/collections", nil, in, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteCollection proxies DELETE /v1/collections/{id}.
+func (c *DataClient) DeleteCollection(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/collections/"+url.PathEscape(id), nil, nil, nil)
+}
+
+// IngestDocument proxies POST /v1/documents/raw (async — theo-rag returns 202 + a doc id).
+func (c *DataClient) IngestDocument(ctx context.Context, in IngestInput) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/v1/documents/raw", nil, in, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// DeleteDocument proxies DELETE /v1/documents/{id}.
+func (c *DataClient) DeleteDocument(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/documents/"+url.PathEscape(id), nil, nil, nil)
+}
+
+// Ask proxies POST /v1/answers — a query returns a cited answer.
+func (c *DataClient) Ask(ctx context.Context, in AskInput) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/v1/answers", nil, in, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// getJSON is the read wrapper (kept for the M17 read methods) — a GET via `do`.
 func (c *DataClient) getJSON(ctx context.Context, path string, q url.Values, out any) error {
+	return c.do(ctx, http.MethodGet, path, q, nil, out)
+}
+
+// do resolves the per-tenant Bearer (fail-closed) and performs the request, JSON-encoding
+// `body` (when non-nil) and decoding a 2xx body into `out` (when non-nil). A resolver error
+// means NO request is sent (no master fallback) — the same Model B discipline as the reads.
+func (c *DataClient) do(ctx context.Context, method, path string, q url.Values, body, out any) error {
 	if c.keyResolver == nil {
 		return fmt.Errorf("rag data client: no key resolver wired (misconfiguration)")
 	}
@@ -119,22 +185,37 @@ func (c *DataClient) getJSON(ctx context.Context, path string, q url.Values, out
 	if enc := q.Encode(); enc != "" {
 		u += "?" + enc
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	var reqBody io.Reader
+	if body != nil {
+		b, mErr := json.Marshal(body)
+		if mErr != nil {
+			return fmt.Errorf("rag data client: encode body for %s %s: %w", method, path, mErr)
+		}
+		reqBody = strings.NewReader(string(b))
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, reqBody)
 	if err != nil {
 		return fmt.Errorf("rag data client: build request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
 	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("rag data client: GET %s: %w", path, err) // never leak the bearer
+		return fmt.Errorf("rag data client: %s %s: %w", method, path, err) // never leak the bearer
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("rag data client: GET %s: upstream %d: %s", path, resp.StatusCode, string(raw))
+		return fmt.Errorf("rag data client: %s %s: upstream %d: %s", method, path, resp.StatusCode, string(raw))
+	}
+	if out == nil || resp.StatusCode == http.StatusNoContent {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		return nil
 	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return fmt.Errorf("rag data client: decode %s: %w", path, err)
