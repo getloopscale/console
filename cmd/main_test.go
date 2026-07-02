@@ -7,10 +7,15 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net/http"
+	"strings"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
 	"github.com/usetheodev/theo-cloud/internal/config"
+	"github.com/usetheodev/theo-cloud/internal/routes"
 )
 
 func quietLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -52,5 +57,34 @@ func TestBuildRagForwardAuth_Wired_WhenConfigured(t *testing.T) {
 	}
 	if broker == nil {
 		t.Fatal("broker should be non-nil when configured (M16 D2 — exposed for the MCP binding)")
+	}
+}
+
+// M17 T3.1 — the /v1/dashboard/rag BFF route set is READ-ONLY: every registered route
+// is a GET; a mutating verb (POST/PUT/PATCH/DELETE) must be structurally absent (the
+// roadmap risk-1 guard). Walks the actual mounted routes via chi.Walk.
+func TestRagDashboard_ReadOnlyRouteSet(t *testing.T) {
+	r := chi.NewRouter()
+	h := routes.NewRagDashboardHandler(nil, quietLogger())
+	passthrough := func(next http.Handler) http.Handler { return next } // stand-in for requireJWT
+	mountRagDashboard(r, h, passthrough)
+
+	methods := map[string]int{}
+	err := chi.Walk(r, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if strings.HasPrefix(route, "/v1/dashboard/rag") {
+			methods[method]++
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk: %v", err)
+	}
+	if methods["GET"] == 0 {
+		t.Fatal("expected GET routes under /v1/dashboard/rag")
+	}
+	for _, mutating := range []string{"POST", "PUT", "PATCH", "DELETE"} {
+		if methods[mutating] != 0 {
+			t.Fatalf("MUTATING verb %s found under /v1/dashboard/rag — the BFF MUST be read-only (%d routes)", mutating, methods[mutating])
+		}
 	}
 }
