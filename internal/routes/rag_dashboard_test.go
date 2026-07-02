@@ -182,3 +182,32 @@ func TestRagDashboard_CreateCollection_NoJWT_Denied(t *testing.T) {
 		t.Fatalf("no-JWT write must not reach upstream, got %d calls", stub.createCalls)
 	}
 }
+
+// M21 T6.1 — every write/delete handler fails closed (401, no upstream) without a JWT.
+func TestRagDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
+	h, stub := newRagDashboard()
+	cases := []struct {
+		name string
+		call func(w http.ResponseWriter, r *http.Request)
+		req  *http.Request
+	}{
+		{"deleteCollection", h.DeleteCollection, httptest.NewRequest(http.MethodDelete, "/v1/dashboard/rag/collections/col_x", nil)},
+		{"ingestDocument", h.IngestDocument, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/documents", strings.NewReader(`{"collection_id":"c","text":"t"}`))},
+		{"deleteDocument", h.DeleteDocument, httptest.NewRequest(http.MethodDelete, "/v1/dashboard/rag/documents/doc_x", nil)},
+		{"ask", h.Ask, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/answers", strings.NewReader(`{"collection_id":"c","question":"q"}`))},
+		{"listDocuments", h.ListDocuments, httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/documents?collection_id=c", nil)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			tc.call(w, tc.req) // no auth.WithUser context → no tenant
+			if w.Code != http.StatusUnauthorized {
+				t.Fatalf("%s: want 401 without JWT, got %d", tc.name, w.Code)
+			}
+		})
+	}
+	if stub.createCalls+stub.deleteCalls+stub.ingestCalls+stub.askCalls != 0 {
+		t.Fatalf("no-JWT requests must NOT reach upstream, got calls c=%d d=%d i=%d a=%d",
+			stub.createCalls, stub.deleteCalls, stub.ingestCalls, stub.askCalls)
+	}
+}

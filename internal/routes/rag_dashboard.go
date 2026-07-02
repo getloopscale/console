@@ -37,7 +37,7 @@ type RagDashboardHandler struct {
 	logger *slog.Logger
 }
 
-// NewRagDashboardHandler builds the handler over the injected read-only data client.
+// NewRagDashboardHandler builds the handler over the injected per-tenant data client (M21: read+write).
 func NewRagDashboardHandler(client RagDataClient, logger *slog.Logger) *RagDashboardHandler {
 	return &RagDashboardHandler{client: client, logger: logger}
 }

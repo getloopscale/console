@@ -30,3 +30,22 @@ describe('RagCollectionsPage (/rag/collections)', () => {
     expect(await screen.findByText(/no collections yet/i)).toBeInTheDocument();
   });
 });
+
+import { userEvent as ue2 } from '@testing-library/user-event';
+
+describe('RagCollectionsPage — destructive delete flow', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it('delete opens ConfirmDialog then calls DELETE on confirm', async () => {
+    mockCloudFetch.mockResolvedValue({ items: [{ id: 'col_1', name: 'docs' }] });
+    render(<RagCollectionsPage />);
+    await screen.findByText('docs');
+    await ue2.click(screen.getByRole('button', { name: /delete col_1/i }));
+    // ConfirmDialog visible
+    const confirm = await screen.findByRole('button', { name: /delete collection/i });
+    await ue2.click(confirm);
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/rag/collections/col_1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+});

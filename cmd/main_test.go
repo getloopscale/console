@@ -8,13 +8,16 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
 	"github.com/usetheodev/theo-cloud/internal/config"
+	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/routes"
 )
 
@@ -167,5 +170,92 @@ func TestNewRagDashboardKeyResolver_FailsClosed(t *testing.T) {
 	}
 	if stub.calls != 0 {
 		t.Fatalf("minter MUST NOT be called without a tenant, got %d calls", stub.calls)
+	}
+}
+
+// stubRagMinter mints a per-tenant key = "rag_live_"+workspaceID (workspace == tenant).
+type stubRagMinter struct{}
+
+func (stubRagMinter) MintKey(_ context.Context, workspaceID, _ string, scopes []string) (*rag.MintResult, error) {
+	return &rag.MintResult{ID: "k_" + workspaceID, Secret: "rag_live_" + workspaceID, Scopes: scopes}, nil
+}
+
+// M21 T6.1 (G5) — END-TO-END write-path isolation through the FULL BFF chain:
+// mounted router → requireJWT → handler → data_client → newRagDashboardKeyResolver →
+// broker mint → stub theo-rag. Proves a tenant-A dashboard WRITE carries a tenant-A
+// scoped key and tenant-B a tenant-B key (distinct — no cross-tenant leak), the JWT
+// tenant is the sole source, and a no-JWT write is denied 401 with NO upstream call.
+func TestRagDashboard_WritePath_CrossTenantIsolation_E2E(t *testing.T) {
+	// A stub theo-rag that records the bearer + method + path per request.
+	type hit struct{ auth, method, path string }
+	var hits []hit
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits = append(hits, hit{r.Header.Get("Authorization"), r.Method, r.URL.Path})
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"col_x","name":"docs"}`))
+	}))
+	defer upstream.Close()
+
+	broker, err := rag.NewBroker(stubRagMinter{}, 16, time.Hour, []string{"rag:read", "rag:write", "rag:delete"})
+	if err != nil {
+		t.Fatalf("broker: %v", err)
+	}
+	resolver := newRagDashboardKeyResolver(broker)
+	client := rag.NewDataClient(upstream.URL, upstream.Client()).WithKeyResolver(resolver)
+	h := routes.NewRagDashboardHandler(client, quietLogger())
+
+	// requireJWT stand-in: inject the tenant from a test header (the real chain uses the
+	// Kratos JWT; here we drive the SAME auth.UserContext the handler + resolver read).
+	requireJWT := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if tenant := r.Header.Get("X-Test-Tenant"); tenant != "" {
+				r = r.WithContext(auth.WithUser(r.Context(), &auth.UserContext{TenantID: tenant, AccountID: "acc-" + tenant}))
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+	router := chi.NewRouter()
+	mountRagDashboard(router, h, requireJWT)
+
+	create := func(tenant string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/collections", strings.NewReader(`{"name":"docs"}`))
+		if tenant != "" {
+			req.Header.Set("X-Test-Tenant", tenant)
+		}
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w
+	}
+
+	// tenant A + tenant B write → each carries its OWN per-tenant bearer at theo-rag.
+	if w := create("tenantA"); w.Code != http.StatusCreated {
+		t.Fatalf("tenantA create: want 201, got %d (%s)", w.Code, w.Body.String())
+	}
+	if w := create("tenantB"); w.Code != http.StatusCreated {
+		t.Fatalf("tenantB create: want 201, got %d", w.Code)
+	}
+	if len(hits) != 2 {
+		t.Fatalf("expected 2 upstream writes, got %d", len(hits))
+	}
+	if hits[0].auth != "Bearer rag_live_tenantA" {
+		t.Fatalf("tenantA write carried %q, want Bearer rag_live_tenantA", hits[0].auth)
+	}
+	if hits[1].auth != "Bearer rag_live_tenantB" {
+		t.Fatalf("tenantB write carried %q, want Bearer rag_live_tenantB", hits[1].auth)
+	}
+	if hits[0].auth == hits[1].auth {
+		t.Fatal("cross-tenant leak: A and B writes carried the SAME bearer")
+	}
+	if hits[0].method != http.MethodPost || hits[0].path != "/v1/collections" {
+		t.Fatalf("upstream write shape = %s %s, want POST /v1/collections", hits[0].method, hits[0].path)
+	}
+
+	// No JWT → 401, and NO upstream write (fail-closed on the write path).
+	before := len(hits)
+	if w := create(""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("no-JWT write: want 401, got %d", w.Code)
+	}
+	if len(hits) != before {
+		t.Fatal("no-JWT write reached theo-rag — must fail closed BEFORE any upstream call")
 	}
 }

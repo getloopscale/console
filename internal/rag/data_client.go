@@ -11,12 +11,13 @@ import (
 	"strings"
 )
 
-// DataClient is a read-only proxy to theo-rag's REST API for the theo-cloud dashboard
-// BFF (M17). Mirrors internal/themory/client.go's Model B shape: it holds NO standing
+// DataClient is a per-tenant proxy to theo-rag's REST API for the theo-cloud dashboard
+// BFF. Mirrors internal/themory/client.go's Model B shape: it holds NO standing
 // credential — a keyResolver resolves the PER-TENANT Bearer per request from context
-// (the rag broker mints a rag:read-only key from the JWT-derived tenant). A resolver
-// error FAILS CLOSED (no request, no master fallback). Only the two read methods the
-// dashboard needs are implemented (YAGNI — the BFF is read-only).
+// (the rag broker mints a key from the JWT-derived tenant). A resolver error FAILS
+// CLOSED (no request, no master fallback). M17 shipped the reads; M21 added the write
+// surface (create/delete collections + documents, ask) — the dashboard mints
+// rag:read+write+delete, and theo-rag's per-verb scope gates every verb.
 type DataClient struct {
 	baseURL     string
 	httpClient  *http.Client
@@ -33,7 +34,7 @@ func NewDataClient(baseURL string, httpClient *http.Client) *DataClient {
 }
 
 // WithKeyResolver wires the per-tenant Bearer resolver (Model B). The dashboard wires a
-// resolver that mints a rag:read-only key; without it the client cannot authenticate.
+// resolver that mints a per-tenant rag key; without it the client cannot authenticate.
 func (c *DataClient) WithKeyResolver(r func(ctx context.Context) (string, error)) *DataClient {
 	c.keyResolver = r
 	return c
