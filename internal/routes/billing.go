@@ -70,14 +70,18 @@ func (h *BillingHandler) GetBilling(w http.ResponseWriter, r *http.Request) {
 	plan := "starter"
 	var periodStart, periodEnd *time.Time
 	var subscriptionID string
+	// J-06 D1: the Stripe-observed recurring plan price (persisted by the webhook).
+	var amountMinor sql.NullInt64
+	var currency sql.NullString
 	if h.db != nil {
 		var ps, pe sql.NullTime
 		var sid sql.NullString
 		err := h.db.QueryRowContext(r.Context(),
 			// M2: resolve the Account's single subscription (one plan per account).
-			"SELECT plan, current_period_start, current_period_end, stripe_subscription_id FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND status = 'active' LIMIT 1",
+			// J-06 D1: amount_minor + currency observe the Stripe price (no Go constant).
+			"SELECT plan, current_period_start, current_period_end, stripe_subscription_id, amount_minor, currency FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND status = 'active' LIMIT 1",
 			tenantID,
-		).Scan(&plan, &ps, &pe, &sid)
+		).Scan(&plan, &ps, &pe, &sid, &amountMinor, &currency)
 		if err != nil {
 			// No active subscription → starter is the correct default (free tier,
 			// or account not yet provisioned). A real DB error is NOT that — surface
@@ -126,6 +130,26 @@ func (h *BillingHandler) GetBilling(w http.ResponseWriter, r *http.Request) {
 	}
 	if subscriptionID != "" {
 		resp["subscription_id"] = subscriptionID
+	}
+
+	// J-06 D1: additive nested plan_price observed from the subscription row.
+	// starter → known $0 (present); enterprise/unknown/not-yet-persisted (NULL
+	// column, e.g. pre-migration or webhook not yet delivered) → OMITTED (never a
+	// fabricated $0 for a paid plan). Honest name: it is the recurring list price,
+	// not metered spend.
+	switch {
+	case plan == "starter":
+		resp["plan_price"] = map[string]interface{}{"amount_minor": 0, "currency": "usd", "interval": "month"}
+	case plan == "enterprise":
+		// omit — no public price (sales-led)
+	case amountMinor.Valid:
+		cur := "usd"
+		if currency.Valid && currency.String != "" {
+			cur = currency.String
+		}
+		resp["plan_price"] = map[string]interface{}{"amount_minor": amountMinor.Int64, "currency": cur, "interval": "month"}
+	default:
+		// pro/team not-yet-persisted (amount_minor NULL) → omit
 	}
 
 	writeJSON(w, http.StatusOK, resp)
