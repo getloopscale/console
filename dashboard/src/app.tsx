@@ -112,6 +112,31 @@ const RagAskPage = lazy(() =>
 const RagAnalyticsPage = lazy(() =>
   import('@/pages/rag/analytics').then((m) => ({ default: m.RagAnalyticsPage })),
 );
+// M44 — lens management dashboard pages
+const LensTracesPage = lazy(() =>
+  import('@/pages/lens/traces').then((m) => ({ default: m.LensTracesPage })),
+);
+const LensSessionsPage = lazy(() =>
+  import('@/pages/lens/sessions').then((m) => ({ default: m.LensSessionsPage })),
+);
+const LensDatasetsPage = lazy(() =>
+  import('@/pages/lens/datasets').then((m) => ({ default: m.LensDatasetsPage })),
+);
+const LensEvaluatorsPage = lazy(() =>
+  import('@/pages/lens/evaluators').then((m) => ({ default: m.LensEvaluatorsPage })),
+);
+const LensGuardsPage = lazy(() =>
+  import('@/pages/lens/guards').then((m) => ({ default: m.LensGuardsPage })),
+);
+const LensAgentsPage = lazy(() =>
+  import('@/pages/lens/agents').then((m) => ({ default: m.LensAgentsPage })),
+);
+const LensAskPage = lazy(() =>
+  import('@/pages/lens/ask').then((m) => ({ default: m.LensAskPage })),
+);
+const LensAnalyticsPage = lazy(() =>
+  import('@/pages/lens/analytics').then((m) => ({ default: m.LensAnalyticsPage })),
+);
 const LoginPage = lazy(() =>
   import('@/pages/login').then((m) => ({ default: m.LoginPage })),
 );
@@ -391,6 +416,15 @@ export default function App() {
                     <Route path="/rag/documents" element={<Boundaried path="/rag/documents"><RagDocumentsPage /></Boundaried>} />
                     <Route path="/rag/ask" element={<Boundaried path="/rag/ask"><RagAskPage /></Boundaried>} />
                     <Route path="/rag/analytics" element={<Boundaried path="/rag/analytics"><RagAnalyticsPage /></Boundaried>} />
+                    <Route path="/lens" element={<Boundaried path="/lens"><LensTracesPage /></Boundaried>} />
+                    <Route path="/lens/traces" element={<Boundaried path="/lens/traces"><LensTracesPage /></Boundaried>} />
+                    <Route path="/lens/sessions" element={<Boundaried path="/lens/sessions"><LensSessionsPage /></Boundaried>} />
+                    <Route path="/lens/datasets" element={<Boundaried path="/lens/datasets"><LensDatasetsPage /></Boundaried>} />
+                    <Route path="/lens/evaluators" element={<Boundaried path="/lens/evaluators"><LensEvaluatorsPage /></Boundaried>} />
+                    <Route path="/lens/guards" element={<Boundaried path="/lens/guards"><LensGuardsPage /></Boundaried>} />
+                    <Route path="/lens/agents" element={<Boundaried path="/lens/agents"><LensAgentsPage /></Boundaried>} />
+                    <Route path="/lens/ask" element={<Boundaried path="/lens/ask"><LensAskPage /></Boundaried>} />
+                    <Route path="/lens/analytics" element={<Boundaried path="/lens/analytics"><LensAnalyticsPage /></Boundaried>} />
                     <Route path="/settings" element={<Boundaried path="/settings"><SettingsPage /></Boundaried>} />
                     <Route
                       path="/settings/members"

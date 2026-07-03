@@ -118,6 +118,11 @@ const MENUS: Record<string, MenuDefinition> = {
         items: [{ label: 'RAG', path: '/rag', icon: BookOpen, drillsInto: 'rag' }],
       },
       {
+        // M44 — Lens management section. Drills into the read+write dashboard submenu.
+        title: 'Lens',
+        items: [{ label: 'Lens', path: '/lens', icon: Activity, drillsInto: 'lens' }],
+      },
+      {
         // Top-level shortcut to the API Tokens page (also reachable via
         // Settings → Developer → API Tokens). Uses the /tokens route so the
         // root sidebar stays active instead of drilling into Settings.
@@ -207,6 +212,25 @@ const MENUS: Record<string, MenuDefinition> = {
       },
     ],
   },
+  lens: {
+    id: 'lens',
+    title: 'Lens',
+    parent: 'main',
+    groups: [
+      {
+        items: [
+          { label: 'Traces', path: '/lens/traces', icon: Activity },
+          { label: 'Sessions', path: '/lens/sessions', icon: ListChecks },
+          { label: 'Datasets', path: '/lens/datasets', icon: Boxes },
+          { label: 'Evaluators', path: '/lens/evaluators', icon: FlaskConical },
+          { label: 'Guards', path: '/lens/guards', icon: ShieldCheck },
+          { label: 'Agents', path: '/lens/agents', icon: Users },
+          { label: 'Ask', path: '/lens/ask', icon: Search },
+          { label: 'Analytics', path: '/lens/analytics', icon: LayoutGrid },
+        ],
+      },
+    ],
+  },
   memory: {
     id: 'memory',
     title: 'Memory',
@@ -287,6 +311,7 @@ function resolveActiveMenu(pathname: string): ResolvedMenu {
   if (pathname.startsWith('/settings')) return { id: 'settings' };
   if (pathname.startsWith('/profile')) return { id: 'profile' };
   if (pathname.startsWith('/rag')) return { id: 'rag' };
+  if (pathname.startsWith('/lens')) return { id: 'lens' };
   if (pathname.startsWith('/memory')) return { id: 'memory' };
   return { id: 'main' };
 }
