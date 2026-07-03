@@ -41,7 +41,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
   it('test_renders_collapsed_badge_by_default', () => {
     mockUseOnboardingState.mockReturnValue(makeHookResult({ completed: 2, percent: 40 }));
     render(<OnboardingPanel />);
-    expect(screen.getByLabelText(/2 of 5 done/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/get your app live/i)).toBeInTheDocument();
     // Counter chip on badge
     expect(screen.getByText('2/5')).toBeInTheDocument();
   });
@@ -55,7 +55,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
   it('test_expands_to_panel_on_badge_click', async () => {
     mockUseOnboardingState.mockReturnValue(makeHookResult({ completed: 1 }));
     render(<OnboardingPanel />);
-    await userEvent.click(screen.getByLabelText(/1 of 5 done/i));
+    await userEvent.click(screen.getByLabelText(/get your app live/i));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('Get your app live')).toBeInTheDocument();
   });
@@ -63,7 +63,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
   it('test_collapses_back_to_badge_via_chevron', async () => {
     mockUseOnboardingState.mockReturnValue(makeHookResult({ completed: 1 }));
     render(<OnboardingPanel />);
-    await userEvent.click(screen.getByLabelText(/1 of 5 done/i));
+    await userEvent.click(screen.getByLabelText(/get your app live/i));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText('Collapse to badge'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
     const dismiss = vi.fn();
     mockUseOnboardingState.mockReturnValue(makeHookResult({ completed: 1, dismiss }));
     render(<OnboardingPanel />);
-    await userEvent.click(screen.getByLabelText(/1 of 5 done/i));
+    await userEvent.click(screen.getByLabelText(/get your app live/i));
     await userEvent.click(screen.getByLabelText('Dismiss onboarding'));
     expect(dismiss).toHaveBeenCalledTimes(1);
   });
@@ -81,7 +81,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
   it('test_renders_all_5_steps_when_expanded', async () => {
     mockUseOnboardingState.mockReturnValue(makeHookResult());
     render(<OnboardingPanel />);
-    await userEvent.click(screen.getByLabelText(/0 of 5 done/i));
+    await userEvent.click(screen.getByLabelText(/get your app live/i));
     expect(screen.getByText('Install the Theo CLI')).toBeInTheDocument();
     expect(screen.getByText('Sign in')).toBeInTheDocument();
     expect(screen.getByText('Initialize your first project')).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
   it('test_cli_commands_visible_for_all_incomplete_steps', async () => {
     mockUseOnboardingState.mockReturnValue(makeHookResult());
     render(<OnboardingPanel />);
-    await userEvent.click(screen.getByLabelText(/0 of 5 done/i));
+    await userEvent.click(screen.getByLabelText(/get your app live/i));
     // All 5 CLI commands visible em panel expanded.
     // Sprint 4 qa-sprint4-cleanup-2026-06-25 #32: `theo init` (which does NOT
     // exist in @usetheo/cli@0.3.1) replaced with canonical `theo project create my-app`.
@@ -106,7 +106,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
   it('test_optional_label_on_domain_step', async () => {
     mockUseOnboardingState.mockReturnValue(makeHookResult());
     render(<OnboardingPanel />);
-    await userEvent.click(screen.getByLabelText(/0 of 5 done/i));
+    await userEvent.click(screen.getByLabelText(/get your app live/i));
     expect(screen.getByText('optional')).toBeInTheDocument();
   });
 
@@ -119,7 +119,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
     mockUseOnboardingState.mockReturnValue(makeHookResult({ completed: 3, percent: 60 }));
     render(<OnboardingPanel />);
     // Expand the panel so the progress bar is visible.
-    await userEvent.click(screen.getByLabelText(/3 of 5 done/i));
+    await userEvent.click(screen.getByLabelText(/get your app live/i));
     const bar = screen.getByRole('progressbar', { name: /onboarding progress/i });
     expect(bar).toBeInTheDocument();
     expect(bar.getAttribute('aria-valuenow')).toBe('60');
@@ -131,7 +131,7 @@ describe('OnboardingPanel (Sprint 3 T3.2 v2 — floating panel pattern)', () => 
     const markStepDone = vi.fn();
     mockUseOnboardingState.mockReturnValue(makeHookResult({ markStepDone }));
     render(<OnboardingPanel />);
-    await userEvent.click(screen.getByLabelText(/0 of 5 done/i));
+    await userEvent.click(screen.getByLabelText(/get your app live/i));
     await userEvent.click(screen.getByRole('button', { name: 'I installed it' }));
     expect(markStepDone).toHaveBeenCalledWith('cli_installed');
   });
