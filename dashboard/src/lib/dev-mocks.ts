@@ -24,14 +24,28 @@ export function mocksEnabled(): boolean {
 }
 
 /**
- * Logged-out mock mode — when both `VITE_USE_MOCKS=true` AND
- * `VITE_MOCK_LOGGED_OUT=true`, `getMockSession()` returns null so auth
- * pages (login, register, recovery, verification) render their forms
- * instead of redirecting to / per useRequireAuth logic. Enables visual
- * validation of all 5 auth surfaces without real Kratos. (Plan T-B.1, ADR-D2.)
+ * Logged-out mock mode — when `VITE_USE_MOCKS=true` AND EITHER the build-time
+ * `VITE_MOCK_LOGGED_OUT=true` env is set OR the runtime flag
+ * `window.__THEO_MOCK_LOGGED_OUT === true` is present, `getMockSession()`
+ * returns null so auth pages (login, register, recovery, verification) render
+ * their forms instead of redirecting to / per the session-gate logic.
+ *
+ * The build-time env is a whole-server mode (visual validation of all 5 auth
+ * surfaces). The runtime flag is a PER-PAGE override for hermetic Playwright
+ * e2e: the global webServer runs logged-IN (so dashboard specs work), and an
+ * auth-page spec sets `window.__THEO_MOCK_LOGGED_OUT = true` via
+ * `page.addInitScript(...)` BEFORE app load so only that page renders logged-out.
+ * Without this, every auth-page e2e redirected to the mock dashboard. Dev-only
+ * (gated by mocksEnabled → dead-code-eliminated in production). (Plan T-B.1,
+ * ADR-D2; runtime override added M0 J-01 e2e harness fix.)
  */
 export function mocksLoggedOut(): boolean {
-  return mocksEnabled() && import.meta.env.VITE_MOCK_LOGGED_OUT === 'true';
+  if (!mocksEnabled()) return false;
+  if (import.meta.env.VITE_MOCK_LOGGED_OUT === 'true') return true;
+  return (
+    typeof window !== 'undefined' &&
+    (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT === true
+  );
 }
 
 /**
@@ -343,6 +357,29 @@ const MOCK_RECOVERY_CODE_PHASE = {
  */
 let originalFetch: typeof fetch | null = null;
 
+/**
+ * Dev-only per-page runtime error injection for a mocked auth flow. When an
+ * auth-page e2e sets `window.__THEO_MOCK_FLOW_ERROR = "message"` (via
+ * page.addInitScript before app load), the GET-flow mock for that flow type
+ * carries a `ui.messages` error — so the page's error-render path (e.g. the
+ * login "We couldn't sign you in." Alert) is exercised end-to-end in the
+ * browser. Without this hook the dev-mocks fetch wrapper intercepts every
+ * /self-service/ request at the JS layer, so Playwright page.route() can never
+ * reach the flow endpoint to inject an error. Returns the body unchanged when
+ * no flag is set or the body has no `ui`. (M0 J-01 e2e harness fix.)
+ */
+function injectRuntimeFlowError(flowType: string, body: unknown): unknown {
+  if (typeof window === 'undefined') return body;
+  const msg = (window as unknown as { __THEO_MOCK_FLOW_ERROR?: string }).__THEO_MOCK_FLOW_ERROR;
+  if (!msg || flowType !== 'login') return body;
+  const flow = body as { ui?: { messages?: unknown[] } } | null;
+  if (!flow?.ui) return body;
+  return {
+    ...flow,
+    ui: { ...flow.ui, messages: [{ id: 4000006, type: 'error', text: msg }] },
+  };
+}
+
 export function installKratosMocks(): void {
   if (!mocksEnabled()) return;
   if (typeof window === 'undefined') return;          // not in browser
@@ -371,6 +408,7 @@ export function installKratosMocks(): void {
     if (url.includes('/browser') || url.includes('/flows?id=')) {
       // GET flow init or load by ID
       body = MOCK_FLOWS[flowType] ?? null;
+      body = injectRuntimeFlowError(flowType, body);
     } else {
       // POST submit — EC-1: NEVER include redirect_browser_to
       // EC-7: recovery phase transition (email → code → passed_challenge)

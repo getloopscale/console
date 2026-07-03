@@ -12,6 +12,7 @@
 ### Removed
 
 ### Fixed
+- **M0 J-01 Login e2e — Playwright auth-page harness repaired + `dashboard/e2e/login.spec.ts` (3 scenarios) green.** The e2e webServer runs mocks logged-IN (`VITE_USE_MOCKS=true`), so the dev-mocks `window.fetch` wrapper intercepts every `/self-service/*` request at the JS layer and `getMockSession()` returns a logged-in "Demo Operator" session — which silently redirected EVERY auth-page e2e (login/register/verification/recovery/device) to the mock dashboard, and left `page.route()` flow mocks dead (unreachable). Added two dev-only per-page runtime overrides to the mock layer (dead-code-eliminated in prod, gated by `mocksEnabled()`): `window.__THEO_MOCK_LOGGED_OUT` (render the auth page logged-out instead of redirecting to `/`) and `window.__THEO_MOCK_FLOW_ERROR` (inject a `ui.messages` error into the mocked login flow so the error-render path runs end-to-end in the browser). New `dashboard/e2e/login.spec.ts`: 3 scenarios — OAuth-denial "We couldn't sign you in." Alert (not a silent redirect), and `?provider=github|google` autofocus + visual ring — all PASS. `tsc` + `eslint` + vitest (34 pass / 8 skip) regression-free.
 
 ### Security
 
