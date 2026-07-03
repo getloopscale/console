@@ -276,10 +276,10 @@ func (s *stubLensDashMinter) KeyForTenantScoped(_ context.Context, accountID, te
 	return "theo_live_" + tenantID, nil
 }
 
-// M44 — the SHIPPED lens dashboard keyResolver mints a lens:read+write+delete key from the JWT
+// M44 — the SHIPPED lens dashboard keyResolver mints a observability:read+write+delete key from the JWT
 // tenant (the management BFF; ADR-1: one resolver, per-verb least privilege enforced at
 // theo-lens). The tenant/account MUST come from the JWT, never a param; the scope set MUST be
-// exactly [lens:read, lens:write, lens:delete].
+// exactly [observability:read, observability:write, observability:delete].
 func TestNewLensDashboardKeyResolver_MintsReadWriteDeleteFromJWTTenant(t *testing.T) {
 	stub := &stubLensDashMinter{}
 	resolve := newLensDashboardKeyResolver(stub)
@@ -294,9 +294,9 @@ func TestNewLensDashboardKeyResolver_MintsReadWriteDeleteFromJWTTenant(t *testin
 	if stub.gotTenant != "tenantA" || stub.gotAccount != "accA" {
 		t.Fatalf("resolver must mint from the JWT tenant/account, got tenant=%q account=%q", stub.gotTenant, stub.gotAccount)
 	}
-	want := map[string]bool{"lens:read": true, "lens:write": true, "lens:delete": true}
+	want := map[string]bool{"observability:read": true, "observability:write": true, "observability:delete": true}
 	if len(stub.gotScopes) != len(want) {
-		t.Fatalf("dashboard key MUST be minted lens:read+write+delete, got %+v", stub.gotScopes)
+		t.Fatalf("dashboard key MUST be minted observability:read+write+delete, got %+v", stub.gotScopes)
 	}
 	for _, s := range stub.gotScopes {
 		if !want[s] {

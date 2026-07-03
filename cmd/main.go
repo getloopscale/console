@@ -86,14 +86,14 @@ func buildLensForwardAuth(
 	lensHTTP := &http.Client{Timeout: 10 * time.Second}
 	lensAdmin := thelens.NewAdminClient(cfg.LensBaseURL, cfg.LensPlatformAdminKey.Value(), lensHTTP)
 	lensBroker, err := thelens.NewBroker(lensAdmin, 1024, time.Hour,
-		[]string{"lens:read", "lens:write", "lens:delete"})
+		[]string{"observability:read", "observability:write", "observability:delete"})
 	if err != nil {
 		return nil, nil, fmt.Errorf("lens broker: %w", err)
 	}
 	// The SAME broker serves the edge ForwardAuth handler AND the M41 dashboard BFF
 	// resolver (one mint cache), mirroring rag. M38 returned only the handler (no
 	// dashboard then); M41 exposes the broker for the read BFF.
-	return routes.NewForwardAuthHandler(resolve, lensBroker, authorize, "lens:read", logger), lensBroker, nil
+	return routes.NewForwardAuthHandler(resolve, lensBroker, authorize, "observability:read", logger), lensBroker, nil
 }
 
 // ragDashMinter is the least-privilege minting surface the dashboard resolver needs
@@ -110,10 +110,10 @@ type lensDashMinter interface {
 
 // newLensDashboardKeyResolver returns the per-request keyResolver for the M44 lens
 // dashboard MANAGEMENT BFF. It reads the tenant from the JWT-derived context ONLY (never a
-// request param) and mints a single lens:read+write+delete per-tenant key per request (ADR-1:
+// request param) and mints a single observability:read+write+delete per-tenant key per request (ADR-1:
 // one resolver). Least privilege is at DASHBOARD-SESSION granularity, not per-verb-per-request:
 // the minted key carries all three scopes, and theo-lens walls each route by the verb it needs
-// (a GET route requires lens:read, a POST lens:write, a DELETE lens:delete — proven at the edge).
+// (a GET route requires observability:read, a POST observability:write, a DELETE observability:delete — proven at the edge).
 // Fail-closed: no authenticated tenant → error, so the data client sends no request.
 // Extracted (not inline) so the scope + fail-closed invariants are unit-tested on the SHIPPED path.
 func newLensDashboardKeyResolver(minter lensDashMinter) func(ctx context.Context) (string, error) {
@@ -122,7 +122,7 @@ func newLensDashboardKeyResolver(minter lensDashMinter) func(ctx context.Context
 		if u == nil || u.TenantID == "" {
 			return "", fmt.Errorf("lens dashboard: no authenticated tenant in context")
 		}
-		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"lens:read", "lens:write", "lens:delete"})
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"observability:read", "observability:write", "observability:delete"})
 	}
 }
 
@@ -933,7 +933,7 @@ func main() {
 		mountRagDashboard(r, ragDashboardHandler, requireJWT)
 	}
 	// M44: the read+write+delete /v1/dashboard/lens management BFF — the per-tenant key is
-	// minted lens:read+write+delete (ADR-1; per-verb least privilege at theo-lens). The route
+	// minted observability:read+write+delete (ADR-1; per-verb least privilege at theo-lens). The route
 	// set (ADR-3) has no mutating verb on the trace/session body or /agents. Distinct mount
 	// from /v1/lens/* (the edge surface).
 	if lensDashboardHandler != nil {

@@ -202,14 +202,14 @@ if [[ "${EDGE}" == "1" && -z "${RAG_PLATFORM_ADMIN_KEY:-}" ]]; then
 fi
 
 # --- 3.7 (EDGE=1, M40) lens Model-B platform-admin provisioning ---------------
-# The lens broker (M38) needs a lens:platform-admin theo_live_* to mint per-tenant
+# The lens broker (M38) needs a observability:platform-admin theo_live_* to mint per-tenant
 # keys. Mint it from theo-lens's stateless bootstrap token (M22: /v1/admin/keys,
 # workspace_id required, response is FLAT `secret` — NOT rag's nested `raw_key`).
 if [[ "${EDGE}" == "1" && -z "${LENS_PLATFORM_ADMIN_KEY:-}" ]]; then
   log "provisioning lens Model B platform-admin key via the theo-lens bootstrap token…"
   LA_KEY="$( (curl -s -m 10 -X POST "http://localhost:${E2E_LENS_PORT}/v1/admin/keys" \
     -H "Authorization: Bearer ${THELENS_ADMIN_BOOTSTRAP}" -H "Content-Type: application/json" \
-    -d '{"name":"theo-cloud-lens-admin","workspace_id":"default","scopes":["lens:platform-admin","lens:admin","lens:read","lens:write","lens:delete"]}' \
+    -d '{"name":"theo-cloud-lens-admin","workspace_id":"default","scopes":["observability:platform-admin","observability:admin","observability:read","observability:write","observability:delete"]}' \
     2>/dev/null | sed -n 's/.*"secret":"\([^"]*\)".*/\1/p') || true)"
   if [[ -z "${LA_KEY}" ]]; then
     dump_logs

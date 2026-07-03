@@ -19,7 +19,7 @@ import (
 )
 
 // M38 — the theo-lens ForwardAuth WIRING: the generic ForwardAuthHandler (reused,
-// a 4th instance) instantiated with required scope "lens:read" + a REAL thelens
+// a 4th instance) instantiated with required scope "observability:read" + a REAL thelens
 // broker (which mints per-tenant against the theo-lens admin stub). The Del-then-set
 // Authorization invariant itself is covered by the generic forward_auth_test.go;
 // here we prove the lens-specific composition mints the right thing and fails closed.
@@ -51,7 +51,7 @@ func brokerWithUpstream(t *testing.T, capturedScopes *[]any) *thelens.Broker {
 	}))
 	t.Cleanup(srv.Close)
 	b, err := thelens.NewBroker(thelens.NewAdminClient(srv.URL, "theo_live_platform", srv.Client()),
-		16, time.Hour, []string{"lens:read", "lens:write", "lens:delete"})
+		16, time.Hour, []string{"observability:read", "observability:write", "observability:delete"})
 	if err != nil {
 		t.Fatalf("NewBroker: %v", err)
 	}
@@ -70,8 +70,8 @@ func TestForwardLens_DelThenSetAuthorization(t *testing.T) {
 	var minted []any
 	b := brokerWithUpstream(t, &minted)
 	h := routes.NewForwardAuthHandler(
-		resolve(&auth.UserContext{Subject: "u", TenantID: "tenant-a"}, []string{"lens:read"}, nil),
-		b, allowOwn, "lens:read", quiet())
+		resolve(&auth.UserContext{Subject: "u", TenantID: "tenant-a"}, []string{"observability:read"}, nil),
+		b, allowOwn, "observability:read", quiet())
 
 	rec := serve(h)
 	if rec.Code != http.StatusOK {
@@ -81,9 +81,9 @@ func TestForwardLens_DelThenSetAuthorization(t *testing.T) {
 	if got != "Bearer theo_live_minted" {
 		t.Fatalf("want minted Authorization, got %q (must NOT be the consumer's key)", got)
 	}
-	// least-privilege: lens:read consumer -> minted lens:read only.
-	if len(minted) != 1 || minted[0] != "lens:read" {
-		t.Fatalf("minted scopes %v, want [lens:read]", minted)
+	// least-privilege: observability:read consumer -> minted observability:read only.
+	if len(minted) != 1 || minted[0] != "observability:read" {
+		t.Fatalf("minted scopes %v, want [observability:read]", minted)
 	}
 }
 
@@ -91,7 +91,7 @@ func TestForwardLens_403WithoutScope(t *testing.T) {
 	b := brokerWithUpstream(t, nil)
 	h := routes.NewForwardAuthHandler(
 		resolve(&auth.UserContext{Subject: "u", TenantID: "tenant-a"}, []string{"memory:read"}, nil),
-		b, allowOwn, "lens:read", quiet())
+		b, allowOwn, "observability:read", quiet())
 
 	rec := serve(h)
 	if rec.Code != http.StatusForbidden {
@@ -108,10 +108,10 @@ func TestForwardLens_503OnMintError(t *testing.T) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer srv.Close()
-	b, _ := thelens.NewBroker(thelens.NewAdminClient(srv.URL, "k", srv.Client()), 16, time.Hour, []string{"lens:read"})
+	b, _ := thelens.NewBroker(thelens.NewAdminClient(srv.URL, "k", srv.Client()), 16, time.Hour, []string{"observability:read"})
 	h := routes.NewForwardAuthHandler(
-		resolve(&auth.UserContext{Subject: "u", TenantID: "tenant-a"}, []string{"lens:read"}, nil),
-		b, allowOwn, "lens:read", quiet())
+		resolve(&auth.UserContext{Subject: "u", TenantID: "tenant-a"}, []string{"observability:read"}, nil),
+		b, allowOwn, "observability:read", quiet())
 
 	rec := serve(h)
 	if rec.Code != http.StatusServiceUnavailable {

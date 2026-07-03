@@ -149,8 +149,8 @@ func lensDeleteDatasetItem(t *testing.T, edgeURL, bearer, datasetID, traceID str
 }
 
 // TestEdgeForwardAuthLens_DeleteVerbWallE2E — M44: the DELETE half of the per-verb wall. A
-// minted lens:read-only key is 403 on a DELETE THROUGH Traefik (theo-lens's M22
-// requireScopeOnPrincipal('lens:delete')). M40 proved the POST wall; the M44 write surface adds
+// minted observability:read-only key is 403 on a DELETE THROUGH Traefik (theo-lens's M22
+// requireScopeOnPrincipal('observability:delete')). M40 proved the POST wall; the M44 write surface adds
 // DELETE routes, so the delete verb must be walled at the edge too. The 403 fires at the scope
 // check before any resource lookup, so the ids need not exist.
 func TestEdgeForwardAuthLens_DeleteVerbWallE2E(t *testing.T) {
@@ -167,15 +167,15 @@ func TestEdgeForwardAuthLens_DeleteVerbWallE2E(t *testing.T) {
 
 	seedUser(t, db, "lens-rodel-uid", "lens-rodel@e2e.test")
 	seedTenant(t, db, "tn-lens-rodel", "lens-rodel-uid")
-	bearerRO := seedLensAPIKey(t, db, "lens-rodel", "tn-lens-rodel", `["lens:read"]`) // read ONLY
+	bearerRO := seedLensAPIKey(t, db, "lens-rodel", "tn-lens-rodel", `["observability:read"]`) // read ONLY
 
 	if code := lensDeleteDatasetItem(t, edgeURL, bearerRO, "any-dataset", "any-trace"); code != http.StatusForbidden {
-		t.Fatalf("delete-verb wall: a minted lens:read key must be 403 on DELETE /v1/lens/datasets/../items/.. through the edge, got %d", code)
+		t.Fatalf("delete-verb wall: a minted observability:read key must be 403 on DELETE /v1/lens/datasets/../items/.. through the edge, got %d", code)
 	}
 }
 
 // TestEdgeForwardAuthLens_WriteDeleteCrossTenantIsolationE2E — M44's headline risk closed: a
-// key carrying the FULL dashboard scope (lens:read+write+delete) still cannot reach another
+// key carrying the FULL dashboard scope (observability:read+write+delete) still cannot reach another
 // tenant's data THROUGH THE EDGE. Bob (write+delete) owns a dataset; Bob can delete-item under
 // his OWN dataset id (200 — idempotent), while Alice (her own write+delete key) gets 404 on the
 // SAME dataset id (it is absent in her workspace). Same id, Bob 200 / Alice 404 ⇒ the minted
@@ -197,7 +197,7 @@ func TestEdgeForwardAuthLens_WriteDeleteCrossTenantIsolationE2E(t *testing.T) {
 	seedUser(t, db, "lens-wdb-uid", "lens-wdb@e2e.test")
 	seedTenant(t, db, "tn-lens-wda", "lens-wda-uid")
 	seedTenant(t, db, "tn-lens-wdb", "lens-wdb-uid")
-	const fullScope = `["lens:read","lens:write","lens:delete"]` // the M44 dashboard scope set
+	const fullScope = `["observability:read","observability:write","observability:delete"]` // the M44 dashboard scope set
 	bearerA := seedLensAPIKey(t, db, "lens-wda", "tn-lens-wda", fullScope)
 	bearerB := seedLensAPIKey(t, db, "lens-wdb", "tn-lens-wdb", fullScope)
 
@@ -235,8 +235,8 @@ func TestEdgeForwardAuthLensTenantIsolationE2E(t *testing.T) {
 	seedUser(t, db, "lens-bob-uid", "lens-bob@e2e.test")
 	seedTenant(t, db, "tn-lens-alice", "lens-alice-uid")
 	seedTenant(t, db, "tn-lens-bob", "lens-bob-uid")
-	bearerA := seedLensAPIKey(t, db, "lens-alice", "tn-lens-alice", `["lens:read","lens:write"]`)
-	bearerB := seedLensAPIKey(t, db, "lens-bob", "tn-lens-bob", `["lens:read","lens:write"]`)
+	bearerA := seedLensAPIKey(t, db, "lens-alice", "tn-lens-alice", `["observability:read","observability:write"]`)
+	bearerB := seedLensAPIKey(t, db, "lens-bob", "tn-lens-bob", `["observability:read","observability:write"]`)
 
 	const dsName = "edge-lens-isolation-canary-m40"
 
@@ -265,8 +265,8 @@ func TestEdgeForwardAuthLensTenantIsolationE2E(t *testing.T) {
 	}
 }
 
-// TestEdgeForwardAuthLens_PerVerbWall — a minted lens:read-only key is 403 on a write
-// THROUGH Traefik (theo-lens's M22 requireScopeOnPrincipal('lens:write')).
+// TestEdgeForwardAuthLens_PerVerbWall — a minted observability:read-only key is 403 on a write
+// THROUGH Traefik (theo-lens's M22 requireScopeOnPrincipal('observability:write')).
 func TestEdgeForwardAuthLens_PerVerbWall(t *testing.T) {
 	edgeURL := requireE2EEdge(t)
 	pgDSN := env(t, "E2E_PG_CLOUD_DSN", "")
@@ -281,10 +281,10 @@ func TestEdgeForwardAuthLens_PerVerbWall(t *testing.T) {
 
 	seedUser(t, db, "lens-ro-uid", "lens-ro@e2e.test")
 	seedTenant(t, db, "tn-lens-ro", "lens-ro-uid")
-	bearerRO := seedLensAPIKey(t, db, "lens-ro", "tn-lens-ro", `["lens:read"]`) // read ONLY
+	bearerRO := seedLensAPIKey(t, db, "lens-ro", "tn-lens-ro", `["observability:read"]`) // read ONLY
 
 	if code := lensCreateDataset(t, edgeURL, bearerRO, "should-be-403"); code != http.StatusForbidden {
-		t.Fatalf("per-verb wall: a minted lens:read key must be 403 on POST /v1/lens/datasets through the edge, got %d", code)
+		t.Fatalf("per-verb wall: a minted observability:read key must be 403 on POST /v1/lens/datasets through the edge, got %d", code)
 	}
 }
 
@@ -308,7 +308,7 @@ func TestEdgeForwardAuthLens_FailClosed(t *testing.T) {
 
 	seedUser(t, db, "lens-fc-uid", "lens-fc@e2e.test")
 	seedTenant(t, db, "tn-lens-fc", "lens-fc-uid")
-	bearerC := seedLensAPIKey(t, db, "lens-fc", "tn-lens-fc", `["lens:read","lens:write"]`)
+	bearerC := seedLensAPIKey(t, db, "lens-fc", "tn-lens-fc", `["observability:read","observability:write"]`)
 
 	// (5) No-key through the edge → DENIED at ForwardAuth (never reaches theo-lens).
 	req, _ := http.NewRequest(http.MethodPost, edgeURL+"/v1/lens/datasets", nil)

@@ -55,7 +55,7 @@ type LensDataClient interface {
 
 // LensDashboardHandler serves the read-only /v1/dashboard/lens BFF. Browser JWT sessions
 // (requireJWT) reach it; the injected data client proxies to theo-lens with a per-tenant
-// lens:read key resolved from the JWT tenant (never the request body/params). Read-only:
+// observability:read key resolved from the JWT tenant (never the request body/params). Read-only:
 // the write/delete management surface is M44.
 type LensDashboardHandler struct {
 	client LensDataClient
@@ -94,7 +94,7 @@ func pageParams(r *http.Request) (limit, offset int) {
 }
 
 // ListTraces serves GET /v1/dashboard/lens/traces — the caller workspace's traces, via the
-// per-tenant lens:read key resolved from the JWT session (fail-closed 401 when no tenant).
+// per-tenant observability:read key resolved from the JWT session (fail-closed 401 when no tenant).
 func (h *LensDashboardHandler) ListTraces(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return

@@ -149,7 +149,7 @@ type Config struct {
 	LensBaseURL string
 
 	// LensPlatformAdminKey is the CONTROL-PLANE credential (carrying
-	// lens:platform-admin) the gateway uses ONLY to mint per-tenant theo-lens keys
+	// observability:platform-admin) the gateway uses ONLY to mint per-tenant theo-lens keys
 	// via POST /v1/admin/keys. NEVER on the data path (Model B). Required when
 	// LensBaseURL is set.
 	// Env: LENS_PLATFORM_ADMIN_KEY

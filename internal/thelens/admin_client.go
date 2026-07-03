@@ -3,7 +3,7 @@
 
 // Model B (edge-integration M38) — AdminClient is the CONTROL-PLANE client the
 // gateway uses to provision per-tenant theo_live_* keys against theo-lens's admin
-// API. It holds the platform-admin credential (lens:platform-admin) and is used
+// API. It holds the platform-admin credential (observability:platform-admin) and is used
 // ONLY to mint keys — NEVER on the data path. This structural separation (NIST
 // AC-5/AC-6 control/data split) closes the confused deputy (CWE-441): a data-path
 // bug cannot wield provisioning authority.
@@ -49,7 +49,7 @@ type AdminClient struct {
 }
 
 // NewAdminClient constructs the control-plane client. platformKey is the
-// lens:platform-admin credential (env LENS_PLATFORM_ADMIN_KEY) — held ONLY here.
+// observability:platform-admin credential (env LENS_PLATFORM_ADMIN_KEY) — held ONLY here.
 // httpClient may be nil (uses http.DefaultClient).
 func NewAdminClient(baseURL, platformKey string, httpClient *http.Client) *AdminClient {
 	if httpClient == nil {

@@ -4,7 +4,7 @@
 // M41 — DataClient is a per-tenant proxy to theo-lens's REST API for the theo-cloud
 // dashboard BFF (read half). Mirrors internal/rag/data_client.go's Model B shape: it
 // holds NO standing credential — a keyResolver resolves the PER-TENANT Bearer per
-// request from context (the lens broker mints a lens:read key from the JWT-derived
+// request from context (the lens broker mints a observability:read key from the JWT-derived
 // tenant). A resolver error FAILS CLOSED (no request, no master fallback).
 //
 // M41 ships the READS only (traces / sessions / observability / cost); the write
@@ -43,7 +43,7 @@ func NewDataClient(baseURL string, httpClient *http.Client) *DataClient {
 }
 
 // WithKeyResolver wires the per-tenant Bearer resolver (Model B). The dashboard wires a
-// resolver that mints a per-tenant lens:read key; without it the client cannot authenticate.
+// resolver that mints a per-tenant observability:read key; without it the client cannot authenticate.
 func (c *DataClient) WithKeyResolver(r func(ctx context.Context) (string, error)) *DataClient {
 	c.keyResolver = r
 	return c

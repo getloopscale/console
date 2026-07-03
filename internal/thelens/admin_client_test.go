@@ -22,12 +22,12 @@ func TestMintKey_ParsesFlatResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK) // theo-lens returns 200, not 201
-		_, _ = w.Write([]byte(`{"id":"apk_x","name":"gw-t1","key_prefix":"tl","scopes":["lens:read"],"workspace_id":"t1","secret":"theo_live_abc"}`))
+		_, _ = w.Write([]byte(`{"id":"apk_x","name":"gw-t1","key_prefix":"tl","scopes":["observability:read"],"workspace_id":"t1","secret":"theo_live_abc"}`))
 	}))
 	defer srv.Close()
 
 	admin := NewAdminClient(srv.URL, "theo_live_platform", srv.Client())
-	res, err := admin.MintKey(context.Background(), "t1", "gw-t1", []string{"lens:read"})
+	res, err := admin.MintKey(context.Background(), "t1", "gw-t1", []string{"observability:read"})
 	if err != nil {
 		t.Fatalf("MintKey: %v", err)
 	}
@@ -37,8 +37,8 @@ func TestMintKey_ParsesFlatResponse(t *testing.T) {
 	if res.Secret != "theo_live_abc" {
 		t.Errorf("Secret = %q, want theo_live_abc (from the flat `secret` field)", res.Secret)
 	}
-	if len(res.Scopes) != 1 || res.Scopes[0] != "lens:read" {
-		t.Errorf("Scopes = %v, want [lens:read]", res.Scopes)
+	if len(res.Scopes) != 1 || res.Scopes[0] != "observability:read" {
+		t.Errorf("Scopes = %v, want [observability:read]", res.Scopes)
 	}
 }
 
@@ -52,12 +52,12 @@ func TestMintKey_SendsCorrectRequest(t *testing.T) {
 		raw, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(raw, &gotBody)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"k","scopes":["lens:write"],"secret":"theo_live_z"}`))
+		_, _ = w.Write([]byte(`{"id":"k","scopes":["observability:write"],"secret":"theo_live_z"}`))
 	}))
 	defer srv.Close()
 
 	admin := NewAdminClient(srv.URL, "platform-secret", srv.Client())
-	if _, err := admin.MintKey(context.Background(), "tenant-a", "gw-tenant-a", []string{"lens:write"}); err != nil {
+	if _, err := admin.MintKey(context.Background(), "tenant-a", "gw-tenant-a", []string{"observability:write"}); err != nil {
 		t.Fatalf("MintKey: %v", err)
 	}
 	if gotMethod != http.MethodPost || gotPath != "/v1/admin/keys" {
@@ -70,8 +70,8 @@ func TestMintKey_SendsCorrectRequest(t *testing.T) {
 		t.Errorf("body = %v, want name=gw-tenant-a workspace_id=tenant-a", gotBody)
 	}
 	scopes, _ := gotBody["scopes"].([]any)
-	if len(scopes) != 1 || scopes[0] != "lens:write" {
-		t.Errorf("body.scopes = %v, want [lens:write]", gotBody["scopes"])
+	if len(scopes) != 1 || scopes[0] != "observability:write" {
+		t.Errorf("body.scopes = %v, want [observability:write]", gotBody["scopes"])
 	}
 }
 
@@ -84,7 +84,7 @@ func TestMintKey_PropagatesHTTPError(t *testing.T) {
 	defer srv.Close()
 
 	admin := NewAdminClient(srv.URL, "weak-key", srv.Client())
-	res, err := admin.MintKey(context.Background(), "t1", "n", []string{"lens:read"})
+	res, err := admin.MintKey(context.Background(), "t1", "n", []string{"observability:read"})
 	if err == nil {
 		t.Fatal("expected an error on 403, got nil")
 	}
@@ -102,12 +102,12 @@ func TestMintKey_PropagatesHTTPError(t *testing.T) {
 func TestMintKey_MissingSecret_FailsClosed(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id":"x","scopes":["lens:read"]}`)) // no secret
+		_, _ = w.Write([]byte(`{"id":"x","scopes":["observability:read"]}`)) // no secret
 	}))
 	defer srv.Close()
 
 	admin := NewAdminClient(srv.URL, "platform", srv.Client())
-	res, err := admin.MintKey(context.Background(), "t1", "n", []string{"lens:read"})
+	res, err := admin.MintKey(context.Background(), "t1", "n", []string{"observability:read"})
 	if err == nil {
 		t.Fatal("expected an error when secret is missing (fail-closed), got nil")
 	}
@@ -127,7 +127,7 @@ func TestError_DoesNotLeakPlatformKey(t *testing.T) {
 
 	const platform = "theo_live_SUPER_SECRET_PLATFORM"
 	admin := NewAdminClient(srv.URL, platform, srv.Client())
-	_, err := admin.MintKey(context.Background(), "t1", "n", []string{"lens:read"})
+	_, err := admin.MintKey(context.Background(), "t1", "n", []string{"observability:read"})
 	if err == nil {
 		t.Fatal("expected an error on 500")
 	}

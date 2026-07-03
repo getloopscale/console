@@ -32,7 +32,7 @@ const AuthzForwardRagPath = "/internal/authz/forward-rag"
 
 // AuthzForwardLensPath is the internal ForwardAuth endpoint for the theo-lens
 // capability (M38 — Model B). The generic ForwardAuthHandler is reused (a 4th
-// instance wired with the lens broker + "lens:read"); only the path differs so the
+// instance wired with the lens broker + "observability:read"); only the path differs so the
 // Traefik `forward-auth-lens` middleware targets it.
 const AuthzForwardLensPath = "/internal/authz/forward-lens"
 

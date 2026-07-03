@@ -51,8 +51,8 @@ func newBrokerT(t *testing.T, m minter, scopes []string) *Broker {
 
 func TestKeyForTenantScoped_LeastPrivilege(t *testing.T) {
 	m := &stubMinter{}
-	b := newBrokerT(t, m, []string{"lens:read", "lens:write", "lens:delete"})
-	secret, err := b.KeyForTenantScoped(context.Background(), "acct1", "t1", []string{"lens:read"})
+	b := newBrokerT(t, m, []string{"observability:read", "observability:write", "observability:delete"})
+	secret, err := b.KeyForTenantScoped(context.Background(), "acct1", "t1", []string{"observability:read"})
 	if err != nil {
 		t.Fatalf("KeyForTenantScoped: %v", err)
 	}
@@ -62,21 +62,21 @@ func TestKeyForTenantScoped_LeastPrivilege(t *testing.T) {
 	m.mu.Lock()
 	got := m.lastScope
 	m.mu.Unlock()
-	if len(got) != 1 || got[0] != "lens:read" {
-		t.Errorf("minted scopes = %v, want [lens:read] (least privilege, not the full allowed set)", got)
+	if len(got) != 1 || got[0] != "observability:read" {
+		t.Errorf("minted scopes = %v, want [observability:read] (least privilege, not the full allowed set)", got)
 	}
 }
 
 func TestKeyForTenantScoped_Singleflight(t *testing.T) {
 	m := &stubMinter{block: make(chan struct{})}
-	b := newBrokerT(t, m, []string{"lens:read"})
+	b := newBrokerT(t, m, []string{"observability:read"})
 	const n = 20
 	var wg sync.WaitGroup
 	wg.Add(n)
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			_, _ = b.KeyForTenantScoped(context.Background(), "a", "t1", []string{"lens:read"})
+			_, _ = b.KeyForTenantScoped(context.Background(), "a", "t1", []string{"observability:read"})
 		}()
 	}
 	// Give the goroutines time to coalesce on the singleflight key, then release.
@@ -90,8 +90,8 @@ func TestKeyForTenantScoped_Singleflight(t *testing.T) {
 
 func TestKeyForTenantScoped_FailClosed_MintError(t *testing.T) {
 	m := &stubMinter{err: fmt.Errorf("upstream 503")}
-	b := newBrokerT(t, m, []string{"lens:read"})
-	secret, err := b.KeyForTenantScoped(context.Background(), "a", "t1", []string{"lens:read"})
+	b := newBrokerT(t, m, []string{"observability:read"})
+	secret, err := b.KeyForTenantScoped(context.Background(), "a", "t1", []string{"observability:read"})
 	if err == nil {
 		t.Fatal("expected fail-closed error, got nil")
 	}
@@ -100,7 +100,7 @@ func TestKeyForTenantScoped_FailClosed_MintError(t *testing.T) {
 	}
 	// No cache write: a subsequent call re-mints (calls == 2).
 	m.err = nil
-	if _, err := b.KeyForTenantScoped(context.Background(), "a", "t1", []string{"lens:read"}); err != nil {
+	if _, err := b.KeyForTenantScoped(context.Background(), "a", "t1", []string{"observability:read"}); err != nil {
 		t.Fatalf("second call: %v", err)
 	}
 	if c := atomic.LoadInt32(&m.calls); c != 2 {
@@ -110,9 +110,9 @@ func TestKeyForTenantScoped_FailClosed_MintError(t *testing.T) {
 
 func TestKeyForTenantScoped_FailClosed_EmptyIntersect(t *testing.T) {
 	m := &stubMinter{}
-	b := newBrokerT(t, m, []string{"lens:read"})
+	b := newBrokerT(t, m, []string{"observability:read"})
 	// want shares NO scope with allowed → empty intersect → fail closed, no mint.
-	secret, err := b.KeyForTenantScoped(context.Background(), "a", "t1", []string{"lens:write"})
+	secret, err := b.KeyForTenantScoped(context.Background(), "a", "t1", []string{"observability:write"})
 	if err == nil {
 		t.Fatal("expected error on empty intersect, got nil")
 	}
@@ -126,8 +126,8 @@ func TestKeyForTenantScoped_FailClosed_EmptyIntersect(t *testing.T) {
 
 func TestKeyForTenantScoped_EmptyTenant_Error(t *testing.T) {
 	m := &stubMinter{}
-	b := newBrokerT(t, m, []string{"lens:read"})
-	if _, err := b.KeyForTenantScoped(context.Background(), "a", "", []string{"lens:read"}); err == nil {
+	b := newBrokerT(t, m, []string{"observability:read"})
+	if _, err := b.KeyForTenantScoped(context.Background(), "a", "", []string{"observability:read"}); err == nil {
 		t.Fatal("expected error on empty tenant id, got nil")
 	}
 	if c := atomic.LoadInt32(&m.calls); c != 0 {
@@ -137,7 +137,7 @@ func TestKeyForTenantScoped_EmptyTenant_Error(t *testing.T) {
 
 func TestKeyForTenant_TTLExpiry(t *testing.T) {
 	m := &stubMinter{}
-	b := newBrokerT(t, m, []string{"lens:read"})
+	b := newBrokerT(t, m, []string{"observability:read"})
 	base := time.Unix(1_700_000_000, 0)
 	cur := base
 	b.now = func() time.Time { return cur }
@@ -166,7 +166,7 @@ func TestKeyForTenant_TTLExpiry(t *testing.T) {
 // cache-key segment across all accounts + scope-sets.
 func TestEvict_ForcesRemint(t *testing.T) {
 	m := &stubMinter{}
-	b := newBrokerT(t, m, []string{"lens:read"})
+	b := newBrokerT(t, m, []string{"observability:read"})
 	if _, err := b.KeyForTenant(context.Background(), "a", "t1"); err != nil {
 		t.Fatalf("first mint: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestEvict_ForcesRemint(t *testing.T) {
 func TestBroker_ReturnsMintedSecret_NotPlatformKey(t *testing.T) {
 	const platform = "theo_live_PLATFORM_ADMIN"
 	m := &stubMinter{secret: "theo_live_tenant_scoped"}
-	b := newBrokerT(t, m, []string{"lens:read"})
+	b := newBrokerT(t, m, []string{"observability:read"})
 	secret, err := b.KeyForTenant(context.Background(), "a", "t1")
 	if err != nil {
 		t.Fatalf("KeyForTenant: %v", err)
