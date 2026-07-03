@@ -17,8 +17,9 @@ describe('RagAskPage (/rag/ask)', () => {
       return Promise.resolve({ answer: 'M18 is the keystone. [c1]', sources: [{ document_id: 'doc_1', score: 0.9 }] });
     });
     render(<RagAskPage />);
-    await screen.findByRole('option', { name: 'docs' });
-    await userEvent.selectOptions(screen.getByLabelText('Collection'), 'col_1');
+    // M23: collection picker is the @usetheo/ui Select (Radix) — open + pick.
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Collection' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'docs' }));
     await userEvent.type(screen.getByLabelText('Question'), 'what is the keystone?');
     await userEvent.click(screen.getByRole('button', { name: /^ask$/i }));
     expect(await screen.findByText(/M18 is the keystone/i)).toBeInTheDocument();

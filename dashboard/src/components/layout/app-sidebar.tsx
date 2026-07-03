@@ -198,7 +198,8 @@ const MENUS: Record<string, MenuDefinition> = {
     groups: [
       {
         items: [
-          { label: 'Collections', path: '/rag', icon: Boxes },
+          { label: 'Overview', path: '/rag', icon: LayoutGrid },
+          { label: 'Collections', path: '/rag/collections', icon: Boxes },
           { label: 'Documents', path: '/rag/documents', icon: ScrollText },
           { label: 'Ask', path: '/rag/ask', icon: Search },
           { label: 'Analytics', path: '/rag/analytics', icon: Activity },

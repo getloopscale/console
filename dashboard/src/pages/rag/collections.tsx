@@ -86,6 +86,7 @@ export function RagCollectionsPage() {
     {
       key: 'actions',
       label: '',
+      align: 'right',
       render: (row) => (
         <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete ${row.id}`}>
           <Trash2 className="h-4 w-4" />
@@ -98,7 +99,7 @@ export function RagCollectionsPage() {
 
   return (
     <>
-      <PageShell title="RAG Collections" description="Create and manage the collections documents are ingested into.">
+      <PageShell title="Collections" description="Create and manage the collections documents are ingested into.">
         <div className="space-y-6">
           <Card>
             <Card.Body>
@@ -132,7 +133,7 @@ export function RagCollectionsPage() {
           {query.isLoading ? (
             <Skeleton />
           ) : query.isError ? (
-            <Alert intent="destructive" title="Could not load collections">
+            <Alert intent="warning" title="Could not load collections">
               The RAG service is unavailable. Try again shortly.
             </Alert>
           ) : items.length === 0 ? (

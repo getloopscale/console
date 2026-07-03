@@ -12,6 +12,7 @@ import {
   EmptyState,
   Input,
   PageShell,
+  Select,
   Skeleton,
   Textarea,
   Timestamp,
@@ -113,6 +114,7 @@ export function RagDocumentsPage() {
     {
       key: 'actions',
       label: '',
+      align: 'right',
       render: (row) => (
         <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete ${row.id}`}>
           <Trash2 className="h-4 w-4" />
@@ -126,24 +128,23 @@ export function RagDocumentsPage() {
 
   return (
     <>
-      <PageShell title="RAG Documents" description="Upload documents into a collection and track ingestion status.">
+      <PageShell title="Documents" description="Upload documents into a collection and track ingestion status.">
         <div className="space-y-6">
           <Card>
             <Card.Body>
               <div className="space-y-3">
-                <select
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={collectionID}
-                  onChange={(e) => setCollectionID(e.target.value)}
-                  aria-label="Collection"
-                >
-                  <option value="">Select a collection…</option>
-                  {collections.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name ?? c.id}
-                    </option>
-                  ))}
-                </select>
+                <Select value={collectionID} onValueChange={setCollectionID}>
+                  <Select.Trigger className="w-full" aria-label="Collection">
+                    <Select.Value placeholder="Select a collection…" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {collections.map((c) => (
+                      <Select.Item key={c.id} value={c.id}>
+                        {c.name ?? c.id}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -179,7 +180,7 @@ export function RagDocumentsPage() {
           ) : docsQuery.isLoading ? (
             <Skeleton />
           ) : docsQuery.isError ? (
-            <Alert intent="destructive" title="Could not load documents">
+            <Alert intent="warning" title="Could not load documents">
               The RAG service is unavailable. Try again shortly.
             </Alert>
           ) : docs.length === 0 ? (

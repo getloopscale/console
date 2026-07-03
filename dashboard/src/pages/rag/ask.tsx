@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { MessageSquare } from 'lucide-react';
 import {
   Alert,
   Badge,
   Button,
   Card,
   PageShell,
+  Select,
   Textarea,
 } from '@usetheo/ui';
 
@@ -70,19 +72,18 @@ export function RagAskPage() {
                 if (collectionID && question.trim()) ask.mutate();
               }}
             >
-              <select
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={collectionID}
-                onChange={(e) => setCollectionID(e.target.value)}
-                aria-label="Collection"
-              >
-                <option value="">Select a collection…</option>
-                {collections.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name ?? c.id}
-                  </option>
-                ))}
-              </select>
+              <Select value={collectionID} onValueChange={setCollectionID}>
+                <Select.Trigger className="w-full" aria-label="Collection">
+                  <Select.Value placeholder="Select a collection…" />
+                </Select.Trigger>
+                <Select.Content>
+                  {collections.map((c) => (
+                    <Select.Item key={c.id} value={c.id}>
+                      {c.name ?? c.id}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
               <Textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
@@ -103,32 +104,33 @@ export function RagAskPage() {
         </Card>
 
         {ask.isError ? (
-          <Alert intent="destructive" title="Could not answer the question">
+          <Alert intent="warning" title="Could not answer the question">
             The RAG service is unavailable. Try again shortly.
           </Alert>
         ) : answer ? (
           <Card>
-            <Card.Body>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">Answer</h3>
-                  {answer.confidence ? <Badge variant="default">{answer.confidence}</Badge> : null}
-                </div>
-                <p className="whitespace-pre-wrap">{answer.answer}</p>
-                {answer.sources && answer.sources.length > 0 ? (
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-semibold text-muted-foreground">Sources</h4>
-                    <ul className="space-y-1 text-sm">
-                      {answer.sources.map((s, i) => (
-                        <li key={i} className="font-mono">
-                          {s.document_id ?? s.chunk_id ?? 'source'}
-                          {s.score != null ? ` · ${s.score.toFixed(3)}` : ''}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+            <Card.Header>
+              <div className="flex items-center gap-2">
+                <MessageSquare className="size-4 text-muted-foreground" aria-hidden="true" />
+                <h2 className="text-base font-semibold">Answer</h2>
+                {answer.confidence ? <Badge variant="default">{answer.confidence}</Badge> : null}
               </div>
+            </Card.Header>
+            <Card.Body className="space-y-3">
+              <p className="whitespace-pre-wrap">{answer.answer}</p>
+              {answer.sources && answer.sources.length > 0 ? (
+                <div className="space-y-1">
+                  <h4 className="text-xs font-semibold text-muted-foreground">Sources</h4>
+                  <ul className="space-y-1 text-sm">
+                    {answer.sources.map((s, i) => (
+                      <li key={i} className="font-mono">
+                        {s.document_id ?? s.chunk_id ?? 'source'}
+                        {s.score != null ? ` · ${s.score.toFixed(3)}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </Card.Body>
           </Card>
         ) : null}
