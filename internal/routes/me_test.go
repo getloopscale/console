@@ -4,6 +4,7 @@
 package routes
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -31,8 +32,20 @@ func meRequestForTenant(tenantID string) *http.Request {
 	}))
 }
 
+// stubProvisioner records the lazy ProvisionStarter call and returns a canned
+// error, so the /me lazy-provision branch is tested without a real DB INSERT.
+type stubProvisioner struct {
+	called bool
+	err    error
+}
+
+func (s *stubProvisioner) ProvisionStarter(_ context.Context, _, _, _ string) error {
+	s.called = true
+	return s.err
+}
+
 func TestMe_Unauthenticated_Returns401(t *testing.T) {
-	h := NewMeHandler(nil)
+	h := NewMeHandler(nil, nil)
 	w := httptest.NewRecorder()
 	h.Get(w, httptest.NewRequest(http.MethodGet, "/v1/auth/me", nil))
 	if w.Code != http.StatusUnauthorized {
@@ -50,7 +63,7 @@ func TestMe_SubscriptionExists_ProvisioningActive(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"plan", "status"}).AddRow("starter", "active"))
 
 	w := httptest.NewRecorder()
-	NewMeHandler(dbConn).Get(w, meRequestForTenant("tn-1"))
+	NewMeHandler(dbConn, nil).Get(w, meRequestForTenant("tn-1"))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", w.Code)
@@ -85,7 +98,7 @@ func TestMe_NoSubscription_ProvisioningPending(t *testing.T) {
 	mock.ExpectQuery(meSubQuery).WithArgs("tn-2").WillReturnError(sql.ErrNoRows)
 
 	w := httptest.NewRecorder()
-	NewMeHandler(dbConn).Get(w, meRequestForTenant("tn-2"))
+	NewMeHandler(dbConn, nil).Get(w, meRequestForTenant("tn-2"))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", w.Code)
@@ -109,7 +122,7 @@ func TestMe_DBError_ProvisioningUnknown_Still200(t *testing.T) {
 	mock.ExpectQuery(meSubQuery).WithArgs("tn-3").WillReturnError(errors.New("db unreachable"))
 
 	w := httptest.NewRecorder()
-	NewMeHandler(dbConn).Get(w, meRequestForTenant("tn-3"))
+	NewMeHandler(dbConn, nil).Get(w, meRequestForTenant("tn-3"))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("identity endpoint must NOT 500 on a billing-lookup failure, got %d", w.Code)
@@ -126,7 +139,7 @@ func TestMe_DBError_ProvisioningUnknown_Still200(t *testing.T) {
 
 func TestMe_NilDB_OmitsProvisioning(t *testing.T) {
 	w := httptest.NewRecorder()
-	NewMeHandler(nil).Get(w, meRequestForTenant("tn-4"))
+	NewMeHandler(nil, nil).Get(w, meRequestForTenant("tn-4"))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", w.Code)
@@ -138,5 +151,61 @@ func TestMe_NilDB_OmitsProvisioning(t *testing.T) {
 	}
 	if body["email"] != "a@b.com" {
 		t.Errorf("identity preserved without a DB")
+	}
+}
+
+// M0 J-02 T1.3 — when no subscription exists yet, /me lazily creates the free
+// starter plan (mirrors the /billing lazy-ensure). On success the poll resolves
+// to active/starter immediately, so the register completing screen redirects on
+// its first poll instead of hanging on "pending".
+func TestMe_NoSubscription_LazyProvisionsStarter(t *testing.T) {
+	dbConn, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer dbConn.Close()
+	mock.ExpectQuery(meSubQuery).WithArgs("tn-5").WillReturnError(sql.ErrNoRows)
+	prov := &stubProvisioner{}
+
+	w := httptest.NewRecorder()
+	NewMeHandler(dbConn, prov).Get(w, meRequestForTenant("tn-5"))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+	if !prov.called {
+		t.Fatal("expected ProvisionStarter to be called on a missing subscription")
+	}
+	var body map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if body["provisioning"] != "active" {
+		t.Errorf("provisioning=%v, want active after lazy provision", body["provisioning"])
+	}
+	if body["plan"] != "starter" {
+		t.Errorf("plan=%v, want starter", body["plan"])
+	}
+}
+
+// If the lazy provision itself fails, stay pending so the next poll retries —
+// never surface a hard error on the identity endpoint.
+func TestMe_LazyProvisionFails_StaysPending(t *testing.T) {
+	dbConn, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	if err != nil {
+		t.Fatalf("sqlmock: %v", err)
+	}
+	defer dbConn.Close()
+	mock.ExpectQuery(meSubQuery).WithArgs("tn-6").WillReturnError(sql.ErrNoRows)
+	prov := &stubProvisioner{err: errors.New("insert failed")}
+
+	w := httptest.NewRecorder()
+	NewMeHandler(dbConn, prov).Get(w, meRequestForTenant("tn-6"))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+	var body map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if body["provisioning"] != "pending" {
+		t.Errorf("provisioning=%v, want pending (retry next poll)", body["provisioning"])
 	}
 }

@@ -307,7 +307,16 @@ func main() {
 
 	// Handlers
 	deviceHandler := routes.NewDeviceHandler(hydra, cfg.BillingReturnURL)
-	meHandler := routes.NewMeHandler(db) // db carries the tenant provisioning snapshot (M0 J-02 T1.2)
+	// meHandler carries the tenant provisioning snapshot (M0 J-02 T1.2) and
+	// lazily ensures the free starter plan (T1.3). Pass the provisioner only when
+	// billing is enabled — a typed-nil *billing.Provisioner in the interface param
+	// would be non-nil and panic on the lazy-provision call.
+	var meHandler *routes.MeHandler
+	if billingProvisioner != nil {
+		meHandler = routes.NewMeHandler(db, billingProvisioner)
+	} else {
+		meHandler = routes.NewMeHandler(db, nil)
+	}
 	// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 — response-shape
 	// unifier middleware closing Red Team theo-cloud#43 (account enumeration via
 	// register response shape divergence). Proxies POST /v1/auth/register to the
