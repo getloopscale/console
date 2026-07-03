@@ -82,7 +82,7 @@ export function BulkDeleteProjectsDialog({
               This permanently deletes {count === 1 ? 'this project' : `these ${count} projects`} and
               all of their environments, deployments, and domains. This cannot be undone.
             </p>
-            {error && <Alert variant="destructive">{error}</Alert>}
+            {error && <Alert intent="destructive" description={error} />}
             <div className="space-y-1.5">
               <Label htmlFor="bulk-delete-confirm">
                 Type <span className="font-mono font-semibold text-foreground">{phrase}</span> to confirm

@@ -66,6 +66,8 @@ describe('BulkDeleteProjectsDialog (J-07 D4)', () => {
     // claim success — onDeleted is never fired and the dialog is NOT closed when a
     // project failed to delete.
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith(['a', 'b']));
+    // The failed project is named honestly; success is NOT claimed (stays open).
+    expect(await screen.findByText(/Couldn't delete: b/i)).toBeInTheDocument();
     expect(onDeleted).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
