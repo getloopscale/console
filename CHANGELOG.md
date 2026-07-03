@@ -19,6 +19,7 @@
 ### Deprecated
 
 ### Removed
+- **Dashboard: fold the Observability `Analytics` sub-page into the `Overview`.** The `/observability/analytics` page duplicated the Overview's KPI strip (same Traces / Error-rate / Latency-p95 / Cost, same `/v1/dashboard/lens/{observability,cost}` BFF endpoints), so it was pure redundancy (YAGNI). Removed the `lens/analytics.tsx` page, its lazy route in `app.tsx`, the sidebar sub-nav item, and the Overview Explore-card that linked to it — the Overview already shows those KPIs. The observability+cost aggregation stays covered by the Overview's `lens.test.tsx`; the redundant analytics test was dropped. 12 lens+sidebar tests + `eslint` + dashboard `build` (`tsc -b && vite build`) green.
 
 ### Fixed
 - **Onboarding panel tests — align stale label queries to the shipped `#163` a11y badge.** The QA-sprint a11y fix (`3a59656`, WCAG 2.5.3 label-in-name) changed the collapsed FAB accessible name to `"{done}/{total} — Get your app live. Click to expand."`, but 9 `onboarding-panel.test.tsx` queries still looked for the old `/N of 5 done/` label and were silently red. Re-pointed them at the shipped `/get your app live/i` label — pure test-to-reality alignment, zero production change. Onboarding panel back to 10/10 green.
