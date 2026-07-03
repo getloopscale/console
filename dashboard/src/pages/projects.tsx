@@ -1,12 +1,13 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Link, useSearchParams, useNavigate, type NavigateFunction } from 'react-router-dom';
 import { ExternalLink, FolderKanban, Plus } from 'lucide-react';
-import { Badge, Button, Card, PageShell, StatusDot, Table } from '@usetheo/ui';
+import { Badge, Button, Card, Checkbox, PageShell, StatusDot, Table } from '@usetheo/ui';
 import type { StatusKind } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/use-projects';
 import { CreateProjectSheet } from "@/components/sheets/create-project-sheet";
+import { BulkDeleteProjectsDialog } from '@/components/dialogs/bulk-delete-projects-dialog';
 import { EmptyProjectsHero } from '@/components/onboarding/empty-projects-hero';
 import { formatDate } from '@/lib/format';
 import type { Project } from '@/lib/api/types';
@@ -71,9 +72,13 @@ function deriveDataPlaneBadge(
 function ProjectRow({
   project: p,
   navigate,
+  selected,
+  onToggle,
 }: {
   project: Project;
   navigate: NavigateFunction;
+  selected: boolean;
+  onToggle: () => void;
 }) {
   // T5.3 LIVE-bug fix (2026-06-08): T2.1 dropped legacy apps[] array
   // from listing response, leaving these fields permanently — / 0 in
@@ -178,6 +183,15 @@ function ProjectRow({
       className="cursor-pointer hover:bg-muted/30"
       aria-label={`Open project ${p.name}`}
     >
+      {/* J-07 D4: per-row select. stopPropagation so ticking the box never
+          triggers the full-row navigation onClick. */}
+      <Table.Cell onClick={(e) => e.stopPropagation()}>
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onToggle}
+          aria-label={`Select ${p.name}`}
+        />
+      </Table.Cell>
       <Table.Cell>
         <span className="font-medium text-body-sm text-foreground">
           {p.name}
@@ -264,6 +278,16 @@ export function ProjectsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') ?? '');
   const [createOpen, setCreateOpen] = useState(false);
+  // J-07 D4: multi-select + bulk delete.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const toggleOne = (name: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
 
   // Sync ProjectsPage search input with `?q=` query param (sidebar search wire,
   // plan v1.2 T0.5). Updates on URL change so back/forward works.
@@ -313,6 +337,12 @@ export function ProjectsPage() {
     else params.set('sort', next);
     setSearchParams(params, { replace: true });
   }
+
+  // J-07 D4: select-all operates on the currently-rendered (filtered) rows.
+  const visibleNames = filteredProjects.map((p) => p.name);
+  const allSelected = visibleNames.length > 0 && visibleNames.every((n) => selected.has(n));
+  const toggleAll = () =>
+    setSelected(() => (allSelected ? new Set<string>() : new Set(visibleNames)));
 
   return (
     <PageShell
@@ -372,11 +402,30 @@ export function ProjectsPage() {
             </select>
           </div>
         )}
+      {/* J-07 D4: bulk-delete action bar — appears only when ≥1 project is selected. */}
+      {selected.size > 0 && (
+        <div className="mb-3 flex items-center gap-3">
+          <span className="text-body-sm text-muted-foreground">{selected.size} selected</span>
+          <Button variant="destructive" size="sm" onClick={() => setBulkOpen(true)}>
+            Delete {selected.size} project{selected.size === 1 ? '' : 's'}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+            Clear
+          </Button>
+        </div>
+      )}
       <Card>
         <Card.Body className="p-0">
           <Table>
             <Table.Header>
               <Table.Row>
+                <Table.HeaderCell>
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={toggleAll}
+                    aria-label="Select all projects"
+                  />
+                </Table.HeaderCell>
                 <Table.HeaderCell>Project</Table.HeaderCell>
                 <Table.HeaderCell className="hidden md:table-cell">
                   Framework
@@ -411,7 +460,13 @@ export function ProjectsPage() {
             </Table.Header>
             <Table.Body>
               {filteredProjects.map((p) => (
-                <ProjectRow key={p.name} project={p} navigate={navigate} />
+                <ProjectRow
+                  key={p.name}
+                  project={p}
+                  navigate={navigate}
+                  selected={selected.has(p.name)}
+                  onToggle={() => toggleOne(p.name)}
+                />
               ))}
             </Table.Body>
           </Table>
@@ -445,6 +500,13 @@ export function ProjectsPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         onCreated={(p) => navigate(`/projects/${encodeURIComponent(p.name)}`)}
+      />
+      {/* J-07 D4: bulk-delete confirmation. Clears the selection on full success. */}
+      <BulkDeleteProjectsDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        projectNames={[...selected]}
+        onDeleted={() => setSelected(new Set())}
       />
     </PageShell>
   );
