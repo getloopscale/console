@@ -182,11 +182,28 @@ func (c *DataClient) DeleteCollection(ctx context.Context, id string) error {
 
 // IngestDocument proxies POST /v1/documents/raw (async — theo-rag returns 202 + a doc id).
 func (c *DataClient) IngestDocument(ctx context.Context, in IngestInput) (json.RawMessage, error) {
+	// theo-rag's POST /v1/documents/raw contract requires `content` (NOT `text`) and a
+	// non-empty `name` (see theo-rag documents.routes.ts). The dashboard→BFF body uses
+	// `text` (IngestInput); map it to theo-rag's wire shape here. Default an empty name
+	// so an unnamed upload does not 422 (theo-rag requires name).
+	name := in.Name
+	if name == "" {
+		name = "untitled"
+	}
+	body := ragRawIngestBody{CollectionID: in.CollectionID, Content: in.Text, Name: name}
 	var out json.RawMessage
-	if err := c.do(ctx, http.MethodPost, "/v1/documents/raw", nil, in, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/v1/documents/raw", nil, body, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+// ragRawIngestBody is theo-rag's POST /v1/documents/raw wire shape — `content`, not the
+// dashboard-facing `text` (IngestInput). Kept separate so the two contracts never drift.
+type ragRawIngestBody struct {
+	CollectionID string `json:"collection_id"`
+	Content      string `json:"content"`
+	Name         string `json:"name"`
 }
 
 // DeleteDocument proxies DELETE /v1/documents/{id}.

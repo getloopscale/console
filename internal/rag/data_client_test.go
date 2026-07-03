@@ -72,6 +72,64 @@ func TestRagDataClient_CreateCollection_ProxiesBearerAndBody(t *testing.T) {
 	}
 }
 
+// M21 dogfood regression — IngestDocument MUST send theo-rag's `content` field (NOT the
+// dashboard-facing `text`) + a non-empty `name`, else theo-rag 422s "content must be a
+// string" and the dashboard upload journey breaks. Caught live 2026-07-03; the BFF
+// contract tests missed it because they stubbed the data client (never hit theo-rag's schema).
+func TestRagDataClient_IngestDocument_SendsContentField(t *testing.T) {
+	var gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "doc_1", "status": "processing"})
+	}))
+	defer srv.Close()
+
+	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).
+		WithKeyResolver(func(context.Context) (string, error) { return "rag_live_x", nil })
+
+	_, err := c.IngestDocument(context.Background(), IngestInput{CollectionID: "col_1", Text: "hello world", Name: "doc-a"})
+	if err != nil {
+		t.Fatalf("IngestDocument: %v", err)
+	}
+	if gotPath != "/v1/documents/raw" {
+		t.Fatalf("path = %q, want /v1/documents/raw", gotPath)
+	}
+	// the theo-rag contract field is `content`, not `text`
+	if gotBody["content"] != "hello world" {
+		t.Fatalf("body.content = %v, want \"hello world\" (theo-rag requires `content`, not `text`)", gotBody["content"])
+	}
+	if _, hasText := gotBody["text"]; hasText {
+		t.Fatalf("body must NOT contain `text` (theo-rag rejects it): %+v", gotBody)
+	}
+	if gotBody["name"] != "doc-a" || gotBody["collection_id"] != "col_1" {
+		t.Fatalf("body name/collection_id mismatch: %+v", gotBody)
+	}
+}
+
+// An unnamed upload still satisfies theo-rag's required `name` (defaulted, no 422).
+func TestRagDataClient_IngestDocument_DefaultsEmptyName(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "doc_2"})
+	}))
+	defer srv.Close()
+
+	c := NewDataClient(srv.URL, nil).
+		WithKeyResolver(func(context.Context) (string, error) { return "rag_live_x", nil })
+
+	if _, err := c.IngestDocument(context.Background(), IngestInput{CollectionID: "col_1", Text: "t"}); err != nil {
+		t.Fatalf("IngestDocument: %v", err)
+	}
+	if gotBody["name"] == nil || gotBody["name"] == "" {
+		t.Fatalf("empty name must be defaulted (theo-rag requires a non-empty name): %+v", gotBody)
+	}
+}
+
 // M21 T1.1 — a write FAILS CLOSED when the per-tenant key cannot be resolved (no request sent).
 func TestRagDataClient_Write_KeyResolverError_FailsClosed(t *testing.T) {
 	var reached bool
