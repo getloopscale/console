@@ -18,7 +18,7 @@ interface AnswerResult {
 
 export function LensAskPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Lens · Ask'), [setPageTitle]);
+  useEffect(() => setPageTitle('Observability · Ask'), [setPageTitle]);
   useRequireAuth();
 
   const [traceID, setTraceID] = useState('');

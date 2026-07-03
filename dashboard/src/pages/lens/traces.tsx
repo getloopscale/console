@@ -40,7 +40,7 @@ interface TagsResult {
 
 export function LensTracesPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Lens · Traces'), [setPageTitle]);
+  useEffect(() => setPageTitle('Observability · Traces'), [setPageTitle]);
   useRequireAuth();
   const queryClient = useQueryClient();
 

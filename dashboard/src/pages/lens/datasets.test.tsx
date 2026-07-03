@@ -8,7 +8,7 @@ vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(..
 
 import { LensDatasetsPage } from './datasets';
 
-describe('LensDatasetsPage (/lens/datasets)', () => {
+describe('LensDatasetsPage (/observability/datasets)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('lists datasets and creates one via POST {name}', async () => {

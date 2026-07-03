@@ -122,8 +122,8 @@ const MENUS: Record<string, MenuDefinition> = {
       },
       {
         // M44 — Lens management section. Drills into the read+write dashboard submenu.
-        title: 'Lens',
-        items: [{ label: 'Lens', path: '/lens', icon: Activity, drillsInto: 'lens' }],
+        title: 'Observability',
+        items: [{ label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' }],
       },
       {
         // Top-level shortcut to the API Tokens page (also reachable via
@@ -217,20 +217,20 @@ const MENUS: Record<string, MenuDefinition> = {
   },
   lens: {
     id: 'lens',
-    title: 'Lens',
+    title: 'Observability',
     parent: 'main',
     groups: [
       {
         items: [
-          { label: 'Overview', path: '/lens', icon: LayoutGrid },
-          { label: 'Traces', path: '/lens/traces', icon: Network },
-          { label: 'Sessions', path: '/lens/sessions', icon: ListChecks },
-          { label: 'Datasets', path: '/lens/datasets', icon: Database },
-          { label: 'Evaluators', path: '/lens/evaluators', icon: FlaskConical },
-          { label: 'Guards', path: '/lens/guards', icon: ShieldCheck },
-          { label: 'Agents', path: '/lens/agents', icon: Bot },
-          { label: 'Ask', path: '/lens/ask', icon: Search },
-          { label: 'Analytics', path: '/lens/analytics', icon: Activity },
+          { label: 'Overview', path: '/observability', icon: LayoutGrid },
+          { label: 'Traces', path: '/observability/traces', icon: Network },
+          { label: 'Sessions', path: '/observability/sessions', icon: ListChecks },
+          { label: 'Datasets', path: '/observability/datasets', icon: Database },
+          { label: 'Evaluators', path: '/observability/evaluators', icon: FlaskConical },
+          { label: 'Guards', path: '/observability/guards', icon: ShieldCheck },
+          { label: 'Agents', path: '/observability/agents', icon: Bot },
+          { label: 'Ask', path: '/observability/ask', icon: Search },
+          { label: 'Analytics', path: '/observability/analytics', icon: Activity },
         ],
       },
     ],
@@ -315,7 +315,7 @@ function resolveActiveMenu(pathname: string): ResolvedMenu {
   if (pathname.startsWith('/settings')) return { id: 'settings' };
   if (pathname.startsWith('/profile')) return { id: 'profile' };
   if (pathname.startsWith('/rag')) return { id: 'rag' };
-  if (pathname.startsWith('/lens')) return { id: 'lens' };
+  if (pathname.startsWith('/observability')) return { id: 'lens' };
   if (pathname.startsWith('/memory')) return { id: 'memory' };
   return { id: 'main' };
 }

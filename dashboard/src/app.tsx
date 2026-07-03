@@ -419,15 +419,15 @@ export default function App() {
                     <Route path="/rag/documents" element={<Boundaried path="/rag/documents"><RagDocumentsPage /></Boundaried>} />
                     <Route path="/rag/ask" element={<Boundaried path="/rag/ask"><RagAskPage /></Boundaried>} />
                     <Route path="/rag/analytics" element={<Boundaried path="/rag/analytics"><RagAnalyticsPage /></Boundaried>} />
-                    <Route path="/lens" element={<Boundaried path="/lens"><LensOverviewPage /></Boundaried>} />
-                    <Route path="/lens/traces" element={<Boundaried path="/lens/traces"><LensTracesPage /></Boundaried>} />
-                    <Route path="/lens/sessions" element={<Boundaried path="/lens/sessions"><LensSessionsPage /></Boundaried>} />
-                    <Route path="/lens/datasets" element={<Boundaried path="/lens/datasets"><LensDatasetsPage /></Boundaried>} />
-                    <Route path="/lens/evaluators" element={<Boundaried path="/lens/evaluators"><LensEvaluatorsPage /></Boundaried>} />
-                    <Route path="/lens/guards" element={<Boundaried path="/lens/guards"><LensGuardsPage /></Boundaried>} />
-                    <Route path="/lens/agents" element={<Boundaried path="/lens/agents"><LensAgentsPage /></Boundaried>} />
-                    <Route path="/lens/ask" element={<Boundaried path="/lens/ask"><LensAskPage /></Boundaried>} />
-                    <Route path="/lens/analytics" element={<Boundaried path="/lens/analytics"><LensAnalyticsPage /></Boundaried>} />
+                    <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
+                    <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
+                    <Route path="/observability/sessions" element={<Boundaried path="/observability/sessions"><LensSessionsPage /></Boundaried>} />
+                    <Route path="/observability/datasets" element={<Boundaried path="/observability/datasets"><LensDatasetsPage /></Boundaried>} />
+                    <Route path="/observability/evaluators" element={<Boundaried path="/observability/evaluators"><LensEvaluatorsPage /></Boundaried>} />
+                    <Route path="/observability/guards" element={<Boundaried path="/observability/guards"><LensGuardsPage /></Boundaried>} />
+                    <Route path="/observability/agents" element={<Boundaried path="/observability/agents"><LensAgentsPage /></Boundaried>} />
+                    <Route path="/observability/ask" element={<Boundaried path="/observability/ask"><LensAskPage /></Boundaried>} />
+                    <Route path="/observability/analytics" element={<Boundaried path="/observability/analytics"><LensAnalyticsPage /></Boundaried>} />
                     <Route path="/settings" element={<Boundaried path="/settings"><SettingsPage /></Boundaried>} />
                     <Route
                       path="/settings/members"

@@ -37,7 +37,7 @@ interface EvaluatorsResult {
 
 export function LensEvaluatorsPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Lens · Evaluators'), [setPageTitle]);
+  useEffect(() => setPageTitle('Observability · Evaluators'), [setPageTitle]);
   useRequireAuth();
   const queryClient = useQueryClient();
 

@@ -8,7 +8,7 @@ vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(..
 
 import { LensEvaluatorsPage } from './evaluators';
 
-describe('LensEvaluatorsPage (/lens/evaluators)', () => {
+describe('LensEvaluatorsPage (/observability/evaluators)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('creates an evaluator via POST with {kind,config}', async () => {

@@ -50,7 +50,7 @@ function sum(ns: number[]): number {
 
 export function LensOverviewPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Lens'), [setPageTitle]);
+  useEffect(() => setPageTitle('Observability'), [setPageTitle]);
   useRequireAuth();
   const queryClient = useQueryClient();
 
@@ -81,13 +81,13 @@ export function LensOverviewPage() {
 
   return (
     <PageShell
-      title="Lens"
+      title="Observability"
       description="Explore what your AI agents actually did — traces, sessions, evaluations, and cost."
       primaryAction={{ label: 'Refresh', icon: RefreshCw, onClick: onRefresh, loading: isFetching }}
     >
       <div className="space-y-6">
         {isError ? (
-          <Alert intent="warning" title="Could not load Lens metrics">
+          <Alert intent="warning" title="Could not load Observability metrics">
             The lens service is not reachable right now. Try refreshing in a moment.
           </Alert>
         ) : null}
@@ -96,7 +96,7 @@ export function LensOverviewPage() {
           <div
             data-testid="lens-metrics-loading"
             role="status"
-            aria-label="Loading Lens metrics"
+            aria-label="Loading Observability metrics"
             className="grid grid-cols-2 lg:grid-cols-4 gap-4"
           >
             {Array.from({ length: 4 }).map((_, i) => (
@@ -121,7 +121,7 @@ export function LensOverviewPage() {
               Instrument an agent with the SDK and send OTLP spans to see executions here, then curate
               datasets, score them with evaluators, and gate on guards.
             </p>
-            <Button variant="ghost" onClick={() => (window.location.href = '/lens/traces')}>
+            <Button variant="ghost" onClick={() => (window.location.href = '/observability/traces')}>
               Browse traces →
             </Button>
           </Card.Body>
@@ -130,14 +130,14 @@ export function LensOverviewPage() {
         <section className="space-y-3">
           <h2 className="text-base font-semibold">Explore</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <ExploreCard icon={Network} title="Traces" description="Explore executions and manage their tags & annotations." href="/lens/traces" />
-            <ExploreCard icon={ListChecks} title="Sessions" description="Replay grouped executions." href="/lens/sessions" />
-            <ExploreCard icon={Database} title="Datasets" description="Curate trace datasets for evaluation." href="/lens/datasets" />
-            <ExploreCard icon={FlaskConical} title="Evaluators" description="Score traces with rule or LLM-judge evaluators." href="/lens/evaluators" />
-            <ExploreCard icon={ShieldCheck} title="Guards" description="Gate traces on evaluator thresholds." href="/lens/guards" />
-            <ExploreCard icon={Bot} title="Agents" description="The derived catalog of instrumented agents." href="/lens/agents" />
-            <ExploreCard icon={Search} title="Ask" description="Ask the copilot about a trace." href="/lens/ask" />
-            <ExploreCard icon={Activity} title="Analytics" description="Observability and cost for this workspace." href="/lens/analytics" />
+            <ExploreCard icon={Network} title="Traces" description="Explore executions and manage their tags & annotations." href="/observability/traces" />
+            <ExploreCard icon={ListChecks} title="Sessions" description="Replay grouped executions." href="/observability/sessions" />
+            <ExploreCard icon={Database} title="Datasets" description="Curate trace datasets for evaluation." href="/observability/datasets" />
+            <ExploreCard icon={FlaskConical} title="Evaluators" description="Score traces with rule or LLM-judge evaluators." href="/observability/evaluators" />
+            <ExploreCard icon={ShieldCheck} title="Guards" description="Gate traces on evaluator thresholds." href="/observability/guards" />
+            <ExploreCard icon={Bot} title="Agents" description="The derived catalog of instrumented agents." href="/observability/agents" />
+            <ExploreCard icon={Search} title="Ask" description="Ask the copilot about a trace." href="/observability/ask" />
+            <ExploreCard icon={Activity} title="Analytics" description="Observability and cost for this workspace." href="/observability/analytics" />
           </div>
         </section>
       </div>

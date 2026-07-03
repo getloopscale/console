@@ -7,7 +7,7 @@ vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(..
 
 import { LensOverviewPage } from './lens';
 
-describe('LensOverviewPage (/lens Overview landing)', () => {
+describe('LensOverviewPage (/observability Overview landing)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('renders the KPI strip aggregated from observability + cost, and the Explore grid', async () => {
@@ -47,6 +47,6 @@ describe('LensOverviewPage (/lens Overview landing)', () => {
   it('shows a warning Alert when the metrics fail to load', async () => {
     mockCloudFetch.mockRejectedValue(new Error('boom'));
     render(<LensOverviewPage />);
-    expect(await screen.findByText(/could not load lens metrics/i)).toBeInTheDocument();
+    expect(await screen.findByText(/could not load observability metrics/i)).toBeInTheDocument();
   });
 });

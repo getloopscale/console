@@ -16,7 +16,7 @@ function routeMock() {
   });
 }
 
-describe('LensTracesPage (/lens/traces)', () => {
+describe('LensTracesPage (/observability/traces)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('lists traces', async () => {

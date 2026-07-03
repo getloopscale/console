@@ -47,7 +47,7 @@ interface DatasetDetail {
 
 export function LensDatasetsPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Lens · Datasets'), [setPageTitle]);
+  useEffect(() => setPageTitle('Observability · Datasets'), [setPageTitle]);
   useRequireAuth();
   const queryClient = useQueryClient();
 

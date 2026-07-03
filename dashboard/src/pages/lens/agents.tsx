@@ -22,7 +22,7 @@ interface AgentsResult {
 
 export function LensAgentsPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Lens · Agents'), [setPageTitle]);
+  useEffect(() => setPageTitle('Observability · Agents'), [setPageTitle]);
   useRequireAuth();
 
   const query = useQuery({

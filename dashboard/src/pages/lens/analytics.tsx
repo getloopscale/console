@@ -35,7 +35,7 @@ const sum = (ns: number[]): number => ns.reduce((a, b) => a + b, 0);
 
 export function LensAnalyticsPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Lens · Analytics'), [setPageTitle]);
+  useEffect(() => setPageTitle('Observability · Analytics'), [setPageTitle]);
   useRequireAuth();
 
   const obs = useQuery({

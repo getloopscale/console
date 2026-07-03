@@ -22,7 +22,7 @@ interface SessionsResult {
 
 export function LensSessionsPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Lens · Sessions'), [setPageTitle]);
+  useEffect(() => setPageTitle('Observability · Sessions'), [setPageTitle]);
   useRequireAuth();
 
   const query = useQuery({

@@ -36,7 +36,7 @@ interface GuardsResult {
 
 export function LensGuardsPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Lens · Guards'), [setPageTitle]);
+  useEffect(() => setPageTitle('Observability · Guards'), [setPageTitle]);
   useRequireAuth();
   const queryClient = useQueryClient();
 
