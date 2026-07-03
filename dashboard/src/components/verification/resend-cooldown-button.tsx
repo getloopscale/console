@@ -9,8 +9,11 @@ import { useCallback, useEffect, useState } from 'react';
  * the cooldown elapses the button re-enables itself.
  *
  * The deadline (epoch ms) is the single source of truth in localStorage; the
- * component derives the remaining seconds from it, so multiple tabs and reloads
- * all agree. Dev/test time is deterministic via the caller's clock (the
+ * component derives the remaining seconds from it live, so a reload or remount
+ * reconstructs the exact countdown with no accumulator drift. (An already-idle
+ * tab does not live-update from a resend started in another tab — it has no
+ * running interval — but the click-time re-read below blocks cross-tab spam
+ * regardless.) Dev/test time is deterministic via the caller's clock (the
  * component only reads Date.now()).
  */
 export interface ResendCooldownButtonProps {

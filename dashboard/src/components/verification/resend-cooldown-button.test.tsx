@@ -74,4 +74,13 @@ describe('ResendCooldownButton', () => {
     render(<ResendCooldownButton onResend={vi.fn()} />);
     expect(screen.getByRole('button', { name: /didn't receive the email\? resend/i })).toBeEnabled();
   });
+
+  // Negative case (testing.md § 4.1): a corrupt / non-numeric stored value must
+  // NOT throw or lock the button — it degrades to idle (the readRemaining NaN
+  // guard). Locks the graceful-degradation contract against regression.
+  it('test_corrupt_localStorage_value_renders_idle', () => {
+    localStorage.setItem(KEY, 'not-a-number');
+    render(<ResendCooldownButton onResend={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /didn't receive the email\? resend/i })).toBeEnabled();
+  });
 });

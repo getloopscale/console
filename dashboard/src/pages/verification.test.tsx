@@ -17,6 +17,10 @@ describe('VerificationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
+    // Defense-in-depth (testing.md § 6): the page mounts ResendCooldownButton,
+    // which reads a localStorage deadline. Clear it so the "resend enabled on
+    // fresh mount" assertion never depends on cross-test state.
+    localStorage.clear();
   });
 
   it('test_verification_renders_email_input', async () => {
