@@ -156,12 +156,6 @@ func (h *LensDashboardHandler) Cost(w http.ResponseWriter, r *http.Request) {
 
 // --- M44 read+write+delete management surface --------------------------------------------
 
-// readBody reads the browser request body (bounded) so a write handler can forward it verbatim.
-func readBody(r *http.Request) json.RawMessage {
-	b, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	return json.RawMessage(b)
-}
-
 // proxy runs fn (an upstream call) behind the fail-closed tenant guard and writes the result:
 // 401 when no tenant, 502 on upstream error, otherwise 200 + the pass-through body.
 func (h *LensDashboardHandler) proxy(w http.ResponseWriter, r *http.Request, what string, fn func() (json.RawMessage, error)) {
@@ -169,6 +163,29 @@ func (h *LensDashboardHandler) proxy(w http.ResponseWriter, r *http.Request, wha
 		return
 	}
 	raw, err := fn()
+	if err != nil {
+		h.logger.Warn("lens dashboard: "+what+" failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not "+what+".")
+		return
+	}
+	writeJSON(w, http.StatusOK, raw)
+}
+
+// proxyBody is proxy for write routes that forward the browser's JSON body verbatim. It runs
+// behind the fail-closed tenant guard (401 no tenant), reads the bounded request body and FAILS
+// LOUD with 400 on a read error (never silently forwards a truncated body — error-handling.md),
+// then hands the body to fn and passes the upstream result through.
+func (h *LensDashboardHandler) proxyBody(w http.ResponseWriter, r *http.Request, what string, fn func(body json.RawMessage) (json.RawMessage, error)) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	b, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		h.logger.Warn("lens dashboard: "+what+" read body failed", "error", err)
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "Could not read the request body.")
+		return
+	}
+	raw, err := fn(json.RawMessage(b))
 	if err != nil {
 		h.logger.Warn("lens dashboard: "+what+" failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not "+what+".")
@@ -213,20 +230,19 @@ func (h *LensDashboardHandler) GetTraceAnnotations(w http.ResponseWriter, r *htt
 }
 func (h *LensDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")
-	body := readBody(r)
-	h.proxy(w, r, "ask", func() (json.RawMessage, error) { return h.client.Ask(r.Context(), id, body) })
+	h.proxyBody(w, r, "ask", func(body json.RawMessage) (json.RawMessage, error) { return h.client.Ask(r.Context(), id, body) })
 }
 
 // Writes — datasets.
 
 func (h *LensDashboardHandler) CreateDataset(w http.ResponseWriter, r *http.Request) {
-	body := readBody(r)
-	h.proxy(w, r, "create dataset", func() (json.RawMessage, error) { return h.client.CreateDataset(r.Context(), body) })
+	h.proxyBody(w, r, "create dataset", func(body json.RawMessage) (json.RawMessage, error) { return h.client.CreateDataset(r.Context(), body) })
 }
 func (h *LensDashboardHandler) AddDatasetItem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "datasetID")
-	body := readBody(r)
-	h.proxy(w, r, "add dataset item", func() (json.RawMessage, error) { return h.client.AddDatasetItem(r.Context(), id, body) })
+	h.proxyBody(w, r, "add dataset item", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.AddDatasetItem(r.Context(), id, body)
+	})
 }
 func (h *LensDashboardHandler) DeleteDatasetItem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "datasetID")
@@ -237,13 +253,15 @@ func (h *LensDashboardHandler) DeleteDatasetItem(w http.ResponseWriter, r *http.
 // Writes — evaluators.
 
 func (h *LensDashboardHandler) CreateEvaluator(w http.ResponseWriter, r *http.Request) {
-	body := readBody(r)
-	h.proxy(w, r, "create evaluator", func() (json.RawMessage, error) { return h.client.CreateEvaluator(r.Context(), body) })
+	h.proxyBody(w, r, "create evaluator", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.CreateEvaluator(r.Context(), body)
+	})
 }
 func (h *LensDashboardHandler) RunEvaluator(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "evaluatorID")
-	body := readBody(r)
-	h.proxy(w, r, "run evaluator", func() (json.RawMessage, error) { return h.client.RunEvaluator(r.Context(), id, body) })
+	h.proxyBody(w, r, "run evaluator", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.RunEvaluator(r.Context(), id, body)
+	})
 }
 func (h *LensDashboardHandler) DeleteEvaluator(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "evaluatorID")
@@ -253,8 +271,7 @@ func (h *LensDashboardHandler) DeleteEvaluator(w http.ResponseWriter, r *http.Re
 // Writes — guards.
 
 func (h *LensDashboardHandler) CreateGuard(w http.ResponseWriter, r *http.Request) {
-	body := readBody(r)
-	h.proxy(w, r, "create guard", func() (json.RawMessage, error) { return h.client.CreateGuard(r.Context(), body) })
+	h.proxyBody(w, r, "create guard", func(body json.RawMessage) (json.RawMessage, error) { return h.client.CreateGuard(r.Context(), body) })
 }
 func (h *LensDashboardHandler) DeleteGuard(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "guardID")
@@ -265,8 +282,9 @@ func (h *LensDashboardHandler) DeleteGuard(w http.ResponseWriter, r *http.Reques
 
 func (h *LensDashboardHandler) AddTraceTag(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")
-	body := readBody(r)
-	h.proxy(w, r, "add tag", func() (json.RawMessage, error) { return h.client.AddTraceTag(r.Context(), id, body) })
+	h.proxyBody(w, r, "add tag", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.AddTraceTag(r.Context(), id, body)
+	})
 }
 func (h *LensDashboardHandler) DeleteTraceTag(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")
@@ -275,8 +293,9 @@ func (h *LensDashboardHandler) DeleteTraceTag(w http.ResponseWriter, r *http.Req
 }
 func (h *LensDashboardHandler) AddTraceAnnotation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")
-	body := readBody(r)
-	h.proxy(w, r, "add annotation", func() (json.RawMessage, error) { return h.client.AddTraceAnnotation(r.Context(), id, body) })
+	h.proxyBody(w, r, "add annotation", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.AddTraceAnnotation(r.Context(), id, body)
+	})
 }
 func (h *LensDashboardHandler) DeleteTraceAnnotation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")

@@ -421,6 +421,26 @@ func TestDataClient_ListAgents_And_GetTrace_RealPath(t *testing.T) {
 	}
 }
 
+// TestDataClient_Ask_RealSchema — the M33 copilot is per-trace: POST /v1/traces/{id}/ask with
+// {question}; the answer body passes through. Pins the path so it cannot drift to /v1/copilot/ask.
+func TestDataClient_Ask_RealSchema(t *testing.T) {
+	var got capturedReq
+	srv := captureWrite(t, &got, http.StatusOK, `{"answer":"because"}`)
+	raw, err := writeClient(t, srv).Ask(context.Background(), "tr_1", json.RawMessage(`{"question":"why?"}`))
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	if got.method != http.MethodPost || got.path != "/v1/traces/tr_1/ask" {
+		t.Fatalf("got %s %s, want POST /v1/traces/tr_1/ask", got.method, got.path)
+	}
+	if !strings.Contains(got.body, `"question":"why?"`) {
+		t.Fatalf("forwarded body = %q, want {question}", got.body)
+	}
+	if !strings.Contains(string(raw), `"answer":"because"`) {
+		t.Fatalf("response pass-through failed: %s", raw)
+	}
+}
+
 // TestDataClient_Write_FailClosed_ResolverError — a write with a failing resolver sends NO
 // request and never leaks the bearer (the write half honors the same fail-closed contract).
 func TestDataClient_Write_FailClosed_ResolverError(t *testing.T) {

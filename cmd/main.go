@@ -110,9 +110,11 @@ type lensDashMinter interface {
 
 // newLensDashboardKeyResolver returns the per-request keyResolver for the M44 lens
 // dashboard MANAGEMENT BFF. It reads the tenant from the JWT-derived context ONLY (never a
-// request param) and mints a lens:read+write+delete per-tenant key (ADR-1: one resolver;
-// per-verb least privilege is enforced at theo-lens — a GET only passes lens:read, a POST only
-// lens:write). Fail-closed: no authenticated tenant → error, so the data client sends no request.
+// request param) and mints a single lens:read+write+delete per-tenant key per request (ADR-1:
+// one resolver). Least privilege is at DASHBOARD-SESSION granularity, not per-verb-per-request:
+// the minted key carries all three scopes, and theo-lens walls each route by the verb it needs
+// (a GET route requires lens:read, a POST lens:write, a DELETE lens:delete — proven at the edge).
+// Fail-closed: no authenticated tenant → error, so the data client sends no request.
 // Extracted (not inline) so the scope + fail-closed invariants are unit-tested on the SHIPPED path.
 func newLensDashboardKeyResolver(minter lensDashMinter) func(ctx context.Context) (string, error) {
 	return func(ctx context.Context) (string, error) {
