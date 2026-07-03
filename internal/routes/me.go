@@ -4,20 +4,33 @@
 package routes
 
 import (
+	"database/sql"
+	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
 // MeHandler returns user info for the authenticated user.
-type MeHandler struct{}
-
-// NewMeHandler creates a handler for /v1/auth/me.
-func NewMeHandler() *MeHandler {
-	return &MeHandler{}
+type MeHandler struct {
+	// db is the BFF's Postgres handle used to read the tenant provisioning
+	// snapshot (subscriptions). May be nil when the deployment runs without a
+	// database — in that case the provisioning fields are simply omitted.
+	db *sql.DB
 }
 
-// Get returns the authenticated user's info.
+// NewMeHandler creates a handler for /v1/auth/me. Pass a nil db to omit the
+// provisioning snapshot (identity-only mode).
+func NewMeHandler(db *sql.DB) *MeHandler {
+	return &MeHandler{db: db}
+}
+
+// meProvisioningQuery reads the latest subscription for the user's account. Its
+// presence is the "after-registration bootstrap ran" signal (M0 J-02 T1.2).
+const meProvisioningQuery = "SELECT plan, status FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) ORDER BY created_at DESC LIMIT 1"
+
+// Get returns the authenticated user's info plus a tenant provisioning snapshot.
 // GET /v1/auth/me — requires auth.RequireJWT middleware.
 func (h *MeHandler) Get(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
@@ -26,10 +39,34 @@ func (h *MeHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
+	resp := map[string]interface{}{
 		"email":   user.Email,
 		"name":    user.Name,
 		"team":    user.TenantID,
 		"user_id": user.Subject,
-	})
+	}
+
+	// M0 J-02 T1.2 — attach the provisioning snapshot the register "completing"
+	// screen polls until the new tenant is ready. The subscriptions row written
+	// by the after-registration bootstrap (billing.Provisioner.ProvisionStarter)
+	// is the readiness signal: present ⇒ active, absent ⇒ still pending. A
+	// billing-lookup failure MUST NOT break the identity endpoint (fail-clear,
+	// degrade to "unknown" — never a 500 on /me).
+	if h.db != nil {
+		var plan, status string
+		err := h.db.QueryRowContext(r.Context(), meProvisioningQuery, user.TenantID).Scan(&plan, &status)
+		switch {
+		case err == nil:
+			resp["provisioning"] = "active"
+			resp["plan"] = plan
+			resp["subscription_status"] = status
+		case errors.Is(err, sql.ErrNoRows):
+			resp["provisioning"] = "pending"
+		default:
+			slog.Error("me: tenant provisioning lookup failed", "tenant_id", user.TenantID, "error", err)
+			resp["provisioning"] = "unknown"
+		}
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }

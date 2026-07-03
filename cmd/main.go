@@ -305,7 +305,7 @@ func main() {
 
 	// Handlers
 	deviceHandler := routes.NewDeviceHandler(hydra, cfg.BillingReturnURL)
-	meHandler := routes.NewMeHandler()
+	meHandler := routes.NewMeHandler(db) // db carries the tenant provisioning snapshot (M0 J-02 T1.2)
 	// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 — response-shape
 	// unifier middleware closing Red Team theo-cloud#43 (account enumeration via
 	// register response shape divergence). Proxies POST /v1/auth/register to the
