@@ -9,6 +9,20 @@
 ### Removed
 
 ### Fixed
+
+### Security
+
+## [0.20.1] - 2026-07-03
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
 - **RAG dashboard document ingest was broken — BFF sent `text` where theo-rag requires `content` (M21 dogfood, closes the upload journey).** Live dogfood of the M21 RAG dashboard (real Chrome, local `up-local` stack) found `POST /v1/dashboard/rag/documents` → `502 UPSTREAM_ERROR`: theo-rag's `POST /v1/documents/raw` returned `422 {"error":"invalid_content","detail":"content must be a string"}` because `internal/rag/data_client.go:IngestDocument` marshaled `IngestInput{Text}` (json `text`) directly as the upstream body, but theo-rag's contract requires `content` (+ a non-empty `name`). Fixed by mapping to a dedicated `ragRawIngestBody{collection_id, content, name}` (defaulting an empty name to `untitled`) so the two wire contracts never drift. The M21 BFF contract tests missed this because they stubbed the data client and never exercised theo-rag's real `/v1/documents/raw` schema — added `TestRagDataClient_IngestDocument_SendsContentField` + `_DefaultsEmptyName` regression tests. Re-verified live: upload → async status PENDING → READY (worker embed) → Ask returns a cited answer. (`internal/rag/data_client.go`, `internal/rag/data_client_test.go`)
 - **Dashboard `Live envs` metric prefere `active_env_count` sobre `production_env_count` (closes Red Team theo-cloud#134 MAJOR).** Root cause: `project-detail.tsx:156` + `projects.tsx:164` derivavam a métrica via `production_env_count ?? environment_count`, mas `production_env_count` conta apenas `env_targets.kind='permanent'` — para theokit-example que servia produção via **preview env** com release ACTIVE, essa contagem retornava 0 enquanto o Live URL renderizado na mesma tela apontava para um ambiente ativo. Sintoma: rótulo enganoso "Live envs: 0" contradizendo o Live URL exposto. Fix: (a) `dashboard/src/lib/api/types.ts` — novo campo opcional `active_env_count?: number` no `Project` type; (b) `dashboard/src/pages/project-detail.tsx:156` — fallback chain agora `active_env_count ?? production_env_count ?? environment_count ?? (environment ? 1 : 0)`; (c) `dashboard/src/pages/projects.tsx:164` — mesma fallback chain para consistência cross-view (fecha classe de bug #77 / #124). Engine-side companion em `theo/api/internal/domain/types.go` + `theo/api/internal/db/queries/projects.sql` (LATERAL JOIN `env_targets` com release ACTIVE) surface `active_env_count` no wire response. Vitest regression-protector: `test_project_detail_uses_active_env_count_for_live_envs_metric (#134)` em `project-detail.test.tsx` (5/5 GREEN). Requires rebuild + push + rollout do theo-api + theo-cloud dashboard image para o Red Team ver o fix (per `feedback_always_rebuild_push_rollout_for_red_team_2026_06_27`). Per `feedback_issue_fix_requires_failing_e2e_test_2026_06_25` INQUEBRÁVEL. (`dashboard/src/lib/api/types.ts`, `dashboard/src/pages/project-detail.tsx`, `dashboard/src/pages/projects.tsx`, `dashboard/src/pages/project-detail.test.tsx`)
 
