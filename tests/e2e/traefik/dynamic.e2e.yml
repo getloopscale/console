@@ -42,6 +42,20 @@ http:
         - forward-auth-rag
         - rag-rewrite
 
+    # M40 (KEYSTONE) — the lens capability router. /v1/lens/* --forward-auth-lens-->
+    # theo-cloud /internal/authz/forward-lens (mints a per-tenant theo_live_*; Del-then-set
+    # strips the client key) --lens-rewrite--> /v1/* --> lens:8080 DIRECT.
+    # Priority 91 (non-colliding with memory-edge 100, rag-edge 92).
+    lens-edge:
+      priority: 91
+      rule: "PathPrefix(`/v1/lens`)"
+      entryPoints:
+        - web
+      service: lens
+      middlewares:
+        - forward-auth-lens
+        - lens-rewrite
+
   middlewares:
     # D3 + credential exchange: delegate authZ to theo-cloud; copy ONLY the minted
     # Authorization onto the upstream (Del-then-set strips the client's). On a
@@ -75,6 +89,21 @@ http:
         regex: "^/v1/rag/(.*)"
         replacement: "/v1/$1"
 
+    # M40 — the lens ForwardAuth (mints a per-tenant theo_live_*; Del-then-set strips the
+    # client key). Distinct address (M38 /internal/authz/forward-lens). Non-2xx → deny.
+    forward-auth-lens:
+      forwardAuth:
+        address: "http://theo-cloud:13002/internal/authz/forward-lens"
+        authResponseHeaders:
+          - "Authorization"
+        trustForwardHeader: false
+
+    # theo-lens KEEPS its /v1 prefix (memory-style): /v1/lens/datasets -> /v1/datasets.
+    lens-rewrite:
+      replacePathRegex:
+        regex: "^/v1/lens/(.*)"
+        replacement: "/v1/$1"
+
   services:
     themory:
       loadBalancer:
@@ -84,3 +113,7 @@ http:
       loadBalancer:
         servers:
           - url: "http://rag:8080"
+    lens:
+      loadBalancer:
+        servers:
+          - url: "http://lens:8080"

@@ -36,19 +36,26 @@ THEORAG_DIR="${THEORAG_DIR:-${ROOT}/../../theo-data/theo-rag}"
 THEORAG_ADMIN_BOOTSTRAP_TOKEN="${THEORAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}"
 export THEORAG_ADMIN_BOOTSTRAP_TOKEN
 
+# M40 (KEYSTONE) — the sibling theo-lens checkout (pinned source with M22/M37/M38).
+THELENS_DIR="${THELENS_DIR:-${ROOT}/../../theo-data/theo-lens}"
+THELENS_ADMIN_BOOTSTRAP="${THELENS_ADMIN_BOOTSTRAP:-e2e-bootstrap-token-change-me-min-32-chars}"
+export THELENS_ADMIN_BOOTSTRAP
+
 # Host-mapped ports (kept in sync with docker-compose.e2e.yaml defaults).
 # A port already taken on the host (e.g. another stack on 55432) is resolved by
 # exporting the matching E2E_*_PORT before running — the compose honors them.
 E2E_CLOUD_PORT="${E2E_CLOUD_PORT:-13002}"
 E2E_THEMORY_PORT="${E2E_THEMORY_PORT:-18080}"
 E2E_RAG_PORT="${E2E_RAG_PORT:-18082}"
+E2E_LENS_PORT="${E2E_LENS_PORT:-18084}"
 E2E_PG_CLOUD_PORT="${E2E_PG_CLOUD_PORT:-55432}"
 E2E_PG_THEMORY_PORT="${E2E_PG_THEMORY_PORT:-55434}"
 E2E_PG_RAG_PORT="${E2E_PG_RAG_PORT:-55435}"
+E2E_PG_LENS_PORT="${E2E_PG_LENS_PORT:-55436}"
 E2E_KRATOS_PUBLIC_PORT="${E2E_KRATOS_PUBLIC_PORT:-14433}"
 E2E_KRATOS_ADMIN_PORT="${E2E_KRATOS_ADMIN_PORT:-14434}"
 E2E_EDGE_PORT="${E2E_EDGE_PORT:-8090}"
-export E2E_CLOUD_PORT E2E_THEMORY_PORT E2E_RAG_PORT E2E_PG_CLOUD_PORT E2E_PG_THEMORY_PORT E2E_PG_RAG_PORT E2E_KRATOS_PUBLIC_PORT E2E_KRATOS_ADMIN_PORT E2E_EDGE_PORT
+export E2E_CLOUD_PORT E2E_THEMORY_PORT E2E_RAG_PORT E2E_LENS_PORT E2E_PG_CLOUD_PORT E2E_PG_THEMORY_PORT E2E_PG_RAG_PORT E2E_PG_LENS_PORT E2E_KRATOS_PUBLIC_PORT E2E_KRATOS_ADMIN_PORT E2E_EDGE_PORT
 
 log()  { printf '\033[1;36m[e2e]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[e2e] FAIL:\033[0m %s\n' "$*" >&2; }
@@ -76,7 +83,7 @@ dump_logs() {
   echo "── cloud-migrate ──"; compose logs --no-color cloud-migrate || true
   echo "── pg-cloud ──";      compose logs --no-color --tail=40 pg-cloud || true
   compose logs --tail=80 themory theo-cloud mock-openai || true
-  if [[ "${EDGE}" == "1" ]]; then compose logs --tail=80 traefik || true; fi
+  if [[ "${EDGE}" == "1" ]]; then compose logs --tail=80 traefik rag lens pg-lens || true; fi
 }
 
 # --- preflight ---------------------------------------------------------------
@@ -119,6 +126,24 @@ if [[ "${EDGE}" == "1" ]]; then
     log "building theo-rag image from ${THEORAG_DIR} (first run is slow; cached after)…"
     docker build -t theo-rag-e2e:latest -f "${THEORAG_DIR}/packages/api/Dockerfile" "${THEORAG_DIR}"
     export THEORAG_IMAGE="theo-rag-e2e:latest"
+  fi
+fi
+
+# --- 2c. (EDGE=1, M40) build the theo-lens image from the sibling checkout -----
+# Pinned local source (M22/M37/M38), NOT a floating GHCR :develop. theo-lens's
+# Dockerfile is at the repo ROOT (a multi-stage pnpm-workspace build serving API + UI).
+if [[ "${EDGE}" == "1" ]]; then
+  [[ -f "${THELENS_DIR}/Dockerfile" ]] || {
+    fail "theo-lens repo not found at THELENS_DIR=${THELENS_DIR} (set THELENS_DIR=/path/to/theo-lens)"
+    exit 1
+  }
+  if [[ -n "${THELENS_IMAGE:-}" ]]; then
+    log "using pre-built theo-lens image: ${THELENS_IMAGE}"
+    export THELENS_IMAGE
+  else
+    log "building theo-lens image from ${THELENS_DIR} (first run is slow; cached after)…"
+    docker build -t theo-lens-e2e:latest -f "${THELENS_DIR}/Dockerfile" "${THELENS_DIR}"
+    export THELENS_IMAGE="theo-lens-e2e:latest"
   fi
 fi
 
@@ -176,12 +201,35 @@ if [[ "${EDGE}" == "1" && -z "${RAG_PLATFORM_ADMIN_KEY:-}" ]]; then
   compose up -d --no-deps --wait --wait-timeout 90 theo-cloud
 fi
 
+# --- 3.7 (EDGE=1, M40) lens Model-B platform-admin provisioning ---------------
+# The lens broker (M38) needs a lens:platform-admin theo_live_* to mint per-tenant
+# keys. Mint it from theo-lens's stateless bootstrap token (M22: /v1/admin/keys,
+# workspace_id required, response is FLAT `secret` — NOT rag's nested `raw_key`).
+if [[ "${EDGE}" == "1" && -z "${LENS_PLATFORM_ADMIN_KEY:-}" ]]; then
+  log "provisioning lens Model B platform-admin key via the theo-lens bootstrap token…"
+  LA_KEY="$( (curl -s -m 10 -X POST "http://localhost:${E2E_LENS_PORT}/v1/admin/keys" \
+    -H "Authorization: Bearer ${THELENS_ADMIN_BOOTSTRAP}" -H "Content-Type: application/json" \
+    -d '{"name":"theo-cloud-lens-admin","workspace_id":"default","scopes":["lens:platform-admin","lens:admin","lens:read","lens:write","lens:delete"]}' \
+    2>/dev/null | sed -n 's/.*"secret":"\([^"]*\)".*/\1/p') || true)"
+  if [[ -z "${LA_KEY}" ]]; then
+    dump_logs
+    fail "could not mint the lens platform-admin key (bootstrap may be consumed) — the lens broker mint will fail CLOSED."
+    exit 1
+  fi
+  export LENS_PLATFORM_ADMIN_KEY="${LA_KEY}"
+  log "minted lens platform-admin key; recreating the gateway with it…"
+  compose up -d --no-deps --wait --wait-timeout 90 theo-cloud
+fi
+
 # --- 4. test environment (URLs + DSNs the Go tests read) ---------------------
 export E2E_CLOUD_URL="http://localhost:${E2E_CLOUD_PORT}"
 export E2E_THEMORY_URL="http://localhost:${E2E_THEMORY_PORT}"
 # M18: the host-mapped rag service + its DB (the rag e2e reads these).
 export E2E_RAG_URL="http://localhost:${E2E_RAG_PORT}"
 export E2E_PG_RAG_DSN="postgres://therag:therag@localhost:${E2E_PG_RAG_PORT}/therag?sslmode=disable"
+# M40: the host-mapped lens service + its DB (the lens e2e reads E2E_LENS_URL).
+export E2E_LENS_URL="http://localhost:${E2E_LENS_PORT}"
+export E2E_PG_LENS_DSN="postgres://theolens:theolens@localhost:${E2E_PG_LENS_PORT}/theolens?sslmode=disable"
 # pg-cloud is the engine-migrated `theo` DB (M6 — full account-tenancy schema).
 export E2E_PG_CLOUD_DSN="postgres://theo:theo@localhost:${E2E_PG_CLOUD_PORT}/theo?sslmode=disable"
 export E2E_PG_THEMORY_DSN="postgres://themem:themem@localhost:${E2E_PG_THEMORY_PORT}/themem?sslmode=disable"
@@ -225,6 +273,22 @@ if [[ "${EDGE}" == "1" ]]; then
     exit 1
   fi
   log "rag edge ready (forward-auth-rag denies unauthenticated requests)."
+
+  # M40: the lens edge must also deny an unauthenticated /v1/lens (proves lens-edge +
+  # forward-auth-lens are wired before the lens test runs).
+  log "waiting for the Traefik edge to deny an unauthenticated /v1/lens/datasets…"
+  lens_edge_ready=0
+  for _ in $(seq 1 30); do
+    lcode="$(curl -s -o /dev/null -w '%{http_code}' -m 5 -X POST "${E2E_EDGE_URL}/v1/lens/datasets" 2>/dev/null || echo 000)"
+    if [[ "${lcode}" == "401" || "${lcode}" == "403" ]]; then lens_edge_ready=1; break; fi
+    sleep 2
+  done
+  if [[ "${lens_edge_ready}" != "1" ]]; then
+    dump_logs
+    fail "Traefik edge never reached the fail-closed deny on /v1/lens (last code: ${lcode:-none})."
+    exit 1
+  fi
+  log "lens edge ready (forward-auth-lens denies unauthenticated requests)."
 fi
 
 # --- 5. run the e2e test against the real endpoints --------------------------
