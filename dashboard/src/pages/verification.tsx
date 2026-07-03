@@ -5,6 +5,7 @@ import { Alert, Button, Card, PinInput } from '@usetheo/ui';
 import { API_URL, AUTH_URL } from '@/lib/config';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { enrichKratosError } from '@/lib/kratos';
+import { ResendCooldownButton } from '@/components/verification/resend-cooldown-button';
 
 const KRATOS_URL = AUTH_URL || API_URL;
 
@@ -259,15 +260,15 @@ export function VerificationPage() {
                   Verify
                 </Button>
               </form>
-              <button
-                type="button"
-                onClick={() => {
+              <ResendCooldownButton
+                onResend={() => {
+                  // Full-nav to a fresh Kratos verification flow guarantees a
+                  // new code is issued. The 60s cooldown is persisted in
+                  // localStorage, so it survives this reload — the reloaded
+                  // page shows the disabled countdown, blocking resend-spam.
                   window.location.href = `${KRATOS_URL}/self-service/verification/browser`;
                 }}
-                className="text-label text-muted-foreground hover:text-foreground underline-offset-2 hover:underline mt-2"
-              >
-                Didn't receive the email? Resend
-              </button>
+              />
             </>
           )}
         </Card.Body>

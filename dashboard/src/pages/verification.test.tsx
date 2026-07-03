@@ -28,6 +28,26 @@ describe('VerificationPage', () => {
     expect(screen.getByRole('button', { name: /^verify$/i })).toBeInTheDocument();
   });
 
+  // M0 J-03 T1.1 wiring — the input state renders the ResendCooldownButton
+  // (localStorage-persisted 60s cooldown) in place of the old naked resend
+  // link. T1.2 (paste distribution) is satisfied by the @usetheo/ui PinInput
+  // primitive natively (its docstring: "Paste handling fills all slots from
+  // clipboard") — building a wrapper would reinvent it (Rule 9), so it is not
+  // re-tested here (don't test third-party libraries). T1.3 (auto-submit on
+  // 6 digits) is the PinInput `onComplete` wired to submitCode (line 245),
+  // exercised by test_verification_submit_triggers_send.
+  it('test_verification_input_state_wires_resend_cooldown_button', async () => {
+    render(<VerificationPage />, { initialEntries: ['/verification?flow=abc'] });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Verification code')).toBeInTheDocument();
+    });
+    // The resend affordance is the cooldown button (enabled on a fresh mount
+    // with no prior deadline in localStorage).
+    const resend = screen.getByRole('button', { name: /didn't receive the email\? resend/i });
+    expect(resend).toBeInTheDocument();
+    expect(resend).toBeEnabled();
+  });
+
   it('test_verification_submit_triggers_send', async () => {
     // Mount with ?flow=abc&code=123456 → useEffect fires submitCode → 2 fetches
     // (flow lookup + submit). First fetch loads flow JSON; second posts code.
