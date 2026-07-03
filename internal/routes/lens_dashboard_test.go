@@ -75,6 +75,12 @@ func (s *stubLensDataClient) ListAgents(context.Context) (json.RawMessage, error
 func (s *stubLensDataClient) GetTrace(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"traceId":"t1"}`)
 }
+func (s *stubLensDataClient) GetTraceTags(context.Context, string) (json.RawMessage, error) {
+	return s.read(`{"tags":[]}`)
+}
+func (s *stubLensDataClient) GetTraceAnnotations(context.Context, string) (json.RawMessage, error) {
+	return s.read(`{"annotations":[]}`)
+}
 func (s *stubLensDataClient) Ask(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 	return s.read(`{"answer":"because"}`)
 }

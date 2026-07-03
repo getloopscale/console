@@ -35,6 +35,8 @@ type LensDataClient interface {
 	GuardBreaches(ctx context.Context, id string) (json.RawMessage, error)
 	ListAgents(ctx context.Context) (json.RawMessage, error)
 	GetTrace(ctx context.Context, id string) (json.RawMessage, error)
+	GetTraceTags(ctx context.Context, id string) (json.RawMessage, error)
+	GetTraceAnnotations(ctx context.Context, id string) (json.RawMessage, error)
 	Ask(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	// Writes (M44) — datasets / evaluators / guards / trace metadata
 	CreateDataset(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
@@ -201,6 +203,14 @@ func (h *LensDashboardHandler) GetTrace(w http.ResponseWriter, r *http.Request) 
 	id := chi.URLParam(r, "traceID")
 	h.proxy(w, r, "get trace", func() (json.RawMessage, error) { return h.client.GetTrace(r.Context(), id) })
 }
+func (h *LensDashboardHandler) GetTraceTags(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "traceID")
+	h.proxy(w, r, "get tags", func() (json.RawMessage, error) { return h.client.GetTraceTags(r.Context(), id) })
+}
+func (h *LensDashboardHandler) GetTraceAnnotations(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "traceID")
+	h.proxy(w, r, "get annotations", func() (json.RawMessage, error) { return h.client.GetTraceAnnotations(r.Context(), id) })
+}
 func (h *LensDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")
 	body := readBody(r)
@@ -284,6 +294,8 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		// Reads (M41 + M44)
 		r.Get("/traces", h.ListTraces)
 		r.Get("/traces/{traceID}", h.GetTrace)
+		r.Get("/traces/{traceID}/tags", h.GetTraceTags)
+		r.Get("/traces/{traceID}/annotations", h.GetTraceAnnotations)
 		r.Get("/sessions", h.ListSessions)
 		r.Get("/observability", h.Observability)
 		r.Get("/cost", h.Cost)

@@ -171,6 +171,16 @@ func (c *DataClient) GetTrace(ctx context.Context, id string) (json.RawMessage, 
 	return c.getRaw(ctx, "/v1/traces/"+url.PathEscape(id), nil)
 }
 
+// GetTraceTags proxies GET /v1/traces/{id}/tags ({tags}) — the current tag list for the trace.
+func (c *DataClient) GetTraceTags(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/traces/"+url.PathEscape(id)+"/tags", nil)
+}
+
+// GetTraceAnnotations proxies GET /v1/traces/{id}/annotations ({annotations}).
+func (c *DataClient) GetTraceAnnotations(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/traces/"+url.PathEscape(id)+"/annotations", nil)
+}
+
 // Ask proxies POST /v1/traces/{id}/ask — the M33 "Ask about this step" copilot (read-scope,
 // grounded on the trace). The browser body ({question}) is forwarded verbatim.
 func (c *DataClient) Ask(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error) {

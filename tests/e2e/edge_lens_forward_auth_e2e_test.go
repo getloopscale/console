@@ -111,6 +111,112 @@ func lensListDatasetNames(t *testing.T, edgeURL, bearer string) []string {
 	return names
 }
 
+// lensCreateDatasetReturningID POSTs a dataset through the edge and returns its id (the
+// M44 write-isolation tests need a real dataset id to prove cross-tenant DELETE isolation).
+func lensCreateDatasetReturningID(t *testing.T, edgeURL, bearer, name string) string {
+	t.Helper()
+	body, _ := json.Marshal(map[string]string{"name": name})
+	req, _ := http.NewRequest(http.MethodPost, edgeURL+"/v1/lens/datasets", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	resp := mustDo(t, req)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("create dataset through edge: want 200, got %d (%s)", resp.StatusCode, readBody(resp))
+	}
+	var out struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode dataset create: %v", err)
+	}
+	if out.ID == "" {
+		t.Fatal("dataset create returned an empty id")
+	}
+	return out.ID
+}
+
+// lensDeleteDatasetItem DELETEs a dataset item through the edge and returns the status
+// (theo-lens: 200 dataset-detail when the dataset is in the caller's workspace — idempotent on
+// a missing item; 404 when the dataset is absent for the caller — the cross-tenant signal).
+func lensDeleteDatasetItem(t *testing.T, edgeURL, bearer, datasetID, traceID string) int {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodDelete, edgeURL+"/v1/lens/datasets/"+datasetID+"/items/"+traceID, nil)
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	resp := mustDo(t, req)
+	defer resp.Body.Close()
+	return resp.StatusCode
+}
+
+// TestEdgeForwardAuthLens_DeleteVerbWallE2E — M44: the DELETE half of the per-verb wall. A
+// minted lens:read-only key is 403 on a DELETE THROUGH Traefik (theo-lens's M22
+// requireScopeOnPrincipal('lens:delete')). M40 proved the POST wall; the M44 write surface adds
+// DELETE routes, so the delete verb must be walled at the edge too. The 403 fires at the scope
+// check before any resource lookup, so the ids need not exist.
+func TestEdgeForwardAuthLens_DeleteVerbWallE2E(t *testing.T) {
+	edgeURL := requireE2EEdge(t)
+	pgDSN := env(t, "E2E_PG_CLOUD_DSN", "")
+	if pgDSN == "" {
+		t.Skip("E2E_PG_CLOUD_DSN not set")
+	}
+	db, err := sql.Open("pgx", pgDSN)
+	if err != nil {
+		t.Fatalf("open cloud db: %v", err)
+	}
+	defer db.Close()
+
+	seedUser(t, db, "lens-rodel-uid", "lens-rodel@e2e.test")
+	seedTenant(t, db, "tn-lens-rodel", "lens-rodel-uid")
+	bearerRO := seedLensAPIKey(t, db, "lens-rodel", "tn-lens-rodel", `["lens:read"]`) // read ONLY
+
+	if code := lensDeleteDatasetItem(t, edgeURL, bearerRO, "any-dataset", "any-trace"); code != http.StatusForbidden {
+		t.Fatalf("delete-verb wall: a minted lens:read key must be 403 on DELETE /v1/lens/datasets/../items/.. through the edge, got %d", code)
+	}
+}
+
+// TestEdgeForwardAuthLens_WriteDeleteCrossTenantIsolationE2E — M44's headline risk closed: a
+// key carrying the FULL dashboard scope (lens:read+write+delete) still cannot reach another
+// tenant's data THROUGH THE EDGE. Bob (write+delete) owns a dataset; Bob can delete-item under
+// his OWN dataset id (200 — idempotent), while Alice (her own write+delete key) gets 404 on the
+// SAME dataset id (it is absent in her workspace). Same id, Bob 200 / Alice 404 ⇒ the minted
+// per-tenant key is workspace-isolated even with write+delete. This is the invariant-#6 proof
+// for the M44 write surface (the dashboard mints exactly this scope set).
+func TestEdgeForwardAuthLens_WriteDeleteCrossTenantIsolationE2E(t *testing.T) {
+	edgeURL := requireE2EEdge(t)
+	pgDSN := env(t, "E2E_PG_CLOUD_DSN", "")
+	if pgDSN == "" {
+		t.Skip("E2E_PG_CLOUD_DSN not set")
+	}
+	db, err := sql.Open("pgx", pgDSN)
+	if err != nil {
+		t.Fatalf("open cloud db: %v", err)
+	}
+	defer db.Close()
+
+	seedUser(t, db, "lens-wda-uid", "lens-wda@e2e.test")
+	seedUser(t, db, "lens-wdb-uid", "lens-wdb@e2e.test")
+	seedTenant(t, db, "tn-lens-wda", "lens-wda-uid")
+	seedTenant(t, db, "tn-lens-wdb", "lens-wdb-uid")
+	const fullScope = `["lens:read","lens:write","lens:delete"]` // the M44 dashboard scope set
+	bearerA := seedLensAPIKey(t, db, "lens-wda", "tn-lens-wda", fullScope)
+	bearerB := seedLensAPIKey(t, db, "lens-wdb", "tn-lens-wdb", fullScope)
+
+	// Bob creates a dataset through the edge and gets its id.
+	idB := lensCreateDatasetReturningID(t, edgeURL, bearerB, "edge-wd-isolation-m44")
+
+	// Bob can delete-item under his OWN dataset id → 200 (dataset present in Bob's workspace;
+	// idempotent on the missing trace). This proves idB is a genuinely valid dataset.
+	if code := lensDeleteDatasetItem(t, edgeURL, bearerB, idB, "no-such-trace"); code != http.StatusOK {
+		t.Fatalf("Bob delete-item on his OWN dataset through the edge: want 200 (idempotent), got %d", code)
+	}
+
+	// Alice, holding her OWN full write+delete key, targets Bob's dataset id → 404 (absent in
+	// her workspace). Same id, Bob 200 / Alice 404 ⇒ write+delete scope does NOT breach tenants.
+	if code := lensDeleteDatasetItem(t, edgeURL, bearerA, idB, "no-such-trace"); code != http.StatusNotFound {
+		t.Fatalf("cross-tenant write+delete isolation broken: Alice (own write+delete key) reached Bob's dataset id through the edge, want 404, got %d", code)
+	}
+}
+
 // TestEdgeForwardAuthLensTenantIsolationE2E is the headline invariant-#6 proof for lens:
 // two tenants through the edge; A cannot see B's dataset; B sees its own.
 func TestEdgeForwardAuthLensTenantIsolationE2E(t *testing.T) {

@@ -407,6 +407,18 @@ func TestDataClient_ListAgents_And_GetTrace_RealPath(t *testing.T) {
 	if got.path != "/v1/traces/tr_1" {
 		t.Fatalf("path = %q, want /v1/traces/tr_1", got.path)
 	}
+	if _, err := c.GetTraceTags(context.Background(), "tr_1"); err != nil {
+		t.Fatalf("GetTraceTags: %v", err)
+	}
+	if got.path != "/v1/traces/tr_1/tags" {
+		t.Fatalf("path = %q, want /v1/traces/tr_1/tags", got.path)
+	}
+	if _, err := c.GetTraceAnnotations(context.Background(), "tr_1"); err != nil {
+		t.Fatalf("GetTraceAnnotations: %v", err)
+	}
+	if got.path != "/v1/traces/tr_1/annotations" {
+		t.Fatalf("path = %q, want /v1/traces/tr_1/annotations", got.path)
+	}
 }
 
 // TestDataClient_Write_FailClosed_ResolverError — a write with a failing resolver sends NO
