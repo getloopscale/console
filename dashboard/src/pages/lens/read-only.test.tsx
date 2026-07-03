@@ -8,7 +8,6 @@ vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(..
 
 import { LensSessionsPage } from './sessions';
 import { LensAgentsPage } from './agents';
-import { LensAnalyticsPage } from './analytics';
 import { LensAskPage } from './ask';
 
 function mutatingCalls() {
@@ -35,17 +34,6 @@ describe('Lens read-only pages make no mutating calls', () => {
     expect(mutatingCalls()).toHaveLength(0);
   });
 
-  it('analytics renders observability + cost metrics aggregated from buckets', async () => {
-    mockCloudFetch.mockImplementation((url: string) => {
-      if (url.includes('observability'))
-        return Promise.resolve({ traffic: [{ traceCount: 40, errorCount: 2 }, { traceCount: 2, errorCount: 0 }], latency: [{ p95Ms: 900 }] });
-      if (url.includes('cost')) return Promise.resolve({ buckets: [{ costUsd: 1.0 }, { costUsd: 0.5 }] });
-      return Promise.resolve({});
-    });
-    render(<LensAnalyticsPage />);
-    expect(await screen.findByText('42')).toBeInTheDocument(); // 40 + 2 traces
-    expect(screen.getByText('$1.50')).toBeInTheDocument(); // 1.0 + 0.5 cost
-  });
 });
 
 describe('LensAskPage (copilot, read-scope)', () => {

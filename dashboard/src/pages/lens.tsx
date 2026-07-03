@@ -137,7 +137,6 @@ export function LensOverviewPage() {
             <ExploreCard icon={ShieldCheck} title="Guards" description="Gate traces on evaluator thresholds." href="/observability/guards" />
             <ExploreCard icon={Bot} title="Agents" description="The derived catalog of instrumented agents." href="/observability/agents" />
             <ExploreCard icon={Search} title="Ask" description="Ask the copilot about a trace." href="/observability/ask" />
-            <ExploreCard icon={Activity} title="Analytics" description="Observability and cost for this workspace." href="/observability/analytics" />
           </div>
         </section>
       </div>
