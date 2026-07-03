@@ -12,6 +12,7 @@ import {
   type UsageMetric as UsageMeterMetric,
 } from '@usetheo/ui';
 import { ContentGrid } from '@/components/layout';
+import { InvoicesCard } from '@/components/billing/invoices-card';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useCloudApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -443,6 +444,11 @@ export function BillingPage() {
           />
         </section>
       )}
+
+      {/* J-13 (MEET-2026-07-03-004) — owner-only invoice history. Separate
+          fetch → a Stripe outage degrades only this card (failure isolation);
+          non-owners (403) see nothing. Replaces the EC-5 placeholder. */}
+      <InvoicesCard />
 
       {/* Plan 4 of dashboard-memory-section-roadmap.md, T4.2 — Memory promotion.
           ADR D1: rendered always; graceful empty state when no memory activity.
