@@ -109,21 +109,15 @@ const MENUS: Record<string, MenuDefinition> = {
         ],
       },
       {
-        // Plan 1 of dashboard-memory-section-roadmap.md — Memory section.
-        // Drills into a submenu so future plans (P2 entities, P3 exports/webhooks)
-        // can add items without reflowing the root nav.
-        title: 'Memory',
-        items: [{ label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' }],
-      },
-      {
-        // M21 — RAG section. Drills into a submenu (Collections/Documents/Ask/Analytics).
-        title: 'RAG',
-        items: [{ label: 'RAG', path: '/rag', icon: BookOpen, drillsInto: 'rag' }],
-      },
-      {
-        // M44 — Lens management section. Drills into the read+write dashboard submenu.
-        title: 'Observability',
-        items: [{ label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' }],
+        // The Theo data-plane capabilities (Memory / RAG / Observability), grouped under one
+        // semantic header instead of three single-item groups whose title repeated the item
+        // label. Each item drills into its own submenu (memory / rag / lens).
+        title: 'Capabilities',
+        items: [
+          { label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' },
+          { label: 'RAG', path: '/rag', icon: BookOpen, drillsInto: 'rag' },
+          { label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' },
+        ],
       },
       {
         // Top-level shortcut to the API Tokens page (also reachable via
