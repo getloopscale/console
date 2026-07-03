@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@/test/render';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@/test/render';
 
 vi.mock('@/hooks/use-provisioning-status', () => ({ useProvisioningStatus: vi.fn() }));
 
@@ -48,5 +48,44 @@ describe('RegisterCompletingScreen (M0 J-02 T3.1)', () => {
     const onReady = vi.fn();
     render(<RegisterCompletingScreen onReady={onReady} />);
     expect(onReady).not.toHaveBeenCalled();
+  });
+
+  // EC-2 (>60s) + EC-1 (stuck/failed → escape): if provisioning stays `pending`
+  // past the bounded wait, the screen surfaces a "taking longer" warning with a
+  // Continue-to-dashboard escape, instead of an infinite spinner.
+  describe('bounded wait (EC-1 + EC-2)', () => {
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('test_after_max_wait_still_pending_shows_taking_longer_warning', () => {
+      mockedHook.mockReturnValue({ status: 'pending', loading: false });
+      render(<RegisterCompletingScreen onReady={vi.fn()} maxWaitMs={5000} />);
+      // Before the deadline: normal spinner, no warning.
+      expect(screen.queryByText(/taking longer/i)).not.toBeInTheDocument();
+      act(() => { vi.advanceTimersByTime(5000); });
+      // After the deadline while still pending: warning + escape CTA.
+      expect(screen.getByText(/taking longer/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /continue to dashboard/i })).toBeInTheDocument();
+    });
+
+    it('test_timeout_continue_button_calls_onReady', () => {
+      mockedHook.mockReturnValue({ status: 'pending', loading: false });
+      const onReady = vi.fn();
+      render(<RegisterCompletingScreen onReady={onReady} maxWaitMs={5000} />);
+      act(() => { vi.advanceTimersByTime(5000); });
+      fireEvent.click(screen.getByRole('button', { name: /continue to dashboard/i }));
+      expect(onReady).toHaveBeenCalledTimes(1);
+    });
+
+    it('test_no_warning_when_resolves_before_deadline', () => {
+      // active on first render → onReady fires, and even past the deadline no
+      // warning is shown (not pending anymore).
+      mockedHook.mockReturnValue({ status: 'active', loading: false });
+      const onReady = vi.fn();
+      render(<RegisterCompletingScreen onReady={onReady} maxWaitMs={5000} />);
+      act(() => { vi.advanceTimersByTime(5000); });
+      expect(screen.queryByText(/taking longer/i)).not.toBeInTheDocument();
+      expect(onReady).toHaveBeenCalled();
+    });
   });
 });
