@@ -1,8 +1,10 @@
 ## [Unreleased]
 
 ### Added
+- **RAG dashboard Overview landing page (M23 design standardization).** The RAG section now opens on an Overview (`dashboard/src/pages/rag.tsx`) — a KPI strip from `/v1/dashboard/rag/analytics` + a Getting-started card + an Explore grid to Collections/Documents/Ask/Analytics — mirroring the Memory Overview (Rule 9). Every capability section opens on an Overview; RAG previously jumped straight to a bare Collections table. Route `/rag` → Overview; Collections moves to `/rag/collections`; the RAG sidebar gains Overview as the first item.
 
 ### Changed
+- **RAG dashboard screens standardized for coherence with theo-memory (M23).** A live-dogfood design critique scored the RAG section 62/100 on coherence; this closes the genuine gaps: (a) the collection picker in Documents + Ask is now the `@usetheo/ui` `Select` (Radix — focus ring, keyboard nav, checkmarks) instead of a native `<select>`; (b) the four service-**load**-error alerts (collections/documents/ask/analytics) use `intent="warning"` instead of `intent="destructive"` (red stays reserved for destructive user actions — create/ingest errors + ConfirmDialogs); (c) polish: short page titles matching Memory (Collections/Documents/Ask/Analytics, dropping the "RAG " prefix), analytics inline-`style` grid → Tailwind, `DataTable` action columns `align:'right'`, Ask "Answer" moved into `Card.Header`. (`dashboard/src/pages/rag/{collections,documents,ask,analytics}.tsx`, `dashboard/src/app.tsx`, `dashboard/src/components/layout/app-sidebar.tsx`, + tests)
 
 ### Deprecated
 

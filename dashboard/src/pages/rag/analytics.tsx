@@ -30,17 +30,15 @@ export function RagAnalyticsPage() {
   });
 
   return (
-    <PageShell title="RAG Analytics" description="Retrieval + answer usage for this workspace.">
+    <PageShell title="Analytics" description="Retrieval + answer usage for this workspace.">
       {query.isLoading ? (
         <Skeleton />
       ) : query.isError || query.data == null ? (
-        <Alert intent="destructive" title="Could not load analytics">
+        <Alert intent="warning" title="Could not load analytics">
           The RAG analytics service is unavailable. Try again shortly.
         </Alert>
       ) : (
-        <div
-          style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}
-        >
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
           <MetricCard title="Retrievals" value={String(query.data.totals.retrievals)} />
           <MetricCard title="Answers" value={String(query.data.totals.answers)} />
           <MetricCard

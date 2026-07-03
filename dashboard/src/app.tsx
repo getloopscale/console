@@ -97,6 +97,9 @@ const PlaygroundPage = lazy(() =>
 const SkillsPage = lazy(() =>
   import('@/pages/memory/skills').then((m) => ({ default: m.SkillsPage })),
 );
+const RagOverviewPage = lazy(() =>
+  import('@/pages/rag').then((m) => ({ default: m.RagOverviewPage })),
+);
 const RagCollectionsPage = lazy(() =>
   import('@/pages/rag/collections').then((m) => ({ default: m.RagCollectionsPage })),
 );
@@ -383,7 +386,8 @@ export default function App() {
                     <Route path="/memory/webhooks" element={<Boundaried path="/memory/webhooks"><WebhooksPage /></Boundaried>} />
                     <Route path="/memory/playground" element={<Boundaried path="/memory/playground"><PlaygroundPage /></Boundaried>} />
                     <Route path="/memory/skills" element={<Boundaried path="/memory/skills"><SkillsPage /></Boundaried>} />
-                    <Route path="/rag" element={<Boundaried path="/rag"><RagCollectionsPage /></Boundaried>} />
+                    <Route path="/rag" element={<Boundaried path="/rag"><RagOverviewPage /></Boundaried>} />
+                    <Route path="/rag/collections" element={<Boundaried path="/rag/collections"><RagCollectionsPage /></Boundaried>} />
                     <Route path="/rag/documents" element={<Boundaried path="/rag/documents"><RagDocumentsPage /></Boundaried>} />
                     <Route path="/rag/ask" element={<Boundaried path="/rag/ask"><RagAskPage /></Boundaried>} />
                     <Route path="/rag/analytics" element={<Boundaried path="/rag/analytics"><RagAnalyticsPage /></Boundaried>} />
