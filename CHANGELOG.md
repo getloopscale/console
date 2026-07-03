@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **Model-B theo-lens credential broker (M38).** The gateway can now provision per-tenant `theo_live_*` keys for the theo-lens data plane, mirroring the existing rag/promptly/memory brokers (Rule 9). New `internal/thelens` package: an `AdminClient` that holds the `lens:platform-admin` control-plane credential and mints via theo-lens's `POST /v1/admin/keys` (M22 — parsed as the FLAT `{id,scopes,secret}@200` shape, not theo-rag's nested envelope), plus a `Broker` with LRU + singleflight + fail-closed and least-privilege scope intersection (a `lens:read` consumer can never receive a write/delete key). Wired as a 4th `ForwardAuthHandler` at `/internal/authz/forward-lens` (required scope `lens:read`), constructed from `LENS_BASE_URL` + `LENS_PLATFORM_ADMIN_KEY` (base-url set ⇒ admin-key required in prod; boot refuses to start on broker error). The handler is nil (unregistered) unless `LENS_BASE_URL` is set — existing deployments are unchanged. The platform-admin key is held ONLY in `AdminClient`, never on the data path (NIST AC-5/6). The platform-level hermetic edge proof is M40 (theo-lens `ROADMAP-edge-integration.md`).
 
 ### Changed
 

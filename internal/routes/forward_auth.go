@@ -30,6 +30,12 @@ const AuthzForwardPromptlyPath = "/internal/authz/forward-promptly"
 // Traefik `forward-auth-rag` middleware targets it.
 const AuthzForwardRagPath = "/internal/authz/forward-rag"
 
+// AuthzForwardLensPath is the internal ForwardAuth endpoint for the theo-lens
+// capability (M38 — Model B). The generic ForwardAuthHandler is reused (a 4th
+// instance wired with the lens broker + "lens:read"); only the path differs so the
+// Traefik `forward-auth-lens` middleware targets it.
+const AuthzForwardLensPath = "/internal/authz/forward-lens"
+
 // APIKeyResolver validates an inbound Authorization header and resolves the
 // tenant. Injected (not a concrete *sql.DB dependency) so the handler is unit-
 // testable without a database; in production it closes over auth.ResolveAPIKey.

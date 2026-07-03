@@ -28,6 +28,33 @@ func stubResolve(context.Context, string) (*auth.UserContext, []string, error) {
 }
 func stubAuthorize(context.Context, string, string) (bool, error) { return true, nil }
 
+// M38 T4 — buildLensForwardAuth is nil (feature off) when LENS_BASE_URL is unset,
+// so existing deployments (LENS_BASE_URL empty) register no lens route.
+func TestBuildLensForwardAuth_Disabled_WhenBaseURLUnset(t *testing.T) {
+	h, err := buildLensForwardAuth(config.Config{LensBaseURL: ""}, stubResolve, stubAuthorize, quietLogger())
+	if err != nil {
+		t.Fatalf("unexpected error when LENS_BASE_URL unset: %v", err)
+	}
+	if h != nil {
+		t.Fatal("handler should be nil (feature off) when LENS_BASE_URL is unset")
+	}
+}
+
+// M38 T4 — when LENS_BASE_URL is set (with a platform key), the handler is wired.
+func TestBuildLensForwardAuth_Wired_WhenConfigured(t *testing.T) {
+	cfg := config.Config{
+		LensBaseURL:          "http://theo-lens:18082",
+		LensPlatformAdminKey: config.Secret("theo_live_platform"),
+	}
+	h, err := buildLensForwardAuth(cfg, stubResolve, stubAuthorize, quietLogger())
+	if err != nil {
+		t.Fatalf("unexpected error when configured: %v", err)
+	}
+	if h == nil {
+		t.Fatal("handler should be non-nil when LENS_BASE_URL is configured")
+	}
+}
+
 // M14 T4.1 — buildRagForwardAuth is nil (feature off) when RAG_BASE_URL is unset.
 // M16 T2.1 — the broker is ALSO nil when unset (no MCP binding either).
 func TestBuildRagForwardAuth_Disabled_WhenBaseURLUnset(t *testing.T) {

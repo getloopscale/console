@@ -142,6 +142,19 @@ type Config struct {
 	// Env: RAG_PLATFORM_ADMIN_KEY
 	RagPlatformAdminKey Secret
 
+	// LensBaseURL is the theo-lens REST URL (M38 — Model B). The broker POSTs to
+	// {base}/v1/admin/keys (theo-lens's mint endpoint carries the /v1 prefix). Empty
+	// disables the lens broker + its ForwardAuth handler.
+	// Env: LENS_BASE_URL
+	LensBaseURL string
+
+	// LensPlatformAdminKey is the CONTROL-PLANE credential (carrying
+	// lens:platform-admin) the gateway uses ONLY to mint per-tenant theo-lens keys
+	// via POST /v1/admin/keys. NEVER on the data path (Model B). Required when
+	// LensBaseURL is set.
+	// Env: LENS_PLATFORM_ADMIN_KEY
+	LensPlatformAdminKey Secret
+
 	// SessionTokenSecretPrevious is the previous HMAC key for zero-downtime rotation (§2.2).
 	// Tokens signed with this key are accepted during the rotation window.
 	// Env: SESSION_TOKEN_SECRET_PREVIOUS (optional)
@@ -205,6 +218,8 @@ func Load() Config {
 	cfg.PromptlyPlatformAdminKey = Secret(envOr("PROMPTLY_PLATFORM_ADMIN_KEY", ""))
 	cfg.RagBaseURL = envOr("RAG_BASE_URL", "")
 	cfg.RagPlatformAdminKey = Secret(envOr("RAG_PLATFORM_ADMIN_KEY", ""))
+	cfg.LensBaseURL = envOr("LENS_BASE_URL", "")
+	cfg.LensPlatformAdminKey = Secret(envOr("LENS_PLATFORM_ADMIN_KEY", ""))
 	return cfg
 }
 
@@ -256,6 +271,12 @@ func (c Config) Validate() error {
 		// keys unauthenticated. Fail-fast at boot.
 		if c.RagBaseURL != "" && c.RagPlatformAdminKey.Value() == "" {
 			return fmt.Errorf("RAG_PLATFORM_ADMIN_KEY is required in production when RAG_BASE_URL is set")
+		}
+		// M38 (theo-lens Model B): the platform-admin key MUST be present when the
+		// lens broker is enabled — otherwise the gateway would try to mint per-tenant
+		// keys unauthenticated. Fail-fast at boot.
+		if c.LensBaseURL != "" && c.LensPlatformAdminKey.Value() == "" {
+			return fmt.Errorf("LENS_PLATFORM_ADMIN_KEY is required in production when LENS_BASE_URL is set")
 		}
 	}
 	return nil

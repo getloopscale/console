@@ -39,6 +39,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/thelens"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
 )
@@ -66,6 +67,30 @@ func buildRagForwardAuth(
 		return nil, nil, fmt.Errorf("rag broker: %w", err)
 	}
 	return routes.NewForwardAuthHandler(resolve, ragBroker, authorize, "rag:read", logger), ragBroker, nil
+}
+
+// buildLensForwardAuth constructs the theo-lens Model-B ForwardAuth handler + its broker
+// (M38). Returns (nil, nil) when LENS_BASE_URL is unset (feature off), (nil, error) when
+// the broker cannot be constructed (caller refuses to start — fail-closed at boot), and
+// (handler, nil) when configured. Mirrors buildRagForwardAuth; theo-lens has no MCP/dashboard
+// surface in M38 (that is M41+), so only the REST ForwardAuth handler is returned.
+func buildLensForwardAuth(
+	cfg config.Config,
+	resolve routes.APIKeyResolver,
+	authorize routes.AccountTenantAuthorizer,
+	logger *slog.Logger,
+) (*routes.ForwardAuthHandler, error) {
+	if cfg.LensBaseURL == "" {
+		return nil, nil
+	}
+	lensHTTP := &http.Client{Timeout: 10 * time.Second}
+	lensAdmin := thelens.NewAdminClient(cfg.LensBaseURL, cfg.LensPlatformAdminKey.Value(), lensHTTP)
+	lensBroker, err := thelens.NewBroker(lensAdmin, 1024, time.Hour,
+		[]string{"lens:read", "lens:write", "lens:delete"})
+	if err != nil {
+		return nil, fmt.Errorf("lens broker: %w", err)
+	}
+	return routes.NewForwardAuthHandler(resolve, lensBroker, authorize, "lens:read", logger), nil
 }
 
 // ragDashMinter is the least-privilege minting surface the dashboard resolver needs
@@ -327,6 +352,28 @@ func main() {
 	}
 	if ragForwardAuthHandler != nil {
 		logger.Info("theo-rag Model B broker wired (M14)", "base_url", cfg.RagBaseURL)
+	}
+
+	// M38 (edge-integration): a 4th ForwardAuth handler for the theo-lens
+	// capability. Built via buildLensForwardAuth (testable) — nil when LENS_BASE_URL
+	// is unset (feature off), error → refuse to start (boot-failure).
+	lensForwardAuthHandler, lensErr := buildLensForwardAuth(
+		cfg,
+		func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+			return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+		},
+		// cross-account guard (same DB-backed ownership check).
+		func(ctx context.Context, accountID, tenantID string) (bool, error) {
+			return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+		},
+		logger,
+	)
+	if lensErr != nil {
+		logger.Error("failed to construct lens credential broker — refusing to start", "error", lensErr)
+		os.Exit(1)
+	}
+	if lensForwardAuthHandler != nil {
+		logger.Info("theo-lens Model B broker wired (M38)", "base_url", cfg.LensBaseURL)
 	}
 
 	// M17: the read+write /v1/dashboard/rag BFF (M21). Wired only when the rag broker is
@@ -596,6 +643,12 @@ func main() {
 	if promptlyForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
+	}
+	// M38: the theo-lens ForwardAuth endpoint the edge's forward-auth-lens middleware
+	// calls. Same generic handler, distinct path + lens broker.
+	if lensForwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardLensPath, lensForwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardLensPath, lensForwardAuthHandler.ServeHTTP)
 	}
 	// M14: the theo-rag ForwardAuth endpoint the edge's forward-auth-rag middleware
 	// calls. Same generic handler, distinct path + rag broker.
