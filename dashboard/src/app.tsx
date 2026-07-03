@@ -112,7 +112,10 @@ const RagAskPage = lazy(() =>
 const RagAnalyticsPage = lazy(() =>
   import('@/pages/rag/analytics').then((m) => ({ default: m.RagAnalyticsPage })),
 );
-// M44 — lens management dashboard pages
+// M44 — lens management dashboard pages; M46 — Overview landing
+const LensOverviewPage = lazy(() =>
+  import('@/pages/lens').then((m) => ({ default: m.LensOverviewPage })),
+);
 const LensTracesPage = lazy(() =>
   import('@/pages/lens/traces').then((m) => ({ default: m.LensTracesPage })),
 );
@@ -416,7 +419,7 @@ export default function App() {
                     <Route path="/rag/documents" element={<Boundaried path="/rag/documents"><RagDocumentsPage /></Boundaried>} />
                     <Route path="/rag/ask" element={<Boundaried path="/rag/ask"><RagAskPage /></Boundaried>} />
                     <Route path="/rag/analytics" element={<Boundaried path="/rag/analytics"><RagAnalyticsPage /></Boundaried>} />
-                    <Route path="/lens" element={<Boundaried path="/lens"><LensTracesPage /></Boundaried>} />
+                    <Route path="/lens" element={<Boundaried path="/lens"><LensOverviewPage /></Boundaried>} />
                     <Route path="/lens/traces" element={<Boundaried path="/lens/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/lens/sessions" element={<Boundaried path="/lens/sessions"><LensSessionsPage /></Boundaried>} />
                     <Route path="/lens/datasets" element={<Boundaried path="/lens/datasets"><LensDatasetsPage /></Boundaried>} />

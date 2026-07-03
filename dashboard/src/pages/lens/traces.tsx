@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import {
   Alert,
+  Badge,
   Button,
   Card,
   ConfirmDialog,
@@ -156,8 +157,8 @@ export function LensTracesPage() {
                     </form>
                     <ul className="mt-3 flex flex-wrap gap-2">
                       {currentTags.map((t) => (
-                        <li key={t} className="flex items-center gap-1 rounded border px-2 py-1 text-sm">
-                          <span>{t}</span>
+                        <li key={t} className="flex items-center gap-1">
+                          <Badge variant="outline">{t}</Badge>
                           <Button variant="ghost" size="sm" onClick={() => setPendingTag(t)} aria-label={`Remove tag ${t}`}>
                             <Trash2 className="h-3 w-3" />
                           </Button>

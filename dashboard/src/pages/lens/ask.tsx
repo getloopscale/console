@@ -73,7 +73,7 @@ export function LensAskPage() {
         {answer ? (
           <Card>
             <Card.Header>
-              <h2 className="text-sm font-medium">Answer</h2>
+              <h2 className="text-base font-semibold">Answer</h2>
             </Card.Header>
             <Card.Body>
               <p className="text-sm">{answer.answer}</p>

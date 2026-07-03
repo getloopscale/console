@@ -112,6 +112,28 @@ export function LensDatasetsPage() {
     },
   ];
 
+  // Managed dataset-item rows (traceId + remove action) rendered via DataTable (M46 — mirrors
+  // rag/collections; managed rows with a mutation use DataTable, not a native list). `datasetID` is
+  // the open dataset (non-null while the items panel is shown).
+  const itemColumns = (datasetID: string): DataTableColumn<DatasetItem>[] => [
+    { key: 'traceId', label: 'Trace', render: (row) => <span className="font-mono text-sm">{row.traceId}</span> },
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      render: (row) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setPendingRemove({ datasetID, traceId: row.traceId })}
+          aria-label={`Remove ${row.traceId}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ),
+    },
+  ];
+
   const datasets = query.data?.datasets ?? [];
 
   return (
@@ -175,21 +197,11 @@ export function LensDatasetsPage() {
                 ) : (detail.data?.items ?? []).length === 0 ? (
                   <EmptyState title="No items" description="Add traces to this dataset from the Traces page." />
                 ) : (
-                  <ul className="space-y-2">
-                    {(detail.data?.items ?? []).map((it) => (
-                      <li key={it.traceId} className="flex items-center justify-between">
-                        <span className="font-mono text-sm">{it.traceId}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setPendingRemove({ datasetID: openID, traceId: it.traceId })}
-                          aria-label={`Remove ${it.traceId}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
+                  <DataTable
+                    columns={itemColumns(openID)}
+                    data={detail.data?.items ?? []}
+                    rowKey={(row) => row.traceId}
+                  />
                 )}
               </Card.Body>
             </Card>

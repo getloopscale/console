@@ -35,15 +35,16 @@ describe('Lens read-only pages make no mutating calls', () => {
     expect(mutatingCalls()).toHaveLength(0);
   });
 
-  it('analytics renders observability + cost metrics', async () => {
+  it('analytics renders observability + cost metrics aggregated from buckets', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
-      if (url.includes('observability')) return Promise.resolve({ traces: 42, errorRate: 0.05 });
-      if (url.includes('cost')) return Promise.resolve({ totalUsd: 1.5 });
+      if (url.includes('observability'))
+        return Promise.resolve({ traffic: [{ traceCount: 40, errorCount: 2 }, { traceCount: 2, errorCount: 0 }], latency: [{ p95Ms: 900 }] });
+      if (url.includes('cost')) return Promise.resolve({ buckets: [{ costUsd: 1.0 }, { costUsd: 0.5 }] });
       return Promise.resolve({});
     });
     render(<LensAnalyticsPage />);
-    expect(await screen.findByText('42')).toBeInTheDocument();
-    expect(screen.getByText('$1.50')).toBeInTheDocument();
+    expect(await screen.findByText('42')).toBeInTheDocument(); // 40 + 2 traces
+    expect(screen.getByText('$1.50')).toBeInTheDocument(); // 1.0 + 0.5 cost
   });
 });
 
