@@ -150,3 +150,82 @@ func TestHandleCheckoutCompleted_SkipsNonSubscriptionMode(t *testing.T) {
 		t.Fatalf("sqlmock expectations: %v", err)
 	}
 }
+
+// J-06 / MEET-2026-07-03-003 D1 — the price-mapping UPDATE MUST persist
+// amount_minor + currency parsed from the Stripe Price object, so GET /v1/billing
+// can OBSERVE the row instead of a hardcoded Go price constant (which recreates
+// the #157 drift). RED before the webhook parses unit_amount/currency.
+func TestHandleSubscriptionUpdated_PersistsAmountAndCurrency_Pro(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	// SET clause must carry amount_minor + currency; args 8 and 9 are 2900/usd.
+	mock.ExpectExec(`(?s)UPDATE subscriptions SET .*amount_minor = \$8, currency = \$9`).
+		WithArgs("active", "pro", "sub_pro_1", "si_pro_1",
+			sqlmock.AnyArg(), sqlmock.AnyArg(), "cus_pro_1",
+			int64(2900), "usd").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	sub := map[string]any{
+		"id": "sub_pro_1", "customer": "cus_pro_1", "status": "active",
+		"current_period_start": 1000, "current_period_end": 2000,
+		"items": map[string]any{"data": []map[string]any{{
+			"id":    "si_pro_1",
+			"price": map[string]any{"id": "price_pro", "unit_amount": 2900, "currency": "usd"},
+		}}},
+	}
+	subJSON, _ := json.Marshal(sub)
+	dataJSON, _ := json.Marshal(StripeEventData{Object: subJSON})
+	event := StripeEvent{ID: "evt_sub_pro", Type: "customer.subscription.updated", Data: dataJSON}
+
+	handler := &WebhookHandler{
+		db:         db,
+		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		planConfig: PlanConfig{ProPriceID: "price_pro"},
+	}
+	if err := handler.handleSubscriptionUpdated(db, event); err != nil {
+		t.Fatalf("handleSubscriptionUpdated: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sqlmock expectations: %v", err)
+	}
+}
+
+// Negative case (no-clobber): a subscription.updated with NO price maps to no
+// plan, so the no-price UPDATE branch runs and MUST NOT touch amount_minor —
+// a delayed/partial event can never zero out a real spend.
+func TestHandleSubscriptionUpdated_MissingPrice_GracefulNoAmountWrite(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	mock.ExpectExec(`(?s)UPDATE subscriptions SET status = \$1,\s*stripe_subscription_id = \$2`).
+		WithArgs("active", "sub_np_1", "", sqlmock.AnyArg(), sqlmock.AnyArg(), "cus_np_1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	sub := map[string]any{
+		"id": "sub_np_1", "customer": "cus_np_1", "status": "active",
+		"current_period_start": 1000, "current_period_end": 2000,
+		"items": map[string]any{"data": []map[string]any{}},
+	}
+	subJSON, _ := json.Marshal(sub)
+	dataJSON, _ := json.Marshal(StripeEventData{Object: subJSON})
+	event := StripeEvent{ID: "evt_sub_np", Type: "customer.subscription.updated", Data: dataJSON}
+
+	handler := &WebhookHandler{
+		db:         db,
+		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		planConfig: PlanConfig{ProPriceID: "price_pro"},
+	}
+	if err := handler.handleSubscriptionUpdated(db, event); err != nil {
+		t.Fatalf("handleSubscriptionUpdated: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sqlmock expectations: %v", err)
+	}
+}
