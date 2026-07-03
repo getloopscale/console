@@ -138,21 +138,31 @@ func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 	}
 }
 
-// M41 — the lens dashboard mount is READ-ONLY: exactly the 4 GET reads and NO mutating
-// verb (POST/DELETE/PUT/PATCH). Walks the actual mounted routes via chi.Walk. A future
-// write route leaking in (M44 landing early) fails this test.
-func TestLensDashboard_ReadOnlyRouteSet(t *testing.T) {
+// M44 — the lens dashboard mount is read+write+delete. Walks the SHIPPED route table
+// (routes.MountLensDashboard) and asserts: (a) the writable management routes are present, and
+// (b) ADR-3 holds — NO mutating verb (POST/DELETE) on the trace/session BODY or on /agents;
+// trace tags/annotations ARE writable metadata; /ask is a read-scope copilot POST.
+func TestLensDashboard_ReadWriteRouteSet(t *testing.T) {
 	r := chi.NewRouter()
 	h := routes.NewLensDashboardHandler(nil, quietLogger())
 	passthrough := func(next http.Handler) http.Handler { return next } // stand-in for requireJWT
-	mountLensDashboard(r, h, passthrough)
+	routes.MountLensDashboard(r, h, passthrough)
 
 	got := map[string]bool{}
 	err := chi.Walk(r, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		if strings.HasPrefix(route, "/v1/dashboard/lens") {
-			got[method+" "+route] = true
-			if method != http.MethodGet {
-				t.Fatalf("lens dashboard MUST be read-only, found a %s route %q (write is M44)", method, route)
+		if !strings.HasPrefix(route, "/v1/dashboard/lens") {
+			return nil
+		}
+		got[method+" "+route] = true
+		if method == http.MethodPost || method == http.MethodDelete {
+			underTrace := strings.HasPrefix(route, "/v1/dashboard/lens/traces/{traceID}")
+			writableMeta := strings.Contains(route, "/tags") || strings.Contains(route, "/annotations") || strings.Contains(route, "/ask")
+			bad := route == "/v1/dashboard/lens/traces" ||
+				(underTrace && !writableMeta) ||
+				strings.HasPrefix(route, "/v1/dashboard/lens/sessions") ||
+				strings.HasPrefix(route, "/v1/dashboard/lens/agents")
+			if bad {
+				t.Fatalf("ADR-3 violation: mutating %s on read-only surface %q", method, route)
 			}
 		}
 		return nil
@@ -160,19 +170,25 @@ func TestLensDashboard_ReadOnlyRouteSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk: %v", err)
 	}
+	// The writable management routes MUST be present (a representative subset).
 	want := []string{
+		"POST /v1/dashboard/lens/datasets",
+		"DELETE /v1/dashboard/lens/datasets/{datasetID}/items/{traceID}",
+		"POST /v1/dashboard/lens/evaluators",
+		"POST /v1/dashboard/lens/evaluators/{evaluatorID}/run",
+		"DELETE /v1/dashboard/lens/evaluators/{evaluatorID}",
+		"POST /v1/dashboard/lens/guards",
+		"DELETE /v1/dashboard/lens/guards/{guardID}",
+		"POST /v1/dashboard/lens/traces/{traceID}/tags",
+		"DELETE /v1/dashboard/lens/traces/{traceID}/tags",
+		"POST /v1/dashboard/lens/traces/{traceID}/annotations",
 		"GET /v1/dashboard/lens/traces",
-		"GET /v1/dashboard/lens/sessions",
-		"GET /v1/dashboard/lens/observability",
-		"GET /v1/dashboard/lens/cost",
+		"GET /v1/dashboard/lens/agents",
 	}
 	for _, w := range want {
 		if !got[w] {
 			t.Fatalf("expected route %q mounted under /v1/dashboard/lens; got %+v", w, got)
 		}
-	}
-	if len(got) != len(want) {
-		t.Fatalf("unexpected extra route under /v1/dashboard/lens: got %d routes, want %d (%+v)", len(got), len(want), got)
 	}
 }
 
@@ -260,10 +276,11 @@ func (s *stubLensDashMinter) KeyForTenantScoped(_ context.Context, accountID, te
 	return "theo_live_" + tenantID, nil
 }
 
-// M41 — the SHIPPED lens dashboard keyResolver mints a lens:READ-ONLY key from the JWT
-// tenant (the read BFF; the write half is M44). The tenant/account MUST come from the JWT,
-// never a param; the scope set MUST be exactly [lens:read] (a compromised JWT can't write).
-func TestNewLensDashboardKeyResolver_MintsReadOnlyFromJWTTenant(t *testing.T) {
+// M44 — the SHIPPED lens dashboard keyResolver mints a lens:read+write+delete key from the JWT
+// tenant (the management BFF; ADR-1: one resolver, per-verb least privilege enforced at
+// theo-lens). The tenant/account MUST come from the JWT, never a param; the scope set MUST be
+// exactly [lens:read, lens:write, lens:delete].
+func TestNewLensDashboardKeyResolver_MintsReadWriteDeleteFromJWTTenant(t *testing.T) {
 	stub := &stubLensDashMinter{}
 	resolve := newLensDashboardKeyResolver(stub)
 
@@ -277,8 +294,14 @@ func TestNewLensDashboardKeyResolver_MintsReadOnlyFromJWTTenant(t *testing.T) {
 	if stub.gotTenant != "tenantA" || stub.gotAccount != "accA" {
 		t.Fatalf("resolver must mint from the JWT tenant/account, got tenant=%q account=%q", stub.gotTenant, stub.gotAccount)
 	}
-	if len(stub.gotScopes) != 1 || stub.gotScopes[0] != "lens:read" {
-		t.Fatalf("dashboard key MUST be minted lens:read ONLY (read BFF), got %+v", stub.gotScopes)
+	want := map[string]bool{"lens:read": true, "lens:write": true, "lens:delete": true}
+	if len(stub.gotScopes) != len(want) {
+		t.Fatalf("dashboard key MUST be minted lens:read+write+delete, got %+v", stub.gotScopes)
+	}
+	for _, s := range stub.gotScopes {
+		if !want[s] {
+			t.Fatalf("unexpected scope %q (want exactly read+write+delete), got %+v", s, stub.gotScopes)
+		}
 	}
 }
 

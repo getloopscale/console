@@ -108,34 +108,20 @@ type lensDashMinter interface {
 	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, scopes []string) (string, error)
 }
 
-// newLensDashboardKeyResolver returns the per-request keyResolver for the M41 lens
-// dashboard READ BFF. It reads the tenant from the JWT-derived context ONLY (never a
-// request param) and mints a lens:READ-ONLY per-tenant key (least privilege — a
-// compromised browser JWT can never write/delete through the BFF; the write half is M44).
-// Fail-closed: no authenticated tenant → error, so the data client sends no request.
-// Extracted (not inline) so the read-only + fail-closed invariants are unit-tested on the
-// SHIPPED code path.
+// newLensDashboardKeyResolver returns the per-request keyResolver for the M44 lens
+// dashboard MANAGEMENT BFF. It reads the tenant from the JWT-derived context ONLY (never a
+// request param) and mints a lens:read+write+delete per-tenant key (ADR-1: one resolver;
+// per-verb least privilege is enforced at theo-lens — a GET only passes lens:read, a POST only
+// lens:write). Fail-closed: no authenticated tenant → error, so the data client sends no request.
+// Extracted (not inline) so the scope + fail-closed invariants are unit-tested on the SHIPPED path.
 func newLensDashboardKeyResolver(minter lensDashMinter) func(ctx context.Context) (string, error) {
 	return func(ctx context.Context) (string, error) {
 		u := auth.GetUser(ctx)
 		if u == nil || u.TenantID == "" {
 			return "", fmt.Errorf("lens dashboard: no authenticated tenant in context")
 		}
-		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"lens:read"})
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"lens:read", "lens:write", "lens:delete"})
 	}
-}
-
-// mountLensDashboard registers the read-only /v1/dashboard/lens BFF route group (M41).
-// GET-only — the write/delete management surface is M44; the route-set invariant test
-// (main_test.go) asserts only reads are mounted.
-func mountLensDashboard(r chi.Router, h *routes.LensDashboardHandler, requireJWT func(http.Handler) http.Handler) {
-	r.Route("/v1/dashboard/lens", func(r chi.Router) {
-		r.Use(requireJWT)
-		r.Get("/traces", h.ListTraces)
-		r.Get("/sessions", h.ListSessions)
-		r.Get("/observability", h.Observability)
-		r.Get("/cost", h.Cost)
-	})
 }
 
 // newRagDashboardKeyResolver returns the per-request keyResolver for the read+write (M21) rag
@@ -935,10 +921,12 @@ func main() {
 	if ragDashboardHandler != nil {
 		mountRagDashboard(r, ragDashboardHandler, requireJWT)
 	}
-	// M41: the read-only /v1/dashboard/lens BFF — the per-tenant key is minted lens:read
-	// only (least privilege). Distinct mount from /v1/lens/* (the edge surface).
+	// M44: the read+write+delete /v1/dashboard/lens management BFF — the per-tenant key is
+	// minted lens:read+write+delete (ADR-1; per-verb least privilege at theo-lens). The route
+	// set (ADR-3) has no mutating verb on the trace/session body or /agents. Distinct mount
+	// from /v1/lens/* (the edge surface).
 	if lensDashboardHandler != nil {
-		mountLensDashboard(r, lensDashboardHandler, requireJWT)
+		routes.MountLensDashboard(r, lensDashboardHandler, requireJWT)
 	}
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
