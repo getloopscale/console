@@ -79,24 +79,63 @@ func buildLensForwardAuth(
 	resolve routes.APIKeyResolver,
 	authorize routes.AccountTenantAuthorizer,
 	logger *slog.Logger,
-) (*routes.ForwardAuthHandler, error) {
+) (*routes.ForwardAuthHandler, routes.TenantKeyMinter, error) {
 	if cfg.LensBaseURL == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	lensHTTP := &http.Client{Timeout: 10 * time.Second}
 	lensAdmin := thelens.NewAdminClient(cfg.LensBaseURL, cfg.LensPlatformAdminKey.Value(), lensHTTP)
 	lensBroker, err := thelens.NewBroker(lensAdmin, 1024, time.Hour,
 		[]string{"lens:read", "lens:write", "lens:delete"})
 	if err != nil {
-		return nil, fmt.Errorf("lens broker: %w", err)
+		return nil, nil, fmt.Errorf("lens broker: %w", err)
 	}
-	return routes.NewForwardAuthHandler(resolve, lensBroker, authorize, "lens:read", logger), nil
+	// The SAME broker serves the edge ForwardAuth handler AND the M41 dashboard BFF
+	// resolver (one mint cache), mirroring rag. M38 returned only the handler (no
+	// dashboard then); M41 exposes the broker for the read BFF.
+	return routes.NewForwardAuthHandler(resolve, lensBroker, authorize, "lens:read", logger), lensBroker, nil
 }
 
 // ragDashMinter is the least-privilege minting surface the dashboard resolver needs
 // (ISP — only KeyForTenantScoped). Satisfied by the rag broker (routes.TenantKeyMinter).
 type ragDashMinter interface {
 	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, scopes []string) (string, error)
+}
+
+// lensDashMinter is the least-privilege minting surface the lens dashboard resolver needs
+// (ISP — only KeyForTenantScoped). Satisfied by the lens broker (routes.TenantKeyMinter).
+type lensDashMinter interface {
+	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, scopes []string) (string, error)
+}
+
+// newLensDashboardKeyResolver returns the per-request keyResolver for the M41 lens
+// dashboard READ BFF. It reads the tenant from the JWT-derived context ONLY (never a
+// request param) and mints a lens:READ-ONLY per-tenant key (least privilege — a
+// compromised browser JWT can never write/delete through the BFF; the write half is M44).
+// Fail-closed: no authenticated tenant → error, so the data client sends no request.
+// Extracted (not inline) so the read-only + fail-closed invariants are unit-tested on the
+// SHIPPED code path.
+func newLensDashboardKeyResolver(minter lensDashMinter) func(ctx context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		u := auth.GetUser(ctx)
+		if u == nil || u.TenantID == "" {
+			return "", fmt.Errorf("lens dashboard: no authenticated tenant in context")
+		}
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"lens:read"})
+	}
+}
+
+// mountLensDashboard registers the read-only /v1/dashboard/lens BFF route group (M41).
+// GET-only — the write/delete management surface is M44; the route-set invariant test
+// (main_test.go) asserts only reads are mounted.
+func mountLensDashboard(r chi.Router, h *routes.LensDashboardHandler, requireJWT func(http.Handler) http.Handler) {
+	r.Route("/v1/dashboard/lens", func(r chi.Router) {
+		r.Use(requireJWT)
+		r.Get("/traces", h.ListTraces)
+		r.Get("/sessions", h.ListSessions)
+		r.Get("/observability", h.Observability)
+		r.Get("/cost", h.Cost)
+	})
 }
 
 // newRagDashboardKeyResolver returns the per-request keyResolver for the read+write (M21) rag
@@ -357,7 +396,7 @@ func main() {
 	// M38 (edge-integration): a 4th ForwardAuth handler for the theo-lens
 	// capability. Built via buildLensForwardAuth (testable) — nil when LENS_BASE_URL
 	// is unset (feature off), error → refuse to start (boot-failure).
-	lensForwardAuthHandler, lensErr := buildLensForwardAuth(
+	lensForwardAuthHandler, lensBroker, lensErr := buildLensForwardAuth(
 		cfg,
 		func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
 			return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
@@ -374,6 +413,18 @@ func main() {
 	}
 	if lensForwardAuthHandler != nil {
 		logger.Info("theo-lens Model B broker wired (M38)", "base_url", cfg.LensBaseURL)
+	}
+
+	// M41: the read-only /v1/dashboard/lens BFF. Wired only when the lens broker is
+	// configured. The dashboard keyResolver mints a lens:READ-ONLY per-tenant key from
+	// the JWT-derived tenant (least privilege — the dashboard can never write/delete; the
+	// write half is M44), mirroring the rag M17 read BFF.
+	var lensDashboardHandler *routes.LensDashboardHandler
+	if lensBroker != nil {
+		lensDataClient := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
+			WithKeyResolver(newLensDashboardKeyResolver(lensBroker))
+		lensDashboardHandler = routes.NewLensDashboardHandler(lensDataClient, logger)
+		logger.Info("dashboard lens enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/lens")
 	}
 
 	// M17: the read+write /v1/dashboard/rag BFF (M21). Wired only when the rag broker is
@@ -883,6 +934,11 @@ func main() {
 	// is minted rag:read+write+delete (M21). Distinct mount from /v1/rag/* (the SDK/edge surface).
 	if ragDashboardHandler != nil {
 		mountRagDashboard(r, ragDashboardHandler, requireJWT)
+	}
+	// M41: the read-only /v1/dashboard/lens BFF — the per-tenant key is minted lens:read
+	// only (least privilege). Distinct mount from /v1/lens/* (the edge surface).
+	if lensDashboardHandler != nil {
+		mountLensDashboard(r, lensDashboardHandler, requireJWT)
 	}
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
