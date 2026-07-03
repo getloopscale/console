@@ -18,10 +18,17 @@ vi.mock('@/lib/api', () => ({
   clearToken: vi.fn(),
 }));
 
+// M0 J-02 T3.1 — mock the provisioning hook so the completing screen renders
+// without a real poll. Default: still pending (stays on the screen).
+vi.mock('@/hooks/use-provisioning-status', () => ({
+  useProvisioningStatus: vi.fn(() => ({ status: 'pending', loading: false })),
+}));
+
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
 import { RegisterPage } from './register';
+import { getSession } from '@/lib/auth';
 
 interface FlowMessage {
   text: string;
@@ -60,6 +67,24 @@ describe('RegisterPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
+  });
+
+  // M0 J-02 T3.1 wiring — when a session is detected (registration succeeded),
+  // the page hands off to the provisioning "completing" screen instead of
+  // redirecting immediately, so a new tenant lands on the app only once its
+  // bootstrap is ready.
+  it('test_detected_session_shows_provisioning_completing_screen', async () => {
+    vi.mocked(getSession).mockResolvedValueOnce({
+      identity: { id: 'u1', traits: { email: 'new@x.com', name: 'New User' } },
+    } as never);
+
+    render(<RegisterPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /setting up your workspace/i })).toBeInTheDocument();
+    });
+    // The signup form is NOT shown while completing.
+    expect(screen.queryByRole('button', { name: /create account/i })).not.toBeInTheDocument();
   });
 
   it('test_register_renders_form_with_kratos_flow', async () => {

@@ -9,6 +9,7 @@ import { API_URL, AUTH_URL } from '@/lib/config';
 // T1.2/T1.3 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #18 + #28.
 import { KRATOS_PASSWORD_MIN_LENGTH } from '@/lib/auth-policy';
 import { validateRequired, validateEmail, validatePasswordMinLength, validateMaxLength } from '@/lib/validation';
+import { RegisterCompletingScreen } from '@/components/register/register-completing-screen';
 
 const KRATOS_URL = AUTH_URL || API_URL;
 
@@ -75,6 +76,10 @@ export function RegisterPage() {
   const [searchParams] = useSearchParams();
   const [flow, setFlow] = useState<Flow | null>(null);
   const [loading, setLoading] = useState(true);
+  // M0 J-02 T3.1 — once a session is detected (registration succeeded), show the
+  // provisioning "completing" screen until the tenant bootstrap is ready, then
+  // redirect. An already-provisioned session resolves instantly (no delay).
+  const [completing, setCompleting] = useState(false);
   // #74 closure: hydrate name/email from the prior submission when the
   // Kratos POST round-tripped here with an error. The persisted blob is
   // cleared as soon as the user lands on /auth/check-email after a
@@ -103,7 +108,10 @@ export function RegisterPage() {
         // wipe the persisted form so a future signup attempt (after
         // logout) starts clean.
         clearPersistedRegisterForm();
-        navigate('/', { replace: true });
+        // Hand off to the provisioning "completing" screen instead of
+        // redirecting immediately, so a brand-new tenant lands on the app only
+        // after its bootstrap is ready (M0 J-02 T3.1).
+        setCompleting(true);
       } else {
         setLoading(false);
       }
@@ -235,6 +243,10 @@ export function RegisterPage() {
       // We don't clear it here because form.submit() doesn't return synchronously.
     }
   };
+
+  if (completing) {
+    return <RegisterCompletingScreen onReady={() => navigate('/', { replace: true })} />;
+  }
 
   if (loading) {
     return (
