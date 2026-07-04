@@ -6,6 +6,7 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjectStatus } from '@/hooks/use-project-status';
 import { useStatusStream } from '@/hooks/use-status-stream';
+import { useKpiMetric } from '@/hooks/use-kpi-metric';
 import type { SignalName } from '@/hooks/use-status-stream';
 import { KPIStripStatus } from '@/components/project/kpi-strip-status';
 import { SignalGrid } from '@/components/project/signal-grid';
@@ -74,6 +75,19 @@ export function ProjectStatusPage() {
   // T2.1 SSE consumer scaffold — T1.3 backend not wired yet, returns empty signals.
   // When T1.3 ships, this powers realtime SignalGrid updates.
   useStatusStream(name, status?.environment ?? 'production');
+
+  // J-18 — current KPI values from the metrics_proxy (last point of a 1h range).
+  // Called unconditionally at the top (rules of hooks); the env resolves to
+  // status.environment once loaded (undefined → 'production' default in the hook).
+  // Unit conversions match the SignalGrid formatters: uptime avg_over_time
+  // (0..1) → % (×100); p95 histogram_quantile (seconds) → ms (×1000); error_rate
+  // is already a % (theo#170 fix → ratio ×100) so ×1; rps passes through. These
+  // render "—" honestly until a Prometheus backend is reachable.
+  const kpiEnv = status?.environment;
+  const uptime24hKpi = useKpiMetric(name, kpiEnv, 'uptime_24h', 100);
+  const p95LatencyKpi = useKpiMetric(name, kpiEnv, 'p95_latency', 1000);
+  const errorRateKpi = useKpiMetric(name, kpiEnv, 'error_rate', 1);
+  const rpsKpi = useKpiMetric(name, kpiEnv, 'rps', 1);
 
   const handleDrillDown = (signal: SignalName) => {
     setDrillDownSignal(signal);
@@ -159,10 +173,12 @@ export function ProjectStatusPage() {
   // from useStatusStream signals[]. For now: scaling fields + null for KPIs
   // that need Prometheus (uptime, p95, error_rate, rps) — UI renders "—" honest.
   const replicas = status.scaling?.replicas ?? null;
-  const uptime24h: number | null = null; // T1.2 metrics_proxy backend; UI ready
-  const p95LatencyMs: number | null = null;
-  const errorRate: number | null = null;
-  const rps: number | null = null;
+  // J-18 — wired to the metrics_proxy (derived above, before the early returns
+  // per rules of hooks). Null until Prometheus is reachable → UI renders "—".
+  const uptime24h = uptime24hKpi;
+  const p95LatencyMs = p95LatencyKpi;
+  const errorRate = errorRateKpi;
+  const rps = rpsKpi;
 
   // Red Team theo-cloud#124 — health-truth fix.
   // Pre-fix: `Healthy` was emitted from active_release.status === 'ACTIVE'

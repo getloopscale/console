@@ -31,6 +31,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/billing"
 	"github.com/usetheodev/theo-cloud/internal/config"
 	"github.com/usetheodev/theo-cloud/internal/consent"
+	"github.com/usetheodev/theo-cloud/internal/deploy_event_enqueuer"
 	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
@@ -42,6 +43,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/thelens"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
+	"github.com/usetheodev/theo-cloud/internal/workspace_webhook_worker"
 )
 
 // buildRagForwardAuth constructs the theo-rag Model-B ForwardAuth handler + its broker
@@ -966,6 +968,22 @@ func main() {
 		r.Post("/v1/webhooks/stripe", billingHandler.Webhook)
 	}
 
+	// J-16 Settings — workspace/deploy webhook registrations (owner-only; a
+	// privileged workspace config, mirroring billing's owner gate). Registration
+	// -only v0.1 — delivery is a later T2 slice. Persists to workspace_webhooks
+	// (engine migration 000050). Path is /v1/settings/webhooks to avoid colliding
+	// with the Stripe/GitHub inbound webhook receivers under /v1/webhooks/*.
+	if db != nil {
+		wwh := routes.NewWorkspaceWebhooksHandler(db, logger)
+		r.Route("/v1/settings/webhooks", func(r chi.Router) {
+			r.Use(requireJWT)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Post("/", wwh.Create)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/list", wwh.List)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/{id}/deliveries", wwh.Deliveries)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Delete("/{id}", wwh.Delete)
+		})
+	}
+
 	// Engine API proxy — dashboard calls engine through cloud service.
 	// The engine only accepts RSA tokens (aud=theo-engine) or internal service auth.
 	// Dashboard has HMAC tokens, so cloud authenticates to engine via X-Service-Auth.
@@ -1200,6 +1218,24 @@ func main() {
 		webhookWorker := memory_webhook_worker.New(db, logger, nil)
 		go webhookWorker.Run(schedulerCtx)
 		logger.Info("memory webhook dispatcher started")
+	}
+
+	// J-16 slice 3: dispatch workspace_webhook_deliveries (deploy/build events)
+	// to customer URLs through the SSRF-guarded client, with a lease + reaper.
+	if db != nil {
+		wsWorker := workspace_webhook_worker.New(db, logger, os.Getenv("HOSTNAME"))
+		go wsWorker.Run(schedulerCtx)
+		logger.Info("workspace webhook dispatcher started")
+	}
+
+	// J-16 slice 3: drain the deploy_events outbox (engine migration 000051)
+	// and fan each event out to subscribed workspace_webhooks as delivery rows.
+	// Pure DB fan-out (no outbound HTTP) — the delivery worker dispatches. Until
+	// the full chain is live it produces ~zero rows (no subscribed webhooks).
+	if db != nil {
+		enq := deploy_event_enqueuer.New(db, logger)
+		go enq.Run(schedulerCtx)
+		logger.Info("deploy-event enqueuer started")
 	}
 
 	// T1.9 production deployment: start cost aggregator if Prometheus

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryState, parseAsString } from 'nuqs';
-import { Brain, History, ShieldAlert, X } from 'lucide-react';
+import { Brain, Download, History, ShieldAlert, X } from 'lucide-react';
 import { Badge, Button, Card, PageShell, Table } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { engineFetch } from '@/lib/api';
 import { formatDate } from '@/lib/format';
+import { triggerAuditCsvDownload } from '@/lib/audit-csv';
 import type { AuditEntry, AuditListResponse, AuditSeverity } from '@/lib/api/types';
 
 const SEVERITY_BADGE: Record<
@@ -114,6 +115,18 @@ export function AuditPage() {
         value: actionFilter,
         onChange: setActionFilter,
       }}
+      primaryAction={
+        // J-14 CSV export — export the currently-visible rows (WYSIWYG:
+        // honors the active action/actor/source filters). Omitted when there
+        // is nothing to export.
+        visibleEntries.length > 0
+          ? {
+              label: 'Export CSV',
+              icon: Download,
+              onClick: () => triggerAuditCsvDownload(visibleEntries),
+            }
+          : undefined
+      }
       loading={loading}
       empty={
         !loading && visibleEntries.length === 0
