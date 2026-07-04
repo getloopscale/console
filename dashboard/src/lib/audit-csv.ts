@@ -26,6 +26,17 @@ const HEADER = [
   'Correlation ID',
 ] as const;
 
+/** CSV formula-injection guard (CWE-1236 / OWASP "CSV Injection", theo-cloud#157).
+ *  Audit fields are user-authored (project names, emails, resource ids) and the
+ *  export is opened by a privileged owner — a value starting with =/+/-/@/tab/CR
+ *  is a LIVE FORMULA in Excel / Google Sheets / LibreOffice (HYPERLINK/WEBSERVICE
+ *  exfiltration, DDE command exec). Prefix a single apostrophe: Excel treats it
+ *  as a text marker (not displayed) and the value is inert. Applied BEFORE RFC
+ *  escaping so the guard char is inside any quoting. */
+function neutralizeFormula(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 /** RFC 4180 field escaping: quote when the value contains a comma, quote, or
  *  CR/LF; double any embedded quote. */
 function csvField(value: string): string {
@@ -46,7 +57,7 @@ export function auditEntriesToCsv(entries: AuditEntry[]): string {
       e.severity ?? '',
       e.correlation_id ?? '',
     ]
-      .map((f) => csvField(String(f)))
+      .map((f) => csvField(neutralizeFormula(String(f))))
       .join(','),
   );
   return [HEADER.join(','), ...rows].join('\r\n');

