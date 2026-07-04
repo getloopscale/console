@@ -215,3 +215,76 @@ func (h *WorkspaceWebhooksHandler) Delete(w http.ResponseWriter, r *http.Request
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// Deliveries returns the most-recent deliveries for one webhook, scoped to the
+// authenticated owner (subject + tenant) so a caller cannot read another
+// tenant's delivery history. Mirrors MemoryWebhookDeliveriesHandler.List; reuses
+// the shared DeliveryView + deliveryHistoryLimit.
+// GET /v1/settings/webhooks/{id}/deliveries
+func (h *WorkspaceWebhooksHandler) Deliveries(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+
+	webhookID := chi.URLParam(r, "id")
+	if !workspaceWebhookIDPattern.MatchString(webhookID) {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "Webhook id must match wwh-{16hex}.")
+		return
+	}
+
+	const q = `
+		SELECT d.id, d.event_type, d.status, d.attempt_count,
+		       d.last_response_status, d.last_error_message,
+		       d.created_at, d.completed_at
+		FROM workspace_webhook_deliveries d
+		JOIN workspace_webhooks w ON w.id = d.webhook_id
+		WHERE d.webhook_id = $1 AND w.subject = $2 AND w.tenant_id = $3
+		ORDER BY d.created_at DESC
+		LIMIT $4`
+	rows, err := h.db.QueryContext(r.Context(), q, webhookID, user.Subject, user.TenantID, deliveryHistoryLimit)
+	if err != nil {
+		h.logger.Warn("workspace webhook deliveries list: query failed", "error", err, "webhook_id", webhookID)
+		writeError(w, http.StatusInternalServerError, "INTERNAL", "Could not load deliveries. Try again.")
+		return
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]DeliveryView, 0, deliveryHistoryLimit)
+	for rows.Next() {
+		var (
+			v          DeliveryView
+			lastStatus sql.NullInt64
+			lastErr    sql.NullString
+			completed  sql.NullString
+		)
+		if err := rows.Scan(&v.ID, &v.EventType, &v.Status, &v.AttemptCount,
+			&lastStatus, &lastErr, &v.CreatedAt, &completed); err != nil {
+			h.logger.Warn("workspace webhook deliveries list: scan failed", "error", err)
+			continue
+		}
+		if lastStatus.Valid {
+			s := int(lastStatus.Int64)
+			v.LastResponseStatus = &s
+		}
+		if lastErr.Valid {
+			msg := lastErr.String
+			if len(msg) > 200 {
+				msg = msg[:200] + "…"
+			}
+			msg = strings.Map(func(r rune) rune {
+				if r < 32 && r != '\n' && r != '\t' {
+					return ' '
+				}
+				return r
+			}, msg)
+			v.LastErrorMessage = &msg
+		}
+		if completed.Valid {
+			v.CompletedAt = &completed.String
+		}
+		out = append(out, v)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deliveries": out})
+}

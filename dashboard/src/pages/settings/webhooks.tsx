@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { History, Plus, Trash2 } from 'lucide-react';
 import {
   Alert,
   Badge,
@@ -14,6 +14,7 @@ import {
   EmptyState,
   Input,
   PageShell,
+  Sheet,
   Timestamp,
 } from '@usetheo/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -77,6 +78,7 @@ export function WorkspaceWebhooksPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Webhook | null>(null);
   const [createdSecret, setCreatedSecret] = useState<CreatedWebhook | null>(null);
+  const [viewingFor, setViewingFor] = useState<Webhook | null>(null);
 
   const create = useMutation({
     mutationFn: (input: { url: string; label: string; events: string[] }) =>
@@ -132,14 +134,24 @@ export function WorkspaceWebhooksPage() {
       label: '',
       align: 'right',
       render: (row) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={`Delete webhook ${row.label}`}
-          onClick={() => setPendingDelete(row)}
-        >
-          <Trash2 className="size-4 text-destructive" />
-        </Button>
+        <div className="flex justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`View deliveries for ${row.label}`}
+            onClick={() => setViewingFor(row)}
+          >
+            <History className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Delete webhook ${row.label}`}
+            onClick={() => setPendingDelete(row)}
+          >
+            <Trash2 className="size-4 text-destructive" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -219,7 +231,106 @@ export function WorkspaceWebhooksPage() {
           onConfirm={() => revoke.mutate(pendingDelete.id)}
         />
       ) : null}
+
+      {viewingFor ? (
+        <DeliveriesSheet
+          webhook={viewingFor}
+          open={viewingFor !== null}
+          onOpenChange={(o) => !o && setViewingFor(null)}
+        />
+      ) : null}
     </>
+  );
+}
+
+interface Delivery {
+  id: string;
+  event_type: string;
+  status: 'pending' | 'delivering' | 'delivered' | 'failed' | 'dead_letter';
+  attempt_count: number;
+  last_response_status?: number;
+  last_error_message?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
+function deliveryStatusVariant(s: Delivery['status']): 'default' | 'success' | 'warning' | 'destructive' {
+  switch (s) {
+    case 'delivered':
+      return 'success';
+    case 'pending':
+    case 'delivering':
+      return 'warning';
+    case 'dead_letter':
+      return 'destructive';
+    default:
+      return 'default';
+  }
+}
+
+/**
+ * Read-only delivery history for one webhook (last 10). Backed by
+ * GET /v1/settings/webhooks/{id}/deliveries. Populates once the delivery
+ * pipeline is live; until then it shows the empty state.
+ */
+function DeliveriesSheet({
+  webhook,
+  open,
+  onOpenChange,
+}: {
+  webhook: Webhook;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const query = useQuery({
+    queryKey: ['cloud', `/v1/settings/webhooks/${webhook.id}/deliveries`] as const,
+    queryFn: () => cloudFetch<{ deliveries: Delivery[] }>(`/v1/settings/webhooks/${webhook.id}/deliveries`),
+    enabled: open,
+  });
+  const deliveries = query.data?.deliveries ?? [];
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet.Content side="right">
+        <Sheet.Header>
+          <Sheet.Title>Recent deliveries</Sheet.Title>
+          <Sheet.Description>
+            {webhook.label} · last {deliveries.length} {deliveries.length === 1 ? 'delivery' : 'deliveries'}
+          </Sheet.Description>
+        </Sheet.Header>
+        <Sheet.Body className="space-y-3">
+          {query.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading deliveries…</p>
+          ) : deliveries.length === 0 ? (
+            <p className="text-sm text-muted-foreground" data-testid="deliveries-empty">
+              No deliveries yet.
+            </p>
+          ) : (
+            deliveries.map((d) => (
+              <Card key={d.id} data-testid={`delivery-${d.id}`}>
+                <Card.Body>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={deliveryStatusVariant(d.status)}>{d.status}</Badge>
+                      <span className="text-sm font-medium">{d.event_type}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      <Timestamp value={d.created_at} /> · attempt {d.attempt_count}
+                      {d.last_response_status ? ` · HTTP ${d.last_response_status}` : ''}
+                    </p>
+                    {d.last_error_message ? (
+                      <p className="text-xs text-destructive truncate" title={d.last_error_message}>
+                        {d.last_error_message}
+                      </p>
+                    ) : null}
+                  </div>
+                </Card.Body>
+              </Card>
+            ))
+          )}
+        </Sheet.Body>
+      </Sheet.Content>
+    </Sheet>
   );
 }
 
