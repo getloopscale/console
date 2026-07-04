@@ -120,6 +120,12 @@ func traceFilter(r *http.Request) thelens.TraceListFilter {
 		From:   q.Get("from"),
 		To:     q.Get("to"),
 		Q:      q.Get("q"),
+		// M52: advanced filters (whitelist by construction — an unknown param has no field).
+		MinCostUsd: q.Get("min_cost_usd"),
+		MaxCostUsd: q.Get("max_cost_usd"),
+		MinTokens:  q.Get("min_tokens"),
+		MaxTokens:  q.Get("max_tokens"),
+		SessionID:  q.Get("session_id"),
 	}
 }
 

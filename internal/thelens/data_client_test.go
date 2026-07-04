@@ -90,6 +90,32 @@ func TestDataClient_ListTraces_ForwardsWhitelistedFilters(t *testing.T) {
 	}
 }
 
+// TestDataClient_ListTraces_ForwardsAdvancedFilters (M52) — cost/token ranges + session reach
+// theo-lens as snake_case params; an unset advanced filter is omitted.
+func TestDataClient_ListTraces_ForwardsAdvancedFilters(t *testing.T) {
+	var gotPath, gotQuery, gotAuth string
+	srv := captureServer(t, &gotPath, &gotQuery, &gotAuth, `{"traces":[]}`)
+	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
+
+	_, err := c.ListTraces(context.Background(), TraceListFilter{
+		MinCostUsd: "0.1", MaxCostUsd: "5", MinTokens: "100", MaxTokens: "9000", SessionID: "sess-x",
+	})
+	if err != nil {
+		t.Fatalf("ListTraces: %v", err)
+	}
+	q, _ := url.ParseQuery(gotQuery)
+	for k, want := range map[string]string{
+		"min_cost_usd": "0.1", "max_cost_usd": "5", "min_tokens": "100", "max_tokens": "9000", "session_id": "sess-x",
+	} {
+		if q.Get(k) != want {
+			t.Errorf("forwarded %s = %q, want %q (full query=%q)", k, q.Get(k), want, gotQuery)
+		}
+	}
+	if q.Has("model") { // an unset filter is not sent
+		t.Errorf("unset filter leaked: %q", gotQuery)
+	}
+}
+
 // TestDataClient_ListTraces_OmitsEmptyFilters (M49) — empty filter fields are NOT sent (no
 // `status=&model=` noise), so theo-lens sees only the active filters.
 func TestDataClient_ListTraces_OmitsEmptyFilters(t *testing.T) {

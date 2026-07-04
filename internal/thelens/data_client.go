@@ -59,6 +59,12 @@ type TraceListFilter struct {
 	Model         string
 	From, To      string // ISO-8601 datetime bounds
 	Q             string // full-text search
+	// M52: advanced filters (pass-through strings; theo-lens coerces + validates).
+	MinCostUsd string
+	MaxCostUsd string
+	MinTokens  string
+	MaxTokens  string
+	SessionID  string
 }
 
 // ListTraces proxies GET /v1/traces with the per-tenant Bearer, forwarding the whitelisted filters.
@@ -83,6 +89,22 @@ func filterQuery(f TraceListFilter) url.Values {
 	}
 	if f.Q != "" {
 		q.Set("q", f.Q)
+	}
+	// M52: advanced filters → theo-lens snake_case params (only when set).
+	if f.MinCostUsd != "" {
+		q.Set("min_cost_usd", f.MinCostUsd)
+	}
+	if f.MaxCostUsd != "" {
+		q.Set("max_cost_usd", f.MaxCostUsd)
+	}
+	if f.MinTokens != "" {
+		q.Set("min_tokens", f.MinTokens)
+	}
+	if f.MaxTokens != "" {
+		q.Set("max_tokens", f.MaxTokens)
+	}
+	if f.SessionID != "" {
+		q.Set("session_id", f.SessionID)
 	}
 	return q
 }

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import { Trash2 } from 'lucide-react';
+import { BookmarkPlus, Trash2 } from 'lucide-react';
 import {
   Alert,
   Badge,
@@ -44,6 +45,14 @@ interface TracesResult {
 interface TagsResult {
   tags: string[];
 }
+interface SavedView {
+  id: string;
+  name: string;
+  query_string: string;
+}
+interface SavedViewsResult {
+  saved_views: SavedView[];
+}
 
 const RANGE_VALUES = ['all', '1h', '24h', '7d'] as const;
 type Range = (typeof RANGE_VALUES)[number];
@@ -58,11 +67,18 @@ interface TraceFilters {
   status: 'all' | 'error';
   model: string;
   range: Range;
+  // M52 — advanced filters (strings; empty = inactive). Forwarded as theo-lens snake_case params.
+  costMin: string;
+  costMax: string;
+  tokensMin: string;
+  tokensMax: string;
+  session: string;
 }
 
 /**
  * Build the `/v1/dashboard/lens/traces` query string from the active filters — active-only (empty /
  * `all` values are omitted so theo-lens sees only real filters), `range` → a `from` ISO timestamp.
+ * M52 folds in the advanced filters (cost/token ranges + session) → theo-lens's snake_case params.
  * `now` is injected (not `Date.now()` inline) so the helper is deterministic + unit-testable
  * (`.claude/rules/testing.md` — inject the clock).
  */
@@ -72,6 +88,11 @@ export function buildTraceQuery(f: TraceFilters, now: number): string {
   if (f.status === 'error') p.set('status', 'error');
   if (f.model.trim()) p.set('model', f.model.trim());
   if (f.range !== 'all') p.set('from', new Date(now - RANGE_MS[f.range]).toISOString());
+  if (f.costMin.trim()) p.set('min_cost_usd', f.costMin.trim());
+  if (f.costMax.trim()) p.set('max_cost_usd', f.costMax.trim());
+  if (f.tokensMin.trim()) p.set('min_tokens', f.tokensMin.trim());
+  if (f.tokensMax.trim()) p.set('max_tokens', f.tokensMax.trim());
+  if (f.session.trim()) p.set('session_id', f.session.trim());
   const s = p.toString();
   return s ? `?${s}` : '';
 }
@@ -92,6 +113,12 @@ export function LensTracesPage() {
   const [status, setStatus] = useQueryState('status', parseAsStringEnum(['all', 'error']).withDefault('all'));
   const [model, setModel] = useQueryState('model', parseAsString.withDefault(''));
   const [range, setRange] = useQueryState('range', parseAsStringEnum([...RANGE_VALUES]).withDefault('all'));
+  // M52 — advanced filters (URL-persisted, forwarded server-side).
+  const [costMin, setCostMin] = useQueryState('cost_min', parseAsString.withDefault(''));
+  const [costMax, setCostMax] = useQueryState('cost_max', parseAsString.withDefault(''));
+  const [tokensMin, setTokensMin] = useQueryState('tokens_min', parseAsString.withDefault(''));
+  const [tokensMax, setTokensMax] = useQueryState('tokens_max', parseAsString.withDefault(''));
+  const [session, setSession] = useQueryState('session', parseAsString.withDefault(''));
 
   // The search box keeps its own immediate value (responsive typing) and DEBOUNCES into the `q`
   // query-state that drives the server fetch — one request per pause, not per keystroke (a full-text
@@ -105,8 +132,59 @@ export function LensTracesPage() {
     return () => clearTimeout(t);
   }, [searchInput, q, setQ]);
 
-  const filters: TraceFilters = { q, status, model, range };
-  const hasActiveFilters = q.trim() !== '' || status !== 'all' || model.trim() !== '' || range !== 'all';
+  const filters: TraceFilters = { q, status, model, range, costMin, costMax, tokensMin, tokensMax, session };
+  const hasActiveFilters =
+    q.trim() !== '' ||
+    status !== 'all' ||
+    model.trim() !== '' ||
+    range !== 'all' ||
+    costMin.trim() !== '' ||
+    costMax.trim() !== '' ||
+    tokensMin.trim() !== '' ||
+    tokensMax.trim() !== '' ||
+    session.trim() !== '';
+
+  // M52 — saved views: a per-tenant store of the current filter URL. Apply = write the whole search
+  // string (nuqs re-hydrates every filter); share = the URL itself.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [viewName, setViewName] = useState('');
+  const [pendingView, setPendingView] = useState<SavedView | null>(null);
+
+  const savedViewsKey = ['cloud', '/v1/dashboard/lens/saved-views'] as const;
+  const savedViews = useQuery({
+    queryKey: savedViewsKey,
+    queryFn: () => cloudFetch<SavedViewsResult>('/v1/dashboard/lens/saved-views'),
+  });
+  const invalidateViews = () => void queryClient.invalidateQueries({ queryKey: savedViewsKey });
+
+  const createView = useMutation({
+    mutationFn: (name: string) =>
+      cloudFetch<SavedView>('/v1/dashboard/lens/saved-views', {
+        method: 'POST',
+        // the query string IS the view — the current filter URL (or a bare "?" when no filter is set).
+        body: JSON.stringify({ name, query_string: searchParams.toString() ? `?${searchParams.toString()}` : '?' }),
+      }),
+    onSuccess: () => {
+      setSaveOpen(false);
+      setViewName('');
+      invalidateViews();
+    },
+  });
+
+  const deleteView = useMutation({
+    mutationFn: (id: string) =>
+      cloudFetch<unknown>(`/v1/dashboard/lens/saved-views/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      setPendingView(null);
+      invalidateViews();
+    },
+  });
+
+  // Apply a saved view: replace the URL search with its stored query string; nuqs re-reads every key.
+  const applyView = (queryString: string) => {
+    setSearchParams(new URLSearchParams(queryString.replace(/^\?/, '')));
+  };
 
   const query = useQuery({
     // Key by the filter VALUES (not the derived `from` timestamp) so the cache is stable across
@@ -265,12 +343,135 @@ export function LensTracesPage() {
                   void setStatus(null);
                   void setModel(null);
                   void setRange(null);
+                  void setCostMin(null);
+                  void setCostMax(null);
+                  void setTokensMin(null);
+                  void setTokensMax(null);
+                  void setSession(null);
                 }}
                 aria-label="Clear filters"
               >
                 Clear
               </Button>
             ) : null}
+          </div>
+
+          {/* M52 — advanced filters: cost/token ranges + session (server-side, URL-persisted). */}
+          <div className="flex flex-wrap items-end gap-3" aria-label="Advanced filters">
+            <div>
+              <label htmlFor="cost-min" className="mb-1 block text-xs font-medium text-muted-foreground">
+                Cost ≥ (USD)
+              </label>
+              <Input
+                id="cost-min"
+                type="number"
+                className="w-[120px]"
+                value={costMin}
+                onChange={(e) => void setCostMin(e.target.value || null)}
+                placeholder="min"
+                aria-label="Minimum cost USD"
+              />
+            </div>
+            <div>
+              <label htmlFor="cost-max" className="mb-1 block text-xs font-medium text-muted-foreground">
+                Cost ≤ (USD)
+              </label>
+              <Input
+                id="cost-max"
+                type="number"
+                className="w-[120px]"
+                value={costMax}
+                onChange={(e) => void setCostMax(e.target.value || null)}
+                placeholder="max"
+                aria-label="Maximum cost USD"
+              />
+            </div>
+            <div>
+              <label htmlFor="tokens-min" className="mb-1 block text-xs font-medium text-muted-foreground">
+                Tokens ≥
+              </label>
+              <Input
+                id="tokens-min"
+                type="number"
+                className="w-[110px]"
+                value={tokensMin}
+                onChange={(e) => void setTokensMin(e.target.value || null)}
+                placeholder="min"
+                aria-label="Minimum tokens"
+              />
+            </div>
+            <div>
+              <label htmlFor="tokens-max" className="mb-1 block text-xs font-medium text-muted-foreground">
+                Tokens ≤
+              </label>
+              <Input
+                id="tokens-max"
+                type="number"
+                className="w-[110px]"
+                value={tokensMax}
+                onChange={(e) => void setTokensMax(e.target.value || null)}
+                placeholder="max"
+                aria-label="Maximum tokens"
+              />
+            </div>
+            <div className="min-w-[180px] flex-1">
+              <label htmlFor="session-filter" className="mb-1 block text-xs font-medium text-muted-foreground">
+                Session
+              </label>
+              <Input
+                id="session-filter"
+                value={session}
+                onChange={(e) => void setSession(e.target.value || null)}
+                placeholder="session id (exact)"
+                aria-label="Filter by session id"
+              />
+            </div>
+          </div>
+
+          {/* M52 — saved views: apply / delete a stored filter combination, or save the current one. */}
+          <div className="flex flex-wrap items-center gap-2" aria-label="Saved views">
+            <span className="text-xs font-medium text-muted-foreground">Saved views:</span>
+            {(savedViews.data?.saved_views ?? []).map((v) => (
+              <span key={v.id} className="flex items-center gap-0.5">
+                <Button variant="secondary" size="sm" onClick={() => applyView(v.query_string)} aria-label={`Apply view ${v.name}`}>
+                  {v.name}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setPendingView(v)} aria-label={`Delete view ${v.name}`}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </span>
+            ))}
+            {(savedViews.data?.saved_views ?? []).length === 0 ? (
+              <span className="text-xs text-muted-foreground">none yet</span>
+            ) : null}
+            {saveOpen ? (
+              <form
+                className="flex items-center gap-1"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (viewName.trim()) createView.mutate(viewName.trim());
+                }}
+              >
+                <Input
+                  value={viewName}
+                  onChange={(e) => setViewName(e.target.value)}
+                  placeholder="View name"
+                  aria-label="Saved view name"
+                  className="w-[160px]"
+                />
+                <Button type="submit" size="sm" disabled={!viewName.trim() || createView.isPending}>
+                  Save
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setSaveOpen(false)}>
+                  Cancel
+                </Button>
+              </form>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => setSaveOpen(true)} aria-label="Save current view">
+                <BookmarkPlus className="mr-1 h-3.5 w-3.5" />
+                Save current view
+              </Button>
+            )}
           </div>
 
           {query.isLoading ? (
@@ -364,6 +565,20 @@ export function LensTracesPage() {
           intent="destructive"
           loading={removeTag.isPending}
           onConfirm={() => removeTag.mutate(pendingTag)}
+        />
+      ) : null}
+
+      {pendingView !== null ? (
+        <ConfirmDialog
+          open={pendingView !== null}
+          onOpenChange={(o) => !o && setPendingView(null)}
+          title={`Delete view "${pendingView.name}"?`}
+          description={<p className="text-sm">This removes the saved view. Your current filters are unaffected.</p>}
+          confirmLabel={deleteView.isPending ? 'Deleting…' : 'Delete view'}
+          cancelLabel="Cancel"
+          intent="destructive"
+          loading={deleteView.isPending}
+          onConfirm={() => deleteView.mutate(pendingView.id)}
         />
       ) : null}
     </>

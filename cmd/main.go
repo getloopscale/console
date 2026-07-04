@@ -941,6 +941,12 @@ func main() {
 	if lensDashboardHandler != nil {
 		routes.MountLensDashboard(r, lensDashboardHandler, requireJWT)
 	}
+	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
+	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even
+	// when the per-tenant lens broker is disabled.
+	if db != nil {
+		routes.MountLensSavedViews(r, routes.NewLensSavedViewsHandler(db, logger), requireJWT)
+	}
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
 	// below alongside the metering scheduler, sharing the schedulerCtx for

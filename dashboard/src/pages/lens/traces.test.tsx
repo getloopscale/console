@@ -3,6 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { within, waitFor, render as rtlRender, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
+import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider, Toaster, violetForge } from '@usetheo/ui';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import { render, screen } from '@/test/render';
@@ -18,9 +19,14 @@ function renderWithParams(ui: React.ReactElement, searchParams: string): RenderR
       <QueryClientProvider client={client}>
         <ThemeProvider themes={[violetForge]} defaultTheme="violet-forge" defaultMode="dark">
           <Toaster>
-            <NuqsTestingAdapter searchParams={searchParams}>
-              <PageMetaProvider>{children}</PageMetaProvider>
-            </NuqsTestingAdapter>
+            {/* MemoryRouter so the component's react-router useSearchParams (M52 saved-view apply)
+                has a Router; NuqsTestingAdapter isolates the nuqs filter state. Both start at the
+                same search string, so they stay consistent. */}
+            <MemoryRouter initialEntries={[`/observability/traces${searchParams}`]}>
+              <NuqsTestingAdapter searchParams={searchParams}>
+                <PageMetaProvider>{children}</PageMetaProvider>
+              </NuqsTestingAdapter>
+            </MemoryRouter>
           </Toaster>
         </ThemeProvider>
       </QueryClientProvider>
@@ -120,36 +126,54 @@ describe('LensTracesPage (/observability/traces)', () => {
   });
 });
 
-describe('buildTraceQuery (M49 — pure filter→querystring mapping)', () => {
+describe('buildTraceQuery (M49/M52 — pure filter→querystring mapping)', () => {
   const NOW = Date.UTC(2026, 6, 4, 12, 0, 0); // fixed clock, injected — deterministic
+  // Fill the required TraceFilters fields; a test overrides only what it exercises.
+  const bf = (o: Partial<Parameters<typeof buildTraceQuery>[0]>) =>
+    buildTraceQuery(
+      { q: '', status: 'all', model: '', range: 'all', costMin: '', costMax: '', tokensMin: '', tokensMax: '', session: '', ...o },
+      NOW,
+    );
 
   it('emits an empty string when no filter is active', () => {
-    expect(buildTraceQuery({ q: '', status: 'all', model: '', range: 'all' }, NOW)).toBe('');
+    expect(bf({})).toBe('');
   });
 
   it('trims and forwards a non-empty search term as q=', () => {
-    expect(buildTraceQuery({ q: '  boom  ', status: 'all', model: '', range: 'all' }, NOW)).toBe('?q=boom');
+    expect(bf({ q: '  boom  ' })).toBe('?q=boom');
   });
 
   it('forwards status only when it is error (all is the sentinel for "no filter")', () => {
-    expect(buildTraceQuery({ q: '', status: 'error', model: '', range: 'all' }, NOW)).toBe('?status=error');
+    expect(bf({ status: 'error' })).toBe('?status=error');
   });
 
   it('forwards a selected model and omits an empty one', () => {
-    expect(buildTraceQuery({ q: '', status: 'all', model: 'claude-opus-4-8', range: 'all' }, NOW)).toContain(
-      'model=claude-opus-4-8',
-    );
-    expect(buildTraceQuery({ q: '', status: 'all', model: '', range: 'all' }, NOW)).not.toContain('model=');
+    expect(bf({ model: 'claude-opus-4-8' })).toContain('model=claude-opus-4-8');
+    expect(bf({})).not.toContain('model=');
   });
 
   it('maps a time range to a from= ISO timestamp computed from the injected clock', () => {
-    const qs = buildTraceQuery({ q: '', status: 'all', model: '', range: '1h' }, NOW);
-    const from = new URLSearchParams(qs.slice(1)).get('from');
+    const from = new URLSearchParams(bf({ range: '1h' }).slice(1)).get('from');
     expect(from).toBe(new Date(NOW - 3_600_000).toISOString());
   });
 
   it('omits from= when the range is "all"', () => {
-    expect(buildTraceQuery({ q: '', status: 'all', model: '', range: 'all' }, NOW)).not.toContain('from=');
+    expect(bf({})).not.toContain('from=');
+  });
+
+  it('forwards the advanced filters as theo-lens snake_case params (M52)', () => {
+    const qs = bf({ costMin: '0.1', costMax: '5', tokensMin: '100', tokensMax: '9000', session: 'sess-x' });
+    const p = new URLSearchParams(qs.slice(1));
+    expect(p.get('min_cost_usd')).toBe('0.1');
+    expect(p.get('max_cost_usd')).toBe('5');
+    expect(p.get('min_tokens')).toBe('100');
+    expect(p.get('max_tokens')).toBe('9000');
+    expect(p.get('session_id')).toBe('sess-x');
+  });
+
+  it('omits an empty advanced filter (M52)', () => {
+    expect(bf({ costMin: '1' })).not.toContain('max_cost_usd=');
+    expect(bf({})).not.toContain('session_id=');
   });
 });
 
@@ -224,5 +248,82 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     filterMock([]); // upstream returns zero rows for the filtered query
     renderWithParams(<LensTracesPage />, '?status=error');
     expect(await screen.findByText(/no traces match these filters/i)).toBeInTheDocument();
+  });
+});
+
+// M52 — advanced filters + saved views. A mock handling the traces list + the saved-views CRUD.
+function m52Mock(opts: { traces?: unknown[]; views?: Array<{ id: string; name: string; query_string: string }> } = {}) {
+  const SV = '/v1/dashboard/lens/saved-views';
+  mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+    if (isListUrl(url)) return Promise.resolve({ traces: opts.traces ?? [{ traceId: 'tr_1', name: 'checkout' }] });
+    if (url === SV && (!init || init.method === undefined || init.method === 'GET'))
+      return Promise.resolve({ saved_views: opts.views ?? [] });
+    if (url === SV && init?.method === 'POST') return Promise.resolve({ id: 'lsv-new', name: 'x', query_string: '?status=error' });
+    if (url.startsWith(`${SV}/`) && init?.method === 'DELETE') return Promise.resolve({});
+    if (url.includes('/tags')) return Promise.resolve({ tags: [] });
+    return Promise.resolve({});
+  });
+}
+const svCalls = (method: string) =>
+  mockCloudFetch.mock.calls.filter(
+    (c) => typeof c[0] === 'string' && (c[0] as string).includes('/saved-views') && (c[1] as { method?: string })?.method === method,
+  );
+
+describe('LensTracesPage — M52 advanced filters + saved views', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('a cost-min advanced filter narrows the list server-side (min_cost_usd=)', async () => {
+    m52Mock({});
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.type(screen.getByLabelText(/minimum cost usd/i), '0.1');
+    await waitFor(() => expect(listUrls().some((u) => u.includes('min_cost_usd=0.1'))).toBe(true));
+  });
+
+  it('a session advanced filter narrows the list server-side (session_id=)', async () => {
+    m52Mock({});
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.type(screen.getByLabelText(/filter by session id/i), 'sess-x');
+    await waitFor(() => expect(listUrls().some((u) => u.includes('session_id=sess-x'))).toBe(true));
+  });
+
+  it('lists saved views and applies one (pushes its query string → server re-fetches)', async () => {
+    m52Mock({ views: [{ id: 'lsv-1', name: 'errored opus', query_string: '?status=error&model=claude-opus-4-8' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(await screen.findByRole('button', { name: /apply view errored opus/i }));
+    await waitFor(() => expect(listUrls().some((u) => u.includes('status=error') && u.includes('model=claude-opus-4-8'))).toBe(true));
+  });
+
+  it('saves the current filter combination as a named view (POST name + query_string)', async () => {
+    m52Mock({});
+    render(<LensTracesPage />, { initialEntries: ['/observability/traces?status=error'] });
+    await screen.findByText('tr_1');
+    await userEvent.click(screen.getByRole('button', { name: /save current view/i }));
+    await userEvent.type(screen.getByLabelText(/saved view name/i), 'my errors');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(svCalls('POST').length).toBe(1));
+    const body = JSON.parse((svCalls('POST')[0][1] as { body: string }).body);
+    expect(body.name).toBe('my errors');
+    expect(body.query_string).toContain('status=error'); // the current filter URL is the view
+  });
+
+  it('deletes a saved view after confirmation (DELETE)', async () => {
+    m52Mock({ views: [{ id: 'lsv-9', name: 'junk', query_string: '?q=x' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(await screen.findByRole('button', { name: /delete view junk/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^delete view$/i }));
+    await waitFor(() => expect(svCalls('DELETE').length).toBe(1));
+    expect(svCalls('DELETE')[0][0]).toContain('/saved-views/lsv-9');
+  });
+
+  it('save is disabled until a view name is entered (negative)', async () => {
+    m52Mock({});
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(screen.getByRole('button', { name: /save current view/i }));
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
   });
 });
