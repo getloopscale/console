@@ -110,6 +110,70 @@ function flattenAll(root: TraceSpanNode): TraceSpanNode[] {
   return out;
 }
 
+/**
+ * Trace time bounds — min start / max end across ALL spans (in ns, BigInt-safe). The honest envelope
+ * for the waterfall denominator (laminar's approach; not root-only, which lets a child overflow —
+ * phoenix's weakness). Unparseable timestamps are skipped; a trace with no timestamps returns 0/0.
+ */
+export function computeTraceBounds(root: TraceSpanNode): { startNs: bigint; endNs: bigint } {
+  let start: bigint | null = null;
+  let end: bigint | null = null;
+  for (const n of flattenAll(root)) {
+    if (!n.startTimeUnixNano) continue;
+    let s: bigint;
+    try {
+      s = BigInt(n.startTimeUnixNano);
+    } catch {
+      continue; // unparseable start → the span cannot be placed; skip it entirely
+    }
+    if (start === null || s < start) start = s;
+    // A valid start always counts even when the end is missing/unparseable (fall back to the start).
+    let e = s;
+    if (n.endTimeUnixNano) {
+      try {
+        e = BigInt(n.endTimeUnixNano);
+      } catch {
+        e = s;
+      }
+    }
+    if (end === null || e > end) end = e;
+  }
+  const s = start ?? 0n;
+  return { startNs: s, endNs: end ?? s };
+}
+
+/**
+ * Pure waterfall bar layout: map a span's [start, end] against the trace bounds → clamped
+ * {leftPct, widthPct} in [0,100] with `leftPct + widthPct ≤ 100`. Converges the SOTA peers
+ * (blueprint ADR D1): div-by-zero guard (opik), missing-end → zero-width `unbounded` (langfuse),
+ * clamp [0,100] (opik). BigInt ns arithmetic (no float precision loss); percentages carry 2 decimals.
+ */
+export function computeBarLayout(
+  spanStartNs: string | undefined,
+  spanEndNs: string | undefined,
+  traceStartNs: bigint,
+  traceEndNs: bigint,
+): { leftPct: number; widthPct: number; unbounded: boolean } {
+  const span = traceEndNs > traceStartNs ? traceEndNs - traceStartNs : 1n; // div-by-zero guard
+  if (!spanStartNs) return { leftPct: 0, widthPct: 0, unbounded: true };
+  let start: bigint;
+  let end: bigint | null;
+  try {
+    start = BigInt(spanStartNs);
+    end = spanEndNs ? BigInt(spanEndNs) : null;
+  } catch {
+    return { leftPct: 0, widthPct: 0, unbounded: true };
+  }
+  const unbounded = end === null;
+  const effEnd = end ?? start;
+  // percent with 2 decimals via integer bigint math: (delta * 10000 / span) / 100
+  const pct = (delta: bigint) => (delta > 0n ? Number((delta * 10_000n) / span) / 100 : 0);
+  const leftPct = Math.min(Math.max(pct(start - traceStartNs), 0), 100);
+  const rawWidth = effEnd > start ? pct(effEnd - start) : 0;
+  const widthPct = Math.min(Math.max(rawWidth, 0), 100 - leftPct);
+  return { leftPct, widthPct, unbounded };
+}
+
 /** Depth-first flatten of VISIBLE spans (a node in `collapsed` contributes no descendants). */
 export function flattenVisible(root: TraceSpanNode, collapsed: Set<string>): FlatNode[] {
   const out: FlatNode[] = [];
@@ -201,12 +265,49 @@ function ValueBlock({ value, testId }: { value?: string; testId?: string }) {
 
 // ---- tree rendering ----
 
+/**
+ * The M50 waterfall lane for one span: a positioned bar sized by `computeBarLayout`, colored with an
+ * error override (laminar), floored to a clickable min-width, dashed when unbounded (missing end).
+ * PRESENTATIONAL — it lives INSIDE the row's select button, so a click anywhere on the lane selects
+ * the span (row-level selection, shared with the tree; no second interactive element to collide with
+ * the tree row's accessible name). Styles + `title` text only — never `dangerouslySetInnerHTML`.
+ */
+function TimelineBar({ node, bounds }: { node: TraceSpanNode; bounds: { startNs: bigint; endNs: bigint } }) {
+  const { leftPct, widthPct, unbounded } = computeBarLayout(
+    node.startTimeUnixNano,
+    node.endTimeUnixNano,
+    bounds.startNs,
+    bounds.endNs,
+  );
+  const dur = durationMs(node);
+  const isError = !!node.statusCode && node.statusCode !== '0';
+  const tip = `${node.name} · ${dur !== null ? `${dur} ms` : 'in-flight'}${node.model ? ` · ${node.model}` : ''}`;
+  return (
+    <span
+      className="relative ml-2 block h-4 min-w-[64px] flex-1 overflow-hidden rounded-sm bg-muted/30"
+      aria-hidden="true"
+    >
+      <span
+        data-testid="span-bar"
+        data-error={isError ? 'true' : undefined}
+        data-unbounded={unbounded ? 'true' : undefined}
+        title={tip}
+        style={{ left: `${leftPct}%`, width: `max(${widthPct}%, 2px)` }}
+        className={`absolute top-0.5 bottom-0.5 rounded-sm ${
+          isError ? 'bg-destructive' : 'bg-primary/60'
+        } ${unbounded ? 'border border-dashed border-primary/60 bg-transparent' : ''}`}
+      />
+    </span>
+  );
+}
+
 /** The single clickable row for a span — shared by the recursive and virtualized render paths. */
 function SpanRow({
   node,
   depth,
   selected,
   collapsed,
+  bounds,
   onSelect,
   onToggle,
   selectedRef,
@@ -215,6 +316,7 @@ function SpanRow({
   depth: number;
   selected: boolean;
   collapsed: boolean;
+  bounds: { startNs: bigint; endNs: bigint };
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   selectedRef?: React.RefObject<HTMLButtonElement | null>;
@@ -222,7 +324,7 @@ function SpanRow({
   const dur = durationMs(node);
   const hasChildren = (node.children?.length ?? 0) > 0;
   return (
-    <div className="flex items-center" style={{ paddingLeft: `${depth * 16}px` }}>
+    <div className="flex items-center gap-2" style={{ paddingLeft: `${depth * 16}px` }}>
       {hasChildren ? (
         <button
           type="button"
@@ -245,7 +347,7 @@ function SpanRow({
           selected ? 'bg-muted font-medium' : ''
         }`}
       >
-        <span className="truncate font-mono text-xs">{node.name}</span>
+        <span className="min-w-0 truncate font-mono text-xs">{node.name}</span>
         {dur !== null ? <span className="shrink-0 text-xs text-muted-foreground">{dur} ms</span> : null}
         {node.model ? (
           <Badge variant="outline" className="shrink-0">
@@ -262,6 +364,7 @@ function SpanRow({
             error
           </Badge>
         ) : null}
+        <TimelineBar node={node} bounds={bounds} />
       </button>
     </div>
   );
@@ -273,6 +376,7 @@ function RecursiveTree({
   depth,
   selectedId,
   collapsed,
+  bounds,
   onSelect,
   onToggle,
   selectedRef,
@@ -281,6 +385,7 @@ function RecursiveTree({
   depth: number;
   selectedId: string;
   collapsed: Set<string>;
+  bounds: { startNs: bigint; endNs: bigint };
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   selectedRef: React.RefObject<HTMLButtonElement | null>;
@@ -293,6 +398,7 @@ function RecursiveTree({
         depth={depth}
         selected={node.spanId === selectedId}
         collapsed={isCollapsed}
+        bounds={bounds}
         onSelect={onSelect}
         onToggle={onToggle}
         selectedRef={selectedRef}
@@ -305,6 +411,7 @@ function RecursiveTree({
               depth={depth + 1}
               selectedId={selectedId}
               collapsed={collapsed}
+              bounds={bounds}
               onSelect={onSelect}
               onToggle={onToggle}
               selectedRef={selectedRef}
@@ -320,12 +427,14 @@ function VirtualTree({
   flat,
   selectedId,
   collapsed,
+  bounds,
   onSelect,
   onToggle,
 }: {
   flat: FlatNode[];
   selectedId: string;
   collapsed: Set<string>;
+  bounds: { startNs: bigint; endNs: bigint };
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
 }) {
@@ -364,6 +473,7 @@ function VirtualTree({
                 depth={depth}
                 selected={node.spanId === selectedId}
                 collapsed={collapsed.has(node.spanId)}
+                bounds={bounds}
                 onSelect={onSelect}
                 onToggle={onToggle}
               />
@@ -467,6 +577,8 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
   const activeId = selectedId ?? root?.spanId ?? null;
 
   const flat = useMemo(() => (root ? flattenVisible(root, collapsed) : []), [root, collapsed]);
+  // M50 — trace time bounds (memoized once) drive every waterfall bar's denominator.
+  const bounds = useMemo(() => (root ? computeTraceBounds(root) : { startNs: 0n, endNs: 0n }), [root]);
 
   // Scroll-to-selected for the recursive path (the virtual path scrolls via the virtualizer).
   useEffect(() => {
@@ -505,13 +617,21 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
               className={virtualized ? 'space-y-0.5' : 'max-h-[70vh] space-y-0.5 overflow-auto'}
             >
               {virtualized ? (
-                <VirtualTree flat={flat} selectedId={resolvedId} collapsed={collapsed} onSelect={setSelectedId} onToggle={toggle} />
+                <VirtualTree
+                  flat={flat}
+                  selectedId={resolvedId}
+                  collapsed={collapsed}
+                  bounds={bounds}
+                  onSelect={setSelectedId}
+                  onToggle={toggle}
+                />
               ) : (
                 <RecursiveTree
                   node={root}
                   depth={0}
                   selectedId={resolvedId}
                   collapsed={collapsed}
+                  bounds={bounds}
                   onSelect={setSelectedId}
                   onToggle={toggle}
                   selectedRef={selectedRef}
