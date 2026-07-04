@@ -232,6 +232,12 @@ func (c *DataClient) GetTrace(ctx context.Context, id string) (json.RawMessage, 
 	return c.getRaw(ctx, "/v1/traces/"+url.PathEscape(id), nil)
 }
 
+// GetTraceCost proxies GET /v1/traces/{id}/cost (per-trace cost summary, M5) — feeds the M54 compare
+// view's delta table. Same per-tenant path as GetTrace; no client-side cost math (D2 — Rule 9).
+func (c *DataClient) GetTraceCost(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/traces/"+url.PathEscape(id)+"/cost", nil)
+}
+
 // GetTraceTags proxies GET /v1/traces/{id}/tags ({tags}) — the current tag list for the trace.
 func (c *DataClient) GetTraceTags(ctx context.Context, id string) (json.RawMessage, error) {
 	return c.getRaw(ctx, "/v1/traces/"+url.PathEscape(id)+"/tags", nil)

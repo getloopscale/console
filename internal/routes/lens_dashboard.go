@@ -36,6 +36,7 @@ type LensDataClient interface {
 	GuardBreaches(ctx context.Context, id string) (json.RawMessage, error)
 	ListAgents(ctx context.Context) (json.RawMessage, error)
 	GetTrace(ctx context.Context, id string) (json.RawMessage, error)
+	GetTraceCost(ctx context.Context, id string) (json.RawMessage, error)
 	GetTraceTags(ctx context.Context, id string) (json.RawMessage, error)
 	GetTraceAnnotations(ctx context.Context, id string) (json.RawMessage, error)
 	Ask(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
@@ -256,6 +257,15 @@ func (h *LensDashboardHandler) GetTrace(w http.ResponseWriter, r *http.Request) 
 	id := chi.URLParam(r, "traceID")
 	h.proxy(w, r, "get trace", func() (json.RawMessage, error) { return h.client.GetTrace(r.Context(), id) })
 }
+
+// GetTraceCost serves GET /v1/dashboard/lens/traces/{traceID}/cost — the per-trace cost summary
+// (theo-lens GET /v1/traces/:id/cost, M5). Feeds the M54 compare view's delta table. Same per-tenant
+// Model-B path + upstream-error mapping as GetTrace (h.proxy), so a foreign/missing trace is refused
+// upstream exactly like the single-trace detail — no fabricated cost, no cross-tenant leak.
+func (h *LensDashboardHandler) GetTraceCost(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "traceID")
+	h.proxy(w, r, "get trace cost", func() (json.RawMessage, error) { return h.client.GetTraceCost(r.Context(), id) })
+}
 func (h *LensDashboardHandler) GetTraceTags(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")
 	h.proxy(w, r, "get tags", func() (json.RawMessage, error) { return h.client.GetTraceTags(r.Context(), id) })
@@ -349,6 +359,7 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		// Reads (M41 + M44)
 		r.Get("/traces", h.ListTraces)
 		r.Get("/traces/{traceID}", h.GetTrace)
+		r.Get("/traces/{traceID}/cost", h.GetTraceCost) // M54 — per-trace cost for the compare delta table
 		r.Get("/traces/{traceID}/tags", h.GetTraceTags)
 		r.Get("/traces/{traceID}/annotations", h.GetTraceAnnotations)
 		r.Get("/sessions", h.ListSessions)

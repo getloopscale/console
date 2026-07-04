@@ -80,6 +80,9 @@ func (s *stubLensDataClient) ListAgents(context.Context) (json.RawMessage, error
 func (s *stubLensDataClient) GetTrace(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"traceId":"t1"}`)
 }
+func (s *stubLensDataClient) GetTraceCost(context.Context, string) (json.RawMessage, error) {
+	return s.read(`{"traceId":"t1","costUsd":0.5,"totalTokens":100}`)
+}
 func (s *stubLensDataClient) GetTraceTags(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"tags":[]}`)
 }
@@ -145,6 +148,7 @@ func TestLensDashboard_Reads_Authenticated(t *testing.T) {
 		path string
 	}{
 		{"traces", (*LensDashboardHandler).ListTraces, "/v1/dashboard/lens/traces"},
+		{"trace cost", (*LensDashboardHandler).GetTraceCost, "/v1/dashboard/lens/traces/tr-1/cost"}, // M54
 		{"sessions", (*LensDashboardHandler).ListSessions, "/v1/dashboard/lens/sessions"},
 		{"observability", (*LensDashboardHandler).Observability, "/v1/dashboard/lens/observability"},
 		{"cost", (*LensDashboardHandler).Cost, "/v1/dashboard/lens/cost"},
@@ -173,6 +177,7 @@ func TestLensDashboard_NoTenant_401_FailsClosed(t *testing.T) {
 		call func(h *LensDashboardHandler, w http.ResponseWriter, r *http.Request)
 	}{
 		{"traces", (*LensDashboardHandler).ListTraces},
+		{"trace-cost", (*LensDashboardHandler).GetTraceCost}, // M54 — fail-closed like every read
 		{"sessions", (*LensDashboardHandler).ListSessions},
 		{"observability", (*LensDashboardHandler).Observability},
 		{"cost", (*LensDashboardHandler).Cost},
