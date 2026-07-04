@@ -24,7 +24,7 @@ import { cloudFetch } from '@/lib/api';
  * `.claude/knowledge-base/discoveries/blueprints/trace-viewer-scale-rich-blueprint.md`.
  */
 
-interface TraceSpanNode {
+export interface TraceSpanNode {
   spanId: string;
   traceId: string;
   parentSpanId?: string;
