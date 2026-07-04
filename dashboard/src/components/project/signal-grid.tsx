@@ -60,18 +60,22 @@ interface PillCfg {
   tone: (value: unknown) => Tone;
 }
 
+// theo-cloud#158: NaN/Inf are `typeof === 'number'`, so a plain type check lets
+// them through — a metric would render "NaN%"/"NaNms"/"NaN". Require a FINITE
+// number so non-finite values honour the same honest empty state ("—") as
+// null/undefined (never a misleading value).
 function fmtNumber(v: unknown, suffix = ''): string {
-  if (v === null || v === undefined) return '—';
+  if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
   return `${v}${suffix}`;
 }
 
 function fmtPercent(v: unknown): string {
-  if (typeof v !== 'number') return '—';
+  if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
   return `${v.toFixed(2)}%`;
 }
 
 function fmtMs(v: unknown): string {
-  if (typeof v !== 'number') return '—';
+  if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
   return `${v}ms`;
 }
 
