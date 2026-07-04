@@ -37,6 +37,8 @@ function renderWithParams(ui: React.ReactElement, searchParams: string): RenderR
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+const mockTriggerDownload = vi.fn();
+vi.mock('@/lib/download', () => ({ triggerDownload: (...a: unknown[]) => mockTriggerDownload(...a) }));
 
 // Mock the M48 trace-detail's layout lib (jsdom cannot lay it out — see trace-detail.test.tsx).
 vi.mock('react-resizable-panels', () => ({
@@ -98,6 +100,56 @@ describe('LensTracesPage (/observability/traces)', () => {
 
     await userEvent.click(screen.getByLabelText('Select tr_3 for compare'));
     expect(compare).toBeDisabled(); // 3 selected → disabled again (compare is pairwise)
+  });
+
+  it('M56 — Export CSV downloads the filtered set (WYSIWYG) + discloses the count', async () => {
+    mockTriggerDownload.mockClear();
+    filterMock([{ traceId: 'tr_1', name: 'checkout' }, { traceId: 'tr_2', name: 'refund' }]);
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(screen.getByRole('button', { name: /export csv/i }));
+    await waitFor(() => expect(mockTriggerDownload).toHaveBeenCalled());
+    const [filename, content, mime] = mockTriggerDownload.mock.calls.at(-1)!;
+    expect(String(filename)).toMatch(/\.csv$/);
+    expect(String(mime)).toContain('text/csv');
+    expect(String(content)).toContain('tr_1'); // the filtered rows are in the file
+    // WYSIWYG: the export fetch carried the list query with limit/offset paging
+    expect(mockCloudFetch.mock.calls.some(([u]) => String(u).includes('limit=500&offset=0'))).toBe(true);
+    expect(await screen.findByTestId('export-disclosure')).toHaveTextContent(/Exported 2 traces/i);
+  });
+
+  it('M56 — Export JSON downloads a .json of the raw records', async () => {
+    mockTriggerDownload.mockClear();
+    filterMock([{ traceId: 'tr_1', name: 'checkout' }]);
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(screen.getByRole('button', { name: /export json/i }));
+    await waitFor(() => expect(mockTriggerDownload).toHaveBeenCalled());
+    const [filename, content, mime] = mockTriggerDownload.mock.calls.at(-1)!;
+    expect(String(filename)).toMatch(/\.json$/);
+    expect(String(mime)).toContain('application/json');
+    expect(JSON.parse(String(content))[0].traceId).toBe('tr_1');
+  });
+
+  it('M56 — Export is omitted when the filtered set is empty', async () => {
+    filterMock([]);
+    render(<LensTracesPage />);
+    await screen.findByText(/no traces/i);
+    expect(screen.queryByRole('button', { name: /export csv/i })).not.toBeInTheDocument();
+  });
+
+  it('M56 — a failed export surfaces a typed error, not a silent no-op (no download)', async () => {
+    mockTriggerDownload.mockClear();
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === BASE) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] }); // the list loads
+      if (isListUrl(url)) return Promise.reject(new Error('export 5xx')); // the paged export fetch fails
+      return Promise.resolve({});
+    });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(screen.getByRole('button', { name: /export csv/i }));
+    await waitFor(() => expect(screen.getByTestId('export-error')).toBeInTheDocument());
+    expect(mockTriggerDownload).not.toHaveBeenCalled();
   });
 
   it('adds a tag via POST {tag} after opening a trace', async () => {

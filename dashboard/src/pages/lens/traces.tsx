@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import { BookmarkPlus, GitCompareArrows, Trash2 } from 'lucide-react';
+import { BookmarkPlus, Download, GitCompareArrows, Trash2 } from 'lucide-react';
 import {
   Alert,
   Badge,
@@ -21,6 +21,14 @@ import {
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
+import { triggerDownload } from '@/lib/download';
+import {
+  fetchFilteredTraces,
+  tracesToCsv,
+  tracesToJson,
+  EXPORT_CAP,
+  type ExportTrace,
+} from '@/lib/traces-export';
 import { LensTraceDetail } from './trace-detail';
 
 /**
@@ -290,6 +298,41 @@ export function LensTracesPage() {
       ? `/observability/compare?ids=${selectedIds[0]},${selectedIds[1]}`
       : undefined;
 
+  // M56 — export the currently-filtered set (CSV/JSON), bounded by EXPORT_CAP with an honest
+  // disclosure. Reuses the SAME buildTraceQuery filters as the list (WYSIWYG) + the shipped
+  // formula-injection-safe CSV + Blob download helpers.
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(false);
+  const [exportDisclosure, setExportDisclosure] = useState<string | null>(null);
+
+  async function doExport(format: 'csv' | 'json') {
+    setExporting(true);
+    setExportError(false);
+    setExportDisclosure(null);
+    try {
+      const baseQuery = buildTraceQuery(filters, Date.now());
+      const { traces: rows, capped } = await fetchFilteredTraces(baseQuery, async (queryWithPaging) => {
+        const res = await cloudFetch<{ traces: ExportTrace[] }>(`/v1/dashboard/lens/traces${queryWithPaging}`);
+        return res?.traces ?? [];
+      });
+      const stamp = new Date().toISOString();
+      if (format === 'csv') {
+        triggerDownload(`traces-${stamp}.csv`, tracesToCsv(rows), 'text/csv;charset=utf-8');
+      } else {
+        triggerDownload(`traces-${stamp}.json`, tracesToJson(rows), 'application/json');
+      }
+      setExportDisclosure(
+        capped
+          ? `Exported ${rows.length} traces (export cap of ${EXPORT_CAP} reached — narrow filters to export the rest).`
+          : `Exported ${rows.length} traces.`,
+      );
+    } catch {
+      setExportError(true);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   // Model filter options — distinct models present in the current page, plus the active model so it
   // stays selectable even when the page is already narrowed to it. A dedicated models endpoint is a
   // follow-up (see plan § Unresolved questions); this MVP derives options client-side.
@@ -525,6 +568,14 @@ export function LensTracesPage() {
                 {selected.size > 0 ? (
                   <span className="text-xs text-muted-foreground">{selected.size} selected</span>
                 ) : null}
+                <Button variant="secondary" size="sm" disabled={exporting} onClick={() => doExport('csv')}>
+                  <Download className="mr-1 h-4 w-4" />
+                  Export CSV
+                </Button>
+                <Button variant="secondary" size="sm" disabled={exporting} onClick={() => doExport('json')}>
+                  <Download className="mr-1 h-4 w-4" />
+                  Export JSON
+                </Button>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -536,6 +587,16 @@ export function LensTracesPage() {
                   Compare
                 </Button>
               </div>
+              {exportDisclosure ? (
+                <p data-testid="export-disclosure" className="mb-2 text-right text-xs text-muted-foreground">
+                  {exportDisclosure}
+                </p>
+              ) : null}
+              {exportError ? (
+                <Alert intent="warning" title="Export failed" data-testid="export-error" className="mb-2">
+                  Could not export the traces — try again.
+                </Alert>
+              ) : null}
               <Card>
                 <DataTable columns={columns} data={traces} rowKey={(row) => row.traceId} />
               </Card>
