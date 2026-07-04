@@ -31,8 +31,8 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/billing"
 	"github.com/usetheodev/theo-cloud/internal/config"
 	"github.com/usetheodev/theo-cloud/internal/consent"
+	"github.com/usetheodev/theo-cloud/internal/deploy_event_enqueuer"
 	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
-	"github.com/usetheodev/theo-cloud/internal/workspace_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/normalize"
@@ -43,6 +43,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/thelens"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
+	"github.com/usetheodev/theo-cloud/internal/workspace_webhook_worker"
 )
 
 // buildRagForwardAuth constructs the theo-rag Model-B ForwardAuth handler + its broker
@@ -1220,6 +1221,16 @@ func main() {
 		wsWorker := workspace_webhook_worker.New(db, logger, os.Getenv("HOSTNAME"))
 		go wsWorker.Run(schedulerCtx)
 		logger.Info("workspace webhook dispatcher started")
+	}
+
+	// J-16 slice 3: drain the deploy_events outbox (engine migration 000051)
+	// and fan each event out to subscribed workspace_webhooks as delivery rows.
+	// Pure DB fan-out (no outbound HTTP) — the delivery worker dispatches. Until
+	// the full chain is live it produces ~zero rows (no subscribed webhooks).
+	if db != nil {
+		enq := deploy_event_enqueuer.New(db, logger)
+		go enq.Run(schedulerCtx)
+		logger.Info("deploy-event enqueuer started")
 	}
 
 	// T1.9 production deployment: start cost aggregator if Prometheus
