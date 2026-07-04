@@ -238,7 +238,9 @@ func (h *WebhookHandler) handleSubscriptionUpdated(exec dbExecer, event StripeEv
 			Data []struct {
 				ID    string `json:"id"` // subscription ITEM id (si_xxx) — required for metered usage reporting
 				Price struct {
-					ID string `json:"id"`
+					ID         string `json:"id"`
+					UnitAmount int64  `json:"unit_amount"` // recurring amount in minor units (J-06 D1)
+					Currency   string `json:"currency"`
 				} `json:"price"`
 			} `json:"data"`
 		} `json:"items"`
@@ -250,9 +252,15 @@ func (h *WebhookHandler) handleSubscriptionUpdated(exec dbExecer, event StripeEv
 	// §1.3: Derive plan from price ID (handles upgrade/downgrade via Customer Portal)
 	plan := ""
 	itemID := ""
+	var amountMinor int64
+	currency := ""
 	if len(sub.Items.Data) > 0 {
 		plan = h.planConfig.PlanForPriceID(sub.Items.Data[0].Price.ID)
 		itemID = sub.Items.Data[0].ID // si_xxx — used by the metering reporter (find_data_001)
+		// J-06 D1: capture the recurring plan price from the Stripe Price object so
+		// GET /v1/billing observes the row (no Go price constant → no #157 drift).
+		amountMinor = sub.Items.Data[0].Price.UnitAmount
+		currency = sub.Items.Data[0].Price.Currency
 	}
 
 	// WHERE matches by stripe_subscription_id OR stripe_customer_id. Stripe does
@@ -267,16 +275,20 @@ func (h *WebhookHandler) handleSubscriptionUpdated(exec dbExecer, event StripeEv
 	// COALESCE(NULLIF($,''), col) only overwrites stripe_subscription_item_id
 	// when the event carries an item id; otherwise the existing value is kept.
 	if plan != "" {
+		// J-06 D1: the price-mapping branch persists amount_minor + currency so the
+		// read path observes them. Direct SET (not COALESCE) — a mapped price always
+		// carries unit_amount, and a comped $0 price legitimately persists 0.
 		_, err := exec.Exec(
 			`UPDATE subscriptions SET status = $1, plan = $2,
 			        stripe_subscription_id = $3,
 			        stripe_subscription_item_id = COALESCE(NULLIF($4, ''), stripe_subscription_item_id),
-			        current_period_start = $5, current_period_end = $6, updated_at = now()
+			        current_period_start = $5, current_period_end = $6,
+			        amount_minor = $8, currency = $9, updated_at = now()
 			 WHERE stripe_subscription_id = $3 OR stripe_customer_id = $7`,
 			sub.Status, plan, sub.ID, itemID,
 			time.Unix(sub.CurrentPeriodStart, 0),
 			time.Unix(sub.CurrentPeriodEnd, 0),
-			sub.Customer,
+			sub.Customer, amountMinor, currency,
 		)
 		return err
 	}

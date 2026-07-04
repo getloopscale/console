@@ -18,6 +18,7 @@ import {
   UsageMeter,
 } from '@usetheo/ui';
 import { ContentGrid } from '@/components/layout';
+import { OverviewKPIStrip } from '@/components/overview/overview-kpi-strip';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/use-projects';
@@ -102,6 +103,10 @@ export function OverviewPage() {
         onClick: () => navigate('/projects'),
       }}
     >
+      {/* J-06 T3.1: the KPI strip is the authenticated home's at-a-glance row. */}
+      <div className="mb-6">
+        <OverviewKPIStrip />
+      </div>
       <ContentGrid columns="2-asymmetric" gap={6}>
         {/* Left column — Usage + Alerts */}
         <div className="space-y-6">
