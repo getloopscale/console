@@ -973,6 +973,7 @@ func main() {
 			r.Use(requireJWT)
 			r.With(auth.RequireRole(tenantProvisioner, "owner")).Post("/", wwh.Create)
 			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/list", wwh.List)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/{id}/deliveries", wwh.Deliveries)
 			r.With(auth.RequireRole(tenantProvisioner, "owner")).Delete("/{id}", wwh.Delete)
 		})
 	}
