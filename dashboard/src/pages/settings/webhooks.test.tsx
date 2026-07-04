@@ -88,6 +88,49 @@ describe('WorkspaceWebhooksPage (/settings/webhooks)', () => {
     expect(screen.getByText(/will not be shown again/i)).toBeInTheDocument();
   });
 
+  it('view-deliveries opens a sheet that lists the webhook delivery history', async () => {
+    const user = userEvent.setup();
+    mockCloudFetch.mockImplementation((path: string) => {
+      if (String(path) === '/v1/settings/webhooks/list') {
+        return Promise.resolve({
+          webhooks: [
+            {
+              id: 'wwh-0011223344556677',
+              url: 'https://hook.example.com/deploys',
+              label: 'prod-deploys',
+              events: ['deploy.succeeded'],
+              created_at: new Date().toISOString(),
+            },
+          ],
+        });
+      }
+      if (String(path).includes('/deliveries')) {
+        return Promise.resolve({
+          deliveries: [
+            {
+              id: 'wwd-1',
+              event_type: 'deploy.succeeded',
+              status: 'delivered',
+              attempt_count: 1,
+              last_response_status: 200,
+              created_at: new Date().toISOString(),
+              completed_at: new Date().toISOString(),
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ deliveries: [] });
+    });
+    render(<WorkspaceWebhooksPage />);
+    await screen.findByText('prod-deploys');
+
+    await user.click(screen.getByRole('button', { name: /view deliveries for prod-deploys/i }));
+
+    // The sheet fetches from the scoped endpoint and renders the delivery.
+    expect(await screen.findByTestId('delivery-wwd-1')).toBeInTheDocument();
+    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/settings/webhooks/wwh-0011223344556677/deliveries');
+  });
+
   it('delete opens a destructive confirm dialog scoped to the webhook label', async () => {
     const user = userEvent.setup();
     mockCloudFetch.mockResolvedValue({

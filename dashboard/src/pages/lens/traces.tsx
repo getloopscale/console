@@ -18,6 +18,7 @@ import {
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
+import { LensTraceDetail } from './trace-detail';
 
 /**
  * M44 — /lens/traces. Read the workspace's traces and manage their human-in-the-loop
@@ -129,6 +130,8 @@ export function LensTracesPage() {
               <DataTable columns={columns} data={traces} rowKey={(row) => row.traceId} />
             </Card>
           )}
+
+          {openID !== null ? <LensTraceDetail key={openID} traceId={openID} /> : null}
 
           {openID !== null ? (
             <Card>
