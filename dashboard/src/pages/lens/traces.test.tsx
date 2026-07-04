@@ -77,6 +77,29 @@ describe('LensTracesPage (/observability/traces)', () => {
     expect(await screen.findByText('tr_1')).toBeInTheDocument();
   });
 
+  it('M54 — the Compare action is enabled only when exactly two traces are selected', async () => {
+    filterMock([
+      { traceId: 'tr_1', name: 'a' },
+      { traceId: 'tr_2', name: 'b' },
+      { traceId: 'tr_3', name: 'c' },
+    ]);
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+
+    const compare = screen.getByRole('button', { name: /compare/i });
+    expect(compare).toBeDisabled(); // 0 selected
+
+    await userEvent.click(screen.getByLabelText('Select tr_1 for compare'));
+    expect(compare).toBeDisabled(); // 1 selected — still disabled
+
+    await userEvent.click(screen.getByLabelText('Select tr_2 for compare'));
+    expect(compare).toBeEnabled(); // exactly 2 → enabled
+    expect(compare).toHaveAttribute('data-compare-href', '/observability/compare?ids=tr_1,tr_2');
+
+    await userEvent.click(screen.getByLabelText('Select tr_3 for compare'));
+    expect(compare).toBeDisabled(); // 3 selected → disabled again (compare is pairwise)
+  });
+
   it('adds a tag via POST {tag} after opening a trace', async () => {
     routeMock();
     render(<LensTracesPage />);

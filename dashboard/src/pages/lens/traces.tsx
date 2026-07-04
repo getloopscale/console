@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import { BookmarkPlus, Trash2 } from 'lucide-react';
+import { BookmarkPlus, GitCompareArrows, Trash2 } from 'lucide-react';
 import {
   Alert,
   Badge,
@@ -103,7 +103,17 @@ export function LensTracesPage() {
   useRequireAuth();
   const queryClient = useQueryClient();
 
+  const navigate = useNavigate();
   const [openID, setOpenID] = useState<string | null>(null);
+  // M54 — pairwise compare selection. A row is ticked to build a two-trace compare.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const toggleSelected = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const [tag, setTag] = useState('');
   const [note, setNote] = useState('');
   const [pendingTag, setPendingTag] = useState<string | null>(null);
@@ -236,6 +246,19 @@ export function LensTracesPage() {
 
   const columns: DataTableColumn<Trace>[] = [
     {
+      key: 'compare-select',
+      label: '',
+      render: (row) => (
+        <input
+          type="checkbox"
+          checked={selected.has(row.traceId)}
+          onChange={() => toggleSelected(row.traceId)}
+          aria-label={`Select ${row.traceId} for compare`}
+          className="h-4 w-4 cursor-pointer"
+        />
+      ),
+    },
+    {
       key: 'traceId',
       label: 'Trace',
       render: (row) => (
@@ -259,6 +282,13 @@ export function LensTracesPage() {
 
   const traces = query.data?.traces ?? [];
   const currentTags = tags.data?.tags ?? [];
+
+  // M54 — compare is pairwise: the action is live only with exactly two traces ticked.
+  const selectedIds = Array.from(selected);
+  const compareHref =
+    selectedIds.length === 2
+      ? `/observability/compare?ids=${selectedIds[0]},${selectedIds[1]}`
+      : undefined;
 
   // Model filter options — distinct models present in the current page, plus the active model so it
   // stays selectable even when the page is already narrowed to it. A dedicated models endpoint is a
@@ -490,9 +520,26 @@ export function LensTracesPage() {
               <EmptyState title="No traces yet" description="Instrument an agent and send spans to see executions here." />
             )
           ) : (
-            <Card>
-              <DataTable columns={columns} data={traces} rowKey={(row) => row.traceId} />
-            </Card>
+            <>
+              <div className="mb-2 flex items-center justify-end gap-2">
+                {selected.size > 0 ? (
+                  <span className="text-xs text-muted-foreground">{selected.size} selected</span>
+                ) : null}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={compareHref === undefined}
+                  data-compare-href={compareHref}
+                  onClick={() => compareHref && navigate(compareHref)}
+                >
+                  <GitCompareArrows className="mr-1 h-4 w-4" />
+                  Compare
+                </Button>
+              </div>
+              <Card>
+                <DataTable columns={columns} data={traces} rowKey={(row) => row.traceId} />
+              </Card>
+            </>
           )}
 
           {openID !== null ? <LensTraceDetail key={openID} traceId={openID} /> : null}

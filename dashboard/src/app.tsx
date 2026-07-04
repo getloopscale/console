@@ -136,6 +136,9 @@ const LensGuardsPage = lazy(() =>
 const LensAlertsPage = lazy(() =>
   import('@/pages/lens/alerts').then((m) => ({ default: m.LensAlertsPage })),
 );
+const LensComparePage = lazy(() =>
+  import('@/pages/lens/compare').then((m) => ({ default: m.LensComparePage })),
+);
 const LensAgentsPage = lazy(() =>
   import('@/pages/lens/agents').then((m) => ({ default: m.LensAgentsPage })),
 );
@@ -423,6 +426,7 @@ export default function App() {
                     <Route path="/rag/analytics" element={<Boundaried path="/rag/analytics"><RagAnalyticsPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
+                    <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />
                     <Route path="/observability/sessions" element={<Boundaried path="/observability/sessions"><LensSessionsPage /></Boundaried>} />
                     <Route path="/observability/datasets" element={<Boundaried path="/observability/datasets"><LensDatasetsPage /></Boundaried>} />
                     <Route path="/observability/evaluators" element={<Boundaried path="/observability/evaluators"><LensEvaluatorsPage /></Boundaried>} />
