@@ -27,7 +27,7 @@ type LensDataClient interface {
 	// Reads (M41 + M44; M49 adds the whitelisted trace-list filter)
 	ListTraces(ctx context.Context, f thelens.TraceListFilter) (json.RawMessage, error)
 	ListSessions(ctx context.Context, limit, offset int) (json.RawMessage, error)
-	Observability(ctx context.Context) (json.RawMessage, error)
+	Observability(ctx context.Context, timeRange string) (json.RawMessage, error)
 	Cost(ctx context.Context, since string) (json.RawMessage, error)
 	ListDatasets(ctx context.Context) (json.RawMessage, error)
 	GetDataset(ctx context.Context, id string) (json.RawMessage, error)
@@ -94,6 +94,18 @@ func pageParams(r *http.Request) (limit, offset int) {
 	return limit, offset
 }
 
+// observabilityRange reads the WHITELISTED time-range for the observability series (M51). Only the
+// theo-lens-supported presets are honored; anything else (empty/invalid) returns "" so theo-lens
+// applies its own 24h default — an arbitrary range string is structurally unforwardable.
+func observabilityRange(r *http.Request) string {
+	switch r.URL.Query().Get("range") {
+	case "1h", "24h", "7d", "30d":
+		return r.URL.Query().Get("range")
+	default:
+		return ""
+	}
+}
+
 // traceFilter reads the WHITELISTED trace-list filter params from the request query (M49). Only the
 // known keys (status/model/from/to/q + limit/offset) are read; a request's unknown params are never
 // forwarded to theo-lens. Values pass through — theo-lens validates them (e.g. a bad status → 400).
@@ -148,7 +160,7 @@ func (h *LensDashboardHandler) Observability(w http.ResponseWriter, r *http.Requ
 	if !h.authTenant(w, r) {
 		return
 	}
-	raw, err := h.client.Observability(r.Context())
+	raw, err := h.client.Observability(r.Context(), observabilityRange(r))
 	if err != nil {
 		h.logger.Warn("lens dashboard: observability failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load observability.")

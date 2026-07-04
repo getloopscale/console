@@ -128,11 +128,37 @@ func TestDataClient_Observability_HitsMetricsPath(t *testing.T) {
 	var gotPath, gotQuery, gotAuth string
 	srv := captureServer(t, &gotPath, &gotQuery, &gotAuth, `{"traces":0}`)
 	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
-	if _, err := c.Observability(context.Background()); err != nil {
+	if _, err := c.Observability(context.Background(), ""); err != nil {
 		t.Fatalf("Observability: %v", err)
 	}
 	if gotPath != "/v1/metrics/observability" {
 		t.Fatalf("path = %q, want /v1/metrics/observability (NOT /v1/observability)", gotPath)
+	}
+}
+
+// TestDataClient_Observability_ForwardsRange (M51) — a non-empty range reaches theo-lens as ?range=.
+func TestDataClient_Observability_ForwardsRange(t *testing.T) {
+	var gotPath, gotQuery, gotAuth string
+	srv := captureServer(t, &gotPath, &gotQuery, &gotAuth, `{"traffic":[]}`)
+	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
+	if _, err := c.Observability(context.Background(), "7d"); err != nil {
+		t.Fatalf("Observability: %v", err)
+	}
+	if !strings.Contains(gotQuery, "range=7d") {
+		t.Fatalf("query = %q, want range=7d", gotQuery)
+	}
+}
+
+// TestDataClient_Observability_OmitsEmptyRange (M51) — an empty range sends no ?range= (theo-lens defaults).
+func TestDataClient_Observability_OmitsEmptyRange(t *testing.T) {
+	var gotPath, gotQuery, gotAuth string
+	srv := captureServer(t, &gotPath, &gotQuery, &gotAuth, `{"traffic":[]}`)
+	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
+	if _, err := c.Observability(context.Background(), ""); err != nil {
+		t.Fatalf("Observability: %v", err)
+	}
+	if strings.Contains(gotQuery, "range=") {
+		t.Fatalf("query = %q, want no range=", gotQuery)
 	}
 }
 

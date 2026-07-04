@@ -92,10 +92,16 @@ func (c *DataClient) ListSessions(ctx context.Context, limit, offset int) (json.
 	return c.getRaw(ctx, "/v1/sessions", pageQuery(limit, offset))
 }
 
-// Observability proxies GET /v1/metrics/observability (theo-lens's observability summary
-// lives under /v1/metrics, NOT /v1/observability — the schema-lesson).
-func (c *DataClient) Observability(ctx context.Context) (json.RawMessage, error) {
-	return c.getRaw(ctx, "/v1/metrics/observability", nil)
+// Observability proxies GET /v1/metrics/observability (theo-lens's observability time-series
+// lives under /v1/metrics, NOT /v1/observability — the schema-lesson). Forwards the selectable
+// `range` (M51) when non-empty; an empty range lets theo-lens apply its 24h default.
+func (c *DataClient) Observability(ctx context.Context, timeRange string) (json.RawMessage, error) {
+	var q url.Values
+	if timeRange != "" {
+		q = url.Values{}
+		q.Set("range", timeRange)
+	}
+	return c.getRaw(ctx, "/v1/metrics/observability", q)
 }
 
 // Cost proxies GET /v1/analytics/cost?since (theo-lens's cost summary lives under

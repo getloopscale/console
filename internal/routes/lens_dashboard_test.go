@@ -22,10 +22,11 @@ import (
 // stubLensDataClient counts calls + can error. `calls` is the total (read tests); `writeCalls`
 // counts only mutating methods (write fail-closed tests assert it stays 0 without a JWT).
 type stubLensDataClient struct {
-	calls           int
-	writeCalls      int
-	err             error
-	lastTraceFilter thelens.TraceListFilter
+	calls                  int
+	writeCalls             int
+	err                    error
+	lastTraceFilter        thelens.TraceListFilter
+	lastObservabilityRange string
 }
 
 func (s *stubLensDataClient) read(body string) (json.RawMessage, error) {
@@ -51,8 +52,9 @@ func (s *stubLensDataClient) ListTraces(_ context.Context, f thelens.TraceListFi
 func (s *stubLensDataClient) ListSessions(context.Context, int, int) (json.RawMessage, error) {
 	return s.read(`{"sessions":[]}`)
 }
-func (s *stubLensDataClient) Observability(context.Context) (json.RawMessage, error) {
-	return s.read(`{"traces":0}`)
+func (s *stubLensDataClient) Observability(_ context.Context, timeRange string) (json.RawMessage, error) {
+	s.lastObservabilityRange = timeRange
+	return s.read(`{"traffic":[],"latency":[],"tokensByModel":[]}`)
 }
 func (s *stubLensDataClient) Cost(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"total_usd":0}`)
@@ -229,6 +231,24 @@ func TestLensDashboard_ListTraces_WhitelistsFilterParams(t *testing.T) {
 		t.Fatalf("filter not forwarded from query: %+v", f)
 	}
 	// `evil=1` cannot reach theo-lens — TraceListFilter has no field for it (whitelist by construction).
+}
+
+// TestLensDashboard_Observability_WhitelistsRange (M51) — the handler forwards only a whitelisted
+// `range` preset; an unknown param and a bogus range are never forwarded.
+func TestLensDashboard_Observability_WhitelistsRange(t *testing.T) {
+	h, stub := newLensDashboard()
+	// valid preset + a smuggled param → only range forwarded
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/observability?range=7d&evil=1", nil), "t1")
+	h.Observability(httptest.NewRecorder(), req)
+	if stub.lastObservabilityRange != "7d" {
+		t.Fatalf("want range=7d forwarded, got %q", stub.lastObservabilityRange)
+	}
+	// bogus range → dropped (empty → theo-lens applies its default)
+	req2 := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/observability?range=bogus", nil), "t1")
+	h.Observability(httptest.NewRecorder(), req2)
+	if stub.lastObservabilityRange != "" {
+		t.Fatalf("want bogus range dropped, got %q", stub.lastObservabilityRange)
+	}
 }
 
 // noopJWT is a pass-through stand-in for the requireJWT middleware in the mount tests (the

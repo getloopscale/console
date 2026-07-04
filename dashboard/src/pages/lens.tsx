@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryState, parseAsStringEnum } from 'nuqs';
 import {
   Activity,
   Bot,
@@ -13,11 +14,21 @@ import {
   ShieldCheck,
   Timer,
 } from 'lucide-react';
-import { Alert, Button, Card, PageShell, Skeleton, StatTile } from '@usetheo/ui';
+import { Alert, Button, Card, PageShell, Select, Skeleton, StatTile } from '@usetheo/ui';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
+import { MetricTrendChart } from '@/components/lens/metric-trend-chart';
+import {
+  throughputSeries,
+  errorRateSeries,
+  latencySeries,
+  costByModelSeries,
+  type TrafficBucket,
+  type LatencyBucket,
+  type ModelBucket,
+} from '@/components/lens/lens-series';
 
 /**
  * M46 — /lens landing (Overview). The first customer-visible Lens surface, mirroring the Memory /
@@ -26,16 +37,13 @@ import { cloudFetch } from '@/lib/api';
  * capability section opens on an Overview; Lens now does too.
  */
 
-interface TrafficBucket {
-  traceCount: number;
-  errorCount: number;
-}
-interface LatencyBucket {
-  p95Ms: number;
-}
+// The full observability time-series (already bucketed server-side by theo-lens; M51 plots it — the
+// KPI tiles reduce it to current values). `tokensByModel` carries the by-model cost breakdown.
 interface ObservabilityResult {
+  range?: string;
   traffic: TrafficBucket[];
   latency: LatencyBucket[];
+  tokensByModel: ModelBucket[];
 }
 interface CostBucket {
   costUsd: number;
@@ -43,6 +51,10 @@ interface CostBucket {
 interface CostResult {
   buckets: CostBucket[];
 }
+
+const RANGES = ['1h', '24h', '7d', '30d'] as const;
+type Range = (typeof RANGES)[number];
+const RANGE_LABEL: Record<Range, string> = { '1h': 'Last hour', '24h': 'Last 24h', '7d': 'Last 7 days', '30d': 'Last 30 days' };
 
 function sum(ns: number[]): number {
   return ns.reduce((a, b) => a + b, 0);
@@ -54,9 +66,14 @@ export function LensOverviewPage() {
   useRequireAuth();
   const queryClient = useQueryClient();
 
+  // M51 — URL-persisted range; drives the server-side bucketing (theo-lens truncs per range).
+  const [range, setRange] = useQueryState('range', parseAsStringEnum([...RANGES]).withDefault('24h'));
+
+  const obsKey = ['cloud', '/v1/dashboard/lens/observability', range] as const;
   const obs = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/observability'] as const,
-    queryFn: () => cloudFetch<ObservabilityResult>('/v1/dashboard/lens/observability', {}, { throwOnError: true }),
+    queryKey: obsKey,
+    queryFn: () =>
+      cloudFetch<ObservabilityResult>(`/v1/dashboard/lens/observability?range=${range}`, {}, { throwOnError: true }),
   });
   const cost = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/cost'] as const,
@@ -78,6 +95,12 @@ export function LensOverviewPage() {
   const errorRatePct = traces > 0 ? Math.round((errors / traces) * 100) : 0;
   const p95 = Math.round(Math.max(0, ...(obs.data?.latency ?? []).map((l) => l.p95Ms), 0));
   const totalCost = sum((cost.data?.buckets ?? []).map((b) => b.costUsd));
+
+  // M51 — trend-chart series from the already-bucketed observability response.
+  const throughput = throughputSeries(traffic);
+  const errRate = errorRateSeries(traffic);
+  const latency = latencySeries(obs.data?.latency ?? []);
+  const costByModel = costByModelSeries(obs.data?.tokensByModel ?? []);
 
   return (
     <PageShell
@@ -105,12 +128,58 @@ export function LensOverviewPage() {
           </div>
         ) : null}
 
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Metrics</h2>
+          <div>
+            <span className="sr-only" id="range-label">
+              Time range
+            </span>
+            <Select value={range} onValueChange={(v) => void setRange(v as Range)}>
+              <Select.Trigger className="w-[150px]" aria-label="Time range">
+                <Select.Value />
+              </Select.Trigger>
+              <Select.Content>
+                {RANGES.map((r) => (
+                  <Select.Item key={r} value={r}>
+                    {RANGE_LABEL[r]}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </div>
+        </div>
+
         {!isPending && !isError ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatTile value={traces} label="Traces (24h)" icon={Network} />
+            <StatTile value={traces} label="Traces" icon={Network} />
             <StatTile value={errorRatePct} label="Error rate %" icon={Activity} />
             <StatTile value={p95} label="Latency p95 (ms)" icon={Timer} />
             <StatTile value={Number(totalCost.toFixed(2))} label="Cost (USD)" icon={DollarSign} />
+          </div>
+        ) : null}
+
+        {!isPending && !isError ? (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card>
+              <Card.Body>
+                <MetricTrendChart title="Throughput (traces)" series={throughput} />
+              </Card.Body>
+            </Card>
+            <Card>
+              <Card.Body>
+                <MetricTrendChart title="Error rate (%)" series={errRate} yFormat={(v) => `${v}%`} />
+              </Card.Body>
+            </Card>
+            <Card>
+              <Card.Body>
+                <MetricTrendChart title="Latency (ms)" series={latency} yFormat={(v) => `${v} ms`} />
+              </Card.Body>
+            </Card>
+            <Card>
+              <Card.Body>
+                <MetricTrendChart title="Cost by model (USD)" series={costByModel} yFormat={(v) => `$${v}`} />
+              </Card.Body>
+            </Card>
           </div>
         ) : null}
 
