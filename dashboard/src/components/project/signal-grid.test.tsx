@@ -78,6 +78,35 @@ describe('SignalGrid — T3.2 J-18 (EC-7 absorption: 8 pills always render)', ()
     expect(emDashes.length).toBe(8);
   });
 
+  // theo-cloud#158: NaN/Inf are `typeof === 'number'`, so the numeric formatters
+  // must reject non-finite values too — a metric must never render "NaN%" /
+  // "NaNms" / "NaN" (the honest-empty-state contract, same as null/undefined).
+  it('non-finite values (NaN/Inf) render as "—" muted, never "NaN%"/red', () => {
+    const { container } = render(
+      <SignalGrid
+        signals={{
+          status: 'Healthy',
+          replicas: 2,
+          uptime_24h: Number.NaN,
+          p95_latency: Number.POSITIVE_INFINITY,
+          error_rate: Number.NaN,
+          rps: Number.NEGATIVE_INFINITY,
+          alerts_active: 0,
+          last_deploy_time: null,
+        }}
+      />,
+    );
+    // No cell leaks a non-finite token.
+    expect(screen.queryByText(/NaN/)).toBeNull();
+    expect(screen.queryByText(/Infinity/)).toBeNull();
+    // The 4 non-finite metrics + last_deploy_time(null) render "—".
+    expect(screen.getAllByText('—').length).toBe(5);
+    // A non-finite empty state is MUTED, never destructive/red — none of the
+    // 5 valid+empty cells here should color red (uptime NaN would otherwise
+    // fall through the thresholds to 'destructive').
+    expect(container.querySelector('.text-destructive')).toBeNull();
+  });
+
   it('click on pill emits onDrillDown(signalName)', () => {
     const onDrillDown = vi.fn();
     render(
