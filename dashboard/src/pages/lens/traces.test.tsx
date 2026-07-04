@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
+import { within } from '@testing-library/react';
 import { render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
@@ -47,5 +48,29 @@ describe('LensTracesPage (/observability/traces)', () => {
       '/v1/dashboard/lens/traces/tr_1/tags?tag=prod',
       expect.objectContaining({ method: 'DELETE' }),
     );
+  });
+
+  it('opening a trace shows the span tree AND keeps the tags/annotations forms (M47, no regression)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/traces') return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+      if (url === '/v1/dashboard/lens/traces/tr_1')
+        return Promise.resolve({ spanId: 's0', traceId: 'tr_1', name: 'checkout.root', children: [] });
+      if (url.includes('/tags')) return Promise.resolve({ tags: ['prod'] });
+      return Promise.resolve({});
+    });
+    render(<LensTracesPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /open tr_1/i }));
+    // span tree renders (M47)
+    const treeEl = await screen.findByTestId('span-tree');
+    expect(within(treeEl).getByText('checkout.root')).toBeInTheDocument();
+    // AND the M44 tags/annotations forms are preserved
+    expect(screen.getByLabelText(/new tag/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/new annotation/i)).toBeInTheDocument();
+    // the M47 tree fetch is GET-only — opening a trace makes zero mutating calls
+    const mutating = mockCloudFetch.mock.calls.filter((c) => {
+      const m = (c[1] as { method?: string })?.method;
+      return m === 'POST' || m === 'DELETE' || m === 'PUT' || m === 'PATCH';
+    });
+    expect(mutating).toHaveLength(0);
   });
 });
