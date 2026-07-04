@@ -962,6 +962,21 @@ func main() {
 		r.Post("/v1/webhooks/stripe", billingHandler.Webhook)
 	}
 
+	// J-16 Settings — workspace/deploy webhook registrations (owner-only; a
+	// privileged workspace config, mirroring billing's owner gate). Registration
+	// -only v0.1 — delivery is a later T2 slice. Persists to workspace_webhooks
+	// (engine migration 000050). Path is /v1/settings/webhooks to avoid colliding
+	// with the Stripe/GitHub inbound webhook receivers under /v1/webhooks/*.
+	if db != nil {
+		wwh := routes.NewWorkspaceWebhooksHandler(db, logger)
+		r.Route("/v1/settings/webhooks", func(r chi.Router) {
+			r.Use(requireJWT)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Post("/", wwh.Create)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/list", wwh.List)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Delete("/{id}", wwh.Delete)
+		})
+	}
+
 	// Engine API proxy — dashboard calls engine through cloud service.
 	// The engine only accepts RSA tokens (aud=theo-engine) or internal service auth.
 	// Dashboard has HMAC tokens, so cloud authenticates to engine via X-Service-Auth.
