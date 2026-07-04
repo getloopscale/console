@@ -54,6 +54,12 @@ var (
 		Help: "Auth rejections by reason.",
 	}, []string{"reason"})
 
+	// J-16 slice 3: deploy-event webhook fan-out (MEET-2026-07-03-005 wiring triad).
+	workspaceWebhookEnqueued = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "theo_workspace_webhook_enqueued_total",
+		Help: "Deploy-event webhook deliveries enqueued by the fan-out, by event type.",
+	}, []string{"event_type"})
+
 	// Billing metrics (§4.2)
 	webhookEvents = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "theo_webhook_events_total",
@@ -99,6 +105,7 @@ func init() {
 		tenantProvisioning,
 		tenantProvisioningDuration,
 		authRejections,
+		workspaceWebhookEnqueued,
 		webhookEvents,
 		checkoutOps,
 		usageDrift,
@@ -106,6 +113,12 @@ func init() {
 		githubAppInstallations,
 		httpRequestDuration,
 	)
+}
+
+// IncWorkspaceWebhookEnqueued counts one deploy-event delivery enqueued by the
+// fan-out (J-16 slice 3), labeled by the deploy event type.
+func IncWorkspaceWebhookEnqueued(eventType string) {
+	workspaceWebhookEnqueued.WithLabelValues(eventType).Inc()
 }
 
 // IncTokenExchange increments token exchange counter.
