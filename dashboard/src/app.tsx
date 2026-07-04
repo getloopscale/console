@@ -137,9 +137,6 @@ const LensAgentsPage = lazy(() =>
 const LensAskPage = lazy(() =>
   import('@/pages/lens/ask').then((m) => ({ default: m.LensAskPage })),
 );
-const LensAnalyticsPage = lazy(() =>
-  import('@/pages/lens/analytics').then((m) => ({ default: m.LensAnalyticsPage })),
-);
 const LoginPage = lazy(() =>
   import('@/pages/login').then((m) => ({ default: m.LoginPage })),
 );
@@ -427,7 +424,6 @@ export default function App() {
                     <Route path="/observability/guards" element={<Boundaried path="/observability/guards"><LensGuardsPage /></Boundaried>} />
                     <Route path="/observability/agents" element={<Boundaried path="/observability/agents"><LensAgentsPage /></Boundaried>} />
                     <Route path="/observability/ask" element={<Boundaried path="/observability/ask"><LensAskPage /></Boundaried>} />
-                    <Route path="/observability/analytics" element={<Boundaried path="/observability/analytics"><LensAnalyticsPage /></Boundaried>} />
                     <Route path="/settings" element={<Boundaried path="/settings"><SettingsPage /></Boundaried>} />
                     <Route
                       path="/settings/members"

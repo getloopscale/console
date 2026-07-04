@@ -224,7 +224,6 @@ const MENUS: Record<string, MenuDefinition> = {
           { label: 'Guards', path: '/observability/guards', icon: ShieldCheck },
           { label: 'Agents', path: '/observability/agents', icon: Bot },
           { label: 'Ask', path: '/observability/ask', icon: Search },
-          { label: 'Analytics', path: '/observability/analytics', icon: Activity },
         ],
       },
     ],

@@ -36,12 +36,12 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     expect(screen.getByText('20')).toBeInTheDocument();
     expect(screen.getByText('Latency p95 (ms)')).toBeInTheDocument();
 
-    // Explore grid — all 8 sub-page cards
-    for (const t of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Agents', 'Ask', 'Analytics']) {
+    // Explore grid — all 7 sub-page cards (Analytics folded into this Overview's KPI strip)
+    for (const t of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Agents', 'Ask']) {
       expect(screen.getAllByText(t).length).toBeGreaterThan(0);
     }
-    // At least 8 "Open →" destination buttons (one per Explore card)
-    expect(screen.getAllByRole('button', { name: /open →/i }).length).toBeGreaterThanOrEqual(8);
+    // At least 7 "Open →" destination buttons (one per Explore card)
+    expect(screen.getAllByRole('button', { name: /open →/i }).length).toBeGreaterThanOrEqual(7);
   });
 
   it('shows a warning Alert when the metrics fail to load', async () => {
