@@ -54,12 +54,15 @@ interface ListResult {
   webhooks: Webhook[];
 }
 
-// Deploy-plane events this resource fires on (delivery slice will honor these).
+// Events this resource actually fires on. Only the events the engine emits are
+// offered — subscribing to an event that never fires is dishonest (Rule 3).
+// The engine emits deploy.succeeded (release→ACTIVE) + deploy.failed (build
+// execution failure); build.* (the build outcome, distinct from the deploy
+// outcome) are NOT emitted yet — tracked in theo-cloud#153 (a taxonomy ADR
+// decides whether deploy.failed subsumes build.failed).
 const AVAILABLE_EVENTS = [
   { id: 'deploy.succeeded', label: 'deploy.succeeded' },
   { id: 'deploy.failed', label: 'deploy.failed' },
-  { id: 'build.succeeded', label: 'build.succeeded' },
-  { id: 'build.failed', label: 'build.failed' },
 ] as const;
 
 const LIST_KEY = ['cloud', '/v1/settings/webhooks/list'] as const;
