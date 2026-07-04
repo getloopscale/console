@@ -1,0 +1,378 @@
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2 } from 'lucide-react';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  ConfirmDialog,
+  DataTable,
+  type DataTableColumn,
+  Dialog,
+  EmptyState,
+  Input,
+  PageShell,
+  Timestamp,
+} from '@usetheo/ui';
+import { usePageMeta } from '@/hooks/use-page-meta';
+import { useRequireAuth } from '@/hooks/use-auth';
+import { cloudFetch } from '@/lib/api';
+
+/**
+ * J-16 Settings › Webhooks — registration-only v0.1.
+ *
+ * Mirrors pages/memory/webhooks.tsx (create/list/delete) but for the NEW
+ * workspace-webhooks resource (deploy events). Backed by the BFF
+ * /v1/settings/webhooks endpoints (WorkspaceWebhooksHandler) which persist to
+ * the engine workspace_webhooks table (migration 000050).
+ *
+ * DELIVERY is a later T2-gated slice (the dispatcher/worker is the novel part).
+ * Per the same ADR D2 precedent memory_webhooks shipped at, this page discloses
+ * the registration-only state with a persistent "Delivery coming soon" Alert so
+ * a customer never registers a hook expecting silent events that never fire
+ * (Rule 3 — honesty in the UX). The per-webhook HMAC signing secret IS minted
+ * now and shown ONCE on create (Stripe show-once pattern) so the customer can
+ * store it before delivery goes live.
+ */
+
+interface Webhook {
+  id: string;
+  url: string;
+  label: string;
+  events: string[];
+  created_at?: string;
+}
+
+interface CreatedWebhook extends Webhook {
+  secret: string;
+}
+
+interface ListResult {
+  webhooks: Webhook[];
+}
+
+// Deploy-plane events this resource fires on (delivery slice will honor these).
+const AVAILABLE_EVENTS = [
+  { id: 'deploy.succeeded', label: 'deploy.succeeded' },
+  { id: 'deploy.failed', label: 'deploy.failed' },
+  { id: 'build.succeeded', label: 'build.succeeded' },
+  { id: 'build.failed', label: 'build.failed' },
+] as const;
+
+const LIST_KEY = ['cloud', '/v1/settings/webhooks/list'] as const;
+
+export function WorkspaceWebhooksPage() {
+  const { setPageTitle } = usePageMeta();
+  useEffect(() => setPageTitle('Webhooks'), [setPageTitle]);
+  useRequireAuth();
+  const queryClient = useQueryClient();
+
+  const list = useQuery({
+    queryKey: LIST_KEY,
+    queryFn: () => cloudFetch<ListResult>('/v1/settings/webhooks/list'),
+  });
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Webhook | null>(null);
+  const [createdSecret, setCreatedSecret] = useState<CreatedWebhook | null>(null);
+
+  const create = useMutation({
+    mutationFn: (input: { url: string; label: string; events: string[] }) =>
+      cloudFetch<CreatedWebhook>('/v1/settings/webhooks', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (data) => {
+      setCreateOpen(false);
+      if (data?.secret) setCreatedSecret(data);
+      void queryClient.invalidateQueries({ queryKey: LIST_KEY });
+    },
+  });
+
+  const revoke = useMutation({
+    mutationFn: (id: string) => cloudFetch<null>(`/v1/settings/webhooks/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      setPendingDelete(null);
+      void queryClient.invalidateQueries({ queryKey: LIST_KEY });
+    },
+  });
+
+  const webhooks = list.data?.webhooks ?? [];
+
+  const columns: DataTableColumn<Webhook>[] = [
+    { key: 'label', label: 'Label', render: (row) => <span className="font-medium">{row.label}</span> },
+    {
+      key: 'url',
+      label: 'URL',
+      render: (row) => <code className="font-mono text-xs text-muted-foreground">{row.url}</code>,
+    },
+    {
+      key: 'events',
+      label: 'Events',
+      render: (row) => (
+        <div className="flex flex-wrap gap-1">
+          {row.events.map((e) => (
+            <Badge key={e} variant="outline">
+              {e}
+            </Badge>
+          ))}
+        </div>
+      ),
+    },
+    {
+      key: 'created_at',
+      label: 'Created',
+      render: (row) => (row.created_at ? <Timestamp value={row.created_at} /> : null),
+    },
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      render: (row) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`Delete webhook ${row.label}`}
+          onClick={() => setPendingDelete(row)}
+        >
+          <Trash2 className="size-4 text-destructive" />
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <PageShell
+        title="Webhooks"
+        description="Register URLs to be notified when deploys and builds change state."
+        primaryAction={{
+          label: 'Add webhook',
+          icon: Plus,
+          onClick: () => setCreateOpen(true),
+        }}
+      >
+        <div className="space-y-6">
+          <Alert
+            intent="info"
+            title="Delivery coming soon"
+            description="Webhook registration is available now — the endpoints below are saved and each gets a signing secret. Automatic delivery of deploy and build events is rolling out shortly; until then, no events are dispatched."
+          />
+
+          {list.isError ? (
+            <Alert
+              intent="warning"
+              title="Could not load webhooks"
+              description="Try again in a moment."
+            />
+          ) : list.isLoading ? (
+            <Card>Loading…</Card>
+          ) : webhooks.length === 0 ? (
+            <EmptyState
+              title="No webhooks yet"
+              description="Click Add webhook to register your first endpoint."
+            />
+          ) : (
+            <Card>
+              <DataTable columns={columns} data={webhooks} rowKey={(row) => row.id} />
+            </Card>
+          )}
+        </div>
+      </PageShell>
+
+      <AddWebhookDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        submitting={create.isPending}
+        onSubmit={(input) => create.mutate(input)}
+      />
+
+      {createdSecret ? (
+        <SecretShownOnceDialog
+          created={createdSecret}
+          onClose={() => setCreatedSecret(null)}
+        />
+      ) : null}
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          open={pendingDelete !== null}
+          onOpenChange={(o) => !o && setPendingDelete(null)}
+          title={`Delete webhook "${pendingDelete.label}"?`}
+          description={
+            <div className="space-y-2 text-sm">
+              <p>
+                This webhook will be permanently removed. Any future deploy or build
+                events for this URL will not be queued for delivery.
+              </p>
+              <p className="text-muted-foreground">This cannot be undone.</p>
+            </div>
+          }
+          confirmLabel={revoke.isPending ? 'Deleting…' : 'Delete webhook'}
+          cancelLabel="Cancel"
+          intent="destructive"
+          confirmationPhrase={pendingDelete.label}
+          loading={revoke.isPending}
+          onConfirm={() => revoke.mutate(pendingDelete.id)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Shows the freshly-minted HMAC signing secret exactly once. The secret is not
+ * retrievable after this dialog closes (it is stored hashed on the server side
+ * in intent — raw only in the create response), matching the Stripe show-once
+ * contract.
+ */
+function SecretShownOnceDialog({
+  created,
+  onClose,
+}: {
+  created: CreatedWebhook;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <Dialog.Content>
+        <Dialog.Header>
+          <Dialog.Title>Webhook created</Dialog.Title>
+          <Dialog.Description>
+            Copy the signing secret now — it will not be shown again.
+          </Dialog.Description>
+        </Dialog.Header>
+        <Dialog.Body>
+          <div className="space-y-3">
+            <div>
+              <span className="text-sm font-medium block mb-1">Label</span>
+              <p className="text-sm">{created.label}</p>
+            </div>
+            <div>
+              <span className="text-sm font-medium block mb-1">Signing secret</span>
+              <code
+                className="font-mono text-xs break-all block rounded bg-muted p-2"
+                data-testid="webhook-signing-secret"
+              >
+                {created.secret}
+              </code>
+            </div>
+            <Alert
+              intent="warning"
+              title="Store this now"
+              description="This secret verifies that delivered events came from Theo. It cannot be recovered — if you lose it, delete the webhook and create a new one."
+            />
+          </div>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Button type="button" onClick={onClose}>
+            Done
+          </Button>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog>
+  );
+}
+
+interface AddWebhookDialogProps {
+  open: boolean;
+  onClose: () => void;
+  submitting: boolean;
+  onSubmit: (input: { url: string; label: string; events: string[] }) => void;
+}
+
+function AddWebhookDialog({ open, onClose, submitting, onSubmit }: AddWebhookDialogProps) {
+  const [url, setUrl] = useState('');
+  const [label, setLabel] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set([AVAILABLE_EVENTS[0].id]));
+
+  const reset = () => {
+    setUrl('');
+    setLabel('');
+    setSelected(new Set([AVAILABLE_EVENTS[0].id]));
+  };
+  const handleClose = () => {
+    if (!submitting) {
+      reset();
+      onClose();
+    }
+  };
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    onSubmit({ url, label: label.trim(), events: Array.from(selected) });
+  };
+
+  const submitDisabled = submitting || !/^https?:\/\//i.test(url) || label.trim() === '' || selected.size === 0;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
+      <Dialog.Content>
+        <Dialog.Header>
+          <Dialog.Title>Add webhook</Dialog.Title>
+          <Dialog.Description>Register a URL to be notified when deploy or build events occur.</Dialog.Description>
+        </Dialog.Header>
+        <Dialog.Body>
+          <form id="add-workspace-webhook-form" className="space-y-4" onSubmit={submit}>
+            <div>
+              <label htmlFor="wwh-url" className="text-sm font-medium block mb-1">
+                URL
+              </label>
+              <Input
+                id="wwh-url"
+                placeholder="https://hook.example.com/deploys"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="wwh-label" className="text-sm font-medium block mb-1">
+                Label
+              </label>
+              <Input
+                id="wwh-label"
+                placeholder="prod-deploys"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                maxLength={64}
+              />
+            </div>
+            <fieldset>
+              <legend className="text-sm font-medium mb-2">Events</legend>
+              <div className="space-y-2">
+                {AVAILABLE_EVENTS.map((evt) => (
+                  <label key={evt.id} className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={selected.has(evt.id)}
+                      onCheckedChange={() => {
+                        setSelected((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(evt.id)) next.delete(evt.id);
+                          else next.add(evt.id);
+                          return next;
+                        });
+                      }}
+                      aria-label={evt.id}
+                    />
+                    <span className="font-mono text-sm">{evt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </form>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button type="submit" form="add-workspace-webhook-form" disabled={submitDisabled}>
+            {submitting ? 'Adding…' : 'Add webhook'}
+          </Button>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog>
+  );
+}

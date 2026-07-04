@@ -8,7 +8,6 @@ import {
   Receipt,
   ShieldAlert,
   Users,
-  Webhook,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout';
 import { SubPagePlaceholder } from '@/pages/sub-page-placeholder';
@@ -90,6 +89,9 @@ const ExportsPage = lazy(() =>
 );
 const WebhooksPage = lazy(() =>
   import('@/pages/memory/webhooks').then((m) => ({ default: m.WebhooksPage })),
+);
+const WorkspaceWebhooksPage = lazy(() =>
+  import('@/pages/settings/webhooks').then((m) => ({ default: m.WorkspaceWebhooksPage })),
 );
 const PlaygroundPage = lazy(() =>
   import('@/pages/memory/playground').then((m) => ({ default: m.PlaygroundPage })),
@@ -468,12 +470,7 @@ export default function App() {
                       path="/settings/webhooks"
                       element={
                         <Boundaried path="/settings/webhooks">
-                          <SubPagePlaceholder
-                            title="Webhooks"
-                            description="HTTP callbacks for deploy + build events."
-                            icon={Webhook}
-                            cliCommand="theo webhook list"
-                          />
+                          <WorkspaceWebhooksPage />
                         </Boundaried>
                       }
                     />
