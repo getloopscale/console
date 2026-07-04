@@ -43,6 +43,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/thelens"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
+	"github.com/usetheodev/theo-cloud/internal/workspace_webhook_worker"
 )
 
 // buildRagForwardAuth constructs the theo-rag Model-B ForwardAuth handler + its broker
@@ -1212,6 +1213,14 @@ func main() {
 		webhookWorker := memory_webhook_worker.New(db, logger, nil)
 		go webhookWorker.Run(schedulerCtx)
 		logger.Info("memory webhook dispatcher started")
+	}
+
+	// J-16 slice 3: dispatch workspace_webhook_deliveries (deploy/build events)
+	// to customer URLs through the SSRF-guarded client, with a lease + reaper.
+	if db != nil {
+		wsWorker := workspace_webhook_worker.New(db, logger, os.Getenv("HOSTNAME"))
+		go wsWorker.Run(schedulerCtx)
+		logger.Info("workspace webhook dispatcher started")
 	}
 
 	// J-16 slice 3: drain the deploy_events outbox (engine migration 000051)

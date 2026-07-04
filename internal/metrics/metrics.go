@@ -54,6 +54,20 @@ var (
 		Help: "Auth rejections by reason.",
 	}, []string{"reason"})
 
+	// J-16 slice 3: deploy-event webhook delivery outcome (MEET-2026-07-03-005
+	// wiring triad). result ∈ delivered | failed | dead_letter.
+	workspaceWebhookDelivery = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "theo_workspace_webhook_delivery_total",
+		Help: "Deploy-event webhook delivery attempts by outcome.",
+	}, []string{"result"})
+
+	// J-16 slice 3: SSRF-guard rejections at delivery dial time. ANY non-zero
+	// value in prod is a probe/misconfig signal worth a log correlation
+	// (MEET-2026-07-03-005). reason ∈ loopback | link_local | rfc1918_ula | …
+	workspaceWebhookSSRFRejected = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "theo_workspace_webhook_ssrf_rejected_total",
+		Help: "Webhook delivery dials rejected by the SSRF egress guard, by reason.",
+	}, []string{"reason"})
 	// J-16 slice 3: deploy-event webhook fan-out (MEET-2026-07-03-005 wiring triad).
 	workspaceWebhookEnqueued = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "theo_workspace_webhook_enqueued_total",
@@ -105,6 +119,8 @@ func init() {
 		tenantProvisioning,
 		tenantProvisioningDuration,
 		authRejections,
+		workspaceWebhookDelivery,
+		workspaceWebhookSSRFRejected,
 		workspaceWebhookEnqueued,
 		webhookEvents,
 		checkoutOps,
@@ -160,6 +176,19 @@ func ObserveTenantProvisioning(success bool, duration time.Duration) {
 // IncAuthRejection increments auth rejection counter by reason.
 func IncAuthRejection(reason string) {
 	authRejections.WithLabelValues(reason).Inc()
+}
+
+// IncWorkspaceWebhookSSRFRejected counts one webhook delivery dial rejected by
+// the SSRF guard (J-16 slice 3), labeled by DisallowedReason. Wired as the
+// safehttp rejection observer.
+func IncWorkspaceWebhookSSRFRejected(reason string) {
+	workspaceWebhookSSRFRejected.WithLabelValues(reason).Inc()
+}
+
+// IncWorkspaceWebhookDelivery counts one deploy-event delivery outcome
+// (J-16 slice 3). result MUST be one of "delivered", "failed", "dead_letter".
+func IncWorkspaceWebhookDelivery(result string) {
+	workspaceWebhookDelivery.WithLabelValues(result).Inc()
 }
 
 // IncWebhook increments webhook counter.
