@@ -23,6 +23,8 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"time"
+
+	"github.com/usetheodev/theo-cloud/internal/metrics"
 )
 
 const (
@@ -168,14 +170,20 @@ func (e *Enqueuer) fanOut(ctx context.Context, tx *sql.Tx, ev event) error {
 	_ = rows.Close()
 
 	for _, wid := range webhookIDs {
-		if _, err := tx.ExecContext(ctx, `
+		res, err := tx.ExecContext(ctx, `
 			INSERT INTO workspace_webhook_deliveries
 			  (id, webhook_id, transition_id, tenant_id, event_type, payload, status, next_attempt_at)
 			VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW())
 			ON CONFLICT (webhook_id, transition_id) DO NOTHING`,
 			deliveryIDPrefix+randomHex16(), wid, ev.transitionID, ev.tenantID, ev.eventType, ev.payload,
-		); err != nil {
+		)
+		if err != nil {
 			return err
+		}
+		// Count only rows actually enqueued (ON CONFLICT no-ops don't count) —
+		// the wiring-triad runtime metric (MEET-2026-07-03-005).
+		if n, _ := res.RowsAffected(); n > 0 {
+			metrics.IncWorkspaceWebhookEnqueued(ev.eventType)
 		}
 	}
 	return nil
