@@ -9,7 +9,39 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) })
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
-import { LensTraceDetail, durationMs, prettyValue, asChat } from './trace-detail';
+// react-resizable-panels is a layout library that jsdom cannot lay out (it needs a real
+// ResizeObserver + measured sizes); mock it at the boundary so we test OUR wiring (a tree Panel,
+// a detail Panel, a resize handle), not the library. The drag behaviour is the library's contract
+// and is verified live in the browser (M48 DoD live check).
+vi.mock('react-resizable-panels', () => ({
+  PanelGroup: ({ children }: { children: React.ReactNode }) => <div data-testid="panel-group">{children}</div>,
+  Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  PanelResizeHandle: (props: Record<string, unknown>) => <div role="separator" {...props} />,
+}));
+
+import {
+  LensTraceDetail,
+  durationMs,
+  prettyValue,
+  asChat,
+  flattenVisible,
+  VIRTUALIZE_THRESHOLD,
+} from './trace-detail';
+
+/** Build a wide tree with `n` children under the root (to exercise the virtualization threshold). */
+function wideTree(n: number) {
+  return {
+    spanId: 'root',
+    traceId: 't1',
+    name: 'root.span',
+    children: Array.from({ length: n }, (_, i) => ({
+      spanId: `c${i}`,
+      traceId: 't1',
+      parentSpanId: 'root',
+      name: `child.${i}`,
+    })),
+  };
+}
 
 // jsdom has no scrollIntoView — stub it so the scroll-to-selected effect can be observed.
 beforeAll(() => {
@@ -83,12 +115,16 @@ describe('LensTraceDetail — selected-span detail', () => {
     expect(within(detail).getByText(/redacted/i)).toBeInTheDocument();
   });
 
-  it('shows pretty-printed JSON output for the selected span', async () => {
+  it('renders JSON output in a read-only CodeMirror viewer (M48)', async () => {
     mockCloudFetch.mockResolvedValue(tree());
     render(<LensTraceDetail traceId="t1" />);
     await userEvent.click(await screen.findByRole('button', { name: /claude_code\.llm_request/i }));
-    const detail = screen.getByTestId('span-detail');
-    expect(within(detail).getByText(/"answer": "hi"/)).toBeInTheDocument();
+    const out = within(screen.getByTestId('span-detail')).getByTestId('span-output');
+    // CodeMirror mounted (rich rendering) and carries the JSON content, read-only.
+    const cm = out.querySelector('.cm-editor');
+    expect(cm).toBeInTheDocument();
+    expect(cm?.querySelector('.cm-content')?.getAttribute('contenteditable')).toBe('false');
+    expect(out.textContent ?? '').toContain('answer');
   });
 
   it('shows attributes, events and model/token metadata for the selected span', async () => {
@@ -161,6 +197,57 @@ describe('LensTraceDetail — tree interaction', () => {
   });
 });
 
+describe('LensTraceDetail — M48 scale + rich', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('renders plainly below the virtualization threshold (no regression)', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />);
+    const treeEl = await screen.findByTestId('span-tree');
+    expect(screen.queryByTestId('span-tree-virtual')).not.toBeInTheDocument(); // recursive path
+    expect(within(treeEl).getByText('claude_code.interaction')).toBeInTheDocument();
+  });
+
+  it('takes the virtualized path above the threshold (small traces stay recursive)', async () => {
+    mockCloudFetch.mockResolvedValue(wideTree(VIRTUALIZE_THRESHOLD + 20));
+    render(<LensTraceDetail traceId="t1" />);
+    // the branch switches to the react-virtual container. jsdom has no layout so it cannot render
+    // the virtualized rows themselves (react-virtual needs measured sizes) — the row-level render is
+    // verified live; the flatten/collapse feed of those rows is unit-tested by `flattenVisible` below.
+    expect(await screen.findByTestId('span-tree-virtual')).toBeInTheDocument();
+  });
+
+  it('renders a resizable split with a drag handle', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />);
+    await screen.findByTestId('span-tree');
+    expect(screen.getByRole('separator', { name: /resize trace panels/i })).toBeInTheDocument();
+  });
+
+  it('shows an error badge for a span with a non-zero statusCode (M47 L5)', async () => {
+    mockCloudFetch.mockResolvedValue(tree({ statusCode: '2', children: [] }));
+    render(<LensTraceDetail traceId="t1" />);
+    const treeEl = await screen.findByTestId('span-tree');
+    expect(within(treeEl).getByText('error')).toBeInTheDocument();
+  });
+
+  it('renders every row even when spanId is duplicated in malformed data (M47 L4)', async () => {
+    mockCloudFetch.mockResolvedValue({
+      spanId: 'dup',
+      traceId: 't1',
+      name: 'root',
+      children: [
+        { spanId: 'dup', traceId: 't1', name: 'child.a' },
+        { spanId: 'dup', traceId: 't1', name: 'child.b' },
+      ],
+    });
+    render(<LensTraceDetail traceId="t1" />);
+    const treeEl = await screen.findByTestId('span-tree');
+    expect(within(treeEl).getByText('child.a')).toBeInTheDocument();
+    expect(within(treeEl).getByText('child.b')).toBeInTheDocument();
+  });
+});
+
 describe('trace-detail pure helpers', () => {
   it('durationMs computes ms and guards missing/skewed/malformed timestamps', () => {
     expect(durationMs({ startTimeUnixNano: '1000000000', endTimeUnixNano: '1002000000' })).toBe(2);
@@ -180,6 +267,21 @@ describe('trace-detail pure helpers', () => {
     expect(asChat('[]')).toBeNull();
     expect(asChat('[{"foo":1}]')).toBeNull();
     expect(asChat('not json')).toBeNull();
+  });
+
+  it('flattenVisible respects collapse and carries depth (the virtual path feed)', () => {
+    const t = {
+      spanId: 'a',
+      traceId: 't',
+      name: 'a',
+      children: [{ spanId: 'b', traceId: 't', name: 'b', children: [{ spanId: 'c', traceId: 't', name: 'c' }] }],
+    };
+    const all = flattenVisible(t, new Set());
+    expect(all.map((f) => f.node.spanId)).toEqual(['a', 'b', 'c']);
+    expect(all.map((f) => f.depth)).toEqual([0, 1, 2]);
+    // collapse 'b' → its descendant 'c' disappears
+    const collapsed = flattenVisible(t, new Set(['b']));
+    expect(collapsed.map((f) => f.node.spanId)).toEqual(['a', 'b']);
   });
 });
 
