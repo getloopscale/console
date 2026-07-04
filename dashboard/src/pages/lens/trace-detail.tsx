@@ -6,6 +6,8 @@ import { Alert, Badge, Button, Card, Skeleton } from '@usetheo/ui';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
+
+import { LensPlayground } from './playground';
 import { EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 
@@ -490,13 +492,22 @@ function SpanDetail({ span }: { span: TraceSpanNode }) {
   const dur = durationMs(span);
   const attrs = Object.entries(span.attributes ?? {});
   const events = span.events ?? [];
+  // M55 — an LLM span (one with a recorded input) can be replayed in the playground.
+  const canReplay = !!span.inputValue;
+  const [pgOpen, setPgOpen] = useState(false);
   return (
     <div data-testid="span-detail" className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-sm font-medium">{span.name}</span>
         {span.model ? <Badge variant="outline">{span.model}</Badge> : null}
         {span.provider ? <Badge variant="outline">{span.provider}</Badge> : null}
+        {canReplay ? (
+          <Button variant="secondary" size="sm" className="ml-auto" onClick={() => setPgOpen((v) => !v)}>
+            {pgOpen ? 'Close playground' : 'Playground'}
+          </Button>
+        ) : null}
       </div>
+      {canReplay && pgOpen ? <LensPlayground span={span} /> : null}
 
       <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
         {span.inputTokens !== undefined ? (

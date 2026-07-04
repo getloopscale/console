@@ -117,6 +117,16 @@ describe('LensTraceDetail — selected-span detail', () => {
     expect(within(detail).getByText(/redacted/i)).toBeInTheDocument();
   });
 
+  it('M55 — a span with a recorded input offers a Playground that reveals the replay editor', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />);
+    const detail = await screen.findByTestId('span-detail');
+    const btn = within(detail).getByRole('button', { name: /^playground$/i });
+    expect(screen.queryByTestId('playground')).not.toBeInTheDocument(); // closed by default
+    await userEvent.click(btn);
+    expect(await screen.findByTestId('playground')).toBeInTheDocument(); // revealed on click
+  });
+
   it('renders JSON output in a read-only CodeMirror viewer (M48)', async () => {
     mockCloudFetch.mockResolvedValue(tree());
     render(<LensTraceDetail traceId="t1" />);
