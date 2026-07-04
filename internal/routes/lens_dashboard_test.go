@@ -92,6 +92,9 @@ func (s *stubLensDataClient) GetTraceAnnotations(context.Context, string) (json.
 func (s *stubLensDataClient) Ask(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 	return s.read(`{"answer":"because"}`)
 }
+func (s *stubLensDataClient) Replay(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return s.read(`{"output":"new","promptTokens":1,"completionTokens":1,"totalTokens":2,"latencyMs":10,"model":"m"}`)
+}
 func (s *stubLensDataClient) CreateDataset(context.Context, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"id":"ds_1","name":"golden","itemCount":0}`)
 }
@@ -325,6 +328,7 @@ func TestLensDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 		{http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/tags?tag=p", ``},
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/annotations", `{"label":"g"}`},
 		{http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/annotations?name=feedback", ``},
+		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/replay", `{"messages":[{"role":"user","content":"hi"}]}`}, // M55 — fail-closed without JWT
 	}
 	for _, wr := range writes {
 		t.Run(wr.method+" "+wr.path, func(t *testing.T) {
@@ -362,10 +366,11 @@ func TestLensDashboard_RouteSet_NoBodyOrAgentsMutation(t *testing.T) {
 			continue
 		}
 		// forbidden: mutating the trace/session body itself, or any /agents mutation.
-		// Allowed POST/DELETE under a trace: /tags, /annotations (writable metadata) and /ask
-		// (read-scope copilot query — not a body mutation).
+		// Allowed POST/DELETE under a trace: /tags, /annotations (writable metadata), /ask and
+		// /replay (read-scope ephemeral provider queries — NOT a body mutation; M55 replay never
+		// writes the trace, the persist path is save-as-dataset).
 		underTrace := strings.HasPrefix(rt.pattern, "/v1/dashboard/lens/traces/{traceID}")
-		writableMeta := strings.Contains(rt.pattern, "/tags") || strings.Contains(rt.pattern, "/annotations") || strings.Contains(rt.pattern, "/ask")
+		writableMeta := strings.Contains(rt.pattern, "/tags") || strings.Contains(rt.pattern, "/annotations") || strings.Contains(rt.pattern, "/ask") || strings.Contains(rt.pattern, "/replay")
 		bad := rt.pattern == "/v1/dashboard/lens/traces" ||
 			(underTrace && !writableMeta) ||
 			strings.HasPrefix(rt.pattern, "/v1/dashboard/lens/sessions") ||

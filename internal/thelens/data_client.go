@@ -254,6 +254,12 @@ func (c *DataClient) Ask(ctx context.Context, traceID string, body json.RawMessa
 	return c.doRaw(ctx, http.MethodPost, "/v1/traces/"+url.PathEscape(traceID)+"/ask", nil, body)
 }
 
+// Replay proxies POST /v1/traces/{id}/replay (M55 span replay — edited messages re-run against the
+// real provider). Same per-tenant path as Ask; the browser never holds a provider key.
+func (c *DataClient) Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPost, "/v1/traces/"+url.PathEscape(traceID)+"/replay", nil, body)
+}
+
 // AddTraceTag proxies POST /v1/traces/{id}/tags ({tag}).
 func (c *DataClient) AddTraceTag(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error) {
 	return c.doRaw(ctx, http.MethodPost, "/v1/traces/"+url.PathEscape(traceID)+"/tags", nil, body)

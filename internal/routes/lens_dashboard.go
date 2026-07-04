@@ -40,6 +40,7 @@ type LensDataClient interface {
 	GetTraceTags(ctx context.Context, id string) (json.RawMessage, error)
 	GetTraceAnnotations(ctx context.Context, id string) (json.RawMessage, error)
 	Ask(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
+	Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	// Writes (M44) — datasets / evaluators / guards / trace metadata
 	CreateDataset(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
 	AddDatasetItem(ctx context.Context, datasetID string, body json.RawMessage) (json.RawMessage, error)
@@ -279,6 +280,16 @@ func (h *LensDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	h.proxyBody(w, r, "ask", func(body json.RawMessage) (json.RawMessage, error) { return h.client.Ask(r.Context(), id, body) })
 }
 
+// Replay serves POST /v1/dashboard/lens/traces/{traceID}/replay — the M55 span replay (theo-lens
+// POST /v1/traces/:id/replay): re-run an edited message list against the real provider server-side.
+// Same per-tenant Model-B path + fail-closed body-proxy as Ask; a read-scope EPHEMERAL provider call
+// that never mutates the trace body (the persist path is save-as-dataset). The browser never holds a
+// provider key — the credential stays in theo-lens.
+func (h *LensDashboardHandler) Replay(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "traceID")
+	h.proxyBody(w, r, "replay", func(body json.RawMessage) (json.RawMessage, error) { return h.client.Replay(r.Context(), id, body) })
+}
+
 // Writes — datasets.
 
 func (h *LensDashboardHandler) CreateDataset(w http.ResponseWriter, r *http.Request) {
@@ -371,7 +382,8 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/guards", h.ListGuards)
 		r.Get("/guards/{guardID}/breaches", h.GuardBreaches)
 		r.Get("/agents", h.ListAgents)
-		r.Post("/traces/{traceID}/ask", h.Ask) // read-scope copilot query
+		r.Post("/traces/{traceID}/ask", h.Ask)       // read-scope copilot query
+		r.Post("/traces/{traceID}/replay", h.Replay) // M55 — read-scope ephemeral provider replay
 		// Writes — datasets
 		r.Post("/datasets", h.CreateDataset)
 		r.Post("/datasets/{datasetID}/items", h.AddDatasetItem)
