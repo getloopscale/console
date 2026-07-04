@@ -44,7 +44,7 @@ func TestDataClient_ListTraces_HitsRealPath_WithBearer(t *testing.T) {
 	srv := captureServer(t, &gotPath, &gotQuery, &gotAuth, `{"traces":[{"traceId":"t1"}]}`)
 	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("theo_live_minted"))
 
-	raw, err := c.ListTraces(context.Background(), 25, 50)
+	raw, err := c.ListTraces(context.Background(), TraceListFilter{Limit: 25, Offset: 50})
 	if err != nil {
 		t.Fatalf("ListTraces: %v", err)
 	}
@@ -59,6 +59,51 @@ func TestDataClient_ListTraces_HitsRealPath_WithBearer(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), `"traceId":"t1"`) {
 		t.Fatalf("body pass-through failed: %s", raw)
+	}
+}
+
+// TestDataClient_ListTraces_ForwardsWhitelistedFilters (M49) — the whitelisted filter params
+// (status/model/from/to/q + limit) reach theo-lens's GET /v1/traces query string. theo-lens already
+// implements the filter SQL; the BFF only forwards.
+func TestDataClient_ListTraces_ForwardsWhitelistedFilters(t *testing.T) {
+	var gotPath, gotQuery, gotAuth string
+	srv := captureServer(t, &gotPath, &gotQuery, &gotAuth, `{"traces":[]}`)
+	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
+
+	_, err := c.ListTraces(context.Background(), TraceListFilter{
+		Limit: 25, Status: "error", Model: "claude-opus-4-8", Q: "boom", From: "2026-07-01T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatalf("ListTraces: %v", err)
+	}
+	if gotPath != "/v1/traces" {
+		t.Fatalf("path = %q, want /v1/traces", gotPath)
+	}
+	q, _ := url.ParseQuery(gotQuery)
+	for k, want := range map[string]string{
+		"status": "error", "model": "claude-opus-4-8", "q": "boom",
+		"from": "2026-07-01T00:00:00Z", "limit": "25",
+	} {
+		if q.Get(k) != want {
+			t.Errorf("forwarded %s = %q, want %q (full query=%q)", k, q.Get(k), want, gotQuery)
+		}
+	}
+}
+
+// TestDataClient_ListTraces_OmitsEmptyFilters (M49) — empty filter fields are NOT sent (no
+// `status=&model=` noise), so theo-lens sees only the active filters.
+func TestDataClient_ListTraces_OmitsEmptyFilters(t *testing.T) {
+	var gotPath, gotQuery, gotAuth string
+	srv := captureServer(t, &gotPath, &gotQuery, &gotAuth, `{"traces":[]}`)
+	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
+	if _, err := c.ListTraces(context.Background(), TraceListFilter{Q: "only"}); err != nil {
+		t.Fatalf("ListTraces: %v", err)
+	}
+	if strings.Contains(gotQuery, "status=") || strings.Contains(gotQuery, "model=") || strings.Contains(gotQuery, "from=") {
+		t.Fatalf("empty filters must not be sent, got query=%q", gotQuery)
+	}
+	if q, _ := url.ParseQuery(gotQuery); q.Get("q") != "only" {
+		t.Fatalf("q = %q, want only", q.Get("q"))
 	}
 }
 
@@ -114,7 +159,7 @@ func TestDataClient_FailClosed_NoResolver(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hit = true }))
 	t.Cleanup(srv.Close)
 	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}) // no WithKeyResolver
-	if _, err := c.ListTraces(context.Background(), 0, 0); err == nil {
+	if _, err := c.ListTraces(context.Background(), TraceListFilter{}); err == nil {
 		t.Fatal("expected an error with no key resolver (fail-closed)")
 	}
 	if hit {
@@ -470,7 +515,7 @@ func TestDataClient_UpstreamError_Propagates(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
-	raw, err := c.ListTraces(context.Background(), 0, 0)
+	raw, err := c.ListTraces(context.Background(), TraceListFilter{})
 	if err == nil {
 		t.Fatal("expected an error on upstream 500")
 	}

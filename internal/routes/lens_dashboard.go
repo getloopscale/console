@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/thelens"
 )
 
 // LensDataClient is the theo-lens proxy the dashboard BFF depends on (DIP — a stub satisfies it
@@ -23,8 +24,8 @@ import (
 // returns the upstream body verbatim (json.RawMessage) — the BFF is a thin proxy that never
 // re-models theo-lens's shape. theo-lens enforces the per-verb lens:* scope on the minted key.
 type LensDataClient interface {
-	// Reads (M41 + M44)
-	ListTraces(ctx context.Context, limit, offset int) (json.RawMessage, error)
+	// Reads (M41 + M44; M49 adds the whitelisted trace-list filter)
+	ListTraces(ctx context.Context, f thelens.TraceListFilter) (json.RawMessage, error)
 	ListSessions(ctx context.Context, limit, offset int) (json.RawMessage, error)
 	Observability(ctx context.Context) (json.RawMessage, error)
 	Cost(ctx context.Context, since string) (json.RawMessage, error)
@@ -93,14 +94,31 @@ func pageParams(r *http.Request) (limit, offset int) {
 	return limit, offset
 }
 
-// ListTraces serves GET /v1/dashboard/lens/traces — the caller workspace's traces, via the
-// per-tenant observability:read key resolved from the JWT session (fail-closed 401 when no tenant).
+// traceFilter reads the WHITELISTED trace-list filter params from the request query (M49). Only the
+// known keys (status/model/from/to/q + limit/offset) are read; a request's unknown params are never
+// forwarded to theo-lens. Values pass through — theo-lens validates them (e.g. a bad status → 400).
+func traceFilter(r *http.Request) thelens.TraceListFilter {
+	limit, offset := pageParams(r)
+	q := r.URL.Query()
+	return thelens.TraceListFilter{
+		Limit:  limit,
+		Offset: offset,
+		Status: q.Get("status"),
+		Model:  q.Get("model"),
+		From:   q.Get("from"),
+		To:     q.Get("to"),
+		Q:      q.Get("q"),
+	}
+}
+
+// ListTraces serves GET /v1/dashboard/lens/traces — the caller workspace's traces (M49: filtered by
+// the whitelisted query params), via the per-tenant observability:read key resolved from the JWT
+// session (fail-closed 401 when no tenant).
 func (h *LensDashboardHandler) ListTraces(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
 	}
-	limit, offset := pageParams(r)
-	raw, err := h.client.ListTraces(r.Context(), limit, offset)
+	raw, err := h.client.ListTraces(r.Context(), traceFilter(r))
 	if err != nil {
 		h.logger.Warn("lens dashboard: list traces failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not list traces.")

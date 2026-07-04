@@ -16,14 +16,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/thelens"
 )
 
 // stubLensDataClient counts calls + can error. `calls` is the total (read tests); `writeCalls`
 // counts only mutating methods (write fail-closed tests assert it stays 0 without a JWT).
 type stubLensDataClient struct {
-	calls      int
-	writeCalls int
-	err        error
+	calls           int
+	writeCalls      int
+	err             error
+	lastTraceFilter thelens.TraceListFilter
 }
 
 func (s *stubLensDataClient) read(body string) (json.RawMessage, error) {
@@ -42,7 +44,8 @@ func (s *stubLensDataClient) write(body string) (json.RawMessage, error) {
 	return json.RawMessage(body), nil
 }
 
-func (s *stubLensDataClient) ListTraces(context.Context, int, int) (json.RawMessage, error) {
+func (s *stubLensDataClient) ListTraces(_ context.Context, f thelens.TraceListFilter) (json.RawMessage, error) {
+	s.lastTraceFilter = f
 	return s.read(`{"traces":[{"traceId":"t1"}]}`)
 }
 func (s *stubLensDataClient) ListSessions(context.Context, int, int) (json.RawMessage, error) {
@@ -207,6 +210,25 @@ func TestLensDashboard_UpstreamError_502(t *testing.T) {
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("want 502 on upstream error, got %d", w.Code)
 	}
+}
+
+// TestLensDashboard_ListTraces_WhitelistsFilterParams (M49) — the handler reads only the known
+// filter params (status/model/from/to/q) into the forwarded filter; an unknown param (`evil`) is
+// structurally never forwarded (there is no field to smuggle it into).
+func TestLensDashboard_ListTraces_WhitelistsFilterParams(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet,
+		"/v1/dashboard/lens/traces?status=error&model=claude-opus-4-8&q=boom&from=2026-07-01T00:00:00Z&limit=25&evil=1", nil), "t1")
+	w := httptest.NewRecorder()
+	h.ListTraces(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+	f := stub.lastTraceFilter
+	if f.Status != "error" || f.Model != "claude-opus-4-8" || f.Q != "boom" || f.From != "2026-07-01T00:00:00Z" || f.Limit != 25 {
+		t.Fatalf("filter not forwarded from query: %+v", f)
+	}
+	// `evil=1` cannot reach theo-lens — TraceListFilter has no field for it (whitelist by construction).
 }
 
 // noopJWT is a pass-through stand-in for the requireJWT middleware in the mount tests (the

@@ -49,9 +49,42 @@ func (c *DataClient) WithKeyResolver(r func(ctx context.Context) (string, error)
 	return c
 }
 
-// ListTraces proxies GET /v1/traces?limit&offset with the per-tenant Bearer.
-func (c *DataClient) ListTraces(ctx context.Context, limit, offset int) (json.RawMessage, error) {
-	return c.getRaw(ctx, "/v1/traces", pageQuery(limit, offset))
+// TraceListFilter is the whitelisted set of trace-list filters the BFF forwards to theo-lens's
+// existing GET /v1/traces filter SQL (M49). theo-lens already implements status/model/from/to/q
+// (full-text) — the BFF only forwards them; it never re-implements the filtering. Only these fields
+// are ever forwarded (a request's unknown query params are dropped at the handler boundary).
+type TraceListFilter struct {
+	Limit, Offset int
+	Status        string // "ok" | "error" (theo-lens validates the value)
+	Model         string
+	From, To      string // ISO-8601 datetime bounds
+	Q             string // full-text search
+}
+
+// ListTraces proxies GET /v1/traces with the per-tenant Bearer, forwarding the whitelisted filters.
+func (c *DataClient) ListTraces(ctx context.Context, f TraceListFilter) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/traces", filterQuery(f))
+}
+
+// filterQuery builds the /v1/traces query: pagination + only the non-empty whitelisted filters.
+func filterQuery(f TraceListFilter) url.Values {
+	q := pageQuery(f.Limit, f.Offset)
+	if f.Status != "" {
+		q.Set("status", f.Status)
+	}
+	if f.Model != "" {
+		q.Set("model", f.Model)
+	}
+	if f.From != "" {
+		q.Set("from", f.From)
+	}
+	if f.To != "" {
+		q.Set("to", f.To)
+	}
+	if f.Q != "" {
+		q.Set("q", f.Q)
+	}
+	return q
 }
 
 // ListSessions proxies GET /v1/sessions?limit&offset with the per-tenant Bearer.
