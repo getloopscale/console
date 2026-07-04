@@ -112,5 +112,23 @@ describe('LensPlayground', () => {
     await waitFor(() =>
       expect(mockCloudFetch.mock.calls.some(([p, o]) => String(p).includes('/datasets/ds-1/items') && (o as { method?: string })?.method === 'POST')).toBe(true),
     );
+    // the POST carries the replayed input+output (a synthetic dataset item — no traceId).
+    const saveCall = mockCloudFetch.mock.calls.find(([p, o]) => String(p).includes('/datasets/ds-1/items') && (o as { method?: string })?.method === 'POST');
+    expect(JSON.stringify(saveCall![1])).toContain('edited answer');
+  });
+
+  it('a failed save surfaces an error, not a silent no-op', async () => {
+    mockCloudFetch.mockImplementation((path?: string, opts?: { method?: string }) => {
+      if (typeof path !== 'string') return Promise.resolve(null);
+      if (path === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds-1', name: 'golden' }] });
+      if (path.endsWith('/replay')) return Promise.resolve(OK);
+      if (path.includes('/datasets/ds-1/items') && opts?.method === 'POST') return Promise.reject(new Error('save failed'));
+      return Promise.resolve({});
+    });
+    renderPg(llmSpan);
+    await userEvent.click(screen.getByRole('button', { name: /^run$/i }));
+    await waitFor(() => expect(screen.getByTestId('replay-output')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: /save as dataset item/i }));
+    await waitFor(() => expect(screen.getByTestId('save-error')).toBeInTheDocument());
   });
 });

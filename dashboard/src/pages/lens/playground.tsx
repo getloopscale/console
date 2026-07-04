@@ -180,33 +180,40 @@ export function LensPlayground({ span }: { span: TraceSpanNode }) {
         </div>
       </div>
 
-      {/* Opt-in: save the replayed input+output as a dataset item (the only persist path). */}
+      {/* Opt-in: save the replayed input+output as a synthetic dataset item (the only persist path). */}
       {result ? (
-        <div className="flex items-center gap-2 border-t border-border/50 pt-2">
-          {datasetOptions.length > 0 ? (
-            <Select value={targetDataset} onValueChange={setDataset}>
-              <Select.Trigger className="w-[200px]" aria-label="Dataset">
-                <Select.Value />
-              </Select.Trigger>
-              <Select.Content>
-                {datasetOptions.map((d) => (
-                  <Select.Item key={d.id} value={d.id}>
-                    {d.name}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
-          ) : (
-            <span className="text-xs text-muted-foreground">No datasets yet — create one first.</span>
-          )}
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!targetDataset || save.isPending}
-            onClick={() => targetDataset && save.mutate(targetDataset)}
-          >
-            {save.isSuccess ? 'Saved' : 'Save as dataset item'}
-          </Button>
+        <div className="space-y-1 border-t border-border/50 pt-2">
+          <div className="flex items-center gap-2">
+            {datasetOptions.length > 0 ? (
+              <Select value={targetDataset} onValueChange={setDataset}>
+                <Select.Trigger className="w-[200px]" aria-label="Dataset">
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Content>
+                  {datasetOptions.map((d) => (
+                    <Select.Item key={d.id} value={d.id}>
+                      {d.name}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            ) : (
+              <span className="text-xs text-muted-foreground">No datasets yet — create one first.</span>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!targetDataset || save.isPending}
+              onClick={() => targetDataset && save.mutate(targetDataset)}
+            >
+              {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved' : 'Save as dataset item'}
+            </Button>
+          </div>
+          {save.isError ? (
+            <Alert intent="warning" title="Could not save" data-testid="save-error">
+              The dataset item was not saved — try again.
+            </Alert>
+          ) : null}
         </div>
       ) : null}
     </Card>
