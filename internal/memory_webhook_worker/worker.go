@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/usetheodev/theo-cloud/internal/safehttp"
 )
 
 // Defaults — overridable via Config when constructing Worker.
@@ -77,7 +79,10 @@ func New(db *sql.DB, logger *slog.Logger, cfg *Config) *Worker {
 		}
 	}
 	if c.HTTPClient == nil {
-		c.HTTPClient = &http.Client{Timeout: defaultHTTPClientTimeout}
+		// SSRF guard (theo-cloud#148): the delivery target is a
+		// customer-controlled URL. safehttp rejects the resolved IP at
+		// dial time (defeats DNS rebinding) and does not follow redirects.
+		c.HTTPClient = safehttp.NewClient(defaultHTTPClientTimeout)
 	}
 	// Invariant (theo-cloud#160 B1): never claim more than we can immediately
 	// dispatch, else batch-tail rows expire their lease while queued and the
