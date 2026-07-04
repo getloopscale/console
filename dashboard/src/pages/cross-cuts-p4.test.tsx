@@ -21,11 +21,18 @@ vi.mock('@/hooks/use-whoami', () => ({
 
 const mockCloudFetch = vi.fn();
 const mockEngineFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
-  cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
-  engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
-  getApiBase: () => '',
-}));
+// Partial-mock pattern (vitest-recommended): preserve ApiError (used by
+// useInvoices via `q.error instanceof ApiError`) and any other genuine
+// exports from '@/lib/api'; override only the two fetchers under test.
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api')>();
+  return {
+    ...actual,
+    cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
+    engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
+    getApiBase: () => '',
+  };
+});
 
 // useCloudApi delegates to cloudFetch under the hood; the existing pages
 // use both. Mocking the underlying fetcher covers both paths.
