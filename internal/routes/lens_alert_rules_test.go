@@ -1,0 +1,202 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2025-2026 The Theo Authors
+
+package routes
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-chi/chi/v5"
+
+	"github.com/usetheodev/theo-cloud/internal/auth"
+)
+
+// theo-lens M53 — LensAlertRulesHandler. Per-tenant threshold alert rules, mirroring the M52
+// lens_saved_views isolation (subject+tenant_id scoping, 404-not-403 cross-tenant delete).
+
+func larReq(method, target, body, tenant string) *http.Request {
+	var r *http.Request
+	if body != "" {
+		r = httptest.NewRequest(method, target, strings.NewReader(body))
+	} else {
+		r = httptest.NewRequest(method, target, nil)
+	}
+	if tenant != "" {
+		r = r.WithContext(auth.WithUser(r.Context(), &auth.UserContext{
+			Subject: "sub-1", Email: "o@x.com", TenantID: tenant,
+		}))
+	}
+	return r
+}
+
+func TestLensAlertRules_Create_Unauthenticated_401(t *testing.T) {
+	h := &LensAlertRulesHandler{}
+	w := httptest.NewRecorder()
+	h.Create(w, larReq(http.MethodPost, "/v1/dashboard/lens/alert-rules",
+		`{"name":"n","metric":"error_rate","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-x"}`, ""))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("code = %d, want 401", w.Code)
+	}
+}
+
+func TestLensAlertRules_Create_RejectsBadMetric(t *testing.T) {
+	h := &LensAlertRulesHandler{}
+	w := httptest.NewRecorder()
+	h.Create(w, larReq(http.MethodPost, "/v1/dashboard/lens/alert-rules",
+		`{"name":"n","metric":"bogus","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-x"}`, "tn-1"))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("code = %d, want 400 for bad metric", w.Code)
+	}
+}
+
+func TestLensAlertRules_Create_RejectsBadComparatorAndWindowAndWebhook(t *testing.T) {
+	h := &LensAlertRulesHandler{}
+	for _, body := range []string{
+		`{"name":"n","metric":"cost","comparator":"eq","threshold":5,"window_seconds":3600,"webhook_id":"wwh-x"}`, // eq not allowed
+		`{"name":"n","metric":"cost","comparator":"gt","threshold":5,"window_seconds":0,"webhook_id":"wwh-x"}`,    // window 0
+		`{"name":"n","metric":"cost","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":""}`,      // no webhook
+	} {
+		w := httptest.NewRecorder()
+		h.Create(w, larReq(http.MethodPost, "/v1/dashboard/lens/alert-rules", body, "tn-1"))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("code = %d, want 400 for %s", w.Code, body)
+		}
+	}
+}
+
+func TestLensAlertRules_Create_InsertsAndReturnsID(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New()
+	defer func() { _ = dbConn.Close() }()
+	// ownership check: the webhook belongs to this tenant → one row
+	mock.ExpectQuery("SELECT 1 FROM workspace_webhooks").
+		WithArgs("wwh-001122", "tn-1").
+		WillReturnRows(sqlmock.NewRows([]string{"?column?"}).AddRow(1))
+	mock.ExpectExec("INSERT INTO lens_alert_rules").WillReturnResult(sqlmock.NewResult(0, 1))
+
+	h := NewLensAlertRulesHandler(dbConn, nil)
+	w := httptest.NewRecorder()
+	h.Create(w, larReq(http.MethodPost, "/v1/dashboard/lens/alert-rules",
+		`{"name":"errors > 5%","metric":"error_rate","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-001122"}`, "tn-1"))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200 (body=%s)", w.Code, w.Body.String())
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if id, _ := resp["id"].(string); !strings.HasPrefix(id, "lar-") {
+		t.Errorf("id = %v, want lar- prefix", resp["id"])
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("sqlmock expectations: %v", err)
+	}
+}
+
+// The isolation keystone: a rule targeting a webhook NOT owned by the caller's tenant is rejected
+// (400), never inserted — so tenant A can never POST its alerts to tenant B's endpoint.
+func TestLensAlertRules_Create_RejectsForeignWebhook(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New()
+	defer func() { _ = dbConn.Close() }()
+	// the ownership check finds no matching (webhook_id, tenant_id) → the rule is rejected before INSERT
+	mock.ExpectQuery("SELECT 1 FROM workspace_webhooks").
+		WithArgs("wwh-otherowner", "tn-1").
+		WillReturnError(sql.ErrNoRows)
+
+	h := NewLensAlertRulesHandler(dbConn, nil)
+	w := httptest.NewRecorder()
+	h.Create(w, larReq(http.MethodPost, "/v1/dashboard/lens/alert-rules",
+		`{"name":"leaky","metric":"cost","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-otherowner"}`, "tn-1"))
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("code = %d, want 400 for a webhook not owned by the tenant", w.Code)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("no INSERT should follow a failed ownership check: %v", err)
+	}
+}
+
+func TestLensAlertRules_List_ScopedToSubjectAndTenant(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New()
+	defer func() { _ = dbConn.Close() }()
+	mock.ExpectQuery("SELECT id, name, metric, comparator").
+		WithArgs("sub-1", "tn-1"). // the (subject, tenant_id) isolation binds here
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "name", "metric", "comparator", "threshold", "window_seconds", "webhook_id", "enabled",
+			"status", "last_evaluated_at", "last_triggered_at", "renotify_interval_seconds", "created_at",
+		}).AddRow("lar-0011223344556677", "errs", "error_rate", "gt", 5.0, 3600, "wwh-1", true,
+			"TRIGGERED", "2026-07-04T10:00:00Z", "2026-07-04T10:05:00Z", nil, "2026-07-04T09:00:00Z"))
+
+	h := NewLensAlertRulesHandler(dbConn, nil)
+	w := httptest.NewRecorder()
+	h.List(w, larReq(http.MethodGet, "/v1/dashboard/lens/alert-rules", "", "tn-1"))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "lar-0011223344556677") || !strings.Contains(body, "TRIGGERED") {
+		t.Errorf("list body missing rule or state: %s", body)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("sqlmock expectations: %v", err)
+	}
+}
+
+func TestLensAlertRules_Delete_NotFoundWhenZeroRows(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New()
+	defer func() { _ = dbConn.Close() }()
+	// cross-tenant / non-existent → 0 rows → 404 (never 403, the isolation keystone)
+	mock.ExpectExec("DELETE FROM lens_alert_rules").WillReturnResult(sqlmock.NewResult(0, 0))
+
+	h := NewLensAlertRulesHandler(dbConn, nil)
+	rc := chi.NewRouteContext()
+	rc.URLParams.Add("id", "lar-0011223344556677")
+	r := larReq(http.MethodDelete, "/v1/dashboard/lens/alert-rules/lar-0011223344556677", "", "tn-1")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rc))
+	w := httptest.NewRecorder()
+	h.Delete(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("code = %d, want 404 (cross-tenant/non-existent collapse to 404)", w.Code)
+	}
+}
+
+func TestLensAlertRules_Delete_RejectsMalformedID(t *testing.T) {
+	h := &LensAlertRulesHandler{}
+	rc := chi.NewRouteContext()
+	rc.URLParams.Add("id", "nope")
+	r := larReq(http.MethodDelete, "/v1/dashboard/lens/alert-rules/nope", "", "tn-1")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rc))
+	w := httptest.NewRecorder()
+	h.Delete(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("code = %d, want 400 for malformed id", w.Code)
+	}
+}
+
+func TestLensAlertRules_Toggle_ScopedUpdate(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New()
+	defer func() { _ = dbConn.Close() }()
+	mock.ExpectExec("UPDATE lens_alert_rules SET enabled").
+		WithArgs(false, "lar-0011223344556677", "sub-1", "tn-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	h := NewLensAlertRulesHandler(dbConn, nil)
+	rc := chi.NewRouteContext()
+	rc.URLParams.Add("id", "lar-0011223344556677")
+	r := larReq(http.MethodPatch, "/v1/dashboard/lens/alert-rules/lar-0011223344556677", `{"enabled":false}`, "tn-1")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rc))
+	w := httptest.NewRecorder()
+	h.Toggle(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200", w.Code)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("sqlmock expectations: %v", err)
+	}
+}

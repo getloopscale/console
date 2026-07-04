@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useQueryState, parseAsStringEnum } from 'nuqs';
 import {
   Activity,
+  BellRing,
   Bot,
   Database,
   DollarSign,
@@ -204,6 +205,7 @@ export function LensOverviewPage() {
             <ExploreCard icon={Database} title="Datasets" description="Curate trace datasets for evaluation." href="/observability/datasets" />
             <ExploreCard icon={FlaskConical} title="Evaluators" description="Score traces with rule or LLM-judge evaluators." href="/observability/evaluators" />
             <ExploreCard icon={ShieldCheck} title="Guards" description="Gate traces on evaluator thresholds." href="/observability/guards" />
+            <ExploreCard icon={BellRing} title="Alerts" description="Get notified when a metric crosses a threshold." href="/observability/alerts" />
             <ExploreCard icon={Bot} title="Agents" description="The derived catalog of instrumented agents." href="/observability/agents" />
             <ExploreCard icon={Search} title="Ask" description="Ask the copilot about a trace." href="/observability/ask" />
           </div>

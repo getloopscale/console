@@ -32,6 +32,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/config"
 	"github.com/usetheodev/theo-cloud/internal/consent"
 	"github.com/usetheodev/theo-cloud/internal/deploy_event_enqueuer"
+	"github.com/usetheodev/theo-cloud/internal/lens_alert_evaluator"
 	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
@@ -947,6 +948,11 @@ func main() {
 	if db != nil {
 		routes.MountLensSavedViews(r, routes.NewLensSavedViewsHandler(db, logger), requireJWT)
 	}
+	// M53: lens alert rules — per-tenant threshold rules (engine migration 000054). Same db-gated
+	// cloud-owned Postgres resource; the evaluator worker that consumes them starts below.
+	if db != nil {
+		routes.MountLensAlertRules(r, routes.NewLensAlertRulesHandler(db, logger), requireJWT)
+	}
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
 	// below alongside the metering scheduler, sharing the schedulerCtx for
@@ -1232,6 +1238,24 @@ func main() {
 		wsWorker := workspace_webhook_worker.New(db, logger, os.Getenv("HOSTNAME"))
 		go wsWorker.Run(schedulerCtx)
 		logger.Info("workspace webhook dispatcher started")
+	}
+
+	// M53: lens alert evaluator — ticks over lens_alert_rules, fetches each tenant's observability
+	// series via a broker-minted observability:read key (Model B, least privilege — platform-admin
+	// stays control-plane), evaluates the threshold, and on a breach INSERTs a workspace_webhook_deliveries
+	// row (the wsWorker above dispatches it SSRF-guarded). Gated on the DB AND the lens broker being
+	// configured (LENS_BASE_URL set); nil-safe otherwise.
+	if db != nil && lensBroker != nil {
+		fetch := func(ctx context.Context, tenantID string, windowSeconds int) (json.RawMessage, error) {
+			// Per-tenant DataClient: the resolver mints observability:read for THIS tenant (no JWT).
+			dc := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
+				WithKeyResolver(func(ctx context.Context) (string, error) {
+					return lensBroker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
+				})
+			return dc.Observability(ctx, lens_alert_evaluator.WindowToRange(windowSeconds))
+		}
+		go lens_alert_evaluator.New(db, fetch, logger).Run(schedulerCtx)
+		logger.Info("lens alert evaluator started")
 	}
 
 	// J-16 slice 3: drain the deploy_events outbox (engine migration 000051)
