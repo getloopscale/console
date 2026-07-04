@@ -241,6 +241,37 @@ func TestLensDashboard_ListTraces_WhitelistsFilterParams(t *testing.T) {
 	// `evil=1` cannot reach theo-lens — TraceListFilter has no field for it (whitelist by construction).
 }
 
+// M56 — the export pages at limit=500 (theo-lens LIST_TRACES_LIMIT_CAP) with an offset. Both must be
+// forwarded; the old ≤100 clamp silently dropped limit=500 → theo-lens defaulted to 50 (silent
+// truncation). The clamp is now the theo-lens cap (500).
+func TestLensDashboard_ListTraces_ForwardsExportPaging(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/traces?limit=500&offset=500", nil), "t1")
+	w := httptest.NewRecorder()
+	h.ListTraces(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+	f := stub.lastTraceFilter
+	if f.Limit != 500 {
+		t.Fatalf("limit=500 must be forwarded (not clamped to 0), got %d", f.Limit)
+	}
+	if f.Offset != 500 {
+		t.Fatalf("offset=500 must be forwarded, got %d", f.Offset)
+	}
+}
+
+// A limit above the theo-lens cap is rejected (dropped), not forwarded — theo-lens would 400 on it.
+func TestLensDashboard_ListTraces_DropsOverCapLimit(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/traces?limit=501", nil), "t1")
+	w := httptest.NewRecorder()
+	h.ListTraces(w, req)
+	if stub.lastTraceFilter.Limit != 0 {
+		t.Fatalf("limit above the 500 cap must be dropped, got %d", stub.lastTraceFilter.Limit)
+	}
+}
+
 // TestLensDashboard_Observability_WhitelistsRange (M51) — the handler forwards only a whitelisted
 // `range` preset; an unknown param and a bogus range are never forwarded.
 func TestLensDashboard_Observability_WhitelistsRange(t *testing.T) {

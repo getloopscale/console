@@ -80,11 +80,13 @@ func (h *LensDashboardHandler) authTenant(w http.ResponseWriter, r *http.Request
 	return false
 }
 
-// pageParams parses limit (1..100) + offset (>=0) from the query; 0 means "unset".
+// pageParams parses limit (1..500) + offset (>=0) from the query; 0 means "unset".
 func pageParams(r *http.Request) (limit, offset int) {
 	q := r.URL.Query()
 	if v := q.Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
+		// M56: the export pages at limit=500 (theo-lens LIST_TRACES_LIMIT_CAP). A value above the cap is
+		// dropped (theo-lens would 400 on it), never silently clamped to a smaller page.
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
 			limit = n
 		}
 	}
