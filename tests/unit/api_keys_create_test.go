@@ -134,8 +134,11 @@ func TestCreateKey_EmptyScopesRejected(t *testing.T) {
 // The customer is honestly told "this scope reserved for future vertical";
 // the alternative (cryptic 403 scope_required) would suggest a permissions
 // problem when the real answer is "not implemented yet".
+// NOTE: traces:* used to live here but graduated to observability:* as ACTIVE
+// with M37-M46 (commit 7c1adc9). See TestCreateKey_ObservabilityScopesAccepted
+// below for the positive coverage on the graduated form.
 func TestCreateKey_ReservedScopeReturns503(t *testing.T) {
-	cases := []string{"rag:read", "rag:write", "traces:read", "agents:read", "agents:invoke", "deploys:read", "deploys:write"}
+	cases := []string{"rag:read", "rag:write", "agents:read", "agents:invoke", "deploys:read", "deploys:write"}
 	for _, sc := range cases {
 		t.Run(sc, func(t *testing.T) {
 			h, _ := newAPIKeysHandler(t)
@@ -147,6 +150,38 @@ func TestCreateKey_ReservedScopeReturns503(t *testing.T) {
 			}
 			if !strings.Contains(rec.Body.String(), "scope_not_yet_active") {
 				t.Errorf("expected scope_not_yet_active error code, got %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+// T0.5 case 3b — positive coverage on the graduated observability:* scopes
+// (M37-M46, commit 7c1adc9). traces:* was RESERVED before; it did not
+// simply un-reserve — it was RENAMED to observability:*. Assert each of the
+// four active scopes is accepted with 200 so the graduation cannot silently
+// regress into "unknown scope" drift.
+func TestCreateKey_ObservabilityScopesAccepted(t *testing.T) {
+	cases := []string{"observability:read", "observability:write", "observability:delete", "observability:admin"}
+	for _, sc := range cases {
+		t.Run(sc, func(t *testing.T) {
+			h, mock := newAPIKeysHandler(t)
+			mock.ExpectExec("INSERT INTO theo_api_keys").
+				WithArgs(
+					sqlmock.AnyArg(), // id
+					"u",              // subject
+					"t",              // tenant_id
+					"obs-key",        // name
+					sqlmock.AnyArg(), // key_hash
+					sqlmock.AnyArg(), // key_prefix
+					sqlmock.AnyArg(), // scopes jsonb
+					sqlmock.AnyArg(), // expires_at
+				).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			rec := httptest.NewRecorder()
+			body := map[string]any{"name": "obs-key", "scopes": []string{sc}}
+			h.CreateKey(rec, authedPost("/v1/api-keys", &auth.UserContext{Subject: "u", TenantID: "t"}, body, t))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected 200 for active scope %q, got %d body=%s", sc, rec.Code, rec.Body.String())
 			}
 		})
 	}
