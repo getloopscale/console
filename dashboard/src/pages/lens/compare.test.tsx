@@ -132,6 +132,57 @@ describe('LensComparePage', () => {
     expect(screen.getByText(/only in b/i)).toBeInTheDocument();
   });
 
+  it('repeated span names across branches → no duplicate React keys (real agent-trace shape)', async () => {
+    // root → [tool, tool], each tool → llm. Two "llm" rows live under different parents: their
+    // level-local key collides, so the render key MUST be position-qualified.
+    const branchy = (id: string) => ({
+      spanId: `${id}-r`,
+      traceId: id,
+      name: 'root',
+      startTimeUnixNano: '1000000000',
+      endTimeUnixNano: '1002000000',
+      children: [0, 1].map((t) => ({
+        spanId: `${id}-tool-${t}`,
+        traceId: id,
+        name: 'tool',
+        children: [{ spanId: `${id}-llm-${t}`, traceId: id, name: 'llm' }],
+      })),
+    });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockCloudFetch.mockImplementation(
+      routeFetch(
+        { 'tr-A': branchy('tr-A'), 'tr-B': branchy('tr-B') },
+        { 'tr-A': { traceId: 'tr-A', costUsd: 0.1, totalTokens: 100 }, 'tr-B': { traceId: 'tr-B', costUsd: 0.1, totalTokens: 100 } },
+      ),
+    );
+    renderCompare('tr-A,tr-B');
+    await waitFor(() => expect(screen.getAllByTestId('compare-lane')).toHaveLength(2));
+    // no "same key" reconciliation warning
+    expect(errSpy.mock.calls.flat().join(' ')).not.toMatch(/same key/i);
+    errSpy.mockRestore();
+  });
+
+  it('matched spans show a per-span tokens delta (DoD: tokens per-span where alignable)', async () => {
+    const withTokens = (id: string, inTok: number) => ({
+      spanId: `${id}-r`,
+      traceId: id,
+      name: 'root',
+      startTimeUnixNano: '1000000000',
+      endTimeUnixNano: '1002000000',
+      children: [{ spanId: `${id}-c`, traceId: id, name: 'llm', inputTokens: inTok, outputTokens: 0 }],
+    });
+    mockCloudFetch.mockImplementation(
+      routeFetch(
+        { 'tr-A': withTokens('tr-A', 100), 'tr-B': withTokens('tr-B', 150) },
+        { 'tr-A': { traceId: 'tr-A', costUsd: 0.1, totalTokens: 100 }, 'tr-B': { traceId: 'tr-B', costUsd: 0.1, totalTokens: 150 } },
+      ),
+    );
+    renderCompare('tr-A,tr-B');
+    await waitFor(() => expect(screen.getByText(/Tokens \(A → B\)/)).toBeInTheDocument());
+    // the per-span llm row shows the 100 → 150 token progression
+    expect(screen.getByText(/100 → 150/)).toBeInTheDocument();
+  });
+
   it('cost fetch error → cost degrades to "—", duration/tokens still render', async () => {
     mockCloudFetch.mockImplementation(
       routeFetch(

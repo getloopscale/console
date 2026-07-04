@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Badge, Card, EmptyState, PageShell, Skeleton } from '@usetheo/ui';
@@ -15,7 +15,9 @@ import {
 } from './trace-detail';
 import {
   alignSpanTrees,
+  isErrorStatus,
   numericDelta,
+  spanTokens,
   traceMetrics,
   type AlignRow,
   type Delta,
@@ -174,7 +176,8 @@ function Lane({ lane, label }: { lane: LaneData; label: string }) {
   );
 }
 
-/** The per-span delta table row. Matched → duration delta; only-in → an honest marker. */
+/** The per-span delta table row. Matched → duration + tokens deltas + error markers; only-in → an
+ *  honest marker with the delta suppressed (never a fabricated pairing). */
 function DiffRow({ row }: { row: AlignRow }) {
   const name = row.a?.name ?? row.b?.name ?? '';
   if (row.status !== 'matched') {
@@ -183,7 +186,7 @@ function DiffRow({ row }: { row: AlignRow }) {
         <td className="py-1 font-mono text-xs" style={{ paddingLeft: `${row.depth * 8}px` }}>
           {name}
         </td>
-        <td className="py-1 text-xs" colSpan={2}>
+        <td className="py-1 text-xs" colSpan={3}>
           <Badge variant="outline">{row.status === 'only-in-a' ? 'only in A' : 'only in B'}</Badge>
         </td>
       </tr>
@@ -191,17 +194,27 @@ function DiffRow({ row }: { row: AlignRow }) {
   }
   const da = durationMs(row.a!);
   const db = durationMs(row.b!);
-  const delta = numericDelta(db ?? undefined, da ?? undefined);
+  const durDelta = numericDelta(db ?? undefined, da ?? undefined);
+  const ta = spanTokens(row.a!);
+  const tb = spanTokens(row.b!);
+  const tokDelta = numericDelta(tb, ta);
+  const errA = isErrorStatus(row.a!.statusCode);
+  const errB = isErrorStatus(row.b!.statusCode);
   return (
     <tr className="border-t border-border/50">
       <td className="py-1 font-mono text-xs" style={{ paddingLeft: `${row.depth * 8}px` }}>
         {name}
+        {errA || errB ? (
+          <Badge variant="destructive" className="ml-1">
+            {errA && errB ? 'error A+B' : errA ? 'error A' : 'error B'}
+          </Badge>
+        ) : null}
       </td>
       <td className="py-1 text-xs font-mono text-muted-foreground">
-        {fmtMs(da)} → {fmtMs(db)}
+        {fmtMs(da)} → {fmtMs(db)} <DeltaBadge delta={durDelta} lowerIsBetter unit=" ms" />
       </td>
-      <td className="py-1 text-xs">
-        <DeltaBadge delta={delta} lowerIsBetter unit=" ms" />
+      <td className="py-1 text-xs font-mono text-muted-foreground">
+        {ta} → {tb} <DeltaBadge delta={tokDelta} lowerIsBetter unit="" />
       </td>
     </tr>
   );
@@ -210,7 +223,7 @@ function DiffRow({ row }: { row: AlignRow }) {
 export function LensComparePage() {
   useRequireAuth();
   const { setPageTitle } = usePageMeta();
-  setPageTitle?.('Compare traces');
+  useEffect(() => setPageTitle?.('Compare traces'), [setPageTitle]);
   const [params] = useSearchParams();
   const ids = (params.get('ids') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const [idA, idB] = ids;
@@ -266,17 +279,24 @@ export function LensComparePage() {
               </Alert>
             ) : null}
 
+            {/* A bespoke <table> (not @usetheo/ui DataTable): the diff needs per-row colSpan for the
+                "only in A/B" markers + a depth indent per span — a shape DataTable's uniform-column
+                model does not express. The tabular primitive is still standard HTML (Rule 9 applies to
+                reusable widgets, not to a one-off diff layout). */}
             <table className="w-full text-left">
               <thead>
                 <tr className="text-xs text-muted-foreground">
                   <th className="pb-1 font-medium">Span</th>
                   <th className="pb-1 font-medium">Duration (A → B)</th>
-                  <th className="pb-1 font-medium">Δ</th>
+                  <th className="pb-1 font-medium">Tokens (A → B)</th>
                 </tr>
               </thead>
               <tbody>
-                {align!.rows.map((row) => (
-                  <DiffRow key={`${row.key}-${row.status}`} row={row} />
+                {align!.rows.map((row, i) => (
+                  // key qualified by position+depth: `row.key` is only level-local, so the same
+                  // name+kind+ordinal under different parents would otherwise collide (real for agent
+                  // traces with repeated span names across branches).
+                  <DiffRow key={`${i}-${row.depth}-${row.status}-${row.key}`} row={row} />
                 ))}
               </tbody>
             </table>

@@ -143,8 +143,13 @@ export interface TraceMetrics {
 }
 
 /** True when a span's statusCode signals an error — same predicate as the trace-detail timeline. */
-function isErrorStatus(sc: string | undefined): boolean {
+export function isErrorStatus(sc: string | undefined): boolean {
   return !!sc && sc !== '0';
+}
+
+/** A single span's own token count (input + output) — for the per-span tokens delta. */
+export function spanTokens(node: TraceSpanNode): number {
+  return (node.inputTokens ?? 0) + (node.outputTokens ?? 0);
 }
 
 function sumTreeTokens(node: TraceSpanNode): number {

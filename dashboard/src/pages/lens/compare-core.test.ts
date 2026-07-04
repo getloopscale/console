@@ -3,6 +3,8 @@ import {
   numericDelta,
   alignSpanTrees,
   traceMetrics,
+  spanTokens,
+  isErrorStatus,
   type TraceCostSummary,
 } from './compare-core';
 import type { TraceSpanNode } from './trace-detail';
@@ -111,5 +113,17 @@ describe('traceMetrics — per-trace roll-up from tree + cost summary', () => {
     const m = traceMetrics(root, undefined);
     expect(m.costUsd).toBeNull();
     expect(m.tokens).toBe(15);
+  });
+});
+
+describe('per-span helpers', () => {
+  it('spanTokens sums input+output for the node only (not descendants)', () => {
+    expect(spanTokens(span('s', 'x', { inputTokens: 7, outputTokens: 3 }, [span('c', 'y', { inputTokens: 100 })]))).toBe(10);
+    expect(spanTokens(span('s', 'x'))).toBe(0);
+  });
+  it('isErrorStatus: only a set, non-"0" code is an error', () => {
+    expect(isErrorStatus('2')).toBe(true);
+    expect(isErrorStatus('0')).toBe(false);
+    expect(isErrorStatus(undefined)).toBe(false);
   });
 });
