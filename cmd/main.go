@@ -959,6 +959,10 @@ func main() {
 			// owner-only. Role is resolved from the DB (S2.3), never the token.
 			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/portal", billingHandler.Portal)
 			r.With(auth.RequireRole(tenantProvisioner, "owner")).Post("/checkout", billingHandler.Checkout)
+			// Invoices are financial records — owner-only (MEET-2026-07-03-004 D2),
+			// stricter than the team-readable plan/usage above. Role resolved from
+			// the DB, never the token; a non-owner gets 403 here (H4).
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/invoices", billingHandler.GetInvoices)
 		})
 		// Webhook — NO JWT (Stripe signs with its own secret)
 		r.Post("/v1/webhooks/stripe", billingHandler.Webhook)
