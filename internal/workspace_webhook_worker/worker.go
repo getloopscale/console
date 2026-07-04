@@ -31,6 +31,7 @@ import (
 	"time"
 
 	mww "github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
+	"github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/safehttp"
 )
 
@@ -199,6 +200,7 @@ func (w *Worker) recordResult(d *mww.Delivery, r mww.DispatchResult) {
 			SET status='delivered', attempt_count=$1, last_response_status=$2, last_response_body=$3,
 			    last_error_message=NULL, next_attempt_at=NULL, claimed_at=NULL, claimed_by=NULL, completed_at=NOW()
 			WHERE id=$4`, newAttempt, r.StatusCode, r.Body, d.ID)
+		metrics.IncWorkspaceWebhookDelivery("delivered")
 		return
 	}
 
@@ -209,6 +211,7 @@ func (w *Worker) recordResult(d *mww.Delivery, r mww.DispatchResult) {
 			SET status='dead_letter', attempt_count=$1, last_response_status=$2, last_response_body=$3,
 			    last_error_message=$4, next_attempt_at=NULL, claimed_at=NULL, claimed_by=NULL, completed_at=NOW()
 			WHERE id=$5`, newAttempt, statusValue, r.Body, r.ErrorMessage, d.ID)
+		metrics.IncWorkspaceWebhookDelivery("dead_letter")
 		w.logger.Warn("workspace webhook delivery dead-lettered", "delivery_id", d.ID, "webhook_id", d.WebhookID, "attempts", newAttempt)
 		return
 	}
@@ -219,4 +222,5 @@ func (w *Worker) recordResult(d *mww.Delivery, r mww.DispatchResult) {
 		SET status='failed', attempt_count=$1, last_response_status=$2, last_response_body=$3,
 		    last_error_message=$4, next_attempt_at=$5, claimed_at=NULL, claimed_by=NULL
 		WHERE id=$6`, newAttempt, statusValue, r.Body, r.ErrorMessage, nextAt, d.ID)
+	metrics.IncWorkspaceWebhookDelivery("failed")
 }
