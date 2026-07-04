@@ -32,6 +32,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/config"
 	"github.com/usetheodev/theo-cloud/internal/consent"
 	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
+	"github.com/usetheodev/theo-cloud/internal/workspace_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/normalize"
@@ -1211,6 +1212,14 @@ func main() {
 		webhookWorker := memory_webhook_worker.New(db, logger, nil)
 		go webhookWorker.Run(schedulerCtx)
 		logger.Info("memory webhook dispatcher started")
+	}
+
+	// J-16 slice 3: dispatch workspace_webhook_deliveries (deploy/build events)
+	// to customer URLs through the SSRF-guarded client, with a lease + reaper.
+	if db != nil {
+		wsWorker := workspace_webhook_worker.New(db, logger, os.Getenv("HOSTNAME"))
+		go wsWorker.Run(schedulerCtx)
+		logger.Info("workspace webhook dispatcher started")
 	}
 
 	// T1.9 production deployment: start cost aggregator if Prometheus
