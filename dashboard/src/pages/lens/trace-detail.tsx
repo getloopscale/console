@@ -1,20 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Alert, Badge, Button, Card, Skeleton } from '@usetheo/ui';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import CodeMirror from '@uiw/react-codemirror';
+import { json } from '@codemirror/lang-json';
+import { EditorView } from '@codemirror/view';
+import { EditorState } from '@codemirror/state';
 
 import { cloudFetch } from '@/lib/api';
 
 /**
- * M47 — the trace-detail view. Fetches the reconstructed span tree from the read BFF
- * (`GET /v1/dashboard/lens/traces/{id}` → theo-lens `GET /v1/traces/:id`) and renders a two-pane:
- * left = the recursive span tree (expand/collapse, scroll-to-selected); right = the selected span's
- * input/output (chat-message arrays role-rendered, else pretty-JSON) + attributes + events +
- * model/provider/tokens/ttft/latency. Borrows the converged SOTA structure (langfuse/phoenix/
- * laminar/opik) but adds ZERO runtime deps — recursive render (no react-virtual; our agent traces
- * are far below langfuse's 350-span virtualization threshold) and escaped-text render (never
- * `dangerouslySetInnerHTML` — the XSS guard). See
- * `.claude/knowledge-base/discoveries/blueprints/trace-detail-view-blueprint.md`.
+ * M47/M48 — the trace-detail view. Fetches the reconstructed span tree from the read BFF
+ * (`GET /v1/dashboard/lens/traces/{id}` → theo-lens `GET /v1/traces/:id`) and renders a resizable
+ * two-pane: left = the span tree (recursive below a threshold, react-virtual VIRTUALIZED above it —
+ * M48); right = the selected span's input/output (chat-message arrays role-rendered; JSON/text in a
+ * read-only CodeMirror with folding — M48; `<REDACTED>`/oversized handled as data) + attributes +
+ * events + model/provider/tokens/ttft/latency. Borrows the converged SOTA structure + libs
+ * (langfuse/phoenix/laminar/opik) — `@tanstack/react-virtual` (already installed, reused), CodeMirror,
+ * `react-resizable-panels`. Escaped-text render only, never `dangerouslySetInnerHTML` (the XSS guard;
+ * CodeMirror renders the value as document text, not HTML). See
+ * `.claude/knowledge-base/discoveries/blueprints/trace-viewer-scale-rich-blueprint.md`.
  */
 
 interface TraceSpanNode {
@@ -45,12 +52,21 @@ interface ChatMessage {
   content: unknown;
 }
 
+interface FlatNode {
+  node: TraceSpanNode;
+  depth: number;
+}
+
 const REDACTED = '<REDACTED>';
 const MAX_VALUE_CHARS = 2000;
+// Above this many visible rows, switch from the recursive render to the react-virtual flat-list.
+// Our Claude Code agent traces are small (a handful of spans), so the common path stays recursive;
+// virtualization engages only when it earns its complexity (blueprint D2; langfuse uses 350).
+export const VIRTUALIZE_THRESHOLD = 200;
 
 // ---- pure helpers (exported for unit tests) ----
 
-/** Span duration in ms from the unix-nano timestamps; null when unavailable or clock-skewed (end < start). */
+/** Span duration in ms; null when unavailable or clock-skewed (end < start). */
 export function durationMs(n: Pick<TraceSpanNode, 'startTimeUnixNano' | 'endTimeUnixNano'>): number | null {
   if (!n.startTimeUnixNano || !n.endTimeUnixNano) return null;
   try {
@@ -87,14 +103,25 @@ export function asChat(value: string): ChatMessage[] | null {
   return null;
 }
 
-/** Depth-first flatten so a selected span can be resolved by id. */
-function flatten(root: TraceSpanNode): TraceSpanNode[] {
+/** Depth-first flatten of ALL spans (ignores collapse) — used to resolve the selected span by id. */
+function flattenAll(root: TraceSpanNode): TraceSpanNode[] {
   const out: TraceSpanNode[] = [root];
-  for (const c of root.children ?? []) out.push(...flatten(c));
+  for (const c of root.children ?? []) out.push(...flattenAll(c));
   return out;
 }
 
-// ---- rendering ----
+/** Depth-first flatten of VISIBLE spans (a node in `collapsed` contributes no descendants). */
+export function flattenVisible(root: TraceSpanNode, collapsed: Set<string>): FlatNode[] {
+  const out: FlatNode[] = [];
+  const walk = (n: TraceSpanNode, depth: number) => {
+    out.push({ node: n, depth });
+    if (!collapsed.has(n.spanId)) for (const c of n.children ?? []) walk(c, depth + 1);
+  };
+  walk(root, 0);
+  return out;
+}
+
+// ---- value rendering ----
 
 function ChatView({ messages }: { messages: ChatMessage[] }) {
   return (
@@ -113,7 +140,24 @@ function ChatView({ messages }: { messages: ChatMessage[] }) {
   );
 }
 
-/** Escaped-render a span input/output value; redacted markers, chat arrays and oversized values are DATA. */
+/** Read-only, syntax-highlighted, foldable JSON/text via CodeMirror (M48). Renders text as document,
+ * never HTML — the XSS guard holds. */
+function JsonView({ text, testId }: { text: string; testId?: string }) {
+  return (
+    <div data-testid={testId} className="overflow-hidden rounded-md border">
+      <CodeMirror
+        value={text}
+        editable={false}
+        basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: false }}
+        extensions={[json(), EditorView.lineWrapping, EditorState.readOnly.of(true)]}
+      />
+    </div>
+  );
+}
+
+/** Escaped-render a span input/output value; redacted markers, chat arrays and oversized values are
+ * DATA. Normal-size JSON/text renders in CodeMirror (M48); oversized keeps the M47 `<pre>` +
+ * show-more (a full editor over 20k chars is pointless and the truncation contract is preserved). */
 function ValueBlock({ value, testId }: { value?: string; testId?: string }) {
   const [expanded, setExpanded] = useState(false);
   if (value === undefined || value === null || value === '') {
@@ -136,26 +180,95 @@ function ValueBlock({ value, testId }: { value?: string; testId?: string }) {
   }
   const text = prettyValue(value);
   const oversized = text.length > MAX_VALUE_CHARS;
-  const shown = oversized && !expanded ? text.slice(0, MAX_VALUE_CHARS) : text;
-  return (
-    <div className="space-y-1">
-      <pre
-        data-testid={testId}
-        className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-2 text-xs"
-      >
-        {shown}
-      </pre>
-      {oversized ? (
+  if (oversized) {
+    const shown = expanded ? text : text.slice(0, MAX_VALUE_CHARS);
+    return (
+      <div className="space-y-1">
+        <pre
+          data-testid={testId}
+          className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-2 text-xs"
+        >
+          {shown}
+        </pre>
         <Button variant="ghost" size="sm" onClick={() => setExpanded((e) => !e)}>
           {expanded ? 'Show less' : `Show more (${text.length - MAX_VALUE_CHARS} more chars)`}
         </Button>
-      ) : null}
+      </div>
+    );
+  }
+  return <JsonView text={text} testId={testId} />;
+}
+
+// ---- tree rendering ----
+
+/** The single clickable row for a span — shared by the recursive and virtualized render paths. */
+function SpanRow({
+  node,
+  depth,
+  selected,
+  collapsed,
+  onSelect,
+  onToggle,
+  selectedRef,
+}: {
+  node: TraceSpanNode;
+  depth: number;
+  selected: boolean;
+  collapsed: boolean;
+  onSelect: (id: string) => void;
+  onToggle: (id: string) => void;
+  selectedRef?: React.RefObject<HTMLButtonElement | null>;
+}) {
+  const dur = durationMs(node);
+  const hasChildren = (node.children?.length ?? 0) > 0;
+  return (
+    <div className="flex items-center" style={{ paddingLeft: `${depth * 16}px` }}>
+      {hasChildren ? (
+        <button
+          type="button"
+          aria-label={collapsed ? `Expand ${node.name}` : `Collapse ${node.name}`}
+          aria-expanded={!collapsed}
+          onClick={() => onToggle(node.spanId)}
+          className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted/50"
+        >
+          {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </button>
+      ) : (
+        <span className="w-4 shrink-0" aria-hidden="true" />
+      )}
+      <button
+        type="button"
+        ref={selected ? selectedRef : undefined}
+        aria-current={selected ? 'true' : undefined}
+        onClick={() => onSelect(node.spanId)}
+        className={`flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 pr-2 text-left text-sm hover:bg-muted/50 ${
+          selected ? 'bg-muted font-medium' : ''
+        }`}
+      >
+        <span className="truncate font-mono text-xs">{node.name}</span>
+        {dur !== null ? <span className="shrink-0 text-xs text-muted-foreground">{dur} ms</span> : null}
+        {node.model ? (
+          <Badge variant="outline" className="shrink-0">
+            {node.model}
+          </Badge>
+        ) : null}
+        {node.inputTokens !== undefined || node.outputTokens !== undefined ? (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {node.inputTokens ?? 0}→{node.outputTokens ?? 0}
+          </span>
+        ) : null}
+        {node.statusCode && node.statusCode !== '0' ? (
+          <Badge variant="destructive" className="shrink-0">
+            error
+          </Badge>
+        ) : null}
+      </button>
     </div>
   );
 }
 
-/** One row in the recursive span tree. */
-function SpanNode({
+/** Recursive tree (small traces — below the virtualization threshold). */
+function RecursiveTree({
   node,
   depth,
   selectedId,
@@ -172,58 +285,22 @@ function SpanNode({
   onToggle: (id: string) => void;
   selectedRef: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const dur = durationMs(node);
-  const selected = node.spanId === selectedId;
-  const children = node.children ?? [];
   const isCollapsed = collapsed.has(node.spanId);
   return (
     <div>
-      <div className="flex items-center" style={{ paddingLeft: `${depth * 16}px` }}>
-        {children.length > 0 ? (
-          <button
-            type="button"
-            aria-label={isCollapsed ? `Expand ${node.name}` : `Collapse ${node.name}`}
-            aria-expanded={!isCollapsed}
-            onClick={() => onToggle(node.spanId)}
-            className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted/50"
-          >
-            {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
-        ) : (
-          <span className="w-4 shrink-0" aria-hidden="true" />
-        )}
-        <button
-          type="button"
-          ref={selected ? selectedRef : undefined}
-          aria-current={selected ? 'true' : undefined}
-          onClick={() => onSelect(node.spanId)}
-          className={`flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 pr-2 text-left text-sm hover:bg-muted/50 ${
-            selected ? 'bg-muted font-medium' : ''
-          }`}
-        >
-          <span className="truncate font-mono text-xs">{node.name}</span>
-          {dur !== null ? <span className="shrink-0 text-xs text-muted-foreground">{dur} ms</span> : null}
-          {node.model ? (
-            <Badge variant="outline" className="shrink-0">
-              {node.model}
-            </Badge>
-          ) : null}
-          {node.inputTokens !== undefined || node.outputTokens !== undefined ? (
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {node.inputTokens ?? 0}→{node.outputTokens ?? 0}
-            </span>
-          ) : null}
-          {node.statusCode && node.statusCode !== '0' ? (
-            <Badge variant="destructive" className="shrink-0">
-              error
-            </Badge>
-          ) : null}
-        </button>
-      </div>
+      <SpanRow
+        node={node}
+        depth={depth}
+        selected={node.spanId === selectedId}
+        collapsed={isCollapsed}
+        onSelect={onSelect}
+        onToggle={onToggle}
+        selectedRef={selectedRef}
+      />
       {!isCollapsed
-        ? children.map((c) => (
-            <SpanNode
-              key={c.spanId}
+        ? (node.children ?? []).map((c, i) => (
+            <RecursiveTree
+              key={`${i}-${c.spanId}`}
               node={c}
               depth={depth + 1}
               selectedId={selectedId}
@@ -234,6 +311,66 @@ function SpanNode({
             />
           ))
         : null}
+    </div>
+  );
+}
+
+/** Virtualized flat-list tree (large traces — at/above the threshold), reusing @tanstack/react-virtual. */
+function VirtualTree({
+  flat,
+  selectedId,
+  collapsed,
+  onSelect,
+  onToggle,
+}: {
+  flat: FlatNode[];
+  selectedId: string;
+  collapsed: Set<string>;
+  onSelect: (id: string) => void;
+  onToggle: (id: string) => void;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: flat.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 32,
+    overscan: 20,
+    // A default viewport so rows render before the real ResizeObserver measures the scroll element
+    // (SSR/jsdom have no layout). The real observer overrides this in the browser.
+    initialRect: { width: 320, height: 640 },
+  });
+
+  // Scroll the selected row into view.
+  useEffect(() => {
+    const index = flat.findIndex((f) => f.node.spanId === selectedId);
+    if (index >= 0) virtualizer.scrollToIndex(index, { align: 'center', behavior: 'auto' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  return (
+    <div ref={parentRef} data-testid="span-tree-virtual" className="max-h-[70vh] overflow-auto">
+      <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+        {virtualizer.getVirtualItems().map((vi) => {
+          const { node, depth } = flat[vi.index];
+          return (
+            <div
+              key={`${vi.index}-${node.spanId}`}
+              data-index={vi.index}
+              ref={virtualizer.measureElement}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vi.start}px)` }}
+            >
+              <SpanRow
+                node={node}
+                depth={depth}
+                selected={node.spanId === selectedId}
+                collapsed={collapsed.has(node.spanId)}
+                onSelect={onSelect}
+                onToggle={onToggle}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -326,16 +463,19 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
     queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}`),
   });
 
-  const activeId = selectedId ?? query.data?.spanId ?? null;
+  const root = query.data;
+  const activeId = selectedId ?? root?.spanId ?? null;
 
-  // Scroll-to-selected: bring the active node into view when the selection changes.
+  const flat = useMemo(() => (root ? flattenVisible(root, collapsed) : []), [root, collapsed]);
+
+  // Scroll-to-selected for the recursive path (the virtual path scrolls via the virtualizer).
   useEffect(() => {
     const el = selectedRef.current;
     if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' });
   }, [activeId]);
 
   if (query.isPending) return <Skeleton className="h-40 w-full" />;
-  if (query.isError || !query.data) {
+  if (query.isError || !root) {
     return (
       <Alert intent="warning" title="Could not load this trace">
         The lens service is unavailable. Try again shortly.
@@ -343,10 +483,9 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
     );
   }
 
-  const root = query.data;
-  const spans = flatten(root);
   const resolvedId = activeId ?? root.spanId;
-  const selected = spans.find((s) => s.spanId === resolvedId) ?? root;
+  const selected = flattenAll(root).find((s) => s.spanId === resolvedId) ?? root;
+  const virtualized = flat.length >= VIRTUALIZE_THRESHOLD;
 
   const toggle = (id: string) =>
     setCollapsed((prev) => {
@@ -357,27 +496,42 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
     });
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-      <Card>
-        <Card.Body>
-          <div data-testid="span-tree" className="max-h-[70vh] space-y-0.5 overflow-auto">
-            <SpanNode
-              node={root}
-              depth={0}
-              selectedId={resolvedId}
-              collapsed={collapsed}
-              onSelect={setSelectedId}
-              onToggle={toggle}
-              selectedRef={selectedRef}
-            />
-          </div>
-        </Card.Body>
-      </Card>
-      <Card>
-        <Card.Body>
-          <SpanDetail span={selected} />
-        </Card.Body>
-      </Card>
-    </div>
+    <PanelGroup direction="horizontal" autoSaveId="lens-trace-split" className="gap-2">
+      <Panel defaultSize={40} minSize={20}>
+        <Card className="h-full">
+          <Card.Body>
+            <div
+              data-testid="span-tree"
+              className={virtualized ? 'space-y-0.5' : 'max-h-[70vh] space-y-0.5 overflow-auto'}
+            >
+              {virtualized ? (
+                <VirtualTree flat={flat} selectedId={resolvedId} collapsed={collapsed} onSelect={setSelectedId} onToggle={toggle} />
+              ) : (
+                <RecursiveTree
+                  node={root}
+                  depth={0}
+                  selectedId={resolvedId}
+                  collapsed={collapsed}
+                  onSelect={setSelectedId}
+                  onToggle={toggle}
+                  selectedRef={selectedRef}
+                />
+              )}
+            </div>
+          </Card.Body>
+        </Card>
+      </Panel>
+      <PanelResizeHandle
+        aria-label="Resize trace panels"
+        className="w-1.5 shrink-0 rounded bg-border transition-colors hover:bg-primary/40"
+      />
+      <Panel defaultSize={60} minSize={30}>
+        <Card className="h-full">
+          <Card.Body>
+            <SpanDetail span={selected} />
+          </Card.Body>
+        </Card>
+      </Panel>
+    </PanelGroup>
   );
 }
