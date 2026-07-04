@@ -31,6 +31,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/billing"
 	"github.com/usetheodev/theo-cloud/internal/config"
 	"github.com/usetheodev/theo-cloud/internal/consent"
+	"github.com/usetheodev/theo-cloud/internal/deploy_event_enqueuer"
 	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
@@ -1211,6 +1212,16 @@ func main() {
 		webhookWorker := memory_webhook_worker.New(db, logger, nil)
 		go webhookWorker.Run(schedulerCtx)
 		logger.Info("memory webhook dispatcher started")
+	}
+
+	// J-16 slice 3: drain the deploy_events outbox (engine migration 000051)
+	// and fan each event out to subscribed workspace_webhooks as delivery rows.
+	// Pure DB fan-out (no outbound HTTP) — the delivery worker dispatches. Until
+	// the full chain is live it produces ~zero rows (no subscribed webhooks).
+	if db != nil {
+		enq := deploy_event_enqueuer.New(db, logger)
+		go enq.Run(schedulerCtx)
+		logger.Info("deploy-event enqueuer started")
 	}
 
 	// T1.9 production deployment: start cost aggregator if Prometheus
