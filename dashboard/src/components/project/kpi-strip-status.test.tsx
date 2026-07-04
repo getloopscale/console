@@ -69,6 +69,27 @@ describe('KPIStripStatus — T3.1 J-18', () => {
     expect(emDashes.length).toBe(5);
   });
 
+  // theo-cloud#158 (sibling of SignalGrid): NaN/Inf are `typeof === 'number'`,
+  // so a null/undefined-only guard lets an error_rate 0/0 (idle tenant) render
+  // "NaN%". Non-finite must render "—" muted, same honest-empty-state contract.
+  it('non-finite values (NaN/Inf) render "—" muted, never "NaN%"/red', () => {
+    const { container } = render(
+      <KPIStripStatus
+        replicas={2}
+        uptime24h={Number.NaN}
+        p95LatencyMs={Number.POSITIVE_INFINITY}
+        errorRate={Number.NaN}
+        rps={Number.NEGATIVE_INFINITY}
+      />,
+    );
+    expect(screen.queryByText(/NaN/)).toBeNull();
+    expect(screen.queryByText(/Infinity/)).toBeNull();
+    // 4 non-finite metrics render "—"; replicas=2 renders "2".
+    expect(screen.getAllByText('—').length).toBe(4);
+    // non-finite empty states are muted, never destructive/red.
+    expect(container.querySelector('.text-destructive')).toBeNull();
+  });
+
   it('uptime 99.95% renders with 2-decimal precision and success tone', () => {
     const { container } = render(<KPIStripStatus uptime24h={99.95} />);
     expect(screen.getByText('99.95%')).toBeInTheDocument();
