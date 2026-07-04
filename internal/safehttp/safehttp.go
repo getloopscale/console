@@ -55,18 +55,59 @@ func IsDisallowedIP(ip net.IP) bool {
 		ip.IsPrivate()
 }
 
+// DisallowedReason classifies why an IP is blocked, for observability labels
+// (e.g. a rejection counter). Returns "" for an allowed IP.
+func DisallowedReason(ip net.IP) string {
+	switch {
+	case ip == nil:
+		return "unparseable"
+	case ip.IsLoopback():
+		return "loopback"
+	case ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast():
+		return "link_local" // includes 169.254.169.254 cloud metadata
+	case ip.IsPrivate():
+		return "rfc1918_ula"
+	case ip.IsUnspecified():
+		return "unspecified"
+	case ip.IsInterfaceLocalMulticast() || ip.IsMulticast():
+		return "multicast"
+	default:
+		return ""
+	}
+}
+
+// Option configures a guarded client.
+type Option func(*config)
+
+type config struct {
+	onReject func(reason string)
+}
+
+// WithRejectionObserver registers a callback invoked (with a DisallowedReason
+// label) whenever the dial guard rejects a destination. Lets a caller wire a
+// metric without coupling this package to any metrics library (DIP). Nil-safe.
+func WithRejectionObserver(fn func(reason string)) Option {
+	return func(c *config) { c.onReject = fn }
+}
+
 // control is the net.Dialer.Control hook. address is the RESOLVED "ip:port"
 // (Go resolves DNS before invoking Control for each candidate address), so the
 // IP parsed here is the actual dial target — the check runs at connect time,
 // defeating rebinding.
-func control() func(network, address string, c syscall.RawConn) error {
+func control(onReject func(string)) func(network, address string, c syscall.RawConn) error {
 	return func(_ string, address string, _ syscall.RawConn) error {
 		host, _, err := net.SplitHostPort(address)
 		if err != nil {
+			if onReject != nil {
+				onReject("unparseable")
+			}
 			return ErrDestinationNotAllowed
 		}
 		ip := net.ParseIP(host)
 		if IsDisallowedIP(ip) {
+			if onReject != nil {
+				onReject(DisallowedReason(ip))
+			}
 			return ErrDestinationNotAllowed
 		}
 		return nil
@@ -75,11 +116,15 @@ func control() func(network, address string, c syscall.RawConn) error {
 
 // NewClient returns an egress-guarded *http.Client with the given overall
 // timeout. Redirects are NOT followed.
-func NewClient(timeout time.Duration) *http.Client {
+func NewClient(timeout time.Duration, opts ...Option) *http.Client {
+	cfg := &config{}
+	for _, o := range opts {
+		o(cfg)
+	}
 	dialer := &net.Dialer{
 		Timeout:   10 * time.Second,
 		KeepAlive: 30 * time.Second,
-		Control:   control(),
+		Control:   control(cfg.onReject),
 	}
 	transport := &http.Transport{
 		DialContext:           dialer.DialContext,

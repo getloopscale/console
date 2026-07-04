@@ -58,7 +58,8 @@ func TestIsDisallowedIP(t *testing.T) {
 // dial-time check that defeats DNS rebinding: the address here is the RESOLVED
 // ip:port, not the original hostname.
 func TestControl_RejectsPrivateResolvedAddress(t *testing.T) {
-	ctl := control()
+	var gotReasons []string
+	ctl := control(func(reason string) { gotReasons = append(gotReasons, reason) })
 	if err := ctl("tcp4", "169.254.169.254:80", nil); err == nil {
 		t.Error("control allowed cloud-metadata address; want rejection")
 	}
@@ -67,6 +68,26 @@ func TestControl_RejectsPrivateResolvedAddress(t *testing.T) {
 	}
 	if err := ctl("tcp4", "1.1.1.1:443", nil); err != nil {
 		t.Errorf("control rejected public address: %v", err)
+	}
+	// The rejection observer fired once per blocked dial, with a classified
+	// reason (and NOT for the allowed public IP).
+	if len(gotReasons) != 2 || gotReasons[0] != "link_local" || gotReasons[1] != "rfc1918_ula" {
+		t.Errorf("observer reasons = %v, want [link_local rfc1918_ula]", gotReasons)
+	}
+}
+
+func TestDisallowedReason(t *testing.T) {
+	cases := map[string]string{
+		"127.0.0.1": "loopback", "169.254.169.254": "link_local",
+		"10.0.0.1": "rfc1918_ula", "0.0.0.0": "unspecified",
+		"224.0.0.1": "link_local", // 224.0.0.0/24 is link-local multicast
+		"239.0.0.1": "multicast",  // general (non-link-local) multicast
+		"1.1.1.1":   "",
+	}
+	for ipStr, want := range cases {
+		if got := DisallowedReason(net.ParseIP(ipStr)); got != want {
+			t.Errorf("DisallowedReason(%s) = %q, want %q", ipStr, got, want)
+		}
 	}
 }
 

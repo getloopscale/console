@@ -68,7 +68,11 @@ func New(db *sql.DB, logger *slog.Logger, replicaID string) *Worker {
 		logger:    logger,
 		replicaID: replicaID,
 		semaCh:    make(chan struct{}, defaultMaxInFlight),
-		httpc:     safehttp.NewClient(defaultHTTPClientTimeout),
+		// The SSRF guard's rejections feed theo_workspace_webhook_ssrf_rejected_total
+		// (wiring-triad security metric, MEET-2026-07-03-005) — any non-zero value
+		// in prod is a probe/misconfig signal worth a log correlation.
+		httpc: safehttp.NewClient(defaultHTTPClientTimeout,
+			safehttp.WithRejectionObserver(metrics.IncWorkspaceWebhookSSRFRejected)),
 	}
 }
 

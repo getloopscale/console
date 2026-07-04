@@ -61,6 +61,14 @@ var (
 		Help: "Deploy-event webhook delivery attempts by outcome.",
 	}, []string{"result"})
 
+	// J-16 slice 3: SSRF-guard rejections at delivery dial time. ANY non-zero
+	// value in prod is a probe/misconfig signal worth a log correlation
+	// (MEET-2026-07-03-005). reason ∈ loopback | link_local | rfc1918_ula | …
+	workspaceWebhookSSRFRejected = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "theo_workspace_webhook_ssrf_rejected_total",
+		Help: "Webhook delivery dials rejected by the SSRF egress guard, by reason.",
+	}, []string{"reason"})
+
 	// Billing metrics (§4.2)
 	webhookEvents = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "theo_webhook_events_total",
@@ -107,6 +115,7 @@ func init() {
 		tenantProvisioningDuration,
 		authRejections,
 		workspaceWebhookDelivery,
+		workspaceWebhookSSRFRejected,
 		webhookEvents,
 		checkoutOps,
 		usageDrift,
@@ -155,6 +164,13 @@ func ObserveTenantProvisioning(success bool, duration time.Duration) {
 // IncAuthRejection increments auth rejection counter by reason.
 func IncAuthRejection(reason string) {
 	authRejections.WithLabelValues(reason).Inc()
+}
+
+// IncWorkspaceWebhookSSRFRejected counts one webhook delivery dial rejected by
+// the SSRF guard (J-16 slice 3), labeled by DisallowedReason. Wired as the
+// safehttp rejection observer.
+func IncWorkspaceWebhookSSRFRejected(reason string) {
+	workspaceWebhookSSRFRejected.WithLabelValues(reason).Inc()
 }
 
 // IncWorkspaceWebhookDelivery counts one deploy-event delivery outcome
