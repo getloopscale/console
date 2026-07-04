@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
-import { render, screen } from '@/test/render';
+import { render, screen, fireEvent } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({
@@ -280,5 +280,25 @@ describe('ProjectsPage', () => {
       expect(screen.getByText('Unknown')).toBeInTheDocument();
       expect(screen.queryByText('Live')).not.toBeInTheDocument();
     });
+  });
+});
+
+// J-07 D4 — multi-select surfaces the bulk-delete action bar.
+describe('ProjectsPage bulk select (J-07 D4)', () => {
+  it('test_selecting_a_project_shows_bulk_delete_action_bar', async () => {
+    mockUseProjects.mockReturnValue({
+      projects: [
+        { name: 'alpha', last_deploy_status: 'idle' },
+        { name: 'beta', last_deploy_status: 'idle' },
+      ],
+      total: 2,
+      loading: false,
+    });
+    render(<ProjectsPage />);
+    // No action bar until something is selected.
+    expect(screen.queryByRole('button', { name: /delete 1 project/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Select alpha'));
+    expect(screen.getByRole('button', { name: /delete 1 project/i })).toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
   });
 });
