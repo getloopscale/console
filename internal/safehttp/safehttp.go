@@ -37,14 +37,56 @@ import (
 // distinguish a policy rejection from a transport error.
 var ErrDestinationNotAllowed = errors.New("safehttp: destination IP not allowed")
 
+// Special-use CIDRs that Go's net.IP.IsPrivate() does NOT cover but which must
+// never be a webhook target (theo-cloud#156). CGNAT is the important one: AWS
+// EKS assigns pod IPs from 100.64.0.0/16, so without this a customer URL could
+// reach an internal pod. NAT64's well-known prefix embeds an internal IPv4 that
+// a DNS64/NAT64 gateway translates (e.g. to 169.254.169.254 / IMDS) — deny the
+// whole /96, since a literal NAT64 address is never a legitimate webhook target.
+var (
+	cidrCGNAT    = mustCIDR("100.64.0.0/10") // RFC6598
+	cidrNAT64    = mustCIDR("64:ff9b::/96")  // RFC6052 well-known prefix
+	specialCIDRs = []*net.IPNet{
+		mustCIDR("198.18.0.0/15"), // RFC2544 benchmarking
+		mustCIDR("192.0.0.0/24"),  // IETF protocol assignments
+		mustCIDR("240.0.0.0/4"),   // reserved / Class E
+	}
+)
+
+func mustCIDR(s string) *net.IPNet {
+	_, n, err := net.ParseCIDR(s)
+	if err != nil {
+		panic("safehttp: bad CIDR literal " + s + ": " + err.Error())
+	}
+	return n
+}
+
+func containsAny(nets []*net.IPNet, ip net.IP) bool {
+	for _, n := range nets {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsDisallowedIP reports whether ip must NOT be dialed. Fail-closed: a nil IP
 // is disallowed. Blocks loopback, link-local (unicast + multicast — covers the
 // 169.254.169.254 cloud-metadata endpoint and fe80::/10), private (RFC1918 +
-// fc00::/7 ULA via net.IP.IsPrivate), unspecified (0.0.0.0 / ::), and all
-// multicast.
+// fc00::/7 ULA via net.IP.IsPrivate), unspecified (0.0.0.0 / ::), all multicast,
+// plus the special-use ranges Go's stdlib omits (CGNAT 100.64/10, NAT64
+// 64:ff9b::/96, and the RFC2544/protocol/Class-E ranges — theo-cloud#156).
 func IsDisallowedIP(ip net.IP) bool {
 	if ip == nil {
 		return true
+	}
+	if cidrCGNAT.Contains(ip) || cidrNAT64.Contains(ip) {
+		return true
+	}
+	for _, n := range specialCIDRs {
+		if n.Contains(ip) {
+			return true
+		}
 	}
 	return ip.IsLoopback() ||
 		ip.IsLinkLocalUnicast() ||
@@ -65,6 +107,12 @@ func DisallowedReason(ip net.IP) string {
 		return "loopback"
 	case ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast():
 		return "link_local" // includes 169.254.169.254 cloud metadata
+	case cidrCGNAT.Contains(ip):
+		return "cgnat" // RFC6598 — AWS EKS pod CIDR (theo-cloud#156)
+	case cidrNAT64.Contains(ip):
+		return "nat64" // RFC6052 well-known prefix (embeds internal v4)
+	case containsAny(specialCIDRs, ip):
+		return "special_range" // RFC2544 / protocol-assign / Class-E
 	case ip.IsPrivate():
 		return "rfc1918_ula"
 	case ip.IsUnspecified():

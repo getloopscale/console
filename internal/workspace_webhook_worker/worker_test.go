@@ -127,7 +127,7 @@ func TestWorker_RecordResult_Delivered_ClearsLease(t *testing.T) {
 	workerFixture(t, db)
 	seedDelivery(t, db, "wwd-1", "delivering", 0, "NOW()")
 
-	New(db, nil, "r").recordResult(
+	New(db, nil, "old-worker").recordResult(
 		&mww.Delivery{ID: "wwd-1", AttemptCount: 0},
 		mww.DispatchResult{Delivered: true, StatusCode: 200, Body: "ok"},
 	)
@@ -144,7 +144,7 @@ func TestWorker_RecordResult_5xx_SchedulesRetry(t *testing.T) {
 	workerFixture(t, db)
 	seedDelivery(t, db, "wwd-1", "delivering", 0, "NOW()")
 
-	New(db, nil, "r").recordResult(
+	New(db, nil, "old-worker").recordResult(
 		&mww.Delivery{ID: "wwd-1", AttemptCount: 0},
 		mww.DispatchResult{Delivered: false, StatusCode: 500, ErrorMessage: "non-2xx: 500"},
 	)
@@ -162,7 +162,7 @@ func TestWorker_RecordResult_LastAttempt_DeadLetters(t *testing.T) {
 	// AttemptCount = MaxAttempts-1 so the next attempt is the final one.
 	seedDelivery(t, db, "wwd-1", "delivering", mww.MaxAttempts-1, "NOW()")
 
-	New(db, nil, "r").recordResult(
+	New(db, nil, "old-worker").recordResult(
 		&mww.Delivery{ID: "wwd-1", AttemptCount: mww.MaxAttempts - 1},
 		mww.DispatchResult{Delivered: false, StatusCode: 500, ErrorMessage: "still failing"},
 	)
@@ -199,5 +199,74 @@ func TestWorker_ReapStaleLeases_ReclaimsOrphan(t *testing.T) {
 	}
 	if s2 != "delivering" {
 		t.Errorf("fresh lease wrongly reaped: status=%s (want delivering)", s2)
+	}
+}
+
+// B2 (theo-cloud#155): a stale worker whose lease was reaped + reclaimed by
+// another replica must NOT clobber the row when its own dispatch finally
+// returns. recordResult is guarded on (claimed_by, status='delivering'); a
+// non-owning write affects 0 rows and is dropped — no lost update, no
+// resurrection of a row another worker now owns.
+func TestWorker_RecordResult_LeaseLost_DropsStaleWrite(t *testing.T) {
+	db := workerDB(t)
+	workerFixture(t, db)
+	seedDelivery(t, db, "wwd-1", "delivering", 2, "NOW()") // seeded claimed_by='old-worker'
+	// The reaper reclaimed it and 'new-worker' took the lease.
+	if _, err := db.Exec(`UPDATE workspace_webhook_deliveries SET claimed_by='new-worker' WHERE id='wwd-1'`); err != nil {
+		t.Fatalf("reassign lease: %v", err)
+	}
+	// 'old-worker' (stale) finally returns a 200 and tries to record delivered.
+	New(db, nil, "old-worker").recordResult(
+		&mww.Delivery{ID: "wwd-1", AttemptCount: 2},
+		mww.DispatchResult{Delivered: true, StatusCode: 200, Body: "ok"},
+	)
+	var status, by string
+	_ = db.QueryRow(`SELECT status, claimed_by FROM workspace_webhook_deliveries WHERE id='wwd-1'`).Scan(&status, &by)
+	if status != "delivering" || by != "new-worker" {
+		t.Errorf("stale write not dropped: status=%s claimed_by=%s (want delivering/new-worker)", status, by)
+	}
+}
+
+// B3 (theo-cloud#155): the reaper must count the orphaned attempt and back off,
+// not reset next_attempt_at=NOW() (which would tight-loop) and not leave
+// attempt_count unchanged (which would bypass the dead-letter budget forever).
+func TestWorker_ReapStaleLeases_CountsAttemptAndBacksOff(t *testing.T) {
+	db := workerDB(t)
+	workerFixture(t, db)
+	seedDelivery(t, db, "wwd-1", "delivering", 1, "NOW() - INTERVAL '5 minutes'")
+
+	if _, err := New(db, nil, "r").reapStaleLeases(context.Background()); err != nil {
+		t.Fatalf("reap: %v", err)
+	}
+	var status string
+	var attempt int
+	var next sql.NullTime
+	_ = db.QueryRow(`SELECT status, attempt_count, next_attempt_at FROM workspace_webhook_deliveries WHERE id='wwd-1'`).Scan(&status, &attempt, &next)
+	if attempt != 2 {
+		t.Errorf("attempt_count = %d, want 2 (reaper counts the orphaned attempt)", attempt)
+	}
+	if !next.Valid || !next.Time.After(time.Now().Add(time.Second)) {
+		t.Errorf("next_attempt_at not backed off into the future (would tight-loop): valid=%v", next.Valid)
+	}
+	if status != "failed" {
+		t.Errorf("status = %s, want failed (under the dead-letter cap)", status)
+	}
+}
+
+// B3 (theo-cloud#155): a row reaped on its final attempt must dead-letter, not
+// re-queue forever.
+func TestWorker_ReapStaleLeases_DeadLettersAtCap(t *testing.T) {
+	db := workerDB(t)
+	workerFixture(t, db)
+	seedDelivery(t, db, "wwd-1", "delivering", mww.MaxAttempts-1, "NOW() - INTERVAL '5 minutes'")
+
+	if _, err := New(db, nil, "r").reapStaleLeases(context.Background()); err != nil {
+		t.Fatalf("reap: %v", err)
+	}
+	var status string
+	var next sql.NullTime
+	_ = db.QueryRow(`SELECT status, next_attempt_at FROM workspace_webhook_deliveries WHERE id='wwd-1'`).Scan(&status, &next)
+	if status != "dead_letter" || next.Valid {
+		t.Errorf("reaped-at-cap: status=%s next_attempt_at.valid=%v (want dead_letter, cleared)", status, next.Valid)
 	}
 }

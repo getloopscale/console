@@ -36,9 +36,15 @@ import (
 )
 
 const (
-	defaultPollInterval      = 5 * time.Second
-	defaultMaxInFlight       = 10
-	defaultClaimBatch        = 50
+	defaultPollInterval = 5 * time.Second
+	defaultMaxInFlight  = 10
+	// Claim only what we can immediately dispatch. If claimBatch > maxInFlight,
+	// batch-tail rows block in the semaphore while their lease clock (stamped at
+	// claim time) keeps running — the reaper could then reclaim a row THIS
+	// worker still holds and re-dispatch it, a concurrent double-delivery
+	// (theo-cloud#155 B1). Keeping them equal bounds a claimed row's in-flight
+	// time to a single dispatch (≤ ~40s) ≪ the 90s lease.
+	defaultClaimBatch        = defaultMaxInFlight
 	defaultHTTPClientTimeout = 35 * time.Second
 	// leaseTimeout bounds how long a row may sit in 'delivering' before the
 	// reaper reclaims it: > the 30s per-attempt timeout + record margin.
@@ -126,16 +132,68 @@ func (w *Worker) tick(ctx context.Context) {
 // to 'failed' (due now), so a crashed worker's claims are retried rather than
 // orphaned forever. Returns the number reaped.
 func (w *Worker) reapStaleLeases(ctx context.Context) (int64, error) {
-	res, err := w.db.ExecContext(ctx, `
-		UPDATE workspace_webhook_deliveries
-		SET status='failed', next_attempt_at=NOW(), claimed_at=NULL, claimed_by=NULL
+	// An orphaned 'delivering' row (worker crashed / stalled past the lease) is
+	// treated as a real failed attempt: COUNT it, back it off, and dead-letter
+	// at the cap — the same accounting as recordResult (DRY via mww.*). The
+	// pre-#155 behavior (reset next_attempt_at=NOW() without counting) tight-
+	// looped poison rows and bypassed the dead-letter budget forever
+	// (theo-cloud#155 B3). Each UPDATE re-guards on status='delivering' so it
+	// races cleanly with a concurrent recordResult (whichever wins, the row is
+	// transitioned exactly once).
+	rows, err := w.db.QueryContext(ctx, `
+		SELECT id, attempt_count FROM workspace_webhook_deliveries
 		WHERE status='delivering' AND claimed_at < NOW() - $1::interval`,
 		fmt.Sprintf("%d seconds", int(leaseTimeout.Seconds())))
 	if err != nil {
 		return 0, err
 	}
-	n, _ := res.RowsAffected()
-	return n, nil
+	type stale struct {
+		id      string
+		attempt int
+	}
+	var staleRows []stale
+	for rows.Next() {
+		var s stale
+		if err := rows.Scan(&s.id, &s.attempt); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		staleRows = append(staleRows, s)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return 0, err
+	}
+	_ = rows.Close()
+
+	const reapErr = "delivery lease expired (worker crash/stall)"
+	var reaped int64
+	for _, s := range staleRows {
+		newAttempt := s.attempt + 1
+		var res sql.Result
+		if mww.IsTerminalAttempt(newAttempt) {
+			res, err = w.db.ExecContext(ctx, `
+				UPDATE workspace_webhook_deliveries
+				SET status='dead_letter', attempt_count=$1, last_error_message=$2,
+				    next_attempt_at=NULL, claimed_at=NULL, claimed_by=NULL, completed_at=NOW()
+				WHERE id=$3 AND status='delivering'`, newAttempt, reapErr, s.id)
+		} else {
+			nextAt := time.Now().Add(mww.NextBackoff(newAttempt))
+			res, err = w.db.ExecContext(ctx, `
+				UPDATE workspace_webhook_deliveries
+				SET status='failed', attempt_count=$1, last_error_message=$2,
+				    next_attempt_at=$3, claimed_at=NULL, claimed_by=NULL
+				WHERE id=$4 AND status='delivering'`, newAttempt, reapErr, nextAt, s.id)
+		}
+		if err != nil {
+			w.logger.Warn("workspace webhook worker: reap update failed", "delivery_id", s.id, "error", err)
+			continue
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			reaped++
+		}
+	}
+	return reaped, nil
 }
 
 // claimDue selects due deliveries with FOR UPDATE SKIP LOCKED (multi-replica
@@ -198,33 +256,60 @@ func (w *Worker) recordResult(d *mww.Delivery, r mww.DispatchResult) {
 	defer cancel()
 	newAttempt := d.AttemptCount + 1
 
+	// Every write is guarded on (claimed_by=this replica, status='delivering'):
+	// if the lease was reaped + reclaimed by another replica while this dispatch
+	// was in flight, the UPDATE affects 0 rows and is DROPPED — the new owner is
+	// authoritative and will record its own outcome (theo-cloud#155 B2). We NEVER
+	// blind-update by id (that lost updates + resurrected delivered rows). The
+	// outcome metric is incremented only when the write actually applied.
+	apply := func(query string, args ...any) bool {
+		res, err := w.db.ExecContext(bg, query, args...)
+		if err != nil {
+			w.logger.Warn("workspace webhook worker: record result failed",
+				"delivery_id", d.ID, "error", err)
+			return false
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			w.logger.Info("workspace webhook worker: lease lost mid-dispatch, dropping stale result",
+				"delivery_id", d.ID, "replica", w.replicaID)
+			return false
+		}
+		return true
+	}
+
 	if r.Delivered {
-		_, _ = w.db.ExecContext(bg, `
+		if apply(`
 			UPDATE workspace_webhook_deliveries
 			SET status='delivered', attempt_count=$1, last_response_status=$2, last_response_body=$3,
 			    last_error_message=NULL, next_attempt_at=NULL, claimed_at=NULL, claimed_by=NULL, completed_at=NOW()
-			WHERE id=$4`, newAttempt, r.StatusCode, r.Body, d.ID)
-		metrics.IncWorkspaceWebhookDelivery("delivered")
+			WHERE id=$4 AND claimed_by=$5 AND status='delivering'`,
+			newAttempt, r.StatusCode, r.Body, d.ID, w.replicaID) {
+			metrics.IncWorkspaceWebhookDelivery("delivered")
+		}
 		return
 	}
 
 	statusValue := sql.NullInt64{Int64: int64(r.StatusCode), Valid: r.StatusCode != 0}
 	if mww.IsTerminalAttempt(newAttempt) {
-		_, _ = w.db.ExecContext(bg, `
+		if apply(`
 			UPDATE workspace_webhook_deliveries
 			SET status='dead_letter', attempt_count=$1, last_response_status=$2, last_response_body=$3,
 			    last_error_message=$4, next_attempt_at=NULL, claimed_at=NULL, claimed_by=NULL, completed_at=NOW()
-			WHERE id=$5`, newAttempt, statusValue, r.Body, r.ErrorMessage, d.ID)
-		metrics.IncWorkspaceWebhookDelivery("dead_letter")
-		w.logger.Warn("workspace webhook delivery dead-lettered", "delivery_id", d.ID, "webhook_id", d.WebhookID, "attempts", newAttempt)
+			WHERE id=$5 AND claimed_by=$6 AND status='delivering'`,
+			newAttempt, statusValue, r.Body, r.ErrorMessage, d.ID, w.replicaID) {
+			metrics.IncWorkspaceWebhookDelivery("dead_letter")
+			w.logger.Warn("workspace webhook delivery dead-lettered", "delivery_id", d.ID, "webhook_id", d.WebhookID, "attempts", newAttempt)
+		}
 		return
 	}
 
 	nextAt := time.Now().Add(mww.NextBackoff(newAttempt))
-	_, _ = w.db.ExecContext(bg, `
+	if apply(`
 		UPDATE workspace_webhook_deliveries
 		SET status='failed', attempt_count=$1, last_response_status=$2, last_response_body=$3,
 		    last_error_message=$4, next_attempt_at=$5, claimed_at=NULL, claimed_by=NULL
-		WHERE id=$6`, newAttempt, statusValue, r.Body, r.ErrorMessage, nextAt, d.ID)
-	metrics.IncWorkspaceWebhookDelivery("failed")
+		WHERE id=$6 AND claimed_by=$7 AND status='delivering'`,
+		newAttempt, statusValue, r.Body, r.ErrorMessage, nextAt, d.ID, w.replicaID) {
+		metrics.IncWorkspaceWebhookDelivery("failed")
+	}
 }
