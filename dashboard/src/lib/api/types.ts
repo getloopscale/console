@@ -743,3 +743,18 @@ export interface Paginated<T> {
   page_size?: number;
   next_page_token?: string;
 }
+
+// J-13 (MEET-2026-07-03-004) — a Stripe invoice as re-shaped by the BFF.
+// Money is integer minor units + currency; timestamps are ISO-8601 UTC.
+// invoice_pdf is intentionally absent (D3 security veto — capability-URL PII).
+export interface Invoice {
+  id: string;
+  number: string;
+  amount_minor: number;
+  currency: string;
+  status: string;
+  created: string;
+  period_start: string;
+  period_end: string;
+  hosted_invoice_url: string;
+}

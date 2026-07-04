@@ -17,6 +17,14 @@ vi.mock('@/hooks/use-api', () => ({
   useEngineApi: (path: string, options?: { enabled?: boolean }) => mockUseCloudApi(path, options),
 }));
 
+// J-13: the page embeds <InvoicesCard/>, which fetches invoices via its own
+// useInvoices hook. Mock it to a neutral empty state so the page tests don't
+// exercise (or pollute the shared cloudFetch mock with) the invoices fetch —
+// the invoice table has its own tests (components/billing/invoices-card.test.tsx).
+vi.mock('@/hooks/use-invoices', () => ({
+  useInvoices: () => ({ invoices: [], loading: false, forbidden: false, error: false }),
+}));
+
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => {
   // Declare ApiError inside the factory closure — vi.mock hoists, so a top-
@@ -146,18 +154,9 @@ describe('BillingPage', () => {
     expect(alert.textContent ?? '').toMatch(/failed to open billing portal/i);
   });
 
-  it('test_billing_renders_invoice_table_with_data', () => {
-    // Plan EC-5 v1.2: invoice table OMITTED — no /v1/billing/invoices endpoint exists.
-    // This test verifies the documented absence (no invoice section rendered) so
-    // a future re-introduction is detected and triggers test update.
-    mockUseCloudApi.mockReturnValue({
-      data: { plan: 'pro', team: 'acme', usage: {} },
-      loading: false,
-      error: false,
-    });
-    render(<BillingPage />);
-    expect(screen.queryByText(/invoice/i)).not.toBeInTheDocument();
-  });
+  // EC-5 "invoice table OMITTED" test removed at J-13 (MEET-2026-07-03-004):
+  // the invoice table now ships as a separate <InvoicesCard/> with its own
+  // owner-gated fetch and its own tests (components/billing/invoices-card.test.tsx).
 
   it('test_billing_cancel_subscription_requires_confirmation', () => {
     // BillingPage v1.2: cancel flow is delegated to Stripe Portal (no in-app cancel button).

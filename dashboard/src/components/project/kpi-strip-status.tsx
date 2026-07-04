@@ -67,26 +67,26 @@ function KPICard({ icon: Icon, label, value, tone }: KPICardProps) {
 }
 
 function formatNullable(value: number | null | undefined, suffix = ''): string {
-  if (value === null || value === undefined) return '—';
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   return `${value}${suffix}`;
 }
 
 function uptimeTone(uptime: number | null | undefined): Tone {
-  if (uptime === null || uptime === undefined) return 'muted';
+  if (typeof uptime !== 'number' || !Number.isFinite(uptime)) return 'muted';
   if (uptime >= 99.9) return 'success';
   if (uptime >= 99.0) return 'warning';
   return 'destructive';
 }
 
 function errorRateTone(rate: number | null | undefined): Tone {
-  if (rate === null || rate === undefined) return 'muted';
+  if (typeof rate !== 'number' || !Number.isFinite(rate)) return 'muted';
   if (rate >= 5) return 'destructive';
   if (rate >= 1) return 'warning';
   return 'success';
 }
 
 function p95Tone(latencyMs: number | null | undefined): Tone {
-  if (latencyMs === null || latencyMs === undefined) return 'muted';
+  if (typeof latencyMs !== 'number' || !Number.isFinite(latencyMs)) return 'muted';
   if (latencyMs >= 1000) return 'destructive';
   if (latencyMs >= 500) return 'warning';
   return 'success';
@@ -105,31 +105,31 @@ export function KPIStripStatus(props: KPIStripStatusProps) {
         icon={Cpu}
         label="Replicas"
         value={formatNullable(replicas)}
-        tone={replicas === null || replicas === undefined ? 'muted' : replicas === 0 ? 'destructive' : 'success'}
+        tone={typeof replicas !== 'number' || !Number.isFinite(replicas) ? 'muted' : replicas === 0 ? 'destructive' : 'success'}
       />
       <KPICard
         icon={Activity}
         label="Uptime 24h"
-        value={uptime24h === null || uptime24h === undefined ? '—' : `${uptime24h.toFixed(2)}%`}
+        value={typeof uptime24h !== 'number' || !Number.isFinite(uptime24h) ? '—' : `${uptime24h.toFixed(2)}%`}
         tone={uptimeTone(uptime24h)}
       />
       <KPICard
         icon={Clock}
         label="p95 Latency"
-        value={p95LatencyMs === null || p95LatencyMs === undefined ? '—' : `${p95LatencyMs}ms`}
+        value={typeof p95LatencyMs !== 'number' || !Number.isFinite(p95LatencyMs) ? '—' : `${p95LatencyMs}ms`}
         tone={p95Tone(p95LatencyMs)}
       />
       <KPICard
         icon={AlertTriangle}
         label="Error Rate"
-        value={errorRate === null || errorRate === undefined ? '—' : `${errorRate.toFixed(2)}%`}
+        value={typeof errorRate !== 'number' || !Number.isFinite(errorRate) ? '—' : `${errorRate.toFixed(2)}%`}
         tone={errorRateTone(errorRate)}
       />
       <KPICard
         icon={TrendingUp}
         label="RPS"
         value={formatNullable(rps)}
-        tone={rps === null || rps === undefined ? 'muted' : 'success'}
+        tone={typeof rps !== 'number' || !Number.isFinite(rps) ? 'muted' : 'success'}
       />
     </div>
   );
