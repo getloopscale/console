@@ -141,7 +141,8 @@ func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 // M44 — the lens dashboard mount is read+write+delete. Walks the SHIPPED route table
 // (routes.MountLensDashboard) and asserts: (a) the writable management routes are present, and
 // (b) ADR-3 holds — NO mutating verb (POST/DELETE) on the trace/session BODY or on /agents;
-// trace tags/annotations ARE writable metadata; /ask is a read-scope copilot POST.
+// trace tags/annotations ARE writable metadata; /ask is a read-scope copilot POST;
+// /replay is the M55 read-scope ephemeral provider re-run (never persists to the immutable trace).
 func TestLensDashboard_ReadWriteRouteSet(t *testing.T) {
 	r := chi.NewRouter()
 	h := routes.NewLensDashboardHandler(nil, quietLogger())
@@ -156,7 +157,9 @@ func TestLensDashboard_ReadWriteRouteSet(t *testing.T) {
 		got[method+" "+route] = true
 		if method == http.MethodPost || method == http.MethodDelete {
 			underTrace := strings.HasPrefix(route, "/v1/dashboard/lens/traces/{traceID}")
-			writableMeta := strings.Contains(route, "/tags") || strings.Contains(route, "/annotations") || strings.Contains(route, "/ask")
+			// /replay: M55 read-scope ephemeral provider queries — NOT a body mutation; replay
+			// re-runs an edited message list server-side and never persists to the immutable trace.
+			writableMeta := strings.Contains(route, "/tags") || strings.Contains(route, "/annotations") || strings.Contains(route, "/ask") || strings.Contains(route, "/replay")
 			bad := route == "/v1/dashboard/lens/traces" ||
 				(underTrace && !writableMeta) ||
 				strings.HasPrefix(route, "/v1/dashboard/lens/sessions") ||
@@ -182,6 +185,7 @@ func TestLensDashboard_ReadWriteRouteSet(t *testing.T) {
 		"POST /v1/dashboard/lens/traces/{traceID}/tags",
 		"DELETE /v1/dashboard/lens/traces/{traceID}/tags",
 		"POST /v1/dashboard/lens/traces/{traceID}/annotations",
+		"POST /v1/dashboard/lens/traces/{traceID}/replay",
 		"GET /v1/dashboard/lens/traces",
 		"GET /v1/dashboard/lens/agents",
 	}
