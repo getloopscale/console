@@ -58,14 +58,14 @@ func TestCreateKey_HappyPath(t *testing.T) {
 	// Capture the INSERT to inspect the hash + prefix that the handler computes.
 	mock.ExpectExec("INSERT INTO theo_api_keys").
 		WithArgs(
-			sqlmock.AnyArg(),       // id (apk-{16hex})
-			"user-A",               // subject — derived from auth, NOT body
-			"tenant-A",             // tenant_id — derived from auth, NOT body
-			"prod-key",             // key_name
-			sqlmock.AnyArg(),       // key_hash (validated below)
-			sqlmock.AnyArg(),       // key_prefix
-			sqlmock.AnyArg(),       // scopes jsonb
-			sqlmock.AnyArg(),       // expires_at
+			sqlmock.AnyArg(), // id (apk-{16hex})
+			"user-A",         // subject — derived from auth, NOT body
+			"tenant-A",       // tenant_id — derived from auth, NOT body
+			"prod-key",       // key_name
+			sqlmock.AnyArg(), // key_hash (validated below)
+			sqlmock.AnyArg(), // key_prefix
+			sqlmock.AnyArg(), // scopes jsonb
+			sqlmock.AnyArg(), // expires_at
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -135,10 +135,11 @@ func TestCreateKey_EmptyScopesRejected(t *testing.T) {
 // the alternative (cryptic 403 scope_required) would suggest a permissions
 // problem when the real answer is "not implemented yet".
 // NOTE: traces:* used to live here but graduated to observability:* as ACTIVE
-// with M37-M46 (commit 7c1adc9). See TestCreateKey_ObservabilityScopesAccepted
-// below for the positive coverage on the graduated form.
+// with M37-M46 (commit 7c1adc9); rag:read/write graduated to ACTIVE rag:read/
+// write/delete with #168. See TestCreateKey_ObservabilityScopesAccepted +
+// TestCreateKey_RagScopesAccepted below for the positive coverage on both.
 func TestCreateKey_ReservedScopeReturns503(t *testing.T) {
-	cases := []string{"rag:read", "rag:write", "agents:read", "agents:invoke", "deploys:read", "deploys:write"}
+	cases := []string{"agents:read", "agents:invoke", "deploys:read", "deploys:write"}
 	for _, sc := range cases {
 		t.Run(sc, func(t *testing.T) {
 			h, _ := newAPIKeysHandler(t)
@@ -184,6 +185,56 @@ func TestCreateKey_ObservabilityScopesAccepted(t *testing.T) {
 				t.Fatalf("expected 200 for active scope %q, got %d body=%s", sc, rec.Code, rec.Body.String())
 			}
 		})
+	}
+}
+
+// #168 — positive coverage on the graduated rag:* scopes. rag:read/write were
+// RESERVED before; rag:delete was UNKNOWN. All three are now ACTIVE (the RAG
+// broker's supported set, cmd/main.go). rag:admin is deliberately NOT here — it
+// is the broker-held key-lifecycle scope, never customer-issuable (asserted as
+// UNKNOWN_SCOPE in TestCreateKey_RagAdminNotIssuable — the anti-escalation crux).
+func TestCreateKey_RagScopesAccepted(t *testing.T) {
+	cases := []string{"rag:read", "rag:write", "rag:delete"}
+	for _, sc := range cases {
+		t.Run(sc, func(t *testing.T) {
+			h, mock := newAPIKeysHandler(t)
+			mock.ExpectExec("INSERT INTO theo_api_keys").
+				WithArgs(
+					sqlmock.AnyArg(), // id
+					"u",              // subject
+					"t",              // tenant_id
+					"rag-key",        // name
+					sqlmock.AnyArg(), // key_hash
+					sqlmock.AnyArg(), // key_prefix
+					sqlmock.AnyArg(), // scopes jsonb
+					sqlmock.AnyArg(), // expires_at
+				).
+				WillReturnResult(sqlmock.NewResult(1, 1))
+			rec := httptest.NewRecorder()
+			body := map[string]any{"name": "rag-key", "scopes": []string{sc}}
+			h.CreateKey(rec, authedPost("/v1/api-keys", &auth.UserContext{Subject: "u", TenantID: "t"}, body, t))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected 200 for active scope %q, got %d body=%s", sc, rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+// #168 anti-escalation (the crux): rag:admin is the broker-held key-lifecycle
+// scope, in NEITHER validScopes NOR reservedScopes, so a customer can NEVER
+// issue it — CreateKey rejects it with 400 UNKNOWN_SCOPE at the gate (before
+// any INSERT). Locks the escalation-prevention path behaviorally, not just by
+// map state.
+func TestCreateKey_RagAdminNotIssuable(t *testing.T) {
+	h, _ := newAPIKeysHandler(t)
+	rec := httptest.NewRecorder()
+	body := map[string]any{"name": "x", "scopes": []string{"rag:admin"}}
+	h.CreateKey(rec, authedPost("/v1/api-keys", &auth.UserContext{Subject: "u", TenantID: "t"}, body, t))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for rag:admin (not customer-issuable), got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "UNKNOWN_SCOPE") {
+		t.Errorf("expected UNKNOWN_SCOPE for rag:admin, got %s", rec.Body.String())
 	}
 }
 
