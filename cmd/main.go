@@ -263,7 +263,7 @@ func main() {
 		cfg.SessionTokenSecret.Value(),
 		"theo-cloud",
 		"theo-cloud",
-		15*time.Minute,
+		24*time.Hour,
 	).WithPreviousSecret(string(cfg.SessionTokenSecretPrevious))
 	tenantProvisioner := auth.NewTenantProvisioner(db, logger)
 	sessionTokenHandler := routes.NewSessionTokenHandler(sessIssuer, tenantProvisioner, cfg.KratosInternalURL)
