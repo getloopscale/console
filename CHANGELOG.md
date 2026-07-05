@@ -9,6 +9,7 @@
 ### Removed
 
 ### Fixed
+- **BFF: lens dashboard client timeout 10s→35s so the LLM-backed Ask (M33) + replay (M55) paths stop 502-ing (theo-lens live verification).** The `/v1/dashboard/lens` `DataClient` also proxies the two LLM-backed paths — `POST .../ask` and `POST .../replay` — whose downstream chat client caps at 30s (theo-lens `CHAT_TIMEOUT_MS`). The client's `http.Client{Timeout: 10s}` raced that call: a legitimate copilot ask over a real trace exceeded 10s and surfaced as `502 "context deadline exceeded (Client.Timeout exceeded while awaiting headers)"` — the failure caught during the M42/M55 live browser verification against a real provider (OpenRouter). Raised to 35s (30s downstream + margin), mirroring the themory LLM path (30s). Fast paths (traces list / cost / saved-views) are unaffected — the timeout is only a ceiling. The M53 alert-evaluator client (metrics-only, no LLM) stays at 10s. Live-proven end-to-end: Ask → grounded answer; replay → real output+tokens+latency (both `200`). `cmd/main.go`.
 
 ### Security
 
