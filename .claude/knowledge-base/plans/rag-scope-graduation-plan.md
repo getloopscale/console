@@ -120,7 +120,7 @@ The customer-issuance gate (`validScopes`) is the single backend site that decid
 `validScopes:90-99`, `reservedScopes:105-112`, validation loop `:334-345`. Test uses `auth.WithUser` (`me_test.go:30` pattern) + `sqlmock` (go.mod) + `httptest`. Negative cases return before the INSERT (no DB op); the positive case expects the INSERT.
 #### TDD
 RED (`api_keys_test.go`): `TestCreateKey_ScopeValidation` table-driven —
-- `rag:read` / `rag:write` / `rag:delete` (with a mocked INSERT) → **201** (accepted, key created).
+- `rag:read` / `rag:write` / `rag:delete` (with a mocked INSERT) → **200** (accepted, key created).
 - `agents:read` (still reserved) → **503** `scope_not_yet_active`.
 - `deploys:write` (still reserved) → **503**.
 - `foo:bar` (unknown) → **400** `UNKNOWN_SCOPE`.
@@ -129,7 +129,7 @@ RED (`api_keys_test.go`): `TestCreateKey_ScopeValidation` table-driven —
 #### Concurrency tests
 (none — single-threaded)
 #### Acceptance Criteria
-- `TestCreateKey_ScopeValidation` asserts a `rag:read`/`rag:write`/`rag:delete` request returns `201` and `agents:read`/`deploys:write` return `503`, `foo:bar` returns `400 UNKNOWN_SCOPE`, `[]` returns `400 EMPTY_SCOPES` — the test passes.
+- `TestCreateKey_ScopeValidation` asserts a `rag:read`/`rag:write`/`rag:delete` request returns `200` and `agents:read`/`deploys:write` return `503`, `foo:bar` returns `400 UNKNOWN_SCOPE`, `[]` returns `400 EMPTY_SCOPES` — the test passes.
 - `go test ./internal/routes` passes; `rag:read`/`rag:write`/`rag:delete` are in `validScopes` and NOT in `reservedScopes`; `rag:admin` is in NEITHER.
 #### DoD
 - `go test ./internal/routes ./cmd` green; `go vet ./internal/routes` clean.

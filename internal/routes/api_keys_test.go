@@ -66,6 +66,9 @@ func TestCreateKey_ScopeValidation(t *testing.T) {
 	}{
 		{"reserved_agents", []string{"agents:read"}, http.StatusServiceUnavailable, "scope_not_yet_active"},
 		{"reserved_deploys", []string{"deploys:write"}, http.StatusServiceUnavailable, "scope_not_yet_active"},
+		// #168 anti-escalation (the crux): rag:admin is the broker-held key-lifecycle scope,
+		// in NEITHER map, so it falls through to UNKNOWN_SCOPE — a customer can NEVER issue it.
+		{"rejected_rag_admin", []string{"rag:admin"}, http.StatusBadRequest, "UNKNOWN_SCOPE"},
 		{"unknown_scope", []string{"foo:bar"}, http.StatusBadRequest, "UNKNOWN_SCOPE"},
 		{"empty_scopes", []string{}, http.StatusBadRequest, "EMPTY_SCOPES"},
 	}
@@ -106,6 +109,9 @@ func TestCreateKey_ScopeValidation(t *testing.T) {
 		h.CreateKey(w, httptest.NewRequest(http.MethodPost, "/v1/api-keys", strings.NewReader(string(body))))
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("want 401, got %d (%s)", w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Body.String(), "AUTH_REQUIRED") {
+			t.Fatalf("want AUTH_REQUIRED error code, got %s", w.Body.String())
 		}
 	})
 }
