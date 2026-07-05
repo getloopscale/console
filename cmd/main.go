@@ -421,7 +421,12 @@ func main() {
 	// write half is M44), mirroring the rag M17 read BFF.
 	var lensDashboardHandler *routes.LensDashboardHandler
 	if lensBroker != nil {
-		lensDataClient := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
+		// 35s (not the usual 10s): this client also proxies the LLM-backed M33 Ask + M55
+		// replay paths, whose downstream chat client caps at 30s (theo-lens CHAT_TIMEOUT_MS).
+		// A 10s ceiling raced the LLM call → 502 "context deadline exceeded" on legitimate
+		// asks. Mirrors the themory LLM path (30s). Fast paths (traces list/cost) are
+		// unaffected — the timeout is only a ceiling.
+		lensDataClient := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 35 * time.Second}).
 			WithKeyResolver(newLensDashboardKeyResolver(lensBroker))
 		lensDashboardHandler = routes.NewLensDashboardHandler(lensDataClient, logger)
 		logger.Info("dashboard lens enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/lens")
