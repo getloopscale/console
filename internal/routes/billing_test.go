@@ -177,7 +177,7 @@ func TestGetBilling_Seats_FromTenantMembers_RedTeam42(t *testing.T) {
 	t.Cleanup(func() { _ = dbConn.Close() })
 
 	// No active subscription → starter plan is the default.
-	mock.ExpectQuery("SELECT plan, current_period_start, current_period_end, stripe_subscription_id FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND status = 'active' LIMIT 1").
+	mock.ExpectQuery("SELECT plan, current_period_start, current_period_end, stripe_subscription_id, amount_minor, currency FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND status = 'active' LIMIT 1").
 		WithArgs("tn-test").
 		WillReturnError(sqlError())
 
@@ -225,4 +225,113 @@ func TestGetBilling_Seats_FromTenantMembers_RedTeam42(t *testing.T) {
 // sqlError is a small helper so we don't import database/sql twice.
 func sqlError() error {
 	return sql.ErrNoRows
+}
+
+// J-06 / MEET-2026-07-03-003 D1 Layer 2 — GET /v1/billing emits an additive
+// nested `plan_price` observed from the subscriptions row (no Go price constant).
+const subSelectWithSpend = "SELECT plan, current_period_start, current_period_end, stripe_subscription_id, amount_minor, currency FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND status = 'active' LIMIT 1"
+
+func billingBoilerplateQueries(mock sqlmock.Sqlmock) {
+	mock.ExpectQuery("SELECT metric, COALESCE(SUM(quantity), 0) FROM usage_records WHERE tenant_id = $1 AND period_start >= $2 GROUP BY metric").
+		WillReturnRows(sqlmock.NewRows([]string{"metric", "quantity"}))
+	mock.ExpectQuery("SELECT COUNT(*) FROM tenant_members WHERE tenant_id = $1").
+		WithArgs("tn-test").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+}
+
+func doGetBilling(t *testing.T, dbConn *sql.DB) map[string]json.RawMessage {
+	t.Helper()
+	h := &BillingHandler{db: dbConn}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/v1/billing", nil)
+	r = r.WithContext(auth.WithUser(r.Context(), &auth.UserContext{Subject: "u", Email: "e@x.com", TenantID: "tn-test"}))
+	h.GetBilling(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &m); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	return m
+}
+
+func TestGetBilling_Pro_PlanPriceFromRow(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	t.Cleanup(func() { _ = dbConn.Close() })
+	mock.ExpectQuery(subSelectWithSpend).WithArgs("tn-test").
+		WillReturnRows(sqlmock.NewRows([]string{"plan", "current_period_start", "current_period_end", "stripe_subscription_id", "amount_minor", "currency"}).
+			AddRow("pro", nil, nil, "sub_1", int64(2900), "usd"))
+	billingBoilerplateQueries(mock)
+	m := doGetBilling(t, dbConn)
+	raw, ok := m["plan_price"]
+	if !ok {
+		t.Fatalf("pro: plan_price MUST be present, got keys %v", keysOf(m))
+	}
+	var pp struct {
+		AmountMinor int64  `json:"amount_minor"`
+		Currency    string `json:"currency"`
+		Interval    string `json:"interval"`
+	}
+	_ = json.Unmarshal(raw, &pp)
+	if pp.AmountMinor != 2900 || pp.Currency != "usd" || pp.Interval != "month" {
+		t.Errorf("pro: want {2900,usd,month}, got %+v", pp)
+	}
+}
+
+func TestGetBilling_Starter_PlanPriceZeroPresent(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	t.Cleanup(func() { _ = dbConn.Close() })
+	// No active subscription row → starter default.
+	mock.ExpectQuery(subSelectWithSpend).WithArgs("tn-test").WillReturnError(sql.ErrNoRows)
+	billingBoilerplateQueries(mock)
+	m := doGetBilling(t, dbConn)
+	raw, ok := m["plan_price"]
+	if !ok {
+		t.Fatalf("starter: plan_price MUST be present (known $0), got keys %v", keysOf(m))
+	}
+	var pp struct {
+		AmountMinor int64  `json:"amount_minor"`
+		Currency    string `json:"currency"`
+		Interval    string `json:"interval"`
+	}
+	_ = json.Unmarshal(raw, &pp)
+	if pp.AmountMinor != 0 || pp.Currency != "usd" || pp.Interval != "month" {
+		t.Errorf("starter: want {0,usd,month}, got %+v", pp)
+	}
+}
+
+func TestGetBilling_Enterprise_PlanPriceOmitted(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	t.Cleanup(func() { _ = dbConn.Close() })
+	mock.ExpectQuery(subSelectWithSpend).WithArgs("tn-test").
+		WillReturnRows(sqlmock.NewRows([]string{"plan", "current_period_start", "current_period_end", "stripe_subscription_id", "amount_minor", "currency"}).
+			AddRow("enterprise", nil, nil, "sub_e", nil, nil))
+	billingBoilerplateQueries(mock)
+	m := doGetBilling(t, dbConn)
+	if _, ok := m["plan_price"]; ok {
+		t.Errorf("enterprise: plan_price MUST be omitted (no public price), got %s", string(m["plan_price"]))
+	}
+}
+
+func TestGetBilling_ProNotYetPersisted_PlanPriceOmitted(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	t.Cleanup(func() { _ = dbConn.Close() })
+	// pro row but amount_minor NULL (webhook hasn't landed / pre-migration) → omit, never a fake $0.
+	mock.ExpectQuery(subSelectWithSpend).WithArgs("tn-test").
+		WillReturnRows(sqlmock.NewRows([]string{"plan", "current_period_start", "current_period_end", "stripe_subscription_id", "amount_minor", "currency"}).
+			AddRow("pro", nil, nil, "sub_p", nil, nil))
+	billingBoilerplateQueries(mock)
+	m := doGetBilling(t, dbConn)
+	if _, ok := m["plan_price"]; ok {
+		t.Errorf("pro-not-yet-persisted: plan_price MUST be omitted (never a fake $0 for a paid plan)")
+	}
+}
+
+func keysOf(m map[string]json.RawMessage) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	return ks
 }

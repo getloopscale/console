@@ -28,6 +28,41 @@ func stubResolve(context.Context, string) (*auth.UserContext, []string, error) {
 }
 func stubAuthorize(context.Context, string, string) (bool, error) { return true, nil }
 
+// M38 T4 — buildLensForwardAuth is nil (feature off) when LENS_BASE_URL is unset,
+// so existing deployments (LENS_BASE_URL empty) register no lens route.
+func TestBuildLensForwardAuth_Disabled_WhenBaseURLUnset(t *testing.T) {
+	h, broker, err := buildLensForwardAuth(config.Config{LensBaseURL: ""}, stubResolve, stubAuthorize, quietLogger())
+	if err != nil {
+		t.Fatalf("unexpected error when LENS_BASE_URL unset: %v", err)
+	}
+	if h != nil {
+		t.Fatal("handler should be nil (feature off) when LENS_BASE_URL is unset")
+	}
+	if broker != nil {
+		t.Fatal("broker should be nil (feature off) when LENS_BASE_URL is unset")
+	}
+}
+
+// M38/M41 T4 — when LENS_BASE_URL is set (with a platform key), the handler AND the broker
+// are wired. M41 (D2) — the broker is ALSO returned so the SAME broker serves both the
+// edge ForwardAuth handler AND the dashboard BFF resolver (one mint cache).
+func TestBuildLensForwardAuth_Wired_WhenConfigured(t *testing.T) {
+	cfg := config.Config{
+		LensBaseURL:          "http://theo-lens:18082",
+		LensPlatformAdminKey: config.Secret("theo_live_platform"),
+	}
+	h, broker, err := buildLensForwardAuth(cfg, stubResolve, stubAuthorize, quietLogger())
+	if err != nil {
+		t.Fatalf("unexpected error when configured: %v", err)
+	}
+	if h == nil {
+		t.Fatal("handler should be non-nil when LENS_BASE_URL is configured")
+	}
+	if broker == nil {
+		t.Fatal("broker should be non-nil when configured (M41 — exposed for the dashboard BFF)")
+	}
+}
+
 // M14 T4.1 — buildRagForwardAuth is nil (feature off) when RAG_BASE_URL is unset.
 // M16 T2.1 — the broker is ALSO nil when unset (no MCP binding either).
 func TestBuildRagForwardAuth_Disabled_WhenBaseURLUnset(t *testing.T) {
@@ -103,6 +138,64 @@ func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 	}
 }
 
+// M44 — the lens dashboard mount is read+write+delete. Walks the SHIPPED route table
+// (routes.MountLensDashboard) and asserts: (a) the writable management routes are present, and
+// (b) ADR-3 holds — NO mutating verb (POST/DELETE) on the trace/session BODY or on /agents;
+// trace tags/annotations ARE writable metadata; /ask is a read-scope copilot POST;
+// /replay is the M55 read-scope ephemeral provider re-run (never persists to the immutable trace).
+func TestLensDashboard_ReadWriteRouteSet(t *testing.T) {
+	r := chi.NewRouter()
+	h := routes.NewLensDashboardHandler(nil, quietLogger())
+	passthrough := func(next http.Handler) http.Handler { return next } // stand-in for requireJWT
+	routes.MountLensDashboard(r, h, passthrough)
+
+	got := map[string]bool{}
+	err := chi.Walk(r, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if !strings.HasPrefix(route, "/v1/dashboard/lens") {
+			return nil
+		}
+		got[method+" "+route] = true
+		if method == http.MethodPost || method == http.MethodDelete {
+			underTrace := strings.HasPrefix(route, "/v1/dashboard/lens/traces/{traceID}")
+			// /replay: M55 read-scope ephemeral provider queries — NOT a body mutation; replay
+			// re-runs an edited message list server-side and never persists to the immutable trace.
+			writableMeta := strings.Contains(route, "/tags") || strings.Contains(route, "/annotations") || strings.Contains(route, "/ask") || strings.Contains(route, "/replay")
+			bad := route == "/v1/dashboard/lens/traces" ||
+				(underTrace && !writableMeta) ||
+				strings.HasPrefix(route, "/v1/dashboard/lens/sessions") ||
+				strings.HasPrefix(route, "/v1/dashboard/lens/agents")
+			if bad {
+				t.Fatalf("ADR-3 violation: mutating %s on read-only surface %q", method, route)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk: %v", err)
+	}
+	// The writable management routes MUST be present (a representative subset).
+	want := []string{
+		"POST /v1/dashboard/lens/datasets",
+		"DELETE /v1/dashboard/lens/datasets/{datasetID}/items/{traceID}",
+		"POST /v1/dashboard/lens/evaluators",
+		"POST /v1/dashboard/lens/evaluators/{evaluatorID}/run",
+		"DELETE /v1/dashboard/lens/evaluators/{evaluatorID}",
+		"POST /v1/dashboard/lens/guards",
+		"DELETE /v1/dashboard/lens/guards/{guardID}",
+		"POST /v1/dashboard/lens/traces/{traceID}/tags",
+		"DELETE /v1/dashboard/lens/traces/{traceID}/tags",
+		"POST /v1/dashboard/lens/traces/{traceID}/annotations",
+		"POST /v1/dashboard/lens/traces/{traceID}/replay",
+		"GET /v1/dashboard/lens/traces",
+		"GET /v1/dashboard/lens/agents",
+	}
+	for _, w := range want {
+		if !got[w] {
+			t.Fatalf("expected route %q mounted under /v1/dashboard/lens; got %+v", w, got)
+		}
+	}
+}
+
 // stubDashMinter records the args the SHIPPED newRagDashboardKeyResolver passes.
 type stubDashMinter struct {
 	gotAccount string
@@ -160,6 +253,76 @@ func TestNewRagDashboardKeyResolver_CrossTenantIsolation(t *testing.T) {
 func TestNewRagDashboardKeyResolver_FailsClosed(t *testing.T) {
 	stub := &stubDashMinter{}
 	resolve := newRagDashboardKeyResolver(stub)
+	for _, ctx := range []context.Context{
+		context.Background(),
+		auth.WithUser(context.Background(), &auth.UserContext{TenantID: ""}),
+	} {
+		if _, err := resolve(ctx); err == nil {
+			t.Fatal("expected error with no authenticated tenant (fail-closed)")
+		}
+	}
+	if stub.calls != 0 {
+		t.Fatalf("minter MUST NOT be called without a tenant, got %d calls", stub.calls)
+	}
+}
+
+// stubLensDashMinter records the args the SHIPPED newLensDashboardKeyResolver passes.
+type stubLensDashMinter struct {
+	gotAccount string
+	gotTenant  string
+	gotScopes  []string
+	calls      int
+}
+
+func (s *stubLensDashMinter) KeyForTenantScoped(_ context.Context, accountID, tenantID string, scopes []string) (string, error) {
+	s.calls++
+	s.gotAccount, s.gotTenant, s.gotScopes = accountID, tenantID, scopes
+	return "theo_live_" + tenantID, nil
+}
+
+// M44 — the SHIPPED lens dashboard keyResolver mints a observability:read+write+delete key from the JWT
+// tenant (the management BFF; ADR-1: one resolver, per-verb least privilege enforced at
+// theo-lens). The tenant/account MUST come from the JWT, never a param; the scope set MUST be
+// exactly [observability:read, observability:write, observability:delete].
+func TestNewLensDashboardKeyResolver_MintsReadWriteDeleteFromJWTTenant(t *testing.T) {
+	stub := &stubLensDashMinter{}
+	resolve := newLensDashboardKeyResolver(stub)
+
+	key, err := resolve(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tenantA", AccountID: "accA"}))
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if key != "theo_live_tenantA" {
+		t.Fatalf("key = %q, want theo_live_tenantA", key)
+	}
+	if stub.gotTenant != "tenantA" || stub.gotAccount != "accA" {
+		t.Fatalf("resolver must mint from the JWT tenant/account, got tenant=%q account=%q", stub.gotTenant, stub.gotAccount)
+	}
+	want := map[string]bool{"observability:read": true, "observability:write": true, "observability:delete": true}
+	if len(stub.gotScopes) != len(want) {
+		t.Fatalf("dashboard key MUST be minted observability:read+write+delete, got %+v", stub.gotScopes)
+	}
+	for _, s := range stub.gotScopes {
+		if !want[s] {
+			t.Fatalf("unexpected scope %q (want exactly read+write+delete), got %+v", s, stub.gotScopes)
+		}
+	}
+}
+
+// M41 — cross-tenant isolation on the SHIPPED lens resolver.
+func TestNewLensDashboardKeyResolver_CrossTenantIsolation(t *testing.T) {
+	resolve := newLensDashboardKeyResolver(&stubLensDashMinter{})
+	keyA, _ := resolve(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tenantA", AccountID: "accA"}))
+	keyB, _ := resolve(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tenantB", AccountID: "accB"}))
+	if keyA == keyB {
+		t.Fatalf("cross-tenant leak: A and B resolved the same key %q", keyA)
+	}
+}
+
+// M41 — fail-closed on the SHIPPED lens resolver: no JWT tenant → error, minter NOT called.
+func TestNewLensDashboardKeyResolver_FailsClosed(t *testing.T) {
+	stub := &stubLensDashMinter{}
+	resolve := newLensDashboardKeyResolver(stub)
 	for _, ctx := range []context.Context{
 		context.Background(),
 		auth.WithUser(context.Background(), &auth.UserContext{TenantID: ""}),

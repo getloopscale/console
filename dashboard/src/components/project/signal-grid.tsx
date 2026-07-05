@@ -60,18 +60,22 @@ interface PillCfg {
   tone: (value: unknown) => Tone;
 }
 
+// theo-cloud#158: NaN/Inf are `typeof === 'number'`, so a plain type check lets
+// them through — a metric would render "NaN%"/"NaNms"/"NaN". Require a FINITE
+// number so non-finite values honour the same honest empty state ("—") as
+// null/undefined (never a misleading value).
 function fmtNumber(v: unknown, suffix = ''): string {
-  if (v === null || v === undefined) return '—';
+  if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
   return `${v}${suffix}`;
 }
 
 function fmtPercent(v: unknown): string {
-  if (typeof v !== 'number') return '—';
+  if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
   return `${v.toFixed(2)}%`;
 }
 
 function fmtMs(v: unknown): string {
-  if (typeof v !== 'number') return '—';
+  if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
   return `${v}ms`;
 }
 
@@ -107,7 +111,7 @@ const SIGNAL_PILLS: PillCfg[] = [
     icon: Cpu,
     format: (v) => fmtNumber(v),
     tone: (v) => {
-      if (typeof v !== 'number') return 'muted';
+      if (typeof v !== 'number' || !Number.isFinite(v)) return 'muted';
       if (v === 0) return 'destructive';
       return 'success';
     },
@@ -118,7 +122,7 @@ const SIGNAL_PILLS: PillCfg[] = [
     icon: Activity,
     format: fmtPercent,
     tone: (v) => {
-      if (typeof v !== 'number') return 'muted';
+      if (typeof v !== 'number' || !Number.isFinite(v)) return 'muted';
       if (v >= 99.9) return 'success';
       if (v >= 99.0) return 'warning';
       return 'destructive';
@@ -130,7 +134,7 @@ const SIGNAL_PILLS: PillCfg[] = [
     icon: Clock,
     format: fmtMs,
     tone: (v) => {
-      if (typeof v !== 'number') return 'muted';
+      if (typeof v !== 'number' || !Number.isFinite(v)) return 'muted';
       if (v >= 1000) return 'destructive';
       if (v >= 500) return 'warning';
       return 'success';
@@ -142,7 +146,7 @@ const SIGNAL_PILLS: PillCfg[] = [
     icon: AlertTriangle,
     format: fmtPercent,
     tone: (v) => {
-      if (typeof v !== 'number') return 'muted';
+      if (typeof v !== 'number' || !Number.isFinite(v)) return 'muted';
       if (v >= 5) return 'destructive';
       if (v >= 1) return 'warning';
       return 'success';
@@ -153,7 +157,7 @@ const SIGNAL_PILLS: PillCfg[] = [
     label: 'RPS',
     icon: TrendingUp,
     format: (v) => fmtNumber(v),
-    tone: (v) => (typeof v === 'number' ? 'success' : 'muted'),
+    tone: (v) => (typeof v === 'number' && Number.isFinite(v) ? 'success' : 'muted'),
   },
   {
     signal: 'alerts_active',
@@ -161,7 +165,7 @@ const SIGNAL_PILLS: PillCfg[] = [
     icon: Bell,
     format: (v) => fmtNumber(v),
     tone: (v) => {
-      if (typeof v !== 'number') return 'muted';
+      if (typeof v !== 'number' || !Number.isFinite(v)) return 'muted';
       if (v >= 1) return 'destructive';
       return 'success';
     },

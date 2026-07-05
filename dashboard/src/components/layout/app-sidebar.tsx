@@ -4,12 +4,15 @@ import {
   Activity,
   ArrowLeft,
   Bell,
+  Bot,
   Box,
   Boxes,
   BookOpen,
   Brain,
   ChevronRight,
+  Database,
   FlaskConical,
+  Network,
   FolderKanban,
   Github,
   GitPullRequest,
@@ -106,16 +109,15 @@ const MENUS: Record<string, MenuDefinition> = {
         ],
       },
       {
-        // Plan 1 of dashboard-memory-section-roadmap.md — Memory section.
-        // Drills into a submenu so future plans (P2 entities, P3 exports/webhooks)
-        // can add items without reflowing the root nav.
-        title: 'Memory',
-        items: [{ label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' }],
-      },
-      {
-        // M21 — RAG section. Drills into a submenu (Collections/Documents/Ask/Analytics).
-        title: 'RAG',
-        items: [{ label: 'RAG', path: '/rag', icon: BookOpen, drillsInto: 'rag' }],
+        // The Theo data-plane capabilities (Memory / RAG / Observability), grouped under one
+        // semantic header instead of three single-item groups whose title repeated the item
+        // label. Each item drills into its own submenu (memory / rag / lens).
+        title: 'Capabilities',
+        items: [
+          { label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' },
+          { label: 'RAG', path: '/rag', icon: BookOpen, drillsInto: 'rag' },
+          { label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' },
+        ],
       },
       {
         // Top-level shortcut to the API Tokens page (also reachable via
@@ -207,6 +209,25 @@ const MENUS: Record<string, MenuDefinition> = {
       },
     ],
   },
+  lens: {
+    id: 'lens',
+    title: 'Observability',
+    parent: 'main',
+    groups: [
+      {
+        items: [
+          { label: 'Overview', path: '/observability', icon: LayoutGrid },
+          { label: 'Traces', path: '/observability/traces', icon: Network },
+          { label: 'Sessions', path: '/observability/sessions', icon: ListChecks },
+          { label: 'Datasets', path: '/observability/datasets', icon: Database },
+          { label: 'Evaluators', path: '/observability/evaluators', icon: FlaskConical },
+          { label: 'Guards', path: '/observability/guards', icon: ShieldCheck },
+          { label: 'Agents', path: '/observability/agents', icon: Bot },
+          { label: 'Ask', path: '/observability/ask', icon: Search },
+        ],
+      },
+    ],
+  },
   memory: {
     id: 'memory',
     title: 'Memory',
@@ -287,6 +308,7 @@ function resolveActiveMenu(pathname: string): ResolvedMenu {
   if (pathname.startsWith('/settings')) return { id: 'settings' };
   if (pathname.startsWith('/profile')) return { id: 'profile' };
   if (pathname.startsWith('/rag')) return { id: 'rag' };
+  if (pathname.startsWith('/observability')) return { id: 'lens' };
   if (pathname.startsWith('/memory')) return { id: 'memory' };
   return { id: 'main' };
 }

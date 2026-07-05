@@ -83,22 +83,35 @@ const (
 	keyNameMaxLength = 64
 )
 
-// validScopes is the v0.1 ACTIVE enum (D2). Lookup via map gives O(1)
-// validation against typos like "momory:read".
+// validScopes is the ACTIVE enum (D2). Lookup via map gives O(1) validation
+// against typos like "momory:read". The Observability vertical (theo-lens,
+// edge-integration M37-M46) is ACTIVE alongside Memory — a customer can issue a
+// key carrying observability:* and use it against the unified /v1/lens edge.
+// The RAG vertical (theo-rag, M12-M20) is ACTIVE too (#168) — a customer can issue
+// a key carrying rag:read/write/delete for the unified /v1/rag edge + /mcp/rag. Note
+// rag:admin is NOT here: it is theo-rag's broker-held key-lifecycle scope, never
+// customer-issuable (least privilege — the forward-auth-rag broker's supported set
+// is exactly {rag:read, rag:write, rag:delete}, cmd/main.go).
 var validScopes = map[string]bool{
-	"memory:read":   true,
-	"memory:write":  true,
-	"memory:delete": true,
-	"memory:admin":  true,
+	"memory:read":          true,
+	"memory:write":         true,
+	"memory:delete":        true,
+	"memory:admin":         true,
+	"observability:read":   true,
+	"observability:write":  true,
+	"observability:delete": true,
+	"observability:admin":  true,
+	"rag:read":             true,
+	"rag:write":            true,
+	"rag:delete":           true,
 }
 
 // reservedScopes are RESERVED for future verticals per D2. Requesting one
 // gets a 503 scope_not_yet_active — honest "not implemented yet" instead
-// of cryptic 403 "scope_required".
+// of cryptic 403 "scope_required". (Observability graduated from reserved
+// `traces:*` to the ACTIVE `observability:*` with M37-M46; RAG graduated from
+// reserved `rag:*` to the ACTIVE `rag:read/write/delete` above with #168.)
 var reservedScopes = map[string]bool{
-	"rag:read":      true,
-	"rag:write":     true,
-	"traces:read":   true,
 	"agents:read":   true,
 	"agents:invoke": true,
 	"deploys:read":  true,

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@/test/render';
+import { render, screen, fireEvent } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({
@@ -35,8 +35,9 @@ vi.mock('@/hooks/use-projects', () => ({
   useProjects: () => mockUseProjects(),
 }));
 
+const mockUseProjectStatus = vi.fn(() => ({ status: null as unknown, loading: false }));
 vi.mock('@/hooks/use-project-status', () => ({
-  useProjectStatus: () => ({ status: null, loading: false }),
+  useProjectStatus: () => mockUseProjectStatus(),
 }));
 
 const mockUseDeployments = vi.fn(() => ({ builds: [], loading: false }));
@@ -44,11 +45,20 @@ vi.mock('@/hooks/use-deployments', () => ({
   useDeployments: () => mockUseDeployments(),
 }));
 
+// J-08 Deploy CTA: stub the dialog so the test isolates the page wiring
+// (button → open state → dialog receives open + sourceBuild) from the real
+// dialog's mutation/QueryClient internals.
+vi.mock('@/components/dialogs/redeploy-dialog', () => ({
+  RedeployDialog: ({ open, sourceBuild }: { open: boolean; sourceBuild?: { commit_sha: string } }) =>
+    open ? <div data-testid="redeploy-dialog">redeploy {sourceBuild?.commit_sha}</div> : null,
+}));
+
 import { ProjectDetailPage } from './project-detail';
 
 describe('ProjectDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseProjectStatus.mockReturnValue({ status: null, loading: false });
     mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
     mockUseEngineApi.mockReturnValue({ data: null, loading: false, error: false });
     // Default project that satisfies the existing test suite. Per-test
@@ -188,5 +198,67 @@ describe('ProjectDetailPage', () => {
     const liveEnvsLabel = screen.getByText(/Live envs/i);
     const liveEnvsValueNode = liveEnvsLabel.parentElement?.querySelector('.tabular-nums');
     expect(liveEnvsValueNode?.textContent).toBe('1');
+  });
+
+  // J-08 Project Detail Overview — the product's center page needs a primary
+  // "Deploy" action (Vercel-parity). It reuses RedeployDialog with the active
+  // release build as source (clone last-good commit + env, submit fresh build).
+  describe('J-08 Deploy primary CTA', () => {
+    const buildFixture = {
+      build_id: 'b-active',
+      commit_sha: 'abc1234def5678',
+      status: 'SUCCEEDED',
+      environment: 'production',
+      created_at: '2026-06-02T00:00:00Z',
+    };
+
+    it('renders a Deploy primary action and opens the redeploy dialog with the active build', () => {
+      (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        builds: [buildFixture],
+        loading: false,
+      });
+      render(<ProjectDetailPage />);
+      const deployBtn = screen.getByRole('button', { name: 'Deploy' });
+      expect(deployBtn).toBeInTheDocument();
+      // Dialog is closed until the CTA is clicked.
+      expect(screen.queryByTestId('redeploy-dialog')).not.toBeInTheDocument();
+      fireEvent.click(deployBtn);
+      const dialog = screen.getByTestId('redeploy-dialog');
+      expect(dialog).toBeInTheDocument();
+      // Source build handed to the dialog is the (only) build.
+      expect(dialog).toHaveTextContent('abc1234def5678');
+    });
+
+    it('deploys the ACTIVE-release build as source, not merely the latest build', () => {
+      // active_release points at the SECOND build; builds[0] is a newer,
+      // non-active build. The CTA must clone the ACTIVE release (Deploy =
+      // re-ship the last good release), proving the `builds.find(...)` match
+      // branch — not the `?? builds[0]` fallback.
+      mockUseProjectStatus.mockReturnValue({
+        status: { active_release: { build_id: 'b-active' } },
+        loading: false,
+      });
+      (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        builds: [
+          { ...buildFixture, build_id: 'b-latest', commit_sha: 'latest00newer', status: 'RUNNING' },
+          { ...buildFixture, build_id: 'b-active', commit_sha: 'active11good', status: 'SUCCEEDED' },
+        ],
+        loading: false,
+      });
+      render(<ProjectDetailPage />);
+      fireEvent.click(screen.getByRole('button', { name: 'Deploy' }));
+      const dialog = screen.getByTestId('redeploy-dialog');
+      expect(dialog).toHaveTextContent('active11good');
+      expect(dialog).not.toHaveTextContent('latest00newer');
+    });
+
+    it('does NOT render a Deploy action for a cold project with no builds', () => {
+      (mockUseDeployments as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        builds: [],
+        loading: false,
+      });
+      render(<ProjectDetailPage />);
+      expect(screen.queryByRole('button', { name: 'Deploy' })).not.toBeInTheDocument();
+    });
   });
 });

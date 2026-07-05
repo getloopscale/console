@@ -214,4 +214,29 @@ describe('ApiKeysPage', () => {
     // Done becomes enabled.
     expect(doneButton).not.toBeDisabled();
   });
+
+  it('#168: offers rag:read/write/delete as selectable ACTIVE scopes (not reserved)', async () => {
+    mockCloudFetch.mockResolvedValueOnce({ keys: [] });
+    const user = userEvent.setup();
+    render(<ApiKeysPage />);
+
+    // Open the create dialog.
+    await user.click(
+      (await screen.findAllByRole('button', { name: /create api key/i }))[0],
+    );
+
+    // rag data scopes render as SELECTABLE checkboxes (aria-label = scope id), and a
+    // customer can tick one — proving they are active, not "Reserved for future surfaces".
+    for (const scope of ['rag:read', 'rag:write', 'rag:delete']) {
+      const box = screen.getByLabelText(scope);
+      expect(box).toBeInTheDocument();
+      expect(box).not.toBeDisabled();
+    }
+    const ragRead = screen.getByLabelText('rag:read');
+    await user.click(ragRead);
+    expect(ragRead).toBeChecked();
+
+    // rag:admin is NOT customer-issuable (broker-held) — no checkbox for it.
+    expect(screen.queryByLabelText('rag:admin')).not.toBeInTheDocument();
+  });
 });

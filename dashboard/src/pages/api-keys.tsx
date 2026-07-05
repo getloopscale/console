@@ -67,12 +67,18 @@ const ACTIVE_SCOPES = [
   { id: 'memory:write', label: 'memory:write', description: 'Remember new facts and reflect' },
   { id: 'memory:delete', label: 'memory:delete', description: 'Forget specific memories' },
   { id: 'memory:admin', label: 'memory:admin', description: 'Settings, webhooks, exports' },
+  { id: 'observability:read', label: 'observability:read', description: 'Read traces, sessions, analytics' },
+  { id: 'observability:write', label: 'observability:write', description: 'Ingest spans; manage datasets/evaluators/guards' },
+  { id: 'observability:delete', label: 'observability:delete', description: 'Delete dataset items, evaluators, guards, tags' },
+  { id: 'observability:admin', label: 'observability:admin', description: 'Observability key lifecycle' },
+  // RAG vertical (theo-rag, M12-M20) — customer-issuable (#168). rag:admin is intentionally
+  // omitted: it is theo-rag's broker-held key-lifecycle scope, never minted to a consumer.
+  { id: 'rag:read', label: 'rag:read', description: 'Retrieve chunks and answer questions' },
+  { id: 'rag:write', label: 'rag:write', description: 'Create collections and ingest documents' },
+  { id: 'rag:delete', label: 'rag:delete', description: 'Delete documents and collections' },
 ] as const;
 
 const RESERVED_SCOPES = [
-  { id: 'rag:read', vertical: 'Retrieval' },
-  { id: 'rag:write', vertical: 'Retrieval' },
-  { id: 'traces:read', vertical: 'Traces' },
   { id: 'agents:read', vertical: 'Agents' },
   { id: 'agents:invoke', vertical: 'Agents' },
   { id: 'deploys:read', vertical: 'Deploys' },

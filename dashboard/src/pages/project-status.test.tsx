@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@/test/render';
 import { Routes, Route } from 'react-router-dom';
 import type { ProjectStatusDetail } from '@/lib/api/types';
@@ -11,12 +11,28 @@ vi.mock('@/hooks/use-project-status', () => ({
 vi.mock('@/hooks/use-status-stream', () => ({
   useStatusStream: () => ({ connected: false, signals: [] }),
 }));
+// J-18 KPI metrics: default null (renders "—") so the existing tests are
+// unaffected; the wiring test overrides it per-signal.
+const mockUseKpiMetric = vi.fn(
+  (_n: string, _e: string | undefined, _signal: string, _mult?: number): number | null => null,
+);
+vi.mock('@/hooks/use-kpi-metric', () => ({
+  useKpiMetric: (n: string, e: string | undefined, signal: string, mult?: number) =>
+    mockUseKpiMetric(n, e, signal, mult),
+}));
 // useRequireAuth is no-op in tests.
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => undefined,
 }));
 
 import { ProjectStatusPage } from './project-status';
+
+// Reset the KPI metric mock to the default (null → "—") before each test so a
+// per-test mockImplementation never leaks into another test.
+beforeEach(() => {
+  mockUseKpiMetric.mockReset();
+  mockUseKpiMetric.mockReturnValue(null);
+});
 
 function renderAt(path: string) {
   return render(
@@ -106,6 +122,41 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
 
     // Auto-refresh blurb still visible on the happy path.
     expect(screen.getByText(/auto-refresh every 5s/i)).toBeInTheDocument();
+  });
+
+  // J-18 — the KPI strip renders the current metric value derived from the
+  // metrics_proxy (via useKpiMetric), formatted by the SignalGrid.
+  it('renders the current uptime KPI from the metrics_proxy (99.5 → "99.50%")', () => {
+    mockUseKpiMetric.mockImplementation((_n, _e, signal) =>
+      signal === 'uptime_24h' ? 99.5 : null,
+    );
+    mockUseProjectStatus.mockReturnValue({
+      status: makeStatus({
+        environment: 'production',
+        active_release: {
+          id: 'rel-1',
+          build_id: 'bld-1',
+          status: 'ACTIVE',
+          created_at: '2026-06-27T10:00:00Z',
+        },
+        last_build: {
+          id: 'bld-1',
+          status: 'SUCCEEDED',
+          commit_sha: 'abc123',
+          created_at: '2026-06-27T10:00:00Z',
+        },
+        url: 'https://acme-prod.usetheo.dev',
+        replicas_ready: 2,
+        replicas_desired: 2,
+      }),
+      loading: false,
+      error: null,
+    });
+
+    renderAt('/projects/acme/status');
+
+    // Rendered in both the KPI strip card and the SignalGrid uptime pill.
+    expect(screen.getAllByText('99.50%').length).toBeGreaterThanOrEqual(1);
   });
 });
 

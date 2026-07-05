@@ -33,6 +33,7 @@ export default [
       'node_modules/**',
       'public/**',
       'referencia/**',
+      'docs/**',
       '*.config.js',
       '*.config.ts',
       '*.config.mjs',

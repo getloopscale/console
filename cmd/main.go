@@ -31,6 +31,8 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/billing"
 	"github.com/usetheodev/theo-cloud/internal/config"
 	"github.com/usetheodev/theo-cloud/internal/consent"
+	"github.com/usetheodev/theo-cloud/internal/deploy_event_enqueuer"
+	"github.com/usetheodev/theo-cloud/internal/lens_alert_evaluator"
 	"github.com/usetheodev/theo-cloud/internal/memory_webhook_worker"
 	"github.com/usetheodev/theo-cloud/internal/metering"
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
@@ -39,8 +41,10 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/thelens"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
+	"github.com/usetheodev/theo-cloud/internal/workspace_webhook_worker"
 )
 
 // buildRagForwardAuth constructs the theo-rag Model-B ForwardAuth handler + its broker
@@ -68,10 +72,61 @@ func buildRagForwardAuth(
 	return routes.NewForwardAuthHandler(resolve, ragBroker, authorize, "rag:read", logger), ragBroker, nil
 }
 
+// buildLensForwardAuth constructs the theo-lens Model-B ForwardAuth handler + its broker
+// (M38). Returns (nil, nil) when LENS_BASE_URL is unset (feature off), (nil, error) when
+// the broker cannot be constructed (caller refuses to start — fail-closed at boot), and
+// (handler, nil) when configured. Mirrors buildRagForwardAuth; theo-lens has no MCP/dashboard
+// surface in M38 (that is M41+), so only the REST ForwardAuth handler is returned.
+func buildLensForwardAuth(
+	cfg config.Config,
+	resolve routes.APIKeyResolver,
+	authorize routes.AccountTenantAuthorizer,
+	logger *slog.Logger,
+) (*routes.ForwardAuthHandler, routes.TenantKeyMinter, error) {
+	if cfg.LensBaseURL == "" {
+		return nil, nil, nil
+	}
+	lensHTTP := &http.Client{Timeout: 10 * time.Second}
+	lensAdmin := thelens.NewAdminClient(cfg.LensBaseURL, cfg.LensPlatformAdminKey.Value(), lensHTTP)
+	lensBroker, err := thelens.NewBroker(lensAdmin, 1024, time.Hour,
+		[]string{"observability:read", "observability:write", "observability:delete"})
+	if err != nil {
+		return nil, nil, fmt.Errorf("lens broker: %w", err)
+	}
+	// The SAME broker serves the edge ForwardAuth handler AND the M41 dashboard BFF
+	// resolver (one mint cache), mirroring rag. M38 returned only the handler (no
+	// dashboard then); M41 exposes the broker for the read BFF.
+	return routes.NewForwardAuthHandler(resolve, lensBroker, authorize, "observability:read", logger), lensBroker, nil
+}
+
 // ragDashMinter is the least-privilege minting surface the dashboard resolver needs
 // (ISP — only KeyForTenantScoped). Satisfied by the rag broker (routes.TenantKeyMinter).
 type ragDashMinter interface {
 	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, scopes []string) (string, error)
+}
+
+// lensDashMinter is the least-privilege minting surface the lens dashboard resolver needs
+// (ISP — only KeyForTenantScoped). Satisfied by the lens broker (routes.TenantKeyMinter).
+type lensDashMinter interface {
+	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, scopes []string) (string, error)
+}
+
+// newLensDashboardKeyResolver returns the per-request keyResolver for the M44 lens
+// dashboard MANAGEMENT BFF. It reads the tenant from the JWT-derived context ONLY (never a
+// request param) and mints a single observability:read+write+delete per-tenant key per request (ADR-1:
+// one resolver). Least privilege is at DASHBOARD-SESSION granularity, not per-verb-per-request:
+// the minted key carries all three scopes, and theo-lens walls each route by the verb it needs
+// (a GET route requires observability:read, a POST observability:write, a DELETE observability:delete — proven at the edge).
+// Fail-closed: no authenticated tenant → error, so the data client sends no request.
+// Extracted (not inline) so the scope + fail-closed invariants are unit-tested on the SHIPPED path.
+func newLensDashboardKeyResolver(minter lensDashMinter) func(ctx context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		u := auth.GetUser(ctx)
+		if u == nil || u.TenantID == "" {
+			return "", fmt.Errorf("lens dashboard: no authenticated tenant in context")
+		}
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"observability:read", "observability:write", "observability:delete"})
+	}
 }
 
 // newRagDashboardKeyResolver returns the per-request keyResolver for the read+write (M21) rag
@@ -208,7 +263,7 @@ func main() {
 		cfg.SessionTokenSecret.Value(),
 		"theo-cloud",
 		"theo-cloud",
-		15*time.Minute,
+		24*time.Hour,
 	).WithPreviousSecret(string(cfg.SessionTokenSecretPrevious))
 	tenantProvisioner := auth.NewTenantProvisioner(db, logger)
 	sessionTokenHandler := routes.NewSessionTokenHandler(sessIssuer, tenantProvisioner, cfg.KratosInternalURL)
@@ -255,7 +310,16 @@ func main() {
 
 	// Handlers
 	deviceHandler := routes.NewDeviceHandler(hydra, cfg.BillingReturnURL)
-	meHandler := routes.NewMeHandler()
+	// meHandler carries the tenant provisioning snapshot (M0 J-02 T1.2) and
+	// lazily ensures the free starter plan (T1.3). Pass the provisioner only when
+	// billing is enabled — a typed-nil *billing.Provisioner in the interface param
+	// would be non-nil and panic on the lazy-provision call.
+	var meHandler *routes.MeHandler
+	if billingProvisioner != nil {
+		meHandler = routes.NewMeHandler(db, billingProvisioner)
+	} else {
+		meHandler = routes.NewMeHandler(db, nil)
+	}
 	// T3.1 of plan kratos-self-service-rate-limit-systemic v1.1 — response-shape
 	// unifier middleware closing Red Team theo-cloud#43 (account enumeration via
 	// register response shape divergence). Proxies POST /v1/auth/register to the
@@ -327,6 +391,40 @@ func main() {
 	}
 	if ragForwardAuthHandler != nil {
 		logger.Info("theo-rag Model B broker wired (M14)", "base_url", cfg.RagBaseURL)
+	}
+
+	// M38 (edge-integration): a 4th ForwardAuth handler for the theo-lens
+	// capability. Built via buildLensForwardAuth (testable) — nil when LENS_BASE_URL
+	// is unset (feature off), error → refuse to start (boot-failure).
+	lensForwardAuthHandler, lensBroker, lensErr := buildLensForwardAuth(
+		cfg,
+		func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+			return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+		},
+		// cross-account guard (same DB-backed ownership check).
+		func(ctx context.Context, accountID, tenantID string) (bool, error) {
+			return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+		},
+		logger,
+	)
+	if lensErr != nil {
+		logger.Error("failed to construct lens credential broker — refusing to start", "error", lensErr)
+		os.Exit(1)
+	}
+	if lensForwardAuthHandler != nil {
+		logger.Info("theo-lens Model B broker wired (M38)", "base_url", cfg.LensBaseURL)
+	}
+
+	// M41: the read-only /v1/dashboard/lens BFF. Wired only when the lens broker is
+	// configured. The dashboard keyResolver mints a lens:READ-ONLY per-tenant key from
+	// the JWT-derived tenant (least privilege — the dashboard can never write/delete; the
+	// write half is M44), mirroring the rag M17 read BFF.
+	var lensDashboardHandler *routes.LensDashboardHandler
+	if lensBroker != nil {
+		lensDataClient := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
+			WithKeyResolver(newLensDashboardKeyResolver(lensBroker))
+		lensDashboardHandler = routes.NewLensDashboardHandler(lensDataClient, logger)
+		logger.Info("dashboard lens enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/lens")
 	}
 
 	// M17: the read+write /v1/dashboard/rag BFF (M21). Wired only when the rag broker is
@@ -597,6 +695,12 @@ func main() {
 		r.Get(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardPromptlyPath, promptlyForwardAuthHandler.ServeHTTP)
 	}
+	// M38: the theo-lens ForwardAuth endpoint the edge's forward-auth-lens middleware
+	// calls. Same generic handler, distinct path + lens broker.
+	if lensForwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardLensPath, lensForwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardLensPath, lensForwardAuthHandler.ServeHTTP)
+	}
 	// M14: the theo-rag ForwardAuth endpoint the edge's forward-auth-rag middleware
 	// calls. Same generic handler, distinct path + rag broker.
 	if ragForwardAuthHandler != nil {
@@ -831,6 +935,24 @@ func main() {
 	if ragDashboardHandler != nil {
 		mountRagDashboard(r, ragDashboardHandler, requireJWT)
 	}
+	// M44: the read+write+delete /v1/dashboard/lens management BFF — the per-tenant key is
+	// minted observability:read+write+delete (ADR-1; per-verb least privilege at theo-lens). The route
+	// set (ADR-3) has no mutating verb on the trace/session body or /agents. Distinct mount
+	// from /v1/lens/* (the edge surface).
+	if lensDashboardHandler != nil {
+		routes.MountLensDashboard(r, lensDashboardHandler, requireJWT)
+	}
+	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
+	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even
+	// when the per-tenant lens broker is disabled.
+	if db != nil {
+		routes.MountLensSavedViews(r, routes.NewLensSavedViewsHandler(db, logger), requireJWT)
+	}
+	// M53: lens alert rules — per-tenant threshold rules (engine migration 000054). Same db-gated
+	// cloud-owned Postgres resource; the evaluator worker that consumes them starts below.
+	if db != nil {
+		routes.MountLensAlertRules(r, routes.NewLensAlertRulesHandler(db, logger), requireJWT)
+	}
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
 	// below alongside the metering scheduler, sharing the schedulerCtx for
@@ -849,9 +971,29 @@ func main() {
 			// owner-only. Role is resolved from the DB (S2.3), never the token.
 			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/portal", billingHandler.Portal)
 			r.With(auth.RequireRole(tenantProvisioner, "owner")).Post("/checkout", billingHandler.Checkout)
+			// Invoices are financial records — owner-only (MEET-2026-07-03-004 D2),
+			// stricter than the team-readable plan/usage above. Role resolved from
+			// the DB, never the token; a non-owner gets 403 here (H4).
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/invoices", billingHandler.GetInvoices)
 		})
 		// Webhook — NO JWT (Stripe signs with its own secret)
 		r.Post("/v1/webhooks/stripe", billingHandler.Webhook)
+	}
+
+	// J-16 Settings — workspace/deploy webhook registrations (owner-only; a
+	// privileged workspace config, mirroring billing's owner gate). Registration
+	// -only v0.1 — delivery is a later T2 slice. Persists to workspace_webhooks
+	// (engine migration 000050). Path is /v1/settings/webhooks to avoid colliding
+	// with the Stripe/GitHub inbound webhook receivers under /v1/webhooks/*.
+	if db != nil {
+		wwh := routes.NewWorkspaceWebhooksHandler(db, logger)
+		r.Route("/v1/settings/webhooks", func(r chi.Router) {
+			r.Use(requireJWT)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Post("/", wwh.Create)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/list", wwh.List)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Get("/{id}/deliveries", wwh.Deliveries)
+			r.With(auth.RequireRole(tenantProvisioner, "owner")).Delete("/{id}", wwh.Delete)
+		})
 	}
 
 	// Engine API proxy — dashboard calls engine through cloud service.
@@ -1088,6 +1230,42 @@ func main() {
 		webhookWorker := memory_webhook_worker.New(db, logger, nil)
 		go webhookWorker.Run(schedulerCtx)
 		logger.Info("memory webhook dispatcher started")
+	}
+
+	// J-16 slice 3: dispatch workspace_webhook_deliveries (deploy/build events)
+	// to customer URLs through the SSRF-guarded client, with a lease + reaper.
+	if db != nil {
+		wsWorker := workspace_webhook_worker.New(db, logger, os.Getenv("HOSTNAME"))
+		go wsWorker.Run(schedulerCtx)
+		logger.Info("workspace webhook dispatcher started")
+	}
+
+	// M53: lens alert evaluator — ticks over lens_alert_rules, fetches each tenant's observability
+	// series via a broker-minted observability:read key (Model B, least privilege — platform-admin
+	// stays control-plane), evaluates the threshold, and on a breach INSERTs a workspace_webhook_deliveries
+	// row (the wsWorker above dispatches it SSRF-guarded). Gated on the DB AND the lens broker being
+	// configured (LENS_BASE_URL set); nil-safe otherwise.
+	if db != nil && lensBroker != nil {
+		fetch := func(ctx context.Context, tenantID string, windowSeconds int) (json.RawMessage, error) {
+			// Per-tenant DataClient: the resolver mints observability:read for THIS tenant (no JWT).
+			dc := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
+				WithKeyResolver(func(ctx context.Context) (string, error) {
+					return lensBroker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
+				})
+			return dc.Observability(ctx, lens_alert_evaluator.WindowToRange(windowSeconds))
+		}
+		go lens_alert_evaluator.New(db, fetch, logger).Run(schedulerCtx)
+		logger.Info("lens alert evaluator started")
+	}
+
+	// J-16 slice 3: drain the deploy_events outbox (engine migration 000051)
+	// and fan each event out to subscribed workspace_webhooks as delivery rows.
+	// Pure DB fan-out (no outbound HTTP) — the delivery worker dispatches. Until
+	// the full chain is live it produces ~zero rows (no subscribed webhooks).
+	if db != nil {
+		enq := deploy_event_enqueuer.New(db, logger)
+		go enq.Run(schedulerCtx)
+		logger.Info("deploy-event enqueuer started")
 	}
 
 	// T1.9 production deployment: start cost aggregator if Prometheus

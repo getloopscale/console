@@ -82,12 +82,57 @@ services:
       retries: 30
       start_period: 3s
 
-  # theo-cloud override: wire the rag broker (M14) so /internal/authz/forward-rag is
-  # mounted. RAG_PLATFORM_ADMIN_KEY is minted at setup by run.sh and injected on recreate.
+  # M40 (KEYSTONE) — the hermetic lens ForwardAuth proof. A REAL theo-lens container
+  # (built from the sibling checkout, pinned M22/M37) + its plain Postgres. Unlike rag,
+  # theo-lens MIGRATES ON BOOT (index.ts "migrate-then-wire"), so there is NO lens-migrate
+  # one-shot — the container self-migrates once pg-lens is healthy. Plain postgres (no
+  # pgvector — theo-lens uses no vector type), so no extensions step.
+  pg-lens:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: theolens
+      POSTGRES_PASSWORD: theolens
+      POSTGRES_DB: theolens
+    ports:
+      - "${E2E_PG_LENS_PORT:-55436}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U theolens -d theolens"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  lens:
+    image: ${THELENS_IMAGE:-theo-lens-e2e:latest}   # built from the sibling checkout (pinned source)
+    depends_on:
+      pg-lens:
+        condition: service_healthy
+    environment:
+      THEOLENS_PORT: "8080"
+      THEOLENS_PG_URI: postgres://theolens:theolens@pg-lens:5432/theolens
+      THEOLENS_PLATFORM_ADMIN_BOOTSTRAP: ${THELENS_ADMIN_BOOTSTRAP:-e2e-bootstrap-token-change-me-min-32-chars}
+      # M13 fail-closed — the direct-to-service no-key → 401 proof. Without it a no-key
+      # direct request would resolve a dev-mode owner Principal (not a 401).
+      THEOLENS_REQUIRE_CREDENTIAL: "true"
+    ports:
+      - "${E2E_LENS_PORT:-18084}:8080"
+    healthcheck:
+      # theo-lens has no dedicated health route AND every /v1/* is scope-gated (M22), so
+      # an un-keyed /v1/datasets answering 401 proves the server is up + fail-closed.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/v1/datasets').then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 3s
+
+  # theo-cloud override: wire the rag broker (M14) + the lens broker (M38) so
+  # /internal/authz/forward-rag AND /internal/authz/forward-lens are mounted.
+  # {RAG,LENS}_PLATFORM_ADMIN_KEY are minted at setup by run.sh and injected on recreate.
   theo-cloud:
     environment:
       RAG_BASE_URL: http://rag:8080
       RAG_PLATFORM_ADMIN_KEY: ${RAG_PLATFORM_ADMIN_KEY:-}
+      LENS_BASE_URL: http://lens:8080
+      LENS_PLATFORM_ADMIN_KEY: ${LENS_PLATFORM_ADMIN_KEY:-}
 
   traefik:
     image: traefik:v3.3
@@ -97,6 +142,8 @@ services:
       theo-cloud:
         condition: service_healthy
       rag:
+        condition: service_healthy
+      lens:
         condition: service_healthy
     volumes:
       # Reuse the dev STATIC config verbatim (entrypoint :8090, file provider,

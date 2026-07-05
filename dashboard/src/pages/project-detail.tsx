@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Box, FolderKanban, Loader2, Rocket } from 'lucide-react';
+import { ArrowLeft, Box, FolderKanban, Loader2, Play, Rocket } from 'lucide-react';
 import { Badge, Button, Card, CodeBlock, ConfirmDialog, DangerZone, EmptyState, PageShell } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -8,6 +8,7 @@ import { useProjectStatus } from '@/hooks/use-project-status';
 import { useDeployments } from '@/hooks/use-deployments';
 import { LiveUrlHero } from '@/components/project/live-url-hero';
 import { ProjectHealthCard } from '@/components/project/project-health-card';
+import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { engineFetch } from '@/lib/api';
 import { normalizeBuildStatus } from '@/lib/api/types';
 import { formatDate, humanizeAuthor, isZeroTime } from '@/lib/format';
@@ -50,6 +51,7 @@ export function ProjectDetailPage() {
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deployOpen, setDeployOpen] = useState(false);
 
   const handleDeleteProject = async () => {
     setDeleting(true);
@@ -96,6 +98,15 @@ export function ProjectDetailPage() {
   }
 
   const recentBuilds = builds.slice(0, 5);
+
+  // J-08 Deploy CTA: the redeploy source is the current active-release build
+  // (clone last-good commit_sha + environment + apps_spec, submit a fresh
+  // build — semantically "Deploy" à la Vercel). Fall back to the latest build
+  // when no release is ACTIVE yet. undefined on a cold project (no builds) →
+  // the PageShell primaryAction is omitted, matching the deployments page
+  // where the Deploy button is disabled with nothing to clone from.
+  const activeBuildId = status?.active_release?.build_id;
+  const activeBuild = builds.find((b) => b.build_id === activeBuildId) ?? builds[0];
 
   // T5.3 LIVE-bug fix (2026-06-08, plan 2026-06-08-dashboard-screens-review-fixes):
   // The T2.1 ListProjectsWithSummaryByTenant query (consumed via useProjects())
@@ -178,7 +189,22 @@ export function ProjectDetailPage() {
       project.latest_build_environment === 'preview');
 
   return (
-    <PageShell title={project.name}>
+    <PageShell
+      title={project.name}
+      primaryAction={
+        activeBuild
+          ? { label: 'Deploy', icon: Play, onClick: () => setDeployOpen(true) }
+          : undefined
+      }
+    >
+      {activeBuild && (
+        <RedeployDialog
+          open={deployOpen}
+          onOpenChange={setDeployOpen}
+          projectName={project.name}
+          sourceBuild={activeBuild}
+        />
+      )}
       <div className="space-y-6">
         <div className="flex items-center gap-2 text-body-sm text-muted-foreground">
           <Link to="/projects" className="hover:text-foreground inline-flex items-center gap-1">

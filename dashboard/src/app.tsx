@@ -8,7 +8,6 @@ import {
   Receipt,
   ShieldAlert,
   Users,
-  Webhook,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout';
 import { SubPagePlaceholder } from '@/pages/sub-page-placeholder';
@@ -91,6 +90,9 @@ const ExportsPage = lazy(() =>
 const WebhooksPage = lazy(() =>
   import('@/pages/memory/webhooks').then((m) => ({ default: m.WebhooksPage })),
 );
+const WorkspaceWebhooksPage = lazy(() =>
+  import('@/pages/settings/webhooks').then((m) => ({ default: m.WorkspaceWebhooksPage })),
+);
 const PlaygroundPage = lazy(() =>
   import('@/pages/memory/playground').then((m) => ({ default: m.PlaygroundPage })),
 );
@@ -111,6 +113,37 @@ const RagAskPage = lazy(() =>
 );
 const RagAnalyticsPage = lazy(() =>
   import('@/pages/rag/analytics').then((m) => ({ default: m.RagAnalyticsPage })),
+);
+// M44 — lens management dashboard pages; M46 — Overview landing
+const LensOverviewPage = lazy(() =>
+  import('@/pages/lens').then((m) => ({ default: m.LensOverviewPage })),
+);
+const LensTracesPage = lazy(() =>
+  import('@/pages/lens/traces').then((m) => ({ default: m.LensTracesPage })),
+);
+const LensSessionsPage = lazy(() =>
+  import('@/pages/lens/sessions').then((m) => ({ default: m.LensSessionsPage })),
+);
+const LensDatasetsPage = lazy(() =>
+  import('@/pages/lens/datasets').then((m) => ({ default: m.LensDatasetsPage })),
+);
+const LensEvaluatorsPage = lazy(() =>
+  import('@/pages/lens/evaluators').then((m) => ({ default: m.LensEvaluatorsPage })),
+);
+const LensGuardsPage = lazy(() =>
+  import('@/pages/lens/guards').then((m) => ({ default: m.LensGuardsPage })),
+);
+const LensAlertsPage = lazy(() =>
+  import('@/pages/lens/alerts').then((m) => ({ default: m.LensAlertsPage })),
+);
+const LensComparePage = lazy(() =>
+  import('@/pages/lens/compare').then((m) => ({ default: m.LensComparePage })),
+);
+const LensAgentsPage = lazy(() =>
+  import('@/pages/lens/agents').then((m) => ({ default: m.LensAgentsPage })),
+);
+const LensAskPage = lazy(() =>
+  import('@/pages/lens/ask').then((m) => ({ default: m.LensAskPage })),
 );
 const LoginPage = lazy(() =>
   import('@/pages/login').then((m) => ({ default: m.LoginPage })),
@@ -391,6 +424,16 @@ export default function App() {
                     <Route path="/rag/documents" element={<Boundaried path="/rag/documents"><RagDocumentsPage /></Boundaried>} />
                     <Route path="/rag/ask" element={<Boundaried path="/rag/ask"><RagAskPage /></Boundaried>} />
                     <Route path="/rag/analytics" element={<Boundaried path="/rag/analytics"><RagAnalyticsPage /></Boundaried>} />
+                    <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
+                    <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
+                    <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />
+                    <Route path="/observability/sessions" element={<Boundaried path="/observability/sessions"><LensSessionsPage /></Boundaried>} />
+                    <Route path="/observability/datasets" element={<Boundaried path="/observability/datasets"><LensDatasetsPage /></Boundaried>} />
+                    <Route path="/observability/evaluators" element={<Boundaried path="/observability/evaluators"><LensEvaluatorsPage /></Boundaried>} />
+                    <Route path="/observability/guards" element={<Boundaried path="/observability/guards"><LensGuardsPage /></Boundaried>} />
+                    <Route path="/observability/alerts" element={<Boundaried path="/observability/alerts"><LensAlertsPage /></Boundaried>} />
+                    <Route path="/observability/agents" element={<Boundaried path="/observability/agents"><LensAgentsPage /></Boundaried>} />
+                    <Route path="/observability/ask" element={<Boundaried path="/observability/ask"><LensAskPage /></Boundaried>} />
                     <Route path="/settings" element={<Boundaried path="/settings"><SettingsPage /></Boundaried>} />
                     <Route
                       path="/settings/members"
@@ -435,12 +478,7 @@ export default function App() {
                       path="/settings/webhooks"
                       element={
                         <Boundaried path="/settings/webhooks">
-                          <SubPagePlaceholder
-                            title="Webhooks"
-                            description="HTTP callbacks for deploy + build events."
-                            icon={Webhook}
-                            cliCommand="theo webhook list"
-                          />
+                          <WorkspaceWebhooksPage />
                         </Boundaried>
                       }
                     />

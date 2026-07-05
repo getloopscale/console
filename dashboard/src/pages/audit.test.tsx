@@ -12,8 +12,31 @@
  *     "[unknown]" fallback)
  */
 
-import { describe, it, expect } from 'vitest';
-import { displayAction } from './audit';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@/test/render';
+
+vi.mock('@/hooks/use-auth', async (orig) => ({
+  ...(await orig<typeof import('@/hooks/use-auth')>()),
+  useRequireAuth: () => ({ active: true }),
+}));
+vi.mock('@/hooks/use-page-meta', async (orig) => ({
+  ...(await orig<typeof import('@/hooks/use-page-meta')>()),
+  useSetPageTitle: () => {},
+}));
+
+const mockEngineFetch = vi.fn();
+vi.mock('@/lib/api', async (orig) => ({
+  ...(await orig<typeof import('@/lib/api')>()),
+  engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
+}));
+
+const mockTriggerCsv = vi.fn();
+vi.mock('@/lib/audit-csv', async (orig) => ({
+  ...(await orig<typeof import('@/lib/audit-csv')>()),
+  triggerAuditCsvDownload: (...args: unknown[]) => mockTriggerCsv(...args),
+}));
+
+import { AuditPage, displayAction } from './audit';
 
 describe('displayAction (#126 dashboard fallback for raw SQL leak)', () => {
   it('returns the original action for canonical domain events', () => {
@@ -40,5 +63,39 @@ describe('displayAction (#126 dashboard fallback for raw SQL leak)', () => {
 
   it('handles empty/null action gracefully', () => {
     expect(displayAction('')).toBe('[unmapped]');
+  });
+});
+
+// J-14 CSV export — the audit log's "Export CSV" primary action.
+describe('AuditPage CSV export (J-14)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders an Export CSV action and downloads the visible entries', async () => {
+    mockEngineFetch.mockResolvedValue({
+      entries: [
+        { action: 'project.created', actor: 'a@x.com', timestamp: '2026-07-03T10:00:00Z', resource_type: 'projects' },
+        { action: 'secret.set', actor: 'b@x.com', timestamp: '2026-07-03T11:00:00Z', resource_type: 'secrets' },
+      ],
+    });
+    render(<AuditPage />);
+    const btn = await screen.findByRole('button', { name: /export csv/i });
+    fireEvent.click(btn);
+    await waitFor(() => expect(mockTriggerCsv).toHaveBeenCalledTimes(1));
+    // The visible (loaded) entries are handed to the CSV exporter.
+    expect(mockTriggerCsv).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ action: 'project.created' }),
+        expect.objectContaining({ action: 'secret.set' }),
+      ]),
+    );
+  });
+
+  it('omits the Export CSV action when there are no entries', async () => {
+    mockEngineFetch.mockResolvedValue({ entries: [] });
+    render(<AuditPage />);
+    await waitFor(() => expect(mockEngineFetch).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /export csv/i })).not.toBeInTheDocument();
   });
 });

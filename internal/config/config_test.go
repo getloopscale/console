@@ -134,3 +134,43 @@ func TestLoad_RagFields(t *testing.T) {
 		t.Errorf("RagPlatformAdminKey = %q, want rag_live_platform_env (RAG_PLATFORM_ADMIN_KEY not read)", c.RagPlatformAdminKey.Value())
 	}
 }
+
+// M38 edge-lens-broker — LENS_PLATFORM_ADMIN_KEY required in prod when LENS_BASE_URL set.
+func TestValidate_prod_requires_lens_admin_key_when_lens_base_url_set(t *testing.T) {
+	c := prodValidBaseline()
+	c.LensBaseURL = "http://theo-lens:18082"
+	c.LensPlatformAdminKey = Secret("")
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected Validate() to fail when LENS_BASE_URL is set but LENS_PLATFORM_ADMIN_KEY is empty in prod")
+	}
+}
+
+func TestValidate_prod_passes_when_lens_fully_configured(t *testing.T) {
+	c := prodValidBaseline()
+	c.LensBaseURL = "http://theo-lens:18082"
+	c.LensPlatformAdminKey = Secret("theo_live_platform_admin")
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected Validate() to pass when lens fully configured; got %v", err)
+	}
+}
+
+func TestValidate_prod_passes_when_lens_disabled(t *testing.T) {
+	c := prodValidBaseline() // LensBaseURL empty → lens check must not fire
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected Validate() to pass when lens disabled; got %v", err)
+	}
+}
+
+// M38 — Load() reads LENS_BASE_URL / LENS_PLATFORM_ADMIN_KEY into the fields
+// (guards against an envOr key typo that struct-only Validate tests would miss).
+func TestLoad_LensFields(t *testing.T) {
+	t.Setenv("LENS_BASE_URL", "http://theo-lens:18082")
+	t.Setenv("LENS_PLATFORM_ADMIN_KEY", "theo_live_platform_env")
+	c := Load()
+	if c.LensBaseURL != "http://theo-lens:18082" {
+		t.Errorf("LensBaseURL = %q, want http://theo-lens:18082 (LENS_BASE_URL not read)", c.LensBaseURL)
+	}
+	if c.LensPlatformAdminKey.Value() != "theo_live_platform_env" {
+		t.Errorf("LensPlatformAdminKey = %q, want theo_live_platform_env (LENS_PLATFORM_ADMIN_KEY not read)", c.LensPlatformAdminKey.Value())
+	}
+}

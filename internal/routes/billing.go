@@ -24,11 +24,19 @@ type UsageMetric struct {
 	Limit *int `json:"limit"` // nil = unlimited
 }
 
+// invoiceLister is the narrow seam (ISP/DIP) the invoices handler depends on so
+// it is unit-testable with a fake (MEET-2026-07-03-004 D4). *billing.StripeClient
+// satisfies it via ListInvoices.
+type invoiceLister interface {
+	ListInvoices(ctx context.Context, customerID string) ([]billing.Invoice, error)
+}
+
 // BillingHandler handles billing-related endpoints.
 // All endpoints require JWT (validated by auth.RequireJWT middleware).
 type BillingHandler struct {
 	db          *sql.DB
 	stripe      *billing.StripeClient
+	invoices    invoiceLister
 	webhook     *billing.WebhookHandler
 	provisioner *billing.Provisioner
 	returnURL   string
@@ -36,13 +44,19 @@ type BillingHandler struct {
 
 // NewBillingHandler creates billing route handlers.
 func NewBillingHandler(db *sql.DB, stripe *billing.StripeClient, webhook *billing.WebhookHandler, provisioner *billing.Provisioner, returnURL string) *BillingHandler {
-	return &BillingHandler{
+	bh := &BillingHandler{
 		db:          db,
 		stripe:      stripe,
 		webhook:     webhook,
 		provisioner: provisioner,
 		returnURL:   returnURL,
 	}
+	// Only wire the invoices seam when Stripe is configured — a non-nil
+	// interface wrapping a nil *StripeClient would defeat the nil check.
+	if stripe != nil {
+		bh.invoices = stripe
+	}
+	return bh
 }
 
 // GetBilling returns the current plan and usage for the authenticated user.
@@ -70,14 +84,18 @@ func (h *BillingHandler) GetBilling(w http.ResponseWriter, r *http.Request) {
 	plan := "starter"
 	var periodStart, periodEnd *time.Time
 	var subscriptionID string
+	// J-06 D1: the Stripe-observed recurring plan price (persisted by the webhook).
+	var amountMinor sql.NullInt64
+	var currency sql.NullString
 	if h.db != nil {
 		var ps, pe sql.NullTime
 		var sid sql.NullString
 		err := h.db.QueryRowContext(r.Context(),
 			// M2: resolve the Account's single subscription (one plan per account).
-			"SELECT plan, current_period_start, current_period_end, stripe_subscription_id FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND status = 'active' LIMIT 1",
+			// J-06 D1: amount_minor + currency observe the Stripe price (no Go constant).
+			"SELECT plan, current_period_start, current_period_end, stripe_subscription_id, amount_minor, currency FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND status = 'active' LIMIT 1",
 			tenantID,
-		).Scan(&plan, &ps, &pe, &sid)
+		).Scan(&plan, &ps, &pe, &sid, &amountMinor, &currency)
 		if err != nil {
 			// No active subscription → starter is the correct default (free tier,
 			// or account not yet provisioned). A real DB error is NOT that — surface
@@ -126,6 +144,26 @@ func (h *BillingHandler) GetBilling(w http.ResponseWriter, r *http.Request) {
 	}
 	if subscriptionID != "" {
 		resp["subscription_id"] = subscriptionID
+	}
+
+	// J-06 D1: additive nested plan_price observed from the subscription row.
+	// starter → known $0 (present); enterprise/unknown/not-yet-persisted (NULL
+	// column, e.g. pre-migration or webhook not yet delivered) → OMITTED (never a
+	// fabricated $0 for a paid plan). Honest name: it is the recurring list price,
+	// not metered spend.
+	switch {
+	case plan == "starter":
+		resp["plan_price"] = map[string]interface{}{"amount_minor": 0, "currency": "usd", "interval": "month"}
+	case plan == "enterprise":
+		// omit — no public price (sales-led)
+	case amountMinor.Valid:
+		cur := "usd"
+		if currency.Valid && currency.String != "" {
+			cur = currency.String
+		}
+		resp["plan_price"] = map[string]interface{}{"amount_minor": amountMinor.Int64, "currency": cur, "interval": "month"}
+	default:
+		// pro/team not-yet-persisted (amount_minor NULL) → omit
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -380,4 +418,66 @@ func (h *BillingHandler) countSeats(ctx context.Context, tenantID string) (int, 
 		return 0, false
 	}
 	return n, true
+}
+
+// GetInvoices returns the authenticated tenant's most-recent Stripe invoices.
+// GET /v1/billing/invoices — owner-only (route-gated via auth.RequireRole).
+// MEET-2026-07-03-004: server-side customer resolution (IDOR fail-closed),
+// 5s fail-fast timeout, typed 502 on Stripe failure (never a silent empty
+// list), no-store + log-scrub (never logs the customer id / URLs).
+func (h *BillingHandler) GetInvoices(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+
+	// Billing not configured (no DB or no Stripe) — nothing to list.
+	if h.db == nil || h.invoices == nil {
+		writeInvoices(w, nil)
+		return
+	}
+
+	// Resolve the Stripe customer id SERVER-SIDE from the caller's own tenant.
+	// No client param feeds this. An absent/empty customer fails CLOSED to an
+	// empty list — never a wildcard Stripe call (MEET D5 IDOR guard, covers the
+	// legacy empty-AccountID class).
+	var customerID sql.NullString
+	err := h.db.QueryRowContext(r.Context(),
+		"SELECT stripe_customer_id FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND stripe_customer_id IS NOT NULL LIMIT 1",
+		user.TenantID,
+	).Scan(&customerID)
+	if errors.Is(err, sql.ErrNoRows) || !customerID.Valid || customerID.String == "" {
+		writeInvoices(w, nil)
+		return
+	}
+	if err != nil {
+		slog.Error("invoices: customer lookup failed", "tenant", user.TenantID)
+		writeError(w, http.StatusBadGateway, "BILLING_UPSTREAM_ERROR", "Could not load invoices. Try again.")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	invs, err := h.invoices.ListInvoices(ctx, customerID.String)
+	if err != nil {
+		// The lister returns a scrubbed error; never echo it or the customer id.
+		slog.Error("invoices: list failed", "tenant", user.TenantID)
+		writeError(w, http.StatusBadGateway, "BILLING_UPSTREAM_ERROR", "Could not load invoices. Try again.")
+		return
+	}
+
+	writeInvoices(w, invs)
+}
+
+// writeInvoices emits {"invoices":[...]} — a never-null array — with no-store
+// (invoices carry billing data + capability links; must not be cached).
+func writeInvoices(w http.ResponseWriter, invs []billing.Invoice) {
+	if invs == nil {
+		invs = []billing.Invoice{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{"invoices": invs})
 }
