@@ -164,7 +164,7 @@ function Lane({ lane, label }: { lane: LaneData; label: string }) {
                 —
               </span>
             ) : (
-              formatCost(m.costUsd ?? Number.NaN)
+              formatCost(m.costUsd ?? Number.NaN, 4)
             )}
           </dd>
         </div>

@@ -35,14 +35,17 @@ export function LensSessionsPage() {
     {
       key: 'sessionId',
       label: 'Session',
-      render: (row) => (
-        <div className="flex items-center gap-1">
-          <span className="font-mono text-sm" title={row.sessionId}>
-            {shortId(row.sessionId)}
-          </span>
-          <CopyButton value={row.sessionId} label="Copy session id" />
-        </div>
-      ),
+      render: (row) =>
+        row.sessionId ? (
+          <div className="flex items-center gap-1">
+            <span className="font-mono text-sm" title={row.sessionId}>
+              {shortId(row.sessionId)}
+            </span>
+            <CopyButton value={row.sessionId} label="Copy session id" />
+          </div>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     { key: 'traceCount', label: 'Traces', render: (row) => <span>{row.traceCount ?? 0}</span> },
   ];

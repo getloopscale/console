@@ -258,14 +258,19 @@ export function formatTokens(count: number): string {
 }
 
 /**
- * Format a USD cost. Sub-cent values keep 4 decimals so tiny per-call costs
- * stay visible; at or above one cent, 2 decimals.
- *   formatCost(0.0009) // "$0.0009"
- *   formatCost(1.23)   // "$1.23"
- *   formatCost(NaN)    // "—"
+ * Format a USD cost. By default, sub-cent values keep 4 decimals so tiny
+ * per-call costs stay visible and ≥ 1¢ uses 2 decimals. Pass `fractionDigits`
+ * to force a fixed precision — e.g. the compare screen forces 4 dp so two
+ * lane costs like $0.0123 vs $0.0145 stay distinguishable.
+ *   formatCost(0.0009)   // "$0.0009"
+ *   formatCost(1.23)     // "$1.23"
+ *   formatCost(0.0123, 4)// "$0.0123"
+ *   formatCost(NaN)      // "—"
+ *   formatCost(-1)       // "—"  (a cost is never negative)
  */
-export function formatCost(usd: number): string {
-  if (!Number.isFinite(usd)) return EMDASH;
+export function formatCost(usd: number, fractionDigits?: number): string {
+  if (!Number.isFinite(usd) || usd < 0) return EMDASH;
+  if (fractionDigits !== undefined) return `$${usd.toFixed(fractionDigits)}`;
   return usd < 0.01 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
 }
 

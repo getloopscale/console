@@ -332,7 +332,19 @@ export function LensTracesPage() {
     },
   ];
 
-  const traces = query.data?.traces ?? [];
+  // M57 T1.1 — newest-first by default. Defensive client-side desc sort by
+  // startTimeUnixNano (BigInt-safe, missing timestamps sink to the bottom) so the
+  // Time column is honestly ordered regardless of the BFF's return order. Stable
+  // for equal/absent timestamps; the server-side M49 filters are unaffected.
+  const traces = [...(query.data?.traces ?? [])].sort((a, b) => {
+    const an = a.startTimeUnixNano;
+    const bn = b.startTimeUnixNano;
+    if (!an && !bn) return 0;
+    if (!an) return 1;
+    if (!bn) return -1;
+    const d = BigInt(bn) - BigInt(an);
+    return d > 0n ? 1 : d < 0n ? -1 : 0;
+  });
   const currentTags = tags.data?.tags ?? [];
 
   // M54 — compare is pairwise: the action is live only with exactly two traces ticked.

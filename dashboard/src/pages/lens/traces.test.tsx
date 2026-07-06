@@ -435,6 +435,20 @@ describe('LensTracesPage — M52 advanced filters + saved views', () => {
     // a copy control is present (carries the full id at the call site, ADR-D4)
     expect(screen.getByRole('button', { name: /copy trace id/i })).toBeInTheDocument();
   });
+
+  it('orders rows newest-first by startTimeUnixNano regardless of fetch order (T1.1)', async () => {
+    // Deliberately out-of-order fetch: mid, newest, oldest.
+    filterMock([
+      { traceId: 'tr_mid', name: 'mid', startTimeUnixNano: '2000000000000000000' },
+      { traceId: 'tr_new', name: 'new', startTimeUnixNano: '3000000000000000000' },
+      { traceId: 'tr_old', name: 'old', startTimeUnixNano: '1000000000000000000' },
+    ]);
+    render(<LensTracesPage />);
+    const newCell = await screen.findByText('new');
+    const oldCell = screen.getByText('old');
+    // 'new' precedes 'old' in the DOM → rendered newest-first.
+    expect(newCell.compareDocumentPosition(oldCell) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 describe('nsToIso (M57 T1.1)', () => {

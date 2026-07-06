@@ -232,9 +232,16 @@ describe('formatCost (M57 T0.1)', () => {
     expect(formatCost(0.01)).toBe('$0.01');
   });
 
-  it('returns the em-dash for non-finite input', () => {
+  it('forces a fixed precision when fractionDigits is given (compare screen)', () => {
+    expect(formatCost(0.0123, 4)).toBe('$0.0123');
+    expect(formatCost(0.0145, 4)).toBe('$0.0145');
+    expect(formatCost(1.2, 4)).toBe('$1.2000');
+  });
+
+  it('returns the em-dash for non-finite or negative input', () => {
     expect(formatCost(NaN)).toBe('—');
     expect(formatCost(Infinity)).toBe('—');
+    expect(formatCost(-0.5)).toBe('—');
   });
 });
 
