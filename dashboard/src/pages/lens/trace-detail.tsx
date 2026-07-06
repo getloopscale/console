@@ -12,6 +12,7 @@ import { EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 
 import { cloudFetch } from '@/lib/api';
+import { formatDuration, formatTokens } from '@/lib/format';
 
 /**
  * M47/M48 — the trace-detail view. Fetches the reconstructed span tree from the read BFF
@@ -283,7 +284,7 @@ function TimelineBar({ node, bounds }: { node: TraceSpanNode; bounds: { startNs:
   );
   const dur = durationMs(node);
   const isError = !!node.statusCode && node.statusCode !== '0';
-  const tip = `${node.name} · ${dur !== null ? `${dur} ms` : 'in-flight'}${node.model ? ` · ${node.model}` : ''}`;
+  const tip = `${node.name} · ${dur !== null ? formatDuration(dur) : 'in-flight'}${node.model ? ` · ${node.model}` : ''}`;
   return (
     <span
       className="relative ml-2 block h-4 min-w-[64px] flex-1 overflow-hidden rounded-sm bg-muted/30"
@@ -350,7 +351,7 @@ function SpanRow({
         }`}
       >
         <span className="min-w-0 truncate font-mono text-xs">{node.name}</span>
-        {dur !== null ? <span className="shrink-0 text-xs text-muted-foreground">{dur} ms</span> : null}
+        {dur !== null ? <span className="shrink-0 text-xs text-muted-foreground">{formatDuration(dur)}</span> : null}
         {node.model ? (
           <Badge variant="outline" className="shrink-0">
             {node.model}
@@ -358,7 +359,7 @@ function SpanRow({
         ) : null}
         {node.inputTokens !== undefined || node.outputTokens !== undefined ? (
           <span className="shrink-0 text-xs text-muted-foreground">
-            {node.inputTokens ?? 0}→{node.outputTokens ?? 0}
+            {formatTokens(node.inputTokens ?? 0)}→{formatTokens(node.outputTokens ?? 0)}
           </span>
         ) : null}
         {node.statusCode && node.statusCode !== '0' ? (
@@ -513,25 +514,25 @@ function SpanDetail({ span }: { span: TraceSpanNode }) {
         {span.inputTokens !== undefined ? (
           <div>
             <dt className="text-muted-foreground">Input tokens</dt>
-            <dd className="font-medium">{span.inputTokens}</dd>
+            <dd className="font-medium">{formatTokens(span.inputTokens ?? 0)}</dd>
           </div>
         ) : null}
         {span.outputTokens !== undefined ? (
           <div>
             <dt className="text-muted-foreground">Output tokens</dt>
-            <dd className="font-medium">{span.outputTokens}</dd>
+            <dd className="font-medium">{formatTokens(span.outputTokens ?? 0)}</dd>
           </div>
         ) : null}
         {span.ttftMs !== undefined ? (
           <div>
             <dt className="text-muted-foreground">TTFT</dt>
-            <dd className="font-medium">{span.ttftMs} ms</dd>
+            <dd className="font-medium">{formatDuration(span.ttftMs ?? 0)}</dd>
           </div>
         ) : null}
         {dur !== null ? (
           <div>
             <dt className="text-muted-foreground">Latency</dt>
-            <dd className="font-medium">{dur} ms</dd>
+            <dd className="font-medium">{formatDuration(dur)}</dd>
           </div>
         ) : null}
       </dl>
