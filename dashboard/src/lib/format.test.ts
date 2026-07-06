@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { formatDate, formatNumber, humanizeAuthor, isZeroTime, maskEmail } from './format';
+import {
+  formatCost,
+  formatDate,
+  formatDuration,
+  formatNumber,
+  formatTokens,
+  humanizeAuthor,
+  isZeroTime,
+  maskEmail,
+  shortId,
+} from './format';
 
 describe('isZeroTime (#118, qa-dogfood-cleanup-2026-06-21 T3.1)', () => {
   it('returns true for nullish + empty', () => {
@@ -164,5 +174,83 @@ describe('humanizeAuthor (#52/#78)', () => {
     // The maskEmail defensive passthrough is reused here: if the
     // string isn't a clean email, leave it alone.
     expect(humanizeAuthor('a@b@c')).toBe('a@b@c');
+  });
+});
+
+// M57 craft-system floor — metric formatters (plan m57-craft-system-floor T0.1)
+describe('formatDuration (M57 T0.1)', () => {
+  it('renders integer ms below 1s', () => {
+    expect(formatDuration(846)).toBe('846ms');
+    expect(formatDuration(0)).toBe('0ms');
+  });
+
+  it('renders one-decimal seconds between 1s and 1min', () => {
+    expect(formatDuration(5846)).toBe('5.8s');
+    expect(formatDuration(1000)).toBe('1.0s');
+  });
+
+  it('renders m + s at or above 1 minute', () => {
+    expect(formatDuration(105304)).toBe('1m 45s');
+    expect(formatDuration(60000)).toBe('1m 0s');
+  });
+
+  it('renders "<1ms" for sub-millisecond positive values', () => {
+    expect(formatDuration(0.4)).toBe('<1ms');
+  });
+
+  // negative case (testing.md §4.1) — invalid/non-finite input never throws
+  it('returns the em-dash for non-finite or negative input', () => {
+    expect(formatDuration(NaN)).toBe('—');
+    expect(formatDuration(Infinity)).toBe('—');
+    expect(formatDuration(-5)).toBe('—');
+    // @ts-expect-error — defensive against untyped callers
+    expect(formatDuration(undefined)).toBe('—');
+  });
+});
+
+describe('formatTokens (M57 T0.1)', () => {
+  it('groups thousands', () => {
+    expect(formatTokens(1285)).toBe('1,285');
+    expect(formatTokens(285)).toBe('285');
+  });
+
+  it('returns the em-dash for non-finite input', () => {
+    expect(formatTokens(NaN)).toBe('—');
+    // @ts-expect-error — defensive against untyped callers
+    expect(formatTokens(undefined)).toBe('—');
+  });
+});
+
+describe('formatCost (M57 T0.1)', () => {
+  it('uses 4 decimals below one cent', () => {
+    expect(formatCost(0.0009)).toBe('$0.0009');
+    expect(formatCost(0)).toBe('$0.0000');
+  });
+
+  it('uses 2 decimals at or above one cent', () => {
+    expect(formatCost(1.23)).toBe('$1.23');
+    expect(formatCost(0.01)).toBe('$0.01');
+  });
+
+  it('returns the em-dash for non-finite input', () => {
+    expect(formatCost(NaN)).toBe('—');
+    expect(formatCost(Infinity)).toBe('—');
+  });
+});
+
+describe('shortId (M57 T0.1)', () => {
+  it('truncates a long id to an 8-char prefix + ellipsis', () => {
+    expect(shortId('dbbbfe6f3fda53662c57ef875f0191f8')).toBe('dbbbfe6f…');
+  });
+
+  it('returns a short id unchanged', () => {
+    expect(shortId('abc123')).toBe('abc123');
+    expect(shortId('12345678')).toBe('12345678');
+  });
+
+  it('returns the em-dash for empty or nullish id', () => {
+    expect(shortId('')).toBe('—');
+    expect(shortId(null)).toBe('—');
+    expect(shortId(undefined)).toBe('—');
   });
 });

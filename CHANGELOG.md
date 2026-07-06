@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **Dashboard: observability UX craft-system floor — metric formatters (theo-lens M57, in progress).** `src/lib/format.ts` gains pure, total `formatDuration` ("1m 45s", "5.8s", "846ms"), `formatTokens` (grouped thousands), `formatCost` (sub-cent 4dp / else 2dp), and `shortId` (8-char prefix + ellipsis, full value preserved for copy) — the shared utilities the M57 craft pass (timestamps, id+copy, formatted numbers) composes across the observability screens. Reuse-first (extends the existing formatter module, no new dependency); non-finite/negative input collapses to the em-dash (never throws). 13 unit tests incl. edge/negative cases. Plan `knowledge-base/plans/m57-craft-system-floor-plan.md` (T0.1).
 
 ### Changed
 

@@ -222,3 +222,61 @@ export function humanizeAuthor(raw: string | null | undefined): string {
   }
   return trimmed;
 }
+
+// M57 craft-system floor — metric formatters (plan m57-craft-system-floor T0.1,
+// ADR-D1: extend this module rather than add a new one). Pure + total: never
+// throw; non-finite/negative input collapses to the em-dash, matching the
+// null-safety contract of formatDate/formatNumber above.
+
+/**
+ * Format a millisecond duration as a human-readable string.
+ *   formatDuration(846)    // "846ms"
+ *   formatDuration(5846)   // "5.8s"
+ *   formatDuration(105304) // "1m 45s"
+ *   formatDuration(NaN)    // "—"
+ * Negative / non-finite input is invalid (a duration cannot be < 0) → em-dash.
+ */
+export function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return EMDASH;
+  if (ms === 0) return '0ms';
+  if (ms < 1) return '<1ms';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60_000);
+  const seconds = Math.floor((ms % 60_000) / 1000);
+  return `${minutes}m ${seconds}s`;
+}
+
+/**
+ * Format a token count with grouped thousands separators.
+ * Delegates to formatNumber(_, 'grouped') (DRY, ADR-D1).
+ *   formatTokens(1285) // "1,285"
+ *   formatTokens(NaN)  // "—"
+ */
+export function formatTokens(count: number): string {
+  return formatNumber(count, 'grouped');
+}
+
+/**
+ * Format a USD cost. Sub-cent values keep 4 decimals so tiny per-call costs
+ * stay visible; at or above one cent, 2 decimals.
+ *   formatCost(0.0009) // "$0.0009"
+ *   formatCost(1.23)   // "$1.23"
+ *   formatCost(NaN)    // "—"
+ */
+export function formatCost(usd: number): string {
+  if (!Number.isFinite(usd)) return EMDASH;
+  return usd < 0.01 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
+}
+
+/**
+ * Truncate an identifier for scannable display while preserving the full value
+ * for copy/tooltip at the call site (ADR-D4 — never a lossy display).
+ *   shortId('dbbbfe6f3fda53662c57ef875f0191f8') // "dbbbfe6f…"
+ *   shortId('abc123')                           // "abc123"
+ *   shortId('')                                 // "—"
+ */
+export function shortId(id: string | null | undefined, n = 8): string {
+  if (!id) return EMDASH;
+  return id.length > n ? `${id.slice(0, n)}…` : id;
+}
