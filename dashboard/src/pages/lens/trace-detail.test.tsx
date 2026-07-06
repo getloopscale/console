@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { userEvent } from '@testing-library/user-event';
 import { within } from '@testing-library/react';
-import { render, screen } from '@/test/render';
+import { fireEvent, render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
@@ -29,6 +29,7 @@ import {
   computeTraceBounds,
   VIRTUALIZE_THRESHOLD,
 } from './trace-detail';
+import { ancestors } from './trace-detail/breadcrumb';
 
 /** Build a wide tree with `n` children under the root (to exercise the virtualization threshold). */
 function wideTree(n: number) {
@@ -450,5 +451,174 @@ describe('LensTraceDetail — M50 waterfall timeline', () => {
     await screen.findByTestId('span-tree');
     const unbounded = screen.getAllByTestId('span-bar').filter((b) => b.getAttribute('data-unbounded') === 'true');
     expect(unbounded).toHaveLength(1);
+  });
+});
+
+// ---- M58 Phase 0 — URL selection store + breadcrumb + keyboard next/prev span ----
+
+/**
+ * A 3-level fixture (root s0 → s1 → s3) with a sibling s2 and a second leaf s4 so we can
+ * exercise the ancestor chain and next/prev visible-order navigation.
+ * Visible depth-first order: s0, s1, s3, s2, s4.
+ */
+function navTree() {
+  return {
+    spanId: 's0',
+    traceId: 't1',
+    name: 'root.span',
+    startTimeUnixNano: '1000',
+    endTimeUnixNano: '5000',
+    children: [
+      {
+        spanId: 's1',
+        traceId: 't1',
+        parentSpanId: 's0',
+        name: 'middle.span',
+        startTimeUnixNano: '1000',
+        endTimeUnixNano: '3000',
+        children: [
+          {
+            spanId: 's3',
+            traceId: 't1',
+            parentSpanId: 's1',
+            name: 'leaf.three',
+            model: 'claude-haiku-4-5-20251001',
+            startTimeUnixNano: '1200',
+            endTimeUnixNano: '2000',
+          },
+        ],
+      },
+      {
+        spanId: 's2',
+        traceId: 't1',
+        parentSpanId: 's0',
+        name: 'sibling.two',
+        startTimeUnixNano: '3000',
+        endTimeUnixNano: '4000',
+        children: [
+          {
+            spanId: 's4',
+            traceId: 't1',
+            parentSpanId: 's2',
+            name: 'leaf.four',
+            startTimeUnixNano: '3200',
+            endTimeUnixNano: '3800',
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe('ancestors (M58 P0 — pure ancestor chain)', () => {
+  it('returns root..selected for a nested span', () => {
+    const root = navTree();
+    expect(ancestors(root, 's3').map((n) => n.spanId)).toEqual(['s0', 's1', 's3']);
+  });
+
+  it('returns [root] for the root span itself', () => {
+    const root = navTree();
+    expect(ancestors(root, 's0').map((n) => n.spanId)).toEqual(['s0']);
+  });
+
+  it('returns [] when the span is not in the tree', () => {
+    const root = navTree();
+    expect(ancestors(root, 'nope')).toEqual([]);
+  });
+});
+
+describe('LensTraceDetail — M58 P0 URL selection + breadcrumb + kbd nav', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('?spanId=s3 selects span s3 (detail pane shows its content)', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s3'] });
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('leaf.three')).toBeInTheDocument();
+    expect(within(detail).getByText('claude-haiku-4-5-20251001')).toBeInTheDocument();
+  });
+
+  it('?spanId=UNKNOWN falls back to root without crashing', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=UNKNOWN'] });
+    const detail = await screen.findByTestId('span-detail');
+    // no error/crash text, and the root span renders
+    expect(within(detail).getByText('root.span')).toBeInTheDocument();
+    expect(screen.queryByText(/could not load this trace/i)).not.toBeInTheDocument();
+  });
+
+  it('breadcrumb renders the ancestor chain root→…→selected in order', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s3'] });
+    const crumbs = await screen.findByTestId('trace-breadcrumb');
+    const names = within(crumbs)
+      .getAllByTestId('breadcrumb-crumb')
+      .map((el) => el.textContent);
+    expect(names).toEqual(['root.span', 'middle.span', 'leaf.three']);
+  });
+
+  it('clicking a breadcrumb crumb selects that ancestor span', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s3'] });
+    const crumbs = await screen.findByTestId('trace-breadcrumb');
+    await userEvent.click(within(crumbs).getByRole('button', { name: 'middle.span' }));
+    const detail = screen.getByTestId('span-detail');
+    expect(within(detail).getByText('middle.span')).toBeInTheDocument();
+  });
+
+  it('pressing "]" selects the next visible span and updates the URL', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s0'] });
+    await screen.findByTestId('span-detail');
+    fireEvent.keyDown(window, { key: ']' }); // s0 → next visible is s1
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('middle.span')).toBeInTheDocument();
+    // the URL is the source of truth: the breadcrumb now ends at the newly selected span
+    const crumbs = screen.getByTestId('trace-breadcrumb');
+    const last = within(crumbs).getAllByTestId('breadcrumb-crumb').at(-1);
+    expect(last?.textContent).toBe('middle.span');
+  });
+
+  it('"]" advances through visible depth-first order and rewrites spanId in the URL', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    // start at s1; visible order is s0,s1,s3,s2,s4 → next after s1 is s3
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s1'] });
+    await screen.findByTestId('span-detail');
+    fireEvent.keyDown(window, { key: ']' });
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('leaf.three')).toBeInTheDocument();
+    // the deep-link is the source of truth: the breadcrumb now ends at s3
+    const crumbs = screen.getByTestId('trace-breadcrumb');
+    const last = within(crumbs).getAllByTestId('breadcrumb-crumb').at(-1);
+    expect(last?.textContent).toBe('leaf.three');
+  });
+
+  it('"[" selects the previous visible span', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    // start at s3; visible order s0,s1,s3,... → prev is s1
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s3'] });
+    await screen.findByTestId('span-detail');
+    fireEvent.keyDown(window, { key: '[' });
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('middle.span')).toBeInTheDocument();
+  });
+
+  it('"[" at the root is a no-op (no wrap)', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s0'] });
+    await screen.findByTestId('span-detail');
+    fireEvent.keyDown(window, { key: '[' });
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('root.span')).toBeInTheDocument(); // still root
+  });
+
+  it('"]" at the last visible span is a no-op (no wrap)', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    // last in visible order is s4
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s4'] });
+    await screen.findByTestId('span-detail');
+    fireEvent.keyDown(window, { key: ']' });
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('leaf.four')).toBeInTheDocument(); // still s4
   });
 });
