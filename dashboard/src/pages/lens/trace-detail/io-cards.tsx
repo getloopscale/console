@@ -28,23 +28,23 @@ const REDACTED = '<REDACTED>';
 // 50-turn agent trace does not render 50 CodeMirror editors at once.
 const COLLAPSE_THRESHOLD = 8;
 const HEAD_TAIL = 3; // messages shown at each end when collapsed
-// Byte guard: a markdown body larger than this is truncated with a "Show more" affordance so a
-// pathological megabyte-string payload cannot lock the render.
-const MAX_MARKDOWN_BYTES = 8000;
+// Size guard: a markdown body longer than this many characters is truncated with a "Show more"
+// affordance so a pathological megabyte-string payload cannot lock the render.
+const MAX_MARKDOWN_CHARS = 8000;
 
 // ---- the single sanitized markdown wrapper (the ONLY react-markdown import site) ----
 
 /**
  * Render `source` as sanitized markdown. `rehype-sanitize` (default schema) strips `<script>`, event
  * handlers, and `javascript:` URLs. Empty string → renders nothing; plain text → verbatim. Over the
- * byte guard the body truncates behind a "Show more" toggle (never silently dropped).
+ * size guard the body truncates behind a "Show more" toggle (never silently dropped).
  */
 export function Markdown({ source }: { source: string }) {
   const [expanded, setExpanded] = useState(false);
   if (source === '') return null;
 
-  const oversized = source.length > MAX_MARKDOWN_BYTES;
-  const shown = oversized && !expanded ? source.slice(0, MAX_MARKDOWN_BYTES) : source;
+  const oversized = source.length > MAX_MARKDOWN_CHARS;
+  const shown = oversized && !expanded ? source.slice(0, MAX_MARKDOWN_CHARS) : source;
 
   return (
     <div className="space-y-1">
@@ -53,7 +53,7 @@ export function Markdown({ source }: { source: string }) {
       </div>
       {oversized ? (
         <Button variant="ghost" size="sm" onClick={() => setExpanded((e) => !e)}>
-          {expanded ? 'Show less' : `Show more (${source.length - MAX_MARKDOWN_BYTES} more chars)`}
+          {expanded ? 'Show less' : `Show more (${source.length - MAX_MARKDOWN_CHARS} more chars)`}
         </Button>
       ) : null}
     </div>

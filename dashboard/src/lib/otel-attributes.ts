@@ -99,7 +99,7 @@ export function promotedBadges(attrs: Record<string, unknown>): PromotedBadge[] 
 // an obvious extension. The set is deliberately narrow to avoid false positives on ordinary values,
 // but any match masks (err toward masking — a leak is worse than an over-mask, which Reveal recovers).
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
-const BEARER = /\b(?:Bearer\s+)?(?:sk|pk|ghp|xox[baprs])[-_][A-Za-z0-9-_]{20,}/;
+const BEARER = /\b(?:Bearer\s+)?(?:sk|pk|ghp|xox[baprs])[-_][A-Za-z0-9_-]{20,}/;
 const PII_PATTERNS = [EMAIL, BEARER];
 
 /**
