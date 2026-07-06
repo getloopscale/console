@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import { Download, GitCompareArrows } from 'lucide-react';
 import {
   Alert,
   Button,
@@ -26,10 +25,10 @@ import {
   EXPORT_CAP,
   type ExportTrace,
 } from '@/lib/traces-export';
-import { LensTraceDetail } from './trace-detail';
 import { tracesColumns, type Trace } from './traces/columns';
 import { SavedViewsBar } from './traces/saved-views';
-import { MetadataCard } from './traces/metadata-card';
+import { TracePeekSheet } from './traces/peek-sheet';
+import { TracesTableToolbar } from './traces/table-toolbar';
 
 // M59 P0 (D1) — re-export the moved list-row type so any importer of `Trace` from `./traces`
 // keeps resolving after the decomposition (behavior-preserving shim; no test churn).
@@ -135,6 +134,11 @@ export function LensTracesPage() {
   const [tokensMin, setTokensMin] = useQueryState('tokens_min', parseAsString.withDefault(''));
   const [tokensMax, setTokensMax] = useQueryState('tokens_max', parseAsString.withDefault(''));
   const [session, setSession] = useQueryState('session', parseAsString.withDefault(''));
+  // M59 P1 — row density (URL-persisted so it round-trips into a saved view, Phase 3).
+  const [density, setDensity] = useQueryState(
+    'density',
+    parseAsStringEnum(['comfortable', 'compact']).withDefault('comfortable'),
+  );
 
   // The search box keeps its own immediate value (responsive typing) and DEBOUNCES into the `q`
   // query-state that drives the server fetch — one request per pause, not per keystroke (a full-text
@@ -422,29 +426,16 @@ export function LensTracesPage() {
             )
           ) : (
             <>
-              <div className="mb-2 flex items-center justify-end gap-2">
-                {selected.size > 0 ? (
-                  <span className="text-xs text-muted-foreground">{selected.size} selected</span>
-                ) : null}
-                <Button variant="secondary" size="sm" disabled={exporting} onClick={() => doExport('csv')}>
-                  <Download className="mr-1 h-4 w-4" />
-                  Export CSV
-                </Button>
-                <Button variant="secondary" size="sm" disabled={exporting} onClick={() => doExport('json')}>
-                  <Download className="mr-1 h-4 w-4" />
-                  Export JSON
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={compareHref === undefined}
-                  data-compare-href={compareHref}
-                  onClick={() => compareHref && navigate(compareHref)}
-                >
-                  <GitCompareArrows className="mr-1 h-4 w-4" />
-                  Compare
-                </Button>
-              </div>
+              <TracesTableToolbar
+                density={density}
+                onToggleDensity={() => void setDensity(density === 'compact' ? null : 'compact')}
+                exporting={exporting}
+                onExport={doExport}
+                selectedCount={selected.size}
+                compareHref={compareHref}
+                onCompare={() => compareHref && navigate(compareHref)}
+                onClearSelection={() => setSelected(new Set())}
+              />
               {exportDisclosure ? (
                 <p data-testid="export-disclosure" className="mb-2 text-right text-xs text-muted-foreground">
                   {exportDisclosure}
@@ -456,14 +447,24 @@ export function LensTracesPage() {
                 </Alert>
               ) : null}
               <Card>
-                <DataTable columns={columns} data={traces} rowKey={(row) => row.traceId} />
+                {/* M59 P1 — density toggles the row height (compact vs comfortable) via a data-attr
+                    + Tailwind arbitrary selectors; URL-persisted so a saved view captures it (P3). */}
+                <div
+                  data-density={density}
+                  className={
+                    density === 'compact'
+                      ? '[&_tbody_td]:py-1 [&_tbody_td]:text-xs'
+                      : '[&_tbody_td]:py-2.5'
+                  }
+                >
+                  <DataTable columns={columns} data={traces} rowKey={(row) => row.traceId} />
+                </div>
               </Card>
             </>
           )}
 
-          {openID !== null ? <LensTraceDetail key={openID} traceId={openID} /> : null}
-
-          {openID !== null ? <MetadataCard traceId={openID} onClose={() => setOpenID(null)} /> : null}
+          {/* M59 P1 — row-click opens the peek Sheet (was an inline card that pushed the table down). */}
+          <TracePeekSheet traceId={openID} onClose={() => setOpenID(null)} />
         </div>
       </PageShell>
     </>

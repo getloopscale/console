@@ -89,18 +89,19 @@ describe('LensTracesPage (/observability/traces)', () => {
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
 
-    const compare = screen.getByRole('button', { name: /compare/i });
-    expect(compare).toBeDisabled(); // 0 selected
+    // M59 P1 — Compare lives in the bulk-action bar, which appears only when ≥1 row is selected.
+    expect(screen.queryByRole('button', { name: /compare/i })).toBeNull(); // 0 selected → no bulk bar
 
     await userEvent.click(screen.getByLabelText('Select tr_1 for compare'));
-    expect(compare).toBeDisabled(); // 1 selected — still disabled
+    expect(screen.getByRole('button', { name: /compare/i })).toBeDisabled(); // 1 selected — present, disabled
 
     await userEvent.click(screen.getByLabelText('Select tr_2 for compare'));
-    expect(compare).toBeEnabled(); // exactly 2 → enabled
-    expect(compare).toHaveAttribute('data-compare-href', '/observability/compare?ids=tr_1,tr_2');
+    const compare2 = screen.getByRole('button', { name: /compare/i });
+    expect(compare2).toBeEnabled(); // exactly 2 → enabled
+    expect(compare2).toHaveAttribute('data-compare-href', '/observability/compare?ids=tr_1,tr_2');
 
     await userEvent.click(screen.getByLabelText('Select tr_3 for compare'));
-    expect(compare).toBeDisabled(); // 3 selected → disabled again (compare is pairwise)
+    expect(screen.getByRole('button', { name: /compare/i })).toBeDisabled(); // 3 → disabled (pairwise)
   });
 
   it('M56 — Export CSV downloads the filtered set (WYSIWYG) + discloses the count', async () => {
@@ -486,5 +487,48 @@ describe('nsToIso (M57 T1.1)', () => {
     expect(nsToIso('')).toBeNull();
     expect(nsToIso('0')).toBeNull();
     expect(nsToIso('not-a-number')).toBeNull();
+  });
+});
+
+describe('LensTracesPage — M59 P1 density toggle', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('the density toggle flips the table wrapper density (default comfortable → compact)', async () => {
+    m52Mock({});
+    const { container } = render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    expect(container.querySelector('[data-density="comfortable"]')).toBeTruthy();
+    expect(container.querySelector('[data-density="compact"]')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /toggle row density/i }));
+    expect(container.querySelector('[data-density="compact"]')).toBeTruthy();
+  });
+});
+
+describe('LensTracesPage — M59 P1 Sheet peek + bulk-action bar', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('clicking a trace row opens the peek Sheet (a dialog, not an inline card)', async () => {
+    m52Mock({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    // no peek before the click.
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /open tr_1/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Trace detail')).toBeInTheDocument();
+  });
+
+  it('the bulk-action bar appears only when ≥1 row is selected', async () => {
+    m52Mock({ traces: [{ traceId: 'tr_1', name: 'a' }, { traceId: 'tr_2', name: 'b' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    expect(screen.queryByTestId('bulk-action-bar')).toBeNull(); // 0 selected → hidden
+    await userEvent.click(screen.getByLabelText('Select tr_1 for compare'));
+    const bar = await screen.findByTestId('bulk-action-bar');
+    expect(within(bar).getByText(/1 selected/i)).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: /compare/i })).toBeInTheDocument();
+    // clearing selection hides the bar again.
+    await userEvent.click(within(bar).getByRole('button', { name: /clear selection/i }));
+    expect(screen.queryByTestId('bulk-action-bar')).toBeNull();
   });
 });

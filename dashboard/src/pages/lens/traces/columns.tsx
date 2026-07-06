@@ -1,12 +1,14 @@
-import { Badge, Button, CopyButton, type DataTableColumn } from '@usetheo/ui';
+import { Badge, Checkbox, CopyButton, StatusDot, type DataTableColumn } from '@usetheo/ui';
 
-import { formatDate, shortId } from '@/lib/format';
+import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/format';
 import { nsToIso } from '../traces';
 
 /**
- * One traces-list row as the read API returns it. Declares only the fields the list
- * item carries today (M49/M52); latency/tokens/cost are proven on the wire by
- * `ExportTrace` (`src/lib/traces-export.ts`) but not yet surfaced as columns (M59 P1).
+ * One traces-list row as the read API returns it. Declares the fields the list item carries today —
+ * the M49/M52 identity/status fields PLUS the latency/tokens/cost fields proven on the wire by
+ * `ExportTrace` (`src/lib/traces-export.ts` — the read API's `traceListItemSchema`) and surfaced as
+ * columns in M59 P1. `input/output preview` and `tags` are NOT on the list wire (see the plan's
+ * Unresolved Questions Q1/Q2) — no column fabricates them.
  */
 export interface Trace {
   traceId: string;
@@ -15,19 +17,27 @@ export interface Trace {
   statusCode?: string;
   model?: string;
   startTimeUnixNano?: string;
+  // M59 P1 — consensus-spine numeric fields (all optional; absent → em-dash, never fabricated).
+  durationMs?: number;
+  costUsd?: number;
+  totalTokens?: number;
+  sessionId?: string;
 }
 
-/** Handles the column cells need from the orchestrating page (M59 P0 — verbatim extraction). */
+/** Handles the column cells need from the orchestrating page (M59 P0/P1). */
 export interface TracesColumnsOptions {
   selected: Set<string>;
   toggleSelected: (id: string) => void;
   onOpen: (id: string) => void;
 }
 
+const EMDASH = <span className="text-muted-foreground">—</span>;
+
 /**
- * The traces `DataTable` column config: compare-select checkbox · timestamp · trace id
- * (short + copy) · name · model · status. Extracted verbatim from `traces.tsx` (M59 ADR D1)
- * so the page drops back under the 500-LoC budget; behavior-preserving in Phase 0.
+ * The traces `DataTable` column config (M59 P1 — the consensus spine, blueprint §3 + Arize Screen 1):
+ * compare `Checkbox` · timestamp · trace id (short + copy) · name · model · **latency · tokens · cost**
+ * · status (`StatusDot` + `Badge`). Numeric cells format via `format.ts` (M57) and render `—` when the
+ * field is absent on the wire — no fabricated value (R2).
  */
 export function tracesColumns({ selected, toggleSelected, onOpen }: TracesColumnsOptions): DataTableColumn<Trace>[] {
   return [
@@ -35,12 +45,10 @@ export function tracesColumns({ selected, toggleSelected, onOpen }: TracesColumn
       key: 'compare-select',
       label: '',
       render: (row) => (
-        <input
-          type="checkbox"
+        <Checkbox
           checked={selected.has(row.traceId)}
-          onChange={() => toggleSelected(row.traceId)}
+          onCheckedChange={() => toggleSelected(row.traceId)}
           aria-label={`Select ${row.traceId} for compare`}
-          className="h-4 w-4 cursor-pointer"
         />
       ),
     },
@@ -49,7 +57,7 @@ export function tracesColumns({ selected, toggleSelected, onOpen }: TracesColumn
       label: 'Time',
       render: (row) => {
         const iso = nsToIso(row.startTimeUnixNano);
-        if (!iso) return <span className="text-muted-foreground">—</span>;
+        if (!iso) return EMDASH;
         return (
           <span
             className="text-xs whitespace-nowrap text-muted-foreground"
@@ -65,15 +73,15 @@ export function tracesColumns({ selected, toggleSelected, onOpen }: TracesColumn
       label: 'Trace',
       render: (row) => (
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={() => onOpen(row.traceId)}
             title={row.traceId}
             aria-label={`Open ${row.traceId}`}
+            className="font-mono text-sm hover:underline"
           >
-            <span className="font-mono text-sm">{shortId(row.traceId)}</span>
-          </Button>
+            {shortId(row.traceId)}
+          </button>
           <CopyButton value={row.traceId} label="Copy trace id" />
         </div>
       ),
@@ -81,12 +89,48 @@ export function tracesColumns({ selected, toggleSelected, onOpen }: TracesColumn
     { key: 'name', label: 'Name', render: (row) => <span>{row.name ?? '—'}</span> },
     { key: 'model', label: 'Model', render: (row) => <span className="font-mono text-xs">{row.model ?? '—'}</span> },
     {
+      key: 'latency',
+      label: 'Latency',
+      render: (row) =>
+        row.durationMs != null ? (
+          <span className="text-xs whitespace-nowrap tabular-nums">{formatDuration(row.durationMs)}</span>
+        ) : (
+          EMDASH
+        ),
+    },
+    {
+      key: 'tokens',
+      label: 'Tokens',
+      render: (row) =>
+        row.totalTokens != null ? (
+          <span className="text-xs tabular-nums">{formatTokens(row.totalTokens)}</span>
+        ) : (
+          EMDASH
+        ),
+    },
+    {
+      key: 'cost',
+      label: 'Cost',
+      render: (row) =>
+        row.costUsd != null ? (
+          <span className="text-xs tabular-nums">{formatCost(row.costUsd)}</span>
+        ) : (
+          EMDASH
+        ),
+    },
+    {
       key: 'status',
       label: 'Status',
       render: (row) => {
         const s = row.statusCode ?? row.status;
-        if (!s) return <span>—</span>;
-        return <Badge variant={s.toLowerCase() === 'error' ? 'destructive' : 'outline'}>{s}</Badge>;
+        if (!s) return EMDASH;
+        const isError = s.toLowerCase() === 'error';
+        return (
+          <span className="inline-flex items-center gap-1.5">
+            <StatusDot status={isError ? 'failed' : 'live'} size="xs" />
+            <Badge variant={isError ? 'destructive' : 'outline'}>{s}</Badge>
+          </span>
+        );
       },
     },
   ];
