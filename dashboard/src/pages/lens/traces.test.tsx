@@ -63,6 +63,17 @@ function filterMock(traces: unknown[]) {
 }
 const listUrls = () => mockCloudFetch.mock.calls.map((c) => c[0] as string).filter(isListUrl);
 
+// M59 P2 — drive the chip-filter builder: Add-filter Select → pick column option ("status is",
+// "cost >=", …) → (type value into the Input | keep the enum Select default) → Apply.
+async function addChip(optionName: RegExp, opts: { value?: string; valueLabel?: RegExp } = {}) {
+  await userEvent.click(screen.getByRole('combobox', { name: /add filter/i }));
+  await userEvent.click(await screen.findByRole('option', { name: optionName }));
+  if (opts.value !== undefined && opts.valueLabel) {
+    await userEvent.type(screen.getByRole('textbox', { name: opts.valueLabel }), opts.value);
+  }
+  await userEvent.click(screen.getByRole('button', { name: /apply filter/i }));
+}
+
 function routeMock() {
   mockCloudFetch.mockImplementation((url: string) => {
     if (url === '/v1/dashboard/lens/traces') return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
@@ -315,8 +326,7 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     filterMock([{ traceId: 'tr_1', name: 'checkout', statusCode: 'error' }]);
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    await userEvent.click(screen.getByRole('combobox', { name: /filter by status/i }));
-    await userEvent.click(await screen.findByRole('option', { name: /errors only/i }));
+    await addChip(/status is/i); // enum column — Select defaults to the only option "error".
     await waitFor(() => expect(listUrls().some((u) => /[?&]status=error(&|$)/.test(u))).toBe(true));
   });
 
@@ -324,8 +334,7 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     filterMock([{ traceId: 'tr_1', name: 'checkout', model: 'claude-opus-4-8' }]);
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    await userEvent.click(screen.getByRole('combobox', { name: /filter by model/i }));
-    await userEvent.click(await screen.findByRole('option', { name: 'claude-opus-4-8' }));
+    await addChip(/model is/i, { value: 'claude-opus-4-8', valueLabel: /model value/i });
     await waitFor(() => expect(listUrls().some((u) => u.includes('model=claude-opus-4-8'))).toBe(true));
   });
 
@@ -333,8 +342,7 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     filterMock([{ traceId: 'tr_1', name: 'checkout' }]);
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    await userEvent.click(screen.getByRole('combobox', { name: /filter by time range/i }));
-    await userEvent.click(await screen.findByRole('option', { name: /last hour/i }));
+    await addChip(/time within/i); // enum column — Select defaults to "1h" → buildTraceQuery emits from=.
     await waitFor(() => expect(listUrls().some((u) => u.includes('from='))).toBe(true));
   });
 
@@ -378,7 +386,7 @@ describe('LensTracesPage — M52 advanced filters + saved views', () => {
     m52Mock({});
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    await userEvent.type(screen.getByLabelText(/minimum cost usd/i), '0.1');
+    await addChip(/cost >=/i, { value: '0.1', valueLabel: /cost value/i });
     await waitFor(() => expect(listUrls().some((u) => u.includes('min_cost_usd=0.1'))).toBe(true));
   });
 
@@ -386,7 +394,7 @@ describe('LensTracesPage — M52 advanced filters + saved views', () => {
     m52Mock({});
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    await userEvent.type(screen.getByLabelText(/filter by session id/i), 'sess-x');
+    await addChip(/session is/i, { value: 'sess-x', valueLabel: /session value/i });
     await waitFor(() => expect(listUrls().some((u) => u.includes('session_id=sess-x'))).toBe(true));
   });
 
@@ -501,6 +509,35 @@ describe('LensTracesPage — M59 P1 density toggle', () => {
     expect(container.querySelector('[data-density="compact"]')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: /toggle row density/i }));
     expect(container.querySelector('[data-density="compact"]')).toBeTruthy();
+  });
+});
+
+describe('LensTracesPage — M59 P2 chip filters', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('adding a filter renders a removable chip + a count badge, and narrows the list (status=error)', async () => {
+    m52Mock({});
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await addChip(/status is/i);
+    // the status chip is present (targeted by its unique remove control) with a count badge.
+    const removeStatus = await screen.findByRole('button', { name: /remove status filter/i });
+    expect(removeStatus.closest('[data-testid="filter-chip"]')?.textContent).toMatch(/status is error/i);
+    expect(screen.getByTestId('filter-count')).toBeInTheDocument();
+    await waitFor(() => expect(listUrls().some((u) => /[?&]status=error(&|$)/.test(u))).toBe(true));
+  });
+
+  it("a chip's × removes it and drops the param from the URL (round-trip to baseline)", async () => {
+    m52Mock({});
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await addChip(/cost >=/i, { value: '0.1', valueLabel: /cost value/i });
+    await waitFor(() => expect(listUrls().some((u) => u.includes('min_cost_usd=0.1'))).toBe(true));
+    await userEvent.click(await screen.findByRole('button', { name: /remove cost filter/i }));
+    // the cost chip is gone (its unique remove control no longer exists)…
+    expect(screen.queryByRole('button', { name: /remove cost filter/i })).toBeNull();
+    // …and the newest list fetch no longer carries the cost param.
+    await waitFor(() => expect(listUrls().at(-1) ?? '').not.toMatch(/min_cost_usd/));
   });
 });
 

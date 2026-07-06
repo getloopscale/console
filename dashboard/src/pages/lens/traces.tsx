@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
@@ -10,7 +10,6 @@ import {
   EmptyState,
   Input,
   PageShell,
-  Select,
   Skeleton,
 } from '@usetheo/ui';
 
@@ -29,6 +28,8 @@ import { tracesColumns, type Trace } from './traces/columns';
 import { SavedViewsBar } from './traces/saved-views';
 import { TracePeekSheet } from './traces/peek-sheet';
 import { TracesTableToolbar } from './traces/table-toolbar';
+import { FilterBar } from './traces/filter-bar';
+import { EMPTY_FILTERS, RANGE_VALUES, type Range, type TraceFilters } from './traces/filter-model';
 
 // M59 P0 (D1) — re-export the moved list-row type so any importer of `Trace` from `./traces`
 // keeps resolving after the decomposition (behavior-preserving shim; no test churn).
@@ -63,26 +64,15 @@ interface TracesResult {
   traces: Trace[];
 }
 
-const RANGE_VALUES = ['all', '1h', '24h', '7d'] as const;
-type Range = (typeof RANGE_VALUES)[number];
 const RANGE_MS: Record<Exclude<Range, 'all'>, number> = {
   '1h': 3_600_000,
   '24h': 86_400_000,
   '7d': 604_800_000,
 };
 
-interface TraceFilters {
-  q: string;
-  status: 'all' | 'error';
-  model: string;
-  range: Range;
-  // M52 — advanced filters (strings; empty = inactive). Forwarded as theo-lens snake_case params.
-  costMin: string;
-  costMax: string;
-  tokensMin: string;
-  tokensMax: string;
-  session: string;
-}
+// M59 P2 — the filter shape + the chip model live in ./traces/filter-model (the pure DIP boundary);
+// re-exported here so `traces-export.ts` + `traces.test.tsx` keep resolving (D1 shim).
+export type { TraceFilters };
 
 /**
  * Build the `/v1/dashboard/lens/traces` query string from the active filters — active-only (empty /
@@ -153,6 +143,22 @@ export function LensTracesPage() {
   }, [searchInput, q, setQ]);
 
   const filters: TraceFilters = { q, status, model, range, costMin, costMax, tokensMin, tokensMax, session };
+
+  // M59 P2 — the chip bar hands back a Partial<TraceFilters> (apply/clear); this maps each changed
+  // field to its `nuqs` setter (empty → null drops the param). The URL param keys are UNCHANGED, so
+  // `buildTraceQuery` + the M49 BFF whitelist are untouched (ADR D2).
+  const applyFilters = (p: Partial<TraceFilters>) => {
+    if ('q' in p) void setQ(p.q ? p.q : null);
+    if ('status' in p) void setStatus(p.status === 'error' ? 'error' : null);
+    if ('model' in p) void setModel(p.model ? p.model : null);
+    if ('range' in p) void setRange(p.range && p.range !== 'all' ? p.range : null);
+    if ('costMin' in p) void setCostMin(p.costMin ? p.costMin : null);
+    if ('costMax' in p) void setCostMax(p.costMax ? p.costMax : null);
+    if ('tokensMin' in p) void setTokensMin(p.tokensMin ? p.tokensMin : null);
+    if ('tokensMax' in p) void setTokensMax(p.tokensMax ? p.tokensMax : null);
+    if ('session' in p) void setSession(p.session ? p.session : null);
+  };
+
   const hasActiveFilters =
     q.trim() !== '' ||
     status !== 'all' ||
@@ -239,24 +245,17 @@ export function LensTracesPage() {
     }
   }
 
-  // Model filter options — distinct models present in the current page, plus the active model so it
-  // stays selectable even when the page is already narrowed to it. A dedicated models endpoint is a
-  // follow-up (see plan § Unresolved questions); this MVP derives options client-side.
-  const modelOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const t of traces) if (t.model) set.add(t.model);
-    if (model.trim()) set.add(model.trim());
-    return Array.from(set).sort();
-  }, [traces, model]);
-
   return (
     <>
       <PageShell title="Traces" description="Explore executions and manage their tags & annotations.">
         <div className="space-y-6">
-          <div className="flex flex-wrap items-end gap-3" role="search">
+          {/* M59 P2 — the search box (primary, debounced) + the chip-filter builder (column→operator
+              →value chips over the SAME nuqs params — no BFF change). Replaces the M49/M52 stacked
+              Select/Input panel. */}
+          <div className="flex flex-wrap items-center gap-3" role="search">
             <div className="min-w-[220px] flex-1">
-              <label htmlFor="trace-search" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Search
+              <label htmlFor="trace-search" className="sr-only">
+                Search traces
               </label>
               <Input
                 id="trace-search"
@@ -267,144 +266,12 @@ export function LensTracesPage() {
                 aria-label="Search traces"
               />
             </div>
-
-            <div>
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">Status</span>
-              <Select value={status} onValueChange={(v) => void setStatus(v === 'all' ? null : (v as 'error'))}>
-                <Select.Trigger className="w-[130px]" aria-label="Filter by status">
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="all">All statuses</Select.Item>
-                  <Select.Item value="error">Errors only</Select.Item>
-                </Select.Content>
-              </Select>
-            </div>
-
-            <div>
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">Model</span>
-              <Select value={model || 'all'} onValueChange={(v) => void setModel(v === 'all' ? null : v)}>
-                <Select.Trigger className="w-[190px]" aria-label="Filter by model">
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="all">All models</Select.Item>
-                  {modelOptions.map((m) => (
-                    <Select.Item key={m} value={m}>
-                      {m}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-            </div>
-
-            <div>
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">Time range</span>
-              <Select value={range} onValueChange={(v) => void setRange(v === 'all' ? null : (v as Range))}>
-                <Select.Trigger className="w-[140px]" aria-label="Filter by time range">
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="all">All time</Select.Item>
-                  <Select.Item value="1h">Last hour</Select.Item>
-                  <Select.Item value="24h">Last 24h</Select.Item>
-                  <Select.Item value="7d">Last 7 days</Select.Item>
-                </Select.Content>
-              </Select>
-            </div>
-
+            <FilterBar filters={filters} onApply={applyFilters} />
             {hasActiveFilters ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  void setQ(null);
-                  void setStatus(null);
-                  void setModel(null);
-                  void setRange(null);
-                  void setCostMin(null);
-                  void setCostMax(null);
-                  void setTokensMin(null);
-                  void setTokensMax(null);
-                  void setSession(null);
-                }}
-                aria-label="Clear filters"
-              >
+              <Button variant="ghost" size="sm" onClick={() => applyFilters(EMPTY_FILTERS)} aria-label="Clear filters">
                 Clear
               </Button>
             ) : null}
-          </div>
-
-          {/* M52 — advanced filters: cost/token ranges + session (server-side, URL-persisted). */}
-          <div className="flex flex-wrap items-end gap-3" aria-label="Advanced filters">
-            <div>
-              <label htmlFor="cost-min" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Cost ≥ (USD)
-              </label>
-              <Input
-                id="cost-min"
-                type="number"
-                className="w-[120px]"
-                value={costMin}
-                onChange={(e) => void setCostMin(e.target.value || null)}
-                placeholder="min"
-                aria-label="Minimum cost USD"
-              />
-            </div>
-            <div>
-              <label htmlFor="cost-max" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Cost ≤ (USD)
-              </label>
-              <Input
-                id="cost-max"
-                type="number"
-                className="w-[120px]"
-                value={costMax}
-                onChange={(e) => void setCostMax(e.target.value || null)}
-                placeholder="max"
-                aria-label="Maximum cost USD"
-              />
-            </div>
-            <div>
-              <label htmlFor="tokens-min" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Tokens ≥
-              </label>
-              <Input
-                id="tokens-min"
-                type="number"
-                className="w-[110px]"
-                value={tokensMin}
-                onChange={(e) => void setTokensMin(e.target.value || null)}
-                placeholder="min"
-                aria-label="Minimum tokens"
-              />
-            </div>
-            <div>
-              <label htmlFor="tokens-max" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Tokens ≤
-              </label>
-              <Input
-                id="tokens-max"
-                type="number"
-                className="w-[110px]"
-                value={tokensMax}
-                onChange={(e) => void setTokensMax(e.target.value || null)}
-                placeholder="max"
-                aria-label="Maximum tokens"
-              />
-            </div>
-            <div className="min-w-[180px] flex-1">
-              <label htmlFor="session-filter" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Session
-              </label>
-              <Input
-                id="session-filter"
-                value={session}
-                onChange={(e) => void setSession(e.target.value || null)}
-                placeholder="session id (exact)"
-                aria-label="Filter by session id"
-              />
-            </div>
           </div>
 
           <SavedViewsBar searchParams={searchParams} onApply={applyView} />
