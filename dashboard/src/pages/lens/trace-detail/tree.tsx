@@ -8,6 +8,7 @@ import { EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 
 import { LensPlayground } from '../playground';
+import { Attributes } from './attributes';
 import { formatDuration, formatTokens } from '@/lib/format';
 import {
   asChat,
@@ -325,7 +326,7 @@ export function VirtualTree({
 /** Right pane — everything the user came for about ONE span. */
 export function SpanDetail({ span }: { span: TraceSpanNode }) {
   const dur = durationMs(span);
-  const attrs = Object.entries(span.attributes ?? {});
+  const hasAttrs = Object.keys(span.attributes ?? {}).length > 0;
   const events = span.events ?? [];
   // M55 — an LLM span (one with a recorded input) can be replayed in the playground.
   const canReplay = !!span.inputValue;
@@ -380,17 +381,13 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
         <ValueBlock key={`out-${span.spanId}`} value={span.outputValue} testId="span-output" />
       </section>
 
-      {attrs.length > 0 ? (
+      {hasAttrs ? (
         <section className="space-y-1">
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">Attributes</h3>
-          <dl className="grid grid-cols-1 gap-1 text-xs sm:grid-cols-2">
-            {attrs.map(([k, v]) => (
-              <div key={k} className="flex gap-2">
-                <dt className="shrink-0 font-mono text-muted-foreground">{k}</dt>
-                <dd className="truncate font-mono">{typeof v === 'string' ? v : JSON.stringify(v)}</dd>
-              </div>
-            ))}
-          </dl>
+          {/* M58 P2.2 — namespace-grouped, PII-masked panel. `canReveal` is fail-closed (false) for
+              now; the raw PII value never enters the DOM pre-reveal.
+              TODO: thread from Principal scope (an `observability:*` session claim) once wired. */}
+          <Attributes attrs={span.attributes} canReveal={false} />
         </section>
       ) : null}
 

@@ -724,3 +724,122 @@ describe('LensTraceDetail — M58 P1.2 waterfall', () => {
     expect(within(wf).getByText(new RegExp(`∑\\s*${formatCost(total).replace('$', '\\$')}`))).toBeInTheDocument();
   });
 });
+
+// M58 P2.2 — the namespace-grouped, PII-masked Attributes panel (scope-gated Reveal).
+// The `Attributes` component is unit-tested directly (its `canReveal` gate is a security invariant
+// that must be exercised with BOTH values), plus one integration assertion that the panel mounts in
+// the detail pane. `attrsTree` gives the selected child span a multi-namespace attribute set with one
+// PII value so grouping, promoted badges, and masking are all observable in one render.
+import { Attributes } from './trace-detail/attributes';
+
+const PII_EMAIL = 'user@example.com';
+
+function attrsTree(canRevealAttrs: Record<string, unknown> = {}) {
+  return tree({
+    inputValue: undefined,
+    children: [
+      {
+        spanId: 'child',
+        traceId: 't1',
+        parentSpanId: 'root',
+        name: 'claude_code.llm_request',
+        startTimeUnixNano: '1000000000',
+        endTimeUnixNano: '1000955000000',
+        attributes: {
+          'gen_ai.request.model': 'claude-haiku-4-5',
+          'gen_ai.usage.input_tokens': 501,
+          'gen_ai.usage.output_tokens': 13,
+          'gen_ai.usage.cost': 0.0072,
+          'http.status': 200,
+          'user.email': PII_EMAIL,
+          stop_reason: 'end_turn',
+          ...canRevealAttrs,
+        },
+      },
+    ],
+  });
+}
+
+describe('Attributes — namespace-grouped, PII-masked panel (M58 P2.2)', () => {
+  const attrs = {
+    'gen_ai.request.model': 'claude-haiku-4-5',
+    'gen_ai.usage.input_tokens': 501,
+    'gen_ai.usage.output_tokens': 13,
+    'gen_ai.usage.cost': 0.0072,
+    'http.status': 200,
+    'user.email': PII_EMAIL,
+    stop_reason: 'end_turn',
+  };
+
+  it('renders one collapsible Card per OTel namespace', () => {
+    render(<Attributes attrs={attrs} canReveal={false} />);
+    // Each namespace is a collapsible header Button; its aria-label distinguishes it from unrelated
+    // text nodes (e.g. a `user` chat-role badge). gen_ai/http/user/other are all present.
+    expect(screen.getByRole('button', { name: /collapse gen_ai/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /collapse http/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /collapse user/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /collapse other/i })).toBeInTheDocument();
+    expect(screen.getByTestId('attributes-ns-gen_ai')).toBeInTheDocument();
+    expect(screen.getByTestId('attributes-ns-http')).toBeInTheDocument();
+  });
+
+  it('collapsing a namespace Card hides its rows; expanding shows them again', async () => {
+    render(<Attributes attrs={attrs} canReveal={false} />);
+    expect(screen.getByText('http.status')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /collapse http/i }));
+    expect(screen.queryByText('http.status')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /expand http/i }));
+    expect(screen.getByText('http.status')).toBeInTheDocument();
+  });
+
+  it('renders promoted badges (model/tokens/cost/level) in the header', () => {
+    render(<Attributes attrs={{ ...attrs, level: 'error' }} canReveal={false} />);
+    const header = screen.getByTestId('attributes-badges');
+    expect(within(header).getByText('claude-haiku-4-5')).toBeInTheDocument();
+    expect(within(header).getByText('501→13')).toBeInTheDocument();
+    expect(within(header).getByText('$0.0072')).toBeInTheDocument();
+    expect(within(header).getByText('error')).toBeInTheDocument();
+  });
+
+  it('masks a PII email — the raw value is ABSENT from the DOM pre-reveal (core invariant)', () => {
+    const { container } = render(<Attributes attrs={attrs} canReveal={false} />);
+    expect(screen.queryByText(PII_EMAIL)).toBeNull();
+    // Defense in depth: the raw substring appears NOWHERE in the rendered markup (not in text,
+    // not in a title/aria/data attribute) before Reveal.
+    expect(container.innerHTML).not.toContain(PII_EMAIL);
+    expect(screen.getByText('•••')).toBeInTheDocument();
+  });
+
+  it('fail-closed: with canReveal={false} the Reveal control is disabled AND force-clicking never leaks', async () => {
+    const { container } = render(<Attributes attrs={attrs} canReveal={false} />);
+    const reveal = screen.getByRole('button', { name: /reveal/i });
+    expect(reveal).toBeDisabled();
+    // Force the click even though it is disabled — the raw value must still never enter the DOM.
+    fireEvent.click(reveal);
+    expect(screen.queryByText(PII_EMAIL)).toBeNull();
+    expect(container.innerHTML).not.toContain(PII_EMAIL);
+  });
+
+  it('with canReveal={true} clicking Reveal shows the raw PII value', async () => {
+    render(<Attributes attrs={attrs} canReveal={true} />);
+    expect(screen.queryByText(PII_EMAIL)).toBeNull(); // still hidden until the explicit click
+    await userEvent.click(screen.getByRole('button', { name: /reveal/i }));
+    expect(screen.getByText(PII_EMAIL)).toBeInTheDocument();
+  });
+
+  it('renders an EmptyState when there are no attributes', () => {
+    render(<Attributes attrs={{}} canReveal={false} />);
+    expect(screen.getByText(/no attributes/i)).toBeInTheDocument();
+  });
+
+  it('mounts in the selected-span detail pane (integration)', async () => {
+    mockCloudFetch.mockResolvedValue(attrsTree());
+    render(<LensTraceDetail traceId="t1" />);
+    await userEvent.click(await screen.findByRole('button', { name: /claude_code\.llm_request/i }));
+    const detail = screen.getByTestId('span-detail');
+    // grouped header present, and the PII email is NOT in the pre-reveal detail DOM.
+    expect(within(detail).getByRole('button', { name: /collapse gen_ai/i })).toBeInTheDocument();
+    expect(within(detail).queryByText(PII_EMAIL)).toBeNull();
+    expect(detail.innerHTML).not.toContain(PII_EMAIL);
+  });
+});
