@@ -30,6 +30,8 @@ import {
   VIRTUALIZE_THRESHOLD,
 } from './trace-detail';
 import { ancestors } from './trace-detail/breadcrumb';
+import { aggregateCost } from '@/lib/trace-layout';
+import { formatCost, formatDate } from '@/lib/format';
 
 /** Build a wide tree with `n` children under the root (to exercise the virtualization threshold). */
 function wideTree(n: number) {
@@ -620,5 +622,105 @@ describe('LensTraceDetail — M58 P0 URL selection + breadcrumb + kbd nav', () =
     fireEvent.keyDown(window, { key: ']' });
     const detail = await screen.findByTestId('span-detail');
     expect(within(detail).getByText('leaf.four')).toBeInTheDocument(); // still s4
+  });
+});
+
+// ---- M58 Phase 1 (T1.2) — polished waterfall view ----
+
+// A ~2s trace with real epoch-ns timestamps (so absolute-time labels are valid dates), an error
+// child, and per-span costs so the ∑ parent-cost badge has something to sum. Base epoch:
+// 1_700_000_000 s → 1_700_000_000_000_000_000 ns.
+const WF_BASE_NS = 1_700_000_000_000_000_000n;
+function waterfallTree() {
+  const at = (secOffset: number) => (WF_BASE_NS + BigInt(secOffset) * 1_000_000_000n).toString();
+  return {
+    spanId: 'w0',
+    traceId: 't1',
+    name: 'root.request',
+    startTimeUnixNano: at(0),
+    endTimeUnixNano: at(2), // 2s trace window
+    statusCode: '0',
+    costUsd: 0.01,
+    children: [
+      {
+        spanId: 'w1',
+        traceId: 't1',
+        parentSpanId: 'w0',
+        name: 'llm.call',
+        startTimeUnixNano: at(0),
+        endTimeUnixNano: at(1),
+        model: 'claude-haiku-4-5-20251001',
+        statusCode: '0',
+        costUsd: 0.02,
+      },
+      {
+        spanId: 'w2',
+        traceId: 't1',
+        parentSpanId: 'w0',
+        name: 'tool.boom',
+        startTimeUnixNano: at(1),
+        endTimeUnixNano: at(2),
+        statusCode: '2', // error
+      },
+    ],
+  };
+}
+
+describe('LensTraceDetail — M58 P1.2 waterfall', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('renders a nice-interval time axis with second-shaped tick labels', async () => {
+    mockCloudFetch.mockResolvedValue(waterfallTree());
+    render(<LensTraceDetail traceId="t1" />);
+    const wf = await screen.findByTestId('waterfall');
+    // A 2s window at ≥70px ticks yields 0s / 1s / 2s (or a subset) — assert the seconds labels appear.
+    expect(within(wf).getByText('1s')).toBeInTheDocument();
+    expect(within(wf).getByText('2s')).toBeInTheDocument();
+  });
+
+  it('hovering the lane shows a needle with a formatDate-shaped absolute time', async () => {
+    mockCloudFetch.mockResolvedValue(waterfallTree());
+    render(<LensTraceDetail traceId="t1" />);
+    const lane = await screen.findByTestId('waterfall-lane');
+    // No needle before hover.
+    expect(screen.queryByTestId('waterfall-needle')).not.toBeInTheDocument();
+    fireEvent.mouseMove(lane, { clientX: 0 });
+    const needle = await screen.findByTestId('waterfall-needle');
+    // At clientX 0 (jsdom rect left 0) the needle sits at the trace start → its label is the
+    // absolute datetime of the start, exactly as formatDate renders it.
+    const startIso = new Date(Number(WF_BASE_NS / 1_000_000n)).toISOString();
+    expect(needle.textContent ?? '').toContain(formatDate(startIso, 'datetime'));
+  });
+
+  it('an error span renders a destructive waterfall bar', async () => {
+    mockCloudFetch.mockResolvedValue(waterfallTree());
+    render(<LensTraceDetail traceId="t1" />);
+    const wf = await screen.findByTestId('waterfall');
+    const errorBars = within(wf)
+      .getAllByTestId('waterfall-bar')
+      .filter((b) => b.getAttribute('data-error') === 'true');
+    expect(errorBars).toHaveLength(1);
+    expect(errorBars[0].className).toMatch(/destructive/);
+  });
+
+  it('the URL-selected span renders with a ring on its waterfall bar', async () => {
+    mockCloudFetch.mockResolvedValue(waterfallTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=w1'] });
+    const wf = await screen.findByTestId('waterfall');
+    const selected = within(wf)
+      .getAllByTestId('waterfall-bar')
+      .filter((b) => b.getAttribute('data-selected') === 'true');
+    expect(selected).toHaveLength(1);
+    expect(selected[0].className).toMatch(/ring/);
+  });
+
+  it('a parent row shows its ∑ aggregated cost', async () => {
+    const root = waterfallTree();
+    mockCloudFetch.mockResolvedValue(root);
+    render(<LensTraceDetail traceId="t1" />);
+    const wf = await screen.findByTestId('waterfall');
+    // root ∑ = 0.01 (own) + 0.02 (w1) + 0 (w2) = 0.03.
+    const total = aggregateCost(root as never); // 0.03
+    expect(within(wf).getByText(new RegExp(`∑\\s*${formatCost(total).replace('$', '\\$')}`))).toBeInTheDocument();
   });
 });

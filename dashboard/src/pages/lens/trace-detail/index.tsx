@@ -14,6 +14,7 @@ import {
 } from './helpers';
 import { Breadcrumb, useSelection, useSpanKeyboardNav } from './breadcrumb';
 import { RecursiveTree, SpanDetail, VirtualTree } from './tree';
+import { Waterfall } from './waterfall';
 
 /**
  * M47/M48/M58 — the trace-detail view composition root. Fetches the reconstructed span tree from the
@@ -138,6 +139,18 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
           </Card>
         </Panel>
       </PanelGroup>
+      {/* M58 T1.2 — the polished waterfall timeline lane (nice axis, hover-needle, ∑ parent cost). */}
+      <Card>
+        <Card.Body>
+          <Waterfall
+            root={root}
+            bounds={bounds}
+            selectedId={selectedResolvedId}
+            collapsed={collapsed}
+            onSelect={onSelect}
+          />
+        </Card.Body>
+      </Card>
     </div>
   );
 }
