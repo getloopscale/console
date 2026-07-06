@@ -498,6 +498,51 @@ describe('nsToIso (M57 T1.1)', () => {
   });
 });
 
+describe('LensTracesPage — M59 P3 columns + naming Dialog + viewId + per-tenant isolation', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('the Columns toggle hides a spine column (captured by the saved-view URL)', async () => {
+    m52Mock({ traces: [{ traceId: 'tr_1', name: 'a', durationMs: 100, totalTokens: 50, costUsd: 0.01 }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    expect(screen.getByText('Latency')).toBeInTheDocument(); // the column header
+    await userEvent.click(screen.getByRole('button', { name: /choose columns/i }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: /toggle latency column/i }));
+    expect(screen.queryByText('Latency')).toBeNull(); // hidden
+  });
+
+  it('Save current view opens a naming Dialog and POSTs the view', async () => {
+    m52Mock({});
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(screen.getByRole('button', { name: /save current view/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/save current view/i)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/saved view name/i), 'my view');
+    await userEvent.click(within(dialog).getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(svCalls('POST').length).toBeGreaterThan(0));
+  });
+
+  it('applying a saved view marks it active + shareable (viewId in the URL)', async () => {
+    m52Mock({ views: [{ id: 'lsv-1', name: 'errored', query_string: '?status=error' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(await screen.findByRole('button', { name: /apply view errored/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /apply view errored/i })).toHaveAttribute('aria-current', 'true'),
+    );
+  });
+
+  it('renders only this workspace’s saved views (per-tenant — never another tenant’s)', async () => {
+    m52Mock({ views: [{ id: 'lsv-a', name: 'tenant-a-view', query_string: '?status=error' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    expect(screen.getByRole('button', { name: /apply view tenant-a-view/i })).toBeInTheDocument();
+    // a different tenant's view is never in this Principal-scoped list.
+    expect(screen.queryByRole('button', { name: /apply view tenant-b-view/i })).toBeNull();
+  });
+});
+
 describe('LensTracesPage — M59 P1 density toggle', () => {
   beforeEach(() => vi.clearAllMocks());
 

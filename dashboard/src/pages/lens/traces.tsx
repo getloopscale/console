@@ -30,6 +30,8 @@ import { TracePeekSheet } from './traces/peek-sheet';
 import { TracesTableToolbar } from './traces/table-toolbar';
 import { FilterBar } from './traces/filter-bar';
 import { EMPTY_FILTERS, RANGE_VALUES, type Range, type TraceFilters } from './traces/filter-model';
+import { ColumnsToggle } from './traces/columns-toggle';
+import { TOGGLEABLE_COLUMNS, decodeColumns, encodeColumns, isColumnVisible } from './traces/view-encoding';
 
 // M59 P0 (D1) — re-export the moved list-row type so any importer of `Trace` from `./traces`
 // keeps resolving after the decomposition (behavior-preserving shim; no test churn).
@@ -129,6 +131,12 @@ export function LensTracesPage() {
     'density',
     parseAsStringEnum(['comfortable', 'compact']).withDefault('comfortable'),
   );
+  // M59 P3 — column visibility as a single versioned `cols=` URL param, so the M52 saved view captures
+  // it for free (no schema change — ADR D4). Density is mirrored into the encoded state for round-trip
+  // completeness, but the `density` param above stays its source of truth.
+  const [cols, setCols] = useQueryState('cols', parseAsString.withDefault(''));
+  const columnState = { ...decodeColumns(cols), density };
+  const setColumnState = (next: typeof columnState) => void setCols(encodeColumns(next) || null);
 
   // The search box keeps its own immediate value (responsive typing) and DEBOUNCES into the `q`
   // query-state that drives the server fetch — one request per pause, not per keystroke (a full-text
@@ -187,7 +195,10 @@ export function LensTracesPage() {
     queryFn: () => cloudFetch<TracesResult>(`/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now())}`),
   });
 
-  const columns = tracesColumns({ selected, toggleSelected, onOpen: setOpenID });
+  // M59 P3 — hide the toggleable spine columns the user turned off (identity columns always show).
+  const columns = tracesColumns({ selected, toggleSelected, onOpen: setOpenID }).filter(
+    (c) => !(TOGGLEABLE_COLUMNS as readonly string[]).includes(c.key) || isColumnVisible(columnState, c.key),
+  );
 
   // M57 T1.1 — newest-first by default. Defensive client-side desc sort by
   // startTimeUnixNano (BigInt-safe, missing timestamps sink to the bottom) so the
@@ -293,6 +304,9 @@ export function LensTracesPage() {
             )
           ) : (
             <>
+              <div className="mb-1 flex items-center justify-end">
+                <ColumnsToggle state={columnState} onChange={setColumnState} />
+              </div>
               <TracesTableToolbar
                 density={density}
                 onToggleDensity={() => void setDensity(density === 'compact' ? null : 'compact')}
