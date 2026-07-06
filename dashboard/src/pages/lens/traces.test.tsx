@@ -47,7 +47,8 @@ vi.mock('react-resizable-panels', () => ({
   PanelResizeHandle: (props: Record<string, unknown>) => <div role="separator" {...props} />,
 }));
 
-import { LensTracesPage, buildTraceQuery } from './traces';
+import { LensTracesPage, buildTraceQuery, nsToIso } from './traces';
+import { formatDate } from '@/lib/format';
 
 // M49 — list-vs-detail-vs-tags URL discriminator. The list read is the base path optionally
 // followed by `?<filters>`; the detail read is base + `/<id>`; tags/annotations contain `/tags`.
@@ -400,5 +401,51 @@ describe('LensTracesPage — M52 advanced filters + saved views', () => {
     await screen.findByText('tr_1');
     await userEvent.click(screen.getByRole('button', { name: /save current view/i }));
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
+
+  // M57 T1.1/T1.2 — timestamp column + short/copyable id.
+  const LONG_ID = 'dbbbfe6f3fda53662c57ef875f0191f8';
+  const NS = '1767225600000000000'; // 2026-01-01T00:00:00Z in ns
+
+  it('renders a Time column with a relative value and an absolute-time title (T1.1)', async () => {
+    filterMock([{ traceId: LONG_ID, name: 'a', startTimeUnixNano: NS }]);
+    render(<LensTracesPage />);
+    await screen.findByText('dbbbfe6f…');
+    // header present
+    expect(screen.getByText('Time')).toBeInTheDocument();
+    // the absolute datetime is exposed via the cell's title (self-consistent with the helper)
+    const iso = nsToIso(NS)!;
+    expect(screen.getByTitle(formatDate(iso, 'datetime'))).toBeInTheDocument();
+  });
+
+  it('renders "—" in the Time column when startTimeUnixNano is missing (edge)', async () => {
+    filterMock([{ traceId: LONG_ID, name: 'a' }]);
+    render(<LensTracesPage />);
+    await screen.findByText('dbbbfe6f…');
+    // no title for a missing timestamp (the cell is the em-dash)
+    expect(screen.queryByTitle(/2026|2025/)).not.toBeInTheDocument();
+  });
+
+  it('truncates the trace id and offers a full-id copy control (T1.2)', async () => {
+    filterMock([{ traceId: LONG_ID, name: 'a', startTimeUnixNano: NS }]);
+    render(<LensTracesPage />);
+    // display is truncated (8-char prefix + ellipsis), never the raw 32-hex
+    expect(await screen.findByText('dbbbfe6f…')).toBeInTheDocument();
+    expect(screen.queryByText(LONG_ID)).not.toBeInTheDocument();
+    // a copy control is present (carries the full id at the call site, ADR-D4)
+    expect(screen.getByRole('button', { name: /copy trace id/i })).toBeInTheDocument();
+  });
+});
+
+describe('nsToIso (M57 T1.1)', () => {
+  it('converts a nanosecond string to an ISO instant', () => {
+    expect(nsToIso('1767225600000000000')).toBe('2026-01-01T00:00:00.000Z');
+  });
+  it('returns null for nullish / zero / non-numeric input', () => {
+    expect(nsToIso(undefined)).toBeNull();
+    expect(nsToIso(null)).toBeNull();
+    expect(nsToIso('')).toBeNull();
+    expect(nsToIso('0')).toBeNull();
+    expect(nsToIso('not-a-number')).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   ConfirmDialog,
+  CopyButton,
   DataTable,
   type DataTableColumn,
   EmptyState,
@@ -20,6 +21,7 @@ import {
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
+import { formatDate, shortId } from '@/lib/format';
 import { cloudFetch } from '@/lib/api';
 import { triggerDownload } from '@/lib/download';
 import {
@@ -30,6 +32,23 @@ import {
   type ExportTrace,
 } from '@/lib/traces-export';
 import { LensTraceDetail } from './trace-detail';
+
+/**
+ * M57 T1.1 — convert an OTLP `startTimeUnixNano` (nanoseconds since epoch, as a
+ * string) to an ISO string for the timestamp column. Pure + total: nullish,
+ * non-numeric, or non-positive (Go zero-time) input returns null so the cell
+ * renders the em-dash. BigInt avoids float precision loss on 19-digit ns.
+ */
+export function nsToIso(ns: string | undefined | null): string | null {
+  if (!ns) return null;
+  try {
+    const ms = Number(BigInt(ns) / 1_000_000n);
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    return new Date(ms).toISOString();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * M44 — /lens/traces. Read the workspace's traces and manage their human-in-the-loop
@@ -267,12 +286,37 @@ export function LensTracesPage() {
       ),
     },
     {
+      key: 'timestamp',
+      label: 'Time',
+      render: (row) => {
+        const iso = nsToIso(row.startTimeUnixNano);
+        if (!iso) return <span className="text-muted-foreground">—</span>;
+        return (
+          <span
+            className="text-xs whitespace-nowrap text-muted-foreground"
+            title={formatDate(iso, 'datetime')}
+          >
+            {formatDate(iso, 'relative')}
+          </span>
+        );
+      },
+    },
+    {
       key: 'traceId',
       label: 'Trace',
       render: (row) => (
-        <Button variant="ghost" size="sm" onClick={() => setOpenID(row.traceId)} aria-label={`Open ${row.traceId}`}>
-          <span className="font-mono text-sm">{row.traceId}</span>
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setOpenID(row.traceId)}
+            title={row.traceId}
+            aria-label={`Open ${row.traceId}`}
+          >
+            <span className="font-mono text-sm">{shortId(row.traceId)}</span>
+          </Button>
+          <CopyButton value={row.traceId} label="Copy trace id" />
+        </div>
       ),
     },
     { key: 'name', label: 'Name', render: (row) => <span>{row.name ?? '—'}</span> },
