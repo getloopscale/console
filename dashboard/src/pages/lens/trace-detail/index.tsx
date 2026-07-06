@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Card, EmptyState, Skeleton } from '@usetheo/ui';
+import { Alert, Button, Card, EmptyState, Skeleton } from '@usetheo/ui';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import { cloudFetch } from '@/lib/api';
@@ -14,6 +14,7 @@ import {
 } from './helpers';
 import { Breadcrumb, useSelection, useSpanKeyboardNav } from './breadcrumb';
 import { RecursiveTree, SpanDetail, VirtualTree } from './tree';
+import { Transcript } from './transcript';
 import { Waterfall } from './waterfall';
 
 /**
@@ -30,7 +31,10 @@ import { Waterfall } from './waterfall';
  */
 
 export function LensTraceDetail({ traceId }: { traceId: string }) {
-  const { spanId, setSelection } = useSelection(traceId);
+  const { spanId, view, setSelection } = useSelection(traceId);
+  // M58 P4.2 — the Tree ⇄ Transcript toggle. The URL `?view=` is the source of truth (ADR D2/D3);
+  // default `tree`. Only `transcript` swaps the left lane for the reader-mode feed.
+  const isTranscript = view === 'transcript';
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const selectedRef = useRef<HTMLButtonElement>(null);
   const query = useQuery({
@@ -98,32 +102,57 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
         <Panel defaultSize={40} minSize={20}>
           <Card className="h-full">
             <Card.Body>
-              <div
-                data-testid="span-tree"
-                className={virtualized ? 'space-y-0.5' : 'max-h-[70vh] space-y-0.5 overflow-auto'}
-              >
-                {virtualized ? (
-                  <VirtualTree
-                    flat={flat}
-                    selectedId={selectedResolvedId}
-                    collapsed={collapsed}
-                    bounds={bounds}
-                    onSelect={onSelect}
-                    onToggle={toggle}
-                  />
-                ) : (
-                  <RecursiveTree
-                    node={root}
-                    depth={0}
-                    selectedId={selectedResolvedId}
-                    collapsed={collapsed}
-                    bounds={bounds}
-                    onSelect={onSelect}
-                    onToggle={toggle}
-                    selectedRef={selectedRef}
-                  />
-                )}
+              {/* M58 P4.2 — the Tree ⇄ Transcript segmented toggle (writes ?view=). */}
+              <div role="group" aria-label="View mode" className="mb-2 inline-flex gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isTranscript ? 'ghost' : 'secondary'}
+                  aria-pressed={!isTranscript}
+                  onClick={() => setSelection({ view: 'tree' })}
+                >
+                  Tree
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isTranscript ? 'secondary' : 'ghost'}
+                  aria-pressed={isTranscript}
+                  onClick={() => setSelection({ view: 'transcript' })}
+                >
+                  Transcript
+                </Button>
               </div>
+              {isTranscript ? (
+                <Transcript root={root} selectedId={selectedResolvedId} onSelect={onSelect} />
+              ) : (
+                <div
+                  data-testid="span-tree"
+                  className={virtualized ? 'space-y-0.5' : 'max-h-[70vh] space-y-0.5 overflow-auto'}
+                >
+                  {virtualized ? (
+                    <VirtualTree
+                      flat={flat}
+                      selectedId={selectedResolvedId}
+                      collapsed={collapsed}
+                      bounds={bounds}
+                      onSelect={onSelect}
+                      onToggle={toggle}
+                    />
+                  ) : (
+                    <RecursiveTree
+                      node={root}
+                      depth={0}
+                      selectedId={selectedResolvedId}
+                      collapsed={collapsed}
+                      bounds={bounds}
+                      onSelect={onSelect}
+                      onToggle={toggle}
+                      selectedRef={selectedRef}
+                    />
+                  )}
+                </div>
+              )}
             </Card.Body>
           </Card>
         </Panel>

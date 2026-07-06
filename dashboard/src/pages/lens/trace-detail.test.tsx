@@ -973,3 +973,125 @@ describe('IO module — react-markdown single-import + no dangerouslySetInnerHTM
     expect(src).not.toMatch(/dangerouslySetInnerHTML\s*=/);
   });
 });
+
+// ---- M58 Phase 4 (T4.2) — reader-mode Transcript (flagship) ----
+
+/**
+ * A subagent-shaped trace: the root fans out into ≥2 children (a `group-header` in the row model), so
+ * the Transcript renders a collapsible group. Each child carries an output preview + role so the feed
+ * shows role Badges and inline previews.
+ */
+function transcriptTree() {
+  return {
+    spanId: 't0',
+    traceId: 't1',
+    name: 'agent.turn',
+    kind: 'agent',
+    startTimeUnixNano: '1000000',
+    endTimeUnixNano: '5000000',
+    outputValue: 'planned the run',
+    children: [
+      {
+        spanId: 't1a',
+        traceId: 't1',
+        parentSpanId: 't0',
+        name: 'llm.plan',
+        kind: 'LLM',
+        inputTokens: 10,
+        outputTokens: 4,
+        outputValue: 'call the weather tool',
+        startTimeUnixNano: '1000000',
+        endTimeUnixNano: '2000000',
+      },
+      {
+        spanId: 't1b',
+        traceId: 't1',
+        parentSpanId: 't0',
+        name: 'tool.exec',
+        kind: 'tool',
+        statusCode: '2', // error → StatusDot failed
+        outputValue: 'timeout after 30s',
+        startTimeUnixNano: '2000000',
+        endTimeUnixNano: '3000000',
+      },
+    ],
+  };
+}
+
+describe('LensTraceDetail — M58 P4.2 reader-mode Transcript', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('clicking "Transcript" sets ?view=transcript and renders the feed; "Tree" restores ?view=tree', async () => {
+    mockCloudFetch.mockResolvedValue(transcriptTree());
+    render(<LensTraceDetail traceId="t1" />);
+    // Default is the tree view — no transcript feed yet.
+    await screen.findByTestId('span-tree');
+    expect(screen.queryByTestId('transcript-feed')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /^transcript$/i }));
+    // The feed renders and the tree lane is gone (view switched).
+    expect(await screen.findByTestId('transcript-feed')).toBeInTheDocument();
+    expect(screen.queryByTestId('span-tree')).not.toBeInTheDocument();
+
+    // Switch back to the tree.
+    await userEvent.click(screen.getByRole('button', { name: /^tree$/i }));
+    expect(await screen.findByTestId('span-tree')).toBeInTheDocument();
+    expect(screen.queryByTestId('transcript-feed')).not.toBeInTheDocument();
+  });
+
+  it('honors ?view=transcript from the URL on first render (deep-link)', async () => {
+    mockCloudFetch.mockResolvedValue(transcriptTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
+    expect(await screen.findByTestId('transcript-feed')).toBeInTheDocument();
+  });
+
+  it('renders a role-labeled Card per span row (role Badge + StatusDot)', async () => {
+    mockCloudFetch.mockResolvedValue(transcriptTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
+    const feed = await screen.findByTestId('transcript-feed');
+    // One span row Card per node (root + 2 children = 3).
+    expect(within(feed).getAllByTestId('transcript-row')).toHaveLength(3);
+    // Role labels come from the span kind.
+    expect(within(feed).getByText('LLM')).toBeInTheDocument();
+    expect(within(feed).getByText('tool')).toBeInTheDocument();
+    // The errored tool span carries a StatusDot (aria-label of the failed status).
+    expect(within(feed).getByLabelText('failed')).toBeInTheDocument();
+    // The inline output preview is shown.
+    expect(within(feed).getByText(/call the weather tool/)).toBeInTheDocument();
+  });
+
+  it('a subagent group-header collapses and expands its rows', async () => {
+    mockCloudFetch.mockResolvedValue(transcriptTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
+    await screen.findByTestId('transcript-feed');
+    // The root fans out into 2 children → a collapsible group header.
+    const header = screen.getByRole('button', { name: /collapse agent\.turn/i });
+    // Child rows are visible initially.
+    expect(screen.getByText('call the weather tool')).toBeInTheDocument();
+    await userEvent.click(header);
+    // Collapsed → the group's child rows are gone.
+    expect(screen.queryByText('call the weather tool')).not.toBeInTheDocument();
+    // Re-expand → children return.
+    await userEvent.click(screen.getByRole('button', { name: /expand agent\.turn/i }));
+    expect(screen.getByText('call the weather tool')).toBeInTheDocument();
+  });
+
+  it('clicking a transcript row updates the URL spanId (selection sync)', async () => {
+    mockCloudFetch.mockResolvedValue(transcriptTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
+    const feed = await screen.findByTestId('transcript-feed');
+    // Click the LLM child row.
+    await userEvent.click(within(feed).getByRole('button', { name: /llm\.plan/i }));
+    // Switching back to the tree, the newly-selected span drives the breadcrumb (URL is the store).
+    await userEvent.click(screen.getByRole('button', { name: /^tree$/i }));
+    const crumbs = await screen.findByTestId('trace-breadcrumb');
+    const last = within(crumbs).getAllByTestId('breadcrumb-crumb').at(-1);
+    expect(last?.textContent).toBe('llm.plan');
+  });
+
+  it('a single default-span trace renders an EmptyState nudging back to the tree', async () => {
+    mockCloudFetch.mockResolvedValue({ spanId: 'solo', traceId: 't1', name: 'solo.span' });
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
+    expect(await screen.findByText('Only one span in this trace')).toBeInTheDocument();
+  });
+});
