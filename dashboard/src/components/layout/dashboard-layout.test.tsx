@@ -80,4 +80,47 @@ describe('DashboardLayout', () => {
     );
     expect(screen.queryByText('Verify your email')).not.toBeInTheDocument();
   });
+
+  // M57 T6.1 — the onboarding nag (verification banner + FAB) is gated OUT of
+  // /observability routes (ADR-D3), but MUST still render elsewhere. Driven with
+  // an UNVERIFIED session so the banner condition is otherwise satisfied.
+  describe('nag gating on /observability (M57 T6.1)', () => {
+    const fab = /Get your app live/i;
+
+    it('hides the verification banner + onboarding FAB on /observability/traces', () => {
+      vi.mocked(useRequireAuth).mockReturnValue(makeSession(false));
+      render(
+        <DashboardLayout>
+          <div>child</div>
+        </DashboardLayout>,
+        { initialEntries: ['/observability/traces'] },
+      );
+      expect(screen.queryByText('Verify your email')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(fab)).not.toBeInTheDocument();
+    });
+
+    it('still shows the banner + FAB on a non-observability route (no regression)', () => {
+      vi.mocked(useRequireAuth).mockReturnValue(makeSession(false));
+      render(
+        <DashboardLayout>
+          <div>child</div>
+        </DashboardLayout>,
+        { initialEntries: ['/settings'] },
+      );
+      expect(screen.getByText('Verify your email')).toBeInTheDocument();
+      expect(screen.getByLabelText(fab)).toBeInTheDocument();
+    });
+
+    it('gates the bare /observability index too', () => {
+      vi.mocked(useRequireAuth).mockReturnValue(makeSession(false));
+      render(
+        <DashboardLayout>
+          <div>child</div>
+        </DashboardLayout>,
+        { initialEntries: ['/observability'] },
+      );
+      expect(screen.queryByText('Verify your email')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(fab)).not.toBeInTheDocument();
+    });
+  });
 });

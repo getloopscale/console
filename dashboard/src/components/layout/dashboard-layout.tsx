@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { isEmailVerified } from '@/lib/auth';
@@ -31,6 +31,13 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const session = useRequireAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  // M57 T6.1 (ADR-D3): the onboarding nag (email banner + FAB) is an
+  // account/onboarding concern — suppress it on the observability workspace so
+  // it stops stealing vertical space from every /observability screen. Exact +
+  // nested match so a sibling like /observability-foo (none today) is unaffected.
+  const onObservability =
+    pathname === '/observability' || pathname.startsWith('/observability/');
   const { open: paletteOpen, setOpen: setPaletteOpen } = useCommandPalette();
   const { projects } = useProjects();
 
@@ -68,7 +75,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             id="main-content"
             className="flex-1 px-6 py-6 mx-auto w-full max-w-screen-2xl"
           >
-            {!verified && (
+            {!verified && !onObservability && (
               <div className="mb-6">
                 <VerificationBanner />
               </div>
@@ -86,7 +93,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           pattern). Bottom-right fixed, never competes with sidebar nav.
           Collapses to badge with progress ring. Replaces cramped sidebar
           widget (220px largura era ilegível). */}
-      <OnboardingPanel />
+      {!onObservability && <OnboardingPanel />}
     </PageMetaProvider>
   );
 }
