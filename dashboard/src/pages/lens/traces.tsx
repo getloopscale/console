@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import { BookmarkPlus, Download, GitCompareArrows, Trash2 } from 'lucide-react';
+import { Download, GitCompareArrows } from 'lucide-react';
 import {
   Alert,
-  Badge,
   Button,
   Card,
-  ConfirmDialog,
-  CopyButton,
   DataTable,
-  type DataTableColumn,
   EmptyState,
   Input,
   PageShell,
@@ -21,7 +17,6 @@ import {
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { formatDate, shortId } from '@/lib/format';
 import { cloudFetch } from '@/lib/api';
 import { triggerDownload } from '@/lib/download';
 import {
@@ -32,6 +27,13 @@ import {
   type ExportTrace,
 } from '@/lib/traces-export';
 import { LensTraceDetail } from './trace-detail';
+import { tracesColumns, type Trace } from './traces/columns';
+import { SavedViewsBar } from './traces/saved-views';
+import { MetadataCard } from './traces/metadata-card';
+
+// M59 P0 (D1) — re-export the moved list-row type so any importer of `Trace` from `./traces`
+// keeps resolving after the decomposition (behavior-preserving shim; no test churn).
+export type { Trace };
 
 /**
  * M57 T1.1 — convert an OTLP `startTimeUnixNano` (nanoseconds since epoch, as a
@@ -58,27 +60,8 @@ export function nsToIso(ns: string | undefined | null): string | null {
  * stays read-only (spans arrive via OTLP); only the metadata is browser-authored.
  */
 
-interface Trace {
-  traceId: string;
-  name?: string;
-  status?: string;
-  statusCode?: string;
-  model?: string;
-  startTimeUnixNano?: string;
-}
 interface TracesResult {
   traces: Trace[];
-}
-interface TagsResult {
-  tags: string[];
-}
-interface SavedView {
-  id: string;
-  name: string;
-  query_string: string;
-}
-interface SavedViewsResult {
-  saved_views: SavedView[];
 }
 
 const RANGE_VALUES = ['all', '1h', '24h', '7d'] as const;
@@ -128,7 +111,6 @@ export function LensTracesPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Traces'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
   const navigate = useNavigate();
   const [openID, setOpenID] = useState<string | null>(null);
@@ -141,9 +123,6 @@ export function LensTracesPage() {
       else next.add(id);
       return next;
     });
-  const [tag, setTag] = useState('');
-  const [note, setNote] = useState('');
-  const [pendingTag, setPendingTag] = useState<string | null>(null);
 
   // M49 — URL-persisted filters (nuqs): a filtered view is shareable/bookmarkable.
   const [q, setQ] = useQueryState('q', parseAsString.withDefault(''));
@@ -182,41 +161,9 @@ export function LensTracesPage() {
     session.trim() !== '';
 
   // M52 — saved views: a per-tenant store of the current filter URL. Apply = write the whole search
-  // string (nuqs re-hydrates every filter); share = the URL itself.
+  // string (nuqs re-hydrates every filter); share = the URL itself. The bar + its CRUD live in
+  // ./traces/saved-views (M59 ADR D1); the page owns only the URL params + the apply callback.
   const [searchParams, setSearchParams] = useSearchParams();
-  const [saveOpen, setSaveOpen] = useState(false);
-  const [viewName, setViewName] = useState('');
-  const [pendingView, setPendingView] = useState<SavedView | null>(null);
-
-  const savedViewsKey = ['cloud', '/v1/dashboard/lens/saved-views'] as const;
-  const savedViews = useQuery({
-    queryKey: savedViewsKey,
-    queryFn: () => cloudFetch<SavedViewsResult>('/v1/dashboard/lens/saved-views'),
-  });
-  const invalidateViews = () => void queryClient.invalidateQueries({ queryKey: savedViewsKey });
-
-  const createView = useMutation({
-    mutationFn: (name: string) =>
-      cloudFetch<SavedView>('/v1/dashboard/lens/saved-views', {
-        method: 'POST',
-        // the query string IS the view — the current filter URL (or a bare "?" when no filter is set).
-        body: JSON.stringify({ name, query_string: searchParams.toString() ? `?${searchParams.toString()}` : '?' }),
-      }),
-    onSuccess: () => {
-      setSaveOpen(false);
-      setViewName('');
-      invalidateViews();
-    },
-  });
-
-  const deleteView = useMutation({
-    mutationFn: (id: string) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/saved-views/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      setPendingView(null);
-      invalidateViews();
-    },
-  });
 
   // Apply a saved view: replace the URL search with its stored query string; nuqs re-reads every key.
   const applyView = (queryString: string) => {
@@ -230,107 +177,7 @@ export function LensTracesPage() {
     queryFn: () => cloudFetch<TracesResult>(`/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now())}`),
   });
 
-  const tagsKey = ['cloud', '/v1/dashboard/lens/traces', openID, 'tags'] as const;
-  const tags = useQuery({
-    queryKey: tagsKey,
-    queryFn: () => cloudFetch<TagsResult>(`/v1/dashboard/lens/traces/${encodeURIComponent(openID as string)}/tags`),
-    enabled: openID !== null,
-  });
-  const invalidateTags = () => void queryClient.invalidateQueries({ queryKey: tagsKey });
-
-  const addTag = useMutation({
-    mutationFn: (t: string) =>
-      cloudFetch<TagsResult>(`/v1/dashboard/lens/traces/${encodeURIComponent(openID as string)}/tags`, {
-        method: 'POST',
-        body: JSON.stringify({ tag: t }),
-      }),
-    onSuccess: () => {
-      setTag('');
-      invalidateTags();
-    },
-  });
-
-  const removeTag = useMutation({
-    mutationFn: (t: string) =>
-      cloudFetch<TagsResult>(
-        `/v1/dashboard/lens/traces/${encodeURIComponent(openID as string)}/tags?tag=${encodeURIComponent(t)}`,
-        { method: 'DELETE' },
-      ),
-    onSuccess: () => {
-      setPendingTag(null);
-      invalidateTags();
-    },
-  });
-
-  const addAnnotation = useMutation({
-    mutationFn: (n: string) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/traces/${encodeURIComponent(openID as string)}/annotations`, {
-        method: 'POST',
-        body: JSON.stringify({ note: n }),
-      }),
-    onSuccess: () => setNote(''),
-  });
-
-  const columns: DataTableColumn<Trace>[] = [
-    {
-      key: 'compare-select',
-      label: '',
-      render: (row) => (
-        <input
-          type="checkbox"
-          checked={selected.has(row.traceId)}
-          onChange={() => toggleSelected(row.traceId)}
-          aria-label={`Select ${row.traceId} for compare`}
-          className="h-4 w-4 cursor-pointer"
-        />
-      ),
-    },
-    {
-      key: 'timestamp',
-      label: 'Time',
-      render: (row) => {
-        const iso = nsToIso(row.startTimeUnixNano);
-        if (!iso) return <span className="text-muted-foreground">—</span>;
-        return (
-          <span
-            className="text-xs whitespace-nowrap text-muted-foreground"
-            title={formatDate(iso, 'datetime')}
-          >
-            {formatDate(iso, 'relative')}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'traceId',
-      label: 'Trace',
-      render: (row) => (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setOpenID(row.traceId)}
-            title={row.traceId}
-            aria-label={`Open ${row.traceId}`}
-          >
-            <span className="font-mono text-sm">{shortId(row.traceId)}</span>
-          </Button>
-          <CopyButton value={row.traceId} label="Copy trace id" />
-        </div>
-      ),
-    },
-    { key: 'name', label: 'Name', render: (row) => <span>{row.name ?? '—'}</span> },
-    { key: 'model', label: 'Model', render: (row) => <span className="font-mono text-xs">{row.model ?? '—'}</span> },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (row) => {
-        const s = row.statusCode ?? row.status;
-        if (!s) return <span>—</span>;
-        return <Badge variant={s.toLowerCase() === 'error' ? 'destructive' : 'outline'}>{s}</Badge>;
-      },
-    },
-  ];
+  const columns = tracesColumns({ selected, toggleSelected, onOpen: setOpenID });
 
   // M57 T1.1 — newest-first by default. Defensive client-side desc sort by
   // startTimeUnixNano (BigInt-safe, missing timestamps sink to the bottom) so the
@@ -345,7 +192,6 @@ export function LensTracesPage() {
     const d = BigInt(bn) - BigInt(an);
     return d > 0n ? 1 : d < 0n ? -1 : 0;
   });
-  const currentTags = tags.data?.tags ?? [];
 
   // M54 — compare is pairwise: the action is live only with exactly two traces ticked.
   const selectedIds = Array.from(selected);
@@ -557,51 +403,7 @@ export function LensTracesPage() {
             </div>
           </div>
 
-          {/* M52 — saved views: apply / delete a stored filter combination, or save the current one. */}
-          <div className="flex flex-wrap items-center gap-2" aria-label="Saved views">
-            <span className="text-xs font-medium text-muted-foreground">Saved views:</span>
-            {(savedViews.data?.saved_views ?? []).map((v) => (
-              <span key={v.id} className="flex items-center gap-0.5">
-                <Button variant="secondary" size="sm" onClick={() => applyView(v.query_string)} aria-label={`Apply view ${v.name}`}>
-                  {v.name}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setPendingView(v)} aria-label={`Delete view ${v.name}`}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </span>
-            ))}
-            {(savedViews.data?.saved_views ?? []).length === 0 ? (
-              <span className="text-xs text-muted-foreground">none yet</span>
-            ) : null}
-            {saveOpen ? (
-              <form
-                className="flex items-center gap-1"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (viewName.trim()) createView.mutate(viewName.trim());
-                }}
-              >
-                <Input
-                  value={viewName}
-                  onChange={(e) => setViewName(e.target.value)}
-                  placeholder="View name"
-                  aria-label="Saved view name"
-                  className="w-[160px]"
-                />
-                <Button type="submit" size="sm" disabled={!viewName.trim() || createView.isPending}>
-                  Save
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setSaveOpen(false)}>
-                  Cancel
-                </Button>
-              </form>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={() => setSaveOpen(true)} aria-label="Save current view">
-                <BookmarkPlus className="mr-1 h-3.5 w-3.5" />
-                Save current view
-              </Button>
-            )}
-          </div>
+          <SavedViewsBar searchParams={searchParams} onApply={applyView} />
 
           {query.isLoading ? (
             <Skeleton />
@@ -661,90 +463,9 @@ export function LensTracesPage() {
 
           {openID !== null ? <LensTraceDetail key={openID} traceId={openID} /> : null}
 
-          {openID !== null ? (
-            <Card>
-              <Card.Header>
-                <h2 className="text-sm font-medium">Metadata · {openID}</h2>
-                <Button variant="ghost" size="sm" onClick={() => setOpenID(null)} aria-label="Close metadata">
-                  Close
-                </Button>
-              </Card.Header>
-              <Card.Body>
-                <div className="space-y-4">
-                  <div>
-                    <form
-                      className="flex items-end gap-2"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        if (tag.trim()) addTag.mutate(tag.trim());
-                      }}
-                    >
-                      <div className="flex-1">
-                        <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Add a tag" aria-label="New tag" />
-                      </div>
-                      <Button type="submit" variant="secondary" disabled={!tag.trim() || addTag.isPending}>
-                        Add tag
-                      </Button>
-                    </form>
-                    <ul className="mt-3 flex flex-wrap gap-2">
-                      {currentTags.map((t) => (
-                        <li key={t} className="flex items-center gap-1">
-                          <Badge variant="outline">{t}</Badge>
-                          <Button variant="ghost" size="sm" onClick={() => setPendingTag(t)} aria-label={`Remove tag ${t}`}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <form
-                    className="flex items-end gap-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (note.trim()) addAnnotation.mutate(note.trim());
-                    }}
-                  >
-                    <div className="flex-1">
-                      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add an annotation note" aria-label="New annotation" />
-                    </div>
-                    <Button type="submit" variant="secondary" disabled={!note.trim() || addAnnotation.isPending}>
-                      Add note
-                    </Button>
-                  </form>
-                </div>
-              </Card.Body>
-            </Card>
-          ) : null}
+          {openID !== null ? <MetadataCard traceId={openID} onClose={() => setOpenID(null)} /> : null}
         </div>
       </PageShell>
-
-      {pendingTag !== null ? (
-        <ConfirmDialog
-          open={pendingTag !== null}
-          onOpenChange={(o) => !o && setPendingTag(null)}
-          title={`Remove tag "${pendingTag}"?`}
-          description={<p className="text-sm">This removes the tag from the trace.</p>}
-          confirmLabel={removeTag.isPending ? 'Removing…' : 'Remove tag'}
-          cancelLabel="Cancel"
-          intent="destructive"
-          loading={removeTag.isPending}
-          onConfirm={() => removeTag.mutate(pendingTag)}
-        />
-      ) : null}
-
-      {pendingView !== null ? (
-        <ConfirmDialog
-          open={pendingView !== null}
-          onOpenChange={(o) => !o && setPendingView(null)}
-          title={`Delete view "${pendingView.name}"?`}
-          description={<p className="text-sm">This removes the saved view. Your current filters are unaffected.</p>}
-          confirmLabel={deleteView.isPending ? 'Deleting…' : 'Delete view'}
-          cancelLabel="Cancel"
-          intent="destructive"
-          loading={deleteView.isPending}
-          onConfirm={() => deleteView.mutate(pendingView.id)}
-        />
-      ) : null}
     </>
   );
 }

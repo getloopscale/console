@@ -251,6 +251,31 @@ describe('buildTraceQuery (M49/M52 — pure filter→querystring mapping)', () =
     expect(bf({ costMin: '1' })).not.toContain('max_cost_usd=');
     expect(bf({})).not.toContain('session_id=');
   });
+
+  // M59 P0 (D1) — behavior-preservation guard for the traces.tsx decomposition: the full-filter
+  // output string is byte-identical for a fixed filter set + fixed clock. If the Phase 0 extraction
+  // (columns.tsx + saved-views.tsx) ever accidentally moved/altered buildTraceQuery, this pins it.
+  it('M59 P0 — is byte-identical for a fixed full filter set + fixed clock (decomposition guard)', () => {
+    const out = buildTraceQuery(
+      {
+        q: 'boom',
+        status: 'error',
+        model: 'claude-opus-4-8',
+        range: '1h',
+        costMin: '0.1',
+        costMax: '5',
+        tokensMin: '100',
+        tokensMax: '9000',
+        session: 'sess-x',
+      },
+      NOW,
+    );
+    const from = new Date(NOW - 3_600_000).toISOString();
+    expect(out).toBe(
+      `?q=boom&status=error&model=claude-opus-4-8&from=${encodeURIComponent(from)}` +
+        '&min_cost_usd=0.1&max_cost_usd=5&min_tokens=100&max_tokens=9000&session_id=sess-x',
+    );
+  });
 });
 
 describe('LensTracesPage — M49 search & filters (wiring)', () => {
