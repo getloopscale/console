@@ -8,30 +8,18 @@
  * `flattenVisible`, `VIRTUALIZE_THRESHOLD`) is re-exported from `./index` and from the shim, so the
  * existing imports in `trace-detail.test.tsx`, `compare.tsx`, `compare-core.ts`, and `playground.tsx`
  * keep resolving with zero churn.
+ *
+ * M58 T1.1 — `TraceSpanNode`, `computeTraceBounds`, and `computeBarLayout` now live in the pure
+ * leaf module `@/lib/trace-layout` (with the new axis / row-pack / ∑-cost math). They are re-exported
+ * here so every existing importer keeps resolving; this file keeps the parse/flatten helpers.
  */
 
-export interface TraceSpanNode {
-  spanId: string;
-  traceId: string;
-  parentSpanId?: string;
-  name: string;
-  startTimeUnixNano?: string;
-  endTimeUnixNano?: string;
-  kind?: string;
-  statusCode?: string;
-  model?: string;
-  provider?: string;
-  inputTokens?: number;
-  outputTokens?: number;
-  ttftMs?: number;
-  cacheReadTokens?: number;
-  cacheCreationTokens?: number;
-  inputValue?: string;
-  outputValue?: string;
-  attributes?: Record<string, unknown>;
-  events?: Array<{ name: string; timeUnixNano?: string; attributes?: Record<string, unknown> }>;
-  children?: TraceSpanNode[];
-}
+export {
+  computeBarLayout,
+  computeTraceBounds,
+  type TraceSpanNode,
+} from '@/lib/trace-layout';
+import type { TraceSpanNode } from '@/lib/trace-layout';
 
 export interface ChatMessage {
   role: string;
@@ -90,70 +78,6 @@ export function flattenAll(root: TraceSpanNode): TraceSpanNode[] {
   const out: TraceSpanNode[] = [root];
   for (const c of root.children ?? []) out.push(...flattenAll(c));
   return out;
-}
-
-/**
- * Trace time bounds — min start / max end across ALL spans (in ns, BigInt-safe). The honest envelope
- * for the waterfall denominator (laminar's approach; not root-only, which lets a child overflow —
- * phoenix's weakness). Unparseable timestamps are skipped; a trace with no timestamps returns 0/0.
- */
-export function computeTraceBounds(root: TraceSpanNode): { startNs: bigint; endNs: bigint } {
-  let start: bigint | null = null;
-  let end: bigint | null = null;
-  for (const n of flattenAll(root)) {
-    if (!n.startTimeUnixNano) continue;
-    let s: bigint;
-    try {
-      s = BigInt(n.startTimeUnixNano);
-    } catch {
-      continue; // unparseable start → the span cannot be placed; skip it entirely
-    }
-    if (start === null || s < start) start = s;
-    // A valid start always counts even when the end is missing/unparseable (fall back to the start).
-    let e = s;
-    if (n.endTimeUnixNano) {
-      try {
-        e = BigInt(n.endTimeUnixNano);
-      } catch {
-        e = s;
-      }
-    }
-    if (end === null || e > end) end = e;
-  }
-  const s = start ?? 0n;
-  return { startNs: s, endNs: end ?? s };
-}
-
-/**
- * Pure waterfall bar layout: map a span's [start, end] against the trace bounds → clamped
- * {leftPct, widthPct} in [0,100] with `leftPct + widthPct ≤ 100`. Converges the SOTA peers
- * (blueprint ADR D1): div-by-zero guard (opik), missing-end → zero-width `unbounded` (langfuse),
- * clamp [0,100] (opik). BigInt ns arithmetic (no float precision loss); percentages carry 2 decimals.
- */
-export function computeBarLayout(
-  spanStartNs: string | undefined,
-  spanEndNs: string | undefined,
-  traceStartNs: bigint,
-  traceEndNs: bigint,
-): { leftPct: number; widthPct: number; unbounded: boolean } {
-  const span = traceEndNs > traceStartNs ? traceEndNs - traceStartNs : 1n; // div-by-zero guard
-  if (!spanStartNs) return { leftPct: 0, widthPct: 0, unbounded: true };
-  let start: bigint;
-  let end: bigint | null;
-  try {
-    start = BigInt(spanStartNs);
-    end = spanEndNs ? BigInt(spanEndNs) : null;
-  } catch {
-    return { leftPct: 0, widthPct: 0, unbounded: true };
-  }
-  const unbounded = end === null;
-  const effEnd = end ?? start;
-  // percent with 2 decimals via integer bigint math: (delta * 10000 / span) / 100
-  const pct = (delta: bigint) => (delta > 0n ? Number((delta * 10_000n) / span) / 100 : 0);
-  const leftPct = Math.min(Math.max(pct(start - traceStartNs), 0), 100);
-  const rawWidth = effEnd > start ? pct(effEnd - start) : 0;
-  const widthPct = Math.min(Math.max(rawWidth, 0), 100 - leftPct);
-  return { leftPct, widthPct, unbounded };
 }
 
 /** Depth-first flatten of VISIBLE spans (a node in `collapsed` contributes no descendants). */
