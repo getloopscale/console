@@ -10,6 +10,7 @@ import {
   type DataTableColumn,
   EmptyState,
   Input,
+  Label,
   PageShell,
   Skeleton,
   Timestamp,
@@ -150,11 +151,12 @@ export function LensDatasetsPage() {
                 }}
               >
                 <div className="flex-1">
+                  <Label htmlFor="dataset-name">Dataset name</Label>
                   <Input
+                    id="dataset-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="New dataset name"
-                    aria-label="New dataset name"
                   />
                 </div>
                 <Button type="submit" disabled={!name.trim() || create.isPending}>

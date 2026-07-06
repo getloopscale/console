@@ -16,7 +16,7 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     render(<LensEvaluatorsPage />);
     await screen.findByText(/no evaluators yet/i);
 
-    await userEvent.type(screen.getByLabelText(/new evaluator name/i), 'nonempty');
+    await userEvent.type(screen.getByLabelText(/^name$/i), 'nonempty');
     await userEvent.type(screen.getByLabelText(/rule predicate/i), 'output.length > 0');
     await userEvent.click(screen.getByRole('button', { name: /create evaluator/i }));
 
