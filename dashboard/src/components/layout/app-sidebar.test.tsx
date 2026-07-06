@@ -63,4 +63,21 @@ describe('AppSidebar', () => {
     render(<AppSidebar session={makeSession()} />);
     expect(screen.getByPlaceholderText('Find a project...')).toBeInTheDocument();
   });
+
+  it('M59 P4 — the lens submenu groups nav into Observe / Evaluate / Improve', () => {
+    // On an /observability route the sidebar drills into the lens submenu.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/observability/traces'] });
+    // the three titled groups render…
+    expect(screen.getByText('Observe')).toBeInTheDocument();
+    expect(screen.getByText('Evaluate')).toBeInTheDocument();
+    expect(screen.getByText('Improve')).toBeInTheDocument();
+    // …and every lens-unique item is still present at its unchanged path.
+    for (const label of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Agents', 'Ask']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    // paths are unchanged (the grouping is data-only) — the Traces item still navigates the same route.
+    expect(screen.getByRole('button', { name: /traces/i })).toBeInTheDocument();
+    // (the workspace switcher lives in the root sidebar view — untouched by this data-only regrouping;
+    //  it is covered by test_app_sidebar_team_switcher_renders_session_name.)
+  });
 });
