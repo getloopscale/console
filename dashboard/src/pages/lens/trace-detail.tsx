@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { Alert, Badge, Button, Card, Skeleton } from '@usetheo/ui';
+import { Alert, Badge, Button, Card, EmptyState, Skeleton } from '@usetheo/ui';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
@@ -599,11 +599,22 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
   }, [activeId]);
 
   if (query.isPending) return <Skeleton className="h-40 w-full" />;
-  if (query.isError || !root) {
+  // M57 T5.1 — distinguish an error (service unavailable) from an honest empty
+  // result (the fetch succeeded but the trace carries no spans). Conflating them
+  // told the user "unavailable" when the service was fine.
+  if (query.isError) {
     return (
       <Alert intent="warning" title="Could not load this trace">
         The lens service is unavailable. Try again shortly.
       </Alert>
+    );
+  }
+  if (!root) {
+    return (
+      <EmptyState
+        title="No spans in this trace"
+        description="This trace was recorded but carries no spans to display."
+      />
     );
   }
 

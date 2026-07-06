@@ -670,7 +670,7 @@ export function LensTracesPage() {
                       <div className="flex-1">
                         <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Add a tag" aria-label="New tag" />
                       </div>
-                      <Button type="submit" disabled={!tag.trim() || addTag.isPending}>
+                      <Button type="submit" variant="secondary" disabled={!tag.trim() || addTag.isPending}>
                         Add tag
                       </Button>
                     </form>
@@ -695,7 +695,7 @@ export function LensTracesPage() {
                     <div className="flex-1">
                       <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add an annotation note" aria-label="New annotation" />
                     </div>
-                    <Button type="submit" disabled={!note.trim() || addAnnotation.isPending}>
+                    <Button type="submit" variant="secondary" disabled={!note.trim() || addAnnotation.isPending}>
                       Add note
                     </Button>
                   </form>

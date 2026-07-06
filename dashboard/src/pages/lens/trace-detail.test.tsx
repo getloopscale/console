@@ -210,6 +210,15 @@ describe('LensTraceDetail — tree interaction', () => {
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });
+
+  // M57 T5.1 — a successful fetch with no spans is an honest empty state, NOT
+  // the "service unavailable" error (which is reserved for query.isError).
+  it('shows an empty state (not the error alert) when the trace has no spans', async () => {
+    mockCloudFetch.mockResolvedValue(null);
+    render(<LensTraceDetail traceId="t1" />);
+    expect(await screen.findByText('No spans in this trace')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load this trace')).not.toBeInTheDocument();
+  });
 });
 
 describe('LensTraceDetail — M48 scale + rich', () => {
