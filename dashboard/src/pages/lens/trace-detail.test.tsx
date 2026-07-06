@@ -156,18 +156,20 @@ describe('LensTraceDetail — selected-span detail', () => {
     expect(within(detail).queryByText('885 ms')).not.toBeInTheDocument();
   });
 
-  it('truncates oversized output and show-more reveals the full content', async () => {
+  it('renders an oversized non-chat output in the read-only CodeMirror raw-JSON view (M58 P3.2)', async () => {
+    // M58 P3.2 — a non-chat payload now falls back to the CodeMirror raw-JSON view (IoCards), which
+    // renders/folds the full text as document (not HTML) rather than the old `<pre>` show-more. The
+    // markdown byte-guard "Show more" lives on the chat-message body, not this raw fallback.
     const big = 'x'.repeat(20000);
     mockCloudFetch.mockResolvedValue(tree({ inputValue: undefined, outputValue: big, children: [] }));
     render(<LensTraceDetail traceId="t1" />);
     const out = await screen.findByTestId('span-output');
-    expect((out.textContent ?? '').length).toBeLessThan(big.length); // truncated
-    await userEvent.click(screen.getByRole('button', { name: /show more/i }));
-    expect((screen.getByTestId('span-output').textContent ?? '').length).toBe(big.length); // fully revealed
-    expect(screen.getByRole('button', { name: /show less/i })).toBeInTheDocument();
+    const cm = out.querySelector('.cm-editor');
+    expect(cm).toBeInTheDocument();
+    expect(cm?.querySelector('.cm-content')?.getAttribute('contenteditable')).toBe('false');
   });
 
-  it('role-renders a chat-message array instead of raw JSON', async () => {
+  it('role-renders a chat-message array as role-labeled IO cards (M58 P3.2)', async () => {
     const chat = JSON.stringify([
       { role: 'user', content: 'why did it fail?' },
       { role: 'assistant', content: 'the tool timed out' },
@@ -175,7 +177,9 @@ describe('LensTraceDetail — selected-span detail', () => {
     mockCloudFetch.mockResolvedValue(tree({ inputValue: chat, children: [] }));
     render(<LensTraceDetail traceId="t1" />);
     const detail = await screen.findByTestId('span-detail');
-    expect(within(detail).getByTestId('chat-view')).toBeInTheDocument();
+    // M58 P3.2 — bordered role-labeled Cards, NOT the legacy chat-view bubbles.
+    expect(within(detail).queryByTestId('chat-view')).toBeNull();
+    expect(within(detail).getAllByTestId('io-card')).toHaveLength(2);
     expect(within(detail).getByText('user')).toBeInTheDocument();
     expect(within(detail).getByText('why did it fail?')).toBeInTheDocument();
     expect(within(detail).getByText('assistant')).toBeInTheDocument();
@@ -841,5 +845,131 @@ describe('Attributes — namespace-grouped, PII-masked panel (M58 P2.2)', () => 
     expect(within(detail).getByRole('button', { name: /collapse gen_ai/i })).toBeInTheDocument();
     expect(within(detail).queryByText(PII_EMAIL)).toBeNull();
     expect(detail.innerHTML).not.toContain(PII_EMAIL);
+  });
+});
+
+// M58 P3.1 — the single sanitized `Markdown` wrapper (the ONLY react-markdown import site, ADR D5).
+// XSS-safety is a non-negotiable guardrail: the negative tests below assert a malicious payload
+// produces no executable node and no `javascript:` href. `IoCards` (P3.2) renders IO bodies through
+// this wrapper; both live in `io-cards.tsx`.
+import { Markdown, IoCards } from './trace-detail/io-cards';
+
+describe('Markdown — sanitized wrapper (M58 P3.1, XSS guard)', () => {
+  it('strips a <script> payload — no script node reaches the DOM', () => {
+    const { container } = render(<Markdown source={'<script>alert(1)</script>'} />);
+    expect(container.querySelector('script')).toBeNull();
+  });
+
+  it('strips a javascript: link href — no anchor carries a javascript: URL', () => {
+    const { container } = render(<Markdown source={'[x](javascript:alert(1))'} />);
+    const anchors = Array.from(container.querySelectorAll('a'));
+    expect(anchors.some((a) => (a.getAttribute('href') ?? '').toLowerCase().startsWith('javascript:'))).toBe(false);
+  });
+
+  it('renders valid markdown — **bold** becomes a <strong>', () => {
+    const { container } = render(<Markdown source={'**bold**'} />);
+    const strong = container.querySelector('strong');
+    expect(strong).not.toBeNull();
+    expect(strong?.textContent).toBe('bold');
+  });
+
+  it('renders nothing for an empty string and plain text verbatim', () => {
+    const { container: empty } = render(<Markdown source={''} />);
+    expect((empty.textContent ?? '').trim()).toBe('');
+    const { container: plain } = render(<Markdown source={'just words'} />);
+    expect(plain.textContent).toContain('just words');
+  });
+});
+
+// M58 P3.2 — role-labeled IO cards + tool-call cards + redacted/thinking + "Show N more".
+// `IoCards` upgrades the old `ValueBlock`/`ChatView`: role-labeled bordered Cards (NOT bubbles) with a
+// Markdown body + raw-JSON CodeMirror toggle + CopyButton; dedicated tool-call cards linked by call-id;
+// a redacted/thinking placeholder; long-history collapse; and a raw-JSON fallback when `asChat` is null.
+describe('IoCards — role-labeled IO cards (M58 P3.2)', () => {
+  it('renders a role-labeled Card per message (Badge roles, not bubbles)', () => {
+    const chat = JSON.stringify([
+      { role: 'user', content: 'why did it fail?' },
+      { role: 'assistant', content: 'the tool timed out' },
+    ]);
+    render(<IoCards value={chat} testId="io" />);
+    const cards = screen.getAllByTestId('io-card');
+    expect(cards).toHaveLength(2);
+    expect(within(cards[0]).getByText('user')).toBeInTheDocument();
+    expect(within(cards[1]).getByText('assistant')).toBeInTheDocument();
+    // NOT the legacy bubble container.
+    expect(screen.queryByTestId('chat-view')).toBeNull();
+    expect(screen.getByText('why did it fail?')).toBeInTheDocument();
+  });
+
+  it('renders a tool-call card (name + call-id) and links its result by call-id', () => {
+    const chat = JSON.stringify([
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: 'call_42', function: { name: 'get_weather', arguments: '{"city":"SF"}' } }],
+      },
+      { role: 'tool', content: '{"temp":18}', tool_call_id: 'call_42' },
+    ]);
+    render(<IoCards value={chat} testId="io" />);
+    const callCard = screen.getByTestId('tool-call-call_42');
+    expect(within(callCard).getByText('get_weather')).toBeInTheDocument();
+    expect(within(callCard).getByText(/call_42/)).toBeInTheDocument();
+    // The result card is linked by the same call-id.
+    const resultCard = screen.getByTestId('tool-result-call_42');
+    expect(within(resultCard).getByText(/call_42/)).toBeInTheDocument();
+    expect(within(resultCard).getByText(/18/)).toBeInTheDocument();
+  });
+
+  it('renders a [Redacted thinking] block for redacted reasoning content', () => {
+    const chat = JSON.stringify([
+      { role: 'assistant', content: [{ type: 'thinking', thinking: '<REDACTED>' }] },
+    ]);
+    render(<IoCards value={chat} testId="io" />);
+    expect(screen.getByText(/redacted thinking/i)).toBeInTheDocument();
+  });
+
+  it('collapses a long history to first + last N with a "Show N more" toggle', async () => {
+    const msgs = Array.from({ length: 12 }, (_, i) => ({ role: 'user', content: `msg ${i}` }));
+    render(<IoCards value={JSON.stringify(msgs)} testId="io" />);
+    // A 12-message history collapses; the middle messages are hidden until expanded.
+    const showMore = screen.getByRole('button', { name: /show \d+ more/i });
+    expect(showMore).toBeInTheDocument();
+    expect(screen.queryByText('msg 5')).toBeNull(); // a middle (hidden) message
+    expect(screen.getByText('msg 0')).toBeInTheDocument(); // first shown
+    expect(screen.getByText('msg 11')).toBeInTheDocument(); // last shown
+    await userEvent.click(showMore);
+    expect(screen.getByText('msg 5')).toBeInTheDocument(); // revealed after click
+  });
+
+  it('falls back to the raw-JSON CodeMirror view for a non-chat payload (asChat null)', () => {
+    const { container } = render(<IoCards value={'{"answer":"hi"}'} testId="io" />);
+    // No role cards; the CodeMirror raw-JSON view renders instead.
+    expect(screen.queryByTestId('io-card')).toBeNull();
+    const cm = container.querySelector('.cm-editor');
+    expect(cm).not.toBeNull();
+    expect(container.textContent ?? '').toContain('answer');
+  });
+
+  it('preserves the redacted-value marker for a plain <REDACTED> payload', () => {
+    render(<IoCards value={'<REDACTED>'} testId="io" />);
+    expect(screen.getByText(/redacted by the client/i)).toBeInTheDocument();
+  });
+
+  it('mounts in the selected-span detail Input/Output sections (integration)', async () => {
+    const chat = JSON.stringify([{ role: 'user', content: 'hi there' }]);
+    mockCloudFetch.mockResolvedValue(tree({ inputValue: chat, children: [] }));
+    render(<LensTraceDetail traceId="t1" />);
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('hi there')).toBeInTheDocument();
+    expect(within(detail).getAllByTestId('io-card').length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// M58 P3.1/P3.2 — the react-markdown XSS invariant at the source level: exactly ONE import site and
+// NO dangerouslySetInnerHTML in the IO module.
+describe('IO module — react-markdown single-import + no dangerouslySetInnerHTML (M58 P3)', () => {
+  it('io-cards.tsx never uses dangerouslySetInnerHTML', () => {
+    const src = readFileSync(resolve(process.cwd(), 'src/pages/lens/trace-detail/io-cards.tsx'), 'utf8');
+    expect(src).not.toMatch(/dangerouslySetInnerHTML\s*=/);
   });
 });

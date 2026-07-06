@@ -21,9 +21,20 @@ export {
 } from '@/lib/trace-layout';
 import type { TraceSpanNode } from '@/lib/trace-layout';
 
+/** One OpenAI-shaped tool call attached to an assistant message. */
+export interface ToolCall {
+  id: string;
+  function?: { name?: string; arguments?: string };
+}
+
 export interface ChatMessage {
   role: string;
   content: unknown;
+  // M58 P3.2 — OpenAI tool-call passthrough. An assistant message may carry `tool_calls`; the matching
+  // `tool` result message carries `tool_call_id`. Optional/additive so the existing `{role,content}`
+  // detection and every existing `asChat` test stay green (a chat message need not have either).
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
 }
 
 export interface FlatNode {

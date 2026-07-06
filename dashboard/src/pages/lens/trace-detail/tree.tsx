@@ -2,110 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge, Button } from '@usetheo/ui';
-import CodeMirror from '@uiw/react-codemirror';
-import { json } from '@codemirror/lang-json';
-import { EditorView } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
 
 import { LensPlayground } from '../playground';
 import { Attributes } from './attributes';
+import { IoCards } from './io-cards';
 import { formatDuration, formatTokens } from '@/lib/format';
-import {
-  asChat,
-  computeBarLayout,
-  durationMs,
-  prettyValue,
-  type ChatMessage,
-  type FlatNode,
-  type TraceSpanNode,
-} from './helpers';
+import { computeBarLayout, durationMs, type FlatNode, type TraceSpanNode } from './helpers';
 
 /**
  * Presentational view components for the trace-detail screen (M58 D1 split out of the composition
- * root `./index`). Escaped-text render only — CodeMirror renders values as document text, never HTML
- * (the XSS guard). No I/O and no URL access here; selection is passed in via `selectedId` + callbacks.
+ * root `./index`). Escaped-text render only — the IO body goes through the sanitized `Markdown` wrapper
+ * and raw JSON stays in CodeMirror `readOnly` (document text, never HTML — the XSS guard, M48/M58 P3).
+ * No I/O and no URL access here; selection is passed in via `selectedId` + callbacks.
  */
 
-const REDACTED = '<REDACTED>';
-const MAX_VALUE_CHARS = 2000;
-
 type Bounds = { startNs: bigint; endNs: bigint };
-
-// ---- value rendering ----
-
-function ChatView({ messages }: { messages: ChatMessage[] }) {
-  return (
-    <div className="space-y-2" data-testid="chat-view">
-      {messages.map((m, i) => (
-        <div key={i} className="rounded-md border p-2">
-          <Badge variant="outline" className="mb-1">
-            {m.role}
-          </Badge>
-          <pre className="whitespace-pre-wrap break-words text-xs">
-            {typeof m.content === 'string' ? m.content : JSON.stringify(m.content, null, 2)}
-          </pre>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Read-only, syntax-highlighted, foldable JSON/text via CodeMirror (M48). */
-function JsonView({ text, testId }: { text: string; testId?: string }) {
-  return (
-    <div data-testid={testId} className="overflow-hidden rounded-md border">
-      <CodeMirror
-        value={text}
-        editable={false}
-        basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: false }}
-        extensions={[json(), EditorView.lineWrapping, EditorState.readOnly.of(true)]}
-      />
-    </div>
-  );
-}
-
-/** Escaped-render a span input/output value; redacted markers, chat arrays and oversized values are
- * DATA. Normal-size JSON/text renders in CodeMirror (M48); oversized keeps the M47 `<pre>` + show-more. */
-function ValueBlock({ value, testId }: { value?: string; testId?: string }) {
-  const [expanded, setExpanded] = useState(false);
-  if (value === undefined || value === null || value === '') {
-    return <p className="text-xs text-muted-foreground">—</p>;
-  }
-  if (value === REDACTED) {
-    return (
-      <p className="text-xs text-muted-foreground" data-testid={testId}>
-        Redacted by the client (prompt logging is off).
-      </p>
-    );
-  }
-  const chat = asChat(value);
-  if (chat) {
-    return (
-      <div data-testid={testId}>
-        <ChatView messages={chat} />
-      </div>
-    );
-  }
-  const text = prettyValue(value);
-  const oversized = text.length > MAX_VALUE_CHARS;
-  if (oversized) {
-    const shown = expanded ? text : text.slice(0, MAX_VALUE_CHARS);
-    return (
-      <div className="space-y-1">
-        <pre
-          data-testid={testId}
-          className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-2 text-xs"
-        >
-          {shown}
-        </pre>
-        <Button variant="ghost" size="sm" onClick={() => setExpanded((e) => !e)}>
-          {expanded ? 'Show less' : `Show more (${text.length - MAX_VALUE_CHARS} more chars)`}
-        </Button>
-      </div>
-    );
-  }
-  return <JsonView text={text} testId={testId} />;
-}
 
 // ---- tree rendering ----
 
@@ -374,11 +285,11 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
 
       <section className="space-y-1">
         <h3 className="text-xs font-semibold uppercase text-muted-foreground">Input</h3>
-        <ValueBlock key={`in-${span.spanId}`} value={span.inputValue} testId="span-input" />
+        <IoCards key={`in-${span.spanId}`} value={span.inputValue} testId="span-input" />
       </section>
       <section className="space-y-1">
         <h3 className="text-xs font-semibold uppercase text-muted-foreground">Output</h3>
-        <ValueBlock key={`out-${span.spanId}`} value={span.outputValue} testId="span-output" />
+        <IoCards key={`out-${span.spanId}`} value={span.outputValue} testId="span-output" />
       </section>
 
       {hasAttrs ? (
