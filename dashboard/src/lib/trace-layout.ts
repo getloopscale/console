@@ -243,3 +243,91 @@ export function aggregateCost(node: TraceSpanNode): number {
   for (const c of node.children ?? []) total += aggregateCost(c);
   return total;
 }
+
+// ---- M58 T4.1 — reader-mode Transcript row model ----
+
+/** Per-row micro-stats surfaced by the Transcript feed. Missing inputs collapse to 0/null, never NaN. */
+export interface TranscriptRowStats {
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  durationMs: number | null;
+}
+
+/**
+ * One row in the reader-mode Transcript feed. A `span` row renders a Card (role + preview + stats);
+ * a `group-header` row is a collapsible header for a subagent subtree (its `groupId` == the subtree
+ * root's `spanId`). Every row carries the `spanId` it belongs to so the view can sync URL selection.
+ */
+export interface TranscriptRow {
+  kind: 'span' | 'group-header';
+  spanId: string;
+  role?: string;
+  preview?: string;
+  stats?: TranscriptRowStats;
+  groupId?: string;
+}
+
+// A span whose output preview is longer than this is sliced (the full body lives in the detail pane).
+const TRANSCRIPT_PREVIEW_CHARS = 140;
+// Subagent-grouping rule (M58 T4.1): the fixtures carry OTel numeric `kind` values (1/2/…), not agent
+// semantics, so there is NO reliable agent-kind signal in the data. The simplest defensible rule
+// (documented per the plan) is: a node that fans out into ≥2 children is treated as a subagent subtree
+// and gets a collapsible `group-header` row before its children. A single-child chain is a plain span.
+const SUBAGENT_MIN_CHILDREN = 2;
+
+/** Role label for a Transcript row: prefer the span `kind`, else the span `name`. Total, never empty-crash. */
+function transcriptRole(node: TraceSpanNode): string {
+  return node.kind ?? node.name ?? 'span';
+}
+
+/** A short, single-line preview of a span's output (empty string when absent — never a crash). */
+function transcriptPreview(node: TraceSpanNode): string {
+  const raw = node.outputValue ?? '';
+  const oneLine = raw.replace(/\s+/g, ' ').trim();
+  return oneLine.length > TRANSCRIPT_PREVIEW_CHARS
+    ? `${oneLine.slice(0, TRANSCRIPT_PREVIEW_CHARS)}…`
+    : oneLine;
+}
+
+/**
+ * Flatten a span tree into the ordered reader-mode Transcript feed (M58 T4.1, ADR D2). Pre-order walk
+ * (root, then children depth-first) so `span`-row order matches `flattenVisible`. A subagent subtree
+ * (a node with ≥ SUBAGENT_MIN_CHILDREN children — see the rule note above) emits a `group-header` row
+ * BEFORE its child rows so the view can collapse the group. Pure + total: a single default span yields
+ * exactly one `span` row; a missing `outputValue` yields an empty preview, never a throw.
+ */
+export function toTranscriptRows(root: TraceSpanNode): TranscriptRow[] {
+  const rows: TranscriptRow[] = [];
+  const walk = (node: TraceSpanNode) => {
+    const children = node.children ?? [];
+    let dur: number | null = null;
+    if (node.startTimeUnixNano && node.endTimeUnixNano) {
+      try {
+        const ms = (BigInt(node.endTimeUnixNano) - BigInt(node.startTimeUnixNano)) / 1_000_000n;
+        dur = ms < 0n ? null : Number(ms);
+      } catch {
+        dur = null; // unparseable timestamps → no duration, never a throw
+      }
+    }
+    rows.push({
+      kind: 'span',
+      spanId: node.spanId,
+      role: transcriptRole(node),
+      preview: transcriptPreview(node),
+      stats: {
+        inputTokens: node.inputTokens ?? 0,
+        outputTokens: node.outputTokens ?? 0,
+        costUsd: spanCostUsd(node),
+        durationMs: dur,
+      },
+    });
+    // A fan-out node is a subagent subtree — announce it with a collapsible header before its children.
+    if (children.length >= SUBAGENT_MIN_CHILDREN) {
+      rows.push({ kind: 'group-header', spanId: node.spanId, groupId: node.spanId });
+    }
+    for (const c of children) walk(c);
+  };
+  walk(root);
+  return rows;
+}

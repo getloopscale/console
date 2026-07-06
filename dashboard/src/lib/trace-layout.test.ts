@@ -7,6 +7,7 @@ import {
   niceAxisTicks,
   packRows,
   spanCostUsd,
+  toTranscriptRows,
   type TraceSpanNode,
 } from './trace-layout';
 
@@ -123,5 +124,75 @@ describe('spanCostUsd + aggregateCost — ∑ subtree cost, total (never NaN)', 
     expect(spanCostUsd(span({ attributes: { 'gen_ai.usage.cost': 0.007 } }))).toBeCloseTo(0.007);
     expect(spanCostUsd(span())).toBe(0);
     expect(Number.isNaN(spanCostUsd(span({ attributes: { 'gen_ai.usage.cost': 'oops' } })))).toBe(false);
+  });
+});
+
+/**
+ * M58 T4.1 — `toTranscriptRows` flattens the span tree into the reader-mode feed's row model. The
+ * grouping rule under test: a node with ≥2 children is a "subagent" subtree and emits a `group-header`
+ * row BEFORE its child rows (documented in trace-layout.ts). Order otherwise matches `flattenVisible`.
+ */
+describe('toTranscriptRows — pure span→transcript-row model', () => {
+  it('emits rows in pre-order (root then children depth-first), one span row per node', () => {
+    const root = span({
+      spanId: 's0',
+      children: [
+        span({ spanId: 's1', children: [span({ spanId: 's3' })] }),
+        span({ spanId: 's2' }),
+      ],
+    });
+    // s0 has 2 children → a group-header precedes its span rows. s1 has 1 child → no header.
+    const spanRows = toTranscriptRows(root).filter((r) => r.kind === 'span');
+    expect(spanRows.map((r) => r.spanId)).toEqual(['s0', 's1', 's3', 's2']);
+  });
+
+  it('emits a group-header row before the children of a subagent subtree (≥2 children)', () => {
+    const root = span({
+      spanId: 'agent',
+      children: [span({ spanId: 'a' }), span({ spanId: 'b' })],
+    });
+    const rows = toTranscriptRows(root);
+    // agent(span), group-header(agent), a(span), b(span)
+    const header = rows.find((r) => r.kind === 'group-header');
+    expect(header).toBeDefined();
+    expect(header?.groupId).toBe('agent');
+    // the group-header appears before its children's span rows
+    const headerIdx = rows.findIndex((r) => r.kind === 'group-header');
+    const aIdx = rows.findIndex((r) => r.kind === 'span' && r.spanId === 'a');
+    const bIdx = rows.findIndex((r) => r.kind === 'span' && r.spanId === 'b');
+    expect(headerIdx).toBeLessThan(aIdx);
+    expect(headerIdx).toBeLessThan(bIdx);
+  });
+
+  it('a single default span (root only, no children) yields exactly one span row', () => {
+    expect(toTranscriptRows(span({ spanId: 'solo' }))).toHaveLength(1);
+    expect(toTranscriptRows(span({ spanId: 'solo' }))[0].kind).toBe('span');
+  });
+
+  it('a missing outputValue yields an empty preview (no throw)', () => {
+    const rows = toTranscriptRows(span({ spanId: 'solo' /* no outputValue */ }));
+    expect(rows[0].preview).toBe('');
+  });
+
+  it('derives a role and per-row stats (tokens/cost/duration) from the node', () => {
+    const rows = toTranscriptRows(
+      span({
+        spanId: 'solo',
+        kind: 'LLM',
+        inputTokens: 10,
+        outputTokens: 4,
+        costUsd: 0.02,
+        startTimeUnixNano: '1000000',
+        endTimeUnixNano: '3000000',
+        outputValue: 'the tool timed out and I retried',
+      }),
+    );
+    const row = rows[0];
+    expect(row.role).toBe('LLM');
+    expect(row.stats?.inputTokens).toBe(10);
+    expect(row.stats?.outputTokens).toBe(4);
+    expect(row.stats?.costUsd).toBeCloseTo(0.02);
+    expect(row.stats?.durationMs).toBe(2);
+    expect((row.preview ?? '').length).toBeGreaterThan(0);
   });
 });
