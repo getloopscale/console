@@ -6,6 +6,7 @@ import { Alert, Badge, Card, EmptyState, PageShell, Skeleton } from '@usetheo/ui
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
+import { formatCost } from '@/lib/format';
 import {
   computeBarLayout,
   computeTraceBounds,
@@ -73,9 +74,6 @@ function useLane(id: string | undefined): LaneData {
 
 function fmtMs(v: number | null): string {
   return v === null ? '—' : `${v} ms`;
-}
-function fmtCost(v: number | null): string {
-  return v === null ? '—' : `$${v.toFixed(4)}`;
 }
 
 /** A delta badge. `lowerIsBetter` → a "+" (increase) is a regression (destructive), "−" an improvement. */
@@ -166,7 +164,7 @@ function Lane({ lane, label }: { lane: LaneData; label: string }) {
                 —
               </span>
             ) : (
-              fmtCost(m.costUsd)
+              formatCost(m.costUsd ?? Number.NaN)
             )}
           </dd>
         </div>
