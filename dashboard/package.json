@@ -89,6 +89,7 @@
     "web-vitals": "^5.2.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.60.0",
     "@size-limit/preset-app": "^12.1.0",
