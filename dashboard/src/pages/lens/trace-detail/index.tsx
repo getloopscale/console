@@ -15,6 +15,7 @@ import {
 import { Breadcrumb, useSelection, useSpanKeyboardNav } from './breadcrumb';
 import { RecursiveTree, SpanDetail, VirtualTree } from './tree';
 import { Transcript } from './transcript';
+import { SpanGraph } from './span-graph';
 import { Waterfall } from './waterfall';
 
 /**
@@ -32,9 +33,11 @@ import { Waterfall } from './waterfall';
 
 export function LensTraceDetail({ traceId }: { traceId: string }) {
   const { spanId, view, setSelection } = useSelection(traceId);
-  // M58 P4.2 — the Tree ⇄ Transcript toggle. The URL `?view=` is the source of truth (ADR D2/D3);
-  // default `tree`. Only `transcript` swaps the left lane for the reader-mode feed.
+  // M58 P4.2 — the Tree ⇄ Transcript toggle (M67 adds Graph). The URL `?view=` is the source of truth
+  // (ADR D2/D3); default `tree`. `transcript` swaps the left lane for the reader-mode feed; `graph`
+  // swaps it for the M67 agent execution graph.
   const isTranscript = view === 'transcript';
+  const isGraph = view === 'graph';
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const selectedRef = useRef<HTMLButtonElement>(null);
   const query = useQuery({
@@ -102,13 +105,13 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
         <Panel defaultSize={40} minSize={20}>
           <Card className="h-full">
             <Card.Body>
-              {/* M58 P4.2 — the Tree ⇄ Transcript segmented toggle (writes ?view=). */}
+              {/* M58/M67 — the Tree ⇄ Transcript ⇄ Graph segmented toggle (writes ?view=). */}
               <div role="group" aria-label="View mode" className="mb-2 inline-flex gap-1">
                 <Button
                   type="button"
                   size="sm"
-                  variant={isTranscript ? 'ghost' : 'secondary'}
-                  aria-pressed={!isTranscript}
+                  variant={!isTranscript && !isGraph ? 'secondary' : 'ghost'}
+                  aria-pressed={!isTranscript && !isGraph}
                   onClick={() => setSelection({ view: 'tree' })}
                 >
                   Tree
@@ -122,8 +125,19 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
                 >
                   Transcript
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isGraph ? 'secondary' : 'ghost'}
+                  aria-pressed={isGraph}
+                  onClick={() => setSelection({ view: 'graph' })}
+                >
+                  Graph
+                </Button>
               </div>
-              {isTranscript ? (
+              {isGraph ? (
+                <SpanGraph root={root} selectedId={selectedResolvedId} onSelect={onSelect} />
+              ) : isTranscript ? (
                 <Transcript root={root} selectedId={selectedResolvedId} onSelect={onSelect} />
               ) : (
                 <div

@@ -30,6 +30,7 @@ import {
   VIRTUALIZE_THRESHOLD,
 } from './trace-detail';
 import { ancestors } from './trace-detail/breadcrumb';
+import { GRAPH_NODE_CAP } from './trace-detail/graph-layout';
 import { aggregateCost } from '@/lib/trace-layout';
 import { formatCost, formatDate } from '@/lib/format';
 
@@ -1093,5 +1094,68 @@ describe('LensTraceDetail — M58 P4.2 reader-mode Transcript', () => {
     mockCloudFetch.mockResolvedValue({ spanId: 'solo', traceId: 't1', name: 'solo.span' });
     render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
     expect(await screen.findByText('Only one span in this trace')).toBeInTheDocument();
+  });
+});
+
+describe('LensTraceDetail — Graph tab (M67)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('test_graph_tab_renders_nodes_and_edges', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=graph'] });
+    const graph = await screen.findByTestId('span-graph');
+    // one node per span (root + child), one edge <line> for the parent→child link
+    expect(within(graph).getAllByTestId('graph-node')).toHaveLength(2);
+    expect(graph.querySelectorAll('line')).toHaveLength(1);
+    expect(within(graph).getByRole('img', { name: /agent execution graph/i })).toBeInTheDocument();
+  });
+
+  it('test_graph_node_click_selects_span (M58 selection sync)', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=graph'] });
+    await screen.findByTestId('span-graph');
+    // the child graph node exposes role=button + an aria-label with its name
+    const childNode = screen.getByRole('button', { name: /claude_code\.llm_request/i });
+    await userEvent.click(childNode);
+    // clicking the node selects the span → the (cross-lane) detail panel shows the child's model
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('claude-haiku-4-5-20251001')).toBeInTheDocument();
+  });
+
+  it('test_graph_deeplink_highlights_selected_and_path', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=graph&spanId=child'] });
+    await screen.findByTestId('span-graph');
+    const selected = screen.getByRole('button', { name: /claude_code\.llm_request.*selected/i });
+    expect(selected).toHaveAttribute('data-selected', 'true');
+    expect(selected).toHaveAttribute('data-on-path', 'true'); // the root→selected chain
+  });
+
+  it('test_graph_oversize_shows_honest_state', async () => {
+    mockCloudFetch.mockResolvedValue(wideTree(GRAPH_NODE_CAP)); // root + CAP = CAP+1 > CAP
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=graph'] });
+    expect(await screen.findByTestId('graph-too-large')).toBeInTheDocument();
+    expect(screen.queryByTestId('span-graph')).toBeNull(); // never renders an oversize canvas
+  });
+
+  it('test_graph_malformed_parent_still_renders (negative)', async () => {
+    // a child pointing at an absent parent must not crash — it attaches under the root
+    mockCloudFetch.mockResolvedValue({
+      spanId: 'root',
+      traceId: 't1',
+      name: 'root.span',
+      children: [{ spanId: 'orphan', traceId: 't1', parentSpanId: 'ghost', name: 'orphan.span' }],
+    });
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=graph'] });
+    const graph = await screen.findByTestId('span-graph');
+    expect(within(graph).getAllByTestId('graph-node')).toHaveLength(2); // root + orphan, no crash
+  });
+
+  it('test_graph_tab_reachable_via_toggle', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />);
+    await screen.findByTestId('span-tree'); // starts on Tree
+    await userEvent.click(screen.getByRole('button', { name: /^graph$/i }));
+    expect(await screen.findByTestId('span-graph')).toBeInTheDocument();
   });
 });
