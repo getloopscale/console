@@ -154,6 +154,21 @@ func (s *stubLensDataClient) ExportLabelingQueueAsDataset(_ context.Context, bod
 	return s.write(`{"id":"d1","name":"golden","createdAt":"2026-07-07T00:00:00Z","itemCount":0}`)
 }
 
+// M64 experiment stubs. The create-run bumps writeCalls + captures the body; reads bump calls.
+func (s *stubLensDataClient) CreateExperimentRun(_ context.Context, body json.RawMessage) (json.RawMessage, error) {
+	s.lastWriteBody = string(body)
+	return s.write(`{"id":"run-1","datasetId":"d1","name":"r","variant":{},"status":"completed","truncated":false,"itemCount":0,"passCount":0,"totalCostUsd":0,"createdBy":"u","createdAt":"2026-07-07T00:00:00Z"}`)
+}
+func (s *stubLensDataClient) ListExperimentRuns(_ context.Context, _ url.Values) (json.RawMessage, error) {
+	return s.read(`{"runs":[]}`)
+}
+func (s *stubLensDataClient) GetExperimentRun(_ context.Context, _ string) (json.RawMessage, error) {
+	return s.read(`{"id":"run-1","datasetId":"d1","name":"r","variant":{},"status":"completed","truncated":false,"itemCount":0,"passCount":0,"totalCostUsd":0,"createdBy":"u","createdAt":"2026-07-07T00:00:00Z"}`)
+}
+func (s *stubLensDataClient) CompareExperimentRuns(_ context.Context, _ url.Values) (json.RawMessage, error) {
+	return s.read(`{"runs":[]}`)
+}
+
 func newLensDashboard() (*LensDashboardHandler, *stubLensDataClient) {
 	stub := &stubLensDataClient{}
 	return NewLensDashboardHandler(stub, slog.New(slog.NewTextHandler(io.Discard, nil))), stub
@@ -347,6 +362,7 @@ func TestLensDashboard_Writes_Authenticated(t *testing.T) {
 		{"enqueue-for-labeling", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},
 		{"resolve-labeling", http.MethodPost, "/v1/dashboard/lens/labeling-queue/i1/resolve", `{"label":"good","score":0.9}`},
 		{"export-labeling", http.MethodPost, "/v1/dashboard/lens/labeling-queue/export-as-dataset", `{"name":"golden"}`},
+		{"create-experiment-run", http.MethodPost, "/v1/dashboard/lens/experiment-runs", `{"datasetId":"d1","variant":{"model":"m"}}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -404,6 +420,7 @@ func TestLensDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},                // M63 — fail-closed without JWT
 		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/i1/resolve", `{"label":"good"}`},                     // M63
 		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/export-as-dataset", `{"name":"golden"}`},             // M63
+		{http.MethodPost, "/v1/dashboard/lens/experiment-runs", `{"datasetId":"d1","variant":{"model":"m"}}`},    // M64
 	}
 	for _, wr := range writes {
 		t.Run(wr.method+" "+wr.path, func(t *testing.T) {

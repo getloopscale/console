@@ -60,6 +60,11 @@ type LensDataClient interface {
 	EnqueueSpanForLabeling(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	ResolveLabelingItem(ctx context.Context, itemID string, body json.RawMessage) (json.RawMessage, error)
 	ExportLabelingQueueAsDataset(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	// Reads + writes (M64) — experiments (regression-dataset-run + compare)
+	CreateExperimentRun(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	ListExperimentRuns(ctx context.Context, q url.Values) (json.RawMessage, error)
+	GetExperimentRun(ctx context.Context, runID string) (json.RawMessage, error)
+	CompareExperimentRuns(ctx context.Context, q url.Values) (json.RawMessage, error)
 }
 
 // LensDashboardHandler serves the read-only /v1/dashboard/lens BFF. Browser JWT sessions
@@ -400,6 +405,30 @@ func (h *LensDashboardHandler) ExportLabelingQueueAsDataset(w http.ResponseWrite
 	})
 }
 
+// M64 — experiments. All behind the fail-closed tenant guard; the per-tenant observability read/write
+// scope is enforced upstream (theo-lens), the BFF is a thin verbatim proxy.
+func (h *LensDashboardHandler) CreateExperimentRun(w http.ResponseWriter, r *http.Request) {
+	h.proxyBody(w, r, "create experiment run", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.CreateExperimentRun(r.Context(), body)
+	})
+}
+func (h *LensDashboardHandler) ListExperimentRuns(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "list experiment runs", func() (json.RawMessage, error) {
+		return h.client.ListExperimentRuns(r.Context(), r.URL.Query())
+	})
+}
+func (h *LensDashboardHandler) GetExperimentRun(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "runID")
+	h.proxy(w, r, "get experiment run", func() (json.RawMessage, error) {
+		return h.client.GetExperimentRun(r.Context(), id)
+	})
+}
+func (h *LensDashboardHandler) CompareExperimentRuns(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "compare experiment runs", func() (json.RawMessage, error) {
+		return h.client.CompareExperimentRuns(r.Context(), r.URL.Query())
+	})
+}
+
 // MountLensDashboard registers the /v1/dashboard/lens BFF (reads + writes) under requireJWT.
 // The route SET is the ADR-3 contract: NO mutating verb on the trace/session body or on /agents;
 // trace tags/annotations ARE writable metadata. cmd/main.go calls this to wire the handler.
@@ -423,6 +452,9 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/agents", h.ListAgents)
 		r.Get("/labeling-queue", h.ListLabelingQueue)          // M63 — read-scope queue list
 		r.Get("/labeling-queue/{itemID}", h.GetLabelingQueueItem)
+		r.Get("/experiment-runs", h.ListExperimentRuns)            // M64 — read-scope run list
+		r.Get("/experiment-runs/compare", h.CompareExperimentRuns) // before :runID so "compare" is not a run id
+		r.Get("/experiment-runs/{runID}", h.GetExperimentRun)
 		r.Post("/traces/{traceID}/ask", h.Ask)       // read-scope copilot query
 		r.Post("/traces/{traceID}/replay", h.Replay) // M55 — read-scope ephemeral provider replay
 		// Writes — datasets
@@ -445,5 +477,7 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Post("/traces/{traceID}/enqueue-for-labeling", h.EnqueueSpanForLabeling)
 		r.Post("/labeling-queue/{itemID}/resolve", h.ResolveLabelingItem)
 		r.Post("/labeling-queue/export-as-dataset", h.ExportLabelingQueueAsDataset)
+		// Writes — experiments (M64): run a dataset × a variant through the provider path
+		r.Post("/experiment-runs", h.CreateExperimentRun)
 	})
 }

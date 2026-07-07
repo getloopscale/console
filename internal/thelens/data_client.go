@@ -299,6 +299,20 @@ func (c *DataClient) ExportLabelingQueueAsDataset(ctx context.Context, body json
 	return c.doRaw(ctx, http.MethodPost, "/v1/labeling-queue/export-as-dataset", nil, body)
 }
 
+// M64 — experiments. Reads via getRaw, the create-run write via doRaw; per-tenant key resolved per call.
+func (c *DataClient) CreateExperimentRun(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPost, "/v1/experiment-runs", nil, body)
+}
+func (c *DataClient) ListExperimentRuns(ctx context.Context, q url.Values) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/experiment-runs", q)
+}
+func (c *DataClient) GetExperimentRun(ctx context.Context, runID string) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/experiment-runs/"+url.PathEscape(runID), nil)
+}
+func (c *DataClient) CompareExperimentRuns(ctx context.Context, q url.Values) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/experiment-runs/compare", q)
+}
+
 // doRaw resolves the per-tenant Bearer (fail-closed), sends method+path with an optional JSON
 // body, and returns the 2xx body verbatim (empty for 204). A resolver error means NO request is
 // sent (no master fallback); the bearer is NEVER included in a returned error.
