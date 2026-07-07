@@ -44,9 +44,9 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     seriesMock();
     render(<LensOverviewPage />);
     // wait on a data-gated element (the tile value), not the always-present Explore card
-    expect(await screen.findByText('10')).toBeInTheDocument(); // 8 + 2 traces
+    expect(await screen.findByText('10')).toBeInTheDocument(); // 8 + 2 traces (formatNumber grouped)
     expect(screen.getByText('Error rate %')).toBeInTheDocument();
-    expect(screen.getByText('20')).toBeInTheDocument(); // 2/10
+    expect(screen.getByText('20%')).toBeInTheDocument(); // 2/10 → the MetricCard value
     expect(screen.getByText('Latency p95 (ms)')).toBeInTheDocument();
     for (const t of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Agents', 'Ask']) {
       expect(screen.getAllByText(t).length).toBeGreaterThan(0);
@@ -54,20 +54,24 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     expect(screen.getAllByRole('button', { name: /open →/i }).length).toBeGreaterThanOrEqual(7);
   });
 
-  it('renders the four trend charts (M51)', async () => {
+  it('M60 — renders ONE shared trend chart (default throughput), swapped by a KPI-tile click', async () => {
     seriesMock();
     render(<LensOverviewPage />);
-    await screen.findByText('Throughput (traces)'); // data-gated barrier
-    for (const title of ['Throughput (traces)', 'Error rate (%)', 'Latency (ms)', 'Cost by model (USD)']) {
-      expect(screen.getByText(title)).toBeInTheDocument();
-    }
-    // charts drew SVG lines (throughput 1 + error 1 + latency 3 + cost-by-model 2 = 7)
-    expect(screen.getAllByTestId('trend-line').length).toBeGreaterThanOrEqual(6);
+    await screen.findByText('Throughput (traces)'); // default metric — data-gated barrier
+    // only ONE chart shows (not four): the other metric titles are absent until selected.
+    expect(screen.queryByText('Latency (ms)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cost by model (USD)')).not.toBeInTheDocument();
+    // clicking the Latency tile swaps the shared chart to the latency series/title.
+    await userEvent.click(screen.getByRole('button', { name: /show latency p95 \(ms\) trend/i }));
+    expect(await screen.findByText('Latency (ms)')).toBeInTheDocument();
+    expect(screen.queryByText('Throughput (traces)')).not.toBeInTheDocument();
   });
 
-  it('the by-model cost chart draws one line per model', async () => {
+  it('M60 — the shared chart draws one line per model when the Cost metric is selected', async () => {
     seriesMock();
     render(<LensOverviewPage />);
+    await screen.findByRole('button', { name: /show traces trend/i }); // metric-agnostic barrier
+    await userEvent.click(screen.getByRole('button', { name: /show cost \(usd\) trend/i }));
     const costChart = (await screen.findByText('Cost by model (USD)')).closest('figure') as HTMLElement;
     expect(costChart.querySelectorAll('[data-testid="trend-line"]')).toHaveLength(2); // opus + haiku
   });
@@ -75,7 +79,7 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
   it('the range selector re-fetches server-side with ?range= (no client re-bucket)', async () => {
     seriesMock();
     render(<LensOverviewPage />);
-    await screen.findByText('Throughput (traces)');
+    await screen.findByRole('button', { name: /show traces trend/i }); // metric-agnostic barrier
     // initial fetch uses the 24h default
     expect(obsUrls().some((u) => u.includes('range=24h'))).toBe(true);
     await userEvent.click(screen.getByRole('combobox', { name: /time range/i }));
@@ -86,10 +90,18 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
   it('shows an empty-state chart when a series has no data (not a zero line)', async () => {
     seriesMock({ traffic: [], latency: [], tokensByModel: [] });
     render(<LensOverviewPage />);
-    await screen.findByText('Throughput (traces)'); // the title renders even in the empty-state
-    // every chart renders its empty-state; none draws a line
-    expect(screen.getAllByTestId('trend-empty').length).toBeGreaterThanOrEqual(4);
+    await screen.findByRole('button', { name: /show traces trend/i }); // metric-agnostic barrier
+    // the ONE shared chart renders its empty-state; it draws no line (not a fabricated zero line).
+    expect(screen.getAllByTestId('trend-empty').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByTestId('trend-line')).not.toBeInTheDocument();
+  });
+
+  it('M60 — the shared chart exposes an a11y summary (role=img + a visually-hidden value table)', async () => {
+    seriesMock();
+    render(<LensOverviewPage />);
+    await screen.findByRole('button', { name: /show traces trend/i });
+    expect(screen.getByTestId('trend-table')).toBeInTheDocument(); // screen-reader parity for the SVG
+    expect(screen.getByRole('img', { name: /trend/i })).toBeInTheDocument(); // aria-label summary
   });
 
   it('shows a warning Alert when the metrics fail to load', async () => {

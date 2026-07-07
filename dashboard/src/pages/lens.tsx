@@ -2,25 +2,23 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useQueryState, parseAsStringEnum } from 'nuqs';
 import {
-  Activity,
   BellRing,
   Bot,
   Database,
-  DollarSign,
   FlaskConical,
   ListChecks,
   Network,
   RefreshCw,
   Search,
   ShieldCheck,
-  Timer,
 } from 'lucide-react';
-import { Alert, Button, Card, PageShell, Select, Skeleton, StatTile } from '@usetheo/ui';
+import { Alert, Button, Card, PageShell, Select, Skeleton } from '@usetheo/ui';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
-import { MetricTrendChart } from '@/components/lens/metric-trend-chart';
+import { formatCost, formatDuration, formatNumber } from '@/lib/format';
+import { MetricTrendChart, type TrendSeries } from '@/components/lens/metric-trend-chart';
 import {
   throughputSeries,
   errorRateSeries,
@@ -30,6 +28,8 @@ import {
   type LatencyBucket,
   type ModelBucket,
 } from '@/components/lens/lens-series';
+import { OverviewKpiStrip, type KpiTile, type OverviewMetric } from '@/components/lens/overview-kpi-strip';
+import { costValues, errorRateValues, p95Values, tracesValues } from '@/components/lens/overview-metrics';
 
 /**
  * M46 — /lens landing (Overview). The first customer-visible Lens surface, mirroring the Memory /
@@ -61,6 +61,35 @@ function sum(ns: number[]): number {
   return ns.reduce((a, b) => a + b, 0);
 }
 
+// M60 — the four KPI metrics also key the ONE shared trend chart (click a tile → the chart swaps).
+const METRICS = ['throughput', 'errorRate', 'latency', 'cost'] as const;
+const METRIC_TITLE: Record<OverviewMetric, string> = {
+  throughput: 'Throughput (traces)',
+  errorRate: 'Error rate (%)',
+  latency: 'Latency (ms)',
+  cost: 'Cost by model (USD)',
+};
+const METRIC_YFMT: Record<OverviewMetric, ((v: number) => string) | undefined> = {
+  throughput: undefined,
+  errorRate: (v) => `${v}%`,
+  latency: (v) => `${v} ms`,
+  cost: (v) => `$${v}`,
+};
+/** The series the shared chart plots for the selected metric — reuses the M51 series helpers (D1). */
+function metricToSeries(m: OverviewMetric, obs: ObservabilityResult | undefined): TrendSeries[] {
+  switch (m) {
+    case 'errorRate':
+      return errorRateSeries(obs?.traffic ?? []);
+    case 'latency':
+      return latencySeries(obs?.latency ?? []);
+    case 'cost':
+      return costByModelSeries(obs?.tokensByModel ?? []);
+    case 'throughput':
+    default:
+      return throughputSeries(obs?.traffic ?? []);
+  }
+}
+
 export function LensOverviewPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability'), [setPageTitle]);
@@ -69,6 +98,11 @@ export function LensOverviewPage() {
 
   // M51 — URL-persisted range; drives the server-side bucketing (theo-lens truncs per range).
   const [range, setRange] = useQueryState('range', parseAsStringEnum([...RANGES]).withDefault('24h'));
+  // M60 — URL-persisted selected metric: which series the ONE shared trend chart plots (a KPI-tile click swaps it).
+  const [selectedMetric, setSelectedMetric] = useQueryState(
+    'metric',
+    parseAsStringEnum([...METRICS]).withDefault('throughput'),
+  );
 
   const obsKey = ['cloud', '/v1/dashboard/lens/observability', range] as const;
   const obs = useQuery({
@@ -97,11 +131,14 @@ export function LensOverviewPage() {
   const p95 = Math.round(Math.max(0, ...(obs.data?.latency ?? []).map((l) => l.p95Ms), 0));
   const totalCost = sum((cost.data?.buckets ?? []).map((b) => b.costUsd));
 
-  // M51 — trend-chart series from the already-bucketed observability response.
-  const throughput = throughputSeries(traffic);
-  const errRate = errorRateSeries(traffic);
-  const latency = latencySeries(obs.data?.latency ?? []);
-  const costByModel = costByModelSeries(obs.data?.tokensByModel ?? []);
+  // M60 — the four KPI tiles: value via M57 formatters; delta from the fetched window via `periodDelta`
+  // (invertTrend on the "up is bad" metrics). The tile keys also select which series the shared chart plots.
+  const tiles: KpiTile[] = [
+    { key: 'throughput', title: 'Traces', value: formatNumber(traces, 'grouped'), series: tracesValues(traffic), agg: 'sum', invert: false },
+    { key: 'errorRate', title: 'Error rate %', value: `${errorRatePct}%`, series: errorRateValues(traffic), agg: 'mean', invert: true },
+    { key: 'latency', title: 'Latency p95 (ms)', value: formatDuration(p95), series: p95Values(obs.data?.latency ?? []), agg: 'mean', invert: true },
+    { key: 'cost', title: 'Cost (USD)', value: formatCost(totalCost), series: costValues(cost.data?.buckets ?? []), agg: 'sum', invert: true },
+  ];
 
   return (
     <PageShell
@@ -150,38 +187,28 @@ export function LensOverviewPage() {
           </div>
         </div>
 
+        {/* M60 — KPI strip: MetricCard tiles with a period-over-period delta + width-adaptive degradation;
+            clicking a tile swaps the ONE shared trend chart below. */}
         {!isPending && !isError ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatTile value={traces} label="Traces" icon={Network} />
-            <StatTile value={errorRatePct} label="Error rate %" icon={Activity} />
-            <StatTile value={p95} label="Latency p95 (ms)" icon={Timer} />
-            <StatTile value={Number(totalCost.toFixed(2))} label="Cost (USD)" icon={DollarSign} />
-          </div>
+          <OverviewKpiStrip
+            tiles={tiles}
+            onSelectMetric={(m) => void setSelectedMetric(m)}
+            selected={selectedMetric}
+          />
         ) : null}
 
+        {/* M60 — ONE shared trend chart (reuses the pure-SVG MetricTrendChart, D1) plotting the selected
+            metric; a tile click swaps it — no new fetch (D4). The chart carries its own a11y table + empty-state. */}
         {!isPending && !isError ? (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card>
-              <Card.Body>
-                <MetricTrendChart title="Throughput (traces)" series={throughput} />
-              </Card.Body>
-            </Card>
-            <Card>
-              <Card.Body>
-                <MetricTrendChart title="Error rate (%)" series={errRate} yFormat={(v) => `${v}%`} />
-              </Card.Body>
-            </Card>
-            <Card>
-              <Card.Body>
-                <MetricTrendChart title="Latency (ms)" series={latency} yFormat={(v) => `${v} ms`} />
-              </Card.Body>
-            </Card>
-            <Card>
-              <Card.Body>
-                <MetricTrendChart title="Cost by model (USD)" series={costByModel} yFormat={(v) => `$${v}`} />
-              </Card.Body>
-            </Card>
-          </div>
+          <Card aria-label={`${METRIC_TITLE[selectedMetric]} trend`}>
+            <Card.Body>
+              <MetricTrendChart
+                title={METRIC_TITLE[selectedMetric]}
+                series={metricToSeries(selectedMetric, obs.data ?? undefined)}
+                yFormat={METRIC_YFMT[selectedMetric]}
+              />
+            </Card.Body>
+          </Card>
         ) : null}
 
         <Card>
