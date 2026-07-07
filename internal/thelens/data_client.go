@@ -282,6 +282,23 @@ func (c *DataClient) DeleteTraceAnnotation(ctx context.Context, traceID string, 
 	return c.doRaw(ctx, http.MethodDelete, "/v1/traces/"+url.PathEscape(traceID)+"/annotations", q, nil)
 }
 
+// M63 — labeling queues. Reads via getRaw, writes via doRaw; the per-tenant key is resolved per call.
+func (c *DataClient) ListLabelingQueue(ctx context.Context, q url.Values) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/labeling-queue", q)
+}
+func (c *DataClient) GetLabelingQueueItem(ctx context.Context, itemID string) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/labeling-queue/"+url.PathEscape(itemID), nil)
+}
+func (c *DataClient) EnqueueSpanForLabeling(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPost, "/v1/traces/"+url.PathEscape(traceID)+"/enqueue-for-labeling", nil, body)
+}
+func (c *DataClient) ResolveLabelingItem(ctx context.Context, itemID string, body json.RawMessage) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPost, "/v1/labeling-queue/"+url.PathEscape(itemID)+"/resolve", nil, body)
+}
+func (c *DataClient) ExportLabelingQueueAsDataset(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPost, "/v1/labeling-queue/export-as-dataset", nil, body)
+}
+
 // doRaw resolves the per-tenant Bearer (fail-closed), sends method+path with an optional JSON
 // body, and returns the 2xx body verbatim (empty for 204). A resolver error means NO request is
 // sent (no master fallback); the bearer is NEVER included in a returned error.

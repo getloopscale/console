@@ -54,6 +54,12 @@ type LensDataClient interface {
 	DeleteTraceTag(ctx context.Context, traceID, tag string) (json.RawMessage, error)
 	AddTraceAnnotation(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	DeleteTraceAnnotation(ctx context.Context, traceID string, q url.Values) (json.RawMessage, error)
+	// Reads + writes (M63) — labeling queues (Annotate → review → golden dataset)
+	ListLabelingQueue(ctx context.Context, q url.Values) (json.RawMessage, error)
+	GetLabelingQueueItem(ctx context.Context, itemID string) (json.RawMessage, error)
+	EnqueueSpanForLabeling(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
+	ResolveLabelingItem(ctx context.Context, itemID string, body json.RawMessage) (json.RawMessage, error)
+	ExportLabelingQueueAsDataset(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
 }
 
 // LensDashboardHandler serves the read-only /v1/dashboard/lens BFF. Browser JWT sessions
@@ -363,6 +369,37 @@ func (h *LensDashboardHandler) DeleteTraceAnnotation(w http.ResponseWriter, r *h
 	})
 }
 
+// M63 — labeling queues. All behind the fail-closed tenant guard; the per-tenant observability
+// read/write scope is enforced upstream (theo-lens), the BFF is a thin verbatim proxy.
+func (h *LensDashboardHandler) ListLabelingQueue(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "list labeling queue", func() (json.RawMessage, error) {
+		return h.client.ListLabelingQueue(r.Context(), r.URL.Query())
+	})
+}
+func (h *LensDashboardHandler) GetLabelingQueueItem(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "itemID")
+	h.proxy(w, r, "get labeling queue item", func() (json.RawMessage, error) {
+		return h.client.GetLabelingQueueItem(r.Context(), id)
+	})
+}
+func (h *LensDashboardHandler) EnqueueSpanForLabeling(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "traceID")
+	h.proxyBody(w, r, "enqueue span for labeling", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.EnqueueSpanForLabeling(r.Context(), id, body)
+	})
+}
+func (h *LensDashboardHandler) ResolveLabelingItem(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "itemID")
+	h.proxyBody(w, r, "resolve labeling item", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.ResolveLabelingItem(r.Context(), id, body)
+	})
+}
+func (h *LensDashboardHandler) ExportLabelingQueueAsDataset(w http.ResponseWriter, r *http.Request) {
+	h.proxyBody(w, r, "export labeling queue as dataset", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.ExportLabelingQueueAsDataset(r.Context(), body)
+	})
+}
+
 // MountLensDashboard registers the /v1/dashboard/lens BFF (reads + writes) under requireJWT.
 // The route SET is the ADR-3 contract: NO mutating verb on the trace/session body or on /agents;
 // trace tags/annotations ARE writable metadata. cmd/main.go calls this to wire the handler.
@@ -384,6 +421,8 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/guards", h.ListGuards)
 		r.Get("/guards/{guardID}/breaches", h.GuardBreaches)
 		r.Get("/agents", h.ListAgents)
+		r.Get("/labeling-queue", h.ListLabelingQueue)          // M63 — read-scope queue list
+		r.Get("/labeling-queue/{itemID}", h.GetLabelingQueueItem)
 		r.Post("/traces/{traceID}/ask", h.Ask)       // read-scope copilot query
 		r.Post("/traces/{traceID}/replay", h.Replay) // M55 — read-scope ephemeral provider replay
 		// Writes — datasets
@@ -402,5 +441,9 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Delete("/traces/{traceID}/tags", h.DeleteTraceTag)
 		r.Post("/traces/{traceID}/annotations", h.AddTraceAnnotation)
 		r.Delete("/traces/{traceID}/annotations", h.DeleteTraceAnnotation)
+		// Writes — labeling queues (M63): enqueue a span, resolve an item, export resolved as a golden dataset
+		r.Post("/traces/{traceID}/enqueue-for-labeling", h.EnqueueSpanForLabeling)
+		r.Post("/labeling-queue/{itemID}/resolve", h.ResolveLabelingItem)
+		r.Post("/labeling-queue/export-as-dataset", h.ExportLabelingQueueAsDataset)
 	})
 }

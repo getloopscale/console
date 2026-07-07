@@ -27,6 +27,7 @@ type stubLensDataClient struct {
 	err                    error
 	lastTraceFilter        thelens.TraceListFilter
 	lastObservabilityRange string
+	lastWriteBody          string
 }
 
 func (s *stubLensDataClient) read(body string) (json.RawMessage, error) {
@@ -130,6 +131,27 @@ func (s *stubLensDataClient) AddTraceAnnotation(context.Context, string, json.Ra
 }
 func (s *stubLensDataClient) DeleteTraceAnnotation(context.Context, string, url.Values) (json.RawMessage, error) {
 	return s.write(`{"annotations":[]}`)
+}
+
+// M63 labeling-queue stubs. Reads bump `calls`, writes bump `writeCalls`; `lastWriteBody` captures the
+// last write body so a test can assert the BFF forwards it verbatim (no re-encoding).
+func (s *stubLensDataClient) ListLabelingQueue(context.Context, url.Values) (json.RawMessage, error) {
+	return s.read(`{"items":[],"total":0,"page":1,"pageSize":50}`)
+}
+func (s *stubLensDataClient) GetLabelingQueueItem(context.Context, string) (json.RawMessage, error) {
+	return s.read(`{"id":"i1","traceId":"t1","spanId":"s1","status":"pending","createdBy":"u","createdAt":"2026-07-07T00:00:00Z"}`)
+}
+func (s *stubLensDataClient) EnqueueSpanForLabeling(_ context.Context, _ string, body json.RawMessage) (json.RawMessage, error) {
+	s.lastWriteBody = string(body)
+	return s.write(`{"id":"i1","traceId":"t1","spanId":"s1","status":"pending","createdBy":"u","createdAt":"2026-07-07T00:00:00Z"}`)
+}
+func (s *stubLensDataClient) ResolveLabelingItem(_ context.Context, _ string, body json.RawMessage) (json.RawMessage, error) {
+	s.lastWriteBody = string(body)
+	return s.write(`{"id":"i1","traceId":"t1","spanId":"s1","status":"resolved","label":"good","createdBy":"u","createdAt":"2026-07-07T00:00:00Z"}`)
+}
+func (s *stubLensDataClient) ExportLabelingQueueAsDataset(_ context.Context, body json.RawMessage) (json.RawMessage, error) {
+	s.lastWriteBody = string(body)
+	return s.write(`{"id":"d1","name":"golden","createdAt":"2026-07-07T00:00:00Z","itemCount":0}`)
 }
 
 func newLensDashboard() (*LensDashboardHandler, *stubLensDataClient) {
@@ -322,6 +344,9 @@ func TestLensDashboard_Writes_Authenticated(t *testing.T) {
 		{"delete-tag", http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/tags?tag=prod", ``},
 		{"add-annotation", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/annotations", `{"label":"good"}`},
 		{"delete-annotation", http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/annotations?name=feedback", ``},
+		{"enqueue-for-labeling", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},
+		{"resolve-labeling", http.MethodPost, "/v1/dashboard/lens/labeling-queue/i1/resolve", `{"label":"good","score":0.9}`},
+		{"export-labeling", http.MethodPost, "/v1/dashboard/lens/labeling-queue/export-as-dataset", `{"name":"golden"}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -343,6 +368,22 @@ func TestLensDashboard_Writes_Authenticated(t *testing.T) {
 	}
 }
 
+// TestLensDashboard_LabelingQueue_ForwardsBodyVerbatim — M63: the BFF is a thin proxy; a resolve
+// body reaches theo-lens unchanged (never re-encoded / re-shaped by the BFF).
+func TestLensDashboard_LabelingQueue_ForwardsBodyVerbatim(t *testing.T) {
+	r, stub := mountedLens(t)
+	body := `{"label":"good","score":0.9,"note":"clean"}`
+	req := tenantCtx(httptest.NewRequest(http.MethodPost, "/v1/dashboard/lens/labeling-queue/i1/resolve", strings.NewReader(body)), "t1")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.lastWriteBody != body {
+		t.Fatalf("body not forwarded verbatim:\n want %q\n got  %q", body, stub.lastWriteBody)
+	}
+}
+
 // TestLensDashboard_AllWrites_NoJWT_Denied — every write route without a JWT tenant → 401 and
 // ZERO upstream write calls (fail-closed — invariant 5).
 func TestLensDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
@@ -360,6 +401,9 @@ func TestLensDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/annotations", `{"label":"g"}`},
 		{http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/annotations?name=feedback", ``},
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/replay", `{"messages":[{"role":"user","content":"hi"}]}`}, // M55 — fail-closed without JWT
+		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},                // M63 — fail-closed without JWT
+		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/i1/resolve", `{"label":"good"}`},                     // M63
+		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/export-as-dataset", `{"name":"golden"}`},             // M63
 	}
 	for _, wr := range writes {
 		t.Run(wr.method+" "+wr.path, func(t *testing.T) {
@@ -399,9 +443,10 @@ func TestLensDashboard_RouteSet_NoBodyOrAgentsMutation(t *testing.T) {
 		// forbidden: mutating the trace/session body itself, or any /agents mutation.
 		// Allowed POST/DELETE under a trace: /tags, /annotations (writable metadata), /ask and
 		// /replay (read-scope ephemeral provider queries — NOT a body mutation; M55 replay never
-		// writes the trace, the persist path is save-as-dataset).
+		// writes the trace, the persist path is save-as-dataset), and /enqueue-for-labeling (M63 —
+		// derives a labeling-queue item from the span; NEVER mutates the trace body).
 		underTrace := strings.HasPrefix(rt.pattern, "/v1/dashboard/lens/traces/{traceID}")
-		writableMeta := strings.Contains(rt.pattern, "/tags") || strings.Contains(rt.pattern, "/annotations") || strings.Contains(rt.pattern, "/ask") || strings.Contains(rt.pattern, "/replay")
+		writableMeta := strings.Contains(rt.pattern, "/tags") || strings.Contains(rt.pattern, "/annotations") || strings.Contains(rt.pattern, "/ask") || strings.Contains(rt.pattern, "/replay") || strings.Contains(rt.pattern, "/enqueue-for-labeling")
 		bad := rt.pattern == "/v1/dashboard/lens/traces" ||
 			(underTrace && !writableMeta) ||
 			strings.HasPrefix(rt.pattern, "/v1/dashboard/lens/sessions") ||
