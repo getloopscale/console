@@ -21,6 +21,7 @@ import {
   History,
   Key,
   KeyRound,
+  LayoutDashboard,
   LayoutGrid,
   Link2,
   ListChecks,
@@ -221,6 +222,7 @@ const MENUS: Record<string, MenuDefinition> = {
         title: 'Observe',
         items: [
           { label: 'Overview', path: '/observability', icon: LayoutGrid },
+          { label: 'Dashboards', path: '/observability/dashboards', icon: LayoutDashboard },
           { label: 'Traces', path: '/observability/traces', icon: Network },
           { label: 'Sessions', path: '/observability/sessions', icon: ListChecks },
         ],
