@@ -109,38 +109,40 @@ export function moveWidget(widgets: Widget[], index: number, dir: -1 | 1): Widge
 
 // ── Binding: derive each widget's render input from the ONE shared fetch (never fabricate) ────────
 
-/** A KPI value + whether the source data is present (absent → em-dash, never a fabricated 0). */
-export interface KpiBinding {
-  label: string;
-  value: string;
-  hasData: boolean;
-}
-
 const sum = (ns: number[]): number => ns.reduce((a, b) => a + b, 0);
 
-export function bindKpi(metric: WidgetMetric, data: BoardData): KpiBinding {
-  const label = METRIC_LABEL[metric];
+/**
+ * A KPI's display value for the shared board data. HONESTY (never a fabricated number):
+ * - data fully absent (fetch failed / not loaded) → em-dash `—`.
+ * - a **rate / percentile** over an EMPTY series (`error_rate`, `p95_latency`) is mathematically
+ *   *undefined*, so it is `—` too — NOT `0%` / `0ms` (which would falsely imply "perfect").
+ * - a **count / sum** (`traces`, `cost`, `tokens_by_model`) over an empty range is a defined,
+ *   honest measurement, so `0` / `$0.0000` is shown (matches the M60 Overview).
+ */
+export function bindKpi(metric: WidgetMetric, data: BoardData): string {
   const obs = data.observability;
   if (metric === 'cost') {
-    if (!data.cost) return { label, value: '—', hasData: false };
-    return { label, value: formatCost(sum(data.cost.buckets.map((b) => b.costUsd))), hasData: true };
+    if (!data.cost) return '—';
+    return formatCost(sum(data.cost.buckets.map((b) => b.costUsd))); // sum: $0.0000 is an honest "no spend"
   }
-  if (!obs) return { label, value: '—', hasData: false };
+  if (!obs) return '—';
   const traffic = obs.traffic;
   switch (metric) {
     case 'traces':
-      return { label, value: formatNumber(sum(traffic.map((t) => t.traceCount)), 'grouped'), hasData: true };
+      return formatNumber(sum(traffic.map((t) => t.traceCount)), 'grouped'); // count: 0 is an honest measurement
     case 'error_rate': {
+      if (traffic.length === 0) return '—'; // a rate over no traffic is undefined, not 0%
       const traces = sum(traffic.map((t) => t.traceCount));
       const errors = sum(traffic.map((t) => t.errorCount));
-      return { label, value: `${traces > 0 ? Math.round((errors / traces) * 100) : 0}%`, hasData: true };
+      return `${traces > 0 ? Math.round((errors / traces) * 100) : 0}%`;
     }
     case 'p95_latency':
-      return { label, value: formatDuration(Math.round(Math.max(0, ...obs.latency.map((l) => l.p95Ms), 0))), hasData: true };
+      if (obs.latency.length === 0) return '—'; // a percentile over no data is undefined, not 0ms
+      return formatDuration(Math.round(Math.max(0, ...obs.latency.map((l) => l.p95Ms), 0)));
     case 'tokens_by_model':
-      return { label, value: formatNumber(sum(obs.tokensByModel.map((m) => m.totalTokens)), 'grouped'), hasData: true };
+      return formatNumber(sum(obs.tokensByModel.map((m) => m.totalTokens)), 'grouped'); // sum: 0 is honest
     default:
-      return { label, value: '—', hasData: false };
+      return '—';
   }
 }
 

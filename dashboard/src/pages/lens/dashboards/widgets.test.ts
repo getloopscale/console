@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
+import { formatCost } from '@/lib/format';
 import {
   TRACING_OVERVIEW_TEMPLATE,
   WIDGET_TYPES,
@@ -49,16 +50,27 @@ describe('M66 widget model', () => {
   });
 
   it('test_bindKpi_maps_each_metric_from_the_shared_fetch', () => {
-    expect(bindKpi('traces', DATA)).toMatchObject({ value: '160', hasData: true }); // 100 + 60
-    expect(bindKpi('error_rate', DATA)).toMatchObject({ value: '3%', hasData: true }); // 5/160 ≈ 3%
-    expect(bindKpi('p95_latency', DATA).hasData).toBe(true);
-    expect(bindKpi('cost', DATA).hasData).toBe(true);
+    expect(bindKpi('traces', DATA)).toBe('160'); // 100 + 60
+    expect(bindKpi('error_rate', DATA)).toBe('3%'); // 5/160 ≈ 3%
+    expect(bindKpi('p95_latency', DATA)).not.toBe('—'); // real p95 present
+    expect(bindKpi('cost', DATA)).not.toBe('—'); // real cost present
   });
 
   it('test_bindKpi_absent_data_is_em_dash_not_a_fabricated_zero', () => {
     // negative: no observability/cost loaded → em-dash, NEVER "$0" / "0"
-    expect(bindKpi('traces', {})).toMatchObject({ value: '—', hasData: false });
-    expect(bindKpi('cost', { observability: OBS })).toMatchObject({ value: '—', hasData: false });
+    expect(bindKpi('traces', {})).toBe('—');
+    expect(bindKpi('cost', { observability: OBS })).toBe('—');
+  });
+
+  it('test_bindKpi_empty_but_present_series_rate_and_percentile_are_em_dash', () => {
+    // the quiet-tenant case (fetch SUCCEEDED, arrays empty): a rate/percentile over an empty set is
+    // UNDEFINED, so error_rate/p95_latency are em-dash — NOT a misleading "0%" / "0ms".
+    const empty: BoardData = { observability: { traffic: [], latency: [], tokensByModel: [] }, cost: { buckets: [] } };
+    expect(bindKpi('error_rate', empty)).toBe('—');
+    expect(bindKpi('p95_latency', empty)).toBe('—');
+    // a count/sum of zero IS a defined, honest measurement (matches the M60 Overview)
+    expect(bindKpi('traces', empty)).toBe('0');
+    expect(bindKpi('cost', empty)).toBe(formatCost(0));
   });
 
   it('test_bindTrend_maps_metric_or_empty_when_absent', () => {

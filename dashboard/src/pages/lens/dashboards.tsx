@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { LayoutDashboard } from 'lucide-react';
-import { Alert, Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { Alert, Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, Input, MetricCard, PageShell, Select, Skeleton } from '@usetheo/ui';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -78,15 +78,7 @@ const TOPN_COLUMNS: DataTableColumn<TopNRow>[] = [
 function WidgetView({ widget, data }: { widget: Widget; data: BoardData }) {
   const title = widget.title ?? METRIC_LABEL[widget.metric];
   if (widget.type === 'kpi') {
-    const kpi = bindKpi(widget.metric, data);
-    return (
-      <Card>
-        <Card.Body>
-          <div className="text-xs font-semibold uppercase text-muted-foreground">{title}</div>
-          <div className="text-2xl font-semibold" data-testid="kpi-value">{kpi.value}</div>
-        </Card.Body>
-      </Card>
-    );
+    return <MetricCard title={title} value={<span data-testid="kpi-value">{bindKpi(widget.metric, data)}</span>} />;
   }
   if (widget.type === 'topn') {
     const rows = bindTopN(data);

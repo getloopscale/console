@@ -121,6 +121,33 @@ describe('M66 LensDashboardsPage', () => {
     expect(within(alert).getByText(/belong to another workspace/i)).toBeInTheDocument();
   });
 
+  it('test_quiet_tenant_empty_series_rate_and_latency_are_em_dash_not_zero', async () => {
+    // the fetch SUCCEEDS but returns empty arrays (a quiet tenant): the error-rate + p95 KPIs must show
+    // em-dash (undefined over an empty set), NEVER a misleading "0%" / "0ms".
+    const rateBoard = {
+      ...BOARD,
+      config: [
+        { type: 'kpi', metric: 'error_rate', title: 'Error rate' },
+        { type: 'kpi', metric: 'p95_latency', title: 'Latency p95' },
+        { type: 'kpi', metric: 'traces', title: 'Traces' },
+      ],
+    };
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (/\/dashboards\/[^/?]+$/.test(url) && (init?.method ?? 'GET') === 'GET') return Promise.resolve(rateBoard);
+      if (url.endsWith('/dashboards')) return Promise.resolve({ dashboards: [] });
+      if (url.includes('/observability')) return Promise.resolve({ traffic: [], latency: [], tokensByModel: [] });
+      if (url.includes('/cost')) return Promise.resolve({ buckets: [] });
+      return Promise.resolve({});
+    });
+    render(<LensDashboardsPage />, { initialEntries: [`/observability/dashboards?board=${BOARD.id}`] });
+    await screen.findAllByTestId('kpi-value');
+    const kpis = screen.getAllByTestId('kpi-value').map((el) => el.textContent);
+    expect(kpis.filter((v) => v === '—')).toHaveLength(2); // error_rate + p95_latency undefined over empty
+    expect(kpis).not.toContain('0%'); // never a fabricated rate
+    expect(kpis).not.toContain('0ms'); // never a fabricated latency
+    expect(kpis).toContain('0'); // traces is a defined count → honest 0
+  });
+
   it('test_widget_series_error_shows_empty_not_fabricated', async () => {
     withRoutes({ obsReject: Object.assign(new Error('down'), { status: 502 }) });
     render(<LensDashboardsPage />, { initialEntries: [`/observability/dashboards?board=${BOARD.id}`] });
