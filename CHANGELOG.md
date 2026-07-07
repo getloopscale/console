@@ -12,6 +12,11 @@
 
 ### Security
 
+## [0.24.0] - 2026-07-07
+
+### Added
+- **Dashboard: playground rebuilt as a side-by-side variant comparison + View-Trace (theo-lens M62 — the last SOTA-experience v2 milestone).** The M55 single-model "Original vs Replay" panel becomes the SOTA default (Langfuse n-window / Opik 6 / Phoenix ≤4): a horizontal scroll row of **N editable variant columns** (up to 4) next to the **read-only original baseline**, each re-run against the real provider server-side (the M55 path, no BFF change). Per-variant: editable role messages + model override + an optional **structured-output JSON schema** (validated client-side — invalid → Run disabled; forwarded to the provider as `response_format` json_schema). **Run-all** fans out one replay per variant (bounded by the variant cap + the server per-workspace rate-limit — no client retry loop, `retry:false`); each output `Card` shows `{provider·model, latency, tokens, cost}` via the M57 formatters — **cost is the real provider `usage.cost`** surfaced additively (theo-lens M62 P0) or an honest **em-dash** when absent (never `$0`/fabricated). An output **greys when its inputs changed since the last run** (stale, pure `variant-model.ts` staleness). A **View Trace** action opens the original span's detail in a `Sheet` (reuses M58 — the playground stays mounted). Fail-closed: a provider 502/503/429/404 surfaces a typed `Alert` on that column, never a fabricated output. The replay is ephemeral (M44 read-only — the trace is never mutated); the only persist path is the per-variant opt-in **save-as-dataset**. All output is plain text (XSS-safe — no `dangerouslySetInnerHTML`). Composed from `@usetheo/ui` + M57 + M58 — **no new dependency, no BFF/Go change** (BFF is a verbatim passthrough). Pure `variant-model.ts` unit-tested (staleness / deep-copy / runKey); `variant-column`/`playground` component tests (multi-variant edit→run→compare, per-variant metrics, cost em-dash, no-mutation-of-original, View-Trace open, provider-error, cross-tenant refusal, XSS-safe, invalid-schema-blocks-run). Full lens suite green (261 tests); `tsc`/`eslint` clean; every touched file ≤500 LoC. Plan `.claude/knowledge-base/plans/m62-playground-side-by-side-plan.md`.
+
 ## [0.23.0] - 2026-07-07
 
 ### Added

@@ -1,40 +1,28 @@
-import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
-import { Alert, Badge, Button, Card, Input, Select, Textarea } from '@usetheo/ui';
+import { useMemo, useRef, useState } from 'react';
+import { GitCompareArrows, Play, Plus } from 'lucide-react';
+import { Badge, Button } from '@usetheo/ui';
 
-import { cloudFetch } from '@/lib/api';
-import { asChat, durationMs, type TraceSpanNode } from './trace-detail';
+import type { TraceSpanNode } from '@/lib/trace-layout';
+import { asChat } from './trace-detail';
+import { TracePeekSheet } from './traces/peek-sheet';
+import { BaselineColumn } from './playground/baseline-column';
+import { VariantColumn, type VariantColumnHandle } from './playground/variant-column';
+import { newVariant, type EditableMessage, type Variant } from './playground/variant-model';
 
 /**
- * M55 — the prompt playground / span replay. From an LLM span, edit the recorded input (messages +
- * model) and re-run it against the real provider (server-side, via the per-tenant BFF replay proxy),
- * showing the new output/tokens/latency next to the original. The replay is a NEW run — it never
- * mutates the immutable trace (M44 read-only body); the only persist path is the opt-in "Save as
- * dataset item" (reuses M44 datasets). Edited input is controlled text and the output is plain text —
- * never `dangerouslySetInnerHTML` (XSS-safe). A provider failure surfaces a typed error, not a hang.
+ * M62 — the side-by-side playground. From an LLM span, compare N editable variants (model / prompt)
+ * next to the read-only original, each re-run against the real provider server-side (M55 path). The
+ * SOTA default (Langfuse n-window / Opik 6 / Phoenix ≤4): a horizontal scroll row of state-isolated
+ * columns (ADR D3), a **Run-all** that fans out one replay per variant (bounded by the variant cap +
+ * the server per-workspace rate-limit — Top-risk-1), and a **View Trace** action that opens the
+ * original span's detail in a Sheet (reuses M58 — ADR D4). The replay is ephemeral: it never mutates
+ * the trace (M44); the only persist path is the per-variant opt-in save-as-dataset.
  */
 
-interface ReplayResult {
-  output: string;
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-  latencyMs: number;
-  model: string;
-}
-interface EditableMessage {
-  role: string;
-  content: string;
-}
-interface DatasetsResult {
-  datasets: { id: string; name: string }[];
-}
-
+const VARIANT_CAP = 4;
 const ROLES = ['system', 'user', 'assistant'];
 
-/** Prefill the editable messages from the span's recorded input (Phoenix span→form pattern). A span
- *  whose input does not parse as a chat array degrades to a single editable user message (never a crash). */
+/** Prefill editable messages from the span's recorded input (a non-chat input → one user message). */
 function initialMessages(span: TraceSpanNode): EditableMessage[] {
   const parsed = span.inputValue ? asChat(span.inputValue) : null;
   if (parsed && parsed.length > 0) {
@@ -47,175 +35,68 @@ function initialMessages(span: TraceSpanNode): EditableMessage[] {
 }
 
 export function LensPlayground({ span }: { span: TraceSpanNode }) {
-  const [messages, setMessages] = useState<EditableMessage[]>(() => initialMessages(span));
-  const [model, setModel] = useState(span.model ?? '');
-  const [dataset, setDataset] = useState('');
+  const seed = useMemo(() => initialMessages(span), [span]);
+  const [variants, setVariants] = useState<Variant[]>(() => [newVariant(seed, span.model ?? '')]);
+  const [viewTrace, setViewTrace] = useState(false);
+  const refs = useRef(new Map<string, VariantColumnHandle>());
 
-  const replay = useMutation({
-    mutationFn: () =>
-      cloudFetch<ReplayResult>(`/v1/dashboard/lens/traces/${encodeURIComponent(span.traceId)}/replay`, {
-        method: 'POST',
-        body: JSON.stringify({
-          messages: messages.map((m) => ({ role: m.role, content: m.content })),
-          ...(model.trim() ? { model: model.trim() } : {}),
-        }),
-      }),
-  });
-  const result = replay.data ?? null;
-
-  // Datasets for the opt-in save (loaded only once there's a result to save).
-  const datasets = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/datasets'] as const,
-    queryFn: () => cloudFetch<DatasetsResult>('/v1/dashboard/lens/datasets'),
-    enabled: !!result,
-  });
-  const datasetOptions = datasets.data?.datasets ?? [];
-  const targetDataset = dataset || datasetOptions[0]?.id || '';
-
-  const save = useMutation({
-    mutationFn: (dsId: string) =>
-      cloudFetch(`/v1/dashboard/lens/datasets/${encodeURIComponent(dsId)}/items`, {
-        method: 'POST',
-        // the replayed input + output — a new dataset item, NOT a mutation of the trace.
-        body: JSON.stringify({ input: JSON.stringify(messages), output: result?.output ?? '' }),
-      }),
-  });
-
-  const setMsg = (i: number, patch: Partial<EditableMessage>) =>
-    setMessages((prev) => prev.map((m, j) => (j === i ? { ...m, ...patch } : m)));
-  const addMsg = () => setMessages((prev) => [...prev, { role: 'user', content: '' }]);
-  const removeMsg = (i: number) => setMessages((prev) => prev.filter((_, j) => j !== i));
-
-  const origTokens = (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
-  const origDuration = durationMs(span);
+  const setVariant = (v: Variant) => setVariants((prev) => prev.map((x) => (x.id === v.id ? v : x)));
+  // Mark a completed run's key on the LATEST variant (functional — preserves any mid-flight edit, so a
+  // run resolving after an edit correctly leaves the output stale instead of clobbering the new inputs).
+  const markRan = (id: string, ranKey: string) =>
+    setVariants((prev) => prev.map((x) => (x.id === id ? { ...x, lastRunKey: ranKey } : x)));
+  const addVariant = () =>
+    setVariants((prev) => (prev.length >= VARIANT_CAP ? prev : [...prev, newVariant(seed, span.model ?? '')]));
+  const removeVariant = (id: string) => {
+    refs.current.delete(id);
+    setVariants((prev) => prev.filter((x) => x.id !== id));
+  };
+  const runAll = () => variants.forEach((v) => refs.current.get(v.id)?.run());
 
   return (
-    <Card className="mt-3 space-y-3 p-3" data-testid="playground">
+    <div className="mt-3 space-y-3" data-testid="playground">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase text-muted-foreground">Playground · replay</h3>
-        <span className="text-xs text-muted-foreground">A new run — the original trace is unchanged.</span>
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-semibold uppercase text-muted-foreground">Playground · compare</h3>
+          <span className="text-xs text-muted-foreground">A new run — the original trace is unchanged.</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={runAll} disabled={variants.length === 0}>
+            <Play className="mr-1 h-4 w-4" /> Run all
+          </Button>
+          <Button variant="secondary" size="sm" onClick={addVariant} disabled={variants.length >= VARIANT_CAP}>
+            <Plus className="mr-1 h-4 w-4" /> Add variant
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setViewTrace(true)}>
+            <GitCompareArrows className="mr-1 h-4 w-4" /> View Trace
+          </Button>
+          <Badge variant="outline" className="text-xs">
+            {variants.length}/{VARIANT_CAP}
+          </Badge>
+        </div>
       </div>
 
-      {/* Editable messages (controlled inputs → plain text, XSS-safe). */}
-      <div className="space-y-2">
-        {messages.map((m, i) => (
-          <div key={i} className="flex items-start gap-2">
-            <Select value={m.role} onValueChange={(v) => setMsg(i, { role: v })}>
-              <Select.Trigger className="w-[130px]" aria-label={`Role for message ${i + 1}`}>
-                <Select.Value />
-              </Select.Trigger>
-              <Select.Content>
-                {ROLES.map((r) => (
-                  <Select.Item key={r} value={r}>
-                    {r}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
-            <Textarea
-              value={m.content}
-              onChange={(e) => setMsg(i, { content: e.target.value })}
-              aria-label={`Content for message ${i + 1}`}
-              className="min-h-[60px] flex-1 font-mono text-xs"
-            />
-            <Button variant="ghost" size="sm" aria-label={`Remove message ${i + 1}`} onClick={() => removeMsg(i)} disabled={messages.length <= 1}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+      <div className="flex gap-3 overflow-x-auto pb-2" data-testid="variant-row">
+        <BaselineColumn span={span} />
+        {variants.map((v) => (
+          <VariantColumn
+            key={v.id}
+            ref={(h) => {
+              if (h) refs.current.set(v.id, h);
+              else refs.current.delete(v.id);
+            }}
+            variant={v}
+            span={span}
+            onChange={setVariant}
+            onRan={(ranKey) => markRan(v.id, ranKey)}
+            onRemove={() => removeVariant(v.id)}
+            canRemove={variants.length > 1}
+          />
         ))}
-        <Button variant="ghost" size="sm" onClick={addMsg}>
-          <Plus className="mr-1 h-4 w-4" /> Add message
-        </Button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <label className="text-xs text-muted-foreground" htmlFor="pg-model">
-          Model
-        </label>
-        <Input
-          id="pg-model"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder="(default)"
-          className="w-[220px] font-mono text-xs"
-        />
-        <Button size="sm" onClick={() => replay.mutate()} disabled={replay.isPending}>
-          {replay.isPending ? 'Running…' : 'Run'}
-        </Button>
-      </div>
-
-      {replay.isError ? (
-        <Alert intent="warning" title="Replay failed" data-testid="replay-error">
-          The provider is unavailable, rate-limited, or not configured — no output was produced.
-        </Alert>
-      ) : null}
-
-      {/* Original vs replay, side by side. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <h4 className="text-xs font-semibold">Original</h4>
-          <pre data-testid="original-output" className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-muted/30 p-2 text-xs">
-            {span.outputValue ?? '—'}
-          </pre>
-          <div className="text-xs text-muted-foreground">
-            {origTokens} tokens{origDuration !== null ? ` · ${origDuration} ms` : ''}
-          </div>
-        </div>
-        <div className="space-y-1">
-          <h4 className="text-xs font-semibold">Replay</h4>
-          {result ? (
-            <>
-              <pre data-testid="replay-output" className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-muted/30 p-2 text-xs">
-                {result.output}
-              </pre>
-              <div className="flex flex-wrap gap-1 text-xs" data-testid="replay-metrics">
-                <Badge variant="outline">{result.totalTokens} tokens</Badge>
-                <Badge variant="outline">{result.latencyMs} ms</Badge>
-                {result.model ? <Badge variant="outline">{result.model}</Badge> : null}
-              </div>
-            </>
-          ) : (
-            <div className="text-xs text-muted-foreground">Run to see the new output.</div>
-          )}
-        </div>
-      </div>
-
-      {/* Opt-in: save the replayed input+output as a synthetic dataset item (the only persist path). */}
-      {result ? (
-        <div className="space-y-1 border-t border-border/50 pt-2">
-          <div className="flex items-center gap-2">
-            {datasetOptions.length > 0 ? (
-              <Select value={targetDataset} onValueChange={setDataset}>
-                <Select.Trigger className="w-[200px]" aria-label="Dataset">
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  {datasetOptions.map((d) => (
-                    <Select.Item key={d.id} value={d.id}>
-                      {d.name}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-            ) : (
-              <span className="text-xs text-muted-foreground">No datasets yet — create one first.</span>
-            )}
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={!targetDataset || save.isPending}
-              onClick={() => targetDataset && save.mutate(targetDataset)}
-            >
-              {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved' : 'Save as dataset item'}
-            </Button>
-          </div>
-          {save.isError ? (
-            <Alert intent="warning" title="Could not save" data-testid="save-error">
-              The dataset item was not saved — try again.
-            </Alert>
-          ) : null}
-        </div>
-      ) : null}
-    </Card>
+      {/* View Trace — the original span's detail in a Sheet (M58 reuse); the playground stays mounted. */}
+      <TracePeekSheet traceId={viewTrace ? span.traceId : null} onClose={() => setViewTrace(false)} />
+    </div>
   );
 }
