@@ -232,6 +232,7 @@ const MENUS: Record<string, MenuDefinition> = {
           { label: 'Evaluators', path: '/observability/evaluators', icon: FlaskConical },
           { label: 'Guards', path: '/observability/guards', icon: ShieldCheck },
           { label: 'Queues', path: '/observability/labeling-queue', icon: ClipboardCheck },
+          { label: 'Experiments', path: '/observability/experiments', icon: FlaskConical },
           { label: 'Ask', path: '/observability/ask', icon: Search },
         ],
       },

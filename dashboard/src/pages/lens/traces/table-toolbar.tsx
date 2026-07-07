@@ -1,5 +1,5 @@
 import { Button } from '@usetheo/ui';
-import { Download, GitCompareArrows } from 'lucide-react';
+import { Download, FlaskConical, GitCompareArrows } from 'lucide-react';
 
 /**
  * M59 P1 — the traces-table toolbar. Two rows: (1) the bulk-action bar, shown ONLY when ≥1 row is
@@ -16,6 +16,9 @@ export interface TracesTableToolbarProps {
   compareHref: string | undefined;
   onCompare: () => void;
   onClearSelection: () => void;
+  /** M64 — turn the selected traces into a regression dataset (create dataset + add each). */
+  onCreateDataset: () => void;
+  creatingDataset: boolean;
 }
 
 export function TracesTableToolbar({
@@ -27,6 +30,8 @@ export function TracesTableToolbar({
   compareHref,
   onCompare,
   onClearSelection,
+  onCreateDataset,
+  creatingDataset,
 }: TracesTableToolbarProps) {
   return (
     <>
@@ -46,6 +51,10 @@ export function TracesTableToolbar({
           >
             <GitCompareArrows className="mr-1 h-4 w-4" />
             Compare
+          </Button>
+          <Button variant="secondary" size="sm" disabled={creatingDataset} onClick={onCreateDataset}>
+            <FlaskConical className="mr-1 h-4 w-4" />
+            {creatingDataset ? 'Creating…' : 'Create regression dataset'}
           </Button>
           <Button variant="ghost" size="sm" onClick={onClearSelection} aria-label="Clear selection">
             Clear selection

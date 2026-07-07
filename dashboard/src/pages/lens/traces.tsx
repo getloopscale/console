@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
 import {
@@ -234,6 +234,32 @@ export function LensTracesPage() {
   const [exportError, setExportError] = useState(false);
   const [exportDisclosure, setExportDisclosure] = useState<string | null>(null);
 
+  // M64 — turn the selected traces into a regression dataset (create dataset + add each selected trace),
+  // then route to the experiments page to run it. Reuses the M44 dataset routes (no new dataset code).
+  const createDataset = useMutation({
+    mutationFn: async (traceIds: string[]) => {
+      const name = `regression ${new Date().toISOString().slice(0, 19)}`;
+      const ds = await cloudFetch<{ id: string }>(
+        '/v1/dashboard/lens/datasets',
+        { method: 'POST', body: JSON.stringify({ name }) },
+        { throwOnError: true },
+      );
+      for (const traceId of traceIds) {
+        await cloudFetch(
+          `/v1/dashboard/lens/datasets/${encodeURIComponent(ds!.id)}/items`,
+          { method: 'POST', body: JSON.stringify({ traceId }) },
+          { throwOnError: true },
+        );
+      }
+      return ds!.id;
+    },
+    retry: false,
+    onSuccess: (datasetId) => {
+      setSelected(new Set());
+      navigate(`/observability/experiments?datasetId=${encodeURIComponent(datasetId)}`);
+    },
+  });
+
   async function doExport(format: 'csv' | 'json') {
     setExporting(true);
     setExportError(false);
@@ -322,6 +348,8 @@ export function LensTracesPage() {
                 compareHref={compareHref}
                 onCompare={() => compareHref && navigate(compareHref)}
                 onClearSelection={() => setSelected(new Set())}
+                onCreateDataset={() => createDataset.mutate(selectedIds)}
+                creatingDataset={createDataset.isPending}
               />
               {exportDisclosure ? (
                 <p data-testid="export-disclosure" className="mb-2 text-right text-xs text-muted-foreground">
