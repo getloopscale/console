@@ -1,0 +1,72 @@
+import type { LatencyBucket, ModelBucket, TrafficBucket } from './lens-series';
+
+/**
+ * M60 P0 — pure overview-analytics helpers (dependency-free leaf; ADR D2/D3). `periodDelta` computes
+ * an honest period-over-period delta from the ALREADY-FETCHED M51 window (no BFF change): it splits
+ * the window into two equal halves and compares `aggregate(second half)` vs `aggregate(first half)`.
+ * Division-by-zero / un-splittable / sparse windows resolve to `na` — never `Infinity`/`NaN` leaking
+ * to a tile (Opik `MetricsSummary` convention). `cardMode` is the width-adaptive-degradation decision.
+ * Pure + total; no React, no `cloudFetch`.
+ */
+
+export type DeltaTrend = 'up' | 'down' | 'neutral';
+export interface Delta {
+  pct: number;
+  trend: DeltaTrend;
+  na: boolean;
+}
+
+const sum = (ns: number[]): number => ns.reduce((a, b) => a + b, 0);
+const mean = (ns: number[]): number => (ns.length === 0 ? 0 : sum(ns) / ns.length);
+
+/**
+ * Half-vs-half period-over-period delta over the fetched window. `agg` = `sum` for count/cost metrics,
+ * `mean` for rate/latency metrics. Fewer than 2 buckets → `na` (un-splittable). `prev===0 && cur>0`
+ * → `na` (a % change from zero is undefined — shown as "N/A", never `Infinity`).
+ */
+export function periodDelta(values: number[], agg: 'sum' | 'mean' = 'sum'): Delta {
+  if (values.length < 2) return { pct: 0, trend: 'neutral', na: true };
+  const mid = Math.floor(values.length / 2);
+  const aggregate = agg === 'mean' ? mean : sum;
+  const prev = aggregate(values.slice(0, mid));
+  const cur = aggregate(values.slice(mid));
+
+  if (prev === 0 && cur === 0) return { pct: 0, trend: 'neutral', na: false };
+  if (prev === 0) return { pct: 0, trend: 'neutral', na: true }; // cur>0 vs 0 → undefined % → N/A
+  if (cur === 0) return { pct: -100, trend: 'down', na: false };
+
+  const pct = ((cur - prev) / prev) * 100;
+  const trend: DeltaTrend = pct > 0 ? 'up' : pct < 0 ? 'down' : 'neutral';
+  return { pct, trend, na: false };
+}
+
+export type CardMode = 'full' | 'no-delta' | 'icon-only';
+
+const CARD_WIDTH_FULL = 240;
+const CARD_WIDTH_NO_DELTA = 160;
+
+/** Width-adaptive degradation: a wide tile shows everything, a narrow one drops the delta, then the label. */
+export function cardMode(perCardWidth: number): CardMode {
+  if (perCardWidth >= CARD_WIDTH_FULL) return 'full';
+  if (perCardWidth >= CARD_WIDTH_NO_DELTA) return 'no-delta';
+  return 'icon-only';
+}
+
+/** The per-metric value arrays the KPI strip + shared chart read from the M51 window (pure projections). */
+export function tracesValues(traffic: TrafficBucket[]): number[] {
+  return traffic.map((t) => t.traceCount);
+}
+export function errorRateValues(traffic: TrafficBucket[]): number[] {
+  return traffic.map((t) => t.errorRate);
+}
+export function p95Values(latency: LatencyBucket[]): number[] {
+  return latency.map((l) => l.p95Ms);
+}
+export function costValues(cost: { costUsd: number }[]): number[] {
+  return cost.map((b) => b.costUsd);
+}
+
+/** The by-model cost total (current window) — the tile's headline cost value. */
+export function totalModelCost(tokensByModel: ModelBucket[]): number {
+  return sum(tokensByModel.map((m) => m.costUsd));
+}
