@@ -16,7 +16,7 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     render(<LensDatasetsPage />);
     expect(await screen.findByText('golden')).toBeInTheDocument();
 
-    await userEvent.type(screen.getByLabelText(/new dataset name/i), 'reports');
+    await userEvent.type(screen.getByLabelText(/dataset name/i), 'reports');
     await userEvent.click(screen.getByRole('button', { name: /^create$/i }));
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/datasets',

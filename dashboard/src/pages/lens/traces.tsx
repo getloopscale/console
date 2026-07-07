@@ -1,20 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import { BookmarkPlus, Download, GitCompareArrows, Trash2 } from 'lucide-react';
 import {
   Alert,
-  Badge,
   Button,
   Card,
-  ConfirmDialog,
   DataTable,
-  type DataTableColumn,
   EmptyState,
   Input,
   PageShell,
-  Select,
   Skeleton,
 } from '@usetheo/ui';
 
@@ -29,7 +24,35 @@ import {
   EXPORT_CAP,
   type ExportTrace,
 } from '@/lib/traces-export';
-import { LensTraceDetail } from './trace-detail';
+import { tracesColumns, type Trace } from './traces/columns';
+import { SavedViewsBar } from './traces/saved-views';
+import { TracePeekSheet } from './traces/peek-sheet';
+import { TracesTableToolbar } from './traces/table-toolbar';
+import { FilterBar } from './traces/filter-bar';
+import { EMPTY_FILTERS, RANGE_VALUES, type Range, type TraceFilters } from './traces/filter-model';
+import { ColumnsToggle } from './traces/columns-toggle';
+import { TOGGLEABLE_COLUMNS, decodeColumns, encodeColumns, isColumnVisible } from './traces/view-encoding';
+
+// M59 P0 (D1) — re-export the moved list-row type so any importer of `Trace` from `./traces`
+// keeps resolving after the decomposition (behavior-preserving shim; no test churn).
+export type { Trace };
+
+/**
+ * M57 T1.1 — convert an OTLP `startTimeUnixNano` (nanoseconds since epoch, as a
+ * string) to an ISO string for the timestamp column. Pure + total: nullish,
+ * non-numeric, or non-positive (Go zero-time) input returns null so the cell
+ * renders the em-dash. BigInt avoids float precision loss on 19-digit ns.
+ */
+export function nsToIso(ns: string | undefined | null): string | null {
+  if (!ns) return null;
+  try {
+    const ms = Number(BigInt(ns) / 1_000_000n);
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    return new Date(ms).toISOString();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * M44 — /lens/traces. Read the workspace's traces and manage their human-in-the-loop
@@ -39,49 +62,19 @@ import { LensTraceDetail } from './trace-detail';
  * stays read-only (spans arrive via OTLP); only the metadata is browser-authored.
  */
 
-interface Trace {
-  traceId: string;
-  name?: string;
-  status?: string;
-  statusCode?: string;
-  model?: string;
-  startTimeUnixNano?: string;
-}
 interface TracesResult {
   traces: Trace[];
 }
-interface TagsResult {
-  tags: string[];
-}
-interface SavedView {
-  id: string;
-  name: string;
-  query_string: string;
-}
-interface SavedViewsResult {
-  saved_views: SavedView[];
-}
 
-const RANGE_VALUES = ['all', '1h', '24h', '7d'] as const;
-type Range = (typeof RANGE_VALUES)[number];
 const RANGE_MS: Record<Exclude<Range, 'all'>, number> = {
   '1h': 3_600_000,
   '24h': 86_400_000,
   '7d': 604_800_000,
 };
 
-interface TraceFilters {
-  q: string;
-  status: 'all' | 'error';
-  model: string;
-  range: Range;
-  // M52 — advanced filters (strings; empty = inactive). Forwarded as theo-lens snake_case params.
-  costMin: string;
-  costMax: string;
-  tokensMin: string;
-  tokensMax: string;
-  session: string;
-}
+// M59 P2 — the filter shape + the chip model live in ./traces/filter-model (the pure DIP boundary);
+// re-exported here so `traces-export.ts` + `traces.test.tsx` keep resolving (D1 shim).
+export type { TraceFilters };
 
 /**
  * Build the `/v1/dashboard/lens/traces` query string from the active filters — active-only (empty /
@@ -109,7 +102,6 @@ export function LensTracesPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Traces'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
 
   const navigate = useNavigate();
   const [openID, setOpenID] = useState<string | null>(null);
@@ -122,9 +114,6 @@ export function LensTracesPage() {
       else next.add(id);
       return next;
     });
-  const [tag, setTag] = useState('');
-  const [note, setNote] = useState('');
-  const [pendingTag, setPendingTag] = useState<string | null>(null);
 
   // M49 — URL-persisted filters (nuqs): a filtered view is shareable/bookmarkable.
   const [q, setQ] = useQueryState('q', parseAsString.withDefault(''));
@@ -137,6 +126,17 @@ export function LensTracesPage() {
   const [tokensMin, setTokensMin] = useQueryState('tokens_min', parseAsString.withDefault(''));
   const [tokensMax, setTokensMax] = useQueryState('tokens_max', parseAsString.withDefault(''));
   const [session, setSession] = useQueryState('session', parseAsString.withDefault(''));
+  // M59 P1 — row density (URL-persisted so it round-trips into a saved view, Phase 3).
+  const [density, setDensity] = useQueryState(
+    'density',
+    parseAsStringEnum(['comfortable', 'compact']).withDefault('comfortable'),
+  );
+  // M59 P3 — column visibility as a single versioned `cols=` URL param, so the M52 saved view captures
+  // it for free (no schema change — ADR D4). Density is mirrored into the encoded state for round-trip
+  // completeness, but the `density` param above stays its source of truth.
+  const [cols, setCols] = useQueryState('cols', parseAsString.withDefault(''));
+  const columnState = { ...decodeColumns(cols), density };
+  const setColumnState = (next: typeof columnState) => void setCols(encodeColumns(next) || null);
 
   // The search box keeps its own immediate value (responsive typing) and DEBOUNCES into the `q`
   // query-state that drives the server fetch — one request per pause, not per keystroke (a full-text
@@ -151,6 +151,22 @@ export function LensTracesPage() {
   }, [searchInput, q, setQ]);
 
   const filters: TraceFilters = { q, status, model, range, costMin, costMax, tokensMin, tokensMax, session };
+
+  // M59 P2 — the chip bar hands back a Partial<TraceFilters> (apply/clear); this maps each changed
+  // field to its `nuqs` setter (empty → null drops the param). The URL param keys are UNCHANGED, so
+  // `buildTraceQuery` + the M49 BFF whitelist are untouched (ADR D2).
+  const applyFilters = (p: Partial<TraceFilters>) => {
+    if ('q' in p) void setQ(p.q ? p.q : null);
+    if ('status' in p) void setStatus(p.status === 'error' ? 'error' : null);
+    if ('model' in p) void setModel(p.model ? p.model : null);
+    if ('range' in p) void setRange(p.range && p.range !== 'all' ? p.range : null);
+    if ('costMin' in p) void setCostMin(p.costMin ? p.costMin : null);
+    if ('costMax' in p) void setCostMax(p.costMax ? p.costMax : null);
+    if ('tokensMin' in p) void setTokensMin(p.tokensMin ? p.tokensMin : null);
+    if ('tokensMax' in p) void setTokensMax(p.tokensMax ? p.tokensMax : null);
+    if ('session' in p) void setSession(p.session ? p.session : null);
+  };
+
   const hasActiveFilters =
     q.trim() !== '' ||
     status !== 'all' ||
@@ -163,41 +179,9 @@ export function LensTracesPage() {
     session.trim() !== '';
 
   // M52 — saved views: a per-tenant store of the current filter URL. Apply = write the whole search
-  // string (nuqs re-hydrates every filter); share = the URL itself.
+  // string (nuqs re-hydrates every filter); share = the URL itself. The bar + its CRUD live in
+  // ./traces/saved-views (M59 ADR D1); the page owns only the URL params + the apply callback.
   const [searchParams, setSearchParams] = useSearchParams();
-  const [saveOpen, setSaveOpen] = useState(false);
-  const [viewName, setViewName] = useState('');
-  const [pendingView, setPendingView] = useState<SavedView | null>(null);
-
-  const savedViewsKey = ['cloud', '/v1/dashboard/lens/saved-views'] as const;
-  const savedViews = useQuery({
-    queryKey: savedViewsKey,
-    queryFn: () => cloudFetch<SavedViewsResult>('/v1/dashboard/lens/saved-views'),
-  });
-  const invalidateViews = () => void queryClient.invalidateQueries({ queryKey: savedViewsKey });
-
-  const createView = useMutation({
-    mutationFn: (name: string) =>
-      cloudFetch<SavedView>('/v1/dashboard/lens/saved-views', {
-        method: 'POST',
-        // the query string IS the view — the current filter URL (or a bare "?" when no filter is set).
-        body: JSON.stringify({ name, query_string: searchParams.toString() ? `?${searchParams.toString()}` : '?' }),
-      }),
-    onSuccess: () => {
-      setSaveOpen(false);
-      setViewName('');
-      invalidateViews();
-    },
-  });
-
-  const deleteView = useMutation({
-    mutationFn: (id: string) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/saved-views/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      setPendingView(null);
-      invalidateViews();
-    },
-  });
 
   // Apply a saved view: replace the URL search with its stored query string; nuqs re-reads every key.
   const applyView = (queryString: string) => {
@@ -211,85 +195,30 @@ export function LensTracesPage() {
     queryFn: () => cloudFetch<TracesResult>(`/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now())}`),
   });
 
-  const tagsKey = ['cloud', '/v1/dashboard/lens/traces', openID, 'tags'] as const;
-  const tags = useQuery({
-    queryKey: tagsKey,
-    queryFn: () => cloudFetch<TagsResult>(`/v1/dashboard/lens/traces/${encodeURIComponent(openID as string)}/tags`),
-    enabled: openID !== null,
+  // M59 P3 — hide the toggleable spine columns the user turned off (identity columns always show).
+  const columns = tracesColumns({
+    selected,
+    toggleSelected,
+    onOpen: setOpenID,
+    // M61 — dock the Ask copilot to this trace (carries the id in the URL; no manual entry).
+    onAsk: (id) => navigate(`/observability/ask?traceId=${encodeURIComponent(id)}`),
+  }).filter(
+    (c) => !(TOGGLEABLE_COLUMNS as readonly string[]).includes(c.key) || isColumnVisible(columnState, c.key),
+  );
+
+  // M57 T1.1 — newest-first by default. Defensive client-side desc sort by
+  // startTimeUnixNano (BigInt-safe, missing timestamps sink to the bottom) so the
+  // Time column is honestly ordered regardless of the BFF's return order. Stable
+  // for equal/absent timestamps; the server-side M49 filters are unaffected.
+  const traces = [...(query.data?.traces ?? [])].sort((a, b) => {
+    const an = a.startTimeUnixNano;
+    const bn = b.startTimeUnixNano;
+    if (!an && !bn) return 0;
+    if (!an) return 1;
+    if (!bn) return -1;
+    const d = BigInt(bn) - BigInt(an);
+    return d > 0n ? 1 : d < 0n ? -1 : 0;
   });
-  const invalidateTags = () => void queryClient.invalidateQueries({ queryKey: tagsKey });
-
-  const addTag = useMutation({
-    mutationFn: (t: string) =>
-      cloudFetch<TagsResult>(`/v1/dashboard/lens/traces/${encodeURIComponent(openID as string)}/tags`, {
-        method: 'POST',
-        body: JSON.stringify({ tag: t }),
-      }),
-    onSuccess: () => {
-      setTag('');
-      invalidateTags();
-    },
-  });
-
-  const removeTag = useMutation({
-    mutationFn: (t: string) =>
-      cloudFetch<TagsResult>(
-        `/v1/dashboard/lens/traces/${encodeURIComponent(openID as string)}/tags?tag=${encodeURIComponent(t)}`,
-        { method: 'DELETE' },
-      ),
-    onSuccess: () => {
-      setPendingTag(null);
-      invalidateTags();
-    },
-  });
-
-  const addAnnotation = useMutation({
-    mutationFn: (n: string) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/traces/${encodeURIComponent(openID as string)}/annotations`, {
-        method: 'POST',
-        body: JSON.stringify({ note: n }),
-      }),
-    onSuccess: () => setNote(''),
-  });
-
-  const columns: DataTableColumn<Trace>[] = [
-    {
-      key: 'compare-select',
-      label: '',
-      render: (row) => (
-        <input
-          type="checkbox"
-          checked={selected.has(row.traceId)}
-          onChange={() => toggleSelected(row.traceId)}
-          aria-label={`Select ${row.traceId} for compare`}
-          className="h-4 w-4 cursor-pointer"
-        />
-      ),
-    },
-    {
-      key: 'traceId',
-      label: 'Trace',
-      render: (row) => (
-        <Button variant="ghost" size="sm" onClick={() => setOpenID(row.traceId)} aria-label={`Open ${row.traceId}`}>
-          <span className="font-mono text-sm">{row.traceId}</span>
-        </Button>
-      ),
-    },
-    { key: 'name', label: 'Name', render: (row) => <span>{row.name ?? '—'}</span> },
-    { key: 'model', label: 'Model', render: (row) => <span className="font-mono text-xs">{row.model ?? '—'}</span> },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (row) => {
-        const s = row.statusCode ?? row.status;
-        if (!s) return <span>—</span>;
-        return <Badge variant={s.toLowerCase() === 'error' ? 'destructive' : 'outline'}>{s}</Badge>;
-      },
-    },
-  ];
-
-  const traces = query.data?.traces ?? [];
-  const currentTags = tags.data?.tags ?? [];
 
   // M54 — compare is pairwise: the action is live only with exactly two traces ticked.
   const selectedIds = Array.from(selected);
@@ -333,24 +262,17 @@ export function LensTracesPage() {
     }
   }
 
-  // Model filter options — distinct models present in the current page, plus the active model so it
-  // stays selectable even when the page is already narrowed to it. A dedicated models endpoint is a
-  // follow-up (see plan § Unresolved questions); this MVP derives options client-side.
-  const modelOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const t of traces) if (t.model) set.add(t.model);
-    if (model.trim()) set.add(model.trim());
-    return Array.from(set).sort();
-  }, [traces, model]);
-
   return (
     <>
       <PageShell title="Traces" description="Explore executions and manage their tags & annotations.">
         <div className="space-y-6">
-          <div className="flex flex-wrap items-end gap-3" role="search">
+          {/* M59 P2 — the search box (primary, debounced) + the chip-filter builder (column→operator
+              →value chips over the SAME nuqs params — no BFF change). Replaces the M49/M52 stacked
+              Select/Input panel. */}
+          <div className="flex flex-wrap items-center gap-3" role="search">
             <div className="min-w-[220px] flex-1">
-              <label htmlFor="trace-search" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Search
+              <label htmlFor="trace-search" className="sr-only">
+                Search traces
               </label>
               <Input
                 id="trace-search"
@@ -361,191 +283,15 @@ export function LensTracesPage() {
                 aria-label="Search traces"
               />
             </div>
-
-            <div>
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">Status</span>
-              <Select value={status} onValueChange={(v) => void setStatus(v === 'all' ? null : (v as 'error'))}>
-                <Select.Trigger className="w-[130px]" aria-label="Filter by status">
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="all">All statuses</Select.Item>
-                  <Select.Item value="error">Errors only</Select.Item>
-                </Select.Content>
-              </Select>
-            </div>
-
-            <div>
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">Model</span>
-              <Select value={model || 'all'} onValueChange={(v) => void setModel(v === 'all' ? null : v)}>
-                <Select.Trigger className="w-[190px]" aria-label="Filter by model">
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="all">All models</Select.Item>
-                  {modelOptions.map((m) => (
-                    <Select.Item key={m} value={m}>
-                      {m}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
-            </div>
-
-            <div>
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">Time range</span>
-              <Select value={range} onValueChange={(v) => void setRange(v === 'all' ? null : (v as Range))}>
-                <Select.Trigger className="w-[140px]" aria-label="Filter by time range">
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="all">All time</Select.Item>
-                  <Select.Item value="1h">Last hour</Select.Item>
-                  <Select.Item value="24h">Last 24h</Select.Item>
-                  <Select.Item value="7d">Last 7 days</Select.Item>
-                </Select.Content>
-              </Select>
-            </div>
-
+            <FilterBar filters={filters} onApply={applyFilters} />
             {hasActiveFilters ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  void setQ(null);
-                  void setStatus(null);
-                  void setModel(null);
-                  void setRange(null);
-                  void setCostMin(null);
-                  void setCostMax(null);
-                  void setTokensMin(null);
-                  void setTokensMax(null);
-                  void setSession(null);
-                }}
-                aria-label="Clear filters"
-              >
+              <Button variant="ghost" size="sm" onClick={() => applyFilters(EMPTY_FILTERS)} aria-label="Clear filters">
                 Clear
               </Button>
             ) : null}
           </div>
 
-          {/* M52 — advanced filters: cost/token ranges + session (server-side, URL-persisted). */}
-          <div className="flex flex-wrap items-end gap-3" aria-label="Advanced filters">
-            <div>
-              <label htmlFor="cost-min" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Cost ≥ (USD)
-              </label>
-              <Input
-                id="cost-min"
-                type="number"
-                className="w-[120px]"
-                value={costMin}
-                onChange={(e) => void setCostMin(e.target.value || null)}
-                placeholder="min"
-                aria-label="Minimum cost USD"
-              />
-            </div>
-            <div>
-              <label htmlFor="cost-max" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Cost ≤ (USD)
-              </label>
-              <Input
-                id="cost-max"
-                type="number"
-                className="w-[120px]"
-                value={costMax}
-                onChange={(e) => void setCostMax(e.target.value || null)}
-                placeholder="max"
-                aria-label="Maximum cost USD"
-              />
-            </div>
-            <div>
-              <label htmlFor="tokens-min" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Tokens ≥
-              </label>
-              <Input
-                id="tokens-min"
-                type="number"
-                className="w-[110px]"
-                value={tokensMin}
-                onChange={(e) => void setTokensMin(e.target.value || null)}
-                placeholder="min"
-                aria-label="Minimum tokens"
-              />
-            </div>
-            <div>
-              <label htmlFor="tokens-max" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Tokens ≤
-              </label>
-              <Input
-                id="tokens-max"
-                type="number"
-                className="w-[110px]"
-                value={tokensMax}
-                onChange={(e) => void setTokensMax(e.target.value || null)}
-                placeholder="max"
-                aria-label="Maximum tokens"
-              />
-            </div>
-            <div className="min-w-[180px] flex-1">
-              <label htmlFor="session-filter" className="mb-1 block text-xs font-medium text-muted-foreground">
-                Session
-              </label>
-              <Input
-                id="session-filter"
-                value={session}
-                onChange={(e) => void setSession(e.target.value || null)}
-                placeholder="session id (exact)"
-                aria-label="Filter by session id"
-              />
-            </div>
-          </div>
-
-          {/* M52 — saved views: apply / delete a stored filter combination, or save the current one. */}
-          <div className="flex flex-wrap items-center gap-2" aria-label="Saved views">
-            <span className="text-xs font-medium text-muted-foreground">Saved views:</span>
-            {(savedViews.data?.saved_views ?? []).map((v) => (
-              <span key={v.id} className="flex items-center gap-0.5">
-                <Button variant="secondary" size="sm" onClick={() => applyView(v.query_string)} aria-label={`Apply view ${v.name}`}>
-                  {v.name}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setPendingView(v)} aria-label={`Delete view ${v.name}`}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </span>
-            ))}
-            {(savedViews.data?.saved_views ?? []).length === 0 ? (
-              <span className="text-xs text-muted-foreground">none yet</span>
-            ) : null}
-            {saveOpen ? (
-              <form
-                className="flex items-center gap-1"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (viewName.trim()) createView.mutate(viewName.trim());
-                }}
-              >
-                <Input
-                  value={viewName}
-                  onChange={(e) => setViewName(e.target.value)}
-                  placeholder="View name"
-                  aria-label="Saved view name"
-                  className="w-[160px]"
-                />
-                <Button type="submit" size="sm" disabled={!viewName.trim() || createView.isPending}>
-                  Save
-                </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setSaveOpen(false)}>
-                  Cancel
-                </Button>
-              </form>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={() => setSaveOpen(true)} aria-label="Save current view">
-                <BookmarkPlus className="mr-1 h-3.5 w-3.5" />
-                Save current view
-              </Button>
-            )}
-          </div>
+          <SavedViewsBar searchParams={searchParams} onApply={applyView} />
 
           {query.isLoading ? (
             <Skeleton />
@@ -564,29 +310,19 @@ export function LensTracesPage() {
             )
           ) : (
             <>
-              <div className="mb-2 flex items-center justify-end gap-2">
-                {selected.size > 0 ? (
-                  <span className="text-xs text-muted-foreground">{selected.size} selected</span>
-                ) : null}
-                <Button variant="secondary" size="sm" disabled={exporting} onClick={() => doExport('csv')}>
-                  <Download className="mr-1 h-4 w-4" />
-                  Export CSV
-                </Button>
-                <Button variant="secondary" size="sm" disabled={exporting} onClick={() => doExport('json')}>
-                  <Download className="mr-1 h-4 w-4" />
-                  Export JSON
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={compareHref === undefined}
-                  data-compare-href={compareHref}
-                  onClick={() => compareHref && navigate(compareHref)}
-                >
-                  <GitCompareArrows className="mr-1 h-4 w-4" />
-                  Compare
-                </Button>
+              <div className="mb-1 flex items-center justify-end">
+                <ColumnsToggle state={columnState} onChange={setColumnState} />
               </div>
+              <TracesTableToolbar
+                density={density}
+                onToggleDensity={() => void setDensity(density === 'compact' ? null : 'compact')}
+                exporting={exporting}
+                onExport={doExport}
+                selectedCount={selected.size}
+                compareHref={compareHref}
+                onCompare={() => compareHref && navigate(compareHref)}
+                onClearSelection={() => setSelected(new Set())}
+              />
               {exportDisclosure ? (
                 <p data-testid="export-disclosure" className="mb-2 text-right text-xs text-muted-foreground">
                   {exportDisclosure}
@@ -598,97 +334,26 @@ export function LensTracesPage() {
                 </Alert>
               ) : null}
               <Card>
-                <DataTable columns={columns} data={traces} rowKey={(row) => row.traceId} />
+                {/* M59 P1 — density toggles the row height (compact vs comfortable) via a data-attr
+                    + Tailwind arbitrary selectors; URL-persisted so a saved view captures it (P3). */}
+                <div
+                  data-density={density}
+                  className={
+                    density === 'compact'
+                      ? '[&_tbody_td]:py-1 [&_tbody_td]:text-xs'
+                      : '[&_tbody_td]:py-2.5'
+                  }
+                >
+                  <DataTable columns={columns} data={traces} rowKey={(row) => row.traceId} />
+                </div>
               </Card>
             </>
           )}
 
-          {openID !== null ? <LensTraceDetail key={openID} traceId={openID} /> : null}
-
-          {openID !== null ? (
-            <Card>
-              <Card.Header>
-                <h2 className="text-sm font-medium">Metadata · {openID}</h2>
-                <Button variant="ghost" size="sm" onClick={() => setOpenID(null)} aria-label="Close metadata">
-                  Close
-                </Button>
-              </Card.Header>
-              <Card.Body>
-                <div className="space-y-4">
-                  <div>
-                    <form
-                      className="flex items-end gap-2"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        if (tag.trim()) addTag.mutate(tag.trim());
-                      }}
-                    >
-                      <div className="flex-1">
-                        <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Add a tag" aria-label="New tag" />
-                      </div>
-                      <Button type="submit" disabled={!tag.trim() || addTag.isPending}>
-                        Add tag
-                      </Button>
-                    </form>
-                    <ul className="mt-3 flex flex-wrap gap-2">
-                      {currentTags.map((t) => (
-                        <li key={t} className="flex items-center gap-1">
-                          <Badge variant="outline">{t}</Badge>
-                          <Button variant="ghost" size="sm" onClick={() => setPendingTag(t)} aria-label={`Remove tag ${t}`}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <form
-                    className="flex items-end gap-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (note.trim()) addAnnotation.mutate(note.trim());
-                    }}
-                  >
-                    <div className="flex-1">
-                      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add an annotation note" aria-label="New annotation" />
-                    </div>
-                    <Button type="submit" disabled={!note.trim() || addAnnotation.isPending}>
-                      Add note
-                    </Button>
-                  </form>
-                </div>
-              </Card.Body>
-            </Card>
-          ) : null}
+          {/* M59 P1 — row-click opens the peek Sheet (was an inline card that pushed the table down). */}
+          <TracePeekSheet traceId={openID} onClose={() => setOpenID(null)} />
         </div>
       </PageShell>
-
-      {pendingTag !== null ? (
-        <ConfirmDialog
-          open={pendingTag !== null}
-          onOpenChange={(o) => !o && setPendingTag(null)}
-          title={`Remove tag "${pendingTag}"?`}
-          description={<p className="text-sm">This removes the tag from the trace.</p>}
-          confirmLabel={removeTag.isPending ? 'Removing…' : 'Remove tag'}
-          cancelLabel="Cancel"
-          intent="destructive"
-          loading={removeTag.isPending}
-          onConfirm={() => removeTag.mutate(pendingTag)}
-        />
-      ) : null}
-
-      {pendingView !== null ? (
-        <ConfirmDialog
-          open={pendingView !== null}
-          onOpenChange={(o) => !o && setPendingView(null)}
-          title={`Delete view "${pendingView.name}"?`}
-          description={<p className="text-sm">This removes the saved view. Your current filters are unaffected.</p>}
-          confirmLabel={deleteView.isPending ? 'Deleting…' : 'Delete view'}
-          cancelLabel="Cancel"
-          intent="destructive"
-          loading={deleteView.isPending}
-          onConfirm={() => deleteView.mutate(pendingView.id)}
-        />
-      ) : null}
     </>
   );
 }

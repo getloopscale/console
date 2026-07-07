@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { userEvent } from '@testing-library/user-event';
 import { within } from '@testing-library/react';
-import { render, screen } from '@/test/render';
+import { fireEvent, render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
@@ -29,6 +29,9 @@ import {
   computeTraceBounds,
   VIRTUALIZE_THRESHOLD,
 } from './trace-detail';
+import { ancestors } from './trace-detail/breadcrumb';
+import { aggregateCost } from '@/lib/trace-layout';
+import { formatCost, formatDate } from '@/lib/format';
 
 /** Build a wide tree with `n` children under the root (to exercise the virtualization threshold). */
 function wideTree(n: number) {
@@ -148,20 +151,25 @@ describe('LensTraceDetail — selected-span detail', () => {
     expect(within(detail).getByText(/501/)).toBeInTheDocument();
     expect(within(detail).getByText('stop_reason')).toBeInTheDocument();
     expect(within(detail).getByText('gen_ai.request.attempt')).toBeInTheDocument();
+    // M57 T2.1 — durations render via formatDuration (no raw "885 ms" with a space)
+    expect(within(detail).getByText('885ms')).toBeInTheDocument();
+    expect(within(detail).queryByText('885 ms')).not.toBeInTheDocument();
   });
 
-  it('truncates oversized output and show-more reveals the full content', async () => {
+  it('renders an oversized non-chat output in the read-only CodeMirror raw-JSON view (M58 P3.2)', async () => {
+    // M58 P3.2 — a non-chat payload now falls back to the CodeMirror raw-JSON view (IoCards), which
+    // renders/folds the full text as document (not HTML) rather than the old `<pre>` show-more. The
+    // markdown byte-guard "Show more" lives on the chat-message body, not this raw fallback.
     const big = 'x'.repeat(20000);
     mockCloudFetch.mockResolvedValue(tree({ inputValue: undefined, outputValue: big, children: [] }));
     render(<LensTraceDetail traceId="t1" />);
     const out = await screen.findByTestId('span-output');
-    expect((out.textContent ?? '').length).toBeLessThan(big.length); // truncated
-    await userEvent.click(screen.getByRole('button', { name: /show more/i }));
-    expect((screen.getByTestId('span-output').textContent ?? '').length).toBe(big.length); // fully revealed
-    expect(screen.getByRole('button', { name: /show less/i })).toBeInTheDocument();
+    const cm = out.querySelector('.cm-editor');
+    expect(cm).toBeInTheDocument();
+    expect(cm?.querySelector('.cm-content')?.getAttribute('contenteditable')).toBe('false');
   });
 
-  it('role-renders a chat-message array instead of raw JSON', async () => {
+  it('role-renders a chat-message array as role-labeled IO cards (M58 P3.2)', async () => {
     const chat = JSON.stringify([
       { role: 'user', content: 'why did it fail?' },
       { role: 'assistant', content: 'the tool timed out' },
@@ -169,7 +177,9 @@ describe('LensTraceDetail — selected-span detail', () => {
     mockCloudFetch.mockResolvedValue(tree({ inputValue: chat, children: [] }));
     render(<LensTraceDetail traceId="t1" />);
     const detail = await screen.findByTestId('span-detail');
-    expect(within(detail).getByTestId('chat-view')).toBeInTheDocument();
+    // M58 P3.2 — bordered role-labeled Cards, NOT the legacy chat-view bubbles.
+    expect(within(detail).queryByTestId('chat-view')).toBeNull();
+    expect(within(detail).getAllByTestId('io-card')).toHaveLength(2);
     expect(within(detail).getByText('user')).toBeInTheDocument();
     expect(within(detail).getByText('why did it fail?')).toBeInTheDocument();
     expect(within(detail).getByText('assistant')).toBeInTheDocument();
@@ -206,6 +216,15 @@ describe('LensTraceDetail — tree interaction', () => {
     await userEvent.click(await screen.findByRole('button', { name: /claude_code\.llm_request/i }));
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+
+  // M57 T5.1 — a successful fetch with no spans is an honest empty state, NOT
+  // the "service unavailable" error (which is reserved for query.isError).
+  it('shows an empty state (not the error alert) when the trace has no spans', async () => {
+    mockCloudFetch.mockResolvedValue(null);
+    render(<LensTraceDetail traceId="t1" />);
+    expect(await screen.findByText('No spans in this trace')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load this trace')).not.toBeInTheDocument();
   });
 });
 
@@ -438,5 +457,641 @@ describe('LensTraceDetail — M50 waterfall timeline', () => {
     await screen.findByTestId('span-tree');
     const unbounded = screen.getAllByTestId('span-bar').filter((b) => b.getAttribute('data-unbounded') === 'true');
     expect(unbounded).toHaveLength(1);
+  });
+});
+
+// ---- M58 Phase 0 — URL selection store + breadcrumb + keyboard next/prev span ----
+
+/**
+ * A 3-level fixture (root s0 → s1 → s3) with a sibling s2 and a second leaf s4 so we can
+ * exercise the ancestor chain and next/prev visible-order navigation.
+ * Visible depth-first order: s0, s1, s3, s2, s4.
+ */
+function navTree() {
+  return {
+    spanId: 's0',
+    traceId: 't1',
+    name: 'root.span',
+    startTimeUnixNano: '1000',
+    endTimeUnixNano: '5000',
+    children: [
+      {
+        spanId: 's1',
+        traceId: 't1',
+        parentSpanId: 's0',
+        name: 'middle.span',
+        startTimeUnixNano: '1000',
+        endTimeUnixNano: '3000',
+        children: [
+          {
+            spanId: 's3',
+            traceId: 't1',
+            parentSpanId: 's1',
+            name: 'leaf.three',
+            model: 'claude-haiku-4-5-20251001',
+            startTimeUnixNano: '1200',
+            endTimeUnixNano: '2000',
+          },
+        ],
+      },
+      {
+        spanId: 's2',
+        traceId: 't1',
+        parentSpanId: 's0',
+        name: 'sibling.two',
+        startTimeUnixNano: '3000',
+        endTimeUnixNano: '4000',
+        children: [
+          {
+            spanId: 's4',
+            traceId: 't1',
+            parentSpanId: 's2',
+            name: 'leaf.four',
+            startTimeUnixNano: '3200',
+            endTimeUnixNano: '3800',
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe('ancestors (M58 P0 — pure ancestor chain)', () => {
+  it('returns root..selected for a nested span', () => {
+    const root = navTree();
+    expect(ancestors(root, 's3').map((n) => n.spanId)).toEqual(['s0', 's1', 's3']);
+  });
+
+  it('returns [root] for the root span itself', () => {
+    const root = navTree();
+    expect(ancestors(root, 's0').map((n) => n.spanId)).toEqual(['s0']);
+  });
+
+  it('returns [] when the span is not in the tree', () => {
+    const root = navTree();
+    expect(ancestors(root, 'nope')).toEqual([]);
+  });
+});
+
+describe('LensTraceDetail — M58 P0 URL selection + breadcrumb + kbd nav', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('?spanId=s3 selects span s3 (detail pane shows its content)', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s3'] });
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('leaf.three')).toBeInTheDocument();
+    expect(within(detail).getByText('claude-haiku-4-5-20251001')).toBeInTheDocument();
+  });
+
+  it('?spanId=UNKNOWN falls back to root without crashing', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=UNKNOWN'] });
+    const detail = await screen.findByTestId('span-detail');
+    // no error/crash text, and the root span renders
+    expect(within(detail).getByText('root.span')).toBeInTheDocument();
+    expect(screen.queryByText(/could not load this trace/i)).not.toBeInTheDocument();
+  });
+
+  it('breadcrumb renders the ancestor chain root→…→selected in order', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s3'] });
+    const crumbs = await screen.findByTestId('trace-breadcrumb');
+    const names = within(crumbs)
+      .getAllByTestId('breadcrumb-crumb')
+      .map((el) => el.textContent);
+    expect(names).toEqual(['root.span', 'middle.span', 'leaf.three']);
+  });
+
+  it('clicking a breadcrumb crumb selects that ancestor span', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s3'] });
+    const crumbs = await screen.findByTestId('trace-breadcrumb');
+    await userEvent.click(within(crumbs).getByRole('button', { name: 'middle.span' }));
+    const detail = screen.getByTestId('span-detail');
+    expect(within(detail).getByText('middle.span')).toBeInTheDocument();
+  });
+
+  it('pressing "]" selects the next visible span and updates the URL', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s0'] });
+    await screen.findByTestId('span-detail');
+    fireEvent.keyDown(window, { key: ']' }); // s0 → next visible is s1
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('middle.span')).toBeInTheDocument();
+    // the URL is the source of truth: the breadcrumb now ends at the newly selected span
+    const crumbs = screen.getByTestId('trace-breadcrumb');
+    const last = within(crumbs).getAllByTestId('breadcrumb-crumb').at(-1);
+    expect(last?.textContent).toBe('middle.span');
+  });
+
+  it('"]" advances through visible depth-first order and rewrites spanId in the URL', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    // start at s1; visible order is s0,s1,s3,s2,s4 → next after s1 is s3
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s1'] });
+    await screen.findByTestId('span-detail');
+    fireEvent.keyDown(window, { key: ']' });
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('leaf.three')).toBeInTheDocument();
+    // the deep-link is the source of truth: the breadcrumb now ends at s3
+    const crumbs = screen.getByTestId('trace-breadcrumb');
+    const last = within(crumbs).getAllByTestId('breadcrumb-crumb').at(-1);
+    expect(last?.textContent).toBe('leaf.three');
+  });
+
+  it('"[" selects the previous visible span', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    // start at s3; visible order s0,s1,s3,... → prev is s1
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s3'] });
+    await screen.findByTestId('span-detail');
+    fireEvent.keyDown(window, { key: '[' });
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('middle.span')).toBeInTheDocument();
+  });
+
+  it('"[" at the root is a no-op (no wrap)', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s0'] });
+    await screen.findByTestId('span-detail');
+    fireEvent.keyDown(window, { key: '[' });
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('root.span')).toBeInTheDocument(); // still root
+  });
+
+  it('"]" at the last visible span is a no-op (no wrap)', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    // last in visible order is s4
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s4'] });
+    await screen.findByTestId('span-detail');
+    fireEvent.keyDown(window, { key: ']' });
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('leaf.four')).toBeInTheDocument(); // still s4
+  });
+});
+
+// ---- M58 Phase 1 (T1.2) — polished waterfall view ----
+
+// A ~2s trace with real epoch-ns timestamps (so absolute-time labels are valid dates), an error
+// child, and per-span costs so the ∑ parent-cost badge has something to sum. Base epoch:
+// 1_700_000_000 s → 1_700_000_000_000_000_000 ns.
+const WF_BASE_NS = 1_700_000_000_000_000_000n;
+function waterfallTree() {
+  const at = (secOffset: number) => (WF_BASE_NS + BigInt(secOffset) * 1_000_000_000n).toString();
+  return {
+    spanId: 'w0',
+    traceId: 't1',
+    name: 'root.request',
+    startTimeUnixNano: at(0),
+    endTimeUnixNano: at(2), // 2s trace window
+    statusCode: '0',
+    costUsd: 0.01,
+    children: [
+      {
+        spanId: 'w1',
+        traceId: 't1',
+        parentSpanId: 'w0',
+        name: 'llm.call',
+        startTimeUnixNano: at(0),
+        endTimeUnixNano: at(1),
+        model: 'claude-haiku-4-5-20251001',
+        statusCode: '0',
+        costUsd: 0.02,
+      },
+      {
+        spanId: 'w2',
+        traceId: 't1',
+        parentSpanId: 'w0',
+        name: 'tool.boom',
+        startTimeUnixNano: at(1),
+        endTimeUnixNano: at(2),
+        statusCode: '2', // error
+      },
+    ],
+  };
+}
+
+describe('LensTraceDetail — M58 P1.2 waterfall', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('renders a nice-interval time axis with second-shaped tick labels', async () => {
+    mockCloudFetch.mockResolvedValue(waterfallTree());
+    render(<LensTraceDetail traceId="t1" />);
+    const wf = await screen.findByTestId('waterfall');
+    // A 2s window at ≥70px ticks yields 0s / 1s / 2s (or a subset) — assert the seconds labels appear.
+    expect(within(wf).getByText('1s')).toBeInTheDocument();
+    expect(within(wf).getByText('2s')).toBeInTheDocument();
+  });
+
+  it('hovering the lane shows a needle with a formatDate-shaped absolute time', async () => {
+    mockCloudFetch.mockResolvedValue(waterfallTree());
+    render(<LensTraceDetail traceId="t1" />);
+    const lane = await screen.findByTestId('waterfall-lane');
+    // No needle before hover.
+    expect(screen.queryByTestId('waterfall-needle')).not.toBeInTheDocument();
+    fireEvent.mouseMove(lane, { clientX: 0 });
+    const needle = await screen.findByTestId('waterfall-needle');
+    // At clientX 0 (jsdom rect left 0) the needle sits at the trace start → its label is the
+    // absolute datetime of the start, exactly as formatDate renders it.
+    const startIso = new Date(Number(WF_BASE_NS / 1_000_000n)).toISOString();
+    expect(needle.textContent ?? '').toContain(formatDate(startIso, 'datetime'));
+  });
+
+  it('an error span renders a destructive waterfall bar', async () => {
+    mockCloudFetch.mockResolvedValue(waterfallTree());
+    render(<LensTraceDetail traceId="t1" />);
+    const wf = await screen.findByTestId('waterfall');
+    const errorBars = within(wf)
+      .getAllByTestId('waterfall-bar')
+      .filter((b) => b.getAttribute('data-error') === 'true');
+    expect(errorBars).toHaveLength(1);
+    expect(errorBars[0].className).toMatch(/destructive/);
+  });
+
+  it('the URL-selected span renders with a ring on its waterfall bar', async () => {
+    mockCloudFetch.mockResolvedValue(waterfallTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=w1'] });
+    const wf = await screen.findByTestId('waterfall');
+    const selected = within(wf)
+      .getAllByTestId('waterfall-bar')
+      .filter((b) => b.getAttribute('data-selected') === 'true');
+    expect(selected).toHaveLength(1);
+    expect(selected[0].className).toMatch(/ring/);
+  });
+
+  it('a parent row shows its ∑ aggregated cost', async () => {
+    const root = waterfallTree();
+    mockCloudFetch.mockResolvedValue(root);
+    render(<LensTraceDetail traceId="t1" />);
+    const wf = await screen.findByTestId('waterfall');
+    // root ∑ = 0.01 (own) + 0.02 (w1) + 0 (w2) = 0.03.
+    const total = aggregateCost(root as never); // 0.03
+    expect(within(wf).getByText(new RegExp(`∑\\s*${formatCost(total).replace('$', '\\$')}`))).toBeInTheDocument();
+  });
+});
+
+// M58 P2.2 — the namespace-grouped, PII-masked Attributes panel (scope-gated Reveal).
+// The `Attributes` component is unit-tested directly (its `canReveal` gate is a security invariant
+// that must be exercised with BOTH values), plus one integration assertion that the panel mounts in
+// the detail pane. `attrsTree` gives the selected child span a multi-namespace attribute set with one
+// PII value so grouping, promoted badges, and masking are all observable in one render.
+import { Attributes } from './trace-detail/attributes';
+
+const PII_EMAIL = 'user@example.com';
+
+function attrsTree(canRevealAttrs: Record<string, unknown> = {}) {
+  return tree({
+    inputValue: undefined,
+    children: [
+      {
+        spanId: 'child',
+        traceId: 't1',
+        parentSpanId: 'root',
+        name: 'claude_code.llm_request',
+        startTimeUnixNano: '1000000000',
+        endTimeUnixNano: '1000955000000',
+        attributes: {
+          'gen_ai.request.model': 'claude-haiku-4-5',
+          'gen_ai.usage.input_tokens': 501,
+          'gen_ai.usage.output_tokens': 13,
+          'gen_ai.usage.cost': 0.0072,
+          'http.status': 200,
+          'user.email': PII_EMAIL,
+          stop_reason: 'end_turn',
+          ...canRevealAttrs,
+        },
+      },
+    ],
+  });
+}
+
+describe('Attributes — namespace-grouped, PII-masked panel (M58 P2.2)', () => {
+  const attrs = {
+    'gen_ai.request.model': 'claude-haiku-4-5',
+    'gen_ai.usage.input_tokens': 501,
+    'gen_ai.usage.output_tokens': 13,
+    'gen_ai.usage.cost': 0.0072,
+    'http.status': 200,
+    'user.email': PII_EMAIL,
+    stop_reason: 'end_turn',
+  };
+
+  it('renders one collapsible Card per OTel namespace', () => {
+    render(<Attributes attrs={attrs} canReveal={false} />);
+    // Each namespace is a collapsible header Button; its aria-label distinguishes it from unrelated
+    // text nodes (e.g. a `user` chat-role badge). gen_ai/http/user/other are all present.
+    expect(screen.getByRole('button', { name: /collapse gen_ai/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /collapse http/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /collapse user/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /collapse other/i })).toBeInTheDocument();
+    expect(screen.getByTestId('attributes-ns-gen_ai')).toBeInTheDocument();
+    expect(screen.getByTestId('attributes-ns-http')).toBeInTheDocument();
+  });
+
+  it('collapsing a namespace Card hides its rows; expanding shows them again', async () => {
+    render(<Attributes attrs={attrs} canReveal={false} />);
+    expect(screen.getByText('http.status')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /collapse http/i }));
+    expect(screen.queryByText('http.status')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /expand http/i }));
+    expect(screen.getByText('http.status')).toBeInTheDocument();
+  });
+
+  it('renders promoted badges (model/tokens/cost/level) in the header', () => {
+    render(<Attributes attrs={{ ...attrs, level: 'error' }} canReveal={false} />);
+    const header = screen.getByTestId('attributes-badges');
+    expect(within(header).getByText('claude-haiku-4-5')).toBeInTheDocument();
+    expect(within(header).getByText('501→13')).toBeInTheDocument();
+    expect(within(header).getByText('$0.0072')).toBeInTheDocument();
+    expect(within(header).getByText('error')).toBeInTheDocument();
+  });
+
+  it('masks a PII email — the raw value is ABSENT from the DOM pre-reveal (core invariant)', () => {
+    const { container } = render(<Attributes attrs={attrs} canReveal={false} />);
+    expect(screen.queryByText(PII_EMAIL)).toBeNull();
+    // Defense in depth: the raw substring appears NOWHERE in the rendered markup (not in text,
+    // not in a title/aria/data attribute) before Reveal.
+    expect(container.innerHTML).not.toContain(PII_EMAIL);
+    expect(screen.getByText('•••')).toBeInTheDocument();
+  });
+
+  it('fail-closed: with canReveal={false} the Reveal control is disabled AND force-clicking never leaks', async () => {
+    const { container } = render(<Attributes attrs={attrs} canReveal={false} />);
+    const reveal = screen.getByRole('button', { name: /reveal/i });
+    expect(reveal).toBeDisabled();
+    // Force the click even though it is disabled — the raw value must still never enter the DOM.
+    fireEvent.click(reveal);
+    expect(screen.queryByText(PII_EMAIL)).toBeNull();
+    expect(container.innerHTML).not.toContain(PII_EMAIL);
+  });
+
+  it('with canReveal={true} clicking Reveal shows the raw PII value', async () => {
+    render(<Attributes attrs={attrs} canReveal={true} />);
+    expect(screen.queryByText(PII_EMAIL)).toBeNull(); // still hidden until the explicit click
+    await userEvent.click(screen.getByRole('button', { name: /reveal/i }));
+    expect(screen.getByText(PII_EMAIL)).toBeInTheDocument();
+  });
+
+  it('renders an EmptyState when there are no attributes', () => {
+    render(<Attributes attrs={{}} canReveal={false} />);
+    expect(screen.getByText(/no attributes/i)).toBeInTheDocument();
+  });
+
+  it('mounts in the selected-span detail pane (integration)', async () => {
+    mockCloudFetch.mockResolvedValue(attrsTree());
+    render(<LensTraceDetail traceId="t1" />);
+    await userEvent.click(await screen.findByRole('button', { name: /claude_code\.llm_request/i }));
+    const detail = screen.getByTestId('span-detail');
+    // grouped header present, and the PII email is NOT in the pre-reveal detail DOM.
+    expect(within(detail).getByRole('button', { name: /collapse gen_ai/i })).toBeInTheDocument();
+    expect(within(detail).queryByText(PII_EMAIL)).toBeNull();
+    expect(detail.innerHTML).not.toContain(PII_EMAIL);
+  });
+});
+
+// M58 P3.1 — the single sanitized `Markdown` wrapper (the ONLY react-markdown import site, ADR D5).
+// XSS-safety is a non-negotiable guardrail: the negative tests below assert a malicious payload
+// produces no executable node and no `javascript:` href. `IoCards` (P3.2) renders IO bodies through
+// this wrapper; both live in `io-cards.tsx`.
+import { Markdown, IoCards } from './trace-detail/io-cards';
+
+describe('Markdown — sanitized wrapper (M58 P3.1, XSS guard)', () => {
+  it('strips a <script> payload — no script node reaches the DOM', () => {
+    const { container } = render(<Markdown source={'<script>alert(1)</script>'} />);
+    expect(container.querySelector('script')).toBeNull();
+  });
+
+  it('strips a javascript: link href — no anchor carries a javascript: URL', () => {
+    const { container } = render(<Markdown source={'[x](javascript:alert(1))'} />);
+    const anchors = Array.from(container.querySelectorAll('a'));
+    expect(anchors.some((a) => (a.getAttribute('href') ?? '').toLowerCase().startsWith('javascript:'))).toBe(false);
+  });
+
+  it('renders valid markdown — **bold** becomes a <strong>', () => {
+    const { container } = render(<Markdown source={'**bold**'} />);
+    const strong = container.querySelector('strong');
+    expect(strong).not.toBeNull();
+    expect(strong?.textContent).toBe('bold');
+  });
+
+  it('renders nothing for an empty string and plain text verbatim', () => {
+    const { container: empty } = render(<Markdown source={''} />);
+    expect((empty.textContent ?? '').trim()).toBe('');
+    const { container: plain } = render(<Markdown source={'just words'} />);
+    expect(plain.textContent).toContain('just words');
+  });
+});
+
+// M58 P3.2 — role-labeled IO cards + tool-call cards + redacted/thinking + "Show N more".
+// `IoCards` upgrades the old `ValueBlock`/`ChatView`: role-labeled bordered Cards (NOT bubbles) with a
+// Markdown body + raw-JSON CodeMirror toggle + CopyButton; dedicated tool-call cards linked by call-id;
+// a redacted/thinking placeholder; long-history collapse; and a raw-JSON fallback when `asChat` is null.
+describe('IoCards — role-labeled IO cards (M58 P3.2)', () => {
+  it('renders a role-labeled Card per message (Badge roles, not bubbles)', () => {
+    const chat = JSON.stringify([
+      { role: 'user', content: 'why did it fail?' },
+      { role: 'assistant', content: 'the tool timed out' },
+    ]);
+    render(<IoCards value={chat} testId="io" />);
+    const cards = screen.getAllByTestId('io-card');
+    expect(cards).toHaveLength(2);
+    expect(within(cards[0]).getByText('user')).toBeInTheDocument();
+    expect(within(cards[1]).getByText('assistant')).toBeInTheDocument();
+    // NOT the legacy bubble container.
+    expect(screen.queryByTestId('chat-view')).toBeNull();
+    expect(screen.getByText('why did it fail?')).toBeInTheDocument();
+  });
+
+  it('renders a tool-call card (name + call-id) and links its result by call-id', () => {
+    const chat = JSON.stringify([
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: 'call_42', function: { name: 'get_weather', arguments: '{"city":"SF"}' } }],
+      },
+      { role: 'tool', content: '{"temp":18}', tool_call_id: 'call_42' },
+    ]);
+    render(<IoCards value={chat} testId="io" />);
+    const callCard = screen.getByTestId('tool-call-call_42');
+    expect(within(callCard).getByText('get_weather')).toBeInTheDocument();
+    expect(within(callCard).getByText(/call_42/)).toBeInTheDocument();
+    // The result card is linked by the same call-id.
+    const resultCard = screen.getByTestId('tool-result-call_42');
+    expect(within(resultCard).getByText(/call_42/)).toBeInTheDocument();
+    expect(within(resultCard).getByText(/18/)).toBeInTheDocument();
+  });
+
+  it('renders a [Redacted thinking] block for redacted reasoning content', () => {
+    const chat = JSON.stringify([
+      { role: 'assistant', content: [{ type: 'thinking', thinking: '<REDACTED>' }] },
+    ]);
+    render(<IoCards value={chat} testId="io" />);
+    expect(screen.getByText(/redacted thinking/i)).toBeInTheDocument();
+  });
+
+  it('collapses a long history to first + last N with a "Show N more" toggle', async () => {
+    const msgs = Array.from({ length: 12 }, (_, i) => ({ role: 'user', content: `msg ${i}` }));
+    render(<IoCards value={JSON.stringify(msgs)} testId="io" />);
+    // A 12-message history collapses; the middle messages are hidden until expanded.
+    const showMore = screen.getByRole('button', { name: /show \d+ more/i });
+    expect(showMore).toBeInTheDocument();
+    expect(screen.queryByText('msg 5')).toBeNull(); // a middle (hidden) message
+    expect(screen.getByText('msg 0')).toBeInTheDocument(); // first shown
+    expect(screen.getByText('msg 11')).toBeInTheDocument(); // last shown
+    await userEvent.click(showMore);
+    expect(screen.getByText('msg 5')).toBeInTheDocument(); // revealed after click
+  });
+
+  it('falls back to the raw-JSON CodeMirror view for a non-chat payload (asChat null)', () => {
+    const { container } = render(<IoCards value={'{"answer":"hi"}'} testId="io" />);
+    // No role cards; the CodeMirror raw-JSON view renders instead.
+    expect(screen.queryByTestId('io-card')).toBeNull();
+    const cm = container.querySelector('.cm-editor');
+    expect(cm).not.toBeNull();
+    expect(container.textContent ?? '').toContain('answer');
+  });
+
+  it('preserves the redacted-value marker for a plain <REDACTED> payload', () => {
+    render(<IoCards value={'<REDACTED>'} testId="io" />);
+    expect(screen.getByText(/redacted by the client/i)).toBeInTheDocument();
+  });
+
+  it('mounts in the selected-span detail Input/Output sections (integration)', async () => {
+    const chat = JSON.stringify([{ role: 'user', content: 'hi there' }]);
+    mockCloudFetch.mockResolvedValue(tree({ inputValue: chat, children: [] }));
+    render(<LensTraceDetail traceId="t1" />);
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('hi there')).toBeInTheDocument();
+    expect(within(detail).getAllByTestId('io-card').length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// M58 P3.1/P3.2 — the react-markdown XSS invariant at the source level: exactly ONE import site and
+// NO dangerouslySetInnerHTML in the IO module.
+describe('IO module — react-markdown single-import + no dangerouslySetInnerHTML (M58 P3)', () => {
+  it('io-cards.tsx never uses dangerouslySetInnerHTML', () => {
+    const src = readFileSync(resolve(process.cwd(), 'src/pages/lens/trace-detail/io-cards.tsx'), 'utf8');
+    expect(src).not.toMatch(/dangerouslySetInnerHTML\s*=/);
+  });
+});
+
+// ---- M58 Phase 4 (T4.2) — reader-mode Transcript (flagship) ----
+
+/**
+ * A subagent-shaped trace: the root fans out into ≥2 children (a `group-header` in the row model), so
+ * the Transcript renders a collapsible group. Each child carries an output preview + role so the feed
+ * shows role Badges and inline previews.
+ */
+function transcriptTree() {
+  return {
+    spanId: 't0',
+    traceId: 't1',
+    name: 'agent.turn',
+    kind: 'agent',
+    startTimeUnixNano: '1000000',
+    endTimeUnixNano: '5000000',
+    outputValue: 'planned the run',
+    children: [
+      {
+        spanId: 't1a',
+        traceId: 't1',
+        parentSpanId: 't0',
+        name: 'llm.plan',
+        kind: 'LLM',
+        inputTokens: 10,
+        outputTokens: 4,
+        outputValue: 'call the weather tool',
+        startTimeUnixNano: '1000000',
+        endTimeUnixNano: '2000000',
+      },
+      {
+        spanId: 't1b',
+        traceId: 't1',
+        parentSpanId: 't0',
+        name: 'tool.exec',
+        kind: 'tool',
+        statusCode: '2', // error → StatusDot failed
+        outputValue: 'timeout after 30s',
+        startTimeUnixNano: '2000000',
+        endTimeUnixNano: '3000000',
+      },
+    ],
+  };
+}
+
+describe('LensTraceDetail — M58 P4.2 reader-mode Transcript', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('clicking "Transcript" sets ?view=transcript and renders the feed; "Tree" restores ?view=tree', async () => {
+    mockCloudFetch.mockResolvedValue(transcriptTree());
+    render(<LensTraceDetail traceId="t1" />);
+    // Default is the tree view — no transcript feed yet.
+    await screen.findByTestId('span-tree');
+    expect(screen.queryByTestId('transcript-feed')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /^transcript$/i }));
+    // The feed renders and the tree lane is gone (view switched).
+    expect(await screen.findByTestId('transcript-feed')).toBeInTheDocument();
+    expect(screen.queryByTestId('span-tree')).not.toBeInTheDocument();
+
+    // Switch back to the tree.
+    await userEvent.click(screen.getByRole('button', { name: /^tree$/i }));
+    expect(await screen.findByTestId('span-tree')).toBeInTheDocument();
+    expect(screen.queryByTestId('transcript-feed')).not.toBeInTheDocument();
+  });
+
+  it('honors ?view=transcript from the URL on first render (deep-link)', async () => {
+    mockCloudFetch.mockResolvedValue(transcriptTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
+    expect(await screen.findByTestId('transcript-feed')).toBeInTheDocument();
+  });
+
+  it('renders a role-labeled Card per span row (role Badge + StatusDot)', async () => {
+    mockCloudFetch.mockResolvedValue(transcriptTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
+    const feed = await screen.findByTestId('transcript-feed');
+    // One span row Card per node (root + 2 children = 3).
+    expect(within(feed).getAllByTestId('transcript-row')).toHaveLength(3);
+    // Role labels come from the span kind.
+    expect(within(feed).getByText('LLM')).toBeInTheDocument();
+    expect(within(feed).getByText('tool')).toBeInTheDocument();
+    // The errored tool span carries a StatusDot (aria-label of the failed status).
+    expect(within(feed).getByLabelText('failed')).toBeInTheDocument();
+    // The inline output preview is shown.
+    expect(within(feed).getByText(/call the weather tool/)).toBeInTheDocument();
+  });
+
+  it('a subagent group-header collapses and expands its rows', async () => {
+    mockCloudFetch.mockResolvedValue(transcriptTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
+    await screen.findByTestId('transcript-feed');
+    // The root fans out into 2 children → a collapsible group header.
+    const header = screen.getByRole('button', { name: /collapse agent\.turn/i });
+    // Child rows are visible initially.
+    expect(screen.getByText('call the weather tool')).toBeInTheDocument();
+    await userEvent.click(header);
+    // Collapsed → the group's child rows are gone.
+    expect(screen.queryByText('call the weather tool')).not.toBeInTheDocument();
+    // Re-expand → children return.
+    await userEvent.click(screen.getByRole('button', { name: /expand agent\.turn/i }));
+    expect(screen.getByText('call the weather tool')).toBeInTheDocument();
+  });
+
+  it('clicking a transcript row updates the URL spanId (selection sync)', async () => {
+    mockCloudFetch.mockResolvedValue(transcriptTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
+    const feed = await screen.findByTestId('transcript-feed');
+    // Click the LLM child row.
+    await userEvent.click(within(feed).getByRole('button', { name: /llm\.plan/i }));
+    // Switching back to the tree, the newly-selected span drives the breadcrumb (URL is the store).
+    await userEvent.click(screen.getByRole('button', { name: /^tree$/i }));
+    const crumbs = await screen.findByTestId('trace-breadcrumb');
+    const last = within(crumbs).getAllByTestId('breadcrumb-crumb').at(-1);
+    expect(last?.textContent).toBe('llm.plan');
+  });
+
+  it('a single default-span trace renders an EmptyState nudging back to the tree', async () => {
+    mockCloudFetch.mockResolvedValue({ spanId: 'solo', traceId: 't1', name: 'solo.span' });
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
+    expect(await screen.findByText('Only one span in this trace')).toBeInTheDocument();
   });
 });

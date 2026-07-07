@@ -10,6 +10,7 @@ import {
   type DataTableColumn,
   EmptyState,
   Input,
+  Label,
   PageShell,
   Skeleton,
   Textarea,
@@ -118,17 +119,19 @@ export function LensEvaluatorsPage() {
                   if (name.trim() && predicate.trim()) create.mutate({ name: name.trim(), predicate: predicate.trim() });
                 }}
               >
+                <Label htmlFor="evaluator-name">Name</Label>
                 <Input
+                  id="evaluator-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="evaluator-name"
-                  aria-label="New evaluator name"
                 />
+                <Label htmlFor="evaluator-predicate">Rule predicate</Label>
                 <Textarea
+                  id="evaluator-predicate"
                   value={predicate}
                   onChange={(e) => setPredicate(e.target.value)}
                   placeholder="Rule predicate, e.g. output.length > 0"
-                  aria-label="Rule predicate"
                 />
                 <Button type="submit" disabled={!name.trim() || !predicate.trim() || create.isPending}>
                   Create evaluator

@@ -47,7 +47,8 @@ vi.mock('react-resizable-panels', () => ({
   PanelResizeHandle: (props: Record<string, unknown>) => <div role="separator" {...props} />,
 }));
 
-import { LensTracesPage, buildTraceQuery } from './traces';
+import { LensTracesPage, buildTraceQuery, nsToIso } from './traces';
+import { formatDate } from '@/lib/format';
 
 // M49 — list-vs-detail-vs-tags URL discriminator. The list read is the base path optionally
 // followed by `?<filters>`; the detail read is base + `/<id>`; tags/annotations contain `/tags`.
@@ -61,6 +62,17 @@ function filterMock(traces: unknown[]) {
   });
 }
 const listUrls = () => mockCloudFetch.mock.calls.map((c) => c[0] as string).filter(isListUrl);
+
+// M59 P2 — drive the chip-filter builder: Add-filter Select → pick column option ("status is",
+// "cost >=", …) → (type value into the Input | keep the enum Select default) → Apply.
+async function addChip(optionName: RegExp, opts: { value?: string; valueLabel?: RegExp } = {}) {
+  await userEvent.click(screen.getByRole('combobox', { name: /add filter/i }));
+  await userEvent.click(await screen.findByRole('option', { name: optionName }));
+  if (opts.value !== undefined && opts.valueLabel) {
+    await userEvent.type(screen.getByRole('textbox', { name: opts.valueLabel }), opts.value);
+  }
+  await userEvent.click(screen.getByRole('button', { name: /apply filter/i }));
+}
 
 function routeMock() {
   mockCloudFetch.mockImplementation((url: string) => {
@@ -88,18 +100,19 @@ describe('LensTracesPage (/observability/traces)', () => {
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
 
-    const compare = screen.getByRole('button', { name: /compare/i });
-    expect(compare).toBeDisabled(); // 0 selected
+    // M59 P1 — Compare lives in the bulk-action bar, which appears only when ≥1 row is selected.
+    expect(screen.queryByRole('button', { name: /compare/i })).toBeNull(); // 0 selected → no bulk bar
 
     await userEvent.click(screen.getByLabelText('Select tr_1 for compare'));
-    expect(compare).toBeDisabled(); // 1 selected — still disabled
+    expect(screen.getByRole('button', { name: /compare/i })).toBeDisabled(); // 1 selected — present, disabled
 
     await userEvent.click(screen.getByLabelText('Select tr_2 for compare'));
-    expect(compare).toBeEnabled(); // exactly 2 → enabled
-    expect(compare).toHaveAttribute('data-compare-href', '/observability/compare?ids=tr_1,tr_2');
+    const compare2 = screen.getByRole('button', { name: /compare/i });
+    expect(compare2).toBeEnabled(); // exactly 2 → enabled
+    expect(compare2).toHaveAttribute('data-compare-href', '/observability/compare?ids=tr_1,tr_2');
 
     await userEvent.click(screen.getByLabelText('Select tr_3 for compare'));
-    expect(compare).toBeDisabled(); // 3 selected → disabled again (compare is pairwise)
+    expect(screen.getByRole('button', { name: /compare/i })).toBeDisabled(); // 3 → disabled (pairwise)
   });
 
   it('M56 — Export CSV downloads the filtered set (WYSIWYG) + discloses the count', async () => {
@@ -250,6 +263,31 @@ describe('buildTraceQuery (M49/M52 — pure filter→querystring mapping)', () =
     expect(bf({ costMin: '1' })).not.toContain('max_cost_usd=');
     expect(bf({})).not.toContain('session_id=');
   });
+
+  // M59 P0 (D1) — behavior-preservation guard for the traces.tsx decomposition: the full-filter
+  // output string is byte-identical for a fixed filter set + fixed clock. If the Phase 0 extraction
+  // (columns.tsx + saved-views.tsx) ever accidentally moved/altered buildTraceQuery, this pins it.
+  it('M59 P0 — is byte-identical for a fixed full filter set + fixed clock (decomposition guard)', () => {
+    const out = buildTraceQuery(
+      {
+        q: 'boom',
+        status: 'error',
+        model: 'claude-opus-4-8',
+        range: '1h',
+        costMin: '0.1',
+        costMax: '5',
+        tokensMin: '100',
+        tokensMax: '9000',
+        session: 'sess-x',
+      },
+      NOW,
+    );
+    const from = new Date(NOW - 3_600_000).toISOString();
+    expect(out).toBe(
+      `?q=boom&status=error&model=claude-opus-4-8&from=${encodeURIComponent(from)}` +
+        '&min_cost_usd=0.1&max_cost_usd=5&min_tokens=100&max_tokens=9000&session_id=sess-x',
+    );
+  });
 });
 
 describe('LensTracesPage — M49 search & filters (wiring)', () => {
@@ -288,8 +326,7 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     filterMock([{ traceId: 'tr_1', name: 'checkout', statusCode: 'error' }]);
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    await userEvent.click(screen.getByRole('combobox', { name: /filter by status/i }));
-    await userEvent.click(await screen.findByRole('option', { name: /errors only/i }));
+    await addChip(/status is/i); // enum column — Select defaults to the only option "error".
     await waitFor(() => expect(listUrls().some((u) => /[?&]status=error(&|$)/.test(u))).toBe(true));
   });
 
@@ -297,8 +334,7 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     filterMock([{ traceId: 'tr_1', name: 'checkout', model: 'claude-opus-4-8' }]);
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    await userEvent.click(screen.getByRole('combobox', { name: /filter by model/i }));
-    await userEvent.click(await screen.findByRole('option', { name: 'claude-opus-4-8' }));
+    await addChip(/model is/i, { value: 'claude-opus-4-8', valueLabel: /model value/i });
     await waitFor(() => expect(listUrls().some((u) => u.includes('model=claude-opus-4-8'))).toBe(true));
   });
 
@@ -306,8 +342,7 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     filterMock([{ traceId: 'tr_1', name: 'checkout' }]);
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    await userEvent.click(screen.getByRole('combobox', { name: /filter by time range/i }));
-    await userEvent.click(await screen.findByRole('option', { name: /last hour/i }));
+    await addChip(/time within/i); // enum column — Select defaults to "1h" → buildTraceQuery emits from=.
     await waitFor(() => expect(listUrls().some((u) => u.includes('from='))).toBe(true));
   });
 
@@ -351,7 +386,7 @@ describe('LensTracesPage — M52 advanced filters + saved views', () => {
     m52Mock({});
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    await userEvent.type(screen.getByLabelText(/minimum cost usd/i), '0.1');
+    await addChip(/cost >=/i, { value: '0.1', valueLabel: /cost value/i });
     await waitFor(() => expect(listUrls().some((u) => u.includes('min_cost_usd=0.1'))).toBe(true));
   });
 
@@ -359,7 +394,7 @@ describe('LensTracesPage — M52 advanced filters + saved views', () => {
     m52Mock({});
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    await userEvent.type(screen.getByLabelText(/filter by session id/i), 'sess-x');
+    await addChip(/session is/i, { value: 'sess-x', valueLabel: /session value/i });
     await waitFor(() => expect(listUrls().some((u) => u.includes('session_id=sess-x'))).toBe(true));
   });
 
@@ -400,5 +435,202 @@ describe('LensTracesPage — M52 advanced filters + saved views', () => {
     await screen.findByText('tr_1');
     await userEvent.click(screen.getByRole('button', { name: /save current view/i }));
     expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+  });
+
+  // M57 T1.1/T1.2 — timestamp column + short/copyable id.
+  const LONG_ID = 'dbbbfe6f3fda53662c57ef875f0191f8';
+  const NS = '1767225600000000000'; // 2026-01-01T00:00:00Z in ns
+
+  it('renders a Time column with a relative value and an absolute-time title (T1.1)', async () => {
+    filterMock([{ traceId: LONG_ID, name: 'a', startTimeUnixNano: NS }]);
+    render(<LensTracesPage />);
+    await screen.findByText('dbbbfe6f…');
+    // header present
+    expect(screen.getByText('Time')).toBeInTheDocument();
+    // the absolute datetime is exposed via the cell's title (self-consistent with the helper)
+    const iso = nsToIso(NS)!;
+    expect(screen.getByTitle(formatDate(iso, 'datetime'))).toBeInTheDocument();
+  });
+
+  it('renders "—" in the Time column when startTimeUnixNano is missing (edge)', async () => {
+    filterMock([{ traceId: LONG_ID, name: 'a' }]);
+    render(<LensTracesPage />);
+    await screen.findByText('dbbbfe6f…');
+    // no title for a missing timestamp (the cell is the em-dash)
+    expect(screen.queryByTitle(/2026|2025/)).not.toBeInTheDocument();
+  });
+
+  it('truncates the trace id and offers a full-id copy control (T1.2)', async () => {
+    filterMock([{ traceId: LONG_ID, name: 'a', startTimeUnixNano: NS }]);
+    render(<LensTracesPage />);
+    // display is truncated (8-char prefix + ellipsis), never the raw 32-hex
+    expect(await screen.findByText('dbbbfe6f…')).toBeInTheDocument();
+    expect(screen.queryByText(LONG_ID)).not.toBeInTheDocument();
+    // a copy control is present (carries the full id at the call site, ADR-D4)
+    expect(screen.getByRole('button', { name: /copy trace id/i })).toBeInTheDocument();
+  });
+
+  it('orders rows newest-first by startTimeUnixNano regardless of fetch order (T1.1)', async () => {
+    // Deliberately out-of-order fetch: mid, newest, oldest.
+    filterMock([
+      { traceId: 'tr_mid', name: 'mid', startTimeUnixNano: '2000000000000000000' },
+      { traceId: 'tr_new', name: 'new', startTimeUnixNano: '3000000000000000000' },
+      { traceId: 'tr_old', name: 'old', startTimeUnixNano: '1000000000000000000' },
+    ]);
+    render(<LensTracesPage />);
+    const newCell = await screen.findByText('new');
+    const oldCell = screen.getByText('old');
+    // 'new' precedes 'old' in the DOM → rendered newest-first.
+    expect(newCell.compareDocumentPosition(oldCell) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe('nsToIso (M57 T1.1)', () => {
+  it('converts a nanosecond string to an ISO instant', () => {
+    expect(nsToIso('1767225600000000000')).toBe('2026-01-01T00:00:00.000Z');
+  });
+  it('returns null for nullish / zero / non-numeric input', () => {
+    expect(nsToIso(undefined)).toBeNull();
+    expect(nsToIso(null)).toBeNull();
+    expect(nsToIso('')).toBeNull();
+    expect(nsToIso('0')).toBeNull();
+    expect(nsToIso('not-a-number')).toBeNull();
+  });
+});
+
+describe('LensTracesPage — M61 Ask copilot affordance', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('renders a per-row "Ask copilot" affordance that docks the copilot to that trace', async () => {
+    m52Mock({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    // the affordance carries the trace context (→ /observability/ask?traceId=tr_1) — no manual UUID entry.
+    expect(screen.getByRole('button', { name: /ask copilot about tr_1/i })).toBeInTheDocument();
+  });
+});
+
+describe('LensTracesPage — M59 P3 columns + naming Dialog + viewId + per-tenant isolation', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('the Columns toggle hides a spine column (captured by the saved-view URL)', async () => {
+    m52Mock({ traces: [{ traceId: 'tr_1', name: 'a', durationMs: 100, totalTokens: 50, costUsd: 0.01 }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    expect(screen.getByText('Latency')).toBeInTheDocument(); // the column header
+    await userEvent.click(screen.getByRole('button', { name: /choose columns/i }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: /toggle latency column/i }));
+    expect(screen.queryByText('Latency')).toBeNull(); // hidden
+  });
+
+  it('Save current view opens a naming Dialog and POSTs the view', async () => {
+    m52Mock({});
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(screen.getByRole('button', { name: /save current view/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/save current view/i)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/saved view name/i), 'my view');
+    await userEvent.click(within(dialog).getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(svCalls('POST').length).toBeGreaterThan(0));
+  });
+
+  it('applying a saved view marks it active + shareable (viewId in the URL)', async () => {
+    m52Mock({ views: [{ id: 'lsv-1', name: 'errored', query_string: '?status=error' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(await screen.findByRole('button', { name: /apply view errored/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /apply view errored/i })).toHaveAttribute('aria-current', 'true'),
+    );
+  });
+
+  it('renders only this workspace’s saved views (per-tenant — never another tenant’s)', async () => {
+    m52Mock({ views: [{ id: 'lsv-a', name: 'tenant-a-view', query_string: '?status=error' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    expect(screen.getByRole('button', { name: /apply view tenant-a-view/i })).toBeInTheDocument();
+    // a different tenant's view is never in this Principal-scoped list.
+    expect(screen.queryByRole('button', { name: /apply view tenant-b-view/i })).toBeNull();
+  });
+
+  it('a ?viewId= not in this workspace applies nothing (client-side isolation negative case)', async () => {
+    m52Mock({ views: [{ id: 'lsv-1', name: 'mine', query_string: '?status=error' }] });
+    render(<LensTracesPage />, { initialEntries: ['/observability/traces?viewId=lsv-other'] });
+    await screen.findByText('tr_1');
+    // the phantom viewId resolves against THIS workspace's list only → no view is applied, no crash.
+    expect(screen.getByRole('button', { name: /apply view mine/i })).not.toHaveAttribute('aria-current', 'true');
+  });
+});
+
+describe('LensTracesPage — M59 P1 density toggle', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('the density toggle flips the table wrapper density (default comfortable → compact)', async () => {
+    m52Mock({});
+    const { container } = render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    expect(container.querySelector('[data-density="comfortable"]')).toBeTruthy();
+    expect(container.querySelector('[data-density="compact"]')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /toggle row density/i }));
+    expect(container.querySelector('[data-density="compact"]')).toBeTruthy();
+  });
+});
+
+describe('LensTracesPage — M59 P2 chip filters', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('adding a filter renders a removable chip + a count badge, and narrows the list (status=error)', async () => {
+    m52Mock({});
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await addChip(/status is/i);
+    // the status chip is present (targeted by its unique remove control) with a count badge.
+    const removeStatus = await screen.findByRole('button', { name: /remove status filter/i });
+    expect(removeStatus.closest('[data-testid="filter-chip"]')?.textContent).toMatch(/status is error/i);
+    expect(screen.getByTestId('filter-count')).toBeInTheDocument();
+    await waitFor(() => expect(listUrls().some((u) => /[?&]status=error(&|$)/.test(u))).toBe(true));
+  });
+
+  it("a chip's × removes it and drops the param from the URL (round-trip to baseline)", async () => {
+    m52Mock({});
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await addChip(/cost >=/i, { value: '0.1', valueLabel: /cost value/i });
+    await waitFor(() => expect(listUrls().some((u) => u.includes('min_cost_usd=0.1'))).toBe(true));
+    await userEvent.click(await screen.findByRole('button', { name: /remove cost filter/i }));
+    // the cost chip is gone (its unique remove control no longer exists)…
+    expect(screen.queryByRole('button', { name: /remove cost filter/i })).toBeNull();
+    // …and the newest list fetch no longer carries the cost param.
+    await waitFor(() => expect(listUrls().at(-1) ?? '').not.toMatch(/min_cost_usd/));
+  });
+});
+
+describe('LensTracesPage — M59 P1 Sheet peek + bulk-action bar', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('clicking a trace row opens the peek Sheet (a dialog, not an inline card)', async () => {
+    m52Mock({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    // no peek before the click.
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /open tr_1/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Trace detail')).toBeInTheDocument();
+  });
+
+  it('the bulk-action bar appears only when ≥1 row is selected', async () => {
+    m52Mock({ traces: [{ traceId: 'tr_1', name: 'a' }, { traceId: 'tr_2', name: 'b' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    expect(screen.queryByTestId('bulk-action-bar')).toBeNull(); // 0 selected → hidden
+    await userEvent.click(screen.getByLabelText('Select tr_1 for compare'));
+    const bar = await screen.findByTestId('bulk-action-bar');
+    expect(within(bar).getByText(/1 selected/i)).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: /compare/i })).toBeInTheDocument();
+    // clearing selection hides the bar again.
+    await userEvent.click(within(bar).getByRole('button', { name: /clear selection/i }));
+    expect(screen.queryByTestId('bulk-action-bar')).toBeNull();
   });
 });

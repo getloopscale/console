@@ -6,16 +6,19 @@ import {
   Button,
   Card,
   ConfirmDialog,
+  CopyButton,
   DataTable,
   type DataTableColumn,
   EmptyState,
   Input,
+  Label,
   PageShell,
   Skeleton,
 } from '@usetheo/ui';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
+import { shortId } from '@/lib/format';
 import { cloudFetch } from '@/lib/api';
 
 /**
@@ -74,7 +77,21 @@ export function LensGuardsPage() {
   });
 
   const columns: DataTableColumn<Guard>[] = [
-    { key: 'evaluatorId', label: 'Evaluator', render: (row) => <span className="font-mono text-sm">{row.evaluatorId ?? '—'}</span> },
+    {
+      key: 'evaluatorId',
+      label: 'Evaluator',
+      render: (row) =>
+        row.evaluatorId ? (
+          <div className="flex items-center gap-1">
+            <span className="font-mono text-sm" title={row.evaluatorId}>
+              {shortId(row.evaluatorId)}
+            </span>
+            <CopyButton value={row.evaluatorId} label="Copy evaluator id" />
+          </div>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
     { key: 'operator', label: 'Operator', render: (row) => <span>{row.operator ?? '—'}</span> },
     { key: 'threshold', label: 'Threshold', render: (row) => <span>{row.threshold ?? '—'}</span> },
     {
@@ -106,19 +123,21 @@ export function LensGuardsPage() {
                 }}
               >
                 <div className="flex-1">
+                  <Label htmlFor="guard-evaluator">Evaluator</Label>
                   <Input
+                    id="guard-evaluator"
                     value={evaluatorId}
                     onChange={(e) => setEvaluatorId(e.target.value)}
                     placeholder="Evaluator id"
-                    aria-label="Evaluator id"
                   />
                 </div>
                 <div className="w-32">
+                  <Label htmlFor="guard-threshold">Threshold</Label>
                   <Input
+                    id="guard-threshold"
                     value={threshold}
                     onChange={(e) => setThreshold(e.target.value)}
-                    placeholder="Threshold"
-                    aria-label="Threshold (gte)"
+                    placeholder="0.5"
                   />
                 </div>
                 <Button type="submit" disabled={!evaluatorId.trim() || threshold.trim() === '' || create.isPending}>

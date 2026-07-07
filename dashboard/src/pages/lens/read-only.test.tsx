@@ -39,16 +39,22 @@ describe('Lens read-only pages make no mutating calls', () => {
 describe('LensAskPage (copilot, read-scope)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('asks via POST /traces/{id}/ask and renders the answer without invalidation', async () => {
-    mockCloudFetch.mockResolvedValue({ answer: 'because the tool failed' });
-    render(<LensAskPage />);
-    await userEvent.type(screen.getByLabelText(/trace id/i), 'tr_1');
-    await userEvent.type(screen.getByLabelText(/question/i), 'why did it fail?');
-    await userEvent.click(screen.getByRole('button', { name: /^ask$/i }));
-    expect(mockCloudFetch).toHaveBeenCalledWith(
-      '/v1/dashboard/lens/traces/tr_1/ask',
-      expect.objectContaining({ method: 'POST' }),
+  it('M61 — docked to ?traceId=, asks via POST /traces/{id}/ask and renders the answer (no manual id)', async () => {
+    // M61 rebuild: the trace context is carried in the URL (no manual "Trace id" Input); the page
+    // fetches the trace tree, then each turn is a POST to the M33 ask endpoint.
+    mockCloudFetch.mockImplementation((url: string) =>
+      url.includes('/ask')
+        ? Promise.resolve({ answer: 'because the tool failed' })
+        : Promise.resolve({ spanId: 'tr_1', traceId: 'tr_1', name: 'root' }),
     );
+    render(<LensAskPage />, { initialEntries: ['/observability/ask?traceId=tr_1'] });
+    await userEvent.type(await screen.findByLabelText(/question/i), 'why did it fail?');
+    await userEvent.click(screen.getByRole('button', { name: /^ask$/i }));
+    expect(
+      mockCloudFetch.mock.calls.some(
+        (c) => c[0] === '/v1/dashboard/lens/traces/tr_1/ask' && (c[1] as { method?: string })?.method === 'POST',
+      ),
+    ).toBe(true);
     expect(await screen.findByText('because the tool failed')).toBeInTheDocument();
   });
 });

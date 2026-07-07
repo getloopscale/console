@@ -16,7 +16,7 @@ describe('LensGuardsPage (/observability/guards)', () => {
     render(<LensGuardsPage />);
     await screen.findByText(/no guards yet/i);
 
-    await userEvent.type(screen.getByLabelText(/evaluator id/i), 'ev_1');
+    await userEvent.type(screen.getByLabelText(/^evaluator$/i), 'ev_1');
     await userEvent.type(screen.getByLabelText(/threshold/i), '0.8');
     await userEvent.click(screen.getByRole('button', { name: /create guard/i }));
 

@@ -213,18 +213,29 @@ const MENUS: Record<string, MenuDefinition> = {
     id: 'lens',
     title: 'Observability',
     parent: 'main',
+    // M59 P4 — grouped nav IA (Arize's Observe → Evaluate → Improve narrative, blueprint §3): the flat
+    // 8-item list is split into three titled MenuGroups. Paths are UNCHANGED — only the grouping/labels.
     groups: [
       {
+        title: 'Observe',
         items: [
           { label: 'Overview', path: '/observability', icon: LayoutGrid },
           { label: 'Traces', path: '/observability/traces', icon: Network },
           { label: 'Sessions', path: '/observability/sessions', icon: ListChecks },
+        ],
+      },
+      {
+        title: 'Evaluate',
+        items: [
           { label: 'Datasets', path: '/observability/datasets', icon: Database },
           { label: 'Evaluators', path: '/observability/evaluators', icon: FlaskConical },
           { label: 'Guards', path: '/observability/guards', icon: ShieldCheck },
-          { label: 'Agents', path: '/observability/agents', icon: Bot },
           { label: 'Ask', path: '/observability/ask', icon: Search },
         ],
+      },
+      {
+        title: 'Improve',
+        items: [{ label: 'Agents', path: '/observability/agents', icon: Bot }],
       },
     ],
   },
