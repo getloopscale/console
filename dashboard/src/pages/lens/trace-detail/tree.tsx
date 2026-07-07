@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ClipboardCheck } from 'lucide-react';
 import { Badge, Button } from '@usetheo/ui';
 
+import { cloudFetch } from '@/lib/api';
 import { LensPlayground } from '../playground';
 import { Attributes } from './attributes';
 import { IoCards } from './io-cards';
@@ -242,18 +244,45 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
   // M55 — an LLM span (one with a recorded input) can be replayed in the playground.
   const canReplay = !!span.inputValue;
   const [pgOpen, setPgOpen] = useState(false);
+  // M63 — the single per-span entry-point to the labeling queue (enqueue for human review). One
+  // affordance (ADR D5); NOT a duplicate of the M44 tags/annotations panel (a distinct flow).
+  const enqueue = useMutation({
+    mutationFn: () =>
+      cloudFetch(
+        `/v1/dashboard/lens/traces/${encodeURIComponent(span.traceId)}/enqueue-for-labeling`,
+        { method: 'POST', body: JSON.stringify({ spanId: span.spanId }) },
+        { throwOnError: true },
+      ),
+    retry: false,
+  });
   return (
     <div data-testid="span-detail" className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-sm font-medium">{span.name}</span>
         {span.model ? <Badge variant="outline">{span.model}</Badge> : null}
         {span.provider ? <Badge variant="outline">{span.provider}</Badge> : null}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto"
+          aria-label={`Add ${span.name} to labeling queue`}
+          disabled={enqueue.isPending || enqueue.isSuccess}
+          onClick={() => enqueue.mutate()}
+        >
+          <ClipboardCheck className="mr-1 h-4 w-4" />
+          {enqueue.isSuccess ? 'Queued' : enqueue.isPending ? 'Queuing…' : 'Add to labeling queue'}
+        </Button>
         {canReplay ? (
-          <Button variant="secondary" size="sm" className="ml-auto" onClick={() => setPgOpen((v) => !v)}>
+          <Button variant="secondary" size="sm" onClick={() => setPgOpen((v) => !v)}>
             {pgOpen ? 'Close playground' : 'Playground'}
           </Button>
         ) : null}
       </div>
+      {enqueue.isError ? (
+        <Badge variant="destructive" data-testid="enqueue-error">
+          Could not add to queue
+        </Badge>
+      ) : null}
       {canReplay && pgOpen ? <LensPlayground span={span} /> : null}
 
       <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
