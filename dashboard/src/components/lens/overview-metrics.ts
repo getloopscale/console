@@ -1,4 +1,4 @@
-import type { LatencyBucket, ModelBucket, TrafficBucket } from './lens-series';
+import type { LatencyBucket, TrafficBucket } from './lens-series';
 
 /**
  * M60 P0 — pure overview-analytics helpers (dependency-free leaf; ADR D2/D3). `periodDelta` computes
@@ -26,11 +26,16 @@ const mean = (ns: number[]): number => (ns.length === 0 ? 0 : sum(ns) / ns.lengt
  */
 export function periodDelta(values: number[], agg: 'sum' | 'mean' = 'sum'): Delta {
   if (values.length < 2) return { pct: 0, trend: 'neutral', na: true };
+  // EQUAL halves: on an odd-length window the middle bucket is EXCLUDED so `prev` and `cur` span the
+  // same number of buckets — otherwise a flat series would report a fabricated delta (the extra bucket
+  // would inflate one half). prev = first `mid`, cur = last `mid`.
   const mid = Math.floor(values.length / 2);
   const aggregate = agg === 'mean' ? mean : sum;
   const prev = aggregate(values.slice(0, mid));
-  const cur = aggregate(values.slice(mid));
+  const cur = aggregate(values.slice(values.length - mid));
 
+  // A malformed bucket (NaN/±Infinity) never leaks a "NaN%"/"Infinity%" delta to a tile → N/A.
+  if (!Number.isFinite(prev) || !Number.isFinite(cur)) return { pct: 0, trend: 'neutral', na: true };
   if (prev === 0 && cur === 0) return { pct: 0, trend: 'neutral', na: false };
   if (prev === 0) return { pct: 0, trend: 'neutral', na: true }; // cur>0 vs 0 → undefined % → N/A
   if (cur === 0) return { pct: -100, trend: 'down', na: false };
@@ -64,9 +69,4 @@ export function p95Values(latency: LatencyBucket[]): number[] {
 }
 export function costValues(cost: { costUsd: number }[]): number[] {
   return cost.map((b) => b.costUsd);
-}
-
-/** The by-model cost total (current window) — the tile's headline cost value. */
-export function totalModelCost(tokensByModel: ModelBucket[]): number {
-  return sum(tokensByModel.map((m) => m.costUsd));
 }

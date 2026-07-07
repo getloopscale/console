@@ -42,6 +42,18 @@ describe('M60 periodDelta', () => {
   it('reports a decrease as down', () => {
     expect(periodDelta([20, 20, 10, 10], 'sum').trend).toBe('down');
   });
+
+  it('does NOT fabricate a delta on a FLAT odd-length window (equal halves, middle dropped) — H1', () => {
+    // 7 equal buckets (a 7d range) → prev == cur → exactly 0%, not a fabricated +33%.
+    expect(periodDelta([10, 10, 10, 10, 10, 10, 10], 'sum')).toEqual({ pct: 0, trend: 'neutral', na: false });
+    expect(periodDelta([10, 10, 10, 10, 10], 'sum').pct).toBe(0);
+  });
+
+  it('yields na (not "NaN%") on a malformed NaN bucket — M1', () => {
+    const d = periodDelta([Number.NaN, 5], 'sum');
+    expect(d.na).toBe(true);
+    expect(Number.isNaN(d.pct)).toBe(false);
+  });
 });
 
 describe('M60 cardMode', () => {
