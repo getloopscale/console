@@ -498,6 +498,18 @@ describe('nsToIso (M57 T1.1)', () => {
   });
 });
 
+describe('LensTracesPage — M61 Ask copilot affordance', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('renders a per-row "Ask copilot" affordance that docks the copilot to that trace', async () => {
+    m52Mock({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    // the affordance carries the trace context (→ /observability/ask?traceId=tr_1) — no manual UUID entry.
+    expect(screen.getByRole('button', { name: /ask copilot about tr_1/i })).toBeInTheDocument();
+  });
+});
+
 describe('LensTracesPage — M59 P3 columns + naming Dialog + viewId + per-tenant isolation', () => {
   beforeEach(() => vi.clearAllMocks());
 

@@ -29,12 +29,14 @@ function renderTable(opts: {
   selected?: Set<string>;
   toggleSelected?: (id: string) => void;
   onOpen?: (id: string) => void;
+  onAsk?: (id: string) => void;
   data?: Trace[];
 }) {
   const columns = tracesColumns({
     selected: opts.selected ?? new Set(),
     toggleSelected: opts.toggleSelected ?? (() => {}),
     onOpen: opts.onOpen ?? (() => {}),
+    onAsk: opts.onAsk ?? (() => {}),
   });
   return render(<DataTable columns={columns} data={opts.data ?? [full, bare]} rowKey={(r) => r.traceId} />);
 }

@@ -196,7 +196,13 @@ export function LensTracesPage() {
   });
 
   // M59 P3 — hide the toggleable spine columns the user turned off (identity columns always show).
-  const columns = tracesColumns({ selected, toggleSelected, onOpen: setOpenID }).filter(
+  const columns = tracesColumns({
+    selected,
+    toggleSelected,
+    onOpen: setOpenID,
+    // M61 — dock the Ask copilot to this trace (carries the id in the URL; no manual entry).
+    onAsk: (id) => navigate(`/observability/ask?traceId=${encodeURIComponent(id)}`),
+  }).filter(
     (c) => !(TOGGLEABLE_COLUMNS as readonly string[]).includes(c.key) || isColumnVisible(columnState, c.key),
   );
 

@@ -1,4 +1,5 @@
-import { Badge, Checkbox, CopyButton, StatusDot, type DataTableColumn } from '@usetheo/ui';
+import { Badge, Button, Checkbox, CopyButton, StatusDot, type DataTableColumn } from '@usetheo/ui';
+import { Sparkles } from 'lucide-react';
 
 import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/format';
 import { nsToIso } from '../traces';
@@ -24,11 +25,13 @@ export interface Trace {
   sessionId?: string;
 }
 
-/** Handles the column cells need from the orchestrating page (M59 P0/P1). */
+/** Handles the column cells need from the orchestrating page (M59 P0/P1 + M61 onAsk). */
 export interface TracesColumnsOptions {
   selected: Set<string>;
   toggleSelected: (id: string) => void;
   onOpen: (id: string) => void;
+  /** M61 — dock the Ask copilot to this trace (navigates to /observability/ask?traceId=…, no UUID entry). */
+  onAsk: (id: string) => void;
 }
 
 const EMDASH = <span className="text-muted-foreground">—</span>;
@@ -39,7 +42,7 @@ const EMDASH = <span className="text-muted-foreground">—</span>;
  * · status (`StatusDot` + `Badge`). Numeric cells format via `format.ts` (M57) and render `—` when the
  * field is absent on the wire — no fabricated value (R2).
  */
-export function tracesColumns({ selected, toggleSelected, onOpen }: TracesColumnsOptions): DataTableColumn<Trace>[] {
+export function tracesColumns({ selected, toggleSelected, onOpen, onAsk }: TracesColumnsOptions): DataTableColumn<Trace>[] {
   return [
     {
       key: 'compare-select',
@@ -83,6 +86,15 @@ export function tracesColumns({ selected, toggleSelected, onOpen }: TracesColumn
             {shortId(row.traceId)}
           </button>
           <CopyButton value={row.traceId} label="Copy trace id" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onAsk(row.traceId)}
+            title="Ask the copilot about this trace"
+            aria-label={`Ask copilot about ${row.traceId}`}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+          </Button>
         </div>
       ),
     },
