@@ -25,7 +25,7 @@ const nextId = () => `turn-${++idSeq}`;
 
 /** Map the M33 fail-closed HTTP status to an honest, typed message. Reads `.status` off the `ApiError`
  *  (duck-typed — robust across module boundaries; `cloudFetch({throwOnError})` rejects with an ApiError). */
-function errorMessage(err: unknown): string {
+export function errorMessage(err: unknown): string {
   const status = (err as { status?: number } | null)?.status ?? 0;
   switch (status) {
     case 503:
@@ -71,18 +71,14 @@ export function AskThread({
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
 
-  // ADR D2 / R1 — a fresh thread per trace: clear when the docked trace changes (no cross-trace bleed).
-  useEffect(() => {
-    setTurns([]);
-    setDraft('');
-  }, [traceId]);
-
   const entityMap = useMemo(() => (spans ? buildEntityMap(spans) : new Map<string, string>()), [spans]);
 
   const ask = useMutation({
-    mutationFn: (vars: { question: string; spanId?: string }) =>
+    // The ask carries the trace id it was invoked for (`askedTraceId`) so a resolving answer can be
+    // matched to the still-docked trace — never landing under a different trace opened mid-flight (R1).
+    mutationFn: (vars: { question: string; spanId?: string; askedTraceId: string }) =>
       cloudFetch<{ answer: string }>(
-        `/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/ask`,
+        `/v1/dashboard/lens/traces/${encodeURIComponent(vars.askedTraceId)}/ask`,
         {
           method: 'POST',
           body: JSON.stringify({ question: vars.question, ...(vars.spanId ? { spanId: vars.spanId } : {}) }),
@@ -90,15 +86,28 @@ export function AskThread({
         { throwOnError: true },
       ),
     retry: false, // ADR D1 / R4 — a billable provider call is NEVER auto-retried.
-    onSuccess: (data, vars) =>
-      setTurns((t) => [...t, { id: nextId(), role: 'assistant', content: data?.answer ?? '', spanId: vars.spanId }]),
+    onSuccess: (data, vars) => {
+      if (vars.askedTraceId !== traceId) return; // R1 — the docked trace changed mid-flight; drop the stale answer.
+      const answer = (data?.answer ?? '').trim();
+      if (answer === '') return; // never append an empty assistant turn.
+      setTurns((t) => [...t, { id: nextId(), role: 'assistant', content: answer, spanId: vars.spanId }]);
+    },
   });
+
+  // ADR D2 / R1 — a fresh thread per trace: clear turns/draft AND reset any in-flight/stale ask when the
+  // docked trace changes, so trace A's conversation (or an in-flight A answer) never bleeds into trace B.
+  useEffect(() => {
+    setTurns([]);
+    setDraft('');
+    ask.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- key on traceId only; ask.reset is stable.
+  }, [traceId]);
 
   const submit = () => {
     const q = draft.trim();
     if (!q || ask.isPending) return;
     setTurns((t) => [...t, { id: nextId(), role: 'user', content: q, spanId: initialSpanId }]);
-    ask.mutate({ question: q, spanId: initialSpanId });
+    ask.mutate({ question: q, spanId: initialSpanId, askedTraceId: traceId });
     setDraft('');
   };
 

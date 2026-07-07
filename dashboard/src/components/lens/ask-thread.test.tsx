@@ -5,7 +5,7 @@ import { render, screen } from '@/test/render';
 import { ApiError } from '@/lib/api';
 import type { TraceSpanNode } from '@/lib/trace-layout';
 import { STARTER_PROMPTS } from './ask-thread-model';
-import { AskThread } from './ask-thread';
+import { AskThread, errorMessage } from './ask-thread';
 
 /**
  * M61 P1 T1.1 — the AskThread. A client-side multi-turn thread over the single-turn M33 ask. The
@@ -55,10 +55,30 @@ describe('M61 AskThread', () => {
     mockCloudFetch.mockRejectedValue(new ApiError(503));
     render(<AskThread traceId="t1" spans={tree} />);
     await ask('why did this fail');
-    // fail-closed: the "Could not answer" Alert shows (the per-status typed body is set from err.status).
+    // fail-closed: the "Could not answer" Alert shows; NO fabricated answer turn; exactly one POST.
     expect(await screen.findByText(/could not answer/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('thread-turn-assistant')).toBeNull(); // no fabricated answer
+    expect(screen.queryByTestId('thread-turn-assistant')).toBeNull();
     expect(mockCloudFetch).toHaveBeenCalledTimes(1); // retry: false — no billable loop
+  });
+
+  it('maps each fail-closed status to an honest typed message (errorMessage)', () => {
+    expect(errorMessage({ status: 503 })).toMatch(/not configured/i);
+    expect(errorMessage({ status: 502 })).toMatch(/failed to answer/i);
+    expect(errorMessage({ status: 429 })).toMatch(/rate limit/i);
+    expect(errorMessage({ status: 404 })).toMatch(/another workspace/i);
+    expect(errorMessage(new Error('x'))).toMatch(/could not answer/i); // unknown → generic
+  });
+
+  it('drops an in-flight answer after the traceId changed (async no-cross-trace-bleed — R1)', async () => {
+    let resolveAsk!: (v: { answer: string }) => void;
+    mockCloudFetch.mockReturnValue(new Promise((res) => (resolveAsk = res)));
+    const { rerender } = render(<AskThread traceId="t1" spans={tree} />);
+    await ask('q for t1'); // submitted on t1, still in flight
+    rerender(<AskThread traceId="t2" spans={tree} />); // open a DIFFERENT trace mid-flight
+    resolveAsk({ answer: 'stale t1 answer' }); // the in-flight t1 ask now resolves
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText('stale t1 answer')).toBeNull(); // the stale answer never landed under t2
+    expect(screen.queryAllByTestId(/thread-turn/)).toHaveLength(0); // t2 thread stays empty
   });
 
   it('does NOT bleed one trace’s thread into another (clears on traceId change — R1)', async () => {

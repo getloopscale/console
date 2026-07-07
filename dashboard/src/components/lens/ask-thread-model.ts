@@ -9,8 +9,8 @@ import type { TraceSpanNode } from '@/lib/trace-layout';
  * is left as plain text, never fabricated (R3).
  */
 
-/** A rendered turn's answer split into plain-text and span-link segments. */
-export type Segment =
+/** A rendered turn's answer split into plain-text and span-link segments (the `resolveCitations` output). */
+type Segment =
   | { kind: 'text'; text: string }
   | { kind: 'span'; spanId: string; name: string };
 
