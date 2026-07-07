@@ -958,6 +958,11 @@ func main() {
 	if db != nil {
 		routes.MountLensAlertRules(r, routes.NewLensAlertRulesHandler(db, logger), requireJWT)
 	}
+	// M66: lens custom dashboards — per-workspace board config (engine migration 000055). Same
+	// db-gated cloud-owned Postgres resource; the board data reads through the lens BFF above.
+	if db != nil {
+		routes.MountLensDashboards(r, routes.NewLensDashboardsHandler(db, logger), requireJWT)
+	}
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
 	// below alongside the metering scheduler, sharing the schedulerCtx for
