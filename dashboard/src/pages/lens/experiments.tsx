@@ -46,6 +46,33 @@ interface ExperimentRun {
   createdAt: string;
   items?: RunItem[];
 }
+/** The signed aggregate deltas the compare API returns (A minus B); score/latency null when absent. */
+interface RunCompareDeltas {
+  passCountDelta: number;
+  passRateDelta: number;
+  avgScoreDelta: number | null;
+  totalCostDelta: number;
+  avgLatencyDelta: number | null;
+}
+
+/** Mean of a row's numeric scores, or undefined when the row has none (mirrors the domain `rowMeanScore`). */
+function rowMeanScore(item: RunItem): number | undefined {
+  const nums = item.scores.map((s) => s.score).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : undefined;
+}
+
+/** A signed delta rendered as a badge (+/-, fixed dp); null → em-dash (never fabricated). */
+function DeltaBadge({ value, dp = 2, prefix = '' }: { value: number | null; dp?: number; prefix?: string }) {
+  if (value === null) return <span className="text-xs text-muted-foreground">—</span>;
+  const sign = value >= 0 ? '+' : '';
+  return (
+    <Badge variant={value >= 0 ? 'default' : 'outline'}>
+      {prefix}
+      {sign}
+      {value.toFixed(dp)}
+    </Badge>
+  );
+}
 
 function errorMessage(err: unknown): string {
   const status = (err as { status?: number } | null)?.status ?? 0;
@@ -102,7 +129,7 @@ export function LensExperimentsPage() {
   // Compare view: two+ runs (with items) aligned by source trace id.
   const compareQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/experiment-runs/compare', compareIds.join(',')] as const,
-    queryFn: () => cloudFetch<{ runs: ExperimentRun[] }>(`/v1/dashboard/lens/experiment-runs/compare?ids=${encodeURIComponent(compareIds.join(','))}`),
+    queryFn: () => cloudFetch<{ runs: ExperimentRun[]; deltas: RunCompareDeltas | null }>(`/v1/dashboard/lens/experiment-runs/compare?ids=${encodeURIComponent(compareIds.join(','))}`),
     enabled: compareIds.length >= 2,
   });
 
@@ -124,54 +151,76 @@ export function LensExperimentsPage() {
   });
   const latest = run.data ?? null;
 
-  const itemColumns: DataTableColumn<RunItem>[] = [
-    { key: 'traceId', label: 'Trace', render: (row) => <span className="font-mono text-xs">{shortId(row.datasetItemTraceId)}</span> },
-    {
-      key: 'output',
-      label: 'Output',
-      render: (row) =>
-        row.error ? <span className="text-destructive text-xs">error: {row.error}</span> : <span className="text-xs">{row.output ?? '—'}</span>,
-    },
-    {
-      key: 'scores',
-      label: 'Score',
-      render: (row) => (
-        <div className="flex gap-1">
-          {row.scores.map((s) => (
-            <Badge key={s.name} variant={s.score !== undefined && s.score >= 0.5 ? 'default' : 'outline'}>
-              {s.name}: {s.label ?? (s.score ?? 0).toFixed(2)}
-            </Badge>
-          ))}
-        </div>
-      ),
-    },
-    { key: 'metrics', label: 'Cost / latency', render: (row) => <span className="text-xs text-muted-foreground">{formatCost(row.costUsd ?? NaN)} · {formatDuration(row.latencyMs)} · {formatTokens(row.totalTokens)} tok</span> },
-    { key: 'view', label: '', render: (row) => <Button variant="ghost" size="sm" onClick={() => setViewTrace(row.datasetItemTraceId)}>View trace</Button> },
-  ];
+  /**
+   * The per-row columns. When `baseline` is passed (the compare view's second+ run), a "Δ vs A" column
+   * shows this row's mean-score delta against the baseline run aligned by source trace (DoD3 per-row delta).
+   */
+  const makeItemColumns = (baseline?: Map<string, number | undefined>): DataTableColumn<RunItem>[] => {
+    const cols: DataTableColumn<RunItem>[] = [
+      { key: 'traceId', label: 'Trace', render: (row) => <span className="font-mono text-xs">{shortId(row.datasetItemTraceId)}</span> },
+      {
+        key: 'output',
+        label: 'Output',
+        render: (row) =>
+          row.error ? <span className="text-destructive text-xs">error: {row.error}</span> : <span className="text-xs">{row.output ?? '—'}</span>,
+      },
+      {
+        key: 'scores',
+        label: 'Score',
+        render: (row) => (
+          <div className="flex gap-1">
+            {row.scores.map((s) => (
+              <Badge key={s.name} variant={s.score !== undefined && s.score >= 0.5 ? 'default' : 'outline'}>
+                {s.name}: {s.label ?? (s.score ?? 0).toFixed(2)}
+              </Badge>
+            ))}
+          </div>
+        ),
+      },
+      { key: 'metrics', label: 'Cost / latency', render: (row) => <span className="text-xs text-muted-foreground">{formatCost(row.costUsd ?? NaN)} · {formatDuration(row.latencyMs)} · {formatTokens(row.totalTokens)} tok</span> },
+      { key: 'view', label: '', render: (row) => <Button variant="ghost" size="sm" onClick={() => setViewTrace(row.datasetItemTraceId)}>View trace</Button> },
+    ];
+    if (baseline) {
+      cols.splice(3, 0, {
+        key: 'scoreDelta',
+        label: 'Δ vs A',
+        render: (row) => {
+          const mine = rowMeanScore(row);
+          const base = baseline.get(row.datasetItemTraceId);
+          return <DeltaBadge value={typeof mine === 'number' && typeof base === 'number' ? mine - base : null} />;
+        },
+      });
+    }
+    return cols;
+  };
+  const itemColumns = makeItemColumns();
 
-  // Compare view — two+ runs side-by-side + the pass-rate delta.
+  // Compare view — two+ runs side-by-side + the aggregate deltas (pass-rate/score/cost) + per-row score delta.
   if (compareIds.length >= 2) {
     const runs = compareQuery.data?.runs ?? [];
-    const delta = runs.length >= 2 ? runs[0].passCount - runs[1].passCount : 0;
+    const deltas = compareQuery.data?.deltas ?? null;
+    const baseline = new Map<string, number | undefined>((runs[0]?.items ?? []).map((it) => [it.datasetItemTraceId, rowMeanScore(it)]));
     return (
       <PageShell title="Compare runs" description="Two experiment runs side-by-side, aligned by source trace.">
         {compareQuery.isError ? (
-          <Alert intent="warning" title="Could not load the comparison">Try again shortly.</Alert>
+          <Alert intent="warning" title="Could not load the comparison" description="Try again shortly." />
         ) : (
           <>
-            <div className="mb-3 flex items-center gap-2 text-sm" data-testid="passrate-delta">
-              Pass-count delta: <Badge variant={delta >= 0 ? 'default' : 'outline'}>{delta >= 0 ? `+${delta}` : delta}</Badge>
+            <div className="mb-3 flex flex-wrap items-center gap-3 text-sm" data-testid="passrate-delta">
+              <span className="flex items-center gap-1">Pass-rate Δ (A−B): <DeltaBadge value={deltas ? deltas.passRateDelta : null} /></span>
+              <span className="flex items-center gap-1">Avg-score Δ: <DeltaBadge value={deltas ? deltas.avgScoreDelta : null} /></span>
+              <span className="flex items-center gap-1">Cost Δ: <DeltaBadge value={deltas ? deltas.totalCostDelta : null} dp={4} prefix="$" /></span>
             </div>
             <div className="flex gap-3 overflow-x-auto">
-              {runs.map((r) => (
-                <Card key={r.id} className="w-[420px] shrink-0">
+              {runs.map((r, i) => (
+                <Card key={r.id} className="w-[460px] shrink-0">
                   <Card.Body className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold">{r.name}</span>
+                      <span className="text-sm font-semibold">{i === 0 ? 'A · ' : i === 1 ? 'B · ' : ''}{r.name}</span>
                       {r.variant.model ? <Badge variant="outline">{r.variant.model}</Badge> : null}
                     </div>
                     <RunSummary run={r} />
-                    <DataTable data={r.items ?? []} columns={itemColumns} rowKey={(row) => row.datasetItemTraceId} />
+                    <DataTable data={r.items ?? []} columns={i === 0 ? itemColumns : makeItemColumns(baseline)} rowKey={(row) => row.datasetItemTraceId} />
                   </Card.Body>
                 </Card>
               ))}
@@ -198,7 +247,7 @@ export function LensExperimentsPage() {
               </Button>
             </div>
             {run.isError ? (
-              <Alert intent="warning" title="Could not run" data-testid="run-error">{errorMessage(run.error)}</Alert>
+              <Alert intent="warning" title="Could not run" description={errorMessage(run.error)} data-testid="run-error" />
             ) : null}
             {latest ? (
               <div className="space-y-2" data-testid="latest-run">
@@ -212,7 +261,7 @@ export function LensExperimentsPage() {
 
       <span className="text-xs font-semibold uppercase text-muted-foreground">Recent runs</span>
       {runsQuery.isError ? (
-        <Alert intent="warning" title="Could not load runs">Try again shortly.</Alert>
+        <Alert intent="warning" title="Could not load runs" description="Try again shortly." />
       ) : runs.length === 0 ? (
         <p className="text-sm text-muted-foreground">No runs yet — create a regression dataset from the traces list, then run it here.</p>
       ) : (

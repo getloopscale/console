@@ -34,11 +34,15 @@ function withRoutes(opts: { runPost?: () => unknown; trace?: unknown } = {}) {
   mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
     const isPost = init?.method === 'POST';
     if (url.endsWith('/experiment-runs') && isPost) {
-      const r = (opts.runPost ?? (() => RUN))();
-      return Promise.resolve(r);
+      // mirror the async cloudFetch: a throwing runPost becomes a REJECTED promise (preserves the error's .status)
+      return Promise.resolve().then(() => (opts.runPost ?? (() => RUN))());
     }
     if (url.includes('/experiment-runs')) {
-      if (url.includes('/compare')) return Promise.resolve({ runs: [RUN, { ...RUN, id: 'run-2', name: 'run B', passCount: 2, items: RUN.items.map((it) => ({ ...it, scores: [{ name: 'acc', score: 1, label: 'pass' }] })) }] });
+      if (url.includes('/compare'))
+        return Promise.resolve({
+          runs: [RUN, { ...RUN, id: 'run-2', name: 'run B', passCount: 2, items: RUN.items.map((it) => ({ ...it, scores: [{ name: 'acc', score: 1, label: 'pass' }] })) }],
+          deltas: { passCountDelta: -1, passRateDelta: -0.5, avgScoreDelta: -0.25, totalCostDelta: 0, avgLatencyDelta: 0 },
+        });
       if (/\/experiment-runs\/[^/?]+$/.test(url)) return Promise.resolve(RUN);
       return Promise.resolve({ runs: [RUN] });
     }
@@ -70,13 +74,17 @@ describe('M64 LensExperimentsPage', () => {
     expect(await screen.findByText('run A')).toBeInTheDocument();
   });
 
-  it('test_compare_two_runs_shows_score_deltas', async () => {
+  it('test_compare_two_runs_shows_passrate_and_per_row_deltas', async () => {
     withRoutes();
     render(<LensExperimentsPage />, { initialEntries: ['/observability/experiments?compare=run-1,run-2'] });
-    // two run columns + a per-run aggregate; the pass-count delta is shown
-    expect(await screen.findByText('run A')).toBeInTheDocument();
-    expect(screen.getByText('run B')).toBeInTheDocument();
-    expect(screen.getByTestId('passrate-delta')).toBeInTheDocument();
+    // two run columns + a per-run aggregate; the AGGREGATE pass-rate delta (DoD3) is shown from `deltas`
+    expect(await screen.findByText(/A · run A/)).toBeInTheDocument();
+    expect(screen.getByText(/B · run B/)).toBeInTheDocument();
+    const deltaBlock = screen.getByTestId('passrate-delta');
+    expect(within(deltaBlock).getByText(/Pass-rate/i)).toBeInTheDocument();
+    expect(within(deltaBlock).getByText('-0.50')).toBeInTheDocument(); // the pass-rate delta value from the API
+    // per-row score delta column (B vs A) is present in the second run's table
+    expect(screen.getByText('Δ vs A')).toBeInTheDocument();
   });
 
   it('test_view_trace_opens_source_span_detail', async () => {
@@ -93,6 +101,16 @@ describe('M64 LensExperimentsPage', () => {
     render(<LensExperimentsPage />, { initialEntries: ['/observability/experiments?datasetId=ds-1'] });
     await userEvent.click(await screen.findByRole('button', { name: /run experiment/i }));
     expect(await screen.findByTestId('run-error')).toBeInTheDocument();
+    expect(screen.queryByText('good answer')).toBeNull();
+  });
+
+  it('test_run_scope_denied_surfaces_permission_alert (403, no fabricated rows)', async () => {
+    // a scope/tenant deny (403 from the Principal-scoped BFF) fails closed to a typed permission message.
+    withRoutes({ runPost: () => { throw Object.assign(new Error('forbidden'), { status: 403 }); } });
+    render(<LensExperimentsPage />, { initialEntries: ['/observability/experiments?datasetId=ds-1'] });
+    await userEvent.click(await screen.findByRole('button', { name: /run experiment/i }));
+    const alert = await screen.findByTestId('run-error');
+    expect(within(alert).getByText(/do not have permission/i)).toBeInTheDocument();
     expect(screen.queryByText('good answer')).toBeNull();
   });
 });

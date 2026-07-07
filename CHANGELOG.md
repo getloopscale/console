@@ -11,6 +11,8 @@
 ### Removed
 
 ### Fixed
+- **Dashboard: Experiments compare view now shows the aggregate pass-rate + per-row score deltas (theo-lens M64 review).** The compare view consumes the new `deltas` from `GET …/experiment-runs/compare`: an aggregate **pass-rate** / avg-score / cost delta (replacing the previous naive pass-*count*-of-first-two) plus a per-row **Δ vs A** score-delta column aligned by source trace — delivering the DoD3 "per-row score deltas + aggregate pass-rate delta" in full. Component test asserts the pass-rate delta value + the per-row delta column.
+- **Dashboard: Experiments error/empty Alerts now render their body (theo-lens M64 review).** The `@usetheo/ui` `Alert` renders its body from the `description` prop, not `children`; the experiments page passed the typed error message (503/429/403/404) + empty-state text as children, so only the title showed. Switched to `description=` so the actionable message is visible; a new 403 scope-deny test asserts the permission body renders. The same latent misuse in 6 other lens pages is tracked in usetheodev/theo-cloud#175 (out of M64 scope).
 
 ### Security
 
