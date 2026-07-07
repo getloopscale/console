@@ -16,7 +16,6 @@ import {
 
 const custom: ColumnState = {
   visibility: { latency: false, tokens: true, cost: false },
-  order: ['cost', 'tokens', 'latency'],
   density: 'compact',
 };
 

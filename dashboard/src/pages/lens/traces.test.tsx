@@ -541,6 +541,14 @@ describe('LensTracesPage — M59 P3 columns + naming Dialog + viewId + per-tenan
     // a different tenant's view is never in this Principal-scoped list.
     expect(screen.queryByRole('button', { name: /apply view tenant-b-view/i })).toBeNull();
   });
+
+  it('a ?viewId= not in this workspace applies nothing (client-side isolation negative case)', async () => {
+    m52Mock({ views: [{ id: 'lsv-1', name: 'mine', query_string: '?status=error' }] });
+    render(<LensTracesPage />, { initialEntries: ['/observability/traces?viewId=lsv-other'] });
+    await screen.findByText('tr_1');
+    // the phantom viewId resolves against THIS workspace's list only → no view is applied, no crash.
+    expect(screen.getByRole('button', { name: /apply view mine/i })).not.toHaveAttribute('aria-current', 'true');
+  });
 });
 
 describe('LensTracesPage — M59 P1 density toggle', () => {

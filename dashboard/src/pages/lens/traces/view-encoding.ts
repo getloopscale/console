@@ -13,13 +13,11 @@ export type ToggleableColumn = (typeof TOGGLEABLE_COLUMNS)[number];
 
 export interface ColumnState {
   visibility: Record<string, boolean>;
-  order: string[];
   density: 'comfortable' | 'compact';
 }
 
 export const DEFAULT_COLUMN_STATE: ColumnState = {
   visibility: { latency: true, tokens: true, cost: true },
-  order: [...TOGGLEABLE_COLUMNS],
   density: 'comfortable',
 };
 
@@ -47,7 +45,6 @@ export function decodeColumns(param: string | null | undefined): ColumnState {
     // Merge over the default so a partial/older-v1 payload still yields a complete, valid state.
     return {
       visibility: { ...DEFAULT_COLUMN_STATE.visibility, ...(parsed.visibility ?? {}) },
-      order: Array.isArray(parsed.order) ? parsed.order : [...DEFAULT_COLUMN_STATE.order],
       density: parsed.density === 'compact' ? 'compact' : 'comfortable',
     };
   } catch {
