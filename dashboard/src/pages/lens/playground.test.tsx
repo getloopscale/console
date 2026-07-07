@@ -87,6 +87,21 @@ describe('M62 LensPlayground (side-by-side)', () => {
     expect(within(screen.getByTestId('baseline-column')).getByText('claude-sonnet-4-6')).toBeInTheDocument();
   });
 
+  it('test_view_trace_404_keeps_playground_mounted', async () => {
+    // the trace-tree GET (View-Trace) fails 404 (foreign/missing) — the Sheet opens with the M58 detail
+    // (which owns its own error state) and the playground stays mounted underneath (never unmounts).
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url.endsWith('/replay')) return Promise.resolve(REPLAY_OK);
+      if (/\/traces\/[^/]+$/.test(url)) return Promise.reject(new Error('404 trace not found'));
+      return Promise.resolve(null);
+    });
+    render(<LensPlayground span={span} />);
+    await userEvent.click(screen.getByRole('button', { name: /view trace/i }));
+    expect(await screen.findByText(/trace detail/i)).toBeInTheDocument(); // Sheet opened
+    expect(mockCloudFetch.mock.calls.some((c) => c[0] === '/v1/dashboard/lens/traces/tr-1')).toBe(true);
+    expect(screen.getByTestId('playground')).toBeInTheDocument(); // playground survives the failed detail load
+  });
+
   it('test_cross_tenant_replay_refusal_surfaces_typed_error', async () => {
     routed(() => {
       throw new Error('404 trace belongs to another workspace');

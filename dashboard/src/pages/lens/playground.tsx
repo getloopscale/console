@@ -41,6 +41,10 @@ export function LensPlayground({ span }: { span: TraceSpanNode }) {
   const refs = useRef(new Map<string, VariantColumnHandle>());
 
   const setVariant = (v: Variant) => setVariants((prev) => prev.map((x) => (x.id === v.id ? v : x)));
+  // Mark a completed run's key on the LATEST variant (functional — preserves any mid-flight edit, so a
+  // run resolving after an edit correctly leaves the output stale instead of clobbering the new inputs).
+  const markRan = (id: string, ranKey: string) =>
+    setVariants((prev) => prev.map((x) => (x.id === id ? { ...x, lastRunKey: ranKey } : x)));
   const addVariant = () =>
     setVariants((prev) => (prev.length >= VARIANT_CAP ? prev : [...prev, newVariant(seed, span.model ?? '')]));
   const removeVariant = (id: string) => {
@@ -84,6 +88,7 @@ export function LensPlayground({ span }: { span: TraceSpanNode }) {
             variant={v}
             span={span}
             onChange={setVariant}
+            onRan={(ranKey) => markRan(v.id, ranKey)}
             onRemove={() => removeVariant(v.id)}
             canRemove={variants.length > 1}
           />

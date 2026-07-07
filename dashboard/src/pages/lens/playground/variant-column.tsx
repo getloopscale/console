@@ -52,22 +52,46 @@ export interface VariantColumnHandle {
   run: () => void;
 }
 
+/** Map the M55 fail-closed HTTP status to an honest, typed message (duck-typed `.status`, robust across
+ *  module boundaries). A cross-tenant 404 is deliberately non-committal (never leaks trace existence). */
+export function errorMessage(err: unknown): string {
+  const status = (err as { status?: number } | null)?.status ?? 0;
+  switch (status) {
+    case 503:
+      return 'The replay provider is not configured right now.';
+    case 502:
+      return 'The provider failed to answer — try again shortly.';
+    case 429:
+      return 'Rate limit reached for this workspace — wait a moment before running again.';
+    case 404:
+      return 'This trace is not available (it may belong to another workspace).';
+    default:
+      return 'The provider is unavailable — no output was produced.';
+  }
+}
+
 export const VariantColumn = forwardRef<
   VariantColumnHandle,
   {
     variant: Variant;
     span: TraceSpanNode;
     onChange: (v: Variant) => void;
+    /** Record a completed run's key on the LATEST variant (a functional parent update that preserves any
+     *  edits made while the replay was in flight — never clobbers the current variant). */
+    onRan: (ranKey: string) => void;
     onRemove: () => void;
     canRemove: boolean;
   }
->(function VariantColumn({ variant, span, onChange, onRemove, canRemove }, ref) {
+>(function VariantColumn({ variant, span, onChange, onRan, onRemove, canRemove }, ref) {
   const [showSchema, setShowSchema] = useState(false);
   const [dataset, setDataset] = useState('');
   const schema = parseSchema(variant.responseSchema);
 
   const replay = useMutation({
-    mutationFn: () =>
+    // The run carries the runKey it was invoked with (`ranKey`) so a resolving run marks the LATEST
+    // variant stale-or-fresh against the inputs AT RUN TIME — an edit made mid-flight is preserved and
+    // correctly shows the output as stale (ADR D3; the run never rebuilds the variant from a stale closure).
+    mutationFn: (_vars: { ranKey: string }) =>
       cloudFetch<ReplayResult>(
         `/v1/dashboard/lens/traces/${encodeURIComponent(span.traceId)}/replay`,
         {
@@ -81,16 +105,14 @@ export const VariantColumn = forwardRef<
         { throwOnError: true },
       ),
     retry: false,
-    // Record the run key so a later edit greys this output (stale). Guard against a trace change is
-    // unnecessary here — one column owns one span (ADR D3).
-    onSuccess: () => onChange(updateVariant(variant, { lastRunKey: runKey(variant) })),
+    onSuccess: (_data, vars) => onRan(vars.ranKey),
   });
 
   const run = () => {
     if (replay.isPending || !schema.ok) return;
-    replay.mutate();
+    replay.mutate({ ranKey: runKey(variant) });
   };
-  useImperativeHandle(ref, () => ({ run }));
+  useImperativeHandle(ref, () => ({ run }), [run]);
 
   // Datasets for the opt-in save (loaded only once there's a result to save; shared across columns by key).
   const datasets = useQuery({
@@ -194,7 +216,7 @@ export const VariantColumn = forwardRef<
 
         {replay.isError ? (
           <Alert intent="warning" title="Replay failed" data-testid="variant-error">
-            The provider is unavailable, rate-limited, or not configured — no output was produced.
+            {errorMessage(replay.error)}
           </Alert>
         ) : null}
 
