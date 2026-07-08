@@ -29,7 +29,7 @@ import {
   type ModelBucket,
 } from '@/components/lens/lens-series';
 import { OverviewKpiStrip, type KpiTile, type OverviewMetric } from '@/components/lens/overview-kpi-strip';
-import { costValues, errorRateValues, p95Values, tracesValues } from '@/components/lens/overview-metrics';
+import { costByPeriod, errorRateValues, p95Values, tracesValues } from '@/components/lens/overview-metrics';
 
 /**
  * M46 — /lens landing (Overview). The first customer-visible Lens surface, mirroring the Memory /
@@ -45,12 +45,6 @@ interface ObservabilityResult {
   traffic: TrafficBucket[];
   latency: LatencyBucket[];
   tokensByModel: ModelBucket[];
-}
-interface CostBucket {
-  costUsd: number;
-}
-interface CostResult {
-  buckets: CostBucket[];
 }
 
 const RANGES = ['1h', '24h', '7d', '30d'] as const;
@@ -110,22 +104,18 @@ export function LensOverviewPage() {
     queryFn: () =>
       cloudFetch<ObservabilityResult>(`/v1/dashboard/lens/observability?range=${range}`, {}, { throwOnError: true }),
   });
-  const cost = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/cost'] as const,
-    queryFn: () => cloudFetch<CostResult>('/v1/dashboard/lens/cost', {}, { throwOnError: true }),
-  });
 
   const onRefresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/observability'] });
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/cost'] });
   };
 
-  const isError = obs.isError || cost.isError;
-  const isPending = obs.isPending || cost.isPending;
-  const isFetching = obs.isFetching || cost.isFetching;
+  const isError = obs.isError;
+  const isPending = obs.isPending;
+  const isFetching = obs.isFetching;
 
   const traffic = obs.data?.traffic ?? [];
   const latency = obs.data?.latency ?? [];
+  const tokensByModel = obs.data?.tokensByModel ?? [];
   const traces = sum(traffic.map((t) => t.traceCount));
   const errors = sum(traffic.map((t) => t.errorCount));
   // A rate (errors/traffic) and a percentile (p95) over an EMPTY window are mathematically undefined
@@ -133,7 +123,10 @@ export function LensOverviewPage() {
   // A count/sum (traces, cost) over an empty window is a defined, honest measurement → `0` / `$0.0000`.
   const errorRateValue = traces > 0 ? `${Math.round((errors / traces) * 100)}%` : '—';
   const p95Value = latency.length > 0 ? formatDuration(Math.round(Math.max(0, ...latency.map((l) => l.p95Ms), 0))) : '—';
-  const totalCost = sum((cost.data?.buckets ?? []).map((b) => b.costUsd));
+  // Cost is range-scoped from the SAME observability fetch (`tokensByModel`) as the cost-by-model chart,
+  // so the KPI tile and the chart agree on the window (no separate all-time `/cost` fetch).
+  const costSeries = costByPeriod(tokensByModel);
+  const totalCost = sum(costSeries);
 
   // M60 — the four KPI tiles: value via M57 formatters; delta from the fetched window via `periodDelta`
   // (invertTrend on the "up is bad" metrics). The tile keys also select which series the shared chart plots.
@@ -141,7 +134,7 @@ export function LensOverviewPage() {
     { key: 'throughput', title: 'Traces', value: formatNumber(traces, 'grouped'), series: tracesValues(traffic), agg: 'sum', invert: false },
     { key: 'errorRate', title: 'Error rate %', value: errorRateValue, series: errorRateValues(traffic), agg: 'mean', invert: true },
     { key: 'latency', title: 'Latency p95 (ms)', value: p95Value, series: p95Values(latency), agg: 'mean', invert: true },
-    { key: 'cost', title: 'Cost (USD)', value: formatCost(totalCost), series: costValues(cost.data?.buckets ?? []), agg: 'sum', invert: true },
+    { key: 'cost', title: 'Cost (USD)', value: formatCost(totalCost), series: costSeries, agg: 'sum', invert: true },
   ];
 
   return (

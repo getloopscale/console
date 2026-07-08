@@ -132,10 +132,12 @@ export function bindKpi(metric: WidgetMetric, data: BoardData): string {
     case 'traces':
       return formatNumber(sum(traffic.map((t) => t.traceCount)), 'grouped'); // count: 0 is an honest measurement
     case 'error_rate': {
-      if (traffic.length === 0) return '—'; // a rate over no traffic is undefined, not 0%
       const traces = sum(traffic.map((t) => t.traceCount));
+      // A rate over zero traffic is undefined — em-dash whether the window is empty OR present but
+      // quiet (buckets exist but no traces). NEVER a fabricated 0% (matches the M60 Overview).
+      if (traces === 0) return '—';
       const errors = sum(traffic.map((t) => t.errorCount));
-      return `${traces > 0 ? Math.round((errors / traces) * 100) : 0}%`;
+      return `${Math.round((errors / traces) * 100)}%`;
     }
     case 'p95_latency':
       if (obs.latency.length === 0) return '—'; // a percentile over no data is undefined, not 0ms

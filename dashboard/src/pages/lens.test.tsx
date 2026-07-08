@@ -30,7 +30,6 @@ function seriesMock(overrides: Record<string, unknown> = {}) {
         ...overrides,
       });
     }
-    if (url.includes('cost')) return Promise.resolve({ buckets: [{ costUsd: 1.25 }, { costUsd: 0.25 }] });
     return Promise.resolve({});
   });
 }
