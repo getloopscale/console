@@ -75,6 +75,13 @@ export function LensGuardsPage() {
   const evaluators = evaluatorsQuery.data?.evaluators ?? [];
   const evaluatorName = (id?: string) => evaluators.find((e) => e.id === id)?.name ?? (id ? shortId(id) : '—');
 
+  // M77 — a human rule string for the breaches panel (numeric operators as symbols; label_eq spelled out).
+  const OP_SYMBOL: Record<string, string> = { gte: '≥', gt: '>', lte: '≤', lt: '<', eq: '=' };
+  const guardRuleText = (g: Guard) =>
+    g.operator === 'label_eq'
+      ? `Traces failing ${evaluatorName(g.evaluatorId)} (label match)`
+      : `Traces failing ${evaluatorName(g.evaluatorId)} ${OP_SYMBOL[g.operator ?? ''] ?? g.operator ?? ''} ${g.threshold ?? ''}`.trim();
+
   // M77 — the breaches read (flag-only: `{ traceIds }`) for the open guard. Fetched on demand only.
   const breachesQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/guards', activeGuard?.id, 'breaches'] as const,
@@ -272,13 +279,7 @@ export function LensGuardsPage() {
         <Sheet.Content side="right" className="w-full sm:max-w-md">
           <Sheet.Header className="border-b border-border px-6 py-4">
             <Sheet.Title>Guard breaches</Sheet.Title>
-            <Sheet.Description>
-              {activeGuard
-                ? `Traces failing ${evaluatorName(activeGuard.evaluatorId)} ${activeGuard.operator ?? ''}${
-                    activeGuard.threshold != null ? ` ${activeGuard.threshold}` : ''
-                  }`
-                : ''}
-            </Sheet.Description>
+            <Sheet.Description>{activeGuard ? guardRuleText(activeGuard) : ''}</Sheet.Description>
           </Sheet.Header>
           <Sheet.Body className="space-y-3 px-6 py-5">
             {breachesQuery.isPending ? (

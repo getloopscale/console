@@ -45,11 +45,25 @@ describe('LensGuardsPage (/observability/guards)', () => {
     withGuardAndBreaches([]); // no trace has failed this guard
     render(<LensGuardsPage />);
     await userEvent.click(await screen.findByRole('button', { name: /view breaches/i }));
-    // the guard rule is shown as context (evaluator name + operator + threshold) in the panel description
-    expect(await screen.findByText(/Traces failing Answer relevance gte 0\.8/i)).toBeInTheDocument();
+    // the guard rule is shown as context (evaluator name + operator symbol + threshold) in the description
+    expect(await screen.findByText(/Traces failing Answer relevance ≥ 0\.8/)).toBeInTheDocument();
     // honest empty state — no fabricated breach
     expect(screen.getByText(/no trace has failed this guard/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^tr-/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /open trace/i })).not.toBeInTheDocument();
+  });
+
+  it('M77 — a failed breaches read fails closed to a typed Alert (never a silent empty state)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'Answer relevance' }] });
+      if (/\/guards\/gd_1\/breaches$/.test(url)) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
+      if (url === '/v1/dashboard/lens/guards') return Promise.resolve({ guards: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      return Promise.resolve({});
+    });
+    render(<LensGuardsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /view breaches/i }));
+    expect(await screen.findByTestId('breaches-error')).toBeInTheDocument();
+    // fail-closed: the empty-state text must NOT show (a failure is not "no breaches")
+    expect(screen.queryByText(/no trace has failed this guard/i)).not.toBeInTheDocument();
   });
 
   it('creates a guard by SELECTING an evaluator + operator (no free-text id) — #179', async () => {
