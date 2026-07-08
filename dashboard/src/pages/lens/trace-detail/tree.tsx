@@ -177,8 +177,10 @@ export function RecursiveTree({
         posinset={posinset}
         setsize={setsize}
       />
-      {!isCollapsed
-        ? children.map((c, i) => (
+      {!isCollapsed && children.length > 0 ? (
+        // The children of a treeitem live in a role="group" (explicit ARIA tree nesting).
+        <div role="group">
+          {children.map((c, i) => (
             <RecursiveTree
               key={`${i}-${c.spanId}`}
               node={c}
@@ -192,8 +194,9 @@ export function RecursiveTree({
               posinset={i + 1}
               setsize={children.length}
             />
-          ))
-        : null}
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
