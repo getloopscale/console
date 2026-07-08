@@ -2,6 +2,7 @@ import { Badge, Button, Checkbox, CopyButton, StatusDot, type DataTableColumn } 
 import { Sparkles } from 'lucide-react';
 
 import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/format';
+import { isSpanError } from '@/lib/span-status';
 import { nsToIso } from '../traces';
 
 /**
@@ -136,7 +137,10 @@ export function tracesColumns({ selected, toggleSelected, onOpen, onAsk }: Trace
       render: (row) => {
         const s = row.statusCode ?? row.status;
         if (!s) return EMDASH;
-        const isError = s.toLowerCase() === 'error';
+        // Honest error flag over the OTLP tokens (`2`/`ERROR`/`STATUS_CODE_ERROR`) via the shared
+        // predicate, PLUS the lowercase string form — the previous `=== 'error'` missed `2` /
+        // `STATUS_CODE_ERROR` and silently showed an error trace as non-error (#176 family).
+        const isError = isSpanError(s) || s.toLowerCase() === 'error';
         return (
           <span className="inline-flex items-center gap-1.5">
             <StatusDot status={isError ? 'failed' : 'live'} size="xs" />

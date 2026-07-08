@@ -32,7 +32,8 @@ export function LensAgentsPage() {
 
   const columns: DataTableColumn<Agent>[] = [
     { key: 'name', label: 'Agent', render: (row) => <span>{row.name}</span> },
-    { key: 'traceCount', label: 'Traces', render: (row) => <span>{row.traceCount ?? 0}</span> },
+    // An absent count is unknown → em-dash; a real 0 stays 0.
+    { key: 'traceCount', label: 'Traces', render: (row) => <span>{row.traceCount != null ? row.traceCount : '—'}</span> },
   ];
 
   const agents = query.data?.agents ?? [];
