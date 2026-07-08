@@ -80,7 +80,7 @@ export function LensSessionsPage() {
         ) : sessions.length === 0 ? (
           <EmptyState
             title="No sessions yet"
-            description="Sessions appear once grouped executions are ingested. Instrument an agent with the Theo SDK to start."
+            description="Sessions group traces that share a `session.id` attribute. Instrument an agent with the Theo SDK — set `session.id` on your spans — to start."
             action={
               <a
                 href="https://docs.usetheo.dev/observability/quickstart"

@@ -17,6 +17,14 @@ describe('LensSessionsPage (/observability/sessions)', () => {
     expect(link).toHaveAttribute('href', '/observability/traces?session=sess-abc');
   });
 
+  // M74 (audit S-1) — the empty state must name the `session.id` grouping key so a user with
+  // traces-but-no-sessions understands what a session requires.
+  it('M74 — the empty state names the session.id grouping key', async () => {
+    mockCloudFetch.mockResolvedValue({ sessions: [] });
+    render(<LensSessionsPage />);
+    expect(await screen.findByText(/session\.id/i)).toBeInTheDocument();
+  });
+
   it('an absent trace count renders em-dash, a real 0 renders 0', async () => {
     mockCloudFetch.mockResolvedValue({
       sessions: [{ sessionId: 'sess-1' }, { sessionId: 'sess-2', traceCount: 0 }],

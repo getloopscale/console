@@ -51,7 +51,20 @@ export function LensAgentsPage() {
             The lens service is unavailable. Try again shortly.
           </Alert>
         ) : agents.length === 0 ? (
-          <EmptyState title="No agents yet" description="Agents appear once instrumented executions are ingested." />
+          <EmptyState
+            title="No agents yet"
+            description="An agent appears here once its spans carry the `agent.name` attribute (the OpenTelemetry `agent.*` convention). Plain LLM or tool spans are catalogued elsewhere — instrument an agent to populate this list."
+            action={
+              <a
+                href="https://docs.usetheo.dev/observability/quickstart"
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-medium text-primary underline underline-offset-4"
+              >
+                Instrument an agent →
+              </a>
+            }
+          />
         ) : (
           <Card>
             <DataTable columns={columns} data={agents} rowKey={(row) => row.name} />
