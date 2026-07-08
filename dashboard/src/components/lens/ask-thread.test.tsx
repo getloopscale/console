@@ -134,4 +134,35 @@ describe('M61 AskThread', () => {
     await ask('explain this step');
     expect(await screen.findAllByText(/re: llm/i)).not.toHaveLength(0);
   });
+
+  it('M83 — a thumbs-up on an answer POSTs feedback {turnId,label} to the endpoint', async () => {
+    mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
+      void opts;
+      if (String(url).includes('/ask/feedback')) return Promise.resolve({ label: 'up' });
+      return Promise.resolve({ answer: 'here is why' });
+    });
+    render(<AskThread traceId="t1" spans={tree} />);
+    await ask('why did it fail?');
+    await screen.findByTestId('thread-turn-assistant');
+    await userEvent.click(screen.getByRole('button', { name: /good answer/i }));
+    const call = mockCloudFetch.mock.calls.find((c) => String(c[0]).includes('/ask/feedback'));
+    expect(call).toBeTruthy();
+    expect(String(call![0])).toBe('/v1/dashboard/lens/traces/t1/ask/feedback');
+    const body = JSON.parse((call![1] as { body: string }).body);
+    expect(body.label).toBe('up');
+    expect(typeof body.turnId).toBe('string');
+    expect(body.turnId.length).toBeGreaterThan(0);
+  });
+
+  it('M83 — a failed feedback POST fails closed to a typed error, no fabricated success', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (String(url).includes('/ask/feedback')) return Promise.reject(new ApiError(502));
+      return Promise.resolve({ answer: 'here is why' });
+    });
+    render(<AskThread traceId="t1" spans={tree} />);
+    await ask('why?');
+    await screen.findByTestId('thread-turn-assistant');
+    await userEvent.click(screen.getByRole('button', { name: /bad answer/i }));
+    expect(await screen.findByText(/could not save your feedback/i)).toBeInTheDocument();
+  });
 });

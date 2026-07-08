@@ -41,6 +41,7 @@ type LensDataClient interface {
 	GetTraceTags(ctx context.Context, id string) (json.RawMessage, error)
 	GetTraceAnnotations(ctx context.Context, id string) (json.RawMessage, error)
 	Ask(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
+	AskFeedback(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	// Writes (M44) — datasets / evaluators / guards / trace metadata
 	CreateDataset(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
@@ -330,6 +331,16 @@ func (h *LensDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	h.proxyBody(w, r, "ask", func(body json.RawMessage) (json.RawMessage, error) { return h.client.Ask(r.Context(), id, body) })
 }
 
+// AskFeedback serves POST /v1/dashboard/lens/traces/{traceID}/ask/feedback — the M83 thumbs up/down
+// (theo-lens POST /v1/traces/:id/ask/feedback, write-scope). Independent of the LLM; the browser body
+// ({turnId,label}) is forwarded verbatim behind the fail-closed tenant guard.
+func (h *LensDashboardHandler) AskFeedback(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "traceID")
+	h.proxyBody(w, r, "ask feedback", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.AskFeedback(r.Context(), id, body)
+	})
+}
+
 // Replay serves POST /v1/dashboard/lens/traces/{traceID}/replay — the M55 span replay (theo-lens
 // POST /v1/traces/:id/replay): re-run an edited message list against the real provider server-side.
 // Same per-tenant Model-B path + fail-closed body-proxy as Ask; a read-scope EPHEMERAL provider call
@@ -508,7 +519,8 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/experiment-runs", h.ListExperimentRuns)            // M64 — read-scope run list
 		r.Get("/experiment-runs/compare", h.CompareExperimentRuns) // before :runID so "compare" is not a run id
 		r.Get("/experiment-runs/{runID}", h.GetExperimentRun)
-		r.Post("/traces/{traceID}/ask", h.Ask)       // read-scope copilot query
+		r.Post("/traces/{traceID}/ask", h.Ask)                 // read-scope copilot query
+		r.Post("/traces/{traceID}/ask/feedback", h.AskFeedback) // M83 write-scope thumbs feedback
 		r.Post("/traces/{traceID}/replay", h.Replay) // M55 — read-scope ephemeral provider replay
 		// Writes — datasets
 		r.Post("/datasets", h.CreateDataset)

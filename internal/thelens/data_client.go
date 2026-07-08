@@ -269,6 +269,12 @@ func (c *DataClient) Ask(ctx context.Context, traceID string, body json.RawMessa
 	return c.doRaw(ctx, http.MethodPost, "/v1/traces/"+url.PathEscape(traceID)+"/ask", nil, body)
 }
 
+// AskFeedback proxies POST /v1/traces/{id}/ask/feedback — the M83 thumbs up/down on an answer
+// (write-scope; independent of the LLM). The browser body ({turnId,label,...}) is forwarded verbatim.
+func (c *DataClient) AskFeedback(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPost, "/v1/traces/"+url.PathEscape(traceID)+"/ask/feedback", nil, body)
+}
+
 // Replay proxies POST /v1/traces/{id}/replay (M55 span replay — edited messages re-run against the
 // real provider). Same per-tenant path as Ask; the browser never holds a provider key.
 func (c *DataClient) Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error) {
