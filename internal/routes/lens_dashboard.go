@@ -211,14 +211,32 @@ func (h *LensDashboardHandler) Cost(w http.ResponseWriter, r *http.Request) {
 
 // --- M44 read+write+delete management surface --------------------------------------------
 
-// writeUpstreamErr maps an upstream failure to the client. A theo-lens non-2xx response
-// (*thelens.UpstreamStatusError) is FORWARDED verbatim — the real status (409 name-conflict,
-// 404 absent, 400 invalid) + theo-lens's own {code,message} body — so the browser can act on it
-// (M82). Only a transport/resolver error (no HTTP status) collapses to a generic 502. Returns true
-// when it wrote a response.
+// browserActionableUpstream reports whether a theo-lens status is one the BROWSER can act on and so
+// should be forwarded verbatim (M82). Forwarded: a 4xx the caller can fix or react to — 400 invalid
+// input, 404 absent, 409 name-conflict, 422 unprocessable, 429 rate-limited. NOT forwarded: 401/403,
+// because those reflect the BFF↔theo-lens minted-key trust boundary, NOT the browser's JWT session —
+// forwarding a 401 would trip the dashboard's session-expiry redirect (a spurious logout on a broker
+// misconfig), and a 403 would falsely tell an authorized user they lack access. Everything else
+// (401/403 + 5xx + non-status transport errors) collapses to a generic 502 (fail-closed).
+func browserActionableUpstream(status int) bool {
+	switch status {
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusConflict,
+		http.StatusUnprocessableEntity, http.StatusTooManyRequests:
+		return true
+	default:
+		return false
+	}
+}
+
+// writeUpstreamErr maps an upstream failure to the client. A browser-actionable theo-lens 4xx
+// (*thelens.UpstreamStatusError, per browserActionableUpstream) is FORWARDED verbatim — the real
+// status + theo-lens's own {code,message} body — so the browser can act on it (e.g. show "name
+// already taken" on a 409). Every other upstream status (401/403 minted-key boundary, 5xx) and any
+// transport/resolver error collapses to a generic 502 (fail-closed — never a spurious session
+// redirect).
 func (h *LensDashboardHandler) writeUpstreamErr(w http.ResponseWriter, what string, err error) {
 	var ue *thelens.UpstreamStatusError
-	if errors.As(err, &ue) {
+	if errors.As(err, &ue) && browserActionableUpstream(ue.Status) {
 		h.logger.Warn("lens dashboard: "+what+" upstream status", "status", ue.Status)
 		writeJSON(w, ue.Status, json.RawMessage(ue.Body))
 		return

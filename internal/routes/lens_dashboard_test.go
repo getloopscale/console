@@ -104,7 +104,13 @@ func (s *stubLensDataClient) RenameDataset(_ context.Context, _ string, body jso
 	return s.write(`{"id":"ds_1","name":"renamed","itemCount":0}`)
 }
 func (s *stubLensDataClient) DeleteDataset(context.Context, string) (json.RawMessage, error) {
-	return s.write(`{}`)
+	// mirrors the real 204→nil path (theo-lens returns no body on delete).
+	s.calls++
+	s.writeCalls++
+	if s.err != nil {
+		return nil, s.err
+	}
+	return nil, nil
 }
 func (s *stubLensDataClient) AddDatasetItem(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"id":"ds_1","items":[{"traceId":"tr_9"}]}`)
@@ -529,9 +535,9 @@ func TestLensDashboard_RenameDataset_ForwardsBodyVerbatim(t *testing.T) {
 	}
 }
 
-// TestLensDashboard_UpstreamStatus_Forwarded — M82: a theo-lens non-2xx (e.g. a rename's 409
-// name-conflict) is FORWARDED with its real status + body, not flattened to 502. The browser needs
-// the 409 to show "name already taken" instead of a generic upstream error.
+// TestLensDashboard_UpstreamStatus_Forwarded — M82: a browser-actionable theo-lens 4xx (a rename's
+// 409 name-conflict) is FORWARDED with its real status + body, not flattened to 502. The browser
+// needs the 409 to show "name already taken" instead of a generic upstream error.
 func TestLensDashboard_UpstreamStatus_Forwarded(t *testing.T) {
 	r, stub := mountedLens(t)
 	stub.err = &thelens.UpstreamStatusError{Status: http.StatusConflict, Body: []byte(`{"code":"NAME_CONFLICT","message":"a resource with that name already exists"}`)}
@@ -543,5 +549,38 @@ func TestLensDashboard_UpstreamStatus_Forwarded(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "NAME_CONFLICT") {
 		t.Fatalf("want upstream body forwarded verbatim, got %s", w.Body.String())
+	}
+}
+
+// TestLensDashboard_UpstreamStatus_ForwardedActionable — every browser-actionable 4xx forwards
+// verbatim (M82 — 400 invalid, 404 absent, 409 conflict, 422, 429). Covers a PRE-EXISTING write
+// route (create-evaluator, a POST) to pin the broadened proxy behavior beyond the 3 new M82 routes.
+func TestLensDashboard_UpstreamStatus_ForwardedActionable(t *testing.T) {
+	for _, code := range []int{http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusTooManyRequests} {
+		r, stub := mountedLens(t)
+		stub.err = &thelens.UpstreamStatusError{Status: code, Body: []byte(`{"code":"X","message":"m"}`)}
+		req := tenantCtx(httptest.NewRequest(http.MethodPost, "/v1/dashboard/lens/evaluators", strings.NewReader(`{"name":"r","kind":"rule","config":{"predicate":"bad"}}`)), "t1")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != code {
+			t.Fatalf("status %d: want forwarded on a pre-existing route, got %d", code, w.Code)
+		}
+	}
+}
+
+// TestLensDashboard_UpstreamStatus_401_403_5xx_Collapse_To_502 — an upstream 401/403 reflects the
+// BFF↔theo-lens minted-key trust boundary (NOT the browser's JWT session); forwarding it would trip
+// the dashboard's session-expiry redirect (a spurious logout). Those, plus any 5xx, MUST collapse
+// to 502 — never leak the upstream status to the browser.
+func TestLensDashboard_UpstreamStatus_401_403_5xx_Collapse_To_502(t *testing.T) {
+	for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError, http.StatusBadGateway} {
+		r, stub := mountedLens(t)
+		stub.err = &thelens.UpstreamStatusError{Status: code, Body: []byte(`{"code":"X"}`)}
+		req := tenantCtx(httptest.NewRequest(http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", strings.NewReader(`{"name":"x"}`)), "t1")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusBadGateway {
+			t.Fatalf("upstream %d must collapse to 502 (no spurious logout / leak), got %d", code, w.Code)
+		}
 	}
 }
