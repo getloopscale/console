@@ -379,6 +379,14 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     renderWithParams(<LensTracesPage />, '?status=error');
     expect(await screen.findByText(/no traces match these filters/i)).toBeInTheDocument();
   });
+
+  it('M69 — the no-data empty state is instructive (carries an Instrument-an-agent action)', async () => {
+    filterMock([]); // zero rows AND no active filter → the "no data yet" variant
+    renderWithParams(<LensTracesPage />, '');
+    expect(await screen.findByText(/no traces yet/i)).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /instrument an agent/i });
+    expect(link).toHaveAttribute('href', expect.stringContaining('/observability/quickstart'));
+  });
 });
 
 // M52 — advanced filters + saved views. A mock handling the traces list + the saved-views CRUD.

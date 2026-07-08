@@ -325,7 +325,20 @@ export function LensTracesPage() {
                 description="Try widening the time range or clearing the search."
               />
             ) : (
-              <EmptyState title="No traces yet" description="Instrument an agent and send spans to see executions here." />
+              <EmptyState
+                title="No traces yet"
+                description="Instrument an agent with the Theo SDK and send OTLP spans to see executions here."
+                action={
+                  <a
+                    href="https://docs.usetheo.dev/observability/quickstart"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-medium text-primary underline underline-offset-4"
+                  >
+                    Instrument an agent →
+                  </a>
+                }
+              />
             )
           ) : (
             <>

@@ -65,7 +65,20 @@ export function LensSessionsPage() {
             The lens service is unavailable. Try again shortly.
           </Alert>
         ) : sessions.length === 0 ? (
-          <EmptyState title="No sessions yet" description="Sessions appear once grouped executions are ingested." />
+          <EmptyState
+            title="No sessions yet"
+            description="Sessions appear once grouped executions are ingested. Instrument an agent with the Theo SDK to start."
+            action={
+              <a
+                href="https://docs.usetheo.dev/observability/quickstart"
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-medium text-primary underline underline-offset-4"
+              >
+                Instrument an agent →
+              </a>
+            }
+          />
         ) : (
           <Card>
             <DataTable columns={columns} data={sessions} rowKey={(row) => row.sessionId} />
