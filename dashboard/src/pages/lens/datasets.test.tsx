@@ -62,6 +62,21 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(screen.getByText('0')).toBeInTheDocument(); // honest zero (loaded-but-empty dataset)
   });
 
+  it('M70 — a dataset item opens its source-trace span peek (no dead-end)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 1 }] });
+      if (url.startsWith('/v1/dashboard/lens/datasets/ds_1')) return Promise.resolve({ id: 'ds_1', name: 'golden', items: [{ traceId: 'tr_9' }] });
+      // the peek fetches the trace tree
+      if (/\/traces\/tr_9/.test(url)) return Promise.resolve({ traceId: 'tr_9', spanId: 's', name: 'root', children: [] });
+      return Promise.resolve({});
+    });
+    render(<LensDatasetsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /open golden/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /view trace/i }));
+    // the peek requested the source trace
+    expect(mockCloudFetch.mock.calls.some((c) => /\/traces\/tr_9/.test(String(c[0])))).toBe(true);
+  });
+
   it('remove-item opens ConfirmDialog then calls DELETE on confirm', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 1 }] });

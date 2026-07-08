@@ -9,6 +9,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
+import { TracePeekSheet } from './traces/peek-sheet';
 
 /**
  * M44 — /lens/datasets. List / create datasets and remove items via the read+write lens
@@ -44,6 +45,7 @@ export function LensDatasetsPage() {
 
   const [name, setName] = useState('');
   const [openID, setOpenID] = useState<string | null>(null);
+  const [peekTrace, setPeekTrace] = useState<string | null>(null); // dataset item → source-span peek (M70)
   const [pendingRemove, setPendingRemove] = useState<{ datasetID: string; traceId: string } | null>(null);
 
   const query = useQuery({
@@ -124,6 +126,16 @@ export function LensDatasetsPage() {
   // the open dataset (non-null while the items panel is shown).
   const itemColumns = (datasetID: string): DataTableColumn<DatasetItem>[] => [
     { key: 'traceId', label: 'Trace', render: (row) => <span className="font-mono text-sm">{row.traceId}</span> },
+    {
+      key: 'view',
+      label: '',
+      // Wire the eval loop: a dataset item opens its source trace's span peek (M58), no dead-end.
+      render: (row) => (
+        <Button variant="ghost" size="sm" onClick={() => setPeekTrace(row.traceId)}>
+          View trace
+        </Button>
+      ),
+    },
     {
       key: 'actions',
       label: '',
@@ -232,6 +244,8 @@ export function LensDatasetsPage() {
           onConfirm={() => removeItem.mutate(pendingRemove)}
         />
       ) : null}
+
+      <TracePeekSheet traceId={peekTrace} onClose={() => setPeekTrace(null)} />
     </>
   );
 }
