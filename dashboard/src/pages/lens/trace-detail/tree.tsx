@@ -359,11 +359,12 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
             {span.evaluations.map((ev, i) => (
               <li key={`${ev.name}-${i}`} className="flex flex-wrap items-baseline gap-2 text-sm">
                 <span className="font-medium">{ev.name}</span>
-                {ev.label != null ? (
-                  <Badge variant="outline">{ev.label}</Badge>
-                ) : (
-                  <span className="font-mono text-xs">{formatScore(ev.score)}</span>
-                )}
+                {/* Show BOTH when present (a labelled verdict can also carry a numeric score); an
+                    evaluation with neither is an honest em-dash — never a fabricated 0. A real score of
+                    0 renders "0.00" (formatScore), not em-dash. */}
+                {ev.label != null ? <Badge variant="outline">{ev.label}</Badge> : null}
+                {ev.score != null ? <span className="font-mono text-xs">{formatScore(ev.score)}</span> : null}
+                {ev.label == null && ev.score == null ? <span className="text-muted-foreground">—</span> : null}
                 {ev.explanation ? <span className="text-xs text-muted-foreground">{ev.explanation}</span> : null}
               </li>
             ))}

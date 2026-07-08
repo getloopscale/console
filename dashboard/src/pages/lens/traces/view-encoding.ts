@@ -8,7 +8,7 @@
  */
 
 /** The hideable spine columns (the always-on identity columns are never in this set). */
-export const TOGGLEABLE_COLUMNS = ['latency', 'tokens', 'cost'] as const;
+export const TOGGLEABLE_COLUMNS = ['latency', 'tokens', 'cost', 'evals'] as const;
 export type ToggleableColumn = (typeof TOGGLEABLE_COLUMNS)[number];
 
 export interface ColumnState {
@@ -17,7 +17,7 @@ export interface ColumnState {
 }
 
 export const DEFAULT_COLUMN_STATE: ColumnState = {
-  visibility: { latency: true, tokens: true, cost: true },
+  visibility: { latency: true, tokens: true, cost: true, evals: true },
   density: 'comfortable',
 };
 

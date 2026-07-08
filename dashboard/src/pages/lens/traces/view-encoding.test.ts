@@ -15,7 +15,7 @@ import {
  */
 
 const custom: ColumnState = {
-  visibility: { latency: false, tokens: true, cost: false },
+  visibility: { latency: false, tokens: true, cost: false, evals: true },
   density: 'compact',
 };
 

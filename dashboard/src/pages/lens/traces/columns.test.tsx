@@ -68,6 +68,12 @@ describe('M59 P1 tracesColumns — spine columns', () => {
     expect(dashes.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('M78 — an explicit evaluationsCount of 0 shows an em-dash, not a "0" (0 evaluations = unscored)', () => {
+    renderTable({ data: [{ ...bare, evaluationsCount: 0 }] });
+    expect(screen.queryByLabelText(/evaluations/i)).not.toBeInTheDocument(); // no count badge for 0
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1);
+  });
+
   it('renders a StatusDot on the status cell (error → failed dot)', () => {
     renderTable({ data: [full] });
     expect(screen.getByLabelText('failed')).toBeInTheDocument();
