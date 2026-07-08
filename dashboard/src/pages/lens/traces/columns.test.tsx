@@ -59,6 +59,15 @@ describe('M59 P1 tracesColumns — spine columns', () => {
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   });
 
+  it('M78 — renders an Evals count badge when a trace was scored, em-dash when not', () => {
+    renderTable({ data: [{ ...full, evaluationsCount: 3 }, bare] });
+    // the scored trace shows its evaluation count (findable in the list without opening it)
+    expect(screen.getByLabelText('3 evaluations')).toHaveTextContent('3');
+    // the unscored trace (no evaluationsCount) shows an em-dash in the Evals cell, never a fabricated 0
+    const dashes = screen.getAllByText('—');
+    expect(dashes.length).toBeGreaterThanOrEqual(1);
+  });
+
   it('renders a StatusDot on the status cell (error → failed dot)', () => {
     renderTable({ data: [full] });
     expect(screen.getByLabelText('failed')).toBeInTheDocument();

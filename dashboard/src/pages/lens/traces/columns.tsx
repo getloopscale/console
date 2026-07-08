@@ -24,6 +24,9 @@ export interface Trace {
   costUsd?: number;
   totalTokens?: number;
   sessionId?: string;
+  // M78 — per-trace count of machine evaluations (from the list read's `evaluationsCount`, O(1) subquery;
+  // omitted when 0). Makes scored traces findable in the list without opening each one.
+  evaluationsCount?: number;
 }
 
 /** Handles the column cells need from the orchestrating page (M59 P0/P1 + M61 onAsk). */
@@ -127,6 +130,18 @@ export function tracesColumns({ selected, toggleSelected, onOpen, onAsk }: Trace
       render: (row) =>
         row.costUsd != null ? (
           <span className="text-xs tabular-nums">{formatCost(row.costUsd)}</span>
+        ) : (
+          EMDASH
+        ),
+    },
+    {
+      key: 'evals',
+      label: 'Evals',
+      // A count of machine evaluations on the trace (not a pass/fail verdict). Absent/0 → em-dash, never a
+      // fabricated 0; the per-span Evaluations section carries the actual scores.
+      render: (row) =>
+        row.evaluationsCount != null && row.evaluationsCount > 0 ? (
+          <Badge variant="outline" aria-label={`${row.evaluationsCount} evaluations`}>{row.evaluationsCount}</Badge>
         ) : (
           EMDASH
         ),
