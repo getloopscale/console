@@ -1132,7 +1132,8 @@ describe('LensTraceDetail — Graph tab (M67)', () => {
     // one node per span (root + child), one edge <line> for the parent→child link
     expect(within(graph).getAllByTestId('graph-node')).toHaveLength(2);
     expect(graph.querySelectorAll('line')).toHaveLength(1);
-    expect(within(graph).getByRole('img', { name: /agent execution graph/i })).toBeInTheDocument();
+    // M71 — role="group" (not "img"): the graph exposes its interactive nodes to AT.
+    expect(within(graph).getByRole('group', { name: /agent execution graph/i })).toBeInTheDocument();
     // sr-only node summary (a11y) lists each node with its derived kind label
     const srList = graph.querySelector('ul.sr-only');
     expect(srList?.textContent).toMatch(/LLM/); // the child llm_request node's kind

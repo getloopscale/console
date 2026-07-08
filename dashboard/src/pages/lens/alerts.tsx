@@ -146,7 +146,13 @@ export function LensAlertsPage() {
       key: 'enabled',
       label: 'Enabled',
       render: (r) => (
-        <Button variant="ghost" size="sm" onClick={() => toggle.mutate(r)} aria-label={`Toggle ${r.name}`}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => toggle.mutate(r)}
+          aria-label={`Toggle ${r.name}`}
+          aria-pressed={r.enabled}
+        >
           {r.enabled ? 'On' : 'Off'}
         </Button>
       ),

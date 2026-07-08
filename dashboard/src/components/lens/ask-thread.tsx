@@ -132,7 +132,9 @@ export function AskThread({
         </div>
       ) : null}
 
-      <div className="space-y-3">
+      {/* M71 — the conversation is a log live-region so a screen reader announces new answers as they
+          stream in (polite: it waits for the reader to finish the current utterance). */}
+      <div className="space-y-3" role="log" aria-live="polite" aria-label="Copilot conversation">
         {turns.map((turn) => (
           <Card key={turn.id} data-testid={`thread-turn-${turn.role}`}>
             <Card.Body className="space-y-2">

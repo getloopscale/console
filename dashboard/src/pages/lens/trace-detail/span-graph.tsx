@@ -46,7 +46,9 @@ export function SpanGraph({
   return (
     <div className="max-h-[70vh] overflow-auto" data-testid="span-graph">
       <svg
-        role="img"
+        // M71 — role="group" (not "img"): the nodes are interactive controls, so AT must NOT treat the
+        // graph as a single opaque image (which hid the clickable spans). A group exposes the buttons.
+        role="group"
         aria-label={`Agent execution graph — ${graph.nodes.length} spans`}
         width={width}
         height={height}
@@ -65,7 +67,8 @@ export function SpanGraph({
               y1={cyBottom(from.y)}
               x2={cx(to.x)}
               y2={cyTop(to.y)}
-              stroke={e.onPath ? '#6366f1' : '#334155'}
+              // M71 — theme tokens (not raw hex) so the graph is legible in light + dark.
+              className={e.onPath ? 'stroke-primary' : 'stroke-border'}
               strokeWidth={e.onPath ? 2 : 1}
               opacity={e.onPath ? 1 : 0.6}
             />
@@ -97,15 +100,28 @@ export function SpanGraph({
               width={NODE_W}
               height={NODE_H}
               rx={8}
-              fill={n.selected ? '#1e293b' : '#0f172a'}
-              stroke={n.selected ? '#6366f1' : n.onPath ? '#475569' : '#1e293b'}
+              // M71 — theme tokens: fill card/muted, stroke primary (selected) / muted-fg (on-path) / border.
+              className={
+                n.selected
+                  ? 'fill-muted stroke-primary'
+                  : n.onPath
+                    ? 'fill-card stroke-muted-foreground'
+                    : 'fill-card stroke-border'
+              }
               strokeWidth={n.selected ? 2 : 1}
             />
-            <circle cx={n.x + PAD + 14} cy={n.y + PAD + NODE_H / 2} r={5} fill={n.error ? '#ef4444' : KIND_COLOR[n.kind]} />
-            <text x={n.x + PAD + 26} y={n.y + PAD + 19} fontSize={11} fill="#94a3b8" className="uppercase tracking-wider">
+            <circle
+              cx={n.x + PAD + 14}
+              cy={n.y + PAD + NODE_H / 2}
+              r={5}
+              // an error dot uses the theme destructive; otherwise the semantic kind palette.
+              className={n.error ? 'fill-destructive' : undefined}
+              fill={n.error ? undefined : KIND_COLOR[n.kind]}
+            />
+            <text x={n.x + PAD + 26} y={n.y + PAD + 19} fontSize={11} className="fill-muted-foreground uppercase tracking-wider">
               {KIND_LABEL[n.kind]}
             </text>
-            <text x={n.x + PAD + 26} y={n.y + PAD + 35} fontSize={12} fill="#e2e8f0">
+            <text x={n.x + PAD + 26} y={n.y + PAD + 35} fontSize={12} className="fill-foreground">
               {n.name.length > 18 ? `${n.name.slice(0, 17)}…` : n.name}
             </text>
           </g>

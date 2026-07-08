@@ -96,6 +96,8 @@ describe('LensAlertsPage (M53)', () => {
     mockRoutes({ rules: [{ id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
     render(<LensAlertsPage />);
     await screen.findByText('r');
+    // M71 — the enable toggle exposes its state via aria-pressed (an enabled rule → pressed)
+    expect(screen.getByRole('button', { name: /toggle r/i })).toHaveAttribute('aria-pressed', 'true');
     await userEvent.click(screen.getByRole('button', { name: /toggle r/i }));
     await waitFor(() => expect(calls('PATCH').length).toBe(1));
     expect(JSON.parse((calls('PATCH')[0][1] as { body: string }).body)).toEqual({ enabled: false });
