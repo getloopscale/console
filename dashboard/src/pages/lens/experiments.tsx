@@ -263,7 +263,16 @@ export function LensExperimentsPage() {
         <Card className="mb-4">
           <Card.Body className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold uppercase text-muted-foreground">Start a run</span>
-            <Select value="" onValueChange={(id) => setParams({ datasetId: id })}>
+            <Select
+              value=""
+              onValueChange={(id) =>
+                // Merge (not replace) so any other URL state is preserved — set datasetId only.
+                setParams((prev) => {
+                  prev.set('datasetId', id);
+                  return prev;
+                })
+              }
+            >
               <Select.Trigger className="w-[240px]" aria-label="Dataset to run">
                 <Select.Value placeholder="Choose a dataset…" />
               </Select.Trigger>
