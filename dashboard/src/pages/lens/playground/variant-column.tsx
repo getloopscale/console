@@ -1,7 +1,8 @@
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Braces, Plus, Trash2 } from 'lucide-react';
-import { Alert, Badge, Button, Card, Input, Select, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, Input, Select, Textarea } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { cloudFetch } from '@/lib/api';
 import { formatCost, formatDuration, formatTokens } from '@/lib/format';

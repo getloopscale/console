@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, EmptyState, Skeleton } from '@usetheo/ui';
+import { Button, Card, EmptyState, Skeleton } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import { cloudFetch } from '@/lib/api';

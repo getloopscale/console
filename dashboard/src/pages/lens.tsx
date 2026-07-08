@@ -12,7 +12,8 @@ import {
   Search,
   ShieldCheck,
 } from 'lucide-react';
-import { Alert, Button, Card, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { Button, Card, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

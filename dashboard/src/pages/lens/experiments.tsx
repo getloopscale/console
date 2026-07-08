@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Alert, Badge, Button, Card, DataTable, type DataTableColumn, Input, PageShell } from '@usetheo/ui';
+import { Badge, Button, Card, DataTable, type DataTableColumn, Input, PageShell } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

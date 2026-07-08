@@ -1,20 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
-import {
-  Alert,
-  Button,
-  Card,
-  ConfirmDialog,
-  CopyButton,
-  DataTable,
-  type DataTableColumn,
-  EmptyState,
-  Input,
-  Label,
-  PageShell,
-  Skeleton,
-} from '@usetheo/ui';
+import { Button, Card, ConfirmDialog, CopyButton, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell } from '@usetheo/ui';
+import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -153,7 +142,7 @@ export function LensGuardsPage() {
           </Card>
 
           {query.isLoading ? (
-            <Skeleton />
+            <ListSkeleton label="guards" />
           ) : query.isError ? (
             <Alert intent="warning" title="Could not load guards">
               The lens service is unavailable. Try again shortly.

@@ -2,16 +2,9 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import {
-  Alert,
-  Button,
-  Card,
-  DataTable,
-  EmptyState,
-  Input,
-  PageShell,
-  Skeleton,
-} from '@usetheo/ui';
+import { Button, Card, DataTable, EmptyState, Input, PageShell } from '@usetheo/ui';
+import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -320,7 +313,7 @@ export function LensTracesPage() {
           <SavedViewsBar searchParams={searchParams} onApply={applyView} />
 
           {query.isLoading ? (
-            <Skeleton />
+            <ListSkeleton label="traces" />
           ) : query.isError ? (
             <Alert intent="warning" title="Could not load traces">
               The lens service is unavailable. Try again shortly.

@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Badge, Card, EmptyState, PageShell, Skeleton } from '@usetheo/ui';
+import { Badge, Card, EmptyState, PageShell, Skeleton } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

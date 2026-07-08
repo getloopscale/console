@@ -1,20 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
-import {
-  Alert,
-  Button,
-  Card,
-  ConfirmDialog,
-  DataTable,
-  type DataTableColumn,
-  EmptyState,
-  Input,
-  Label,
-  PageShell,
-  Skeleton,
-  Timestamp,
-} from '@usetheo/ui';
+import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Timestamp } from '@usetheo/ui';
+import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -176,7 +165,7 @@ export function LensDatasetsPage() {
           </Card>
 
           {query.isLoading ? (
-            <Skeleton />
+            <ListSkeleton label="datasets" />
           ) : query.isError ? (
             <Alert intent="warning" title="Could not load datasets">
               The lens service is unavailable. Try again shortly.
@@ -199,7 +188,7 @@ export function LensDatasetsPage() {
               </Card.Header>
               <Card.Body>
                 {detail.isLoading ? (
-                  <Skeleton />
+                  <ListSkeleton label="dataset items" rows={3} />
                 ) : detail.isError ? (
                   <Alert intent="destructive" title="Could not load items" description="The dataset items failed to load. Retry, or check your access to this dataset." />
                 ) : (detail.data?.items ?? []).length === 0 ? (

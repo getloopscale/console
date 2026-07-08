@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Skeleton } from '@usetheo/ui';
+import { Card, DataTable, type DataTableColumn, EmptyState, PageShell } from '@usetheo/ui';
+import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -42,7 +44,7 @@ export function LensAgentsPage() {
     <PageShell title="Agents" description="The derived catalog of instrumented agents (read-only).">
       <div className="space-y-6">
         {query.isLoading ? (
-          <Skeleton />
+          <ListSkeleton label="agents" />
         ) : query.isError ? (
           <Alert intent="warning" title="Could not load agents">
             The lens service is unavailable. Try again shortly.

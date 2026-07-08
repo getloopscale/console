@@ -1,20 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  ConfirmDialog,
-  DataTable,
-  type DataTableColumn,
-  EmptyState,
-  Input,
-  PageShell,
-  Select,
-  Skeleton,
-} from '@usetheo/ui';
+import { Badge, Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select } from '@usetheo/ui';
+import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -298,7 +287,7 @@ export function LensAlertsPage() {
           </Card>
 
           {rules.isLoading ? (
-            <Skeleton />
+            <ListSkeleton label="alert rules" />
           ) : rules.isError ? (
             <Alert intent="warning" title="Could not load alert rules">
               The lens service is unavailable. Try again shortly.

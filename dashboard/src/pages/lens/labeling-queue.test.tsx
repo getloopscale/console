@@ -91,6 +91,8 @@ describe('M63 LensLabelingQueuePage', () => {
     await userEvent.type(await screen.findByLabelText('Label'), 'good');
     await userEvent.click(screen.getByRole('button', { name: /^resolve$/i }));
     expect(await screen.findByTestId('resolve-error')).toBeInTheDocument();
+    // #175: the typed errorMessage BODY renders (not just the "Could not resolve" title).
+    expect(screen.getByText(/could not save — try again/i)).toBeInTheDocument();
   });
 });
 

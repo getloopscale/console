@@ -1,4 +1,5 @@
-import { Alert } from '@usetheo/ui';
+import {  } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import type { TraceSpanNode } from '@/lib/trace-layout';
 import { buildTraceGraph, GRAPH_NODE_CAP, KIND_COLOR, KIND_LABEL } from './graph-layout';

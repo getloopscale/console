@@ -65,6 +65,8 @@ describe('LensAlertsPage (M53)', () => {
     mockRoutes({ webhooks: [] });
     render(<LensAlertsPage />);
     expect(await screen.findByText(/register a webhook first/i)).toBeInTheDocument();
+    // #175: the instruction BODY renders (how to register), not just the title.
+    expect(screen.getByText(/add one under settings/i)).toBeInTheDocument();
   });
 
   it('creates a rule (POST metric/comparator/threshold/window/webhook_id)', async () => {
