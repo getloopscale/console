@@ -19,7 +19,15 @@ export function TracePeekSheet({ traceId, onClose }: { traceId: string | null; o
         if (!open) onClose();
       }}
     >
-      <Sheet.Content side="right" className="w-full overflow-auto sm:max-w-4xl">
+      {/* The trace detail is a two-panel explorer (tree | detail + timeline) — it needs real width.
+          @usetheo/ui's Sheet.Content defaults to a narrow `max-w-md` (448px) that a Tailwind class
+          can't reliably override (tailwind-merge keeps its own arbitrary/standard width), so the width
+          is set via inline style (highest specificity): a wide near-full-viewport overlay. */}
+      <Sheet.Content
+        side="right"
+        className="w-full overflow-auto"
+        style={{ width: '92vw', maxWidth: '1400px' }}
+      >
         <Sheet.Header className="border-b border-border px-6 py-4">
           <Sheet.Title>Trace detail</Sheet.Title>
           <Sheet.Description className="font-mono text-xs">{traceId ? shortId(traceId, 16) : ''}</Sheet.Description>

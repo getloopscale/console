@@ -9,6 +9,14 @@
 ### Removed
 
 ### Fixed
+- **Dashboard: the trace-detail peek panel is no longer cramped (theo-lens).** The row-click trace-detail
+  `Sheet` was pinned to `@usetheo/ui`'s default `max-w-md` (448px) — a Tailwind class could not reliably
+  override it (tailwind-merge kept the primitive's own width) — so the two-panel explorer (span tree │
+  span detail) + waterfall was crushed: the detail pane fell to ~130px and text wrapped character-by-
+  character. The peek `Sheet` width is now set via an inline style (highest specificity) to a wide
+  near-full-viewport overlay (`92vw`, capped at 1400px), giving the default 40/60 split ≈ 528px tree +
+  791px detail. Live-verified: the INPUT reads on one line, model names are legible, and the waterfall
+  spans the full width.
 
 ### Security
 
