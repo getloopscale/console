@@ -97,6 +97,9 @@ func (s *stubLensDataClient) AskFeedback(_ context.Context, _ string, body json.
 	s.lastWriteBody = string(body)
 	return s.write(`{"id":"fb_1","traceId":"t1","turnId":"turn-1","label":"up"}`)
 }
+func (s *stubLensDataClient) DeleteAskFeedback(context.Context, string, string) (json.RawMessage, error) {
+	return s.write(`{}`)
+}
 func (s *stubLensDataClient) Replay(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 	return s.read(`{"output":"new","promptTokens":1,"completionTokens":1,"totalTokens":2,"latencyMs":10,"model":"m"}`)
 }
@@ -382,6 +385,7 @@ func TestLensDashboard_Writes_Authenticated(t *testing.T) {
 		{"add-tag", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/tags", `{"tag":"prod"}`},
 		{"delete-tag", http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/tags?tag=prod", ``},
 		{"ask-feedback", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/ask/feedback", `{"turnId":"turn-1","label":"up"}`},
+		{"delete-ask-feedback", http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/ask/feedback?turnId=turn-1", ``},
 		{"add-annotation", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/annotations", `{"label":"good"}`},
 		{"delete-annotation", http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/annotations?name=feedback", ``},
 		{"enqueue-for-labeling", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},
@@ -446,6 +450,7 @@ func TestLensDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 		{http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/annotations?name=feedback", ``},
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/replay", `{"messages":[{"role":"user","content":"hi"}]}`}, // M55 — fail-closed without JWT
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/ask/feedback", `{"turnId":"turn-1","label":"up"}`},        // M83 — fail-closed without JWT
+		{http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/ask/feedback?turnId=turn-1", ``},                        // M83 — fail-closed without JWT
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},                // M63 — fail-closed without JWT
 		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/i1/resolve", `{"label":"good"}`},                     // M63
 		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/export-as-dataset", `{"name":"golden"}`},             // M63

@@ -127,10 +127,31 @@ export function AskThread({
     },
   });
 
+  // M83 — retract a vote (the UI "clear"). Persists via DELETE so the store never diverges from the
+  // shown thumb (review H-1). Optimistic; a failed DELETE reverts to the prior label + typed error.
+  const clearFeedback = useMutation({
+    mutationFn: (vars: { turnId: string }) =>
+      cloudFetch<void>(
+        `/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/ask/feedback?turnId=${encodeURIComponent(vars.turnId)}`,
+        { method: 'DELETE' },
+        { throwOnError: true },
+      ),
+    retry: false,
+  });
+
   const vote = (turn: Turn, label: 'up' | 'down') => {
-    const next = turn.feedback === label ? undefined : label; // click the active thumb again → clear
+    const prev = turn.feedback;
+    const next = prev === label ? undefined : label; // click the active thumb again → clear
     setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, feedback: next } : x)));
-    if (next !== undefined) feedback.mutate({ turnId: turn.id, label: next, ...(turn.spanId ? { spanId: turn.spanId } : {}) });
+    if (next !== undefined) {
+      feedback.mutate({ turnId: turn.id, label: next, ...(turn.spanId ? { spanId: turn.spanId } : {}) });
+    } else {
+      // clear → DELETE; revert to the prior label on failure (no silent UI/DB divergence).
+      clearFeedback.mutate(
+        { turnId: turn.id },
+        { onError: () => setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, feedback: prev } : x))) },
+      );
+    }
   };
 
   // ADR D2 / R1 — a fresh thread per trace: clear turns/draft AND reset any in-flight/stale ask when the
@@ -140,6 +161,7 @@ export function AskThread({
     setDraft('');
     ask.reset();
     feedback.reset();
+    clearFeedback.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- key on traceId only; reset fns are stable.
   }, [traceId]);
 
@@ -230,7 +252,7 @@ export function AskThread({
         {ask.isError ? (
           <Alert intent="warning" title="Could not answer" description={errorMessage(ask.error)} />
         ) : null}
-        {feedback.isError ? (
+        {feedback.isError || clearFeedback.isError ? (
           <Alert intent="warning" title="Feedback not saved" description="Could not save your feedback — try again shortly." data-testid="feedback-error" />
         ) : null}
         <div ref={bottomRef} aria-hidden="true" />

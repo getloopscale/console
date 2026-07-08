@@ -275,6 +275,14 @@ func (c *DataClient) AskFeedback(ctx context.Context, traceID string, body json.
 	return c.doRaw(ctx, http.MethodPost, "/v1/traces/"+url.PathEscape(traceID)+"/ask/feedback", nil, body)
 }
 
+// DeleteAskFeedback proxies DELETE /v1/traces/{id}/ask/feedback?turnId= — the M83 vote retract (clear),
+// so the persisted store never diverges from the shown thumb. Write-scope; idempotent (204).
+func (c *DataClient) DeleteAskFeedback(ctx context.Context, traceID, turnID string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("turnId", turnID)
+	return c.doRaw(ctx, http.MethodDelete, "/v1/traces/"+url.PathEscape(traceID)+"/ask/feedback", q, nil)
+}
+
 // Replay proxies POST /v1/traces/{id}/replay (M55 span replay — edited messages re-run against the
 // real provider). Same per-tenant path as Ask; the browser never holds a provider key.
 func (c *DataClient) Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error) {

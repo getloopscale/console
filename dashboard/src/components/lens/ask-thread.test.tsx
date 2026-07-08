@@ -154,7 +154,7 @@ describe('M61 AskThread', () => {
     expect(body.turnId.length).toBeGreaterThan(0);
   });
 
-  it('M83 — a failed feedback POST fails closed to a typed error, no fabricated success', async () => {
+  it('M83 — a failed feedback POST fails closed to a typed error AND reverts the pressed thumb (no fabricated success)', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
       if (String(url).includes('/ask/feedback')) return Promise.reject(new ApiError(502));
       return Promise.resolve({ answer: 'here is why' });
@@ -162,7 +162,27 @@ describe('M61 AskThread', () => {
     render(<AskThread traceId="t1" spans={tree} />);
     await ask('why?');
     await screen.findByTestId('thread-turn-assistant');
-    await userEvent.click(screen.getByRole('button', { name: /bad answer/i }));
+    const down = screen.getByRole('button', { name: /bad answer/i });
+    await userEvent.click(down);
     expect(await screen.findByText(/could not save your feedback/i)).toBeInTheDocument();
+    expect(down).toHaveAttribute('aria-pressed', 'false'); // reverted — UI must not show a vote that did not persist
+  });
+
+  it('M83 — clicking the active thumb clears via DELETE (persists the retract, no UI/DB divergence)', async () => {
+    mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (String(url).includes('/ask/feedback')) return Promise.resolve(opts?.method === 'DELETE' ? undefined : { label: 'up' });
+      return Promise.resolve({ answer: 'here is why' });
+    });
+    render(<AskThread traceId="t1" spans={tree} />);
+    await ask('why?');
+    await screen.findByTestId('thread-turn-assistant');
+    const up = screen.getByRole('button', { name: /good answer/i });
+    await userEvent.click(up); // vote up (POST)
+    expect(up).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(up); // click active thumb → clear (DELETE)
+    const del = mockCloudFetch.mock.calls.find((c) => (c[1] as { method?: string })?.method === 'DELETE');
+    expect(del).toBeTruthy();
+    expect(String(del![0])).toContain('/ask/feedback?turnId=');
+    expect(up).toHaveAttribute('aria-pressed', 'false');
   });
 });

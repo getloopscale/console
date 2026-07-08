@@ -42,6 +42,7 @@ type LensDataClient interface {
 	GetTraceAnnotations(ctx context.Context, id string) (json.RawMessage, error)
 	Ask(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	AskFeedback(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
+	DeleteAskFeedback(ctx context.Context, traceID, turnID string) (json.RawMessage, error)
 	Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	// Writes (M44) — datasets / evaluators / guards / trace metadata
 	CreateDataset(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
@@ -341,6 +342,16 @@ func (h *LensDashboardHandler) AskFeedback(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// DeleteAskFeedback serves DELETE /v1/dashboard/lens/traces/{traceID}/ask/feedback?turnId= — the M83
+// vote retract (theo-lens DELETE, write-scope). turnId comes from the query (whitelisted).
+func (h *LensDashboardHandler) DeleteAskFeedback(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "traceID")
+	turnID := r.URL.Query().Get("turnId")
+	h.proxy(w, r, "delete ask feedback", func() (json.RawMessage, error) {
+		return h.client.DeleteAskFeedback(r.Context(), id, turnID)
+	})
+}
+
 // Replay serves POST /v1/dashboard/lens/traces/{traceID}/replay — the M55 span replay (theo-lens
 // POST /v1/traces/:id/replay): re-run an edited message list against the real provider server-side.
 // Same per-tenant Model-B path + fail-closed body-proxy as Ask; a read-scope EPHEMERAL provider call
@@ -520,7 +531,8 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/experiment-runs/compare", h.CompareExperimentRuns) // before :runID so "compare" is not a run id
 		r.Get("/experiment-runs/{runID}", h.GetExperimentRun)
 		r.Post("/traces/{traceID}/ask", h.Ask)                 // read-scope copilot query
-		r.Post("/traces/{traceID}/ask/feedback", h.AskFeedback) // M83 write-scope thumbs feedback
+		r.Post("/traces/{traceID}/ask/feedback", h.AskFeedback)     // M83 write-scope thumbs feedback
+		r.Delete("/traces/{traceID}/ask/feedback", h.DeleteAskFeedback) // M83 retract (clear)
 		r.Post("/traces/{traceID}/replay", h.Replay) // M55 — read-scope ephemeral provider replay
 		// Writes — datasets
 		r.Post("/datasets", h.CreateDataset)
