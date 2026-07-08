@@ -6,6 +6,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -43,9 +44,12 @@ type LensDataClient interface {
 	Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	// Writes (M44) — datasets / evaluators / guards / trace metadata
 	CreateDataset(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	RenameDataset(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
+	DeleteDataset(ctx context.Context, id string) (json.RawMessage, error)
 	AddDatasetItem(ctx context.Context, datasetID string, body json.RawMessage) (json.RawMessage, error)
 	DeleteDatasetItem(ctx context.Context, datasetID, traceID string) (json.RawMessage, error)
 	CreateEvaluator(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	UpdateEvaluator(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
 	RunEvaluator(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
 	DeleteEvaluator(ctx context.Context, id string) (json.RawMessage, error)
 	CreateGuard(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
@@ -207,16 +211,32 @@ func (h *LensDashboardHandler) Cost(w http.ResponseWriter, r *http.Request) {
 
 // --- M44 read+write+delete management surface --------------------------------------------
 
+// writeUpstreamErr maps an upstream failure to the client. A theo-lens non-2xx response
+// (*thelens.UpstreamStatusError) is FORWARDED verbatim — the real status (409 name-conflict,
+// 404 absent, 400 invalid) + theo-lens's own {code,message} body — so the browser can act on it
+// (M82). Only a transport/resolver error (no HTTP status) collapses to a generic 502. Returns true
+// when it wrote a response.
+func (h *LensDashboardHandler) writeUpstreamErr(w http.ResponseWriter, what string, err error) {
+	var ue *thelens.UpstreamStatusError
+	if errors.As(err, &ue) {
+		h.logger.Warn("lens dashboard: "+what+" upstream status", "status", ue.Status)
+		writeJSON(w, ue.Status, json.RawMessage(ue.Body))
+		return
+	}
+	h.logger.Warn("lens dashboard: "+what+" failed", "error", err)
+	writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not "+what+".")
+}
+
 // proxy runs fn (an upstream call) behind the fail-closed tenant guard and writes the result:
-// 401 when no tenant, 502 on upstream error, otherwise 200 + the pass-through body.
+// 401 when no tenant, the forwarded upstream status on a theo-lens non-2xx (502 only on a
+// transport error), otherwise 200 + the pass-through body.
 func (h *LensDashboardHandler) proxy(w http.ResponseWriter, r *http.Request, what string, fn func() (json.RawMessage, error)) {
 	if !h.authTenant(w, r) {
 		return
 	}
 	raw, err := fn()
 	if err != nil {
-		h.logger.Warn("lens dashboard: "+what+" failed", "error", err)
-		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not "+what+".")
+		h.writeUpstreamErr(w, what, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, raw)
@@ -238,8 +258,7 @@ func (h *LensDashboardHandler) proxyBody(w http.ResponseWriter, r *http.Request,
 	}
 	raw, err := fn(json.RawMessage(b))
 	if err != nil {
-		h.logger.Warn("lens dashboard: "+what+" failed", "error", err)
-		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not "+what+".")
+		h.writeUpstreamErr(w, what, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, raw)
@@ -308,6 +327,16 @@ func (h *LensDashboardHandler) Replay(w http.ResponseWriter, r *http.Request) {
 func (h *LensDashboardHandler) CreateDataset(w http.ResponseWriter, r *http.Request) {
 	h.proxyBody(w, r, "create dataset", func(body json.RawMessage) (json.RawMessage, error) { return h.client.CreateDataset(r.Context(), body) })
 }
+func (h *LensDashboardHandler) RenameDataset(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "datasetID")
+	h.proxyBody(w, r, "rename dataset", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.RenameDataset(r.Context(), id, body)
+	})
+}
+func (h *LensDashboardHandler) DeleteDataset(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "datasetID")
+	h.proxy(w, r, "delete dataset", func() (json.RawMessage, error) { return h.client.DeleteDataset(r.Context(), id) })
+}
 func (h *LensDashboardHandler) AddDatasetItem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "datasetID")
 	h.proxyBody(w, r, "add dataset item", func(body json.RawMessage) (json.RawMessage, error) {
@@ -325,6 +354,12 @@ func (h *LensDashboardHandler) DeleteDatasetItem(w http.ResponseWriter, r *http.
 func (h *LensDashboardHandler) CreateEvaluator(w http.ResponseWriter, r *http.Request) {
 	h.proxyBody(w, r, "create evaluator", func(body json.RawMessage) (json.RawMessage, error) {
 		return h.client.CreateEvaluator(r.Context(), body)
+	})
+}
+func (h *LensDashboardHandler) UpdateEvaluator(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "evaluatorID")
+	h.proxyBody(w, r, "update evaluator", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.UpdateEvaluator(r.Context(), id, body)
 	})
 }
 func (h *LensDashboardHandler) RunEvaluator(w http.ResponseWriter, r *http.Request) {
@@ -459,10 +494,13 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Post("/traces/{traceID}/replay", h.Replay) // M55 — read-scope ephemeral provider replay
 		// Writes — datasets
 		r.Post("/datasets", h.CreateDataset)
+		r.Put("/datasets/{datasetID}", h.RenameDataset)    // M82 — rename (409 on duplicate)
+		r.Delete("/datasets/{datasetID}", h.DeleteDataset) // M82 — delete (cascades runs+items)
 		r.Post("/datasets/{datasetID}/items", h.AddDatasetItem)
 		r.Delete("/datasets/{datasetID}/items/{traceID}", h.DeleteDatasetItem)
 		// Writes — evaluators
 		r.Post("/evaluators", h.CreateEvaluator)
+		r.Put("/evaluators/{evaluatorID}", h.UpdateEvaluator) // M82 — rename/partial-edit (409 on duplicate)
 		r.Post("/evaluators/{evaluatorID}/run", h.RunEvaluator)
 		r.Delete("/evaluators/{evaluatorID}", h.DeleteEvaluator)
 		// Writes — guards

@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **BFF: dataset & evaluator rename/delete proxies + upstream-status propagation (theo-lens M82).** Three new thin proxies on the lens dashboard BFF — `PUT /v1/dashboard/lens/datasets/{id}` (rename), `DELETE /v1/dashboard/lens/datasets/{id}` (delete, cascades runs+items in theo-lens), `PUT /v1/dashboard/lens/evaluators/{id}` (rename/partial-edit) — each behind the fail-closed per-tenant guard, forwarding the browser body verbatim to theo-lens's real native routes. The BFF now **forwards theo-lens's real non-2xx status** (a rename's `409` name-conflict, `404` absent, `400` invalid) with its `{code,message}` body instead of flattening every upstream failure to `502` — the browser can show "name already taken" precisely. A transport/resolver error (no HTTP status) still collapses to `502` (fail-closed). Backs the M82 dashboard rename/delete UI.
 - **Dashboard: the Traces and Sessions lists are now server-paginated (theo-lens M81).** Both reads return a workspace-scoped `total` (via the labeling-queue two-query technique) and the applied `limit`/`offset`, and the dashboard renders a pager (Prev/Next + "Showing X–Y of N") reaching page 2+ — large tenants are navigable instead of silently capped (traces) or unbounded (sessions). Sessions previously dropped the pagination params the BFF already forwarded; they are now honored. Reuses the existing `limit`/`offset` plumbing end-to-end (no BFF change) and the M70 pager. `count(*)` is scoped by `workspace_id` (isolation preserved).
 
 ### Changed

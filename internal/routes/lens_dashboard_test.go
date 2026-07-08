@@ -99,6 +99,13 @@ func (s *stubLensDataClient) Replay(context.Context, string, json.RawMessage) (j
 func (s *stubLensDataClient) CreateDataset(context.Context, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"id":"ds_1","name":"golden","itemCount":0}`)
 }
+func (s *stubLensDataClient) RenameDataset(_ context.Context, _ string, body json.RawMessage) (json.RawMessage, error) {
+	s.lastWriteBody = string(body)
+	return s.write(`{"id":"ds_1","name":"renamed","itemCount":0}`)
+}
+func (s *stubLensDataClient) DeleteDataset(context.Context, string) (json.RawMessage, error) {
+	return s.write(`{}`)
+}
 func (s *stubLensDataClient) AddDatasetItem(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"id":"ds_1","items":[{"traceId":"tr_9"}]}`)
 }
@@ -107,6 +114,10 @@ func (s *stubLensDataClient) DeleteDatasetItem(context.Context, string, string) 
 }
 func (s *stubLensDataClient) CreateEvaluator(context.Context, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"id":"ev_1"}`)
+}
+func (s *stubLensDataClient) UpdateEvaluator(_ context.Context, _ string, body json.RawMessage) (json.RawMessage, error) {
+	s.lastWriteBody = string(body)
+	return s.write(`{"id":"ev_1","name":"renamed","kind":"rule"}`)
 }
 func (s *stubLensDataClient) RunEvaluator(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"evaluator":"e","written":1}`)
@@ -348,9 +359,12 @@ func TestLensDashboard_Writes_Authenticated(t *testing.T) {
 		name, method, path, body string
 	}{
 		{"create-dataset", http.MethodPost, "/v1/dashboard/lens/datasets", `{"name":"golden"}`},
+		{"rename-dataset", http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", `{"name":"renamed"}`},
+		{"delete-dataset", http.MethodDelete, "/v1/dashboard/lens/datasets/ds_1", ``},
 		{"add-dataset-item", http.MethodPost, "/v1/dashboard/lens/datasets/ds_1/items", `{"traceId":"tr_9"}`},
 		{"delete-dataset-item", http.MethodDelete, "/v1/dashboard/lens/datasets/ds_1/items/tr_9", ``},
 		{"create-evaluator", http.MethodPost, "/v1/dashboard/lens/evaluators", `{"name":"r","kind":"rule","config":{"predicate":"x"}}`},
+		{"update-evaluator", http.MethodPut, "/v1/dashboard/lens/evaluators/ev_1", `{"name":"renamed"}`},
 		{"run-evaluator", http.MethodPost, "/v1/dashboard/lens/evaluators/ev_1/run", `{"limit":5}`},
 		{"delete-evaluator", http.MethodDelete, "/v1/dashboard/lens/evaluators/ev_1", ``},
 		{"create-guard", http.MethodPost, "/v1/dashboard/lens/guards", `{"evaluatorId":"ev_1","operator":"gte"}`},
@@ -405,9 +419,12 @@ func TestLensDashboard_LabelingQueue_ForwardsBodyVerbatim(t *testing.T) {
 func TestLensDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 	writes := []struct{ method, path, body string }{
 		{http.MethodPost, "/v1/dashboard/lens/datasets", `{"name":"x"}`},
+		{http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", `{"name":"renamed"}`},
+		{http.MethodDelete, "/v1/dashboard/lens/datasets/ds_1", ``},
 		{http.MethodPost, "/v1/dashboard/lens/datasets/ds_1/items", `{"traceId":"t"}`},
 		{http.MethodDelete, "/v1/dashboard/lens/datasets/ds_1/items/tr_9", ``},
 		{http.MethodPost, "/v1/dashboard/lens/evaluators", `{"name":"r","kind":"rule","config":{}}`},
+		{http.MethodPut, "/v1/dashboard/lens/evaluators/ev_1", `{"name":"renamed"}`},
 		{http.MethodPost, "/v1/dashboard/lens/evaluators/ev_1/run", `{}`},
 		{http.MethodDelete, "/v1/dashboard/lens/evaluators/ev_1", ``},
 		{http.MethodPost, "/v1/dashboard/lens/guards", `{"evaluatorId":"e","operator":"gte"}`},
@@ -493,5 +510,38 @@ func TestLensDashboard_WriteUpstreamError_502(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("want 502 on write upstream error, got %d", w.Code)
+	}
+}
+
+// TestLensDashboard_RenameDataset_ForwardsBodyVerbatim — M82: the rename body reaches theo-lens
+// unchanged (thin proxy; the BFF never re-encodes the {name}).
+func TestLensDashboard_RenameDataset_ForwardsBodyVerbatim(t *testing.T) {
+	r, stub := mountedLens(t)
+	body := `{"name":"my-renamed-set"}`
+	req := tenantCtx(httptest.NewRequest(http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", strings.NewReader(body)), "t1")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.lastWriteBody != body {
+		t.Fatalf("body not forwarded verbatim:\n want %q\n got  %q", body, stub.lastWriteBody)
+	}
+}
+
+// TestLensDashboard_UpstreamStatus_Forwarded — M82: a theo-lens non-2xx (e.g. a rename's 409
+// name-conflict) is FORWARDED with its real status + body, not flattened to 502. The browser needs
+// the 409 to show "name already taken" instead of a generic upstream error.
+func TestLensDashboard_UpstreamStatus_Forwarded(t *testing.T) {
+	r, stub := mountedLens(t)
+	stub.err = &thelens.UpstreamStatusError{Status: http.StatusConflict, Body: []byte(`{"code":"NAME_CONFLICT","message":"a resource with that name already exists"}`)}
+	req := tenantCtx(httptest.NewRequest(http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", strings.NewReader(`{"name":"dup"}`)), "t1")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("want 409 forwarded from upstream, got %d (%s)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "NAME_CONFLICT") {
+		t.Fatalf("want upstream body forwarded verbatim, got %s", w.Body.String())
 	}
 }

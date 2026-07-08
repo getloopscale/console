@@ -575,3 +575,72 @@ func TestDataClient_UpstreamError_Propagates(t *testing.T) {
 		t.Fatalf("body = %s, want nil on error", raw)
 	}
 }
+
+// captureMethodServer records method + path + body of the last request and replies with the given
+// status + body (M82 — the write verbs need method assertions, not just path).
+func captureMethodServer(t *testing.T, gotMethod, gotPath, gotBody *string, status int, resp string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*gotMethod = r.Method
+		*gotPath = r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		*gotBody = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(resp))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestDataClient_M82Verbs_HitRealPathsAndMethods — the rename/delete verbs map to theo-lens's real
+// native routes with the right HTTP method and forward the browser body verbatim.
+func TestDataClient_M82Verbs_HitRealPathsAndMethods(t *testing.T) {
+	cases := []struct {
+		name, wantMethod, wantPath, wantBody string
+		call                                 func(c *DataClient) (json.RawMessage, error)
+	}{
+		{"rename-dataset", http.MethodPut, "/v1/datasets/ds_1", `{"name":"x"}`,
+			func(c *DataClient) (json.RawMessage, error) { return c.RenameDataset(context.Background(), "ds_1", json.RawMessage(`{"name":"x"}`)) }},
+		{"delete-dataset", http.MethodDelete, "/v1/datasets/ds_1", "",
+			func(c *DataClient) (json.RawMessage, error) { return c.DeleteDataset(context.Background(), "ds_1") }},
+		{"update-evaluator", http.MethodPut, "/v1/evaluators/ev_1", `{"name":"y"}`,
+			func(c *DataClient) (json.RawMessage, error) { return c.UpdateEvaluator(context.Background(), "ev_1", json.RawMessage(`{"name":"y"}`)) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotMethod, gotPath, gotBody string
+			srv := captureMethodServer(t, &gotMethod, &gotPath, &gotBody, http.StatusOK, `{}`)
+			c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
+			if _, err := tc.call(c); err != nil {
+				t.Fatalf("%s: %v", tc.name, err)
+			}
+			if gotMethod != tc.wantMethod || gotPath != tc.wantPath {
+				t.Fatalf("%s: got %s %s, want %s %s", tc.name, gotMethod, gotPath, tc.wantMethod, tc.wantPath)
+			}
+			if gotBody != tc.wantBody {
+				t.Fatalf("%s: body = %q, want %q (forwarded verbatim)", tc.name, gotBody, tc.wantBody)
+			}
+		})
+	}
+}
+
+// TestDataClient_UpstreamStatusError_TypedOnConflict — a theo-lens 409 becomes a typed
+// *UpstreamStatusError carrying the status + body, so the BFF proxy can forward it (M82) rather
+// than flatten it to a generic 502.
+func TestDataClient_UpstreamStatusError_TypedOnConflict(t *testing.T) {
+	var m, p, b string
+	srv := captureMethodServer(t, &m, &p, &b, http.StatusConflict, `{"code":"NAME_CONFLICT","message":"dup"}`)
+	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
+	_, err := c.RenameDataset(context.Background(), "ds_1", json.RawMessage(`{"name":"dup"}`))
+	var ue *UpstreamStatusError
+	if !errors.As(err, &ue) {
+		t.Fatalf("want *UpstreamStatusError, got %T (%v)", err, err)
+	}
+	if ue.Status != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", ue.Status)
+	}
+	if !strings.Contains(string(ue.Body), "NAME_CONFLICT") {
+		t.Fatalf("body = %q, want it to carry the upstream code", string(ue.Body))
+	}
+}
