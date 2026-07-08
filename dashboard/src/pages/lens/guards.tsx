@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
-import { Button, Card, ConfirmDialog, CopyButton, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell } from '@usetheo/ui';
+import { Button, Card, ConfirmDialog, CopyButton, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Select } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -25,6 +25,24 @@ interface Guard {
 interface GuardsResult {
   guards: Guard[];
 }
+interface Evaluator {
+  id: string;
+  name: string;
+}
+interface EvaluatorsResult {
+  evaluators: Evaluator[];
+}
+
+// The guard operators theo-lens accepts. `label_eq` matches a label string (no numeric threshold);
+// the others compare the evaluator score to a threshold.
+const OPERATORS = [
+  { value: 'gte', label: '≥ threshold' },
+  { value: 'gt', label: '> threshold' },
+  { value: 'lte', label: '≤ threshold' },
+  { value: 'lt', label: '< threshold' },
+  { value: 'eq', label: '= threshold' },
+  { value: 'label_eq', label: 'matches label' },
+] as const;
 
 export function LensGuardsPage() {
   const { setPageTitle } = usePageMeta();
@@ -33,24 +51,41 @@ export function LensGuardsPage() {
   const queryClient = useQueryClient();
 
   const [evaluatorId, setEvaluatorId] = useState('');
+  const [operator, setOperator] = useState<string>('gte');
   const [threshold, setThreshold] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Guard | null>(null);
+
+  // `label_eq` matches a label, so it takes NO numeric threshold — the field is hidden + omitted.
+  const needsThreshold = operator !== 'label_eq';
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/guards'] as const,
     queryFn: () => cloudFetch<GuardsResult>('/v1/dashboard/lens/guards'),
   });
+  // #179 — the evaluator is chosen from the workspace's evaluators (by name), not typed as a raw id
+  // the Evaluators screen never surfaced. value = id, label = name.
+  const evaluatorsQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] as const,
+    queryFn: () => cloudFetch<EvaluatorsResult>('/v1/dashboard/lens/evaluators'),
+  });
+  const evaluators = evaluatorsQuery.data?.evaluators ?? [];
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/guards'] });
 
   const create = useMutation({
-    mutationFn: (input: { evaluatorId: string; threshold: number }) =>
+    mutationFn: (input: { evaluatorId: string; operator: string; threshold?: number }) =>
       cloudFetch<Guard>('/v1/dashboard/lens/guards', {
         method: 'POST',
-        body: JSON.stringify({ evaluatorId: input.evaluatorId, operator: 'gte', threshold: input.threshold }),
+        body: JSON.stringify(
+          // omit threshold entirely for a label match (no fabricated 0)
+          input.threshold === undefined
+            ? { evaluatorId: input.evaluatorId, operator: input.operator }
+            : { evaluatorId: input.evaluatorId, operator: input.operator, threshold: input.threshold },
+        ),
       }),
     onSuccess: () => {
       setEvaluatorId('');
+      setOperator('gte');
       setThreshold('');
       invalidate();
     },
@@ -104,32 +139,64 @@ export function LensGuardsPage() {
           <Card>
             <Card.Body>
               <form
-                className="flex items-end gap-2"
+                className="flex flex-wrap items-end gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  const t = Number(threshold);
-                  if (evaluatorId.trim() && !Number.isNaN(t)) create.mutate({ evaluatorId: evaluatorId.trim(), threshold: t });
+                  if (!evaluatorId) return;
+                  if (needsThreshold) {
+                    const t = Number(threshold);
+                    if (threshold.trim() === '' || Number.isNaN(t)) return;
+                    create.mutate({ evaluatorId, operator, threshold: t });
+                  } else {
+                    create.mutate({ evaluatorId, operator }); // label_eq — no threshold
+                  }
                 }}
               >
-                <div className="flex-1">
+                <div className="min-w-[200px] flex-1">
                   <Label htmlFor="guard-evaluator">Evaluator</Label>
-                  <Input
-                    id="guard-evaluator"
-                    value={evaluatorId}
-                    onChange={(e) => setEvaluatorId(e.target.value)}
-                    placeholder="Evaluator id"
-                  />
+                  <Select value={evaluatorId} onValueChange={setEvaluatorId}>
+                    <Select.Trigger id="guard-evaluator" className="w-full" aria-label="Evaluator">
+                      <Select.Value placeholder={evaluators.length === 0 ? 'No evaluators — create one first' : 'Choose an evaluator'} />
+                    </Select.Trigger>
+                    <Select.Content>
+                      {evaluators.map((ev) => (
+                        <Select.Item key={ev.id} value={ev.id}>
+                          {ev.name}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select>
                 </div>
-                <div className="w-32">
-                  <Label htmlFor="guard-threshold">Threshold</Label>
-                  <Input
-                    id="guard-threshold"
-                    value={threshold}
-                    onChange={(e) => setThreshold(e.target.value)}
-                    placeholder="0.5"
-                  />
+                <div className="w-40">
+                  <Label htmlFor="guard-operator">Operator</Label>
+                  <Select value={operator} onValueChange={setOperator}>
+                    <Select.Trigger id="guard-operator" className="w-full" aria-label="Operator">
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Content>
+                      {OPERATORS.map((op) => (
+                        <Select.Item key={op.value} value={op.value}>
+                          {op.label}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select>
                 </div>
-                <Button type="submit" disabled={!evaluatorId.trim() || threshold.trim() === '' || create.isPending}>
+                {needsThreshold ? (
+                  <div className="w-32">
+                    <Label htmlFor="guard-threshold">Threshold</Label>
+                    <Input
+                      id="guard-threshold"
+                      value={threshold}
+                      onChange={(e) => setThreshold(e.target.value)}
+                      placeholder="0.5"
+                    />
+                  </div>
+                ) : null}
+                <Button
+                  type="submit"
+                  disabled={!evaluatorId || (needsThreshold && threshold.trim() === '') || create.isPending}
+                >
                   Create guard
                 </Button>
               </form>
