@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **Dashboard: guards now show what they caught (theo-lens M77).** Each guard row gains a **"View breaches"** action that opens a panel listing the traces that failed the gate — read from the existing-but-unused `GET /v1/dashboard/lens/guards/{id}/breaches` — each **deep-linking to its trace peek** (`?trace=`). The panel frames the list with the guard's own rule ("Traces failing {evaluator} {operator} {threshold}") and an honest empty state ("no trace has failed this guard yet"); a load error fails closed to a typed Alert. The breaches read is flag-only (`{traceIds}`) by theo-lens design — the panel surfaces the breaching traces without fabricating a per-breach score/time. Reuses `@usetheo/ui` `Sheet`/`Link` (no BFF change).
 
 ### Changed
 
