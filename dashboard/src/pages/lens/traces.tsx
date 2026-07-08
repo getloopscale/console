@@ -57,7 +57,14 @@ export function nsToIso(ns: string | undefined | null): string | null {
 
 interface TracesResult {
   traces: Trace[];
+  // M81 — server-side pagination envelope (workspace-scoped total + the applied window).
+  total?: number;
+  limit?: number;
+  offset?: number;
 }
+
+/** M81 — the traces page window. */
+const TRACES_PAGE_SIZE = 50;
 
 const RANGE_MS: Record<Exclude<Range, 'all'>, number> = {
   '1h': 3_600_000,
@@ -76,7 +83,7 @@ export type { TraceFilters };
  * `now` is injected (not `Date.now()` inline) so the helper is deterministic + unit-testable
  * (`.claude/rules/testing.md` — inject the clock).
  */
-export function buildTraceQuery(f: TraceFilters, now: number): string {
+export function buildTraceQuery(f: TraceFilters, now: number, window?: { limit: number; offset: number }): string {
   const p = new URLSearchParams();
   if (f.q.trim()) p.set('q', f.q.trim());
   if (f.status === 'error') p.set('status', 'error');
@@ -87,6 +94,12 @@ export function buildTraceQuery(f: TraceFilters, now: number): string {
   if (f.tokensMin.trim()) p.set('min_tokens', f.tokensMin.trim());
   if (f.tokensMax.trim()) p.set('max_tokens', f.tokensMax.trim());
   if (f.session.trim()) p.set('session_id', f.session.trim());
+  // M81 — the list read carries the page window (limit/offset); the CSV export omits it (exports the
+  // whole filtered set up to the engine cap).
+  if (window) {
+    p.set('limit', String(window.limit));
+    p.set('offset', String(window.offset));
+  }
   const s = p.toString();
   return s ? `?${s}` : '';
 }
@@ -144,6 +157,12 @@ export function LensTracesPage() {
 
   const filters: TraceFilters = { q, status, model, range, costMin, costMax, tokensMin, tokensMax, session };
 
+  // M81 — server-side pagination. A filter change resets to page 1 (a stale offset would request an
+  // out-of-range window). Keyed on the filter values (stable across renders, like the query key).
+  const [page, setPage] = useState(1);
+  const filterKey = JSON.stringify(filters);
+  useEffect(() => setPage(1), [filterKey]);
+
   // M59 P2 — the chip bar hands back a Partial<TraceFilters> (apply/clear); this maps each changed
   // field to its `nuqs` setter (empty → null drops the param). The URL param keys are UNCHANGED, so
   // `buildTraceQuery` + the M49 BFF whitelist are untouched (ADR D2).
@@ -195,9 +214,18 @@ export function LensTracesPage() {
   const query = useQuery({
     // Key by the filter VALUES (not the derived `from` timestamp) so the cache is stable across
     // renders; `buildTraceQuery` computes `from` from the clock only at fetch time (no refetch loop).
-    queryKey: ['cloud', '/v1/dashboard/lens/traces', filters] as const,
-    queryFn: () => cloudFetch<TracesResult>(`/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now())}`),
+    // M81: the page is part of the key so Next/Prev refetch the right window.
+    queryKey: ['cloud', '/v1/dashboard/lens/traces', filters, page] as const,
+    queryFn: () =>
+      cloudFetch<TracesResult>(
+        `/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now(), { limit: TRACES_PAGE_SIZE, offset: (page - 1) * TRACES_PAGE_SIZE })}`,
+      ),
   });
+  // M81 — pagination derived state (workspace-scoped total from the response).
+  const total = query.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / TRACES_PAGE_SIZE));
+  const firstShown = total === 0 ? 0 : (page - 1) * TRACES_PAGE_SIZE + 1;
+  const lastShown = Math.min(page * TRACES_PAGE_SIZE, total);
 
   // M59 P3 — hide the toggleable spine columns the user turned off (identity columns always show).
   const columns = tracesColumns({
@@ -379,10 +407,9 @@ export function LensTracesPage() {
                 </Alert>
               ) : null}
               <p data-testid="traces-count" className="mb-1 text-xs text-muted-foreground">
-                {/* The list BFF returns no total/offset (only the export path exposes a cap), so this is
-                    an honest count of the loaded rows — NOT a claim of the full total. The missing
-                    BFF total/pagination is filed as a gap (roadmap M70 risk 1). */}
-                {traces.length} {traces.length === 1 ? 'trace' : 'traces'}
+                {/* M81 — server-side pagination: the read now returns a workspace-scoped `total`, so this
+                    discloses the window over the real total (not just the loaded rows). */}
+                {total > 0 ? `Showing ${firstShown}–${lastShown} of ${total}` : `${traces.length} ${traces.length === 1 ? 'trace' : 'traces'}`}
               </p>
               <Card>
                 {/* M59 P1 — density toggles the row height (compact vs comfortable) via a data-attr
@@ -398,6 +425,18 @@ export function LensTracesPage() {
                   <DataTable columns={columns} data={traces} rowKey={(row) => row.traceId} />
                 </div>
               </Card>
+              {/* M81 — server-side pager (mirrors the M70 labeling-queue): page 2+ reachable, count disclosed. */}
+              {pageCount > 1 ? (
+                <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
+                  <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                    Previous
+                  </Button>
+                  <span className="tabular-nums" data-testid="traces-pager">{`Page ${page} / ${pageCount}`}</span>
+                  <Button variant="ghost" size="sm" disabled={page >= pageCount || query.isFetching} onClick={() => setPage((p) => p + 1)}>
+                    Next
+                  </Button>
+                </div>
+              ) : null}
             </>
           )}
 

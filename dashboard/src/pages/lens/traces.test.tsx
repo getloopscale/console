@@ -76,7 +76,7 @@ async function addChip(optionName: RegExp, opts: { value?: string; valueLabel?: 
 
 function routeMock() {
   mockCloudFetch.mockImplementation((url: string) => {
-    if (url === '/v1/dashboard/lens/traces') return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+    if (isListUrl(url)) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
     if (url.includes('/tags')) return Promise.resolve({ tags: ['prod'] });
     return Promise.resolve({});
   });
@@ -174,8 +174,10 @@ describe('LensTracesPage (/observability/traces)', () => {
   it('M56 — a failed export surfaces a typed error, not a silent no-op (no download)', async () => {
     mockTriggerDownload.mockClear();
     mockCloudFetch.mockImplementation((url: string) => {
-      if (url === BASE) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] }); // the list loads
-      if (isListUrl(url)) return Promise.reject(new Error('export 5xx')); // the paged export fetch fails
+      // M81: the list read carries the page window (limit=50); the export pages at limit=500 — discriminate
+      // on that so the list loads while the export fetch fails.
+      if (isListUrl(url) && url.includes('limit=500')) return Promise.reject(new Error('export 5xx'));
+      if (isListUrl(url)) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
       return Promise.resolve({});
     });
     render(<LensTracesPage />);
@@ -218,7 +220,7 @@ describe('LensTracesPage (/observability/traces)', () => {
 
   it('opening a trace shows the span tree AND keeps the tags/annotations forms (M47, no regression)', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
-      if (url === '/v1/dashboard/lens/traces') return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+      if (isListUrl(url)) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
       if (url === '/v1/dashboard/lens/traces/tr_1')
         return Promise.resolve({ spanId: 's0', traceId: 'tr_1', name: 'checkout.root', children: [] });
       if (url.includes('/tags')) return Promise.resolve({ tags: ['prod'] });
@@ -324,9 +326,9 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     filterMock([{ traceId: 'tr_1', name: 'checkout' }]);
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    // the very first list read is the bare path — no filter params leak in
-    expect(listUrls()[0]).toBe(BASE);
-    expect(listUrls().every((u) => !u.includes('q='))).toBe(true);
+    // the very first list read carries only the M81 page window (limit/offset) — no FILTER params leak in
+    expect(listUrls()[0]).toMatch(/^\/v1\/dashboard\/lens\/traces\?limit=\d+&offset=0$/);
+    expect(listUrls().every((u) => !u.includes('q=') && !u.includes('status='))).toBe(true);
   });
 
   it('typing a search term narrows the list with q= server-side', async () => {
@@ -667,5 +669,23 @@ describe('LensTracesPage — M59 P1 Sheet peek + bulk-action bar', () => {
     // clearing selection hides the bar again.
     await userEvent.click(within(bar).getByRole('button', { name: /clear selection/i }));
     expect(screen.queryByTestId('bulk-action-bar')).toBeNull();
+  });
+
+  it('M81 — a server-side pager reaches page 2 (limit/offset) and discloses the total', async () => {
+    // total 120 > pageSize 50 → the pager shows; page 1 sends offset=0, Next sends offset=50.
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (isListUrl(url)) {
+        const offset = new URL(url, 'http://x').searchParams.get('offset') ?? '0';
+        return Promise.resolve({ traces: [{ traceId: `tr-${offset}`, name: 'row' }], total: 120, limit: 50, offset: Number(offset) });
+      }
+      if (url.includes('/tags')) return Promise.resolve({ tags: [] });
+      return Promise.resolve({});
+    });
+    render(<LensTracesPage />);
+    expect(await screen.findByText(/of 120/i)).toBeInTheDocument(); // total disclosed
+    expect(mockCloudFetch.mock.calls.some((c) => String(c[0]).includes('offset=0'))).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    expect(await screen.findByText('tr-50')).toBeInTheDocument(); // page 2 fetched (offset=50)
+    expect(mockCloudFetch.mock.calls.some((c) => String(c[0]).includes('offset=50'))).toBe(true);
   });
 });
