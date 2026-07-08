@@ -3,9 +3,10 @@ import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 
 // M86 — the /observability/webhooks route mounts the EXACT settings webhooks CRUD component (reuse-
-// first; same /v1/settings/webhooks/* endpoints). The full list/create/delete matrix is covered by
-// settings/webhooks.test.tsx (14 tests, same component); this smoke pins that the observability
-// surface renders the CRUD (list + the create action) so alert setup stays in one module.
+// first; same /v1/settings/webhooks/* endpoints) with `context="observability"`. The full
+// list/create/delete matrix is covered by settings/webhooks.test.tsx (same component); this smoke pins
+// that the observability surface renders the CRUD (list + create) AND that its copy is honest for the
+// alert context (no deploy "coming soon" banner; the alert event is offered).
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -27,18 +28,28 @@ describe('M86 — webhooks surface inside observability', () => {
         return Promise.resolve({ webhooks: [{ id: 'wwh-1', url: 'https://hook.example/x', label: 'prod-hook', events: ['alert.threshold_breached'] }] });
       return Promise.resolve({ deliveries: [] });
     });
-    render(<WorkspaceWebhooksPage />);
+    render(<WorkspaceWebhooksPage context="observability" />);
     // the reused CRUD lists the workspace webhooks (same endpoints the Alerts page reads)
     expect(await screen.findByText('prod-hook')).toBeInTheDocument();
     // the create affordance is present (the CRUD is fully operable in this surface)
     expect(screen.getByRole('button', { name: /add webhook/i })).toBeInTheDocument();
   });
 
-  it('opens the create dialog (create is reachable in the observability surface)', async () => {
+  it('shows HONEST alert-context copy (no deploy "coming soon"; the alert event is offered)', async () => {
     mockCloudFetch.mockResolvedValue({ webhooks: [] });
-    render(<WorkspaceWebhooksPage />);
-    await userEvent.click(await screen.findByRole('button', { name: /add webhook/i }));
-    // the create dialog's URL field appears
-    expect(await screen.findByLabelText(/url/i)).toBeInTheDocument();
+    render(<WorkspaceWebhooksPage context="observability" />);
+    await screen.findByRole('button', { name: /add webhook/i });
+    // the deploy-specific "Delivery coming soon" notice is FALSE for alerts (they dispatch today) → absent
+    expect(screen.queryByText(/delivery coming soon/i)).not.toBeInTheDocument();
+    // the create dialog offers the alert event (not deploy.*)
+    await userEvent.click(screen.getByRole('button', { name: /add webhook/i }));
+    expect(await screen.findByLabelText('alert.threshold_breached')).toBeInTheDocument();
+    expect(screen.queryByLabelText('deploy.succeeded')).not.toBeInTheDocument();
+  });
+
+  it('the settings context still shows the deploy copy (no regression)', async () => {
+    mockCloudFetch.mockResolvedValue({ webhooks: [] });
+    render(<WorkspaceWebhooksPage />); // default context = settings
+    expect(await screen.findByText(/delivery coming soon/i)).toBeInTheDocument();
   });
 });
