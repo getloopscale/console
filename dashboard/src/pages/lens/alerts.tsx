@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
-import { Badge, Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select } from '@usetheo/ui';
+import { History, Trash2 } from 'lucide-react';
+import { Badge, Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select, Skeleton, Timestamp } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -45,6 +45,60 @@ export function alertStatusVariant(status: string, enabled: boolean): 'destructi
 interface AlertRulesResult {
   alert_rules: AlertRule[];
 }
+
+/** M84 — one firing in a rule's history (metric value at fire time vs threshold, when). */
+interface FiredAlert {
+  id: string;
+  metric: string;
+  comparator: string;
+  threshold: number;
+  value: number;
+  fired_at: string;
+}
+interface FiredAlertsResult {
+  firings: FiredAlert[];
+  total: number;
+}
+
+/**
+ * M84 — the expandable per-rule firing history. Reads the paginated `…/{id}/history` endpoint; honest
+ * empty ("never fired") when there are zero firings, and a fail-closed typed alert on a load error (an
+ * error must NEVER render as "never fired"). Loaded lazily (only when the row is expanded).
+ */
+function RuleHistory({ ruleId, comparatorLabel }: { ruleId: string; comparatorLabel: (c: string) => string }) {
+  const history = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/lens/alert-rules', ruleId, 'history'] as const,
+    queryFn: () =>
+      cloudFetch<FiredAlertsResult>(`/v1/dashboard/lens/alert-rules/${encodeURIComponent(ruleId)}/history`, {}, { throwOnError: true }),
+    retry: false,
+  });
+  if (history.isPending) return <Skeleton className="h-16 w-full" aria-label="Loading firing history" />;
+  if (history.isError) {
+    return <Alert intent="warning" title="Could not load the firing history" description="Retry, or check your access to this workspace." data-testid="history-error" />;
+  }
+  const firings = history.data?.firings ?? [];
+  if (firings.length === 0) {
+    return <p className="py-2 text-sm text-muted-foreground">Never fired — no threshold breaches recorded for this rule yet.</p>;
+  }
+  return (
+    <DataTable
+      data={firings}
+      rowKey={(f) => f.id}
+      columns={[
+        {
+          key: 'value',
+          label: 'Value at fire',
+          render: (f) => (
+            <span className="font-mono text-xs">
+              {f.value} {comparatorLabel(f.comparator)} {f.threshold}
+            </span>
+          ),
+        },
+        { key: 'fired_at', label: 'When', render: (f) => <Timestamp value={f.fired_at} /> },
+      ]}
+    />
+  );
+}
 interface WorkspaceWebhook {
   id: string;
   url?: string;
@@ -85,6 +139,7 @@ export function LensAlertsPage() {
   const [windowSeconds, setWindowSeconds] = useState<string>('3600');
   const [webhookId, setWebhookId] = useState('');
   const [pendingDelete, setPendingDelete] = useState<AlertRule | null>(null);
+  const [openHistory, setOpenHistory] = useState<AlertRule | null>(null); // M84 — expanded rule's history
 
   const rulesKey = ['cloud', '/v1/dashboard/lens/alert-rules'] as const;
   const rules = useQuery({
@@ -173,13 +228,27 @@ export function LensAlertsPage() {
     {
       key: 'actions',
       label: '',
+      align: 'right',
       render: (r) => (
-        <Button variant="ghost" size="sm" onClick={() => setPendingDelete(r)} aria-label={`Delete ${r.name}`}>
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setOpenHistory((cur) => (cur?.id === r.id ? null : r))}
+            aria-label={`History for ${r.name}`}
+            aria-expanded={openHistory?.id === r.id}
+          >
+            <History className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setPendingDelete(r)} aria-label={`Delete ${r.name}`}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       ),
     },
   ];
+
+  const comparatorLabel = (c: string) => COMPARATORS.find((x) => x.value === c)?.label ?? c;
 
   const rows = rules.data?.alert_rules ?? [];
 
@@ -325,6 +394,20 @@ export function LensAlertsPage() {
               <DataTable columns={columns} data={rows} rowKey={(r) => r.id} />
             </Card>
           )}
+
+          {openHistory !== null ? (
+            <Card data-testid="rule-history">
+              <Card.Header>
+                <h2 className="text-sm font-medium">Firing history — {openHistory.name}</h2>
+                <Button variant="ghost" size="sm" onClick={() => setOpenHistory(null)} aria-label="Close history">
+                  Close
+                </Button>
+              </Card.Header>
+              <Card.Body>
+                <RuleHistory ruleId={openHistory.id} comparatorLabel={comparatorLabel} />
+              </Card.Body>
+            </Card>
+          ) : null}
         </div>
       </PageShell>
 

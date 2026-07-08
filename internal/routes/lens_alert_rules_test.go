@@ -200,3 +200,83 @@ func TestLensAlertRules_Toggle_ScopedUpdate(t *testing.T) {
 		t.Errorf("sqlmock expectations: %v", err)
 	}
 }
+
+// M84 — history helper: sets the chi {id} param + the tenant user context.
+func histReq(id, target, tenant string) *http.Request {
+	r := larReq(http.MethodGet, target, "", tenant)
+	rc := chi.NewRouteContext()
+	rc.URLParams.Add("id", id)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rc))
+}
+
+func TestLensAlertRules_History_ReturnsPaginatedFirings(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New()
+	defer func() { _ = dbConn.Close() }()
+	id := "lar-0011223344556677"
+	// ownership gate → owns; count → 3; page → 2 rows
+	mock.ExpectQuery("SELECT 1 FROM lens_alert_rules").WithArgs(id, "sub-1", "tn-1").
+		WillReturnRows(sqlmock.NewRows([]string{"?column?"}).AddRow(1))
+	mock.ExpectQuery("SELECT count\\(\\*\\) FROM lens_fired_alerts").WithArgs(id, "tn-1").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
+	mock.ExpectQuery("SELECT id, metric, comparator, threshold, value, fired_at").
+		WithArgs(id, "tn-1", 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "metric", "comparator", "threshold", "value", "fired_at"}).
+			AddRow("lfa-1", "error_rate", "gt", 0.05, 0.20, "2026-07-08T00:00:00Z").
+			AddRow("lfa-2", "error_rate", "gt", 0.05, 0.15, "2026-07-07T00:00:00Z"))
+
+	h := NewLensAlertRulesHandler(dbConn, nil)
+	w := httptest.NewRecorder()
+	h.History(w, histReq(id, "/v1/dashboard/lens/alert-rules/"+id+"/history", "tn-1"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200 (%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Firings []map[string]any `json:"firings"`
+		Total   int              `json:"total"`
+		Limit   int              `json:"limit"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp.Total != 3 || len(resp.Firings) != 2 || resp.Limit != 20 {
+		t.Fatalf("want total=3 firings=2 limit=20, got total=%d firings=%d limit=%d", resp.Total, len(resp.Firings), resp.Limit)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("sqlmock expectations: %v", err)
+	}
+}
+
+func TestLensAlertRules_History_NotFoundForForeignRule(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New()
+	defer func() { _ = dbConn.Close() }()
+	id := "lar-0011223344556677"
+	// the ownership gate returns no rows → 404, and NO fired-alerts read runs (no leak).
+	mock.ExpectQuery("SELECT 1 FROM lens_alert_rules").WithArgs(id, "sub-1", "tn-x").
+		WillReturnError(sql.ErrNoRows)
+
+	h := NewLensAlertRulesHandler(dbConn, nil)
+	w := httptest.NewRecorder()
+	h.History(w, histReq(id, "/v1/dashboard/lens/alert-rules/"+id+"/history", "tn-x"))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("code = %d, want 404 for a foreign/non-existent rule", w.Code)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("a foreign rule must NOT read fired_alerts: %v", err)
+	}
+}
+
+func TestLensAlertRules_History_RejectsMalformedID(t *testing.T) {
+	h := &LensAlertRulesHandler{}
+	w := httptest.NewRecorder()
+	h.History(w, histReq("nope", "/v1/dashboard/lens/alert-rules/nope/history", "tn-1"))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("code = %d, want 400 for malformed id", w.Code)
+	}
+}
+
+func TestLensAlertRules_History_Unauthenticated_401(t *testing.T) {
+	h := &LensAlertRulesHandler{}
+	w := httptest.NewRecorder()
+	h.History(w, histReq("lar-0011223344556677", "/v1/dashboard/lens/alert-rules/lar-0011223344556677/history", ""))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("code = %d, want 401", w.Code)
+	}
+}
