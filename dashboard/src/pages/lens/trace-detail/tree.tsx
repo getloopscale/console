@@ -375,8 +375,12 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
           <ul className="space-y-2 text-xs">
             {events.map((e, i) => {
               // M72 — an event now shows its time + its attributes (an exception event's stacktrace is
-              // in `attributes` — previously invisible). ns → ISO for formatDate.
-              const iso = e.timeUnixNano ? new Date(Number(BigInt(e.timeUnixNano) / 1_000_000n)).toISOString() : undefined;
+              // in `attributes` — previously invisible). ns → ISO; only parse an all-digit value so a
+              // malformed/corrupt timeUnixNano can never throw (BigInt() rejects non-numeric strings).
+              const iso =
+                e.timeUnixNano && /^\d+$/.test(e.timeUnixNano)
+                  ? new Date(Number(BigInt(e.timeUnixNano) / 1_000_000n)).toISOString()
+                  : undefined;
               const attrs = Object.entries(e.attributes ?? {});
               return (
                 <li key={`${e.name}-${i}`} className="space-y-0.5">
@@ -389,7 +393,9 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
                       {attrs.map(([k, v]) => (
                         <div key={k} className="flex gap-2">
                           <dt className="shrink-0 text-muted-foreground">{k}</dt>
-                          <dd className="whitespace-pre-wrap break-all font-mono">{String(v)}</dd>
+                          <dd className="whitespace-pre-wrap break-all font-mono">
+                            {typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v)}
+                          </dd>
                         </div>
                       ))}
                     </dl>

@@ -189,7 +189,7 @@ describe('LensTraceDetail — selected-span detail', () => {
     expect(within(detail).getByText(/501/)).toBeInTheDocument();
     expect(within(detail).getByText('stop_reason')).toBeInTheDocument();
     expect(within(detail).getByText('gen_ai.request.attempt')).toBeInTheDocument();
-    // M72 — the event's ATTRIBUTES now render (a stacktrace/attempt was previously invisible)
+    // M72 — the event's ATTRIBUTES now render (a stacktrace/attempt key was previously invisible)
     expect(within(detail).getByText('attempt')).toBeInTheDocument();
     // M57 T2.1 — durations render via formatDuration (no raw "885 ms" with a space)
     expect(within(detail).getByText('885ms')).toBeInTheDocument();
