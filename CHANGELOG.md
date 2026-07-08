@@ -1,6 +1,20 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.28.0] - 2026-07-08
+
+### Added
 - **Webhook management inside the Observability module (theo-lens M86).** Webhook registration is now reachable from within observability — a dedicated **`/observability/webhooks`** route (sidebar entry under *Improve*, next to Alerts) rendering the **exact same** webhooks CRUD (list / create / delete / deliveries) as Settings › Webhooks, via the existing `/v1/settings/webhooks/*` endpoints (reuse-first — the same `WorkspaceWebhooksPage` component, no duplication, no theo-lens change). The Alerts "register a webhook first" prerequisite now links to `/observability/webhooks` instead of `/settings/webhooks`, so the whole alert setup (register a webhook → create a rule → see its firing history) stays in one module without a jump out. The reused page is **parameterized by context** so its copy is honest in each surface (Rule 3): Settings keeps the deploy framing + the "delivery coming soon" notice; the observability surface omits that notice (alert delivery is live today — M84) and offers the `alert.threshold_breached` event — no misleading deploy copy under the alert-notification surface.
 - **Agents empty-state copy names the structural signal (theo-lens M85).** With the engine's Agents derivation broadened to include structural Claude-Code agents (`claude_code.*` spans without an explicit `agent.name`), the Agents page "No agents yet" copy is updated to say an agent appears via `agent.name` **or** a structural `claude_code.*` span — so the empty state matches the new derivation and no longer implies `agent.name` is the only path.
 - **Fired-alert history — an alert firing is auditable in-app, not just "last fired" (theo-lens M84).** The alert evaluator now records ONE `lens_fired_alerts` row per breach (the metric value at fire time, comparator, threshold, when) in the SAME transaction as the webhook enqueue + the status flip — so a breach atomically yields exactly one delivery AND one history row (a failed history INSERT rolls the whole fire back, retried next tick; anti-storm dedup on `(rule_id, transition_id)`). A new paginated read `GET /v1/dashboard/lens/alert-rules/{id}/history` returns the firings newest-first, gated on the rule's owner (a foreign/non-existent rule → 404, never a leak). The Alerts page gains a per-rule **History** expander rendering the firing timeline (value vs threshold, when) with an honest "never fired" empty and a fail-closed typed error (a load failure never reads as "never fired"). Where the rule carried only a single `last_triggered_at`, the firing history is now durable + queryable.
@@ -18,6 +32,7 @@
 ### Fixed
 
 ### Security
+
 
 ## [0.27.0] - 2026-07-08
 
