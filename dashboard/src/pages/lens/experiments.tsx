@@ -169,11 +169,19 @@ export function LensExperimentsPage() {
         label: 'Score',
         render: (row) => (
           <div className="flex gap-1">
-            {row.scores.map((s) => (
-              <Badge key={s.name} variant={s.score !== undefined && s.score >= 0.5 ? 'default' : 'outline'}>
-                {s.name}: {s.label ?? (s.score ?? 0).toFixed(2)}
-              </Badge>
-            ))}
+            {row.scores.map((s) => {
+              // An un-evaluated row has neither a label nor a score → em-dash, NOT a fabricated `0.00`
+              // (issue #177). The accent (pass) is claimed ONLY when the evaluator itself labelled it
+              // "pass" — a raw numeric score stays neutral (no fabricated 0.5 pass threshold).
+              const evaluated = s.label !== undefined || s.score !== undefined;
+              const passing = s.label?.toLowerCase() === 'pass';
+              const shown = evaluated ? (s.label ?? (s.score as number).toFixed(2)) : '—';
+              return (
+                <Badge key={s.name} variant={passing ? 'default' : 'outline'}>
+                  {s.name}: {shown}
+                </Badge>
+              );
+            })}
           </div>
         ),
       },

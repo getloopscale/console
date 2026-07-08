@@ -96,6 +96,17 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     expect(screen.queryByTestId('trend-line')).not.toBeInTheDocument();
   });
 
+  it('M68 — a quiet tenant shows em-dash for error-rate + p95, honest 0 for traces (not 0%/0ms)', async () => {
+    seriesMock({ traffic: [], latency: [], tokensByModel: [] });
+    render(<LensOverviewPage />);
+    await screen.findByRole('button', { name: /show traces trend/i }); // metric-agnostic barrier
+    // rate/percentile over an EMPTY window are undefined → em-dash, NEVER a misleading 0%/0ms.
+    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2); // error-rate + p95 tiles
+    // a count over an empty window is an honest measurement → 0.
+    expect(screen.getByText('0')).toBeInTheDocument(); // Traces tile
+  });
+
   it('M60 — the shared chart exposes an a11y summary (role=img + a visually-hidden value table)', async () => {
     seriesMock();
     render(<LensOverviewPage />);

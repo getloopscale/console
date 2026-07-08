@@ -40,7 +40,6 @@ export interface Widget {
 /** The observability + cost data the board fetches ONCE and every widget binds against. */
 export interface BoardData {
   observability?: { traffic: TrafficBucket[]; latency: LatencyBucket[]; tokensByModel: ModelBucket[] };
-  cost?: { buckets: { costUsd: number }[] };
 }
 
 export const METRIC_LABEL: Record<WidgetMetric, string> = {
@@ -122,13 +121,14 @@ const sum = (ns: number[]): number => ns.reduce((a, b) => a + b, 0);
  */
 export function bindKpi(metric: WidgetMetric, data: BoardData): string {
   const obs = data.observability;
-  if (metric === 'cost') {
-    if (!data.cost) return '—';
-    return formatCost(sum(data.cost.buckets.map((b) => b.costUsd))); // sum: $0.0000 is an honest "no spend"
-  }
   if (!obs) return '—';
   const traffic = obs.traffic;
   switch (metric) {
+    case 'cost':
+      // Range-scoped from the SAME observability fetch as the cost trend/topn (#dashboards window
+      // mismatch): a board's cost KPI and cost trend must agree on the window. `/analytics/cost` is
+      // all-time (no window param), so sourcing it here would disagree with the range-scoped chart.
+      return formatCost(sum(obs.tokensByModel.map((b) => b.costUsd))); // sum: $0.0000 is an honest "no spend"
     case 'traces':
       return formatNumber(sum(traffic.map((t) => t.traceCount)), 'grouped'); // count: 0 is an honest measurement
     case 'error_rate': {

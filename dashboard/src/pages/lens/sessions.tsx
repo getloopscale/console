@@ -47,7 +47,8 @@ export function LensSessionsPage() {
           <span className="text-muted-foreground">—</span>
         ),
     },
-    { key: 'traceCount', label: 'Traces', render: (row) => <span>{row.traceCount ?? 0}</span> },
+    // An absent count is unknown → em-dash; a real 0 stays 0.
+    { key: 'traceCount', label: 'Traces', render: (row) => <span>{row.traceCount != null ? row.traceCount : '—'}</span> },
   ];
 
   const sessions = query.data?.sessions ?? [];

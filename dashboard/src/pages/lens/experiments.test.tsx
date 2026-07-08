@@ -68,6 +68,21 @@ describe('M64 LensExperimentsPage', () => {
     expect(JSON.parse((runCall![1] as { body: string }).body)).toMatchObject({ datasetId: 'ds-1' });
   });
 
+  it('test_unscored_row_renders_em_dash_not_fabricated_zero (#177)', async () => {
+    // A run whose row has an evaluator score with NEITHER a label NOR a numeric score.
+    const unscored = {
+      ...RUN,
+      items: [{ ...RUN.items[0], scores: [{ name: 'acc' }] }],
+    };
+    withRoutes({ runPost: () => unscored });
+    render(<LensExperimentsPage />, { initialEntries: ['/observability/experiments?datasetId=ds-1'] });
+    await userEvent.click(await screen.findByRole('button', { name: /run experiment/i }));
+    const latest = screen.getByTestId('latest-run');
+    // the un-evaluated score shows an em-dash, NEVER a fabricated "0.00"
+    expect(within(latest).getByText(/acc: —/)).toBeInTheDocument();
+    expect(within(latest).queryByText(/acc: 0\.00/)).not.toBeInTheDocument();
+  });
+
   it('test_run_lists_existing_runs', async () => {
     withRoutes();
     render(<LensExperimentsPage />, { initialEntries: ['/observability/experiments'] });

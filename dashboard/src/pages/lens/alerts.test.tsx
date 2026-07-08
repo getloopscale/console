@@ -7,7 +7,23 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) })
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
-import { LensAlertsPage } from './alerts';
+import { LensAlertsPage, alertStatusVariant } from './alerts';
+
+describe('alertStatusVariant (honest status badge)', () => {
+  it('a firing rule is destructive, a cleared rule is success', () => {
+    expect(alertStatusVariant('TRIGGERED', true)).toBe('destructive');
+    expect(alertStatusVariant('OK', true)).toBe('success');
+  });
+  it('a disabled rule is neutral, NOT a green success', () => {
+    // the bug: `status !== 'TRIGGERED' ? 'success'` painted a disabled/unknown rule green.
+    expect(alertStatusVariant('OK', false)).toBe('outline');
+    expect(alertStatusVariant('TRIGGERED', false)).toBe('outline');
+  });
+  it('an unknown status is neutral, never a fabricated success', () => {
+    expect(alertStatusVariant('PENDING', true)).toBe('outline');
+    expect(alertStatusVariant('', true)).toBe('outline');
+  });
+});
 
 const RULES = '/v1/dashboard/lens/alert-rules';
 const WEBHOOKS = '/v1/settings/webhooks/list';

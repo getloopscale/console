@@ -63,8 +63,11 @@ export function LensDatasetsPage() {
 
   const detail = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/datasets', openID] as const,
-    queryFn: () => cloudFetch<DatasetDetail>(`/v1/dashboard/lens/datasets/${encodeURIComponent(openID as string)}`),
+    // throwOnError so a failed detail load REJECTS (detail.isError) instead of resolving to null —
+    // otherwise a load error is indistinguishable from an empty dataset and renders as "No items".
+    queryFn: () => cloudFetch<DatasetDetail>(`/v1/dashboard/lens/datasets/${encodeURIComponent(openID as string)}`, {}, { throwOnError: true }),
     enabled: openID !== null,
+    retry: false,
   });
 
   const invalidate = () =>
@@ -105,7 +108,8 @@ export function LensDatasetsPage() {
         </Button>
       ),
     },
-    { key: 'itemCount', label: 'Items', render: (row) => <span>{row.itemCount ?? 0}</span> },
+    // An absent count is unknown → em-dash; a real 0 stays 0 (an empty-but-loaded dataset).
+    { key: 'itemCount', label: 'Items', render: (row) => <span>{row.itemCount != null ? row.itemCount : '—'}</span> },
     {
       key: 'createdAt',
       label: 'Created',
@@ -196,6 +200,8 @@ export function LensDatasetsPage() {
               <Card.Body>
                 {detail.isLoading ? (
                   <Skeleton />
+                ) : detail.isError ? (
+                  <Alert intent="destructive" title="Could not load items" description="The dataset items failed to load. Retry, or check your access to this dataset." />
                 ) : (detail.data?.items ?? []).length === 0 ? (
                   <EmptyState title="No items" description="Add traces to this dataset from the Traces page." />
                 ) : (

@@ -125,18 +125,22 @@ export function LensOverviewPage() {
   const isFetching = obs.isFetching || cost.isFetching;
 
   const traffic = obs.data?.traffic ?? [];
+  const latency = obs.data?.latency ?? [];
   const traces = sum(traffic.map((t) => t.traceCount));
   const errors = sum(traffic.map((t) => t.errorCount));
-  const errorRatePct = traces > 0 ? Math.round((errors / traces) * 100) : 0;
-  const p95 = Math.round(Math.max(0, ...(obs.data?.latency ?? []).map((l) => l.p95Ms), 0));
+  // A rate (errors/traffic) and a percentile (p95) over an EMPTY window are mathematically undefined
+  // → render an em-dash, NOT a fabricated `0%` / `0ms` that falsely implies a perfect-and-quiet tenant.
+  // A count/sum (traces, cost) over an empty window is a defined, honest measurement → `0` / `$0.0000`.
+  const errorRateValue = traces > 0 ? `${Math.round((errors / traces) * 100)}%` : '—';
+  const p95Value = latency.length > 0 ? formatDuration(Math.round(Math.max(0, ...latency.map((l) => l.p95Ms), 0))) : '—';
   const totalCost = sum((cost.data?.buckets ?? []).map((b) => b.costUsd));
 
   // M60 — the four KPI tiles: value via M57 formatters; delta from the fetched window via `periodDelta`
   // (invertTrend on the "up is bad" metrics). The tile keys also select which series the shared chart plots.
   const tiles: KpiTile[] = [
     { key: 'throughput', title: 'Traces', value: formatNumber(traces, 'grouped'), series: tracesValues(traffic), agg: 'sum', invert: false },
-    { key: 'errorRate', title: 'Error rate %', value: `${errorRatePct}%`, series: errorRateValues(traffic), agg: 'mean', invert: true },
-    { key: 'latency', title: 'Latency p95 (ms)', value: formatDuration(p95), series: p95Values(obs.data?.latency ?? []), agg: 'mean', invert: true },
+    { key: 'errorRate', title: 'Error rate %', value: errorRateValue, series: errorRateValues(traffic), agg: 'mean', invert: true },
+    { key: 'latency', title: 'Latency p95 (ms)', value: p95Value, series: p95Values(latency), agg: 'mean', invert: true },
     { key: 'cost', title: 'Cost (USD)', value: formatCost(totalCost), series: costValues(cost.data?.buckets ?? []), agg: 'sum', invert: true },
   ];
 

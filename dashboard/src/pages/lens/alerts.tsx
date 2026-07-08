@@ -40,6 +40,18 @@ interface AlertRule {
   last_evaluated_at: string | null;
   last_triggered_at: string | null;
 }
+/**
+ * The honest status→badge-variant map (issue #alerts-badge): a badge must reflect the rule's TRUE
+ * state, not "TRIGGERED-or-green". A disabled rule is neutral (grey), a cleared rule is success, a
+ * firing rule is destructive, and an unknown status is neutral — never a misleading green "success".
+ */
+export function alertStatusVariant(status: string, enabled: boolean): 'destructive' | 'success' | 'outline' {
+  if (!enabled) return 'outline'; // a disabled rule is not "OK/success" — it is inert
+  if (status === 'TRIGGERED') return 'destructive';
+  if (status === 'OK') return 'success';
+  return 'outline'; // unknown / pending → neutral, never a fabricated success
+}
+
 interface AlertRulesResult {
   alert_rules: AlertRule[];
 }
@@ -139,7 +151,7 @@ export function LensAlertsPage() {
     {
       key: 'status',
       label: 'Status',
-      render: (r) => <Badge variant={r.status === 'TRIGGERED' ? 'destructive' : 'success'}>{r.status}</Badge>,
+      render: (r) => <Badge variant={alertStatusVariant(r.status, r.enabled)}>{r.enabled ? r.status : 'Disabled'}</Badge>,
     },
     {
       key: 'enabled',

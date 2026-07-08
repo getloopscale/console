@@ -31,7 +31,7 @@ const OBS: NonNullable<BoardData['observability']> = {
     { periodStart: '2026-07-07T01:00:00Z', model: 'gpt-4o', totalTokens: 500, costUsd: 0.03 },
   ],
 };
-const DATA: BoardData = { observability: OBS, cost: { buckets: [{ costUsd: 0.05 }, { costUsd: 0.03 }] } };
+const DATA: BoardData = { observability: OBS };
 
 describe('M66 widget model', () => {
   it('test_template_is_valid_and_covers_kpi_trend_topn', () => {
@@ -53,19 +53,22 @@ describe('M66 widget model', () => {
     expect(bindKpi('traces', DATA)).toBe('160'); // 100 + 60
     expect(bindKpi('error_rate', DATA)).toBe('3%'); // 5/160 ≈ 3%
     expect(bindKpi('p95_latency', DATA)).not.toBe('—'); // real p95 present
-    expect(bindKpi('cost', DATA)).not.toBe('—'); // real cost present
+    expect(bindKpi('cost', DATA)).not.toBe('—'); // real cost present (range-scoped from tokensByModel)
+    // cost is range-scoped from the SAME observability fetch as the cost trend/topn — the KPI and the
+    // trend agree on the window (gpt-4o 0.05+0.03 + gpt-4o-mini 0.01 = 0.09).
+    expect(bindKpi('cost', DATA)).toBe(formatCost(0.09));
   });
 
   it('test_bindKpi_absent_data_is_em_dash_not_a_fabricated_zero', () => {
-    // negative: no observability/cost loaded → em-dash, NEVER "$0" / "0"
+    // negative: no observability loaded → em-dash, NEVER "$0" / "0" (cost now shares the obs fetch)
     expect(bindKpi('traces', {})).toBe('—');
-    expect(bindKpi('cost', { observability: OBS })).toBe('—');
+    expect(bindKpi('cost', {})).toBe('—');
   });
 
   it('test_bindKpi_empty_but_present_series_rate_and_percentile_are_em_dash', () => {
     // the quiet-tenant case (fetch SUCCEEDED, arrays empty): a rate/percentile over an empty set is
     // UNDEFINED, so error_rate/p95_latency are em-dash — NOT a misleading "0%" / "0ms".
-    const empty: BoardData = { observability: { traffic: [], latency: [], tokensByModel: [] }, cost: { buckets: [] } };
+    const empty: BoardData = { observability: { traffic: [], latency: [], tokensByModel: [] } };
     expect(bindKpi('error_rate', empty)).toBe('—');
     expect(bindKpi('p95_latency', empty)).toBe('—');
     // a count/sum of zero IS a defined, honest measurement (matches the M60 Overview)

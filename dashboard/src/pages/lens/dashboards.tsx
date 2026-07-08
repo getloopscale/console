@@ -51,10 +51,6 @@ interface ObservabilityResult {
   latency: LatencyBucket[];
   tokensByModel: ModelBucket[];
 }
-interface CostResult {
-  buckets: { costUsd: number }[];
-}
-
 /** Map an API error's HTTP status to a typed, actionable message (fail-closed). */
 function errorMessage(err: unknown): string {
   const status = (err as { status?: number } | null)?.status ?? 0;
@@ -172,22 +168,18 @@ export function LensDashboardsPage() {
     enabled: boardId.length > 0,
   });
 
-  // The ONE shared fetch every widget binds against (no per-widget fan-out).
+  // The ONE shared, range-scoped fetch every widget binds against (no per-widget fan-out). The cost
+  // KPI derives from this same fetch's `tokensByModel` so the whole board shares one time window —
+  // the previous separate all-time `/cost` fetch made the cost KPI disagree with the cost trend.
   const obs = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/observability', range] as const,
     queryFn: () => cloudFetch<ObservabilityResult>(`/v1/dashboard/lens/observability?range=${range}`, {}, { throwOnError: true }),
     enabled: boardId.length > 0,
   });
-  const cost = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/cost'] as const,
-    queryFn: () => cloudFetch<CostResult>('/v1/dashboard/lens/cost', {}, { throwOnError: true }),
-    enabled: boardId.length > 0,
-  });
   const data: BoardData = {
     ...(obs.data ? { observability: obs.data } : {}),
-    ...(cost.data ? { cost: cost.data } : {}),
   };
-  const dataError = obs.isError || cost.isError;
+  const dataError = obs.isError;
 
   const create = useMutation({
     mutationFn: (board: { name: string; config: Widget[] }) =>

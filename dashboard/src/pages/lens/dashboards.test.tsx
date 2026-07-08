@@ -25,7 +25,6 @@ const OBS = {
   latency: [{ periodStart: '2026-07-07T00:00:00Z', p50Ms: 100, p95Ms: 400, p99Ms: 800 }],
   tokensByModel: [{ periodStart: '2026-07-07T00:00:00Z', model: 'gpt-4o', totalTokens: 1000, costUsd: 0.05 }],
 };
-const COST = { buckets: [{ costUsd: 0.05 }] };
 
 /** Wire the mock CRUD + series routes; opts override the list/board/obs behavior per test. */
 function withRoutes(opts: { boards?: unknown[]; listReject?: unknown; boardReject?: unknown; obsReject?: unknown } = {}) {
@@ -45,7 +44,6 @@ function withRoutes(opts: { boards?: unknown[]; listReject?: unknown; boardRejec
       if (opts.obsReject) return Promise.resolve().then(() => { throw opts.obsReject; });
       return Promise.resolve(OBS);
     }
-    if (url.includes('/cost')) return Promise.resolve(COST);
     return Promise.resolve({});
   });
 }
@@ -136,7 +134,6 @@ describe('M66 LensDashboardsPage', () => {
       if (/\/dashboards\/[^/?]+$/.test(url) && (init?.method ?? 'GET') === 'GET') return Promise.resolve(rateBoard);
       if (url.endsWith('/dashboards')) return Promise.resolve({ dashboards: [] });
       if (url.includes('/observability')) return Promise.resolve({ traffic: [], latency: [], tokensByModel: [] });
-      if (url.includes('/cost')) return Promise.resolve({ buckets: [] });
       return Promise.resolve({});
     });
     render(<LensDashboardsPage />, { initialEntries: [`/observability/dashboards?board=${BOARD.id}`] });
