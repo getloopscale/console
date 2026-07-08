@@ -65,11 +65,19 @@ export function LensLabelingQueuePage() {
   const [exporting, setExporting] = useState(false);
   const [exportName, setExportName] = useState('');
 
+  // #labeling-queue-pager (M70) — the endpoint is server-paginated (returns total/page/pageSize) but
+  // page 2+ was previously unreachable; drive `page` and render a Prev/Next pager + result count.
+  const [page, setPage] = useState(1);
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/labeling-queue'] as const,
-    queryFn: () => cloudFetch<QueuePage>('/v1/dashboard/lens/labeling-queue'),
+    queryKey: ['cloud', '/v1/dashboard/lens/labeling-queue', page] as const,
+    queryFn: () => cloudFetch<QueuePage>(`/v1/dashboard/lens/labeling-queue?page=${page}`),
   });
   const items = query.data?.items ?? [];
+  const total = query.data?.total ?? items.length;
+  const pageSize = query.data?.pageSize ?? (items.length || 1);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const firstShown = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastShown = Math.min(page * pageSize, total);
 
   const openResolve = (item: QueueItem) => {
     setActive(item);
@@ -172,6 +180,26 @@ export function LensLabelingQueuePage() {
       }
     >
       <DataTable data={items} columns={columns} rowKey={(row) => row.id} />
+
+      {/* Result count + pager — page 2+ is now reachable (was a dead-end). */}
+      {total > 0 ? (
+        <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+          <span data-testid="queue-count">
+            Showing {firstShown}–{lastShown} of {total}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              Previous
+            </Button>
+            <span className="tabular-nums">
+              Page {page} / {pageCount}
+            </span>
+            <Button variant="ghost" size="sm" disabled={page >= pageCount || query.isFetching} onClick={() => setPage((p) => p + 1)}>
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Resolve Sheet — span context + label/score/note form. */}
       <Sheet open={active !== null} onOpenChange={(open) => !open && closeResolve()}>

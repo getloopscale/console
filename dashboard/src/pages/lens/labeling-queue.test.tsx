@@ -41,6 +41,27 @@ describe('M63 LensLabelingQueuePage', () => {
     expect(screen.getByText(/pending/i)).toBeInTheDocument();
   });
 
+  it('M70 — a pager makes page 2 reachable + discloses the result count', async () => {
+    // total 3 > pageSize 2 → 2 pages; the first page is reachable and Next fetches page 2.
+    mockCloudFetch.mockImplementation((url: string) => {
+      const p = new URL(url, 'http://x').searchParams.get('page') ?? '1';
+      if (url.includes('/labeling-queue'))
+        return Promise.resolve({
+          items: [{ ...PENDING_ITEM, id: `q-${p}`, spanId: `sp-${p}` }],
+          total: 3,
+          page: Number(p),
+          pageSize: 2,
+        });
+      return Promise.resolve({});
+    });
+    render(<LensLabelingQueuePage />);
+    expect(await screen.findByText(/showing 1–2 of 3/i)).toBeInTheDocument(); // count disclosed
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    // page 2 was fetched (was previously unreachable)
+    expect(mockCloudFetch.mock.calls.some((c) => String(c[0]).includes('page=2'))).toBe(true);
+    expect(await screen.findByText(/page 2 \/ 2/i)).toBeInTheDocument();
+  });
+
   it('test_empty_state_when_no_items', async () => {
     pageWith({ items: [], total: 0, page: 1, pageSize: 50 });
     render(<LensLabelingQueuePage />);

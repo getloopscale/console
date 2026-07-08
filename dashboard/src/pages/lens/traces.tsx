@@ -367,6 +367,12 @@ export function LensTracesPage() {
                   Could not export the traces — try again.
                 </Alert>
               ) : null}
+              <p data-testid="traces-count" className="mb-1 text-xs text-muted-foreground">
+                {/* The list BFF returns no total/offset (only the export path exposes a cap), so this is
+                    an honest count of the loaded rows — NOT a claim of the full total. The missing
+                    BFF total/pagination is filed as a gap (roadmap M70 risk 1). */}
+                {traces.length} {traces.length === 1 ? 'trace' : 'traces'}
+              </p>
               <Card>
                 {/* M59 P1 — density toggles the row height (compact vs comfortable) via a data-attr
                     + Tailwind arbitrary selectors; URL-persisted so a saved view captures it (P3). */}
