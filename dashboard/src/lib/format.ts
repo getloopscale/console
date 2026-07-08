@@ -285,3 +285,17 @@ export function shortId(id: string | null | undefined, n = 8): string {
   if (!id) return EMDASH;
   return id.length > n ? `${id.slice(0, n)}…` : id;
 }
+
+/**
+ * Format an evaluator/guard score for display: a fixed-precision number, em-dash when the score is
+ * absent or not finite (never a fabricated `0.00`). Centralizes the raw `.toFixed(2)` scattered across
+ * experiments/compare so the score presentation is consistent + honest (M72).
+ *   formatScore(0.8)        // "0.80"
+ *   formatScore(1)          // "1.00"
+ *   formatScore(undefined)  // "—"
+ *   formatScore(NaN)        // "—"
+ */
+export function formatScore(score: number | null | undefined, fractionDigits = 2): string {
+  if (score == null || !Number.isFinite(score)) return EMDASH;
+  return score.toFixed(fractionDigits);
+}

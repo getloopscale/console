@@ -18,6 +18,8 @@ import { RecursiveTree, SpanDetail, VirtualTree } from './tree';
 import { Transcript } from './transcript';
 import { SpanGraph } from './span-graph';
 import { Waterfall } from './waterfall';
+import { traceSummary } from './summary';
+import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/format';
 
 /**
  * M47/M48/M58 — the trace-detail view composition root. Fetches the reconstructed span tree from the
@@ -102,6 +104,20 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
   return (
     <div className="space-y-2">
       <Breadcrumb root={root} selectedId={selectedResolvedId} onSelect={onSelect} />
+      {/* M72 — the trace-level headline the detail view was missing: total duration / ∑ cost / ∑ tokens
+          / error count / distinct models. Absent duration → em-dash; sums of zero are honest. */}
+      {(() => {
+        const s = traceSummary(root);
+        return (
+          <dl data-testid="trace-summary" className="flex flex-wrap gap-x-6 gap-y-1 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+            <div className="flex gap-1"><dt className="text-muted-foreground">Duration</dt><dd className="font-medium tabular-nums">{s.durationMs !== null ? formatDuration(s.durationMs) : '—'}</dd></div>
+            <div className="flex gap-1"><dt className="text-muted-foreground">Cost</dt><dd className="font-medium tabular-nums">{formatCost(s.costUsd)}</dd></div>
+            <div className="flex gap-1"><dt className="text-muted-foreground">Tokens</dt><dd className="font-medium tabular-nums">{formatTokens(s.totalTokens)}</dd></div>
+            <div className="flex gap-1"><dt className="text-muted-foreground">Errors</dt><dd className={`font-medium tabular-nums ${s.errorCount > 0 ? 'text-destructive' : ''}`}>{formatNumber(s.errorCount, 'grouped')}</dd></div>
+            <div className="flex gap-1"><dt className="text-muted-foreground">Models</dt><dd className="font-medium">{s.models.length > 0 ? s.models.join(', ') : '—'}</dd></div>
+          </dl>
+        );
+      })()}
       <PanelGroup direction="horizontal" autoSaveId="lens-trace-split" className="gap-2">
         <Panel defaultSize={40} minSize={20}>
           <Card className="h-full">

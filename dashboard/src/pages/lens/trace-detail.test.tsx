@@ -100,6 +100,19 @@ describe('LensTraceDetail — span tree', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/lens/traces/t1');
   });
 
+  it('M72 — a trace-level summary header shows duration / cost / tokens / errors / models', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />);
+    const summary = await screen.findByTestId('trace-summary');
+    expect(within(summary).getByText('Duration')).toBeInTheDocument();
+    expect(within(summary).getByText('Cost')).toBeInTheDocument();
+    expect(within(summary).getByText('Tokens')).toBeInTheDocument();
+    expect(within(summary).getByText('Errors')).toBeInTheDocument();
+    expect(within(summary).getByText('Models')).toBeInTheDocument();
+    // the fixture's one llm span uses claude-haiku → surfaced in the models list
+    expect(within(summary).getByText(/claude-haiku/)).toBeInTheDocument();
+  });
+
   it('M71 — the span tree exposes real ARIA tree semantics (role + level/pos/setsize)', async () => {
     mockCloudFetch.mockResolvedValue(tree());
     render(<LensTraceDetail traceId="t1" />);

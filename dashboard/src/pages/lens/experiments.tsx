@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
-import { formatCost, formatDuration, formatTokens, shortId } from '@/lib/format';
+import { formatCost, formatDuration, formatScore, formatTokens, shortId } from '@/lib/format';
 import { TracePeekSheet } from './traces/peek-sheet';
 
 /**
@@ -99,7 +99,7 @@ function RunSummary({ run }: { run: ExperimentRun }) {
       <span>
         {run.passCount} / {run.itemCount} passed
       </span>
-      {run.avgScore !== undefined ? <Badge variant="outline">avg {run.avgScore.toFixed(2)}</Badge> : null}
+      {run.avgScore !== undefined ? <Badge variant="outline">avg {formatScore(run.avgScore)}</Badge> : null}
       <Badge variant="outline">{formatCost(run.totalCostUsd)}</Badge>
       {run.truncated ? <Badge variant="outline">truncated</Badge> : null}
     </div>
@@ -180,7 +180,7 @@ export function LensExperimentsPage() {
               // "pass" — a raw numeric score stays neutral (no fabricated 0.5 pass threshold).
               const evaluated = s.label !== undefined || s.score !== undefined;
               const passing = s.label?.toLowerCase() === 'pass';
-              const shown = evaluated ? (s.label ?? (s.score as number).toFixed(2)) : '—';
+              const shown = evaluated ? (s.label ?? formatScore(s.score)) : '—';
               return (
                 <Badge key={s.name} variant={passing ? 'default' : 'outline'}>
                   {s.name}: {shown}

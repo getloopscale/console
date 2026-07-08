@@ -9,6 +9,7 @@ import {
   isZeroTime,
   maskEmail,
   shortId,
+  formatScore,
 } from './format';
 
 describe('isZeroTime (#118, qa-dogfood-cleanup-2026-06-21 T3.1)', () => {
@@ -259,5 +260,19 @@ describe('shortId (M57 T0.1)', () => {
     expect(shortId('')).toBe('—');
     expect(shortId(null)).toBe('—');
     expect(shortId(undefined)).toBe('—');
+  });
+});
+
+describe('formatScore (M72)', () => {
+  it('formats a finite score to fixed precision', () => {
+    expect(formatScore(0.8)).toBe('0.80');
+    expect(formatScore(1)).toBe('1.00');
+    expect(formatScore(0)).toBe('0.00'); // a real 0 is an honest score
+  });
+  it('returns em-dash for an absent / non-finite score (never a fabricated 0.00)', () => {
+    expect(formatScore(undefined)).toBe('—');
+    expect(formatScore(null)).toBe('—');
+    expect(formatScore(NaN)).toBe('—');
+    expect(formatScore(Infinity)).toBe('—');
   });
 });

@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
+import { formatNumber } from '@/lib/format';
 
 /**
  * M44 — /lens/agents. Read-only derived agent catalog (`GET /v1/dashboard/lens/agents`, M32).
@@ -34,8 +35,8 @@ export function LensAgentsPage() {
 
   const columns: DataTableColumn<Agent>[] = [
     { key: 'name', label: 'Agent', render: (row) => <span>{row.name}</span> },
-    // An absent count is unknown → em-dash; a real 0 stays 0.
-    { key: 'traceCount', label: 'Traces', render: (row) => <span>{row.traceCount != null ? row.traceCount : '—'}</span> },
+    // An absent count is unknown → em-dash; a real 0 stays 0; a present count is grouped (1,234).
+    { key: 'traceCount', label: 'Traces', render: (row) => <span>{row.traceCount != null ? formatNumber(row.traceCount, 'grouped') : '—'}</span> },
   ];
 
   const agents = query.data?.agents ?? [];
