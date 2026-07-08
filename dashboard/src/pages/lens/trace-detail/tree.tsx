@@ -8,7 +8,7 @@ import { cloudFetch } from '@/lib/api';
 import { LensPlayground } from '../playground';
 import { Attributes } from './attributes';
 import { IoCards } from './io-cards';
-import { formatCost, formatDate, formatDuration, formatTokens } from '@/lib/format';
+import { formatCost, formatDate, formatDuration, formatScore, formatTokens } from '@/lib/format';
 import { aggregateCost } from '@/lib/trace-layout';
 import { isSpanError } from '@/lib/span-status';
 import { computeBarLayout, durationMs, type FlatNode, type TraceSpanNode } from './helpers';
@@ -349,6 +349,28 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
           </div>
         ) : null}
       </dl>
+
+      {/* M78 — machine evaluations for this span (distinct from the human tags/notes in the metadata card).
+          Shown only when the span was evaluated; an absent score/label is an honest em-dash, never a 0. */}
+      {span.evaluations && span.evaluations.length > 0 ? (
+        <section className="space-y-1" data-testid="span-evaluations">
+          <h3 className="text-xs font-semibold uppercase text-muted-foreground">Evaluations</h3>
+          <ul className="space-y-1">
+            {span.evaluations.map((ev, i) => (
+              <li key={`${ev.name}-${i}`} className="flex flex-wrap items-baseline gap-2 text-sm">
+                <span className="font-medium">{ev.name}</span>
+                {/* Show BOTH when present (a labelled verdict can also carry a numeric score); an
+                    evaluation with neither is an honest em-dash — never a fabricated 0. A real score of
+                    0 renders "0.00" (formatScore), not em-dash. */}
+                {ev.label != null ? <Badge variant="outline">{ev.label}</Badge> : null}
+                {ev.score != null ? <span className="font-mono text-xs">{formatScore(ev.score)}</span> : null}
+                {ev.label == null && ev.score == null ? <span className="text-muted-foreground">—</span> : null}
+                {ev.explanation ? <span className="text-xs text-muted-foreground">{ev.explanation}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="space-y-1">
         <h3 className="text-xs font-semibold uppercase text-muted-foreground">Input</h3>

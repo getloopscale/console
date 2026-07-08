@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2 } from 'lucide-react';
-import { Button, Card, ConfirmDialog, CopyButton, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Select } from '@usetheo/ui';
+import { Link } from 'react-router-dom';
+import { ShieldAlert, Trash2 } from 'lucide-react';
+import { Button, Card, ConfirmDialog, CopyButton, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Select, Sheet, Skeleton } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -55,6 +56,8 @@ export function LensGuardsPage() {
   const [operator, setOperator] = useState<string>('gte');
   const [threshold, setThreshold] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Guard | null>(null);
+  // M77 — the guard whose breaches are open in the side panel (null = closed).
+  const [activeGuard, setActiveGuard] = useState<Guard | null>(null);
 
   // `label_eq` matches a label, so it takes NO numeric threshold — the field is hidden + omitted.
   const needsThreshold = operator !== 'label_eq';
@@ -70,6 +73,23 @@ export function LensGuardsPage() {
     queryFn: () => cloudFetch<EvaluatorsResult>('/v1/dashboard/lens/evaluators'),
   });
   const evaluators = evaluatorsQuery.data?.evaluators ?? [];
+  const evaluatorName = (id?: string) => evaluators.find((e) => e.id === id)?.name ?? (id ? shortId(id) : '—');
+
+  // M77 — a human rule string for the breaches panel (numeric operators as symbols; label_eq spelled out).
+  const OP_SYMBOL: Record<string, string> = { gte: '≥', gt: '>', lte: '≤', lt: '<', eq: '=' };
+  const guardRuleText = (g: Guard) =>
+    g.operator === 'label_eq'
+      ? `Traces failing ${evaluatorName(g.evaluatorId)} (label match)`
+      : `Traces failing ${evaluatorName(g.evaluatorId)} ${OP_SYMBOL[g.operator ?? ''] ?? g.operator ?? ''} ${g.threshold ?? ''}`.trim();
+
+  // M77 — the breaches read (flag-only: `{ traceIds }`) for the open guard. Fetched on demand only.
+  const breachesQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/lens/guards', activeGuard?.id, 'breaches'] as const,
+    queryFn: () =>
+      cloudFetch<{ traceIds: string[] }>(`/v1/dashboard/lens/guards/${encodeURIComponent(activeGuard!.id)}/breaches`, {}, { throwOnError: true }),
+    enabled: activeGuard !== null,
+  });
+  const breachTraceIds = breachesQuery.data?.traceIds ?? [];
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/guards'] });
 
@@ -124,9 +144,14 @@ export function LensGuardsPage() {
       label: '',
       align: 'right',
       render: (row) => (
-        <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete ${row.id}`}>
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setActiveGuard(row)} aria-label={`View breaches for ${evaluatorName(row.evaluatorId)}`}>
+            <ShieldAlert className="mr-1 h-4 w-4" /> View breaches
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete ${row.id}`}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -246,6 +271,44 @@ export function LensGuardsPage() {
           onConfirm={() => remove.mutate(pendingDelete)}
         />
       ) : null}
+
+      {/* M77 — the breaches panel: what this guard actually gated. The read is flag-only ({traceIds}),
+          so we list the breaching traces (deep-linked to their peek) and frame them with the guard's own
+          rule — never a fabricated per-breach score/time. */}
+      <Sheet open={activeGuard !== null} onOpenChange={(open) => !open && setActiveGuard(null)}>
+        <Sheet.Content side="right" className="w-full sm:max-w-md">
+          <Sheet.Header className="border-b border-border px-6 py-4">
+            <Sheet.Title>Guard breaches</Sheet.Title>
+            <Sheet.Description>{activeGuard ? guardRuleText(activeGuard) : ''}</Sheet.Description>
+          </Sheet.Header>
+          <Sheet.Body className="space-y-3 px-6 py-5">
+            {breachesQuery.isPending ? (
+              <Skeleton className="h-24 w-full" aria-label="Loading breaches" />
+            ) : breachesQuery.isError ? (
+              <Alert intent="warning" title="Could not load breaches" data-testid="breaches-error">
+                The lens service is unavailable. Try again shortly.
+              </Alert>
+            ) : breachTraceIds.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No breaches yet — no trace has failed this guard.</p>
+            ) : (
+              <ul className="space-y-1">
+                {breachTraceIds.map((tid) => (
+                  <li key={tid} className="flex items-center gap-2">
+                    <Link
+                      to={`/observability/traces?trace=${encodeURIComponent(tid)}`}
+                      className="font-mono text-xs text-primary underline underline-offset-2"
+                      aria-label={`Open trace ${tid}`}
+                    >
+                      {shortId(tid)}
+                    </Link>
+                    <CopyButton value={tid} label="Copy trace id" />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Sheet.Body>
+        </Sheet.Content>
+      </Sheet>
     </>
   );
 }

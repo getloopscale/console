@@ -66,7 +66,9 @@ describe('LensAlertsPage (M53)', () => {
     render(<LensAlertsPage />);
     expect(await screen.findByText(/register a webhook first/i)).toBeInTheDocument();
     // #175: the instruction BODY renders (how to register), not just the title.
-    expect(screen.getByText(/add one under settings/i)).toBeInTheDocument();
+    expect(screen.getByText(/add one under/i)).toBeInTheDocument();
+    // M79 (AL-1): the prerequisite is one click from its fix — a link to the webhooks settings page.
+    expect(screen.getByRole('link', { name: /webhooks/i })).toHaveAttribute('href', '/settings/webhooks');
   });
 
   it('creates a rule (POST metric/comparator/threshold/window/webhook_id)', async () => {

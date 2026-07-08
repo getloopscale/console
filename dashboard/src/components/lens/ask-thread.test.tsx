@@ -101,6 +101,25 @@ describe('M61 AskThread', () => {
     expect(cite).toHaveTextContent('llm');
   });
 
+  it('M80 — a span citation is clickable, linking to its span in the trace peek (?trace=&spanId=)', async () => {
+    mockCloudFetch.mockResolvedValue({ answer: 'the slow step is [span:s2] here' });
+    render(<AskThread traceId="t1" spans={tree} />);
+    await ask('what is slow');
+    const cite = await screen.findByTestId('span-citation');
+    // the citation is a link that opens the peek (M76 ?trace=) with the cited span selected (?spanId=)
+    expect(cite.closest('a')).toHaveAttribute('href', '/observability/traces?trace=t1&spanId=s2');
+  });
+
+  it('M80 — an unknown [span:id] stays plain text with NO link (never a dangling citation)', async () => {
+    mockCloudFetch.mockResolvedValue({ answer: 'the step [span:nope] failed' });
+    render(<AskThread traceId="t1" spans={tree} />);
+    await ask('what happened');
+    const turn = await screen.findByTestId('thread-turn-assistant');
+    expect(turn).toHaveTextContent('[span:nope]'); // unresolved marker stays literal
+    expect(turn.querySelector('a')).toBeNull(); // no link rendered for an unknown span
+    expect(screen.queryByTestId('span-citation')).not.toBeInTheDocument();
+  });
+
   it('renders the answer XSS-safe (a <script> answer draws no script node — R2)', async () => {
     mockCloudFetch.mockResolvedValue({ answer: '<script>alert(1)</script> hello' });
     const { container } = render(<AskThread traceId="t1" spans={tree} />);

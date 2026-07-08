@@ -38,6 +38,9 @@ export interface TraceSpanNode {
   costUsd?: number;
   attributes?: Record<string, unknown>;
   events?: Array<{ name: string; timeUnixNano?: string; attributes?: Record<string, unknown> }>;
+  // M78 — machine evaluations for this span (from the ingest-populated `span_evaluations`, carried on
+  // the trace-detail read). Distinct from human tags/notes; absent when the span was never evaluated.
+  evaluations?: Array<{ name: string; score?: number; label?: string; explanation?: string }>;
   children?: TraceSpanNode[];
 }
 

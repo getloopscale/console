@@ -19,6 +19,53 @@ describe('LensGuardsPage (/observability/guards)', () => {
     });
   }
 
+  // M77 — a guard whose breaches can be inspected. Wires evaluators + one guard + a breaches read.
+  function withGuardAndBreaches(traceIds: string[]) {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'Answer relevance' }] });
+      if (/\/guards\/gd_1\/breaches$/.test(url)) return Promise.resolve({ traceIds });
+      if (url === '/v1/dashboard/lens/guards') return Promise.resolve({ guards: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      return Promise.resolve({});
+    });
+  }
+
+  it('M77 — View breaches lists the breaching traces, each deep-linking to its trace peek', async () => {
+    withGuardAndBreaches(['tr-a', 'tr-b']);
+    render(<LensGuardsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /view breaches/i }));
+    // the breaches read fires for this guard
+    expect(mockCloudFetch.mock.calls.some((c) => /\/guards\/gd_1\/breaches$/.test(String(c[0])))).toBe(true);
+    // each breaching trace is a link to its ?trace= peek (M76)
+    const a = await screen.findByRole('link', { name: /tr-a/i });
+    expect(a).toHaveAttribute('href', '/observability/traces?trace=tr-a');
+    expect(screen.getByRole('link', { name: /tr-b/i })).toHaveAttribute('href', '/observability/traces?trace=tr-b');
+  });
+
+  it('M77 — the breaches panel shows the guard rule and an honest empty state', async () => {
+    withGuardAndBreaches([]); // no trace has failed this guard
+    render(<LensGuardsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /view breaches/i }));
+    // the guard rule is shown as context (evaluator name + operator symbol + threshold) in the description
+    expect(await screen.findByText(/Traces failing Answer relevance ≥ 0\.8/)).toBeInTheDocument();
+    // honest empty state — no fabricated breach
+    expect(screen.getByText(/no trace has failed this guard/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /open trace/i })).not.toBeInTheDocument();
+  });
+
+  it('M77 — a failed breaches read fails closed to a typed Alert (never a silent empty state)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'Answer relevance' }] });
+      if (/\/guards\/gd_1\/breaches$/.test(url)) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
+      if (url === '/v1/dashboard/lens/guards') return Promise.resolve({ guards: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      return Promise.resolve({});
+    });
+    render(<LensGuardsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /view breaches/i }));
+    expect(await screen.findByTestId('breaches-error')).toBeInTheDocument();
+    // fail-closed: the empty-state text must NOT show (a failure is not "no breaches")
+    expect(screen.queryByText(/no trace has failed this guard/i)).not.toBeInTheDocument();
+  });
+
   it('creates a guard by SELECTING an evaluator + operator (no free-text id) — #179', async () => {
     withEvaluators();
     render(<LensGuardsPage />);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { Badge, Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
@@ -201,7 +202,11 @@ export function LensAlertsPage() {
             <Card.Body>
               {availableWebhooks.length === 0 ? (
                 <Alert intent="warning" title="Register a webhook first">
-                  Alerts are delivered to a registered webhook. Add one under Settings › Webhooks, then create a rule here.
+                  Alerts are delivered to a registered webhook. Add one under{' '}
+                  <Link to="/settings/webhooks" className="font-medium text-primary underline underline-offset-2">
+                    Settings › Webhooks →
+                  </Link>
+                  , then create a rule here.
                 </Alert>
               ) : (
                 <form

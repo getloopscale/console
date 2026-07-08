@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 
 import { Badge, Button, Card, EmptyState, StatusDot, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
@@ -42,18 +43,28 @@ export function errorMessage(err: unknown): string {
   }
 }
 
-/** Render an assistant answer: markdown text segments + inline span-citation badges (never raw HTML). */
-function AnswerBody({ content, entityMap }: { content: string; entityMap: Map<string, string> }) {
+/** Render an assistant answer: markdown text segments + inline span-citation badges (never raw HTML).
+ *  M80 — a span citation is a Link to its span in the trace peek: `?trace=` opens the peek (M76) and
+ *  `?spanId=` selects + scrolls to the cited span (a stale id falls back to the root — never crashes).
+ *  `resolveCitations` only emits a citation for a span present in the trace, so the link never dangles. */
+function AnswerBody({ content, entityMap, traceId }: { content: string; entityMap: Map<string, string>; traceId: string }) {
   const segments = resolveCitations(content, entityMap);
   return (
     <div className="text-sm">
       {segments.map((seg, i) =>
         seg.kind === 'text' ? (
-          <Markdown key={i} source={seg.text} />
+          <Markdown key={`t-${i}`} source={seg.text} />
         ) : (
-          <Badge key={i} variant="outline" className="mx-0.5 align-baseline" data-testid="span-citation">
-            {seg.name}
-          </Badge>
+          <Link
+            key={`s-${seg.spanId}-${i}`}
+            to={`/observability/traces?trace=${encodeURIComponent(traceId)}&spanId=${encodeURIComponent(seg.spanId)}`}
+            aria-label={`Open span ${seg.name} in the trace`}
+            className="mx-0.5 align-baseline"
+          >
+            <Badge variant="outline" className="cursor-pointer hover:bg-muted" data-testid="span-citation">
+              {seg.name}
+            </Badge>
+          </Link>
         ),
       )}
     </div>
@@ -154,7 +165,7 @@ export function AskThread({
                 // M72 — the thumbs feedback was decorative (local-state only, never persisted). Rather
                 // than ship theatre, the control is removed until a feedback endpoint exists
                 // (filed as usetheodev/theo-cloud#181).
-                <AnswerBody content={turn.content} entityMap={entityMap} />
+                <AnswerBody content={turn.content} entityMap={entityMap} traceId={traceId} />
               ) : (
                 <p className="text-sm whitespace-pre-wrap">{turn.content}</p>
               )}
