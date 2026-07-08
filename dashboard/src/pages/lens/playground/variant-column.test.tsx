@@ -80,6 +80,23 @@ describe('M62 VariantColumn', () => {
     expect(within(card).getByText('$0.0009')).toBeInTheDocument(); // formatCost — real cost
   });
 
+  it('M72 — a failed save-as-dataset surfaces a write-error Alert (not silent)', async () => {
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === '/v1/dashboard/lens/datasets' && (!init || init.method === undefined))
+        return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden' }] });
+      if (/\/datasets\/ds_1\/items$/.test(url) && init?.method === 'POST')
+        return Promise.reject(Object.assign(new Error('boom'), { status: 403 }));
+      // the replay POST (…/replay) succeeds so the save control appears
+      return Promise.resolve({ output: 'variant answer', promptTokens: 1, completionTokens: 1, totalTokens: 2, latencyMs: 10, model: 'm' });
+    });
+    render(<Harness initial={newVariant([{ role: 'user', content: 'hi' }], 'm')} />);
+    await userEvent.click(screen.getByRole('button', { name: /^run$/i }));
+    await screen.findByText('variant answer');
+    await userEvent.click(screen.getByRole('button', { name: /save as dataset item/i }));
+    expect(await screen.findByTestId('variant-save-error')).toBeInTheDocument();
+    expect(screen.getByText(/could not save to the dataset/i)).toBeInTheDocument();
+  });
+
   it('test_variant_cost_renders_em_dash_when_absent (never $0)', async () => {
     mockCloudFetch.mockResolvedValue({ output: 'a', promptTokens: 1, completionTokens: 1, totalTokens: 2, latencyMs: 10, model: 'm' });
     render(<Harness initial={newVariant([{ role: 'user', content: 'hi' }])} />);

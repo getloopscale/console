@@ -8,7 +8,8 @@ import { cloudFetch } from '@/lib/api';
 import { LensPlayground } from '../playground';
 import { Attributes } from './attributes';
 import { IoCards } from './io-cards';
-import { formatDuration, formatTokens } from '@/lib/format';
+import { formatCost, formatDate, formatDuration, formatTokens } from '@/lib/format';
+import { aggregateCost } from '@/lib/trace-layout';
 import { isSpanError } from '@/lib/span-status';
 import { computeBarLayout, durationMs, type FlatNode, type TraceSpanNode } from './helpers';
 
@@ -340,6 +341,13 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
             <dd className="font-medium">{formatDuration(dur)}</dd>
           </div>
         ) : null}
+        {/* M72 — SpanDetail was missing a Cost stat; show it for any span that carries a cost. */}
+        {aggregateCost(span) > 0 ? (
+          <div>
+            <dt className="text-muted-foreground">Cost</dt>
+            <dd className="font-medium" data-testid="span-detail-cost">{formatCost(aggregateCost(span))}</dd>
+          </div>
+        ) : null}
       </dl>
 
       <section className="space-y-1">
@@ -364,12 +372,31 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
       {events.length > 0 ? (
         <section className="space-y-1">
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">Events</h3>
-          <ul className="space-y-1 text-xs">
-            {events.map((e, i) => (
-              <li key={`${e.name}-${i}`} className="font-mono">
-                {e.name}
-              </li>
-            ))}
+          <ul className="space-y-2 text-xs">
+            {events.map((e, i) => {
+              // M72 — an event now shows its time + its attributes (an exception event's stacktrace is
+              // in `attributes` — previously invisible). ns → ISO for formatDate.
+              const iso = e.timeUnixNano ? new Date(Number(BigInt(e.timeUnixNano) / 1_000_000n)).toISOString() : undefined;
+              const attrs = Object.entries(e.attributes ?? {});
+              return (
+                <li key={`${e.name}-${i}`} className="space-y-0.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono font-medium">{e.name}</span>
+                    {iso ? <span className="text-muted-foreground">{formatDate(iso, 'datetime')}</span> : null}
+                  </div>
+                  {attrs.length > 0 ? (
+                    <dl className="ml-2 space-y-0.5">
+                      {attrs.map(([k, v]) => (
+                        <div key={k} className="flex gap-2">
+                          <dt className="shrink-0 text-muted-foreground">{k}</dt>
+                          <dd className="whitespace-pre-wrap break-all font-mono">{String(v)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}
