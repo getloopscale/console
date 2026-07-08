@@ -82,6 +82,33 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     );
   });
 
+  it('M82 — rename an evaluator inline via PUT {name}', async () => {
+    mockCloudFetch.mockResolvedValue({ evaluators: [{ id: 'ev_1', name: 'r', kind: 'rule' }] });
+    render(<LensEvaluatorsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /rename evaluator r/i }));
+    const input = await screen.findByRole('textbox', { name: /rename evaluator r/i });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'renamed{Enter}');
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/lens/evaluators/ev_1',
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ name: 'renamed' }) }),
+      expect.anything(),
+    );
+  });
+
+  it('M82 — a rename to a duplicate name (409) shows a name-conflict message', async () => {
+    mockCloudFetch.mockImplementation((_url: string, opts?: { method?: string }) => {
+      if (opts?.method === 'PUT') return Promise.reject(Object.assign(new Error('conflict'), { status: 409 }));
+      return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'r', kind: 'rule' }] });
+    });
+    render(<LensEvaluatorsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /rename evaluator r/i }));
+    const input = await screen.findByRole('textbox', { name: /rename evaluator r/i });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'taken{Enter}');
+    expect(await screen.findByText(/already (exists|in use|taken)|name.*already/i)).toBeInTheDocument();
+  });
+
   // M75 (audit E-3) — the delete button announces the human name, not the raw id.
   it('M75 — the delete button aria-label uses the evaluator name, not the raw id', async () => {
     mockCloudFetch.mockResolvedValue({ evaluators: [{ id: 'e92e0cf9-1234', name: 'Answer relevance', kind: 'rule' }] });

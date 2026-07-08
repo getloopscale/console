@@ -25,6 +25,22 @@ interface EvaluatorsResult {
   evaluators: Evaluator[];
 }
 
+/** Map a write error's HTTP status to a typed, actionable message (M82 — a 409 name-conflict must
+ *  read as "already in use", NEVER a generic failure). */
+function writeErrorMessage(err: unknown): string {
+  const status = (err as { status?: number } | null)?.status ?? 0;
+  switch (status) {
+    case 409:
+      return 'An evaluator with that name already exists in this workspace.';
+    case 403:
+      return 'You do not have permission to manage evaluators in this workspace.';
+    case 404:
+      return 'That evaluator is not available (it may belong to another workspace).';
+    default:
+      return 'Try again shortly.';
+  }
+}
+
 export function LensEvaluatorsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Evaluators'), [setPageTitle]);
@@ -40,6 +56,8 @@ export function LensEvaluatorsPage() {
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Evaluator | null>(null);
+  // M82 — which evaluator is being renamed inline (+ its draft value).
+  const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
 
   // The active kind's required fields, and the request body the theo-lens union expects.
   const canCreate =
@@ -90,8 +108,55 @@ export function LensEvaluatorsPage() {
     },
   });
 
+  // M82 — rename an evaluator (PUT {name}, a bare rename in the theo-lens partial-update union).
+  // throwOnError so a 409 rejects and surfaces the typed Alert.
+  const rename = useMutation({
+    mutationFn: (r: { id: string; name: string }) =>
+      cloudFetch<Evaluator>(
+        `/v1/dashboard/lens/evaluators/${encodeURIComponent(r.id)}`,
+        { method: 'PUT', body: JSON.stringify({ name: r.name }) },
+        { throwOnError: true },
+      ),
+    retry: false,
+    onSuccess: () => {
+      setRenaming(null);
+      invalidate();
+    },
+  });
+
+  const commitRename = () => {
+    if (!renaming) return;
+    const row = (query.data?.evaluators ?? []).find((e) => e.id === renaming.id);
+    const name = renaming.value.trim();
+    if (!row || name.length === 0 || name === row.name) {
+      setRenaming(null);
+      return;
+    }
+    rename.mutate({ id: row.id, name });
+  };
+
   const columns: DataTableColumn<Evaluator>[] = [
-    { key: 'name', label: 'Name', render: (row) => <span>{row.name}</span> },
+    {
+      key: 'name',
+      label: 'Name',
+      render: (row) =>
+        renaming?.id === row.id ? (
+          <Input
+            autoFocus
+            aria-label={`Rename evaluator ${row.name}`}
+            value={renaming.value}
+            onChange={(e) => setRenaming({ id: row.id, value: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitRename();
+              if (e.key === 'Escape') setRenaming(null);
+            }}
+            onBlur={commitRename}
+            className="max-w-[220px]"
+          />
+        ) : (
+          <span>{row.name}</span>
+        ),
+    },
     { key: 'kind', label: 'Kind', render: (row) => <span>{row.kind ?? '—'}</span> },
     {
       key: 'actions',
@@ -102,7 +167,19 @@ export function LensEvaluatorsPage() {
           <Button variant="ghost" size="sm" onClick={() => run.mutate(row.id)} aria-label={`Run ${row.name}`}>
             <Play className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete evaluator ${row.name}`}>
+          <Button variant="ghost" size="sm" aria-label={`Rename evaluator ${row.name}`} onClick={() => setRenaming({ id: row.id, value: row.name })}>
+            Rename
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Delete evaluator ${row.name}`}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setRenaming(null);
+              setPendingDelete(row);
+            }}
+          >
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
@@ -207,6 +284,10 @@ export function LensEvaluatorsPage() {
               <DataTable columns={columns} data={evaluators} rowKey={(row) => row.id} />
             </Card>
           )}
+
+          {rename.isError ? (
+            <Alert intent="warning" title="Could not rename the evaluator" description={writeErrorMessage(rename.error)} data-testid="rename-error" />
+          ) : null}
         </div>
       </PageShell>
 

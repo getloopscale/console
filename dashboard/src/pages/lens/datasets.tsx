@@ -38,6 +38,22 @@ interface DatasetDetail {
   items: DatasetItem[];
 }
 
+/** Map a write error's HTTP status to a typed, actionable message (M82 — a 409 name-conflict must
+ *  read as "already in use", NEVER a generic failure). */
+function writeErrorMessage(err: unknown): string {
+  const status = (err as { status?: number } | null)?.status ?? 0;
+  switch (status) {
+    case 409:
+      return 'A dataset with that name already exists in this workspace.';
+    case 403:
+      return 'You do not have permission to manage datasets in this workspace.';
+    case 404:
+      return 'That dataset is not available (it may belong to another workspace).';
+    default:
+      return 'Try again shortly.';
+  }
+}
+
 export function LensDatasetsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Datasets'), [setPageTitle]);
@@ -51,6 +67,9 @@ export function LensDatasetsPage() {
   const [peekTrace, setPeekTrace] = useState<string | null>(null); // dataset item → source-span peek (M70)
   const nameInputRef = useRef<HTMLInputElement>(null); // M73 — empty-state CTA focuses the create input
   const [pendingRemove, setPendingRemove] = useState<{ datasetID: string; traceId: string } | null>(null);
+  // M82 list-management state: which dataset is being renamed inline (+ its draft), and a pending delete.
+  const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Dataset | null>(null);
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/datasets'] as const,
@@ -94,15 +113,66 @@ export function LensDatasetsPage() {
     },
   });
 
+  // M82 — rename a dataset (PUT {name}). throwOnError so a 409 rejects and surfaces the typed Alert.
+  const rename = useMutation({
+    mutationFn: (r: { id: string; name: string }) =>
+      cloudFetch<Dataset>(
+        `/v1/dashboard/lens/datasets/${encodeURIComponent(r.id)}`,
+        { method: 'PUT', body: JSON.stringify({ name: r.name }) },
+        { throwOnError: true },
+      ),
+    retry: false,
+    onSuccess: () => {
+      setRenaming(null);
+      invalidate();
+    },
+  });
+
+  // M82 — delete a dataset (cascades runs+items in theo-lens).
+  const remove = useMutation({
+    mutationFn: (id: string) =>
+      cloudFetch<void>(`/v1/dashboard/lens/datasets/${encodeURIComponent(id)}`, { method: 'DELETE' }, { throwOnError: true }),
+    retry: false,
+    onSuccess: () => {
+      setPendingDelete(null);
+      invalidate();
+    },
+  });
+
+  const commitRename = () => {
+    if (!renaming) return;
+    const row = (query.data?.datasets ?? []).find((d) => d.id === renaming.id);
+    const name = renaming.value.trim();
+    if (!row || name.length === 0 || name === row.name) {
+      setRenaming(null);
+      return;
+    }
+    rename.mutate({ id: row.id, name });
+  };
+
   const columns: DataTableColumn<Dataset>[] = [
     {
       key: 'name',
       label: 'Name',
-      render: (row) => (
-        <Button variant="ghost" size="sm" onClick={() => setOpenID(row.id)} aria-label={`Open ${row.name}`}>
-          {row.name}
-        </Button>
-      ),
+      render: (row) =>
+        renaming?.id === row.id ? (
+          <Input
+            autoFocus
+            aria-label={`Rename dataset ${row.name}`}
+            value={renaming.value}
+            onChange={(e) => setRenaming({ id: row.id, value: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitRename();
+              if (e.key === 'Escape') setRenaming(null);
+            }}
+            onBlur={commitRename}
+            className="max-w-[220px]"
+          />
+        ) : (
+          <Button variant="ghost" size="sm" onClick={() => setOpenID(row.id)} aria-label={`Open ${row.name}`}>
+            {row.name}
+          </Button>
+        ),
     },
     // An absent count is unknown → em-dash; a real 0 stays 0 (an empty-but-loaded dataset).
     { key: 'itemCount', label: 'Items', render: (row) => <span>{row.itemCount != null ? row.itemCount : '—'}</span> },
@@ -112,15 +182,33 @@ export function LensDatasetsPage() {
       render: (row) => (row.createdAt ? <Timestamp value={row.createdAt} /> : <span>—</span>),
     },
     {
-      key: 'run',
+      key: 'actions',
       label: '',
       align: 'right',
-      // Wire the eval loop: a dataset jumps straight to the Experiments run form seeded with this
-      // dataset (the `?datasetId=` seam the Experiments page reads).
+      // Wire the eval loop (Run experiment) + M82 list management (Rename / Delete).
       render: (row) => (
-        <Button asChild variant="ghost" size="sm">
-          <Link to={`/observability/experiments?datasetId=${encodeURIComponent(row.id)}`}>Run experiment</Link>
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button asChild variant="ghost" size="sm">
+            <Link to={`/observability/experiments?datasetId=${encodeURIComponent(row.id)}`}>Run experiment</Link>
+          </Button>
+          <Button variant="ghost" size="sm" aria-label={`Rename ${row.name}`} onClick={() => setRenaming({ id: row.id, value: row.name })}>
+            Rename
+          </Button>
+          {/* preventDefault on mousedown keeps focus in the rename Input (no blur-commit); the
+              onClick then cancels any in-progress rename and opens the delete dialog. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Delete dataset ${row.name}`}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setRenaming(null);
+              setPendingDelete(row);
+            }}
+          >
+            Delete
+          </Button>
+        </div>
       ),
     },
   ];
@@ -216,6 +304,13 @@ export function LensDatasetsPage() {
             </Card>
           )}
 
+          {rename.isError ? (
+            <Alert intent="warning" title="Could not rename the dataset" description={writeErrorMessage(rename.error)} data-testid="rename-error" />
+          ) : null}
+          {remove.isError ? (
+            <Alert intent="warning" title="Could not delete the dataset" description={writeErrorMessage(remove.error)} data-testid="delete-error" />
+          ) : null}
+
           {openID !== null ? (
             <Card>
               <Card.Header>
@@ -255,6 +350,20 @@ export function LensDatasetsPage() {
           intent="destructive"
           loading={removeItem.isPending}
           onConfirm={() => removeItem.mutate(pendingRemove)}
+        />
+      ) : null}
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          open={pendingDelete !== null}
+          onOpenChange={(o) => !o && setPendingDelete(null)}
+          title={`Delete “${pendingDelete.name}”?`}
+          description={<p className="text-sm">This permanently deletes the dataset, its items, and any experiment runs on it. This cannot be undone.</p>}
+          confirmLabel={remove.isPending ? 'Deleting…' : 'Delete dataset'}
+          cancelLabel="Cancel"
+          intent="destructive"
+          loading={remove.isPending}
+          onConfirm={() => remove.mutate(pendingDelete.id)}
         />
       ) : null}
 
