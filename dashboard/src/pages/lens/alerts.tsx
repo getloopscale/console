@@ -272,8 +272,8 @@ export function LensAlertsPage() {
               {availableWebhooks.length === 0 ? (
                 <Alert intent="warning" title="Register a webhook first">
                   Alerts are delivered to a registered webhook. Add one under{' '}
-                  <Link to="/settings/webhooks" className="font-medium text-primary underline underline-offset-2">
-                    Settings › Webhooks →
+                  <Link to="/observability/webhooks" className="font-medium text-primary underline underline-offset-2">
+                    Observability › Webhooks →
                   </Link>
                   , then create a rule here.
                 </Alert>
