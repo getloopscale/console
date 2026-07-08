@@ -280,3 +280,36 @@ func TestLensAlertRules_History_Unauthenticated_401(t *testing.T) {
 		t.Fatalf("code = %d, want 401", w.Code)
 	}
 }
+
+// M84 — the page params clamp: limit ∈ [1,100] default 20, offset ≥ 0. Out-of-range values fall back
+// to the defaults (a negative-case sweep — testing.md §4.1).
+func TestLensAlertRules_History_ClampsPageParams(t *testing.T) {
+	id := "lar-0011223344556677"
+	cases := []struct{ qs string; wantLimit, wantOffset int }{
+		{"?limit=0", 20, 0},      // 0 → default
+		{"?limit=101", 20, 0},    // over cap → default
+		{"?limit=-1", 20, 0},     // negative → default
+		{"?limit=50&offset=10", 50, 10}, // valid pass-through
+		{"?offset=-5", 20, 0},    // negative offset → default 0
+	}
+	for _, c := range cases {
+		dbConn, mock, _ := sqlmock.New()
+		mock.ExpectQuery("SELECT 1 FROM lens_alert_rules").WithArgs(id, "sub-1", "tn-1").
+			WillReturnRows(sqlmock.NewRows([]string{"?column?"}).AddRow(1))
+		mock.ExpectQuery("SELECT count\\(\\*\\) FROM lens_fired_alerts").WithArgs(id, "tn-1").
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+		mock.ExpectQuery("SELECT id, metric, comparator, threshold, value, fired_at").
+			WithArgs(id, "tn-1", c.wantLimit, c.wantOffset).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "metric", "comparator", "threshold", "value", "fired_at"}))
+		h := NewLensAlertRulesHandler(dbConn, nil)
+		w := httptest.NewRecorder()
+		h.History(w, histReq(id, "/v1/dashboard/lens/alert-rules/"+id+"/history"+c.qs, "tn-1"))
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: code = %d, want 200", c.qs, w.Code)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("%s: bound args mismatch (clamp wrong): %v", c.qs, err)
+		}
+		_ = dbConn.Close()
+	}
+}

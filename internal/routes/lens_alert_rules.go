@@ -93,8 +93,8 @@ const firedAlertsPageDefault = 20
 
 // History serves GET /v1/dashboard/lens/alert-rules/{id}/history?limit&offset — the paginated firing
 // history for one rule (M84). Owner-scoped by (subject via the rule's ownership, tenant_id); a rule
-// that is not the caller's (cross-tenant / non-existent) yields an empty history + total 0 (never a
-// leak). Newest firing first.
+// that is not the caller's (cross-tenant / non-existent) yields 404 (never a leak of another tenant's
+// firings). Newest firing first.
 func (h *LensAlertRulesHandler) History(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -151,6 +151,13 @@ func (h *LensAlertRulesHandler) History(w http.ResponseWriter, r *http.Request) 
 			continue
 		}
 		out = append(out, v)
+	}
+	// A mid-stream driver error must FAIL, not silently return a truncated page as 200 while `total`
+	// reports the full count (a data-honesty gap — review LOW).
+	if err := rows.Err(); err != nil {
+		h.logger.Warn("lens alert history: rows iteration failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "INTERNAL", "Could not load history. Try again.")
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"firings": out, "total": total, "limit": limit, "offset": offset})
 }
