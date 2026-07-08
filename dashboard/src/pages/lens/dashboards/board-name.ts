@@ -5,10 +5,11 @@
  * Soft-uniqueness only: the user may still rename a board to any value, including a duplicate.
  */
 export function nextBoardName(existing: string[], base = 'Tracing Overview'): string {
+  const root = base.trim();
   const taken = new Set(existing.map((n) => n.trim()));
-  if (!taken.has(base)) return base;
+  if (!taken.has(root)) return root;
   for (let n = 2; ; n += 1) {
-    const candidate = `${base} ${n}`;
+    const candidate = `${root} ${n}`;
     if (!taken.has(candidate)) return candidate;
   }
 }

@@ -143,7 +143,20 @@ describe('M66 LensDashboardsPage', () => {
     expect(put).toBeTruthy();
     const body = JSON.parse((put![1] as { body: string }).body);
     expect(body.name).toBe('Cost watch');
-    expect(body.config).toHaveLength(BOARD.config.length); // widgets preserved, not blanked
+    expect(body.config).toEqual(BOARD.config); // widgets preserved verbatim, not blanked or mangled
+  });
+
+  it('M75 — Escape cancels a rename without issuing a PUT', async () => {
+    withRoutes({ boards: [BOARD] });
+    render(<LensDashboardsPage />, { initialEntries: ['/observability/dashboards'] });
+    await userEvent.click(await screen.findByRole('button', { name: /rename .*Tracing Overview/i }));
+    const input = await screen.findByRole('textbox', { name: /rename dashboard/i });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Discarded name{Escape}');
+    const put = mockCloudFetch.mock.calls.find(
+      (c) => /\/dashboards\/[^/?]+$/.test(String(c[0])) && (c[1] as { method?: string })?.method === 'PUT',
+    );
+    expect(put).toBeFalsy(); // Escape discards — no rename persisted
   });
 
   it('M75 — the list shows a Created column (timestamp or em-dash)', async () => {

@@ -299,7 +299,20 @@ export function LensDashboardsPage() {
                   render: (b) => (
                     <div className="flex items-center justify-end gap-1">
                       <Button variant="ghost" size="sm" aria-label={`Rename ${b.name}`} onClick={() => setRenaming({ id: b.id, value: b.name })}>Rename</Button>
-                      <Button variant="ghost" size="sm" aria-label={`Delete ${b.name}`} onClick={() => setPendingDelete(b)}>Delete</Button>
+                      {/* preventDefault on mousedown keeps focus in the rename Input (no blur-commit);
+                          the onClick then cancels any in-progress rename and opens the delete dialog. */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Delete ${b.name}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setRenaming(null);
+                          setPendingDelete(b);
+                        }}
+                      >
+                        Delete
+                      </Button>
                     </div>
                   ),
                 },
