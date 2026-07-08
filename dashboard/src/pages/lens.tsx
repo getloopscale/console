@@ -208,8 +208,8 @@ export function LensOverviewPage() {
               Instrument an agent with the SDK and send OTLP spans to see executions here, then curate
               datasets, score them with evaluators, and gate on guards.
             </p>
-            <Button variant="ghost" onClick={() => (window.location.href = '/observability/traces')}>
-              Browse traces →
+            <Button asChild variant="ghost">
+              <Link to="/observability/traces">Browse traces →</Link>
             </Button>
           </Card.Body>
         </Card>

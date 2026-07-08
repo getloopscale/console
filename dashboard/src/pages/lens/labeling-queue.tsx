@@ -79,6 +79,13 @@ export function LensLabelingQueuePage() {
   const firstShown = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const lastShown = Math.min(page * pageSize, total);
 
+  // If resolving/exporting shrinks the queue below the current page, step back so the user never
+  // lands on an empty out-of-range page. Guarded on settled data (`!isFetching` + data present) so a
+  // mid-navigation empty `data` doesn't transiently collapse pageCount to 1 and bounce the page back.
+  useEffect(() => {
+    if (query.data && !query.isFetching && page > pageCount) setPage(pageCount);
+  }, [page, pageCount, query.data, query.isFetching]);
+
   const openResolve = (item: QueueItem) => {
     setActive(item);
     setLabel(item.label ?? '');
@@ -184,16 +191,12 @@ export function LensLabelingQueuePage() {
       {/* Result count + pager — page 2+ is now reachable (was a dead-end). */}
       {total > 0 ? (
         <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
-          <span data-testid="queue-count">
-            Showing {firstShown}–{lastShown} of {total}
-          </span>
+          <span data-testid="queue-count">{`Showing ${firstShown}–${lastShown} of ${total}`}</span>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
               Previous
             </Button>
-            <span className="tabular-nums">
-              Page {page} / {pageCount}
-            </span>
+            <span className="tabular-nums">{`Page ${page} / ${pageCount}`}</span>
             <Button variant="ghost" size="sm" disabled={page >= pageCount || query.isFetching} onClick={() => setPage((p) => p + 1)}>
               Next
             </Button>

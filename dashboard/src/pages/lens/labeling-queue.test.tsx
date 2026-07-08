@@ -57,9 +57,10 @@ describe('M63 LensLabelingQueuePage', () => {
     render(<LensLabelingQueuePage />);
     expect(await screen.findByText(/showing 1–2 of 3/i)).toBeInTheDocument(); // count disclosed
     await userEvent.click(screen.getByRole('button', { name: /next/i }));
-    // page 2 was fetched (was previously unreachable)
+    // page 2 was fetched (was previously unreachable) and its distinct item renders
+    expect(await screen.findByText('sp-2')).toBeInTheDocument();
     expect(mockCloudFetch.mock.calls.some((c) => String(c[0]).includes('page=2'))).toBe(true);
-    expect(await screen.findByText(/page 2 \/ 2/i)).toBeInTheDocument();
+    expect(screen.getByTestId('queue-count').textContent).toMatch(/of 3/);
   });
 
   it('test_empty_state_when_no_items', async () => {
