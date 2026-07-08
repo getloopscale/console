@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { Button, Card, ConfirmDialog, CopyButton, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Select } from '@usetheo/ui';
@@ -51,6 +51,7 @@ export function LensGuardsPage() {
   const queryClient = useQueryClient();
 
   const [evaluatorId, setEvaluatorId] = useState('');
+  const evaluatorTriggerRef = useRef<HTMLButtonElement>(null); // M73 — empty-state CTA focuses the create form
   const [operator, setOperator] = useState<string>('gte');
   const [threshold, setThreshold] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Guard | null>(null);
@@ -155,7 +156,7 @@ export function LensGuardsPage() {
                 <div className="min-w-[200px] flex-1">
                   <Label htmlFor="guard-evaluator">Evaluator</Label>
                   <Select value={evaluatorId} onValueChange={setEvaluatorId}>
-                    <Select.Trigger id="guard-evaluator" className="w-full" aria-label="Evaluator">
+                    <Select.Trigger ref={evaluatorTriggerRef} id="guard-evaluator" className="w-full" aria-label="Evaluator">
                       <Select.Value placeholder={evaluators.length === 0 ? 'No evaluators — create one first' : 'Choose an evaluator'} />
                     </Select.Trigger>
                     <Select.Content>
@@ -215,7 +216,15 @@ export function LensGuardsPage() {
               The lens service is unavailable. Try again shortly.
             </Alert>
           ) : guards.length === 0 ? (
-            <EmptyState title="No guards yet" description="Create your first guard to gate traces on a threshold." />
+            <EmptyState
+              title="No guards yet"
+              description="Create your first guard to gate traces on a threshold."
+              action={
+                <Button variant="secondary" size="sm" onClick={() => evaluatorTriggerRef.current?.focus()}>
+                  Create your first guard
+                </Button>
+              }
+            />
           ) : (
             <Card>
               <DataTable columns={columns} data={guards} rowKey={(row) => row.id} />

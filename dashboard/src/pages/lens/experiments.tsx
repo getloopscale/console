@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, Input, PageShell } from '@usetheo/ui';
+import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, Input, PageShell, Select } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -122,6 +122,15 @@ export function LensExperimentsPage() {
   const [picked, setPicked] = useState<string[]>([]);
   const togglePick = (id: string) =>
     setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length < 2 ? [...cur, id] : cur));
+
+  // M73 — the datasets a run can be started from, so the bare Experiments page is self-serve (not a
+  // dead-end that only works via `?datasetId=` from Traces). Reuses the existing datasets read (Rule 9).
+  const datasetsQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/lens/datasets'] as const,
+    queryFn: () => cloudFetch<{ datasets: { id: string; name: string }[] }>('/v1/dashboard/lens/datasets'),
+    enabled: datasetId === '' && compareIds.length < 2,
+  });
+  const datasets = datasetsQuery.data?.datasets ?? [];
 
   // Runs list (or dataset-filtered when arriving from "create regression dataset").
   const runsQuery = useQuery({
@@ -248,6 +257,27 @@ export function LensExperimentsPage() {
   const runs = runsQuery.data?.runs ?? [];
   return (
     <PageShell title="Experiments" description="Run a regression dataset against a variant and compare runs.">
+      {/* M73 — self-serve: pick a dataset to start a run right here (no need to arrive via Traces).
+          Selecting one sets `?datasetId=` → the run form below appears (D1 — one URL-driven path). */}
+      {!datasetId && datasets.length > 0 ? (
+        <Card className="mb-4">
+          <Card.Body className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase text-muted-foreground">Start a run</span>
+            <Select value="" onValueChange={(id) => setParams({ datasetId: id })}>
+              <Select.Trigger className="w-[240px]" aria-label="Dataset to run">
+                <Select.Value placeholder="Choose a dataset…" />
+              </Select.Trigger>
+              <Select.Content>
+                {datasets.map((d) => (
+                  <Select.Item key={d.id} value={d.id}>
+                    {d.name}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </Card.Body>
+        </Card>
+      ) : null}
       {datasetId ? (
         <Card className="mb-4">
           <Card.Body className="space-y-2">

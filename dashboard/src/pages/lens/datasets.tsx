@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useQueryState, parseAsString } from 'nuqs';
@@ -49,6 +49,7 @@ export function LensDatasetsPage() {
   // (the useQueryState/nuqs pattern the Traces page uses). `null` clears the param.
   const [openID, setOpenID] = useQueryState('dataset', parseAsString);
   const [peekTrace, setPeekTrace] = useState<string | null>(null); // dataset item → source-span peek (M70)
+  const nameInputRef = useRef<HTMLInputElement>(null); // M73 — empty-state CTA focuses the create input
   const [pendingRemove, setPendingRemove] = useState<{ datasetID: string; traceId: string } | null>(null);
 
   const query = useQuery({
@@ -174,6 +175,7 @@ export function LensDatasetsPage() {
                 <div className="flex-1">
                   <Label htmlFor="dataset-name">Dataset name</Label>
                   <Input
+                    ref={nameInputRef}
                     id="dataset-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -199,7 +201,15 @@ export function LensDatasetsPage() {
               The lens service is unavailable. Try again shortly.
             </Alert>
           ) : datasets.length === 0 ? (
-            <EmptyState title="No datasets yet" description="Create your first dataset to start curating traces." />
+            <EmptyState
+              title="No datasets yet"
+              description="Create your first dataset to start curating traces."
+              action={
+                <Button variant="secondary" size="sm" onClick={() => nameInputRef.current?.focus()}>
+                  Name your first dataset
+                </Button>
+              }
+            />
           ) : (
             <Card>
               <DataTable columns={columns} data={datasets} rowKey={(row) => row.id} />

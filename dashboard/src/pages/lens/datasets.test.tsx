@@ -37,6 +37,14 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(await screen.findByText(/no datasets yet/i)).toBeInTheDocument();
   });
 
+  it('M73 — the empty state has a CTA that focuses the create input (one clear action)', async () => {
+    mockCloudFetch.mockResolvedValue({ datasets: [] });
+    render(<LensDatasetsPage />);
+    await screen.findByText(/no datasets yet/i);
+    await userEvent.click(screen.getByRole('button', { name: /name your first dataset/i }));
+    expect(screen.getByLabelText(/dataset name/i)).toHaveFocus();
+  });
+
   it('a failed items-detail load shows an Alert, NOT "No items" (#error-as-empty)', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 3 }] });

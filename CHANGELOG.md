@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **Dashboard: every observability sidebar entry is self-serve — no more dead-ends (theo-lens M73).** The **Experiments** landing (entered without `?datasetId=`) now offers a **dataset `<Select>`** (fed by the existing `GET /datasets`) that seeds a run right there — a run is no longer only startable via `experiments?datasetId=` from Traces (zero datasets keeps the honest "create a regression dataset" text, no fabricated picker). The **Ask** empty state gains a **"Browse traces →"** CTA, and the **Datasets** + **Guards** "create your first X" empty states gain a CTA that focuses their create input — so the three divergent empty-state patterns collapse to one convention (every empty state has exactly one clear next action). Reuses `@usetheo/ui` `Select`/`EmptyState` + existing reads (no new dependency, no BFF change). RED-first tests pin each actionable control (the picker seeds `?datasetId=`, the CTA links to traces, the focus-CTAs focus the create input).
 
 ### Changed
 
