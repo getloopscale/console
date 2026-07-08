@@ -1,4 +1,3 @@
-import {  } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import type { TraceSpanNode } from '@/lib/trace-layout';
