@@ -98,7 +98,8 @@ export function LensAlertsPage() {
 
   const create = useMutation({
     mutationFn: (input: Record<string, unknown>) =>
-      cloudFetch<AlertRule>('/v1/dashboard/lens/alert-rules', { method: 'POST', body: JSON.stringify(input) }),
+      cloudFetch<AlertRule>('/v1/dashboard/lens/alert-rules', { method: 'POST', body: JSON.stringify(input) }, { throwOnError: true }),
+    retry: false,
     onSuccess: () => {
       setName('');
       setThreshold('');
@@ -108,7 +109,8 @@ export function LensAlertsPage() {
   });
   const remove = useMutation({
     mutationFn: (id: string) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+      cloudFetch<unknown>(`/v1/dashboard/lens/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' }, { throwOnError: true }),
+    retry: false,
     onSuccess: () => {
       setPendingDelete(null);
       invalidate();
@@ -116,12 +118,17 @@ export function LensAlertsPage() {
   });
   const toggle = useMutation({
     mutationFn: (r: AlertRule) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/alert-rules/${encodeURIComponent(r.id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ enabled: !r.enabled }),
-      }),
+      cloudFetch<unknown>(
+        `/v1/dashboard/lens/alert-rules/${encodeURIComponent(r.id)}`,
+        { method: 'PATCH', body: JSON.stringify({ enabled: !r.enabled }) },
+        { throwOnError: true },
+      ),
+    retry: false,
     onSuccess: invalidate,
   });
+
+  // M72 — a write-action must not fail silently. Surface the first failing mutation's error.
+  const writeError = create.isError ? 'create' : toggle.isError ? 'toggle' : remove.isError ? 'delete' : null;
 
   const availableWebhooks = webhooks.data?.webhooks ?? [];
   const canCreate = name.trim() !== '' && threshold.trim() !== '' && webhookId !== '' && !create.isPending;
@@ -179,6 +186,14 @@ export function LensAlertsPage() {
     <>
       <PageShell title="Alerts" description="Get notified when a metric crosses a threshold.">
         <div className="space-y-6">
+          {writeError ? (
+            <Alert
+              intent="destructive"
+              title={`Could not ${writeError} the alert rule`}
+              description="The change was not saved — try again, or check your access to this workspace."
+              data-testid="alerts-write-error"
+            />
+          ) : null}
           <Card>
             <Card.Header>
               <h2 className="text-sm font-medium">Create an alert rule</h2>

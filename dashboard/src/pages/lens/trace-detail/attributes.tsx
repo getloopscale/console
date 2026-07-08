@@ -154,17 +154,24 @@ function MaskedValue({ value, canReveal }: { value: string; canReveal: boolean }
       <span className="font-mono text-muted-foreground" aria-label="Masked value">
         •••
       </span>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled={!canReveal}
-        aria-label="Reveal masked value"
-        title={canReveal ? 'Reveal' : 'You do not have permission to reveal this value'}
-        onClick={() => setRevealed(true)}
-      >
-        Reveal
-      </Button>
+      {/* M72 — the Reveal control is shown ONLY to an authorized viewer. When `!canReveal` we render a
+          quiet "masked" hint instead of a permanently-disabled button (no inert affordance / theatre). */}
+      {canReveal ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          aria-label="Reveal masked value"
+          title="Reveal"
+          onClick={() => setRevealed(true)}
+        >
+          Reveal
+        </Button>
+      ) : (
+        <span className="text-xs text-muted-foreground" title="You do not have permission to reveal this value">
+          masked
+        </span>
+      )}
     </>
   );
 }

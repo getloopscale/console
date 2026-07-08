@@ -853,12 +853,13 @@ describe('Attributes — namespace-grouped, PII-masked panel (M58 P2.2)', () => 
     expect(screen.getByText('•••')).toBeInTheDocument();
   });
 
-  it('fail-closed: with canReveal={false} the Reveal control is disabled AND force-clicking never leaks', async () => {
+  it('M72 fail-closed: with canReveal={false} the Reveal control is HIDDEN (no inert affordance) and the value never leaks', async () => {
     const { container } = render(<Attributes attrs={attrs} canReveal={false} />);
-    const reveal = screen.getByRole('button', { name: /reveal/i });
-    expect(reveal).toBeDisabled();
-    // Force the click even though it is disabled — the raw value must still never enter the DOM.
-    fireEvent.click(reveal);
+    // The dead disabled button is gone — an unauthorized viewer sees a quiet "masked" hint, not theatre.
+    expect(screen.queryByRole('button', { name: /reveal/i })).toBeNull();
+    expect(screen.getByText(/masked/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Masked value')).toBeInTheDocument(); // the ••• placeholder
+    // the raw value is still never in the DOM
     expect(screen.queryByText(PII_EMAIL)).toBeNull();
     expect(container.innerHTML).not.toContain(PII_EMAIL);
   });

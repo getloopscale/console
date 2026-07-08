@@ -92,6 +92,22 @@ describe('LensAlertsPage (M53)', () => {
     expect(screen.getByRole('button', { name: /create rule/i })).toBeDisabled();
   });
 
+  it('M72 — a failed toggle surfaces a write-error Alert (not silent)', async () => {
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined))
+        return Promise.resolve({ alert_rules: [{ id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'h' }] });
+      if (url.startsWith(`${RULES}/`) && init?.method === 'PATCH')
+        return Promise.reject(Object.assign(new Error('boom'), { status: 403 }));
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByText('r');
+    await userEvent.click(screen.getByRole('button', { name: /toggle r/i }));
+    expect(await screen.findByTestId('alerts-write-error')).toBeInTheDocument();
+    expect(screen.getByText(/could not toggle the alert rule/i)).toBeInTheDocument();
+  });
+
   it('toggles a rule enabled (PATCH)', async () => {
     mockRoutes({ rules: [{ id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
     render(<LensAlertsPage />);
