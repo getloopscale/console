@@ -104,7 +104,7 @@ function LaneTimeline({ tree }: { tree: TraceSpanNode }) {
           bounds.startNs,
           bounds.endNs,
         );
-        const isError = !!node.statusCode && node.statusCode !== '0';
+        const isError = isErrorStatus(node.statusCode);
         return (
           <li key={node.spanId} className="flex items-center gap-2 text-xs">
             <span className="w-40 shrink-0 truncate font-mono" style={{ paddingLeft: `${depth * 8}px` }} title={node.name}>
