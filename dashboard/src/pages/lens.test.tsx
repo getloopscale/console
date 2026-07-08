@@ -47,10 +47,15 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     expect(screen.getByText('Error rate %')).toBeInTheDocument();
     expect(screen.getByText('20%')).toBeInTheDocument(); // 2/10 → the MetricCard value
     expect(screen.getByText('Latency p95 (ms)')).toBeInTheDocument();
-    for (const t of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Agents', 'Ask']) {
+    // M70 — the Explore grid is generated from the capability registry (now also incl. Dashboards,
+    // Queues, Experiments, Alerts). The cards are SPA links (not full-reload buttons).
+    for (const t of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Agents', 'Ask', 'Alerts', 'Experiments']) {
       expect(screen.getAllByText(t).length).toBeGreaterThan(0);
     }
-    expect(screen.getAllByRole('button', { name: /open →/i }).length).toBeGreaterThanOrEqual(7);
+    const openLinks = screen.getAllByRole('link', { name: /open →/i });
+    expect(openLinks.length).toBeGreaterThanOrEqual(7);
+    // the Alerts card links to the alerts route (was missing from the old grid)
+    expect(openLinks.some((l) => l.getAttribute('href') === '/observability/alerts')).toBe(true);
   });
 
   it('M60 — renders ONE shared trend chart (default throughput), swapped by a KPI-tile click', async () => {

@@ -1,19 +1,11 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { useQueryState, parseAsStringEnum } from 'nuqs';
-import {
-  BellRing,
-  Bot,
-  Database,
-  FlaskConical,
-  ListChecks,
-  Network,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-} from 'lucide-react';
+import { RefreshCw, type LucideIcon } from 'lucide-react';
 import { Button, Card, PageShell, Select, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { LENS_EXPLORE_CARDS } from '@/components/lens/lens-capabilities';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -225,14 +217,11 @@ export function LensOverviewPage() {
         <section className="space-y-3">
           <h2 className="text-base font-semibold">Explore</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <ExploreCard icon={Network} title="Traces" description="Explore executions and manage their tags & annotations." href="/observability/traces" />
-            <ExploreCard icon={ListChecks} title="Sessions" description="Replay grouped executions." href="/observability/sessions" />
-            <ExploreCard icon={Database} title="Datasets" description="Curate trace datasets for evaluation." href="/observability/datasets" />
-            <ExploreCard icon={FlaskConical} title="Evaluators" description="Score traces with rule or LLM-judge evaluators." href="/observability/evaluators" />
-            <ExploreCard icon={ShieldCheck} title="Guards" description="Gate traces on evaluator thresholds." href="/observability/guards" />
-            <ExploreCard icon={BellRing} title="Alerts" description="Get notified when a metric crosses a threshold." href="/observability/alerts" />
-            <ExploreCard icon={Bot} title="Agents" description="The derived catalog of instrumented agents." href="/observability/agents" />
-            <ExploreCard icon={Search} title="Ask" description="Ask the copilot about a trace." href="/observability/ask" />
+            {/* M70 — the Explore grid is generated from the ONE LENS_CAPABILITIES registry (same source
+                as the sidebar), so the two product maps can never drift. */}
+            {LENS_EXPLORE_CARDS.map((c) => (
+              <ExploreCard key={c.path} icon={c.icon} title={c.label} description={c.description} href={c.path} />
+            ))}
           </div>
         </section>
       </div>
@@ -241,14 +230,14 @@ export function LensOverviewPage() {
 }
 
 interface ExploreCardProps {
-  icon: typeof Network;
+  icon: LucideIcon;
   title: string;
   description: string;
   href: string;
 }
 
-/** Single Explore card — icon + title + 1-line description + a destination button.
- * Kept inline (mirrors `pages/rag.tsx`'s ExploreCard — Rule of 3 / YAGNI). */
+/** Single Explore card — icon + title + 1-line description + a destination link.
+ * Uses a router `<Link>` (SPA nav) — not `window.location.href` (which forced a full reload). */
 function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps) {
   return (
     <Card>
@@ -256,8 +245,8 @@ function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps)
         <Icon className="size-5 text-primary" aria-hidden="true" />
         <h3 className="text-sm font-semibold">{title}</h3>
         <p className="text-xs text-muted-foreground">{description}</p>
-        <Button variant="ghost" size="sm" onClick={() => (window.location.href = href)}>
-          Open →
+        <Button asChild variant="ghost" size="sm">
+          <Link to={href}>Open →</Link>
         </Button>
       </Card.Body>
     </Card>
