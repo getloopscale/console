@@ -80,11 +80,10 @@ function WaterfallRow({
     <button
       type="button"
       data-testid="waterfall-row"
-      // A generic accessible label (deliberately NOT the span name) so the timeline lane never
-      // collides with the tree lane's `getByRole('button', { name: <span name> })` queries — the tree
-      // is the primary named affordance; the waterfall is a secondary timeline view of the same
-      // selection. The visible span name is present as `aria-hidden` decorative text + a `title` tip.
-      aria-label="Select this span in the timeline"
+      // M71 — a distinct, informative per-row label (span name + duration) so the timeline is operable
+      // by a screen reader (was one shared "Select this span" for every row). Prefixed "Timeline:" so
+      // it stays distinct from the tree lane's row buttons; tree tests scope to `role="tree"`.
+      aria-label={`Timeline: ${tip}`}
       aria-current={selected ? 'true' : undefined}
       onClick={() => onSelect(node.spanId)}
       title={tip}

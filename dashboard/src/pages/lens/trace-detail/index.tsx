@@ -143,6 +143,8 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
               ) : (
                 <div
                   data-testid="span-tree"
+                  role="tree"
+                  aria-label="Span tree"
                   className={virtualized ? 'space-y-0.5' : 'max-h-[70vh] space-y-0.5 overflow-auto'}
                 >
                   {virtualized ? (

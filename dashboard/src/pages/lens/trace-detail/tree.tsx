@@ -63,6 +63,8 @@ function SpanRow({
   onSelect,
   onToggle,
   selectedRef,
+  posinset = 1,
+  setsize = 1,
 }: {
   node: TraceSpanNode;
   depth: number;
@@ -72,11 +74,24 @@ function SpanRow({
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   selectedRef?: React.RefObject<HTMLButtonElement | null>;
+  posinset?: number;
+  setsize?: number;
 }) {
   const dur = durationMs(node);
   const hasChildren = (node.children?.length ?? 0) > 0;
   return (
-    <div className="flex items-center gap-2" style={{ paddingLeft: `${depth * 16}px` }}>
+    // M71 — real ARIA tree semantics: a treeitem carries its level + sibling position + expansion +
+    // selection so a screen reader announces the trace's shape (was a plain nested <div>).
+    <div
+      role="treeitem"
+      aria-level={depth + 1}
+      aria-posinset={posinset}
+      aria-setsize={setsize}
+      aria-selected={selected}
+      aria-expanded={hasChildren ? !collapsed : undefined}
+      className="flex items-center gap-2"
+      style={{ paddingLeft: `${depth * 16}px` }}
+    >
       {hasChildren ? (
         <button
           type="button"
@@ -132,6 +147,8 @@ export function RecursiveTree({
   onSelect,
   onToggle,
   selectedRef,
+  posinset = 1,
+  setsize = 1,
 }: {
   node: TraceSpanNode;
   depth: number;
@@ -141,8 +158,11 @@ export function RecursiveTree({
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   selectedRef: React.RefObject<HTMLButtonElement | null>;
+  posinset?: number;
+  setsize?: number;
 }) {
   const isCollapsed = collapsed.has(node.spanId);
+  const children = node.children ?? [];
   return (
     <div>
       <SpanRow
@@ -154,9 +174,11 @@ export function RecursiveTree({
         onSelect={onSelect}
         onToggle={onToggle}
         selectedRef={selectedRef}
+        posinset={posinset}
+        setsize={setsize}
       />
       {!isCollapsed
-        ? (node.children ?? []).map((c, i) => (
+        ? children.map((c, i) => (
             <RecursiveTree
               key={`${i}-${c.spanId}`}
               node={c}
@@ -167,6 +189,8 @@ export function RecursiveTree({
               onSelect={onSelect}
               onToggle={onToggle}
               selectedRef={selectedRef}
+              posinset={i + 1}
+              setsize={children.length}
             />
           ))
         : null}
@@ -228,6 +252,8 @@ export function VirtualTree({
                 bounds={bounds}
                 onSelect={onSelect}
                 onToggle={onToggle}
+                posinset={vi.index + 1}
+                setsize={flat.length}
               />
             </div>
           );
