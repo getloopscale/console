@@ -131,7 +131,7 @@ export function MetricTrendChart({
             {s.points.length < SPARSE_MARKER_MAX
               ? s.points.map((p, i) => (
                   <circle
-                    key={i}
+                    key={`${s.name}-${i}`}
                     data-testid="trend-dot"
                     cx={xScale(p.x)}
                     cy={yScale(p.y)}

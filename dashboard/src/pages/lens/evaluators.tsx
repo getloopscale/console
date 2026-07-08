@@ -149,11 +149,14 @@ export function LensEvaluatorsPage() {
                       id="evaluator-predicate"
                       value={predicate}
                       onChange={(e) => setPredicate(e.target.value)}
-                      placeholder="output.length > 0"
+                      placeholder="status:error"
                     />
-                    {/* E-2: a concrete example so the predicate field is not a blank mystery box. */}
+                    {/* E-2: a concrete example matching the real span-query DSL (space-separated
+                        field:value clauses, AND-ed) — not a JS expression, which would fail validation. */}
                     <p className="text-xs text-muted-foreground">
-                      A boolean expression over the trace, e.g. <code>output.length &gt; 0</code> or <code>score &gt;= 0.8</code>.
+                      Space-separated <code>field:value</code> clauses (all must match). Fields: <code>kind</code>,{' '}
+                      <code>name</code>, <code>status</code>, <code>model</code>. e.g. <code>status:error</code> or{' '}
+                      <code>kind:llm model:gpt-4o</code>.
                     </p>
                   </>
                 ) : (

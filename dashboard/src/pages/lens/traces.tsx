@@ -181,9 +181,10 @@ export function LensTracesPage() {
   const openID = searchParams.get('trace');
   const setOpenID = (id: string | null) =>
     setSearchParams((prev) => {
-      if (id) prev.set('trace', id);
-      else prev.delete('trace');
-      return prev;
+      const next = new URLSearchParams(prev); // new instance (idiomatic react-router; don't mutate prev)
+      if (id) next.set('trace', id);
+      else next.delete('trace');
+      return next;
     });
 
   // Apply a saved view: replace the URL search with its stored query string; nuqs re-reads every key.

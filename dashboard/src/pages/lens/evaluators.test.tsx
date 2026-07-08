@@ -17,7 +17,7 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     await screen.findByText(/no evaluators yet/i);
 
     await userEvent.type(screen.getByLabelText(/^name$/i), 'nonempty');
-    await userEvent.type(screen.getByLabelText(/rule predicate/i), 'output.length > 0');
+    await userEvent.type(screen.getByLabelText(/rule predicate/i), 'status:error'); // real span-query DSL
     await userEvent.click(screen.getByRole('button', { name: /create evaluator/i }));
 
     const call = mockCloudFetch.mock.calls.find(
@@ -26,7 +26,7 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     expect(call).toBeTruthy();
     const body = JSON.parse((call![1] as { body: string }).body);
     expect(body.kind).toBe('rule');
-    expect(body.config).toEqual({ predicate: 'output.length > 0' });
+    expect(body.config).toEqual({ predicate: 'status:error' });
   });
 
   // M76 (E-1) — the llm_judge evaluator class is reachable from the UI: selecting it swaps the config
@@ -58,7 +58,7 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     mockCloudFetch.mockResolvedValue({ evaluators: [] });
     render(<LensEvaluatorsPage />);
     await screen.findByText(/no evaluators yet/i);
-    expect(screen.getByText(/A boolean expression over the trace/i)).toBeInTheDocument();
+    expect(screen.getByText(/field:value/i)).toBeInTheDocument(); // names the real span-query DSL
   });
 
   it('runs an evaluator via POST /run', async () => {
