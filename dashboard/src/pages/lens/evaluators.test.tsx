@@ -42,11 +42,19 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
   it('delete opens ConfirmDialog then calls DELETE on confirm', async () => {
     mockCloudFetch.mockResolvedValue({ evaluators: [{ id: 'ev_1', name: 'r', kind: 'rule' }] });
     render(<LensEvaluatorsPage />);
-    await userEvent.click(await screen.findByRole('button', { name: /delete ev_1/i }));
-    await userEvent.click(await screen.findByRole('button', { name: /delete evaluator/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /delete evaluator r/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^delete evaluator$/i }));
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/evaluators/ev_1',
       expect.objectContaining({ method: 'DELETE' }),
     );
+  });
+
+  // M75 (audit E-3) — the delete button announces the human name, not the raw id.
+  it('M75 — the delete button aria-label uses the evaluator name, not the raw id', async () => {
+    mockCloudFetch.mockResolvedValue({ evaluators: [{ id: 'e92e0cf9-1234', name: 'Answer relevance', kind: 'rule' }] });
+    render(<LensEvaluatorsPage />);
+    expect(await screen.findByRole('button', { name: /delete evaluator answer relevance/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /delete evaluator e92e0cf9/i })).not.toBeInTheDocument();
   });
 });

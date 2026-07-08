@@ -3,6 +3,9 @@
 ### Added
 - **Dashboard: every observability sidebar entry is self-serve — no more dead-ends (theo-lens M73).** The **Experiments** landing (entered without `?datasetId=`) now offers a **dataset `<Select>`** (fed by the existing `GET /datasets`) that seeds a run right there — a run is no longer only startable via `experiments?datasetId=` from Traces (zero datasets keeps the honest "create a regression dataset" text, no fabricated picker). The **Ask** empty state gains a **"Browse traces →"** CTA, and the **Datasets** + **Guards** "create your first X" empty states gain a CTA that focuses their create input — so the three divergent empty-state patterns collapse to one convention (every empty state has exactly one clear next action). Reuses `@usetheo/ui` `Select`/`EmptyState` + existing reads (no new dependency, no BFF change). RED-first tests pin each actionable control (the picker seeds `?datasetId=`, the CTA links to traces, the focus-CTAs focus the create input).
 
+### Added
+- **Dashboard: custom dashboards are now distinguishable and manageable (theo-lens M75).** Creating boards from the template no longer produces three indistinguishable "Tracing Overview" rows — "New from template" now picks a **unique default name** ("Tracing Overview", "Tracing Overview 2", …, filling the lowest free suffix), the list shows a **Created** column, and each row has an inline **Rename** (Enter commits, Escape cancels — the PUT echoes the board's config back so widgets are never blanked) and a **Delete** (ConfirmDialog → existing `DELETE` verb). Reuses `@usetheo/ui` `ConfirmDialog`/`Timestamp`/`Input` + existing cloud verbs (no BFF change). The unique-name helper is a pure, unit-tested function. Datasets/Evaluators lack the server-side rename/delete verbs for the same treatment — tracked in theo-lens#43.
+
 ### Changed
 - **Dashboard: the Agents and Sessions empty states now explain WHY they are empty (theo-lens M74).** Both derived catalogs previously read a generic "No X yet" that looked like the product had lost the user's data. **Agents** now names the actual prerequisite — an agent appears once its spans carry the `agent.name` attribute (the OpenTelemetry `agent.*` convention) — with an "Instrument an agent →" docs CTA, mirroring the Sessions pattern. **Sessions** now names its grouping key — sessions group traces that share a `session.id` attribute. Copy-only (no new fetch, no dependency, no BFF change); RED-first tests assert each empty state names its prerequisite. The deeper question of whether the server-side agent derivation should recognize structural subagents (Claude Code) beyond `agent.name` is tracked in theo-lens#42.
 
@@ -11,6 +14,7 @@
 ### Removed
 
 ### Fixed
+- **Dashboard: the Evaluators delete button announces the evaluator name, not a raw id (theo-lens M75, a11y).** The delete action's accessible name was `Delete e92e0cf9-…` (the raw id) — unusable to a screen-reader user; it now reads `Delete evaluator {name}`, matching the Run button. RED-first test asserts the name-based label and the absence of any id-based label.
 - **Dashboard: the trace-detail peek panel is no longer cramped (theo-lens).** The row-click trace-detail
   `Sheet` was pinned to `@usetheo/ui`'s default `max-w-md` (448px) — a Tailwind class could not reliably
   override it (tailwind-merge kept the primitive's own width) — so the two-panel explorer (span tree │

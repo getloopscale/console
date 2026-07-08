@@ -85,7 +85,7 @@ export function LensEvaluatorsPage() {
           <Button variant="ghost" size="sm" onClick={() => run.mutate(row.id)} aria-label={`Run ${row.name}`}>
             <Play className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete ${row.id}`}>
+          <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete evaluator ${row.name}`}>
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
