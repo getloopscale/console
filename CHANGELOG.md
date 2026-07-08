@@ -14,6 +14,7 @@
 ### Removed
 
 ### Fixed
+- **Dashboard: a 204 No Content response (e.g. a successful DELETE) is no longer mistaken for a failure (theo-lens M75).** `cloudFetch` called `resp.json()` on the empty body of a 204, which threw and was re-thrown as a network error under `throwOnError` — so a *successful* dashboard delete surfaced "Could not delete". `cloudFetch` now returns `null` for 204/205 No Content. Caught by a live dogfood (the server returned 204 while the UI showed an error); RED-first regression test added. Pre-existing bug that only surfaced via the first `throwOnError` DELETE caller.
 - **Dashboard: the Evaluators delete button announces the evaluator name, not a raw id (theo-lens M75, a11y).** The delete action's accessible name was `Delete e92e0cf9-…` (the raw id) — unusable to a screen-reader user; it now reads `Delete evaluator {name}`, matching the Run button. RED-first test asserts the name-based label and the absence of any id-based label.
 - **Dashboard: the trace-detail peek panel is no longer cramped (theo-lens).** The row-click trace-detail
   `Sheet` was pinned to `@usetheo/ui`'s default `max-w-md` (448px) — a Tailwind class could not reliably
