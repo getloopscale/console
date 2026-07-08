@@ -53,7 +53,7 @@ export function LensAgentsPage() {
         ) : agents.length === 0 ? (
           <EmptyState
             title="No agents yet"
-            description="An agent appears here once its spans carry the `agent.name` attribute (the OpenTelemetry `agent.*` convention). Plain LLM or tool spans are catalogued elsewhere — instrument an agent to populate this list."
+            description="An agent appears here once its spans carry the agent.name attribute (the OpenTelemetry agent.* convention). Plain LLM or tool spans without it are not counted as agents — instrument an agent to populate this catalogue."
             action={
               <a
                 href="https://docs.usetheo.dev/observability/quickstart"
