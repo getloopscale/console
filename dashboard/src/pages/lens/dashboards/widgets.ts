@@ -4,6 +4,7 @@ import {
   errorRateSeries,
   latencySeries,
   costByModelSeries,
+  tokensByModelSeries,
   type TrafficBucket,
   type LatencyBucket,
   type ModelBucket,
@@ -156,8 +157,9 @@ export function bindTrend(metric: WidgetMetric, data: BoardData): TrendSeries[] 
     case 'p95_latency':
       return latencySeries(obs.latency);
     case 'cost':
-    case 'tokens_by_model':
       return costByModelSeries(obs.tokensByModel);
+    case 'tokens_by_model':
+      return tokensByModelSeries(obs.tokensByModel);
     case 'traces':
     default:
       return throughputSeries(obs.traffic);

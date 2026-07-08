@@ -79,6 +79,18 @@ describe('M66 widget model', () => {
     expect(bindTrend('traces', {})).toEqual([]); // absent → empty, no fabricated line
   });
 
+  it('test_bindTrend_tokens_by_model_plots_tokens_not_cost (#178)', () => {
+    // In DATA: by cost gpt-4o (0.08) leads; by tokens gpt-4o-mini (5000) leads.
+    const tokens = bindTrend('tokens_by_model', DATA);
+    const cost = bindTrend('cost', DATA);
+    // The tokens trend's leading series is ranked by TOKENS → gpt-4o-mini, and its y-value is a token
+    // count (5000), not a dollar figure — the whole point of #178.
+    expect(tokens[0].name).toBe('gpt-4o-mini');
+    expect(tokens.find((s) => s.name === 'gpt-4o-mini')?.points[0].y).toBe(5000);
+    // ...distinct from the cost trend, which ranks gpt-4o first over dollars.
+    expect(cost[0].name).toBe('gpt-4o');
+  });
+
   it('test_bindTopN_ranks_models_by_cost_and_is_empty_when_absent', () => {
     const top = bindTopN(DATA);
     expect(top[0].model).toBe('gpt-4o'); // 0.05 + 0.03 = 0.08 > gpt-4o-mini 0.01
