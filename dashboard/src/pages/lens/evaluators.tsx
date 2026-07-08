@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Trash2 } from 'lucide-react';
-import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Textarea } from '@usetheo/ui';
+import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Select, Textarea } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -31,9 +31,24 @@ export function LensEvaluatorsPage() {
   useRequireAuth();
   const queryClient = useQueryClient();
 
+  // E-1: the evaluator kind selects which config the form collects (theo-lens discriminated union:
+  // rule → {predicate}, llm_judge → {prompt, model}). Default 'rule' preserves the prior behavior.
+  type EvaluatorKind = 'rule' | 'llm_judge';
   const [name, setName] = useState('');
+  const [kind, setKind] = useState<EvaluatorKind>('rule');
   const [predicate, setPredicate] = useState('');
+  const [prompt, setPrompt] = useState('');
+  const [model, setModel] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Evaluator | null>(null);
+
+  // The active kind's required fields, and the request body the theo-lens union expects.
+  const canCreate =
+    name.trim().length > 0 &&
+    (kind === 'rule' ? predicate.trim().length > 0 : prompt.trim().length > 0 && model.trim().length > 0);
+  const buildCreateBody = () =>
+    kind === 'rule'
+      ? { name: name.trim(), kind, config: { predicate: predicate.trim() } }
+      : { name: name.trim(), kind, config: { prompt: prompt.trim(), model: model.trim() } };
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] as const,
@@ -44,14 +59,16 @@ export function LensEvaluatorsPage() {
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] });
 
   const create = useMutation({
-    mutationFn: (input: { name: string; predicate: string }) =>
+    mutationFn: (body: ReturnType<typeof buildCreateBody>) =>
       cloudFetch<Evaluator>('/v1/dashboard/lens/evaluators', {
         method: 'POST',
-        body: JSON.stringify({ name: input.name, kind: 'rule', config: { predicate: input.predicate } }),
+        body: JSON.stringify(body),
       }),
     onSuccess: () => {
       setName('');
       setPredicate('');
+      setPrompt('');
+      setModel('');
       invalidate();
     },
   });
@@ -105,7 +122,7 @@ export function LensEvaluatorsPage() {
                 className="space-y-3"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (name.trim() && predicate.trim()) create.mutate({ name: name.trim(), predicate: predicate.trim() });
+                  if (canCreate) create.mutate(buildCreateBody());
                 }}
               >
                 <Label htmlFor="evaluator-name">Name</Label>
@@ -115,14 +132,49 @@ export function LensEvaluatorsPage() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="evaluator-name"
                 />
-                <Label htmlFor="evaluator-predicate">Rule predicate</Label>
-                <Textarea
-                  id="evaluator-predicate"
-                  value={predicate}
-                  onChange={(e) => setPredicate(e.target.value)}
-                  placeholder="Rule predicate, e.g. output.length > 0"
-                />
-                <Button type="submit" disabled={!name.trim() || !predicate.trim() || create.isPending}>
+                <Label htmlFor="evaluator-kind">Kind</Label>
+                <Select value={kind} onValueChange={(v) => setKind(v as EvaluatorKind)}>
+                  <Select.Trigger id="evaluator-kind" className="w-[220px]" aria-label="Evaluator kind">
+                    <Select.Value />
+                  </Select.Trigger>
+                  <Select.Content>
+                    <Select.Item value="rule">Rule (predicate)</Select.Item>
+                    <Select.Item value="llm_judge">LLM judge (prompt + model)</Select.Item>
+                  </Select.Content>
+                </Select>
+                {kind === 'rule' ? (
+                  <>
+                    <Label htmlFor="evaluator-predicate">Rule predicate</Label>
+                    <Textarea
+                      id="evaluator-predicate"
+                      value={predicate}
+                      onChange={(e) => setPredicate(e.target.value)}
+                      placeholder="output.length > 0"
+                    />
+                    {/* E-2: a concrete example so the predicate field is not a blank mystery box. */}
+                    <p className="text-xs text-muted-foreground">
+                      A boolean expression over the trace, e.g. <code>output.length &gt; 0</code> or <code>score &gt;= 0.8</code>.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Label htmlFor="evaluator-prompt">Judge prompt</Label>
+                    <Textarea
+                      id="evaluator-prompt"
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      placeholder="Grade the answer for factual accuracy. Reply PASS or FAIL."
+                    />
+                    <Label htmlFor="evaluator-model">Judge model</Label>
+                    <Input
+                      id="evaluator-model"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      placeholder="e.g. gpt-4o-mini"
+                    />
+                  </>
+                )}
+                <Button type="submit" disabled={!canCreate || create.isPending}>
                   Create evaluator
                 </Button>
               </form>

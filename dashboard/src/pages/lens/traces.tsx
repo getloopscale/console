@@ -97,7 +97,6 @@ export function LensTracesPage() {
   useRequireAuth();
 
   const navigate = useNavigate();
-  const [openID, setOpenID] = useState<string | null>(null);
   // M54 — pairwise compare selection. A row is ticked to build a two-trace compare.
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const toggleSelected = (id: string) =>
@@ -175,6 +174,17 @@ export function LensTracesPage() {
   // string (nuqs re-hydrates every filter); share = the URL itself. The bar + its CRUD live in
   // ./traces/saved-views (M59 ADR D1); the page owns only the URL params + the apply callback.
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // M76 (Q-2) — the open trace-peek is URL-addressable via `?trace=` so it can be linked to (e.g. from
+  // the labeling queue) and shared. A row click writes the param; closing the peek clears it. Other
+  // query state (filters, saved views) is preserved by mutating the previous params.
+  const openID = searchParams.get('trace');
+  const setOpenID = (id: string | null) =>
+    setSearchParams((prev) => {
+      if (id) prev.set('trace', id);
+      else prev.delete('trace');
+      return prev;
+    });
 
   // Apply a saved view: replace the URL search with its stored query string; nuqs re-reads every key.
   const applyView = (queryString: string) => {

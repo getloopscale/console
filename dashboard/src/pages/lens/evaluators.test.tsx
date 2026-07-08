@@ -29,6 +29,38 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     expect(body.config).toEqual({ predicate: 'output.length > 0' });
   });
 
+  // M76 (E-1) — the llm_judge evaluator class is reachable from the UI: selecting it swaps the config
+  // fields (predicate → prompt + model) and POSTs the matching theo-lens discriminated-union body.
+  it('M76 — selecting the LLM-judge kind swaps fields and POSTs {kind:llm_judge, config:{prompt,model}}', async () => {
+    mockCloudFetch.mockResolvedValue({ evaluators: [] });
+    render(<LensEvaluatorsPage />);
+    await screen.findByText(/no evaluators yet/i);
+
+    await userEvent.type(screen.getByLabelText(/^name$/i), 'faithfulness');
+    await userEvent.click(screen.getByRole('combobox', { name: /evaluator kind/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /llm judge/i }));
+    // the predicate field is gone; prompt + model appear
+    expect(screen.queryByLabelText(/rule predicate/i)).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/judge prompt/i), 'Grade for accuracy. PASS or FAIL.');
+    await userEvent.type(screen.getByLabelText(/judge model/i), 'gpt-4o-mini');
+    await userEvent.click(screen.getByRole('button', { name: /create evaluator/i }));
+
+    const call = mockCloudFetch.mock.calls.find(
+      (c) => c[0] === '/v1/dashboard/lens/evaluators' && (c[1] as { method?: string })?.method === 'POST',
+    );
+    const body = JSON.parse((call![1] as { body: string }).body);
+    expect(body.kind).toBe('llm_judge');
+    expect(body.config).toEqual({ prompt: 'Grade for accuracy. PASS or FAIL.', model: 'gpt-4o-mini' });
+  });
+
+  // M76 (E-2) — the Rule predicate field carries a concrete example so it is not a blank mystery box.
+  it('M76 — the rule predicate field shows an example hint', async () => {
+    mockCloudFetch.mockResolvedValue({ evaluators: [] });
+    render(<LensEvaluatorsPage />);
+    await screen.findByText(/no evaluators yet/i);
+    expect(screen.getByText(/A boolean expression over the trace/i)).toBeInTheDocument();
+  });
+
   it('runs an evaluator via POST /run', async () => {
     mockCloudFetch.mockResolvedValue({ evaluators: [{ id: 'ev_1', name: 'r', kind: 'rule' }] });
     render(<LensEvaluatorsPage />);

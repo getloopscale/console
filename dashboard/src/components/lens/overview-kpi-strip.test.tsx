@@ -11,11 +11,12 @@ import { OverviewKpiStrip, type KpiTile, type OverviewMetric } from './overview-
  * chart. A controllable `ResizeObserver` mock drives the degradation case deterministically.
  */
 
+// ≥ 6 buckets (MIN_BUCKETS_FOR_DELTA) so the delta is shown — below that O-1 suppresses it as small-N.
 const tiles: KpiTile[] = [
-  { key: 'throughput', title: 'Traces', value: '40', series: [10, 10, 20, 20], agg: 'sum', invert: false }, // +100%
-  { key: 'errorRate', title: 'Error rate %', value: '5%', series: [0.1, 0.1, 0.05, 0.05], agg: 'mean', invert: true },
-  { key: 'latency', title: 'Latency p95 (ms)', value: '90ms', series: [100, 100, 80, 80], agg: 'mean', invert: true },
-  { key: 'cost', title: 'Cost (USD)', value: '$1.20', series: [1, 1, 2, 2], agg: 'sum', invert: true }, // +100%
+  { key: 'throughput', title: 'Traces', value: '40', series: [10, 10, 10, 20, 20, 20], agg: 'sum', invert: false }, // +100%
+  { key: 'errorRate', title: 'Error rate %', value: '5%', series: [0.1, 0.1, 0.1, 0.05, 0.05, 0.05], agg: 'mean', invert: true },
+  { key: 'latency', title: 'Latency p95 (ms)', value: '90ms', series: [100, 100, 100, 80, 80, 80], agg: 'mean', invert: true },
+  { key: 'cost', title: 'Cost (USD)', value: '$1.20', series: [1, 1, 1, 2, 2, 2], agg: 'sum', invert: true }, // +100%
 ];
 
 // A ResizeObserver mock whose fired width is configurable per test (jsdom has none).
@@ -51,6 +52,13 @@ describe('M60 OverviewKpiStrip', () => {
     render(<OverviewKpiStrip tiles={sparse} onSelectMetric={() => {}} />);
     expect(screen.getByText(/N\/A/i)).toBeInTheDocument();
     expect(screen.queryByText(/%$/)).not.toBeInTheDocument(); // no percent delta fabricated
+  });
+
+  it('M76 (O-1) — suppresses the delta on a small-N window (< 6 buckets), showing the sparse hint', () => {
+    const smallN: KpiTile[] = [{ ...tiles[0], series: [10, 10, 20, 20] }]; // 4 buckets → computable but noisy
+    render(<OverviewKpiStrip tiles={smallN} onSelectMetric={() => {}} />);
+    expect(screen.queryByText('+100%')).not.toBeInTheDocument(); // no bold arrow over 3-4 buckets
+    expect(screen.getByText(/window too sparse/i)).toBeInTheDocument(); // honest hint instead
   });
 
   it('degrades the delta away below the full width threshold (cardMode no-delta)', () => {

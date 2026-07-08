@@ -45,6 +45,18 @@ export function periodDelta(values: number[], agg: 'sum' | 'mean' = 'sum'): Delt
   return { pct, trend, na: false };
 }
 
+/**
+ * M76 (O-1) — a period-over-period delta needs enough buckets to be meaningful. Below this, a bold ±%
+ * arrow over-dramatizes a tiny sample (3-4 buckets is noise, not signal). The KPI strip suppresses the
+ * delta (shows an honest em-dash / "too sparse" hint) when the window has fewer buckets. A single
+ * documented constant, tunable from real data later. Kept separate from `periodDelta` (which stays the
+ * pure math, valid for any ≥2 buckets) — this is a *presentation-honesty* decision, not a math one.
+ */
+export const MIN_BUCKETS_FOR_DELTA = 6;
+export function deltaTooSparse(bucketCount: number): boolean {
+  return bucketCount < MIN_BUCKETS_FOR_DELTA;
+}
+
 export type CardMode = 'full' | 'no-delta' | 'icon-only';
 
 const CARD_WIDTH_FULL = 240;

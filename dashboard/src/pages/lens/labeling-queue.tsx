@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Badge, Button, CopyButton, DataTable, type DataTableColumn, Input, Label, PageShell, Sheet, StatusDot, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -73,6 +74,9 @@ export function LensLabelingQueuePage() {
     queryFn: () => cloudFetch<QueuePage>(`/v1/dashboard/lens/labeling-queue?page=${page}`),
   });
   const items = query.data?.items ?? [];
+  // Q-3: exporting with zero resolved items produces an empty/partial golden dataset. Guard the export
+  // on the resolved items in view (page-scoped — the payload carries no queue-wide resolved total).
+  const resolvedCount = items.filter((i) => i.status === 'resolved').length;
   const total = query.data?.total ?? items.length;
   const pageSize = query.data?.pageSize ?? (items.length || 1);
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -145,10 +149,17 @@ export function LensLabelingQueuePage() {
     {
       key: 'traceId',
       label: 'Trace',
+      // Q-2: the trace id links to its source trace (the URL-addressable peek on the Traces page),
+      // instead of being dead text.
       render: (row) => (
-        <span className="font-mono text-xs text-muted-foreground" title={row.traceId}>
+        <Link
+          to={`/observability/traces?trace=${encodeURIComponent(row.traceId)}`}
+          className="font-mono text-xs text-primary underline underline-offset-2"
+          title={`Open trace ${row.traceId}`}
+          aria-label={`Open trace ${row.traceId}`}
+        >
           {shortId(row.traceId)}
-        </span>
+        </Link>
       ),
     },
     {
@@ -259,6 +270,12 @@ export function LensLabelingQueuePage() {
               <Label htmlFor="export-name">Dataset name</Label>
               <Input id="export-name" value={exportName} onChange={(e) => setExportName(e.target.value)} placeholder="golden-2026-07" />
             </div>
+            {resolvedCount === 0 ? (
+              <Alert intent="warning" title="No resolved items to export" data-testid="export-empty-guard">
+                Resolve at least one item (add a label) before exporting — an export of zero resolved items
+                would produce an empty dataset.
+              </Alert>
+            ) : null}
             {exportMutation.isError ? (
               <Alert intent="warning" title="Could not export" data-testid="export-error">
                 {errorMessage(exportMutation.error)}
@@ -272,7 +289,11 @@ export function LensLabelingQueuePage() {
               <Button variant="ghost" size="sm" onClick={() => setExporting(false)}>
                 Cancel
               </Button>
-              <Button size="sm" disabled={!exportName.trim() || exportMutation.isPending} onClick={() => exportMutation.mutate()}>
+              <Button
+                size="sm"
+                disabled={!exportName.trim() || resolvedCount === 0 || exportMutation.isPending}
+                onClick={() => exportMutation.mutate()}
+              >
                 {exportMutation.isPending ? 'Exporting…' : 'Export'}
               </Button>
             </div>

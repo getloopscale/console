@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { MetricCard } from '@usetheo/ui';
 import { Activity, DollarSign, Network, Timer } from 'lucide-react';
 
-import { cardMode, periodDelta, type Delta } from './overview-metrics';
+import { cardMode, deltaTooSparse, periodDelta, type Delta } from './overview-metrics';
 
 /**
  * M60 P1 — the observability KPI strip (blueprint §5; ADR D2/D3/D5). Four `@usetheo/ui` `MetricCard`s
@@ -68,7 +68,10 @@ export function OverviewKpiStrip({
     <div ref={ref} className="grid grid-cols-2 gap-4 lg:grid-cols-4" data-card-mode={mode}>
       {tiles.map((t) => {
         const d: Delta = periodDelta(t.series, t.agg);
-        const showDelta = mode === 'full' && !d.na;
+        // O-1: suppress the delta on a small sample (too few buckets to trust a ±%) — treat it as another
+        // "too sparse" reason, so the honest em-dash / hint shows instead of a bold arrow over 3-4 buckets.
+        const tooSparse = d.na || deltaTooSparse(t.series.length);
+        const showDelta = mode === 'full' && !tooSparse;
         const Icon = ICONS[t.key];
         return (
           <button
@@ -87,7 +90,7 @@ export function OverviewKpiStrip({
               icon={<Icon className="h-4 w-4" aria-hidden="true" />}
               delta={showDelta ? { value: fmtPct(d.pct), trend: d.trend } : undefined}
               invertTrend={t.invert}
-              hint={d.na ? 'N/A — window too sparse' : mode === 'full' ? 'vs first half of window' : undefined}
+              hint={tooSparse ? 'N/A — window too sparse' : mode === 'full' ? 'vs first half of window' : undefined}
             />
           </button>
         );
