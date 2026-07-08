@@ -57,6 +57,18 @@ describe('MetricTrendChart (M51)', () => {
     expect(screen.getByTestId('trend-dot')).toBeInTheDocument();
   });
 
+  it('M76 (O-2) — marks each point on a sparse series (<5 points) so a 2-4 point line is not a cliff', () => {
+    render(<MetricTrendChart title="Throughput" series={[{ name: 'traces', color: '#111', points: [{ x: 0, y: 5 }, { x: 1, y: 40 }, { x: 2, y: 8 }] }]} />);
+    expect(screen.getAllByTestId('trend-dot')).toHaveLength(3); // one marker per point
+  });
+
+  it('M76 (O-2) — a dense series (≥5 points) draws the line only, no per-point markers', () => {
+    const dense = [{ name: 'traces', color: '#111', points: Array.from({ length: 6 }, (_, i) => ({ x: i, y: i * 2 })) }];
+    render(<MetricTrendChart title="Throughput" series={dense} />);
+    expect(screen.queryByTestId('trend-dot')).not.toBeInTheDocument();
+    expect(screen.getByTestId('trend-line')).toBeInTheDocument();
+  });
+
   it('renders an a11y value table mirroring the series (screen-reader parity)', () => {
     render(<MetricTrendChart title="Latency" series={twoSeries} yFormat={(v) => `${v}ms`} />);
     const table = screen.getByTestId('trend-table');

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
-import { EmptyState, PageShell, Skeleton } from '@usetheo/ui';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Button, EmptyState, PageShell, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -40,6 +40,11 @@ export function LensAskPage() {
           <EmptyState
             title="Open a trace and click Ask"
             description="The copilot is grounded in a trace — open one from Traces and use its “Ask copilot” action. No id to type."
+            action={
+              <Button asChild variant="secondary" size="sm">
+                <Link to="/observability/traces">Browse traces →</Link>
+              </Button>
+            }
           />
         ) : tree.isPending ? (
           <Skeleton className="h-40 w-full rounded-lg" />

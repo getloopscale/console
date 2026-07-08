@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { cardMode, periodDelta, costByPeriod } from './overview-metrics';
+import { cardMode, periodDelta, costByPeriod, deltaTooSparse, MIN_BUCKETS_FOR_DELTA } from './overview-metrics';
 
 describe('costByPeriod', () => {
   it('sums cost per period in chronological order (range-scoped, single source)', () => {
@@ -84,5 +84,15 @@ describe('M60 cardMode', () => {
     expect(cardMode(239)).toBe('no-delta');
     expect(cardMode(160)).toBe('no-delta');
     expect(cardMode(159)).toBe('icon-only');
+  });
+});
+
+describe('M76 deltaTooSparse (O-1 small-N delta suppression)', () => {
+  it('is true below the documented bucket threshold, false at/above it', () => {
+    expect(MIN_BUCKETS_FOR_DELTA).toBe(6);
+    expect(deltaTooSparse(4)).toBe(true); // 3-4 buckets → the ±% is noise (audit O-1)
+    expect(deltaTooSparse(5)).toBe(true);
+    expect(deltaTooSparse(6)).toBe(false); // enough buckets → a real delta
+    expect(deltaTooSparse(24)).toBe(false);
   });
 });

@@ -55,6 +55,9 @@ export function seriesPath(
 
 const VIEW_W = 600;
 const PAD = { top: 8, right: 8, bottom: 4, left: 40 };
+// O-2: series with fewer than this many points draw a marker at each point (a 2-4 point line reads as a
+// cliff without them); a denser series draws the line only.
+const SPARSE_MARKER_MAX = 5;
 
 export function MetricTrendChart({
   title,
@@ -121,19 +124,24 @@ export function MetricTrendChart({
             >
               <title>{s.name}</title>
             </path>
-            {/* A single-bucket range (e.g. 1h → one bucket) collapses the polyline to a point; draw a
-                visible dot so real data is never rendered as an invisible line (review LOW). */}
-            {s.points.length === 1 ? (
-              <circle
-                data-testid="trend-dot"
-                cx={xScale(s.points[0].x)}
-                cy={yScale(s.points[0].y)}
-                r={2.5}
-                fill={s.color}
-              >
-                <title>{s.name}</title>
-              </circle>
-            ) : null}
+            {/* O-2: a sparse series (1-4 buckets) reads as a dramatic slope — anchor the reader to the
+                actual few data points with a marker at each. A single-bucket range also collapses the
+                polyline to a point, so a dot keeps real data from rendering as an invisible line. A dense
+                series (≥ 5) draws the line only, unchanged. */}
+            {s.points.length < SPARSE_MARKER_MAX
+              ? s.points.map((p, i) => (
+                  <circle
+                    key={`${s.name}-${i}`}
+                    data-testid="trend-dot"
+                    cx={xScale(p.x)}
+                    cy={yScale(p.y)}
+                    r={2.5}
+                    fill={s.color}
+                  >
+                    <title>{s.name}</title>
+                  </circle>
+                ))
+              : null}
           </g>
         ))}
       </svg>

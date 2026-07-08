@@ -89,6 +89,33 @@ describe('M64 LensExperimentsPage', () => {
     expect(await screen.findByText('run A')).toBeInTheDocument();
   });
 
+  it('M73 — the empty page has a dataset picker that seeds a run (no dead-end)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url.startsWith('/v1/dashboard/lens/datasets') && !url.includes('/items'))
+        return Promise.resolve({ datasets: [{ id: 'ds-9', name: 'golden set' }] });
+      if (url.includes('/experiment-runs')) return Promise.resolve({ runs: [] });
+      return Promise.resolve({});
+    });
+    render(<LensExperimentsPage />, { initialEntries: ['/observability/experiments'] });
+    // a dataset picker (Select) is offered on the bare page — pick one → the run form appears
+    await userEvent.click(await screen.findByRole('combobox', { name: /dataset/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /golden set/i }));
+    // the run form (with the Model override input) is now reachable from the previously-dead page
+    expect(await screen.findByRole('button', { name: /run experiment/i })).toBeInTheDocument();
+  });
+
+  it('M73 — the empty page with NO datasets keeps the instructive text (no fabricated picker)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url.startsWith('/v1/dashboard/lens/datasets') && !url.includes('/items'))
+        return Promise.resolve({ datasets: [] });
+      if (url.includes('/experiment-runs')) return Promise.resolve({ runs: [] });
+      return Promise.resolve({});
+    });
+    render(<LensExperimentsPage />, { initialEntries: ['/observability/experiments'] });
+    expect(await screen.findByText(/create a regression dataset from the traces list/i)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /dataset/i })).not.toBeInTheDocument();
+  });
+
   it('M70 — the runs list has a compare-picker: select two → navigate to ?compare= (drillable)', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url.includes('/experiment-runs') && !url.includes('/compare'))

@@ -197,6 +197,13 @@ describe('LensTracesPage (/observability/traces)', () => {
     );
   });
 
+  it('M76 (Q-2) — a ?trace= deep-link opens the trace peek on load (URL-addressable)', async () => {
+    routeMock();
+    renderWithParams(<LensTracesPage />, '?trace=tr_1');
+    // the peek Sheet opens from the URL param alone — no row click needed (so the labeling-queue link lands).
+    expect(await screen.findByText('Trace detail')).toBeInTheDocument();
+  });
+
   it('remove-tag opens ConfirmDialog then calls DELETE ?tag= on confirm', async () => {
     routeMock();
     render(<LensTracesPage />);

@@ -60,6 +60,14 @@ describe('LensGuardsPage (/observability/guards)', () => {
     expect(body.threshold).toBeUndefined(); // no fabricated threshold for a label match
   });
 
+  it('M73 — the empty state has a CTA that focuses the create form (one clear action)', async () => {
+    mockCloudFetch.mockResolvedValue({ guards: [] });
+    render(<LensGuardsPage />);
+    await screen.findByText(/no guards yet/i);
+    await userEvent.click(screen.getByRole('button', { name: /create your first guard/i }));
+    expect(screen.getByRole('combobox', { name: /evaluator/i })).toHaveFocus();
+  });
+
   it('renders empty state and delete flow via ConfirmDialog', async () => {
     mockCloudFetch.mockResolvedValue({ guards: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
     render(<LensGuardsPage />);

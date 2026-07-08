@@ -197,6 +197,17 @@ export async function engineFetch<T>(path: string, options: RequestInit = {}, cf
   return cloudFetch<T>(`/engine${path}`, options, cfg);
 }
 
+/**
+ * Parse a 2xx response body, tolerating an empty body. A 204/205 No Content
+ * (e.g. a successful DELETE) carries no body — calling `resp.json()` on it throws,
+ * which the catch-all would mistake for a network failure. Return `null` for those
+ * instead. (M75 regression — a successful delete surfaced as "Could not delete".)
+ */
+async function parseOkBody<T>(resp: Response): Promise<T | null> {
+  if (resp.status === 204 || resp.status === 205) return null;
+  return (await resp.json()) as T;
+}
+
 /** Build a typed ApiError from a non-2xx response (best-effort JSON body). */
 async function toApiError(resp: Response): Promise<ApiError> {
   let body: unknown;
@@ -245,14 +256,14 @@ async function fetchWithAuth<T>(base: string, path: string, token: string, optio
         if (throwOnError) throw await toApiError(retry);
         return null;
       }
-      return await retry.json() as T;
+      return await parseOkBody<T>(retry);
     }
     if (!resp.ok) {
       await maybeEmitPaymentRequired(resp);
       if (throwOnError) throw await toApiError(resp);
       return null;
     }
-    return await resp.json() as T;
+    return await parseOkBody<T>(resp);
   } catch (err) {
     // Re-throw our own typed error (don't let the catch-all swallow it back to null).
     if (err instanceof ApiError) throw err;

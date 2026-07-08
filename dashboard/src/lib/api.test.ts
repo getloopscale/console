@@ -294,3 +294,26 @@ describe('cloudFetch — 401-refresh-retry path under throwOnError (F-tests-2 / 
       .rejects.toMatchObject({ name: 'ApiError', status: 401 });
   });
 });
+
+// ---------------------------------------------------------------------------
+// M75 — a 204 No Content success (e.g. DELETE) must resolve, not be mistaken
+// for a failure. Regression: `resp.json()` threw on the empty body and the
+// catch-all re-threw it as ApiError(0) under throwOnError, so a successful
+// delete surfaced as "Could not delete". (Caught by live dogfood.)
+// ---------------------------------------------------------------------------
+
+describe('cloudFetch — 204 No Content is a success (M75)', () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it('resolves to null on a 204 DELETE under throwOnError (does not throw)', async () => {
+    let callCount = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
+      return new Response(null, { status: 204 }); // No Content (a 204 must have a null body)
+    });
+    await exchangeSessionToken();
+    await expect(cloudFetch('/v1/dashboard/lens/dashboards/abc', { method: 'DELETE' }, { throwOnError: true }))
+      .resolves.toBeNull();
+  });
+});

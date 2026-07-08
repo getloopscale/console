@@ -39,6 +39,12 @@ describe('M61 LensAskPage (docked to the open trace)', () => {
     expect(await screen.findByText(/open a trace and click ask/i)).toBeInTheDocument();
   });
 
+  it('M73 — the empty Ask page has a Browse-traces CTA (no dead-end)', async () => {
+    render(<LensAskPage />, { initialEntries: ['/observability/ask'] });
+    const link = await screen.findByRole('link', { name: /browse traces/i });
+    expect(link).toHaveAttribute('href', '/observability/traces');
+  });
+
   it('refuses a cross-tenant trace: a 404 ask fails closed (typed Alert, NO answer turn) — DoD3/R4', async () => {
     mockCloudFetch.mockImplementation((url: string) =>
       url.includes('/ask') ? Promise.reject(new ApiError(404)) : Promise.resolve(tree),

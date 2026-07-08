@@ -105,6 +105,68 @@ describe('M66 LensDashboardsPage', () => {
     expect(cfg[1].type).toBe('kpi');
   });
 
+  // ── M75 — list management & unique naming ──────────────────────────────────
+  it('M75 — new-from-template uses a unique name when the base is taken (D-1)', async () => {
+    withRoutes({ boards: [BOARD] }); // an existing "Tracing Overview"
+    render(<LensDashboardsPage />, { initialEntries: ['/observability/dashboards'] });
+    await userEvent.click(await screen.findByRole('button', { name: /new from template/i }));
+    const postCall = mockCloudFetch.mock.calls.find(
+      (c) => String(c[0]).endsWith('/dashboards') && (c[1] as { method?: string })?.method === 'POST',
+    );
+    expect(postCall).toBeTruthy();
+    expect(JSON.parse((postCall![1] as { body: string }).body).name).toBe('Tracing Overview 2');
+  });
+
+  it('M75 — a row delete confirms then DELETEs the board', async () => {
+    withRoutes({ boards: [BOARD] });
+    render(<LensDashboardsPage />, { initialEntries: ['/observability/dashboards'] });
+    // the delete action is announced by the board NAME, not the raw id
+    await userEvent.click(await screen.findByRole('button', { name: /delete .*Tracing Overview/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /delete dashboard/i })); // ConfirmDialog
+    const del = mockCloudFetch.mock.calls.find(
+      (c) => /\/dashboards\/[^/?]+$/.test(String(c[0])) && (c[1] as { method?: string })?.method === 'DELETE',
+    );
+    expect(del).toBeTruthy();
+    expect(String(del![0])).toContain(BOARD.id);
+  });
+
+  it('M75 — a row rename PUTs the new name while preserving the config', async () => {
+    withRoutes({ boards: [BOARD] });
+    render(<LensDashboardsPage />, { initialEntries: ['/observability/dashboards'] });
+    await userEvent.click(await screen.findByRole('button', { name: /rename .*Tracing Overview/i }));
+    const input = await screen.findByRole('textbox', { name: /rename dashboard/i });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Cost watch{Enter}');
+    const put = mockCloudFetch.mock.calls.find(
+      (c) => /\/dashboards\/[^/?]+$/.test(String(c[0])) && (c[1] as { method?: string })?.method === 'PUT',
+    );
+    expect(put).toBeTruthy();
+    const body = JSON.parse((put![1] as { body: string }).body);
+    expect(body.name).toBe('Cost watch');
+    expect(body.config).toEqual(BOARD.config); // widgets preserved verbatim, not blanked or mangled
+  });
+
+  it('M75 — Escape cancels a rename without issuing a PUT', async () => {
+    withRoutes({ boards: [BOARD] });
+    render(<LensDashboardsPage />, { initialEntries: ['/observability/dashboards'] });
+    await userEvent.click(await screen.findByRole('button', { name: /rename .*Tracing Overview/i }));
+    const input = await screen.findByRole('textbox', { name: /rename dashboard/i });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Discarded name{Escape}');
+    const put = mockCloudFetch.mock.calls.find(
+      (c) => /\/dashboards\/[^/?]+$/.test(String(c[0])) && (c[1] as { method?: string })?.method === 'PUT',
+    );
+    expect(put).toBeFalsy(); // Escape discards — no rename persisted
+  });
+
+  it('M75 — the list shows a Created column (timestamp or em-dash)', async () => {
+    withRoutes({ boards: [{ ...BOARD, createdAt: undefined }] });
+    render(<LensDashboardsPage />, { initialEntries: ['/observability/dashboards'] });
+    expect(await screen.findByRole('columnheader', { name: /created/i })).toBeInTheDocument();
+    // a board without createdAt renders an em-dash, never a fabricated date
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
   it('test_load_error_surfaces_typed_alert', async () => {
     withRoutes({ listReject: Object.assign(new Error('boom'), { status: 500 }) });
     render(<LensDashboardsPage />, { initialEntries: ['/observability/dashboards'] });

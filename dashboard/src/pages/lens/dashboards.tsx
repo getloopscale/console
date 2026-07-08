@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { LayoutDashboard } from 'lucide-react';
-import { Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, Input, MetricCard, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { Badge, Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, MetricCard, PageShell, Select, Skeleton, Timestamp } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { nextBoardName } from './dashboards/board-name';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -158,6 +159,9 @@ export function LensDashboardsPage() {
 
   // Draft edit state (null = view mode).
   const [draft, setDraft] = useState<{ name: string; widgets: Widget[] } | null>(null);
+  // M75 list-management state: which row is being renamed inline, its draft value, and a pending delete.
+  const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<DashboardRow | null>(null);
 
   const listQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/dashboards'] as const,
@@ -200,6 +204,37 @@ export function LensDashboardsPage() {
       setDraft(null);
     },
   });
+  // M75 — rename a board from the list. PUT is a full replace, so echo the row's config back to
+  // avoid blanking its widgets (Drawbacks R2).
+  const rename = useMutation({
+    mutationFn: (b: { id: string; name: string; config: Widget[] }) =>
+      cloudFetch<DashboardRow>(`/v1/dashboard/lens/dashboards/${encodeURIComponent(b.id)}`, { method: 'PUT', body: JSON.stringify({ name: b.name, config: b.config }) }, { throwOnError: true }),
+    retry: false,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/dashboards'] });
+      setRenaming(null);
+    },
+  });
+  // M75 — delete a board from the list (existing cloud DELETE verb).
+  const remove = useMutation({
+    mutationFn: (id: string) =>
+      cloudFetch<void>(`/v1/dashboard/lens/dashboards/${encodeURIComponent(id)}`, { method: 'DELETE' }, { throwOnError: true }),
+    retry: false,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/dashboards'] });
+      setPendingDelete(null);
+    },
+  });
+  const commitRename = () => {
+    if (!renaming) return;
+    const row = (listQuery.data?.dashboards ?? []).find((b) => b.id === renaming.id);
+    const name = renaming.value.trim();
+    if (!row || name.length === 0 || name === row.name) {
+      setRenaming(null);
+      return;
+    }
+    rename.mutate({ id: row.id, name, config: row.config });
+  };
 
   // ── List view (no board selected) ──────────────────────────────────────────
   if (!boardId) {
@@ -216,27 +251,91 @@ export function LensDashboardsPage() {
             title="No dashboards yet"
             description="Start from the Tracing Overview template — a KPI strip, a traffic trend, and top models by cost."
             action={
-              <Button onClick={() => create.mutate({ name: 'Tracing Overview', config: TRACING_OVERVIEW_TEMPLATE })} disabled={create.isPending}>
+              <Button onClick={() => create.mutate({ name: nextBoardName([]), config: TRACING_OVERVIEW_TEMPLATE })} disabled={create.isPending}>
                 {create.isPending ? 'Creating…' : 'Start from Tracing Overview'}
               </Button>
             }
           />
         ) : (
           <div className="space-y-2">
-            <Button size="sm" onClick={() => create.mutate({ name: 'Tracing Overview', config: TRACING_OVERVIEW_TEMPLATE })} disabled={create.isPending}>
+            <Button
+              size="sm"
+              onClick={() => create.mutate({ name: nextBoardName(boards.map((b) => b.name)), config: TRACING_OVERVIEW_TEMPLATE })}
+              disabled={create.isPending}
+            >
               + New from template
             </Button>
             <DataTable
               data={boards}
               rowKey={(b) => b.id}
               columns={[
-                { key: 'name', label: 'Dashboard', render: (b) => <button className="text-sm underline" onClick={() => setParams({ board: b.id })}>{b.name}</button> },
+                {
+                  key: 'name',
+                  label: 'Dashboard',
+                  render: (b) =>
+                    renaming?.id === b.id ? (
+                      <Input
+                        autoFocus
+                        aria-label={`Rename dashboard ${b.name}`}
+                        value={renaming.value}
+                        onChange={(e) => setRenaming({ id: b.id, value: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitRename();
+                          if (e.key === 'Escape') setRenaming(null);
+                        }}
+                        onBlur={commitRename}
+                        className="max-w-[220px]"
+                      />
+                    ) : (
+                      <button className="text-sm underline" onClick={() => setParams({ board: b.id })}>{b.name}</button>
+                    ),
+                },
                 { key: 'widgets', label: 'Widgets', render: (b) => <Badge variant="outline">{b.config.length}</Badge> },
+                { key: 'created', label: 'Created', render: (b) => (b.createdAt ? <Timestamp value={b.createdAt} /> : <span className="text-muted-foreground">—</span>) },
+                {
+                  key: 'actions',
+                  label: '',
+                  align: 'right',
+                  render: (b) => (
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" aria-label={`Rename ${b.name}`} onClick={() => setRenaming({ id: b.id, value: b.name })}>Rename</Button>
+                      {/* preventDefault on mousedown keeps focus in the rename Input (no blur-commit);
+                          the onClick then cancels any in-progress rename and opens the delete dialog. */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Delete ${b.name}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setRenaming(null);
+                          setPendingDelete(b);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  ),
+                },
               ]}
             />
           </div>
         )}
         {create.isError ? <Alert intent="warning" title="Could not create" description={errorMessage(create.error)} data-testid="create-error" /> : null}
+        {rename.isError ? <Alert intent="warning" title="Could not rename" description={errorMessage(rename.error)} data-testid="rename-error" /> : null}
+        {remove.isError ? <Alert intent="warning" title="Could not delete" description={errorMessage(remove.error)} data-testid="delete-error" /> : null}
+        <ConfirmDialog
+          open={pendingDelete !== null}
+          onOpenChange={(o) => !o && setPendingDelete(null)}
+          title={pendingDelete ? `Delete “${pendingDelete.name}”?` : ''}
+          description="This permanently removes the dashboard board. This cannot be undone."
+          confirmLabel={remove.isPending ? 'Deleting…' : 'Delete dashboard'}
+          cancelLabel="Cancel"
+          intent="destructive"
+          loading={remove.isPending}
+          onConfirm={() => {
+            if (pendingDelete) remove.mutate(pendingDelete.id);
+          }}
+        />
       </PageShell>
     );
   }

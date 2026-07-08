@@ -88,6 +88,26 @@ describe('M63 LensLabelingQueuePage', () => {
     expect(JSON.parse((resolveCall![1] as { body: string }).body)).toMatchObject({ label: 'good' });
   });
 
+  it('M76 (Q-3) — export is guarded until at least one item is resolved', async () => {
+    pageWith({ items: [PENDING_ITEM], total: 1, page: 1, pageSize: 50 }); // all pending
+    render(<LensLabelingQueuePage />);
+    await userEvent.click(await screen.findByRole('button', { name: /export as dataset/i }));
+    await userEvent.type(await screen.findByLabelText(/dataset name/i), 'golden-jul');
+    // the guard warns and the Export confirm is disabled → no POST possible
+    expect(screen.getByTestId('export-empty-guard')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^export$/i })).toBeDisabled();
+    expect(
+      mockCloudFetch.mock.calls.some((c) => String(c[0]).includes('/export-as-dataset') && (c[1] as { method?: string })?.method === 'POST'),
+    ).toBe(false);
+  });
+
+  it('M76 (Q-2) — the queue trace id links to its source trace', async () => {
+    pageWith({ items: [PENDING_ITEM], total: 1, page: 1, pageSize: 50 });
+    render(<LensLabelingQueuePage />);
+    const link = await screen.findByRole('link', { name: /open trace tr-1/i });
+    expect(link).toHaveAttribute('href', '/observability/traces?trace=tr-1');
+  });
+
   it('test_export_as_dataset_posts_and_confirms', async () => {
     pageWith({ items: [{ ...PENDING_ITEM, status: 'resolved', label: 'good' }], total: 1, page: 1, pageSize: 50 }, (url, init) =>
       url.includes('/export-as-dataset') && init?.method === 'POST' ? { id: 'd1', name: 'golden', itemCount: 1 } : {},
