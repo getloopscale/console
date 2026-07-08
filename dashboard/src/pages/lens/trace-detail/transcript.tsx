@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, StatusDot } from '@usetheo/ui';
 
 import { formatCost, formatDuration, formatTokens } from '@/lib/format';
+import { isSpanError } from '@/lib/span-status';
 import { VIRTUALIZE_THRESHOLD } from './helpers';
 import {
   toTranscriptRows,
@@ -153,7 +154,7 @@ function FeedRow({
       />
     );
   }
-  const isError = !!node?.statusCode && node.statusCode !== '0';
+  const isError = isSpanError(node?.statusCode);
   return (
     <SpanRowCard
       row={row}

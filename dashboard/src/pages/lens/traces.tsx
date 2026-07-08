@@ -1,17 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
-import {
-  Alert,
-  Button,
-  Card,
-  DataTable,
-  EmptyState,
-  Input,
-  PageShell,
-  Skeleton,
-} from '@usetheo/ui';
+import { Button, Card, DataTable, EmptyState, Input, PageShell } from '@usetheo/ui';
+import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -234,6 +227,32 @@ export function LensTracesPage() {
   const [exportError, setExportError] = useState(false);
   const [exportDisclosure, setExportDisclosure] = useState<string | null>(null);
 
+  // M64 — turn the selected traces into a regression dataset (create dataset + add each selected trace),
+  // then route to the experiments page to run it. Reuses the M44 dataset routes (no new dataset code).
+  const createDataset = useMutation({
+    mutationFn: async (traceIds: string[]) => {
+      const name = `regression ${new Date().toISOString().slice(0, 19)}`;
+      const ds = await cloudFetch<{ id: string }>(
+        '/v1/dashboard/lens/datasets',
+        { method: 'POST', body: JSON.stringify({ name }) },
+        { throwOnError: true },
+      );
+      for (const traceId of traceIds) {
+        await cloudFetch(
+          `/v1/dashboard/lens/datasets/${encodeURIComponent(ds!.id)}/items`,
+          { method: 'POST', body: JSON.stringify({ traceId }) },
+          { throwOnError: true },
+        );
+      }
+      return ds!.id;
+    },
+    retry: false,
+    onSuccess: (datasetId) => {
+      setSelected(new Set());
+      navigate(`/observability/experiments?datasetId=${encodeURIComponent(datasetId)}`);
+    },
+  });
+
   async function doExport(format: 'csv' | 'json') {
     setExporting(true);
     setExportError(false);
@@ -294,7 +313,7 @@ export function LensTracesPage() {
           <SavedViewsBar searchParams={searchParams} onApply={applyView} />
 
           {query.isLoading ? (
-            <Skeleton />
+            <ListSkeleton label="traces" />
           ) : query.isError ? (
             <Alert intent="warning" title="Could not load traces">
               The lens service is unavailable. Try again shortly.
@@ -306,7 +325,20 @@ export function LensTracesPage() {
                 description="Try widening the time range or clearing the search."
               />
             ) : (
-              <EmptyState title="No traces yet" description="Instrument an agent and send spans to see executions here." />
+              <EmptyState
+                title="No traces yet"
+                description="Instrument an agent with the Theo SDK and send OTLP spans to see executions here."
+                action={
+                  <a
+                    href="https://docs.usetheo.dev/observability/quickstart"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-medium text-primary underline underline-offset-4"
+                  >
+                    Instrument an agent →
+                  </a>
+                }
+              />
             )
           ) : (
             <>
@@ -322,6 +354,8 @@ export function LensTracesPage() {
                 compareHref={compareHref}
                 onCompare={() => compareHref && navigate(compareHref)}
                 onClearSelection={() => setSelected(new Set())}
+                onCreateDataset={() => createDataset.mutate(selectedIds)}
+                creatingDataset={createDataset.isPending}
               />
               {exportDisclosure ? (
                 <p data-testid="export-disclosure" className="mb-2 text-right text-xs text-muted-foreground">
@@ -333,6 +367,12 @@ export function LensTracesPage() {
                   Could not export the traces — try again.
                 </Alert>
               ) : null}
+              <p data-testid="traces-count" className="mb-1 text-xs text-muted-foreground">
+                {/* The list BFF returns no total/offset (only the export path exposes a cap), so this is
+                    an honest count of the loaded rows — NOT a claim of the full total. The missing
+                    BFF total/pagination is filed as a gap (roadmap M70 risk 1). */}
+                {traces.length} {traces.length === 1 ? 'trace' : 'traces'}
+              </p>
               <Card>
                 {/* M59 P1 — density toggles the row height (compact vs comfortable) via a data-attr
                     + Tailwind arbitrary selectors; URL-persisted so a saved view captures it (P3). */}

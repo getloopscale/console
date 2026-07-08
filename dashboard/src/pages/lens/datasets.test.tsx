@@ -24,10 +24,68 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     );
   });
 
+  it('M70 — a dataset row jumps to the Experiments run form seeded with the dataset (eval loop)', async () => {
+    mockCloudFetch.mockResolvedValue({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 2 }] });
+    render(<LensDatasetsPage />);
+    const link = await screen.findByRole('link', { name: /run experiment/i });
+    expect(link).toHaveAttribute('href', '/observability/experiments?datasetId=ds_1');
+  });
+
   it('renders empty state when there are no datasets', async () => {
     mockCloudFetch.mockResolvedValue({ datasets: [] });
     render(<LensDatasetsPage />);
     expect(await screen.findByText(/no datasets yet/i)).toBeInTheDocument();
+  });
+
+  it('a failed items-detail load shows an Alert, NOT "No items" (#error-as-empty)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 3 }] });
+      if (url.startsWith('/v1/dashboard/lens/datasets/ds_1')) return Promise.reject(Object.assign(new Error('boom'), { status: 500 }));
+      return Promise.resolve({});
+    });
+    render(<LensDatasetsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /open golden/i }));
+    expect(await screen.findByText(/could not load items/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no items/i)).not.toBeInTheDocument(); // error must NOT read as empty
+  });
+
+  it('an absent item count renders em-dash, a real 0 renders 0 (no fabricated count)', async () => {
+    mockCloudFetch.mockResolvedValue({
+      datasets: [
+        { id: 'ds_1', name: 'unknown-count' }, // itemCount absent → em-dash
+        { id: 'ds_2', name: 'empty-loaded', itemCount: 0 }, // real 0 → 0
+      ],
+    });
+    render(<LensDatasetsPage />);
+    expect(await screen.findByText('unknown-count')).toBeInTheDocument();
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1); // absent count → em-dash
+    expect(screen.getByText('0')).toBeInTheDocument(); // honest zero (loaded-but-empty dataset)
+  });
+
+  it('M70 — the open dataset panel is URL-state (?dataset=) — deep-linkable + Back-closable', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 1 }] });
+      if (url.startsWith('/v1/dashboard/lens/datasets/ds_1')) return Promise.resolve({ id: 'ds_1', name: 'golden', items: [{ traceId: 'tr_9' }] });
+      return Promise.resolve({});
+    });
+    // deep-link straight to an open dataset via the URL param — the items panel loads without a click
+    render(<LensDatasetsPage />, { initialEntries: ['/observability/datasets?dataset=ds_1'] });
+    expect(await screen.findByText('tr_9')).toBeInTheDocument(); // the ds_1 items panel is open from the URL
+  });
+
+  it('M70 — a dataset item opens its source-trace span peek (no dead-end)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 1 }] });
+      if (url.startsWith('/v1/dashboard/lens/datasets/ds_1')) return Promise.resolve({ id: 'ds_1', name: 'golden', items: [{ traceId: 'tr_9' }] });
+      // the peek fetches the trace tree
+      if (/\/traces\/tr_9/.test(url)) return Promise.resolve({ traceId: 'tr_9', spanId: 's', name: 'root', children: [] });
+      return Promise.resolve({});
+    });
+    render(<LensDatasetsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /open golden/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /view trace/i }));
+    // the peek requested the source trace
+    expect(mockCloudFetch.mock.calls.some((c) => /\/traces\/tr_9/.test(String(c[0])))).toBe(true);
   });
 
   it('remove-item opens ConfirmDialog then calls DELETE on confirm', async () => {

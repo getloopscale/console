@@ -1,20 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  ConfirmDialog,
-  DataTable,
-  type DataTableColumn,
-  EmptyState,
-  Input,
-  PageShell,
-  Select,
-  Skeleton,
-} from '@usetheo/ui';
+import { Badge, Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select } from '@usetheo/ui';
+import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -40,6 +29,18 @@ interface AlertRule {
   last_evaluated_at: string | null;
   last_triggered_at: string | null;
 }
+/**
+ * The honest status→badge-variant map (issue #alerts-badge): a badge must reflect the rule's TRUE
+ * state, not "TRIGGERED-or-green". A disabled rule is neutral (grey), a cleared rule is success, a
+ * firing rule is destructive, and an unknown status is neutral — never a misleading green "success".
+ */
+export function alertStatusVariant(status: string, enabled: boolean): 'destructive' | 'success' | 'outline' {
+  if (!enabled) return 'outline'; // a disabled rule is not "OK/success" — it is inert
+  if (status === 'TRIGGERED') return 'destructive';
+  if (status === 'OK') return 'success';
+  return 'outline'; // unknown / pending → neutral, never a fabricated success
+}
+
 interface AlertRulesResult {
   alert_rules: AlertRule[];
 }
@@ -97,7 +98,8 @@ export function LensAlertsPage() {
 
   const create = useMutation({
     mutationFn: (input: Record<string, unknown>) =>
-      cloudFetch<AlertRule>('/v1/dashboard/lens/alert-rules', { method: 'POST', body: JSON.stringify(input) }),
+      cloudFetch<AlertRule>('/v1/dashboard/lens/alert-rules', { method: 'POST', body: JSON.stringify(input) }, { throwOnError: true }),
+    retry: false,
     onSuccess: () => {
       setName('');
       setThreshold('');
@@ -107,7 +109,8 @@ export function LensAlertsPage() {
   });
   const remove = useMutation({
     mutationFn: (id: string) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+      cloudFetch<unknown>(`/v1/dashboard/lens/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' }, { throwOnError: true }),
+    retry: false,
     onSuccess: () => {
       setPendingDelete(null);
       invalidate();
@@ -115,12 +118,17 @@ export function LensAlertsPage() {
   });
   const toggle = useMutation({
     mutationFn: (r: AlertRule) =>
-      cloudFetch<unknown>(`/v1/dashboard/lens/alert-rules/${encodeURIComponent(r.id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ enabled: !r.enabled }),
-      }),
+      cloudFetch<unknown>(
+        `/v1/dashboard/lens/alert-rules/${encodeURIComponent(r.id)}`,
+        { method: 'PATCH', body: JSON.stringify({ enabled: !r.enabled }) },
+        { throwOnError: true },
+      ),
+    retry: false,
     onSuccess: invalidate,
   });
+
+  // M72 — a write-action must not fail silently. Surface the first failing mutation's error.
+  const writeError = create.isError ? 'create' : toggle.isError ? 'toggle' : remove.isError ? 'delete' : null;
 
   const availableWebhooks = webhooks.data?.webhooks ?? [];
   const canCreate = name.trim() !== '' && threshold.trim() !== '' && webhookId !== '' && !create.isPending;
@@ -139,13 +147,19 @@ export function LensAlertsPage() {
     {
       key: 'status',
       label: 'Status',
-      render: (r) => <Badge variant={r.status === 'TRIGGERED' ? 'destructive' : 'success'}>{r.status}</Badge>,
+      render: (r) => <Badge variant={alertStatusVariant(r.status, r.enabled)}>{r.enabled ? r.status : 'Disabled'}</Badge>,
     },
     {
       key: 'enabled',
       label: 'Enabled',
       render: (r) => (
-        <Button variant="ghost" size="sm" onClick={() => toggle.mutate(r)} aria-label={`Toggle ${r.name}`}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => toggle.mutate(r)}
+          aria-label={`Toggle ${r.name}`}
+          aria-pressed={r.enabled}
+        >
           {r.enabled ? 'On' : 'Off'}
         </Button>
       ),
@@ -172,6 +186,14 @@ export function LensAlertsPage() {
     <>
       <PageShell title="Alerts" description="Get notified when a metric crosses a threshold.">
         <div className="space-y-6">
+          {writeError ? (
+            <Alert
+              intent="destructive"
+              title={`Could not ${writeError} the alert rule`}
+              description="The change was not saved — try again, or check your access to this workspace."
+              data-testid="alerts-write-error"
+            />
+          ) : null}
           <Card>
             <Card.Header>
               <h2 className="text-sm font-medium">Create an alert rule</h2>
@@ -286,7 +308,7 @@ export function LensAlertsPage() {
           </Card>
 
           {rules.isLoading ? (
-            <Skeleton />
+            <ListSkeleton label="alert rules" />
           ) : rules.isError ? (
             <Alert intent="warning" title="Could not load alert rules">
               The lens service is unavailable. Try again shortly.

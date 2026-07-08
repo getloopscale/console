@@ -30,7 +30,6 @@ function seriesMock(overrides: Record<string, unknown> = {}) {
         ...overrides,
       });
     }
-    if (url.includes('cost')) return Promise.resolve({ buckets: [{ costUsd: 1.25 }, { costUsd: 0.25 }] });
     return Promise.resolve({});
   });
 }
@@ -48,10 +47,15 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     expect(screen.getByText('Error rate %')).toBeInTheDocument();
     expect(screen.getByText('20%')).toBeInTheDocument(); // 2/10 → the MetricCard value
     expect(screen.getByText('Latency p95 (ms)')).toBeInTheDocument();
-    for (const t of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Agents', 'Ask']) {
+    // M70 — the Explore grid is generated from the capability registry (now also incl. Dashboards,
+    // Queues, Experiments, Alerts). The cards are SPA links (not full-reload buttons).
+    for (const t of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Agents', 'Ask', 'Alerts', 'Experiments']) {
       expect(screen.getAllByText(t).length).toBeGreaterThan(0);
     }
-    expect(screen.getAllByRole('button', { name: /open →/i }).length).toBeGreaterThanOrEqual(7);
+    const openLinks = screen.getAllByRole('link', { name: /open →/i });
+    expect(openLinks.length).toBeGreaterThanOrEqual(7);
+    // the Alerts card links to the alerts route (was missing from the old grid)
+    expect(openLinks.some((l) => l.getAttribute('href') === '/observability/alerts')).toBe(true);
   });
 
   it('M60 — renders ONE shared trend chart (default throughput), swapped by a KPI-tile click', async () => {
@@ -94,6 +98,17 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     // the ONE shared chart renders its empty-state; it draws no line (not a fabricated zero line).
     expect(screen.getAllByTestId('trend-empty').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByTestId('trend-line')).not.toBeInTheDocument();
+  });
+
+  it('M68 — a quiet tenant shows em-dash for error-rate + p95, honest 0 for traces (not 0%/0ms)', async () => {
+    seriesMock({ traffic: [], latency: [], tokensByModel: [] });
+    render(<LensOverviewPage />);
+    await screen.findByRole('button', { name: /show traces trend/i }); // metric-agnostic barrier
+    // rate/percentile over an EMPTY window are undefined → em-dash, NEVER a misleading 0%/0ms.
+    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2); // error-rate + p95 tiles
+    // a count over an empty window is an honest measurement → 0.
+    expect(screen.getByText('0')).toBeInTheDocument(); // Traces tile
   });
 
   it('M60 — the shared chart exposes an a11y summary (role=img + a visually-hidden value table)', async () => {

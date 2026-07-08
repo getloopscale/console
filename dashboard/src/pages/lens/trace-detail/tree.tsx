@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ClipboardCheck } from 'lucide-react';
 import { Badge, Button } from '@usetheo/ui';
 
+import { cloudFetch } from '@/lib/api';
 import { LensPlayground } from '../playground';
 import { Attributes } from './attributes';
 import { IoCards } from './io-cards';
-import { formatDuration, formatTokens } from '@/lib/format';
+import { formatCost, formatDate, formatDuration, formatTokens } from '@/lib/format';
+import { aggregateCost } from '@/lib/trace-layout';
+import { isSpanError } from '@/lib/span-status';
 import { computeBarLayout, durationMs, type FlatNode, type TraceSpanNode } from './helpers';
 
 /**
@@ -29,7 +33,7 @@ function TimelineBar({ node, bounds }: { node: TraceSpanNode; bounds: Bounds }) 
     bounds.endNs,
   );
   const dur = durationMs(node);
-  const isError = !!node.statusCode && node.statusCode !== '0';
+  const isError = isSpanError(node.statusCode);
   const tip = `${node.name} · ${dur !== null ? formatDuration(dur) : 'in-flight'}${node.model ? ` · ${node.model}` : ''}`;
   return (
     <span
@@ -60,6 +64,8 @@ function SpanRow({
   onSelect,
   onToggle,
   selectedRef,
+  posinset = 1,
+  setsize = 1,
 }: {
   node: TraceSpanNode;
   depth: number;
@@ -69,11 +75,24 @@ function SpanRow({
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   selectedRef?: React.RefObject<HTMLButtonElement | null>;
+  posinset?: number;
+  setsize?: number;
 }) {
   const dur = durationMs(node);
   const hasChildren = (node.children?.length ?? 0) > 0;
   return (
-    <div className="flex items-center gap-2" style={{ paddingLeft: `${depth * 16}px` }}>
+    // M71 — real ARIA tree semantics: a treeitem carries its level + sibling position + expansion +
+    // selection so a screen reader announces the trace's shape (was a plain nested <div>).
+    <div
+      role="treeitem"
+      aria-level={depth + 1}
+      aria-posinset={posinset}
+      aria-setsize={setsize}
+      aria-selected={selected}
+      aria-expanded={hasChildren ? !collapsed : undefined}
+      className="flex items-center gap-2"
+      style={{ paddingLeft: `${depth * 16}px` }}
+    >
       {hasChildren ? (
         <button
           type="button"
@@ -108,7 +127,7 @@ function SpanRow({
             {formatTokens(node.inputTokens ?? 0)}→{formatTokens(node.outputTokens ?? 0)}
           </span>
         ) : null}
-        {node.statusCode && node.statusCode !== '0' ? (
+        {isSpanError(node.statusCode) ? (
           <Badge variant="destructive" className="shrink-0">
             error
           </Badge>
@@ -129,6 +148,8 @@ export function RecursiveTree({
   onSelect,
   onToggle,
   selectedRef,
+  posinset = 1,
+  setsize = 1,
 }: {
   node: TraceSpanNode;
   depth: number;
@@ -138,8 +159,11 @@ export function RecursiveTree({
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   selectedRef: React.RefObject<HTMLButtonElement | null>;
+  posinset?: number;
+  setsize?: number;
 }) {
   const isCollapsed = collapsed.has(node.spanId);
+  const children = node.children ?? [];
   return (
     <div>
       <SpanRow
@@ -151,9 +175,13 @@ export function RecursiveTree({
         onSelect={onSelect}
         onToggle={onToggle}
         selectedRef={selectedRef}
+        posinset={posinset}
+        setsize={setsize}
       />
-      {!isCollapsed
-        ? (node.children ?? []).map((c, i) => (
+      {!isCollapsed && children.length > 0 ? (
+        // The children of a treeitem live in a role="group" (explicit ARIA tree nesting).
+        <div role="group">
+          {children.map((c, i) => (
             <RecursiveTree
               key={`${i}-${c.spanId}`}
               node={c}
@@ -164,9 +192,12 @@ export function RecursiveTree({
               onSelect={onSelect}
               onToggle={onToggle}
               selectedRef={selectedRef}
+              posinset={i + 1}
+              setsize={children.length}
             />
-          ))
-        : null}
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -225,6 +256,8 @@ export function VirtualTree({
                 bounds={bounds}
                 onSelect={onSelect}
                 onToggle={onToggle}
+                posinset={vi.index + 1}
+                setsize={flat.length}
               />
             </div>
           );
@@ -242,18 +275,45 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
   // M55 — an LLM span (one with a recorded input) can be replayed in the playground.
   const canReplay = !!span.inputValue;
   const [pgOpen, setPgOpen] = useState(false);
+  // M63 — the single per-span entry-point to the labeling queue (enqueue for human review). One
+  // affordance (ADR D5); NOT a duplicate of the M44 tags/annotations panel (a distinct flow).
+  const enqueue = useMutation({
+    mutationFn: () =>
+      cloudFetch(
+        `/v1/dashboard/lens/traces/${encodeURIComponent(span.traceId)}/enqueue-for-labeling`,
+        { method: 'POST', body: JSON.stringify({ spanId: span.spanId }) },
+        { throwOnError: true },
+      ),
+    retry: false,
+  });
   return (
     <div data-testid="span-detail" className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-sm font-medium">{span.name}</span>
         {span.model ? <Badge variant="outline">{span.model}</Badge> : null}
         {span.provider ? <Badge variant="outline">{span.provider}</Badge> : null}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto"
+          aria-label={`Add ${span.name} to labeling queue`}
+          disabled={enqueue.isPending || enqueue.isSuccess}
+          onClick={() => enqueue.mutate()}
+        >
+          <ClipboardCheck className="mr-1 h-4 w-4" />
+          {enqueue.isSuccess ? 'Queued' : enqueue.isPending ? 'Queuing…' : 'Add to labeling queue'}
+        </Button>
         {canReplay ? (
-          <Button variant="secondary" size="sm" className="ml-auto" onClick={() => setPgOpen((v) => !v)}>
+          <Button variant="secondary" size="sm" onClick={() => setPgOpen((v) => !v)}>
             {pgOpen ? 'Close playground' : 'Playground'}
           </Button>
         ) : null}
       </div>
+      {enqueue.isError ? (
+        <Badge variant="destructive" data-testid="enqueue-error">
+          Could not add to queue
+        </Badge>
+      ) : null}
       {canReplay && pgOpen ? <LensPlayground span={span} /> : null}
 
       <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
@@ -281,6 +341,13 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
             <dd className="font-medium">{formatDuration(dur)}</dd>
           </div>
         ) : null}
+        {/* M72 — SpanDetail was missing a Cost stat; show it for any span that carries a cost. */}
+        {aggregateCost(span) > 0 ? (
+          <div>
+            <dt className="text-muted-foreground">Cost</dt>
+            <dd className="font-medium" data-testid="span-detail-cost">{formatCost(aggregateCost(span))}</dd>
+          </div>
+        ) : null}
       </dl>
 
       <section className="space-y-1">
@@ -305,12 +372,37 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
       {events.length > 0 ? (
         <section className="space-y-1">
           <h3 className="text-xs font-semibold uppercase text-muted-foreground">Events</h3>
-          <ul className="space-y-1 text-xs">
-            {events.map((e, i) => (
-              <li key={`${e.name}-${i}`} className="font-mono">
-                {e.name}
-              </li>
-            ))}
+          <ul className="space-y-2 text-xs">
+            {events.map((e, i) => {
+              // M72 — an event now shows its time + its attributes (an exception event's stacktrace is
+              // in `attributes` — previously invisible). ns → ISO; only parse an all-digit value so a
+              // malformed/corrupt timeUnixNano can never throw (BigInt() rejects non-numeric strings).
+              const iso =
+                e.timeUnixNano && /^\d+$/.test(e.timeUnixNano)
+                  ? new Date(Number(BigInt(e.timeUnixNano) / 1_000_000n)).toISOString()
+                  : undefined;
+              const attrs = Object.entries(e.attributes ?? {});
+              return (
+                <li key={`${e.name}-${i}`} className="space-y-0.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono font-medium">{e.name}</span>
+                    {iso ? <span className="text-muted-foreground">{formatDate(iso, 'datetime')}</span> : null}
+                  </div>
+                  {attrs.length > 0 ? (
+                    <dl className="ml-2 space-y-0.5">
+                      {attrs.map(([k, v]) => (
+                        <div key={k} className="flex gap-2">
+                          <dt className="shrink-0 text-muted-foreground">{k}</dt>
+                          <dd className="whitespace-pre-wrap break-all font-mono">
+                            {typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}

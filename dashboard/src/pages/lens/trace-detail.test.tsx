@@ -30,6 +30,7 @@ import {
   VIRTUALIZE_THRESHOLD,
 } from './trace-detail';
 import { ancestors } from './trace-detail/breadcrumb';
+import { GRAPH_NODE_CAP } from './trace-detail/graph-layout';
 import { aggregateCost } from '@/lib/trace-layout';
 import { formatCost, formatDate } from '@/lib/format';
 
@@ -99,10 +100,47 @@ describe('LensTraceDetail — span tree', () => {
     expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/lens/traces/t1');
   });
 
+  it('M72 — a trace-level summary header shows duration / cost / tokens / errors / models', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />);
+    const summary = await screen.findByTestId('trace-summary');
+    expect(within(summary).getByText('Duration')).toBeInTheDocument();
+    expect(within(summary).getByText('Cost')).toBeInTheDocument();
+    expect(within(summary).getByText('Tokens')).toBeInTheDocument();
+    expect(within(summary).getByText('Errors')).toBeInTheDocument();
+    expect(within(summary).getByText('Models')).toBeInTheDocument();
+    // the fixture's one llm span uses claude-haiku → surfaced in the models list
+    expect(within(summary).getByText(/claude-haiku/)).toBeInTheDocument();
+  });
+
+  it('M71 — the span tree exposes real ARIA tree semantics (role + level/pos/setsize)', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />);
+    const treeEl = await screen.findByRole('tree', { name: /span tree/i });
+    const items = within(treeEl).getAllByRole('treeitem');
+    expect(items.length).toBeGreaterThanOrEqual(2); // root + child
+    // the root treeitem is level 1, expandable; the child is level 2
+    const root = items.find((i) => i.getAttribute('aria-level') === '1');
+    const child = items.find((i) => i.getAttribute('aria-level') === '2');
+    expect(root).toBeTruthy();
+    expect(root).toHaveAttribute('aria-expanded'); // has children → expansion state announced
+    expect(child).toBeTruthy();
+    expect(child).toHaveAttribute('aria-posinset', '1');
+    expect(child).toHaveAttribute('aria-setsize', '1');
+  });
+
+  it('M71 — each waterfall row has a distinct, informative aria-label (operable by a screen reader)', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />);
+    await screen.findByRole('tree');
+    // the timeline rows are named by span (not one shared "Select this span"): a Timeline-prefixed label
+    expect(screen.getByRole('button', { name: /^timeline: claude_code\.llm_request/i })).toBeInTheDocument();
+  });
+
   it('selecting a span marks it active and shows its detail', async () => {
     mockCloudFetch.mockResolvedValue(tree());
     render(<LensTraceDetail traceId="t1" />);
-    const child = await screen.findByRole('button', { name: /claude_code\.llm_request/i });
+    const child = within(await screen.findByRole('tree')).getByRole('button', { name: /claude_code\.llm_request/i });
     await userEvent.click(child);
     expect(child).toHaveAttribute('aria-current', 'true');
     const detail = screen.getByTestId('span-detail');
@@ -133,7 +171,7 @@ describe('LensTraceDetail — selected-span detail', () => {
   it('renders JSON output in a read-only CodeMirror viewer (M48)', async () => {
     mockCloudFetch.mockResolvedValue(tree());
     render(<LensTraceDetail traceId="t1" />);
-    await userEvent.click(await screen.findByRole('button', { name: /claude_code\.llm_request/i }));
+    await userEvent.click(within(await screen.findByRole('tree')).getByRole('button', { name: /claude_code\.llm_request/i }));
     const out = within(screen.getByTestId('span-detail')).getByTestId('span-output');
     // CodeMirror mounted (rich rendering) and carries the JSON content, read-only.
     const cm = out.querySelector('.cm-editor');
@@ -145,12 +183,14 @@ describe('LensTraceDetail — selected-span detail', () => {
   it('shows attributes, events and model/token metadata for the selected span', async () => {
     mockCloudFetch.mockResolvedValue(tree());
     render(<LensTraceDetail traceId="t1" />);
-    await userEvent.click(await screen.findByRole('button', { name: /claude_code\.llm_request/i }));
+    await userEvent.click(within(await screen.findByRole('tree')).getByRole('button', { name: /claude_code\.llm_request/i }));
     const detail = screen.getByTestId('span-detail');
     expect(within(detail).getByText('claude-haiku-4-5-20251001')).toBeInTheDocument();
     expect(within(detail).getByText(/501/)).toBeInTheDocument();
     expect(within(detail).getByText('stop_reason')).toBeInTheDocument();
     expect(within(detail).getByText('gen_ai.request.attempt')).toBeInTheDocument();
+    // M72 — the event's ATTRIBUTES now render (a stacktrace/attempt key was previously invisible)
+    expect(within(detail).getByText('attempt')).toBeInTheDocument();
     // M57 T2.1 — durations render via formatDuration (no raw "885 ms" with a space)
     expect(within(detail).getByText('885ms')).toBeInTheDocument();
     expect(within(detail).queryByText('885 ms')).not.toBeInTheDocument();
@@ -198,22 +238,23 @@ describe('LensTraceDetail — tree interaction', () => {
   it('collapses and expands a subtree via the toggle', async () => {
     mockCloudFetch.mockResolvedValue(tree());
     render(<LensTraceDetail traceId="t1" />);
-    await screen.findByTestId('span-tree');
-    // child visible initially
-    expect(screen.getByRole('button', { name: /claude_code\.llm_request/i })).toBeInTheDocument();
+    await screen.findByRole('tree'); // wait for the tree before scoping to it
+    const treeLane = () => within(screen.getByRole('tree'));
+    // child visible initially (scoped to the tree lane — the waterfall lane also names its rows)
+    expect(treeLane().getByRole('button', { name: /claude_code\.llm_request/i })).toBeInTheDocument();
     // collapse the root → child hidden
-    await userEvent.click(screen.getByRole('button', { name: /collapse claude_code\.interaction/i }));
-    expect(screen.queryByRole('button', { name: /claude_code\.llm_request/i })).not.toBeInTheDocument();
+    await userEvent.click(treeLane().getByRole('button', { name: /collapse claude_code\.interaction/i }));
+    expect(treeLane().queryByRole('button', { name: /claude_code\.llm_request/i })).not.toBeInTheDocument();
     // expand → child back
-    await userEvent.click(screen.getByRole('button', { name: /expand claude_code\.interaction/i }));
-    expect(screen.getByRole('button', { name: /claude_code\.llm_request/i })).toBeInTheDocument();
+    await userEvent.click(treeLane().getByRole('button', { name: /expand claude_code\.interaction/i }));
+    expect(treeLane().getByRole('button', { name: /claude_code\.llm_request/i })).toBeInTheDocument();
   });
 
   it('scrolls the selected span into view on selection', async () => {
     const spy = vi.spyOn(Element.prototype, 'scrollIntoView');
     mockCloudFetch.mockResolvedValue(tree());
     render(<LensTraceDetail traceId="t1" />);
-    await userEvent.click(await screen.findByRole('button', { name: /claude_code\.llm_request/i }));
+    await userEvent.click(within(await screen.findByRole('tree')).getByRole('button', { name: /claude_code\.llm_request/i }));
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });
@@ -814,12 +855,13 @@ describe('Attributes — namespace-grouped, PII-masked panel (M58 P2.2)', () => 
     expect(screen.getByText('•••')).toBeInTheDocument();
   });
 
-  it('fail-closed: with canReveal={false} the Reveal control is disabled AND force-clicking never leaks', async () => {
+  it('M72 fail-closed: with canReveal={false} the Reveal control is HIDDEN (no inert affordance) and the value never leaks', async () => {
     const { container } = render(<Attributes attrs={attrs} canReveal={false} />);
-    const reveal = screen.getByRole('button', { name: /reveal/i });
-    expect(reveal).toBeDisabled();
-    // Force the click even though it is disabled — the raw value must still never enter the DOM.
-    fireEvent.click(reveal);
+    // The dead disabled button is gone — an unauthorized viewer sees a quiet "masked" hint, not theatre.
+    expect(screen.queryByRole('button', { name: /reveal/i })).toBeNull();
+    expect(screen.getByText(/masked/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Masked value')).toBeInTheDocument(); // the ••• placeholder
+    // the raw value is still never in the DOM
     expect(screen.queryByText(PII_EMAIL)).toBeNull();
     expect(container.innerHTML).not.toContain(PII_EMAIL);
   });
@@ -839,7 +881,7 @@ describe('Attributes — namespace-grouped, PII-masked panel (M58 P2.2)', () => 
   it('mounts in the selected-span detail pane (integration)', async () => {
     mockCloudFetch.mockResolvedValue(attrsTree());
     render(<LensTraceDetail traceId="t1" />);
-    await userEvent.click(await screen.findByRole('button', { name: /claude_code\.llm_request/i }));
+    await userEvent.click(within(await screen.findByRole('tree')).getByRole('button', { name: /claude_code\.llm_request/i }));
     const detail = screen.getByTestId('span-detail');
     // grouped header present, and the PII email is NOT in the pre-reveal detail DOM.
     expect(within(detail).getByRole('button', { name: /collapse gen_ai/i })).toBeInTheDocument();
@@ -1093,5 +1135,77 @@ describe('LensTraceDetail — M58 P4.2 reader-mode Transcript', () => {
     mockCloudFetch.mockResolvedValue({ spanId: 'solo', traceId: 't1', name: 'solo.span' });
     render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=transcript'] });
     expect(await screen.findByText('Only one span in this trace')).toBeInTheDocument();
+  });
+});
+
+describe('LensTraceDetail — Graph tab (M67)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('test_graph_tab_renders_nodes_and_edges', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=graph'] });
+    const graph = await screen.findByTestId('span-graph');
+    // one node per span (root + child), one edge <line> for the parent→child link
+    expect(within(graph).getAllByTestId('graph-node')).toHaveLength(2);
+    expect(graph.querySelectorAll('line')).toHaveLength(1);
+    // M71 — role="group" (not "img"): the graph exposes its interactive nodes to AT.
+    expect(within(graph).getByRole('group', { name: /agent execution graph/i })).toBeInTheDocument();
+    // sr-only node summary (a11y) lists each node with its derived kind label
+    const srList = graph.querySelector('ul.sr-only');
+    expect(srList?.textContent).toMatch(/LLM/); // the child llm_request node's kind
+    expect(srList?.textContent).toMatch(/execution path/); // the on-path marker
+  });
+
+  it('test_graph_node_click_selects_span (M58 selection sync)', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=graph'] });
+    const graph = await screen.findByTestId('span-graph');
+    // the child graph node exposes role=button + an aria-label with its name (scoped to the graph —
+    // the always-present waterfall lane now also names its rows)
+    const childNode = within(graph).getByRole('button', { name: /claude_code\.llm_request/i });
+    await userEvent.click(childNode);
+    // clicking the node selects the span → the (cross-lane) detail panel shows the child's model
+    const detail = await screen.findByTestId('span-detail');
+    expect(within(detail).getByText('claude-haiku-4-5-20251001')).toBeInTheDocument();
+  });
+
+  it('test_graph_deeplink_highlights_selected_and_path', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=graph&spanId=child'] });
+    await screen.findByTestId('span-graph');
+    const selected = screen.getByRole('button', { name: /claude_code\.llm_request.*selected/i });
+    expect(selected).toHaveAttribute('data-selected', 'true');
+    expect(selected).toHaveAttribute('data-on-path', 'true'); // the root→selected chain
+  });
+
+  it('test_graph_oversize_shows_honest_state', async () => {
+    mockCloudFetch.mockResolvedValue(wideTree(GRAPH_NODE_CAP)); // root + CAP = CAP+1 > CAP
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=graph'] });
+    expect(await screen.findByTestId('graph-too-large')).toBeInTheDocument();
+    expect(screen.queryByTestId('span-graph')).toBeNull(); // never renders an oversize canvas
+  });
+
+  it('test_graph_malformed_parent_still_renders (negative)', async () => {
+    // a child pointing at an absent parent must not crash — it attaches under the root
+    mockCloudFetch.mockResolvedValue({
+      spanId: 'root',
+      traceId: 't1',
+      name: 'root.span',
+      children: [{ spanId: 'orphan', traceId: 't1', parentSpanId: 'ghost', name: 'orphan.span' }],
+    });
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?view=graph'] });
+    const graph = await screen.findByTestId('span-graph');
+    expect(within(graph).getAllByTestId('graph-node')).toHaveLength(2); // root + orphan, no crash
+  });
+
+  it('test_graph_tab_reachable_via_toggle', async () => {
+    mockCloudFetch.mockResolvedValue(tree());
+    render(<LensTraceDetail traceId="t1" />);
+    await screen.findByTestId('span-tree'); // starts on Tree
+    const graphBtn = screen.getByRole('button', { name: /^graph$/i });
+    expect(graphBtn).toHaveAttribute('aria-pressed', 'false'); // not active on Tree
+    await userEvent.click(graphBtn);
+    expect(await screen.findByTestId('span-graph')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^graph$/i })).toHaveAttribute('aria-pressed', 'true'); // now active
   });
 });

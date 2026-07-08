@@ -7,7 +7,23 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) })
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
-import { LensAlertsPage } from './alerts';
+import { LensAlertsPage, alertStatusVariant } from './alerts';
+
+describe('alertStatusVariant (honest status badge)', () => {
+  it('a firing rule is destructive, a cleared rule is success', () => {
+    expect(alertStatusVariant('TRIGGERED', true)).toBe('destructive');
+    expect(alertStatusVariant('OK', true)).toBe('success');
+  });
+  it('a disabled rule is neutral, NOT a green success', () => {
+    // the bug: `status !== 'TRIGGERED' ? 'success'` painted a disabled/unknown rule green.
+    expect(alertStatusVariant('OK', false)).toBe('outline');
+    expect(alertStatusVariant('TRIGGERED', false)).toBe('outline');
+  });
+  it('an unknown status is neutral, never a fabricated success', () => {
+    expect(alertStatusVariant('PENDING', true)).toBe('outline');
+    expect(alertStatusVariant('', true)).toBe('outline');
+  });
+});
 
 const RULES = '/v1/dashboard/lens/alert-rules';
 const WEBHOOKS = '/v1/settings/webhooks/list';
@@ -49,6 +65,8 @@ describe('LensAlertsPage (M53)', () => {
     mockRoutes({ webhooks: [] });
     render(<LensAlertsPage />);
     expect(await screen.findByText(/register a webhook first/i)).toBeInTheDocument();
+    // #175: the instruction BODY renders (how to register), not just the title.
+    expect(screen.getByText(/add one under settings/i)).toBeInTheDocument();
   });
 
   it('creates a rule (POST metric/comparator/threshold/window/webhook_id)', async () => {
@@ -74,10 +92,28 @@ describe('LensAlertsPage (M53)', () => {
     expect(screen.getByRole('button', { name: /create rule/i })).toBeDisabled();
   });
 
+  it('M72 — a failed toggle surfaces a write-error Alert (not silent)', async () => {
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined))
+        return Promise.resolve({ alert_rules: [{ id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'h' }] });
+      if (url.startsWith(`${RULES}/`) && init?.method === 'PATCH')
+        return Promise.reject(Object.assign(new Error('boom'), { status: 403 }));
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByText('r');
+    await userEvent.click(screen.getByRole('button', { name: /toggle r/i }));
+    expect(await screen.findByTestId('alerts-write-error')).toBeInTheDocument();
+    expect(screen.getByText(/could not toggle the alert rule/i)).toBeInTheDocument();
+  });
+
   it('toggles a rule enabled (PATCH)', async () => {
     mockRoutes({ rules: [{ id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
     render(<LensAlertsPage />);
     await screen.findByText('r');
+    // M71 — the enable toggle exposes its state via aria-pressed (an enabled rule → pressed)
+    expect(screen.getByRole('button', { name: /toggle r/i })).toHaveAttribute('aria-pressed', 'true');
     await userEvent.click(screen.getByRole('button', { name: /toggle r/i }));
     await waitFor(() => expect(calls('PATCH').length).toBe(1));
     expect(JSON.parse((calls('PATCH')[0][1] as { body: string }).body)).toEqual({ enabled: false });

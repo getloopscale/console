@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Badge, Card, EmptyState, PageShell, Skeleton } from '@usetheo/ui';
+import { Badge, Card, EmptyState, PageShell, Skeleton } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -104,7 +105,7 @@ function LaneTimeline({ tree }: { tree: TraceSpanNode }) {
           bounds.startNs,
           bounds.endNs,
         );
-        const isError = !!node.statusCode && node.statusCode !== '0';
+        const isError = isErrorStatus(node.statusCode);
         return (
           <li key={node.spanId} className="flex items-center gap-2 text-xs">
             <span className="w-40 shrink-0 truncate font-mono" style={{ paddingLeft: `${depth * 8}px` }} title={node.name}>

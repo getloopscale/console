@@ -64,6 +64,17 @@ describe('M59 P1 tracesColumns — spine columns', () => {
     expect(screen.getByLabelText('failed')).toBeInTheDocument();
   });
 
+  it('flags an OTLP statusCode error as failed (2 / STATUS_CODE_ERROR), not just the string "error" (#176)', () => {
+    // The previous `=== 'error'` predicate silently showed an error trace as non-error.
+    renderTable({ data: [{ ...full, statusCode: '2' }] });
+    expect(screen.getByLabelText('failed')).toBeInTheDocument();
+  });
+
+  it('does NOT flag an OK statusCode as failed (STATUS_CODE_OK / 1)', () => {
+    renderTable({ data: [{ ...full, statusCode: 'STATUS_CODE_OK' }] });
+    expect(screen.queryByLabelText('failed')).not.toBeInTheDocument();
+  });
+
   it('toggles the compare selection through the @usetheo/ui Checkbox', async () => {
     const toggleSelected = vi.fn();
     renderTable({ data: [full], toggleSelected });

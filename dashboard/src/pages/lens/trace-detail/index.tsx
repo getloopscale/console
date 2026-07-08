@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, EmptyState, Skeleton } from '@usetheo/ui';
+import { Button, Card, EmptyState, Skeleton } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import { cloudFetch } from '@/lib/api';
@@ -15,7 +16,10 @@ import {
 import { Breadcrumb, useSelection, useSpanKeyboardNav } from './breadcrumb';
 import { RecursiveTree, SpanDetail, VirtualTree } from './tree';
 import { Transcript } from './transcript';
+import { SpanGraph } from './span-graph';
 import { Waterfall } from './waterfall';
+import { traceSummary } from './summary';
+import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/format';
 
 /**
  * M47/M48/M58 — the trace-detail view composition root. Fetches the reconstructed span tree from the
@@ -32,9 +36,11 @@ import { Waterfall } from './waterfall';
 
 export function LensTraceDetail({ traceId }: { traceId: string }) {
   const { spanId, view, setSelection } = useSelection(traceId);
-  // M58 P4.2 — the Tree ⇄ Transcript toggle. The URL `?view=` is the source of truth (ADR D2/D3);
-  // default `tree`. Only `transcript` swaps the left lane for the reader-mode feed.
+  // M58 P4.2 — the Tree ⇄ Transcript toggle (M67 adds Graph). The URL `?view=` is the source of truth
+  // (ADR D2/D3); default `tree`. `transcript` swaps the left lane for the reader-mode feed; `graph`
+  // swaps it for the M67 agent execution graph.
   const isTranscript = view === 'transcript';
+  const isGraph = view === 'graph';
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const selectedRef = useRef<HTMLButtonElement>(null);
   const query = useQuery({
@@ -98,17 +104,31 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
   return (
     <div className="space-y-2">
       <Breadcrumb root={root} selectedId={selectedResolvedId} onSelect={onSelect} />
+      {/* M72 — the trace-level headline the detail view was missing: total duration / ∑ cost / ∑ tokens
+          / error count / distinct models. Absent duration → em-dash; sums of zero are honest. */}
+      {(() => {
+        const s = traceSummary(root);
+        return (
+          <dl data-testid="trace-summary" className="flex flex-wrap gap-x-6 gap-y-1 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+            <div className="flex gap-1"><dt className="text-muted-foreground">Duration</dt><dd className="font-medium tabular-nums">{s.durationMs !== null ? formatDuration(s.durationMs) : '—'}</dd></div>
+            <div className="flex gap-1"><dt className="text-muted-foreground">Cost</dt><dd className="font-medium tabular-nums">{formatCost(s.costUsd)}</dd></div>
+            <div className="flex gap-1"><dt className="text-muted-foreground">Tokens</dt><dd className="font-medium tabular-nums">{formatTokens(s.totalTokens)}</dd></div>
+            <div className="flex gap-1"><dt className="text-muted-foreground">Errors</dt><dd className={`font-medium tabular-nums ${s.errorCount > 0 ? 'text-destructive' : ''}`}>{formatNumber(s.errorCount, 'grouped')}</dd></div>
+            <div className="flex gap-1"><dt className="text-muted-foreground">Models</dt><dd className="font-medium">{s.models.length > 0 ? s.models.join(', ') : '—'}</dd></div>
+          </dl>
+        );
+      })()}
       <PanelGroup direction="horizontal" autoSaveId="lens-trace-split" className="gap-2">
         <Panel defaultSize={40} minSize={20}>
           <Card className="h-full">
             <Card.Body>
-              {/* M58 P4.2 — the Tree ⇄ Transcript segmented toggle (writes ?view=). */}
+              {/* M58/M67 — the Tree ⇄ Transcript ⇄ Graph segmented toggle (writes ?view=). */}
               <div role="group" aria-label="View mode" className="mb-2 inline-flex gap-1">
                 <Button
                   type="button"
                   size="sm"
-                  variant={isTranscript ? 'ghost' : 'secondary'}
-                  aria-pressed={!isTranscript}
+                  variant={!isTranscript && !isGraph ? 'secondary' : 'ghost'}
+                  aria-pressed={!isTranscript && !isGraph}
                   onClick={() => setSelection({ view: 'tree' })}
                 >
                   Tree
@@ -122,12 +142,25 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
                 >
                   Transcript
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isGraph ? 'secondary' : 'ghost'}
+                  aria-pressed={isGraph}
+                  onClick={() => setSelection({ view: 'graph' })}
+                >
+                  Graph
+                </Button>
               </div>
-              {isTranscript ? (
+              {isGraph ? (
+                <SpanGraph root={root} selectedId={selectedResolvedId} onSelect={onSelect} />
+              ) : isTranscript ? (
                 <Transcript root={root} selectedId={selectedResolvedId} onSelect={onSelect} />
               ) : (
                 <div
                   data-testid="span-tree"
+                  role="tree"
+                  aria-label="Span tree"
                   className={virtualized ? 'space-y-0.5' : 'max-h-[70vh] space-y-0.5 overflow-auto'}
                 >
                   {virtualized ? (

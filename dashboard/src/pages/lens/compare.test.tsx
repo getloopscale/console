@@ -89,6 +89,9 @@ describe('LensComparePage', () => {
     );
     renderCompare('tr-A,tr-B');
     await waitFor(() => expect(screen.getByTestId('lane-error-tr-B')).toBeInTheDocument());
+    // #175: the error BODY renders (the failing trace id), not just the title.
+    expect(screen.getByText('tr-B')).toBeInTheDocument();
+    expect(screen.getByText(/is unavailable/i)).toBeInTheDocument();
     // lane A still rendered its timeline
     expect(screen.getAllByTestId('span-bar').length).toBeGreaterThanOrEqual(1);
   });

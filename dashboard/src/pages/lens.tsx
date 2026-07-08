@@ -1,18 +1,11 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { useQueryState, parseAsStringEnum } from 'nuqs';
-import {
-  BellRing,
-  Bot,
-  Database,
-  FlaskConical,
-  ListChecks,
-  Network,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-} from 'lucide-react';
-import { Alert, Button, Card, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { RefreshCw, type LucideIcon } from 'lucide-react';
+import { Button, Card, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
+import { LENS_EXPLORE_CARDS } from '@/components/lens/lens-capabilities';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -29,7 +22,7 @@ import {
   type ModelBucket,
 } from '@/components/lens/lens-series';
 import { OverviewKpiStrip, type KpiTile, type OverviewMetric } from '@/components/lens/overview-kpi-strip';
-import { costValues, errorRateValues, p95Values, tracesValues } from '@/components/lens/overview-metrics';
+import { costByPeriod, errorRateValues, p95Values, tracesValues } from '@/components/lens/overview-metrics';
 
 /**
  * M46 — /lens landing (Overview). The first customer-visible Lens surface, mirroring the Memory /
@@ -45,12 +38,6 @@ interface ObservabilityResult {
   traffic: TrafficBucket[];
   latency: LatencyBucket[];
   tokensByModel: ModelBucket[];
-}
-interface CostBucket {
-  costUsd: number;
-}
-interface CostResult {
-  buckets: CostBucket[];
 }
 
 const RANGES = ['1h', '24h', '7d', '30d'] as const;
@@ -110,34 +97,37 @@ export function LensOverviewPage() {
     queryFn: () =>
       cloudFetch<ObservabilityResult>(`/v1/dashboard/lens/observability?range=${range}`, {}, { throwOnError: true }),
   });
-  const cost = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/cost'] as const,
-    queryFn: () => cloudFetch<CostResult>('/v1/dashboard/lens/cost', {}, { throwOnError: true }),
-  });
 
   const onRefresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/observability'] });
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/cost'] });
   };
 
-  const isError = obs.isError || cost.isError;
-  const isPending = obs.isPending || cost.isPending;
-  const isFetching = obs.isFetching || cost.isFetching;
+  const isError = obs.isError;
+  const isPending = obs.isPending;
+  const isFetching = obs.isFetching;
 
   const traffic = obs.data?.traffic ?? [];
+  const latency = obs.data?.latency ?? [];
+  const tokensByModel = obs.data?.tokensByModel ?? [];
   const traces = sum(traffic.map((t) => t.traceCount));
   const errors = sum(traffic.map((t) => t.errorCount));
-  const errorRatePct = traces > 0 ? Math.round((errors / traces) * 100) : 0;
-  const p95 = Math.round(Math.max(0, ...(obs.data?.latency ?? []).map((l) => l.p95Ms), 0));
-  const totalCost = sum((cost.data?.buckets ?? []).map((b) => b.costUsd));
+  // A rate (errors/traffic) and a percentile (p95) over an EMPTY window are mathematically undefined
+  // → render an em-dash, NOT a fabricated `0%` / `0ms` that falsely implies a perfect-and-quiet tenant.
+  // A count/sum (traces, cost) over an empty window is a defined, honest measurement → `0` / `$0.0000`.
+  const errorRateValue = traces > 0 ? `${Math.round((errors / traces) * 100)}%` : '—';
+  const p95Value = latency.length > 0 ? formatDuration(Math.round(Math.max(0, ...latency.map((l) => l.p95Ms), 0))) : '—';
+  // Cost is range-scoped from the SAME observability fetch (`tokensByModel`) as the cost-by-model chart,
+  // so the KPI tile and the chart agree on the window (no separate all-time `/cost` fetch).
+  const costSeries = costByPeriod(tokensByModel);
+  const totalCost = sum(costSeries);
 
   // M60 — the four KPI tiles: value via M57 formatters; delta from the fetched window via `periodDelta`
   // (invertTrend on the "up is bad" metrics). The tile keys also select which series the shared chart plots.
   const tiles: KpiTile[] = [
     { key: 'throughput', title: 'Traces', value: formatNumber(traces, 'grouped'), series: tracesValues(traffic), agg: 'sum', invert: false },
-    { key: 'errorRate', title: 'Error rate %', value: `${errorRatePct}%`, series: errorRateValues(traffic), agg: 'mean', invert: true },
-    { key: 'latency', title: 'Latency p95 (ms)', value: formatDuration(p95), series: p95Values(obs.data?.latency ?? []), agg: 'mean', invert: true },
-    { key: 'cost', title: 'Cost (USD)', value: formatCost(totalCost), series: costValues(cost.data?.buckets ?? []), agg: 'sum', invert: true },
+    { key: 'errorRate', title: 'Error rate %', value: errorRateValue, series: errorRateValues(traffic), agg: 'mean', invert: true },
+    { key: 'latency', title: 'Latency p95 (ms)', value: p95Value, series: p95Values(latency), agg: 'mean', invert: true },
+    { key: 'cost', title: 'Cost (USD)', value: formatCost(totalCost), series: costSeries, agg: 'sum', invert: true },
   ];
 
   return (
@@ -218,8 +208,8 @@ export function LensOverviewPage() {
               Instrument an agent with the SDK and send OTLP spans to see executions here, then curate
               datasets, score them with evaluators, and gate on guards.
             </p>
-            <Button variant="ghost" onClick={() => (window.location.href = '/observability/traces')}>
-              Browse traces →
+            <Button asChild variant="ghost">
+              <Link to="/observability/traces">Browse traces →</Link>
             </Button>
           </Card.Body>
         </Card>
@@ -227,14 +217,11 @@ export function LensOverviewPage() {
         <section className="space-y-3">
           <h2 className="text-base font-semibold">Explore</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <ExploreCard icon={Network} title="Traces" description="Explore executions and manage their tags & annotations." href="/observability/traces" />
-            <ExploreCard icon={ListChecks} title="Sessions" description="Replay grouped executions." href="/observability/sessions" />
-            <ExploreCard icon={Database} title="Datasets" description="Curate trace datasets for evaluation." href="/observability/datasets" />
-            <ExploreCard icon={FlaskConical} title="Evaluators" description="Score traces with rule or LLM-judge evaluators." href="/observability/evaluators" />
-            <ExploreCard icon={ShieldCheck} title="Guards" description="Gate traces on evaluator thresholds." href="/observability/guards" />
-            <ExploreCard icon={BellRing} title="Alerts" description="Get notified when a metric crosses a threshold." href="/observability/alerts" />
-            <ExploreCard icon={Bot} title="Agents" description="The derived catalog of instrumented agents." href="/observability/agents" />
-            <ExploreCard icon={Search} title="Ask" description="Ask the copilot about a trace." href="/observability/ask" />
+            {/* M70 — the Explore grid is generated from the ONE LENS_CAPABILITIES registry (same source
+                as the sidebar), so the two product maps can never drift. */}
+            {LENS_EXPLORE_CARDS.map((c) => (
+              <ExploreCard key={c.path} icon={c.icon} title={c.label} description={c.description} href={c.path} />
+            ))}
           </div>
         </section>
       </div>
@@ -243,14 +230,14 @@ export function LensOverviewPage() {
 }
 
 interface ExploreCardProps {
-  icon: typeof Network;
+  icon: LucideIcon;
   title: string;
   description: string;
   href: string;
 }
 
-/** Single Explore card — icon + title + 1-line description + a destination button.
- * Kept inline (mirrors `pages/rag.tsx`'s ExploreCard — Rule of 3 / YAGNI). */
+/** Single Explore card — icon + title + 1-line description + a destination link.
+ * Uses a router `<Link>` (SPA nav) — not `window.location.href` (which forced a full reload). */
 function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps) {
   return (
     <Card>
@@ -258,8 +245,8 @@ function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps)
         <Icon className="size-5 text-primary" aria-hidden="true" />
         <h3 className="text-sm font-semibold">{title}</h3>
         <p className="text-xs text-muted-foreground">{description}</p>
-        <Button variant="ghost" size="sm" onClick={() => (window.location.href = href)}>
-          Open →
+        <Button asChild variant="ghost" size="sm">
+          <Link to={href}>Open →</Link>
         </Button>
       </Card.Body>
     </Card>

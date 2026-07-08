@@ -1,20 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Trash2 } from 'lucide-react';
-import {
-  Alert,
-  Button,
-  Card,
-  ConfirmDialog,
-  DataTable,
-  type DataTableColumn,
-  EmptyState,
-  Input,
-  Label,
-  PageShell,
-  Skeleton,
-  Textarea,
-} from '@usetheo/ui';
+import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Textarea } from '@usetheo/ui';
+import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -151,7 +140,7 @@ export function LensEvaluatorsPage() {
           </Card>
 
           {query.isLoading ? (
-            <Skeleton />
+            <ListSkeleton label="evaluators" />
           ) : query.isError ? (
             <Alert intent="warning" title="Could not load evaluators">
               The lens service is unavailable. Try again shortly.

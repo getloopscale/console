@@ -115,6 +115,26 @@ describe('LensTracesPage (/observability/traces)', () => {
     expect(screen.getByRole('button', { name: /compare/i })).toBeDisabled(); // 3 → disabled (pairwise)
   });
 
+  it('M64 — Create regression dataset from selected traces (create dataset + add each)', async () => {
+    filterMock([{ traceId: 'tr_1', name: 'a' }, { traceId: 'tr_2', name: 'b' }]);
+    // the dataset create + add-item writes resolve; the list GET returns the traces.
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (typeof url === 'string' && url.includes('/datasets') && init?.method === 'POST') {
+        return Promise.resolve(url.endsWith('/datasets') ? { id: 'ds-new' } : { id: 'ds-new', items: [] });
+      }
+      return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'a' }, { traceId: 'tr_2', name: 'b' }] });
+    });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(screen.getByLabelText('Select tr_1 for compare'));
+    await userEvent.click(screen.getByLabelText('Select tr_2 for compare'));
+    await userEvent.click(screen.getByRole('button', { name: /create regression dataset/i }));
+    // one dataset create + one add-item per selected trace
+    const posts = mockCloudFetch.mock.calls.filter((c) => (c[1] as { method?: string })?.method === 'POST');
+    expect(posts.some((c) => c[0] === '/v1/dashboard/lens/datasets')).toBe(true);
+    expect(posts.filter((c) => String(c[0]).includes('/datasets/ds-new/items'))).toHaveLength(2);
+  });
+
   it('M56 — Export CSV downloads the filtered set (WYSIWYG) + discloses the count', async () => {
     mockTriggerDownload.mockClear();
     filterMock([{ traceId: 'tr_1', name: 'checkout' }, { traceId: 'tr_2', name: 'refund' }]);
@@ -358,6 +378,14 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     filterMock([]); // upstream returns zero rows for the filtered query
     renderWithParams(<LensTracesPage />, '?status=error');
     expect(await screen.findByText(/no traces match these filters/i)).toBeInTheDocument();
+  });
+
+  it('M69 — the no-data empty state is instructive (carries an Instrument-an-agent action)', async () => {
+    filterMock([]); // zero rows AND no active filter → the "no data yet" variant
+    renderWithParams(<LensTracesPage />, '');
+    expect(await screen.findByText(/no traces yet/i)).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /instrument an agent/i });
+    expect(link).toHaveAttribute('href', expect.stringContaining('/observability/quickstart'));
   });
 });
 

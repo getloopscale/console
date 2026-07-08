@@ -4,6 +4,8 @@ import { Badge } from '@usetheo/ui';
 import { formatCost, formatDate, formatDuration } from '@/lib/format';
 import { aggregateCost, computeBarLayout, niceAxisTicks, packRows, type TraceSpanNode } from '@/lib/trace-layout';
 
+import { isSpanError } from '@/lib/span-status';
+
 import { durationMs, flattenVisible } from './helpers';
 
 /**
@@ -24,11 +26,6 @@ import { durationMs, flattenVisible } from './helpers';
 const AXIS_PX = 600;
 
 type Bounds = { startNs: bigint; endNs: bigint };
-
-/** True when a span's statusCode signals an error — same predicate as the tree lane / compare-core. */
-function isErrorStatus(sc: string | undefined): boolean {
-  return !!sc && sc !== '0';
-}
 
 /** ns → an ISO datetime string, for the hover-needle's absolute-time label. */
 function nsToIso(ns: bigint): string {
@@ -73,7 +70,7 @@ function WaterfallRow({
     bounds.startNs,
     bounds.endNs,
   );
-  const error = isErrorStatus(node.statusCode);
+  const error = isSpanError(node.statusCode);
   const hasChildren = (node.children?.length ?? 0) > 0;
   const rollupCost = hasChildren ? aggregateCost(node) : 0;
   const dur = durationMs(node);
@@ -83,11 +80,10 @@ function WaterfallRow({
     <button
       type="button"
       data-testid="waterfall-row"
-      // A generic accessible label (deliberately NOT the span name) so the timeline lane never
-      // collides with the tree lane's `getByRole('button', { name: <span name> })` queries — the tree
-      // is the primary named affordance; the waterfall is a secondary timeline view of the same
-      // selection. The visible span name is present as `aria-hidden` decorative text + a `title` tip.
-      aria-label="Select this span in the timeline"
+      // M71 — a distinct, informative per-row label (span name + duration) so the timeline is operable
+      // by a screen reader (was one shared "Select this span" for every row). Prefixed "Timeline:" so
+      // it stays distinct from the tree lane's row buttons; tree tests scope to `role="tree"`.
+      aria-label={`Timeline: ${tip}`}
       aria-current={selected ? 'true' : undefined}
       onClick={() => onSelect(node.spanId)}
       title={tip}

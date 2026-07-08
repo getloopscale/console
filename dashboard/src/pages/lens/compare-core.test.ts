@@ -121,9 +121,13 @@ describe('per-span helpers', () => {
     expect(spanTokens(span('s', 'x', { inputTokens: 7, outputTokens: 3 }, [span('c', 'y', { inputTokens: 100 })]))).toBe(10);
     expect(spanTokens(span('s', 'x'))).toBe(0);
   });
-  it('isErrorStatus: only a set, non-"0" code is an error', () => {
+  it('isErrorStatus: only the sanctioned error tokens are errors (#176)', () => {
     expect(isErrorStatus('2')).toBe(true);
-    expect(isErrorStatus('0')).toBe(false);
+    expect(isErrorStatus('ERROR')).toBe(true);
+    expect(isErrorStatus('STATUS_CODE_ERROR')).toBe(true);
+    expect(isErrorStatus('0')).toBe(false); // UNSET
+    expect(isErrorStatus('1')).toBe(false); // OK — the `!== '0'` bug flagged this as error
+    expect(isErrorStatus('STATUS_CODE_OK')).toBe(false); // the `!== '0'` bug flagged this too
     expect(isErrorStatus(undefined)).toBe(false);
   });
 });

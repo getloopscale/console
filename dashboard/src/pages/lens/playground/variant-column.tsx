@@ -1,7 +1,8 @@
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Braces, Plus, Trash2 } from 'lucide-react';
-import { Alert, Badge, Button, Card, Input, Select, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, Input, Select, Textarea } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { cloudFetch } from '@/lib/api';
 import { formatCost, formatDuration, formatTokens } from '@/lib/format';
@@ -124,10 +125,12 @@ export const VariantColumn = forwardRef<
   const targetDataset = dataset || datasetOptions[0]?.id || '';
   const save = useMutation({
     mutationFn: (dsId: string) =>
-      cloudFetch(`/v1/dashboard/lens/datasets/${encodeURIComponent(dsId)}/items`, {
-        method: 'POST',
-        body: JSON.stringify({ input: JSON.stringify(variant.messages), output: replay.data?.output ?? '' }),
-      }),
+      cloudFetch(
+        `/v1/dashboard/lens/datasets/${encodeURIComponent(dsId)}/items`,
+        { method: 'POST', body: JSON.stringify({ input: JSON.stringify(variant.messages), output: replay.data?.output ?? '' }) },
+        { throwOnError: true },
+      ),
+    retry: false,
   });
 
   const setMsg = (i: number, patch: Partial<EditableMessage>) =>
@@ -263,6 +266,16 @@ export const VariantColumn = forwardRef<
                 {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved' : 'Save as dataset item'}
               </Button>
             </div>
+            {/* M72 — the save must not fail silently. */}
+            {save.isError ? (
+              <Alert
+                intent="warning"
+                title="Could not save to the dataset"
+                description="The item was not saved — try again, or pick a different dataset."
+                data-testid="variant-save-error"
+                className="mt-2"
+              />
+            ) : null}
           </div>
         ) : null}
       </Card.Body>

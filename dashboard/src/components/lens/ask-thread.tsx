@@ -1,7 +1,8 @@
-import { type KeyboardEvent, useEffect, useMemo, useState } from 'react';
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { ThumbsDown, ThumbsUp } from 'lucide-react';
-import { Alert, Badge, Button, Card, EmptyState, StatusDot, Textarea } from '@usetheo/ui';
+
+import { Badge, Button, Card, EmptyState, StatusDot, Textarea } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { cloudFetch } from '@/lib/api';
 import { shortId } from '@/lib/format';
@@ -70,6 +71,7 @@ export function AskThread({
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const entityMap = useMemo(() => (spans ? buildEntityMap(spans) : new Map<string, string>()), [spans]);
 
@@ -103,6 +105,11 @@ export function AskThread({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- key on traceId only; ask.reset is stable.
   }, [traceId]);
 
+  // M72 — auto-scroll to the latest turn (or the thinking indicator) so a new answer is in view.
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+  }, [turns.length, ask.isPending]);
+
   const submit = () => {
     const q = draft.trim();
     if (!q || ask.isPending) return;
@@ -110,9 +117,6 @@ export function AskThread({
     ask.mutate({ question: q, spanId: initialSpanId, askedTraceId: traceId });
     setDraft('');
   };
-
-  const toggleFeedback = (id: string, fb: 'up' | 'down') =>
-    setTurns((t) => t.map((x) => (x.id === id ? { ...x, feedback: x.feedback === fb ? undefined : fb } : x)));
 
   return (
     <div className="space-y-4">
@@ -132,7 +136,9 @@ export function AskThread({
         </div>
       ) : null}
 
-      <div className="space-y-3">
+      {/* M71 — the conversation is a log live-region so a screen reader announces new answers as they
+          stream in (polite: it waits for the reader to finish the current utterance). */}
+      <div className="space-y-3" role="log" aria-live="polite" aria-label="Copilot conversation">
         {turns.map((turn) => (
           <Card key={turn.id} data-testid={`thread-turn-${turn.role}`}>
             <Card.Body className="space-y-2">
@@ -145,29 +151,10 @@ export function AskThread({
                 ) : null}
               </div>
               {turn.role === 'assistant' ? (
-                <>
-                  <AnswerBody content={turn.content} entityMap={entityMap} />
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-pressed={turn.feedback === 'up'}
-                      aria-label="Helpful"
-                      onClick={() => toggleFeedback(turn.id, 'up')}
-                    >
-                      <ThumbsUp className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-pressed={turn.feedback === 'down'}
-                      aria-label="Not helpful"
-                      onClick={() => toggleFeedback(turn.id, 'down')}
-                    >
-                      <ThumbsDown className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </>
+                // M72 — the thumbs feedback was decorative (local-state only, never persisted). Rather
+                // than ship theatre, the control is removed until a feedback endpoint exists
+                // (filed as usetheodev/theo-cloud#181).
+                <AnswerBody content={turn.content} entityMap={entityMap} />
               ) : (
                 <p className="text-sm whitespace-pre-wrap">{turn.content}</p>
               )}
@@ -182,10 +169,9 @@ export function AskThread({
         ) : null}
 
         {ask.isError ? (
-          <Alert intent="warning" title="Could not answer">
-            {errorMessage(ask.error)}
-          </Alert>
+          <Alert intent="warning" title="Could not answer" description={errorMessage(ask.error)} />
         ) : null}
+        <div ref={bottomRef} aria-hidden="true" />
       </div>
 
       <div className="flex items-end gap-2">

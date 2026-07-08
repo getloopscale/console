@@ -1,4 +1,4 @@
-import type { LatencyBucket, TrafficBucket } from './lens-series';
+import type { LatencyBucket, ModelBucket, TrafficBucket } from './lens-series';
 
 /**
  * M60 P0 — pure overview-analytics helpers (dependency-free leaf; ADR D2/D3). `periodDelta` computes
@@ -69,4 +69,15 @@ export function p95Values(latency: LatencyBucket[]): number[] {
 }
 export function costValues(cost: { costUsd: number }[]): number[] {
   return cost.map((b) => b.costUsd);
+}
+
+/**
+ * Per-period total cost from the range-scoped by-model rows, in chronological period order. Lets the
+ * Overview cost KPI + its sparkline share the SAME time window as the cost-by-model chart (both from
+ * `tokensByModel`) instead of a separate all-time `/cost` fetch that disagreed on the window.
+ */
+export function costByPeriod(rows: ModelBucket[]): number[] {
+  const byPeriod = new Map<string, number>();
+  for (const r of rows) byPeriod.set(r.periodStart, (byPeriod.get(r.periodStart) ?? 0) + r.costUsd);
+  return [...byPeriod.keys()].sort().map((p) => byPeriod.get(p)!);
 }

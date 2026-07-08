@@ -1,6 +1,24 @@
 import { describe, it, expect } from 'vitest';
 
-import { cardMode, periodDelta } from './overview-metrics';
+import { cardMode, periodDelta, costByPeriod } from './overview-metrics';
+
+describe('costByPeriod', () => {
+  it('sums cost per period in chronological order (range-scoped, single source)', () => {
+    const rows = [
+      { periodStart: '2026-07-07T01:00:00Z', model: 'a', totalTokens: 10, costUsd: 0.02 },
+      { periodStart: '2026-07-07T00:00:00Z', model: 'a', totalTokens: 10, costUsd: 0.05 },
+      { periodStart: '2026-07-07T00:00:00Z', model: 'b', totalTokens: 10, costUsd: 0.01 },
+    ];
+    // period 00:00 = 0.05 + 0.01 = 0.06; period 01:00 = 0.02 — chronological order
+    const out = costByPeriod(rows);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toBeCloseTo(0.06, 6);
+    expect(out[1]).toBeCloseTo(0.02, 6);
+  });
+  it('empty rows → empty (no fabricated bucket)', () => {
+    expect(costByPeriod([])).toEqual([]);
+  });
+});
 
 /**
  * M60 P0 T0.1 — the pure overview-analytics helpers. The delta is an honest half-vs-half

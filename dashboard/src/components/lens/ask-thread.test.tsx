@@ -43,6 +43,8 @@ describe('M61 AskThread', () => {
     await ask('q2');
     await screen.findByText('second answer');
     expect(screen.getAllByTestId(/thread-turn/)).toHaveLength(4); // 2 user + 2 assistant
+    // M71 — the thread is a polite log live-region so new answers are announced by a screen reader
+    expect(screen.getByRole('log', { name: /copilot conversation/i })).toHaveAttribute('aria-live', 'polite');
   });
 
   it('fills the composer when a starter prompt is clicked', async () => {

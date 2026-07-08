@@ -1,24 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { useQueryState, parseAsString } from 'nuqs';
 import { Trash2 } from 'lucide-react';
-import {
-  Alert,
-  Button,
-  Card,
-  ConfirmDialog,
-  DataTable,
-  type DataTableColumn,
-  EmptyState,
-  Input,
-  Label,
-  PageShell,
-  Skeleton,
-  Timestamp,
-} from '@usetheo/ui';
+import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Timestamp } from '@usetheo/ui';
+import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
+import { TracePeekSheet } from './traces/peek-sheet';
 
 /**
  * M44 — /lens/datasets. List / create datasets and remove items via the read+write lens
@@ -53,7 +45,10 @@ export function LensDatasetsPage() {
   const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
-  const [openID, setOpenID] = useState<string | null>(null);
+  // M70 — the open items-panel is URL-state (`?dataset=`), so it is shareable + browser-Back-closable
+  // (the useQueryState/nuqs pattern the Traces page uses). `null` clears the param.
+  const [openID, setOpenID] = useQueryState('dataset', parseAsString);
+  const [peekTrace, setPeekTrace] = useState<string | null>(null); // dataset item → source-span peek (M70)
   const [pendingRemove, setPendingRemove] = useState<{ datasetID: string; traceId: string } | null>(null);
 
   const query = useQuery({
@@ -63,8 +58,11 @@ export function LensDatasetsPage() {
 
   const detail = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/datasets', openID] as const,
-    queryFn: () => cloudFetch<DatasetDetail>(`/v1/dashboard/lens/datasets/${encodeURIComponent(openID as string)}`),
+    // throwOnError so a failed detail load REJECTS (detail.isError) instead of resolving to null —
+    // otherwise a load error is indistinguishable from an empty dataset and renders as "No items".
+    queryFn: () => cloudFetch<DatasetDetail>(`/v1/dashboard/lens/datasets/${encodeURIComponent(openID as string)}`, {}, { throwOnError: true }),
     enabled: openID !== null,
+    retry: false,
   });
 
   const invalidate = () =>
@@ -105,11 +103,24 @@ export function LensDatasetsPage() {
         </Button>
       ),
     },
-    { key: 'itemCount', label: 'Items', render: (row) => <span>{row.itemCount ?? 0}</span> },
+    // An absent count is unknown → em-dash; a real 0 stays 0 (an empty-but-loaded dataset).
+    { key: 'itemCount', label: 'Items', render: (row) => <span>{row.itemCount != null ? row.itemCount : '—'}</span> },
     {
       key: 'createdAt',
       label: 'Created',
       render: (row) => (row.createdAt ? <Timestamp value={row.createdAt} /> : <span>—</span>),
+    },
+    {
+      key: 'run',
+      label: '',
+      align: 'right',
+      // Wire the eval loop: a dataset jumps straight to the Experiments run form seeded with this
+      // dataset (the `?datasetId=` seam the Experiments page reads).
+      render: (row) => (
+        <Button asChild variant="ghost" size="sm">
+          <Link to={`/observability/experiments?datasetId=${encodeURIComponent(row.id)}`}>Run experiment</Link>
+        </Button>
+      ),
     },
   ];
 
@@ -118,6 +129,16 @@ export function LensDatasetsPage() {
   // the open dataset (non-null while the items panel is shown).
   const itemColumns = (datasetID: string): DataTableColumn<DatasetItem>[] => [
     { key: 'traceId', label: 'Trace', render: (row) => <span className="font-mono text-sm">{row.traceId}</span> },
+    {
+      key: 'view',
+      label: '',
+      // Wire the eval loop: a dataset item opens its source trace's span peek (M58), no dead-end.
+      render: (row) => (
+        <Button variant="ghost" size="sm" onClick={() => setPeekTrace(row.traceId)}>
+          View trace
+        </Button>
+      ),
+    },
     {
       key: 'actions',
       label: '',
@@ -172,7 +193,7 @@ export function LensDatasetsPage() {
           </Card>
 
           {query.isLoading ? (
-            <Skeleton />
+            <ListSkeleton label="datasets" />
           ) : query.isError ? (
             <Alert intent="warning" title="Could not load datasets">
               The lens service is unavailable. Try again shortly.
@@ -195,7 +216,9 @@ export function LensDatasetsPage() {
               </Card.Header>
               <Card.Body>
                 {detail.isLoading ? (
-                  <Skeleton />
+                  <ListSkeleton label="dataset items" rows={3} />
+                ) : detail.isError ? (
+                  <Alert intent="destructive" title="Could not load items" description="The dataset items failed to load. Retry, or check your access to this dataset." />
                 ) : (detail.data?.items ?? []).length === 0 ? (
                   <EmptyState title="No items" description="Add traces to this dataset from the Traces page." />
                 ) : (
@@ -224,6 +247,8 @@ export function LensDatasetsPage() {
           onConfirm={() => removeItem.mutate(pendingRemove)}
         />
       ) : null}
+
+      <TracePeekSheet traceId={peekTrace} onClose={() => setPeekTrace(null)} />
     </>
   );
 }
