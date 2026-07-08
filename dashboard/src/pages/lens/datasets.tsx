@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { useQueryState, parseAsString } from 'nuqs';
 import { Trash2 } from 'lucide-react';
 import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Timestamp } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
@@ -44,7 +45,9 @@ export function LensDatasetsPage() {
   const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
-  const [openID, setOpenID] = useState<string | null>(null);
+  // M70 — the open items-panel is URL-state (`?dataset=`), so it is shareable + browser-Back-closable
+  // (the useQueryState/nuqs pattern the Traces page uses). `null` clears the param.
+  const [openID, setOpenID] = useQueryState('dataset', parseAsString);
   const [peekTrace, setPeekTrace] = useState<string | null>(null); // dataset item → source-span peek (M70)
   const [pendingRemove, setPendingRemove] = useState<{ datasetID: string; traceId: string } | null>(null);
 

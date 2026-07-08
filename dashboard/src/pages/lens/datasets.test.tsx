@@ -62,6 +62,17 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(screen.getByText('0')).toBeInTheDocument(); // honest zero (loaded-but-empty dataset)
   });
 
+  it('M70 — the open dataset panel is URL-state (?dataset=) — deep-linkable + Back-closable', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 1 }] });
+      if (url.startsWith('/v1/dashboard/lens/datasets/ds_1')) return Promise.resolve({ id: 'ds_1', name: 'golden', items: [{ traceId: 'tr_9' }] });
+      return Promise.resolve({});
+    });
+    // deep-link straight to an open dataset via the URL param — the items panel loads without a click
+    render(<LensDatasetsPage />, { initialEntries: ['/observability/datasets?dataset=ds_1'] });
+    expect(await screen.findByText('tr_9')).toBeInTheDocument(); // the ds_1 items panel is open from the URL
+  });
+
   it('M70 — a dataset item opens its source-trace span peek (no dead-end)', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 1 }] });
