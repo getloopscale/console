@@ -11,6 +11,7 @@
 ### Removed
 
 ### Fixed
+- **Dashboard: the Alerts "register a webhook first" prerequisite is no longer a dead-end (theo-lens M79).** The notice shown when a workspace has no webhook (the alert delivery target) previously said "Add one under Settings › Webhooks" as plain text with no link; it now links directly to the **`/settings/webhooks`** page — one click from the fix, matching the v5 one-clear-action convention. The create form stays correctly gated until a webhook exists. Reuses react-router `Link` (no BFF change).
 
 ### Security
 
