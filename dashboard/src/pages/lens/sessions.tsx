@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CopyButton, DataTable, type DataTableColumn, EmptyState, PageShell } from '@usetheo/ui';
+import { Link } from 'react-router-dom';
+import { Button, Card, CopyButton, DataTable, type DataTableColumn, EmptyState, PageShell } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -51,6 +52,18 @@ export function LensSessionsPage() {
     },
     // An absent count is unknown → em-dash; a real 0 stays 0.
     { key: 'traceCount', label: 'Traces', render: (row) => <span>{row.traceCount != null ? row.traceCount : '—'}</span> },
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      // Close the dead-end: a session row jumps to the traces list pre-filtered to this session
+      // (the `?session=` URL state the Traces page already reads).
+      render: (row) => (
+        <Button asChild variant="ghost" size="sm">
+          <Link to={`/observability/traces?session=${encodeURIComponent(row.sessionId)}`}>View traces</Link>
+        </Button>
+      ),
+    },
   ];
 
   const sessions = query.data?.sessions ?? [];

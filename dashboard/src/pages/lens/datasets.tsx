@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Timestamp } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
@@ -103,6 +104,18 @@ export function LensDatasetsPage() {
       key: 'createdAt',
       label: 'Created',
       render: (row) => (row.createdAt ? <Timestamp value={row.createdAt} /> : <span>—</span>),
+    },
+    {
+      key: 'run',
+      label: '',
+      align: 'right',
+      // Wire the eval loop: a dataset jumps straight to the Experiments run form seeded with this
+      // dataset (the `?datasetId=` seam the Experiments page reads).
+      render: (row) => (
+        <Button asChild variant="ghost" size="sm">
+          <Link to={`/observability/experiments?datasetId=${encodeURIComponent(row.id)}`}>Run experiment</Link>
+        </Button>
+      ),
     },
   ];
 

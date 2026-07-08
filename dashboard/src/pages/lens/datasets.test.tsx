@@ -24,6 +24,13 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     );
   });
 
+  it('M70 — a dataset row jumps to the Experiments run form seeded with the dataset (eval loop)', async () => {
+    mockCloudFetch.mockResolvedValue({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 2 }] });
+    render(<LensDatasetsPage />);
+    const link = await screen.findByRole('link', { name: /run experiment/i });
+    expect(link).toHaveAttribute('href', '/observability/experiments?datasetId=ds_1');
+  });
+
   it('renders empty state when there are no datasets', async () => {
     mockCloudFetch.mockResolvedValue({ datasets: [] });
     render(<LensDatasetsPage />);

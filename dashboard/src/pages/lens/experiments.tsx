@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Badge, Button, Card, DataTable, type DataTableColumn, Input, PageShell } from '@usetheo/ui';
+import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, Input, PageShell } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -111,13 +111,17 @@ export function LensExperimentsPage() {
   useEffect(() => setPageTitle('Observability · Experiments'), [setPageTitle]);
   useRequireAuth();
   const qc = useQueryClient();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const datasetId = params.get('datasetId') ?? '';
   const compareIds = (params.get('compare') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
   const [model, setModel] = useState('');
   const [prompt, setPrompt] = useState('');
   const [viewTrace, setViewTrace] = useState<string | null>(null);
+  // Compare-picker: select exactly two runs, then open the side-by-side compare via `?compare=`.
+  const [picked, setPicked] = useState<string[]>([]);
+  const togglePick = (id: string) =>
+    setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length < 2 ? [...cur, id] : cur));
 
   // Runs list (or dataset-filtered when arriving from "create regression dataset").
   const runsQuery = useQuery({
@@ -268,7 +272,19 @@ export function LensExperimentsPage() {
         </Card>
       ) : null}
 
-      <span className="text-xs font-semibold uppercase text-muted-foreground">Recent runs</span>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase text-muted-foreground">Recent runs</span>
+        {picked.length > 0 ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={picked.length !== 2}
+            onClick={() => setParams({ compare: picked.join(',') })}
+          >
+            Compare selected ({picked.length}/2)
+          </Button>
+        ) : null}
+      </div>
       {runsQuery.isError ? (
         <Alert intent="warning" title="Could not load runs" description="Try again shortly." />
       ) : runs.length === 0 ? (
@@ -278,6 +294,18 @@ export function LensExperimentsPage() {
           data={runs}
           rowKey={(r) => r.id}
           columns={[
+            {
+              key: 'pick',
+              label: '',
+              render: (r) => (
+                <Checkbox
+                  checked={picked.includes(r.id)}
+                  disabled={!picked.includes(r.id) && picked.length >= 2}
+                  onCheckedChange={() => togglePick(r.id)}
+                  aria-label={`Select ${r.name} to compare`}
+                />
+              ),
+            },
             { key: 'name', label: 'Run', render: (r) => <span className="text-sm">{r.name}</span> },
             { key: 'status', label: 'Status', render: (r) => <RunSummary run={r} /> },
             { key: 'model', label: 'Model', render: (r) => <span className="font-mono text-xs">{r.variant.model ?? '(default)'}</span> },

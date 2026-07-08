@@ -89,6 +89,23 @@ describe('M64 LensExperimentsPage', () => {
     expect(await screen.findByText('run A')).toBeInTheDocument();
   });
 
+  it('M70 — the runs list has a compare-picker: select two → navigate to ?compare= (drillable)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url.includes('/experiment-runs') && !url.includes('/compare'))
+        return Promise.resolve({ runs: [RUN, { ...RUN, id: 'run-2', name: 'run B' }] });
+      if (url.includes('/compare'))
+        return Promise.resolve({ runs: [RUN, { ...RUN, id: 'run-2', name: 'run B' }], deltas: null });
+      return Promise.resolve({});
+    });
+    render(<LensExperimentsPage />, { initialEntries: ['/observability/experiments'] });
+    await userEvent.click(await screen.findByRole('checkbox', { name: /select run A to compare/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /select run B to compare/i }));
+    await userEvent.click(screen.getByRole('button', { name: /compare selected \(2\/2\)/i }));
+    // the compare view opened (two run columns) — proves ?compare= drove the navigation
+    expect(await screen.findByText(/A · run A/)).toBeInTheDocument();
+    expect(screen.getByText(/B · run B/)).toBeInTheDocument();
+  });
+
   it('test_compare_two_runs_shows_passrate_and_per_row_deltas', async () => {
     withRoutes();
     render(<LensExperimentsPage />, { initialEntries: ['/observability/experiments?compare=run-1,run-2'] });
