@@ -9,6 +9,7 @@ import { LensPlayground } from '../playground';
 import { Attributes } from './attributes';
 import { IoCards } from './io-cards';
 import { formatDuration, formatTokens } from '@/lib/format';
+import { isSpanError } from '@/lib/span-status';
 import { computeBarLayout, durationMs, type FlatNode, type TraceSpanNode } from './helpers';
 
 /**
@@ -31,7 +32,7 @@ function TimelineBar({ node, bounds }: { node: TraceSpanNode; bounds: Bounds }) 
     bounds.endNs,
   );
   const dur = durationMs(node);
-  const isError = !!node.statusCode && node.statusCode !== '0';
+  const isError = isSpanError(node.statusCode);
   const tip = `${node.name} · ${dur !== null ? formatDuration(dur) : 'in-flight'}${node.model ? ` · ${node.model}` : ''}`;
   return (
     <span
@@ -110,7 +111,7 @@ function SpanRow({
             {formatTokens(node.inputTokens ?? 0)}→{formatTokens(node.outputTokens ?? 0)}
           </span>
         ) : null}
-        {node.statusCode && node.statusCode !== '0' ? (
+        {isSpanError(node.statusCode) ? (
           <Badge variant="destructive" className="shrink-0">
             error
           </Badge>

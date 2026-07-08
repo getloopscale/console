@@ -10,6 +10,7 @@
  *                      error from any error span) for the delta table.
  */
 import { durationMs, type TraceSpanNode } from './trace-detail';
+import { isSpanError } from '../../lib/span-status';
 
 /** Per-trace cost summary DTO — theo-lens `GET /v1/traces/:id/cost` (M5). */
 export interface TraceCostSummary {
@@ -138,14 +139,17 @@ export interface TraceMetrics {
   tokens: number;
   /** Cost in USD from the M5 summary; `null` when the cost fetch degraded (never fabricated). */
   costUsd: number | null;
-  /** True when any span reports a non-OK status (mirrors trace-detail's `statusCode !== '0'`). */
+  /** True when any span reports an error status (shared `isSpanError` predicate — issue #176). */
   hasError: boolean;
 }
 
-/** True when a span's statusCode signals an error — same predicate as the trace-detail timeline. */
-export function isErrorStatus(sc: string | undefined): boolean {
-  return !!sc && sc !== '0';
-}
+/**
+ * True when a span's statusCode signals an error — the shared canonical predicate.
+ * Re-exported under the historical name so compare.tsx keeps its import; the honest
+ * implementation lives in `lib/span-status` (issue #176 — was `sc !== '0'`, which
+ * flagged OK spans as errors).
+ */
+export const isErrorStatus = isSpanError;
 
 /** A single span's own token count (input + output) — for the per-span tokens delta. */
 export function spanTokens(node: TraceSpanNode): number {

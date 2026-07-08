@@ -1,4 +1,5 @@
 import type { TraceSpanNode } from '@/lib/trace-layout';
+import { isSpanError } from '@/lib/span-status';
 import { flattenAll } from './helpers';
 
 /**
@@ -11,11 +12,6 @@ import { flattenAll } from './helpers';
 
 /** Canonical span kinds — mirrors the theo-lens taxonomy (`packages/web/src/lib/span-kind.ts`). */
 export type SpanKind = 'llm' | 'tool' | 'retriever' | 'embedding' | 'chain' | 'unknown';
-
-const ERROR_STATUS = new Set(['2', 'ERROR', 'STATUS_CODE_ERROR']);
-function isErrorStatus(code: string | undefined): boolean {
-  return code != null && ERROR_STATUS.has(code);
-}
 
 function attr(span: TraceSpanNode, key: string): string | undefined {
   const a = span.attributes;
@@ -155,7 +151,7 @@ export function buildTraceGraph(root: TraceSpanNode, selectedId?: string, cap = 
       order,
       x: order * NODE_X_GAP,
       y: depth * NODE_Y_GAP,
-      error: isErrorStatus(s.statusCode),
+      error: isSpanError(s.statusCode),
       selected: selectedId != null && s.spanId === selectedId,
       onPath: pathSet.has(s.spanId),
     };

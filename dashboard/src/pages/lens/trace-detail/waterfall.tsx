@@ -4,6 +4,8 @@ import { Badge } from '@usetheo/ui';
 import { formatCost, formatDate, formatDuration } from '@/lib/format';
 import { aggregateCost, computeBarLayout, niceAxisTicks, packRows, type TraceSpanNode } from '@/lib/trace-layout';
 
+import { isSpanError } from '@/lib/span-status';
+
 import { durationMs, flattenVisible } from './helpers';
 
 /**
@@ -24,11 +26,6 @@ import { durationMs, flattenVisible } from './helpers';
 const AXIS_PX = 600;
 
 type Bounds = { startNs: bigint; endNs: bigint };
-
-/** True when a span's statusCode signals an error — same predicate as the tree lane / compare-core. */
-function isErrorStatus(sc: string | undefined): boolean {
-  return !!sc && sc !== '0';
-}
 
 /** ns → an ISO datetime string, for the hover-needle's absolute-time label. */
 function nsToIso(ns: bigint): string {
@@ -73,7 +70,7 @@ function WaterfallRow({
     bounds.startNs,
     bounds.endNs,
   );
-  const error = isErrorStatus(node.statusCode);
+  const error = isSpanError(node.statusCode);
   const hasChildren = (node.children?.length ?? 0) > 0;
   const rollupCost = hasChildren ? aggregateCost(node) : 0;
   const dur = durationMs(node);
