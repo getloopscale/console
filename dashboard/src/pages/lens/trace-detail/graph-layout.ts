@@ -13,7 +13,7 @@ import { flattenAll } from './helpers';
 export type SpanKind = 'llm' | 'tool' | 'retriever' | 'embedding' | 'chain' | 'unknown';
 
 const ERROR_STATUS = new Set(['2', 'ERROR', 'STATUS_CODE_ERROR']);
-export function isErrorStatus(code: string | undefined): boolean {
+function isErrorStatus(code: string | undefined): boolean {
   return code != null && ERROR_STATUS.has(code);
 }
 
@@ -46,8 +46,8 @@ export function deriveSpanKind(span: TraceSpanNode): SpanKind {
 export const GRAPH_NODE_CAP = 200;
 
 /** Layout spacing (px) — deterministic order/depth grid; the SVG viewport scales to fit. */
-export const NODE_X_GAP = 168;
-export const NODE_Y_GAP = 96;
+const NODE_X_GAP = 168;
+const NODE_Y_GAP = 96;
 
 export interface GraphNode {
   spanId: string;
@@ -84,7 +84,10 @@ export interface TraceGraph {
  * Over `cap` spans → `{ truncated: true, nodes: [], edges: [] }` (D3).
  */
 export function buildTraceGraph(root: TraceSpanNode, selectedId?: string, cap = GRAPH_NODE_CAP): TraceGraph {
-  const all = flattenAll(root);
+  // Dedup by spanId (a malformed tree may repeat a span in `children[]`) so a node/edge/React-key is
+  // emitted at most once (F3); the first occurrence wins.
+  const seenIds = new Set<string>();
+  const all = flattenAll(root).filter((s) => (seenIds.has(s.spanId) ? false : (seenIds.add(s.spanId), true)));
   const count = all.length;
   if (count > cap) {
     return { nodes: [], edges: [], width: 0, height: 0, truncated: true, count };
@@ -122,6 +125,19 @@ export function buildTraceGraph(root: TraceSpanNode, selectedId?: string, cap = 
       visited.add(child);
       queue.push({ id: child, depth: depth + 1 });
     }
+  }
+
+  // Re-attach any node the BFS never reached (part of a cycle that excludes the root — its effective
+  // parent points inside the cycle, so root's BFS can't descend to it) under the root at depth 1 (F1):
+  // an honest degraded view — shown + connected to root, never piled at the origin.
+  for (const s of all) {
+    if (depthOf.has(s.spanId)) continue;
+    const order = perDepth.get(1) ?? 0;
+    perDepth.set(1, order + 1);
+    depthOf.set(s.spanId, 1);
+    orderOf.set(s.spanId, order);
+    parentOf.set(s.spanId, root.spanId);
+    maxDepth = Math.max(maxDepth, 1);
   }
 
   // The execution path: root→selected ancestor chain, else root→deepest-leaf.

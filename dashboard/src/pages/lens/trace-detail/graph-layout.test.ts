@@ -32,6 +32,13 @@ describe('M67 deriveSpanKind (ported precedence)', () => {
     expect(kind({ children: [span({ spanId: 'c' })] })).toBe('chain'); // childful, no other signal
     expect(kind({})).toBe('unknown'); // negative: no signal
   });
+
+  it('test_deriveSpanKind_precedence_on_competing_signals', () => {
+    // the ORDERING matters, not just each branch in isolation:
+    expect(kind({ attributes: { 'gen_ai.tool.name': 'grep' }, model: 'gpt-4o' })).toBe('tool'); // tool beats llm
+    expect(kind({ model: 'gpt-4o', children: [span({ spanId: 'c' })] })).toBe('llm'); // llm beats chain
+    expect(kind({ attributes: 'not-an-object' as unknown as Record<string, unknown> })).toBe('unknown'); // negative: bad attrs, no crash
+  });
 });
 
 describe('M67 buildTraceGraph (pure, deterministic)', () => {
@@ -92,6 +99,54 @@ describe('M67 buildTraceGraph (pure, deterministic)', () => {
     const g = buildTraceGraph(orphaned);
     expect(g.nodes.map((n) => n.spanId).sort()).toEqual(['lost', 'root']);
     expect(g.edges).toContainEqual(expect.objectContaining({ from: 'root', to: 'lost' })); // re-parented to root
+  });
+
+  it('test_root_excluding_cycle_reattaches_to_root_not_piled_at_origin', () => {
+    // F1 negative: a↔b cycle (each points at the other, both under root in children[]) — the BFS from
+    // root can never descend into it. The re-attach pass places both at depth 1 under root, connected,
+    // NEVER piled at {0,0} on the root.
+    const cyclic: TraceSpanNode = span({
+      spanId: 'root',
+      children: [span({ spanId: 'a', parentSpanId: 'b' }), span({ spanId: 'b', parentSpanId: 'a' })],
+    });
+    const g = buildTraceGraph(cyclic);
+    const byId = Object.fromEntries(g.nodes.map((n) => [n.spanId, n]));
+    expect(byId['a'].depth).toBe(1);
+    expect(byId['b'].depth).toBe(1);
+    expect(byId['a'].order).not.toBe(byId['b'].order); // distinct positions, not stacked
+    expect(g.edges).toContainEqual(expect.objectContaining({ from: 'root', to: 'a' })); // re-parented to root
+    expect(g.edges).toContainEqual(expect.objectContaining({ from: 'root', to: 'b' }));
+  });
+
+  it('test_duplicate_spanId_is_deduped', () => {
+    // F3 negative: a span repeated in children[] → emitted once (no colliding React keys / double edge).
+    const dupChild = span({ spanId: 'dup', parentSpanId: 'root' });
+    const dupTree: TraceSpanNode = span({ spanId: 'root', children: [dupChild, dupChild] });
+    const g = buildTraceGraph(dupTree);
+    expect(g.nodes.filter((n) => n.spanId === 'dup')).toHaveLength(1);
+    expect(g.edges.filter((e) => e.to === 'dup')).toHaveLength(1);
+  });
+
+  it('test_exactly_at_cap_is_renderable', () => {
+    // edge: exactly GRAPH_NODE_CAP spans renders (the cap is `count > cap`, not `>=`).
+    const atCap: TraceSpanNode = span({
+      spanId: 'root',
+      children: Array.from({ length: GRAPH_NODE_CAP - 1 }, (_, i) => span({ spanId: `s${i}`, parentSpanId: 'root' })),
+    });
+    const g = buildTraceGraph(atCap);
+    expect(g.count).toBe(GRAPH_NODE_CAP);
+    expect(g.truncated).toBe(false);
+    expect(g.nodes).toHaveLength(GRAPH_NODE_CAP);
+  });
+
+  it('test_error_span_flags_node_error', () => {
+    const withError: TraceSpanNode = span({
+      spanId: 'root',
+      children: [span({ spanId: 'boom', parentSpanId: 'root', statusCode: 'STATUS_CODE_ERROR' })],
+    });
+    const g = buildTraceGraph(withError);
+    expect(g.nodes.find((n) => n.spanId === 'boom')!.error).toBe(true);
+    expect(g.nodes.find((n) => n.spanId === 'root')!.error).toBe(false);
   });
 
   it('test_over_cap_returns_truncated', () => {

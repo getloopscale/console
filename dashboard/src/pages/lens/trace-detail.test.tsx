@@ -1108,6 +1108,10 @@ describe('LensTraceDetail — Graph tab (M67)', () => {
     expect(within(graph).getAllByTestId('graph-node')).toHaveLength(2);
     expect(graph.querySelectorAll('line')).toHaveLength(1);
     expect(within(graph).getByRole('img', { name: /agent execution graph/i })).toBeInTheDocument();
+    // sr-only node summary (a11y) lists each node with its derived kind label
+    const srList = graph.querySelector('ul.sr-only');
+    expect(srList?.textContent).toMatch(/LLM/); // the child llm_request node's kind
+    expect(srList?.textContent).toMatch(/execution path/); // the on-path marker
   });
 
   it('test_graph_node_click_selects_span (M58 selection sync)', async () => {
@@ -1155,7 +1159,10 @@ describe('LensTraceDetail — Graph tab (M67)', () => {
     mockCloudFetch.mockResolvedValue(tree());
     render(<LensTraceDetail traceId="t1" />);
     await screen.findByTestId('span-tree'); // starts on Tree
-    await userEvent.click(screen.getByRole('button', { name: /^graph$/i }));
+    const graphBtn = screen.getByRole('button', { name: /^graph$/i });
+    expect(graphBtn).toHaveAttribute('aria-pressed', 'false'); // not active on Tree
+    await userEvent.click(graphBtn);
     expect(await screen.findByTestId('span-graph')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^graph$/i })).toHaveAttribute('aria-pressed', 'true'); // now active
   });
 });
