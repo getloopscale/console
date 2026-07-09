@@ -124,7 +124,7 @@ function SpanRow({
         ) : null}
         {node.inputTokens !== undefined || node.outputTokens !== undefined ? (
           <span className="shrink-0 text-xs text-muted-foreground">
-            {formatTokens(node.inputTokens ?? 0)}→{formatTokens(node.outputTokens ?? 0)}
+            {formatTokens(node.inputTokens ?? NaN)}→{formatTokens(node.outputTokens ?? NaN)}
           </span>
         ) : null}
         {isSpanError(node.statusCode) ? (

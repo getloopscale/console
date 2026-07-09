@@ -11,7 +11,13 @@ import { durationMs } from '../trace-detail';
  * formatters; the output is plain text (XSS-safe).
  */
 export function BaselineColumn({ span }: { span: TraceSpanNode }) {
-  const tokens = (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
+  // Never-measured (both counts absent) → NaN so formatTokens renders "—" (not a
+  // fabricated "0 tok"). A real measured 0 — or a partial where one half was
+  // recorded — is a genuine value and renders as the sum. (M89 data-honesty.)
+  const tokens =
+    span.inputTokens === undefined && span.outputTokens === undefined
+      ? NaN
+      : (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
   const latency = durationMs(span);
   return (
     <Card className="flex w-[320px] shrink-0 flex-col" data-testid="baseline-column">

@@ -57,6 +57,31 @@ describe('M62 BaselineColumn', () => {
   });
 });
 
+describe('M89 BaselineColumn — no fabricated-zero tokens', () => {
+  it('test_baseline_tokens_em_dash_when_never_measured', () => {
+    // A span whose token counts were NEVER recorded (both undefined) must render
+    // "—", not a fabricated "0 tok" that is indistinguishable from a real zero.
+    render(<BaselineColumn span={{ ...span, inputTokens: undefined, outputTokens: undefined }} />);
+    const col = screen.getByTestId('baseline-metrics');
+    expect(within(col).getByText('— tok')).toBeInTheDocument();
+    expect(within(col).queryByText('0 tok')).toBeNull();
+  });
+
+  it('test_baseline_tokens_zero_when_measured_zero', () => {
+    // A genuinely measured zero stays "0 tok" — the fix must NOT erase real zeros.
+    render(<BaselineColumn span={{ ...span, inputTokens: 0, outputTokens: 0 }} />);
+    const col = screen.getByTestId('baseline-metrics');
+    expect(within(col).getByText('0 tok')).toBeInTheDocument();
+  });
+
+  it('test_baseline_tokens_partial_sum_when_one_half_measured', () => {
+    // At least one component measured → the sum is a real (partial) measurement.
+    render(<BaselineColumn span={{ ...span, inputTokens: 5, outputTokens: undefined }} />);
+    const col = screen.getByTestId('baseline-metrics');
+    expect(within(col).getByText('5 tok')).toBeInTheDocument();
+  });
+});
+
 describe('M62 VariantColumn', () => {
   beforeEach(() => vi.clearAllMocks());
 
