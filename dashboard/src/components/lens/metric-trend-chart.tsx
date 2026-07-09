@@ -92,6 +92,13 @@ export function MetricTrendChart({
   const xMin = Math.min(...xs);
   const xMax = Math.max(...xs);
   const yMax = niceMax(allPoints.map((p) => p.y)) || 1;
+
+  // A11y-table row axis: the SORTED UNION of every series' x-values, so a value is read
+  // under its own period — NOT positionally off series[0] (which mis-attributes ragged/
+  // sparse series where a period gap is a real gap, the M90 score-trend shape). Each series
+  // looks its cell up BY x; a period it has no point for renders "—".
+  const axisXs = Array.from(new Set(allPoints.map((p) => p.x))).sort((a, b) => a - b);
+  const yByX = series.map((s) => new Map(s.points.map((p) => [p.x, p.y] as const)));
   const xScale = linScale([xMin, xMax], [PAD.left, VIEW_W - PAD.right]);
   const yScale = linScale([0, yMax], [height - PAD.bottom, PAD.top]); // inverted (SVG y grows down)
 
@@ -168,12 +175,13 @@ export function MetricTrendChart({
           </tr>
         </thead>
         <tbody>
-          {(series[0]?.points ?? []).map((_, i) => (
-            <tr key={i}>
+          {axisXs.map((x, i) => (
+            <tr key={x}>
               <td>{i + 1}</td>
-              {series.map((s) => (
-                <td key={s.name}>{s.points[i] ? yFormat(s.points[i].y) : '—'}</td>
-              ))}
+              {series.map((s, si) => {
+                const y = yByX[si].get(x);
+                return <td key={s.name}>{y !== undefined ? yFormat(y) : '—'}</td>;
+              })}
             </tr>
           ))}
         </tbody>

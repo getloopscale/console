@@ -150,6 +150,21 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     expect(within(section).queryByLabelText(/scores over time trend/i)).not.toBeInTheDocument();
   });
 
+  it('M90 — discloses truncation when more numeric evaluators exist than are plotted (no silent drop)', async () => {
+    // 7 numeric evaluators in one period; the chart caps at top 6 → an honest "top 6 of 7" note.
+    const scores = Array.from({ length: 7 }, (_, i) => ({
+      periodStart: '2026-07-08T00:00:00.000Z',
+      name: `ev${i}`,
+      sampleCount: 7 - i, // distinct volumes so the top-N ranking is deterministic
+      avgScore: 0.5,
+      labels: {},
+    }));
+    mockCloudFetch.mockImplementation(byUrl({ range: '7d', scores }));
+    render(<LensEvaluatorsPage />);
+    const note = await screen.findByTestId('scores-truncation-note');
+    expect(note).toHaveTextContent(/top 6 of 7 evaluators/i);
+  });
+
   it('M90 — a scores backend failure surfaces a fail-closed error Alert (no chart)', async () => {
     mockCloudFetch.mockImplementation((url: string) =>
       url.startsWith('/v1/dashboard/lens/metrics/scores')

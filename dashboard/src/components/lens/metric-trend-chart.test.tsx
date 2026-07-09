@@ -46,6 +46,30 @@ describe('MetricTrendChart (M51)', () => {
     expect(screen.getAllByTestId('trend-line')).toHaveLength(2);
   });
 
+  it('M90 — the a11y table reads ragged series by shared period axis, not by array position', () => {
+    // Two evaluators over a shared 3-period axis (x=0,1,2). "sparse" has NO point at x=1
+    // (a real gap — the M90 score-trend shape). The a11y table MUST place sparse's x=2 value
+    // (0.9) under period 3, NOT under period 2 (the positional-index bug mis-attributes it).
+    render(
+      <MetricTrendChart
+        title="Scores"
+        series={[
+          { name: 'dense', color: '#111', points: [{ x: 0, y: 0.1 }, { x: 1, y: 0.2 }, { x: 2, y: 0.3 }] },
+          { name: 'sparse', color: '#222', points: [{ x: 0, y: 0.7 }, { x: 2, y: 0.9 }] },
+        ]}
+      />,
+    );
+    const rows = within(screen.getByTestId('trend-table')).getAllByRole('row');
+    // header + 3 period rows
+    expect(rows).toHaveLength(4);
+    // period 2 (x=1): dense=0.2, sparse=missing → "—" (NOT 0.9)
+    const period2 = within(rows[2]!).getAllByRole('cell').map((c) => c.textContent);
+    expect(period2).toEqual(['2', '0.2', '—']);
+    // period 3 (x=2): dense=0.3, sparse=0.9 (correctly attributed, not read one row early)
+    const period3 = within(rows[3]!).getAllByRole('cell').map((c) => c.textContent);
+    expect(period3).toEqual(['3', '0.3', '0.9']);
+  });
+
   it('renders an explicit empty-state when there is no data (not a zero line)', () => {
     render(<MetricTrendChart title="Latency" series={[{ name: 'p50', color: '#111', points: [] }]} />);
     expect(screen.getByTestId('trend-empty')).toBeInTheDocument();

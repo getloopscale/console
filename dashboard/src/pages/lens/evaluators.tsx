@@ -98,6 +98,12 @@ export function LensEvaluatorsPage() {
       cloudFetch<ScoresResult>(`/v1/dashboard/lens/metrics/scores?range=${scoresRange}`, {}, { throwOnError: true }),
   });
   const scoreSeries = scoresToSeries(scoresQuery.data?.scores ?? []);
+  // Honest disclosure: scoresToSeries caps at topN numeric evaluators for legibility. If more
+  // numeric evaluators exist in the range than are plotted, say so (no silent truncation).
+  const numericEvaluatorCount = new Set(
+    (scoresQuery.data?.scores ?? []).filter((b) => b.avgScore !== undefined).map((b) => b.name),
+  ).size;
+  const hiddenEvaluatorCount = Math.max(0, numericEvaluatorCount - scoreSeries.length);
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] });
@@ -353,8 +359,13 @@ export function LensEvaluatorsPage() {
               />
             ) : (
               <Card aria-label="Evaluation scores over time trend">
-                <Card.Body>
+                <Card.Body className="space-y-2">
                   <MetricTrendChart title="Mean score by evaluator" series={scoreSeries} />
+                  {hiddenEvaluatorCount > 0 ? (
+                    <p className="text-xs text-muted-foreground" data-testid="scores-truncation-note">
+                      Showing the top {scoreSeries.length} of {numericEvaluatorCount} evaluators by sample volume.
+                    </p>
+                  ) : null}
                 </Card.Body>
               </Card>
             )}
