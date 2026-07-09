@@ -3,7 +3,7 @@
  * `MetricTrendChart` series. Deterministic + unit-tested (no DOM). The by-model pivot collapses
  * high-cardinality models into an "Others" series (opik convergence) so the line count stays legible.
  */
-import type { TrendSeries } from './metric-trend-chart';
+import type { TrendPoint, TrendSeries } from './metric-trend-chart';
 
 export interface TrafficBucket {
   periodStart: string;
@@ -103,4 +103,45 @@ export function costByModelSeries(rows: ModelBucket[], topN = 5): TrendSeries[] 
  */
 export function tokensByModelSeries(rows: ModelBucket[], topN = 5): TrendSeries[] {
   return byModelSeries(rows, (r) => r.totalTokens, topN);
+}
+
+/** One `(period, evaluator)` cell of the M90 score time-series (mirrors theo-lens's `ScoreBucket`). */
+export interface ScoreBucket {
+  periodStart: string;
+  name: string;
+  sampleCount: number;
+  /** Mean of the numeric scores in this bucket — absent for a categorical-only evaluator. */
+  avgScore?: number;
+  labels: Record<string, number>;
+}
+
+/**
+ * Score over time (M90): one line per evaluator that recorded a numeric mean, over the shared
+ * sorted period axis. A categorical-only evaluator (no `avgScore` in any bucket) is DROPPED from the
+ * mean chart — there is nothing to plot on a mean axis (honest, not a fabricated flat-zero line). A
+ * period where an evaluator has no numeric sample is a gap (no point), never a fabricated 0 (M89/M90
+ * data-honesty). Evaluators are ranked by sample volume and capped at `topN` for legibility.
+ */
+export function scoresToSeries(buckets: ScoreBucket[], topN = 6): TrendSeries[] {
+  const numeric = buckets.filter((b) => b.avgScore !== undefined);
+  if (numeric.length === 0) return [];
+  const periods = Array.from(new Set(numeric.map((b) => b.periodStart))).sort();
+  const idx = new Map(periods.map((p, i) => [p, i]));
+
+  const volByName = new Map<string, number>();
+  for (const b of numeric) volByName.set(b.name, (volByName.get(b.name) ?? 0) + b.sampleCount);
+  const names = [...volByName.entries()].sort((a, b) => b[1] - a[1]).slice(0, topN).map(([n]) => n);
+  const nameSet = new Set(names);
+
+  const pointsByName = new Map<string, TrendPoint[]>();
+  for (const n of names) pointsByName.set(n, []);
+  for (const b of numeric) {
+    if (!nameSet.has(b.name)) continue;
+    pointsByName.get(b.name)!.push({ x: idx.get(b.periodStart)!, y: b.avgScore! });
+  }
+  return names.map((n, i) => ({
+    name: n,
+    color: PALETTE[i % PALETTE.length],
+    points: pointsByName.get(n)!.slice().sort((a, b) => a.x - b.x),
+  }));
 }

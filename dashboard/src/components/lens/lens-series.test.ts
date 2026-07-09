@@ -5,7 +5,40 @@ import {
   latencySeries,
   costByModelSeries,
   tokensByModelSeries,
+  scoresToSeries,
 } from './lens-series';
+
+describe('scoresToSeries (M90 — score over time)', () => {
+  it('one series per numeric evaluator over the shared sorted period axis', () => {
+    const series = scoresToSeries([
+      { periodStart: '2026-07-08T00:00:00.000Z', name: 'hallucination', sampleCount: 2, avgScore: 0.3, labels: {} },
+      { periodStart: '2026-07-08T01:00:00.000Z', name: 'hallucination', sampleCount: 1, avgScore: 0.8, labels: {} },
+      { periodStart: '2026-07-08T00:00:00.000Z', name: 'relevance', sampleCount: 1, avgScore: 0.9, labels: {} },
+    ]);
+    const byName = Object.fromEntries(series.map((s) => [s.name, s]));
+    expect(Object.keys(byName).sort()).toEqual(['hallucination', 'relevance']);
+    // hallucination has both buckets, sorted ascending by period index
+    expect(byName['hallucination']!.points).toEqual([
+      { x: 0, y: 0.3 },
+      { x: 1, y: 0.8 },
+    ]);
+    // relevance only present in the first period → one point at x=0 (a gap, NOT a fabricated 0)
+    expect(byName['relevance']!.points).toEqual([{ x: 0, y: 0.9 }]);
+  });
+
+  it('drops a categorical-only evaluator (no avgScore) from the mean chart', () => {
+    const series = scoresToSeries([
+      { periodStart: 'a', name: 'tone', sampleCount: 3, labels: { warm: 3 } }, // no avgScore
+      { periodStart: 'a', name: 'quality', sampleCount: 1, avgScore: 0.5, labels: {} },
+    ]);
+    expect(series.map((s) => s.name)).toEqual(['quality']); // tone dropped — nothing to plot on a mean axis
+  });
+
+  it('an all-categorical (or empty) input yields no series (honest empty, not a zero line)', () => {
+    expect(scoresToSeries([])).toEqual([]);
+    expect(scoresToSeries([{ periodStart: 'a', name: 'tone', sampleCount: 1, labels: { x: 1 } }])).toEqual([]);
+  });
+});
 
 describe('lens-series mappers (M51)', () => {
   it('throughputSeries: one series over the buckets', () => {

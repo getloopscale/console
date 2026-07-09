@@ -126,6 +126,18 @@ func (c *DataClient) Observability(ctx context.Context, timeRange string) (json.
 	return c.getRaw(ctx, "/v1/metrics/observability", q)
 }
 
+// Scores proxies GET /v1/metrics/scores (theo-lens's per-evaluator score aggregation over
+// time — M90). Forwards the selectable `range` when non-empty; an empty range lets theo-lens
+// apply its 24h default.
+func (c *DataClient) Scores(ctx context.Context, timeRange string) (json.RawMessage, error) {
+	var q url.Values
+	if timeRange != "" {
+		q = url.Values{}
+		q.Set("range", timeRange)
+	}
+	return c.getRaw(ctx, "/v1/metrics/scores", q)
+}
+
 // Cost proxies GET /v1/analytics/cost?since (theo-lens's cost summary lives under
 // /v1/analytics, NOT /v1/cost — the schema-lesson).
 func (c *DataClient) Cost(ctx context.Context, since string) (json.RawMessage, error) {

@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **Score-over-time on the Evaluators page (M90, theo-cloud half).** A range-selectable (`1h|24h|7d|30d`) mean-score trend chart answering "is eval quality trending up or down?" — one line per numeric evaluator over the selected window, reusing the M51/M60 `MetricTrendChart` (no new dep). A BFF proxy (`GET /v1/dashboard/lens/metrics/scores`) forwards the whitelisted range + the per-tenant key to theo-lens `GET /v1/metrics/scores`; an engine failure maps to a 502 `UPSTREAM_ERROR` (never a fabricated empty body). Categorical-only evaluators are not plotted on a mean axis; an empty range renders an honest "No evaluations yet" (never a fabricated flat-zero line — M89/M90 data-honesty); a scores backend failure surfaces a fail-closed error Alert (no chart). The engine aggregation half ships in theo-lens.
+
 ### Changed
 - **Unified the headline-KPI primitive on `MetricCard` (#138, M88).** The dashboard had two primitives for the same "headline KPI" concept — `StatTile` on the memory/rag landing pages, `MetricCard` on every observability (lens) surface. All KPI tiles now use `MetricCard` (the house convention, richer + already standard across the lens module); `StatTile` is removed from the dashboard (a recurrence test guards it). The migrated memory/rag KPIs are visually equivalent (title + value + icon). Genuine page/section no-data states (Experiments "No runs yet", the Guards breaches sheet, the Memory webhooks deliveries sheet) now render the shared `EmptyState`; small widget-cell / control-adjacent hints stay inline by design (not every "no data yet" is a full empty-state card).
 

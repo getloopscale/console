@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
-import { render, screen } from '@/test/render';
+import { render, screen, within } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
@@ -115,5 +115,49 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     render(<LensEvaluatorsPage />);
     expect(await screen.findByRole('button', { name: /delete evaluator answer relevance/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /delete evaluator e92e0cf9/i })).not.toBeInTheDocument();
+  });
+
+  // M90 — score-over-time chart. cloudFetch is discriminated by URL so the evaluators
+  // list and the scores series resolve independently.
+  const byUrl = (scores: unknown) => (url: string) =>
+    url.startsWith('/v1/dashboard/lens/metrics/scores')
+      ? Promise.resolve(scores)
+      : Promise.resolve({ evaluators: [] });
+
+  it('M90 — renders a mean-score trend for numeric evaluators over the selected range', async () => {
+    mockCloudFetch.mockImplementation(
+      byUrl({
+        range: '7d',
+        scores: [
+          { periodStart: '2026-07-08T00:00:00.000Z', name: 'hallucination', sampleCount: 2, avgScore: 0.3, labels: {} },
+          { periodStart: '2026-07-08T01:00:00.000Z', name: 'hallucination', sampleCount: 1, avgScore: 0.8, labels: {} },
+        ],
+      }),
+    );
+    render(<LensEvaluatorsPage />);
+    const section = await screen.findByTestId('scores-over-time');
+    // the trend chart rendered (not the empty state) and the evaluator surfaces in its legend/a11y table
+    expect(await within(section).findByLabelText(/scores over time trend/i)).toBeInTheDocument();
+    expect(within(section).getAllByText('hallucination').length).toBeGreaterThan(0);
+    expect(within(section).queryByText(/no evaluations yet/i)).not.toBeInTheDocument();
+  });
+
+  it('M90 — an empty range shows an honest empty state, not a fabricated zero line', async () => {
+    mockCloudFetch.mockImplementation(byUrl({ range: '7d', scores: [] }));
+    render(<LensEvaluatorsPage />);
+    const section = await screen.findByTestId('scores-over-time');
+    expect(await within(section).findByText(/no evaluations yet/i)).toBeInTheDocument();
+    expect(within(section).queryByLabelText(/scores over time trend/i)).not.toBeInTheDocument();
+  });
+
+  it('M90 — a scores backend failure surfaces a fail-closed error Alert (no chart)', async () => {
+    mockCloudFetch.mockImplementation((url: string) =>
+      url.startsWith('/v1/dashboard/lens/metrics/scores')
+        ? Promise.reject(new Error('backend 502'))
+        : Promise.resolve({ evaluators: [] }),
+    );
+    render(<LensEvaluatorsPage />);
+    expect(await screen.findByTestId('scores-error')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/scores over time trend/i)).not.toBeInTheDocument();
   });
 });

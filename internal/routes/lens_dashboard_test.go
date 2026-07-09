@@ -27,6 +27,7 @@ type stubLensDataClient struct {
 	err                    error
 	lastTraceFilter        thelens.TraceListFilter
 	lastObservabilityRange string
+	lastScoresRange        string
 	lastWriteBody          string
 }
 
@@ -56,6 +57,10 @@ func (s *stubLensDataClient) ListSessions(context.Context, int, int) (json.RawMe
 func (s *stubLensDataClient) Observability(_ context.Context, timeRange string) (json.RawMessage, error) {
 	s.lastObservabilityRange = timeRange
 	return s.read(`{"traffic":[],"latency":[],"tokensByModel":[]}`)
+}
+func (s *stubLensDataClient) Scores(_ context.Context, timeRange string) (json.RawMessage, error) {
+	s.lastScoresRange = timeRange
+	return s.read(`{"range":"24h","scores":[]}`)
 }
 func (s *stubLensDataClient) Cost(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"total_usd":0}`)
@@ -215,6 +220,7 @@ func TestLensDashboard_Reads_Authenticated(t *testing.T) {
 		{"trace cost", (*LensDashboardHandler).GetTraceCost, "/v1/dashboard/lens/traces/tr-1/cost"}, // M54
 		{"sessions", (*LensDashboardHandler).ListSessions, "/v1/dashboard/lens/sessions"},
 		{"observability", (*LensDashboardHandler).Observability, "/v1/dashboard/lens/observability"},
+		{"scores", (*LensDashboardHandler).Scores, "/v1/dashboard/lens/metrics/scores"}, // M90
 		{"cost", (*LensDashboardHandler).Cost, "/v1/dashboard/lens/cost"},
 	}
 	for _, tc := range cases {
@@ -244,6 +250,7 @@ func TestLensDashboard_NoTenant_401_FailsClosed(t *testing.T) {
 		{"trace-cost", (*LensDashboardHandler).GetTraceCost}, // M54 — fail-closed like every read
 		{"sessions", (*LensDashboardHandler).ListSessions},
 		{"observability", (*LensDashboardHandler).Observability},
+		{"scores", (*LensDashboardHandler).Scores}, // M90 — fail-closed like every read
 		{"cost", (*LensDashboardHandler).Cost},
 	}
 	ctxs := []struct {
@@ -348,6 +355,38 @@ func TestLensDashboard_Observability_WhitelistsRange(t *testing.T) {
 	h.Observability(httptest.NewRecorder(), req2)
 	if stub.lastObservabilityRange != "" {
 		t.Fatalf("want bogus range dropped, got %q", stub.lastObservabilityRange)
+	}
+}
+
+// TestLensDashboard_Scores_WhitelistsRange (M90) — the scores handler forwards only a
+// whitelisted `range` preset; a smuggled param and a bogus range are never forwarded.
+func TestLensDashboard_Scores_WhitelistsRange(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/metrics/scores?range=7d&evil=1", nil), "t1")
+	h.Scores(httptest.NewRecorder(), req)
+	if stub.lastScoresRange != "7d" {
+		t.Fatalf("want range=7d forwarded, got %q", stub.lastScoresRange)
+	}
+	req2 := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/metrics/scores?range=bogus", nil), "t1")
+	h.Scores(httptest.NewRecorder(), req2)
+	if stub.lastScoresRange != "" {
+		t.Fatalf("want bogus range dropped, got %q", stub.lastScoresRange)
+	}
+}
+
+// TestLensDashboard_Scores_UpstreamError_502 (M90) — an engine failure is mapped to a 502
+// with the standard error envelope, never a fabricated empty body.
+func TestLensDashboard_Scores_UpstreamError_502(t *testing.T) {
+	h, stub := newLensDashboard()
+	stub.err = io.ErrUnexpectedEOF
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/metrics/scores", nil), "t1")
+	w := httptest.NewRecorder()
+	h.Scores(w, req)
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("want 502 on upstream error, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "UPSTREAM_ERROR") {
+		t.Fatalf("want UPSTREAM_ERROR envelope, got %s", w.Body.String())
 	}
 }
 

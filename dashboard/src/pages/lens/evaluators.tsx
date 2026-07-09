@@ -4,6 +4,8 @@ import { Play, Trash2 } from 'lucide-react';
 import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Select, Textarea } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
+import { MetricTrendChart } from '@/components/lens/metric-trend-chart';
+import { scoresToSeries, type ScoreBucket } from '@/components/lens/lens-series';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -23,6 +25,20 @@ interface Evaluator {
 }
 interface EvaluatorsResult {
   evaluators: Evaluator[];
+}
+
+// M90 — score-over-time range presets (theo-lens whitelist) + the BFF response shape.
+const SCORES_RANGES = ['1h', '24h', '7d', '30d'] as const;
+type ScoresRange = (typeof SCORES_RANGES)[number];
+const SCORES_RANGE_LABEL: Record<ScoresRange, string> = {
+  '1h': 'Last hour',
+  '24h': 'Last 24h',
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+};
+interface ScoresResult {
+  range?: string;
+  scores: ScoreBucket[];
 }
 
 /** Map a write error's HTTP status to a typed, actionable message (M82 — a 409 name-conflict must
@@ -72,6 +88,16 @@ export function LensEvaluatorsPage() {
     queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] as const,
     queryFn: () => cloudFetch<EvaluatorsResult>('/v1/dashboard/lens/evaluators'),
   });
+
+  // M90 — score-over-time: a range-selectable per-evaluator mean trend (theo-lens
+  // GET /v1/metrics/scores via the BFF). Range drives the server-side bucketing.
+  const [scoresRange, setScoresRange] = useState<ScoresRange>('7d');
+  const scoresQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/lens/metrics/scores', scoresRange] as const,
+    queryFn: () =>
+      cloudFetch<ScoresResult>(`/v1/dashboard/lens/metrics/scores?range=${scoresRange}`, {}, { throwOnError: true }),
+  });
+  const scoreSeries = scoresToSeries(scoresQuery.data?.scores ?? []);
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] });
@@ -288,6 +314,51 @@ export function LensEvaluatorsPage() {
           {rename.isError ? (
             <Alert intent="warning" title="Could not rename the evaluator" description={writeErrorMessage(rename.error)} data-testid="rename-error" />
           ) : null}
+
+          {/* M90 — score over time: is eval quality trending up or down? One mean-line per numeric
+              evaluator over the selected range. Categorical-only evaluators are not plotted on a mean
+              axis; an empty range is an honest empty (never a fabricated zero line). */}
+          <section className="space-y-3" data-testid="scores-over-time" aria-label="Evaluation scores over time">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold">Scores over time</h2>
+              <div className="flex items-center gap-2">
+                <span className="sr-only" id="scores-range-label">Time range</span>
+                <Select value={scoresRange} onValueChange={(v) => setScoresRange(v as ScoresRange)}>
+                  <Select.Trigger className="w-[150px]" aria-label="Scores time range">
+                    <Select.Value />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {SCORES_RANGES.map((r) => (
+                      <Select.Item key={r} value={r}>
+                        {SCORES_RANGE_LABEL[r]}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              </div>
+            </div>
+            {scoresQuery.isError ? (
+              <Alert
+                intent="warning"
+                title="Could not load score trends"
+                description="The scores service is not reachable right now. Try a different range or refresh in a moment."
+                data-testid="scores-error"
+              />
+            ) : scoresQuery.isPending ? (
+              <ListSkeleton label="Loading score trends" />
+            ) : scoreSeries.length === 0 ? (
+              <EmptyState
+                title="No evaluations yet"
+                description="Once evaluators score traces in this range, their mean trend appears here."
+              />
+            ) : (
+              <Card aria-label="Evaluation scores over time trend">
+                <Card.Body>
+                  <MetricTrendChart title="Mean score by evaluator" series={scoreSeries} />
+                </Card.Body>
+              </Card>
+            )}
+          </section>
         </div>
       </PageShell>
 

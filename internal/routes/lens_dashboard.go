@@ -29,6 +29,7 @@ type LensDataClient interface {
 	ListTraces(ctx context.Context, f thelens.TraceListFilter) (json.RawMessage, error)
 	ListSessions(ctx context.Context, limit, offset int) (json.RawMessage, error)
 	Observability(ctx context.Context, timeRange string) (json.RawMessage, error)
+	Scores(ctx context.Context, timeRange string) (json.RawMessage, error)
 	Cost(ctx context.Context, since string) (json.RawMessage, error)
 	ListDatasets(ctx context.Context) (json.RawMessage, error)
 	GetDataset(ctx context.Context, id string) (json.RawMessage, error)
@@ -191,6 +192,21 @@ func (h *LensDashboardHandler) Observability(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		h.logger.Warn("lens dashboard: observability failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load observability.")
+		return
+	}
+	writeJSON(w, http.StatusOK, raw)
+}
+
+// Scores serves GET /v1/dashboard/lens/metrics/scores — the caller workspace's per-evaluator
+// score aggregation over time (theo-lens GET /v1/metrics/scores, M90). Same whitelisted range.
+func (h *LensDashboardHandler) Scores(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	raw, err := h.client.Scores(r.Context(), observabilityRange(r))
+	if err != nil {
+		h.logger.Warn("lens dashboard: scores failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load scores.")
 		return
 	}
 	writeJSON(w, http.StatusOK, raw)
@@ -518,6 +534,7 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/traces/{traceID}/annotations", h.GetTraceAnnotations)
 		r.Get("/sessions", h.ListSessions)
 		r.Get("/observability", h.Observability)
+		r.Get("/metrics/scores", h.Scores) // M90 — score aggregation over time
 		r.Get("/cost", h.Cost)
 		r.Get("/datasets", h.ListDatasets)
 		r.Get("/datasets/{datasetID}", h.GetDataset)
