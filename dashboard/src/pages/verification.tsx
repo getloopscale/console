@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, Loader2, Mail } from 'lucide-react';
-import { Alert, Button, Card, PinInput } from '@usetheo/ui';
+import { Button, Card, PinInput } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { API_URL, AUTH_URL } from '@/lib/config';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { enrichKratosError } from '@/lib/kratos';

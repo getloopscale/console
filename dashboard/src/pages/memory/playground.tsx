@@ -1,15 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Brain, Search, Sparkles } from 'lucide-react';
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Input,
-  PageShell,
-  Textarea,
-} from '@usetheo/ui';
+import { Badge, Button, Card, Input, PageShell, Textarea } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';

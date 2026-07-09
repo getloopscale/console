@@ -1,16 +1,8 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Share2, Sparkles, Zap } from 'lucide-react';
-import {
-  Alert,
-  Button,
-  Card,
-  PageShell,
-  Skeleton,
-  StatTile,
-  TokenUsageChart,
-  type TokenUsagePoint,
-} from '@usetheo/ui';
+import { Button, Card, PageShell, Skeleton, StatTile, TokenUsageChart, type TokenUsagePoint } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { Alert, Button, Dialog, Input, Label } from '@usetheo/ui';
+import { Button, Dialog, Input, Label } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { useBulkDeleteProjects } from '@/hooks/use-bulk-delete-projects';
 

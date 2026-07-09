@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Boxes, MessageSquare, RefreshCw, ScrollText, Search, Timer } from 'lucide-react';
-import { Alert, Button, Card, PageShell, Skeleton, StatTile } from '@usetheo/ui';
+import { Button, Card, PageShell, Skeleton, StatTile } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Alert, Button, Input, Label, Sheet } from '@usetheo/ui';
+import { Button, Input, Label, Sheet } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { useCreateSecret } from '@/hooks/mutations/use-secrets-mutations';
 
 interface AddSecretSheetProps {

@@ -1,17 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Download, Plus } from 'lucide-react';
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  DataTable,
-  type DataTableColumn,
-  EmptyState,
-  PageShell,
-  Timestamp,
-} from '@usetheo/ui';
+import { Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Timestamp } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch, getApiBase } from '@/lib/api';

@@ -1,25 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { History, Key, Plus, Recycle, Trash2 } from 'lucide-react';
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Checkbox,
-  CodeBlock,
-  ConfirmDialog,
-  CopyButton,
-  DataTable,
-  type DataTableColumn,
-  Dialog,
-  EmptyState,
-  Input,
-  PageShell,
-  Sheet,
-  Timestamp,
-  Tooltip,
-} from '@usetheo/ui';
+import { Badge, Button, Card, Checkbox, CodeBlock, ConfirmDialog, CopyButton, DataTable, type DataTableColumn, Dialog, EmptyState, Input, PageShell, Sheet, Timestamp, Tooltip } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';

@@ -1,6 +1,7 @@
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Alert, Button, Dialog } from '@usetheo/ui';
+import { Button, Dialog } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { useRedeploy } from '@/hooks/mutations/use-redeploy';
 import type { Build } from '@/lib/api/types';
 

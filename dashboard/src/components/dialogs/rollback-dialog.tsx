@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Undo2 } from 'lucide-react';
-import { Alert, Button, Dialog, Input, Label, useToast } from '@usetheo/ui';
+import { Button, Dialog, Input, Label, useToast } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { ensureSSEToken } from '@/lib/api';
 import { API_URL } from '@/lib/config';
 import { useStartRollback, useEndRollback } from '@/hooks/use-rollback-in-flight';

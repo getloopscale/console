@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Alert, Button, Sheet, Textarea } from '@usetheo/ui';
+import { Button, Sheet, Textarea } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { useBulkUploadSecrets } from '@/hooks/mutations/use-secrets-mutations';
 import { parseDotenv } from '@/lib/dotenv';
 

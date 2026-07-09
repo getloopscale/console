@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Alert bodies no longer silently vanish across the dashboard (#175, M87).** The `@usetheo/ui` `Alert` renders only `title`/`description`/`action` and **silently dropped** any body passed as `children` — 42 sites across 15 memory/rag/api-keys pages were shipping title-only error notices (the body was invisible). Every `Alert` in the dashboard (45 files) now routes through the `@/components/ui/alert-guard` wrapper, which forwards a `children` body into `description` so it is always shown AND announced. A new `no-restricted-imports` ESLint rule bans importing the raw `@usetheo/ui` `Alert` in feature code (the guard is the only sanctioned consumer), so a #175-class regression is now a **lint error**. Kit-side, the going-forward `@usetheo/ui` line (published 0.15.0) additionally rejects `children` at the type level on its six fixed-slot primitives (a compile error). Note: the dashboard pins the stale `@usetheo/ui@0.13.x` line (superseded, incompatible with 0.15.0's dropped theming/billing exports) — migrating it onto the hardened line is a tracked follow-up.
+
 ### Added
 
 ### Changed

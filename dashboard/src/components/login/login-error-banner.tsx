@@ -1,4 +1,5 @@
-import { Alert, Button } from '@usetheo/ui';
+import { Button } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import type { KratosErrorMapped } from '@/lib/auth/error-mapper';
 
 /**

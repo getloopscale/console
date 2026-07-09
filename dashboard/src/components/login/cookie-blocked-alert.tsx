@@ -1,4 +1,4 @@
-import { Alert } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 /**
  * CookieBlockedAlert — banner shown when the browser is blocking cookies
