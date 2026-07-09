@@ -11,16 +11,17 @@ import { join } from 'node:path';
  */
 const SRC_DIR = join(__dirname, '..');
 
-function srcTsxFiles(): string[] {
-  return globSync('**/*.tsx', { cwd: SRC_DIR })
-    .filter((f) => !/\.(test|stories)\.tsx$/.test(f))
+function srcFiles(): string[] {
+  // .tsx AND .ts — a StatTile reference could in principle live in a helper module too.
+  return globSync('**/*.{ts,tsx}', { cwd: SRC_DIR })
+    .filter((f) => !/\.(test|stories)\.(ts|tsx)$/.test(f))
     .map((f) => join(SRC_DIR, f));
 }
 
 describe('#138 recurrence guard — one KPI primitive (MetricCard)', () => {
   it('no dashboard file imports or renders StatTile (unified on MetricCard)', () => {
     const offenders: string[] = [];
-    for (const file of srcTsxFiles()) {
+    for (const file of srcFiles()) {
       const src = readFileSync(file, 'utf8');
       if (/\bStatTile\b/.test(src)) offenders.push(file);
     }
