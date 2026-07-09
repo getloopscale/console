@@ -289,7 +289,7 @@ export function LensGuardsPage() {
                 The lens service is unavailable. Try again shortly.
               </Alert>
             ) : breachTraceIds.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No breaches yet — no trace has failed this guard.</p>
+              <EmptyState title="No breaches yet" description="No trace has failed this guard." />
             ) : (
               <ul className="space-y-1">
                 {breachTraceIds.map((tid) => (

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Boxes, MessageSquare, RefreshCw, ScrollText, Search, Timer } from 'lucide-react';
-import { Button, Card, PageShell, Skeleton, StatTile } from '@usetheo/ui';
+import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -65,14 +65,14 @@ export function RagOverviewPage() {
 
         {query.isSuccess && query.data != null ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatTile value={query.data.totals.retrievals} label="Retrievals" icon={Search} />
-            <StatTile value={query.data.totals.answers} label="Answers" icon={MessageSquare} />
-            <StatTile
+            <MetricCard title="Retrievals" value={query.data.totals.retrievals} icon={<Search className="h-4 w-4" aria-hidden="true" />} />
+            <MetricCard title="Answers" value={query.data.totals.answers} icon={<MessageSquare className="h-4 w-4" aria-hidden="true" />} />
+            <MetricCard
+              title="Empty-retrieval %"
               value={Math.round(query.data.totals.empty_retrieval_rate * 100)}
-              label="Empty-retrieval %"
-              icon={Activity}
+              icon={<Activity className="h-4 w-4" aria-hidden="true" />}
             />
-            <StatTile value={Math.round(query.data.latency.p95_ms)} label="Latency p95 (ms)" icon={Timer} />
+            <MetricCard title="Latency p95 (ms)" value={Math.round(query.data.latency.p95_ms)} icon={<Timer className="h-4 w-4" aria-hidden="true" />} />
           </div>
         ) : null}
 

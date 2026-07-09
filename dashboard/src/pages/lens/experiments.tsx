@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, Input, PageShell, Select } from '@usetheo/ui';
+import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -327,7 +327,7 @@ export function LensExperimentsPage() {
       {runsQuery.isError ? (
         <Alert intent="warning" title="Could not load runs" description="Try again shortly." />
       ) : runs.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No runs yet — create a regression dataset from the traces list, then run it here.</p>
+        <EmptyState title="No runs yet" description="Create a regression dataset from the traces list, then run it here." />
       ) : (
         <DataTable
           data={runs}

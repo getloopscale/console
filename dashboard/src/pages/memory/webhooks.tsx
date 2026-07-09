@@ -347,7 +347,7 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
             {query.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading deliveries…</p>
             ) : deliveries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No deliveries yet.</p>
+              <EmptyState title="No deliveries yet" description="Deliveries appear here once this webhook receives events." />
             ) : (
               deliveries.map((d) => (
                 <DeliveryCard
