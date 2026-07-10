@@ -94,6 +94,7 @@ export function buildTraceQuery(f: TraceFilters, now: number, window?: { limit: 
   if (f.tokensMin.trim()) p.set('min_tokens', f.tokensMin.trim());
   if (f.tokensMax.trim()) p.set('max_tokens', f.tokensMax.trim());
   if (f.session.trim()) p.set('session_id', f.session.trim());
+  if (f.spanQuery.trim()) p.set('span_query', f.spanQuery.trim()); // M92 — the attribute DSL clause
   // M81 — the list read carries the page window (limit/offset); the CSV export omits it (exports the
   // whole filtered set up to the engine cap).
   if (window) {
@@ -131,6 +132,8 @@ export function LensTracesPage() {
   const [tokensMin, setTokensMin] = useQueryState('tokens_min', parseAsString.withDefault(''));
   const [tokensMax, setTokensMax] = useQueryState('tokens_max', parseAsString.withDefault(''));
   const [session, setSession] = useQueryState('session', parseAsString.withDefault(''));
+  // M92 — the arbitrary-attribute filter, carried as the span-query DSL clause (`attr:key=value`).
+  const [spanQuery, setSpanQuery] = useQueryState('span_query', parseAsString.withDefault(''));
   // M59 P1 — row density (URL-persisted so it round-trips into a saved view, Phase 3).
   const [density, setDensity] = useQueryState(
     'density',
@@ -155,7 +158,7 @@ export function LensTracesPage() {
     return () => clearTimeout(t);
   }, [searchInput, q, setQ]);
 
-  const filters: TraceFilters = { q, status, model, range, costMin, costMax, tokensMin, tokensMax, session };
+  const filters: TraceFilters = { q, status, model, range, costMin, costMax, tokensMin, tokensMax, session, spanQuery };
 
   // M81 — server-side pagination. A filter change resets to page 1 (a stale offset would request an
   // out-of-range window). Keyed on the filter values (stable across renders, like the query key).
@@ -176,6 +179,7 @@ export function LensTracesPage() {
     if ('tokensMin' in p) void setTokensMin(p.tokensMin ? p.tokensMin : null);
     if ('tokensMax' in p) void setTokensMax(p.tokensMax ? p.tokensMax : null);
     if ('session' in p) void setSession(p.session ? p.session : null);
+    if ('spanQuery' in p) void setSpanQuery(p.spanQuery ? p.spanQuery : null);
   };
 
   const hasActiveFilters =
@@ -187,7 +191,8 @@ export function LensTracesPage() {
     costMax.trim() !== '' ||
     tokensMin.trim() !== '' ||
     tokensMax.trim() !== '' ||
-    session.trim() !== '';
+    session.trim() !== '' ||
+    spanQuery.trim() !== '';
 
   // M52 — saved views: a per-tenant store of the current filter URL. Apply = write the whole search
   // string (nuqs re-hydrates every filter); share = the URL itself. The bar + its CRUD live in
@@ -221,6 +226,14 @@ export function LensTracesPage() {
         `/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now(), { limit: TRACES_PAGE_SIZE, offset: (page - 1) * TRACES_PAGE_SIZE })}`,
       ),
   });
+  // M92 — facet discovery: the workspace's top attribute keys, to suggest in the attribute filter.
+  // A failed/empty discovery leaves the key input as free-text (the filter still works).
+  const attrKeysQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/lens/metrics/span-attributes'] as const,
+    queryFn: () => cloudFetch<{ mode: 'keys'; keys: { key: string; count: number }[] }>('/v1/dashboard/lens/metrics/span-attributes'),
+  });
+  const attributeKeys = (attrKeysQuery.data?.keys ?? []).map((k) => k.key);
+
   // M81 — pagination derived state (workspace-scoped total from the response).
   const total = query.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / TRACES_PAGE_SIZE));
@@ -341,7 +354,7 @@ export function LensTracesPage() {
                 aria-label="Search traces"
               />
             </div>
-            <FilterBar filters={filters} onApply={applyFilters} />
+            <FilterBar filters={filters} onApply={applyFilters} attributeKeys={attributeKeys} />
             {hasActiveFilters ? (
               <Button variant="ghost" size="sm" onClick={() => applyFilters(EMPTY_FILTERS)} aria-label="Clear filters">
                 Clear

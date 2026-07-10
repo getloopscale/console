@@ -65,6 +65,7 @@ type TraceListFilter struct {
 	MinTokens  string
 	MaxTokens  string
 	SessionID  string
+	SpanQuery  string // M92: the span-query DSL (e.g. `attr:key=value kind:llm`) — theo-lens parses + validates.
 }
 
 // ListTraces proxies GET /v1/traces with the per-tenant Bearer, forwarding the whitelisted filters.
@@ -106,7 +107,21 @@ func filterQuery(f TraceListFilter) url.Values {
 	if f.SessionID != "" {
 		q.Set("session_id", f.SessionID)
 	}
+	if f.SpanQuery != "" {
+		q.Set("span_query", f.SpanQuery)
+	}
 	return q
+}
+
+// SpanAttributes proxies GET /v1/metrics/span-attributes (M92 facet discovery). Forwards the
+// selectable `key` (values-mode) when non-empty; an empty key returns the top attribute keys.
+func (c *DataClient) SpanAttributes(ctx context.Context, key string) (json.RawMessage, error) {
+	var q url.Values
+	if key != "" {
+		q = url.Values{}
+		q.Set("key", key)
+	}
+	return c.getRaw(ctx, "/v1/metrics/span-attributes", q)
 }
 
 // ListSessions proxies GET /v1/sessions?limit&offset with the per-tenant Bearer.

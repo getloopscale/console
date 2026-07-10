@@ -6,6 +6,7 @@ import {
   applyFilter,
   clearFilter,
   columnValueOptions,
+  displayChipValue,
   filterColumns,
   filtersToChips,
   type TraceFilters,
@@ -22,31 +23,46 @@ import {
 export function FilterBar({
   filters,
   onApply,
+  attributeKeys = [],
 }: {
   filters: TraceFilters;
   onApply: (partial: Partial<TraceFilters>) => void;
+  /** M92 — discovered attribute keys to suggest in the `attribute` facet control (may be empty). */
+  attributeKeys?: string[];
 }) {
   const chips = filtersToChips(filters);
   const [column, setColumn] = useState('');
   const [draft, setDraft] = useState('');
+  // M92 — the `attribute` column composes a key + value into an `attr:key=value` clause.
+  const [attrKey, setAttrKey] = useState('');
+  const [attrValue, setAttrValue] = useState('');
   const editing = column ? (filterColumns().find((c) => c.id === column) ?? null) : null;
 
   const pickColumn = (id: string) => {
     setColumn(id);
+    setAttrKey('');
+    setAttrValue('');
     const opts = columnValueOptions(id);
     setDraft(opts ? opts[0] : '');
   };
 
   const apply = () => {
-    if (!editing || draft.trim() === '') return;
-    onApply(applyFilter(editing.id, draft.trim()));
-    setColumn('');
-    setDraft('');
+    if (!editing) return;
+    if (editing.id === 'attr') {
+      if (attrKey.trim() === '' || attrValue.trim() === '') return;
+      onApply(applyFilter('attr', `${attrKey.trim()}=${attrValue.trim()}`));
+    } else {
+      if (draft.trim() === '') return;
+      onApply(applyFilter(editing.id, draft.trim()));
+    }
+    cancel();
   };
 
   const cancel = () => {
     setColumn('');
     setDraft('');
+    setAttrKey('');
+    setAttrValue('');
   };
 
   return (
@@ -75,7 +91,36 @@ export function FilterBar({
           <span className="text-xs text-muted-foreground">
             <span className="capitalize">{editing.column}</span> {editing.operator}
           </span>
-          {columnValueOptions(editing.id) ? (
+          {editing.id === 'attr' ? (
+            <>
+              {/* M92 — a key input with native <datalist> suggestions from facet discovery + a value input.
+                  A free-text key stays usable when discovery is empty/unavailable (graceful degradation). */}
+              <Input
+                className="h-7 w-[150px]"
+                list="attr-key-suggestions"
+                value={attrKey}
+                onChange={(e) => setAttrKey(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && apply()}
+                placeholder="attribute key"
+                aria-label="attribute key"
+                autoFocus
+              />
+              <datalist id="attr-key-suggestions">
+                {attributeKeys.map((k) => (
+                  <option key={k} value={k} />
+                ))}
+              </datalist>
+              <span className="text-xs text-muted-foreground">=</span>
+              <Input
+                className="h-7 w-[120px]"
+                value={attrValue}
+                onChange={(e) => setAttrValue(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && apply()}
+                placeholder="value"
+                aria-label="attribute value"
+              />
+            </>
+          ) : columnValueOptions(editing.id) ? (
             <Select value={draft} onValueChange={setDraft}>
               <Select.Trigger className="h-7 w-[120px]" aria-label={`${editing.column} value`}>
                 <Select.Value />
@@ -112,7 +157,7 @@ export function FilterBar({
         <Badge key={chip.id} variant="outline" className="gap-1" data-testid="filter-chip">
           <span>
             <span className="capitalize">{chip.column}</span> {chip.operator}{' '}
-            <span className="font-medium">{chip.value}</span>
+            <span className="font-medium">{displayChipValue(chip)}</span>
           </span>
           <button
             type="button"

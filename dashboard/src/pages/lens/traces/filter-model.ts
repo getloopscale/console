@@ -19,6 +19,8 @@ export interface TraceFilters {
   tokensMin: string;
   tokensMax: string;
   session: string;
+  /** M92 — the span-query DSL clause for an arbitrary attribute filter, e.g. `attr:tier=gold`. */
+  spanQuery: string;
 }
 
 export const EMPTY_FILTERS: TraceFilters = {
@@ -31,6 +33,7 @@ export const EMPTY_FILTERS: TraceFilters = {
   tokensMin: '',
   tokensMax: '',
   session: '',
+  spanQuery: '',
 };
 
 /** One applied filter, rendered as a removable `Badge` chip in the filter bar. */
@@ -149,7 +152,24 @@ const SPECS: FilterSpec[] = [
     cleared: { session: '' },
     fromParam: (v) => ({ session: v }),
   },
+  {
+    // M92 — an arbitrary attribute filter. The value IS the full `attr:key=value` DSL clause,
+    // round-tripped through the `span_query` URL param (chip/param/fetch all carry the same string).
+    id: 'attr',
+    param: 'span_query',
+    column: 'attribute',
+    operator: 'is',
+    read: (f) => f.spanQuery.trim(),
+    apply: (v) => ({ spanQuery: v.startsWith('attr:') ? v : `attr:${v}` }),
+    cleared: { spanQuery: '' },
+    fromParam: (v) => ({ spanQuery: v }),
+  },
 ];
+
+/** M92 — the human-facing form of an `attr:key=value` chip value (drop the DSL prefix for display). */
+export function displayChipValue(chip: Chip): string {
+  return chip.id === 'attr' ? chip.value.replace(/^attr:/, '') : chip.value;
+}
 
 const SPEC_BY_ID = new Map(SPECS.map((s) => [s.id, s]));
 

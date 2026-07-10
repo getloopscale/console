@@ -30,6 +30,7 @@ type LensDataClient interface {
 	ListSessions(ctx context.Context, limit, offset int) (json.RawMessage, error)
 	Observability(ctx context.Context, timeRange string) (json.RawMessage, error)
 	Scores(ctx context.Context, timeRange string) (json.RawMessage, error)
+	SpanAttributes(ctx context.Context, key string) (json.RawMessage, error)
 	Cost(ctx context.Context, since string) (json.RawMessage, error)
 	ListDatasets(ctx context.Context) (json.RawMessage, error)
 	GetDataset(ctx context.Context, id string) (json.RawMessage, error)
@@ -148,6 +149,7 @@ func traceFilter(r *http.Request) thelens.TraceListFilter {
 		MinTokens:  q.Get("min_tokens"),
 		MaxTokens:  q.Get("max_tokens"),
 		SessionID:  q.Get("session_id"),
+		SpanQuery:  q.Get("span_query"), // M92: the span-query DSL; theo-lens parses + validates (injection-safe).
 	}
 }
 
@@ -207,6 +209,22 @@ func (h *LensDashboardHandler) Scores(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Warn("lens dashboard: scores failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load scores.")
+		return
+	}
+	writeJSON(w, http.StatusOK, raw)
+}
+
+// SpanAttributes serves GET /v1/dashboard/lens/metrics/span-attributes — facet discovery (M92):
+// the caller workspace's top attribute keys, or (with ?key=) the top values for one key. The key
+// passes through to theo-lens, which binds it as a jsonb path (injection-safe).
+func (h *LensDashboardHandler) SpanAttributes(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	raw, err := h.client.SpanAttributes(r.Context(), r.URL.Query().Get("key"))
+	if err != nil {
+		h.logger.Warn("lens dashboard: span-attributes failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load span attributes.")
 		return
 	}
 	writeJSON(w, http.StatusOK, raw)
@@ -534,7 +552,8 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/traces/{traceID}/annotations", h.GetTraceAnnotations)
 		r.Get("/sessions", h.ListSessions)
 		r.Get("/observability", h.Observability)
-		r.Get("/metrics/scores", h.Scores) // M90 — score aggregation over time
+		r.Get("/metrics/scores", h.Scores)                  // M90 — score aggregation over time
+		r.Get("/metrics/span-attributes", h.SpanAttributes) // M92 — attribute facet discovery
 		r.Get("/cost", h.Cost)
 		r.Get("/datasets", h.ListDatasets)
 		r.Get("/datasets/{datasetID}", h.GetDataset)
@@ -542,15 +561,15 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/guards", h.ListGuards)
 		r.Get("/guards/{guardID}/breaches", h.GuardBreaches)
 		r.Get("/agents", h.ListAgents)
-		r.Get("/labeling-queue", h.ListLabelingQueue)          // M63 — read-scope queue list
+		r.Get("/labeling-queue", h.ListLabelingQueue) // M63 — read-scope queue list
 		r.Get("/labeling-queue/{itemID}", h.GetLabelingQueueItem)
 		r.Get("/experiment-runs", h.ListExperimentRuns)            // M64 — read-scope run list
 		r.Get("/experiment-runs/compare", h.CompareExperimentRuns) // before :runID so "compare" is not a run id
 		r.Get("/experiment-runs/{runID}", h.GetExperimentRun)
-		r.Post("/traces/{traceID}/ask", h.Ask)                 // read-scope copilot query
-		r.Post("/traces/{traceID}/ask/feedback", h.AskFeedback)     // M83 write-scope thumbs feedback
+		r.Post("/traces/{traceID}/ask", h.Ask)                          // read-scope copilot query
+		r.Post("/traces/{traceID}/ask/feedback", h.AskFeedback)         // M83 write-scope thumbs feedback
 		r.Delete("/traces/{traceID}/ask/feedback", h.DeleteAskFeedback) // M83 retract (clear)
-		r.Post("/traces/{traceID}/replay", h.Replay) // M55 — read-scope ephemeral provider replay
+		r.Post("/traces/{traceID}/replay", h.Replay)                    // M55 — read-scope ephemeral provider replay
 		// Writes — datasets
 		r.Post("/datasets", h.CreateDataset)
 		r.Put("/datasets/{datasetID}", h.RenameDataset)    // M82 — rename (409 on duplicate)

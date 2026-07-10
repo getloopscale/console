@@ -248,7 +248,7 @@ describe('buildTraceQuery (M49/M52 — pure filter→querystring mapping)', () =
   // Fill the required TraceFilters fields; a test overrides only what it exercises.
   const bf = (o: Partial<Parameters<typeof buildTraceQuery>[0]>) =>
     buildTraceQuery(
-      { q: '', status: 'all', model: '', range: 'all', costMin: '', costMax: '', tokensMin: '', tokensMax: '', session: '', ...o },
+      { q: '', status: 'all', model: '', range: 'all', costMin: '', costMax: '', tokensMin: '', tokensMax: '', session: '', spanQuery: '', ...o },
       NOW,
     );
 
@@ -308,6 +308,7 @@ describe('buildTraceQuery (M49/M52 — pure filter→querystring mapping)', () =
         tokensMin: '100',
         tokensMax: '9000',
         session: 'sess-x',
+        spanQuery: '',
       },
       NOW,
     );
@@ -373,6 +374,43 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     await screen.findByText('tr_1');
     await addChip(/time within/i); // enum column — Select defaults to "1h" → buildTraceQuery emits from=.
     await waitFor(() => expect(listUrls().some((u) => u.includes('from='))).toBe(true));
+  });
+
+  it('M92 — an attribute filter builds attr:key=value and narrows the list via span_query', async () => {
+    filterMock([{ traceId: 'tr_1', name: 'checkout' }]);
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    // pick the attribute column → the composite key/value editor
+    await userEvent.click(screen.getByRole('combobox', { name: /add filter/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /attribute is/i }));
+    // an <input list=…> exposes role combobox (native autocomplete); the value input is a textbox.
+    await userEvent.type(screen.getByRole('combobox', { name: /attribute key/i }), 'tier');
+    await userEvent.type(screen.getByRole('textbox', { name: /attribute value/i }), 'gold');
+    await userEvent.click(screen.getByRole('button', { name: /apply filter/i }));
+    // the fetch carries the DSL clause, URL-encoded (attr:tier=gold → attr%3Atier%3Dgold)
+    await waitFor(() =>
+      expect(listUrls().some((u) => u.includes(`span_query=${encodeURIComponent('attr:tier=gold')}`))).toBe(true),
+    );
+    // the chip shows the human-facing key=value (no attr: prefix)
+    expect(screen.getByText('tier=gold')).toBeInTheDocument();
+  });
+
+  it('M92 — facet discovery populates the attribute key datalist suggestions', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url.includes('/metrics/span-attributes'))
+        return Promise.resolve({ mode: 'keys', keys: [{ key: 'gen_ai.request.temperature', count: 5 }, { key: 'tier', count: 2 }] });
+      if (isListUrl(url)) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+      return Promise.resolve({});
+    });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(screen.getByRole('combobox', { name: /add filter/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /attribute is/i }));
+    // the discovered keys are offered as <datalist> <option>s (native autocomplete)
+    await waitFor(() => {
+      const opts = document.querySelectorAll('#attr-key-suggestions option');
+      expect(Array.from(opts).map((o) => o.getAttribute('value'))).toEqual(['gen_ai.request.temperature', 'tier']);
+    });
   });
 
   it('round-trips ?q= from the URL: initializes the search box AND the first fetch', async () => {

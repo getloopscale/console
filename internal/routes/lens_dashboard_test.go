@@ -28,6 +28,7 @@ type stubLensDataClient struct {
 	lastTraceFilter        thelens.TraceListFilter
 	lastObservabilityRange string
 	lastScoresRange        string
+	lastFacetKey           string
 	lastWriteBody          string
 }
 
@@ -61,6 +62,10 @@ func (s *stubLensDataClient) Observability(_ context.Context, timeRange string) 
 func (s *stubLensDataClient) Scores(_ context.Context, timeRange string) (json.RawMessage, error) {
 	s.lastScoresRange = timeRange
 	return s.read(`{"range":"24h","scores":[]}`)
+}
+func (s *stubLensDataClient) SpanAttributes(_ context.Context, key string) (json.RawMessage, error) {
+	s.lastFacetKey = key
+	return s.read(`{"mode":"keys","keys":[]}`)
 }
 func (s *stubLensDataClient) Cost(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"total_usd":0}`)
@@ -220,7 +225,8 @@ func TestLensDashboard_Reads_Authenticated(t *testing.T) {
 		{"trace cost", (*LensDashboardHandler).GetTraceCost, "/v1/dashboard/lens/traces/tr-1/cost"}, // M54
 		{"sessions", (*LensDashboardHandler).ListSessions, "/v1/dashboard/lens/sessions"},
 		{"observability", (*LensDashboardHandler).Observability, "/v1/dashboard/lens/observability"},
-		{"scores", (*LensDashboardHandler).Scores, "/v1/dashboard/lens/metrics/scores"}, // M90
+		{"scores", (*LensDashboardHandler).Scores, "/v1/dashboard/lens/metrics/scores"},                           // M90
+		{"span-attributes", (*LensDashboardHandler).SpanAttributes, "/v1/dashboard/lens/metrics/span-attributes"}, // M92
 		{"cost", (*LensDashboardHandler).Cost, "/v1/dashboard/lens/cost"},
 	}
 	for _, tc := range cases {
@@ -250,7 +256,8 @@ func TestLensDashboard_NoTenant_401_FailsClosed(t *testing.T) {
 		{"trace-cost", (*LensDashboardHandler).GetTraceCost}, // M54 — fail-closed like every read
 		{"sessions", (*LensDashboardHandler).ListSessions},
 		{"observability", (*LensDashboardHandler).Observability},
-		{"scores", (*LensDashboardHandler).Scores}, // M90 — fail-closed like every read
+		{"scores", (*LensDashboardHandler).Scores},                  // M90 — fail-closed like every read
+		{"span-attributes", (*LensDashboardHandler).SpanAttributes}, // M92 — fail-closed like every read
 		{"cost", (*LensDashboardHandler).Cost},
 	}
 	ctxs := []struct {
@@ -390,6 +397,43 @@ func TestLensDashboard_Scores_UpstreamError_502(t *testing.T) {
 	}
 }
 
+// TestLensDashboard_ListTraces_ForwardsSpanQuery (M92) — the span-query DSL param reaches the
+// engine so the attribute filter works end-to-end.
+func TestLensDashboard_ListTraces_ForwardsSpanQuery(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/traces?span_query=attr:tier=gold", nil), "t1")
+	h.ListTraces(httptest.NewRecorder(), req)
+	if stub.lastTraceFilter.SpanQuery != "attr:tier=gold" {
+		t.Fatalf("want span_query forwarded, got %q", stub.lastTraceFilter.SpanQuery)
+	}
+}
+
+// TestLensDashboard_SpanAttributes_PassesKey (M92) — the facet `key` reaches the client (values mode);
+// an absent key is the keys-mode default.
+func TestLensDashboard_SpanAttributes_PassesKey(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/metrics/span-attributes?key=tier", nil), "t1")
+	h.SpanAttributes(httptest.NewRecorder(), req)
+	if stub.lastFacetKey != "tier" {
+		t.Fatalf("want key=tier forwarded, got %q", stub.lastFacetKey)
+	}
+}
+
+// TestLensDashboard_SpanAttributes_UpstreamError_502 (M92) — engine failure → 502 envelope.
+func TestLensDashboard_SpanAttributes_UpstreamError_502(t *testing.T) {
+	h, stub := newLensDashboard()
+	stub.err = io.ErrUnexpectedEOF
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/metrics/span-attributes", nil), "t1")
+	w := httptest.NewRecorder()
+	h.SpanAttributes(w, req)
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("want 502 on upstream error, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "UPSTREAM_ERROR") {
+		t.Fatalf("want UPSTREAM_ERROR envelope, got %s", w.Body.String())
+	}
+}
+
 // noopJWT is a pass-through stand-in for the requireJWT middleware in the mount tests (the
 // fail-closed tenant check happens in the handler's authTenant, independent of requireJWT).
 func noopJWT(next http.Handler) http.Handler { return next }
@@ -490,10 +534,10 @@ func TestLensDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/replay", `{"messages":[{"role":"user","content":"hi"}]}`}, // M55 — fail-closed without JWT
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/ask/feedback", `{"turnId":"turn-1","label":"up"}`},        // M83 — fail-closed without JWT
 		{http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/ask/feedback?turnId=turn-1", ``},                        // M83 — fail-closed without JWT
-		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},                // M63 — fail-closed without JWT
-		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/i1/resolve", `{"label":"good"}`},                     // M63
-		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/export-as-dataset", `{"name":"golden"}`},             // M63
-		{http.MethodPost, "/v1/dashboard/lens/experiment-runs", `{"datasetId":"d1","variant":{"model":"m"}}`},    // M64
+		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},                 // M63 — fail-closed without JWT
+		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/i1/resolve", `{"label":"good"}`},                       // M63
+		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/export-as-dataset", `{"name":"golden"}`},               // M63
+		{http.MethodPost, "/v1/dashboard/lens/experiment-runs", `{"datasetId":"d1","variant":{"model":"m"}}`},       // M64
 	}
 	for _, wr := range writes {
 		t.Run(wr.method+" "+wr.path, func(t *testing.T) {

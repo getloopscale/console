@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 
 import {
   EMPTY_FILTERS,
+  applyFilter,
+  displayChipValue,
   filtersToChips,
   removeChip,
   chipToParam,
@@ -74,5 +76,34 @@ describe('M59 filter-model — round-trip identity (R4)', () => {
     const f = paramsToFilters(params);
     expect(f.status).toBe('error');
     expect(f).toEqual({ ...EMPTY_FILTERS, status: 'error' });
+  });
+});
+
+describe('M92 filter-model — attribute filter (span_query DSL clause)', () => {
+  it('applyFilter wraps a key=value into an attr: DSL clause', () => {
+    expect(applyFilter('attr', 'tier=gold')).toEqual({ spanQuery: 'attr:tier=gold' });
+    // idempotent — an already-prefixed value is not double-wrapped
+    expect(applyFilter('attr', 'attr:tier=gold')).toEqual({ spanQuery: 'attr:tier=gold' });
+  });
+
+  it('renders one chip whose displayed value drops the attr: prefix', () => {
+    const f = { ...EMPTY_FILTERS, spanQuery: 'attr:tier=gold' };
+    const chips = filtersToChips(f);
+    const attrChip = chips.find((c) => c.id === 'attr');
+    expect(attrChip).toEqual({ id: 'attr', column: 'attribute', operator: 'is', value: 'attr:tier=gold' });
+    expect(displayChipValue(attrChip!)).toBe('tier=gold'); // human-facing form
+  });
+
+  it('round-trips through the span_query URL param (chip → param → filters)', () => {
+    const f = { ...EMPTY_FILTERS, spanQuery: 'attr:gen_ai.request.temperature=0.7' };
+    const chips = filtersToChips(f);
+    const params = new URLSearchParams(chips.map(chipToParam));
+    expect(params.get('span_query')).toBe('attr:gen_ai.request.temperature=0.7'); // FULL clause in the URL
+    expect(paramsToFilters(params)).toEqual(f);
+  });
+
+  it('removeChip clears the attribute filter', () => {
+    const f = { ...EMPTY_FILTERS, spanQuery: 'attr:tier=gold' };
+    expect(removeChip(f, 'attr').spanQuery).toBe('');
   });
 });
