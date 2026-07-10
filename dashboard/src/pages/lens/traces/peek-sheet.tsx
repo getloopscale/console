@@ -1,8 +1,18 @@
-import { Sheet } from '@usetheo/ui';
+import { lazy, Suspense } from 'react';
+import { Sheet, Skeleton } from '@usetheo/ui';
 
 import { shortId } from '@/lib/format';
-import { LensTraceDetail } from '../trace-detail';
 import { MetadataCard } from './metadata-card';
+
+/**
+ * M98 (D-H1) — the trace detail (a two-panel explorer that pulls in CodeMirror + react-markdown via
+ * `io-cards`) is `lazy()`-loaded so its heavy chunk is OFF the `LensTracesPage` first-paint bundle and
+ * only fetched when a row is peeked. The Sheet already animates in, masking the one-time load behind a
+ * matching Skeleton (D-H2 risk-2 mitigation).
+ */
+const LensTraceDetail = lazy(() =>
+  import('../trace-detail').then((m) => ({ default: m.LensTraceDetail })),
+);
 
 /**
  * M59 P1 T1.2 — the row-click **peek**: a right-side `Sheet` hosting the full trace detail (the M58
@@ -33,7 +43,11 @@ export function TracePeekSheet({ traceId, onClose }: { traceId: string | null; o
           <Sheet.Description className="font-mono text-xs">{traceId ? shortId(traceId, 16) : ''}</Sheet.Description>
         </Sheet.Header>
         <Sheet.Body className="space-y-6 px-6 py-5">
-          {traceId !== null ? <LensTraceDetail key={traceId} traceId={traceId} /> : null}
+          {traceId !== null ? (
+            <Suspense fallback={<Skeleton className="h-64 w-full" data-testid="trace-detail-loading" />}>
+              <LensTraceDetail key={traceId} traceId={traceId} />
+            </Suspense>
+          ) : null}
           {traceId !== null ? <MetadataCard traceId={traceId} onClose={onClose} /> : null}
         </Sheet.Body>
       </Sheet.Content>

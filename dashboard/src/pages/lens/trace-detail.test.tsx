@@ -894,7 +894,8 @@ describe('Attributes — namespace-grouped, PII-masked panel (M58 P2.2)', () => 
 // XSS-safety is a non-negotiable guardrail: the negative tests below assert a malicious payload
 // produces no executable node and no `javascript:` href. `IoCards` (P3.2) renders IO bodies through
 // this wrapper; both live in `io-cards.tsx`.
-import { Markdown, IoCards } from './trace-detail/io-cards';
+import { IoCards } from './trace-detail/io-cards';
+import { Markdown } from './trace-detail/markdown';
 
 describe('Markdown — sanitized wrapper (M58 P3.1, XSS guard)', () => {
   it('strips a <script> payload — no script node reaches the DOM', () => {

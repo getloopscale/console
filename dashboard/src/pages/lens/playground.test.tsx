@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 
 import { render, screen, within } from '@/test/render';
+import { waitFor } from '@testing-library/react';
 import type { TraceSpanNode } from '@/lib/trace-layout';
 import { LensPlayground } from './playground';
 
@@ -74,7 +75,9 @@ describe('M62 LensPlayground (side-by-side)', () => {
     await userEvent.click(screen.getByRole('button', { name: /view trace/i }));
     // the M58 Sheet opens and its LensTraceDetail fetches the trace tree for the original span
     expect(await screen.findByText(/trace detail/i)).toBeInTheDocument();
-    expect(mockCloudFetch.mock.calls.some((c) => c[0] === '/v1/dashboard/lens/traces/tr-1')).toBe(true);
+    await waitFor(() =>
+      expect(mockCloudFetch.mock.calls.some((c) => c[0] === '/v1/dashboard/lens/traces/tr-1')).toBe(true),
+    );
     expect(screen.getByTestId('playground')).toBeInTheDocument(); // playground stays mounted underneath
   });
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
@@ -241,29 +241,40 @@ export function LensTracesPage() {
   const lastShown = Math.min(page * TRACES_PAGE_SIZE, total);
 
   // M59 P3 — hide the toggleable spine columns the user turned off (identity columns always show).
-  const columns = tracesColumns({
-    selected,
-    toggleSelected,
-    onOpen: setOpenID,
-    // M61 — dock the Ask copilot to this trace (carries the id in the URL; no manual entry).
-    onAsk: (id) => navigate(`/observability/ask?traceId=${encodeURIComponent(id)}`),
-  }).filter(
-    (c) => !(TOGGLEABLE_COLUMNS as readonly string[]).includes(c.key) || isColumnVisible(columnState, c.key),
+  // M98 (D-M1) — memoized so the column set is rebuilt only when the selection / visible columns
+  // change, not on every unrelated re-render (filter keystroke, export state).
+  const columns = useMemo(
+    () =>
+      tracesColumns({
+        selected,
+        toggleSelected,
+        onOpen: setOpenID,
+        // M61 — dock the Ask copilot to this trace (carries the id in the URL; no manual entry).
+        onAsk: (id) => navigate(`/observability/ask?traceId=${encodeURIComponent(id)}`),
+      }).filter(
+        (c) => !(TOGGLEABLE_COLUMNS as readonly string[]).includes(c.key) || isColumnVisible(columnState, c.key),
+      ),
+    [selected, toggleSelected, setOpenID, navigate, columnState],
   );
 
   // M57 T1.1 — newest-first by default. Defensive client-side desc sort by
   // startTimeUnixNano (BigInt-safe, missing timestamps sink to the bottom) so the
   // Time column is honestly ordered regardless of the BFF's return order. Stable
   // for equal/absent timestamps; the server-side M49 filters are unaffected.
-  const traces = [...(query.data?.traces ?? [])].sort((a, b) => {
-    const an = a.startTimeUnixNano;
-    const bn = b.startTimeUnixNano;
-    if (!an && !bn) return 0;
-    if (!an) return 1;
-    if (!bn) return -1;
-    const d = BigInt(bn) - BigInt(an);
-    return d > 0n ? 1 : d < 0n ? -1 : 0;
-  });
+  // M98 (D-M1) — memoized so the O(n log n) sort runs only when the data changes, not per keystroke.
+  const traces = useMemo(
+    () =>
+      [...(query.data?.traces ?? [])].sort((a, b) => {
+        const an = a.startTimeUnixNano;
+        const bn = b.startTimeUnixNano;
+        if (!an && !bn) return 0;
+        if (!an) return 1;
+        if (!bn) return -1;
+        const d = BigInt(bn) - BigInt(an);
+        return d > 0n ? 1 : d < 0n ? -1 : 0;
+      }),
+    [query.data?.traces],
+  );
 
   // M54 — compare is pairwise: the action is live only with exactly two traces ticked.
   const selectedIds = Array.from(selected);
