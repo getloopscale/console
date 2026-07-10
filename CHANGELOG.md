@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Dashboard: Playwright e2e `observability-screens.spec.ts` — headless browser-runtime coverage of all 12 Theo Lens observability screens (render via sidebar navigation, no error boundary) + a screen-count coverage gate that fails if the nav exposes a lens screen not in the manifest. Mechanizes the render half of the theo-lens `/dogfood` UI sweep (no agent needed); wired via a new `test:e2e` npm script. (per-screen primary-action e2e pending MSW lens BFF fixtures)
 
 ### Changed
 
