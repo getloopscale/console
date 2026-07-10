@@ -446,6 +446,9 @@ export default function App() {
                     <Route path="/observability/labeling-queue" element={<Boundaried path="/observability/labeling-queue"><LensLabelingQueuePage /></Boundaried>} />
                     <Route path="/observability/experiments" element={<Boundaried path="/observability/experiments"><LensExperimentsPage /></Boundaried>} />
                     <Route path="/observability/dashboards" element={<Boundaried path="/observability/dashboards"><LensDashboardsPage /></Boundaried>} />
+                    {/* M86 — webhook management inside observability: reuse the exact settings CRUD component
+                        (same /v1/settings/webhooks/* endpoints) so alert setup stays in one module. */}
+                    <Route path="/observability/webhooks" element={<Boundaried path="/observability/webhooks"><WorkspaceWebhooksPage context="observability" /></Boundaried>} />
                     <Route path="/settings" element={<Boundaried path="/settings"><SettingsPage /></Boundaried>} />
                     <Route
                       path="/settings/members"

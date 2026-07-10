@@ -179,10 +179,23 @@ func (e *Evaluator) processRule(ctx context.Context, r alertRule, raw json.RawMe
 	if n, _ := res.RowsAffected(); n == 0 {
 		return tx.Commit() // another replica won the transition — commit the no-op, do not enqueue
 	}
-	if err := e.enqueueDelivery(ctx, tx, r, value, now); err != nil {
+	// M84: the delivery enqueue AND the fired-alert history row run in the SAME transaction as the
+	// status flip — a breach yields exactly one delivery AND one history row, or none (all-or-nothing).
+	deliveryID, transitionID := deliveryIDFor(), transitionIDFor(r.id, now)
+	if err := e.enqueueDelivery(ctx, tx, r, value, now, deliveryID, transitionID); err != nil {
 		return err // rolls back the status flip → the next tick retries
 	}
+	if err := e.insertFiredAlert(ctx, tx, r, value, now, deliveryID, transitionID); err != nil {
+		return err // rolls back the flip + the delivery → retried next tick
+	}
 	return tx.Commit()
+}
+
+// deliveryIDFor / transitionIDFor centralize the id shapes so the delivery row and its history row
+// share the SAME transition_id (the anti-storm dedup key) and reference the SAME delivery id.
+func deliveryIDFor() string                    { return "wwd-" + randomHex16() }
+func transitionIDFor(ruleID string, now time.Time) string {
+	return fmt.Sprintf("alert-%s-%d", ruleID, now.Unix())
 }
 
 // execer is satisfied by both *sql.DB and *sql.Tx — the enqueue runs inside the fire transaction.
@@ -191,8 +204,9 @@ type execer interface {
 }
 
 // enqueueDelivery inserts one workspace_webhook_deliveries row (the existing J-16 worker dispatches it
-// SSRF-guarded). `transition_id` dedups repeated fires of the same rule within a second.
-func (e *Evaluator) enqueueDelivery(ctx context.Context, ex execer, r alertRule, value float64, now time.Time) error {
+// SSRF-guarded). `transitionID` dedups repeated fires of the same rule within a second; `deliveryID`
+// is the row id the history row soft-references.
+func (e *Evaluator) enqueueDelivery(ctx context.Context, ex execer, r alertRule, value float64, now time.Time, deliveryID, transitionID string) error {
 	payload, _ := json.Marshal(map[string]any{
 		"rule_id":    r.id,
 		"tenant_id":  r.tenantID,
@@ -202,13 +216,26 @@ func (e *Evaluator) enqueueDelivery(ctx context.Context, ex execer, r alertRule,
 		"value":      value,
 		"fired_at":   now.UTC().Format(time.RFC3339),
 	})
-	transitionID := fmt.Sprintf("alert-%s-%d", r.id, now.Unix())
 	_, err := ex.ExecContext(ctx,
 		`INSERT INTO workspace_webhook_deliveries
 		   (id, webhook_id, transition_id, tenant_id, event_type, payload, status, next_attempt_at)
 		 VALUES ($1, $2, $3, $4, 'alert.threshold_breached', $5, 'pending', NOW())
 		 ON CONFLICT (webhook_id, transition_id) DO NOTHING`,
-		"wwd-"+randomHex16(), r.webhookID, transitionID, r.tenantID, payload)
+		deliveryID, r.webhookID, transitionID, r.tenantID, payload)
+	return err
+}
+
+// insertFiredAlert records ONE history row for this breach (M84). Same anti-storm dedup as the
+// delivery: `ON CONFLICT (rule_id, transition_id) DO NOTHING` so a multi-replica evaluator writing the
+// same transition never double-records. Runs inside the fire transaction (all-or-nothing with the
+// flip + the delivery enqueue).
+func (e *Evaluator) insertFiredAlert(ctx context.Context, ex execer, r alertRule, value float64, now time.Time, deliveryID, transitionID string) error {
+	_, err := ex.ExecContext(ctx,
+		`INSERT INTO lens_fired_alerts
+		   (id, rule_id, tenant_id, metric, comparator, threshold, value, fired_at, transition_id, delivery_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 ON CONFLICT (rule_id, transition_id) DO NOTHING`,
+		"lfa-"+randomHex16(), r.id, r.tenantID, r.metric, r.comparator, r.threshold, value, now, transitionID, deliveryID)
 	return err
 }
 

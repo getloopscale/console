@@ -101,7 +101,7 @@ describe('MemoryPage (/memory landing)', () => {
     expect(await screen.findByText('Total memories')).toBeInTheDocument();
     // Crucial regression guard: not a single "NaN" in the rendered output.
     expect(screen.queryByText(/NaN/i)).not.toBeInTheDocument();
-    // Each tile shows "0" (StatTile value can render the same number 0 in
+    // Each tile shows "0" (MetricCard value can render the same number 0 in
     // multiple places — assert presence, not count).
     expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(4);
   });

@@ -1,22 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { History, Plus, Trash2 } from 'lucide-react';
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Checkbox,
-  ConfirmDialog,
-  DataTable,
-  type DataTableColumn,
-  Dialog,
-  EmptyState,
-  Input,
-  PageShell,
-  Sheet,
-  Timestamp,
-} from '@usetheo/ui';
+import { Badge, Button, Card, Checkbox, ConfirmDialog, DataTable, type DataTableColumn, Dialog, EmptyState, Input, PageShell, Sheet, Timestamp } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -65,9 +51,48 @@ const AVAILABLE_EVENTS = [
   { id: 'deploy.failed', label: 'deploy.failed' },
 ] as const;
 
+/**
+ * M86 — the SAME webhooks CRUD is mounted in two contexts (Settings and Observability). Only the
+ * COPY differs, so the component is parameterized by `context` rather than duplicated (reuse-first).
+ * Honesty (Rule 3): the "delivery coming soon" notice is DEPLOY-specific (deploy delivery is not live
+ * yet); in observability, alert delivery IS live today (the M84 lens_alert_evaluator dispatches
+ * `alert.threshold_breached` to these endpoints), so that notice is omitted and the events offered are
+ * the alert event. The backend accepts any non-empty events array (it only rejects empty), so offering
+ * the alert event is safe.
+ */
+export type WebhookContext = 'settings' | 'observability';
+interface WebhookContextCopy {
+  description: string;
+  dialogDescription: string;
+  deleteNoun: string;
+  events: readonly { id: string; label: string }[];
+  deliveryNotice: { title: string; description: string } | null;
+}
+const WEBHOOK_CONTEXTS: Record<WebhookContext, WebhookContextCopy> = {
+  settings: {
+    description: 'Register URLs to be notified when deploys and builds change state.',
+    dialogDescription: 'Register a URL to be notified when deploy or build events occur.',
+    deleteNoun: 'deploy or build',
+    events: AVAILABLE_EVENTS,
+    deliveryNotice: {
+      title: 'Delivery coming soon',
+      description:
+        'Webhook registration is available now — the endpoints below are saved and each gets a signing secret. Automatic delivery of deploy and build events is rolling out shortly; until then, no events are dispatched.',
+    },
+  },
+  observability: {
+    description: 'Register endpoints that receive your observability alert notifications.',
+    dialogDescription: 'Register a URL that receives a notification when one of your alert rules fires.',
+    deleteNoun: 'alert',
+    events: [{ id: 'alert.threshold_breached', label: 'alert.threshold_breached' }],
+    deliveryNotice: null, // alert delivery IS live (M84) — no "coming soon" notice in this context
+  },
+};
+
 const LIST_KEY = ['cloud', '/v1/settings/webhooks/list'] as const;
 
-export function WorkspaceWebhooksPage() {
+export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: WebhookContext } = {}) {
+  const copy = WEBHOOK_CONTEXTS[context];
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Webhooks'), [setPageTitle]);
   useRequireAuth();
@@ -163,7 +188,7 @@ export function WorkspaceWebhooksPage() {
     <>
       <PageShell
         title="Webhooks"
-        description="Register URLs to be notified when deploys and builds change state."
+        description={copy.description}
         primaryAction={{
           label: 'Add webhook',
           icon: Plus,
@@ -171,11 +196,9 @@ export function WorkspaceWebhooksPage() {
         }}
       >
         <div className="space-y-6">
-          <Alert
-            intent="info"
-            title="Delivery coming soon"
-            description="Webhook registration is available now — the endpoints below are saved and each gets a signing secret. Automatic delivery of deploy and build events is rolling out shortly; until then, no events are dispatched."
-          />
+          {copy.deliveryNotice ? (
+            <Alert intent="info" title={copy.deliveryNotice.title} description={copy.deliveryNotice.description} />
+          ) : null}
 
           {list.isError ? (
             <Alert
@@ -203,6 +226,8 @@ export function WorkspaceWebhooksPage() {
         onClose={() => setCreateOpen(false)}
         submitting={create.isPending}
         onSubmit={(input) => create.mutate(input)}
+        description={copy.dialogDescription}
+        events={copy.events}
       />
 
       {createdSecret ? (
@@ -220,8 +245,8 @@ export function WorkspaceWebhooksPage() {
           description={
             <div className="space-y-2 text-sm">
               <p>
-                This webhook will be permanently removed. Any future deploy or build
-                events for this URL will not be queued for delivery.
+                This webhook will be permanently removed. Any future {copy.deleteNoun}
+                {' '}events for this URL will not be queued for delivery.
               </p>
               <p className="text-muted-foreground">This cannot be undone.</p>
             </div>
@@ -396,17 +421,19 @@ interface AddWebhookDialogProps {
   onClose: () => void;
   submitting: boolean;
   onSubmit: (input: { url: string; label: string; events: string[] }) => void;
+  description: string;
+  events: readonly { id: string; label: string }[];
 }
 
-function AddWebhookDialog({ open, onClose, submitting, onSubmit }: AddWebhookDialogProps) {
+function AddWebhookDialog({ open, onClose, submitting, onSubmit, description, events }: AddWebhookDialogProps) {
   const [url, setUrl] = useState('');
   const [label, setLabel] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set([AVAILABLE_EVENTS[0].id]));
+  const [selected, setSelected] = useState<Set<string>>(new Set([events[0]?.id ?? '']));
 
   const reset = () => {
     setUrl('');
     setLabel('');
-    setSelected(new Set([AVAILABLE_EVENTS[0].id]));
+    setSelected(new Set([events[0]?.id ?? '']));
   };
   const handleClose = () => {
     if (!submitting) {
@@ -427,7 +454,7 @@ function AddWebhookDialog({ open, onClose, submitting, onSubmit }: AddWebhookDia
       <Dialog.Content>
         <Dialog.Header>
           <Dialog.Title>Add webhook</Dialog.Title>
-          <Dialog.Description>Register a URL to be notified when deploy or build events occur.</Dialog.Description>
+          <Dialog.Description>{description}</Dialog.Description>
         </Dialog.Header>
         <Dialog.Body>
           <form id="add-workspace-webhook-form" className="space-y-4" onSubmit={submit}>
@@ -457,7 +484,7 @@ function AddWebhookDialog({ open, onClose, submitting, onSubmit }: AddWebhookDia
             <fieldset>
               <legend className="text-sm font-medium mb-2">Events</legend>
               <div className="space-y-2">
-                {AVAILABLE_EVENTS.map((evt) => (
+                {events.map((evt) => (
                   <label key={evt.id} className="flex items-center gap-2 cursor-pointer">
                     <Checkbox
                       checked={selected.has(evt.id)}

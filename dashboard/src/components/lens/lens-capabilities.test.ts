@@ -6,6 +6,13 @@ describe('LENS_CAPABILITIES registry (the single source of truth)', () => {
     expect(LENS_CAPABILITIES.some((c) => c.path === '/observability/alerts')).toBe(true);
   });
 
+  it('M86 — includes Webhooks inside observability (alert setup stays in one module)', () => {
+    const wh = LENS_CAPABILITIES.find((c) => c.path === '/observability/webhooks');
+    expect(wh).toBeDefined();
+    expect(wh?.label).toBe('Webhooks');
+    expect(wh?.group).toBe('Improve'); // grouped with Alerts (webhooks are the alert delivery target)
+  });
+
   it('the Explore grid excludes the Overview landing but keeps every real destination', () => {
     expect(LENS_EXPLORE_CARDS.some((c) => c.path === '/observability')).toBe(false);
     // Dashboards / Queues / Experiments were missing from the old grid — now present.

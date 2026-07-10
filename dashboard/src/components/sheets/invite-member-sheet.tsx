@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Alert, Button, Input, Label, Select, Sheet } from '@usetheo/ui';
+import { Button, Input, Label, Select, Sheet } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { engineFetch } from '@/lib/api';
 import type { TeamMember, TeamRole } from '@/lib/api/types';
 

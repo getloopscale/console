@@ -1,14 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Github, Loader2 } from 'lucide-react';
-import {
-  Alert,
-  Button,
-  Card,
-  CodeBlock,
-  FormField,
-  Input,
-} from '@usetheo/ui';
+import { Button, Card, CodeBlock, FormField, Input } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { GoogleBrandIcon } from '@/components/google-brand-icon';
 import { LoginErrorBanner } from '@/components/login/login-error-banner';
 import { CookieBlockedAlert } from '@/components/login/cookie-blocked-alert';

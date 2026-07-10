@@ -96,6 +96,45 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(mockCloudFetch.mock.calls.some((c) => /\/traces\/tr_9/.test(String(c[0])))).toBe(true);
   });
 
+  it('M82 — rename a dataset inline via PUT {name}', async () => {
+    mockCloudFetch.mockResolvedValue({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 2 }] });
+    render(<LensDatasetsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /rename golden/i }));
+    const input = await screen.findByLabelText(/rename dataset golden/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, 'renamed{Enter}');
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/lens/datasets/ds_1',
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ name: 'renamed' }) }),
+      expect.anything(),
+    );
+  });
+
+  it('M82 — delete a dataset opens ConfirmDialog then calls DELETE on confirm', async () => {
+    mockCloudFetch.mockResolvedValue({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 2 }] });
+    render(<LensDatasetsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /delete dataset golden/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^delete dataset$/i }));
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/lens/datasets/ds_1',
+      expect.objectContaining({ method: 'DELETE' }),
+      expect.anything(),
+    );
+  });
+
+  it('M82 — a rename to a duplicate name (409) shows a name-conflict message, not a generic error', async () => {
+    mockCloudFetch.mockImplementation((_url: string, opts?: { method?: string }) => {
+      if (opts?.method === 'PUT') return Promise.reject(Object.assign(new Error('conflict'), { status: 409 }));
+      return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 2 }] });
+    });
+    render(<LensDatasetsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /rename golden/i }));
+    const input = await screen.findByLabelText(/rename dataset golden/i);
+    await userEvent.clear(input);
+    await userEvent.type(input, 'taken{Enter}');
+    expect(await screen.findByText(/already (exists|in use|taken)|name.*already/i)).toBeInTheDocument();
+  });
+
   it('remove-item opens ConfirmDialog then calls DELETE on confirm', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === '/v1/dashboard/lens/datasets') return Promise.resolve({ datasets: [{ id: 'ds_1', name: 'golden', itemCount: 1 }] });

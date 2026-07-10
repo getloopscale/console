@@ -131,7 +131,12 @@ function LaneTimeline({ tree }: { tree: TraceSpanNode }) {
 
 /** One lane: header with the trace id + a status pill, its metrics, and the timeline (or an error). */
 function Lane({ lane, label }: { lane: LaneData; label: string }) {
-  if (lane.pending) return <Skeleton className="h-40 w-full" />;
+  if (lane.pending)
+    return (
+      <div data-testid="lane-skeleton" aria-busy="true" aria-label="Loading trace">
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
   if (lane.treeError || !lane.tree) {
     return (
       <Alert intent="warning" title="Could not load this trace" data-testid={`lane-error-${lane.id}`}>

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -73,7 +74,109 @@ func MountLensAlertRules(r chi.Router, h *LensAlertRulesHandler, requireJWT func
 		r.Get("/", h.List)
 		r.Delete("/{id}", h.Delete)
 		r.Patch("/{id}", h.Toggle)
+		r.Get("/{id}/history", h.History) // M84 — paginated per-rule firing history
 	})
+}
+
+// LensFiredAlertView is one firing row returned to the dashboard history view.
+type LensFiredAlertView struct {
+	ID         string  `json:"id"`
+	Metric     string  `json:"metric"`
+	Comparator string  `json:"comparator"`
+	Threshold  float64 `json:"threshold"`
+	Value      float64 `json:"value"`
+	FiredAt    string  `json:"fired_at"`
+}
+
+const firedAlertsPageMax = 100
+const firedAlertsPageDefault = 20
+
+// History serves GET /v1/dashboard/lens/alert-rules/{id}/history?limit&offset — the paginated firing
+// history for one rule (M84). Owner-scoped by (subject via the rule's ownership, tenant_id); a rule
+// that is not the caller's (cross-tenant / non-existent) yields 404 (never a leak of another tenant's
+// firings). Newest firing first.
+func (h *LensAlertRulesHandler) History(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if !lensAlertRuleIDPattern.MatchString(id) {
+		writeError(w, http.StatusBadRequest, "INVALID_ID", "Rule id must match lar-{16hex}.")
+		return
+	}
+	limit, offset := firedAlertsPage(r)
+	// Isolation keystone: gate on the RULE's ownership (subject+tenant) so a foreign rule's firings are
+	// never returned — the fired-alerts read is bounded to rules the caller owns.
+	var owns int
+	err := h.db.QueryRowContext(r.Context(),
+		`SELECT 1 FROM lens_alert_rules WHERE id = $1 AND subject = $2 AND tenant_id = $3`,
+		id, user.Subject, user.TenantID).Scan(&owns)
+	if err == sql.ErrNoRows {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "Rule not found.")
+		return
+	}
+	if err != nil {
+		h.logger.Warn("lens alert history: ownership check failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "INTERNAL", "Could not load history. Try again.")
+		return
+	}
+	// Total for the pager (tenant-scoped over the same rule).
+	var total int
+	if err := h.db.QueryRowContext(r.Context(),
+		`SELECT count(*) FROM lens_fired_alerts WHERE rule_id = $1 AND tenant_id = $2`,
+		id, user.TenantID).Scan(&total); err != nil {
+		h.logger.Warn("lens alert history: count failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "INTERNAL", "Could not load history. Try again.")
+		return
+	}
+	const q = `SELECT id, metric, comparator, threshold, value, fired_at
+		FROM lens_fired_alerts
+		WHERE rule_id = $1 AND tenant_id = $2
+		ORDER BY fired_at DESC
+		LIMIT $3 OFFSET $4`
+	rows, err := h.db.QueryContext(r.Context(), q, id, user.TenantID, limit, offset)
+	if err != nil {
+		h.logger.Warn("lens alert history: query failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "INTERNAL", "Could not load history. Try again.")
+		return
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]LensFiredAlertView, 0, limit)
+	for rows.Next() {
+		var v LensFiredAlertView
+		if err := rows.Scan(&v.ID, &v.Metric, &v.Comparator, &v.Threshold, &v.Value, &v.FiredAt); err != nil {
+			h.logger.Warn("lens alert history: scan failed", "error", err)
+			continue
+		}
+		out = append(out, v)
+	}
+	// A mid-stream driver error must FAIL, not silently return a truncated page as 200 while `total`
+	// reports the full count (a data-honesty gap — review LOW).
+	if err := rows.Err(); err != nil {
+		h.logger.Warn("lens alert history: rows iteration failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "INTERNAL", "Could not load history. Try again.")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"firings": out, "total": total, "limit": limit, "offset": offset})
+}
+
+// firedAlertsPage parses limit (1..100, default 20) + offset (>=0) from the query.
+func firedAlertsPage(r *http.Request) (limit, offset int) {
+	limit, offset = firedAlertsPageDefault, 0
+	q := r.URL.Query()
+	if v := q.Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= firedAlertsPageMax {
+			limit = n
+		}
+	}
+	if v := q.Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	return limit, offset
 }
 
 // Create serves POST /v1/dashboard/lens/alert-rules.

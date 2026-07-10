@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
@@ -57,7 +57,14 @@ export function nsToIso(ns: string | undefined | null): string | null {
 
 interface TracesResult {
   traces: Trace[];
+  // M81 — server-side pagination envelope (workspace-scoped total + the applied window).
+  total?: number;
+  limit?: number;
+  offset?: number;
 }
+
+/** M81 — the traces page window. */
+const TRACES_PAGE_SIZE = 50;
 
 const RANGE_MS: Record<Exclude<Range, 'all'>, number> = {
   '1h': 3_600_000,
@@ -76,7 +83,7 @@ export type { TraceFilters };
  * `now` is injected (not `Date.now()` inline) so the helper is deterministic + unit-testable
  * (`.claude/rules/testing.md` — inject the clock).
  */
-export function buildTraceQuery(f: TraceFilters, now: number): string {
+export function buildTraceQuery(f: TraceFilters, now: number, window?: { limit: number; offset: number }): string {
   const p = new URLSearchParams();
   if (f.q.trim()) p.set('q', f.q.trim());
   if (f.status === 'error') p.set('status', 'error');
@@ -87,6 +94,13 @@ export function buildTraceQuery(f: TraceFilters, now: number): string {
   if (f.tokensMin.trim()) p.set('min_tokens', f.tokensMin.trim());
   if (f.tokensMax.trim()) p.set('max_tokens', f.tokensMax.trim());
   if (f.session.trim()) p.set('session_id', f.session.trim());
+  if (f.spanQuery.trim()) p.set('span_query', f.spanQuery.trim()); // M92 — the attribute DSL clause
+  // M81 — the list read carries the page window (limit/offset); the CSV export omits it (exports the
+  // whole filtered set up to the engine cap).
+  if (window) {
+    p.set('limit', String(window.limit));
+    p.set('offset', String(window.offset));
+  }
   const s = p.toString();
   return s ? `?${s}` : '';
 }
@@ -99,13 +113,16 @@ export function LensTracesPage() {
   const navigate = useNavigate();
   // M54 — pairwise compare selection. A row is ticked to build a two-trace compare.
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const toggleSelected = (id: string) =>
+  // M98 (D-M1) — stable identity so the `columns` useMemo below actually caches (a fresh arrow each
+  // render would defeat it). `setSelected` is a stable setState reference.
+  const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  }, []);
 
   // M49 — URL-persisted filters (nuqs): a filtered view is shareable/bookmarkable.
   const [q, setQ] = useQueryState('q', parseAsString.withDefault(''));
@@ -118,6 +135,8 @@ export function LensTracesPage() {
   const [tokensMin, setTokensMin] = useQueryState('tokens_min', parseAsString.withDefault(''));
   const [tokensMax, setTokensMax] = useQueryState('tokens_max', parseAsString.withDefault(''));
   const [session, setSession] = useQueryState('session', parseAsString.withDefault(''));
+  // M92 — the arbitrary-attribute filter, carried as the span-query DSL clause (`attr:key=value`).
+  const [spanQuery, setSpanQuery] = useQueryState('span_query', parseAsString.withDefault(''));
   // M59 P1 — row density (URL-persisted so it round-trips into a saved view, Phase 3).
   const [density, setDensity] = useQueryState(
     'density',
@@ -127,7 +146,8 @@ export function LensTracesPage() {
   // it for free (no schema change — ADR D4). Density is mirrored into the encoded state for round-trip
   // completeness, but the `density` param above stays its source of truth.
   const [cols, setCols] = useQueryState('cols', parseAsString.withDefault(''));
-  const columnState = { ...decodeColumns(cols), density };
+  // M98 (D-M1) — memoized (stable identity) so it doesn't defeat the `columns` memo each render.
+  const columnState = useMemo(() => ({ ...decodeColumns(cols), density }), [cols, density]);
   const setColumnState = (next: typeof columnState) => void setCols(encodeColumns(next) || null);
 
   // The search box keeps its own immediate value (responsive typing) and DEBOUNCES into the `q`
@@ -142,7 +162,13 @@ export function LensTracesPage() {
     return () => clearTimeout(t);
   }, [searchInput, q, setQ]);
 
-  const filters: TraceFilters = { q, status, model, range, costMin, costMax, tokensMin, tokensMax, session };
+  const filters: TraceFilters = { q, status, model, range, costMin, costMax, tokensMin, tokensMax, session, spanQuery };
+
+  // M81 — server-side pagination. A filter change resets to page 1 (a stale offset would request an
+  // out-of-range window). Keyed on the filter values (stable across renders, like the query key).
+  const [page, setPage] = useState(1);
+  const filterKey = JSON.stringify(filters);
+  useEffect(() => setPage(1), [filterKey]);
 
   // M59 P2 — the chip bar hands back a Partial<TraceFilters> (apply/clear); this maps each changed
   // field to its `nuqs` setter (empty → null drops the param). The URL param keys are UNCHANGED, so
@@ -157,6 +183,7 @@ export function LensTracesPage() {
     if ('tokensMin' in p) void setTokensMin(p.tokensMin ? p.tokensMin : null);
     if ('tokensMax' in p) void setTokensMax(p.tokensMax ? p.tokensMax : null);
     if ('session' in p) void setSession(p.session ? p.session : null);
+    if ('spanQuery' in p) void setSpanQuery(p.spanQuery ? p.spanQuery : null);
   };
 
   const hasActiveFilters =
@@ -168,7 +195,8 @@ export function LensTracesPage() {
     costMax.trim() !== '' ||
     tokensMin.trim() !== '' ||
     tokensMax.trim() !== '' ||
-    session.trim() !== '';
+    session.trim() !== '' ||
+    spanQuery.trim() !== '';
 
   // M52 — saved views: a per-tenant store of the current filter URL. Apply = write the whole search
   // string (nuqs re-hydrates every filter); share = the URL itself. The bar + its CRUD live in
@@ -179,13 +207,17 @@ export function LensTracesPage() {
   // the labeling queue) and shared. A row click writes the param; closing the peek clears it. Other
   // query state (filters, saved views) is preserved by mutating the previous params.
   const openID = searchParams.get('trace');
-  const setOpenID = (id: string | null) =>
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev); // new instance (idiomatic react-router; don't mutate prev)
-      if (id) next.set('trace', id);
-      else next.delete('trace');
-      return next;
-    });
+  // M98 (D-M1) — stable identity (setSearchParams is stable) so it doesn't defeat the `columns` memo.
+  const setOpenID = useCallback(
+    (id: string | null) =>
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev); // new instance (idiomatic react-router; don't mutate prev)
+        if (id) next.set('trace', id);
+        else next.delete('trace');
+        return next;
+      }),
+    [setSearchParams],
+  );
 
   // Apply a saved view: replace the URL search with its stored query string; nuqs re-reads every key.
   const applyView = (queryString: string) => {
@@ -195,34 +227,62 @@ export function LensTracesPage() {
   const query = useQuery({
     // Key by the filter VALUES (not the derived `from` timestamp) so the cache is stable across
     // renders; `buildTraceQuery` computes `from` from the clock only at fetch time (no refetch loop).
-    queryKey: ['cloud', '/v1/dashboard/lens/traces', filters] as const,
-    queryFn: () => cloudFetch<TracesResult>(`/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now())}`),
+    // M81: the page is part of the key so Next/Prev refetch the right window.
+    queryKey: ['cloud', '/v1/dashboard/lens/traces', filters, page] as const,
+    queryFn: () =>
+      cloudFetch<TracesResult>(
+        `/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now(), { limit: TRACES_PAGE_SIZE, offset: (page - 1) * TRACES_PAGE_SIZE })}`,
+      ),
   });
+  // M92 — facet discovery: the workspace's top attribute keys, to suggest in the attribute filter.
+  // A failed/empty discovery leaves the key input as free-text (the filter still works).
+  const attrKeysQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/lens/metrics/span-attributes'] as const,
+    queryFn: () => cloudFetch<{ mode: 'keys'; keys: { key: string; count: number }[] }>('/v1/dashboard/lens/metrics/span-attributes'),
+  });
+  const attributeKeys = (attrKeysQuery.data?.keys ?? []).map((k) => k.key);
+
+  // M81 — pagination derived state (workspace-scoped total from the response).
+  const total = query.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / TRACES_PAGE_SIZE));
+  const firstShown = total === 0 ? 0 : (page - 1) * TRACES_PAGE_SIZE + 1;
+  const lastShown = Math.min(page * TRACES_PAGE_SIZE, total);
 
   // M59 P3 — hide the toggleable spine columns the user turned off (identity columns always show).
-  const columns = tracesColumns({
-    selected,
-    toggleSelected,
-    onOpen: setOpenID,
-    // M61 — dock the Ask copilot to this trace (carries the id in the URL; no manual entry).
-    onAsk: (id) => navigate(`/observability/ask?traceId=${encodeURIComponent(id)}`),
-  }).filter(
-    (c) => !(TOGGLEABLE_COLUMNS as readonly string[]).includes(c.key) || isColumnVisible(columnState, c.key),
+  // M98 (D-M1) — memoized so the column set is rebuilt only when the selection / visible columns
+  // change, not on every unrelated re-render (filter keystroke, export state).
+  const columns = useMemo(
+    () =>
+      tracesColumns({
+        selected,
+        toggleSelected,
+        onOpen: setOpenID,
+        // M61 — dock the Ask copilot to this trace (carries the id in the URL; no manual entry).
+        onAsk: (id) => navigate(`/observability/ask?traceId=${encodeURIComponent(id)}`),
+      }).filter(
+        (c) => !(TOGGLEABLE_COLUMNS as readonly string[]).includes(c.key) || isColumnVisible(columnState, c.key),
+      ),
+    [selected, toggleSelected, setOpenID, navigate, columnState],
   );
 
   // M57 T1.1 — newest-first by default. Defensive client-side desc sort by
   // startTimeUnixNano (BigInt-safe, missing timestamps sink to the bottom) so the
   // Time column is honestly ordered regardless of the BFF's return order. Stable
   // for equal/absent timestamps; the server-side M49 filters are unaffected.
-  const traces = [...(query.data?.traces ?? [])].sort((a, b) => {
-    const an = a.startTimeUnixNano;
-    const bn = b.startTimeUnixNano;
-    if (!an && !bn) return 0;
-    if (!an) return 1;
-    if (!bn) return -1;
-    const d = BigInt(bn) - BigInt(an);
-    return d > 0n ? 1 : d < 0n ? -1 : 0;
-  });
+  // M98 (D-M1) — memoized so the O(n log n) sort runs only when the data changes, not per keystroke.
+  const traces = useMemo(
+    () =>
+      [...(query.data?.traces ?? [])].sort((a, b) => {
+        const an = a.startTimeUnixNano;
+        const bn = b.startTimeUnixNano;
+        if (!an && !bn) return 0;
+        if (!an) return 1;
+        if (!bn) return -1;
+        const d = BigInt(bn) - BigInt(an);
+        return d > 0n ? 1 : d < 0n ? -1 : 0;
+      }),
+    [query.data?.traces],
+  );
 
   // M54 — compare is pairwise: the action is live only with exactly two traces ticked.
   const selectedIds = Array.from(selected);
@@ -313,7 +373,7 @@ export function LensTracesPage() {
                 aria-label="Search traces"
               />
             </div>
-            <FilterBar filters={filters} onApply={applyFilters} />
+            <FilterBar filters={filters} onApply={applyFilters} attributeKeys={attributeKeys} />
             {hasActiveFilters ? (
               <Button variant="ghost" size="sm" onClick={() => applyFilters(EMPTY_FILTERS)} aria-label="Clear filters">
                 Clear
@@ -379,10 +439,9 @@ export function LensTracesPage() {
                 </Alert>
               ) : null}
               <p data-testid="traces-count" className="mb-1 text-xs text-muted-foreground">
-                {/* The list BFF returns no total/offset (only the export path exposes a cap), so this is
-                    an honest count of the loaded rows — NOT a claim of the full total. The missing
-                    BFF total/pagination is filed as a gap (roadmap M70 risk 1). */}
-                {traces.length} {traces.length === 1 ? 'trace' : 'traces'}
+                {/* M81 — server-side pagination: the read now returns a workspace-scoped `total`, so this
+                    discloses the window over the real total (not just the loaded rows). */}
+                {total > 0 ? `Showing ${firstShown}–${lastShown} of ${total}` : `${traces.length} ${traces.length === 1 ? 'trace' : 'traces'}`}
               </p>
               <Card>
                 {/* M59 P1 — density toggles the row height (compact vs comfortable) via a data-attr
@@ -398,6 +457,18 @@ export function LensTracesPage() {
                   <DataTable columns={columns} data={traces} rowKey={(row) => row.traceId} />
                 </div>
               </Card>
+              {/* M81 — server-side pager (mirrors the M70 labeling-queue): page 2+ reachable, count disclosed. */}
+              {pageCount > 1 ? (
+                <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
+                  <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                    Previous
+                  </Button>
+                  <span className="tabular-nums" data-testid="traces-pager">{`Page ${page} / ${pageCount}`}</span>
+                  <Button variant="ghost" size="sm" disabled={page >= pageCount || query.isFetching} onClick={() => setPage((p) => p + 1)}>
+                    Next
+                  </Button>
+                </div>
+              ) : null}
             </>
           )}
 

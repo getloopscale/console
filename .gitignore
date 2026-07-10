@@ -23,3 +23,6 @@ dashboard/test-results/
 .claude/.compaction-snapshots/
 .claude/knowledge-base/implementations/.progress-*.json
 .claude/knowledge-base/references/*/
+
+# Playwright test reports (build output)
+dashboard/playwright-report/

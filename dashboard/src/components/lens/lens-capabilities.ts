@@ -11,6 +11,7 @@ import {
   Network,
   Search,
   ShieldCheck,
+  Webhook,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -46,6 +47,7 @@ export const LENS_CAPABILITIES: LensCapability[] = [
   { group: 'Evaluate', label: 'Ask', path: '/observability/ask', icon: Search, description: 'Ask the copilot about a trace.' },
   { group: 'Improve', label: 'Agents', path: '/observability/agents', icon: Bot, description: 'The derived catalog of instrumented agents.' },
   { group: 'Improve', label: 'Alerts', path: '/observability/alerts', icon: BellRing, description: 'Get notified when a metric crosses a threshold.' },
+  { group: 'Improve', label: 'Webhooks', path: '/observability/webhooks', icon: Webhook, description: 'Register endpoints that receive alert notifications.' },
 ];
 
 /** The Explore-grid cards (everything the user can navigate INTO — excludes the Overview landing). */

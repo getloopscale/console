@@ -80,6 +80,26 @@ describe('LensComparePage', () => {
     expect(screen.getAllByTestId('span-bar').length).toBeGreaterThanOrEqual(2);
   });
 
+  it('shows a Skeleton per lane while the trace queries are pending (no fabricated-empty during load)', async () => {
+    // Deferred fetches: the queries stay pending until we resolve them, so each lane must render its
+    // Skeleton — never a blank compare nor a fabricated "no data" empty state (M98 D-H4). We resolve
+    // at the end so react-query settles and the test tears down cleanly (no hanging promise).
+    // A gate the fetches await: while closed, the queries are pending → each lane shows its Skeleton.
+    let open!: () => void;
+    const gate = new Promise<void>((res) => (open = res));
+    mockCloudFetch.mockImplementation(async (path: string) => {
+      await gate;
+      return routeFetch({ 'tr-A': tree('tr-A', 'root', '1002000000'), 'tr-B': tree('tr-B', 'root', '1002000000') }, {})(path);
+    });
+    renderCompare('tr-A,tr-B');
+    // The pending state is the FIRST synchronous paint (isPending true before any fetch settles).
+    expect(screen.getAllByTestId('lane-skeleton')).toHaveLength(2);
+    expect(screen.queryByTestId('span-bar')).toBeNull();
+    expect(screen.queryByText(/no data|no spans|empty/i)).toBeNull();
+    open(); // let the fetches resolve so react-query settles and the component tears down cleanly
+    await waitFor(() => expect(screen.queryAllByTestId('lane-skeleton')).toHaveLength(0));
+  });
+
   it('one missing trace → that lane shows an error, the other still renders (no page crash)', async () => {
     mockCloudFetch.mockImplementation(
       routeFetch(

@@ -61,14 +61,60 @@ describe('LensAlertsPage (M53)', () => {
     expect(await screen.findByText(/no alert rules yet/i)).toBeInTheDocument();
   });
 
+  it('M84 — a rule row expands its firing history (value vs threshold, when)', async () => {
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined))
+        return Promise.resolve({ alert_rules: [{ id: 'lar-1', name: 'high errors', metric: 'error_rate', comparator: 'gt', threshold: 5, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'TRIGGERED', last_evaluated_at: null, last_triggered_at: '2026-07-04T10:00:00Z' }] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod' }] });
+      if (url.includes('/history'))
+        return Promise.resolve({ firings: [{ id: 'lfa-1', metric: 'error_rate', comparator: 'gt', threshold: 5, value: 12, fired_at: '2026-07-04T10:00:00Z' }], total: 1, limit: 20, offset: 0 });
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByText('high errors');
+    await userEvent.click(screen.getByRole('button', { name: /history for high errors/i }));
+    await waitFor(() => expect(mockCloudFetch.mock.calls.some((c) => String(c[0]).includes('/alert-rules/lar-1/history'))).toBe(true));
+    expect(await screen.findByText(/12/)).toBeInTheDocument();
+  });
+
+  it('M84 — a rule that never fired shows an honest "never fired" empty, not a fabricated row', async () => {
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined))
+        return Promise.resolve({ alert_rules: [{ id: 'lar-1', name: 'quiet', metric: 'cost', comparator: 'gt', threshold: 5, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod' }] });
+      if (url.includes('/history')) return Promise.resolve({ firings: [], total: 0, limit: 20, offset: 0 });
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByText('quiet');
+    await userEvent.click(screen.getByRole('button', { name: /history for quiet/i }));
+    expect(await screen.findByText(/never fired/i)).toBeInTheDocument();
+  });
+
+  it('M84 — a failed history load fails closed to a typed alert (not an empty "never fired")', async () => {
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined))
+        return Promise.resolve({ alert_rules: [{ id: 'lar-1', name: 'boom', metric: 'cost', comparator: 'gt', threshold: 5, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod' }] });
+      if (url.includes('/history')) return Promise.reject(Object.assign(new Error('boom'), { status: 500 }));
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByText('boom');
+    await userEvent.click(screen.getByRole('button', { name: /history for boom/i }));
+    expect(await screen.findByText(/could not load .*history/i)).toBeInTheDocument();
+    expect(screen.queryByText(/never fired/i)).not.toBeInTheDocument();
+  });
+
   it('discloses "register a webhook first" when the workspace has none', async () => {
     mockRoutes({ webhooks: [] });
     render(<LensAlertsPage />);
     expect(await screen.findByText(/register a webhook first/i)).toBeInTheDocument();
     // #175: the instruction BODY renders (how to register), not just the title.
     expect(screen.getByText(/add one under/i)).toBeInTheDocument();
-    // M79 (AL-1): the prerequisite is one click from its fix — a link to the webhooks settings page.
-    expect(screen.getByRole('link', { name: /webhooks/i })).toHaveAttribute('href', '/settings/webhooks');
+    // M86: the prerequisite points at the IN-OBSERVABILITY webhooks surface, so alert setup stays in
+    // one module (no jump to /settings/webhooks).
+    expect(screen.getByRole('link', { name: /webhooks/i })).toHaveAttribute('href', '/observability/webhooks');
   });
 
   it('creates a rule (POST metric/comparator/threshold/window/webhook_id)', async () => {
@@ -119,6 +165,41 @@ describe('LensAlertsPage (M53)', () => {
     await userEvent.click(screen.getByRole('button', { name: /toggle r/i }));
     await waitFor(() => expect(calls('PATCH').length).toBe(1));
     expect(JSON.parse((calls('PATCH')[0][1] as { body: string }).body)).toEqual({ enabled: false });
+  });
+
+  it('M98 — the toggle flips OPTIMISTICALLY before the PATCH resolves (no stale RTT gap)', async () => {
+    let resolvePatch!: () => void;
+    const rule = { id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null };
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [rule] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (url.startsWith(`${RULES}/`) && init?.method === 'PATCH') return new Promise<void>((res) => (resolvePatch = res));
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByText('r');
+    const btn = screen.getByRole('button', { name: /toggle r/i });
+    expect(btn).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(btn);
+    // optimistic: aria-pressed flips to false + the button is disabled WHILE the PATCH is still pending
+    await waitFor(() => expect(screen.getByRole('button', { name: /toggle r/i })).toHaveAttribute('aria-pressed', 'false'));
+    expect(screen.getByRole('button', { name: /toggle r/i })).toBeDisabled();
+    resolvePatch();
+  });
+
+  it('M98 — a failed toggle ROLLS BACK the optimistic flip (never diverges from the server)', async () => {
+    const rule = { id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null };
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [rule] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (url.startsWith(`${RULES}/`) && init?.method === 'PATCH') return Promise.reject(Object.assign(new Error('boom'), { status: 500 }));
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByText('r');
+    await userEvent.click(screen.getByRole('button', { name: /toggle r/i }));
+    // after the failed PATCH, aria-pressed reverts to true (rolled back to the server truth)
+    await waitFor(() => expect(screen.getByRole('button', { name: /toggle r/i })).toHaveAttribute('aria-pressed', 'true'));
   });
 
   it('deletes a rule after confirmation (DELETE)', async () => {

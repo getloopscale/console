@@ -1,13 +1,14 @@
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { ThumbsUp, ThumbsDown } from 'lucide-react';
 
 import { Badge, Button, Card, EmptyState, StatusDot, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { cloudFetch } from '@/lib/api';
 import { shortId } from '@/lib/format';
-import { Markdown } from '@/pages/lens/trace-detail/io-cards';
+import { Markdown } from '@/pages/lens/trace-detail/markdown';
 import type { TraceSpanNode } from '@/lib/trace-layout';
 import { STARTER_PROMPTS, buildEntityMap, resolveCitations, type Turn } from './ask-thread-model';
 
@@ -107,13 +108,61 @@ export function AskThread({
     },
   });
 
+  // M83 — record thumbs feedback on ONE answer. The feedback is keyed by the client-side turn id
+  // (the M33 ask is stateless, so the thread's turn ordinal is the stable per-answer key). Optimistic:
+  // the pressed state shows immediately; a failed POST fails closed to a typed error AND reverts the
+  // local state (no fabricated success, R4). Independent of the LLM provider (risk-2) — a 502 on the
+  // ask never blocks feedback, and vice-versa.
+  const feedback = useMutation({
+    mutationFn: (vars: { turnId: string; label: 'up' | 'down'; spanId?: string }) =>
+      cloudFetch<{ label: string }>(
+        `/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/ask/feedback`,
+        { method: 'POST', body: JSON.stringify({ turnId: vars.turnId, label: vars.label, ...(vars.spanId ? { spanId: vars.spanId } : {}) }) },
+        { throwOnError: true },
+      ),
+    retry: false,
+    onError: (_e, vars) => {
+      // revert the optimistic toggle for this turn (honest — the vote did not persist).
+      setTurns((t) => t.map((x) => (x.id === vars.turnId ? { ...x, feedback: undefined } : x)));
+    },
+  });
+
+  // M83 — retract a vote (the UI "clear"). Persists via DELETE so the store never diverges from the
+  // shown thumb (review H-1). Optimistic; a failed DELETE reverts to the prior label + typed error.
+  const clearFeedback = useMutation({
+    mutationFn: (vars: { turnId: string }) =>
+      cloudFetch<void>(
+        `/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/ask/feedback?turnId=${encodeURIComponent(vars.turnId)}`,
+        { method: 'DELETE' },
+        { throwOnError: true },
+      ),
+    retry: false,
+  });
+
+  const vote = (turn: Turn, label: 'up' | 'down') => {
+    const prev = turn.feedback;
+    const next = prev === label ? undefined : label; // click the active thumb again → clear
+    setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, feedback: next } : x)));
+    if (next !== undefined) {
+      feedback.mutate({ turnId: turn.id, label: next, ...(turn.spanId ? { spanId: turn.spanId } : {}) });
+    } else {
+      // clear → DELETE; revert to the prior label on failure (no silent UI/DB divergence).
+      clearFeedback.mutate(
+        { turnId: turn.id },
+        { onError: () => setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, feedback: prev } : x))) },
+      );
+    }
+  };
+
   // ADR D2 / R1 — a fresh thread per trace: clear turns/draft AND reset any in-flight/stale ask when the
   // docked trace changes, so trace A's conversation (or an in-flight A answer) never bleeds into trace B.
   useEffect(() => {
     setTurns([]);
     setDraft('');
     ask.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- key on traceId only; ask.reset is stable.
+    feedback.reset();
+    clearFeedback.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- key on traceId only; reset fns are stable.
   }, [traceId]);
 
   // M72 — auto-scroll to the latest turn (or the thinking indicator) so a new answer is in view.
@@ -162,10 +211,31 @@ export function AskThread({
                 ) : null}
               </div>
               {turn.role === 'assistant' ? (
-                // M72 — the thumbs feedback was decorative (local-state only, never persisted). Rather
-                // than ship theatre, the control is removed until a feedback endpoint exists
-                // (filed as usetheodev/theo-cloud#181).
-                <AnswerBody content={turn.content} entityMap={entityMap} traceId={traceId} />
+                <>
+                  <AnswerBody content={turn.content} entityMap={entityMap} traceId={traceId} />
+                  {/* M83 — thumbs feedback restored, now wired to the persist endpoint (#181). The
+                      pressed thumb reflects the recorded vote; clicking the active thumb clears it. */}
+                  <div className="flex items-center gap-1 pt-1" data-testid="answer-feedback">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Good answer"
+                      aria-pressed={turn.feedback === 'up'}
+                      onClick={() => vote(turn, 'up')}
+                    >
+                      <ThumbsUp className={`h-4 w-4 ${turn.feedback === 'up' ? 'text-primary' : 'text-muted-foreground'}`} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Bad answer"
+                      aria-pressed={turn.feedback === 'down'}
+                      onClick={() => vote(turn, 'down')}
+                    >
+                      <ThumbsDown className={`h-4 w-4 ${turn.feedback === 'down' ? 'text-destructive' : 'text-muted-foreground'}`} />
+                    </Button>
+                  </div>
+                </>
               ) : (
                 <p className="text-sm whitespace-pre-wrap">{turn.content}</p>
               )}
@@ -181,6 +251,9 @@ export function AskThread({
 
         {ask.isError ? (
           <Alert intent="warning" title="Could not answer" description={errorMessage(ask.error)} />
+        ) : null}
+        {feedback.isError || clearFeedback.isError ? (
+          <Alert intent="warning" title="Feedback not saved" description="Could not save your feedback — try again shortly." data-testid="feedback-error" />
         ) : null}
         <div ref={bottomRef} aria-hidden="true" />
       </div>

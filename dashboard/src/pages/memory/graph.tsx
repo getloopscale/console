@@ -7,7 +7,8 @@ import ForceGraph2D, {
   type LinkObject,
   type NodeObject,
 } from 'react-force-graph-2d';
-import { Alert, Card, EmptyState, PageShell, Tabs } from '@usetheo/ui';
+import { Card, EmptyState, PageShell, Tabs } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';

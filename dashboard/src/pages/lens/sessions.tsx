@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Button, Card, CopyButton, DataTable, type DataTableColumn, EmptyState, PageShell } from '@usetheo/ui';
@@ -22,17 +22,31 @@ interface Session {
 }
 interface SessionsResult {
   sessions: Session[];
+  // M81 — server-side pagination envelope.
+  total?: number;
 }
+
+/** M81 — the sessions page window. */
+const SESSIONS_PAGE_SIZE = 50;
 
 export function LensSessionsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Sessions'), [setPageTitle]);
   useRequireAuth();
 
+  // M81 — server-side pagination (the engine now honors limit/offset + returns a workspace-scoped total).
+  const [page, setPage] = useState(1);
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/sessions'] as const,
-    queryFn: () => cloudFetch<SessionsResult>('/v1/dashboard/lens/sessions'),
+    queryKey: ['cloud', '/v1/dashboard/lens/sessions', page] as const,
+    queryFn: () =>
+      cloudFetch<SessionsResult>(
+        `/v1/dashboard/lens/sessions?limit=${SESSIONS_PAGE_SIZE}&offset=${(page - 1) * SESSIONS_PAGE_SIZE}`,
+      ),
   });
+  const total = query.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / SESSIONS_PAGE_SIZE));
+  const firstShown = total === 0 ? 0 : (page - 1) * SESSIONS_PAGE_SIZE + 1;
+  const lastShown = Math.min(page * SESSIONS_PAGE_SIZE, total);
 
   const columns: DataTableColumn<Session>[] = [
     {
@@ -93,9 +107,26 @@ export function LensSessionsPage() {
             }
           />
         ) : (
-          <Card>
-            <DataTable columns={columns} data={sessions} rowKey={(row) => row.sessionId} />
-          </Card>
+          <>
+            {total > 0 ? (
+              <p data-testid="sessions-count" className="mb-1 text-xs text-muted-foreground">{`Showing ${firstShown}–${lastShown} of ${total}`}</p>
+            ) : null}
+            <Card>
+              <DataTable columns={columns} data={sessions} rowKey={(row) => row.sessionId} />
+            </Card>
+            {/* M81 — server-side pager (mirrors the M70 labeling-queue). */}
+            {pageCount > 1 ? (
+              <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
+                <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                  Previous
+                </Button>
+                <span className="tabular-nums" data-testid="sessions-pager">{`Page ${page} / ${pageCount}`}</span>
+                <Button variant="ghost" size="sm" disabled={page >= pageCount || query.isFetching} onClick={() => setPage((p) => p + 1)}>
+                  Next
+                </Button>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </PageShell>

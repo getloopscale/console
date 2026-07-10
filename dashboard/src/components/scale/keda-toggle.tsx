@@ -1,4 +1,5 @@
-import { Alert, Label } from '@usetheo/ui';
+import { Label } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 /**
  * Plan tiers eligible for KEDA scale-to-zero. Mirrors

@@ -1,16 +1,8 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Share2, Sparkles, Zap } from 'lucide-react';
-import {
-  Alert,
-  Button,
-  Card,
-  PageShell,
-  Skeleton,
-  StatTile,
-  TokenUsageChart,
-  type TokenUsagePoint,
-} from '@usetheo/ui';
+import { Button, Card, MetricCard, PageShell, Skeleton, TokenUsageChart, type TokenUsagePoint } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -23,7 +15,7 @@ import { cloudFetch } from '@/lib/api';
  * 4 KPIs from GET /v1/dashboard/memory/metrics + 2 trend charts + a Refresh button.
  *
  * Per ADR D3 of the plan: empty pgvector returns 0 from every numeric field
- * (never null, never NaN). This page renders that 0 cleanly via StatTile —
+ * (never null, never NaN). This page renders that 0 cleanly via MetricCard —
  * the first-time user sees four "0" cards explaining what's coming, not
  * broken NaN tiles.
  *
@@ -123,10 +115,10 @@ export function MemoryPage() {
         {metricsQuery.isSuccess ? (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatTile value={metrics.total_memories} label="Total memories" icon={Brain} />
-              <StatTile value={metrics.retrieval_api_usage} label="Retrieval API calls" icon={Zap} />
-              <StatTile value={metrics.add_events} label="Add events" icon={Sparkles} />
-              <StatTile value={metrics.entity_count} label="Distinct entities" icon={Database} />
+              <MetricCard title="Total memories" value={metrics.total_memories} icon={<Brain className="h-4 w-4" aria-hidden="true" />} />
+              <MetricCard title="Retrieval API calls" value={metrics.retrieval_api_usage} icon={<Zap className="h-4 w-4" aria-hidden="true" />} />
+              <MetricCard title="Add events" value={metrics.add_events} icon={<Sparkles className="h-4 w-4" aria-hidden="true" />} />
+              <MetricCard title="Distinct entities" value={metrics.entity_count} icon={<Database className="h-4 w-4" aria-hidden="true" />} />
             </div>
 
             <ContentGrid columns="2-equal">

@@ -1,23 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RotateCw, Trash2 } from 'lucide-react';
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Checkbox,
-  ConfirmDialog,
-  DataTable,
-  type DataTableColumn,
-  Dialog,
-  EmptyState,
-  Input,
-  PageShell,
-  Sheet,
-  Timestamp,
-  useToast,
-} from '@usetheo/ui';
+import { Badge, Button, Card, Checkbox, ConfirmDialog, DataTable, type DataTableColumn, Dialog, EmptyState, Input, PageShell, Sheet, Timestamp, useToast } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -362,7 +347,7 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
             {query.isLoading ? (
               <p className="text-sm text-muted-foreground">Loading deliveries…</p>
             ) : deliveries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No deliveries yet.</p>
+              <EmptyState title="No deliveries yet" description="Deliveries appear here once this webhook receives events." />
             ) : (
               deliveries.map((d) => (
                 <DeliveryCard

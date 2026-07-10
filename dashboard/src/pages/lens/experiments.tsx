@@ -1,7 +1,8 @@
+import { lensErrorMessage } from '../../lib/lens-error';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, Input, PageShell, Select } from '@usetheo/ui';
+import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -76,19 +77,16 @@ function DeltaBadge({ value, dp = 2, prefix = '' }: { value: number | null; dp?:
 }
 
 function errorMessage(err: unknown): string {
-  const status = (err as { status?: number } | null)?.status ?? 0;
-  switch (status) {
-    case 503:
-      return 'The provider is not configured — a run needs a provider.';
-    case 429:
-      return 'Rate limit reached — wait a moment before running again.';
-    case 403:
-      return 'You do not have permission to run experiments in this workspace.';
-    case 404:
-      return 'The dataset is not available (it may belong to another workspace).';
-    default:
-      return 'Could not run the experiment — try again shortly.';
-  }
+  return lensErrorMessage(
+    err,
+    {
+      503: 'The provider is not configured — a run needs a provider.',
+      429: 'Rate limit reached — wait a moment before running again.',
+      403: 'You do not have permission to run experiments in this workspace.',
+      404: 'The dataset is not available (it may belong to another workspace).',
+    },
+    'Could not run the experiment — try again shortly.',
+  );
 }
 
 /** A single run's aggregate summary line. */
@@ -327,7 +325,7 @@ export function LensExperimentsPage() {
       {runsQuery.isError ? (
         <Alert intent="warning" title="Could not load runs" description="Try again shortly." />
       ) : runs.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No runs yet — create a regression dataset from the traces list, then run it here.</p>
+        <EmptyState title="No runs yet" description="Create a regression dataset from the traces list, then run it here." />
       ) : (
         <DataTable
           data={runs}

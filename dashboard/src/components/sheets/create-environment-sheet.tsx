@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { Alert, Button, Checkbox, Input, Label, Select, Sheet } from '@usetheo/ui';
+import { Button, Checkbox, Input, Label, Select, Sheet } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 import { engineFetch } from '@/lib/api';
 import { useEngineApi } from '@/hooks/use-api';
 import type { Environment, Project } from '@/lib/api/types';

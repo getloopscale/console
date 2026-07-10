@@ -1,3 +1,4 @@
+import { lensErrorMessage } from '../../lib/lens-error';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -40,17 +41,15 @@ interface QueuePage {
 
 /** Map a fail-closed HTTP status to an honest, typed message (duck-typed `.status`). */
 function errorMessage(err: unknown): string {
-  const status = (err as { status?: number } | null)?.status ?? 0;
-  switch (status) {
-    case 403:
-      return 'You do not have permission to write to this workspace.';
-    case 404:
-      return 'This item is not available (it may belong to another workspace).';
-    case 400:
-      return 'A non-empty label is required to resolve.';
-    default:
-      return 'Could not save — try again shortly.';
-  }
+  return lensErrorMessage(
+    err,
+    {
+      403: 'You do not have permission to write to this workspace.',
+      404: 'This item is not available (it may belong to another workspace).',
+      400: 'A non-empty label is required to resolve.',
+    },
+    'Could not save — try again shortly.',
+  );
 }
 
 export function LensLabelingQueuePage() {

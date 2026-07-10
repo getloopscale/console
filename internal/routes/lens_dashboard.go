@@ -6,6 +6,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,6 +29,8 @@ type LensDataClient interface {
 	ListTraces(ctx context.Context, f thelens.TraceListFilter) (json.RawMessage, error)
 	ListSessions(ctx context.Context, limit, offset int) (json.RawMessage, error)
 	Observability(ctx context.Context, timeRange string) (json.RawMessage, error)
+	Scores(ctx context.Context, timeRange string) (json.RawMessage, error)
+	SpanAttributes(ctx context.Context, key string) (json.RawMessage, error)
 	Cost(ctx context.Context, since string) (json.RawMessage, error)
 	ListDatasets(ctx context.Context) (json.RawMessage, error)
 	GetDataset(ctx context.Context, id string) (json.RawMessage, error)
@@ -40,12 +43,17 @@ type LensDataClient interface {
 	GetTraceTags(ctx context.Context, id string) (json.RawMessage, error)
 	GetTraceAnnotations(ctx context.Context, id string) (json.RawMessage, error)
 	Ask(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
+	AskFeedback(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
+	DeleteAskFeedback(ctx context.Context, traceID, turnID string) (json.RawMessage, error)
 	Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	// Writes (M44) — datasets / evaluators / guards / trace metadata
 	CreateDataset(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	RenameDataset(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
+	DeleteDataset(ctx context.Context, id string) (json.RawMessage, error)
 	AddDatasetItem(ctx context.Context, datasetID string, body json.RawMessage) (json.RawMessage, error)
 	DeleteDatasetItem(ctx context.Context, datasetID, traceID string) (json.RawMessage, error)
 	CreateEvaluator(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	UpdateEvaluator(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
 	RunEvaluator(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
 	DeleteEvaluator(ctx context.Context, id string) (json.RawMessage, error)
 	CreateGuard(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
@@ -141,6 +149,7 @@ func traceFilter(r *http.Request) thelens.TraceListFilter {
 		MinTokens:  q.Get("min_tokens"),
 		MaxTokens:  q.Get("max_tokens"),
 		SessionID:  q.Get("session_id"),
+		SpanQuery:  q.Get("span_query"), // M92: the span-query DSL; theo-lens parses + validates (injection-safe).
 	}
 }
 
@@ -190,6 +199,37 @@ func (h *LensDashboardHandler) Observability(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, raw)
 }
 
+// Scores serves GET /v1/dashboard/lens/metrics/scores — the caller workspace's per-evaluator
+// score aggregation over time (theo-lens GET /v1/metrics/scores, M90). Same whitelisted range.
+func (h *LensDashboardHandler) Scores(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	raw, err := h.client.Scores(r.Context(), observabilityRange(r))
+	if err != nil {
+		h.logger.Warn("lens dashboard: scores failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load scores.")
+		return
+	}
+	writeJSON(w, http.StatusOK, raw)
+}
+
+// SpanAttributes serves GET /v1/dashboard/lens/metrics/span-attributes — facet discovery (M92):
+// the caller workspace's top attribute keys, or (with ?key=) the top values for one key. The key
+// passes through to theo-lens, which binds it as a jsonb path (injection-safe).
+func (h *LensDashboardHandler) SpanAttributes(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	raw, err := h.client.SpanAttributes(r.Context(), r.URL.Query().Get("key"))
+	if err != nil {
+		h.logger.Warn("lens dashboard: span-attributes failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load span attributes.")
+		return
+	}
+	writeJSON(w, http.StatusOK, raw)
+}
+
 // Cost serves GET /v1/dashboard/lens/cost?since — the caller workspace's cost summary
 // (theo-lens GET /v1/analytics/cost).
 func (h *LensDashboardHandler) Cost(w http.ResponseWriter, r *http.Request) {
@@ -207,16 +247,50 @@ func (h *LensDashboardHandler) Cost(w http.ResponseWriter, r *http.Request) {
 
 // --- M44 read+write+delete management surface --------------------------------------------
 
+// browserActionableUpstream reports whether a theo-lens status is one the BROWSER can act on and so
+// should be forwarded verbatim (M82). Forwarded: a 4xx the caller can fix or react to — 400 invalid
+// input, 404 absent, 409 name-conflict, 422 unprocessable, 429 rate-limited. NOT forwarded: 401/403,
+// because those reflect the BFF↔theo-lens minted-key trust boundary, NOT the browser's JWT session —
+// forwarding a 401 would trip the dashboard's session-expiry redirect (a spurious logout on a broker
+// misconfig), and a 403 would falsely tell an authorized user they lack access. Everything else
+// (401/403 + 5xx + non-status transport errors) collapses to a generic 502 (fail-closed).
+func browserActionableUpstream(status int) bool {
+	switch status {
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusConflict,
+		http.StatusUnprocessableEntity, http.StatusTooManyRequests:
+		return true
+	default:
+		return false
+	}
+}
+
+// writeUpstreamErr maps an upstream failure to the client. A browser-actionable theo-lens 4xx
+// (*thelens.UpstreamStatusError, per browserActionableUpstream) is FORWARDED verbatim — the real
+// status + theo-lens's own {code,message} body — so the browser can act on it (e.g. show "name
+// already taken" on a 409). Every other upstream status (401/403 minted-key boundary, 5xx) and any
+// transport/resolver error collapses to a generic 502 (fail-closed — never a spurious session
+// redirect).
+func (h *LensDashboardHandler) writeUpstreamErr(w http.ResponseWriter, what string, err error) {
+	var ue *thelens.UpstreamStatusError
+	if errors.As(err, &ue) && browserActionableUpstream(ue.Status) {
+		h.logger.Warn("lens dashboard: "+what+" upstream status", "status", ue.Status)
+		writeJSON(w, ue.Status, json.RawMessage(ue.Body))
+		return
+	}
+	h.logger.Warn("lens dashboard: "+what+" failed", "error", err)
+	writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not "+what+".")
+}
+
 // proxy runs fn (an upstream call) behind the fail-closed tenant guard and writes the result:
-// 401 when no tenant, 502 on upstream error, otherwise 200 + the pass-through body.
+// 401 when no tenant, the forwarded upstream status on a theo-lens non-2xx (502 only on a
+// transport error), otherwise 200 + the pass-through body.
 func (h *LensDashboardHandler) proxy(w http.ResponseWriter, r *http.Request, what string, fn func() (json.RawMessage, error)) {
 	if !h.authTenant(w, r) {
 		return
 	}
 	raw, err := fn()
 	if err != nil {
-		h.logger.Warn("lens dashboard: "+what+" failed", "error", err)
-		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not "+what+".")
+		h.writeUpstreamErr(w, what, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, raw)
@@ -238,8 +312,7 @@ func (h *LensDashboardHandler) proxyBody(w http.ResponseWriter, r *http.Request,
 	}
 	raw, err := fn(json.RawMessage(b))
 	if err != nil {
-		h.logger.Warn("lens dashboard: "+what+" failed", "error", err)
-		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not "+what+".")
+		h.writeUpstreamErr(w, what, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, raw)
@@ -293,6 +366,26 @@ func (h *LensDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	h.proxyBody(w, r, "ask", func(body json.RawMessage) (json.RawMessage, error) { return h.client.Ask(r.Context(), id, body) })
 }
 
+// AskFeedback serves POST /v1/dashboard/lens/traces/{traceID}/ask/feedback — the M83 thumbs up/down
+// (theo-lens POST /v1/traces/:id/ask/feedback, write-scope). Independent of the LLM; the browser body
+// ({turnId,label}) is forwarded verbatim behind the fail-closed tenant guard.
+func (h *LensDashboardHandler) AskFeedback(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "traceID")
+	h.proxyBody(w, r, "ask feedback", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.AskFeedback(r.Context(), id, body)
+	})
+}
+
+// DeleteAskFeedback serves DELETE /v1/dashboard/lens/traces/{traceID}/ask/feedback?turnId= — the M83
+// vote retract (theo-lens DELETE, write-scope). turnId comes from the query (whitelisted).
+func (h *LensDashboardHandler) DeleteAskFeedback(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "traceID")
+	turnID := r.URL.Query().Get("turnId")
+	h.proxy(w, r, "delete ask feedback", func() (json.RawMessage, error) {
+		return h.client.DeleteAskFeedback(r.Context(), id, turnID)
+	})
+}
+
 // Replay serves POST /v1/dashboard/lens/traces/{traceID}/replay — the M55 span replay (theo-lens
 // POST /v1/traces/:id/replay): re-run an edited message list against the real provider server-side.
 // Same per-tenant Model-B path + fail-closed body-proxy as Ask; a read-scope EPHEMERAL provider call
@@ -307,6 +400,16 @@ func (h *LensDashboardHandler) Replay(w http.ResponseWriter, r *http.Request) {
 
 func (h *LensDashboardHandler) CreateDataset(w http.ResponseWriter, r *http.Request) {
 	h.proxyBody(w, r, "create dataset", func(body json.RawMessage) (json.RawMessage, error) { return h.client.CreateDataset(r.Context(), body) })
+}
+func (h *LensDashboardHandler) RenameDataset(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "datasetID")
+	h.proxyBody(w, r, "rename dataset", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.RenameDataset(r.Context(), id, body)
+	})
+}
+func (h *LensDashboardHandler) DeleteDataset(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "datasetID")
+	h.proxy(w, r, "delete dataset", func() (json.RawMessage, error) { return h.client.DeleteDataset(r.Context(), id) })
 }
 func (h *LensDashboardHandler) AddDatasetItem(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "datasetID")
@@ -325,6 +428,12 @@ func (h *LensDashboardHandler) DeleteDatasetItem(w http.ResponseWriter, r *http.
 func (h *LensDashboardHandler) CreateEvaluator(w http.ResponseWriter, r *http.Request) {
 	h.proxyBody(w, r, "create evaluator", func(body json.RawMessage) (json.RawMessage, error) {
 		return h.client.CreateEvaluator(r.Context(), body)
+	})
+}
+func (h *LensDashboardHandler) UpdateEvaluator(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "evaluatorID")
+	h.proxyBody(w, r, "update evaluator", func(body json.RawMessage) (json.RawMessage, error) {
+		return h.client.UpdateEvaluator(r.Context(), id, body)
 	})
 }
 func (h *LensDashboardHandler) RunEvaluator(w http.ResponseWriter, r *http.Request) {
@@ -443,6 +552,8 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/traces/{traceID}/annotations", h.GetTraceAnnotations)
 		r.Get("/sessions", h.ListSessions)
 		r.Get("/observability", h.Observability)
+		r.Get("/metrics/scores", h.Scores)                  // M90 — score aggregation over time
+		r.Get("/metrics/span-attributes", h.SpanAttributes) // M92 — attribute facet discovery
 		r.Get("/cost", h.Cost)
 		r.Get("/datasets", h.ListDatasets)
 		r.Get("/datasets/{datasetID}", h.GetDataset)
@@ -450,19 +561,24 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/guards", h.ListGuards)
 		r.Get("/guards/{guardID}/breaches", h.GuardBreaches)
 		r.Get("/agents", h.ListAgents)
-		r.Get("/labeling-queue", h.ListLabelingQueue)          // M63 — read-scope queue list
+		r.Get("/labeling-queue", h.ListLabelingQueue) // M63 — read-scope queue list
 		r.Get("/labeling-queue/{itemID}", h.GetLabelingQueueItem)
 		r.Get("/experiment-runs", h.ListExperimentRuns)            // M64 — read-scope run list
 		r.Get("/experiment-runs/compare", h.CompareExperimentRuns) // before :runID so "compare" is not a run id
 		r.Get("/experiment-runs/{runID}", h.GetExperimentRun)
-		r.Post("/traces/{traceID}/ask", h.Ask)       // read-scope copilot query
-		r.Post("/traces/{traceID}/replay", h.Replay) // M55 — read-scope ephemeral provider replay
+		r.Post("/traces/{traceID}/ask", h.Ask)                          // read-scope copilot query
+		r.Post("/traces/{traceID}/ask/feedback", h.AskFeedback)         // M83 write-scope thumbs feedback
+		r.Delete("/traces/{traceID}/ask/feedback", h.DeleteAskFeedback) // M83 retract (clear)
+		r.Post("/traces/{traceID}/replay", h.Replay)                    // M55 — read-scope ephemeral provider replay
 		// Writes — datasets
 		r.Post("/datasets", h.CreateDataset)
+		r.Put("/datasets/{datasetID}", h.RenameDataset)    // M82 — rename (409 on duplicate)
+		r.Delete("/datasets/{datasetID}", h.DeleteDataset) // M82 — delete (cascades runs+items)
 		r.Post("/datasets/{datasetID}/items", h.AddDatasetItem)
 		r.Delete("/datasets/{datasetID}/items/{traceID}", h.DeleteDatasetItem)
 		// Writes — evaluators
 		r.Post("/evaluators", h.CreateEvaluator)
+		r.Put("/evaluators/{evaluatorID}", h.UpdateEvaluator) // M82 — rename/partial-edit (409 on duplicate)
 		r.Post("/evaluators/{evaluatorID}/run", h.RunEvaluator)
 		r.Delete("/evaluators/{evaluatorID}", h.DeleteEvaluator)
 		// Writes — guards

@@ -31,10 +31,12 @@ func newEval(t *testing.T) (*Evaluator, sqlmock.Sqlmock, *sql.DB) {
 func TestProcessRule_OKBreach_FiresAndEnqueues(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
-	// the fire flip + the delivery INSERT run in ONE transaction (a failed INSERT rolls back the flip)
+	// the fire flip + the delivery INSERT + the fired-alert history INSERT run in ONE transaction
+	// (M84 — a breach yields exactly one delivery AND one history row, atomically).
 	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE lens_alert_rules SET status = 'TRIGGERED'").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("INSERT INTO workspace_webhook_deliveries").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO lens_fired_alerts").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	r := alertRule{id: "lar-1", tenantID: "tn-1", metric: "error_rate", comparator: "gt", threshold: 5, windowSeconds: 3600, webhookID: "wwh-1", status: "OK"}
@@ -43,6 +45,26 @@ func TestProcessRule_OKBreach_FiresAndEnqueues(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("expectations: %v", err) // an INSERT that never happens (or an extra one) fails here
+	}
+}
+
+// M84 — a failed history INSERT rolls back the WHOLE fire (flip + delivery), so the next tick retries
+// (no silently-lost alert, no delivery without its audit row).
+func TestProcessRule_FiredAlertInsertFails_RollsBack(t *testing.T) {
+	e, mock, db := newEval(t)
+	defer func() { _ = db.Close() }()
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE lens_alert_rules SET status = 'TRIGGERED'").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO workspace_webhook_deliveries").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO lens_fired_alerts").WillReturnError(errors.New("boom"))
+	mock.ExpectRollback()
+
+	r := alertRule{id: "lar-1", tenantID: "tn-1", metric: "error_rate", comparator: "gt", threshold: 5, windowSeconds: 3600, webhookID: "wwh-1", status: "OK"}
+	if err := e.processRule(context.Background(), r, json.RawMessage(breachedSeries)); err == nil {
+		t.Fatal("expected the failed history INSERT to surface an error (→ tx rollback)")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectations: %v", err)
 	}
 }
 

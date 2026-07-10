@@ -65,6 +65,7 @@ type TraceListFilter struct {
 	MinTokens  string
 	MaxTokens  string
 	SessionID  string
+	SpanQuery  string // M92: the span-query DSL (e.g. `attr:key=value kind:llm`) — theo-lens parses + validates.
 }
 
 // ListTraces proxies GET /v1/traces with the per-tenant Bearer, forwarding the whitelisted filters.
@@ -106,7 +107,21 @@ func filterQuery(f TraceListFilter) url.Values {
 	if f.SessionID != "" {
 		q.Set("session_id", f.SessionID)
 	}
+	if f.SpanQuery != "" {
+		q.Set("span_query", f.SpanQuery)
+	}
 	return q
+}
+
+// SpanAttributes proxies GET /v1/metrics/span-attributes (M92 facet discovery). Forwards the
+// selectable `key` (values-mode) when non-empty; an empty key returns the top attribute keys.
+func (c *DataClient) SpanAttributes(ctx context.Context, key string) (json.RawMessage, error) {
+	var q url.Values
+	if key != "" {
+		q = url.Values{}
+		q.Set("key", key)
+	}
+	return c.getRaw(ctx, "/v1/metrics/span-attributes", q)
 }
 
 // ListSessions proxies GET /v1/sessions?limit&offset with the per-tenant Bearer.
@@ -124,6 +139,18 @@ func (c *DataClient) Observability(ctx context.Context, timeRange string) (json.
 		q.Set("range", timeRange)
 	}
 	return c.getRaw(ctx, "/v1/metrics/observability", q)
+}
+
+// Scores proxies GET /v1/metrics/scores (theo-lens's per-evaluator score aggregation over
+// time — M90). Forwards the selectable `range` when non-empty; an empty range lets theo-lens
+// apply its 24h default.
+func (c *DataClient) Scores(ctx context.Context, timeRange string) (json.RawMessage, error) {
+	var q url.Values
+	if timeRange != "" {
+		q = url.Values{}
+		q.Set("range", timeRange)
+	}
+	return c.getRaw(ctx, "/v1/metrics/scores", q)
 }
 
 // Cost proxies GET /v1/analytics/cost?since (theo-lens's cost summary lives under
@@ -172,6 +199,16 @@ func (c *DataClient) CreateDataset(ctx context.Context, body json.RawMessage) (j
 	return c.doRaw(ctx, http.MethodPost, "/v1/datasets", nil, body)
 }
 
+// RenameDataset proxies PUT /v1/datasets/{id} ({name}) — the browser body forwarded verbatim (M82).
+func (c *DataClient) RenameDataset(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPut, "/v1/datasets/"+url.PathEscape(id), nil, body)
+}
+
+// DeleteDataset proxies DELETE /v1/datasets/{id} (204, cascades runs+items in theo-lens) (M82).
+func (c *DataClient) DeleteDataset(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodDelete, "/v1/datasets/"+url.PathEscape(id), nil, nil)
+}
+
 // AddDatasetItem proxies POST /v1/datasets/{id}/items ({traceId}).
 func (c *DataClient) AddDatasetItem(ctx context.Context, datasetID string, body json.RawMessage) (json.RawMessage, error) {
 	return c.doRaw(ctx, http.MethodPost, "/v1/datasets/"+url.PathEscape(datasetID)+"/items", nil, body)
@@ -190,6 +227,11 @@ func (c *DataClient) ListEvaluators(ctx context.Context) (json.RawMessage, error
 // CreateEvaluator proxies POST /v1/evaluators ({name,kind,config,...}).
 func (c *DataClient) CreateEvaluator(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
 	return c.doRaw(ctx, http.MethodPost, "/v1/evaluators", nil, body)
+}
+
+// UpdateEvaluator proxies PUT /v1/evaluators/{id} (partial {name?,...}) — body forwarded verbatim (M82).
+func (c *DataClient) UpdateEvaluator(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPut, "/v1/evaluators/"+url.PathEscape(id), nil, body)
 }
 
 // RunEvaluator proxies POST /v1/evaluators/{id}/run ({traceIds?,limit?}).
@@ -254,6 +296,20 @@ func (c *DataClient) Ask(ctx context.Context, traceID string, body json.RawMessa
 	return c.doRaw(ctx, http.MethodPost, "/v1/traces/"+url.PathEscape(traceID)+"/ask", nil, body)
 }
 
+// AskFeedback proxies POST /v1/traces/{id}/ask/feedback — the M83 thumbs up/down on an answer
+// (write-scope; independent of the LLM). The browser body ({turnId,label,...}) is forwarded verbatim.
+func (c *DataClient) AskFeedback(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPost, "/v1/traces/"+url.PathEscape(traceID)+"/ask/feedback", nil, body)
+}
+
+// DeleteAskFeedback proxies DELETE /v1/traces/{id}/ask/feedback?turnId= — the M83 vote retract (clear),
+// so the persisted store never diverges from the shown thumb. Write-scope; idempotent (204).
+func (c *DataClient) DeleteAskFeedback(ctx context.Context, traceID, turnID string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("turnId", turnID)
+	return c.doRaw(ctx, http.MethodDelete, "/v1/traces/"+url.PathEscape(traceID)+"/ask/feedback", q, nil)
+}
+
 // Replay proxies POST /v1/traces/{id}/replay (M55 span replay — edited messages re-run against the
 // real provider). Same per-tenant path as Ask; the browser never holds a provider key.
 func (c *DataClient) Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error) {
@@ -313,6 +369,20 @@ func (c *DataClient) CompareExperimentRuns(ctx context.Context, q url.Values) (j
 	return c.getRaw(ctx, "/v1/experiment-runs/compare", q)
 }
 
+// UpstreamStatusError carries a non-2xx theo-lens response so the BFF proxy can forward the REAL
+// status + body to the browser instead of flattening every failure to 502 (M82). A proxy that
+// swallows the upstream 4xx (e.g. a rename's 409 name-conflict, an invalid-predicate 400) hides
+// actionable information from the caller — the BFF is a thin proxy, so upstream client-errors are
+// the caller's to see. Transport/resolver errors are NOT this type → they still surface as 502.
+type UpstreamStatusError struct {
+	Status int
+	Body   []byte
+}
+
+func (e *UpstreamStatusError) Error() string {
+	return fmt.Sprintf("thelens upstream %d: %s", e.Status, string(e.Body))
+}
+
 // doRaw resolves the per-tenant Bearer (fail-closed), sends method+path with an optional JSON
 // body, and returns the 2xx body verbatim (empty for 204). A resolver error means NO request is
 // sent (no master fallback); the bearer is NEVER included in a returned error.
@@ -350,7 +420,7 @@ func (c *DataClient) doRaw(ctx context.Context, method, path string, q url.Value
 
 	if resp.StatusCode >= 400 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("thelens data client: %s %s: upstream %d: %s", method, path, resp.StatusCode, string(raw))
+		return nil, &UpstreamStatusError{Status: resp.StatusCode, Body: raw}
 	}
 	if resp.StatusCode == http.StatusNoContent {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
@@ -393,7 +463,7 @@ func (c *DataClient) getRaw(ctx context.Context, path string, q url.Values) (jso
 
 	if resp.StatusCode >= 400 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("thelens data client: GET %s: upstream %d: %s", path, resp.StatusCode, string(raw))
+		return nil, &UpstreamStatusError{Status: resp.StatusCode, Body: raw}
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {

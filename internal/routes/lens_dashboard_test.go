@@ -27,6 +27,8 @@ type stubLensDataClient struct {
 	err                    error
 	lastTraceFilter        thelens.TraceListFilter
 	lastObservabilityRange string
+	lastScoresRange        string
+	lastFacetKey           string
 	lastWriteBody          string
 }
 
@@ -56,6 +58,14 @@ func (s *stubLensDataClient) ListSessions(context.Context, int, int) (json.RawMe
 func (s *stubLensDataClient) Observability(_ context.Context, timeRange string) (json.RawMessage, error) {
 	s.lastObservabilityRange = timeRange
 	return s.read(`{"traffic":[],"latency":[],"tokensByModel":[]}`)
+}
+func (s *stubLensDataClient) Scores(_ context.Context, timeRange string) (json.RawMessage, error) {
+	s.lastScoresRange = timeRange
+	return s.read(`{"range":"24h","scores":[]}`)
+}
+func (s *stubLensDataClient) SpanAttributes(_ context.Context, key string) (json.RawMessage, error) {
+	s.lastFacetKey = key
+	return s.read(`{"mode":"keys","keys":[]}`)
 }
 func (s *stubLensDataClient) Cost(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"total_usd":0}`)
@@ -93,11 +103,31 @@ func (s *stubLensDataClient) GetTraceAnnotations(context.Context, string) (json.
 func (s *stubLensDataClient) Ask(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 	return s.read(`{"answer":"because"}`)
 }
+func (s *stubLensDataClient) AskFeedback(_ context.Context, _ string, body json.RawMessage) (json.RawMessage, error) {
+	s.lastWriteBody = string(body)
+	return s.write(`{"id":"fb_1","traceId":"t1","turnId":"turn-1","label":"up"}`)
+}
+func (s *stubLensDataClient) DeleteAskFeedback(context.Context, string, string) (json.RawMessage, error) {
+	return s.write(`{}`)
+}
 func (s *stubLensDataClient) Replay(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 	return s.read(`{"output":"new","promptTokens":1,"completionTokens":1,"totalTokens":2,"latencyMs":10,"model":"m"}`)
 }
 func (s *stubLensDataClient) CreateDataset(context.Context, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"id":"ds_1","name":"golden","itemCount":0}`)
+}
+func (s *stubLensDataClient) RenameDataset(_ context.Context, _ string, body json.RawMessage) (json.RawMessage, error) {
+	s.lastWriteBody = string(body)
+	return s.write(`{"id":"ds_1","name":"renamed","itemCount":0}`)
+}
+func (s *stubLensDataClient) DeleteDataset(context.Context, string) (json.RawMessage, error) {
+	// mirrors the real 204→nil path (theo-lens returns no body on delete).
+	s.calls++
+	s.writeCalls++
+	if s.err != nil {
+		return nil, s.err
+	}
+	return nil, nil
 }
 func (s *stubLensDataClient) AddDatasetItem(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"id":"ds_1","items":[{"traceId":"tr_9"}]}`)
@@ -107,6 +137,10 @@ func (s *stubLensDataClient) DeleteDatasetItem(context.Context, string, string) 
 }
 func (s *stubLensDataClient) CreateEvaluator(context.Context, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"id":"ev_1"}`)
+}
+func (s *stubLensDataClient) UpdateEvaluator(_ context.Context, _ string, body json.RawMessage) (json.RawMessage, error) {
+	s.lastWriteBody = string(body)
+	return s.write(`{"id":"ev_1","name":"renamed","kind":"rule"}`)
 }
 func (s *stubLensDataClient) RunEvaluator(context.Context, string, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"evaluator":"e","written":1}`)
@@ -191,6 +225,8 @@ func TestLensDashboard_Reads_Authenticated(t *testing.T) {
 		{"trace cost", (*LensDashboardHandler).GetTraceCost, "/v1/dashboard/lens/traces/tr-1/cost"}, // M54
 		{"sessions", (*LensDashboardHandler).ListSessions, "/v1/dashboard/lens/sessions"},
 		{"observability", (*LensDashboardHandler).Observability, "/v1/dashboard/lens/observability"},
+		{"scores", (*LensDashboardHandler).Scores, "/v1/dashboard/lens/metrics/scores"},                           // M90
+		{"span-attributes", (*LensDashboardHandler).SpanAttributes, "/v1/dashboard/lens/metrics/span-attributes"}, // M92
 		{"cost", (*LensDashboardHandler).Cost, "/v1/dashboard/lens/cost"},
 	}
 	for _, tc := range cases {
@@ -220,6 +256,8 @@ func TestLensDashboard_NoTenant_401_FailsClosed(t *testing.T) {
 		{"trace-cost", (*LensDashboardHandler).GetTraceCost}, // M54 — fail-closed like every read
 		{"sessions", (*LensDashboardHandler).ListSessions},
 		{"observability", (*LensDashboardHandler).Observability},
+		{"scores", (*LensDashboardHandler).Scores},                  // M90 — fail-closed like every read
+		{"span-attributes", (*LensDashboardHandler).SpanAttributes}, // M92 — fail-closed like every read
 		{"cost", (*LensDashboardHandler).Cost},
 	}
 	ctxs := []struct {
@@ -327,6 +365,75 @@ func TestLensDashboard_Observability_WhitelistsRange(t *testing.T) {
 	}
 }
 
+// TestLensDashboard_Scores_WhitelistsRange (M90) — the scores handler forwards only a
+// whitelisted `range` preset; a smuggled param and a bogus range are never forwarded.
+func TestLensDashboard_Scores_WhitelistsRange(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/metrics/scores?range=7d&evil=1", nil), "t1")
+	h.Scores(httptest.NewRecorder(), req)
+	if stub.lastScoresRange != "7d" {
+		t.Fatalf("want range=7d forwarded, got %q", stub.lastScoresRange)
+	}
+	req2 := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/metrics/scores?range=bogus", nil), "t1")
+	h.Scores(httptest.NewRecorder(), req2)
+	if stub.lastScoresRange != "" {
+		t.Fatalf("want bogus range dropped, got %q", stub.lastScoresRange)
+	}
+}
+
+// TestLensDashboard_Scores_UpstreamError_502 (M90) — an engine failure is mapped to a 502
+// with the standard error envelope, never a fabricated empty body.
+func TestLensDashboard_Scores_UpstreamError_502(t *testing.T) {
+	h, stub := newLensDashboard()
+	stub.err = io.ErrUnexpectedEOF
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/metrics/scores", nil), "t1")
+	w := httptest.NewRecorder()
+	h.Scores(w, req)
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("want 502 on upstream error, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "UPSTREAM_ERROR") {
+		t.Fatalf("want UPSTREAM_ERROR envelope, got %s", w.Body.String())
+	}
+}
+
+// TestLensDashboard_ListTraces_ForwardsSpanQuery (M92) — the span-query DSL param reaches the
+// engine so the attribute filter works end-to-end.
+func TestLensDashboard_ListTraces_ForwardsSpanQuery(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/traces?span_query=attr:tier=gold", nil), "t1")
+	h.ListTraces(httptest.NewRecorder(), req)
+	if stub.lastTraceFilter.SpanQuery != "attr:tier=gold" {
+		t.Fatalf("want span_query forwarded, got %q", stub.lastTraceFilter.SpanQuery)
+	}
+}
+
+// TestLensDashboard_SpanAttributes_PassesKey (M92) — the facet `key` reaches the client (values mode);
+// an absent key is the keys-mode default.
+func TestLensDashboard_SpanAttributes_PassesKey(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/metrics/span-attributes?key=tier", nil), "t1")
+	h.SpanAttributes(httptest.NewRecorder(), req)
+	if stub.lastFacetKey != "tier" {
+		t.Fatalf("want key=tier forwarded, got %q", stub.lastFacetKey)
+	}
+}
+
+// TestLensDashboard_SpanAttributes_UpstreamError_502 (M92) — engine failure → 502 envelope.
+func TestLensDashboard_SpanAttributes_UpstreamError_502(t *testing.T) {
+	h, stub := newLensDashboard()
+	stub.err = io.ErrUnexpectedEOF
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/metrics/span-attributes", nil), "t1")
+	w := httptest.NewRecorder()
+	h.SpanAttributes(w, req)
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("want 502 on upstream error, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "UPSTREAM_ERROR") {
+		t.Fatalf("want UPSTREAM_ERROR envelope, got %s", w.Body.String())
+	}
+}
+
 // noopJWT is a pass-through stand-in for the requireJWT middleware in the mount tests (the
 // fail-closed tenant check happens in the handler's authTenant, independent of requireJWT).
 func noopJWT(next http.Handler) http.Handler { return next }
@@ -348,15 +455,20 @@ func TestLensDashboard_Writes_Authenticated(t *testing.T) {
 		name, method, path, body string
 	}{
 		{"create-dataset", http.MethodPost, "/v1/dashboard/lens/datasets", `{"name":"golden"}`},
+		{"rename-dataset", http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", `{"name":"renamed"}`},
+		{"delete-dataset", http.MethodDelete, "/v1/dashboard/lens/datasets/ds_1", ``},
 		{"add-dataset-item", http.MethodPost, "/v1/dashboard/lens/datasets/ds_1/items", `{"traceId":"tr_9"}`},
 		{"delete-dataset-item", http.MethodDelete, "/v1/dashboard/lens/datasets/ds_1/items/tr_9", ``},
 		{"create-evaluator", http.MethodPost, "/v1/dashboard/lens/evaluators", `{"name":"r","kind":"rule","config":{"predicate":"x"}}`},
+		{"update-evaluator", http.MethodPut, "/v1/dashboard/lens/evaluators/ev_1", `{"name":"renamed"}`},
 		{"run-evaluator", http.MethodPost, "/v1/dashboard/lens/evaluators/ev_1/run", `{"limit":5}`},
 		{"delete-evaluator", http.MethodDelete, "/v1/dashboard/lens/evaluators/ev_1", ``},
 		{"create-guard", http.MethodPost, "/v1/dashboard/lens/guards", `{"evaluatorId":"ev_1","operator":"gte"}`},
 		{"delete-guard", http.MethodDelete, "/v1/dashboard/lens/guards/gd_1", ``},
 		{"add-tag", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/tags", `{"tag":"prod"}`},
 		{"delete-tag", http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/tags?tag=prod", ``},
+		{"ask-feedback", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/ask/feedback", `{"turnId":"turn-1","label":"up"}`},
+		{"delete-ask-feedback", http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/ask/feedback?turnId=turn-1", ``},
 		{"add-annotation", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/annotations", `{"label":"good"}`},
 		{"delete-annotation", http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/annotations?name=feedback", ``},
 		{"enqueue-for-labeling", http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},
@@ -405,9 +517,12 @@ func TestLensDashboard_LabelingQueue_ForwardsBodyVerbatim(t *testing.T) {
 func TestLensDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 	writes := []struct{ method, path, body string }{
 		{http.MethodPost, "/v1/dashboard/lens/datasets", `{"name":"x"}`},
+		{http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", `{"name":"renamed"}`},
+		{http.MethodDelete, "/v1/dashboard/lens/datasets/ds_1", ``},
 		{http.MethodPost, "/v1/dashboard/lens/datasets/ds_1/items", `{"traceId":"t"}`},
 		{http.MethodDelete, "/v1/dashboard/lens/datasets/ds_1/items/tr_9", ``},
 		{http.MethodPost, "/v1/dashboard/lens/evaluators", `{"name":"r","kind":"rule","config":{}}`},
+		{http.MethodPut, "/v1/dashboard/lens/evaluators/ev_1", `{"name":"renamed"}`},
 		{http.MethodPost, "/v1/dashboard/lens/evaluators/ev_1/run", `{}`},
 		{http.MethodDelete, "/v1/dashboard/lens/evaluators/ev_1", ``},
 		{http.MethodPost, "/v1/dashboard/lens/guards", `{"evaluatorId":"e","operator":"gte"}`},
@@ -417,10 +532,12 @@ func TestLensDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/annotations", `{"label":"g"}`},
 		{http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/annotations?name=feedback", ``},
 		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/replay", `{"messages":[{"role":"user","content":"hi"}]}`}, // M55 — fail-closed without JWT
-		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},                // M63 — fail-closed without JWT
-		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/i1/resolve", `{"label":"good"}`},                     // M63
-		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/export-as-dataset", `{"name":"golden"}`},             // M63
-		{http.MethodPost, "/v1/dashboard/lens/experiment-runs", `{"datasetId":"d1","variant":{"model":"m"}}`},    // M64
+		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/ask/feedback", `{"turnId":"turn-1","label":"up"}`},        // M83 — fail-closed without JWT
+		{http.MethodDelete, "/v1/dashboard/lens/traces/tr_1/ask/feedback?turnId=turn-1", ``},                        // M83 — fail-closed without JWT
+		{http.MethodPost, "/v1/dashboard/lens/traces/tr_1/enqueue-for-labeling", `{"spanId":"s1"}`},                 // M63 — fail-closed without JWT
+		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/i1/resolve", `{"label":"good"}`},                       // M63
+		{http.MethodPost, "/v1/dashboard/lens/labeling-queue/export-as-dataset", `{"name":"golden"}`},               // M63
+		{http.MethodPost, "/v1/dashboard/lens/experiment-runs", `{"datasetId":"d1","variant":{"model":"m"}}`},       // M64
 	}
 	for _, wr := range writes {
 		t.Run(wr.method+" "+wr.path, func(t *testing.T) {
@@ -493,5 +610,71 @@ func TestLensDashboard_WriteUpstreamError_502(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("want 502 on write upstream error, got %d", w.Code)
+	}
+}
+
+// TestLensDashboard_RenameDataset_ForwardsBodyVerbatim — M82: the rename body reaches theo-lens
+// unchanged (thin proxy; the BFF never re-encodes the {name}).
+func TestLensDashboard_RenameDataset_ForwardsBodyVerbatim(t *testing.T) {
+	r, stub := mountedLens(t)
+	body := `{"name":"my-renamed-set"}`
+	req := tenantCtx(httptest.NewRequest(http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", strings.NewReader(body)), "t1")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.lastWriteBody != body {
+		t.Fatalf("body not forwarded verbatim:\n want %q\n got  %q", body, stub.lastWriteBody)
+	}
+}
+
+// TestLensDashboard_UpstreamStatus_Forwarded — M82: a browser-actionable theo-lens 4xx (a rename's
+// 409 name-conflict) is FORWARDED with its real status + body, not flattened to 502. The browser
+// needs the 409 to show "name already taken" instead of a generic upstream error.
+func TestLensDashboard_UpstreamStatus_Forwarded(t *testing.T) {
+	r, stub := mountedLens(t)
+	stub.err = &thelens.UpstreamStatusError{Status: http.StatusConflict, Body: []byte(`{"code":"NAME_CONFLICT","message":"a resource with that name already exists"}`)}
+	req := tenantCtx(httptest.NewRequest(http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", strings.NewReader(`{"name":"dup"}`)), "t1")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("want 409 forwarded from upstream, got %d (%s)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "NAME_CONFLICT") {
+		t.Fatalf("want upstream body forwarded verbatim, got %s", w.Body.String())
+	}
+}
+
+// TestLensDashboard_UpstreamStatus_ForwardedActionable — every browser-actionable 4xx forwards
+// verbatim (M82 — 400 invalid, 404 absent, 409 conflict, 422, 429). Covers a PRE-EXISTING write
+// route (create-evaluator, a POST) to pin the broadened proxy behavior beyond the 3 new M82 routes.
+func TestLensDashboard_UpstreamStatus_ForwardedActionable(t *testing.T) {
+	for _, code := range []int{http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusTooManyRequests} {
+		r, stub := mountedLens(t)
+		stub.err = &thelens.UpstreamStatusError{Status: code, Body: []byte(`{"code":"X","message":"m"}`)}
+		req := tenantCtx(httptest.NewRequest(http.MethodPost, "/v1/dashboard/lens/evaluators", strings.NewReader(`{"name":"r","kind":"rule","config":{"predicate":"bad"}}`)), "t1")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != code {
+			t.Fatalf("status %d: want forwarded on a pre-existing route, got %d", code, w.Code)
+		}
+	}
+}
+
+// TestLensDashboard_UpstreamStatus_401_403_5xx_Collapse_To_502 — an upstream 401/403 reflects the
+// BFF↔theo-lens minted-key trust boundary (NOT the browser's JWT session); forwarding it would trip
+// the dashboard's session-expiry redirect (a spurious logout). Those, plus any 5xx, MUST collapse
+// to 502 — never leak the upstream status to the browser.
+func TestLensDashboard_UpstreamStatus_401_403_5xx_Collapse_To_502(t *testing.T) {
+	for _, code := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError, http.StatusBadGateway} {
+		r, stub := mountedLens(t)
+		stub.err = &thelens.UpstreamStatusError{Status: code, Body: []byte(`{"code":"X"}`)}
+		req := tenantCtx(httptest.NewRequest(http.MethodPut, "/v1/dashboard/lens/datasets/ds_1", strings.NewReader(`{"name":"x"}`)), "t1")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusBadGateway {
+			t.Fatalf("upstream %d must collapse to 502 (no spurious logout / leak), got %d", code, w.Code)
+		}
 	}
 }

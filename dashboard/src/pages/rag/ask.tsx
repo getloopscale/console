@@ -1,15 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { MessageSquare } from 'lucide-react';
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  PageShell,
-  Select,
-  Textarea,
-} from '@usetheo/ui';
+import { Badge, Button, Card, PageShell, Select, Textarea } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

@@ -79,7 +79,32 @@ export default [
       // de qualquer plano ativo. Promover para error em plano de cleanup
       // dedicado, NÃO aqui (plano 2026-05-29 é interface-only).
       'no-useless-assignment': 'warn',
+      // M87 — the raw @usetheo/ui `Alert` silently drops a body passed as `children` (usetheodev/
+      // theo-cloud#175): it renders only `title`/`description`/`action`. Feature code MUST import
+      // `Alert` from `@/components/ui/alert-guard`, which forwards `children` into `description` so the
+      // body is always visible. This ban makes a #175-class regression a lint error, dashboard-side
+      // (the raw kit line the dashboard pins, @usetheo/ui@0.13.x, cannot itself be type-hardened here).
+      // The guard file (`src/components/ui/alert-guard.tsx`) is the sanctioned raw-Alert consumer and is
+      // overridden below.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@usetheo/ui',
+              importNames: ['Alert'],
+              message:
+                "Import Alert from '@/components/ui/alert-guard' — the raw @usetheo/ui Alert silently drops a `children` body (#175). The guard renders it as `description`.",
+            },
+          ],
+        },
+      ],
     },
+  },
+  {
+    // The alert-guard is the ONE sanctioned consumer of the raw @usetheo/ui Alert (it wraps it).
+    files: ['src/components/ui/alert-guard.tsx'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   {
     files: ['src/**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],

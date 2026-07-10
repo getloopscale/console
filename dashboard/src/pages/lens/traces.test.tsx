@@ -76,7 +76,7 @@ async function addChip(optionName: RegExp, opts: { value?: string; valueLabel?: 
 
 function routeMock() {
   mockCloudFetch.mockImplementation((url: string) => {
-    if (url === '/v1/dashboard/lens/traces') return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+    if (isListUrl(url)) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
     if (url.includes('/tags')) return Promise.resolve({ tags: ['prod'] });
     return Promise.resolve({});
   });
@@ -174,8 +174,10 @@ describe('LensTracesPage (/observability/traces)', () => {
   it('M56 — a failed export surfaces a typed error, not a silent no-op (no download)', async () => {
     mockTriggerDownload.mockClear();
     mockCloudFetch.mockImplementation((url: string) => {
-      if (url === BASE) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] }); // the list loads
-      if (isListUrl(url)) return Promise.reject(new Error('export 5xx')); // the paged export fetch fails
+      // M81: the list read carries the page window (limit=50); the export pages at limit=500 — discriminate
+      // on that so the list loads while the export fetch fails.
+      if (isListUrl(url) && url.includes('limit=500')) return Promise.reject(new Error('export 5xx'));
+      if (isListUrl(url)) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
       return Promise.resolve({});
     });
     render(<LensTracesPage />);
@@ -218,7 +220,7 @@ describe('LensTracesPage (/observability/traces)', () => {
 
   it('opening a trace shows the span tree AND keeps the tags/annotations forms (M47, no regression)', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
-      if (url === '/v1/dashboard/lens/traces') return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+      if (isListUrl(url)) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
       if (url === '/v1/dashboard/lens/traces/tr_1')
         return Promise.resolve({ spanId: 's0', traceId: 'tr_1', name: 'checkout.root', children: [] });
       if (url.includes('/tags')) return Promise.resolve({ tags: ['prod'] });
@@ -246,7 +248,7 @@ describe('buildTraceQuery (M49/M52 — pure filter→querystring mapping)', () =
   // Fill the required TraceFilters fields; a test overrides only what it exercises.
   const bf = (o: Partial<Parameters<typeof buildTraceQuery>[0]>) =>
     buildTraceQuery(
-      { q: '', status: 'all', model: '', range: 'all', costMin: '', costMax: '', tokensMin: '', tokensMax: '', session: '', ...o },
+      { q: '', status: 'all', model: '', range: 'all', costMin: '', costMax: '', tokensMin: '', tokensMax: '', session: '', spanQuery: '', ...o },
       NOW,
     );
 
@@ -306,6 +308,7 @@ describe('buildTraceQuery (M49/M52 — pure filter→querystring mapping)', () =
         tokensMin: '100',
         tokensMax: '9000',
         session: 'sess-x',
+        spanQuery: '',
       },
       NOW,
     );
@@ -324,9 +327,9 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     filterMock([{ traceId: 'tr_1', name: 'checkout' }]);
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    // the very first list read is the bare path — no filter params leak in
-    expect(listUrls()[0]).toBe(BASE);
-    expect(listUrls().every((u) => !u.includes('q='))).toBe(true);
+    // the very first list read carries only the M81 page window (limit/offset) — no FILTER params leak in
+    expect(listUrls()[0]).toMatch(/^\/v1\/dashboard\/lens\/traces\?limit=\d+&offset=0$/);
+    expect(listUrls().every((u) => !u.includes('q=') && !u.includes('status='))).toBe(true);
   });
 
   it('typing a search term narrows the list with q= server-side', async () => {
@@ -371,6 +374,43 @@ describe('LensTracesPage — M49 search & filters (wiring)', () => {
     await screen.findByText('tr_1');
     await addChip(/time within/i); // enum column — Select defaults to "1h" → buildTraceQuery emits from=.
     await waitFor(() => expect(listUrls().some((u) => u.includes('from='))).toBe(true));
+  });
+
+  it('M92 — an attribute filter builds attr:key=value and narrows the list via span_query', async () => {
+    filterMock([{ traceId: 'tr_1', name: 'checkout' }]);
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    // pick the attribute column → the composite key/value editor
+    await userEvent.click(screen.getByRole('combobox', { name: /add filter/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /attribute is/i }));
+    // an <input list=…> exposes role combobox (native autocomplete); the value input is a textbox.
+    await userEvent.type(screen.getByRole('combobox', { name: /attribute key/i }), 'tier');
+    await userEvent.type(screen.getByRole('textbox', { name: /attribute value/i }), 'gold');
+    await userEvent.click(screen.getByRole('button', { name: /apply filter/i }));
+    // the fetch carries the DSL clause, URL-encoded (attr:tier=gold → attr%3Atier%3Dgold)
+    await waitFor(() =>
+      expect(listUrls().some((u) => u.includes(`span_query=${encodeURIComponent('attr:tier=gold')}`))).toBe(true),
+    );
+    // the chip shows the human-facing key=value (no attr: prefix)
+    expect(screen.getByText('tier=gold')).toBeInTheDocument();
+  });
+
+  it('M92 — facet discovery populates the attribute key datalist suggestions', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url.includes('/metrics/span-attributes'))
+        return Promise.resolve({ mode: 'keys', keys: [{ key: 'gen_ai.request.temperature', count: 5 }, { key: 'tier', count: 2 }] });
+      if (isListUrl(url)) return Promise.resolve({ traces: [{ traceId: 'tr_1', name: 'checkout' }] });
+      return Promise.resolve({});
+    });
+    render(<LensTracesPage />);
+    await screen.findByText('tr_1');
+    await userEvent.click(screen.getByRole('combobox', { name: /add filter/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /attribute is/i }));
+    // the discovered keys are offered as <datalist> <option>s (native autocomplete)
+    await waitFor(() => {
+      const opts = document.querySelectorAll('#attr-key-suggestions option');
+      expect(Array.from(opts).map((o) => o.getAttribute('value'))).toEqual(['gen_ai.request.temperature', 'tier']);
+    });
   });
 
   it('round-trips ?q= from the URL: initializes the search box AND the first fetch', async () => {
@@ -667,5 +707,23 @@ describe('LensTracesPage — M59 P1 Sheet peek + bulk-action bar', () => {
     // clearing selection hides the bar again.
     await userEvent.click(within(bar).getByRole('button', { name: /clear selection/i }));
     expect(screen.queryByTestId('bulk-action-bar')).toBeNull();
+  });
+
+  it('M81 — a server-side pager reaches page 2 (limit/offset) and discloses the total', async () => {
+    // total 120 > pageSize 50 → the pager shows; page 1 sends offset=0, Next sends offset=50.
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (isListUrl(url)) {
+        const offset = new URL(url, 'http://x').searchParams.get('offset') ?? '0';
+        return Promise.resolve({ traces: [{ traceId: `tr-${offset}`, name: 'row' }], total: 120, limit: 50, offset: Number(offset) });
+      }
+      if (url.includes('/tags')) return Promise.resolve({ tags: [] });
+      return Promise.resolve({});
+    });
+    render(<LensTracesPage />);
+    expect(await screen.findByText(/of 120/i)).toBeInTheDocument(); // total disclosed
+    expect(mockCloudFetch.mock.calls.some((c) => String(c[0]).includes('offset=0'))).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    expect(await screen.findByText('tr-50')).toBeInTheDocument(); // page 2 fetched (offset=50)
+    expect(mockCloudFetch.mock.calls.some((c) => String(c[0]).includes('offset=50'))).toBe(true);
   });
 });

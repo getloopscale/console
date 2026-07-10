@@ -6,7 +6,41 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) })
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
-import { SpanDetail } from './tree';
+import { RecursiveTree, SpanDetail } from './tree';
+
+const BOUNDS = { startNs: 0n, endNs: 1_000_000n };
+
+function renderRow(node: TraceSpanNode) {
+  return render(
+    <RecursiveTree
+      node={node}
+      depth={0}
+      selectedId=""
+      collapsed={new Set()}
+      bounds={BOUNDS}
+      onSelect={() => {}}
+      onToggle={() => {}}
+      selectedRef={{ current: null }}
+    />,
+  );
+}
+
+describe('M89 tree row — no fabricated-zero for an unmeasured token half', () => {
+  it('renders the absent half of a partial measurement as "—", not "0"', () => {
+    // input measured (100), output never recorded → honest "100→—" (not "100→0").
+    renderRow({
+      spanId: 'sp-partial',
+      traceId: 'tr-1',
+      name: 'llm.call',
+      inputTokens: 100,
+      outputTokens: undefined,
+      startTimeUnixNano: '0',
+      endTimeUnixNano: '1000000',
+    });
+    expect(screen.getByText('100→—')).toBeInTheDocument();
+    expect(screen.queryByText('100→0')).toBeNull();
+  });
+});
 
 describe('M78 SpanDetail — evaluations section', () => {
   beforeEach(() => vi.clearAllMocks());
