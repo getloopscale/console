@@ -1,6 +1,21 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.31.0] - 2026-07-10
+
+### Added
+- **Dashboard: temporal context-graph surfaces (M3):** the Entities tab renders the on-demand entity `summary` (theo-memory M2 — active-relations digest), and the graph view has an **Include superseded edges** toggle (M1 — audit view) forwarded through the BFF as `?includeSuperseded=true`. Recall playground `graphExpand`/`asOf` (M0) already shipped. Backend: theo-memory v0.28–0.30.
 - Dashboard: Playwright e2e `observability-screens.spec.ts` — headless browser-runtime coverage of all 12 Theo Lens observability screens (render via sidebar navigation, no error boundary) + a screen-count coverage gate that fails if the nav exposes a lens screen not in the manifest. Mechanizes the render half of the theo-lens `/dogfood` UI sweep (no agent needed); wired via a new `test:e2e` npm script. (per-screen primary-action e2e pending MSW lens BFF fixtures)
 
 ### Changed
