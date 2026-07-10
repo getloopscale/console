@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Button, Checkbox } from '@usetheo/ui';
 import { Columns3 } from 'lucide-react';
 
@@ -23,6 +23,7 @@ export function ColumnsToggle({
   onChange: (next: ColumnState) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const panelId = useId(); // unique per instance — no dangling/colliding IDREF
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -38,10 +39,7 @@ export function ColumnsToggle({
     panelRef.current?.querySelector<HTMLElement>('input,[role="checkbox"],button')?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        close(true);
-      }
+      if (e.key === 'Escape') close(true);
     };
     const onPointerDown = (e: PointerEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) close(false);
@@ -65,7 +63,7 @@ export function ColumnsToggle({
         size="sm"
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-controls="columns-panel"
+        aria-controls={panelId}
         aria-label="Choose columns"
         onClick={() => setOpen((o) => !o)}
       >
@@ -75,7 +73,7 @@ export function ColumnsToggle({
       {open ? (
         <div
           ref={panelRef}
-          id="columns-panel"
+          id={panelId}
           role="dialog"
           aria-label="Choose columns"
           data-testid="columns-panel"

@@ -45,7 +45,7 @@ describe('ColumnsToggle a11y (M98 D-M5)', () => {
     renderToggle();
     const trigger = screen.getByRole('button', { name: /choose columns/i });
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    expect(trigger).toHaveAttribute('aria-controls', 'columns-panel');
+    expect(trigger.getAttribute('aria-controls')).toBeTruthy(); // a useId-derived id (unique per instance)
     await user.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
   });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
@@ -113,13 +113,16 @@ export function LensTracesPage() {
   const navigate = useNavigate();
   // M54 — pairwise compare selection. A row is ticked to build a two-trace compare.
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const toggleSelected = (id: string) =>
+  // M98 (D-M1) — stable identity so the `columns` useMemo below actually caches (a fresh arrow each
+  // render would defeat it). `setSelected` is a stable setState reference.
+  const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  }, []);
 
   // M49 — URL-persisted filters (nuqs): a filtered view is shareable/bookmarkable.
   const [q, setQ] = useQueryState('q', parseAsString.withDefault(''));
@@ -143,7 +146,8 @@ export function LensTracesPage() {
   // it for free (no schema change — ADR D4). Density is mirrored into the encoded state for round-trip
   // completeness, but the `density` param above stays its source of truth.
   const [cols, setCols] = useQueryState('cols', parseAsString.withDefault(''));
-  const columnState = { ...decodeColumns(cols), density };
+  // M98 (D-M1) — memoized (stable identity) so it doesn't defeat the `columns` memo each render.
+  const columnState = useMemo(() => ({ ...decodeColumns(cols), density }), [cols, density]);
   const setColumnState = (next: typeof columnState) => void setCols(encodeColumns(next) || null);
 
   // The search box keeps its own immediate value (responsive typing) and DEBOUNCES into the `q`
@@ -203,13 +207,17 @@ export function LensTracesPage() {
   // the labeling queue) and shared. A row click writes the param; closing the peek clears it. Other
   // query state (filters, saved views) is preserved by mutating the previous params.
   const openID = searchParams.get('trace');
-  const setOpenID = (id: string | null) =>
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev); // new instance (idiomatic react-router; don't mutate prev)
-      if (id) next.set('trace', id);
-      else next.delete('trace');
-      return next;
-    });
+  // M98 (D-M1) — stable identity (setSearchParams is stable) so it doesn't defeat the `columns` memo.
+  const setOpenID = useCallback(
+    (id: string | null) =>
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev); // new instance (idiomatic react-router; don't mutate prev)
+        if (id) next.set('trace', id);
+        else next.delete('trace');
+        return next;
+      }),
+    [setSearchParams],
+  );
 
   // Apply a saved view: replace the URL search with its stored query string; nuqs re-reads every key.
   const applyView = (queryString: string) => {
