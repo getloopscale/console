@@ -12,6 +12,21 @@
 
 ### Security
 
+## [0.32.0] - 2026-07-10
+
+### Added
+- **Dashboard: distinguish superseded edges in the graph audit view (M1 gap-close):** retired edges render dimmed + dashed when the include-superseded toggle is on, via the new per-edge `active` flag passed through the BFF (theo-memory v0.32.0). Closes the M1 DoD 'graph view distinguishes active vs superseded edges'.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## [0.31.0] - 2026-07-10
 
 ### Added

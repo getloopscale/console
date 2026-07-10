@@ -347,6 +347,19 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		}
 	})
 
+	t.Run("Graph passes through the per-edge active flag (M1)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"nodes":[],"edges":[{"source":"Kendra","relation":"loves","target":"Adidas","memory_count":1,"active":false}]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		res, err := c.Graph(context.Background(), "user-1", "user", true)
+		if err != nil {
+			t.Fatalf("Graph(active): %v", err)
+		}
+		if len(res.Edges) != 1 || res.Edges[0].Active == nil || *res.Edges[0].Active != false {
+			t.Fatalf("Graph active flag not passed through: %+v", res.Edges)
+		}
+	})
+
 	t.Run("Graph non-user scope returns empty without HTTP call", func(t *testing.T) {
 		c := NewClient("http://unused.invalid", "test-key", http.DefaultClient)
 		res, err := c.Graph(context.Background(), "user-1", "session", false)
