@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **Dashboard UX polish (M98 — closes theo-data v9).** The last craft gaps on the observability screens: (1) the trace **peek-sheet** lazy-loads the trace-detail view (CodeMirror + react-markdown) behind `<Suspense>` — a separate ~53 kB chunk off the traces first-paint, loaded only on peek-open — and the sanitized `Markdown` wrapper is extracted to its own module so the Ask thread no longer bundles CodeMirror; (2) the alerts **On/Off toggle** flips **optimistically** with `onError` rollback + disabled-while-pending (no stale RTT gap, no silent divergence on a failed PATCH); (3) the experiments **compare** view shows a per-lane loading Skeleton (no fabricated-empty during load); (4) the traces table's **columns build + client sort are memoized** with stable deps (no rebuild per filter keystroke); (5) the hand-rolled **columns popover** gains Escape/outside-click/focus management + `useId` a11y ids; (6) the 4× duplicated lens `errorMessage` helper is DRY'd into one `lensErrorMessage`. Behavior-preserving — the full dashboard suite (1744 tests) is green. Adversarial review READY_TO_MERGE after it caught (and fixed) a defeated `useMemo` whose unstable deps made the memoization claim untrue.
 
 ### Changed
 
