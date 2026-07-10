@@ -42,7 +42,7 @@ type TheMemoryClient interface {
 	Entities(ctx context.Context, userID, scope string) (*themory.EntitiesResult, error)
 	// Graph returns the subject's entity relation graph ({nodes, edges})
 	// (themory-graph-gateway-dashboard). Same scope rule as Entities.
-	Graph(ctx context.Context, userID, scope string) (*themory.GraphResult, error)
+	Graph(ctx context.Context, userID, scope string, includeSuperseded bool) (*themory.GraphResult, error)
 	// Episodes returns one cursor-paginated page of the subject's episodic
 	// read surface (TheMemory v0.14.0). Same scope rule as Entities.
 	Episodes(ctx context.Context, userID, scope string, opts themory.EpisodeOptions) (*themory.EpisodesResult, error)
@@ -398,7 +398,9 @@ func (h *MemoryHandler) Graph(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.client.Graph(r.Context(), user.Subject, scope)
+	// M1 — audit view: forward the include-superseded flag to the upstream graph.
+	includeSuperseded := r.URL.Query().Get("includeSuperseded") == "true"
+	result, err := h.client.Graph(r.Context(), user.Subject, scope, includeSuperseded)
 	if err != nil {
 		h.writeUpstreamError(w, err, "memory graph", "subject", user.Subject, "scope", scope)
 		return

@@ -233,4 +233,23 @@ describe('GraphPage (/memory/graph)', () => {
     fireEvent.click(screen.getByRole('button', { name: /hide 1 unconnected/i }));
     expect(screen.getByText(/2 entities/i)).toBeInTheDocument(); // Lonely hidden
   });
+
+  it('toggling "include superseded" refetches with includeSuperseded=true (M1)', async () => {
+    mockCloudFetch.mockResolvedValue({
+      nodes: [{ id: 'A', scope_type: 'user', memory_count: 1 }],
+      edges: [],
+    });
+    render(<GraphPage />);
+    await screen.findByTestId('force-graph');
+    // baseline: active-only (no includeSuperseded param)
+    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=user'));
+    expect(mockCloudFetch).not.toHaveBeenCalledWith(expect.stringContaining('includeSuperseded=true'));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /include superseded edges/i }));
+
+    // after the toggle: the audit-view param is forwarded to the BFF
+    await vi.waitFor(() =>
+      expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('includeSuperseded=true')),
+    );
+  });
 });
