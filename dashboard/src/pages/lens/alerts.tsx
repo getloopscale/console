@@ -172,6 +172,11 @@ export function LensAlertsPage() {
       invalidate();
     },
   });
+  // M98 (D-H3) — the On/Off toggle flips OPTIMISTICALLY (the binary interaction where optimism clearly
+  // pays: no stale RTT gap). onMutate flips the cached rule immediately; onError rolls back to the
+  // snapshot so a failed PATCH never leaves the UI diverged from the server (the M83 no-silent-
+  // divergence pattern); onSettled re-syncs. The button is disabled while its own toggle is pending
+  // (no double-fire).
   const toggle = useMutation({
     mutationFn: (r: AlertRule) =>
       cloudFetch<unknown>(
@@ -180,7 +185,20 @@ export function LensAlertsPage() {
         { throwOnError: true },
       ),
     retry: false,
-    onSuccess: invalidate,
+    onMutate: async (r: AlertRule) => {
+      await queryClient.cancelQueries({ queryKey: rulesKey });
+      const prev = queryClient.getQueryData<AlertRulesResult>(rulesKey);
+      queryClient.setQueryData<AlertRulesResult>(rulesKey, (old) =>
+        old
+          ? { ...old, alert_rules: old.alert_rules.map((x) => (x.id === r.id ? { ...x, enabled: !x.enabled } : x)) }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _r, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(rulesKey, ctx.prev); // rollback — never diverge from server
+    },
+    onSettled: invalidate,
   });
 
   // M72 — a write-action must not fail silently. Surface the first failing mutation's error.
@@ -213,6 +231,7 @@ export function LensAlertsPage() {
           variant="ghost"
           size="sm"
           onClick={() => toggle.mutate(r)}
+          disabled={toggle.isPending && toggle.variables?.id === r.id}
           aria-label={`Toggle ${r.name}`}
           aria-pressed={r.enabled}
         >

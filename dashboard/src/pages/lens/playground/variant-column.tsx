@@ -1,3 +1,4 @@
+import { lensErrorMessage } from '../../../lib/lens-error';
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Braces, Plus, Trash2 } from 'lucide-react';
@@ -56,19 +57,16 @@ export interface VariantColumnHandle {
 /** Map the M55 fail-closed HTTP status to an honest, typed message (duck-typed `.status`, robust across
  *  module boundaries). A cross-tenant 404 is deliberately non-committal (never leaks trace existence). */
 export function errorMessage(err: unknown): string {
-  const status = (err as { status?: number } | null)?.status ?? 0;
-  switch (status) {
-    case 503:
-      return 'The replay provider is not configured right now.';
-    case 502:
-      return 'The provider failed to answer — try again shortly.';
-    case 429:
-      return 'Rate limit reached for this workspace — wait a moment before running again.';
-    case 404:
-      return 'This trace is not available (it may belong to another workspace).';
-    default:
-      return 'The provider is unavailable — no output was produced.';
-  }
+  return lensErrorMessage(
+    err,
+    {
+      503: 'The replay provider is not configured right now.',
+      502: 'The provider failed to answer — try again shortly.',
+      429: 'Rate limit reached for this workspace — wait a moment before running again.',
+      404: 'This trace is not available (it may belong to another workspace).',
+    },
+    'The provider is unavailable — no output was produced.',
+  );
 }
 
 export const VariantColumn = forwardRef<

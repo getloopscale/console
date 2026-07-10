@@ -167,6 +167,41 @@ describe('LensAlertsPage (M53)', () => {
     expect(JSON.parse((calls('PATCH')[0][1] as { body: string }).body)).toEqual({ enabled: false });
   });
 
+  it('M98 — the toggle flips OPTIMISTICALLY before the PATCH resolves (no stale RTT gap)', async () => {
+    let resolvePatch!: () => void;
+    const rule = { id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null };
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [rule] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (url.startsWith(`${RULES}/`) && init?.method === 'PATCH') return new Promise<void>((res) => (resolvePatch = res));
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByText('r');
+    const btn = screen.getByRole('button', { name: /toggle r/i });
+    expect(btn).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(btn);
+    // optimistic: aria-pressed flips to false + the button is disabled WHILE the PATCH is still pending
+    await waitFor(() => expect(screen.getByRole('button', { name: /toggle r/i })).toHaveAttribute('aria-pressed', 'false'));
+    expect(screen.getByRole('button', { name: /toggle r/i })).toBeDisabled();
+    resolvePatch();
+  });
+
+  it('M98 — a failed toggle ROLLS BACK the optimistic flip (never diverges from the server)', async () => {
+    const rule = { id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null };
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [rule] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (url.startsWith(`${RULES}/`) && init?.method === 'PATCH') return Promise.reject(Object.assign(new Error('boom'), { status: 500 }));
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByText('r');
+    await userEvent.click(screen.getByRole('button', { name: /toggle r/i }));
+    // after the failed PATCH, aria-pressed reverts to true (rolled back to the server truth)
+    await waitFor(() => expect(screen.getByRole('button', { name: /toggle r/i })).toHaveAttribute('aria-pressed', 'true'));
+  });
+
   it('deletes a rule after confirmation (DELETE)', async () => {
     mockRoutes({ rules: [{ id: 'lar-9', name: 'junk', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
     render(<LensAlertsPage />);

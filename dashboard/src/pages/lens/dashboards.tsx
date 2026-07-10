@@ -1,3 +1,4 @@
+import { lensErrorMessage } from '../../lib/lens-error';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -55,15 +56,14 @@ interface ObservabilityResult {
 }
 /** Map an API error's HTTP status to a typed, actionable message (fail-closed). */
 function errorMessage(err: unknown): string {
-  const status = (err as { status?: number } | null)?.status ?? 0;
-  switch (status) {
-    case 403:
-      return 'You do not have permission to manage dashboards in this workspace.';
-    case 404:
-      return 'That dashboard is not available (it may belong to another workspace).';
-    default:
-      return 'Could not load dashboards — try again shortly.';
-  }
+  return lensErrorMessage(
+    err,
+    {
+      403: 'You do not have permission to manage dashboards in this workspace.',
+      404: 'That dashboard is not available (it may belong to another workspace).',
+    },
+    'Could not load dashboards — try again shortly.',
+  );
 }
 
 const TOPN_COLUMNS: DataTableColumn<TopNRow>[] = [
