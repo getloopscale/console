@@ -241,6 +241,10 @@ type GraphEdge struct {
 	Relation    string `json:"relation"`
 	Target      string `json:"target"`
 	MemoryCount int    `json:"memory_count"`
+	// Active (M1) — false when the edge is superseded/invalidated. Passed through
+	// verbatim so the audit view can dim retired edges. Pointer so the field is
+	// omitted (not forced to false) when the upstream doesn't send it.
+	Active *bool `json:"active,omitempty"`
 }
 
 // GraphResult is the GET /graph response shape (themory-graph-gateway-dashboard).

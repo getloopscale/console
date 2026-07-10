@@ -37,6 +37,8 @@ interface GraphEdge {
   relation: string;
   target: string;
   memory_count: number;
+  /** M1 — false when the edge is superseded/invalidated (audit view). */
+  active?: boolean;
 }
 interface GraphResult {
   nodes: GraphNode[];
@@ -64,6 +66,8 @@ export interface ForceLink {
   relation: string;
   /** view-only spoke from the hub — dashed, no arrow, no relation label. */
   synthetic?: boolean;
+  /** M1 — a superseded/invalidated edge (audit view): rendered dimmed + dashed. */
+  superseded?: boolean;
 }
 export interface ForceGraphData {
   nodes: ForceNode[];
@@ -138,7 +142,13 @@ export function toGraphData(result: GraphResult): ForceGraphData {
 
   const ids = new Set(mergedNodes.map((n) => n.id));
   const links: ForceLink[] = result.edges
-    .map((e) => ({ source: canonical(e.source), target: canonical(e.target), relation: e.relation }))
+    .map((e) => ({
+      source: canonical(e.source),
+      target: canonical(e.target),
+      relation: e.relation,
+      // M1 — mark superseded edges (audit view) so they render dimmed + dashed.
+      superseded: e.active === false,
+    }))
     .filter((e) => e.source !== e.target && ids.has(e.source) && ids.has(e.target));
 
   // union-find for connected components.
@@ -413,10 +423,17 @@ function GraphCanvas({ data }: { data: ForceGraphData }) {
           // card → invisible); synthetic spokes are distinguished by the dash +
           // no arrow, not by an invisible color.
           const syn = (l as ForceLink).synthetic === true;
+          // M1 — superseded edges render extra-dim so the audit view distinguishes
+          // them from active ones.
+          if ((l as ForceLink).superseded === true) {
+            return withAlpha(theme.muted, isLinkActive(l) ? 0.28 : 0.05);
+          }
           return withAlpha(theme.muted, isLinkActive(l) ? (syn ? 0.45 : 0.55) : 0.08);
         }}
         linkWidth={(l) => ((l as ForceLink).synthetic === true ? 1 : isLinkActive(l) ? 1.2 : 0.6)}
-        linkLineDash={(l) => ((l as ForceLink).synthetic === true ? [4, 3] : null)}
+        linkLineDash={(l) =>
+          (l as ForceLink).synthetic === true || (l as ForceLink).superseded === true ? [4, 3] : null
+        }
         linkDirectionalArrowLength={(l) => ((l as ForceLink).synthetic === true ? 0 : 3.5)}
         linkDirectionalArrowRelPos={1}
         linkCanvasObjectMode={() => 'after'}

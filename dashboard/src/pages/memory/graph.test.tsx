@@ -68,6 +68,22 @@ describe('toGraphData (pure shaping)', () => {
     expect(links).toHaveLength(0);
   });
 
+  it('marks a superseded edge (active:false) so the audit view can dim it (M1)', () => {
+    const { links } = toGraphData({
+      nodes: [
+        { id: 'Kendra', scope_type: 'user', memory_count: 1 },
+        { id: 'Adidas', scope_type: 'user', memory_count: 1 },
+        { id: 'Nike', scope_type: 'user', memory_count: 1 },
+      ],
+      edges: [
+        { source: 'Kendra', relation: 'loves', target: 'Adidas', memory_count: 1, active: false },
+        { source: 'Kendra', relation: 'loves', target: 'Nike', memory_count: 1, active: true },
+      ],
+    });
+    expect(links.find((l) => l.target === 'Adidas')?.superseded).toBe(true);
+    expect(links.find((l) => l.target === 'Nike')?.superseded).toBe(false);
+  });
+
   it('assigns the same cluster group to a connected component', () => {
     const { nodes, links } = toGraphData({
       nodes: [
