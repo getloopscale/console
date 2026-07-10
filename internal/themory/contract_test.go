@@ -298,7 +298,7 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 
 	t.Run("Entities hits the scope entities endpoint", func(t *testing.T) {
 		var got *http.Request
-		srv := captureServer(t, 200, `{"entities":[{"id":"paulo","scope_type":"user","memory_count":2}]}`, &got)
+		srv := captureServer(t, 200, `{"entities":[{"id":"paulo","scope_type":"user","memory_count":2,"summary":"loves → Nike"}]}`, &got)
 		c := NewClient(srv.URL, "test-key", srv.Client())
 		res, err := c.Entities(context.Background(), "user-1", "user")
 		if err != nil {
@@ -307,6 +307,10 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		if len(res.Entities) != 1 || res.Entities[0].ID != "paulo" {
 			t.Fatalf("Entities mapping wrong: %+v", res.Entities)
 		}
+		// M2: the on-demand entity summary must pass through the BFF verbatim.
+		if res.Entities[0].Summary != "loves → Nike" {
+			t.Fatalf("Entities summary not passed through, got %q", res.Entities[0].Summary)
+		}
 		validateRequest(t, router, got)
 	})
 
@@ -314,7 +318,7 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		var got *http.Request
 		srv := captureServer(t, 200, `{"nodes":[{"id":"John Smith","scope_type":"user","memory_count":2}],"edges":[{"source":"John Smith","relation":"works at","target":"Google","memory_count":1}]}`, &got)
 		c := NewClient(srv.URL, "test-key", srv.Client())
-		res, err := c.Graph(context.Background(), "user-1", "user")
+		res, err := c.Graph(context.Background(), "user-1", "user", false)
 		if err != nil {
 			t.Fatalf("Graph: %v", err)
 		}
@@ -324,12 +328,28 @@ func TestThemoryClient_RequestsConformToSpec(t *testing.T) {
 		if len(res.Edges) != 1 || res.Edges[0].Target != "Google" || res.Edges[0].Relation != "works at" {
 			t.Fatalf("Graph edges mapping wrong: %+v", res.Edges)
 		}
+		// M1: active-only default must NOT send the audit-view param.
+		if got.URL.Query().Get("includeSuperseded") != "" {
+			t.Fatalf("Graph(default) must not send includeSuperseded, got %q", got.URL.RawQuery)
+		}
 		validateRequest(t, router, got)
+	})
+
+	t.Run("Graph forwards includeSuperseded=true (M1 audit view)", func(t *testing.T) {
+		var got *http.Request
+		srv := captureServer(t, 200, `{"nodes":[],"edges":[]}`, &got)
+		c := NewClient(srv.URL, "test-key", srv.Client())
+		if _, err := c.Graph(context.Background(), "user-1", "user", true); err != nil {
+			t.Fatalf("Graph(includeSuperseded): %v", err)
+		}
+		if got.URL.Query().Get("includeSuperseded") != "true" {
+			t.Fatalf("Graph(true) must send includeSuperseded=true, got %q", got.URL.RawQuery)
+		}
 	})
 
 	t.Run("Graph non-user scope returns empty without HTTP call", func(t *testing.T) {
 		c := NewClient("http://unused.invalid", "test-key", http.DefaultClient)
-		res, err := c.Graph(context.Background(), "user-1", "session")
+		res, err := c.Graph(context.Background(), "user-1", "session", false)
 		if err != nil {
 			t.Fatalf("Graph(session): %v", err)
 		}

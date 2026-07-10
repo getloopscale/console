@@ -215,6 +215,9 @@ type Entity struct {
 	ScopeType   string `json:"scope_type"`
 	MemoryCount int    `json:"memory_count"`
 	LastSeenAt  string `json:"last_seen_at,omitempty"`
+	// Summary (M2) — on-demand digest of the entity's currently-active outgoing
+	// relations, passed through verbatim from the upstream memory REST.
+	Summary string `json:"summary,omitempty"`
 }
 
 // EntitiesResult is the GET /entities response shape.
@@ -579,12 +582,17 @@ func (c *Client) Episodes(ctx context.Context, userID, scope string, opts Episod
 // shared-key rule as Entities (D3): scope!="user" → empty graph (no sub-subject
 // exists for the customer) — honest, not an error. Nodes AND edges are always
 // non-nil slices (D5 — the dashboard never sees null).
-func (c *Client) Graph(ctx context.Context, userID, scope string) (*GraphResult, error) {
+func (c *Client) Graph(ctx context.Context, userID, scope string, includeSuperseded bool) (*GraphResult, error) {
 	if scope != "" && scope != "user" {
 		return &GraphResult{Nodes: []GraphNode{}, Edges: []GraphEdge{}}, nil
 	}
 	var out GraphResult
 	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/graph"
+	// M1 — audit view: forward the include-superseded flag so the dashboard can
+	// show retired (invalidated) edges alongside the active ones.
+	if includeSuperseded {
+		path += "?includeSuperseded=true"
+	}
 	if err := c.do(ctx, http.MethodGet, path, nil, nil, &out); err != nil {
 		return nil, err
 	}

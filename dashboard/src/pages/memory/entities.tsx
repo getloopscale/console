@@ -25,6 +25,11 @@ interface Entity {
   scope_type: string;
   memory_count: number;
   last_seen_at?: string;
+  /**
+   * M2 — on-demand evolving summary: a digest of the entity's currently-active
+   * outgoing relations (`relation → target`). Empty string when it has none.
+   */
+  summary?: string;
 }
 
 interface EntitiesResult {
@@ -103,6 +108,16 @@ export function EntitiesPage() {
       key: 'memory_count',
       label: 'Memories',
       render: (row) => <span>{row.memory_count}</span>,
+    },
+    {
+      key: 'summary',
+      label: 'Summary',
+      render: (row) =>
+        row.summary ? (
+          <span className="text-sm">{row.summary}</span>
+        ) : (
+          <span className="text-muted-foreground text-xs">—</span>
+        ),
     },
     {
       key: 'last_seen_at',

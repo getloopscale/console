@@ -451,9 +451,16 @@ export function GraphPage() {
     setSearchParams(params, { replace: true });
   };
 
+  // M1 — audit view: include retired (superseded/invalidated) edges alongside the
+  // active graph. Default OFF (active edges only).
+  const [includeSuperseded, setIncludeSuperseded] = useState(false);
+
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/graph', activeScope] as const,
-    queryFn: () => cloudFetch<GraphResult>(`/v1/dashboard/memory/graph?scope=${activeScope}`),
+    queryKey: ['cloud', '/v1/dashboard/memory/graph', activeScope, includeSuperseded] as const,
+    queryFn: () =>
+      cloudFetch<GraphResult>(
+        `/v1/dashboard/memory/graph?scope=${activeScope}${includeSuperseded ? '&includeSuperseded=true' : ''}`,
+      ),
   });
 
   const result = query.data;
@@ -487,6 +494,16 @@ export function GraphPage() {
             <Tabs.Trigger value="repo">REPO</Tabs.Trigger>
           </Tabs.List>
         </Tabs>
+
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={includeSuperseded}
+            onChange={(e) => setIncludeSuperseded(e.target.checked)}
+            aria-label="Include superseded edges"
+          />
+          Include superseded edges (audit view)
+        </label>
 
         {query.isError ? (
           <Alert intent="warning" title="Could not load the graph">

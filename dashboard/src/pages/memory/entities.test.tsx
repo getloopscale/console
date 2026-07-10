@@ -82,4 +82,21 @@ describe('EntitiesPage (/memory/entities)', () => {
     expect(body).toMatch(/12/);
     expect(body.toLowerCase()).toContain('memor');
   });
+
+  it('renders the on-demand entity summary (M2)', async () => {
+    mockCloudFetch.mockResolvedValueOnce({
+      entities: [
+        {
+          id: 'kendra',
+          scope_type: 'user',
+          memory_count: 1,
+          last_seen_at: new Date().toISOString(),
+          summary: 'loves → Nike',
+        },
+      ],
+    });
+    render(<EntitiesPage />);
+    expect(await screen.findByText('loves → Nike')).toBeInTheDocument();
+    expect(screen.getByText(/^summary$/i)).toBeInTheDocument(); // the column header
+  });
 });
