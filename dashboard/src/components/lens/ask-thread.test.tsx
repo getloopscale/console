@@ -185,4 +185,66 @@ describe('M61 AskThread', () => {
     expect(String(del![0])).toContain('/ask/feedback?turnId=');
     expect(up).toHaveAttribute('aria-pressed', 'false');
   });
+
+  it('M91 — a thumbs-DOWN POSTs feedback {label:"down"} (not just the up path)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (String(url).includes('/ask/feedback')) return Promise.resolve({ label: 'down' });
+      return Promise.resolve({ answer: 'because X' });
+    });
+    render(<AskThread traceId="t1" spans={tree} />);
+    await ask('why?');
+    await screen.findByTestId('thread-turn-assistant');
+    const down = screen.getByRole('button', { name: /bad answer/i });
+    await userEvent.click(down);
+    expect(down).toHaveAttribute('aria-pressed', 'true');
+    const post = mockCloudFetch.mock.calls.find(
+      (c) => String(c[0]).includes('/ask/feedback') && (c[1] as { method?: string })?.method === 'POST',
+    );
+    expect(post).toBeTruthy();
+    expect(JSON.parse((post![1] as { body: string }).body).label).toBe('down');
+  });
+
+  it('M91 — switching up→down POSTs the new label and moves the pressed state (no stale vote)', async () => {
+    mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) =>
+      String(url).includes('/ask/feedback')
+        ? Promise.resolve(opts?.method === 'DELETE' ? undefined : { label: 'ok' })
+        : Promise.resolve({ answer: 'because X' }),
+    );
+    render(<AskThread traceId="t1" spans={tree} />);
+    await ask('why?');
+    await screen.findByTestId('thread-turn-assistant');
+    const up = screen.getByRole('button', { name: /good answer/i });
+    const down = screen.getByRole('button', { name: /bad answer/i });
+    await userEvent.click(up); // up
+    expect(up).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(down); // switch to down
+    expect(down).toHaveAttribute('aria-pressed', 'true');
+    expect(up).toHaveAttribute('aria-pressed', 'false'); // no stale up vote
+    // the LAST feedback POST carries the new label 'down'
+    const posts = mockCloudFetch.mock.calls.filter(
+      (c) => String(c[0]).includes('/ask/feedback') && (c[1] as { method?: string })?.method === 'POST',
+    );
+    expect(JSON.parse((posts.at(-1)![1] as { body: string }).body).label).toBe('down');
+  });
+
+  it('M91 — a failed clear (DELETE) reverts to the PRIOR label, not to no-vote (review H-1)', async () => {
+    // vote up succeeds; the retract DELETE fails → the UI must fall back to the prior 'up',
+    // never show a cleared thumb that did not persist (no silent UI/DB divergence).
+    mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (String(url).includes('/ask/feedback')) {
+        if (opts?.method === 'DELETE') return Promise.reject(new ApiError(502));
+        return Promise.resolve({ label: 'up' });
+      }
+      return Promise.resolve({ answer: 'because X' });
+    });
+    render(<AskThread traceId="t1" spans={tree} />);
+    await ask('why?');
+    await screen.findByTestId('thread-turn-assistant');
+    const up = screen.getByRole('button', { name: /good answer/i });
+    await userEvent.click(up); // vote up (POST ok)
+    expect(up).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(up); // click active thumb → clear via DELETE, which rejects
+    expect(await screen.findByText(/could not save your feedback/i)).toBeInTheDocument();
+    expect(up).toHaveAttribute('aria-pressed', 'true'); // reverted to the prior 'up', not cleared
+  });
 });
