@@ -227,6 +227,25 @@ describe('M61 AskThread', () => {
     expect(JSON.parse((posts.at(-1)![1] as { body: string }).body).label).toBe('down');
   });
 
+  it('M91 — feedback on a span-grounded turn carries the spanId in the POST body', async () => {
+    // A turn grounded on a span (initialSpanId) must attribute the vote to that span — the
+    // feedback POST body carries spanId so the signal is span-scoped, not just trace-scoped.
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (String(url).includes('/ask/feedback')) return Promise.resolve({ label: 'up' });
+      if (String(url).includes('/ask')) return Promise.resolve({ answer: 'grounded' });
+      return Promise.resolve({});
+    });
+    render(<AskThread traceId="t1" spans={tree} initialSpanId="s2" />);
+    await ask('explain this step');
+    await screen.findByTestId('thread-turn-assistant');
+    await userEvent.click(screen.getByRole('button', { name: /good answer/i }));
+    const post = mockCloudFetch.mock.calls.find(
+      (c) => String(c[0]).includes('/ask/feedback') && (c[1] as { method?: string })?.method === 'POST',
+    );
+    expect(post).toBeTruthy();
+    expect(JSON.parse((post![1] as { body: string }).body).spanId).toBe('s2');
+  });
+
   it('M91 — a failed clear (DELETE) reverts to the PRIOR label, not to no-vote (review H-1)', async () => {
     // vote up succeeds; the retract DELETE fails → the UI must fall back to the prior 'up',
     // never show a cleared thumb that did not persist (no silent UI/DB divergence).
