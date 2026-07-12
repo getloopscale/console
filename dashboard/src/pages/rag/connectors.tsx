@@ -105,6 +105,11 @@ export function RagConnectorsPage() {
               Try again shortly.
             </Alert>
           ) : null}
+          {remove.isError ? (
+            <Alert intent="destructive" title="Could not delete the connector">
+              A sync may be in progress — try again shortly.
+            </Alert>
+          ) : null}
 
           {query.isLoading ? (
             <Skeleton />

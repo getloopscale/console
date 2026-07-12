@@ -48,4 +48,14 @@ describe('RagConnectorsPage — destructive delete flow', () => {
       expect.objectContaining({ method: 'DELETE' }),
     );
   });
+
+  it('surfaces an error (not a silent hang) when delete fails with 409 while syncing', async () => {
+    // list ok, then the DELETE rejects (theo-rag returns 409 connection_syncing)
+    mockCloudFetch.mockResolvedValueOnce(ONE).mockRejectedValueOnce(new Error('409 connection_syncing'));
+    render(<RagConnectorsPage />);
+    await screen.findByText('s3');
+    await userEvent.click(screen.getByRole('button', { name: /delete conn_1/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /delete connector/i }));
+    expect(await screen.findByText(/could not delete the connector/i)).toBeInTheDocument();
+  });
 });

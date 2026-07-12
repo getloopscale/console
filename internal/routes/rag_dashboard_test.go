@@ -17,15 +17,15 @@ import (
 
 // stubRagDataClient records the calls; it never talks to a real theo-rag.
 type stubRagDataClient struct {
-	listErr      error
-	analyticsErr error
-	writeErr     error
-	listCalls    int
-	analytics    int
-	createCalls  int
-	deleteCalls  int
-	ingestCalls  int
-	askCalls     int
+	listErr       error
+	analyticsErr  error
+	writeErr      error
+	listCalls     int
+	analytics     int
+	createCalls   int
+	deleteCalls   int
+	ingestCalls   int
+	askCalls      int
 	listConnCalls int
 	syncCalls     int
 	delConnCalls  int
