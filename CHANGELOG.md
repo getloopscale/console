@@ -10,6 +10,7 @@
 ### Removed
 
 ### Fixed
+- Dashboard smoke test now actually type-checks the dashboard: added the missing `typecheck` npm script (`tsc --noEmit`) that the `task test:smoke` target already invoked — previously it fell through to a graceful "not configured" echo, silently skipping the dashboard type-check (a false-green). Closes the T2.6 DoD of canonical-tests-rewrite-v2 ("dashboard type-check clean"); tsc is clean (0 errors).
 
 ### Security
 
