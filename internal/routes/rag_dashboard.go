@@ -25,6 +25,10 @@ type RagDataClient interface {
 	IngestDocument(ctx context.Context, in rag.IngestInput) (json.RawMessage, error)
 	DeleteDocument(ctx context.Context, id string) error
 	Ask(ctx context.Context, in rag.AskInput) (json.RawMessage, error)
+	// #191 — connectors surface (list + sync + delete).
+	ListConnectors(ctx context.Context) (*rag.ConnectionsResult, error)
+	SyncConnector(ctx context.Context, id string) (json.RawMessage, error)
+	DeleteConnector(ctx context.Context, id string) error
 }
 
 // RagDashboardHandler serves the /v1/dashboard/rag BFF. Browser JWT sessions (requireJWT)
@@ -157,6 +161,59 @@ func (h *RagDashboardHandler) DeleteCollection(w http.ResponseWriter, r *http.Re
 	if err := h.client.DeleteCollection(r.Context(), id); err != nil {
 		h.logger.Warn("rag dashboard: delete collection failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not delete the collection.")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ListConnectors serves GET /v1/dashboard/rag/connectors (#191) — the workspace's
+// connector connections (non-secret view), via the per-tenant key (rag:read).
+func (h *RagDashboardHandler) ListConnectors(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	res, err := h.client.ListConnectors(r.Context())
+	if err != nil {
+		h.logger.Warn("rag dashboard: list connectors failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not list connectors.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// SyncConnector serves POST /v1/dashboard/rag/connectors/{id}/sync (#191, rag:write) —
+// enqueues a sync; passes through theo-rag's 202 body.
+func (h *RagDashboardHandler) SyncConnector(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A connector id is required.")
+		return
+	}
+	out, err := h.client.SyncConnector(r.Context(), id)
+	if err != nil {
+		h.logger.Warn("rag dashboard: sync connector failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not start the sync.")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, out)
+}
+
+// DeleteConnector serves DELETE /v1/dashboard/rag/connectors/{id} (#191, rag:delete).
+func (h *RagDashboardHandler) DeleteConnector(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A connector id is required.")
+		return
+	}
+	if err := h.client.DeleteConnector(r.Context(), id); err != nil {
+		h.logger.Warn("rag dashboard: delete connector failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not delete the connector.")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

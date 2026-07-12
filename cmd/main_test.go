@@ -127,6 +127,9 @@ func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 		"POST /v1/dashboard/rag/documents",
 		"DELETE /v1/dashboard/rag/documents/{id}",
 		"POST /v1/dashboard/rag/answers",
+		"GET /v1/dashboard/rag/connectors",
+		"POST /v1/dashboard/rag/connectors/{id}/sync",
+		"DELETE /v1/dashboard/rag/connectors/{id}",
 	}
 	for _, w := range want {
 		if !got[w] {

@@ -27,6 +27,7 @@ import {
   ListChecks,
   Lock,
   Receipt,
+  Plug,
   Rocket,
   ScrollText,
   Search,
@@ -204,6 +205,7 @@ const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'Overview', path: '/rag', icon: LayoutGrid },
           { label: 'Collections', path: '/rag/collections', icon: Boxes },
+          { label: 'Connectors', path: '/rag/connectors', icon: Plug },
           { label: 'Documents', path: '/rag/documents', icon: ScrollText },
           { label: 'Ask', path: '/rag/ask', icon: Search },
           { label: 'Analytics', path: '/rag/analytics', icon: Activity },

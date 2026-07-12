@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **Dashboard: RAG Connectors page + BFF proxy (#191):** a new `/rag/connectors` page lists the workspace's connector connections (provider / collection / status / created) and lets a user trigger a sync or delete one (confirm); backed by 3 new tenant-gated BFF proxy routes (`GET /v1/dashboard/rag/connectors`, `POST .../{id}/sync`, `DELETE .../{id}`) mirroring the collections surface (Model-B per-tenant key). v1 is MANAGE-only — connecting a NEW source from the dashboard (per-provider OAuth/credential flow) + the documents-page enrichment + a webhooks page remain follow-ups on #191.
 
 ### Changed
 
