@@ -112,13 +112,13 @@ const MENUS: Record<string, MenuDefinition> = {
         ],
       },
       {
-        // The Theo data-plane capabilities (Memory / RAG / Observability), grouped under one
+        // The Theo data-plane capabilities (Memory / Knowledge Base / Observability), grouped under one
         // semantic header instead of three single-item groups whose title repeated the item
         // label. Each item drills into its own submenu (memory / rag / lens).
         title: 'Capabilities',
         items: [
           { label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' },
-          { label: 'RAG', path: '/rag', icon: BookOpen, drillsInto: 'rag' },
+          { label: 'Knowledge Base', path: '/rag', icon: BookOpen, drillsInto: 'rag' },
           { label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' },
         ],
       },
@@ -198,7 +198,7 @@ const MENUS: Record<string, MenuDefinition> = {
   // subsequent plans do NOT reflow the root sidebar — that's why we drill.
   rag: {
     id: 'rag',
-    title: 'RAG',
+    title: 'Knowledge Base',
     parent: 'main',
     groups: [
       {
