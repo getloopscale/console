@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Roadmap amended: added M7 Tenant Blob Storage — managed file storage, complete solution across API `/v1/storage/*` + CLI + SDK + dashboard UI + dogfood journeys (`/roadmap-feature tenant-blob-storage`; deps M1+M3; product grill + SHIPPABLE blueprint referenced in the milestone block)
 - **Dashboard: RAG Connectors page + BFF proxy (#191):** a new `/rag/connectors` page lists the workspace's connector connections (provider / collection / status / created) and lets a user trigger a sync or delete one (confirm); backed by 3 new tenant-gated BFF proxy routes (`GET /v1/dashboard/rag/connectors`, `POST .../{id}/sync`, `DELETE .../{id}`) mirroring the collections surface (Model-B per-tenant key). v1 is MANAGE-only — connecting a NEW source from the dashboard (per-provider OAuth/credential flow) + the documents-page enrichment + a webhooks page remain follow-ups on #191.
 
 ### Changed
@@ -10,6 +11,7 @@
 ### Removed
 
 ### Fixed
+- **Register flow was fully broken (503, then silent no-op) — two bugs, both fixed (found via theo-memory dogfood J-UI-10, 2026-07-12):** (1) the register BFF proxy (`internal/routes/register_proxy.go`) followed the upstream identity-store's 303 redirect to its public browser URL (`localhost:8090`), which from inside the gateway container targets its own loopback with nothing listening → "connection refused" → a wrong `503 Service temporarily unavailable`; the proxy's HTTP client now sets `CheckRedirect: http.ErrUseLastResponse` so it captures the redirect and lets the real browser follow it. (2) the dashboard register form (`dashboard/src/pages/register.tsx`) posted to `/v1/auth/register` WITHOUT the `?flow=<id>` query param, so the upstream rejected the submit and the anti-enumeration unifier silently mapped it to the check-email response with NO account created; the form action now carries the flow id. Regression tests: `register_proxy_test.go` `TestRegisterProxy_UpstreamRedirect_NotFollowed_Returns303` + `register.test.tsx` flow-id assertion. Register → login → dashboard now works end-to-end from a fresh browser.
 - Dashboard smoke test now actually type-checks the dashboard: added the missing `typecheck` npm script (`tsc --noEmit`) that the `task test:smoke` target already invoked — previously it fell through to a graceful "not configured" echo, silently skipping the dashboard type-check (a false-green). Closes the T2.6 DoD of canonical-tests-rewrite-v2 ("dashboard type-check clean"); tsc is clean (0 errors).
 
 ### Security

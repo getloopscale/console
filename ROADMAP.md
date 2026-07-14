@@ -208,6 +208,35 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 ---
 
+### M7 — [ ] Tenant Blob Storage (managed file storage — complete solution)
+
+> Added 2026-07-14 by `/roadmap-feature` (slug: `tenant-blob-storage`). See CHANGELOG `[Unreleased] § Added`. Sponsor mandate: COMPLETE solution — all journeys, UI, SDK, everything.
+
+**Objective:** ship the customer-requested managed file storage ("storage files", S3 wrapper) as the 4th consumer-key vertical (`/v1/storage/*` alongside memory/observability/rag) — tenant-global private store with virtual folders, 6 core operations, accessed EXCLUSIVELY via existing `theo_live_*` API keys with new `storage:read`/`storage:write` scopes — across every surface: API, CLI, SDK, dashboard UI, dogfood journeys and docs.
+
+**Definition of done:**
+
+- [ ] **API vertical** `/v1/storage/*` LIVE in the cloud-API with the 6 core operations (`upload`, `download`, `list` by prefix, `delete`, `stat`, `share` temporary signed URL), gated by `storage:read`/`storage:write` scopes registered in the existing `internal/routes/api_keys.go` registry + `scope_middleware`; per-tier caps enforced — **HTTP 402** on aggregate (Starter 100MB · Pro 5GB · Team 25GB · Enterprise custom), **HTTP 413** on per-file (25MB/100MB/500MB/5GB) — two DISTINCT typed errors, never merged; `MetricStorageBytes` metering from day 1.
+- [ ] **CLI** `theo storage {upload,download,list,delete,stat,share}` shipped in theo-cli — exit codes 0-5, stable `--json`, zero infra terms in output (Rule 3: "storage"/"files", never S3/bucket/MinIO).
+- [ ] **SDK** — storage helper in TheoKit (TS) + module in theo-sdk (Python), both consuming the same API-key auth; one working example per SDK.
+- [ ] **Dashboard UI** — Storage page in the theo-cloud dashboard: folder browse, upload, delete, stat, generate `share` link; plan quota usage visible (used/limit).
+- [ ] **Dogfood journeys** — J-storage journey(s) covering CLI + API + UI LIVE-validated with recorded evidence, house journey pattern + sponsor JUNTOS walkthrough.
+- [ ] **Tests per blueprint D4** — unit with DIP-interface mocks; integration against real MinIO with full mint→redeem round-trip of share URLs; hand-rolled SigV4 validated against pocketbase test-vectors; negative cases assert typed errors (402 ≠ 413).
+- [ ] **Docs + CHANGELOG** — reference docs for the 6 operations across API/CLI/SDK in product language; wiring triad (caller + integration test + runtime metric) per new symbol.
+
+**Dependencies:** M1 (broker per-Account-scoped mint — the `theo_live_*` keys + scopes that are storage's ONLY access path), M3 (enforce + propagate — the per-Account enforcement chain the 402 caps plug into). M5 is explicitly NOT a dependency (orthogonal deploy-path fix).
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. Proxy data path = cost/bottleneck on the shared cloud-API — every storage byte crosses the same process serving rag/memory/observability. Mitigation: aggressive caps (sponsor cut aggregates 10×), `MetricStorageBytes` + egress metering from day 1, stream timeouts, and a documented architectural escape-hatch (Nhost-style stateless SigV4-rewrap) if the proxy becomes a measured bottleneck.
+2. Hand-rolled SigV4 is security code we own — new presign + multipart in the fork-and-own client; a signing bug means cross-tenant file access or silently broken share URLs. Mitigation: pocketbase test-vector validation + mint→redeem round-trip against real MinIO + typed-error negative cases. (Conscious 3rd risk, accepted in the product grill: tenant-global namespace lets staging touch production files — mitigated by path-prefix convention, not mechanism.)
+
+**Why now (from grill Q1):**
+
+Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clientes estão pedindo é storage files onde ele (pode ser wrapper S3)". Deployed apps today would need external S3 to store files; the platform's promise is the app working with zero external config. Product decisions grilled in `theo/.claude/knowledge-base/grills/tenant-blob-storage-grill.md` (8 decisions, READY_FOR_PLAN); architecture locked in the SHIPPABLE 100.0 blueprint `theo/.claude/knowledge-base/discoveries/blueprints/tenant-blob-storage-blueprint.md` (4 ADRs; SOTA peers supabase/storage + hasura-storage + pocketbase + go-cloud already cloned + pinned in the theo repo catalog).
+
+---
+
 ## State-of-the-art references
 
 No peers were cloned for this roadmap: the design is locked in the ADR and the reference model is
