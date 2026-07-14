@@ -80,4 +80,20 @@ describe('@usetheo/storage', () => {
     });
     await client(f as unknown as typeof fetch).stat('a b/c#d');
   });
+
+  it('listAll follows next_cursor across pages', async () => {
+    let call = 0;
+    const f = vi.fn(async (url: string) => {
+      call++;
+      if (call === 1) {
+        expect(url).not.toContain('cursor=');
+        return jsonResponse(200, { files: [{ path: 'a', size: 1, content_type: 't' }], next_cursor: 'a' });
+      }
+      expect(url).toContain('cursor=a');
+      return jsonResponse(200, { files: [{ path: 'b', size: 1, content_type: 't' }], next_cursor: '' });
+    });
+    const out = await client(f as unknown as typeof fetch).listAll('');
+    expect(out.map((x) => x.path)).toEqual(['a', 'b']);
+    expect(f).toHaveBeenCalledTimes(2);
+  });
 });

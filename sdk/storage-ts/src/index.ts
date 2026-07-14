@@ -92,7 +92,11 @@ export class NotFoundError extends StorageError {
 export interface StorageClient {
   upload(path: string, body: Uint8Array | ArrayBuffer, contentType?: string): Promise<StorageFile>;
   download(path: string): Promise<Uint8Array>;
-  list(prefix?: string): Promise<ListResult>;
+  /** One page of files. Pass `cursor` (from a prior result's `next_cursor`) to
+   *  continue; an empty `next_cursor` means the last page. */
+  list(prefix?: string, cursor?: string): Promise<ListResult>;
+  /** Fetches EVERY page under prefix (follows next_cursor to completion). */
+  listAll(prefix?: string): Promise<StorageFile[]>;
   stat(path: string): Promise<StorageFile>;
   del(path: string): Promise<void>;
   share(path: string, expiresInSeconds?: number): Promise<ShareResult>;
@@ -154,12 +158,25 @@ export function createStorageClient(opts: StorageClientOptions): StorageClient {
       return new Uint8Array(await resp.arrayBuffer());
     },
 
-    async list(prefix = '') {
-      const resp = await doFetch(`${base}/v1/storage/objects?prefix=${encodeURIComponent(prefix)}`, {
-        headers: authHeaders,
-      });
+    async list(prefix = '', cursor = '') {
+      const qs = `prefix=${encodeURIComponent(prefix)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const resp = await doFetch(`${base}/v1/storage/objects?${qs}`, { headers: authHeaders });
       if (!resp.ok) return raise(resp);
       return (await resp.json()) as ListResult;
+    },
+
+    async listAll(prefix = '') {
+      const all: StorageFile[] = [];
+      let cursor = '';
+      // Follow next_cursor to completion. Bounded by the server page size; a
+      // missing/empty next_cursor terminates.
+      for (;;) {
+        const page = await this.list(prefix, cursor);
+        all.push(...page.files);
+        if (!page.next_cursor) break;
+        cursor = page.next_cursor;
+      }
+      return all;
     },
 
     async stat(path) {
