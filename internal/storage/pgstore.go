@@ -109,3 +109,63 @@ func (s *PGStore) DeletePending(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// GetMeta returns a committed object's metadata, or ErrObjectNotFoundMeta.
+func (s *PGStore) GetMeta(ctx context.Context, tenantID, name string) (ObjectRecord, error) {
+	var r ObjectRecord
+	err := s.db.QueryRowContext(ctx,
+		`SELECT name, size_bytes, mime_type FROM storage_objects
+		 WHERE tenant_id = $1 AND name = $2 AND status = 'committed'`,
+		tenantID, name,
+	).Scan(&r.Name, &r.SizeBytes, &r.MimeType)
+	if err == sql.ErrNoRows {
+		return ObjectRecord{}, ErrObjectNotFoundMeta
+	}
+	if err != nil {
+		return ObjectRecord{}, fmt.Errorf("storage: get meta: %w", err)
+	}
+	return r, nil
+}
+
+// ListByPrefix returns committed objects whose name starts with prefix, ordered
+// by name, using keyset pagination (name > cursor). nextCursor is the last name
+// returned when the page is full, else "".
+func (s *PGStore) ListByPrefix(ctx context.Context, tenantID, prefix string, limit int, cursor string) ([]ObjectRecord, string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT name, size_bytes, mime_type FROM storage_objects
+		 WHERE tenant_id = $1 AND status = 'committed' AND name LIKE $2 || '%' AND name > $3
+		 ORDER BY name ASC LIMIT $4`,
+		tenantID, prefix, cursor, limit,
+	)
+	if err != nil {
+		return nil, "", fmt.Errorf("storage: list: %w", err)
+	}
+	defer rows.Close()
+
+	var out []ObjectRecord
+	for rows.Next() {
+		var r ObjectRecord
+		if err := rows.Scan(&r.Name, &r.SizeBytes, &r.MimeType); err != nil {
+			return nil, "", fmt.Errorf("storage: list scan: %w", err)
+		}
+		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, "", fmt.Errorf("storage: list rows: %w", err)
+	}
+	next := ""
+	if len(out) == limit && limit > 0 {
+		next = out[len(out)-1].Name
+	}
+	return out, next, nil
+}
+
+// DeleteByName removes a committed object's metadata row.
+func (s *PGStore) DeleteByName(ctx context.Context, tenantID, name string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM storage_objects WHERE tenant_id = $1 AND name = $2`, tenantID, name)
+	if err != nil {
+		return fmt.Errorf("storage: delete by name: %w", err)
+	}
+	return nil
+}

@@ -45,7 +45,23 @@ type MetaStore interface {
 	InsertPending(ctx context.Context, tenantID, name string, size int64, mime string) (id string, err error)
 	MarkCommitted(ctx context.Context, id string) error
 	DeletePending(ctx context.Context, id string) error
+
+	// Object read/list/delete ops (committed rows only, always tenant-scoped).
+	GetMeta(ctx context.Context, tenantID, name string) (ObjectRecord, error)
+	ListByPrefix(ctx context.Context, tenantID, prefix string, limit int, cursor string) (records []ObjectRecord, nextCursor string, err error)
+	DeleteByName(ctx context.Context, tenantID, name string) error
 }
+
+// ObjectRecord is a committed object's metadata row.
+type ObjectRecord struct {
+	Name      string
+	SizeBytes int64
+	MimeType  string
+}
+
+// ErrObjectNotFoundMeta is returned by GetMeta when no committed row matches.
+// Handlers map it to HTTP 404.
+var ErrObjectNotFoundMeta = fmt.Errorf("storage: object metadata not found")
 
 // Quota enforces per-tenant storage caps using the reserve→commit→compensate
 // protocol (blueprint ADR D2).

@@ -42,6 +42,15 @@ func (f *fakeMetaStore) WithTenantLock(ctx context.Context, tenantID string, fn 
 	return fn(ctx)
 }
 
+// Object-read ops are unused by the quota unit tests; stubbed to satisfy MetaStore.
+func (f *fakeMetaStore) GetMeta(ctx context.Context, t, name string) (ObjectRecord, error) {
+	return ObjectRecord{}, ErrObjectNotFoundMeta
+}
+func (f *fakeMetaStore) ListByPrefix(ctx context.Context, t, prefix string, limit int, cursor string) ([]ObjectRecord, string, error) {
+	return nil, "", nil
+}
+func (f *fakeMetaStore) DeleteByName(ctx context.Context, t, name string) error { return nil }
+
 func TestReserve_UnderCap(t *testing.T) {
 	store := &fakeMetaStore{used: 10 << 20} // 10MB used
 	q := NewQuota(store, "starter")          // 100MB aggregate cap
