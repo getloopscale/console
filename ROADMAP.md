@@ -165,7 +165,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 ---
 
-### M5 — [ ] Hermetic project-cap (close deploy-path bypass #106)
+### M5 — [x] Hermetic project-cap (close deploy-path bypass #106)
 
 **Objective:** make the per-Account project cap airtight on BOTH creation paths. M4 enforced the explicit `POST /api/v1/projects` path; the deploy-time `EnsureProject` safety-net (`theo deploy <new-name>` → build-orchestrator auto-create) is a SECOND project-row insert path that does NOT consult the cap. Close it without introducing a nested-lock deadlock in the team's build-submit transaction. Tracked as `usetheodev/theo-cloud#106`. Implementation lands in the `theo` engine repo.
 
