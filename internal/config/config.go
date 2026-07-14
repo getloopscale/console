@@ -169,6 +169,13 @@ type Config struct {
 	StorageS3SecretKey Secret
 	StorageShareSecret Secret
 
+	// StorageUpstreamURL, when set, switches the storage vertical to THIN-PROXY
+	// mode: theo-cloud forwards /v1/storage/* to the standalone theo-storage
+	// service (injecting the resolved tenant as X-Theo-Tenant) instead of running
+	// the vertical in-process. When set, the S3 vars above are NOT required here
+	// (theo-storage holds them). Env: STORAGE_UPSTREAM_URL.
+	StorageUpstreamURL string
+
 	// SessionTokenSecretPrevious is the previous HMAC key for zero-downtime rotation (§2.2).
 	// Tokens signed with this key are accepted during the rotation window.
 	// Env: SESSION_TOKEN_SECRET_PREVIOUS (optional)
@@ -240,16 +247,26 @@ func Load() Config {
 	cfg.StorageS3AccessKey = Secret(envOr("STORAGE_S3_ACCESS_KEY", ""))
 	cfg.StorageS3SecretKey = Secret(envOr("STORAGE_S3_SECRET_KEY", ""))
 	cfg.StorageShareSecret = Secret(envOr("STORAGE_SHARE_SECRET", ""))
+	cfg.StorageUpstreamURL = envOr("STORAGE_UPSTREAM_URL", "")
 	return cfg
 }
 
-// StorageEnabled reports whether the storage vertical is configured (any storage
-// field set). Validate enforces all-or-none once any is set.
-func (c Config) StorageEnabled() bool {
+// StorageProxyMode reports whether the storage vertical runs as a thin proxy to
+// the standalone theo-storage service (STORAGE_UPSTREAM_URL set). In this mode
+// the S3 vars are NOT required here.
+func (c Config) StorageProxyMode() bool { return c.StorageUpstreamURL != "" }
+
+// StorageInProcess reports whether the in-process S3-backed vertical is
+// configured (any S3 field set). Validate enforces all-or-none once any is set.
+func (c Config) StorageInProcess() bool {
 	return c.StorageS3Endpoint != "" || c.StorageS3Bucket != "" || c.StorageS3Region != "" ||
 		c.StorageS3AccessKey.Value() != "" || c.StorageS3SecretKey.Value() != "" ||
 		c.StorageShareSecret.Value() != ""
 }
+
+// StorageEnabled reports whether the storage vertical is active in either mode
+// (proxy OR in-process).
+func (c Config) StorageEnabled() bool { return c.StorageProxyMode() || c.StorageInProcess() }
 
 // Validate checks that required fields are set for production.
 func (c Config) Validate() error {
@@ -318,7 +335,9 @@ func (c Config) Validate() error {
 // validateStorage enforces the all-or-none contract for the storage vertical:
 // once any storage field is set, every field must be set.
 func (c Config) validateStorage() error {
-	if !c.StorageEnabled() {
+	// Proxy mode holds no S3 config here (theo-storage owns it) — the all-or-none
+	// S3 check does not apply. Only the in-process mode validates the S3 vars.
+	if c.StorageProxyMode() || !c.StorageInProcess() {
 		return nil
 	}
 	missing := []string{}
