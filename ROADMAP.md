@@ -208,7 +208,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 ---
 
-### M7 — [ ] Tenant Blob Storage (managed file storage — complete solution)
+### M7 — [x] Tenant Blob Storage (managed file storage — complete solution)
 
 > Added 2026-07-14 by `/roadmap-feature` (slug: `tenant-blob-storage`). See CHANGELOG `[Unreleased] § Added`. Sponsor mandate: COMPLETE solution — all journeys, UI, SDK, everything.
 
