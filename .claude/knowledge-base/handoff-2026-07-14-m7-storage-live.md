@@ -15,6 +15,30 @@ status: engineering DONE (pushed to develop, 4 repos); integration-proven vs rea
 > Postgres + MinIO. What is left is exactly ONE thing you can do and the
 > workstation cannot: **deploy it to dev-public and validate it LIVE**.
 
+> ### ⚠️ Update 2026-07-14 (architecture pivot — sponsor-confirmed): TWO valid LIVE paths
+>
+> Storage was extracted into a SEPARATE data-plane service **`theo-storage`** (new repo
+> `usetheodev/theo-storage`, pushed) and theo-cloud gained a **thin-proxy mode** (`STORAGE_UPSTREAM_URL`,
+> `internal/storageproxy`, commit `0277b1e`). Both paths satisfy the SAME `routes.StorageService`
+> interface. For flipping the **M7 checkbox** you may take EITHER LIVE path — pick the lower-risk one:
+>
+> - **Path A (recommended for the checkbox flip — lowest risk): in-process vertical on dev-public.**
+>   Exactly § 3 below — set `STORAGE_S3_*` on the theo-cloud deployment, apply migration 000057, seed a
+>   storage-scoped key, run the LIVE chain. `STORAGE_UPSTREAM_URL` stays UNSET → the in-process vertical
+>   serves `/v1/storage/*` unchanged. This is what the M7 DoD describes; it flips the checkbox.
+> - **Path B (strategic direction, proven LOCAL this session, LIVE deploy is more work): separate service
+>   behind the edge.** Deploy the `theo-storage` container (its `Dockerfile` + `docker-compose.yml` + README
+>   are in the repo) in `header` auth mode behind the edge/broker, set `STORAGE_UPSTREAM_URL` on theo-cloud
+>   → theo-cloud proxies to it injecting `X-Theo-Tenant`. Proven end-to-end LOCAL: theo-cloud handler →
+>   `storageproxy` → header-mode `theo-storage` → real PG+MinIO (`-tags=integration` E2E GREEN), plus the
+>   `@usetheo/storage` SDK 6/6 against the live standalone service. Do Path B as a follow-up once Path A has
+>   flipped the checkbox, OR do it directly if the edge wiring for a new data service is already scripted.
+>
+> Fresh re-verification this session (local Docker, all GREEN): theo-cli 9/9 · dashboard 4/4 ·
+> `@usetheo/storage` SDK 6/6 (live service) · theo-storage domain+glue · theo-cloud in-process integration
+> (real PG+MinIO) · proxy strangler-fig E2E. The M7 engineering DoD is 100% evidenced; only the LIVE
+> ceremony (Cleanroom + Red Team) remains to flip the checkbox.
+
 ## 1. TL;DR — what is done vs what remains
 
 **DONE (engineering, all on `develop`, pushed to origin):**
