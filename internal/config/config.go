@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // Secret is a string that redacts itself in logs, fmt output, and JSON serialization.
@@ -155,6 +156,19 @@ type Config struct {
 	// Env: LENS_PLATFORM_ADMIN_KEY
 	LensPlatformAdminKey Secret
 
+	// Storage* configure the M7 tenant blob-storage vertical's S3-compatible
+	// backend. All-or-none: setting any one requires all of Endpoint/Bucket/
+	// Region/AccessKey/SecretKey/ShareSecret (Validate enforces). Empty disables
+	// the storage vertical. Env: STORAGE_S3_ENDPOINT, STORAGE_S3_BUCKET,
+	// STORAGE_S3_REGION, STORAGE_S3_ACCESS_KEY, STORAGE_S3_SECRET_KEY,
+	// STORAGE_SHARE_SECRET.
+	StorageS3Endpoint  string
+	StorageS3Bucket    string
+	StorageS3Region    string
+	StorageS3AccessKey Secret
+	StorageS3SecretKey Secret
+	StorageShareSecret Secret
+
 	// SessionTokenSecretPrevious is the previous HMAC key for zero-downtime rotation (§2.2).
 	// Tokens signed with this key are accepted during the rotation window.
 	// Env: SESSION_TOKEN_SECRET_PREVIOUS (optional)
@@ -220,7 +234,21 @@ func Load() Config {
 	cfg.RagPlatformAdminKey = Secret(envOr("RAG_PLATFORM_ADMIN_KEY", ""))
 	cfg.LensBaseURL = envOr("LENS_BASE_URL", "")
 	cfg.LensPlatformAdminKey = Secret(envOr("LENS_PLATFORM_ADMIN_KEY", ""))
+	cfg.StorageS3Endpoint = envOr("STORAGE_S3_ENDPOINT", "")
+	cfg.StorageS3Bucket = envOr("STORAGE_S3_BUCKET", "")
+	cfg.StorageS3Region = envOr("STORAGE_S3_REGION", "")
+	cfg.StorageS3AccessKey = Secret(envOr("STORAGE_S3_ACCESS_KEY", ""))
+	cfg.StorageS3SecretKey = Secret(envOr("STORAGE_S3_SECRET_KEY", ""))
+	cfg.StorageShareSecret = Secret(envOr("STORAGE_SHARE_SECRET", ""))
 	return cfg
+}
+
+// StorageEnabled reports whether the storage vertical is configured (any storage
+// field set). Validate enforces all-or-none once any is set.
+func (c Config) StorageEnabled() bool {
+	return c.StorageS3Endpoint != "" || c.StorageS3Bucket != "" || c.StorageS3Region != "" ||
+		c.StorageS3AccessKey.Value() != "" || c.StorageS3SecretKey.Value() != "" ||
+		c.StorageShareSecret.Value() != ""
 }
 
 // Validate checks that required fields are set for production.
@@ -278,6 +306,45 @@ func (c Config) Validate() error {
 		if c.LensBaseURL != "" && c.LensPlatformAdminKey.Value() == "" {
 			return fmt.Errorf("LENS_PLATFORM_ADMIN_KEY is required in production when LENS_BASE_URL is set")
 		}
+	}
+	// M7 storage vertical: all-or-none across environments (a partial config would
+	// leave the vertical half-wired — fail-fast at boot rather than 500 at runtime).
+	if err := c.validateStorage(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateStorage enforces the all-or-none contract for the storage vertical:
+// once any storage field is set, every field must be set.
+func (c Config) validateStorage() error {
+	if !c.StorageEnabled() {
+		return nil
+	}
+	missing := []string{}
+	if c.StorageS3Endpoint == "" {
+		missing = append(missing, "STORAGE_S3_ENDPOINT")
+	}
+	if c.StorageS3Bucket == "" {
+		missing = append(missing, "STORAGE_S3_BUCKET")
+	}
+	if c.StorageS3Region == "" {
+		missing = append(missing, "STORAGE_S3_REGION")
+	}
+	if c.StorageS3AccessKey.Value() == "" {
+		missing = append(missing, "STORAGE_S3_ACCESS_KEY")
+	}
+	if c.StorageS3SecretKey.Value() == "" {
+		missing = append(missing, "STORAGE_S3_SECRET_KEY")
+	}
+	if c.StorageShareSecret.Value() == "" {
+		missing = append(missing, "STORAGE_SHARE_SECRET")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("storage vertical is partially configured — missing: %s (set all storage vars or none)", strings.Join(missing, ", "))
+	}
+	if len(c.StorageShareSecret.Value()) < 32 {
+		return fmt.Errorf("STORAGE_SHARE_SECRET must be at least 32 characters (HMAC key for share tokens)")
 	}
 	return nil
 }
