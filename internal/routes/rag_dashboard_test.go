@@ -10,21 +10,25 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/usetheodev/theo-cloud/internal/auth"
 	"github.com/usetheodev/theo-cloud/internal/rag"
 )
 
 // stubRagDataClient records the calls; it never talks to a real theo-rag.
 type stubRagDataClient struct {
-	listErr      error
-	analyticsErr error
-	writeErr     error
-	listCalls    int
-	analytics    int
-	createCalls  int
-	deleteCalls  int
-	ingestCalls  int
-	askCalls     int
+	listErr       error
+	analyticsErr  error
+	writeErr      error
+	listCalls     int
+	analytics     int
+	createCalls   int
+	deleteCalls   int
+	ingestCalls   int
+	askCalls      int
+	listConnCalls int
+	syncCalls     int
+	delConnCalls  int
 }
 
 func (s *stubRagDataClient) ListCollections(_ context.Context, _, _ int) (*rag.CollectionsResult, error) {
@@ -84,6 +88,27 @@ func (s *stubRagDataClient) Ask(_ context.Context, _ rag.AskInput) (json.RawMess
 		return nil, s.writeErr
 	}
 	return json.RawMessage(`{"answer":"hi [c1]","sources":[]}`), nil
+}
+
+func (s *stubRagDataClient) ListConnectors(_ context.Context) (*rag.ConnectionsResult, error) {
+	s.listConnCalls++
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return &rag.ConnectionsResult{Items: []rag.Connection{{ID: "conn_1", ProviderID: "s3", CollectionID: "col_1", Status: "active"}}}, nil
+}
+
+func (s *stubRagDataClient) SyncConnector(_ context.Context, _ string) (json.RawMessage, error) {
+	s.syncCalls++
+	if s.writeErr != nil {
+		return nil, s.writeErr
+	}
+	return json.RawMessage(`{"status":"enqueued","connection_id":"conn_1"}`), nil
+}
+
+func (s *stubRagDataClient) DeleteConnector(_ context.Context, _ string) error {
+	s.delConnCalls++
+	return s.writeErr
 }
 
 func newRagDashboard() (*RagDashboardHandler, *stubRagDataClient) {
@@ -196,6 +221,9 @@ func TestRagDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 		{"deleteDocument", h.DeleteDocument, httptest.NewRequest(http.MethodDelete, "/v1/dashboard/rag/documents/doc_x", nil)},
 		{"ask", h.Ask, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/answers", strings.NewReader(`{"collection_id":"c","question":"q"}`))},
 		{"listDocuments", h.ListDocuments, httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/documents?collection_id=c", nil)},
+		{"listConnectors", h.ListConnectors, httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors", nil)},
+		{"syncConnector", h.SyncConnector, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/connectors/conn_x/sync", nil)},
+		{"deleteConnector", h.DeleteConnector, httptest.NewRequest(http.MethodDelete, "/v1/dashboard/rag/connectors/conn_x", nil)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -210,4 +238,64 @@ func TestRagDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 		t.Fatalf("no-JWT requests must NOT reach upstream, got calls c=%d d=%d i=%d a=%d",
 			stub.createCalls, stub.deleteCalls, stub.ingestCalls, stub.askCalls)
 	}
+	if stub.listConnCalls+stub.syncCalls+stub.delConnCalls != 0 {
+		t.Fatalf("no-JWT connector requests must NOT reach upstream, got lc=%d s=%d dc=%d",
+			stub.listConnCalls, stub.syncCalls, stub.delConnCalls)
+	}
+}
+
+// withID injects a chi URL param {id} for the unit-tested handler (no router in the test).
+func withID(r *http.Request, id string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+}
+
+// #191 — the connectors surface: list (rag:read), sync (rag:write), delete (rag:delete).
+func TestRagDashboard_Connectors_HappyPath(t *testing.T) {
+	tenant := func(r *http.Request) *http.Request {
+		return r.WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"}))
+	}
+
+	t.Run("list returns the workspace connections", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		w := httptest.NewRecorder()
+		h.ListConnectors(w, tenant(httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors", nil)))
+		if w.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+		}
+		if stub.listConnCalls != 1 || !strings.Contains(w.Body.String(), "conn_1") {
+			t.Fatalf("expected 1 upstream list with conn_1, got calls=%d body=%s", stub.listConnCalls, w.Body.String())
+		}
+	})
+
+	t.Run("sync enqueues and passes through 202", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		w := httptest.NewRecorder()
+		req := withID(tenant(httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/connectors/conn_1/sync", nil)), "conn_1")
+		h.SyncConnector(w, req)
+		if w.Code != http.StatusAccepted || stub.syncCalls != 1 {
+			t.Fatalf("want 202 + 1 sync call, got %d calls=%d (%s)", w.Code, stub.syncCalls, w.Body.String())
+		}
+	})
+
+	t.Run("delete removes the connection (204)", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		w := httptest.NewRecorder()
+		req := withID(tenant(httptest.NewRequest(http.MethodDelete, "/v1/dashboard/rag/connectors/conn_1", nil)), "conn_1")
+		h.DeleteConnector(w, req)
+		if w.Code != http.StatusNoContent || stub.delConnCalls != 1 {
+			t.Fatalf("want 204 + 1 delete call, got %d calls=%d", w.Code, stub.delConnCalls)
+		}
+	})
+
+	t.Run("upstream error on list → 502", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		stub.listErr = context.DeadlineExceeded
+		w := httptest.NewRecorder()
+		h.ListConnectors(w, tenant(httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors", nil)))
+		if w.Code != http.StatusBadGateway {
+			t.Fatalf("want 502, got %d", w.Code)
+		}
+	})
 }

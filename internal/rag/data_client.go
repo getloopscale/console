@@ -220,6 +220,51 @@ func (c *DataClient) Ask(ctx context.Context, in AskInput) (json.RawMessage, err
 	return out, nil
 }
 
+// --- Connectors (theo-cloud #191 — dashboard connectors surface) --------------
+
+// Connection is the non-secret view of a connector connection (theo-rag presentConnection).
+type Connection struct {
+	ID           string  `json:"id"`
+	WorkspaceID  string  `json:"workspace_id"`
+	CollectionID string  `json:"collection_id"`
+	ProviderID   string  `json:"provider_id"`
+	Status       string  `json:"status"`
+	Cursor       *string `json:"cursor"`
+	CreatedAt    string  `json:"created_at"`
+	UpdatedAt    string  `json:"updated_at"`
+}
+
+// ConnectionsResult is the GET /v1/connectors response.
+type ConnectionsResult struct {
+	Items []Connection `json:"items"`
+}
+
+// ListConnectors proxies GET /v1/connectors — the workspace's connector connections.
+func (c *DataClient) ListConnectors(ctx context.Context) (*ConnectionsResult, error) {
+	var out ConnectionsResult
+	if err := c.getJSON(ctx, "/v1/connectors", nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Items == nil {
+		out.Items = []Connection{}
+	}
+	return &out, nil
+}
+
+// SyncConnector proxies POST /v1/connectors/{id}/sync — enqueues a sync (theo-rag returns 202).
+func (c *DataClient) SyncConnector(ctx context.Context, id string) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/v1/connectors/"+url.PathEscape(id)+"/sync", nil, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// DeleteConnector proxies DELETE /v1/connectors/{id} (theo-rag refuses with 409 while syncing).
+func (c *DataClient) DeleteConnector(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/connectors/"+url.PathEscape(id), nil, nil, nil)
+}
+
 // getJSON is the read wrapper (kept for the M17 read methods) — a GET via `do`.
 func (c *DataClient) getJSON(ctx context.Context, path string, q url.Values, out any) error {
 	return c.do(ctx, http.MethodGet, path, q, nil, out)

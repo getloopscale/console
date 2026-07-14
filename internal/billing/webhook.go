@@ -228,16 +228,23 @@ func (h *WebhookHandler) handleSubscriptionUpdated(exec dbExecer, event StripeEv
 		return fmt.Errorf("unmarshal subscription data: %w", err)
 	}
 
+	// #193 fix 2026-07-14: Stripe API 2025 moved current_period_start/end from
+	// subscription root to items.data[]. Newer API versions omit root fields
+	// → json.Unmarshal leaves int64 zero → time.Unix(0,0)=1970-01-01 → dashboard
+	// renders "Dec 31, 1969" in local TZ. Read from items.data[0] canonical
+	// location; keep root fields for backwards-compat with pre-2025 fixtures.
 	var sub struct {
 		ID                 string `json:"id"`
 		Customer           string `json:"customer"`
 		Status             string `json:"status"`
-		CurrentPeriodStart int64  `json:"current_period_start"`
+		CurrentPeriodStart int64  `json:"current_period_start"` // pre-2025 API (legacy fallback)
 		CurrentPeriodEnd   int64  `json:"current_period_end"`
 		Items              struct {
 			Data []struct {
-				ID    string `json:"id"` // subscription ITEM id (si_xxx) — required for metered usage reporting
-				Price struct {
+				ID                 string `json:"id"` // subscription ITEM id (si_xxx) — required for metered usage reporting
+				CurrentPeriodStart int64  `json:"current_period_start"` // Stripe API 2025 canonical
+				CurrentPeriodEnd   int64  `json:"current_period_end"`
+				Price              struct {
 					ID         string `json:"id"`
 					UnitAmount int64  `json:"unit_amount"` // recurring amount in minor units (J-06 D1)
 					Currency   string `json:"currency"`
@@ -247,6 +254,14 @@ func (h *WebhookHandler) handleSubscriptionUpdated(exec dbExecer, event StripeEv
 	}
 	if err := json.Unmarshal(data.Object, &sub); err != nil {
 		return fmt.Errorf("unmarshal subscription object: %w", err)
+	}
+
+	// #193: prefer per-item period (Stripe API 2025); fall back to root (legacy).
+	periodStart := sub.CurrentPeriodStart
+	periodEnd := sub.CurrentPeriodEnd
+	if len(sub.Items.Data) > 0 && sub.Items.Data[0].CurrentPeriodStart > 0 {
+		periodStart = sub.Items.Data[0].CurrentPeriodStart
+		periodEnd = sub.Items.Data[0].CurrentPeriodEnd
 	}
 
 	// §1.3: Derive plan from price ID (handles upgrade/downgrade via Customer Portal)
@@ -286,8 +301,8 @@ func (h *WebhookHandler) handleSubscriptionUpdated(exec dbExecer, event StripeEv
 			        amount_minor = $8, currency = $9, updated_at = now()
 			 WHERE stripe_subscription_id = $3 OR stripe_customer_id = $7`,
 			sub.Status, plan, sub.ID, itemID,
-			time.Unix(sub.CurrentPeriodStart, 0),
-			time.Unix(sub.CurrentPeriodEnd, 0),
+			time.Unix(periodStart, 0),
+			time.Unix(periodEnd, 0),
 			sub.Customer, amountMinor, currency,
 		)
 		return err

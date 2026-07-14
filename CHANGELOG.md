@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **Dashboard: RAG Connectors page + BFF proxy (#191):** a new `/rag/connectors` page lists the workspace's connector connections (provider / collection / status / created) and lets a user trigger a sync or delete one (confirm); backed by 3 new tenant-gated BFF proxy routes (`GET /v1/dashboard/rag/connectors`, `POST .../{id}/sync`, `DELETE .../{id}`) mirroring the collections surface (Model-B per-tenant key). v1 is MANAGE-only — connecting a NEW source from the dashboard (per-provider OAuth/credential flow) + the documents-page enrichment + a webhooks page remain follow-ups on #191.
 
 ### Changed
 
@@ -9,6 +10,7 @@
 ### Removed
 
 ### Fixed
+- Dashboard smoke test now actually type-checks the dashboard: added the missing `typecheck` npm script (`tsc --noEmit`) that the `task test:smoke` target already invoked — previously it fell through to a graceful "not configured" echo, silently skipping the dashboard type-check (a false-green). Closes the T2.6 DoD of canonical-tests-rewrite-v2 ("dashboard type-check clean"); tsc is clean (0 errors).
 
 ### Security
 
@@ -26,6 +28,11 @@
 ### Fixed
 
 ### Security
+
+## [0.32.1] - 2026-07-14
+
+### Fixed
+- **theo-cloud#193 — billing "USAGE THIS PERIOD" showed Dec 31, 1969 (epoch-0) on Pro plan.** Red Team QA session 2026-07-14T13:xx flagged: after Stripe upgrade to Pro, dashboard `/billing` renders `USAGE THIS PERIOD: DEC 31, 1969 – DEC 31, 1969`. Root cause: Stripe API 2025 relocated `current_period_start/end` from subscription root to `items.data[].current_period_start/end` (per-item billing periods). The `handleSubscriptionUpdated` handler in `internal/billing/webhook.go:231-247` reads from root only → `json.Unmarshal` leaves int64 zero → `time.Unix(0,0)=1970-01-01` → dashboard TZ-adjusts to "Dec 31, 1969". LIVE evidence pre-fix: `SELECT current_period_start FROM subscriptions WHERE tenant_id='tn-d10e0b6430d51588'` = `1970-01-01 00:00:00+00`. Confirmed via `GET https://api.stripe.com/v1/subscriptions/{id}` — actual periods live at `items.data[0].current_period_start=1784036010` (2026-07-14) + `items.data[0].current_period_end=1786714410` (2026-08-14). Canonical fix: add `CurrentPeriodStart/End` fields to `sub.Items.Data[]` struct + prefer item-level values when non-zero, fall back to root (legacy pre-2025 fixtures). Backfilled current tenant PG row LIVE. NO workaround (no time.Now() fallback per Rule 3 honesty — dashboard should render "—" on zero, not hide with current-time deception; that's a separate dashboard hardening ticket).
 
 ## [0.31.0] - 2026-07-10
 

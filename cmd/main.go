@@ -165,6 +165,10 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, requireJWT f
 		r.Post("/documents", h.IngestDocument)
 		r.Delete("/documents/{id}", h.DeleteDocument)
 		r.Post("/answers", h.Ask)
+		// connectors (#191)
+		r.Get("/connectors", h.ListConnectors)
+		r.Post("/connectors/{id}/sync", h.SyncConnector)
+		r.Delete("/connectors/{id}", h.DeleteConnector)
 	})
 }
 
