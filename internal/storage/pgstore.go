@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // PGStore is the Postgres implementation of MetaStore over the storage_objects
@@ -73,10 +74,29 @@ func (s *PGStore) SumBytes(ctx context.Context, tenantID string) (int64, error) 
 	return total.Int64, nil
 }
 
-// InsertPending inserts a pending row and returns its id.
-func (s *PGStore) InsertPending(ctx context.Context, tenantID, name string, size int64, mime string) (string, error) {
+// InsertPending reserves a row. It first captures any prior COMMITTED row for the
+// same (tenant, name) — inside the same locked tx — so an overwrite-then-fail can
+// restore it (HIGH-4). Then it upserts to pending and returns the reservation.
+func (s *PGStore) InsertPending(ctx context.Context, tenantID, name string, size int64, mime string) (Reservation, error) {
+	q := txFrom(ctx, s.db)
+
+	// Capture prior committed state (if any) before we flip the row to pending.
+	var priorSize int64
+	var priorMime string
+	priorCommitted := false
+	err := q.QueryRowContext(ctx,
+		`SELECT size_bytes, mime_type FROM storage_objects
+		 WHERE tenant_id = $1 AND name = $2 AND status = 'committed'`,
+		tenantID, name,
+	).Scan(&priorSize, &priorMime)
+	if err == nil {
+		priorCommitted = true
+	} else if err != sql.ErrNoRows {
+		return Reservation{}, fmt.Errorf("storage: read prior: %w", err)
+	}
+
 	var id string
-	err := txFrom(ctx, s.db).QueryRowContext(ctx,
+	err = q.QueryRowContext(ctx,
 		`INSERT INTO storage_objects (tenant_id, name, size_bytes, mime_type, status)
 		 VALUES ($1, $2, $3, $4, 'pending')
 		 ON CONFLICT (tenant_id, name) DO UPDATE SET size_bytes = EXCLUDED.size_bytes,
@@ -85,9 +105,22 @@ func (s *PGStore) InsertPending(ctx context.Context, tenantID, name string, size
 		tenantID, name, size, mime,
 	).Scan(&id)
 	if err != nil {
-		return "", fmt.Errorf("storage: insert pending: %w", err)
+		return Reservation{}, fmt.Errorf("storage: insert pending: %w", err)
 	}
-	return id, nil
+	return Reservation{ID: id, PriorCommitted: priorCommitted, PriorSize: priorSize, PriorMime: priorMime}, nil
+}
+
+// RestorePrior reverts a replaced object back to committed with its prior size/
+// mime (HIGH-4 — overwrite-then-fail must not destroy the prior object).
+func (s *PGStore) RestorePrior(ctx context.Context, id string, priorSize int64, priorMime string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE storage_objects SET status = 'committed', size_bytes = $2, mime_type = $3, updated_at = now()
+		 WHERE id = $1`,
+		id, priorSize, priorMime)
+	if err != nil {
+		return fmt.Errorf("storage: restore prior: %w", err)
+	}
+	return nil
 }
 
 // MarkCommitted flips a row to committed after the bytes land in S3.
@@ -131,11 +164,15 @@ func (s *PGStore) GetMeta(ctx context.Context, tenantID, name string) (ObjectRec
 // by name, using keyset pagination (name > cursor). nextCursor is the last name
 // returned when the page is full, else "".
 func (s *PGStore) ListByPrefix(ctx context.Context, tenantID, prefix string, limit int, cursor string) ([]ObjectRecord, string, error) {
+	// MEDIUM-2: escape LIKE metacharacters so a prefix containing %, _ or \ is
+	// treated literally (a bare `%` prefix must NOT list the whole store). ESCAPE
+	// '\' makes the backslash the escape char.
+	escaped := likeEscape(prefix)
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT name, size_bytes, mime_type FROM storage_objects
-		 WHERE tenant_id = $1 AND status = 'committed' AND name LIKE $2 || '%' AND name > $3
+		 WHERE tenant_id = $1 AND status = 'committed' AND name LIKE $2 || '%' ESCAPE '\' AND name > $3
 		 ORDER BY name ASC LIMIT $4`,
-		tenantID, prefix, cursor, limit,
+		tenantID, escaped, cursor, limit,
 	)
 	if err != nil {
 		return nil, "", fmt.Errorf("storage: list: %w", err)
@@ -158,6 +195,13 @@ func (s *PGStore) ListByPrefix(ctx context.Context, tenantID, prefix string, lim
 		next = out[len(out)-1].Name
 	}
 	return out, next, nil
+}
+
+// likeEscape escapes the LIKE metacharacters (\, %, _) so the prefix matches
+// literally under `ESCAPE '\'`.
+func likeEscape(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
 }
 
 // DeleteByName removes a committed object's metadata row.

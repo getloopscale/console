@@ -23,13 +23,16 @@ func (f *fakeMetaStore) SumBytes(ctx context.Context, tenantID string) (int64, e
 	return f.used, nil
 }
 
-func (f *fakeMetaStore) InsertPending(ctx context.Context, tenantID, name string, size int64, mime string) (string, error) {
+func (f *fakeMetaStore) InsertPending(ctx context.Context, tenantID, name string, size int64, mime string) (Reservation, error) {
 	if f.insertErr != nil {
-		return "", f.insertErr
+		return Reservation{}, f.insertErr
 	}
 	f.pendingCalls++
 	f.used += size
-	return "obj-id", nil
+	return Reservation{ID: "obj-id"}, nil
+}
+func (f *fakeMetaStore) RestorePrior(ctx context.Context, id string, priorSize int64, priorMime string) error {
+	return nil
 }
 
 func (f *fakeMetaStore) MarkCommitted(ctx context.Context, id string) error { return nil }
@@ -55,11 +58,11 @@ func TestReserve_UnderCap(t *testing.T) {
 	store := &fakeMetaStore{used: 10 << 20} // 10MB used
 	q := NewQuota(store, "starter")          // 100MB aggregate cap
 
-	id, err := q.Reserve(context.Background(), "tn", "f", 5<<20, "text/plain")
+	res, err := q.Reserve(context.Background(), "tn", "f", 5<<20, "text/plain")
 	if err != nil {
 		t.Fatalf("Reserve under cap: %v", err)
 	}
-	if id == "" {
+	if res.ID == "" {
 		t.Error("expected an object id")
 	}
 	if store.pendingCalls != 1 {

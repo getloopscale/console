@@ -59,7 +59,12 @@ func (h *StorageHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	if mime == "" {
 		mime = "application/octet-stream"
 	}
-	err := h.svc.Upload(r.Context(), tenantOf(r), path, r.Body, r.ContentLength, mime)
+	// HIGH-1: never trust the client Content-Length unbounded — cap the readable
+	// body at the declared size so the bytes streamed to storage cannot exceed
+	// what quota reserved (the per-file cap is enforced by the quota reserve on
+	// the declared size; MaxBytesReader stops a body that lies larger).
+	body := http.MaxBytesReader(w, r.Body, r.ContentLength)
+	err := h.svc.Upload(r.Context(), tenantOf(r), path, body, r.ContentLength, mime)
 	if err != nil {
 		writeStorageError(w, statusForStorageErr(err), codeForStorageErr(err), messageForStorageErr(err))
 		return

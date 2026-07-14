@@ -42,9 +42,17 @@ type MetaStore interface {
 	// xact lock. All SumBytes/InsertPending inside fn are serialized per tenant.
 	WithTenantLock(ctx context.Context, tenantID string, fn func(context.Context) error) error
 	SumBytes(ctx context.Context, tenantID string) (int64, error)
-	InsertPending(ctx context.Context, tenantID, name string, size int64, mime string) (id string, err error)
+	// InsertPending reserves a row and reports whether it REPLACED a previously-
+	// committed object (with that object's prior size/mime) so a later failure can
+	// restore it instead of destroying it.
+	InsertPending(ctx context.Context, tenantID, name string, size int64, mime string) (Reservation, error)
 	MarkCommitted(ctx context.Context, id string) error
 	DeletePending(ctx context.Context, id string) error
+
+	// RestorePrior reverts a reservation that REPLACED a previously-committed
+	// object back to that committed object (HIGH-4 fix — an overwrite-then-fail
+	// must not destroy the prior good object).
+	RestorePrior(ctx context.Context, id string, priorSize int64, priorMime string) error
 
 	// Object read/list/delete ops (committed rows only, always tenant-scoped).
 	GetMeta(ctx context.Context, tenantID, name string) (ObjectRecord, error)
@@ -62,6 +70,16 @@ type ObjectRecord struct {
 // ErrObjectNotFoundMeta is returned by GetMeta when no committed row matches.
 // Handlers map it to HTTP 404.
 var ErrObjectNotFoundMeta = fmt.Errorf("storage: object metadata not found")
+
+// Reservation is the outcome of a successful Reserve: the pending row id plus,
+// when the reserve replaced an existing committed object, that object's prior
+// state (so Compensate can restore it on failure — HIGH-4 fix).
+type Reservation struct {
+	ID             string
+	PriorCommitted bool
+	PriorSize      int64
+	PriorMime      string
+}
 
 // Quota enforces per-tenant storage caps using the reserve→commit→compensate
 // protocol (blueprint ADR D2).
@@ -81,12 +99,12 @@ func NewQuota(store MetaStore, tier string) *Quota {
 // an oversize upload is rejected without a DB round-trip (plan T2.3).
 // Returns the pending object id; caller then uploads bytes and calls Commit (or
 // Compensate on failure).
-func (q *Quota) Reserve(ctx context.Context, tenantID, name string, size int64, mime string) (string, error) {
+func (q *Quota) Reserve(ctx context.Context, tenantID, name string, size int64, mime string) (Reservation, error) {
 	if q.caps.PerFileBytes != Unlimited && size > q.caps.PerFileBytes {
-		return "", &FileTooLargeError{SizeBytes: size, MaxFileBytes: q.caps.PerFileBytes}
+		return Reservation{}, &FileTooLargeError{SizeBytes: size, MaxFileBytes: q.caps.PerFileBytes}
 	}
 
-	var id string
+	var res Reservation
 	err := q.store.WithTenantLock(ctx, tenantID, func(ctx context.Context) error {
 		used, err := q.store.SumBytes(ctx, tenantID)
 		if err != nil {
@@ -95,22 +113,27 @@ func (q *Quota) Reserve(ctx context.Context, tenantID, name string, size int64, 
 		if q.caps.AggregateBytes != Unlimited && used+size > q.caps.AggregateBytes {
 			return &QuotaExceededError{UsedBytes: used, LimitBytes: q.caps.AggregateBytes, AddBytes: size}
 		}
-		id, err = q.store.InsertPending(ctx, tenantID, name, size, mime)
+		res, err = q.store.InsertPending(ctx, tenantID, name, size, mime)
 		return err
 	})
 	if err != nil {
-		return "", err
+		return Reservation{}, err
 	}
-	return id, nil
+	return res, nil
 }
 
 // Commit marks a reserved object as committed (bytes uploaded successfully).
-func (q *Quota) Commit(ctx context.Context, id string) error {
-	return q.store.MarkCommitted(ctx, id)
+func (q *Quota) Commit(ctx context.Context, res Reservation) error {
+	return q.store.MarkCommitted(ctx, res.ID)
 }
 
-// Compensate removes a pending reservation whose upload failed (blueprint Q3
-// compensation pattern) — the row must not keep counting against quota.
-func (q *Quota) Compensate(ctx context.Context, id string) error {
-	return q.store.DeletePending(ctx, id)
+// Compensate reverses a reservation whose upload failed. If the reserve REPLACED
+// a previously-committed object, the prior object is RESTORED (not deleted) so an
+// overwrite-then-fail never destroys good data (HIGH-4). Otherwise the pending row
+// is removed (blueprint Q3 compensation).
+func (q *Quota) Compensate(ctx context.Context, res Reservation) error {
+	if res.PriorCommitted {
+		return q.store.RestorePrior(ctx, res.ID, res.PriorSize, res.PriorMime)
+	}
+	return q.store.DeletePending(ctx, res.ID)
 }

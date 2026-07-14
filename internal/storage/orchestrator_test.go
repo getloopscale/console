@@ -69,12 +69,28 @@ func (m *fakeFullMeta) WithTenantLock(ctx context.Context, t string, fn func(con
 	return fn(ctx)
 }
 func (m *fakeFullMeta) SumBytes(ctx context.Context, t string) (int64, error) { return m.used, nil }
-func (m *fakeFullMeta) InsertPending(ctx context.Context, t, name string, size int64, mime string) (string, error) {
+func (m *fakeFullMeta) InsertPending(ctx context.Context, t, name string, size int64, mime string) (Reservation, error) {
+	res := Reservation{ID: "id-" + name}
+	if prior, ok := m.rows[name]; ok {
+		res.PriorCommitted = true
+		res.PriorSize = prior.SizeBytes
+		res.PriorMime = prior.MimeType
+	}
 	m.used += size
-	id := "id-" + name
-	m.pending[id] = true
+	m.pending[res.ID] = true
 	m.rows[name] = ObjectRecord{Name: name, SizeBytes: size, MimeType: mime}
-	return id, nil
+	return res, nil
+}
+func (m *fakeFullMeta) RestorePrior(ctx context.Context, id string, priorSize int64, priorMime string) error {
+	name := strings.TrimPrefix(id, "id-")
+	// undo the failed reserve's size delta, restore prior committed size
+	if cur, ok := m.rows[name]; ok {
+		m.used -= cur.SizeBytes
+	}
+	m.used += priorSize
+	m.rows[name] = ObjectRecord{Name: name, SizeBytes: priorSize, MimeType: priorMime}
+	delete(m.pending, id)
+	return nil
 }
 func (m *fakeFullMeta) MarkCommitted(ctx context.Context, id string) error { delete(m.pending, id); return nil }
 func (m *fakeFullMeta) DeletePending(ctx context.Context, id string) error {
@@ -232,5 +248,32 @@ func TestService_Delete_RemovesBackendThenMeta(t *testing.T) {
 	}
 	if _, err := svc.Stat(context.Background(), "tn", "gone.txt"); !errors.Is(err, ErrObjectNotFoundMeta) {
 		t.Error("metadata must be gone after delete")
+	}
+}
+
+// TestService_Upload_OverwriteThenFail_PreservesPriorObject is the HIGH-4
+// regression (review 2026-07-14): re-uploading over an existing committed object
+// that then fails at the S3 leg MUST NOT destroy the prior committed object.
+func TestService_Upload_OverwriteThenFail_PreservesPriorObject(t *testing.T) {
+	obj, meta := newFakeObjectStore(), newFakeFullMeta()
+	svc := newService(t, obj, meta, "pro")
+
+	// First upload succeeds → committed.
+	if err := svc.Upload(context.Background(), "tn", "keep.txt", strings.NewReader("original"), 8, "text/plain"); err != nil {
+		t.Fatalf("first upload: %v", err)
+	}
+	// Second upload of the SAME path fails at the S3 leg.
+	obj.putErr = errors.New("s3 down")
+	if err := svc.Upload(context.Background(), "tn", "keep.txt", strings.NewReader("newer-bigger"), 12, "text/plain"); err == nil {
+		t.Fatal("expected second upload to fail")
+	}
+
+	// The prior committed object MUST still be there with its original size.
+	rec, err := svc.Stat(context.Background(), "tn", "keep.txt")
+	if err != nil {
+		t.Fatalf("prior object was destroyed by overwrite-then-fail: %v", err)
+	}
+	if rec.SizeBytes != 8 {
+		t.Errorf("prior object size = %d, want 8 (must be restored, not left as the failed 12)", rec.SizeBytes)
 	}
 }

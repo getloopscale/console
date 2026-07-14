@@ -6,6 +6,7 @@ package storage
 import (
 	"context"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/usetheodev/theo-cloud/internal/storage/share"
@@ -66,17 +67,23 @@ func (s *Service) Upload(ctx context.Context, tenantID, path string, body io.Rea
 	}
 	q := NewQuota(s.meta, tier)
 
-	id, err := q.Reserve(ctx, tenantID, path, size, mime)
+	res, err := q.Reserve(ctx, tenantID, path, size, mime)
 	if err != nil {
 		return err // FileTooLargeError / QuotaExceededError / store error
 	}
 
 	key := KeyForTenant(tenantID, path)
 	if err := s.store.PutObject(ctx, key, body, size, mime); err != nil {
-		_ = q.Compensate(ctx, id) // best-effort; the pending row must not linger
+		// Compensate restores a replaced object or removes the pending row. A
+		// compensation failure is exactly what would orphan a pending row, so it
+		// is logged (never silently swallowed).
+		if cerr := q.Compensate(ctx, res); cerr != nil {
+			slog.ErrorContext(ctx, "storage: compensation failed after upload error — pending row may linger",
+				"tenant", tenantID, "path", path, "compensate_err", cerr, "upload_err", err)
+		}
 		return err
 	}
-	if err := q.Commit(ctx, id); err != nil {
+	if err := q.Commit(ctx, res); err != nil {
 		return err
 	}
 	if s.meter != nil {
