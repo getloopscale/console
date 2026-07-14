@@ -29,6 +29,11 @@
 
 ### Security
 
+## [0.32.1] - 2026-07-14
+
+### Fixed
+- **theo-cloud#193 — billing "USAGE THIS PERIOD" showed Dec 31, 1969 (epoch-0) on Pro plan.** Red Team QA session 2026-07-14T13:xx flagged: after Stripe upgrade to Pro, dashboard `/billing` renders `USAGE THIS PERIOD: DEC 31, 1969 – DEC 31, 1969`. Root cause: Stripe API 2025 relocated `current_period_start/end` from subscription root to `items.data[].current_period_start/end` (per-item billing periods). The `handleSubscriptionUpdated` handler in `internal/billing/webhook.go:231-247` reads from root only → `json.Unmarshal` leaves int64 zero → `time.Unix(0,0)=1970-01-01` → dashboard TZ-adjusts to "Dec 31, 1969". LIVE evidence pre-fix: `SELECT current_period_start FROM subscriptions WHERE tenant_id='tn-d10e0b6430d51588'` = `1970-01-01 00:00:00+00`. Confirmed via `GET https://api.stripe.com/v1/subscriptions/{id}` — actual periods live at `items.data[0].current_period_start=1784036010` (2026-07-14) + `items.data[0].current_period_end=1786714410` (2026-08-14). Canonical fix: add `CurrentPeriodStart/End` fields to `sub.Items.Data[]` struct + prefer item-level values when non-zero, fall back to root (legacy pre-2025 fixtures). Backfilled current tenant PG row LIVE. NO workaround (no time.Now() fallback per Rule 3 honesty — dashboard should render "—" on zero, not hide with current-time deception; that's a separate dashboard hardening ticket).
+
 ## [0.31.0] - 2026-07-10
 
 ### Added
