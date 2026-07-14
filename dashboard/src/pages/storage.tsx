@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Trash2, Link2, HardDrive } from 'lucide-react';
+import { RefreshCw, Trash2, Link2, HardDrive, Upload } from 'lucide-react';
 import { Button, Card, PageShell, Skeleton, EmptyState } from '@usetheo/ui';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -51,6 +51,9 @@ export function StoragePage() {
   useRequireAuth();
   const queryClient = useQueryClient();
   const [shareLink, setShareLink] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const usageQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/storage/usage'] as const,
@@ -76,6 +79,38 @@ export function StoragePage() {
     if (!res) return;
     setShareLink(res.url);
     void navigator.clipboard?.writeText(res.url);
+  };
+
+  // Upload the selected file(s) via the BFF PUT (PUT /v1/dashboard/storage/objects/{name}).
+  // The object name is the file name; the raw bytes go in the body with the file's own
+  // Content-Type (never JSON). Quota/size rejections (402/413) surface as a typed error.
+  const onUploadFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const buf = await file.arrayBuffer();
+        await cloudFetch(
+          `/v1/dashboard/storage/objects/${file.name.split('/').map(encodeURIComponent).join('/')}`,
+          { method: 'PUT', body: buf, headers: { 'Content-Type': file.type || 'application/octet-stream' } },
+          { throwOnError: true },
+        );
+      }
+      onRefresh();
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      setUploadError(
+        status === 413
+          ? 'That file is larger than your plan allows.'
+          : status === 402
+            ? "You've reached your plan's storage limit. Delete files or upgrade."
+            : 'Upload failed. Please try again.',
+      );
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const onDelete = async (path: string) => {
@@ -106,6 +141,35 @@ export function StoragePage() {
           role="status"
         >
           Share link copied: {shareLink}
+        </div>
+      )}
+
+      {/* Upload */}
+      <div className="flex items-center gap-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          data-testid="file-input"
+          onChange={(e) => void onUploadFiles(e.target.files)}
+        />
+        <Button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          aria-label="Upload files"
+        >
+          <Upload className="h-4 w-4 mr-2" />
+          {uploading ? 'Uploading…' : 'Upload files'}
+        </Button>
+      </div>
+      {uploadError && (
+        <div
+          data-testid="upload-error"
+          className="rounded border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+          role="alert"
+        >
+          {uploadError}
         </div>
       )}
 
@@ -160,7 +224,7 @@ export function StoragePage() {
         <EmptyState
           className="mt-4"
           title="No files yet"
-          description="Your app can store files here with the Theo storage API, CLI, or SDK."
+          description="Upload a file above, or store files from your app with the Theo storage API, CLI, or SDK."
         />
       )}
     </PageShell>

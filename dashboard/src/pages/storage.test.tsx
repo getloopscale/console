@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { fireEvent, waitFor } from '@testing-library/react';
 import { render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
@@ -54,6 +55,42 @@ describe('StoragePage (/storage)', () => {
     shareBtn.click();
 
     expect(await screen.findByTestId('share-link')).toHaveTextContent('/v1/storage/shared/tok123');
+  });
+
+  it('upload button PUTs the selected file to the storage BFF with its content-type', async () => {
+    const put = vi.fn(
+      (_url: string, _init: { method?: string; headers?: Record<string, string> }) =>
+        Promise.resolve({ path: 'notes.txt', size: 5 }),
+    );
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string; headers?: Record<string, string> }) => {
+      if (url.includes('/objects/') && init?.method === 'PUT') return put(url, init);
+      return routeByUrl(url);
+    });
+    render(<StoragePage />);
+
+    const input = (await screen.findByTestId('file-input')) as HTMLInputElement;
+    const file = new File(['hello'], 'notes.txt', { type: 'text/plain' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => expect(put).toHaveBeenCalled());
+    const [url, init] = put.mock.calls[0];
+    expect(url).toBe('/v1/dashboard/storage/objects/notes.txt');
+    expect(init.method).toBe('PUT');
+    expect(init.headers?.['Content-Type']).toBe('text/plain');
+  });
+
+  it('shows a plan-limit message when an upload is rejected (413)', async () => {
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url.includes('/objects/') && init?.method === 'PUT') return Promise.reject({ status: 413 });
+      return routeByUrl(url);
+    });
+    render(<StoragePage />);
+
+    const input = (await screen.findByTestId('file-input')) as HTMLInputElement;
+    const file = new File([new Uint8Array(10)], 'big.bin', { type: 'application/octet-stream' });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByTestId('upload-error')).toHaveTextContent(/larger than your plan/i);
   });
 
   it('uses product language only (no infra terms)', async () => {
