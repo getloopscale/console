@@ -23,5 +23,5 @@ func TestAddStorageBytes_PrometheusCounter(t *testing.T) {
 	}
 }
 
-// PGMeter must satisfy the Meter interface (compile-time assertion).
-var _ Meter = (*PGMeter)(nil)
+// PromMeter must satisfy the Meter interface (compile-time assertion).
+var _ Meter = (*PromMeter)(nil)

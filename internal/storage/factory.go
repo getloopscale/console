@@ -41,7 +41,7 @@ func BuildService(db *sql.DB, cfg BackendConfig) (*Service, error) {
 		&s3Adapter{c: client},
 		NewPGStore(db),
 		NewPGTierResolver(db),
-		NewPGMeter(db, nil),
+		NewPromMeter(),
 		cfg.ShareSecret,
 	), nil
 }
@@ -80,5 +80,5 @@ var (
 	_ ObjectStore  = (*s3Adapter)(nil)
 	_ MetaStore    = (*PGStore)(nil)
 	_ TierResolver = (*PGTierResolver)(nil)
-	_ Meter        = (*PGMeter)(nil)
+	_ Meter        = (*PromMeter)(nil)
 )
