@@ -104,6 +104,11 @@ var validScopes = map[string]bool{
 	"rag:read":             true,
 	"rag:write":            true,
 	"rag:delete":           true,
+	// Storage vertical (M7 tenant blob storage) — a customer issues a key carrying
+	// storage:read/storage:write for the /v1/storage edge. No customer-issuable
+	// storage:admin: the vertical is in-process (no broker key mint, unlike rag).
+	"storage:read":  true,
+	"storage:write": true,
 }
 
 // reservedScopes are RESERVED for future verticals per D2. Requesting one

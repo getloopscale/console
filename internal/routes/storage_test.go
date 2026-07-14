@@ -214,3 +214,18 @@ func TestStorageHandler_List_JSONShape(t *testing.T) {
 		t.Errorf("files = %v, want one a.txt", body.Files)
 	}
 }
+
+// TestStorageScopesRegistered locks the storage:read/storage:write scopes into
+// the active registry (T2.1) — a regression here would silently 403 every
+// storage request. storage:admin must NOT be customer-issuable (in-process
+// vertical, no broker mint).
+func TestStorageScopesRegistered(t *testing.T) {
+	for _, s := range []string{"storage:read", "storage:write"} {
+		if !validScopes[s] {
+			t.Errorf("scope %q must be in the active validScopes registry", s)
+		}
+	}
+	if validScopes["storage:admin"] {
+		t.Error("storage:admin must NOT be customer-issuable")
+	}
+}
