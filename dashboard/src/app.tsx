@@ -102,6 +102,9 @@ const SkillsPage = lazy(() =>
 const RagOverviewPage = lazy(() =>
   import('@/pages/rag').then((m) => ({ default: m.RagOverviewPage })),
 );
+const StoragePage = lazy(() =>
+  import('@/pages/storage').then((m) => ({ default: m.StoragePage })),
+);
 const RagCollectionsPage = lazy(() =>
   import('@/pages/rag/collections').then((m) => ({ default: m.RagCollectionsPage })),
 );
@@ -432,6 +435,7 @@ export default function App() {
                     <Route path="/memory/playground" element={<Boundaried path="/memory/playground"><PlaygroundPage /></Boundaried>} />
                     <Route path="/memory/skills" element={<Boundaried path="/memory/skills"><SkillsPage /></Boundaried>} />
                     <Route path="/rag" element={<Boundaried path="/rag"><RagOverviewPage /></Boundaried>} />
+                    <Route path="/storage" element={<Boundaried path="/storage"><StoragePage /></Boundaried>} />
                     <Route path="/rag/collections" element={<Boundaried path="/rag/collections"><RagCollectionsPage /></Boundaried>} />
                     <Route path="/rag/connectors" element={<Boundaried path="/rag/connectors"><RagConnectorsPage /></Boundaried>} />
                     <Route path="/rag/documents" element={<Boundaried path="/rag/documents"><RagDocumentsPage /></Boundaried>} />

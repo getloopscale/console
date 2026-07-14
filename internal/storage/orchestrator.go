@@ -143,6 +143,34 @@ func (s *Service) Share(ctx context.Context, tenantID, path string, ttl time.Dur
 	return tok, time.Now().Add(ttl), nil
 }
 
+// Usage reports the tenant's current aggregate usage and their plan's caps —
+// powers the dashboard quota bar. AggregateLimit is -1 (Unlimited) for Enterprise.
+func (s *Service) Usage(ctx context.Context, tenantID string) (UsageInfo, error) {
+	tier, err := s.tiers.TierForTenant(ctx, tenantID)
+	if err != nil {
+		return UsageInfo{}, err
+	}
+	used, err := s.meta.SumBytes(ctx, tenantID)
+	if err != nil {
+		return UsageInfo{}, err
+	}
+	caps := CapsForTier(tier)
+	return UsageInfo{
+		UsedBytes:      used,
+		AggregateLimit: caps.AggregateBytes,
+		PerFileLimit:   caps.PerFileBytes,
+		Tier:           tier,
+	}, nil
+}
+
+// UsageInfo is the tenant's storage usage snapshot.
+type UsageInfo struct {
+	UsedBytes      int64
+	AggregateLimit int64 // -1 = unlimited
+	PerFileLimit   int64
+	Tier           string
+}
+
 // Redeem verifies a share token and returns a streaming reader for the object.
 // The S3 key is re-derived from the token's tenant claim (never client input) —
 // EC-1 isolation on the unauthenticated route.

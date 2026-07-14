@@ -61,6 +61,9 @@ func (s *stubStorageService) Share(ctx context.Context, tenant, path string, ttl
 	}
 	return "tok123", time.Now().Add(ttl), nil
 }
+func (s *stubStorageService) Usage(ctx context.Context, tenant string) (storage.UsageInfo, error) {
+	return storage.UsageInfo{UsedBytes: 42, AggregateLimit: 100 << 20, PerFileLimit: 25 << 20, Tier: "starter"}, nil
+}
 func (s *stubStorageService) Redeem(ctx context.Context, token string) (io.ReadCloser, storage.ObjectMeta, error) {
 	if s.redeemErr != nil {
 		return nil, storage.ObjectMeta{}, s.redeemErr
@@ -227,5 +230,26 @@ func TestStorageScopesRegistered(t *testing.T) {
 	}
 	if validScopes["storage:admin"] {
 		t.Error("storage:admin must NOT be customer-issuable")
+	}
+}
+
+func TestStorageHandler_Usage(t *testing.T) {
+	h := NewStorageHandler(&stubStorageService{})
+	r := withTenant(httptest.NewRequest(http.MethodGet, "/v1/dashboard/storage/usage", nil), "tn")
+	rec := httptest.NewRecorder()
+	mux := chi.NewRouter()
+	mux.Get("/v1/dashboard/storage/usage", h.Usage)
+	mux.ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var body map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if body["used_bytes"].(float64) != 42 {
+		t.Errorf("used_bytes = %v, want 42", body["used_bytes"])
+	}
+	if body["tier"] != "starter" {
+		t.Errorf("tier = %v, want starter", body["tier"])
 	}
 }

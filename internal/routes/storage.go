@@ -29,6 +29,7 @@ type StorageService interface {
 	Delete(ctx context.Context, tenantID, path string) error
 	Share(ctx context.Context, tenantID, path string, ttl time.Duration) (token string, expires time.Time, err error)
 	Redeem(ctx context.Context, token string) (io.ReadCloser, storage.ObjectMeta, error)
+	Usage(ctx context.Context, tenantID string) (storage.UsageInfo, error)
 }
 
 // StorageHandler serves the /v1/storage/* API. Product language only in every
@@ -101,6 +102,23 @@ func (h *StorageHandler) List(w http.ResponseWriter, r *http.Request) {
 		items = append(items, map[string]any{"path": rec.Name, "size": rec.SizeBytes, "content_type": rec.MimeType})
 	}
 	writeJSONOK(w, map[string]any{"files": items, "next_cursor": next})
+}
+
+// Usage serves GET /v1/dashboard/storage/usage — the tenant's used bytes + plan
+// caps (dashboard quota bar). Session-authenticated (requireJWT).
+func (h *StorageHandler) Usage(w http.ResponseWriter, r *http.Request) {
+	info, err := h.svc.Usage(r.Context(), tenantOf(r))
+	if err != nil {
+		writeStorageError(w, statusForStorageErr(err), codeForStorageErr(err), messageForStorageErr(err))
+		return
+	}
+	writeJSONOK(w, map[string]any{
+		"used_bytes":      info.UsedBytes,
+		"aggregate_limit": info.AggregateLimit,
+		"per_file_limit":  info.PerFileLimit,
+		"tier":            info.Tier,
+		"unlimited":       info.AggregateLimit < 0,
+	})
 }
 
 // Delete serves DELETE /v1/storage/objects/{path...} (scope storage:write).

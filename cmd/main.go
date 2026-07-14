@@ -924,6 +924,18 @@ func main() {
 			// Unauthenticated redemption — token is the capability; IP rate-limited.
 			r.With(ratelimit.Middleware(shareRedeemLimiter, 60, ipKey)).Get("/shared/{token}", storageHandler.RedeemShare)
 		})
+		// Dashboard BFF surface (/v1/dashboard/storage/*) — browser JWT sessions.
+		// Reuses the SAME StorageHandler: tenant comes from auth.GetUser(ctx),
+		// which requireJWT populates identically to the scope middleware (DRY).
+		r.Route("/v1/dashboard/storage", func(r chi.Router) {
+			r.Use(requireJWT)
+			r.Get("/usage", storageHandler.Usage)
+			r.Get("/objects", storageHandler.List)
+			r.Get("/stat/*", storageHandler.Stat)
+			r.Put("/objects/*", storageHandler.Upload)
+			r.Delete("/objects/*", storageHandler.Delete)
+			r.Post("/share", storageHandler.CreateShare)
+		})
 		logger.Info("storage vertical enabled", "endpoint_configured", true)
 	} else {
 		logger.Warn("STORAGE_S3_* not set — /v1/storage/* endpoints disabled")
