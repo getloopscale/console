@@ -82,17 +82,33 @@ describe('WorkspacePage (/workspaces)', () => {
     expect((put.mock.calls[0] as unknown[])[0]).toBe('/v1/dashboard/storage/objects/data/x.txt');
   });
 
-  it('creates a folder as a .keep marker under the current prefix', async () => {
+  it('creates a folder via the in-app dialog — no native window.prompt (.keep marker)', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt');
     const put = vi.fn((_url?: string, _init?: unknown) => Promise.resolve({}));
-    vi.spyOn(window, 'prompt').mockReturnValue('drafts');
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url.includes('/objects/') && init?.method === 'PUT') return put(url, init);
       return routeByUrl(url);
     });
     render(<WorkspacePage />);
-    fireEvent.click(await screen.findByLabelText('New folder'));
+    await screen.findByText('README.md');
+    fireEvent.click(screen.getByRole('button', { name: /new folder/i }));
+    const input = await screen.findByLabelText('Folder name');
+    fireEvent.change(input, { target: { value: 'drafts' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create folder' }));
     await waitFor(() => expect(put).toHaveBeenCalled());
     expect((put.mock.calls[0] as unknown[])[0]).toBe('/v1/dashboard/storage/objects/drafts/.keep');
+    expect(promptSpy).not.toHaveBeenCalled(); // never uses the native dialog
+  });
+
+  it('opens a preview side-panel when a file is clicked (with a download link)', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, text: () => Promise.resolve('# hello') })));
+    mockCloudFetch.mockImplementation((url: string) => routeByUrl(url));
+    render(<WorkspacePage />);
+    fireEvent.click(await screen.findByText('README.md'));
+    // The Sheet shows the file path + a Download action pointing at the object route.
+    const download = await screen.findByRole('link', { name: /download/i });
+    expect(download).toHaveAttribute('href', '/v1/dashboard/storage/objects/README.md');
+    vi.unstubAllGlobals();
   });
 
   it('uses product language only (no infra terms)', async () => {
