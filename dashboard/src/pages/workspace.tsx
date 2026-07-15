@@ -179,7 +179,9 @@ export function WorkspacePage() {
     try {
       await cloudFetch(
         `/v1/dashboard/storage/objects/${encodePath(`${prefix}${name}/${FOLDER_MARKER}`)}`,
-        { method: 'PUT', body: new ArrayBuffer(0), headers: { 'Content-Type': 'application/octet-stream' } },
+        // 1-byte marker: the store rejects a 0-byte object (503); a newline is enough
+        // to materialize an empty folder (the marker stays hidden from the file list).
+        { method: 'PUT', body: new Uint8Array([10]), headers: { 'Content-Type': 'application/octet-stream' } },
         { throwOnError: true },
       );
       setNewFolderOpen(false);
