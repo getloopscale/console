@@ -1,7 +1,7 @@
 import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { TheoUIProvider, violetForge } from '@usetheo/ui';
+import { TheoUIProvider, violetForge } from '@theokit/ui';
 import App from './app';
 import { RouteBoundary } from './components/error/route-boundary';
 import { queryClient } from './lib/query-client';

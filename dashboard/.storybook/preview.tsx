@@ -4,7 +4,7 @@
 import type { Preview } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { TheoUIProvider, violetForge } from '@usetheo/ui';
+import { TheoUIProvider, violetForge } from '@theokit/ui';
 import '../src/index.css';
 
 const queryClient = new QueryClient({

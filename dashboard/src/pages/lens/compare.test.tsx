@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, waitFor, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { ThemeProvider, Toaster, violetForge } from '@usetheo/ui';
+import { Toaster } from '@usetheo/ui';
+import { ThemeProvider, violetForge } from '@theokit/ui';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import { LensComparePage } from './compare';
 

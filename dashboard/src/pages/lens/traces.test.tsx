@@ -4,7 +4,8 @@ import { within, waitFor, render as rtlRender, type RenderResult } from '@testin
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import { MemoryRouter } from 'react-router-dom';
-import { ThemeProvider, Toaster, violetForge } from '@usetheo/ui';
+import { Toaster } from '@usetheo/ui';
+import { ThemeProvider, violetForge } from '@theokit/ui';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import { render, screen } from '@/test/render';
 

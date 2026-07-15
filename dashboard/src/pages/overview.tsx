@@ -15,8 +15,8 @@ import {
   EmptyState,
   PageShell,
   ProjectCard,
-  UsageMeter,
 } from '@usetheo/ui';
+import { UsageMeter } from '@theokit/ui';
 import { ContentGrid } from '@/components/layout';
 import { OverviewKPIStrip } from '@/components/overview/overview-kpi-strip';
 import { usePageMeta } from '@/hooks/use-page-meta';

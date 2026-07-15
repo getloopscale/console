@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ThemeProvider, violetForge } from '@usetheo/ui';
+import { ThemeProvider, violetForge } from '@theokit/ui';
 
 import { ColumnsToggle } from './columns-toggle';
 import type { ColumnState } from './view-encoding';
