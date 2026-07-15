@@ -107,6 +107,14 @@ func errFromResponse(resp *http.Response) error {
 
 // Upload streams the body to theo-storage's PUT, injecting the tenant.
 func (c *Client) Upload(ctx context.Context, tenantID, path string, body io.Reader, size int64, mime string) error {
+	// A 0-byte object must forward with a clean Content-Length: 0 — an arbitrary
+	// non-nil reader of unknown length makes Go emit chunked Transfer-Encoding,
+	// which corrupts the size the upstream reads (r.ContentLength becomes -1). Force
+	// http.NoBody for empty objects so empty files round-trip in proxy mode too.
+	// Mirrors the same guard in s3x.Client.PutObject (in-process mode).
+	if size == 0 {
+		body = http.NoBody
+	}
 	req, err := c.newReq(ctx, http.MethodPut, tenantID, "/v1/storage/objects/"+path, body)
 	if err != nil {
 		return err

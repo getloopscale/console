@@ -71,6 +71,17 @@ func (c *Client) objectURL(key string) string {
 
 // PutObject streams body (of the given size) to the object at key.
 func (c *Client) PutObject(ctx context.Context, key string, body io.Reader, size int64, contentType string) error {
+	// A 0-byte object (empty __init__.py / .gitkeep / placeholder) must PUT with a
+	// clean Content-Length: 0 and an empty payload. For an ARBITRARY non-nil reader
+	// (e.g. the http.MaxBytesReader the Upload handler streams) Go cannot know the
+	// length, so it sends chunked Transfer-Encoding — which S3/MinIO rejects under
+	// SigV4 single-payload signing, surfacing as ErrStorageUnavailable (503). Only
+	// *bytes/*strings.Reader get auto-normalized to http.NoBody; the real path does
+	// not. Force NoBody here so empty objects round-trip. (Regression: a real
+	// `theo storage sync` of a .claude/ skipped 15 empty package markers on 503.)
+	if size == 0 {
+		body = http.NoBody
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.objectURL(key), body)
 	if err != nil {
 		return err

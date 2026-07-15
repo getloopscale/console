@@ -60,6 +60,42 @@ func TestClient_PutObject(t *testing.T) {
 	}
 }
 
+// TestClient_PutObject_EmptyBody is the 0-byte regression: an empty object
+// (empty __init__.py / .gitkeep / placeholder) must PUT with a clean
+// Content-Length: 0 and NO chunked Transfer-Encoding — chunked breaks S3/MinIO
+// SigV4 single-payload signing and surfaces downstream as a 503 (observed during
+// a real `theo storage sync` of a .claude/ with empty package markers).
+func TestClient_PutObject_EmptyBody(t *testing.T) {
+	var gotCL int64
+	var gotTE []string
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotCL = r.ContentLength
+		gotTE = r.TransferEncoding
+		gotBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	// An ARBITRARY reader (io.NopCloser) of 0 bytes — NOT *strings.Reader, which
+	// http.NewRequest auto-normalizes to http.NoBody. The real Upload path streams
+	// through http.MaxBytesReader (also arbitrary), so this reproduces production.
+	emptyArbitrary := io.NopCloser(strings.NewReader(""))
+	if err := c.PutObject(context.Background(), "tenant-a/pkg/__init__.py", emptyArbitrary, 0, "text/x-python"); err != nil {
+		t.Fatalf("PutObject(empty): %v", err)
+	}
+	if gotCL != 0 {
+		t.Errorf("ContentLength = %d, want 0", gotCL)
+	}
+	if len(gotTE) != 0 {
+		t.Errorf("TransferEncoding = %v, want none (chunked breaks S3 SigV4)", gotTE)
+	}
+	if len(gotBody) != 0 {
+		t.Errorf("body = %q, want empty", gotBody)
+	}
+}
+
 func TestClient_GetObject(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
