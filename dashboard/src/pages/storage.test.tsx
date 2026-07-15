@@ -79,6 +79,18 @@ describe('StoragePage (/storage)', () => {
     expect(init.headers?.['Content-Type']).toBe('text/plain');
   });
 
+  it('the upload trigger is a native <label> wrapping the file input (picker opens without a scripted click)', async () => {
+    // Regression guard: the earlier `display:none` input + `<Button onClick=ref.click()>`
+    // silently no-op'd on real user clicks. A <label> natively associated with the
+    // input always opens the OS picker. Assert the structural association holds.
+    mockCloudFetch.mockImplementation((url: string) => routeByUrl(url));
+    render(<StoragePage />);
+    const input = (await screen.findByTestId('file-input')) as HTMLInputElement;
+    const label = input.closest('label');
+    expect(label).not.toBeNull();
+    expect(label).toHaveTextContent(/Upload files/i);
+  });
+
   it('shows a plan-limit message when an upload is rejected (413)', async () => {
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url.includes('/objects/') && init?.method === 'PUT') return Promise.reject({ status: 413 });

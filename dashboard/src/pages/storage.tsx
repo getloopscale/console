@@ -144,23 +144,26 @@ export function StoragePage() {
         </div>
       )}
 
-      {/* Upload */}
+      {/* Upload — a native <label> wrapping the file input (rendered with the
+          Button's styles via asChild). Clicking the label opens the OS file
+          picker natively, so it never depends on a scripted `.click()` +
+          user-gesture chain (the fragile `display:none` + ref.click() pattern
+          silently no-op'd for real clicks). */}
       <div className="flex items-center gap-3">
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          data-testid="file-input"
-          onChange={(e) => void onUploadFiles(e.target.files)}
-        />
-        <Button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          aria-label="Upload files"
-        >
-          <Upload className="h-4 w-4 mr-2" />
-          {uploading ? 'Uploading…' : 'Upload files'}
+        <Button asChild aria-label="Upload files">
+          <label className={uploading ? 'pointer-events-none opacity-60' : 'cursor-pointer'}>
+            <Upload className="h-4 w-4 mr-2" />
+            {uploading ? 'Uploading…' : 'Upload files'}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="sr-only"
+              data-testid="file-input"
+              disabled={uploading}
+              onChange={(e) => void onUploadFiles(e.target.files)}
+            />
+          </label>
         </Button>
       </div>
       {uploadError && (
