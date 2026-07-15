@@ -130,6 +130,9 @@ const LensTracesPage = lazy(() =>
 const LensSessionsPage = lazy(() =>
   import('@/pages/lens/sessions').then((m) => ({ default: m.LensSessionsPage })),
 );
+const LensSessionDetailPage = lazy(() =>
+  import('@/pages/lens/session-detail').then((m) => ({ default: m.LensSessionDetailPage })),
+);
 const LensDatasetsPage = lazy(() =>
   import('@/pages/lens/datasets').then((m) => ({ default: m.LensDatasetsPage })),
 );
@@ -446,6 +449,8 @@ export default function App() {
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />
                     <Route path="/observability/sessions" element={<Boundaried path="/observability/sessions"><LensSessionsPage /></Boundaried>} />
+                    {/* M9 — session detail: aggregate metrics + temporal replay for one session. */}
+                    <Route path="/observability/sessions/:sessionId" element={<Boundaried path="/observability/sessions/:sessionId"><LensSessionDetailPage /></Boundaried>} />
                     <Route path="/observability/datasets" element={<Boundaried path="/observability/datasets"><LensDatasetsPage /></Boundaried>} />
                     <Route path="/observability/evaluators" element={<Boundaried path="/observability/evaluators"><LensEvaluatorsPage /></Boundaried>} />
                     <Route path="/observability/guards" element={<Boundaried path="/observability/guards"><LensGuardsPage /></Boundaried>} />

@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **M9 — session detail page (`/observability/sessions/:sessionId`).** A new dashboard screen shows, for one session, the aggregate metrics (total duration/window, ∑ cost, ∑ tokens, error count, trace count, distinct models) via `@usetheo/ui` `SessionSummary` and the temporal replay (one row per trace, sorted by start time, duration bars) via `SessionTimeline`. It reuses the existing traces read (`GET /v1/dashboard/lens/traces?session_id=<id>` through `cloudFetch`) and maps each traces-list row to the design system's generic `SessionTraceItem` via a pure, unit-tested boundary mapper (`session-detail/to-session-item.ts` — computes `endTime = start + durationMs` in ns, collapses the OTLP status vocabulary to OK/ERROR, honestly nulls absent values), mirroring the M8 `to-trace-span` precedent. The sessions list row now offers "Open session" (the detail) alongside the existing "View traces" jump. Honest loading (skeleton) / error (Alert) / empty (EmptyState) states; back link to the sessions list. 6 page tests + 11 mapper unit tests green; tsc + eslint clean. `dashboard/src/pages/lens/session-detail.tsx` + `session-detail/to-session-item.ts`.
 
 ### Changed
 

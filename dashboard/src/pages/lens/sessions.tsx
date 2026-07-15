@@ -70,12 +70,18 @@ export function LensSessionsPage() {
       key: 'actions',
       label: '',
       align: 'right',
-      // Close the dead-end: a session row jumps to the traces list pre-filtered to this session
-      // (the `?session=` URL state the Traces page already reads).
+      // M9 — the primary action opens the session detail (aggregate metrics + temporal replay). The
+      // secondary "View traces" keeps the pre-filtered traces-list jump (`?session=`) for users who
+      // want the full filterable table rather than the replay.
       render: (row) => (
-        <Button asChild variant="ghost" size="sm">
-          <Link to={`/observability/traces?session=${encodeURIComponent(row.sessionId)}`}>View traces</Link>
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button asChild variant="ghost" size="sm">
+            <Link to={`/observability/sessions/${encodeURIComponent(row.sessionId)}`}>Open session</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link to={`/observability/traces?session=${encodeURIComponent(row.sessionId)}`}>View traces</Link>
+          </Button>
+        </div>
       ),
     },
   ];
