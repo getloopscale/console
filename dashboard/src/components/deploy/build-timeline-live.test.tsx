@@ -127,8 +127,11 @@ describe('BuildTimelineLive', () => {
     );
     renderTimeline();
 
-    const card = screen.getByLabelText(/build image/i);
-    expect(card.className).toContain('animate-pulse');
+    // M7 T2.2: o "live indicator" agora é o estado active do Stepper da lib
+    // (spinner animate-spin no ícone), não mais o pulse do card hand-rolled.
+    const item = screen.getByText(/build image/i).closest('li');
+    expect(item?.getAttribute('data-state')).toBe('active');
+    expect(item?.querySelector('.animate-spin')).toBeTruthy();
   });
 
   it('test_failed_step_shows_error', () => {
