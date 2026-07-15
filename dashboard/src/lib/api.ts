@@ -198,6 +198,25 @@ export async function engineFetch<T>(path: string, options: RequestInit = {}, cf
 }
 
 /**
+ * Authenticated raw fetch that returns the {@link Response} instead of parsing a
+ * JSON body — for non-JSON payloads like file downloads/previews (bytes/text/blob).
+ * Sends the same `Authorization: Bearer` the JSON path uses. Returns null (and
+ * redirects to login) when the session has expired.
+ */
+export async function cloudFetchRaw(path: string, options: RequestInit = {}): Promise<Response | null> {
+  const token = await ensureToken();
+  if (!token) {
+    redirectToLogin('expired');
+    return null;
+  }
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    ...(options.headers as Record<string, string> || {}),
+  };
+  return fetch(`${API_BASE}${path}`, { ...options, headers });
+}
+
+/**
  * Parse a 2xx response body, tolerating an empty body. A 204/205 No Content
  * (e.g. a successful DELETE) carries no body — calling `resp.json()` on it throws,
  * which the catch-all would mistake for a network failure. Return `null` for those

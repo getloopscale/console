@@ -11,7 +11,7 @@ import {
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch, cloudFetchRaw } from '@/lib/api';
 
 /**
  * Workspace — the files and folders your project stores, browsed like a modern
@@ -119,6 +119,7 @@ export function WorkspacePage() {
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderError, setNewFolderError] = useState<string | null>(null);
 
   // Preview side-panel + delete confirmation.
   const [preview, setPreview] = useState<StorageFile | null>(null);
@@ -151,8 +152,8 @@ export function WorkspacePage() {
     queryKey: ['storage-object', preview?.path] as const,
     enabled: !!preview && previewKind(preview.content_type) !== 'none',
     queryFn: async () => {
-      const res = await fetch(`/v1/dashboard/storage/objects/${encodePath(preview!.path)}`, { credentials: 'same-origin' });
-      if (!res.ok) throw new Error(String(res.status));
+      const res = await cloudFetchRaw(`/v1/dashboard/storage/objects/${encodePath(preview!.path)}`);
+      if (!res || !res.ok) throw new Error(res ? String(res.status) : 'unauthenticated');
       if (previewKind(preview!.content_type) === 'image') {
         return { kind: 'image' as const, url: URL.createObjectURL(await res.blob()) };
       }
@@ -174,6 +175,7 @@ export function WorkspacePage() {
     const name = newFolderName.trim();
     if (!name || name.includes('/')) return;
     setCreatingFolder(true);
+    setNewFolderError(null);
     try {
       await cloudFetch(
         `/v1/dashboard/storage/objects/${encodePath(`${prefix}${name}/${FOLDER_MARKER}`)}`,
@@ -183,9 +185,24 @@ export function WorkspacePage() {
       setNewFolderOpen(false);
       setNewFolderName('');
       onRefresh();
+    } catch {
+      setNewFolderError('Could not create the folder. Please try again.');
     } finally {
       setCreatingFolder(false);
     }
+  };
+
+  // Download a file with the same auth the JSON path uses (a plain <a> link can't
+  // send the Bearer token), then trigger a browser download from the blob.
+  const onDownload = async (file: StorageFile) => {
+    const res = await cloudFetchRaw(`/v1/dashboard/storage/objects/${encodePath(file.path)}`);
+    if (!res || !res.ok) return;
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.path.split('/').pop() ?? file.path;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const onUploadFiles = async (files: FileList | null) => {
@@ -286,7 +303,7 @@ export function WorkspacePage() {
                 {usage.unlimited ? `${formatBytes(usage.used_bytes)} used` : `${formatBytes(usage.used_bytes)} / ${formatBytes(usage.aggregate_limit)}`}
               </Badge>
             )}
-            <Button variant="secondary" size="sm" className="h-7 gap-1.5" onClick={() => { setNewFolderName(''); setNewFolderOpen(true); }}>
+            <Button variant="secondary" size="sm" className="h-7 gap-1.5" onClick={() => { setNewFolderName(''); setNewFolderError(null); setNewFolderOpen(true); }}>
               <FolderPlus className="h-3.5 w-3.5" /> New folder
             </Button>
             <Button asChild size="sm" className="h-7 gap-1.5" aria-label="Upload files">
@@ -390,6 +407,7 @@ export function WorkspacePage() {
               {newFolderName.includes('/') && (
                 <p className="text-xs text-destructive">Folder names can’t contain “/”.</p>
               )}
+              {newFolderError && <p className="text-xs text-destructive">{newFolderError}</p>}
             </div>
           </Dialog.Body>
           <Dialog.Footer>
@@ -444,10 +462,8 @@ export function WorkspacePage() {
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <Button asChild variant="secondary" size="sm" className="gap-1.5">
-                    <a href={`/v1/dashboard/storage/objects/${encodePath(preview.path)}`} download>
-                      <Download className="h-3.5 w-3.5" /> Download
-                    </a>
+                  <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => void onDownload(preview)}>
+                    <Download className="h-3.5 w-3.5" /> Download
                   </Button>
                   <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => void onShare(preview.path)}>
                     <Link2 className="h-3.5 w-3.5" /> Share link

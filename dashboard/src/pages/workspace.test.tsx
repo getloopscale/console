@@ -4,7 +4,10 @@ import { render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+vi.mock('@/lib/api', () => ({
+  cloudFetch: (...a: unknown[]) => mockCloudFetch(...a),
+  cloudFetchRaw: () => Promise.resolve({ ok: true, text: () => Promise.resolve('# hello'), blob: () => Promise.resolve(new Blob()) }),
+}));
 
 import { WorkspacePage, deriveEntries, StorageFile } from './workspace';
 
@@ -100,15 +103,13 @@ describe('WorkspacePage (/workspaces)', () => {
     expect(promptSpy).not.toHaveBeenCalled(); // never uses the native dialog
   });
 
-  it('opens a preview side-panel when a file is clicked (with a download link)', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, text: () => Promise.resolve('# hello') })));
+  it('opens a preview side-panel when a file is clicked (with Download + Delete actions)', async () => {
     mockCloudFetch.mockImplementation((url: string) => routeByUrl(url));
     render(<WorkspacePage />);
     fireEvent.click(await screen.findByText('README.md'));
-    // The Sheet shows the file path + a Download action pointing at the object route.
-    const download = await screen.findByRole('link', { name: /download/i });
-    expect(download).toHaveAttribute('href', '/v1/dashboard/storage/objects/README.md');
-    vi.unstubAllGlobals();
+    // The Sheet shows the file path (mono) + the action buttons.
+    expect(await screen.findByRole('button', { name: /download/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /share link/i })).toBeInTheDocument();
   });
 
   it('uses product language only (no infra terms)', async () => {
