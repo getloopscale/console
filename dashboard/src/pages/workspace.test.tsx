@@ -139,8 +139,8 @@ describe('WorkspacePage — multi-select + bulk delete (Phase 2)', () => {
   });
 
   it('a folder Delete opens a confirm with count+size, then POSTs bulk-delete with the prefix', async () => {
-    const post = vi.fn(() => Promise.resolve({ deleted: 1, failed: [], truncated: false }));
-    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+    const post = vi.fn((_url?: string, _init?: { method?: string; body?: string }) => Promise.resolve({ deleted: 1, failed: [], truncated: false }));
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string; body?: string }) => {
       if (url.includes('/bulk-delete') && init?.method === 'POST') return post(url, init);
       return routeByUrl(url);
     });
