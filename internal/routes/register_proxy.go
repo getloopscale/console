@@ -77,6 +77,17 @@ func NewRegisterProxyHandler(upstreamURL string, logger *slog.Logger) *RegisterP
 		UpstreamURL: upstreamURL,
 		HTTPClient: &http.Client{
 			Timeout: 5 * time.Second,
+			// Do NOT follow upstream redirects. The identity-store answers a
+			// browser registration submit with a 303 to its PUBLIC browser URL
+			// (e.g. http://localhost:8090/...). Following it from inside the
+			// gateway container targets the container's own loopback (nothing
+			// listening) → "connection refused" → a wrong 503. A reverse proxy
+			// captures the redirect and lets the real browser follow it; the
+			// handler propagates Set-Cookie and emits its own canonical 303.
+			// Regression: register_proxy_test.go TestRegisterProxy_UpstreamRedirect_NotFollowed.
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		},
 		Logger: logger,
 	}

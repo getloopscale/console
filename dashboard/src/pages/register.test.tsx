@@ -166,6 +166,10 @@ describe('RegisterPage', () => {
       });
     expect(regForm).toBeTruthy();
     if (regForm) {
+      // Regression (2026-07-12, dogfood): the BFF submit MUST carry the flow id
+      // on the query, else the upstream rejects the submit and the anti-enum
+      // unifier silently maps it to check-email with NO account created.
+      expect(regForm.action).toContain('flow=reg-flow-1');
       const inputs = Array.from(regForm.querySelectorAll('input[type=hidden]')) as HTMLInputElement[];
       const bag = Object.fromEntries(inputs.map((i) => [i.name, i.value]));
       expect(bag.method).toBe('password');

@@ -35,6 +35,42 @@ func mustReadJSON(t *testing.T, body io.Reader) map[string]string {
 	return m
 }
 
+// Regression (2026-07-12, dogfood J-UI-10): a browser registration submit makes
+// the upstream identity-store answer with a 303 to its public browser URL
+// (KRATOS_PUBLIC_URL, e.g. http://localhost:8090/...). The proxy's HTTP client
+// MUST NOT follow that redirect — inside the gateway container `localhost:8090`
+// is the container's own loopback with nothing listening, so following it fails
+// with "connection refused" and the handler wrongly emits 503. A reverse proxy
+// captures the upstream redirect and lets the real browser follow it. This test
+// pins: upstream 303 (Location unreachable-if-followed) → canonical 303, never 503.
+func TestRegisterProxy_UpstreamRedirect_NotFollowed_Returns303(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// http://127.0.0.1:1 is unreachable; if the client FOLLOWS this 303 the
+		// Do() call errors and the handler returns 503 (the bug).
+		w.Header().Set("Location", "http://127.0.0.1:1/login?id=deadbeef")
+		w.WriteHeader(http.StatusSeeOther)
+	}))
+	defer upstream.Close()
+
+	h := newProxyWithUpstream(t, upstream)
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register",
+		bytes.NewReader([]byte(`traits.email=x%40e2e.test&method=password&password=valid-13c-pwd!`)))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+
+	h.Post(rr, req)
+
+	if rr.Code == http.StatusServiceUnavailable {
+		t.Fatalf("proxy followed the upstream redirect and 503'd instead of capturing it: body=%s", rr.Body.String())
+	}
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("want canonical 303 on upstream redirect, got %d body=%s", rr.Code, rr.Body.String())
+	}
+	if loc := rr.Header().Get("Location"); loc != "/auth/check-email" {
+		t.Errorf("want canonical Location=/auth/check-email, got %q", loc)
+	}
+}
+
 func TestRegisterProxy_NewEmail_Returns200UniversalMessage(t *testing.T) {
 	// Upstream simulates new-email path: 200 + canonical Kratos-like success body.
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
