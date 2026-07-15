@@ -1,8 +1,8 @@
-import type { TrendSeries } from '@usetheo/ui';
+import type { PercentileBucket, TrendSeries } from '@usetheo/ui';
 import {
   throughputSeries,
   errorRateSeries,
-  latencySeries,
+  latencyPercentileBuckets,
   costByModelSeries,
   tokensByModelSeries,
   type TrafficBucket,
@@ -149,15 +149,18 @@ export function bindKpi(metric: WidgetMetric, data: BoardData): string {
   }
 }
 
-/** The trend series for a metric (reuses the M51 helpers); absent obs → empty (no fabricated line). */
+/**
+ * The trend series for a metric (reuses the M51 helpers); absent obs → empty (no fabricated line).
+ * NOTE (M11): `p95_latency` is NOT a `TrendSeries` metric — it renders as a banded `PercentileChart`
+ * (see `bindLatencyBuckets`), so it is intentionally absent from this switch (it falls to `traces`
+ * only if mis-routed; the page special-cases it before ever calling this).
+ */
 export function bindTrend(metric: WidgetMetric, data: BoardData): TrendSeries[] {
   const obs = data.observability;
   if (!obs) return [];
   switch (metric) {
     case 'error_rate':
       return errorRateSeries(obs.traffic);
-    case 'p95_latency':
-      return latencySeries(obs.latency);
     case 'cost':
       return costByModelSeries(obs.tokensByModel);
     case 'tokens_by_model':
@@ -166,6 +169,16 @@ export function bindTrend(metric: WidgetMetric, data: BoardData): TrendSeries[] 
     default:
       return throughputSeries(obs.traffic);
   }
+}
+
+/**
+ * M11 — the p50/p95/p99 latency BAND for the `p95_latency` trend widget (the upgrade over the old
+ * three-line overlay). Absent obs → empty; the `PercentileChart` owns the empty state.
+ */
+export function bindLatencyBuckets(data: BoardData): PercentileBucket[] {
+  const obs = data.observability;
+  if (!obs) return [];
+  return latencyPercentileBuckets(obs.latency);
 }
 
 export interface TopNRow {

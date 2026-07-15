@@ -3,14 +3,15 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { LayoutDashboard } from 'lucide-react';
-import { Badge, Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, MetricCard, PageShell, Select, Skeleton, Timestamp } from '@usetheo/ui';
+import { Badge, Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, MetricCard, PageShell, PercentileChart, Select, Skeleton, Timestamp } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { nextBoardName } from './dashboards/board-name';
+import { DurationHistogram } from './dashboards/duration-histogram';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
-import { formatCost, formatNumber } from '@/lib/format';
+import { formatCost, formatDuration, formatNumber } from '@/lib/format';
 import { TrendChart } from '@usetheo/ui';
 import type { TrafficBucket, LatencyBucket, ModelBucket } from '@/components/lens/lens-series';
 import {
@@ -25,6 +26,7 @@ import {
   moveWidget,
   bindKpi,
   bindTrend,
+  bindLatencyBuckets,
   bindTopN,
   type Widget,
   type WidgetType,
@@ -89,6 +91,17 @@ function WidgetView({ widget, data }: { widget: Widget; data: BoardData }) {
           ) : (
             <DataTable data={rows} columns={TOPN_COLUMNS} rowKey={(r) => r.model} />
           )}
+        </Card.Body>
+      </Card>
+    );
+  }
+  // M11 — the latency trend is a banded PercentileChart (p50–p95–p99 as shaded areas), the upgrade
+  // over the old three-line p50/p95/p99 overlay. Every other trend metric stays a TrendChart.
+  if (widget.metric === 'p95_latency') {
+    return (
+      <Card>
+        <Card.Body>
+          <PercentileChart title={title} buckets={bindLatencyBuckets(data)} valueFormatter={(v) => formatDuration(v)} />
         </Card.Body>
       </Card>
     );
@@ -397,6 +410,11 @@ export function LensDashboardsPage() {
             {widgets.map((w, i) => (
               <WidgetView key={i} widget={w} data={dataError ? {} : data} />
             ))}
+          </div>
+
+          {/* M11 — the trace-duration distribution histogram (its own traces fetch; not a configurable widget). */}
+          <div className="mt-3">
+            <DurationHistogram />
           </div>
         </>
       )}

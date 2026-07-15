@@ -10,6 +10,7 @@ import {
   moveWidget,
   bindKpi,
   bindTrend,
+  bindLatencyBuckets,
   bindTopN,
   MAX_WIDGETS,
   type Widget,
@@ -78,8 +79,15 @@ describe('M66 widget model', () => {
 
   it('test_bindTrend_maps_metric_or_empty_when_absent', () => {
     expect(bindTrend('traces', DATA).length).toBeGreaterThan(0);
-    expect(bindTrend('p95_latency', DATA).length).toBeGreaterThan(0);
     expect(bindTrend('traces', {})).toEqual([]); // absent → empty, no fabricated line
+  });
+
+  it('test_bindLatencyBuckets_maps_percentile_band_or_empty_when_absent (M11)', () => {
+    // The p95_latency trend widget is now a banded PercentileChart, not a 3-line TrendChart overlay.
+    const buckets = bindLatencyBuckets(DATA);
+    expect(buckets).toHaveLength(2); // one PercentileBucket per LatencyBucket in the shared fetch
+    expect(buckets[0]).toMatchObject({ p50: 100, p95: 400, p99: 800 });
+    expect(bindLatencyBuckets({})).toEqual([]); // absent obs → empty (the chart owns the empty state)
   });
 
   it('test_bindTrend_tokens_by_model_plots_tokens_not_cost (#178)', () => {
