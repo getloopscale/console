@@ -157,6 +157,33 @@ func TestStorageHandler_Download_EC2Headers(t *testing.T) {
 	}
 }
 
+// TestStorageHandler_DashboardMount_DownloadNestedObject is the regression for
+// the Workspace file-preview 405: the dashboard BFF (/v1/dashboard/storage)
+// mounted only List/Stat/Upload/Delete, so a GET to a nested object path matched
+// the PUT/DELETE-only /objects/* pattern → 405 Method Not Allowed. The mount MUST
+// expose GET /objects/* (Download) — the read-one the folder-browser preview and
+// download actions call. This test exercises the REAL mount function main.go uses.
+func TestStorageHandler_DashboardMount_DownloadNestedObject(t *testing.T) {
+	stub := &stubStorageService{
+		downloadRC: io.NopCloser(strings.NewReader("# hello")),
+		downloadMD: storage.ObjectMeta{Size: 7, ContentType: "text/markdown"},
+	}
+	h := NewStorageHandler(stub)
+	mux := chi.NewRouter()
+	h.MountDashboardRoutes(mux)
+
+	r := withTenant(httptest.NewRequest(http.MethodGet, "/objects/devteam/.claude/CLAUDE.md", nil), "tn")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, r)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET nested dashboard object: got %d, want 200 (405 = missing download route)", rec.Code)
+	}
+	if got := rec.Body.String(); got != "# hello" {
+		t.Fatalf("body = %q, want the object bytes", got)
+	}
+}
+
 // TestStorageHandler_Redeem_EC2Headers — same neutralization on the ONLY
 // unauthenticated route + typed status for expired/invalid tokens.
 func TestStorageHandler_Redeem_EC2Headers(t *testing.T) {

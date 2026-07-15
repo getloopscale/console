@@ -940,12 +940,7 @@ func main() {
 		// which requireJWT populates identically to the scope middleware (DRY).
 		r.Route("/v1/dashboard/storage", func(r chi.Router) {
 			r.Use(requireJWT)
-			r.Get("/usage", storageHandler.Usage)
-			r.Get("/objects", storageHandler.List)
-			r.Get("/stat/*", storageHandler.Stat)
-			r.Put("/objects/*", storageHandler.Upload)
-			r.Delete("/objects/*", storageHandler.Delete)
-			r.Post("/share", storageHandler.CreateShare)
+			storageHandler.MountDashboardRoutes(r)
 		})
 		logger.Info("storage vertical enabled", "endpoint_configured", true)
 	} else {

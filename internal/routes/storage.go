@@ -41,6 +41,22 @@ type StorageHandler struct {
 // NewStorageHandler builds the handler.
 func NewStorageHandler(svc StorageService) *StorageHandler { return &StorageHandler{svc: svc} }
 
+// MountDashboardRoutes registers the /v1/dashboard/storage/* browser-session
+// surface on r (the caller wraps r with requireJWT). It mirrors the theo_live_
+// /v1/storage/* verbs — List / Stat / Upload / Delete / Share — PLUS Download,
+// the read-one the Workspace folder-browser preview + download actions call.
+// Keeping the mount here (not inline in the composition root) makes the route
+// set testable: a missing verb surfaces as a 405 in a unit test, not in prod.
+func (h *StorageHandler) MountDashboardRoutes(r chi.Router) {
+	r.Get("/usage", h.Usage)
+	r.Get("/objects", h.List)
+	r.Get("/objects/*", h.Download)
+	r.Get("/stat/*", h.Stat)
+	r.Put("/objects/*", h.Upload)
+	r.Delete("/objects/*", h.Delete)
+	r.Post("/share", h.CreateShare)
+}
+
 func tenantOf(r *http.Request) string {
 	if u := auth.GetUser(r.Context()); u != nil {
 		return u.TenantID
