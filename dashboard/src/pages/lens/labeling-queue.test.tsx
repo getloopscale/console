@@ -4,7 +4,7 @@ import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 import type { TraceSpanNode } from '@/lib/trace-layout';
 import { LensLabelingQueuePage } from './labeling-queue';
-import { SpanDetail } from './trace-detail/tree';
+import { SpanDetail } from './trace-detail/span-detail';
 
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', async (importOriginal) => {
