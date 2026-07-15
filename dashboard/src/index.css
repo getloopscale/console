@@ -28,9 +28,14 @@
  *   - Scrollbar styled with theme --primary.
  */
 @import 'tailwindcss';
-@import '@usetheo/ui/preset.css';
-@import '@usetheo/ui/components.css';
-@import '@usetheo/ui/fonts-cdn.css';
+/* @usetheo/ui@0.22 stopped shipping preset.css/components.css/fonts-cdn.css
+ * (upstream regression #10 — migrated to a Tailwind-v4 utility model). We vendor
+ * the canonical token layers from the design system's own Ladle preview and let
+ * Tailwind scan the package's compiled components for the utility classes they use. */
+@import './vendor/usetheo-ui/tokens.css';
+@import './vendor/usetheo-ui/tokens-v4.css';
+@import './vendor/usetheo-ui/fonts-cdn.css';
+@source '../node_modules/@usetheo/ui/dist';
 
 @custom-variant dark (&:is(.dark *));
 
