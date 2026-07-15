@@ -162,3 +162,48 @@ describe('WorkspacePage — multi-select + bulk delete (Phase 2)', () => {
     expect(container.textContent).not.toMatch(/\bS3\b|bucket|object key/i);
   });
 });
+
+describe('WorkspacePage — bulk-delete mutation outcomes (Phase 2, D4/EC-5)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('surfaces partial failure honestly via a toast (D4)', async () => {
+    const post = vi.fn((_url?: string, _init?: unknown) =>
+      Promise.resolve({ deleted: 0, failed: [{ path: 'data/report.csv', reason: 'storage_unavailable' }], truncated: false }));
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url.includes('/bulk-delete') && init?.method === 'POST') return post(url, init);
+      return routeByUrl(url);
+    });
+    render(<WorkspacePage />);
+    fireEvent.click(await screen.findByLabelText('Delete folder data'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(await screen.findByText(/could not be deleted/i)).toBeInTheDocument();
+  });
+
+  it('shows a "delete again" message when the response is truncated (D3)', async () => {
+    const post = vi.fn((_url?: string, _init?: unknown) =>
+      Promise.resolve({ deleted: 10000, failed: [], truncated: true }));
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url.includes('/bulk-delete') && init?.method === 'POST') return post(url, init);
+      return routeByUrl(url);
+    });
+    render(<WorkspacePage />);
+    fireEvent.click(await screen.findByLabelText('Delete folder data'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(await screen.findByText(/delete again/i)).toBeInTheDocument();
+  });
+
+  it('a network error surfaces an error toast (failure scenario)', async () => {
+    const post = vi.fn((_url?: string, _init?: unknown) => Promise.reject(new Error('network')));
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url.includes('/bulk-delete') && init?.method === 'POST') return post(url, init);
+      return routeByUrl(url);
+    });
+    render(<WorkspacePage />);
+    fireEvent.click(await screen.findByLabelText('Delete folder data'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(await screen.findByText(/delete failed/i)).toBeInTheDocument();
+  });
+});

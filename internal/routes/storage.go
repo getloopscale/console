@@ -156,8 +156,16 @@ func (h *StorageHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // bulkDeleteMaxItems bounds the request itself (paths + prefixes) so one call
-// cannot enqueue an unbounded amount of work.
-const bulkDeleteMaxItems = 1000
+// cannot enqueue an unbounded amount of work. bulkDeleteMaxBodyBytes bounds the
+// raw JSON before it is parsed into memory (DoS guard, mirrors Upload's cap).
+// bulkDeleteMaxTotalObjects bounds the TOTAL objects one request may remove
+// across all prefixes (a request of N prefixes each near the per-prefix cap could
+// otherwise fan out to N×cap deletes in one synchronous call).
+const (
+	bulkDeleteMaxItems        = 1000
+	bulkDeleteMaxBodyBytes    = 1 << 20 // 1 MiB
+	bulkDeleteMaxTotalObjects = 10000
+)
 
 type bulkDeleteRequest struct {
 	Paths    []string `json:"paths"`
@@ -170,6 +178,8 @@ type bulkDeleteRequest struct {
 // prefix MUST end with "/" (EC-2). Partial failure is a 200 with failed[] (D4);
 // an already-absent object is idempotent success, not a failure (D5/EC-1).
 func (h *StorageHandler) BulkDelete(w http.ResponseWriter, r *http.Request) {
+	// Bound the raw body before parsing (DoS guard) — mirrors Upload's MaxBytesReader.
+	r.Body = http.MaxBytesReader(w, r.Body, bulkDeleteMaxBodyBytes)
 	var req bulkDeleteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeStorageError(w, http.StatusBadRequest, "invalid_body", "Request body must be JSON with 'paths' and/or 'prefixes'.")
@@ -191,6 +201,12 @@ func (h *StorageHandler) BulkDelete(w http.ResponseWriter, r *http.Request) {
 	failed := make([]map[string]any, 0)
 	truncated := false
 	for _, p := range req.Paths {
+		// LOW-1: validate at the boundary so both storage modes reject the same inputs
+		// (in-process Delete validates; the thin-proxy Delete does not).
+		if err := storage.ValidatePath(p); err != nil {
+			failed = append(failed, map[string]any{"path": p, "reason": codeForStorageErr(err)})
+			continue
+		}
 		// D5/EC-1: an already-absent object (overlap / re-click / cross-tab) is success.
 		if err := h.svc.Delete(r.Context(), tenant, p); err == nil || errors.Is(err, storage.ErrObjectNotFoundMeta) {
 			deleted++
@@ -199,6 +215,11 @@ func (h *StorageHandler) BulkDelete(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for _, pre := range req.Prefixes {
+		// MEDIUM-2: bound TOTAL objects removed per request across all prefixes.
+		if deleted >= bulkDeleteMaxTotalObjects {
+			truncated = true
+			break
+		}
 		res, err := h.svc.DeletePrefix(r.Context(), tenant, pre)
 		if err != nil {
 			failed = append(failed, map[string]any{"path": pre, "reason": codeForStorageErr(err)})

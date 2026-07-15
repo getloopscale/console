@@ -7,7 +7,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -115,13 +117,28 @@ func (m *fakeFullMeta) GetMeta(ctx context.Context, t, name string) (ObjectRecor
 	return ObjectRecord{}, ErrObjectNotFoundMeta
 }
 func (m *fakeFullMeta) ListByPrefix(ctx context.Context, t, prefix string, limit int, cursor string) ([]ObjectRecord, string, error) {
-	var out []ObjectRecord
-	for _, r := range m.rows {
-		if strings.HasPrefix(r.Name, prefix) {
-			out = append(out, r)
+	// Realistic keyset pagination (name > cursor, sorted, sliced by limit) so the
+	// multi-page delete path in DeletePrefix is actually exercised.
+	var names []string
+	for name := range m.rows {
+		if strings.HasPrefix(name, prefix) && name > cursor {
+			names = append(names, name)
 		}
 	}
-	return out, "", nil
+	sort.Strings(names)
+	if limit <= 0 {
+		limit = 100
+	}
+	next := ""
+	if len(names) > limit {
+		names = names[:limit]
+		next = names[len(names)-1]
+	}
+	out := make([]ObjectRecord, 0, len(names))
+	for _, n := range names {
+		out = append(out, m.rows[n])
+	}
+	return out, next, nil
 }
 func (m *fakeFullMeta) DeleteByName(ctx context.Context, t, name string) error {
 	delete(m.rows, name)
@@ -387,5 +404,69 @@ func TestService_DeletePrefix_Truncated(t *testing.T) {
 	}
 	if res.Deleted != 2 {
 		t.Errorf("Deleted = %d, want 2 (bulkDeleteMaxObjects cap)", res.Deleted)
+	}
+}
+
+// TestDeletePrefixOver_Paginates proves the shared loop advances the cursor across
+// pages and deletes every object — the multi-page path that runs in prod for large
+// folders (HIGH-1 from review). Uses injected closures so it's independent of any
+// page-size constant.
+func TestDeletePrefixOver_Paginates(t *testing.T) {
+	pages := map[string]struct {
+		recs []ObjectRecord
+		next string
+	}{
+		"":    {[]ObjectRecord{{Name: "p/a", SizeBytes: 1}, {Name: "p/b", SizeBytes: 1}}, "p/b"},
+		"p/b": {[]ObjectRecord{{Name: "p/c", SizeBytes: 1}}, ""},
+	}
+	var seenCursors []string
+	list := func(ctx context.Context, tenant, prefix string, limit int, cursor string) ([]ObjectRecord, string, error) {
+		seenCursors = append(seenCursors, cursor)
+		pg := pages[cursor]
+		return pg.recs, pg.next, nil
+	}
+	var deleted []string
+	del := func(ctx context.Context, tenant, path string) error {
+		deleted = append(deleted, path)
+		return nil
+	}
+	res, err := DeletePrefixOver(context.Background(), "tn", "p/", list, del)
+	if err != nil {
+		t.Fatalf("DeletePrefixOver: %v", err)
+	}
+	if res.Deleted != 3 {
+		t.Errorf("Deleted = %d, want 3 across 2 pages", res.Deleted)
+	}
+	if len(deleted) != 3 {
+		t.Errorf("deleted %v, want all 3 (a,b,c)", deleted)
+	}
+	if len(seenCursors) != 2 || seenCursors[0] != "" || seenCursors[1] != "p/b" {
+		t.Errorf("cursors = %v, want ['' , 'p/b'] (2nd page resumes after page-1's last name)", seenCursors)
+	}
+}
+
+// TestService_DeletePrefix_MultiPage exercises DeletePrefix (not just the loop)
+// against the keyset-paginating fake with more objects than one List page.
+func TestService_DeletePrefix_MultiPage(t *testing.T) {
+	old := bulkDeleteMaxObjects
+	bulkDeleteMaxObjects = 10000
+	defer func() { bulkDeleteMaxObjects = old }()
+	obj, meta := newFakeObjectStore(), newFakeFullMeta()
+	const n = 1500 // > the 1000 page size DeletePrefix lists with
+	for i := 0; i < n; i++ {
+		name := fmt.Sprintf("big/%05d", i) // zero-padded → unique + stable keyset sort
+		meta.rows[name] = ObjectRecord{Name: name, SizeBytes: 1}
+	}
+	total := len(meta.rows)
+	svc := newService(t, obj, meta, "pro")
+	res, err := svc.DeletePrefix(context.Background(), "tn", "big/")
+	if err != nil {
+		t.Fatalf("DeletePrefix: %v", err)
+	}
+	if res.Deleted != total {
+		t.Errorf("Deleted = %d, want %d (all pages)", res.Deleted, total)
+	}
+	if len(meta.rows) != 0 {
+		t.Errorf("%d rows remain, want 0 (folder fully deleted across pages)", len(meta.rows))
 	}
 }
