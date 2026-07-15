@@ -41,6 +41,8 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/storage"
+	"github.com/usetheodev/theo-cloud/internal/storageproxy"
 	"github.com/usetheodev/theo-cloud/internal/thelens"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
@@ -891,6 +893,58 @@ func main() {
 				)
 			}
 		})
+	}
+
+	// M7 tenant blob storage vertical (/v1/storage/*). Gated on config: enabled
+	// only when the S3 backend is configured (config.StorageEnabled). Uses
+	// RequireScope(db, storage:*) like the other consumer verticals — in-process,
+	// no broker/ForwardAuth. The share-redemption route is UNauthenticated (the
+	// token is the capability) and therefore IP-rate-limited.
+	if cfg.StorageEnabled() {
+		// DIP swap: proxy mode forwards to the standalone theo-storage service;
+		// in-process mode runs the S3-backed vertical here. Both satisfy the same
+		// routes.StorageService interface, so the routes below are identical.
+		var storageSvc routes.StorageService
+		if cfg.StorageProxyMode() {
+			storageSvc = storageproxy.New(cfg.StorageUpstreamURL, nil)
+			logger.Info("storage vertical enabled (thin proxy)", "upstream", cfg.StorageUpstreamURL)
+		} else {
+			s, err := storage.BuildService(db, storage.BackendConfig{
+				S3Endpoint:  cfg.StorageS3Endpoint,
+				S3Bucket:    cfg.StorageS3Bucket,
+				S3Region:    cfg.StorageS3Region,
+				S3AccessKey: cfg.StorageS3AccessKey.Value(),
+				S3SecretKey: cfg.StorageS3SecretKey.Value(),
+				ShareSecret: cfg.StorageShareSecret.Value(),
+			})
+			if err != nil {
+				logger.Error("storage vertical build failed", "error", err)
+				os.Exit(1)
+			}
+			storageSvc = s
+		}
+		storageHandler := routes.NewStorageHandler(storageSvc)
+		shareRedeemLimiter := ratelimit.NewInMemoryLimiter(60, time.Minute)
+		r.Route("/v1/storage", func(r chi.Router) {
+			r.With(auth.RequireScope(db, "storage:write")).Put("/objects/*", storageHandler.Upload)
+			r.With(auth.RequireScope(db, "storage:read")).Get("/objects/*", storageHandler.Download)
+			r.With(auth.RequireScope(db, "storage:read")).Get("/objects", storageHandler.List)
+			r.With(auth.RequireScope(db, "storage:read")).Get("/stat/*", storageHandler.Stat)
+			r.With(auth.RequireScope(db, "storage:write")).Delete("/objects/*", storageHandler.Delete)
+			r.With(auth.RequireScope(db, "storage:write")).Post("/share", storageHandler.CreateShare)
+			// Unauthenticated redemption — token is the capability; IP rate-limited.
+			r.With(ratelimit.Middleware(shareRedeemLimiter, 60, ipKey)).Get("/shared/{token}", storageHandler.RedeemShare)
+		})
+		// Dashboard BFF surface (/v1/dashboard/storage/*) — browser JWT sessions.
+		// Reuses the SAME StorageHandler: tenant comes from auth.GetUser(ctx),
+		// which requireJWT populates identically to the scope middleware (DRY).
+		r.Route("/v1/dashboard/storage", func(r chi.Router) {
+			r.Use(requireJWT)
+			storageHandler.MountDashboardRoutes(r)
+		})
+		logger.Info("storage vertical enabled", "endpoint_configured", true)
+	} else {
+		logger.Warn("STORAGE_S3_* not set — /v1/storage/* endpoints disabled")
 	}
 
 	// Dashboard surface (/v1/dashboard/memory/*) — browser sessions (requireJWT).

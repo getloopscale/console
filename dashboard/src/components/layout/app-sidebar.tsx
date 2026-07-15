@@ -38,8 +38,7 @@ import {
   SlidersHorizontal,
   User,
   Users,
-  Webhook,
-} from 'lucide-react';
+  Webhook, FolderTree } from 'lucide-react';
 import { Input, Sidebar } from '@usetheo/ui';
 import type { Session } from '@/lib/auth';
 import { TeamSwitcher } from '@/components/team/team-switcher';
@@ -119,6 +118,7 @@ const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' },
           { label: 'Knowledge Base', path: '/rag', icon: BookOpen, drillsInto: 'rag' },
+          { label: 'Workspace', path: '/workspaces', icon: FolderTree },
           { label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' },
         ],
       },

@@ -3,7 +3,7 @@
  * `MetricTrendChart` series. Deterministic + unit-tested (no DOM). The by-model pivot collapses
  * high-cardinality models into an "Others" series (opik convergence) so the line count stays legible.
  */
-import type { TrendPoint, TrendSeries } from './metric-trend-chart';
+import type { TrendPoint, TrendSeries } from '@usetheo/ui';
 
 export interface TrafficBucket {
   periodStart: string;

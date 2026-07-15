@@ -174,3 +174,39 @@ func TestLoad_LensFields(t *testing.T) {
 		t.Errorf("LensPlatformAdminKey = %q, want theo_live_platform_env (LENS_PLATFORM_ADMIN_KEY not read)", c.LensPlatformAdminKey.Value())
 	}
 }
+
+// TestValidateStorage_AllOrNone — M7: a partial storage config must fail fast.
+func TestValidateStorage_AllOrNone(t *testing.T) {
+	base := Config{Environment: "dev"}
+
+	// none set → valid (vertical disabled)
+	if err := base.Validate(); err != nil {
+		t.Fatalf("empty storage config should be valid: %v", err)
+	}
+
+	// only endpoint set → partial → error naming the missing vars
+	partial := base
+	partial.StorageS3Endpoint = "http://minio:9000"
+	if err := partial.validateStorage(); err == nil {
+		t.Error("partial storage config must be rejected")
+	}
+
+	// all set with a >=32 char share secret → valid
+	full := base
+	full.StorageS3Endpoint = "http://minio:9000"
+	full.StorageS3Bucket = "theo-storage"
+	full.StorageS3Region = "us-east-1"
+	full.StorageS3AccessKey = Secret("AK")
+	full.StorageS3SecretKey = Secret("SK")
+	full.StorageShareSecret = Secret("this-is-a-32-char-minimum-secret!")
+	if err := full.validateStorage(); err != nil {
+		t.Errorf("complete storage config should be valid: %v", err)
+	}
+
+	// short share secret → error
+	shortSecret := full
+	shortSecret.StorageShareSecret = Secret("too-short")
+	if err := shortSecret.validateStorage(); err == nil {
+		t.Error("share secret < 32 chars must be rejected")
+	}
+}

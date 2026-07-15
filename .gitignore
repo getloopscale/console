@@ -26,3 +26,8 @@ dashboard/test-results/
 
 # Playwright test reports (build output)
 dashboard/playwright-report/
+sdk/storage-ts/.npmrc
+**/.npmrc
+sdk/storage-ts/node_modules
+sdk/storage-ts/dist
+sdk/storage-ts/package-lock.json

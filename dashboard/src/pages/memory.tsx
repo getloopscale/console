@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Share2, Sparkles, Zap } from 'lucide-react';
-import { Button, Card, MetricCard, PageShell, Skeleton, TokenUsageChart, type TokenUsagePoint } from '@usetheo/ui';
+import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
+import { TokenUsageChart, type TokenUsagePoint } from '@theokit/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';

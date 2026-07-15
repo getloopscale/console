@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Brain, Loader2, Sparkles } from 'lucide-react';
-import { Button, Card, PageShell, PlanBadge, UsageMeter, type PlanTier, type UsageMetric as UsageMeterMetric } from '@usetheo/ui';
+import { Button, Card, PageShell, PlanBadge, type PlanTier } from '@usetheo/ui';
+import { UsageMeter, type UsageMetric as UsageMeterMetric } from '@theokit/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ContentGrid } from '@/components/layout';
 import { InvoicesCard } from '@/components/billing/invoices-card';

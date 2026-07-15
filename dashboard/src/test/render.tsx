@@ -2,7 +2,8 @@ import { render as rtlRender, type RenderOptions } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
-import { ThemeProvider, Toaster, violetForge } from '@usetheo/ui';
+import { Toaster } from '@usetheo/ui';
+import { ThemeProvider, violetForge } from '@theokit/ui';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import type { ReactElement, ReactNode } from 'react';
 

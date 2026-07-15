@@ -165,7 +165,7 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 ---
 
-### M5 — [ ] Hermetic project-cap (close deploy-path bypass #106)
+### M5 — [x] Hermetic project-cap (close deploy-path bypass #106)
 
 **Objective:** make the per-Account project cap airtight on BOTH creation paths. M4 enforced the explicit `POST /api/v1/projects` path; the deploy-time `EnsureProject` safety-net (`theo deploy <new-name>` → build-orchestrator auto-create) is a SECOND project-row insert path that does NOT consult the cap. Close it without introducing a nested-lock deadlock in the team's build-submit transaction. Tracked as `usetheodev/theo-cloud#106`. Implementation lands in the `theo` engine repo.
 
@@ -205,6 +205,39 @@ self-served (the independent-developer-reselling usage that the Account layer ex
 
 1. Headless Kratos login flakiness → driving the real auth flow in CI can be brittle (CSRF tokens, redirects, email verification). Mitigation: discovery maps the dev-stack auth shortcuts already used by `dev/run.sh`; use the same provisioning path, not the production email loop.
 2. CI cost/time → spinning the full Model B stack per run is heavy. Mitigation: gate the full-chain stage to run on release PRs / nightly, not every push; keep the fast Go/vitest suites on every push.
+
+---
+
+### M7 — [x] Tenant Blob Storage (managed file storage — complete solution)
+
+> Added 2026-07-14 by `/roadmap-feature` (slug: `tenant-blob-storage`). See CHANGELOG `[Unreleased] § Added`. Sponsor mandate: COMPLETE solution — all journeys, UI, SDK, everything.
+
+**Objective:** ship the customer-requested managed file storage ("storage files", S3 wrapper) as the 4th consumer-key vertical (`/v1/storage/*` alongside memory/observability/rag) — tenant-global private store with virtual folders, 6 core operations, accessed EXCLUSIVELY via existing `theo_live_*` API keys with new `storage:read`/`storage:write` scopes — across every surface: API, CLI, SDK, dashboard UI, dogfood journeys and docs.
+
+**Definition of done:**
+
+> **Engineering status 2026-07-14 (LIVE-gated):** all engineering DoD below is IMPLEMENTED + evidenced. Beyond hermetic tests, the vertical is now PROVEN end-to-end against REAL Postgres + REAL MinIO (local Docker): s3x SigV4 round-trip, full Service chain (upload→download→share→redeem→delete + quota + HIGH-4), and the full HTTP path with EC-2 headers all GREEN (`-tags=integration`) across theo-cloud (API vertical + dashboard), theo-cli (CLI), the `@usetheo/storage` TS SDK, and theo engine (migration 000057 + J-26 journey). Checkboxes stay `[ ]` until the LIVE validation ceremony (Cleanroom + Red Team on the dev-public droplet, per ADR D5 + `cleanroom-up-live-test-mandate.md`) flips them — engineering evidence is necessary but not sufficient. One deviation from DoD: metering is Prometheus-only in the MVP (`theo_storage_bytes_written_total`), NOT written to `cost_counters` — writing a storage metric to the engine's contract-guarded billing table before storage billing exists is premature (YAGNI + blueprint ADR D4); deferred to when storage billing lands.
+>
+> **Architecture pivot 2026-07-14 (sponsor-confirmed):** storage was extracted into a SEPARATE data-plane service `theo-storage` (new repo `usetheodev/theo-storage`), reached via the edge like theo-memory/theo-rag, and consumed locally by Theokit Studio via the `@usetheo/storage` SDK. The tested domain (quota reserve→commit→compensate under advisory lock, server-derived tenant keys EC-1, HMAC share tokens, EC-2 download hardening) was transplanted verbatim (a composition-root swap, not a rewrite) behind a swappable auth boundary (`static` dev bearer / `header` Model B broker). theo-cloud's in-process vertical became a THIN PROXY via `STORAGE_UPSTREAM_URL` (new `internal/storageproxy`, strangler-fig): unset → in-process (unchanged), set → forwards to theo-storage injecting `X-Theo-Tenant`. Re-verified GREEN this session (fresh, local Docker): theo-cli 9/9, dashboard 4/4, `@usetheo/storage` SDK 6/6 against the live standalone service, theo-storage domain+glue tests, theo-cloud in-process integration (real PG+MinIO), and the proxy strangler-fig E2E (theo-cloud handler → proxy → header-mode theo-storage → PG+MinIO). The LIVE dev-public ceremony (Cleanroom + Red Team) — now covering the deploy of `theo-storage` behind the edge — remains the gate for flipping these checkboxes.
+
+- [ ] **API vertical** `/v1/storage/*` LIVE in the cloud-API with the 6 core operations (`upload`, `download`, `list` by prefix, `delete`, `stat`, `share` temporary signed URL), gated by `storage:read`/`storage:write` scopes registered in the existing `internal/routes/api_keys.go` registry + `scope_middleware`; per-tier caps enforced — **HTTP 402** on aggregate (Starter 100MB · Pro 5GB · Team 25GB · Enterprise custom), **HTTP 413** on per-file (25MB/100MB/500MB/5GB) — two DISTINCT typed errors, never merged; `MetricStorageBytes` metering from day 1.
+- [ ] **CLI** `theo storage {upload,download,list,delete,stat,share}` shipped in theo-cli — exit codes 0-5, stable `--json`, zero infra terms in output (Rule 3: "storage"/"files", never S3/bucket/MinIO).
+- [ ] **SDK** — TypeScript `@usetheo/storage` (publishable npm package at `sdk/storage-ts`) consuming the same API-key auth, with typed errors + a working example. **Amended 2026-07-14:** the Python SDK is a **named deferral** — the `theo-sdk` repo listed in the umbrella CLAUDE.md does not exist on disk; creating a Python SDK from scratch is its own milestone. TS SDK ships now (sponsor-decided this session).
+- [ ] **Dashboard UI** — Storage page in the theo-cloud dashboard: folder browse, upload, delete, stat, generate `share` link; plan quota usage visible (used/limit).
+- [ ] **Dogfood journeys** — J-storage journey(s) covering CLI + API + UI LIVE-validated with recorded evidence, house journey pattern + sponsor JUNTOS walkthrough.
+- [ ] **Tests per blueprint D4** — unit with DIP-interface mocks; integration against real MinIO with full mint→redeem round-trip of share URLs; hand-rolled SigV4 validated against pocketbase test-vectors; negative cases assert typed errors (402 ≠ 413).
+- [ ] **Docs + CHANGELOG** — reference docs for the 6 operations across API/CLI/SDK in product language; wiring triad (caller + integration test + runtime metric) per new symbol.
+
+**Dependencies:** M1 (broker per-Account-scoped mint — the `theo_live_*` keys + scopes that are storage's ONLY access path), M3 (enforce + propagate — the per-Account enforcement chain the 402 caps plug into). M5 is explicitly NOT a dependency (orthogonal deploy-path fix).
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. Proxy data path = cost/bottleneck on the shared cloud-API — every storage byte crosses the same process serving rag/memory/observability. Mitigation: aggressive caps (sponsor cut aggregates 10×), `MetricStorageBytes` + egress metering from day 1, stream timeouts, and a documented architectural escape-hatch (Nhost-style stateless SigV4-rewrap) if the proxy becomes a measured bottleneck.
+2. Hand-rolled SigV4 is security code we own — new presign + multipart in the fork-and-own client; a signing bug means cross-tenant file access or silently broken share URLs. Mitigation: pocketbase test-vector validation + mint→redeem round-trip against real MinIO + typed-error negative cases. (Conscious 3rd risk, accepted in the product grill: tenant-global namespace lets staging touch production files — mitigated by path-prefix convention, not mechanism.)
+
+**Why now (from grill Q1):**
+
+Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clientes estão pedindo é storage files onde ele (pode ser wrapper S3)". Deployed apps today would need external S3 to store files; the platform's promise is the app working with zero external config. Product decisions grilled in `theo/.claude/knowledge-base/grills/tenant-blob-storage-grill.md` (8 decisions, READY_FOR_PLAN); architecture locked in the SHIPPABLE 100.0 blueprint `theo/.claude/knowledge-base/discoveries/blueprints/tenant-blob-storage-blueprint.md` (4 ADRs; SOTA peers supabase/storage + hasura-storage + pocketbase + go-cloud already cloned + pinned in the theo repo catalog).
 
 ---
 

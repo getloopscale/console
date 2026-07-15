@@ -1,7 +1,8 @@
+import { Stepper, type StepperStepData } from '@usetheo/ui';
 import { useDeploymentStream, type DeploymentStatus } from '@/hooks/use-deployment-stream';
 import type { BuildStep, PhaseGroup } from '@/lib/api/sse-events';
 import type { BuildStatus } from '@/lib/api/types';
-import { BuildStepCard } from './build-step-card';
+import { BuildStepTimer } from './build-step-timer';
 import { BuildErrorPill } from './build-error-pill';
 
 /**
@@ -38,6 +39,45 @@ export interface BuildTimelineLiveProps {
 
 const PHASE_ORDER: PhaseGroup[] = ['clone', 'install', 'build', 'sign', 'deliver', 'other'];
 
+// Prose-style label (portado do antigo step card deletado no M7 — EC-14 preservado
+// pelo truncamento com title do Stepper da lib).
+function displayLabel(stepName: string): string {
+  const stripped = stepName.replace(/[-_]/g, ' ');
+  return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+}
+
+// M7 T2.2: mapeia o vocabulário SSE para o StepStatus da lib; a causa da falha
+// vai na description (convenção da lib — lida pelo SR no mesmo item).
+function toStepperStep(step: BuildStep): StepperStepData {
+  // review M7 F-dom-3: SSE é fronteira de wire — vocabulário desconhecido degrada
+  // para pending (disciplina da lib), nunca para failed silencioso.
+  const status =
+    step.status === 'succeeded'
+      ? 'done'
+      : step.status === 'running'
+        ? 'active'
+        : step.status === 'failed'
+          ? 'failed'
+          : 'pending';
+  return {
+    id: step.step_name,
+    label: displayLabel(step.step_name),
+    status,
+    description:
+      step.status === 'failed'
+        ? `failed: ${step.error_class ?? 'unknown'}${step.error_message ? ` — ${step.error_message}` : ''}`
+        : undefined,
+    timestamp:
+      step.started_at || step.duration_seconds !== undefined ? (
+        <BuildStepTimer
+          startedAt={step.started_at}
+          endedAt={step.ended_at}
+          paused={step.status !== 'running'}
+        />
+      ) : undefined,
+  };
+}
+
 const PHASE_LABEL: Record<PhaseGroup, string> = {
   clone: 'Clone',
   install: 'Install',
@@ -53,7 +93,9 @@ export function BuildTimelineLive({
   initialLastEventID,
   restBuildStatus,
 }: BuildTimelineLiveProps) {
-  const { steps, currentStep, status, error, connected } = useDeploymentStream(buildId, {
+  // currentStep saiu do destructuring no M7 T2.2: o estado active agora vem do
+  // status de CADA step (Stepper da lib), não de um ponteiro externo.
+  const { steps, status, error, connected } = useDeploymentStream(buildId, {
     initialLastEventID,
   });
 
@@ -83,16 +125,10 @@ export function BuildTimelineLive({
               <h3 className="mb-2 text-label uppercase tracking-wide text-muted-foreground">
                 {PHASE_LABEL[phase]}
               </h3>
-              <ul className="space-y-2">
-                {phaseSteps.map((step) => (
-                  <li key={step.step_name}>
-                    <BuildStepCard
-                      step={step}
-                      active={currentStep?.step_name === step.step_name}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <Stepper
+                label={`${PHASE_LABEL[phase]} steps`}
+                steps={phaseSteps.map(toStepperStep)}
+              />
             </section>
           );
         })

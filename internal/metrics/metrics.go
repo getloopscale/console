@@ -14,6 +14,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
 )
 
 var (
@@ -36,6 +37,19 @@ var (
 	deviceFlowBrowserSuccess = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "theo_device_flow_browser_success_total",
 		Help: "Device-flow consent confirmations rendered in the dashboard.",
+	})
+
+	// M7 tenant blob storage: bytes committed to the store. A pure counter (no
+	// tenant label — cardinality discipline; per-tenant usage lives in
+	// cost_counters + is logged for ops).
+	storageBytesWritten = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "theo_storage_bytes_written_total",
+		Help: "Total bytes committed to tenant blob storage.",
+	})
+
+	storageObjectsDeleted = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "theo_storage_objects_deleted_total",
+		Help: "Total objects removed from tenant blob storage (incl. bulk/folder deletes).",
 	})
 
 	tenantProvisioning = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -116,6 +130,8 @@ func init() {
 		tokenExchanges,
 		deviceFlows,
 		deviceFlowBrowserSuccess,
+		storageBytesWritten,
+		storageObjectsDeleted,
 		tenantProvisioning,
 		tenantProvisioningDuration,
 		authRejections,
@@ -135,6 +151,39 @@ func init() {
 // fan-out (J-16 slice 3), labeled by the deploy event type.
 func IncWorkspaceWebhookEnqueued(eventType string) {
 	workspaceWebhookEnqueued.WithLabelValues(eventType).Inc()
+}
+
+// AddStorageBytes records delta bytes committed to tenant blob storage (M7).
+func AddStorageBytes(delta int64) {
+	if delta > 0 {
+		storageBytesWritten.Add(float64(delta))
+	}
+}
+
+// StorageBytesWrittenValue returns the current counter value (test-only helper).
+// Uses the prometheus Write API (no testutil dependency).
+func StorageBytesWrittenValue() float64 {
+	var m dto.Metric
+	if err := storageBytesWritten.Write(&m); err != nil {
+		return 0
+	}
+	return m.GetCounter().GetValue()
+}
+
+// AddObjectsDeleted records n objects removed from tenant blob storage (bulk/folder delete).
+func AddObjectsDeleted(n int) {
+	if n > 0 {
+		storageObjectsDeleted.Add(float64(n))
+	}
+}
+
+// ObjectsDeletedValue returns the current counter value (test-only helper).
+func ObjectsDeletedValue() float64 {
+	var m dto.Metric
+	if err := storageObjectsDeleted.Write(&m); err != nil {
+		return 0
+	}
+	return m.GetCounter().GetValue()
 }
 
 // IncTokenExchange increments token exchange counter.

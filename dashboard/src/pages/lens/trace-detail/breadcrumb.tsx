@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { Fragment, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button } from '@usetheo/ui';
+import { Breadcrumb as UiBreadcrumb } from '@usetheo/ui';
 
 import type { TraceSpanNode } from './helpers';
 
@@ -69,9 +69,12 @@ export function ancestors(root: TraceSpanNode, spanId: string): TraceSpanNode[] 
 }
 
 /**
- * Breadcrumb of the selected span's ancestor chain. Clicking a crumb sets `spanId` via the URL
- * store. Composed from `@usetheo/ui` `Button` (ghost) links — the design system ships no dedicated
- * Breadcrumb primitive, so we reuse `Button` rather than add a dependency (parsimony rung 4).
+ * Breadcrumb of the selected span's ancestor chain over the `@usetheo/ui`
+ * Breadcrumb primitive (M7 adoption T2.3 — the primitive shipped in 0.16.0,
+ * superseding the hand-rolled Button trail). Clicking a crumb sets `spanId`
+ * via the URL store (crumbs are buttons through `Link asChild`); the selected
+ * span renders as `Breadcrumb.Page` (aria-current="page"). testids preservados
+ * para a suíte do trace-detail.
  */
 export function Breadcrumb({
   root,
@@ -88,26 +91,41 @@ export function Breadcrumb({
   }, [root, selectedId]);
 
   return (
-    <nav aria-label="Selected span breadcrumb" data-testid="trace-breadcrumb" className="flex flex-wrap items-center gap-1 text-xs">
-      {chain.map((node, i) => (
-        <span key={`${i}-${node.spanId}`} className="flex items-center gap-1">
-          {i > 0 ? <span className="text-muted-foreground" aria-hidden="true">/</span> : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            data-testid="breadcrumb-crumb"
-            aria-current={node.spanId === selectedId ? 'true' : undefined}
-            onClick={() => onSelect(node.spanId)}
-            className={`h-auto px-1 py-0.5 font-mono text-xs ${
-              node.spanId === selectedId ? 'font-medium text-foreground' : 'text-muted-foreground'
-            }`}
-          >
-            {node.name}
-          </Button>
-        </span>
-      ))}
-    </nav>
+    <UiBreadcrumb
+      aria-label="Selected span breadcrumb"
+      data-testid="trace-breadcrumb"
+      className="text-xs"
+    >
+      <UiBreadcrumb.List>
+        {chain.map((node, i) => (
+          // review M7 F-dom-1: Separator é irmão do Item (li dentro de li é HTML inválido)
+          <Fragment key={`${i}-${node.spanId}`}>
+            {i > 0 ? <UiBreadcrumb.Separator /> : null}
+            <UiBreadcrumb.Item>
+              {node.spanId === selectedId ? (
+                <UiBreadcrumb.Page
+                  data-testid="breadcrumb-crumb"
+                  className="font-medium font-mono text-foreground text-xs"
+                >
+                  {node.name}
+                </UiBreadcrumb.Page>
+              ) : (
+                <UiBreadcrumb.Link asChild>
+                  <button
+                    type="button"
+                    data-testid="breadcrumb-crumb"
+                    onClick={() => onSelect(node.spanId)}
+                    className="rounded px-1 py-0.5 font-mono text-muted-foreground text-xs hover:text-foreground"
+                  >
+                    {node.name}
+                  </button>
+                </UiBreadcrumb.Link>
+              )}
+            </UiBreadcrumb.Item>
+          </Fragment>
+        ))}
+      </UiBreadcrumb.List>
+    </UiBreadcrumb>
   );
 }
 

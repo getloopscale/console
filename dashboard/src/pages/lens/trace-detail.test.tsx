@@ -594,6 +594,17 @@ describe('LensTraceDetail — M58 P0 URL selection + breadcrumb + kbd nav', () =
     expect(screen.queryByText(/could not load this trace/i)).not.toBeInTheDocument();
   });
 
+  it('breadcrumb_selected_crumb_is_page_with_aria_current', async () => {
+    mockCloudFetch.mockResolvedValue(navTree());
+    render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s3'] });
+    const trail = await screen.findByTestId('trace-breadcrumb');
+    const crumbs = within(trail).getAllByTestId('breadcrumb-crumb');
+    const selected = crumbs[crumbs.length - 1];
+    // review M7 F-tests-4: o selecionado é Breadcrumb.Page (aria-current=page), não botão
+    expect(selected?.getAttribute('aria-current')).toBe('page');
+    expect(selected?.tagName).not.toBe('BUTTON');
+  });
+
   it('breadcrumb renders the ancestor chain root→…→selected in order', async () => {
     mockCloudFetch.mockResolvedValue(navTree());
     render(<LensTraceDetail traceId="t1" />, { initialEntries: ['/?spanId=s3'] });

@@ -215,7 +215,13 @@ export function RegisterPage() {
       // the response.
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = '/v1/auth/register';
+      // The upstream identity-store requires the registration flow id on the
+      // submit query (`?flow=<id>`); without it the submit is rejected and the
+      // BFF's anti-enumeration unifier maps the rejection to the canonical
+      // check-email response — a SILENT no-op that creates no account. Forward
+      // the flow id so the proxied submit actually registers the user.
+      // Regression: register.test.tsx "BFF submit carries the flow id".
+      form.action = `/v1/auth/register?flow=${encodeURIComponent(flow.id)}`;
       for (const [k, v] of [
         ['csrf_token', csrfNode?.attributes.value || ''],
         ['method', 'password'],

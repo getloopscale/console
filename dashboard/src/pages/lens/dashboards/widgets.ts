@@ -1,4 +1,4 @@
-import type { TrendSeries } from '@/components/lens/metric-trend-chart';
+import type { TrendSeries } from '@usetheo/ui';
 import {
   throughputSeries,
   errorRateSeries,
