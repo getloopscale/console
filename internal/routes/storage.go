@@ -10,11 +10,13 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/storage"
 	"github.com/usetheodev/theo-cloud/internal/storage/share"
 )
@@ -27,6 +29,7 @@ type StorageService interface {
 	Stat(ctx context.Context, tenantID, path string) (storage.ObjectRecord, error)
 	List(ctx context.Context, tenantID, prefix string, limit int, cursor string) ([]storage.ObjectRecord, string, error)
 	Delete(ctx context.Context, tenantID, path string) error
+	DeletePrefix(ctx context.Context, tenantID, prefix string) (storage.BulkDeleteResult, error)
 	Share(ctx context.Context, tenantID, path string, ttl time.Duration) (token string, expires time.Time, err error)
 	Redeem(ctx context.Context, token string) (io.ReadCloser, storage.ObjectMeta, error)
 	Usage(ctx context.Context, tenantID string) (storage.UsageInfo, error)
@@ -54,6 +57,7 @@ func (h *StorageHandler) MountDashboardRoutes(r chi.Router) {
 	r.Get("/stat/*", h.Stat)
 	r.Put("/objects/*", h.Upload)
 	r.Delete("/objects/*", h.Delete)
+	r.Post("/bulk-delete", h.BulkDelete)
 	r.Post("/share", h.CreateShare)
 }
 
@@ -149,6 +153,71 @@ func (h *StorageHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// bulkDeleteMaxItems bounds the request itself (paths + prefixes) so one call
+// cannot enqueue an unbounded amount of work.
+const bulkDeleteMaxItems = 1000
+
+type bulkDeleteRequest struct {
+	Paths    []string `json:"paths"`
+	Prefixes []string `json:"prefixes"`
+}
+
+// BulkDelete serves POST /v1/dashboard/storage/bulk-delete — deletes a set of
+// files (paths) and/or whole folders (prefixes) in one tenant-scoped call. The
+// tenant comes from the session (auth.GetUser), never the client (EC-1). A folder
+// prefix MUST end with "/" (EC-2). Partial failure is a 200 with failed[] (D4);
+// an already-absent object is idempotent success, not a failure (D5/EC-1).
+func (h *StorageHandler) BulkDelete(w http.ResponseWriter, r *http.Request) {
+	var req bulkDeleteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeStorageError(w, http.StatusBadRequest, "invalid_body", "Request body must be JSON with 'paths' and/or 'prefixes'.")
+		return
+	}
+	if len(req.Paths)+len(req.Prefixes) > bulkDeleteMaxItems {
+		writeStorageError(w, http.StatusBadRequest, "too_many_items", "Too many items in one request. Delete them in smaller batches.")
+		return
+	}
+	for _, pre := range req.Prefixes {
+		if !strings.HasSuffix(pre, "/") {
+			writeStorageError(w, http.StatusBadRequest, "invalid_folder", "A folder to delete must end with a slash.")
+			return
+		}
+	}
+	tenant := tenantOf(r)
+	deleted := 0
+	var freed int64
+	failed := make([]map[string]any, 0)
+	truncated := false
+	for _, p := range req.Paths {
+		// D5/EC-1: an already-absent object (overlap / re-click / cross-tab) is success.
+		if err := h.svc.Delete(r.Context(), tenant, p); err == nil || errors.Is(err, storage.ErrObjectNotFoundMeta) {
+			deleted++
+		} else {
+			failed = append(failed, map[string]any{"path": p, "reason": codeForStorageErr(err)})
+		}
+	}
+	for _, pre := range req.Prefixes {
+		res, err := h.svc.DeletePrefix(r.Context(), tenant, pre)
+		if err != nil {
+			failed = append(failed, map[string]any{"path": pre, "reason": codeForStorageErr(err)})
+			continue
+		}
+		deleted += res.Deleted
+		freed += res.Freed
+		for _, f := range res.Failed {
+			failed = append(failed, map[string]any{"path": f.Path, "reason": f.Reason})
+		}
+		truncated = truncated || res.Truncated
+	}
+	metrics.AddObjectsDeleted(deleted) // wiring pillar (c): ops can see mass-deletes fire
+	writeJSONOK(w, map[string]any{
+		"deleted":     deleted,
+		"freed_bytes": freed,
+		"failed":      failed,
+		"truncated":   truncated,
+	})
 }
 
 type shareRequest struct {

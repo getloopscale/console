@@ -166,12 +166,20 @@ func safePrefix(prefix string) bool {
 		prefix != "./"
 }
 
-// DeletePrefix removes every committed object under prefix (a folder), tenant-
-// scoped. Bounded by bulkDeleteMaxObjects (D3). A not-found is idempotent success,
-// not a failure (D5/EC-1: overlapping selections and re-clicks are safe). A real
-// store error is recorded in Failed and the loop continues (D4). A failure to LIST
-// is surfaced as an error (the caller could not even enumerate).
-func (s *Service) DeletePrefix(ctx context.Context, tenantID, prefix string) (BulkDeleteResult, error) {
+// PrefixLister / PrefixDeleter are the two ops DeletePrefixOver composes — the
+// same signatures the in-process Service and the thin-proxy Client both expose.
+type PrefixLister func(ctx context.Context, tenantID, prefix string, limit int, cursor string) ([]ObjectRecord, string, error)
+type PrefixDeleter func(ctx context.Context, tenantID, path string) error
+
+// DeletePrefixOver is the shared enumerate-and-delete loop (DRY — used by both the
+// in-process Service and the thin-proxy Client so bulk-delete behaves identically
+// in either storage mode). Guarantees: safePrefix guard so a mass-delete can never
+// substring-match nor wipe a tenant (EC-2/EC-3); bounded by bulkDeleteMaxObjects
+// with Truncated (D3); a not-found is idempotent success, not a failure (D5/EC-1:
+// overlapping selections and re-clicks are safe); a real per-object error is
+// recorded in Failed and the loop continues (D4); a LIST failure is surfaced (the
+// caller could not even enumerate).
+func DeletePrefixOver(ctx context.Context, tenantID, prefix string, list PrefixLister, del PrefixDeleter) (BulkDeleteResult, error) {
 	var res BulkDeleteResult
 	if !safePrefix(prefix) {
 		return res, ErrInvalidPath
@@ -179,7 +187,7 @@ func (s *Service) DeletePrefix(ctx context.Context, tenantID, prefix string) (Bu
 	cursor := ""
 	seen := 0
 	for {
-		recs, next, err := s.List(ctx, tenantID, prefix, 1000, cursor)
+		recs, next, err := list(ctx, tenantID, prefix, 1000, cursor)
 		if err != nil {
 			return res, err
 		}
@@ -189,7 +197,7 @@ func (s *Service) DeletePrefix(ctx context.Context, tenantID, prefix string) (Bu
 				return res, nil
 			}
 			seen++
-			if err := s.Delete(ctx, tenantID, rec.Name); err == nil || errors.Is(err, ErrObjectNotFoundMeta) {
+			if err := del(ctx, tenantID, rec.Name); err == nil || errors.Is(err, ErrObjectNotFoundMeta) {
 				res.Deleted++
 				res.Freed += rec.SizeBytes
 			} else {
@@ -202,6 +210,11 @@ func (s *Service) DeletePrefix(ctx context.Context, tenantID, prefix string) (Bu
 		cursor = next
 	}
 	return res, nil
+}
+
+// DeletePrefix removes every committed object under prefix (a folder), tenant-scoped.
+func (s *Service) DeletePrefix(ctx context.Context, tenantID, prefix string) (BulkDeleteResult, error) {
+	return DeletePrefixOver(ctx, tenantID, prefix, s.List, s.Delete)
 }
 
 // codeForBulkErr maps a delete error to a stable, product-safe reason string for

@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/storage"
 	"github.com/usetheodev/theo-cloud/internal/storage/share"
 )
@@ -32,6 +33,10 @@ type stubStorageService struct {
 	redeemErr  error
 	gotTenant  string
 	gotPath    string
+	deleteErrByPath    map[string]error
+	deletePrefixResult storage.BulkDeleteResult
+	deletePrefixErr    error
+	gotPrefixes        []string
 }
 
 func (s *stubStorageService) Upload(ctx context.Context, tenant, path string, body io.Reader, size int64, mime string) error {
@@ -54,7 +59,20 @@ func (s *stubStorageService) Stat(ctx context.Context, tenant, path string) (sto
 func (s *stubStorageService) List(ctx context.Context, tenant, prefix string, limit int, cursor string) ([]storage.ObjectRecord, string, error) {
 	return []storage.ObjectRecord{{Name: "a.txt", SizeBytes: 1, MimeType: "text/plain"}}, "", nil
 }
-func (s *stubStorageService) Delete(ctx context.Context, tenant, path string) error { return nil }
+func (s *stubStorageService) Delete(ctx context.Context, tenant, path string) error {
+	s.gotTenant = tenant
+	if s.deleteErrByPath != nil {
+		if e, ok := s.deleteErrByPath[path]; ok {
+			return e
+		}
+	}
+	return nil
+}
+func (s *stubStorageService) DeletePrefix(ctx context.Context, tenant, prefix string) (storage.BulkDeleteResult, error) {
+	s.gotTenant = tenant
+	s.gotPrefixes = append(s.gotPrefixes, prefix)
+	return s.deletePrefixResult, s.deletePrefixErr
+}
 func (s *stubStorageService) Share(ctx context.Context, tenant, path string, ttl time.Duration) (string, time.Time, error) {
 	if s.shareErr != nil {
 		return "", time.Time{}, s.shareErr
@@ -278,5 +296,140 @@ func TestStorageHandler_Usage(t *testing.T) {
 	}
 	if body["tier"] != "starter" {
 		t.Errorf("tier = %v, want starter", body["tier"])
+	}
+}
+
+// --- T1.2: BulkDelete handler --------------------------------------------
+
+func TestStorageHandler_BulkDelete_FilesAndFolders(t *testing.T) {
+	stub := &stubStorageService{deletePrefixResult: storage.BulkDeleteResult{Deleted: 3, Freed: 30}}
+	h := NewStorageHandler(stub)
+	r := withTenant(httptest.NewRequest(http.MethodPost, "/bulk-delete", strings.NewReader(`{"paths":["a.txt"],"prefixes":["skills/"]}`)), "tn")
+	rec := httptest.NewRecorder()
+	h.BulkDelete(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Deleted    int   `json:"deleted"`
+		FreedBytes int64 `json:"freed_bytes"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.Deleted != 4 {
+		t.Errorf("deleted = %d, want 4 (1 path + 3 prefix)", resp.Deleted)
+	}
+	if stub.gotTenant != "tn" {
+		t.Errorf("tenant = %q, want tn (from ctx, EC-1)", stub.gotTenant)
+	}
+}
+
+func TestStorageHandler_BulkDelete_PartialFailure(t *testing.T) {
+	stub := &stubStorageService{deleteErrByPath: map[string]error{"bad.txt": errors.New("503")}}
+	h := NewStorageHandler(stub)
+	r := withTenant(httptest.NewRequest(http.MethodPost, "/bulk-delete", strings.NewReader(`{"paths":["bad.txt"]}`)), "tn")
+	rec := httptest.NewRecorder()
+	h.BulkDelete(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200 (partial failure is not a 5xx, D4)", rec.Code)
+	}
+	var resp struct {
+		Deleted int `json:"deleted"`
+		Failed  []struct {
+			Path string `json:"path"`
+		} `json:"failed"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.Deleted != 0 || len(resp.Failed) != 1 || resp.Failed[0].Path != "bad.txt" {
+		t.Errorf("got deleted=%d failed=%v, want deleted=0 failed=[bad.txt]", resp.Deleted, resp.Failed)
+	}
+}
+
+func TestStorageHandler_BulkDelete_IdempotentOverlap(t *testing.T) {
+	stub := &stubStorageService{
+		deletePrefixResult: storage.BulkDeleteResult{Deleted: 1, Freed: 10},
+		deleteErrByPath:    map[string]error{"a/b.txt": storage.ErrObjectNotFoundMeta},
+	}
+	h := NewStorageHandler(stub)
+	r := withTenant(httptest.NewRequest(http.MethodPost, "/bulk-delete", strings.NewReader(`{"paths":["a/b.txt"],"prefixes":["a/"]}`)), "tn")
+	rec := httptest.NewRecorder()
+	h.BulkDelete(rec, r)
+	var resp struct {
+		Deleted int `json:"deleted"`
+		Failed  []struct {
+			Path string `json:"path"`
+		} `json:"failed"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if len(resp.Failed) != 0 {
+		t.Errorf("failed = %v, want none (not-found on overlap is idempotent success, D5/EC-1)", resp.Failed)
+	}
+	if resp.Deleted != 2 {
+		t.Errorf("deleted = %d, want 2 (1 prefix + 1 idempotent path)", resp.Deleted)
+	}
+}
+
+func TestStorageHandler_BulkDelete_RejectsPrefixWithoutSlash(t *testing.T) {
+	h := NewStorageHandler(&stubStorageService{})
+	r := withTenant(httptest.NewRequest(http.MethodPost, "/bulk-delete", strings.NewReader(`{"prefixes":["skills"]}`)), "tn")
+	rec := httptest.NewRecorder()
+	h.BulkDelete(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("code = %d, want 400 (a folder prefix must end with /, EC-2)", rec.Code)
+	}
+}
+
+func TestStorageHandler_BulkDelete_TooManyItems(t *testing.T) {
+	paths := make([]string, bulkDeleteMaxItems+1)
+	for i := range paths {
+		paths[i] = "f"
+	}
+	b, _ := json.Marshal(map[string]any{"paths": paths})
+	h := NewStorageHandler(&stubStorageService{})
+	r := withTenant(httptest.NewRequest(http.MethodPost, "/bulk-delete", strings.NewReader(string(b))), "tn")
+	rec := httptest.NewRecorder()
+	h.BulkDelete(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("code = %d, want 400 (over item cap)", rec.Code)
+	}
+}
+
+func TestStorageHandler_BulkDelete_EmptyBody(t *testing.T) {
+	h := NewStorageHandler(&stubStorageService{})
+	r := withTenant(httptest.NewRequest(http.MethodPost, "/bulk-delete", strings.NewReader(`{}`)), "tn")
+	rec := httptest.NewRecorder()
+	h.BulkDelete(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200 (empty body is a no-op)", rec.Code)
+	}
+	var resp struct {
+		Deleted int `json:"deleted"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.Deleted != 0 {
+		t.Errorf("deleted = %d, want 0", resp.Deleted)
+	}
+}
+
+func TestStorageHandler_DashboardMount_BulkDelete(t *testing.T) {
+	// Regression: POST /bulk-delete must be reachable via the REAL dashboard mount.
+	h := NewStorageHandler(&stubStorageService{})
+	mux := chi.NewRouter()
+	h.MountDashboardRoutes(mux)
+	r := withTenant(httptest.NewRequest(http.MethodPost, "/bulk-delete", strings.NewReader(`{}`)), "tn")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /bulk-delete via mount: got %d, want 200 (not 404/405)", rec.Code)
+	}
+}
+
+func TestStorageHandler_BulkDelete_MetricIncrements(t *testing.T) {
+	before := metrics.ObjectsDeletedValue()
+	stub := &stubStorageService{deletePrefixResult: storage.BulkDeleteResult{Deleted: 3}}
+	h := NewStorageHandler(stub)
+	r := withTenant(httptest.NewRequest(http.MethodPost, "/bulk-delete", strings.NewReader(`{"paths":["a.txt"],"prefixes":["skills/"]}`)), "tn")
+	h.BulkDelete(httptest.NewRecorder(), r)
+	if got := metrics.ObjectsDeletedValue() - before; got != 4 {
+		t.Errorf("theo_storage_objects_deleted_total delta = %v, want 4 (1 path + 3 prefix)", got)
 	}
 }

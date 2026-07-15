@@ -246,6 +246,14 @@ func (c *Client) Delete(ctx context.Context, tenantID, path string) error {
 	return errFromResponse(resp)
 }
 
+// DeletePrefix deletes a whole folder by enumerating (List) + deleting each object
+// upstream, reusing the shared loop so bulk-delete behaves identically to the
+// in-process mode (same safePrefix guard, bound, idempotency, partial-failure).
+// No new upstream endpoint is needed — it composes the existing List + Delete.
+func (c *Client) DeletePrefix(ctx context.Context, tenantID, prefix string) (storage.BulkDeleteResult, error) {
+	return storage.DeletePrefixOver(ctx, tenantID, prefix, c.List, c.Delete)
+}
+
 // Share mints a share link upstream and returns just the token (the handler
 // re-wraps it into theo-cloud's own /v1/storage/shared/{token} URL).
 func (c *Client) Share(ctx context.Context, tenantID, path string, ttl time.Duration) (string, time.Time, error) {

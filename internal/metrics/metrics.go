@@ -47,6 +47,11 @@ var (
 		Help: "Total bytes committed to tenant blob storage.",
 	})
 
+	storageObjectsDeleted = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "theo_storage_objects_deleted_total",
+		Help: "Total objects removed from tenant blob storage (incl. bulk/folder deletes).",
+	})
+
 	tenantProvisioning = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "theo_tenant_provisioning_total",
 		Help: "Tenant provisioning operations.",
@@ -126,6 +131,7 @@ func init() {
 		deviceFlows,
 		deviceFlowBrowserSuccess,
 		storageBytesWritten,
+		storageObjectsDeleted,
 		tenantProvisioning,
 		tenantProvisioningDuration,
 		authRejections,
@@ -159,6 +165,22 @@ func AddStorageBytes(delta int64) {
 func StorageBytesWrittenValue() float64 {
 	var m dto.Metric
 	if err := storageBytesWritten.Write(&m); err != nil {
+		return 0
+	}
+	return m.GetCounter().GetValue()
+}
+
+// AddObjectsDeleted records n objects removed from tenant blob storage (bulk/folder delete).
+func AddObjectsDeleted(n int) {
+	if n > 0 {
+		storageObjectsDeleted.Add(float64(n))
+	}
+}
+
+// ObjectsDeletedValue returns the current counter value (test-only helper).
+func ObjectsDeletedValue() float64 {
+	var m dto.Metric
+	if err := storageObjectsDeleted.Write(&m); err != nil {
 		return 0
 	}
 	return m.GetCounter().GetValue()
