@@ -119,3 +119,46 @@ describe('WorkspacePage (/workspaces)', () => {
     expect(container.textContent).not.toMatch(/\bS3\b|bucket|MinIO/i);
   });
 });
+
+describe('WorkspacePage — multi-select + bulk delete (Phase 2)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('selecting a file checkbox reveals the action bar with the count', async () => {
+    mockCloudFetch.mockImplementation((url: string) => routeByUrl(url));
+    render(<WorkspacePage />);
+    fireEvent.click(await screen.findByLabelText('Select README.md'));
+    expect(await screen.findByTestId('selection-bar')).toHaveTextContent('1 selected');
+  });
+
+  it('select-all checks every visible row (3 folders + 1 file)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => routeByUrl(url));
+    render(<WorkspacePage />);
+    await screen.findByText('README.md');
+    fireEvent.click(screen.getByLabelText('Select all'));
+    expect(screen.getByTestId('selection-bar')).toHaveTextContent('4 selected');
+  });
+
+  it('a folder Delete opens a confirm with count+size, then POSTs bulk-delete with the prefix', async () => {
+    const post = vi.fn(() => Promise.resolve({ deleted: 1, failed: [], truncated: false }));
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url.includes('/bulk-delete') && init?.method === 'POST') return post(url, init);
+      return routeByUrl(url);
+    });
+    render(<WorkspacePage />);
+    fireEvent.click(await screen.findByLabelText('Delete folder data'));
+    expect(await screen.findByText(/1 item · 2\.0 KB/)).toBeInTheDocument(); // blast radius (EC-4)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    const body = JSON.parse((post.mock.calls[0] as unknown as [string, { body: string }])[1].body);
+    expect(body.prefixes).toEqual(['data/']);
+    expect(body.paths).toEqual([]);
+  });
+
+  it('uses product language only in the selection UI (no infra terms)', async () => {
+    mockCloudFetch.mockImplementation((url: string) => routeByUrl(url));
+    const { container } = render(<WorkspacePage />);
+    await screen.findByText('README.md');
+    fireEvent.click(screen.getByLabelText('Select all'));
+    expect(container.textContent).not.toMatch(/\bS3\b|bucket|object key/i);
+  });
+});

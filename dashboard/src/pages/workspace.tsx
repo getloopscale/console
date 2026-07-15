@@ -2,24 +2,21 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   RefreshCw, Trash2, Link2, Upload, Folder, FileText, FileCode, FileImage,
-  FolderPlus, ChevronRight, Home, Download,
+  FolderPlus, ChevronRight, Home,
 } from 'lucide-react';
-import {
-  Button, Card, PageShell, Skeleton, EmptyState, Badge, Input, Label,
-  Dialog, Sheet, ConfirmDialog, CopyButton, CodeBlock,
-} from '@usetheo/ui';
+import { Button, Card, PageShell, Skeleton, EmptyState, Badge, ConfirmDialog, Checkbox } from '@usetheo/ui';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch, cloudFetchRaw } from '@/lib/api';
+import { useWorkspaceSelection } from './use-workspace-selection';
+import { WorkspacePreviewSheet } from './workspace-preview-sheet';
+import { NewFolderDialog } from './new-folder-dialog';
 
 /**
- * Workspace — the files and folders your project stores, browsed like a modern
- * cloud drive: navigable folders, a breadcrumb, an in-app New-folder dialog, an
- * upload control, and a side-panel preview (text/code/image + share + delete).
- * Backed by the tenant store (M7) `GET /v1/dashboard/storage/objects`; the store
- * is flat, so folders are derived from the `/` in each object's path.
- * Product language only — never "S3"/"bucket".
+ * Workspace — a folder-browser over the flat tenant store (M7): navigable folders
+ * (derived from the `/` in each object key), multi-select + bulk/folder delete,
+ * upload, in-app New-folder dialog, and a side-panel preview. Product language only.
  */
 
 export interface StorageFile {
@@ -90,8 +87,8 @@ function encodePath(p: string): string {
   return p.split('/').map(encodeURIComponent).join('/');
 }
 
-type PreviewKind = 'text' | 'image' | 'none';
-function previewKind(ct: string): PreviewKind {
+export type PreviewKind = 'text' | 'image' | 'none';
+export function previewKind(ct: string): PreviewKind {
   if (ct.startsWith('image/')) return 'image';
   if (ct.startsWith('text/') || /(json|javascript|typescript|xml|yaml|markdown|csv|x-sh|html)/i.test(ct)) return 'text';
   return 'none';
@@ -145,6 +142,21 @@ export function WorkspacePage() {
   const onRefresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/storage/objects'] });
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/storage/usage'] });
+  };
+
+  // Multi-select + bulk / folder delete (state + mutation live in the hook).
+  const sel = useWorkspaceSelection({
+    files: filesQuery.data?.files ?? [],
+    prefix,
+    onRefresh,
+    onNavigateRoot: () => setPrefix(''),
+  });
+
+  // Navigating into a folder (or via the breadcrumb) clears the selection so
+  // stale keys from another level never linger.
+  const navigate = (p: string) => {
+    setPrefix(p);
+    sel.clear();
   };
 
   // Content preview for the open file (text → CodeBlock, image → object URL).
@@ -262,6 +274,15 @@ export function WorkspacePage() {
     }
   };
 
+  // Keys for the visible rows (folders as prefixes, files as paths) — the units of selection.
+  const folderKey = (name: string) => `${prefix}${name}/`;
+  const visibleKeys = [...entries.folders.map(folderKey), ...entries.files.map((f) => f.path)];
+  const allSelected = visibleKeys.length > 0 && visibleKeys.every((k) => sel.isSelected(k));
+  const someSelected = sel.selected.size > 0;
+  const bulkCountLabel = sel.stats
+    ? `${filesQuery.data?.next_cursor ? 'at least ' : ''}${sel.stats.count} ${sel.stats.count === 1 ? 'item' : 'items'} · ${formatBytes(sel.stats.size)}`
+    : '';
+
   const usage = usageQuery.data;
   const usedPct = usage && !usage.unlimited && usage.aggregate_limit > 0
     ? Math.min(100, Math.round((usage.used_bytes / usage.aggregate_limit) * 100))
@@ -283,7 +304,7 @@ export function WorkspacePage() {
         {/* Toolbar — breadcrumb on the left, actions + usage on the right */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-3 py-2">
           <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-0.5 text-sm">
-            <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2" onClick={() => setPrefix('')} aria-label="Workspace root">
+            <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2" onClick={() => navigate('')} aria-label="Workspace root">
               <Home className="h-3.5 w-3.5" />
               <span className="text-muted-foreground">workspace</span>
             </Button>
@@ -292,7 +313,7 @@ export function WorkspacePage() {
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                 <button
                   className="truncate rounded px-1.5 py-1 font-mono text-[13px] hover:bg-muted/60 hover:text-foreground"
-                  onClick={() => setPrefix(`${crumbs.slice(0, i + 1).join('/')}/`)}
+                  onClick={() => navigate(`${crumbs.slice(0, i + 1).join('/')}/`)}
                 >
                   {seg}
                 </button>
@@ -332,6 +353,31 @@ export function WorkspacePage() {
           </div>
         )}
 
+        {/* Selection action bar — appears when ≥1 item is selected */}
+        {someSelected && (
+          <div data-testid="selection-bar" className="flex items-center justify-between gap-2 border-b border-border/60 bg-primary/5 px-3 py-1.5 text-sm">
+            <span className="font-medium">{sel.selected.size} selected</span>
+            <div className="flex items-center gap-1.5">
+              <Button variant="ghost" size="sm" className="h-7" onClick={() => sel.clear()}>Clear</Button>
+              <Button variant="destructive" size="sm" className="h-7 gap-1.5" onClick={() => sel.deleteSelected()}>
+                <Trash2 className="h-3.5 w-3.5" /> Delete
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Select-all header (only when the level has rows) */}
+        {!filesQuery.isLoading && visibleKeys.length > 0 && (
+          <div className="flex items-center gap-3 border-b border-border/60 bg-muted/10 px-3 py-1.5">
+            <Checkbox
+              aria-label="Select all"
+              checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+              onCheckedChange={() => sel.toggleAll(visibleKeys)}
+            />
+            <span className="text-xs text-muted-foreground">Select all</span>
+          </div>
+        )}
+
         {/* Folder + file list for the current level */}
         {filesQuery.isLoading ? (
           <div className="divide-y divide-border/50">
@@ -346,22 +392,40 @@ export function WorkspacePage() {
         ) : (
           <ul className="divide-y divide-border/50">
             {entries.folders.map((name) => (
-              <li key={`d/${name}`}>
+              <li key={`d/${name}`} className="group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40">
+                <Checkbox
+                  aria-label={`Select folder ${name}`}
+                  checked={sel.isSelected(folderKey(name))}
+                  onCheckedChange={() => sel.toggle(folderKey(name))}
+                />
                 <button
                   data-testid="folder-row"
-                  className="group flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
-                  onClick={() => setPrefix(`${prefix}${name}/`)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  onClick={() => navigate(`${prefix}${name}/`)}
                 >
                   <Folder className="h-4 w-4 shrink-0 text-primary" />
                   <span className="truncate text-sm font-medium">{name}</span>
                   <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground/0 transition-colors group-hover:text-muted-foreground" />
                 </button>
+                <Button
+                  variant="ghost" size="sm"
+                  className="h-7 w-7 shrink-0 p-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                  onClick={() => sel.requestDelete({ paths: [], prefixes: [folderKey(name)] })}
+                  aria-label={`Delete folder ${name}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               </li>
             ))}
             {entries.files.map((f) => {
               const Icon = fileIcon(f.content_type);
               return (
                 <li key={`f/${f.path}`} className="group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40">
+                  <Checkbox
+                    aria-label={`Select ${f.path.slice(prefix.length)}`}
+                    checked={sel.isSelected(f.path)}
+                    onCheckedChange={() => sel.toggle(f.path)}
+                  />
                   <button
                     data-testid="file-row"
                     className="flex min-w-0 flex-1 items-center gap-3 text-left"
@@ -386,99 +450,28 @@ export function WorkspacePage() {
         )}
       </Card>
 
-      {/* New folder — in-app dialog (no native prompt) */}
-      <Dialog open={newFolderOpen} onOpenChange={(o) => { if (!o) setNewFolderOpen(false); }}>
-        <Dialog.Content>
-          <Dialog.Header>
-            <Dialog.Title>New folder</Dialog.Title>
-            <Dialog.Description>
-              Create a folder{prefix ? <> in <span className="font-mono">{prefix.replace(/\/$/, '')}</span></> : ' at the workspace root'}.
-            </Dialog.Description>
-          </Dialog.Header>
-          <Dialog.Body>
-            <div className="space-y-1.5">
-              <Label htmlFor="new-folder-name">Folder name</Label>
-              <Input
-                id="new-folder-name"
-                autoFocus
-                placeholder="e.g. images"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') void onCreateFolder(); }}
-              />
-              {newFolderName.includes('/') && (
-                <p className="text-xs text-destructive">Folder names can’t contain “/”.</p>
-              )}
-              {newFolderError && <p className="text-xs text-destructive">{newFolderError}</p>}
-            </div>
-          </Dialog.Body>
-          <Dialog.Footer>
-            <Button variant="secondary" onClick={() => setNewFolderOpen(false)}>Cancel</Button>
-            <Button
-              onClick={() => void onCreateFolder()}
-              disabled={creatingFolder || !newFolderName.trim() || newFolderName.includes('/')}
-            >
-              {creatingFolder ? 'Creating…' : 'Create folder'}
-            </Button>
-          </Dialog.Footer>
-        </Dialog.Content>
-      </Dialog>
+      <NewFolderDialog
+        open={newFolderOpen}
+        prefix={prefix}
+        name={newFolderName}
+        error={newFolderError}
+        creating={creatingFolder}
+        onNameChange={setNewFolderName}
+        onCreate={() => void onCreateFolder()}
+        onClose={() => setNewFolderOpen(false)}
+      />
 
-      {/* File preview — side panel */}
-      <Sheet open={!!preview} onOpenChange={(o) => { if (!o) setPreview(null); }}>
-        <Sheet.Content side="right" className="flex w-full flex-col sm:max-w-xl">
-          {preview && (
-            <>
-              <Sheet.Header>
-                <Sheet.Title className="flex items-center gap-2 pr-6">
-                  <span className="truncate font-mono text-sm">{preview.path.slice(prefix.length)}</span>
-                  <Badge variant="outline" className="shrink-0 font-normal">{preview.content_type}</Badge>
-                </Sheet.Title>
-                <Sheet.Description>
-                  {formatBytes(preview.size)} · <span className="font-mono">{preview.path}</span>
-                </Sheet.Description>
-              </Sheet.Header>
-
-              <div className="min-h-0 flex-1 overflow-auto p-4">
-                {previewKind(preview.content_type) === 'none' ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-                    <FileText className="h-8 w-8" />
-                    <p className="text-sm">No inline preview for this file type.</p>
-                  </div>
-                ) : previewQuery.isLoading ? (
-                  <Skeleton className="h-40 w-full" />
-                ) : previewQuery.isError ? (
-                  <p className="text-sm text-destructive">Could not load this file.</p>
-                ) : previewQuery.data?.kind === 'image' ? (
-                  <img src={previewQuery.data.url} alt={preview.path} className="mx-auto max-h-[60vh] rounded-lg border border-border/60" />
-                ) : previewQuery.data ? (
-                  <CodeBlock code={previewQuery.data.text} language={preview.content_type.includes('json') ? 'json' : 'text'} />
-                ) : null}
-              </div>
-
-              <div className="space-y-3 border-t border-border/60 p-4">
-                {shareUrl && (
-                  <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2" data-testid="share-link">
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs">{shareUrl}</span>
-                    <CopyButton value={shareUrl} variant="ghost" size="sm" />
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => void onDownload(preview)}>
-                    <Download className="h-3.5 w-3.5" /> Download
-                  </Button>
-                  <Button variant="secondary" size="sm" className="gap-1.5" onClick={() => void onShare(preview.path)}>
-                    <Link2 className="h-3.5 w-3.5" /> Share link
-                  </Button>
-                  <Button variant="ghost" size="sm" className="ml-auto gap-1.5 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(preview)}>
-                    <Trash2 className="h-3.5 w-3.5" /> Delete
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </Sheet.Content>
-      </Sheet>
+      {/* File preview — side panel (extracted component) */}
+      <WorkspacePreviewSheet
+        preview={preview}
+        prefix={prefix}
+        query={previewQuery}
+        shareUrl={shareUrl}
+        onClose={() => setPreview(null)}
+        onDownload={(f) => void onDownload(f)}
+        onShare={(p) => void onShare(p)}
+        onDelete={(f) => setDeleteTarget(f)}
+      />
 
       {/* Delete confirmation */}
       <ConfirmDialog
@@ -489,6 +482,17 @@ export function WorkspacePage() {
         confirmLabel="Delete file"
         loading={deleting}
         onConfirm={onConfirmDelete}
+      />
+
+      {/* Bulk / folder delete — shows the blast radius (count + size) before commit */}
+      <ConfirmDialog
+        open={!!sel.bulkTarget}
+        onOpenChange={(o) => { if (!o) sel.cancelBulk(); }}
+        title={sel.bulkTarget?.prefixes.length ? 'Delete folder?' : 'Delete selected?'}
+        description={`This permanently removes ${bulkCountLabel} from your workspace. This cannot be undone.`}
+        confirmLabel="Delete"
+        loading={sel.bulkDeleting}
+        onConfirm={sel.confirmBulk}
       />
     </PageShell>
   );
