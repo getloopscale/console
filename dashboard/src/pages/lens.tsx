@@ -11,7 +11,7 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
 import { formatCost, formatDuration, formatNumber } from '@/lib/format';
-import { MetricTrendChart, type TrendSeries } from '@/components/lens/metric-trend-chart';
+import { TrendChart, type TrendSeries } from '@usetheo/ui';
 import {
   throughputSeries,
   errorRateSeries,
@@ -192,10 +192,10 @@ export function LensOverviewPage() {
         {!isPending && !isError ? (
           <Card aria-label={`${METRIC_TITLE[selectedMetric]} trend`}>
             <Card.Body>
-              <MetricTrendChart
+              <TrendChart
                 title={METRIC_TITLE[selectedMetric]}
                 series={metricToSeries(selectedMetric, obs.data ?? undefined)}
-                yFormat={METRIC_YFMT[selectedMetric]}
+                valueFormatter={METRIC_YFMT[selectedMetric]}
               />
             </Card.Body>
           </Card>

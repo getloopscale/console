@@ -4,7 +4,7 @@ import { Play, Trash2 } from 'lucide-react';
 import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Select, Textarea } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
-import { MetricTrendChart } from '@/components/lens/metric-trend-chart';
+import { TrendChart } from '@usetheo/ui';
 import { scoresToSeries, type ScoreBucket } from '@/components/lens/lens-series';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -360,7 +360,7 @@ export function LensEvaluatorsPage() {
             ) : (
               <Card aria-label="Evaluation scores over time trend">
                 <Card.Body className="space-y-2">
-                  <MetricTrendChart title="Mean score by evaluator" series={scoreSeries} />
+                  <TrendChart title="Mean score by evaluator" series={scoreSeries} />
                   {hiddenEvaluatorCount > 0 ? (
                     <p className="text-xs text-muted-foreground" data-testid="scores-truncation-note">
                       Showing the top {scoreSeries.length} of {numericEvaluatorCount} evaluators by sample volume.

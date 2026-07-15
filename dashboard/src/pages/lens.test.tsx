@@ -77,7 +77,7 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     await screen.findByRole('button', { name: /show traces trend/i }); // metric-agnostic barrier
     await userEvent.click(screen.getByRole('button', { name: /show cost \(usd\) trend/i }));
     const costChart = (await screen.findByText('Cost by model (USD)')).closest('figure') as HTMLElement;
-    expect(costChart.querySelectorAll('[data-testid="trend-line"]')).toHaveLength(2); // opus + haiku
+    expect(costChart.querySelectorAll('[data-slot="trend-chart-line"]')).toHaveLength(2); // opus + haiku
   });
 
   it('the range selector re-fetches server-side with ?range= (no client re-bucket)', async () => {
@@ -96,8 +96,8 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     render(<LensOverviewPage />);
     await screen.findByRole('button', { name: /show traces trend/i }); // metric-agnostic barrier
     // the ONE shared chart renders its empty-state; it draws no line (not a fabricated zero line).
-    expect(screen.getAllByTestId('trend-empty').length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByTestId('trend-line')).not.toBeInTheDocument();
+    expect(document.body.querySelectorAll('[data-slot="trend-chart-empty"]').length).toBeGreaterThanOrEqual(1);
+    expect(document.body.querySelector('[data-slot="trend-chart-line"]')).not.toBeInTheDocument();
   });
 
   it('M68 — a quiet tenant shows em-dash for error-rate + p95, honest 0 for traces (not 0%/0ms)', async () => {
@@ -115,7 +115,7 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     seriesMock();
     render(<LensOverviewPage />);
     await screen.findByRole('button', { name: /show traces trend/i });
-    expect(screen.getByTestId('trend-table')).toBeInTheDocument(); // screen-reader parity for the SVG
+    expect(document.body.querySelector('[data-slot="trend-chart-table"]')).toBeInTheDocument(); // screen-reader parity for the SVG
     expect(screen.getByRole('img', { name: /trend/i })).toBeInTheDocument(); // aria-label summary
   });
 
