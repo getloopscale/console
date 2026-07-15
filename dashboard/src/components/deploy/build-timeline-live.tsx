@@ -39,7 +39,7 @@ export interface BuildTimelineLiveProps {
 
 const PHASE_ORDER: PhaseGroup[] = ['clone', 'install', 'build', 'sign', 'deliver', 'other'];
 
-// Prose-style label (portado do build-step-card deletado no M7 — EC-14 preservado
+// Prose-style label (portado do antigo step card deletado no M7 — EC-14 preservado
 // pelo truncamento com title do Stepper da lib).
 function displayLabel(stepName: string): string {
   const stripped = stepName.replace(/[-_]/g, ' ');
@@ -49,13 +49,24 @@ function displayLabel(stepName: string): string {
 // M7 T2.2: mapeia o vocabulário SSE para o StepStatus da lib; a causa da falha
 // vai na description (convenção da lib — lida pelo SR no mesmo item).
 function toStepperStep(step: BuildStep): StepperStepData {
+  // review M7 F-dom-3: SSE é fronteira de wire — vocabulário desconhecido degrada
+  // para pending (disciplina da lib), nunca para failed silencioso.
   const status =
-    step.status === 'succeeded' ? 'done' : step.status === 'running' ? 'active' : 'failed';
+    step.status === 'succeeded'
+      ? 'done'
+      : step.status === 'running'
+        ? 'active'
+        : step.status === 'failed'
+          ? 'failed'
+          : 'pending';
   return {
     id: step.step_name,
     label: displayLabel(step.step_name),
     status,
-    description: step.status === 'failed' ? `failed: ${step.error_class ?? 'unknown'}` : undefined,
+    description:
+      step.status === 'failed'
+        ? `failed: ${step.error_class ?? 'unknown'}${step.error_message ? ` — ${step.error_message}` : ''}`
+        : undefined,
     timestamp:
       step.started_at || step.duration_seconds !== undefined ? (
         <BuildStepTimer

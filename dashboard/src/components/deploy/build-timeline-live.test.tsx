@@ -109,6 +109,10 @@ describe('BuildTimelineLive', () => {
 
     expect(screen.getByText(/clone repo/i)).toBeInTheDocument();
     expect(screen.getByText(/install deps/i)).toBeInTheDocument();
+    // review F-tests-6/7: done mapeado + timer no slot timestamp ('5s')
+    const done = screen.getByText(/clone repo/i).closest('[data-slot="stepper-step"]');
+    expect(done?.getAttribute('data-state')).toBe('done');
+    expect(done?.querySelector('[data-slot="stepper-timestamp"]')?.textContent).toContain('5s');
   });
 
   it('test_current_step_has_live_indicator', () => {
@@ -127,11 +131,11 @@ describe('BuildTimelineLive', () => {
     );
     renderTimeline();
 
-    // M7 T2.2: o "live indicator" agora é o estado active do Stepper da lib
-    // (spinner animate-spin no ícone), não mais o pulse do card hand-rolled.
-    const item = screen.getByText(/build image/i).closest('li');
+    // M7 T2.2 (+review F-tests-3): contrato estável da lib — data-slot + aria-current,
+    // sem acoplar em classes internas.
+    const item = screen.getByText(/build image/i).closest('[data-slot="stepper-step"]');
     expect(item?.getAttribute('data-state')).toBe('active');
-    expect(item?.querySelector('.animate-spin')).toBeTruthy();
+    expect(item?.getAttribute('aria-current')).toBe('step');
   });
 
   it('test_failed_step_shows_error', () => {
@@ -162,6 +166,11 @@ describe('BuildTimelineLive', () => {
     renderTimeline();
 
     expect(screen.getByRole('alert')).toBeInTheDocument();
+    // review F-tests-5/7: a causa da falha aparece NO step (description do Stepper)
+    // e o item carrega data-state=failed
+    const failedItem = screen.getByText(/build image/i).closest('[data-slot="stepper-step"]');
+    expect(failedItem?.getAttribute('data-state')).toBe('failed');
+    expect(failedItem?.textContent).toContain('failed: OOM');
     expect(screen.getByText(/out of memory/i)).toBeInTheDocument();
     expect(screen.getByText(/increase plan resources/i)).toBeInTheDocument();
     expect(screen.queryByText(/deploy complete/i)).not.toBeInTheDocument();

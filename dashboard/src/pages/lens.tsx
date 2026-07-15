@@ -190,7 +190,7 @@ export function LensOverviewPage() {
         {/* M60 — ONE shared trend chart (reuses the pure-SVG MetricTrendChart, D1) plotting the selected
             metric; a tile click swaps it — no new fetch (D4). The chart carries its own a11y table + empty-state. */}
         {!isPending && !isError ? (
-          <Card aria-label={`${METRIC_TITLE[selectedMetric]} trend`}>
+          <Card>
             <Card.Body>
               <TrendChart
                 title={METRIC_TITLE[selectedMetric]}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { Fragment, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Breadcrumb as UiBreadcrumb } from '@usetheo/ui';
 
@@ -98,25 +98,31 @@ export function Breadcrumb({
     >
       <UiBreadcrumb.List>
         {chain.map((node, i) => (
-          <UiBreadcrumb.Item key={`${i}-${node.spanId}`}>
+          // review M7 F-dom-1: Separator é irmão do Item (li dentro de li é HTML inválido)
+          <Fragment key={`${i}-${node.spanId}`}>
             {i > 0 ? <UiBreadcrumb.Separator /> : null}
-            {node.spanId === selectedId ? (
-              <UiBreadcrumb.Page data-testid="breadcrumb-crumb" className="font-medium font-mono text-foreground">
-                {node.name}
-              </UiBreadcrumb.Page>
-            ) : (
-              <UiBreadcrumb.Link asChild>
-                <button
-                  type="button"
+            <UiBreadcrumb.Item>
+              {node.spanId === selectedId ? (
+                <UiBreadcrumb.Page
                   data-testid="breadcrumb-crumb"
-                  onClick={() => onSelect(node.spanId)}
-                  className="rounded px-1 py-0.5 font-mono text-muted-foreground text-xs hover:text-foreground"
+                  className="font-medium font-mono text-foreground text-xs"
                 >
                   {node.name}
-                </button>
-              </UiBreadcrumb.Link>
-            )}
-          </UiBreadcrumb.Item>
+                </UiBreadcrumb.Page>
+              ) : (
+                <UiBreadcrumb.Link asChild>
+                  <button
+                    type="button"
+                    data-testid="breadcrumb-crumb"
+                    onClick={() => onSelect(node.spanId)}
+                    className="rounded px-1 py-0.5 font-mono text-muted-foreground text-xs hover:text-foreground"
+                  >
+                    {node.name}
+                  </button>
+                </UiBreadcrumb.Link>
+              )}
+            </UiBreadcrumb.Item>
+          </Fragment>
         ))}
       </UiBreadcrumb.List>
     </UiBreadcrumb>
