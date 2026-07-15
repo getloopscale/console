@@ -16,11 +16,12 @@ import (
 // --- fakes ---------------------------------------------------------------
 
 type fakeObjectStore struct {
-	puts     map[string][]byte
-	putErr   error
-	getErr   error
-	deleted  []string
-	lastKey  string
+	puts      map[string][]byte
+	putErr    error
+	getErr    error
+	deleted   []string
+	lastKey   string
+	deleteErr map[string]error // per-key delete error injection (bulk-delete tests)
 }
 
 func newFakeObjectStore() *fakeObjectStore { return &fakeObjectStore{puts: map[string][]byte{}} }
@@ -50,6 +51,9 @@ func (f *fakeObjectStore) HeadObject(ctx context.Context, key string) (ObjectMet
 }
 func (f *fakeObjectStore) DeleteObject(ctx context.Context, key string) error {
 	f.deleted = append(f.deleted, key)
+	if e, ok := f.deleteErr[key]; ok {
+		return e
+	}
 	return nil
 }
 
@@ -275,5 +279,113 @@ func TestService_Upload_OverwriteThenFail_PreservesPriorObject(t *testing.T) {
 	}
 	if rec.SizeBytes != 8 {
 		t.Errorf("prior object size = %d, want 8 (must be restored, not left as the failed 12)", rec.SizeBytes)
+	}
+}
+
+// --- T1.1: DeletePrefix (bulk folder delete) -----------------------------
+
+func seedRows(m *fakeFullMeta, recs ...ObjectRecord) {
+	for _, r := range recs {
+		m.rows[r.Name] = r
+	}
+}
+
+func TestService_DeletePrefix_DeletesAllUnderPrefix(t *testing.T) {
+	obj, meta := newFakeObjectStore(), newFakeFullMeta()
+	seedRows(meta,
+		ObjectRecord{Name: "skills/a.md", SizeBytes: 10, MimeType: "text/markdown"},
+		ObjectRecord{Name: "skills/b.md", SizeBytes: 20, MimeType: "text/markdown"},
+		ObjectRecord{Name: "skills/.keep", SizeBytes: 1, MimeType: "application/octet-stream"},
+		ObjectRecord{Name: "rules/x.md", SizeBytes: 5, MimeType: "text/markdown"}, // sibling, NOT under skills/
+	)
+	svc := newService(t, obj, meta, "pro")
+	res, err := svc.DeletePrefix(context.Background(), "tn", "skills/")
+	if err != nil {
+		t.Fatalf("DeletePrefix: %v", err)
+	}
+	if res.Deleted != 3 {
+		t.Errorf("Deleted = %d, want 3 (incl .keep)", res.Deleted)
+	}
+	if res.Freed != 31 {
+		t.Errorf("Freed = %d, want 31", res.Freed)
+	}
+	if len(res.Failed) != 0 {
+		t.Errorf("Failed = %v, want none", res.Failed)
+	}
+	if _, ok := meta.rows["rules/x.md"]; !ok {
+		t.Error("sibling rules/x.md must NOT be deleted (prefix must not substring-match)")
+	}
+	if _, ok := meta.rows["skills/a.md"]; ok {
+		t.Error("skills/a.md must be gone")
+	}
+}
+
+func TestService_DeletePrefix_PartialFailure(t *testing.T) {
+	obj, meta := newFakeObjectStore(), newFakeFullMeta()
+	obj.deleteErr = map[string]error{"tn/skills/b.md": errors.New("backend 503")}
+	seedRows(meta,
+		ObjectRecord{Name: "skills/a.md", SizeBytes: 10},
+		ObjectRecord{Name: "skills/b.md", SizeBytes: 20},
+	)
+	svc := newService(t, obj, meta, "pro")
+	res, err := svc.DeletePrefix(context.Background(), "tn", "skills/")
+	if err != nil {
+		t.Fatalf("DeletePrefix: %v", err)
+	}
+	if res.Deleted != 1 {
+		t.Errorf("Deleted = %d, want 1 (loop not aborted by one failure)", res.Deleted)
+	}
+	if len(res.Failed) != 1 || res.Failed[0].Path != "skills/b.md" {
+		t.Errorf("Failed = %v, want exactly [skills/b.md]", res.Failed)
+	}
+}
+
+func TestService_DeletePrefix_IdempotentNotFound(t *testing.T) {
+	obj, meta := newFakeObjectStore(), newFakeFullMeta()
+	obj.deleteErr = map[string]error{"tn/skills/gone.md": ErrObjectNotFoundMeta}
+	seedRows(meta, ObjectRecord{Name: "skills/gone.md", SizeBytes: 7})
+	svc := newService(t, obj, meta, "pro")
+	res, err := svc.DeletePrefix(context.Background(), "tn", "skills/")
+	if err != nil {
+		t.Fatalf("DeletePrefix: %v", err)
+	}
+	if res.Deleted != 1 {
+		t.Errorf("Deleted = %d, want 1 (not-found is idempotent success, D5/EC-1)", res.Deleted)
+	}
+	if len(res.Failed) != 0 {
+		t.Errorf("Failed = %v, want none (not-found must NOT be a failure)", res.Failed)
+	}
+}
+
+func TestService_DeletePrefix_RejectsUnsafePrefix(t *testing.T) {
+	svc := newService(t, newFakeObjectStore(), newFakeFullMeta(), "pro")
+	// empty / whole-tenant / traversal / no-trailing-slash (greedy substring) — all rejected.
+	for _, bad := range []string{"", "/", ".", "..", "../other/", "skills"} {
+		if _, err := svc.DeletePrefix(context.Background(), "tn", bad); !errors.Is(err, ErrInvalidPath) {
+			t.Errorf("DeletePrefix(%q) err = %v, want ErrInvalidPath", bad, err)
+		}
+	}
+}
+
+func TestService_DeletePrefix_Truncated(t *testing.T) {
+	old := bulkDeleteMaxObjects
+	bulkDeleteMaxObjects = 2
+	defer func() { bulkDeleteMaxObjects = old }()
+	obj, meta := newFakeObjectStore(), newFakeFullMeta()
+	seedRows(meta,
+		ObjectRecord{Name: "big/1", SizeBytes: 1},
+		ObjectRecord{Name: "big/2", SizeBytes: 1},
+		ObjectRecord{Name: "big/3", SizeBytes: 1},
+	)
+	svc := newService(t, obj, meta, "pro")
+	res, err := svc.DeletePrefix(context.Background(), "tn", "big/")
+	if err != nil {
+		t.Fatalf("DeletePrefix: %v", err)
+	}
+	if !res.Truncated {
+		t.Error("Truncated = false, want true (cap hit)")
+	}
+	if res.Deleted != 2 {
+		t.Errorf("Deleted = %d, want 2 (bulkDeleteMaxObjects cap)", res.Deleted)
 	}
 }

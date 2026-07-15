@@ -5,8 +5,10 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/usetheodev/theo-cloud/internal/storage/share"
@@ -129,6 +131,90 @@ func (s *Service) Delete(ctx context.Context, tenantID, path string) error {
 		return err
 	}
 	return s.meta.DeleteByName(ctx, tenantID, path)
+}
+
+// bulkDeleteMaxObjects bounds a single DeletePrefix so a pathological prefix
+// cannot turn into an unbounded server loop (D3). A var (not const) so tests can
+// lower it; realistic folders are far below it (e.g. skills/ ≈ 548).
+var bulkDeleteMaxObjects = 10000
+
+// FailedDelete records one object that could not be deleted during a bulk op.
+type FailedDelete struct {
+	Path   string
+	Reason string
+}
+
+// BulkDeleteResult is the partial-failure-aware outcome of a bulk/prefix delete
+// (D4): successes and failures are BOTH reported — a per-object failure never
+// aborts the batch nor masks the successes.
+type BulkDeleteResult struct {
+	Deleted   int
+	Freed     int64
+	Failed    []FailedDelete
+	Truncated bool
+}
+
+// safePrefix guards the mass-delete blast radius (EC-2 + EC-3): a folder prefix
+// MUST be non-empty, end with "/" (so List matches only true folder members, not
+// a substring sibling like READ→README.md), and contain no traversal — otherwise
+// a crafted prefix could enumerate + delete the tenant's entire storage.
+func safePrefix(prefix string) bool {
+	return prefix != "" &&
+		strings.HasSuffix(prefix, "/") &&
+		!strings.Contains(prefix, "..") &&
+		!strings.HasPrefix(prefix, "/") &&
+		prefix != "./"
+}
+
+// DeletePrefix removes every committed object under prefix (a folder), tenant-
+// scoped. Bounded by bulkDeleteMaxObjects (D3). A not-found is idempotent success,
+// not a failure (D5/EC-1: overlapping selections and re-clicks are safe). A real
+// store error is recorded in Failed and the loop continues (D4). A failure to LIST
+// is surfaced as an error (the caller could not even enumerate).
+func (s *Service) DeletePrefix(ctx context.Context, tenantID, prefix string) (BulkDeleteResult, error) {
+	var res BulkDeleteResult
+	if !safePrefix(prefix) {
+		return res, ErrInvalidPath
+	}
+	cursor := ""
+	seen := 0
+	for {
+		recs, next, err := s.List(ctx, tenantID, prefix, 1000, cursor)
+		if err != nil {
+			return res, err
+		}
+		for _, rec := range recs {
+			if seen >= bulkDeleteMaxObjects {
+				res.Truncated = true
+				return res, nil
+			}
+			seen++
+			if err := s.Delete(ctx, tenantID, rec.Name); err == nil || errors.Is(err, ErrObjectNotFoundMeta) {
+				res.Deleted++
+				res.Freed += rec.SizeBytes
+			} else {
+				res.Failed = append(res.Failed, FailedDelete{Path: rec.Name, Reason: codeForBulkErr(err)})
+			}
+		}
+		if next == "" {
+			break
+		}
+		cursor = next
+	}
+	return res, nil
+}
+
+// codeForBulkErr maps a delete error to a stable, product-safe reason string for
+// the Failed[] rows (never leaks the raw backend message).
+func codeForBulkErr(err error) string {
+	switch {
+	case errors.Is(err, ErrInvalidPath):
+		return "invalid_path"
+	case errors.Is(err, ErrObjectNotFoundMeta):
+		return "file_not_found"
+	default:
+		return "storage_unavailable"
+	}
 }
 
 // Share mints a capability token for (tenant, path). ttl is clamped to
