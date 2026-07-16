@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type ChangeEvent, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plug, RefreshCw, Trash2 } from 'lucide-react';
 import {
@@ -9,6 +9,7 @@ import {
   type DataTableColumn,
   Dialog,
   EmptyState,
+  Input,
   Label,
   PageShell,
   Select,
@@ -84,6 +85,36 @@ function connectErrorMessage(reason: string): string {
   return CONNECT_ERROR_MESSAGES[reason] ?? 'The connection didn’t complete. Please try again.';
 }
 
+// M12 — paste-credential (non-OAuth) providers + their fields, mirroring theo-rag's
+// per-provider connect contract. `secret: true` masks the input; `optional: true` fields
+// may be blank. Adding a provider here is the only change needed to expose it.
+interface CredField {
+  key: string;
+  label: string;
+  placeholder?: string;
+  secret?: boolean;
+  optional?: boolean;
+}
+const CRED_PROVIDERS: Record<string, { label: string; fields: CredField[] } | undefined> = {
+  s3: {
+    label: 'Amazon S3',
+    fields: [
+      { key: 'access_key_id', label: 'Access key ID', placeholder: 'AKIA…' },
+      { key: 'secret_access_key', label: 'Secret access key', secret: true },
+      { key: 'region', label: 'Region', placeholder: 'us-east-1' },
+      { key: 'bucket', label: 'Bucket', placeholder: 'my-docs-bucket' },
+      { key: 'prefix', label: 'Prefix (optional)', placeholder: 'reports/', optional: true },
+    ],
+  },
+  web: {
+    label: 'Website',
+    fields: [
+      { key: 'seed_url', label: 'Start URL', placeholder: 'https://docs.example.com' },
+      { key: 'max_pages', label: 'Max pages (optional)', placeholder: '50', optional: true },
+    ],
+  },
+};
+
 // A top-level navigation (not fetch): the browser must follow the redirect chain to the provider
 // consent and back, carrying the Kratos session cookie. The broker lives at the BFF origin's root
 // path /v1/rag-connect (cookie-session auth, #199) — NOT the Bearer /v1/dashboard/rag surface.
@@ -100,6 +131,12 @@ export function RagConnectorsPage() {
   const [pendingDelete, setPendingDelete] = useState<Connection | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [collectionID, setCollectionID] = useState('');
+  // M12 — paste-credential (non-OAuth) connect. Provider '' hides the form; picking S3/Web
+  // reveals its fields. Fields are a flat string map; the credential is POSTed opaquely.
+  const [credProvider, setCredProvider] = useState('');
+  const [credFields, setCredFields] = useState<Record<string, string>>({});
+  const setCredField = (k: string) => (e: ChangeEvent<HTMLInputElement>) =>
+    setCredFields((f) => ({ ...f, [k]: e.target.value }));
 
   // Banners after the OAuth broker redirects back: ?connected=<provider> (success) or
   // ?connect_error=<reason> (failure). Read once, then strip the query params so a refresh doesn't re-show.
@@ -151,6 +188,34 @@ export function RagConnectorsPage() {
       invalidate();
     },
   });
+
+  // M12 — connect a paste-credential (non-OAuth) source. The BFF proxies the body opaquely to
+  // theo-rag's POST /v1/connectors/{provider}/connect (credential encrypted at rest; never logged).
+  const connectCredential = useMutation({
+    mutationFn: () => {
+      const body: Record<string, string> = { collection_id: collectionID };
+      for (const f of CRED_PROVIDERS[credProvider]?.fields ?? []) {
+        const v = credFields[f.key]?.trim() ?? '';
+        if (v !== '') body[f.key] = v;
+      }
+      return cloudFetch<{ id: string }>(
+        `/v1/dashboard/rag/connectors/${encodeURIComponent(credProvider)}/connect`,
+        { method: 'POST', body: JSON.stringify(body) },
+      );
+    },
+    onSuccess: () => {
+      setCredProvider('');
+      setCredFields({});
+      setAddOpen(false);
+      invalidate();
+    },
+  });
+
+  const credSpec = CRED_PROVIDERS[credProvider];
+  const credComplete =
+    collectionID !== '' &&
+    credSpec !== undefined &&
+    credSpec.fields.every((f) => f.optional || (credFields[f.key]?.trim() ?? '') !== '');
 
   const columns: DataTableColumn<Connection>[] = [
     { key: 'provider_id', label: 'Provider', render: (row) => <span className="capitalize">{row.provider_id}</span> },
@@ -229,7 +294,7 @@ export function RagConnectorsPage() {
           ) : items.length === 0 ? (
             <EmptyState
               title="No connectors yet"
-              description="Use “Connect a source” to authorize an OAuth provider, or connect a paste-credential source with the CLI (POST /v1/connectors/{provider}/connect). More coming soon."
+              description="Use “Connect a source” to authorize an OAuth provider, or connect a paste-credential source (S3, website) right here."
             />
           ) : (
             <Card>
@@ -293,6 +358,58 @@ export function RagConnectorsPage() {
                 )}
                 {!collectionID && oauthProviders.length > 0 ? (
                   <p className="text-xs text-muted-foreground">Select a collection to enable the providers.</p>
+                ) : null}
+              </div>
+
+              {/* M12 — paste-credential (non-OAuth) connect: S3 / Website. */}
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">or connect with a credential</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <div className="space-y-3">
+                <Select value={credProvider} onValueChange={(v) => { setCredProvider(v); setCredFields({}); }}>
+                  <Select.Trigger className="w-full" aria-label="Credential provider">
+                    <Select.Value placeholder="Pick a source (S3, website…)" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {Object.entries(CRED_PROVIDERS).map(([key, spec]) => (
+                      <Select.Item key={key} value={key}>
+                        {spec?.label ?? key}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+                {credSpec ? (
+                  <div className="space-y-2">
+                    {credSpec.fields.map((f) => (
+                      <div key={f.key} className="space-y-1">
+                        <Label htmlFor={`cred-${f.key}`}>{f.label}</Label>
+                        <Input
+                          id={`cred-${f.key}`}
+                          type={f.secret ? 'password' : 'text'}
+                          autoComplete={f.secret ? 'new-password' : 'off'}
+                          placeholder={f.placeholder}
+                          value={credFields[f.key] ?? ''}
+                          onChange={setCredField(f.key)}
+                          aria-label={f.label}
+                        />
+                      </div>
+                    ))}
+                    <div className="flex justify-end pt-1">
+                      <Button disabled={!credComplete || connectCredential.isPending} onClick={() => connectCredential.mutate()}>
+                        {connectCredential.isPending ? 'Connecting…' : `Connect ${credSpec.label}`}
+                      </Button>
+                    </div>
+                    {!collectionID ? (
+                      <p className="text-xs text-muted-foreground">Select a collection above first.</p>
+                    ) : null}
+                    {connectCredential.isError ? (
+                      <Alert intent="destructive" title="Could not connect the source">
+                        Check the credentials and try again.
+                      </Alert>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             </div>

@@ -29,11 +29,48 @@ describe('RagConnectorsPage (/rag/connectors)', () => {
     );
   });
 
-  it('renders the empty state (CLI/API note) when there are no connectors', async () => {
+  it('renders the empty state (in-UI paste-credential note) when there are no connectors', async () => {
     mockCloudFetch.mockResolvedValue({ items: [] });
     render(<RagConnectorsPage />);
     expect(await screen.findByText(/no connectors yet/i)).toBeInTheDocument();
-    expect(screen.getByText(/coming soon/i)).toBeInTheDocument();
+    expect(screen.getByText(/paste-credential source/i)).toBeInTheDocument();
+  });
+
+  it('M12 — connects an S3 paste-credential source with the entered fields', async () => {
+    mockCloudFetch.mockImplementation((path: string) => {
+      if (path === '/v1/dashboard/rag/collections') return Promise.resolve({ items: [{ id: 'col_1', name: 'docs' }] });
+      if (path === '/v1/dashboard/rag/connectors/providers') return Promise.resolve({ providers: [] });
+      if (path.endsWith('/connect')) return Promise.resolve({ id: 'conn_new' });
+      return Promise.resolve({ items: [] });
+    });
+    render(<RagConnectorsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /connect a source/i }));
+    // pick a collection (first combobox = Collection)
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Collection' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'docs' }));
+    // pick the S3 credential provider
+    await userEvent.click(screen.getByRole('combobox', { name: 'Credential provider' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Amazon S3' }));
+    // fill the required S3 fields
+    await userEvent.type(screen.getByLabelText('Access key ID'), 'AKIATEST');
+    await userEvent.type(screen.getByLabelText('Secret access key'), 'sekret');
+    await userEvent.type(screen.getByLabelText('Region'), 'us-east-1');
+    await userEvent.type(screen.getByLabelText('Bucket'), 'my-bucket');
+    await userEvent.click(screen.getByRole('button', { name: /connect amazon s3/i }));
+
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      '/v1/dashboard/rag/connectors/s3/connect',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const call = mockCloudFetch.mock.calls.find((c) => c[0] === '/v1/dashboard/rag/connectors/s3/connect');
+    const body = JSON.parse((call?.[1] as { body: string }).body);
+    expect(body).toMatchObject({
+      collection_id: 'col_1',
+      access_key_id: 'AKIATEST',
+      secret_access_key: 'sekret',
+      region: 'us-east-1',
+      bucket: 'my-bucket',
+    });
   });
 });
 

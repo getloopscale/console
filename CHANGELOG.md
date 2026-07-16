@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- M12: connect paste-credential (non-OAuth) sources from the dashboard — the "Connect a source" dialog now has an in-UI S3 / Website form that posts the credential opaquely through the BFF to theo-rag's connect endpoint (credential encrypted at rest, never logged)
 - M11: upload documents (PDF/office/CSV/text/image) from the dashboard — a drag-drop dropzone in `/rag/documents` streams a multipart file through the BFF to theo-rag's async ingest (per-tenant key, 10 MB cap, fast/hi-res mode)
 - Roadmap amended: added M10 GraphRAG knowledge-graph explorer (always-on) (`/roadmap-feature graphrag-explorer-always-on`)
 - Roadmap amended: added M11 Upload documents (PDF / office / CSV / image) from the dashboard (`/roadmap-feature dashboard-file-upload`)
