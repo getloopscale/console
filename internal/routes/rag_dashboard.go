@@ -265,6 +265,18 @@ func (h *RagDashboardHandler) DeleteDocument(w http.ResponseWriter, r *http.Requ
 
 // Ask serves POST /v1/dashboard/rag/answers (M21, rag:read). A query returns a cited answer;
 // the raw upstream answer body (answer + sources) passes through.
+
+// validAskStrategy reports whether s is one of theo-rag's retrieval strategies (M9 —
+// vector|keyword|hybrid|graph|global). Kept in lockstep with theo-rag's enum.
+func validAskStrategy(s string) bool {
+	switch s {
+	case "vector", "keyword", "hybrid", "graph", "global":
+		return true
+	default:
+		return false
+	}
+}
+
 func (h *RagDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -272,6 +284,13 @@ func (h *RagDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	var in rag.AskInput
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.CollectionID == "" || in.Question == "" {
 		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "collection_id and question are required.")
+		return
+	}
+	// M9 — fail-fast on an unknown strategy at the boundary (error-handling.md): reject it
+	// here with a clear typed 422 rather than forwarding a bad value upstream. An empty
+	// strategy is valid (theo-rag defaults to vector).
+	if in.Strategy != "" && !validAskStrategy(in.Strategy) {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "strategy must be one of vector, keyword, hybrid, graph, global.")
 		return
 	}
 	out, err := h.client.Ask(r.Context(), in)

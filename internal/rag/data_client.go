@@ -158,9 +158,16 @@ type CreateCollectionInput struct {
 }
 
 // AskInput is the POST /v1/answers body (query + collection).
+//
+// M9 — Strategy is the optional retrieval strategy the caller selects
+// (vector|keyword|hybrid|graph|global). Empty ⇒ theo-rag defaults to vector
+// (backward-compatible); graph + global (GraphRAG) fail-close to vector upstream
+// when the collection has no graph. `omitempty` so an unset strategy is not even
+// sent — the pre-M9 request shape is preserved byte-for-byte.
 type AskInput struct {
 	CollectionID string `json:"collection_id"`
 	Question     string `json:"question"`
+	Strategy     string `json:"strategy,omitempty"`
 }
 
 // IngestInput is the POST /v1/documents/raw body (text ingest; async 202).

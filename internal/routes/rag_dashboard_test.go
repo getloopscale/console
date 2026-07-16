@@ -29,6 +29,7 @@ type stubRagDataClient struct {
 	deleteCalls         int
 	ingestCalls         int
 	askCalls            int
+	askGotStrategy      string // M9 — the strategy the handler forwarded to theo-rag
 	listConnCalls       int
 	syncCalls           int
 	delConnCalls        int
@@ -90,8 +91,9 @@ func (s *stubRagDataClient) DeleteDocument(_ context.Context, _ string) error {
 	return s.writeErr
 }
 
-func (s *stubRagDataClient) Ask(_ context.Context, _ rag.AskInput) (json.RawMessage, error) {
+func (s *stubRagDataClient) Ask(_ context.Context, in rag.AskInput) (json.RawMessage, error) {
 	s.askCalls++
+	s.askGotStrategy = in.Strategy
 	if s.writeErr != nil {
 		return nil, s.writeErr
 	}
@@ -370,4 +372,50 @@ func TestRagDashboard_Connectors_HappyPath(t *testing.T) {
 			t.Fatalf("want 502, got %d", w.Code)
 		}
 	})
+}
+
+// M9 — the Ask BFF forwards the selected retrieval strategy to theo-rag so a user can reach
+// GraphRAG (global/graph) from the dashboard.
+func TestRagDashboard_Ask_ForwardsStrategy_M9(t *testing.T) {
+	h, stub := newRagDashboard()
+	body := `{"collection_id":"col_1","question":"what changed?","strategy":"global"}`
+	w := httptest.NewRecorder()
+	h.Ask(w, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/answers", strings.NewReader(body)).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1", AccountID: "acc1"})))
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.askGotStrategy != "global" {
+		t.Fatalf("strategy not forwarded to theo-rag: want global, got %q", stub.askGotStrategy)
+	}
+}
+
+// M9 — an unknown strategy is rejected fail-fast at the BFF boundary (422), never forwarded.
+func TestRagDashboard_Ask_InvalidStrategy_422_M9(t *testing.T) {
+	h, stub := newRagDashboard()
+	body := `{"collection_id":"col_1","question":"q","strategy":"bogus"}`
+	w := httptest.NewRecorder()
+	h.Ask(w, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/answers", strings.NewReader(body)).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1", AccountID: "acc1"})))
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("want 422, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.askCalls != 0 {
+		t.Fatalf("upstream MUST NOT be called for an invalid strategy (fail-fast), got %d", stub.askCalls)
+	}
+}
+
+// M9 — no strategy is backward-compatible: nothing is sent, theo-rag defaults to vector.
+func TestRagDashboard_Ask_EmptyStrategy_OK_M9(t *testing.T) {
+	h, stub := newRagDashboard()
+	body := `{"collection_id":"col_1","question":"q"}`
+	w := httptest.NewRecorder()
+	h.Ask(w, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/answers", strings.NewReader(body)).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1", AccountID: "acc1"})))
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+	if stub.askGotStrategy != "" {
+		t.Fatalf("empty strategy must stay empty (default vector upstream), got %q", stub.askGotStrategy)
+	}
 }
