@@ -69,9 +69,10 @@ function providerLabel(provider: string): string {
 }
 
 // A top-level navigation (not fetch): the browser must follow the redirect chain to the provider
-// consent and back, carrying the session cookie. The BFF origin (getApiBase) serves the broker.
+// consent and back, carrying the Kratos session cookie. The broker lives at the BFF origin's root
+// path /v1/rag-connect (cookie-session auth, #199) — NOT the Bearer /v1/dashboard/rag surface.
 function authorizeHref(provider: string, collectionID: string): string {
-  return `${getApiBase()}/v1/dashboard/rag/connectors/${encodeURIComponent(provider)}/authorize?collection_id=${encodeURIComponent(collectionID)}`;
+  return `${getApiBase()}/v1/rag-connect/${encodeURIComponent(provider)}/authorize?collection_id=${encodeURIComponent(collectionID)}`;
 }
 
 export function RagConnectorsPage() {

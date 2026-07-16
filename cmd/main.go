@@ -172,12 +172,10 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		r.Post("/connectors/{provider}/connect", h.ConnectConnector)
 		r.Post("/connectors/{id}/sync", h.SyncConnector)
 		r.Delete("/connectors/{id}", h.DeleteConnector)
-		// M8 OAuth authorization broker ("Connect with X"): providers list + authorize + callback.
-		// The provider map is gated on registered OAuth apps (env) — an unconfigured provider is
-		// absent from the list and returns 422 on authorize.
+		// M8 OAuth: the providers list is a Bearer API (the dashboard fetches it). The authorize +
+		// callback browser-redirect halves are mounted separately at the root path /v1/rag-connect
+		// (cookie-session auth, #199) — they must NOT be under this Bearer-only requireJWT group.
 		r.Get("/connectors/providers", oauth.ListOAuthProviders)
-		r.Get("/connectors/{provider}/authorize", oauth.Authorize)
-		r.Get("/connectors/{provider}/callback", oauth.Callback)
 	})
 }
 
@@ -457,15 +455,24 @@ func main() {
 		ragDashboardHandler = routes.NewRagDashboardHandler(ragDataClient, logger)
 		// M8 — the OAuth authorization broker. Provider apps are gated on env (LoadOAuthConnectorsFromEnv):
 		// a provider is offered only once its OAuth app (client_id/secret) is registered by the operator.
+		// authorize/callback are BROWSER redirects (#199) — authenticated by the Kratos session cookie
+		// (resolveTenant), NOT a Bearer JWT — and mounted at the root path /v1/rag-connect (below), so
+		// the redirect_uri lives on THIS (BFF) origin where the CSRF/PKCE cookies are set.
 		oauthProviders, oauthSecrets := routes.LoadOAuthConnectorsFromEnv(os.Getenv)
 		redirectBase := os.Getenv("RAG_OAUTH_REDIRECT_BASE")
 		if redirectBase == "" {
-			redirectBase = cfg.AppPublicURL + "/v1/dashboard/rag/connectors"
+			redirectBase = cfg.CloudPublicURL + "/v1/rag-connect"
 		}
+		ragLoginURL := cfg.AppPublicURL + "/login"
+		if cfg.KratosPublicURL != "" {
+			ragLoginURL = cfg.KratosPublicURL + "/login"
+		}
+		ragOAuthResolver := routes.NewKratosSessionTenantResolver(cfg.KratosInternalURL, tenantProvisioner)
 		ragConnectorsOAuth = routes.NewRagConnectorsOAuthHandler(
 			oauthProviders, ragDataClient,
 			routes.NewHTTPTokenExchanger(oauthProviders, oauthSecrets, &http.Client{Timeout: 15 * time.Second}),
-			redirectBase, cfg.AppPublicURL, cfg.AuthCookieDomain, logger)
+			ragOAuthResolver.Resolve,
+			redirectBase, cfg.AppPublicURL, ragLoginURL, cfg.AuthCookieDomain, logger)
 		logger.Info("dashboard rag enabled (per-tenant read+write broker)", "mount", "/v1/dashboard/rag", "oauth_providers", len(oauthProviders))
 	}
 
@@ -1016,6 +1023,14 @@ func main() {
 	// is minted rag:read+write+delete (M21). Distinct mount from /v1/rag/* (the SDK/edge surface).
 	if ragDashboardHandler != nil {
 		mountRagDashboard(r, ragDashboardHandler, ragConnectorsOAuth, requireJWT)
+	}
+	// M8 OAuth broker browser-redirect endpoints (#199) — root path, NO requireJWT: these are
+	// top-level navigations authenticated by the Kratos session cookie (like the GitHub App
+	// callback), not Bearer JWTs. Mounted here (not under /v1/dashboard/rag) so the callback and
+	// its CSRF/PKCE cookies live on this (BFF) origin.
+	if ragConnectorsOAuth != nil {
+		r.Get("/v1/rag-connect/{provider}/authorize", ragConnectorsOAuth.Authorize)
+		r.Get("/v1/rag-connect/{provider}/callback", ragConnectorsOAuth.Callback)
 	}
 	// M44: the read+write+delete /v1/dashboard/lens management BFF — the per-tenant key is
 	// minted observability:read+write+delete (ADR-1; per-verb least privilege at theo-lens). The route

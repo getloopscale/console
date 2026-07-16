@@ -27,7 +27,7 @@ func quietLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard
 // route-set walk (the handlers are never invoked during chi.Walk). An unconfigured provider
 // map is exactly the shipped default until an operator registers OAuth apps via env.
 func stubOAuthHandler() *routes.RagConnectorsOAuthHandler {
-	return routes.NewRagConnectorsOAuthHandler(nil, nil, nil, "", "", "", quietLogger())
+	return routes.NewRagConnectorsOAuthHandler(nil, nil, nil, nil, "", "", "", "", quietLogger())
 }
 
 func stubResolve(context.Context, string) (*auth.UserContext, []string, error) {
@@ -139,8 +139,8 @@ func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 		"POST /v1/dashboard/rag/connectors/{id}/sync",
 		"DELETE /v1/dashboard/rag/connectors/{id}",
 		"GET /v1/dashboard/rag/connectors/providers",
-		"GET /v1/dashboard/rag/connectors/{provider}/authorize",
-		"GET /v1/dashboard/rag/connectors/{provider}/callback",
+		// authorize + callback are NOT here — they are browser-redirect endpoints mounted at the
+		// root path /v1/rag-connect (cookie-session auth, #199), not under this Bearer-only surface.
 	}
 	for _, w := range want {
 		if !got[w] {

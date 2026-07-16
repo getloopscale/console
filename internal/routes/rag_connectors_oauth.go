@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -71,30 +72,41 @@ type connectPoster interface {
 	ConnectConnector(ctx context.Context, provider string, body json.RawMessage) (json.RawMessage, error)
 }
 
+// SessionTenantResolver resolves the tenant of the browser's session (Kratos cookie → whoami →
+// tenant), used on the broker's browser-redirect endpoints which cannot carry a Bearer JWT.
+// Returns ok=false when there is no valid session — the caller then redirects to login. Production
+// wires this to KratosSessionTenantResolver.Resolve; tests stub it.
+type SessionTenantResolver func(r *http.Request) (accountID, tenantID string, ok bool)
+
 // RagConnectorsOAuthHandler runs the authorize + callback halves of the broker.
 type RagConnectorsOAuthHandler struct {
-	providers    map[string]OAuthProviderConfig
-	client       connectPoster
-	exchange     TokenExchanger
-	redirectBase string // e.g. https://cloud-dev.usetheo.dev/v1/dashboard/rag/connectors
-	dashboardURL string // e.g. https://app-dev.usetheo.dev
-	cookieDomain string
-	cookieSecure bool
-	logger       *slog.Logger
+	providers     map[string]OAuthProviderConfig
+	client        connectPoster
+	exchange      TokenExchanger
+	resolveTenant SessionTenantResolver
+	redirectBase  string // BFF origin + /v1/rag-connect (where the callback is mounted)
+	dashboardURL  string // e.g. https://app-dev.usetheo.dev (the SPA — final redirect target)
+	loginURL      string // where an unauthenticated browser is sent to sign in
+	cookieDomain  string
+	cookieSecure  bool
+	logger        *slog.Logger
 }
 
 // NewRagConnectorsOAuthHandler wires the broker. `providers` carries the per-provider ClientID +
-// Scopes from edge config; `exchange` holds the client_secrets.
-func NewRagConnectorsOAuthHandler(providers map[string]OAuthProviderConfig, client connectPoster, exchange TokenExchanger, redirectBase, dashboardURL, cookieDomain string, logger *slog.Logger) *RagConnectorsOAuthHandler {
+// Scopes from edge config; `exchange` holds the client_secrets; `resolveTenant` authenticates the
+// browser session (the authorize/callback endpoints are top-level navigations, NOT Bearer APIs).
+func NewRagConnectorsOAuthHandler(providers map[string]OAuthProviderConfig, client connectPoster, exchange TokenExchanger, resolveTenant SessionTenantResolver, redirectBase, dashboardURL, loginURL, cookieDomain string, logger *slog.Logger) *RagConnectorsOAuthHandler {
 	return &RagConnectorsOAuthHandler{
-		providers:    providers,
-		client:       client,
-		exchange:     exchange,
-		redirectBase: strings.TrimRight(redirectBase, "/"),
-		dashboardURL: strings.TrimRight(dashboardURL, "/"),
-		cookieDomain: cookieDomain,
-		cookieSecure: true,
-		logger:       logger,
+		providers:     providers,
+		client:        client,
+		exchange:      exchange,
+		resolveTenant: resolveTenant,
+		redirectBase:  strings.TrimRight(redirectBase, "/"),
+		dashboardURL:  strings.TrimRight(dashboardURL, "/"),
+		loginURL:      loginURL,
+		cookieDomain:  cookieDomain,
+		cookieSecure:  true,
+		logger:        logger,
 	}
 }
 
@@ -126,7 +138,8 @@ const (
 	oauthStateCookie      = "theo_rag_oauth_state"
 	oauthCollectionCookie = "theo_rag_oauth_collection"
 	oauthVerifierCookie   = "theo_rag_oauth_verifier"
-	oauthCookieTTL        = 600 // 10-minute consent window
+	oauthCookieTTL        = 600              // 10-minute consent window
+	oauthCookiePath       = "/v1/rag-connect" // scope the CSRF/PKCE cookies to the broker path only
 )
 
 // newPKCE returns a high-entropy verifier + its S256 challenge (RFC 7636).
@@ -142,44 +155,61 @@ func newPKCE() (verifier, challenge string, err error) {
 
 func (h *RagConnectorsOAuthHandler) setCookie(w http.ResponseWriter, name, value string) {
 	http.SetCookie(w, &http.Cookie{
-		Name: name, Value: value, Path: "/", Domain: h.cookieDomain,
+		Name: name, Value: value, Path: oauthCookiePath, Domain: h.cookieDomain,
 		MaxAge: oauthCookieTTL, HttpOnly: true, Secure: h.cookieSecure, SameSite: http.SameSiteLaxMode,
 	})
 }
 
 func (h *RagConnectorsOAuthHandler) clearCookie(w http.ResponseWriter, name string) {
 	http.SetCookie(w, &http.Cookie{
-		Name: name, Value: "", Path: "/", Domain: h.cookieDomain,
+		Name: name, Value: "", Path: oauthCookiePath, Domain: h.cookieDomain,
 		MaxAge: -1, HttpOnly: true, Secure: h.cookieSecure, SameSite: http.SameSiteLaxMode,
 	})
 }
 
-// Authorize serves GET /v1/dashboard/rag/connectors/{provider}/authorize?collection_id=X — sets a
-// CSRF state + PKCE + collection cookie and 302-redirects to the provider's consent screen.
+// redirectConnectErr sends the browser back to the dashboard connectors page with a typed
+// connect_error (the page mirrors the ?connected= banner) — never a raw JSON blob on a navigation.
+func (h *RagConnectorsOAuthHandler) redirectConnectErr(w http.ResponseWriter, r *http.Request, reason string) {
+	http.Redirect(w, r, h.dashboardURL+"/rag/connectors?connect_error="+url.QueryEscape(reason), http.StatusFound)
+}
+
+// registered reports whether the provider is both known AND has a ClientID (operator-registered).
+// The write path (authorize/callback) MUST match the advertised list (ListOAuthProviders).
+func (h *RagConnectorsOAuthHandler) registered(provider string) (OAuthProviderConfig, bool) {
+	cfg, ok := h.providers[provider]
+	if !ok || cfg.ClientID == "" {
+		return OAuthProviderConfig{}, false
+	}
+	return cfg, true
+}
+
+// Authorize serves GET /v1/rag-connect/{provider}/authorize?collection_id=X — a BROWSER top-level
+// navigation authenticated by the Kratos SESSION COOKIE (not a Bearer JWT). It sets a CSRF state +
+// PKCE + collection cookie and 302-redirects to the provider's consent screen.
 func (h *RagConnectorsOAuthHandler) Authorize(w http.ResponseWriter, r *http.Request) {
-	if !isAuthed(r) {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated.")
+	if _, _, ok := h.resolveTenant(r); !ok {
+		http.Redirect(w, r, h.loginURL, http.StatusFound) // no session → sign in, then retry
 		return
 	}
 	provider := chi.URLParam(r, "provider")
-	cfg, ok := h.providers[provider]
+	cfg, ok := h.registered(provider)
 	if !ok {
-		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "Unknown or non-OAuth connector provider.")
+		h.redirectConnectErr(w, r, "unknown_provider")
 		return
 	}
 	collectionID := r.URL.Query().Get("collection_id")
 	if collectionID == "" {
-		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "collection_id is required.")
+		h.redirectConnectErr(w, r, "missing_collection")
 		return
 	}
 	state, err := newStateToken()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Could not start the connection. Try again.")
+		h.redirectConnectErr(w, r, "internal")
 		return
 	}
 	verifier, challenge, err := newPKCE()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Could not start the connection. Try again.")
+		h.redirectConnectErr(w, r, "internal")
 		return
 	}
 	h.setCookie(w, oauthStateCookie, state)
@@ -199,37 +229,36 @@ func (h *RagConnectorsOAuthHandler) Authorize(w http.ResponseWriter, r *http.Req
 	http.Redirect(w, r, cfg.AuthorizeURL+"?"+q.Encode(), http.StatusFound)
 }
 
-// Callback serves GET /v1/dashboard/rag/connectors/{provider}/callback?code=X&state=Y — validates
-// the CSRF state, exchanges code→refresh_token, POSTs connect to theo-rag, redirects to the dashboard.
+// Callback serves GET /v1/rag-connect/{provider}/callback?code=X&state=Y — a BROWSER redirect from
+// the provider, authenticated by the Kratos SESSION COOKIE. It validates the CSRF state, exchanges
+// code→refresh_token, then runs the connect AS THE COOKIE-RESOLVED TENANT (auth.WithUser, so the
+// existing per-tenant key resolver applies) — never trusting a tenant carried in the browser.
 func (h *RagConnectorsOAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
-	if !isAuthed(r) {
-		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated.")
+	accountID, tenantID, ok := h.resolveTenant(r)
+	if !ok {
+		http.Redirect(w, r, h.loginURL, http.StatusFound)
 		return
 	}
 	provider := chi.URLParam(r, "provider")
-	if _, ok := h.providers[provider]; !ok {
-		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "Unknown or non-OAuth connector provider.")
+	if _, ok := h.registered(provider); !ok {
+		h.redirectConnectErr(w, r, "unknown_provider")
 		return
 	}
-	// CSRF — the state query param MUST equal the state cookie (single-use, host-only).
+	// CSRF — the state query param MUST equal the state cookie (single-use, constant-time compare).
 	stateParam := r.URL.Query().Get("state")
 	stateCookie, _ := r.Cookie(oauthStateCookie)
-	if stateParam == "" || stateCookie == nil || stateCookie.Value == "" || stateParam != stateCookie.Value {
-		writeError(w, http.StatusForbidden, "INVALID_STATE", "Connection state mismatch. Please retry.")
+	if stateParam == "" || stateCookie == nil || subtle.ConstantTimeCompare([]byte(stateParam), []byte(stateCookie.Value)) != 1 {
+		h.redirectConnectErr(w, r, "state_mismatch")
 		return
 	}
 	code := r.URL.Query().Get("code")
-	if code == "" {
-		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "The provider did not return an authorization code.")
-		return
-	}
 	collectionCookie, _ := r.Cookie(oauthCollectionCookie)
 	verifierCookie, _ := r.Cookie(oauthVerifierCookie)
-	if collectionCookie == nil || collectionCookie.Value == "" || verifierCookie == nil || verifierCookie.Value == "" {
-		writeError(w, http.StatusForbidden, "INVALID_STATE", "Connection context expired. Please retry.")
+	if code == "" || collectionCookie == nil || collectionCookie.Value == "" || verifierCookie == nil || verifierCookie.Value == "" {
+		h.redirectConnectErr(w, r, "context_expired")
 		return
 	}
-	// Consume the single-use cookies immediately.
+	// Consume the single-use cookies immediately (on every terminal path from here).
 	h.clearCookie(w, oauthStateCookie)
 	h.clearCookie(w, oauthCollectionCookie)
 	h.clearCookie(w, oauthVerifierCookie)
@@ -237,14 +266,17 @@ func (h *RagConnectorsOAuthHandler) Callback(w http.ResponseWriter, r *http.Requ
 	refreshToken, err := h.exchange.Exchange(r.Context(), provider, code, verifierCookie.Value, h.redirectBase+"/"+provider+"/callback")
 	if err != nil {
 		h.logger.Warn("rag connectors oauth: token exchange failed", "provider", provider, "error", err)
-		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not complete the connection with the provider.")
+		h.redirectConnectErr(w, r, "provider_exchange_failed")
 		return
 	}
-	// Hand theo-rag the refresh_token via the M8 connect proxy (server-to-server; never to the browser).
+	// Run the connect AS the cookie-resolved tenant: wrapping the context lets the existing
+	// per-tenant key resolver mint the right key (the refresh_token is server-to-server, never
+	// reaches the browser). The tenant comes from the session, NOT from any browser-supplied value.
+	ctx := auth.WithUser(r.Context(), &auth.UserContext{TenantID: tenantID, AccountID: accountID})
 	body, _ := json.Marshal(map[string]string{"collection_id": collectionCookie.Value, "refresh_token": refreshToken})
-	if _, err := h.client.ConnectConnector(r.Context(), provider, json.RawMessage(body)); err != nil {
+	if _, err := h.client.ConnectConnector(ctx, provider, json.RawMessage(body)); err != nil {
 		h.logger.Warn("rag connectors oauth: connect failed", "provider", provider, "error", err)
-		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not connect the data source.")
+		h.redirectConnectErr(w, r, "connect_failed")
 		return
 	}
 	http.Redirect(w, r, h.dashboardURL+"/rag/connectors?connected="+url.QueryEscape(provider), http.StatusFound)

@@ -103,7 +103,7 @@ describe('RagConnectorsPage — M8 OAuth "Connect a source"', () => {
     const link = await screen.findByRole('link', { name: /connect with google drive/i });
     expect(link).toHaveAttribute(
       'href',
-      'https://cloud-test/v1/dashboard/rag/connectors/google-drive/authorize?collection_id=col_1',
+      'https://cloud-test/v1/rag-connect/google-drive/authorize?collection_id=col_1',
     );
   });
 

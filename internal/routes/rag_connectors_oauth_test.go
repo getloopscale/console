@@ -13,14 +13,20 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
+// authed sets a Bearer-JWT tenant on the request context — used by ListOAuthProviders (a Bearer API
+// the dashboard fetches). The authorize/callback halves use the cookie-session resolver instead.
+func authed(r *http.Request) *http.Request {
+	return r.WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1", AccountID: "acc1"}))
+}
+
 // --- stubs (the sandbox stand-in: the whole OAuth flow is proven without a real OAuth app) ---
 
 type stubExchanger struct {
-	refresh    string
-	err        error
-	gotCode    string
-	gotVerify  string
-	gotProv    string
+	refresh   string
+	err       error
+	gotCode   string
+	gotVerify string
+	gotProv   string
 }
 
 func (s *stubExchanger) Exchange(_ context.Context, provider, code, codeVerifier, _ string) (string, error) {
@@ -44,24 +50,33 @@ func (s *stubConnectPoster) ConnectConnector(_ context.Context, provider string,
 	return json.RawMessage(`{"id":"conn_1"}`), nil
 }
 
+// resolveTenant stubs — the browser-session auth for authorize/callback (#199).
+func okResolver(_ *http.Request) (accountID, tenantID string, ok bool) { return "acc1", "t1", true }
+func noResolver(_ *http.Request) (accountID, tenantID string, ok bool) { return "", "", false }
+
+const (
+	testLoginURL     = "https://app-dev.usetheo.dev/login"
+	testDashboardURL = "https://app-dev.usetheo.dev"
+)
+
 func newOAuthBroker(ex TokenExchanger, cp connectPoster) *RagConnectorsOAuthHandler {
+	return newOAuthBrokerR(ex, cp, okResolver)
+}
+
+func newOAuthBrokerR(ex TokenExchanger, cp connectPoster, resolve SessionTenantResolver) *RagConnectorsOAuthHandler {
 	providers := map[string]OAuthProviderConfig{
 		"google-drive": {AuthorizeURL: "https://accounts.google.com/o/oauth2/v2/auth", TokenURL: "https://oauth2.googleapis.com/token", ClientID: "cid-123", Scopes: "drive.readonly"},
 	}
-	return NewRagConnectorsOAuthHandler(providers, cp, ex,
-		"https://cloud-dev.usetheo.dev/v1/dashboard/rag/connectors", "https://app-dev.usetheo.dev", "",
+	return NewRagConnectorsOAuthHandler(providers, cp, ex, resolve,
+		"https://cloud-dev.usetheo.dev/v1/rag-connect", testDashboardURL, testLoginURL, "",
 		slog.New(slog.NewTextHandler(io.Discard, nil))).WithInsecureCookieForTests()
-}
-
-func authed(r *http.Request) *http.Request {
-	return r.WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"}))
 }
 
 // M8 — Authorize sets CSRF state + PKCE + collection cookies and redirects to the provider consent.
 func TestRagConnectorsOAuth_Authorize_RedirectsWithPKCEAndState(t *testing.T) {
 	h := newOAuthBroker(&stubExchanger{}, &stubConnectPoster{})
 	w := httptest.NewRecorder()
-	req := withProvider(authed(httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors/google-drive/authorize?collection_id=col_1", nil)), "google-drive")
+	req := withProvider(httptest.NewRequest(http.MethodGet, "/v1/rag-connect/google-drive/authorize?collection_id=col_1", nil), "google-drive")
 	h.Authorize(w, req)
 
 	if w.Code != http.StatusFound {
@@ -84,48 +99,49 @@ func TestRagConnectorsOAuth_Authorize_RedirectsWithPKCEAndState(t *testing.T) {
 	}
 }
 
-func TestRagConnectorsOAuth_Authorize_UnknownProvider_422(t *testing.T) {
+func TestRagConnectorsOAuth_Authorize_UnknownProvider_RedirectsErr(t *testing.T) {
 	h := newOAuthBroker(&stubExchanger{}, &stubConnectPoster{})
 	w := httptest.NewRecorder()
-	req := withProvider(authed(httptest.NewRequest(http.MethodGet, "/x/github/authorize?collection_id=col_1", nil)), "github") // github is non-OAuth
+	req := withProvider(httptest.NewRequest(http.MethodGet, "/v1/rag-connect/github/authorize?collection_id=col_1", nil), "github") // github is non-OAuth
 	h.Authorize(w, req)
-	if w.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("want 422 for a non-OAuth provider, got %d", w.Code)
+	if w.Code != http.StatusFound || !strings.Contains(w.Header().Get("Location"), "connect_error=unknown_provider") {
+		t.Fatalf("want 302 → connect_error=unknown_provider for a non-OAuth provider, got %d %q", w.Code, w.Header().Get("Location"))
 	}
 }
 
-func TestRagConnectorsOAuth_Authorize_MissingCollection_422(t *testing.T) {
+func TestRagConnectorsOAuth_Authorize_MissingCollection_RedirectsErr(t *testing.T) {
 	h := newOAuthBroker(&stubExchanger{}, &stubConnectPoster{})
 	w := httptest.NewRecorder()
-	req := withProvider(authed(httptest.NewRequest(http.MethodGet, "/x/google-drive/authorize", nil)), "google-drive")
+	req := withProvider(httptest.NewRequest(http.MethodGet, "/v1/rag-connect/google-drive/authorize", nil), "google-drive")
 	h.Authorize(w, req)
-	if w.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("want 422 for missing collection_id, got %d", w.Code)
+	if w.Code != http.StatusFound || !strings.Contains(w.Header().Get("Location"), "connect_error=missing_collection") {
+		t.Fatalf("want 302 → connect_error=missing_collection, got %d %q", w.Code, w.Header().Get("Location"))
 	}
 }
 
-func TestRagConnectorsOAuth_Authorize_Unauthed_401(t *testing.T) {
-	h := newOAuthBroker(&stubExchanger{}, &stubConnectPoster{})
+// #199 — no session cookie → the browser is sent to sign in (NOT a 401 JSON blob it can't act on).
+func TestRagConnectorsOAuth_Authorize_Unauthed_RedirectsToLogin(t *testing.T) {
+	h := newOAuthBrokerR(&stubExchanger{}, &stubConnectPoster{}, noResolver)
 	w := httptest.NewRecorder()
-	req := withProvider(httptest.NewRequest(http.MethodGet, "/x/google-drive/authorize?collection_id=col_1", nil), "google-drive") // no auth
+	req := withProvider(httptest.NewRequest(http.MethodGet, "/v1/rag-connect/google-drive/authorize?collection_id=col_1", nil), "google-drive")
 	h.Authorize(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Fatalf("want 401 without a tenant, got %d", w.Code)
+	if w.Code != http.StatusFound || w.Header().Get("Location") != testLoginURL {
+		t.Fatalf("want 302 → %s without a session, got %d %q", testLoginURL, w.Code, w.Header().Get("Location"))
 	}
 }
 
 // M8 — Callback (sandbox): valid state → stub exchange → connect posts {collection_id, refresh_token}
-// server-to-server, then redirects to the dashboard. Proves the whole flow with NO real OAuth app.
+// server-to-server as the COOKIE-RESOLVED tenant, then redirects to the dashboard. No real OAuth app.
 func TestRagConnectorsOAuth_Callback_HappyPath_ConnectsAndRedirects(t *testing.T) {
 	ex := &stubExchanger{refresh: "refresh-xyz"}
 	cp := &stubConnectPoster{}
 	h := newOAuthBroker(ex, cp)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/x/google-drive/callback?code=auth-code&state=STATE", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/rag-connect/google-drive/callback?code=auth-code&state=STATE", nil)
 	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "STATE"})
 	req.AddCookie(&http.Cookie{Name: oauthCollectionCookie, Value: "col_1"})
 	req.AddCookie(&http.Cookie{Name: oauthVerifierCookie, Value: "verifier-xyz"})
-	req = withProvider(authed(req), "google-drive")
+	req = withProvider(req, "google-drive")
 	h.Callback(w, req)
 
 	if w.Code != http.StatusFound {
@@ -149,33 +165,71 @@ func TestRagConnectorsOAuth_Callback_HappyPath_ConnectsAndRedirects(t *testing.T
 	}
 }
 
-func TestRagConnectorsOAuth_Callback_CSRFMismatch_403(t *testing.T) {
+func TestRagConnectorsOAuth_Callback_CSRFMismatch_RedirectsErr(t *testing.T) {
 	cp := &stubConnectPoster{}
 	h := newOAuthBroker(&stubExchanger{refresh: "x"}, cp)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/x/google-drive/callback?code=c&state=ATTACKER", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/rag-connect/google-drive/callback?code=c&state=ATTACKER", nil)
 	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "REAL"}) // param != cookie
 	req.AddCookie(&http.Cookie{Name: oauthCollectionCookie, Value: "col_1"})
 	req.AddCookie(&http.Cookie{Name: oauthVerifierCookie, Value: "v"})
-	req = withProvider(authed(req), "google-drive")
+	req = withProvider(req, "google-drive")
 	h.Callback(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("want 403 on state mismatch (CSRF), got %d", w.Code)
+	if w.Code != http.StatusFound || !strings.Contains(w.Header().Get("Location"), "connect_error=state_mismatch") {
+		t.Fatalf("want 302 → connect_error=state_mismatch on CSRF mismatch, got %d %q", w.Code, w.Header().Get("Location"))
 	}
 	if cp.calls != 0 {
 		t.Fatalf("connect MUST NOT run on a CSRF mismatch, got %d calls", cp.calls)
 	}
 }
 
+func TestRagConnectorsOAuth_Callback_ExchangeFails_RedirectsErr(t *testing.T) {
+	cp := &stubConnectPoster{}
+	h := newOAuthBroker(&stubExchanger{err: context.DeadlineExceeded}, cp)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/rag-connect/google-drive/callback?code=c&state=S", nil)
+	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "S"})
+	req.AddCookie(&http.Cookie{Name: oauthCollectionCookie, Value: "col_1"})
+	req.AddCookie(&http.Cookie{Name: oauthVerifierCookie, Value: "v"})
+	req = withProvider(req, "google-drive")
+	h.Callback(w, req)
+	if w.Code != http.StatusFound || !strings.Contains(w.Header().Get("Location"), "connect_error=provider_exchange_failed") {
+		t.Fatalf("want 302 → connect_error=provider_exchange_failed when the exchange fails, got %d %q", w.Code, w.Header().Get("Location"))
+	}
+	if cp.calls != 0 {
+		t.Fatalf("connect MUST NOT run when exchange fails, got %d calls", cp.calls)
+	}
+}
+
+// #199 — the exact path the missing test would have surfaced: a callback with no session cookie
+// must NOT connect and must send the browser to sign in.
+func TestRagConnectorsOAuth_Callback_Unauthed_RedirectsToLogin(t *testing.T) {
+	cp := &stubConnectPoster{}
+	h := newOAuthBrokerR(&stubExchanger{refresh: "x"}, cp, noResolver)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/rag-connect/google-drive/callback?code=c&state=S", nil)
+	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "S"})
+	req = withProvider(req, "google-drive")
+	h.Callback(w, req)
+	if w.Code != http.StatusFound || w.Header().Get("Location") != testLoginURL {
+		t.Fatalf("want 302 → %s without a session, got %d %q", testLoginURL, w.Code, w.Header().Get("Location"))
+	}
+	if cp.calls != 0 {
+		t.Fatalf("connect MUST NOT run without a session, got %d calls", cp.calls)
+	}
+}
+
 // M8 Slice 3 — the connectors page needs to know WHICH OAuth providers are actually connectable
-// (operator-gated), so it never renders a "Connect with X" button that would dead-end in a 422.
+// (operator-gated), so it never renders a "Connect with X" button that would dead-end. This is a
+// Bearer API (the dashboard fetches it), so it keeps the JWT auth check.
 func TestRagConnectorsOAuth_ListProviders_ReturnsConfiguredSorted(t *testing.T) {
 	providers := map[string]OAuthProviderConfig{
 		"google-drive": {ClientID: "cid-1", Scopes: "drive.readonly"},
 		"dropbox":      {ClientID: "cid-2"},
 		"salesforce":   {}, // no ClientID → not registered → MUST be omitted
 	}
-	h := NewRagConnectorsOAuthHandler(providers, &stubConnectPoster{}, &stubExchanger{}, "", "", "",
+	h := NewRagConnectorsOAuthHandler(providers, &stubConnectPoster{}, &stubExchanger{}, okResolver,
+		"https://cloud-dev.usetheo.dev/v1/rag-connect", testDashboardURL, testLoginURL, "",
 		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	w := httptest.NewRecorder()
 	h.ListOAuthProviders(w, authed(httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors/providers", nil)))
@@ -189,7 +243,6 @@ func TestRagConnectorsOAuth_ListProviders_ReturnsConfiguredSorted(t *testing.T) 
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
 		t.Fatalf("body not json: %v", err)
 	}
-	// sorted, and salesforce (unconfigured) omitted
 	if len(out.Providers) != 2 || out.Providers[0] != "dropbox" || out.Providers[1] != "google-drive" {
 		t.Fatalf("want [dropbox google-drive] (configured, sorted), got %v", out.Providers)
 	}
@@ -198,26 +251,8 @@ func TestRagConnectorsOAuth_ListProviders_ReturnsConfiguredSorted(t *testing.T) 
 func TestRagConnectorsOAuth_ListProviders_Unauthed_401(t *testing.T) {
 	h := newOAuthBroker(&stubExchanger{}, &stubConnectPoster{})
 	w := httptest.NewRecorder()
-	h.ListOAuthProviders(w, httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors/providers", nil)) // no auth
+	h.ListOAuthProviders(w, httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors/providers", nil)) // no Bearer
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401 without a tenant, got %d", w.Code)
-	}
-}
-
-func TestRagConnectorsOAuth_Callback_ExchangeFails_502(t *testing.T) {
-	cp := &stubConnectPoster{}
-	h := newOAuthBroker(&stubExchanger{err: context.DeadlineExceeded}, cp)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/x/google-drive/callback?code=c&state=S", nil)
-	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "S"})
-	req.AddCookie(&http.Cookie{Name: oauthCollectionCookie, Value: "col_1"})
-	req.AddCookie(&http.Cookie{Name: oauthVerifierCookie, Value: "v"})
-	req = withProvider(authed(req), "google-drive")
-	h.Callback(w, req)
-	if w.Code != http.StatusBadGateway {
-		t.Fatalf("want 502 when the provider token exchange fails, got %d", w.Code)
-	}
-	if cp.calls != 0 {
-		t.Fatalf("connect MUST NOT run when exchange fails, got %d calls", cp.calls)
 	}
 }
