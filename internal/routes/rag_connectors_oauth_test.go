@@ -167,6 +167,43 @@ func TestRagConnectorsOAuth_Callback_CSRFMismatch_403(t *testing.T) {
 	}
 }
 
+// M8 Slice 3 — the connectors page needs to know WHICH OAuth providers are actually connectable
+// (operator-gated), so it never renders a "Connect with X" button that would dead-end in a 422.
+func TestRagConnectorsOAuth_ListProviders_ReturnsConfiguredSorted(t *testing.T) {
+	providers := map[string]OAuthProviderConfig{
+		"google-drive": {ClientID: "cid-1", Scopes: "drive.readonly"},
+		"dropbox":      {ClientID: "cid-2"},
+		"salesforce":   {}, // no ClientID → not registered → MUST be omitted
+	}
+	h := NewRagConnectorsOAuthHandler(providers, &stubConnectPoster{}, &stubExchanger{}, "", "", "",
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	w := httptest.NewRecorder()
+	h.ListOAuthProviders(w, authed(httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors/providers", nil)))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	var out struct {
+		Providers []string `json:"providers"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("body not json: %v", err)
+	}
+	// sorted, and salesforce (unconfigured) omitted
+	if len(out.Providers) != 2 || out.Providers[0] != "dropbox" || out.Providers[1] != "google-drive" {
+		t.Fatalf("want [dropbox google-drive] (configured, sorted), got %v", out.Providers)
+	}
+}
+
+func TestRagConnectorsOAuth_ListProviders_Unauthed_401(t *testing.T) {
+	h := newOAuthBroker(&stubExchanger{}, &stubConnectPoster{})
+	w := httptest.NewRecorder()
+	h.ListOAuthProviders(w, httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors/providers", nil)) // no auth
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401 without a tenant, got %d", w.Code)
+	}
+}
+
 func TestRagConnectorsOAuth_Callback_ExchangeFails_502(t *testing.T) {
 	cp := &stubConnectPoster{}
 	h := newOAuthBroker(&stubExchanger{err: context.DeadlineExceeded}, cp)

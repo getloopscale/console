@@ -172,8 +172,10 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		r.Post("/connectors/{provider}/connect", h.ConnectConnector)
 		r.Post("/connectors/{id}/sync", h.SyncConnector)
 		r.Delete("/connectors/{id}", h.DeleteConnector)
-		// M8 OAuth authorization broker ("Connect with X"): authorize + callback. The provider
-		// map is gated on registered OAuth apps (env) — an unconfigured provider returns 422.
+		// M8 OAuth authorization broker ("Connect with X"): providers list + authorize + callback.
+		// The provider map is gated on registered OAuth apps (env) — an unconfigured provider is
+		// absent from the list and returns 422 on authorize.
+		r.Get("/connectors/providers", oauth.ListOAuthProviders)
 		r.Get("/connectors/{provider}/authorize", oauth.Authorize)
 		r.Get("/connectors/{provider}/callback", oauth.Callback)
 	})

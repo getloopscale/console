@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -101,6 +102,24 @@ func NewRagConnectorsOAuthHandler(providers map[string]OAuthProviderConfig, clie
 func (h *RagConnectorsOAuthHandler) WithInsecureCookieForTests() *RagConnectorsOAuthHandler {
 	h.cookieSecure = false
 	return h
+}
+
+// ListOAuthProviders serves GET /v1/dashboard/rag/connectors/providers — the sorted list of OAuth
+// providers actually registered (ClientID present, the operator gate). The connectors page renders
+// a "Connect with X" button only for these, so it never dead-ends on an unconfigured provider (422).
+func (h *RagConnectorsOAuthHandler) ListOAuthProviders(w http.ResponseWriter, r *http.Request) {
+	if !isAuthed(r) {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated.")
+		return
+	}
+	out := make([]string, 0, len(h.providers))
+	for name, cfg := range h.providers {
+		if cfg.ClientID != "" {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	writeJSON(w, http.StatusOK, map[string]any{"providers": out})
 }
 
 const (
