@@ -82,7 +82,17 @@ createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         <TheoUIProvider
           theme={{
-            themes: [violetForge],
+            // Primary roxo Dracula neutro (sem brilho): croma reduzida (0.13) +
+            // matiz Dracula (302). #8662b6 = ~4.73:1 vs branco (passa WCAG AA,
+            // ao contrário do default oklch(0.628 0.225 296) = 3.87:1). O --primary
+            // vem do tema via TheoUIProvider (o index.css NÃO tem efeito no primary).
+            themes: [
+              {
+                ...violetForge,
+                light: { ...violetForge.light, primary: 'oklch(0.57 0.13 302)' },
+                dark: { ...violetForge.dark, primary: 'oklch(0.57 0.13 302)' },
+              },
+            ],
             defaultTheme: 'violet-forge',
             defaultMode: 'dark',
           }}
