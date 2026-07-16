@@ -80,12 +80,22 @@ export function RagGraphRagPage() {
   const [question, setQuestion] = useState('');
   const [mode, setMode] = useState('global');
 
-  // Measure the graph container so the canvas fills the card (react-force-graph needs an explicit width).
+  // Measure the graph container so the canvas fills the card (react-force-graph needs explicit px).
+  // M13 — measure BOTH dimensions + track resize so the full-height explorer canvas stays responsive.
   const graphBox = useRef<HTMLDivElement | null>(null);
-  const [graphWidth, setGraphWidth] = useState(640);
+  const [graphSize, setGraphSize] = useState({ w: 640, h: 560 });
   useEffect(() => {
-    if (graphBox.current) setGraphWidth(graphBox.current.clientWidth);
+    const el = graphBox.current;
+    if (!el) return;
+    const measure = () => setGraphSize({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [collectionID]);
+
+  // M13 — clicking a community (or a node) focuses it: its nodes keep colour, the rest dim.
+  const [focusCommunity, setFocusCommunity] = useState<string | null>(null);
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
@@ -125,6 +135,16 @@ export function RagGraphRagPage() {
   const graphData = graph
     ? { nodes: graph.nodes, links: graph.edges.map((e) => ({ source: e.source, target: e.target, weight: e.weight })) }
     : { nodes: [], links: [] };
+
+  // M13 — deterministic HSL per community_key (stable colour across renders) with a dim state
+  // for nodes outside the focused community, so a click actually highlights a community's subgraph.
+  const nodeColor = (n: object): string => {
+    const key = (n as GraphNode).community_key ?? '';
+    if (focusCommunity !== null && key !== focusCommunity) return 'rgba(100,116,139,0.25)';
+    let h = 0;
+    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
+    return `hsl(${h}, 65%, 60%)`;
+  };
 
   return (
     <PageShell
@@ -193,17 +213,29 @@ export function RagGraphRagPage() {
                   </Alert>
                 ) : graph && graph.nodes.length > 0 ? (
                   <>
-                    <p className="mb-2 text-sm text-muted-foreground" data-testid="graph-summary">
-                      {fmt(graph.nodes.length)} entities · {fmt(graph.edges.length)} relationships
-                    </p>
-                    <div ref={graphBox} className="h-[440px] overflow-hidden rounded border border-border bg-muted/20">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-sm text-muted-foreground" data-testid="graph-summary">
+                        {fmt(graph.nodes.length)} entities · {fmt(graph.edges.length)} relationships
+                        {focusCommunity !== null ? <> · focused on <span className="font-mono">{focusCommunity}</span></> : null}
+                      </p>
+                      {focusCommunity !== null ? (
+                        <Button variant="ghost" size="sm" onClick={() => setFocusCommunity(null)}>
+                          Clear focus
+                        </Button>
+                      ) : null}
+                    </div>
+                    <div ref={graphBox} className="h-[70vh] min-h-[420px] w-full overflow-hidden rounded border border-border bg-muted/20">
                       <ForceGraph2D
                         graphData={graphData}
-                        width={graphWidth}
-                        height={440}
-                        nodeAutoColorBy="community_key"
+                        width={graphSize.w}
+                        height={graphSize.h}
+                        nodeColor={nodeColor}
                         nodeVal={(n: object) => 1 + Math.sqrt((n as GraphNode).degree)}
                         nodeLabel={(n: object) => (n as GraphNode).name}
+                        onNodeClick={(n: object) => {
+                          const k = (n as GraphNode).community_key;
+                          setFocusCommunity((cur) => (cur === k ? null : k));
+                        }}
                         linkColor={() => 'rgba(148,163,184,0.35)'}
                         cooldownTicks={80}
                       />
@@ -229,7 +261,23 @@ export function RagGraphRagPage() {
                 ) : communities.length > 0 ? (
                   <ul className="space-y-3">
                     {communities.map((c) => (
-                      <li key={c.community_key} className="rounded border border-border p-3">
+                      <li
+                        key={c.community_key}
+                        className={`cursor-pointer rounded border p-3 transition-colors ${
+                          focusCommunity === c.community_key ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                        }`}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={focusCommunity === c.community_key}
+                        aria-label={`Focus community ${c.community_key}`}
+                        onClick={() => setFocusCommunity((cur) => (cur === c.community_key ? null : c.community_key))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setFocusCommunity((cur) => (cur === c.community_key ? null : c.community_key));
+                          }
+                        }}
+                      >
                         <div className="mb-1 flex items-center justify-between gap-2">
                           <span className="font-mono text-xs text-muted-foreground">{c.community_key}</span>
                           <Badge variant="outline">{fmt(c.size)} members</Badge>

@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- M13: GraphRAG explorer interactions — the graph canvas is now full-height + responsive (ResizeObserver), and clicking a community report (or a node) focuses that community's subgraph (its nodes keep colour, the rest dim), with a Clear-focus affordance
 - M12: connect paste-credential (non-OAuth) sources from the dashboard — the "Connect a source" dialog now has an in-UI S3 / Website form that posts the credential opaquely through the BFF to theo-rag's connect endpoint (credential encrypted at rest, never logged)
 - M11: upload documents (PDF/office/CSV/text/image) from the dashboard — a drag-drop dropzone in `/rag/documents` streams a multipart file through the BFF to theo-rag's async ingest (per-tenant key, 10 MB cap, fast/hi-res mode)
 - Roadmap amended: added M10 GraphRAG knowledge-graph explorer (always-on) (`/roadmap-feature graphrag-explorer-always-on`)

@@ -80,4 +80,17 @@ describe('RagGraphRagPage (/rag/graphrag) — always-on explorer', () => {
     const body = JSON.parse((askCall![1] as { body: string }).body) as { strategy?: string };
     expect(body.strategy).toBe('global');
   });
+
+  it('M13 — clicking a community report focuses it, and Clear focus resets', async () => {
+    wire();
+    render(<RagGraphRagPage />);
+    await pickCollection();
+    const community = await screen.findByRole('button', { name: /focus community 0:1/i });
+    expect(community).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(community);
+    expect(community).toHaveAttribute('aria-pressed', 'true');
+    const clear = await screen.findByRole('button', { name: /clear focus/i });
+    await userEvent.click(clear);
+    expect(screen.getByRole('button', { name: /focus community 0:1/i })).toHaveAttribute('aria-pressed', 'false');
+  });
 });
