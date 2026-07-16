@@ -241,7 +241,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M8 — [ ] RAG Connectors reach real users (dashboard page + BFF proxy + OAuth authorization broker)
+### M8 — [x] RAG Connectors reach real users (dashboard page + BFF proxy + OAuth authorization broker)
 
 > Added 2026-07-16 by `/roadmap-feature` (slug: `rag-connectors-ux-oauth-broker`). See CHANGELOG `[Unreleased] § Added`. Subsumes theo-cloud#191 (page + proxy); the OAuth broker is the deeper gap. Prior art: theo-rag#97 (connectors platform in SDK/MCP, closed + LIVE-proven).
 
@@ -267,7 +267,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M9 — [ ] GraphRAG reachable in the Ask UI (strategy selector)
+### M9 — [x] GraphRAG reachable in the Ask UI (strategy selector)
 
 > Added 2026-07-16 by `/roadmap-feature` (slug: `graphrag-in-ask-ui`). See CHANGELOG `[Unreleased] § Added`. Independent of M8.
 
