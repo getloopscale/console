@@ -39,6 +39,17 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Density compacta (32px) — alinha o dashboard ao padrão de dimensão do Builder
+   (theo-studio): controles a 32px, não 36px. O TheoUIProvider aplica
+   data-density="comfortable" (--theo-control-h: 2.25rem = 36px) por default e não
+   expõe prop tipado; forçamos o modo `compact` do próprio design system
+   (--theo-control-h: 2rem = 32px, --theo-control-px: 0.75rem). Especificidade
+   html[data-density] (0,1,1) ganha de [data-density="comfortable"] (0,1,0). */
+html[data-density] {
+  --theo-control-h: 2rem;
+  --theo-control-px: 0.75rem;
+}
+
 @theme {
   --color-theo-50: #e8f4f8;
   --color-theo-100: #b8dfe8;
