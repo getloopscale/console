@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { AttributesTable, Badge, Button, IOCards } from '@usetheo/ui';
+import { AttributesTable, Badge, Button, IOCards, TokenCostBreakdown } from '@usetheo/ui';
 import { ClipboardCheck } from 'lucide-react';
 
 import { cloudFetch } from '@/lib/api';
-import { formatCost, formatDate, formatDuration, formatScore, formatTokens } from '@/lib/format';
-import { aggregateCost } from '@/lib/trace-layout';
+import { formatCost, formatDate, formatDuration, formatScore } from '@/lib/format';
 import { detectPii } from '@/lib/otel-attributes';
 import { LensPlayground } from '../playground';
 import { durationMs, type TraceSpanNode } from './helpers';
@@ -21,6 +20,12 @@ import { toTraceSpan } from './to-trace-span';
  */
 export function SpanDetail({ span }: { span: TraceSpanNode }) {
   const dur = durationMs(span);
+  // M15 — cache tokens honestly: sum read + creation, but stay `undefined` (→ em-dash) when BOTH are
+  // absent, so an absent cache is never fabricated as a zero.
+  const cacheTokens =
+    span.cacheReadTokens !== undefined || span.cacheCreationTokens !== undefined
+      ? (span.cacheReadTokens ?? 0) + (span.cacheCreationTokens ?? 0)
+      : undefined;
   const hasAttrs = Object.keys(span.attributes ?? {}).length > 0;
   const events = span.events ?? [];
   const canReplay = !!span.inputValue;
@@ -66,38 +71,35 @@ export function SpanDetail({ span }: { span: TraceSpanNode }) {
       ) : null}
       {canReplay && pgOpen ? <LensPlayground span={span} /> : null}
 
-      <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-        {span.inputTokens !== undefined ? (
-          <div>
-            <dt className="text-muted-foreground">Input tokens</dt>
-            <dd className="font-medium">{formatTokens(span.inputTokens ?? 0)}</dd>
-          </div>
-        ) : null}
-        {span.outputTokens !== undefined ? (
-          <div>
-            <dt className="text-muted-foreground">Output tokens</dt>
-            <dd className="font-medium">{formatTokens(span.outputTokens ?? 0)}</dd>
-          </div>
-        ) : null}
-        {span.ttftMs !== undefined ? (
-          <div>
-            <dt className="text-muted-foreground">TTFT</dt>
-            <dd className="font-medium">{formatDuration(span.ttftMs ?? 0)}</dd>
-          </div>
-        ) : null}
-        {dur !== null ? (
-          <div>
-            <dt className="text-muted-foreground">Latency</dt>
-            <dd className="font-medium">{formatDuration(dur)}</dd>
-          </div>
-        ) : null}
-        {aggregateCost(span) > 0 ? (
-          <div>
-            <dt className="text-muted-foreground">Cost</dt>
-            <dd className="font-medium" data-testid="span-detail-cost">{formatCost(aggregateCost(span))}</dd>
-          </div>
-        ) : null}
-      </dl>
+      {/* M15 — consolidated token/cost view. Honest zeros: a real 0 renders 0/$0.0000; an ABSENT field
+          renders an em-dash (never a fabricated zero). `cacheTokens` sums read + creation only when at
+          least one is present. `costUsd` is the per-span cost field; the subtree ∑-cost badge stays on
+          the tree. Timing (TTFT / latency) is NOT token/cost — it keeps its own `<dl>` below. */}
+      <TokenCostBreakdown
+        inputTokens={span.inputTokens}
+        outputTokens={span.outputTokens}
+        cacheTokens={cacheTokens}
+        costUsd={span.costUsd}
+        formatCostUsd={(usd) => formatCost(usd, 4)}
+        data-testid="span-detail-cost"
+      />
+
+      {span.ttftMs !== undefined || dur !== null ? (
+        <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+          {span.ttftMs !== undefined ? (
+            <div>
+              <dt className="text-muted-foreground">TTFT</dt>
+              <dd className="font-medium">{formatDuration(span.ttftMs ?? 0)}</dd>
+            </div>
+          ) : null}
+          {dur !== null ? (
+            <div>
+              <dt className="text-muted-foreground">Latency</dt>
+              <dd className="font-medium">{formatDuration(dur)}</dd>
+            </div>
+          ) : null}
+        </dl>
+      ) : null}
 
       {span.evaluations && span.evaluations.length > 0 ? (
         <section className="space-y-1" data-testid="span-evaluations">

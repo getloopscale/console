@@ -7,21 +7,22 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) })
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
-import { LensAlertsPage, alertStatusVariant } from './alerts';
+import { LensAlertsPage, alertSeverity } from './alerts';
 
-describe('alertStatusVariant (honest status badge)', () => {
-  it('a firing rule is destructive, a cleared rule is success', () => {
-    expect(alertStatusVariant('TRIGGERED', true)).toBe('destructive');
-    expect(alertStatusVariant('OK', true)).toBe('success');
+describe('alertSeverity (honest status → Severity)', () => {
+  it('a firing rule is alert, a cleared rule is ok', () => {
+    // SeverityBadge maps alert→destructive, ok→success (verified in @usetheo/ui).
+    expect(alertSeverity('TRIGGERED', true)).toBe('alert');
+    expect(alertSeverity('OK', true)).toBe('ok');
   });
-  it('a disabled rule is neutral, NOT a green success', () => {
+  it('a disabled rule is paused (inert/neutral), NOT a green ok', () => {
     // the bug: `status !== 'TRIGGERED' ? 'success'` painted a disabled/unknown rule green.
-    expect(alertStatusVariant('OK', false)).toBe('outline');
-    expect(alertStatusVariant('TRIGGERED', false)).toBe('outline');
+    expect(alertSeverity('OK', false)).toBe('paused');
+    expect(alertSeverity('TRIGGERED', false)).toBe('paused');
   });
-  it('an unknown status is neutral, never a fabricated success', () => {
-    expect(alertStatusVariant('PENDING', true)).toBe('outline');
-    expect(alertStatusVariant('', true)).toBe('outline');
+  it('an unknown status is unknown (neutral), never a fabricated ok', () => {
+    expect(alertSeverity('PENDING', true)).toBe('unknown');
+    expect(alertSeverity('', true)).toBe('unknown');
   });
 });
 
