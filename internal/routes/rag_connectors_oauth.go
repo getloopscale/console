@@ -360,6 +360,14 @@ func LoadOAuthConnectorsFromEnv(getenv func(string) string) (map[string]OAuthPro
 		if sc := getenv("THEO_RAG_OAUTH_" + key + "_SCOPES"); sc != "" {
 			base.Scopes = sc
 		}
+		// Optional endpoint overrides — point a provider at a conformant OAuth2 IdP other than the
+		// public default (staging against Ory Hydra, a self-hosted provider, etc.). Absent → default.
+		if au := getenv("THEO_RAG_OAUTH_" + key + "_AUTHORIZE_URL"); au != "" {
+			base.AuthorizeURL = au
+		}
+		if tu := getenv("THEO_RAG_OAUTH_" + key + "_TOKEN_URL"); tu != "" {
+			base.TokenURL = tu
+		}
 		cfgs[provider] = base
 		secrets[provider] = getenv("THEO_RAG_OAUTH_" + key + "_CLIENT_SECRET")
 	}

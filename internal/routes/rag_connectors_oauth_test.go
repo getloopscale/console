@@ -256,3 +256,38 @@ func TestRagConnectorsOAuth_ListProviders_Unauthed_401(t *testing.T) {
 		t.Fatalf("want 401 without a tenant, got %d", w.Code)
 	}
 }
+
+// The provider AuthorizeURL/TokenURL are overridable from env — a legitimate testability / self-hosted-
+// IdP feature: staging can point a provider at a conformant OAuth2 server (e.g. Ory Hydra) instead of
+// the public default, to exercise the full consent loop without a real third-party app. Absent env,
+// the well-known defaults stand.
+func TestLoadOAuthConnectorsFromEnv_URLOverride(t *testing.T) {
+	env := map[string]string{
+		"THEO_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_ID":     "cid",
+		"THEO_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_SECRET": "sec",
+		"THEO_RAG_OAUTH_GOOGLE_DRIVE_AUTHORIZE_URL": "https://hydra.internal/oauth2/auth",
+		"THEO_RAG_OAUTH_GOOGLE_DRIVE_TOKEN_URL":     "https://hydra.internal/oauth2/token",
+		"THEO_RAG_OAUTH_GOOGLE_DRIVE_SCOPES":        "offline_access",
+	}
+	cfgs, secrets := LoadOAuthConnectorsFromEnv(func(k string) string { return env[k] })
+	c, ok := cfgs["google-drive"]
+	if !ok {
+		t.Fatal("google-drive should be configured")
+	}
+	if c.AuthorizeURL != "https://hydra.internal/oauth2/auth" || c.TokenURL != "https://hydra.internal/oauth2/token" {
+		t.Fatalf("URLs not overridden: authorize=%q token=%q", c.AuthorizeURL, c.TokenURL)
+	}
+	if c.ClientID != "cid" || c.Scopes != "offline_access" || secrets["google-drive"] != "sec" {
+		t.Fatalf("client/scope/secret wrong: %+v secret=%q", c, secrets["google-drive"])
+	}
+}
+
+// Without the URL-override envs, the well-known defaults are preserved.
+func TestLoadOAuthConnectorsFromEnv_DefaultsWhenNoOverride(t *testing.T) {
+	env := map[string]string{"THEO_RAG_OAUTH_GOOGLE_DRIVE_CLIENT_ID": "cid"}
+	cfgs, _ := LoadOAuthConnectorsFromEnv(func(k string) string { return env[k] })
+	c := cfgs["google-drive"]
+	if c.AuthorizeURL != "https://accounts.google.com/o/oauth2/v2/auth" || c.TokenURL != "https://oauth2.googleapis.com/token" {
+		t.Fatalf("defaults not preserved: %+v", c)
+	}
+}
