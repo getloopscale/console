@@ -291,6 +291,97 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
+### M10 — [ ] GraphRAG knowledge-graph explorer (always-on)
+
+> Added 2026-07-16 by `/roadmap-feature` (slug: `graphrag-explorer-always-on`). See CHANGELOG `[Unreleased] § Added`. Depends on M9.
+
+**Objective:** turn GraphRAG from a hidden retrieval strategy into a first-class, always-on EXPLORER. The knowledge graph (entities + relationships + hierarchical communities) is built once at ingestion and persisted, so it is shown the moment a collection is picked — no question needed — as an interactive graph beside the community reports.
+
+**Definition of done:**
+
+- [ ] theo-rag exposes read endpoints `GET /v1/collections/:id/graph?level=&limit=` (top-N entities by degree + edges among them + community per node) and `GET /v1/collections/:id/communities?level=` (report summary + members), read-scoped (`rag:read`) + workspace-scoped, over the persisted graph (no schema change) — merged to `main`.
+- [ ] theo-cloud BFF proxies both under `/v1/dashboard/rag/collections/{id}/{graph,communities}` (per-tenant key, fail-closed, opaque) — merged to `main`.
+- [ ] `dashboard/src/pages/rag/graphrag.tsx` renders a force-directed graph (nodes coloured by community, sized by degree) + a community-reports panel + a Leiden level slider, ON collection-pick (no question); Ask is a secondary panel — merged to `main`.
+- [ ] LIVE-validated on dev-public (the graph renders for a graph-enabled collection); released `develop → main` in both repos.
+
+**Dependencies:** M9 (GraphRAG reachable in Ask — same theo-rag capability + BFF surface).
+
+**Top risks (new):**
+
+1. A `develop → main` release cut bundles the whole unreleased backlog (theo-cloud + theo-rag). Mitigation: validate the rest of the backlog before the cut; split releases if needed; the merge is human-gated (Rule 4).
+2. The graph canvas is fixed-size and top-N-bounded; dense graphs render tightly. Mitigation: resize + collapse/expand deferred to M13.
+
+**Why now:** the explorer is already engineering-complete + LIVE-validated cross-repo this session (theo-rag `9481ae8`, theo-cloud `22755ca`; DB=endpoint=render 35/56/7 confirmed), but is NOT in the roadmap nor released. This milestone FORMALIZES it and cuts the release that flips the checkbox — so shipped reality matches the roadmap.
+
+---
+
+### M11 — [ ] Upload documents (PDF / office / CSV / image) from the dashboard
+
+> Added 2026-07-16 by `/roadmap-feature` (slug: `dashboard-file-upload`). See CHANGELOG `[Unreleased] § Added`. Depends on M6.
+
+**Objective:** let a user ingest real FILES (PDF, office, CSV, image) from `/rag/documents`. Today the dashboard only accepts PASTED TEXT (a Textarea → `POST /v1/documents/raw`), even though theo-rag's engine fully supports files (unpdf + docling loaders, scanned-doc detection) via `POST /v1/documents` (multipart).
+
+**Definition of done:**
+
+- [ ] `/rag/documents` gains a file picker / drag-drop dropzone accepting PDF, office, CSV, and image (client-side type + size validation; clear rejection on unsupported/oversize).
+- [ ] theo-cloud BFF proxies the multipart upload to theo-rag `POST /v1/documents` with the per-tenant key (file streamed/forwarded opaquely; `ingest_mode` hi-res/fast honoured).
+- [ ] Ingest status surfaces in the documents list (async 202 → poll → ready / failed); a parse failure shows a typed error, never a silent drop.
+- [ ] LIVE-validated on dev-public: upload a real PDF → the document appears → chunks are ingested → it is answerable via Ask.
+
+**Dependencies:** M6 (the documents journey exists end-to-end).
+
+**Top risks (new):**
+
+1. Multipart body size + timeout limits at the BFF and the edge (Caddy) — a large PDF could 413/timeout. Mitigation: bound the size client-side + server-side with a clear typed error; stream rather than buffer where possible.
+2. Scanned-PDF / OCR (docling hi-res) latency + cost. Mitigation: expose the ingest-mode choice, keep ingestion async with visible status.
+
+---
+
+### M12 — [ ] Connect data sources from the dashboard (OAuth + paste-credential)
+
+> Added 2026-07-16 by `/roadmap-feature` (slug: `dashboard-connectors-usable`). See CHANGELOG `[Unreleased] § Added`. Depends on M8.
+
+**Objective:** make connectors actually USABLE from the UI. Today the "Connect a source" dialog (M8) shows no connectable provider: the OAuth "Connect with X" list is empty until an operator registers an OAuth app, and non-OAuth (paste-credential) providers are not exposed in the dashboard at all.
+
+**Definition of done:**
+
+- [ ] At least one OAuth provider is registered (operator: `THEO_RAG_OAUTH_<P>_CLIENT_ID/_SECRET`) so "Connect with X" runs end-to-end LIVE: consent → callback → `refresh_token` → connect → first sync.
+- [ ] A paste-credential form for non-OAuth providers (S3 key / web URL / token) posts to the connect proxy from the dashboard (credential forwarded opaquely, never logged — Rule 8).
+- [ ] theo-rag `CONNECTOR_VAULT_KEY` is configured on dev-public so a connect SUCCEEDS (not `503 connector_vault_unconfigured`) and the credential is encrypted at rest.
+- [ ] LIVE-validated on dev-public: a real connect (OAuth or paste-credential) + first sync ingests documents into a collection.
+
+**Dependencies:** M8 (connectors page + BFF proxy + OAuth broker exist).
+
+**Top risks (new):**
+
+1. OAuth app registration is an operator action in a third-party console (Google/Dropbox) — this milestone cannot complete fully autonomously; the OAuth-consent half needs a real app.
+2. Credential custody: connector credentials (refresh_token / S3 keys) must be encrypted at rest via the connector vault and never appear in logs. Mitigation: the vault-key gate + the opaque-forward discipline already established in M8.
+
+---
+
+### M13 — [ ] GraphRAG rich explorer (community reports + interactions)
+
+> Added 2026-07-16 by `/roadmap-feature` (slug: `graphrag-rich-explorer`). See CHANGELOG `[Unreleased] § Added`. Depends on M10.
+
+**Objective:** enrich the GraphRAG explorer from a static read into a real exploration surface — generate the community-report SUMMARIES (today they render "Summary not generated yet."), make reports clickable, let communities expand/collapse, and make the graph canvas full-page.
+
+**Definition of done:**
+
+- [ ] Community-report generation runs for a graph-enabled collection so `graph_communities.summary` / the report table is populated — no "Summary not generated yet." for such collections.
+- [ ] Reports are clickable → full report text + findings (Microsoft-GraphRAG report structure), in a side panel or sheet.
+- [ ] Communities expand/collapse in the graph (community super-node ↔ member entities); selecting a node/community highlights it and its neighbourhood.
+- [ ] The graph canvas is full-page / resizable (not fixed 640×440); large graphs stay navigable (top-N / collapse / WebGL as needed).
+- [ ] LIVE-validated on dev-public.
+
+**Dependencies:** M10 (the explorer + the graph/communities endpoints exist).
+
+**Top risks (new):**
+
+1. LLM cost of report generation is O(communities) LLM calls. Mitigation: theo-rag already caches reports by content-sha (survives community re-clustering); generate on-demand, reuse on unchanged communities.
+2. Visualization performance on dense graphs (thousands of nodes). Mitigation: top-N-by-degree, community super-nodes (collapse/expand), WebGL rendering for large graphs.
+
+---
+
 ## State-of-the-art references
 
 No peers were cloned for this roadmap: the design is locked in the ADR and the reference model is
