@@ -5,61 +5,79 @@ import { render, screen } from '@/test/render';
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+// react-force-graph-2d renders to a <canvas> (no-op in jsdom) — stub it to a div exposing the node count.
+vi.mock('react-force-graph-2d', () => ({
+  default: (props: { graphData: { nodes: unknown[]; links: unknown[] } }) => (
+    <div data-testid="force-graph">
+      {props.graphData.nodes.length} nodes / {props.graphData.links.length} links
+    </div>
+  ),
+}));
 
 import { RagGraphRagPage } from './graphrag';
 
-const wire = (answer: Record<string, unknown> = { answer: 'community answer [c1]', router: { strategy: 'global' } }) =>
+const wire = () =>
   mockCloudFetch.mockImplementation((path: string) => {
     if (path === '/v1/dashboard/rag/collections') return Promise.resolve({ items: [{ id: 'col_1', name: 'docs' }] });
-    if (path.startsWith('/v1/dashboard/rag/analytics'))
-      return Promise.resolve({ scale: { communities: { total: 17, max_level: 1, per_level: { '0': 7, '1': 10 } } } });
-    return Promise.resolve(answer); // POST /answers
+    if (path.includes('/graph'))
+      return Promise.resolve({
+        nodes: [
+          { id: 'e1', name: 'Alice', type: 'person', degree: 3, community_key: '0:1' },
+          { id: 'e2', name: 'Bob', type: 'person', degree: 1, community_key: '0:1' },
+        ],
+        edges: [{ source: 'e1', target: 'e2', weight: 2 }],
+      });
+    if (path.includes('/communities'))
+      return Promise.resolve({
+        communities: [
+          { community_key: '0:1', level: 0, size: 5, summary: 'People and their relationships', member_names: ['Alice', 'Bob'] },
+        ],
+      });
+    return Promise.resolve({ answer: 'community answer [c1]', router: { strategy: 'global' } }); // POST /answers
   });
 
-describe('RagGraphRagPage (/rag/graphrag)', () => {
+async function pickCollection() {
+  await userEvent.click(await screen.findByRole('combobox', { name: 'Collection' }));
+  await userEvent.click(await screen.findByRole('option', { name: 'docs' }));
+}
+
+describe('RagGraphRagPage (/rag/graphrag) — always-on explorer', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('asks with the default Global sensemaking strategy and surfaces the answer', async () => {
+  it('renders the knowledge graph + community reports on collection pick — NO question needed', async () => {
     wire();
     render(<RagGraphRagPage />);
-    await userEvent.click(await screen.findByRole('combobox', { name: 'Collection' }));
-    await userEvent.click(await screen.findByRole('option', { name: 'docs' }));
-    await userEvent.type(screen.getByLabelText('Question'), 'summarize the corpus');
-    await userEvent.click(screen.getByRole('button', { name: /^ask$/i }));
+    await pickCollection();
+    // graph renders always-on (force-graph stub + summary), no Ask required
+    expect(await screen.findByTestId('force-graph')).toHaveTextContent('2 nodes / 1 links');
+    expect(screen.getByTestId('graph-summary')).toHaveTextContent('2 entities · 1 relationships');
+    // community report (the always-generated sensemaking) surfaces
+    expect(await screen.findByText(/people and their relationships/i)).toBeInTheDocument();
+    expect(screen.getByText('0:1')).toBeInTheDocument();
+  });
 
+  it('the level selector re-reads the graph at that Leiden level', async () => {
+    wire();
+    render(<RagGraphRagPage />);
+    await pickCollection();
+    await screen.findByTestId('force-graph');
+    await userEvent.click(screen.getByRole('combobox', { name: 'Community level' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Level 1' }));
+    // a graph read at level=1 was issued
+    const lvl1 = mockCloudFetch.mock.calls.find((c) => typeof c[0] === 'string' && (c[0] as string).includes('/graph') && (c[0] as string).includes('level=1'));
+    expect(lvl1).toBeTruthy();
+  });
+
+  it('Ask (secondary) queries the graph with the global strategy', async () => {
+    wire();
+    render(<RagGraphRagPage />);
+    await pickCollection();
+    await screen.findByTestId('force-graph');
+    await userEvent.type(screen.getByLabelText('Question'), 'what are the themes?');
+    await userEvent.click(screen.getByRole('button', { name: /^ask$/i }));
     await screen.findByText(/community answer/i);
     const askCall = mockCloudFetch.mock.calls.find((c) => c[0] === '/v1/dashboard/rag/answers');
     const body = JSON.parse((askCall![1] as { body: string }).body) as { strategy?: string };
-    expect(body.strategy).toBe('global'); // GraphRAG destination — never the default vector
-    expect(screen.getByText('global')).toBeInTheDocument(); // router trace badge
-  });
-
-  it('switching mode to Entity graph sends strategy=graph', async () => {
-    wire({ answer: 'graph traversal answer', router: { strategy: 'graph' } });
-    render(<RagGraphRagPage />);
-    await userEvent.click(await screen.findByRole('combobox', { name: 'Collection' }));
-    await userEvent.click(await screen.findByRole('option', { name: 'docs' }));
-    await userEvent.type(screen.getByLabelText('Question'), 'how are X and Y related?');
-    await userEvent.click(screen.getByRole('combobox', { name: 'GraphRAG mode' }));
-    await userEvent.click(await screen.findByRole('option', { name: 'Entity graph' }));
-    await userEvent.click(screen.getByRole('button', { name: /^ask$/i }));
-
-    await screen.findByText(/graph traversal answer/i);
-    const askCall = mockCloudFetch.mock.calls.find((c) => c[0] === '/v1/dashboard/rag/answers');
-    const body = JSON.parse((askCall![1] as { body: string }).body) as { strategy?: string };
-    expect(body.strategy).toBe('graph');
-  });
-
-  it('renders the knowledge-graph communities panel from the analytics scale block', async () => {
-    wire();
-    render(<RagGraphRagPage />);
-    // Before a collection is picked, the panel prompts for one.
-    expect(await screen.findByText(/select a collection to see its graph communities/i)).toBeInTheDocument();
-    await userEvent.click(await screen.findByRole('combobox', { name: 'Collection' }));
-    await userEvent.click(await screen.findByRole('option', { name: 'docs' }));
-    // Communities count + per-level breakdown surface from scale.communities.
-    expect(await screen.findByText('17')).toBeInTheDocument();
-    expect(screen.getByText('Level 0')).toBeInTheDocument();
-    expect(screen.getByText('Level 1')).toBeInTheDocument();
+    expect(body.strategy).toBe('global');
   });
 });
