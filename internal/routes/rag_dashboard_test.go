@@ -17,18 +17,25 @@ import (
 
 // stubRagDataClient records the calls; it never talks to a real theo-rag.
 type stubRagDataClient struct {
-	listErr       error
-	analyticsErr  error
-	writeErr      error
-	listCalls     int
-	analytics     int
-	createCalls   int
-	deleteCalls   int
-	ingestCalls   int
-	askCalls      int
-	listConnCalls int
-	syncCalls     int
-	delConnCalls  int
+	listErr             error
+	analyticsErr        error
+	writeErr            error
+	listCalls           int
+	analytics           int
+	analyticsGotColID   string
+	analyticsGotSince   string
+	analyticsRes        *rag.AnalyticsResult // when non-nil, overrides the default
+	createCalls         int
+	deleteCalls         int
+	ingestCalls         int
+	askCalls            int
+	askGotStrategy      string // M9 — the strategy the handler forwarded to theo-rag
+	listConnCalls       int
+	syncCalls           int
+	delConnCalls        int
+	connectCalls        int    // M8
+	connectGotProvider  string // M8 — the provider the handler forwarded
+	connectGotBody      string // M8 — the opaque credential body the handler forwarded
 }
 
 func (s *stubRagDataClient) ListCollections(_ context.Context, _, _ int) (*rag.CollectionsResult, error) {
@@ -39,10 +46,15 @@ func (s *stubRagDataClient) ListCollections(_ context.Context, _, _ int) (*rag.C
 	return &rag.CollectionsResult{Items: []rag.Collection{{ID: "col_1"}}}, nil
 }
 
-func (s *stubRagDataClient) Analytics(_ context.Context, _ string) (*rag.AnalyticsResult, error) {
+func (s *stubRagDataClient) Analytics(_ context.Context, collectionID, since string) (*rag.AnalyticsResult, error) {
 	s.analytics++
+	s.analyticsGotColID = collectionID
+	s.analyticsGotSince = since
 	if s.analyticsErr != nil {
 		return nil, s.analyticsErr
+	}
+	if s.analyticsRes != nil {
+		return s.analyticsRes, nil
 	}
 	return &rag.AnalyticsResult{}, nil
 }
@@ -82,8 +94,9 @@ func (s *stubRagDataClient) DeleteDocument(_ context.Context, _ string) error {
 	return s.writeErr
 }
 
-func (s *stubRagDataClient) Ask(_ context.Context, _ rag.AskInput) (json.RawMessage, error) {
+func (s *stubRagDataClient) Ask(_ context.Context, in rag.AskInput) (json.RawMessage, error) {
 	s.askCalls++
+	s.askGotStrategy = in.Strategy
 	if s.writeErr != nil {
 		return nil, s.writeErr
 	}
@@ -109,6 +122,16 @@ func (s *stubRagDataClient) SyncConnector(_ context.Context, _ string) (json.Raw
 func (s *stubRagDataClient) DeleteConnector(_ context.Context, _ string) error {
 	s.delConnCalls++
 	return s.writeErr
+}
+
+func (s *stubRagDataClient) ConnectConnector(_ context.Context, provider string, body json.RawMessage) (json.RawMessage, error) {
+	s.connectCalls++
+	s.connectGotProvider = provider
+	s.connectGotBody = string(body)
+	if s.writeErr != nil {
+		return nil, s.writeErr
+	}
+	return json.RawMessage(`{"id":"conn_new","provider_id":"` + provider + `","status":"active"}`), nil
 }
 
 func newRagDashboard() (*RagDashboardHandler, *stubRagDataClient) {
@@ -165,6 +188,70 @@ func TestRagDashboard_UpstreamError_502(t *testing.T) {
 	h.Analytics(w, req)
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("want 502, got %d", w.Code)
+	}
+}
+
+// v8-M7 scale — Analytics forwards the ?collection_id query param to the upstream data
+// client AND propagates the `scale` block returned by theo-rag rc.80+ back to the caller.
+func TestRagDashboard_Analytics_ForwardsCollectionID_PropagatesScale(t *testing.T) {
+	h, stub := newRagDashboard()
+	stub.analyticsRes = &rag.AnalyticsResult{
+		Scale: &rag.ScaleObservability{
+			CollectionID: "col_docs",
+			Corpus:       rag.ScaleCorpus{Documents: 3, Chunks: 42, SizeBytes: 8192},
+			Communities:  rag.ScaleCommunities{Total: 5, MaxLevel: 2, PerLevel: map[string]int{"0": 3, "1": 2}},
+			Extraction:   rag.ScaleExtraction{Tokens: 12345},
+		},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/analytics?collection_id=col_docs&since=2026-07-01T00:00:00Z", nil).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"}))
+	w := httptest.NewRecorder()
+	h.Analytics(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.analyticsGotColID != "col_docs" {
+		t.Fatalf("upstream must receive collection_id=col_docs, got %q", stub.analyticsGotColID)
+	}
+	if stub.analyticsGotSince != "2026-07-01T00:00:00Z" {
+		t.Fatalf("upstream must receive since, got %q", stub.analyticsGotSince)
+	}
+	// The scale block MUST be in the response body — the whole point of T3.
+	var out map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("response body is not JSON: %v", err)
+	}
+	scale, ok := out["scale"].(map[string]any)
+	if !ok {
+		t.Fatalf("response missing `scale` object: %s", w.Body.String())
+	}
+	if scale["collection_id"] != "col_docs" {
+		t.Fatalf("scale.collection_id = %v, want col_docs", scale["collection_id"])
+	}
+	extraction, _ := scale["extraction"].(map[string]any)
+	if extraction["tokens"].(float64) != 12345 {
+		t.Fatalf("scale.extraction.tokens = %v, want 12345", extraction["tokens"])
+	}
+}
+
+// v8-M7 backward-compat — without ?collection_id the upstream does NOT receive one AND
+// the `scale` block is NOT emitted (M5 shape preserved for the un-selected view).
+func TestRagDashboard_Analytics_NoCollectionID_NoScale(t *testing.T) {
+	h, stub := newRagDashboard()
+	// Upstream returns nil Scale (theo-rag omits it when collection_id is absent).
+	stub.analyticsRes = &rag.AnalyticsResult{}
+	req := httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/analytics", nil).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"}))
+	w := httptest.NewRecorder()
+	h.Analytics(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+	if stub.analyticsGotColID != "" {
+		t.Fatalf("upstream must NOT receive collection_id when caller omitted it, got %q", stub.analyticsGotColID)
+	}
+	if strings.Contains(w.Body.String(), `"scale"`) {
+		t.Fatalf("response MUST NOT include `scale` when upstream did not (backward-compat): %s", w.Body.String())
 	}
 }
 
@@ -251,6 +338,13 @@ func withID(r *http.Request, id string) *http.Request {
 	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 }
 
+// withProvider injects a chi URL param {provider} (M8 connect route).
+func withProvider(r *http.Request, provider string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("provider", provider)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+}
+
 // #191 — the connectors surface: list (rag:read), sync (rag:write), delete (rag:delete).
 func TestRagDashboard_Connectors_HappyPath(t *testing.T) {
 	tenant := func(r *http.Request) *http.Request {
@@ -289,6 +383,38 @@ func TestRagDashboard_Connectors_HappyPath(t *testing.T) {
 		}
 	})
 
+	// M8 — connect forwards the provider (path) + the credential body (opaque) to theo-rag.
+	t.Run("connect forwards provider + opaque credential body (201)", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		w := httptest.NewRecorder()
+		body := `{"collection_id":"col_1","seed_url":"https://example.com","max_depth":1}`
+		req := withProvider(tenant(httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/connectors/web/connect", strings.NewReader(body))), "web")
+		h.ConnectConnector(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("want 201, got %d (%s)", w.Code, w.Body.String())
+		}
+		if stub.connectCalls != 1 || stub.connectGotProvider != "web" {
+			t.Fatalf("want 1 connect call for web, got calls=%d provider=%q", stub.connectCalls, stub.connectGotProvider)
+		}
+		if stub.connectGotBody != body {
+			t.Fatalf("credential body must be forwarded opaquely byte-for-byte, got %q", stub.connectGotBody)
+		}
+	})
+
+	// M8 — an unknown provider is rejected fail-fast (422), never forwarded upstream.
+	t.Run("connect rejects an unknown provider (422, no upstream)", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		w := httptest.NewRecorder()
+		req := withProvider(tenant(httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/connectors/bogus/connect", strings.NewReader(`{}`))), "bogus")
+		h.ConnectConnector(w, req)
+		if w.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("want 422, got %d (%s)", w.Code, w.Body.String())
+		}
+		if stub.connectCalls != 0 {
+			t.Fatalf("an unknown provider MUST NOT reach upstream (fail-fast), got %d calls", stub.connectCalls)
+		}
+	})
+
 	t.Run("upstream error on list → 502", func(t *testing.T) {
 		h, stub := newRagDashboard()
 		stub.listErr = context.DeadlineExceeded
@@ -298,4 +424,50 @@ func TestRagDashboard_Connectors_HappyPath(t *testing.T) {
 			t.Fatalf("want 502, got %d", w.Code)
 		}
 	})
+}
+
+// M9 — the Ask BFF forwards the selected retrieval strategy to theo-rag so a user can reach
+// GraphRAG (global/graph) from the dashboard.
+func TestRagDashboard_Ask_ForwardsStrategy_M9(t *testing.T) {
+	h, stub := newRagDashboard()
+	body := `{"collection_id":"col_1","question":"what changed?","strategy":"global"}`
+	w := httptest.NewRecorder()
+	h.Ask(w, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/answers", strings.NewReader(body)).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1", AccountID: "acc1"})))
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.askGotStrategy != "global" {
+		t.Fatalf("strategy not forwarded to theo-rag: want global, got %q", stub.askGotStrategy)
+	}
+}
+
+// M9 — an unknown strategy is rejected fail-fast at the BFF boundary (422), never forwarded.
+func TestRagDashboard_Ask_InvalidStrategy_422_M9(t *testing.T) {
+	h, stub := newRagDashboard()
+	body := `{"collection_id":"col_1","question":"q","strategy":"bogus"}`
+	w := httptest.NewRecorder()
+	h.Ask(w, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/answers", strings.NewReader(body)).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1", AccountID: "acc1"})))
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("want 422, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.askCalls != 0 {
+		t.Fatalf("upstream MUST NOT be called for an invalid strategy (fail-fast), got %d", stub.askCalls)
+	}
+}
+
+// M9 — no strategy is backward-compatible: nothing is sent, theo-rag defaults to vector.
+func TestRagDashboard_Ask_EmptyStrategy_OK_M9(t *testing.T) {
+	h, stub := newRagDashboard()
+	body := `{"collection_id":"col_1","question":"q"}`
+	w := httptest.NewRecorder()
+	h.Ask(w, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/answers", strings.NewReader(body)).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1", AccountID: "acc1"})))
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+	if stub.askGotStrategy != "" {
+		t.Fatalf("empty strategy must stay empty (default vector upstream), got %q", stub.askGotStrategy)
+	}
 }

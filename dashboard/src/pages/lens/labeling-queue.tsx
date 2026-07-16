@@ -2,13 +2,16 @@ import { lensErrorMessage } from '../../lib/lens-error';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Badge, Button, CopyButton, DataTable, type DataTableColumn, Input, Label, PageShell, Sheet, StatusDot, Textarea } from '@usetheo/ui';
+import { Badge, Button, CopyButton, DataTable, type DataTableColumn, Input, Label, PageShell, Sheet, StatusDot } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { shortId } from '@/lib/format';
 import { cloudFetch } from '@/lib/api';
+import { SCORE_CONFIGS } from './labeling-queue/score-configs';
+import { ResolveForm } from './labeling-queue/resolve-form';
+import { prefillValues, toResolveBody, type AnnotationValues } from './labeling-queue/to-resolve-body';
 
 /**
  * M63 — /observability/labeling-queue. The human-in-the-loop review queue (Arize screen 6). Lists the
@@ -39,6 +42,11 @@ interface QueuePage {
   pageSize: number;
 }
 
+/** POST a JSON body to a cloud route, failing closed (throwOnError) so mutations surface typed errors. */
+function postJson(path: string, payload: unknown): Promise<unknown> {
+  return cloudFetch(path, { method: 'POST', body: JSON.stringify(payload) }, { throwOnError: true });
+}
+
 /** Map a fail-closed HTTP status to an honest, typed message (duck-typed `.status`). */
 function errorMessage(err: unknown): string {
   return lensErrorMessage(
@@ -59,9 +67,7 @@ export function LensLabelingQueuePage() {
   const qc = useQueryClient();
 
   const [active, setActive] = useState<QueueItem | null>(null);
-  const [label, setLabel] = useState('');
-  const [score, setScore] = useState('');
-  const [note, setNote] = useState('');
+  const [values, setValues] = useState<AnnotationValues>({});
   const [exporting, setExporting] = useState(false);
   const [exportName, setExportName] = useState('');
 
@@ -91,26 +97,15 @@ export function LensLabelingQueuePage() {
 
   const openResolve = (item: QueueItem) => {
     setActive(item);
-    setLabel(item.label ?? '');
-    setScore(item.score !== undefined ? String(item.score) : '');
-    setNote(item.note ?? '');
+    setValues(prefillValues(SCORE_CONFIGS, item));
   };
   const closeResolve = () => setActive(null);
 
+  const body = toResolveBody(SCORE_CONFIGS, values);
+
   const resolve = useMutation({
     mutationFn: (item: QueueItem) =>
-      cloudFetch(
-        `/v1/dashboard/lens/labeling-queue/${encodeURIComponent(item.id)}/resolve`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            label: label.trim(),
-            ...(score.trim() !== '' && Number.isFinite(Number(score)) ? { score: Number(score) } : {}),
-            ...(note.trim() !== '' ? { note: note.trim() } : {}),
-          }),
-        },
-        { throwOnError: true },
-      ),
+      postJson(`/v1/dashboard/lens/labeling-queue/${encodeURIComponent(item.id)}/resolve`, body),
     retry: false,
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/labeling-queue'] });
@@ -119,12 +114,7 @@ export function LensLabelingQueuePage() {
   });
 
   const exportMutation = useMutation({
-    mutationFn: () =>
-      cloudFetch(
-        '/v1/dashboard/lens/labeling-queue/export-as-dataset',
-        { method: 'POST', body: JSON.stringify({ name: exportName.trim() }) },
-        { throwOnError: true },
-      ),
+    mutationFn: () => postJson('/v1/dashboard/lens/labeling-queue/export-as-dataset', { name: exportName.trim() }),
     retry: false,
     onSuccess: () => {
       setExporting(false);
@@ -223,37 +213,15 @@ export function LensLabelingQueuePage() {
               {active ? `span ${shortId(active.spanId, 12)} · trace ${shortId(active.traceId, 12)}` : ''}
             </Sheet.Description>
           </Sheet.Header>
-          <Sheet.Body className="space-y-4 px-6 py-5">
-            <div className="space-y-1">
-              <Label htmlFor="resolve-label">Label</Label>
-              <Input id="resolve-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. good / bad / needs-fix" />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="resolve-score">Score (0–1, optional)</Label>
-              <Input id="resolve-score" value={score} onChange={(e) => setScore(e.target.value)} placeholder="0.9" inputMode="decimal" />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="resolve-note">Note (optional)</Label>
-              <Textarea id="resolve-note" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[80px]" />
-            </div>
-            {resolve.isError ? (
-              <Alert intent="warning" title="Could not resolve" data-testid="resolve-error">
-                {errorMessage(resolve.error)}
-              </Alert>
-            ) : null}
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={closeResolve}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={!label.trim() || resolve.isPending}
-                onClick={() => active && resolve.mutate(active)}
-              >
-                {resolve.isPending ? 'Resolving…' : 'Resolve'}
-              </Button>
-            </div>
-          </Sheet.Body>
+          <ResolveForm
+            values={values}
+            onChange={setValues}
+            canResolve={body.label.trim() !== ''}
+            pending={resolve.isPending}
+            error={resolve.isError ? errorMessage(resolve.error) : null}
+            onCancel={closeResolve}
+            onResolve={() => active && resolve.mutate(active)}
+          />
         </Sheet.Content>
       </Sheet>
 

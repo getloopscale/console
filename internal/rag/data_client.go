@@ -53,7 +53,8 @@ type CollectionsResult struct {
 	Items []Collection `json:"items"`
 }
 
-// AnalyticsResult is the GET /v1/analytics response (the M5 summary).
+// AnalyticsResult is the GET /v1/analytics response (the M5 summary + ROADMAP-v8 M7
+// per-collection scale block, attached ONLY when ?collection_id= is set).
 type AnalyticsResult struct {
 	Window struct {
 		Since string `json:"since"`
@@ -72,6 +73,39 @@ type AnalyticsResult struct {
 		Medium int `json:"medium"`
 		Low    int `json:"low"`
 	} `json:"confidence"`
+	// Scale is theo-rag rc.80+ per-collection observability. Pointer + omitempty so
+	// dashboard requests without a collection_id emit the M5 shape unchanged (backward-compat).
+	Scale *ScaleObservability `json:"scale,omitempty"`
+}
+
+// ScaleObservability is theo-rag rc.80 ROADMAP-v8 M7 per-collection scale block:
+// LLM extraction token cost, community count/level, corpus size. Wire shape mirrors
+// theo-rag's AnalyticsSummary.scale (packages/api/src/server/handlers/analytics.ts).
+type ScaleObservability struct {
+	CollectionID string           `json:"collection_id"`
+	Corpus       ScaleCorpus      `json:"corpus"`
+	Communities  ScaleCommunities `json:"communities"`
+	Extraction   ScaleExtraction  `json:"extraction"`
+}
+
+// ScaleCorpus is the corpus-size sub-block (documents + chunks + size_bytes).
+type ScaleCorpus struct {
+	Documents int `json:"documents"`
+	Chunks    int `json:"chunks"`
+	SizeBytes int `json:"size_bytes"`
+}
+
+// ScaleCommunities is the graph-communities sub-block (total, max_level, per_level).
+// per_level is a level-keyed map (string keys — theo-rag emits `oz.record(oz.number())`).
+type ScaleCommunities struct {
+	Total    int            `json:"total"`
+	MaxLevel int            `json:"max_level"`
+	PerLevel map[string]int `json:"per_level"`
+}
+
+// ScaleExtraction is the LLM-extraction sub-block (persisted token cost per collection).
+type ScaleExtraction struct {
+	Tokens int `json:"tokens"`
 }
 
 // ListCollections proxies GET /v1/collections?limit&offset with the per-tenant Bearer.
@@ -93,9 +127,16 @@ func (c *DataClient) ListCollections(ctx context.Context, limit, offset int) (*C
 	return &out, nil
 }
 
-// Analytics proxies GET /v1/analytics?since with the per-tenant Bearer (M5 summary).
-func (c *DataClient) Analytics(ctx context.Context, since string) (*AnalyticsResult, error) {
+// Analytics proxies GET /v1/analytics?collection_id&since with the per-tenant Bearer.
+// collectionID is the ROADMAP-v8 M7 opt-in: when non-empty theo-rag attaches a
+// per-collection `scale` block to the response (extraction tokens, communities,
+// corpus size). An empty collectionID keeps the M5 summary shape (scale=nil,
+// backward-compat).
+func (c *DataClient) Analytics(ctx context.Context, collectionID, since string) (*AnalyticsResult, error) {
 	q := url.Values{}
+	if collectionID != "" {
+		q.Set("collection_id", collectionID)
+	}
 	if since != "" {
 		q.Set("since", since)
 	}
@@ -117,9 +158,16 @@ type CreateCollectionInput struct {
 }
 
 // AskInput is the POST /v1/answers body (query + collection).
+//
+// M9 — Strategy is the optional retrieval strategy the caller selects
+// (vector|keyword|hybrid|graph|global). Empty ⇒ theo-rag defaults to vector
+// (backward-compatible); graph + global (GraphRAG) fail-close to vector upstream
+// when the collection has no graph. `omitempty` so an unset strategy is not even
+// sent — the pre-M9 request shape is preserved byte-for-byte.
 type AskInput struct {
 	CollectionID string `json:"collection_id"`
 	Question     string `json:"question"`
+	Strategy     string `json:"strategy,omitempty"`
 }
 
 // IngestInput is the POST /v1/documents/raw body (text ingest; async 202).
@@ -249,6 +297,19 @@ func (c *DataClient) ListConnectors(ctx context.Context) (*ConnectionsResult, er
 		out.Items = []Connection{}
 	}
 	return &out, nil
+}
+
+// ConnectConnector proxies POST /v1/connectors/{provider}/connect (M8). The credential body
+// (refresh_token / token / static creds / crawler config, per provider) is forwarded OPAQUELY
+// — the BFF never inspects, transforms, or logs it (Rule 8); theo-rag encrypts it at rest and
+// never echoes it. `provider` is path-escaped defensively (the handler validates it against the
+// enum first). Returns theo-rag's non-secret Connection view.
+func (c *DataClient) ConnectConnector(ctx context.Context, provider string, body json.RawMessage) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/v1/connectors/"+url.PathEscape(provider)+"/connect", nil, body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // SyncConnector proxies POST /v1/connectors/{id}/sync — enqueues a sync (theo-rag returns 202).

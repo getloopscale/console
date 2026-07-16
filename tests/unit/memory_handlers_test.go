@@ -532,7 +532,7 @@ func (f *fakeTheMemory) Entities(_ context.Context, userID, scope string) (*them
 }
 
 // Graph — themory-graph-gateway-dashboard. Mirrors Entities.
-func (f *fakeTheMemory) Graph(_ context.Context, userID, scope string) (*themory.GraphResult, error) {
+func (f *fakeTheMemory) Graph(_ context.Context, userID, scope string, _ bool) (*themory.GraphResult, error) {
 	f.lastUserID = userID
 	f.lastGraphScope = scope
 	return f.graphResp, f.graphErr

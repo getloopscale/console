@@ -3,6 +3,7 @@ import {
   throughputSeries,
   errorRateSeries,
   latencySeries,
+  latencyPercentileBuckets,
   costByModelSeries,
   tokensByModelSeries,
   scoresToSeries,
@@ -60,7 +61,36 @@ describe('lens-series mappers (M51)', () => {
     expect(s.map((x) => x.name)).toEqual(['p50', 'p95', 'p99']);
     expect(s[2].points[0]).toEqual({ x: 0, y: 120 });
   });
+});
 
+describe('latencyPercentileBuckets (M11 — latency band)', () => {
+  it('maps each LatencyBucket to a PercentileBucket carrying p50/p95/p99', () => {
+    const out = latencyPercentileBuckets([
+      { periodStart: '2026-07-07T09:30:00Z', p50Ms: 100, p95Ms: 400, p99Ms: 800 },
+      { periodStart: '2026-07-07T10:00:00Z', p50Ms: 90, p95Ms: 350, p99Ms: 700 },
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ p50: 100, p95: 400, p99: 800 });
+    expect(out[1]).toMatchObject({ p50: 90, p95: 350, p99: 700 });
+  });
+
+  it('derives a short HH:MM label from a parseable periodStart', () => {
+    const out = latencyPercentileBuckets([{ periodStart: '2026-07-07T09:30:00Z', p50Ms: 1, p95Ms: 2, p99Ms: 3 }]);
+    // a wall-clock HH:MM label read in the a11y table (locale-agnostic 24h)
+    expect(out[0].label).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it('falls back to the raw periodStart when it is not a parseable date (never fabricates a time)', () => {
+    const out = latencyPercentileBuckets([{ periodStart: 'bucket-1', p50Ms: 1, p95Ms: 2, p99Ms: 3 }]);
+    expect(out[0].label).toBe('bucket-1');
+  });
+
+  it('empty input → no buckets (honest empty, the component owns the empty state)', () => {
+    expect(latencyPercentileBuckets([])).toEqual([]);
+  });
+});
+
+describe('lens-series mappers (M51) — continued', () => {
   it('costByModelSeries: one series per model over a shared bucket axis', () => {
     const s = costByModelSeries([
       { periodStart: 'a', model: 'opus', totalTokens: 1, costUsd: 0.5 },

@@ -192,6 +192,15 @@ type Config struct {
 	// Env: APP_PUBLIC_URL (default: BillingReturnURL)
 	AppPublicURL string
 
+	// CloudPublicURL is the user-facing cloud/BFF origin (e.g.
+	// https://cloud-dev.usetheo.dev) where browser-redirect endpoints served by
+	// THIS process are mounted — the RAG OAuth broker callback in particular.
+	// In split-subdomain deployments it differs from AppPublicURL (the SPA origin);
+	// the OAuth redirect_uri MUST point at this origin so the callback lands here
+	// and the CSRF/PKCE cookies (set on this origin) are delivered on the return.
+	// Env: CLOUD_PUBLIC_URL (default: AppPublicURL — correct for single-origin dev).
+	CloudPublicURL string
+
 	// AuthCookieDomain is the explicit Domain= attribute for browser
 	// state cookies. Setting it host-only (Domain unset) is the safest
 	// default — see EC-2 of plan J-09 (subdomain cookie leak defense).
@@ -229,6 +238,7 @@ func Load() Config {
 	// J-09 T1.1 — GitHub App install handshake.
 	cfg.GitHubAppSlug = envOr("GITHUB_APP_SLUG", "theo-platform")
 	cfg.AppPublicURL = envOr("APP_PUBLIC_URL", cfg.BillingReturnURL)
+	cfg.CloudPublicURL = envOr("CLOUD_PUBLIC_URL", cfg.AppPublicURL)
 	cfg.AuthCookieDomain = envOr("AUTH_COOKIE_DOMAIN", "")
 
 	cfg.ThemoryBaseURL = envOr("THEMORY_BASE_URL", "")

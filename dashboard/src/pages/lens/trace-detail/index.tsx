@@ -1,23 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, EmptyState, Skeleton } from '@usetheo/ui';
+import {
+  Button,
+  Card,
+  computeTraceBounds as uiComputeTraceBounds,
+  EmptyState,
+  Skeleton,
+  SpanGraph,
+  SpanTree,
+  SpanWaterfall,
+  TraceTranscript,
+} from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 import { cloudFetch } from '@/lib/api';
 
-import {
-  computeTraceBounds,
-  flattenAll,
-  flattenVisible,
-  VIRTUALIZE_THRESHOLD,
-  type TraceSpanNode,
-} from './helpers';
+import { flattenAll, flattenVisible, type TraceSpanNode } from './helpers';
 import { Breadcrumb, useSelection, useSpanKeyboardNav } from './breadcrumb';
-import { RecursiveTree, SpanDetail, VirtualTree } from './tree';
-import { Transcript } from './transcript';
-import { SpanGraph } from './span-graph';
-import { Waterfall } from './waterfall';
+import { SpanDetail } from './span-detail';
+import { toTraceSpan } from './to-trace-span';
 import { traceSummary } from './summary';
 import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/format';
 
@@ -34,6 +36,15 @@ import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/fo
  * (`trace-detail.test.tsx`, `compare.tsx`, `compare-core.ts`, `playground.tsx`) keep resolving.
  */
 
+/** One segment of the Tree ⇄ Transcript ⇄ Graph view toggle. */
+function ViewToggle({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <Button type="button" size="sm" variant={active ? 'secondary' : 'ghost'} aria-pressed={active} onClick={onClick}>
+      {label}
+    </Button>
+  );
+}
+
 export function LensTraceDetail({ traceId }: { traceId: string }) {
   const { spanId, view, setSelection } = useSelection(traceId);
   // M58 P4.2 — the Tree ⇄ Transcript toggle (M67 adds Graph). The URL `?view=` is the source of truth
@@ -42,7 +53,6 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
   const isTranscript = view === 'transcript';
   const isGraph = view === 'graph';
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
-  const selectedRef = useRef<HTMLButtonElement>(null);
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/traces', traceId, 'tree'] as const,
     queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}`),
@@ -50,9 +60,14 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
 
   const root = query.data;
 
-  const flat = useMemo(() => (root ? flattenVisible(root, collapsed) : []), [root, collapsed]);
-  // M50 — trace time bounds (memoized once) drive every waterfall bar's denominator.
-  const bounds = useMemo(() => (root ? computeTraceBounds(root) : { startNs: 0n, endNs: 0n }), [root]);
+  // M8 adoption — map the OTLP-shaped lens node to the @usetheo/ui generic TraceSpan once per fetch.
+  // The kit components (SpanTree/SpanWaterfall/TraceTranscript/SpanGraph) consume the mapped tree; the
+  // URL/selection/keyboard logic below stays in the consumer (the DS receives data, never routes).
+  const uiRoot = useMemo(() => (root ? toTraceSpan(root) : null), [root]);
+  const bounds = useMemo(
+    () => (uiRoot ? uiComputeTraceBounds(uiRoot) : { startNs: 0n, endNs: 0n }),
+    [uiRoot],
+  );
 
   // M58 P0 — the URL is the source of truth for selection. Resolve the requested span; a missing or
   // stale (unknown) `spanId` falls back to the root, so a shared deep-link never crashes.
@@ -60,14 +75,11 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
   const resolvedId = root ? (spanId && allIds.includes(spanId) ? spanId : root.spanId) : null;
 
   // Keyboard next/prev over the VISIBLE order (collapsed subtrees are skipped) — writes the URL.
-  const visibleIds = useMemo(() => flat.map((f) => f.node.spanId), [flat]);
+  const visibleIds = useMemo(
+    () => (root ? flattenVisible(root, collapsed).map((f) => f.node.spanId) : []),
+    [root, collapsed],
+  );
   useSpanKeyboardNav(visibleIds, resolvedId ?? '', (next) => setSelection({ spanId: next }));
-
-  // Scroll-to-selected for the recursive path (the virtual path scrolls via the virtualizer).
-  useEffect(() => {
-    const el = selectedRef.current;
-    if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' });
-  }, [resolvedId]);
 
   if (query.isPending) return <Skeleton className="h-40 w-full" />;
   // M57 T5.1 — distinguish an error (service unavailable) from an honest empty
@@ -90,16 +102,19 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
 
   const selectedResolvedId = resolvedId ?? root.spanId;
   const selected = flattenAll(root).find((s) => s.spanId === selectedResolvedId) ?? root;
-  const virtualized = flat.length >= VIRTUALIZE_THRESHOLD;
   const onSelect = (id: string) => setSelection({ spanId: id });
-
-  const toggle = (id: string) =>
+  const onToggleCollapse = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  // `uiRoot` is non-null here (guarded by `!root` above).
+  const treeRoot = uiRoot as NonNullable<typeof uiRoot>;
+
+  // Shared props for the kit's controlled trace components (kills per-view prop duplication).
+  const controlled = { selectedId: selectedResolvedId, onSelect } as const;
 
   return (
     <div className="space-y-2">
@@ -124,66 +139,28 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
             <Card.Body>
               {/* M58/M67 — the Tree ⇄ Transcript ⇄ Graph segmented toggle (writes ?view=). */}
               <div role="group" aria-label="View mode" className="mb-2 inline-flex gap-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={!isTranscript && !isGraph ? 'secondary' : 'ghost'}
-                  aria-pressed={!isTranscript && !isGraph}
-                  onClick={() => setSelection({ view: 'tree' })}
-                >
-                  Tree
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={isTranscript ? 'secondary' : 'ghost'}
-                  aria-pressed={isTranscript}
-                  onClick={() => setSelection({ view: 'transcript' })}
-                >
-                  Transcript
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={isGraph ? 'secondary' : 'ghost'}
-                  aria-pressed={isGraph}
-                  onClick={() => setSelection({ view: 'graph' })}
-                >
-                  Graph
-                </Button>
+                <ViewToggle label="Tree" active={!isTranscript && !isGraph} onClick={() => setSelection({ view: 'tree' })} />
+                <ViewToggle label="Transcript" active={isTranscript} onClick={() => setSelection({ view: 'transcript' })} />
+                <ViewToggle label="Graph" active={isGraph} onClick={() => setSelection({ view: 'graph' })} />
               </div>
               {isGraph ? (
-                <SpanGraph root={root} selectedId={selectedResolvedId} onSelect={onSelect} />
+                <SpanGraph root={treeRoot} {...controlled} />
               ) : isTranscript ? (
-                <Transcript root={root} selectedId={selectedResolvedId} onSelect={onSelect} />
+                <TraceTranscript
+                  root={treeRoot}
+                  {...controlled}
+                  collapsedGroups={collapsed}
+                  onToggleGroup={onToggleCollapse}
+                />
               ) : (
-                <div
-                  data-testid="span-tree"
-                  role="tree"
-                  aria-label="Span tree"
-                  className={virtualized ? 'space-y-0.5' : 'max-h-[70vh] space-y-0.5 overflow-auto'}
-                >
-                  {virtualized ? (
-                    <VirtualTree
-                      flat={flat}
-                      selectedId={selectedResolvedId}
-                      collapsed={collapsed}
-                      bounds={bounds}
-                      onSelect={onSelect}
-                      onToggle={toggle}
-                    />
-                  ) : (
-                    <RecursiveTree
-                      node={root}
-                      depth={0}
-                      selectedId={selectedResolvedId}
-                      collapsed={collapsed}
-                      bounds={bounds}
-                      onSelect={onSelect}
-                      onToggle={toggle}
-                      selectedRef={selectedRef}
-                    />
-                  )}
+                <div data-testid="span-tree" className="max-h-[70vh] overflow-auto">
+                  <SpanTree
+                    root={treeRoot}
+                    {...controlled}
+                    collapsed={collapsed}
+                    onToggleCollapse={onToggleCollapse}
+                    bounds={bounds}
+                  />
                 </div>
               )}
             </Card.Body>
@@ -204,13 +181,7 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
       {/* M58 T1.2 — the polished waterfall timeline lane (nice axis, hover-needle, ∑ parent cost). */}
       <Card>
         <Card.Body>
-          <Waterfall
-            root={root}
-            bounds={bounds}
-            selectedId={selectedResolvedId}
-            collapsed={collapsed}
-            onSelect={onSelect}
-          />
+          <SpanWaterfall root={treeRoot} bounds={bounds} {...controlled} collapsed={collapsed} />
         </Card.Body>
       </Card>
     </div>

@@ -4,7 +4,7 @@ import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 import type { TraceSpanNode } from '@/lib/trace-layout';
 import { LensLabelingQueuePage } from './labeling-queue';
-import { SpanDetail } from './trace-detail/tree';
+import { SpanDetail } from './trace-detail/span-detail';
 
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', async (importOriginal) => {
@@ -29,6 +29,20 @@ function pageWith(list: unknown, over: (url: string, init?: { method?: string })
     }
     return Promise.resolve(over(url, init));
   });
+}
+
+/** Render the page and open the resolve Sheet for the single pending item (sp-1). */
+async function renderAndOpenResolve() {
+  render(<LensLabelingQueuePage />);
+  await userEvent.click(await screen.findByRole('button', { name: /review sp-1/i }));
+}
+
+/** The POST body sent to the resolve route for item i1, or undefined if none. */
+function resolveBodyFor(id = 'i1'): unknown {
+  const call = mockCloudFetch.mock.calls.find(
+    (c) => String(c[0]).includes(`/labeling-queue/${id}/resolve`) && (c[1] as { method?: string })?.method === 'POST',
+  );
+  return call ? JSON.parse((call[1] as { body: string }).body) : undefined;
 }
 
 describe('M63 LensLabelingQueuePage', () => {
@@ -75,17 +89,24 @@ describe('M63 LensLabelingQueuePage', () => {
         ? { ...PENDING_ITEM, status: 'resolved', label: 'good' }
         : {},
     );
-    render(<LensLabelingQueuePage />);
-    await userEvent.click(await screen.findByRole('button', { name: /review sp-1/i }));
-    // the resolve Sheet opens with a label field + real <Label>s
-    await userEvent.type(await screen.findByLabelText('Label'), 'good');
+    await renderAndOpenResolve();
+    // the resolve Sheet composes @usetheo/ui AnnotationInputs (M12); the free-text "Label"
+    // score-config renders a required label (trailing * marker), so match loosely.
+    await userEvent.type(await screen.findByLabelText(/^Label/), 'good');
     await userEvent.click(screen.getByRole('button', { name: /^resolve$/i }));
-    // a POST to the resolve route with the label in the body
-    const resolveCall = mockCloudFetch.mock.calls.find(
-      (c) => String(c[0]).includes('/labeling-queue/i1/resolve') && (c[1] as { method?: string })?.method === 'POST',
+    expect(resolveBodyFor()).toMatchObject({ label: 'good' });
+  });
+
+  it('M12 — selecting the categorical Quality bucket maps its score into the resolve body', async () => {
+    pageWith({ items: [PENDING_ITEM], total: 1, page: 1, pageSize: 50 }, (url, init) =>
+      url.includes('/resolve') && init?.method === 'POST' ? { ...PENDING_ITEM, status: 'resolved', label: 'good', score: 1 } : {},
     );
-    expect(resolveCall).toBeTruthy();
-    expect(JSON.parse((resolveCall![1] as { body: string }).body)).toMatchObject({ label: 'good' });
+    await renderAndOpenResolve();
+    await userEvent.type(await screen.findByLabelText(/^Label/), 'good');
+    // the config-driven "Quality" AnnotationInput renders a RadioGroup; picking "good" → score 1
+    await userEvent.click(screen.getByRole('radio', { name: 'good' }));
+    await userEvent.click(screen.getByRole('button', { name: /^resolve$/i }));
+    expect(resolveBodyFor()).toEqual({ label: 'good', score: 1 });
   });
 
   it('M76 (Q-3) — export is guarded until at least one item is resolved', async () => {
@@ -128,9 +149,8 @@ describe('M63 LensLabelingQueuePage', () => {
       if (url.includes('/resolve') && init?.method === 'POST') throw new Error('403 insufficient scope');
       return {};
     });
-    render(<LensLabelingQueuePage />);
-    await userEvent.click(await screen.findByRole('button', { name: /review sp-1/i }));
-    await userEvent.type(await screen.findByLabelText('Label'), 'good');
+    await renderAndOpenResolve();
+    await userEvent.type(await screen.findByLabelText(/^Label/), 'good'); // required "Label" AnnotationInput (M12)
     await userEvent.click(screen.getByRole('button', { name: /^resolve$/i }));
     expect(await screen.findByTestId('resolve-error')).toBeInTheDocument();
     // #175: the typed errorMessage BODY renders (not just the "Could not resolve" title).

@@ -25,9 +25,20 @@ const OBS = {
   latency: [{ periodStart: '2026-07-07T00:00:00Z', p50Ms: 100, p95Ms: 400, p99Ms: 800 }],
   tokensByModel: [{ periodStart: '2026-07-07T00:00:00Z', model: 'gpt-4o', totalTokens: 1000, costUsd: 0.05 }],
 };
+// M11 — traces list feeding the duration-distribution histogram (client-side binning of durationMs).
+const TRACES = {
+  traces: [
+    { traceId: 't1', durationMs: 120 },
+    { traceId: 't2', durationMs: 340 },
+    { traceId: 't3', durationMs: 980 },
+    { traceId: 't4' }, // durationMs absent → dropped from the histogram, never binned as 0
+  ],
+};
 
 /** Wire the mock CRUD + series routes; opts override the list/board/obs behavior per test. */
-function withRoutes(opts: { boards?: unknown[]; listReject?: unknown; boardReject?: unknown; obsReject?: unknown } = {}) {
+function withRoutes(
+  opts: { boards?: unknown[]; listReject?: unknown; boardReject?: unknown; obsReject?: unknown; traces?: unknown; tracesReject?: unknown } = {},
+) {
   mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
     const method = init?.method ?? 'GET';
     if (url.endsWith('/dashboards') && method === 'POST') return Promise.resolve().then(() => ({ ...BOARD }));
@@ -35,6 +46,10 @@ function withRoutes(opts: { boards?: unknown[]; listReject?: unknown; boardRejec
     if (url.endsWith('/dashboards')) {
       if (opts.listReject) return Promise.resolve().then(() => { throw opts.listReject; });
       return Promise.resolve({ dashboards: opts.boards ?? [] });
+    }
+    if (url.includes('/traces')) {
+      if (opts.tracesReject) return Promise.resolve().then(() => { throw opts.tracesReject; });
+      return Promise.resolve(opts.traces ?? TRACES);
     }
     if (/\/dashboards\/[^/?]+$/.test(url)) {
       if (opts.boardReject) return Promise.resolve().then(() => { throw opts.boardReject; });
@@ -89,6 +104,41 @@ describe('M66 LensDashboardsPage', () => {
     await screen.findByTestId('kpi-value');
     // the trend widget reuses MetricTrendChart → role=img + aria-label (the a11y differentiator)
     expect(screen.getByRole('img', { name: /Traffic over time/i })).toBeInTheDocument();
+  });
+
+  it('M11 — a p95_latency trend widget renders the banded PercentileChart (migrated from the 3-line overlay)', async () => {
+    const latencyBoard = {
+      ...BOARD,
+      config: [{ type: 'trend', metric: 'p95_latency', title: 'Latency percentiles' }],
+    };
+    withRoutes();
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (/\/dashboards\/[^/?]+$/.test(url) && (init?.method ?? 'GET') === 'GET') return Promise.resolve(latencyBoard);
+      if (url.endsWith('/dashboards')) return Promise.resolve({ dashboards: [] });
+      if (url.includes('/traces')) return Promise.resolve(TRACES);
+      if (url.includes('/observability')) return Promise.resolve(OBS);
+      return Promise.resolve({});
+    });
+    render(<LensDashboardsPage />, { initialEntries: [`/observability/dashboards?board=${BOARD.id}`] });
+    // PercentileChart renders <svg role="img" aria-label="{title} percentiles"> when it has buckets
+    expect(await screen.findByRole('img', { name: /Latency percentiles percentiles/i })).toBeInTheDocument();
+  });
+
+  it('M11 — the board shows a trace-duration histogram from the traces fetch (durationMs binned client-side)', async () => {
+    withRoutes();
+    render(<LensDashboardsPage />, { initialEntries: [`/observability/dashboards?board=${BOARD.id}`] });
+    // Histogram renders <svg role="img" aria-label="{title} distribution"> when at least one bin is populated
+    expect(await screen.findByRole('img', { name: /Trace duration distribution/i })).toBeInTheDocument();
+    // the traces fetch is issued (the histogram's data source)
+    const tracesCalls = mockCloudFetch.mock.calls.filter((c) => String(c[0]).includes('/traces'));
+    expect(tracesCalls.length).toBeGreaterThan(0);
+  });
+
+  it('M11 — the histogram degrades to its empty state when no trace carries a durationMs (never binned as 0)', async () => {
+    withRoutes({ traces: { traces: [{ traceId: 't1' }, { traceId: 't2' }] } });
+    render(<LensDashboardsPage />, { initialEntries: [`/observability/dashboards?board=${BOARD.id}`] });
+    // no finite durationMs → the Histogram's own empty figure (aria-label "{title} — no data"), not a fabricated bar
+    expect(await screen.findByLabelText(/Trace duration — no data/i)).toBeInTheDocument();
   });
 
   it('test_add_remove_reorder_widget_round_trip', async () => {

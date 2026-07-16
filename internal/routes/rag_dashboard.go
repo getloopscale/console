@@ -3,6 +3,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -19,7 +20,7 @@ import (
 type RagDataClient interface {
 	ListCollections(ctx context.Context, limit, offset int) (*rag.CollectionsResult, error)
 	ListDocuments(ctx context.Context, collectionID string, limit, offset int) (*rag.DocumentsResult, error)
-	Analytics(ctx context.Context, since string) (*rag.AnalyticsResult, error)
+	Analytics(ctx context.Context, collectionID, since string) (*rag.AnalyticsResult, error)
 	CreateCollection(ctx context.Context, in rag.CreateCollectionInput) (*rag.Collection, error)
 	DeleteCollection(ctx context.Context, id string) error
 	IngestDocument(ctx context.Context, in rag.IngestInput) (json.RawMessage, error)
@@ -29,6 +30,9 @@ type RagDataClient interface {
 	ListConnectors(ctx context.Context) (*rag.ConnectionsResult, error)
 	SyncConnector(ctx context.Context, id string) (json.RawMessage, error)
 	DeleteConnector(ctx context.Context, id string) error
+	// M8 — connect a data source (POST /connectors/{provider}/connect). Credential body
+	// forwarded opaquely (never inspected/logged).
+	ConnectConnector(ctx context.Context, provider string, body json.RawMessage) (json.RawMessage, error)
 }
 
 // RagDashboardHandler serves the /v1/dashboard/rag BFF. Browser JWT sessions (requireJWT)
@@ -77,12 +81,18 @@ func (h *RagDashboardHandler) ListCollections(w http.ResponseWriter, r *http.Req
 
 // Analytics serves GET /v1/dashboard/rag/analytics — the caller workspace's M5 summary,
 // via the per-tenant key (theo-rag gates /v1/analytics by rag:read since M17).
+//
+// ROADMAP-v8 M7 — when ?collection_id= is present the response carries an extra
+// `scale` block (extraction tokens, communities, corpus size) for the selected
+// collection. Absent collection_id keeps the M5 shape (scale nil, backward-compat).
+// tenant/workspace query params are IGNORED (the tenant comes from the JWT).
 func (h *RagDashboardHandler) Analytics(w http.ResponseWriter, r *http.Request) {
 	if user := auth.GetUser(r.Context()); user == nil || user.TenantID == "" {
 		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated.")
 		return
 	}
-	res, err := h.client.Analytics(r.Context(), r.URL.Query().Get("since"))
+	q := r.URL.Query()
+	res, err := h.client.Analytics(r.Context(), q.Get("collection_id"), q.Get("since"))
 	if err != nil {
 		h.logger.Warn("rag dashboard: analytics failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load analytics.")
@@ -181,6 +191,43 @@ func (h *RagDashboardHandler) ListConnectors(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, res)
 }
 
+// connectorProviders is theo-rag's provider enum (M8). The BFF validates the {provider} path
+// param against it (fail-fast 422) before proxying, so an unknown provider never reaches
+// theo-rag. Kept in lockstep with theo-rag's CONNECTOR_PROVIDERS (+ the Atlassian pair).
+var connectorProviders = map[string]bool{
+	"google-drive": true, "dropbox": true, "gmail": true, "box": true, "zendesk": true,
+	"salesforce": true, "microsoft-365": true, "notion": true, "github": true, "s3": true,
+	"web": true, "slack": true, "confluence": true, "jira": true,
+}
+
+// ConnectConnector serves POST /v1/dashboard/rag/connectors/{provider}/connect (M8, rag:write).
+// The provider is validated against the enum; the credential body is forwarded OPAQUELY to
+// theo-rag (never inspected, transformed, or logged — Rule 8) which encrypts it and returns a
+// non-secret Connection. The body is bounded (64 KiB) to reject an oversized payload.
+func (h *RagDashboardHandler) ConnectConnector(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	provider := chi.URLParam(r, "provider")
+	if !connectorProviders[provider] {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "Unknown connector provider.")
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64*1024))
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "Could not read the request body.")
+		return
+	}
+	// Log the provider only — NEVER the body (it carries the credential).
+	out, err := h.client.ConnectConnector(r.Context(), provider, json.RawMessage(body))
+	if err != nil {
+		h.logger.Warn("rag dashboard: connect connector failed", "provider", provider, "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not connect the data source.")
+		return
+	}
+	writeJSON(w, http.StatusCreated, out)
+}
+
 // SyncConnector serves POST /v1/dashboard/rag/connectors/{id}/sync (#191, rag:write) —
 // enqueues a sync; passes through theo-rag's 202 body.
 func (h *RagDashboardHandler) SyncConnector(w http.ResponseWriter, r *http.Request) {
@@ -259,6 +306,18 @@ func (h *RagDashboardHandler) DeleteDocument(w http.ResponseWriter, r *http.Requ
 
 // Ask serves POST /v1/dashboard/rag/answers (M21, rag:read). A query returns a cited answer;
 // the raw upstream answer body (answer + sources) passes through.
+
+// validAskStrategy reports whether s is one of theo-rag's retrieval strategies (M9 —
+// vector|keyword|hybrid|graph|global). Kept in lockstep with theo-rag's enum.
+func validAskStrategy(s string) bool {
+	switch s {
+	case "vector", "keyword", "hybrid", "graph", "global":
+		return true
+	default:
+		return false
+	}
+}
+
 func (h *RagDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {
 		return
@@ -266,6 +325,13 @@ func (h *RagDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	var in rag.AskInput
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.CollectionID == "" || in.Question == "" {
 		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "collection_id and question are required.")
+		return
+	}
+	// M9 — fail-fast on an unknown strategy at the boundary (error-handling.md): reject it
+	// here with a clear typed 422 rather than forwarding a bad value upstream. An empty
+	// strategy is valid (theo-rag defaults to vector).
+	if in.Strategy != "" && !validAskStrategy(in.Strategy) {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "strategy must be one of vector, keyword, hybrid, graph, global.")
 		return
 	}
 	out, err := h.client.Ask(r.Context(), in)

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { History, Trash2 } from 'lucide-react';
-import { Badge, Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select, Skeleton, Timestamp } from '@usetheo/ui';
+import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select, type Severity, SeverityBadge, Skeleton, Timestamp } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -31,15 +31,16 @@ interface AlertRule {
   last_triggered_at: string | null;
 }
 /**
- * The honest status→badge-variant map (issue #alerts-badge): a badge must reflect the rule's TRUE
- * state, not "TRIGGERED-or-green". A disabled rule is neutral (grey), a cleared rule is success, a
- * firing rule is destructive, and an unknown status is neutral — never a misleading green "success".
+ * The honest status→severity map (issue #alerts-badge): a badge must reflect the rule's TRUE state,
+ * not "TRIGGERED-or-green". A disabled rule is paused (inert, neutral), a cleared rule is ok, a firing
+ * rule is alert, and any other status is unknown — never a misleading green "ok". SeverityBadge maps
+ * these to Badge variants (alert→destructive, ok→success, warning→warning, else outline).
  */
-export function alertStatusVariant(status: string, enabled: boolean): 'destructive' | 'success' | 'outline' {
-  if (!enabled) return 'outline'; // a disabled rule is not "OK/success" — it is inert
-  if (status === 'TRIGGERED') return 'destructive';
-  if (status === 'OK') return 'success';
-  return 'outline'; // unknown / pending → neutral, never a fabricated success
+export function alertSeverity(status: string, enabled: boolean): Severity {
+  if (!enabled) return 'paused'; // a disabled rule is not "OK/success" — it is inert
+  if (status === 'TRIGGERED') return 'alert';
+  if (status === 'OK') return 'ok';
+  return 'unknown'; // unknown / pending → neutral, never a fabricated success
 }
 
 interface AlertRulesResult {
@@ -221,7 +222,7 @@ export function LensAlertsPage() {
     {
       key: 'status',
       label: 'Status',
-      render: (r) => <Badge variant={alertStatusVariant(r.status, r.enabled)}>{r.enabled ? r.status : 'Disabled'}</Badge>,
+      render: (r) => <SeverityBadge severity={alertSeverity(r.status, r.enabled)} label={r.enabled ? r.status : 'Disabled'} />,
     },
     {
       key: 'enabled',

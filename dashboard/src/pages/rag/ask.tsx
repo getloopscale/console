@@ -27,7 +27,23 @@ interface AnswerResult {
   answer: string;
   sources?: Source[];
   confidence?: string;
+  // M9 — theo-rag may echo the strategy that actually answered + a router trace
+  // (e.g. graph/global fell back to vector). Surfaced when present — never fabricated.
+  strategy?: string;
+  router?: { strategy?: string; fell_back?: boolean; reason?: string };
 }
+
+// M9 — retrieval strategies theo-rag exposes, with outcome-shaped labels (not internal
+// jargon). `vector` is the default (progressive disclosure); `graph`/`global` are GraphRAG
+// (entity-graph traversal / community-summary global sensemaking), which fail-close to
+// vector upstream when the collection has no graph. Kept in lockstep with the BFF enum.
+const STRATEGY_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'vector', label: 'Fast (semantic)' },
+  { value: 'keyword', label: 'Keyword' },
+  { value: 'hybrid', label: 'Hybrid' },
+  { value: 'graph', label: 'Entity graph' },
+  { value: 'global', label: 'Global sensemaking' },
+];
 
 export function RagAskPage() {
   const { setPageTitle } = usePageMeta();
@@ -36,6 +52,8 @@ export function RagAskPage() {
 
   const [collectionID, setCollectionID] = useState('');
   const [question, setQuestion] = useState('');
+  // M9 — default vector keeps the pre-M9 request byte-identical (strategy omitted below).
+  const [strategy, setStrategy] = useState('vector');
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
@@ -46,7 +64,13 @@ export function RagAskPage() {
     mutationFn: () =>
       cloudFetch<AnswerResult>('/v1/dashboard/rag/answers', {
         method: 'POST',
-        body: JSON.stringify({ collection_id: collectionID, question }),
+        // M9 — omit strategy for the default so the request stays byte-identical to pre-M9;
+        // send the selected strategy (graph/global reach GraphRAG) otherwise.
+        body: JSON.stringify({
+          collection_id: collectionID,
+          question,
+          ...(strategy !== 'vector' ? { strategy } : {}),
+        }),
       }),
   });
 
@@ -84,7 +108,22 @@ export function RagAskPage() {
                 aria-label="Question"
                 rows={3}
               />
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between gap-3">
+                {/* M9 — retrieval strategy selector (advanced / progressive disclosure). Default
+                    "Fast (semantic)" preserves the pre-M9 journey; Entity graph / Global
+                    sensemaking reach GraphRAG. */}
+                <Select value={strategy} onValueChange={setStrategy}>
+                  <Select.Trigger className="w-56" aria-label="Retrieval strategy">
+                    <Select.Value placeholder="Strategy" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {STRATEGY_OPTIONS.map((s) => (
+                      <Select.Item key={s.value} value={s.value}>
+                        {s.label}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
                 <Button
                   type="submit"
                   disabled={collectionID === '' || question.trim() === '' || ask.isPending}
@@ -107,6 +146,14 @@ export function RagAskPage() {
                 <MessageSquare className="size-4 text-muted-foreground" aria-hidden="true" />
                 <h2 className="text-base font-semibold">Answer</h2>
                 {answer.confidence ? <Badge variant="default">{answer.confidence}</Badge> : null}
+                {/* M9 — surface which strategy actually answered + an honest fallback note when
+                    theo-rag returns a router trace (graph/global fell back to vector). */}
+                {answer.router?.strategy ?? answer.strategy ? (
+                  <Badge variant="outline">
+                    {answer.router?.strategy ?? answer.strategy}
+                    {answer.router?.fell_back ? ' · fell back to vector' : ''}
+                  </Badge>
+                ) : null}
               </div>
             </Card.Header>
             <Card.Body className="space-y-3">

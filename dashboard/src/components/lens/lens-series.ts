@@ -3,7 +3,7 @@
  * `MetricTrendChart` series. Deterministic + unit-tested (no DOM). The by-model pivot collapses
  * high-cardinality models into an "Others" series (opik convergence) so the line count stays legible.
  */
-import type { TrendPoint, TrendSeries } from '@usetheo/ui';
+import type { PercentileBucket, TrendPoint, TrendSeries } from '@usetheo/ui';
 
 export interface TrafficBucket {
   periodStart: string;
@@ -47,6 +47,31 @@ export function latencySeries(latency: LatencyBucket[]): TrendSeries[] {
     { name: 'p95', color: PALETTE[1], points: latency.map((l, x) => ({ x, y: l.p95Ms })) },
     { name: 'p99', color: ERROR_COLOR, points: latency.map((l, x) => ({ x, y: l.p99Ms })) },
   ];
+}
+
+/**
+ * A short wall-clock `HH:MM` (UTC) label from an ISO-8601 instant; the raw string when it is not a
+ * parseable ISO datetime (no fabricated time). `Date.parse` is intentionally lax (it accepts
+ * fragments like `bucket-1`), so require a full `YYYY-MM-DDT…` shape before trusting it.
+ */
+const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T/;
+function bucketTimeLabel(periodStart: string): string {
+  if (!ISO_DATETIME.test(periodStart)) return periodStart;
+  const t = Date.parse(periodStart);
+  if (Number.isNaN(t)) return periodStart;
+  const d = new Date(t);
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+/**
+ * M11 — the p50/p95/p99 latency buckets mapped to the design system's `PercentileChart` input, so the
+ * spread renders as shaded BANDS (p50–p95, p95–p99) rather than three overlaid flat lines. Pure +
+ * deterministic (no DOM); the `PercentileChart` owns the empty state, so an empty input maps to `[]`.
+ */
+export function latencyPercentileBuckets(latency: LatencyBucket[]): PercentileBucket[] {
+  return latency.map((l) => ({ p50: l.p50Ms, p95: l.p95Ms, p99: l.p99Ms, label: bucketTimeLabel(l.periodStart) }));
 }
 
 /**

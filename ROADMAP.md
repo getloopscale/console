@@ -241,6 +241,56 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
+### M8 — [ ] RAG Connectors reach real users (dashboard page + BFF proxy + OAuth authorization broker)
+
+> Added 2026-07-16 by `/roadmap-feature` (slug: `rag-connectors-ux-oauth-broker`). See CHANGELOG `[Unreleased] § Added`. Subsumes theo-cloud#191 (page + proxy); the OAuth broker is the deeper gap. Prior art: theo-rag#97 (connectors platform in SDK/MCP, closed + LIVE-proven).
+
+**Objective:** turn theo-rag's fully-built 12-provider connectors platform (API + SDK + MCP) into a real human journey in the dashboard — a Connectors page, a BFF that proxies `/v1/rag/connectors`, and the missing piece that makes "connect a data source" one click: an **OAuth authorization broker at the edge** ("Connect with X" → provider consent → callback → `code`→`refresh_token` exchange → `POST /connect`). Today theo-rag deliberately accepts only a pre-obtained `refresh_token` ("the app secret + browser redirect live at the edge"), and that edge does not exist — so connect is developer-only.
+
+**Definition of done:**
+
+- [ ] BFF proxies `/v1/dashboard/rag/connectors/*` (list/connect/sync/get/delete) with the same Model-B per-tenant mint + scope enforcement the other rag routes use (`rag:write` connect/sync, `rag:read` list/get, `rag:delete` delete).
+- [ ] **OAuth authorization broker** at the BFF for the OAuth-refresh providers (Google Drive, Gmail, Dropbox, Box, Microsoft-365, Salesforce, Atlassian): `GET /authorize/{provider}` → consent redirect (signed, single-use, **tenant-bound state** + PKCE); `GET /callback/{provider}` → exchange `code`→`refresh_token` → `POST /v1/rag/connectors/{provider}/connect` with `collection_id` + `refresh_token`. The app `client_id`/`client_secret` + `redirect_uri` live ONLY at the edge (never in theo-rag, never in git); the `refresh_token` never reaches the browser (server-to-server).
+- [ ] Non-OAuth providers (GitHub PAT, Notion token, Slack bot token, S3 IAM, Zendesk API key, Web crawler) get a typed, server-side credential form in the page (no OAuth dance needed).
+- [ ] Dashboard `dashboard/src/pages/rag/connectors.tsx`: list connections (provider · collection · status), "Add source" → provider picker → "Connect with X" (OAuth) or credential form (non-OAuth), per-connection "Sync now" + "Disconnect"; nav entry added to `pages/rag.tsx`.
+- [ ] Secret-safety: no credential / `refresh_token` ever reaches the browser or a log (the broker holds it only in-flight); product language only (Rule 3 — "source"/"connect", never OAuth-internal jargon in user copy).
+- [ ] Dogfood journey (J-connectors) LIVE-validated on dev-public: an OAuth consent round-trip for ≥1 provider (or a documented sandbox stand-in) **and** a non-OAuth paste-credential connect, both dashboard UI → BFF → theo-rag, with recorded evidence (Cleanroom + JUNTOS per `cleanroom-up-live-test-mandate.md`).
+
+**Dependencies:** M1 (Model-B per-Account-scoped mint — the per-tenant key the BFF injects to reach theo-rag). theo-rag#97 is prior art, not a blocker.
+
+**Top risks (new):**
+
+1. OAuth app registration + secret custody for up to 8 OAuth providers is real operational surface (per-provider `client_id`/`secret`, `redirect_uri` allow-listing, refresh, revocation). Mitigation: ship the broker for 1-2 highest-demand providers first (Google Drive, Dropbox); the rest stay paste-credential until their OAuth app is registered; secrets live in the edge secret store only.
+2. The `state`/PKCE + per-tenant binding must be airtight or a callback could attach a source to the wrong tenant/collection (OAuth mix-up / CSRF). Mitigation: signed, single-use, tenant-bound state; the callback validates state→tenant BEFORE the connect POST; negative-case test for a forged/stale state.
+
+**Why now (from grill Q1):** theo-rag#97 just closed — the connectors platform is complete, reachable via SDK/MCP, and LIVE-proven — but a human still cannot connect a source anywhere in the product (no page, no proxy, no OAuth dance). The engine is done; this is the last mile between "built" and "usable." Grounded in the total-program surface audit (API+SDK+MCP+UI) that filed theo-cloud#191; requirements captured in `knowledge-base/grills/rag-connectors-ux-oauth-broker-feature-grill.md`.
+
+---
+
+### M9 — [ ] GraphRAG reachable in the Ask UI (strategy selector)
+
+> Added 2026-07-16 by `/roadmap-feature` (slug: `graphrag-in-ask-ui`). See CHANGELOG `[Unreleased] § Added`. Independent of M8.
+
+**Objective:** surface theo-rag's already-shipped retrieval strategies — including **GraphRAG** (`global` community-summary sensemaking + `graph` entity-graph traversal) — in the dashboard Ask page, which today only calls the default `vector` strategy, leaving the headline differentiator invisible.
+
+**Definition of done:**
+
+- [ ] BFF `/v1/dashboard/rag/answers` (+ retrievals where applicable) forwards the optional `strategy` param (`vector|keyword|hybrid|graph|global`) unchanged to theo-rag; default stays `vector` (backward-compatible — no behavior change when absent).
+- [ ] `dashboard/src/pages/rag/ask.tsx` gains a strategy selector (design-system `Select`) with outcome-shaped labels ("Fast", "Keyword", "Hybrid", "Entity graph", "Global sensemaking"); the choice threads into the ask request as progressive-disclosure (advanced), default unchanged.
+- [ ] The Ask result surfaces which strategy answered and the router trace/fallback when the API returns it, so a user sees when `global` fell back to `vector` (honest — never a silent degrade).
+- [ ] Journey: an Ask through the dashboard with `strategy=global` on a graph-enabled collection returns a community-grounded answer; on a non-graph collection it fails-closed to vector without error — both recorded.
+
+**Dependencies:** none (M8 not required — Ask already works end-to-end; this only exposes an existing param).
+
+**Top risks (new):**
+
+1. `global` requires the collection to have run graph extraction / community detection; exposing it without signaling that prerequisite invites "empty/degraded answer" confusion. Mitigation: the UI shows the fail-close behavior and (if the API exposes it) whether the collection is graph-ready; copy sets expectations.
+2. Five strategies can overwhelm the default journey. Mitigation: default remains `vector`, the selector is advanced/progressive-disclosure, labels are outcome-shaped not internal jargon.
+
+**Why now (from grill Q1):** GraphRAG is a real differentiator (Microsoft-GraphRAG-style global sensemaking), fully built + tested in theo-rag (community-detection/report/store + global/graph retrievers, exposed on SDK/MCP with fail-close-to-vector), yet `ask.tsx` never sends a `strategy` — the capability is unreachable in the product. A small BFF passthrough + one selector unlocks it. Requirements in `knowledge-base/grills/graphrag-in-ask-ui-feature-grill.md`.
+
+---
+
 ## State-of-the-art references
 
 No peers were cloned for this roadmap: the design is locked in the ADR and the reference model is

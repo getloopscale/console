@@ -149,11 +149,12 @@ func TestRagDataClient_Write_KeyResolverError_FailsClosed(t *testing.T) {
 
 // M17 T2.1 — Analytics proxies GET /v1/analytics with the per-tenant Bearer.
 func TestRagDataClient_Analytics_ProxiesBearer(t *testing.T) {
-	var gotAuth, gotPath, gotSince string
+	var gotAuth, gotPath, gotSince, gotCollectionID string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
 		gotPath = r.URL.Path
 		gotSince = r.URL.Query().Get("since")
+		gotCollectionID = r.URL.Query().Get("collection_id")
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"window":     map[string]any{"since": "2026-07-01T00:00:00Z"},
@@ -167,15 +168,74 @@ func TestRagDataClient_Analytics_ProxiesBearer(t *testing.T) {
 	c := NewDataClient(srv.URL, nil).
 		WithKeyResolver(func(context.Context) (string, error) { return "rag_live_tenantB", nil })
 
-	res, err := c.Analytics(context.Background(), "2026-07-01T00:00:00Z")
+	res, err := c.Analytics(context.Background(), "", "2026-07-01T00:00:00Z")
 	if err != nil {
 		t.Fatalf("Analytics: %v", err)
 	}
 	if gotAuth != "Bearer rag_live_tenantB" || gotPath != "/v1/analytics" || gotSince != "2026-07-01T00:00:00Z" {
 		t.Fatalf("request mismatch: auth=%q path=%q since=%q", gotAuth, gotPath, gotSince)
 	}
+	if gotCollectionID != "" {
+		t.Fatalf("collection_id must NOT be sent when empty (backward-compat), got %q", gotCollectionID)
+	}
 	if res.Totals.Retrievals != 5 || res.Latency.P95Ms != 120 {
 		t.Fatalf("analytics decode mismatch: %+v", res)
+	}
+	if res.Scale != nil {
+		t.Fatalf("Scale must be nil when upstream did not return it, got %+v", res.Scale)
+	}
+}
+
+// v8-M7 scale-observability — Analytics forwards collection_id to /v1/analytics
+// AND decodes the per-collection `scale` block returned by theo-rag rc.80+.
+// theo-rag ONLY attaches `scale` when `?collection_id=` is present (backward-compat).
+func TestRagDataClient_Analytics_ForwardsCollectionID_DecodesScale(t *testing.T) {
+	var gotCollectionID string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotCollectionID = r.URL.Query().Get("collection_id")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"window":     map[string]any{"since": "2026-07-01T00:00:00Z"},
+			"totals":     map[string]any{"retrievals": 0, "answers": 0, "empty_retrieval_rate": 0},
+			"latency":    map[string]any{"p50_ms": 0, "p95_ms": 0},
+			"confidence": map[string]any{"high": 0, "medium": 0, "low": 0},
+			"scale": map[string]any{
+				"collection_id": "col_docs",
+				"corpus":        map[string]any{"documents": 3, "chunks": 42, "size_bytes": 8192},
+				"communities":   map[string]any{"total": 5, "max_level": 2, "per_level": map[string]any{"0": 3, "1": 2}},
+				"extraction":    map[string]any{"tokens": 12345},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := NewDataClient(srv.URL, nil).
+		WithKeyResolver(func(context.Context) (string, error) { return "rag_live_x", nil })
+
+	res, err := c.Analytics(context.Background(), "col_docs", "")
+	if err != nil {
+		t.Fatalf("Analytics: %v", err)
+	}
+	if gotCollectionID != "col_docs" {
+		t.Fatalf("theo-rag must receive ?collection_id=col_docs, got %q", gotCollectionID)
+	}
+	if res.Scale == nil {
+		t.Fatal("Scale MUST be decoded when upstream returns it")
+	}
+	if res.Scale.CollectionID != "col_docs" {
+		t.Fatalf("scale.collection_id = %q, want col_docs", res.Scale.CollectionID)
+	}
+	if res.Scale.Extraction.Tokens != 12345 {
+		t.Fatalf("scale.extraction.tokens = %d, want 12345", res.Scale.Extraction.Tokens)
+	}
+	if res.Scale.Corpus.Documents != 3 || res.Scale.Corpus.Chunks != 42 || res.Scale.Corpus.SizeBytes != 8192 {
+		t.Fatalf("scale.corpus mismatch: %+v", res.Scale.Corpus)
+	}
+	if res.Scale.Communities.Total != 5 || res.Scale.Communities.MaxLevel != 2 {
+		t.Fatalf("scale.communities total/max_level mismatch: %+v", res.Scale.Communities)
+	}
+	if got := res.Scale.Communities.PerLevel["1"]; got != 2 {
+		t.Fatalf("scale.communities.per_level[\"1\"] = %d, want 2", got)
 	}
 }
 
@@ -206,7 +266,7 @@ func TestRagDataClient_Non2xx_IsError(t *testing.T) {
 	c := NewDataClient(srv.URL, nil).
 		WithKeyResolver(func(context.Context) (string, error) { return "rag_live_x", nil })
 
-	if _, err := c.Analytics(context.Background(), ""); err == nil {
+	if _, err := c.Analytics(context.Background(), "", ""); err == nil {
 		t.Fatal("expected error on 500, got nil")
 	}
 }
