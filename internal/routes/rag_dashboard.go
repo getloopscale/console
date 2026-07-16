@@ -24,6 +24,8 @@ type RagDataClient interface {
 	CreateCollection(ctx context.Context, in rag.CreateCollectionInput) (*rag.Collection, error)
 	DeleteCollection(ctx context.Context, id string) error
 	IngestDocument(ctx context.Context, in rag.IngestInput) (json.RawMessage, error)
+	// M11 — file upload (PDF/office/CSV/image). Streamed multipart to theo-rag's async ingest.
+	UploadDocumentFile(ctx context.Context, in rag.UploadFileInput) (json.RawMessage, error)
 	DeleteDocument(ctx context.Context, id string) error
 	Ask(ctx context.Context, in rag.AskInput) (json.RawMessage, error)
 	// #191 — connectors surface (list + sync + delete).
@@ -317,6 +319,47 @@ func (h *RagDashboardHandler) IngestDocument(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		h.logger.Warn("rag dashboard: ingest document failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not ingest the document.")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, json.RawMessage(out))
+}
+
+// maxUploadBytes caps a single dashboard file upload at the BFF edge (DoS guard).
+// theo-rag enforces its own content limit (413); this is the outer bound so a runaway
+// upload cannot exhaust the BFF before the upstream rejects it.
+const maxUploadBytes = 100 << 20 // 100 MiB
+
+// UploadDocumentFile serves POST /v1/dashboard/rag/documents/file (M11, rag:write). A
+// multipart file upload (PDF/office/CSV/image) is streamed to theo-rag's async ingest;
+// the raw upstream body (doc id + status) passes through (202). The file spills to a
+// temp file (FormFile) and is streamed out — never buffered whole in the BFF.
+func (h *RagDashboardHandler) UploadDocumentFile(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
+	file, hdr, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A file upload is required.")
+		return
+	}
+	defer func() { _ = file.Close() }()
+	collectionID := r.FormValue("collection_id")
+	if collectionID == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "collection_id is required.")
+		return
+	}
+	out, err := h.client.UploadDocumentFile(r.Context(), rag.UploadFileInput{
+		File:         file,
+		Filename:     hdr.Filename,
+		ContentType:  hdr.Header.Get("Content-Type"),
+		CollectionID: collectionID,
+		Name:         r.FormValue("name"),
+		Mode:         r.FormValue("mode"),
+	})
+	if err != nil {
+		h.logger.Warn("rag dashboard: upload document failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not upload the document.")
 		return
 	}
 	writeJSON(w, http.StatusAccepted, json.RawMessage(out))

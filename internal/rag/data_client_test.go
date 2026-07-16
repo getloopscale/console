@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -268,5 +270,83 @@ func TestRagDataClient_Non2xx_IsError(t *testing.T) {
 
 	if _, err := c.Analytics(context.Background(), "", ""); err == nil {
 		t.Fatal("expected error on 500, got nil")
+	}
+}
+
+// M11 T1.1 — the file-upload surface streams a multipart body to theo-rag's
+// POST /v1/documents with the per-tenant Bearer, the `file` part (filename +
+// bytes), and the `collection_id` / `mode` form fields. RED before GREEN.
+func TestRagDataClient_UploadDocumentFile_StreamsMultipart(t *testing.T) {
+	var gotAuth, gotMethod, gotPath, gotCT, gotFilename, gotFileBody, gotCollID, gotMode string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth, gotMethod, gotPath, gotCT = r.Header.Get("Authorization"), r.Method, r.URL.Path, r.Header.Get("Content-Type")
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Errorf("upstream ParseMultipartForm: %v", err)
+		}
+		gotCollID = r.FormValue("collection_id")
+		gotMode = r.FormValue("mode")
+		f, hdr, err := r.FormFile("file")
+		if err != nil {
+			t.Errorf("upstream FormFile: %v", err)
+		} else {
+			defer func() { _ = f.Close() }()
+			gotFilename = hdr.Filename
+			b, _ := io.ReadAll(f)
+			gotFileBody = string(b)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "doc_new", "status": "processing"})
+	}))
+	defer srv.Close()
+
+	c := NewDataClient(srv.URL, &http.Client{Timeout: 5 * time.Second}).
+		WithKeyResolver(func(context.Context) (string, error) { return "rag_live_tenantF", nil })
+
+	out, err := c.UploadDocumentFile(context.Background(), UploadFileInput{
+		File:         strings.NewReader("%PDF-1.4 fake pdf bytes"),
+		Filename:     "report.pdf",
+		ContentType:  "application/pdf",
+		CollectionID: "col_1",
+		Mode:         "fast",
+	})
+	if err != nil {
+		t.Fatalf("UploadDocumentFile: %v", err)
+	}
+	if gotAuth != "Bearer rag_live_tenantF" {
+		t.Fatalf("Authorization = %q, want Bearer rag_live_tenantF", gotAuth)
+	}
+	if gotMethod != http.MethodPost || gotPath != "/v1/documents" {
+		t.Fatalf("method/path = %s %s, want POST /v1/documents", gotMethod, gotPath)
+	}
+	if !strings.HasPrefix(gotCT, "multipart/form-data") {
+		t.Fatalf("Content-Type = %q, want multipart/form-data", gotCT)
+	}
+	if gotFilename != "report.pdf" || gotFileBody != "%PDF-1.4 fake pdf bytes" {
+		t.Fatalf("file part mismatch: name=%q body=%q", gotFilename, gotFileBody)
+	}
+	if gotCollID != "col_1" || gotMode != "fast" {
+		t.Fatalf("form fields mismatch: collection_id=%q mode=%q", gotCollID, gotMode)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out, &got); err != nil || got["id"] != "doc_new" {
+		t.Fatalf("response mismatch: %s (err=%v)", string(out), err)
+	}
+}
+
+// M11 T1.2 — an upstream 422 (unsupported type / parse error) surfaces as a typed
+// error, never a silent success.
+func TestRagDataClient_UploadDocumentFile_UpstreamErrorSurfaces(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": "unsupported_file_type"})
+	}))
+	defer srv.Close()
+	c := NewDataClient(srv.URL, &http.Client{Timeout: 5 * time.Second}).
+		WithKeyResolver(func(context.Context) (string, error) { return "rag_live_x", nil })
+	_, err := c.UploadDocumentFile(context.Background(), UploadFileInput{
+		File: strings.NewReader("x"), Filename: "a.exe", ContentType: "application/x-msdownload", CollectionID: "col_1",
+	})
+	if err == nil {
+		t.Fatal("expected typed error on upstream 422, got nil")
 	}
 }

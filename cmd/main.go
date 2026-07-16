@@ -168,6 +168,8 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		r.Post("/collections", h.CreateCollection)
 		r.Delete("/collections/{id}", h.DeleteCollection)
 		r.Post("/documents", h.IngestDocument)
+		// M11 — file upload (PDF/office/CSV/image), streamed to theo-rag's async ingest.
+		r.Post("/documents/file", h.UploadDocumentFile)
 		r.Delete("/documents/{id}", h.DeleteDocument)
 		r.Post("/answers", h.Ask)
 		// connectors (#191 + M8 connect)

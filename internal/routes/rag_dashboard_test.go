@@ -1,10 +1,12 @@
 package routes
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -41,6 +43,11 @@ type stubRagDataClient struct {
 	graphGotLimit       string // M10
 	commGotColID        string // M10 — the collection the communities handler forwarded
 	graphErr            error  // M10 — when set, GraphView/Communities fail
+	uploadCalls         int    // M11 — file upload
+	uploadGotColID      string // M11
+	uploadGotFilename   string // M11
+	uploadGotMode       string // M11
+	uploadGotFileBody   string // M11 — the file bytes the handler streamed through
 }
 
 func (s *stubRagDataClient) ListCollections(_ context.Context, _, _ int) (*rag.CollectionsResult, error) {
@@ -92,6 +99,19 @@ func (s *stubRagDataClient) IngestDocument(_ context.Context, _ rag.IngestInput)
 		return nil, s.writeErr
 	}
 	return json.RawMessage(`{"id":"doc_new","status":"pending"}`), nil
+}
+
+func (s *stubRagDataClient) UploadDocumentFile(_ context.Context, in rag.UploadFileInput) (json.RawMessage, error) {
+	s.uploadCalls++
+	s.uploadGotColID, s.uploadGotFilename, s.uploadGotMode = in.CollectionID, in.Filename, in.Mode
+	if in.File != nil {
+		b, _ := io.ReadAll(in.File)
+		s.uploadGotFileBody = string(b)
+	}
+	if s.writeErr != nil {
+		return nil, s.writeErr
+	}
+	return json.RawMessage(`{"id":"doc_up","status":"processing"}`), nil
 }
 
 func (s *stubRagDataClient) DeleteDocument(_ context.Context, _ string) error {
@@ -534,5 +554,76 @@ func TestRagDashboard_GraphView_Unauthed_M10(t *testing.T) {
 	h.GraphView(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401 without a tenant, got %d", w.Code)
+	}
+}
+
+// M11 — the upload handler parses the multipart file part + collection_id and streams
+// them to the data client, returning theo-rag's async 202. Auth-gated.
+func TestRagDashboard_UploadDocumentFile_ParsesMultipartAndProxies(t *testing.T) {
+	stub := &stubRagDataClient{}
+	h := NewRagDashboardHandler(stub, slog.Default())
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("collection_id", "col_docs")
+	_ = mw.WriteField("mode", "fast")
+	part, _ := mw.CreateFormFile("file", "report.pdf")
+	_, _ = part.Write([]byte("%PDF-1.4 body"))
+	_ = mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/documents/file", &buf).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1", AccountID: "acc1"}))
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	rec := httptest.NewRecorder()
+
+	h.UploadDocumentFile(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body=%s", rec.Code, rec.Body.String())
+	}
+	if stub.uploadCalls != 1 {
+		t.Fatalf("uploadCalls = %d, want 1", stub.uploadCalls)
+	}
+	if stub.uploadGotColID != "col_docs" || stub.uploadGotFilename != "report.pdf" || stub.uploadGotMode != "fast" {
+		t.Fatalf("forwarded fields mismatch: colID=%q file=%q mode=%q", stub.uploadGotColID, stub.uploadGotFilename, stub.uploadGotMode)
+	}
+	if stub.uploadGotFileBody != "%PDF-1.4 body" {
+		t.Fatalf("streamed body = %q, want %%PDF-1.4 body", stub.uploadGotFileBody)
+	}
+}
+
+// M11 — a request without a file part is a 422 (fail-fast), not a proxied empty upload.
+func TestRagDashboard_UploadDocumentFile_MissingFileIs422(t *testing.T) {
+	stub := &stubRagDataClient{}
+	h := NewRagDashboardHandler(stub, slog.Default())
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("collection_id", "col_docs")
+	_ = mw.Close()
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/documents/file", &buf).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"}))
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	rec := httptest.NewRecorder()
+	h.UploadDocumentFile(rec, req)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", rec.Code)
+	}
+	if stub.uploadCalls != 0 {
+		t.Fatalf("uploadCalls = %d, want 0 (no proxy on missing file)", stub.uploadCalls)
+	}
+}
+
+// M11 — unauthenticated upload is 401, never reaches the data client.
+func TestRagDashboard_UploadDocumentFile_Unauthenticated401(t *testing.T) {
+	stub := &stubRagDataClient{}
+	h := NewRagDashboardHandler(stub, slog.Default())
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/documents/file", strings.NewReader(""))
+	rec := httptest.NewRecorder()
+	h.UploadDocumentFile(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+	if stub.uploadCalls != 0 {
+		t.Fatalf("uploadCalls = %d, want 0", stub.uploadCalls)
 	}
 }

@@ -1,12 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Upload } from 'lucide-react';
 import { Badge, Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select, Skeleton, Textarea, Timestamp } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch, cloudFetchRaw } from '@/lib/api';
+
+// M11 — file types the engine ingests (PDF/office/CSV/text/image). The engine is the
+// source of truth and returns a typed 422 for anything else; this drives the picker's
+// `accept` + a friendly client-side pre-check. 10 MiB matches theo-rag's default cap.
+const ACCEPTED_EXT = '.pdf,.docx,.pptx,.xlsx,.csv,.txt,.md,.html,.png,.jpg,.jpeg';
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 /**
  * M21 — /rag/documents. Upload (text ingest → async status), list, and delete a
@@ -42,6 +48,10 @@ export function RagDocumentsPage() {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Document | null>(null);
+  const [ingestMode, setIngestMode] = useState('fast');
+  const [fileError, setFileError] = useState('');
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
@@ -75,6 +85,45 @@ export function RagDocumentsPage() {
       invalidate();
     },
   });
+
+  // M11 — file upload. Sends multipart via cloudFetchRaw so the browser sets the
+  // multipart boundary itself (cloudFetch would force application/json). The engine
+  // ingests async (202); a non-2xx surfaces the typed upstream reason.
+  const uploadFile = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('collection_id', collectionID);
+      form.append('mode', ingestMode);
+      if (name.trim() !== '') form.append('name', name.trim());
+      const resp = await cloudFetchRaw('/v1/dashboard/rag/documents/file', { method: 'POST', body: form });
+      if (resp === null) return; // session expired — cloudFetchRaw redirected
+      if (!resp.ok) {
+        const detail = await resp.text().catch(() => '');
+        throw new Error(detail || `upload failed (${resp.status})`);
+      }
+    },
+    onSuccess: () => {
+      setName('');
+      setFileError('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      invalidate();
+    },
+  });
+
+  const onFilePicked = (file: File | undefined) => {
+    setFileError('');
+    if (!file) return;
+    if (collectionID === '') {
+      setFileError('Select a collection first.');
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setFileError(`"${file.name}" is larger than 10 MB. Pick a smaller file.`);
+      return;
+    }
+    uploadFile.mutate(file);
+  };
 
   const remove = useMutation({
     mutationFn: (d: Document) =>
@@ -131,6 +180,76 @@ export function RagDocumentsPage() {
                     ))}
                   </Select.Content>
                 </Select>
+
+                {/* M11 — file upload (drag-drop or click). The primary ingest path. */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_EXT}
+                  className="sr-only"
+                  aria-label="Choose a file to upload"
+                  onChange={(e) => onFilePicked(e.target.files?.[0])}
+                />
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Upload a document file"
+                  onClick={() => fileInputRef.current?.click()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      fileInputRef.current?.click();
+                    }
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    onFilePicked(e.dataTransfer.files?.[0]);
+                  }}
+                  className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center transition-colors ${
+                    dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <Upload className="h-6 w-6 text-muted-foreground" />
+                  <div className="text-sm font-medium">
+                    {uploadFile.isPending ? 'Uploading…' : 'Drop a file here, or click to browse'}
+                  </div>
+                  <div className="text-xs text-muted-foreground">PDF, Word, PowerPoint, Excel, CSV, text, or image · up to 10 MB</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Ingestion mode</span>
+                  <Select value={ingestMode} onValueChange={setIngestMode}>
+                    <Select.Trigger className="w-40" aria-label="Ingestion mode">
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Content>
+                      <Select.Item value="fast">Fast (text)</Select.Item>
+                      <Select.Item value="hi_res">Hi-res (scanned/complex)</Select.Item>
+                    </Select.Content>
+                  </Select>
+                </div>
+                {fileError !== '' ? (
+                  <Alert intent="warning" title="Could not upload the file">
+                    {fileError}
+                  </Alert>
+                ) : null}
+                {uploadFile.isError ? (
+                  <Alert intent="destructive" title="Upload failed">
+                    {uploadFile.error instanceof Error ? uploadFile.error.message : 'Try again shortly.'}
+                  </Alert>
+                ) : null}
+
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="h-px flex-1 bg-border" />
+                  <span className="text-xs text-muted-foreground">or paste text</span>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}

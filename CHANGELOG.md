@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- M11: upload documents (PDF/office/CSV/text/image) from the dashboard — a drag-drop dropzone in `/rag/documents` streams a multipart file through the BFF to theo-rag's async ingest (per-tenant key, 10 MB cap, fast/hi-res mode)
 - Roadmap amended: added M10 GraphRAG knowledge-graph explorer (always-on) (`/roadmap-feature graphrag-explorer-always-on`)
 - Roadmap amended: added M11 Upload documents (PDF / office / CSV / image) from the dashboard (`/roadmap-feature dashboard-file-upload`)
 - Roadmap amended: added M12 Connect data sources from the dashboard (OAuth + paste-credential) (`/roadmap-feature dashboard-connectors-usable`)
