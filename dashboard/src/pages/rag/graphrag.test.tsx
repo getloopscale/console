@@ -27,6 +27,14 @@ const wire = () =>
         ],
         edges: [{ source: 'e1', target: 'e2', weight: 2 }],
       });
+    if (path.includes('/report'))
+      return Promise.resolve({
+        community_key: '0:1',
+        title: 'The People Community',
+        summary: 'People and their relationships',
+        full_content: '# The People Community\n\nAlice and Bob collaborate on the platform.',
+        findings: [{ summary: 'Alice leads', explanation: 'She is the CTO.' }],
+      });
     if (path.includes('/communities'))
       return Promise.resolve({
         communities: [
@@ -92,6 +100,17 @@ describe('RagGraphRagPage (/rag/graphrag) — always-on explorer', () => {
     const clear = await screen.findByRole('button', { name: /clear focus/i });
     await userEvent.click(clear);
     expect(screen.getByRole('button', { name: /focus community 0:1/i })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('M13 — clicking Report opens the full report drill-down (content + findings)', async () => {
+    wire();
+    render(<RagGraphRagPage />);
+    await pickCollection();
+    await userEvent.click(await screen.findByRole('button', { name: /view report for community 0:1/i }));
+    expect(await screen.findByText('The People Community')).toBeInTheDocument();
+    expect(await screen.findByText(/Alice and Bob collaborate on the platform/i)).toBeInTheDocument();
+    expect(await screen.findByText(/key findings/i)).toBeInTheDocument();
+    expect(await screen.findByText('Alice leads')).toBeInTheDocument();
   });
 
   it('M13 — collapsing a community folds its members into one aggregate super-node', async () => {

@@ -164,6 +164,8 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		// M10 — GraphRAG explorer reads (persisted graph + communities), per-collection.
 		r.Get("/collections/{id}/graph", h.GraphView)
 		r.Get("/collections/{id}/communities", h.Communities)
+		// M13 — full community report (title + full_content + findings) drill-down.
+		r.Get("/collections/{id}/communities/{key}/report", h.CommunityReport)
 		// writes (M21)
 		r.Post("/collections", h.CreateCollection)
 		r.Delete("/collections/{id}", h.DeleteCollection)

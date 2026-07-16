@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -39,6 +40,8 @@ type RagDataClient interface {
 	// (with report summary + members). Forwarded opaquely; rag:read gated at theo-rag.
 	GraphView(ctx context.Context, collectionID, level, limit string) (json.RawMessage, error)
 	Communities(ctx context.Context, collectionID, level string) (json.RawMessage, error)
+	// M13 — the full report (title + full_content + findings) for a community. Forwarded opaquely.
+	CommunityReport(ctx context.Context, collectionID, communityKey, level string) (json.RawMessage, error)
 }
 
 // RagDashboardHandler serves the /v1/dashboard/rag BFF. Browser JWT sessions (requireJWT)
@@ -134,6 +137,26 @@ func (h *RagDashboardHandler) Communities(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		h.logger.Warn("rag dashboard: communities failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load communities.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// CommunityReport serves GET /v1/dashboard/rag/collections/{id}/communities/{key}/report — the
+// full community report (title + full_content + findings) for the explorer drill-down (M13), via
+// the per-tenant rag:read key. An upstream 404 (no report generated) maps to a 404 here.
+func (h *RagDashboardHandler) CommunityReport(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	res, err := h.client.CommunityReport(r.Context(), chi.URLParam(r, "id"), chi.URLParam(r, "key"), r.URL.Query().Get("level"))
+	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			writeError(w, http.StatusNotFound, "REPORT_NOT_FOUND", "No report has been generated for this community yet.")
+			return
+		}
+		h.logger.Warn("rag dashboard: community report failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load the community report.")
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
