@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **GraphRAG is now a first-class sidebar destination** (`/rag/graphrag`, icon graph) — not just a dropdown inside Ask. The page pairs a GraphRAG-focused Ask (Global sensemaking / Entity graph modes → `POST /v1/dashboard/rag/answers` with `strategy=global|graph`, honest fallback badge) with a **Knowledge graph** panel that surfaces the communities the extraction built (total / max level / per-level counts, from the existing `analytics?collection_id=` scale block). Composes existing endpoints — no new BFF/theo-rag surface; the interactive entity/relationship graph + community-report text are marked as the next step (need new theo-rag graph endpoints). Sidebar nav item + route + `dashboard/src/pages/rag/graphrag.tsx`; 3 page tests + 31 layout tests + tsc + eslint + prod build green.
 
 ### Changed
 
