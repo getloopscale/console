@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- M13: GraphRAG community expand/collapse — a community folds into one aggregate super-node (sized by member count, edges re-routed + deduped, intra-edges dropped); clicking the super-node or the Expand/Collapse control toggles it. Pure `collapseGraph` transform, 5 unit + 1 page test.
 
 ### Changed
 

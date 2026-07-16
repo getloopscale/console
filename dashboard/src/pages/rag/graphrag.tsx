@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
+import { collapseGraph, isSuperNodeId } from './graphrag/collapse-graph';
 
 /**
  * GraphRAG — /rag/graphrag. The first-class GraphRAG explorer (Microsoft-GraphRAG-style). The graph
@@ -96,6 +97,15 @@ export function RagGraphRagPage() {
 
   // M13 — clicking a community (or a node) focuses it: its nodes keep colour, the rest dim.
   const [focusCommunity, setFocusCommunity] = useState<string | null>(null);
+  // M13 — collapsed communities render as a single aggregate super-node (expand to see members).
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleCollapsed = (key: string) =>
+    setCollapsed((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
@@ -132,8 +142,13 @@ export function RagGraphRagPage() {
   const answer = ask.data;
 
   // react-force-graph expects { nodes, links }; links reference node ids via source/target.
+  // M13 — collapsed communities are folded into aggregate super-nodes before rendering.
   const graphData = graph
-    ? { nodes: graph.nodes, links: graph.edges.map((e) => ({ source: e.source, target: e.target, weight: e.weight })) }
+    ? collapseGraph(
+        graph.nodes,
+        graph.edges.map((e) => ({ source: e.source, target: e.target, weight: e.weight })),
+        collapsed,
+      )
     : { nodes: [], links: [] };
 
   // M13 — deterministic HSL per community_key (stable colour across renders) with a dim state
@@ -233,8 +248,12 @@ export function RagGraphRagPage() {
                         nodeVal={(n: object) => 1 + Math.sqrt((n as GraphNode).degree)}
                         nodeLabel={(n: object) => (n as GraphNode).name}
                         onNodeClick={(n: object) => {
-                          const k = (n as GraphNode).community_key;
-                          setFocusCommunity((cur) => (cur === k ? null : k));
+                          const node = n as GraphNode;
+                          if (isSuperNodeId(node.id)) {
+                            toggleCollapsed(node.community_key ?? ''); // click a super-node → expand it
+                            return;
+                          }
+                          setFocusCommunity((cur) => (cur === node.community_key ? null : node.community_key));
                         }}
                         linkColor={() => 'rgba(148,163,184,0.35)'}
                         cooldownTicks={80}
@@ -280,7 +299,21 @@ export function RagGraphRagPage() {
                       >
                         <div className="mb-1 flex items-center justify-between gap-2">
                           <span className="font-mono text-xs text-muted-foreground">{c.community_key}</span>
-                          <Badge variant="outline">{fmt(c.size)} members</Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline">{fmt(c.size)} members</Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-pressed={collapsed.has(c.community_key)}
+                              aria-label={`${collapsed.has(c.community_key) ? 'Expand' : 'Collapse'} community ${c.community_key}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCollapsed(c.community_key);
+                              }}
+                            >
+                              {collapsed.has(c.community_key) ? 'Expand' : 'Collapse'}
+                            </Button>
+                          </div>
                         </div>
                         <p className="text-sm">{c.summary ?? 'Summary not generated yet.'}</p>
                         {c.member_names.length > 0 ? (

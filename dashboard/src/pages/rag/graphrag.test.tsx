@@ -93,4 +93,17 @@ describe('RagGraphRagPage (/rag/graphrag) — always-on explorer', () => {
     await userEvent.click(clear);
     expect(screen.getByRole('button', { name: /focus community 0:1/i })).toHaveAttribute('aria-pressed', 'false');
   });
+
+  it('M13 — collapsing a community folds its members into one aggregate super-node', async () => {
+    wire();
+    render(<RagGraphRagPage />);
+    await pickCollection();
+    // 2 entities (e1,e2 in 0:1) + 1 intra edge initially
+    expect(await screen.findByText('2 nodes / 1 links')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /collapse community 0:1/i }));
+    // both members fold into one super-node; the intra edge drops
+    expect(await screen.findByText('1 nodes / 0 links')).toBeInTheDocument();
+    // the control now offers Expand (idempotent toggle)
+    expect(screen.getByRole('button', { name: /expand community 0:1/i })).toBeInTheDocument();
+  });
 });
