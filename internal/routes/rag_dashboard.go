@@ -3,6 +3,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -29,6 +30,9 @@ type RagDataClient interface {
 	ListConnectors(ctx context.Context) (*rag.ConnectionsResult, error)
 	SyncConnector(ctx context.Context, id string) (json.RawMessage, error)
 	DeleteConnector(ctx context.Context, id string) error
+	// M8 — connect a data source (POST /connectors/{provider}/connect). Credential body
+	// forwarded opaquely (never inspected/logged).
+	ConnectConnector(ctx context.Context, provider string, body json.RawMessage) (json.RawMessage, error)
 }
 
 // RagDashboardHandler serves the /v1/dashboard/rag BFF. Browser JWT sessions (requireJWT)
@@ -185,6 +189,43 @@ func (h *RagDashboardHandler) ListConnectors(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// connectorProviders is theo-rag's provider enum (M8). The BFF validates the {provider} path
+// param against it (fail-fast 422) before proxying, so an unknown provider never reaches
+// theo-rag. Kept in lockstep with theo-rag's CONNECTOR_PROVIDERS (+ the Atlassian pair).
+var connectorProviders = map[string]bool{
+	"google-drive": true, "dropbox": true, "gmail": true, "box": true, "zendesk": true,
+	"salesforce": true, "microsoft-365": true, "notion": true, "github": true, "s3": true,
+	"web": true, "slack": true, "confluence": true, "jira": true,
+}
+
+// ConnectConnector serves POST /v1/dashboard/rag/connectors/{provider}/connect (M8, rag:write).
+// The provider is validated against the enum; the credential body is forwarded OPAQUELY to
+// theo-rag (never inspected, transformed, or logged — Rule 8) which encrypts it and returns a
+// non-secret Connection. The body is bounded (64 KiB) to reject an oversized payload.
+func (h *RagDashboardHandler) ConnectConnector(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	provider := chi.URLParam(r, "provider")
+	if !connectorProviders[provider] {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "Unknown connector provider.")
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 64*1024))
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "Could not read the request body.")
+		return
+	}
+	// Log the provider only — NEVER the body (it carries the credential).
+	out, err := h.client.ConnectConnector(r.Context(), provider, json.RawMessage(body))
+	if err != nil {
+		h.logger.Warn("rag dashboard: connect connector failed", "provider", provider, "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not connect the data source.")
+		return
+	}
+	writeJSON(w, http.StatusCreated, out)
 }
 
 // SyncConnector serves POST /v1/dashboard/rag/connectors/{id}/sync (#191, rag:write) —

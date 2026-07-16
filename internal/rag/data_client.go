@@ -299,6 +299,19 @@ func (c *DataClient) ListConnectors(ctx context.Context) (*ConnectionsResult, er
 	return &out, nil
 }
 
+// ConnectConnector proxies POST /v1/connectors/{provider}/connect (M8). The credential body
+// (refresh_token / token / static creds / crawler config, per provider) is forwarded OPAQUELY
+// — the BFF never inspects, transforms, or logs it (Rule 8); theo-rag encrypts it at rest and
+// never echoes it. `provider` is path-escaped defensively (the handler validates it against the
+// enum first). Returns theo-rag's non-secret Connection view.
+func (c *DataClient) ConnectConnector(ctx context.Context, provider string, body json.RawMessage) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/v1/connectors/"+url.PathEscape(provider)+"/connect", nil, body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SyncConnector proxies POST /v1/connectors/{id}/sync — enqueues a sync (theo-rag returns 202).
 func (c *DataClient) SyncConnector(ctx context.Context, id string) (json.RawMessage, error) {
 	var out json.RawMessage

@@ -33,6 +33,9 @@ type stubRagDataClient struct {
 	listConnCalls       int
 	syncCalls           int
 	delConnCalls        int
+	connectCalls        int    // M8
+	connectGotProvider  string // M8 — the provider the handler forwarded
+	connectGotBody      string // M8 — the opaque credential body the handler forwarded
 }
 
 func (s *stubRagDataClient) ListCollections(_ context.Context, _, _ int) (*rag.CollectionsResult, error) {
@@ -119,6 +122,16 @@ func (s *stubRagDataClient) SyncConnector(_ context.Context, _ string) (json.Raw
 func (s *stubRagDataClient) DeleteConnector(_ context.Context, _ string) error {
 	s.delConnCalls++
 	return s.writeErr
+}
+
+func (s *stubRagDataClient) ConnectConnector(_ context.Context, provider string, body json.RawMessage) (json.RawMessage, error) {
+	s.connectCalls++
+	s.connectGotProvider = provider
+	s.connectGotBody = string(body)
+	if s.writeErr != nil {
+		return nil, s.writeErr
+	}
+	return json.RawMessage(`{"id":"conn_new","provider_id":"` + provider + `","status":"active"}`), nil
 }
 
 func newRagDashboard() (*RagDashboardHandler, *stubRagDataClient) {
@@ -325,6 +338,13 @@ func withID(r *http.Request, id string) *http.Request {
 	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 }
 
+// withProvider injects a chi URL param {provider} (M8 connect route).
+func withProvider(r *http.Request, provider string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("provider", provider)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+}
+
 // #191 — the connectors surface: list (rag:read), sync (rag:write), delete (rag:delete).
 func TestRagDashboard_Connectors_HappyPath(t *testing.T) {
 	tenant := func(r *http.Request) *http.Request {
@@ -360,6 +380,38 @@ func TestRagDashboard_Connectors_HappyPath(t *testing.T) {
 		h.DeleteConnector(w, req)
 		if w.Code != http.StatusNoContent || stub.delConnCalls != 1 {
 			t.Fatalf("want 204 + 1 delete call, got %d calls=%d", w.Code, stub.delConnCalls)
+		}
+	})
+
+	// M8 — connect forwards the provider (path) + the credential body (opaque) to theo-rag.
+	t.Run("connect forwards provider + opaque credential body (201)", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		w := httptest.NewRecorder()
+		body := `{"collection_id":"col_1","seed_url":"https://example.com","max_depth":1}`
+		req := withProvider(tenant(httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/connectors/web/connect", strings.NewReader(body))), "web")
+		h.ConnectConnector(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("want 201, got %d (%s)", w.Code, w.Body.String())
+		}
+		if stub.connectCalls != 1 || stub.connectGotProvider != "web" {
+			t.Fatalf("want 1 connect call for web, got calls=%d provider=%q", stub.connectCalls, stub.connectGotProvider)
+		}
+		if stub.connectGotBody != body {
+			t.Fatalf("credential body must be forwarded opaquely byte-for-byte, got %q", stub.connectGotBody)
+		}
+	})
+
+	// M8 — an unknown provider is rejected fail-fast (422), never forwarded upstream.
+	t.Run("connect rejects an unknown provider (422, no upstream)", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		w := httptest.NewRecorder()
+		req := withProvider(tenant(httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/connectors/bogus/connect", strings.NewReader(`{}`))), "bogus")
+		h.ConnectConnector(w, req)
+		if w.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("want 422, got %d (%s)", w.Code, w.Body.String())
+		}
+		if stub.connectCalls != 0 {
+			t.Fatalf("an unknown provider MUST NOT reach upstream (fail-fast), got %d calls", stub.connectCalls)
 		}
 	})
 

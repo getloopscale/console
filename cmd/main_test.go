@@ -128,6 +128,7 @@ func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 		"DELETE /v1/dashboard/rag/documents/{id}",
 		"POST /v1/dashboard/rag/answers",
 		"GET /v1/dashboard/rag/connectors",
+		"POST /v1/dashboard/rag/connectors/{provider}/connect",
 		"POST /v1/dashboard/rag/connectors/{id}/sync",
 		"DELETE /v1/dashboard/rag/connectors/{id}",
 	}
