@@ -23,6 +23,13 @@ import (
 
 func quietLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
+// stubOAuthHandler builds an M8 OAuth broker with no registered providers — enough for the
+// route-set walk (the handlers are never invoked during chi.Walk). An unconfigured provider
+// map is exactly the shipped default until an operator registers OAuth apps via env.
+func stubOAuthHandler() *routes.RagConnectorsOAuthHandler {
+	return routes.NewRagConnectorsOAuthHandler(nil, nil, nil, "", "", "", quietLogger())
+}
+
 func stubResolve(context.Context, string) (*auth.UserContext, []string, error) {
 	return nil, nil, nil
 }
@@ -106,7 +113,7 @@ func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 	r := chi.NewRouter()
 	h := routes.NewRagDashboardHandler(nil, quietLogger())
 	passthrough := func(next http.Handler) http.Handler { return next } // stand-in for requireJWT
-	mountRagDashboard(r, h, passthrough)
+	mountRagDashboard(r, h, stubOAuthHandler(), passthrough)
 
 	got := map[string]bool{}
 	err := chi.Walk(r, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
@@ -131,6 +138,8 @@ func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 		"POST /v1/dashboard/rag/connectors/{provider}/connect",
 		"POST /v1/dashboard/rag/connectors/{id}/sync",
 		"DELETE /v1/dashboard/rag/connectors/{id}",
+		"GET /v1/dashboard/rag/connectors/{provider}/authorize",
+		"GET /v1/dashboard/rag/connectors/{provider}/callback",
 	}
 	for _, w := range want {
 		if !got[w] {
@@ -382,7 +391,7 @@ func TestRagDashboard_WritePath_CrossTenantIsolation_E2E(t *testing.T) {
 		})
 	}
 	router := chi.NewRouter()
-	mountRagDashboard(router, h, requireJWT)
+	mountRagDashboard(router, h, stubOAuthHandler(), requireJWT)
 
 	create := func(tenant string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/collections", strings.NewReader(`{"name":"docs"}`))

@@ -154,7 +154,7 @@ func newRagDashboardKeyResolver(minter ragDashMinter) func(ctx context.Context) 
 // read-only; M21 lifts it to read+write (create/delete collections + documents, ask) so
 // the dashboard UI can manage RAG. The route-set invariant test (main_test.go) asserts
 // the expected read+write set; the SDK/edge surface /v1/rag/* stays a distinct mount.
-func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, requireJWT func(http.Handler) http.Handler) {
+func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *routes.RagConnectorsOAuthHandler, requireJWT func(http.Handler) http.Handler) {
 	r.Route("/v1/dashboard/rag", func(r chi.Router) {
 		r.Use(requireJWT)
 		// reads (M17)
@@ -172,6 +172,10 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, requireJWT f
 		r.Post("/connectors/{provider}/connect", h.ConnectConnector)
 		r.Post("/connectors/{id}/sync", h.SyncConnector)
 		r.Delete("/connectors/{id}", h.DeleteConnector)
+		// M8 OAuth authorization broker ("Connect with X"): authorize + callback. The provider
+		// map is gated on registered OAuth apps (env) — an unconfigured provider returns 422.
+		r.Get("/connectors/{provider}/authorize", oauth.Authorize)
+		r.Get("/connectors/{provider}/callback", oauth.Callback)
 	})
 }
 
@@ -444,11 +448,23 @@ func main() {
 	// the JWT-derived tenant (least privilege — the dashboard can never write/delete),
 	// mirroring the memory dashboard BFF but stricter (memory mints full scopes).
 	var ragDashboardHandler *routes.RagDashboardHandler
+	var ragConnectorsOAuth *routes.RagConnectorsOAuthHandler
 	if ragBroker != nil {
 		ragDataClient := rag.NewDataClient(cfg.RagBaseURL, &http.Client{Timeout: 10 * time.Second}).
 			WithKeyResolver(newRagDashboardKeyResolver(ragBroker))
 		ragDashboardHandler = routes.NewRagDashboardHandler(ragDataClient, logger)
-		logger.Info("dashboard rag enabled (per-tenant read+write broker)", "mount", "/v1/dashboard/rag")
+		// M8 — the OAuth authorization broker. Provider apps are gated on env (LoadOAuthConnectorsFromEnv):
+		// a provider is offered only once its OAuth app (client_id/secret) is registered by the operator.
+		oauthProviders, oauthSecrets := routes.LoadOAuthConnectorsFromEnv(os.Getenv)
+		redirectBase := os.Getenv("RAG_OAUTH_REDIRECT_BASE")
+		if redirectBase == "" {
+			redirectBase = cfg.AppPublicURL + "/v1/dashboard/rag/connectors"
+		}
+		ragConnectorsOAuth = routes.NewRagConnectorsOAuthHandler(
+			oauthProviders, ragDataClient,
+			routes.NewHTTPTokenExchanger(oauthProviders, oauthSecrets, &http.Client{Timeout: 15 * time.Second}),
+			redirectBase, cfg.AppPublicURL, cfg.AuthCookieDomain, logger)
+		logger.Info("dashboard rag enabled (per-tenant read+write broker)", "mount", "/v1/dashboard/rag", "oauth_providers", len(oauthProviders))
 	}
 
 	// platform-api-gateway-edge-slice1 (M6): the ForwardAuth authz-brain the
@@ -997,7 +1013,7 @@ func main() {
 	// no mutating verb (the read-only route-set test enforces this); the per-tenant key
 	// is minted rag:read+write+delete (M21). Distinct mount from /v1/rag/* (the SDK/edge surface).
 	if ragDashboardHandler != nil {
-		mountRagDashboard(r, ragDashboardHandler, requireJWT)
+		mountRagDashboard(r, ragDashboardHandler, ragConnectorsOAuth, requireJWT)
 	}
 	// M44: the read+write+delete /v1/dashboard/lens management BFF — the per-tenant key is
 	// minted observability:read+write+delete (ADR-1; per-verb least privilege at theo-lens). The route
