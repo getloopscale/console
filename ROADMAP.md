@@ -291,7 +291,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M10 — [ ] GraphRAG knowledge-graph explorer (always-on)
+### M10 — [x] GraphRAG knowledge-graph explorer (always-on)
 
 > Added 2026-07-16 by `/roadmap-feature` (slug: `graphrag-explorer-always-on`). See CHANGELOG `[Unreleased] § Added`. Depends on M9.
 
@@ -315,7 +315,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M11 — [ ] Upload documents (PDF / office / CSV / image) from the dashboard
+### M11 — [x] Upload documents (PDF / office / CSV / image) from the dashboard
 
 > Added 2026-07-16 by `/roadmap-feature` (slug: `dashboard-file-upload`). See CHANGELOG `[Unreleased] § Added`. Depends on M6.
 
