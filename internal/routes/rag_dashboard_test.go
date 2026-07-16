@@ -175,6 +175,14 @@ func (s *stubRagDataClient) Communities(_ context.Context, collectionID, level s
 	return json.RawMessage(`{"communities":[{"community_key":"0:1","level":` + level + `,"size":5,"summary":"about people","member_names":["Alice"]}]}`), nil
 }
 
+func (s *stubRagDataClient) CommunityReport(_ context.Context, collectionID, communityKey, _ string) (json.RawMessage, error) {
+	s.commGotColID = collectionID
+	if s.graphErr != nil {
+		return nil, s.graphErr
+	}
+	return json.RawMessage(`{"community_key":"` + communityKey + `","title":"The People Community","summary":"about people","full_content":"# Report\n\nAlice leads.","findings":[{"summary":"Alice leads"}]}`), nil
+}
+
 func newRagDashboard() (*RagDashboardHandler, *stubRagDataClient) {
 	stub := &stubRagDataClient{}
 	return NewRagDashboardHandler(stub, slog.New(slog.NewTextHandler(io.Discard, nil))), stub

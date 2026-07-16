@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { MessageSquare, Network } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
-import { Badge, Button, Card, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, PageShell, Select, Sheet, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
+import { collapseGraph, isSuperNodeId } from './graphrag/collapse-graph';
 
 /**
  * GraphRAG — /rag/graphrag. The first-class GraphRAG explorer (Microsoft-GraphRAG-style). The graph
@@ -49,6 +50,17 @@ interface Community {
 }
 interface CommunitiesData {
   communities: Community[];
+}
+interface ReportFinding {
+  summary?: string;
+  explanation?: string;
+}
+interface CommunityReport {
+  community_key: string;
+  title: string;
+  summary: string;
+  full_content: string;
+  findings: ReportFinding[];
 }
 interface Source {
   document_id?: string;
@@ -96,6 +108,17 @@ export function RagGraphRagPage() {
 
   // M13 — clicking a community (or a node) focuses it: its nodes keep colour, the rest dim.
   const [focusCommunity, setFocusCommunity] = useState<string | null>(null);
+  // M13 — the community whose full report (title + full_content + findings) is open in the sheet.
+  const [reportKey, setReportKey] = useState<string | null>(null);
+  // M13 — collapsed communities render as a single aggregate super-node (expand to see members).
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleCollapsed = (key: string) =>
+    setCollapsed((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
@@ -117,6 +140,15 @@ export function RagGraphRagPage() {
         `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/communities?level=${level}`,
       ),
   });
+  // M13 — the full report for the open community (drill-down): title + full_content + findings.
+  const reportQuery = useQuery({
+    enabled: collectionID !== '' && reportKey !== null,
+    queryKey: ['cloud', 'rag-community-report', collectionID, reportKey, level] as const,
+    queryFn: () =>
+      cloudFetch<CommunityReport>(
+        `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/communities/${encodeURIComponent(reportKey ?? '')}/report?level=${level}`,
+      ),
+  });
 
   const ask = useMutation({
     mutationFn: () =>
@@ -132,8 +164,13 @@ export function RagGraphRagPage() {
   const answer = ask.data;
 
   // react-force-graph expects { nodes, links }; links reference node ids via source/target.
+  // M13 — collapsed communities are folded into aggregate super-nodes before rendering.
   const graphData = graph
-    ? { nodes: graph.nodes, links: graph.edges.map((e) => ({ source: e.source, target: e.target, weight: e.weight })) }
+    ? collapseGraph(
+        graph.nodes,
+        graph.edges.map((e) => ({ source: e.source, target: e.target, weight: e.weight })),
+        collapsed,
+      )
     : { nodes: [], links: [] };
 
   // M13 — deterministic HSL per community_key (stable colour across renders) with a dim state
@@ -147,6 +184,7 @@ export function RagGraphRagPage() {
   };
 
   return (
+    <>
     <PageShell
       title="GraphRAG"
       description="The knowledge graph your corpus built — always on. Explore entities + communities, then ask across the whole corpus."
@@ -233,8 +271,12 @@ export function RagGraphRagPage() {
                         nodeVal={(n: object) => 1 + Math.sqrt((n as GraphNode).degree)}
                         nodeLabel={(n: object) => (n as GraphNode).name}
                         onNodeClick={(n: object) => {
-                          const k = (n as GraphNode).community_key;
-                          setFocusCommunity((cur) => (cur === k ? null : k));
+                          const node = n as GraphNode;
+                          if (isSuperNodeId(node.id)) {
+                            toggleCollapsed(node.community_key ?? ''); // click a super-node → expand it
+                            return;
+                          }
+                          setFocusCommunity((cur) => (cur === node.community_key ? null : node.community_key));
                         }}
                         linkColor={() => 'rgba(148,163,184,0.35)'}
                         cooldownTicks={80}
@@ -280,7 +322,34 @@ export function RagGraphRagPage() {
                       >
                         <div className="mb-1 flex items-center justify-between gap-2">
                           <span className="font-mono text-xs text-muted-foreground">{c.community_key}</span>
-                          <Badge variant="outline">{fmt(c.size)} members</Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline">{fmt(c.size)} members</Badge>
+                            {c.summary !== null ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`View report for community ${c.community_key}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReportKey(c.community_key);
+                                }}
+                              >
+                                Report
+                              </Button>
+                            ) : null}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-pressed={collapsed.has(c.community_key)}
+                              aria-label={`${collapsed.has(c.community_key) ? 'Expand' : 'Collapse'} community ${c.community_key}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCollapsed(c.community_key);
+                              }}
+                            >
+                              {collapsed.has(c.community_key) ? 'Expand' : 'Collapse'}
+                            </Button>
+                          </div>
                         </div>
                         <p className="text-sm">{c.summary ?? 'Summary not generated yet.'}</p>
                         {c.member_names.length > 0 ? (
@@ -359,5 +428,45 @@ export function RagGraphRagPage() {
         ) : null}
       </div>
     </PageShell>
+
+    {/* M13 — full community report drill-down (title + full_content + findings). */}
+    <Sheet open={reportKey !== null} onOpenChange={(o) => { if (!o) setReportKey(null); }}>
+      <Sheet.Content side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-2xl">
+        <Sheet.Header>
+          <Sheet.Title className="pr-6">{reportQuery.data?.title ?? `Community ${reportKey ?? ''}`}</Sheet.Title>
+          <Sheet.Description>Auto-generated report for community {reportKey}.</Sheet.Description>
+        </Sheet.Header>
+        <div className="mt-4 space-y-4">
+          {reportQuery.isLoading ? (
+            <Skeleton />
+          ) : reportQuery.isError ? (
+            <Alert intent="warning" title="No report available">
+              This community has no generated report yet.
+            </Alert>
+          ) : reportQuery.data ? (
+            <>
+              <p className="text-sm text-muted-foreground">{reportQuery.data.summary}</p>
+              <div className="whitespace-pre-wrap rounded border border-border bg-muted/20 p-3 text-sm">
+                {reportQuery.data.full_content}
+              </div>
+              {reportQuery.data.findings.length > 0 ? (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold">Key findings</h4>
+                  <ul className="space-y-2">
+                    {reportQuery.data.findings.map((f, i) => (
+                      <li key={i} className="rounded border border-border p-2 text-sm">
+                        {f.summary ? <p className="font-medium">{f.summary}</p> : null}
+                        {f.explanation ? <p className="mt-0.5 text-muted-foreground">{f.explanation}</p> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </Sheet.Content>
+    </Sheet>
+    </>
   );
 }

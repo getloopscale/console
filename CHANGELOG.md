@@ -12,6 +12,23 @@
 
 ### Security
 
+## [0.36.0] - 2026-07-16
+
+### Added
+- M13: GraphRAG community report drill-down — clicking "Report" on a community opens a Sheet with the full report (title + full_content + findings), fetched via a new BFF proxy `GET /v1/dashboard/rag/collections/{id}/communities/{key}/report` → theo-rag (report_sha FK, migration 0026). Completes M13 DoD bullet #2.
+- M13: GraphRAG community expand/collapse — a community folds into one aggregate super-node (sized by member count, edges re-routed + deduped, intra-edges dropped); clicking the super-node or the Expand/Collapse control toggles it. Pure `collapseGraph` transform, 5 unit + 1 page test.
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+
 ## [0.35.0] - 2026-07-16
 
 ### Added

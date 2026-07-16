@@ -181,6 +181,21 @@ func (c *DataClient) Communities(ctx context.Context, collectionID, level string
 	return out, nil
 }
 
+// CommunityReport proxies GET /v1/collections/:id/communities/:key/report — the full community
+// report (title + full_content + findings) for the explorer's report drill-down (M13). Forwarded
+// opaquely; rag:read gated. Upstream 404 (no report) surfaces as an error the handler maps.
+func (c *DataClient) CommunityReport(ctx context.Context, collectionID, communityKey, level string) (json.RawMessage, error) {
+	q := url.Values{}
+	if level != "" {
+		q.Set("level", level)
+	}
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/collections/"+url.PathEscape(collectionID)+"/communities/"+url.PathEscape(communityKey)+"/report", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // --- Write surface (M21 dashboard read+write) --------------------------------
 // The dashboard session mints a rag:read+write+delete per-tenant key; these proxy
 // the mutating verbs so a human can manage RAG from the UI. Every write goes through
