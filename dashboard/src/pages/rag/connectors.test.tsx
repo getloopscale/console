@@ -118,4 +118,17 @@ describe('RagConnectorsPage — M8 OAuth "Connect a source"', () => {
       window.history.replaceState({}, '', before);
     }
   });
+
+  it('shows a typed error banner when the broker redirects back with ?connect_error=', async () => {
+    wireOAuth();
+    const before = window.location.pathname + window.location.search;
+    window.history.replaceState({}, '', '/rag/connectors?connect_error=provider_exchange_failed');
+    try {
+      render(<RagConnectorsPage />);
+      expect(await screen.findByText(/could not connect the source/i)).toBeInTheDocument();
+      expect(screen.getByText(/provider rejected the connection/i)).toBeInTheDocument();
+    } finally {
+      window.history.replaceState({}, '', before);
+    }
+  });
 });

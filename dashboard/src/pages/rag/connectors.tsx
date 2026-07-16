@@ -68,6 +68,22 @@ function providerLabel(provider: string): string {
   return OAUTH_PROVIDER_LABELS[provider] ?? provider.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Human messages for the broker's ?connect_error=<reason> redirect (rag_connectors_oauth.go). An
+// unmapped reason still shows a sane generic message rather than the raw token.
+const CONNECT_ERROR_MESSAGES: Record<string, string> = {
+  unknown_provider: 'That provider isn’t available to connect. Pick one from the list.',
+  missing_collection: 'Pick a collection before connecting a source.',
+  state_mismatch: 'The connection link expired or didn’t match. Please try again.',
+  context_expired: 'The connection window timed out. Please try again.',
+  provider_exchange_failed: 'The provider rejected the connection. Please try again.',
+  connect_failed: 'We authorized the provider but couldn’t finish connecting the source. Please try again.',
+  internal: 'Something went wrong starting the connection. Please try again.',
+};
+
+function connectErrorMessage(reason: string): string {
+  return CONNECT_ERROR_MESSAGES[reason] ?? 'The connection didn’t complete. Please try again.';
+}
+
 // A top-level navigation (not fetch): the browser must follow the redirect chain to the provider
 // consent and back, carrying the Kratos session cookie. The broker lives at the BFF origin's root
 // path /v1/rag-connect (cookie-session auth, #199) — NOT the Bearer /v1/dashboard/rag surface.
@@ -85,17 +101,21 @@ export function RagConnectorsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [collectionID, setCollectionID] = useState('');
 
-  // Success banner after the OAuth broker redirects back (?connected=<provider>). Read once, then
-  // strip the query param so a refresh does not re-show it.
+  // Banners after the OAuth broker redirects back: ?connected=<provider> (success) or
+  // ?connect_error=<reason> (failure). Read once, then strip the query params so a refresh doesn't re-show.
   const [connected] = useState<string | null>(() =>
     typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('connected'),
   );
+  const [connectError] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('connect_error'),
+  );
   useEffect(() => {
-    if (!connected || typeof window === 'undefined') return;
+    if ((!connected && !connectError) || typeof window === 'undefined') return;
     const url = new URL(window.location.href);
     url.searchParams.delete('connected');
+    url.searchParams.delete('connect_error');
     window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-  }, [connected]);
+  }, [connected, connectError]);
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/connectors'] as const,
@@ -175,6 +195,11 @@ export function RagConnectorsPage() {
           {connected ? (
             <Alert intent="success" title={`Connected ${providerLabel(connected)}`}>
               The source is authorized. Its first sync will start shortly.
+            </Alert>
+          ) : null}
+          {connectError ? (
+            <Alert intent="destructive" title="Could not connect the source">
+              {connectErrorMessage(connectError)}
             </Alert>
           ) : null}
           {sync.isError ? (
