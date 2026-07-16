@@ -171,9 +171,14 @@ func TestLensDashboard_ReadWriteRouteSet(t *testing.T) {
 		got[method+" "+route] = true
 		if method == http.MethodPost || method == http.MethodDelete {
 			underTrace := strings.HasPrefix(route, "/v1/dashboard/lens/traces/{traceID}")
-			// /replay: M55 read-scope ephemeral provider queries — NOT a body mutation; replay
-			// re-runs an edited message list server-side and never persists to the immutable trace.
-			writableMeta := strings.Contains(route, "/tags") || strings.Contains(route, "/annotations") || strings.Contains(route, "/ask") || strings.Contains(route, "/replay")
+			// The sanctioned trace management writes — none mutates the immutable trace BODY:
+			// /tags + /annotations are writable human metadata; /ask is the read-scope copilot POST
+			// (+ /ask/feedback); /replay is the M55 ephemeral provider re-run (never persisted); and
+			// /enqueue-for-labeling is the M63 labeling-queue enqueue (adds the span to a review
+			// workflow, not a body edit). All are behind the fail-closed per-tenant guard.
+			writableMeta := strings.Contains(route, "/tags") || strings.Contains(route, "/annotations") ||
+				strings.Contains(route, "/ask") || strings.Contains(route, "/replay") ||
+				strings.Contains(route, "/enqueue-for-labeling")
 			bad := route == "/v1/dashboard/lens/traces" ||
 				(underTrace && !writableMeta) ||
 				strings.HasPrefix(route, "/v1/dashboard/lens/sessions") ||

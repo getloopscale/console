@@ -19,6 +19,7 @@
 ### Removed
 
 ### Fixed
+- **`develop` is green again — two release-blocking `go test ./...` failures resolved (unblocks the develop→main cut).** (1) `TestLensDashboard_ReadWriteRouteSet` failed on the M63 `POST …/traces/{traceID}/enqueue-for-labeling` route (ADR-3 read-only-surface invariant): enqueue-for-labeling adds a span to a labeling-review queue — a sanctioned management write that never mutates the immutable trace body, the same category as `/tags` / `/annotations` / `/replay` — so it is now in the test's `writableMeta` allowlist (usetheodev/theo-cloud#169). (2) `tests/unit` failed to compile: `fakeTheMemory.Graph` had the pre-`includeSuperseded` 3-arg signature while the `TheMemoryClient` interface + real client + caller all take the 4-arg `Graph(ctx, userID, scope, includeSuperseded bool)` — the stale test fake is updated to match (no production change). Full suite now 26/26 packages green, `go vet` clean.
 
 ### Security
 
