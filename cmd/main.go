@@ -161,10 +161,15 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		r.Get("/collections", h.ListCollections)
 		r.Get("/analytics", h.Analytics)
 		r.Get("/documents", h.ListDocuments)
+		// M10 — GraphRAG explorer reads (persisted graph + communities), per-collection.
+		r.Get("/collections/{id}/graph", h.GraphView)
+		r.Get("/collections/{id}/communities", h.Communities)
 		// writes (M21)
 		r.Post("/collections", h.CreateCollection)
 		r.Delete("/collections/{id}", h.DeleteCollection)
 		r.Post("/documents", h.IngestDocument)
+		// M11 — file upload (PDF/office/CSV/image), streamed to theo-rag's async ingest.
+		r.Post("/documents/file", h.UploadDocumentFile)
 		r.Delete("/documents/{id}", h.DeleteDocument)
 		r.Post("/answers", h.Ask)
 		// connectors (#191 + M8 connect)

@@ -38,7 +38,7 @@ import {
   SlidersHorizontal,
   User,
   Users,
-  Webhook, FolderTree } from 'lucide-react';
+  Webhook, FolderTree, Network } from 'lucide-react';
 import { Input, Sidebar } from '@usetheo/ui';
 import type { Session } from '@/lib/auth';
 import { TeamSwitcher } from '@/components/team/team-switcher';
@@ -208,6 +208,7 @@ const MENUS: Record<string, MenuDefinition> = {
           { label: 'Connectors', path: '/rag/connectors', icon: Plug },
           { label: 'Documents', path: '/rag/documents', icon: ScrollText },
           { label: 'Ask', path: '/rag/ask', icon: Search },
+          { label: 'GraphRAG', path: '/rag/graphrag', icon: Network },
           { label: 'Analytics', path: '/rag/analytics', icon: Activity },
         ],
       },

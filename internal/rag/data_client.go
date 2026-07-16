@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strconv"
 	"strings"
@@ -145,6 +147,38 @@ func (c *DataClient) Analytics(ctx context.Context, collectionID, since string) 
 		return nil, err
 	}
 	return &out, nil
+}
+
+// GraphView proxies GET /v1/collections/:id/graph — the persisted knowledge graph (top-N nodes
+// by degree + the edges among them) for the GraphRAG explorer (M10). Forwarded opaquely: the BFF
+// does not parse the graph, the dashboard renders it. The rag:read key gates it at theo-rag.
+func (c *DataClient) GraphView(ctx context.Context, collectionID, level, limit string) (json.RawMessage, error) {
+	q := url.Values{}
+	if level != "" {
+		q.Set("level", level)
+	}
+	if limit != "" {
+		q.Set("limit", limit)
+	}
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/collections/"+url.PathEscape(collectionID)+"/graph", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Communities proxies GET /v1/collections/:id/communities — the graph communities + their report
+// summary + members for the GraphRAG explorer (M10). Forwarded opaquely; rag:read gated.
+func (c *DataClient) Communities(ctx context.Context, collectionID, level string) (json.RawMessage, error) {
+	q := url.Values{}
+	if level != "" {
+		q.Set("level", level)
+	}
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/collections/"+url.PathEscape(collectionID)+"/communities", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // --- Write surface (M21 dashboard read+write) --------------------------------
@@ -382,4 +416,98 @@ func (c *DataClient) do(ctx context.Context, method, path string, q url.Values, 
 		return fmt.Errorf("rag data client: decode %s: %w", path, err)
 	}
 	return nil
+}
+
+// UploadFileInput is a multipart file upload for POST /v1/documents (async 202).
+// File is STREAMED to the upstream — a large PDF is never buffered whole in the BFF.
+type UploadFileInput struct {
+	File         io.Reader // the file bytes (streamed via io.Pipe)
+	Filename     string
+	ContentType  string // MIME; theo-rag validates it against its supported set
+	CollectionID string
+	Name         string // optional display name; defaults to the filename upstream
+	Mode         string // "fast" | "hi_res"; empty defaults to fast upstream
+}
+
+// uploadFilePart opens a multipart "file" part carrying the caller's declared MIME
+// so theo-rag's isSupportedMime(file.type) sees the real content type (multipart's
+// CreateFormFile would hardcode application/octet-stream and break the check).
+func uploadFilePart(mw *multipart.Writer, filename, contentType string) (io.Writer, error) {
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename=%q`, filename))
+	h.Set("Content-Type", contentType)
+	return mw.CreatePart(h)
+}
+
+// UploadDocumentFile proxies a multipart file upload to theo-rag's POST /v1/documents
+// with the per-tenant Bearer. The file is streamed via io.Pipe so a large PDF is never
+// buffered whole. Upstream returns 202 + a document id (async ingest). Any upstream
+// >=400 surfaces as a typed error — never a silent success (Error Handling: fail-loud).
+func (c *DataClient) UploadDocumentFile(ctx context.Context, in UploadFileInput) (json.RawMessage, error) {
+	if c.keyResolver == nil {
+		return nil, fmt.Errorf("rag data client: no key resolver wired (misconfiguration)")
+	}
+	bearer, err := c.keyResolver(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("rag data client: resolve per-tenant key: %w", err)
+	}
+
+	pr, pw := io.Pipe()
+	mw := multipart.NewWriter(pw)
+	go func() {
+		// Any write error closes the pipe WITH that error, so httpClient.Do returns it
+		// rather than shipping a truncated upload.
+		var werr error
+		defer func() { _ = pw.CloseWithError(werr) }()
+		if in.CollectionID != "" {
+			if werr = mw.WriteField("collection_id", in.CollectionID); werr != nil {
+				return
+			}
+		}
+		if in.Name != "" {
+			if werr = mw.WriteField("name", in.Name); werr != nil {
+				return
+			}
+		}
+		if in.Mode != "" {
+			if werr = mw.WriteField("mode", in.Mode); werr != nil {
+				return
+			}
+		}
+		part, perr := uploadFilePart(mw, in.Filename, in.ContentType)
+		if perr != nil {
+			werr = perr
+			return
+		}
+		if _, werr = io.Copy(part, in.File); werr != nil {
+			return
+		}
+		werr = mw.Close()
+	}()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/documents", pr)
+	if err != nil {
+		return nil, fmt.Errorf("rag data client: build upload request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("rag data client: POST /v1/documents: %w", err) // never leak the bearer
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 400 {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("rag data client: POST /v1/documents: upstream %d: %s", resp.StatusCode, string(raw))
+	}
+	out, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("rag data client: read upload response: %w", err)
+	}
+	return json.RawMessage(out), nil
 }
