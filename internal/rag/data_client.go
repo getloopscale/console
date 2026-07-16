@@ -147,6 +147,38 @@ func (c *DataClient) Analytics(ctx context.Context, collectionID, since string) 
 	return &out, nil
 }
 
+// GraphView proxies GET /v1/collections/:id/graph — the persisted knowledge graph (top-N nodes
+// by degree + the edges among them) for the GraphRAG explorer (M10). Forwarded opaquely: the BFF
+// does not parse the graph, the dashboard renders it. The rag:read key gates it at theo-rag.
+func (c *DataClient) GraphView(ctx context.Context, collectionID, level, limit string) (json.RawMessage, error) {
+	q := url.Values{}
+	if level != "" {
+		q.Set("level", level)
+	}
+	if limit != "" {
+		q.Set("limit", limit)
+	}
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/collections/"+url.PathEscape(collectionID)+"/graph", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Communities proxies GET /v1/collections/:id/communities — the graph communities + their report
+// summary + members for the GraphRAG explorer (M10). Forwarded opaquely; rag:read gated.
+func (c *DataClient) Communities(ctx context.Context, collectionID, level string) (json.RawMessage, error) {
+	q := url.Values{}
+	if level != "" {
+		q.Set("level", level)
+	}
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/collections/"+url.PathEscape(collectionID)+"/communities", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // --- Write surface (M21 dashboard read+write) --------------------------------
 // The dashboard session mints a rag:read+write+delete per-tenant key; these proxy
 // the mutating verbs so a human can manage RAG from the UI. Every write goes through

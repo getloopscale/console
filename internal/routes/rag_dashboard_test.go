@@ -36,6 +36,11 @@ type stubRagDataClient struct {
 	connectCalls        int    // M8
 	connectGotProvider  string // M8 — the provider the handler forwarded
 	connectGotBody      string // M8 — the opaque credential body the handler forwarded
+	graphGotColID       string // M10 — the collection the graph handler forwarded
+	graphGotLevel       string // M10
+	graphGotLimit       string // M10
+	commGotColID        string // M10 — the collection the communities handler forwarded
+	graphErr            error  // M10 — when set, GraphView/Communities fail
 }
 
 func (s *stubRagDataClient) ListCollections(_ context.Context, _, _ int) (*rag.CollectionsResult, error) {
@@ -132,6 +137,22 @@ func (s *stubRagDataClient) ConnectConnector(_ context.Context, provider string,
 		return nil, s.writeErr
 	}
 	return json.RawMessage(`{"id":"conn_new","provider_id":"` + provider + `","status":"active"}`), nil
+}
+
+func (s *stubRagDataClient) GraphView(_ context.Context, collectionID, level, limit string) (json.RawMessage, error) {
+	s.graphGotColID, s.graphGotLevel, s.graphGotLimit = collectionID, level, limit
+	if s.graphErr != nil {
+		return nil, s.graphErr
+	}
+	return json.RawMessage(`{"nodes":[{"id":"e1","name":"Alice","type":"person","degree":3,"community_key":"0:1"}],"edges":[]}`), nil
+}
+
+func (s *stubRagDataClient) Communities(_ context.Context, collectionID, level string) (json.RawMessage, error) {
+	s.commGotColID = collectionID
+	if s.graphErr != nil {
+		return nil, s.graphErr
+	}
+	return json.RawMessage(`{"communities":[{"community_key":"0:1","level":` + level + `,"size":5,"summary":"about people","member_names":["Alice"]}]}`), nil
 }
 
 func newRagDashboard() (*RagDashboardHandler, *stubRagDataClient) {
@@ -469,5 +490,49 @@ func TestRagDashboard_Ask_EmptyStrategy_OK_M9(t *testing.T) {
 	}
 	if stub.askGotStrategy != "" {
 		t.Fatalf("empty strategy must stay empty (default vector upstream), got %q", stub.askGotStrategy)
+	}
+}
+
+func TestRagDashboard_GraphView_M10(t *testing.T) {
+	h, stub := newRagDashboard()
+	req := withID(httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/collections/col_1/graph?level=1&limit=50", nil).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"})), "col_1")
+	w := httptest.NewRecorder()
+	h.GraphView(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.graphGotColID != "col_1" || stub.graphGotLevel != "1" || stub.graphGotLimit != "50" {
+		t.Fatalf("scope/params not forwarded: col=%q level=%q limit=%q", stub.graphGotColID, stub.graphGotLevel, stub.graphGotLimit)
+	}
+	if !strings.Contains(w.Body.String(), `"community_key":"0:1"`) {
+		t.Fatalf("graph JSON not forwarded opaquely: %s", w.Body.String())
+	}
+}
+
+func TestRagDashboard_Communities_M10(t *testing.T) {
+	h, stub := newRagDashboard()
+	req := withID(httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/collections/col_1/communities?level=0", nil).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"})), "col_1")
+	w := httptest.NewRecorder()
+	h.Communities(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.commGotColID != "col_1" {
+		t.Fatalf("collection not forwarded: %q", stub.commGotColID)
+	}
+	if !strings.Contains(w.Body.String(), `"about people"`) {
+		t.Fatalf("communities JSON not forwarded: %s", w.Body.String())
+	}
+}
+
+func TestRagDashboard_GraphView_Unauthed_M10(t *testing.T) {
+	h, _ := newRagDashboard()
+	req := withID(httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/collections/col_1/graph", nil), "col_1") // no tenant
+	w := httptest.NewRecorder()
+	h.GraphView(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401 without a tenant, got %d", w.Code)
 	}
 }

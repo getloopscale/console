@@ -33,6 +33,10 @@ type RagDataClient interface {
 	// M8 — connect a data source (POST /connectors/{provider}/connect). Credential body
 	// forwarded opaquely (never inspected/logged).
 	ConnectConnector(ctx context.Context, provider string, body json.RawMessage) (json.RawMessage, error)
+	// M10 — GraphRAG explorer reads: the persisted knowledge graph (nodes/edges) + communities
+	// (with report summary + members). Forwarded opaquely; rag:read gated at theo-rag.
+	GraphView(ctx context.Context, collectionID, level, limit string) (json.RawMessage, error)
+	Communities(ctx context.Context, collectionID, level string) (json.RawMessage, error)
 }
 
 // RagDashboardHandler serves the /v1/dashboard/rag BFF. Browser JWT sessions (requireJWT)
@@ -96,6 +100,38 @@ func (h *RagDashboardHandler) Analytics(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		h.logger.Warn("rag dashboard: analytics failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load analytics.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// GraphView serves GET /v1/dashboard/rag/collections/{id}/graph — the persisted knowledge graph
+// (nodes + edges) for the GraphRAG explorer (M10), via the per-tenant rag:read key. Forwarded
+// opaquely (the dashboard renders it); the tenant comes from the JWT, never the request.
+func (h *RagDashboardHandler) GraphView(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	q := r.URL.Query()
+	res, err := h.client.GraphView(r.Context(), chi.URLParam(r, "id"), q.Get("level"), q.Get("limit"))
+	if err != nil {
+		h.logger.Warn("rag dashboard: graph failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load the graph.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// Communities serves GET /v1/dashboard/rag/collections/{id}/communities — the graph communities
+// (with report summary + members) for the GraphRAG explorer (M10), via the per-tenant rag:read key.
+func (h *RagDashboardHandler) Communities(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	res, err := h.client.Communities(r.Context(), chi.URLParam(r, "id"), r.URL.Query().Get("level"))
+	if err != nil {
+		h.logger.Warn("rag dashboard: communities failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load communities.")
 		return
 	}
 	writeJSON(w, http.StatusOK, res)

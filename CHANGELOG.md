@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **GraphRAG explorer BFF proxy (M10)** — `GET /v1/dashboard/rag/collections/{id}/graph` + `/communities` proxy the new theo-rag graph read endpoints with the per-tenant rag:read key (fail-closed on no JWT tenant; forwarded opaquely — the dashboard renders the graph). `DataClient.GraphView`/`Communities` + 2 handlers + routes (rag route-set now 15) + 3 handler tests. `internal/rag/data_client.go` + `internal/routes/rag_dashboard.go` + `cmd/main.go`. Go 26/26 + vet clean.
 - **GraphRAG is now a first-class sidebar destination** (`/rag/graphrag`, icon graph) — not just a dropdown inside Ask. The page pairs a GraphRAG-focused Ask (Global sensemaking / Entity graph modes → `POST /v1/dashboard/rag/answers` with `strategy=global|graph`, honest fallback badge) with a **Knowledge graph** panel that surfaces the communities the extraction built (total / max level / per-level counts, from the existing `analytics?collection_id=` scale block). Composes existing endpoints — no new BFF/theo-rag surface; the interactive entity/relationship graph + community-report text are marked as the next step (need new theo-rag graph endpoints). Sidebar nav item + route + `dashboard/src/pages/rag/graphrag.tsx`; 3 page tests + 31 layout tests + tsc + eslint + prod build green.
 
 ### Changed
