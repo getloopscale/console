@@ -17,18 +17,21 @@ import (
 
 // stubRagDataClient records the calls; it never talks to a real theo-rag.
 type stubRagDataClient struct {
-	listErr       error
-	analyticsErr  error
-	writeErr      error
-	listCalls     int
-	analytics     int
-	createCalls   int
-	deleteCalls   int
-	ingestCalls   int
-	askCalls      int
-	listConnCalls int
-	syncCalls     int
-	delConnCalls  int
+	listErr             error
+	analyticsErr        error
+	writeErr            error
+	listCalls           int
+	analytics           int
+	analyticsGotColID   string
+	analyticsGotSince   string
+	analyticsRes        *rag.AnalyticsResult // when non-nil, overrides the default
+	createCalls         int
+	deleteCalls         int
+	ingestCalls         int
+	askCalls            int
+	listConnCalls       int
+	syncCalls           int
+	delConnCalls        int
 }
 
 func (s *stubRagDataClient) ListCollections(_ context.Context, _, _ int) (*rag.CollectionsResult, error) {
@@ -39,10 +42,15 @@ func (s *stubRagDataClient) ListCollections(_ context.Context, _, _ int) (*rag.C
 	return &rag.CollectionsResult{Items: []rag.Collection{{ID: "col_1"}}}, nil
 }
 
-func (s *stubRagDataClient) Analytics(_ context.Context, _ string) (*rag.AnalyticsResult, error) {
+func (s *stubRagDataClient) Analytics(_ context.Context, collectionID, since string) (*rag.AnalyticsResult, error) {
 	s.analytics++
+	s.analyticsGotColID = collectionID
+	s.analyticsGotSince = since
 	if s.analyticsErr != nil {
 		return nil, s.analyticsErr
+	}
+	if s.analyticsRes != nil {
+		return s.analyticsRes, nil
 	}
 	return &rag.AnalyticsResult{}, nil
 }
@@ -165,6 +173,70 @@ func TestRagDashboard_UpstreamError_502(t *testing.T) {
 	h.Analytics(w, req)
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("want 502, got %d", w.Code)
+	}
+}
+
+// v8-M7 scale — Analytics forwards the ?collection_id query param to the upstream data
+// client AND propagates the `scale` block returned by theo-rag rc.80+ back to the caller.
+func TestRagDashboard_Analytics_ForwardsCollectionID_PropagatesScale(t *testing.T) {
+	h, stub := newRagDashboard()
+	stub.analyticsRes = &rag.AnalyticsResult{
+		Scale: &rag.ScaleObservability{
+			CollectionID: "col_docs",
+			Corpus:       rag.ScaleCorpus{Documents: 3, Chunks: 42, SizeBytes: 8192},
+			Communities:  rag.ScaleCommunities{Total: 5, MaxLevel: 2, PerLevel: map[string]int{"0": 3, "1": 2}},
+			Extraction:   rag.ScaleExtraction{Tokens: 12345},
+		},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/analytics?collection_id=col_docs&since=2026-07-01T00:00:00Z", nil).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"}))
+	w := httptest.NewRecorder()
+	h.Analytics(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	if stub.analyticsGotColID != "col_docs" {
+		t.Fatalf("upstream must receive collection_id=col_docs, got %q", stub.analyticsGotColID)
+	}
+	if stub.analyticsGotSince != "2026-07-01T00:00:00Z" {
+		t.Fatalf("upstream must receive since, got %q", stub.analyticsGotSince)
+	}
+	// The scale block MUST be in the response body — the whole point of T3.
+	var out map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("response body is not JSON: %v", err)
+	}
+	scale, ok := out["scale"].(map[string]any)
+	if !ok {
+		t.Fatalf("response missing `scale` object: %s", w.Body.String())
+	}
+	if scale["collection_id"] != "col_docs" {
+		t.Fatalf("scale.collection_id = %v, want col_docs", scale["collection_id"])
+	}
+	extraction, _ := scale["extraction"].(map[string]any)
+	if extraction["tokens"].(float64) != 12345 {
+		t.Fatalf("scale.extraction.tokens = %v, want 12345", extraction["tokens"])
+	}
+}
+
+// v8-M7 backward-compat — without ?collection_id the upstream does NOT receive one AND
+// the `scale` block is NOT emitted (M5 shape preserved for the un-selected view).
+func TestRagDashboard_Analytics_NoCollectionID_NoScale(t *testing.T) {
+	h, stub := newRagDashboard()
+	// Upstream returns nil Scale (theo-rag omits it when collection_id is absent).
+	stub.analyticsRes = &rag.AnalyticsResult{}
+	req := httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/analytics", nil).
+		WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"}))
+	w := httptest.NewRecorder()
+	h.Analytics(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+	if stub.analyticsGotColID != "" {
+		t.Fatalf("upstream must NOT receive collection_id when caller omitted it, got %q", stub.analyticsGotColID)
+	}
+	if strings.Contains(w.Body.String(), `"scale"`) {
+		t.Fatalf("response MUST NOT include `scale` when upstream did not (backward-compat): %s", w.Body.String())
 	}
 }
 
