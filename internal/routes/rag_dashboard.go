@@ -19,7 +19,7 @@ import (
 type RagDataClient interface {
 	ListCollections(ctx context.Context, limit, offset int) (*rag.CollectionsResult, error)
 	ListDocuments(ctx context.Context, collectionID string, limit, offset int) (*rag.DocumentsResult, error)
-	Analytics(ctx context.Context, since string) (*rag.AnalyticsResult, error)
+	Analytics(ctx context.Context, collectionID, since string) (*rag.AnalyticsResult, error)
 	CreateCollection(ctx context.Context, in rag.CreateCollectionInput) (*rag.Collection, error)
 	DeleteCollection(ctx context.Context, id string) error
 	IngestDocument(ctx context.Context, in rag.IngestInput) (json.RawMessage, error)
@@ -77,12 +77,18 @@ func (h *RagDashboardHandler) ListCollections(w http.ResponseWriter, r *http.Req
 
 // Analytics serves GET /v1/dashboard/rag/analytics — the caller workspace's M5 summary,
 // via the per-tenant key (theo-rag gates /v1/analytics by rag:read since M17).
+//
+// ROADMAP-v8 M7 — when ?collection_id= is present the response carries an extra
+// `scale` block (extraction tokens, communities, corpus size) for the selected
+// collection. Absent collection_id keeps the M5 shape (scale nil, backward-compat).
+// tenant/workspace query params are IGNORED (the tenant comes from the JWT).
 func (h *RagDashboardHandler) Analytics(w http.ResponseWriter, r *http.Request) {
 	if user := auth.GetUser(r.Context()); user == nil || user.TenantID == "" {
 		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated.")
 		return
 	}
-	res, err := h.client.Analytics(r.Context(), r.URL.Query().Get("since"))
+	q := r.URL.Query()
+	res, err := h.client.Analytics(r.Context(), q.Get("collection_id"), q.Get("since"))
 	if err != nil {
 		h.logger.Warn("rag dashboard: analytics failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load analytics.")

@@ -53,7 +53,8 @@ type CollectionsResult struct {
 	Items []Collection `json:"items"`
 }
 
-// AnalyticsResult is the GET /v1/analytics response (the M5 summary).
+// AnalyticsResult is the GET /v1/analytics response (the M5 summary + ROADMAP-v8 M7
+// per-collection scale block, attached ONLY when ?collection_id= is set).
 type AnalyticsResult struct {
 	Window struct {
 		Since string `json:"since"`
@@ -72,6 +73,39 @@ type AnalyticsResult struct {
 		Medium int `json:"medium"`
 		Low    int `json:"low"`
 	} `json:"confidence"`
+	// Scale is theo-rag rc.80+ per-collection observability. Pointer + omitempty so
+	// dashboard requests without a collection_id emit the M5 shape unchanged (backward-compat).
+	Scale *ScaleObservability `json:"scale,omitempty"`
+}
+
+// ScaleObservability is theo-rag rc.80 ROADMAP-v8 M7 per-collection scale block:
+// LLM extraction token cost, community count/level, corpus size. Wire shape mirrors
+// theo-rag's AnalyticsSummary.scale (packages/api/src/server/handlers/analytics.ts).
+type ScaleObservability struct {
+	CollectionID string           `json:"collection_id"`
+	Corpus       ScaleCorpus      `json:"corpus"`
+	Communities  ScaleCommunities `json:"communities"`
+	Extraction   ScaleExtraction  `json:"extraction"`
+}
+
+// ScaleCorpus is the corpus-size sub-block (documents + chunks + size_bytes).
+type ScaleCorpus struct {
+	Documents int `json:"documents"`
+	Chunks    int `json:"chunks"`
+	SizeBytes int `json:"size_bytes"`
+}
+
+// ScaleCommunities is the graph-communities sub-block (total, max_level, per_level).
+// per_level is a level-keyed map (string keys — theo-rag emits `oz.record(oz.number())`).
+type ScaleCommunities struct {
+	Total    int            `json:"total"`
+	MaxLevel int            `json:"max_level"`
+	PerLevel map[string]int `json:"per_level"`
+}
+
+// ScaleExtraction is the LLM-extraction sub-block (persisted token cost per collection).
+type ScaleExtraction struct {
+	Tokens int `json:"tokens"`
 }
 
 // ListCollections proxies GET /v1/collections?limit&offset with the per-tenant Bearer.
@@ -93,9 +127,16 @@ func (c *DataClient) ListCollections(ctx context.Context, limit, offset int) (*C
 	return &out, nil
 }
 
-// Analytics proxies GET /v1/analytics?since with the per-tenant Bearer (M5 summary).
-func (c *DataClient) Analytics(ctx context.Context, since string) (*AnalyticsResult, error) {
+// Analytics proxies GET /v1/analytics?collection_id&since with the per-tenant Bearer.
+// collectionID is the ROADMAP-v8 M7 opt-in: when non-empty theo-rag attaches a
+// per-collection `scale` block to the response (extraction tokens, communities,
+// corpus size). An empty collectionID keeps the M5 summary shape (scale=nil,
+// backward-compat).
+func (c *DataClient) Analytics(ctx context.Context, collectionID, since string) (*AnalyticsResult, error) {
 	q := url.Values{}
+	if collectionID != "" {
+		q.Set("collection_id", collectionID)
+	}
 	if since != "" {
 		q.Set("since", since)
 	}
