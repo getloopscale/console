@@ -19,11 +19,41 @@ interface Collection {
   id: string;
   name?: string;
 }
+interface OkfMeta {
+  type?: string;
+  title?: string;
+  description?: string;
+  tags?: string[];
+  timestamp?: string;
+}
 interface WikiPage {
   id: string;
   name: string;
   status: string;
   updated_at?: string;
+  type?: string;
+  tags?: string[];
+}
+
+/**
+ * Build an OKF (Open Knowledge Format) frontmatter fence from the structured fields and
+ * prepend it to the body. The data-plane parser (theo-rag) splits this back into
+ * `documents.metadata.okf` + the stripped body. Only emits a fence when a non-default
+ * field is set, so a plain page stays plain.
+ */
+function withOkfFrontmatter(body: string, type: string, tags: string, description: string): string {
+  const tagList = tags
+    .split(',')
+    .map((t) => t.trim())
+    .filter((t) => t !== '');
+  const t = type.trim();
+  const hasOkf = (t !== '' && t !== 'concept') || tagList.length > 0 || description.trim() !== '';
+  if (!hasOkf) return body;
+  const lines = ['---', `type: ${t === '' ? 'concept' : t}`];
+  if (description.trim() !== '') lines.push(`description: ${description.trim()}`);
+  if (tagList.length > 0) lines.push(`tags: [${tagList.join(', ')}]`);
+  lines.push('---', '');
+  return lines.join('\n') + body;
 }
 
 export function RagWikiPage() {
@@ -32,6 +62,9 @@ export function RagWikiPage() {
   const [collectionID, setCollectionID] = useState('');
   const [name, setName] = useState('');
   const [content, setContent] = useState('');
+  const [type, setType] = useState('concept');
+  const [tags, setTags] = useState('');
+  const [description, setDescription] = useState('');
   const [openPageID, setOpenPageID] = useState<string | null>(null);
 
   const collectionsQuery = useQuery({
@@ -50,11 +83,20 @@ export function RagWikiPage() {
     mutationFn: () =>
       cloudFetch<{ id: string }>('/v1/dashboard/rag/wiki/pages', {
         method: 'POST',
-        body: JSON.stringify({ collection_id: collectionID, name, content }),
+        body: JSON.stringify({
+          collection_id: collectionID,
+          name,
+          // OKF frontmatter (type/tags/description) is folded into the content fence;
+          // the data-plane parser splits it back into structured okf metadata (M24).
+          content: withOkfFrontmatter(content, type, tags, description),
+        }),
       }),
     onSuccess: () => {
       setName('');
       setContent('');
+      setType('concept');
+      setTags('');
+      setDescription('');
       void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', collectionID] });
     },
   });
@@ -90,6 +132,29 @@ export function RagWikiPage() {
                   aria-label="Page title"
                   disabled={collectionID === ''}
                 />
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <Input
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    placeholder="Type (e.g. concept, metric)"
+                    aria-label="Page type"
+                    disabled={collectionID === ''}
+                  />
+                  <Input
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="Tags (comma-separated)"
+                    aria-label="Page tags"
+                    disabled={collectionID === ''}
+                  />
+                  <Input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Description"
+                    aria-label="Page description"
+                    disabled={collectionID === ''}
+                  />
+                </div>
                 <Textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
@@ -131,6 +196,7 @@ export function RagWikiPage() {
                     <div className="flex items-center gap-2">
                       <BookOpen className="h-4 w-4 text-muted-foreground" />
                       <span className="font-medium">{p.name}</span>
+                      {p.type && p.type !== 'concept' ? <Badge variant="outline">{p.type}</Badge> : null}
                       <Badge variant={p.status === 'ready' ? 'default' : 'outline'}>{p.status}</Badge>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => setOpenPageID(p.id)} aria-label={`Open ${p.name}`}>
@@ -152,7 +218,7 @@ export function RagWikiPage() {
 function WikiPageSheet({ pageID, onClose }: { pageID: string | null; onClose: () => void }) {
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', 'one', pageID] as const,
-    queryFn: () => cloudFetch<{ id: string; name: string; content: string; status: string }>(
+    queryFn: () => cloudFetch<{ id: string; name: string; content: string; status: string; okf?: OkfMeta }>(
       `/v1/dashboard/rag/wiki/pages/${encodeURIComponent(pageID ?? '')}`,
     ),
     enabled: pageID !== null,
@@ -173,7 +239,25 @@ function WikiPageSheet({ pageID, onClose }: { pageID: string | null; onClose: ()
               Try again shortly.
             </Alert>
           ) : (
-            <pre className="whitespace-pre-wrap break-words text-sm text-foreground">{page?.content}</pre>
+            <div className="space-y-3">
+              {page?.okf ? (
+                <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium uppercase text-muted-foreground">OKF</span>
+                    {page.okf.type ? <Badge variant="outline">{page.okf.type}</Badge> : null}
+                    {(page.okf.tags ?? []).map((t) => (
+                      <Badge key={t} variant="default">
+                        {t}
+                      </Badge>
+                    ))}
+                  </div>
+                  {page.okf.description ? (
+                    <p className="text-sm text-muted-foreground">{page.okf.description}</p>
+                  ) : null}
+                </div>
+              ) : null}
+              <pre className="whitespace-pre-wrap break-words text-sm text-foreground">{page?.content}</pre>
+            </div>
           )}
         </div>
       </Sheet.Content>
