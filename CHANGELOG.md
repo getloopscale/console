@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.50.0] - 2026-07-17
+
+### Added
 - Knowledge Base (KB12): editor polish - empty blocks show a **placeholder** ("Type '/' for commands"), **interactive checklists** (GFM task list) that toggle live and round-trip to `- [ ]` / `- [x]` markdown with strike-through on done items, and **auto-focus** on the create/edit surface.
 
 ### Changed
