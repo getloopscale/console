@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.48.0] - 2026-07-17
+
+### Added
 - Knowledge Base (KB10): fenced code blocks in the wiki reader now render with **syntax highlighting** (react-syntax-highlighter / Prism) and a **copy button** revealed on hover; inline code stays a plain chip.
 
 ### Changed
