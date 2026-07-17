@@ -11,6 +11,7 @@
 
 ### Fixed
 - Connectors: the PWA service worker no longer shadows the OAuth broker — "Connect with X" navigations to `/v1/rag-connect/*` now reach the backend instead of dead-ending at "Page not found" for users with a warm service worker (#203)
+- Uploads (and every app action): fixed a service-worker crash (`ReferenceError` in the request router) that broke file upload. The worker's request matcher referenced a helper that Workbox did not bundle into the worker; it is now a self-contained pattern derived from the single-source denylist (#203 follow-up)
 
 ### Security
 
