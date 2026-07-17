@@ -90,15 +90,9 @@ createRoot(document.getElementById('root')!).render(
               {
                 ...violetForge,
                 light: { ...violetForge.light, primary: 'oklch(0.57 0.13 302)' },
-                // input: borda mais perceptível. O default violetForge.dark.input
-                // (oklch(0.227)) fica a só 0.045 de luminosidade do bg-card
-                // (oklch(0.182)) — borda quase invisível. 0.34 dá um contorno
-                // cinza sutil mas legível, sem ser grosseiro.
-                dark: {
-                  ...violetForge.dark,
-                  primary: 'oklch(0.57 0.13 302)',
-                  input: 'oklch(0.34 0 0)',
-                },
+                // input agora vem do próprio @theokit/ui@1.3.1 (violetForge.dark.input
+                // = oklch(0.34), borda perceptível) — override local removido.
+                dark: { ...violetForge.dark, primary: 'oklch(0.57 0.13 302)' },
               },
             ],
             defaultTheme: 'violet-forge',
