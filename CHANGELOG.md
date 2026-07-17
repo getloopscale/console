@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.47.0] - 2026-07-17
+
+### Added
 - Knowledge Base (KB9): wiki markdown now renders with a proper **Notion-grade typography theme** — heading scale, bordered/zebra tables, chip inline-code, panelled code blocks, task-list checkboxes — bound to the design tokens. Fixes the previously unstyled markdown (the `@tailwindcss/typography` engine was missing under Tailwind v4).
 
 ### Changed
