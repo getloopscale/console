@@ -375,6 +375,38 @@ func (c *DataClient) DeleteConnector(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/connectors/"+url.PathEscape(id), nil, nil, nil)
 }
 
+// ListDocumentChunks proxies GET /v1/documents/{id}/chunks (chunk-editor, rag:read). Paginated by index cursor.
+func (c *DataClient) ListDocumentChunks(ctx context.Context, documentID, cursor string) (json.RawMessage, error) {
+	q := url.Values{}
+	if cursor != "" {
+		q.Set("cursor", cursor)
+	}
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/documents/"+url.PathEscape(documentID)+"/chunks", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetChunk proxies GET /v1/chunks/{id} (chunk-editor, rag:read).
+func (c *DataClient) GetChunk(ctx context.Context, id string) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/chunks/"+url.PathEscape(id), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// UpdateChunk proxies PATCH /v1/chunks/{id} (chunk-editor, rag:write). The body ({text}) is
+// forwarded opaquely; theo-rag re-embeds the chunk server-side.
+func (c *DataClient) UpdateChunk(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPatch, "/v1/chunks/"+url.PathEscape(id), nil, body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // getJSON is the read wrapper (kept for the M17 read methods) — a GET via `do`.
 func (c *DataClient) getJSON(ctx context.Context, path string, q url.Values, out any) error {
 	return c.do(ctx, http.MethodGet, path, q, nil, out)

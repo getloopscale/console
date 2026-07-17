@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch, cloudFetchRaw } from '@/lib/api';
+import { ChunksPanel } from './chunks-panel';
 
 // M11 — file types the engine ingests (PDF/office/CSV/text/image). The engine is the
 // source of truth and returns a typed 422 for anything else; this drives the picker's
@@ -48,6 +49,7 @@ export function RagDocumentsPage() {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Document | null>(null);
+  const [chunksForDoc, setChunksForDoc] = useState<Document | null>(null);
   const [ingestMode, setIngestMode] = useState('fast');
   const [fileError, setFileError] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -151,9 +153,19 @@ export function RagDocumentsPage() {
       label: '',
       align: 'right',
       render: (row) => (
-        <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete ${row.id}`}>
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setChunksForDoc(row)}
+            aria-label={`View chunks for ${row.name ?? row.id}`}
+          >
+            Chunks
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete ${row.id}`}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -309,6 +321,15 @@ export function RagDocumentsPage() {
           intent="destructive"
           loading={remove.isPending}
           onConfirm={() => remove.mutate(pendingDelete)}
+        />
+      ) : null}
+
+      {chunksForDoc ? (
+        <ChunksPanel
+          documentID={chunksForDoc.id}
+          documentName={chunksForDoc.name ?? chunksForDoc.id}
+          open={chunksForDoc !== null}
+          onOpenChange={(o) => !o && setChunksForDoc(null)}
         />
       ) : null}
     </>

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime/multipart"
@@ -48,6 +49,11 @@ type stubRagDataClient struct {
 	uploadGotFilename   string // M11
 	uploadGotMode       string // M11
 	uploadGotFileBody   string // M11 — the file bytes the handler streamed through
+	chunkErr            error  // chunk-editor — when set, chunk methods fail
+	listChunksGotDocID  string // chunk-editor
+	getChunkGotID       string // chunk-editor
+	updateChunkGotID    string // chunk-editor
+	updateChunkGotBody  string // chunk-editor — the opaque {text} body forwarded
 }
 
 func (s *stubRagDataClient) ListCollections(_ context.Context, _, _ int) (*rag.CollectionsResult, error) {
@@ -181,6 +187,31 @@ func (s *stubRagDataClient) CommunityReport(_ context.Context, collectionID, com
 		return nil, s.graphErr
 	}
 	return json.RawMessage(`{"community_key":"` + communityKey + `","title":"The People Community","summary":"about people","full_content":"# Report\n\nAlice leads.","findings":[{"summary":"Alice leads"}]}`), nil
+}
+
+func (s *stubRagDataClient) ListDocumentChunks(_ context.Context, documentID, _ string) (json.RawMessage, error) {
+	s.listChunksGotDocID = documentID
+	if s.chunkErr != nil {
+		return nil, s.chunkErr
+	}
+	return json.RawMessage(`{"items":[{"id":"chk_1","index":0,"text":"first chunk"},{"id":"chk_2","index":1,"text":"second chunk"}],"next_cursor":null}`), nil
+}
+
+func (s *stubRagDataClient) GetChunk(_ context.Context, id string) (json.RawMessage, error) {
+	s.getChunkGotID = id
+	if s.chunkErr != nil {
+		return nil, s.chunkErr
+	}
+	return json.RawMessage(`{"id":"` + id + `","index":0,"text":"first chunk"}`), nil
+}
+
+func (s *stubRagDataClient) UpdateChunk(_ context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
+	s.updateChunkGotID = id
+	s.updateChunkGotBody = string(body)
+	if s.chunkErr != nil {
+		return nil, s.chunkErr
+	}
+	return json.RawMessage(`{"id":"` + id + `","text":"edited","reembedded":true}`), nil
 }
 
 func newRagDashboard() (*RagDashboardHandler, *stubRagDataClient) {
@@ -634,4 +665,55 @@ func TestRagDashboard_UploadDocumentFile_Unauthenticated401(t *testing.T) {
 	if stub.uploadCalls != 0 {
 		t.Fatalf("uploadCalls = %d, want 0", stub.uploadCalls)
 	}
+}
+
+func TestRagDashboard_ChunkEditor(t *testing.T) {
+	t.Run("list document chunks forwards doc id + returns items", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		req := withID(httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/documents/doc_1/chunks", nil).
+			WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"})), "doc_1")
+		w := httptest.NewRecorder()
+		h.ListDocumentChunks(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+		}
+		if stub.listChunksGotDocID != "doc_1" {
+			t.Fatalf("doc id not forwarded: %q", stub.listChunksGotDocID)
+		}
+		if !strings.Contains(w.Body.String(), `"id":"chk_1"`) {
+			t.Fatalf("chunks not forwarded opaquely: %s", w.Body.String())
+		}
+	})
+
+	t.Run("update chunk forwards body + returns reembedded", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		req := withID(httptest.NewRequest(http.MethodPatch, "/v1/dashboard/rag/chunks/chk_9", strings.NewReader(`{"text":"corrected"}`)).
+			WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"})), "chk_9")
+		w := httptest.NewRecorder()
+		h.UpdateChunk(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+		}
+		if stub.updateChunkGotID != "chk_9" || !strings.Contains(stub.updateChunkGotBody, "corrected") {
+			t.Fatalf("id/body not forwarded: id=%q body=%q", stub.updateChunkGotID, stub.updateChunkGotBody)
+		}
+		if !strings.Contains(w.Body.String(), `"reembedded":true`) {
+			t.Fatalf("reembedded not returned: %s", w.Body.String())
+		}
+	})
+
+	t.Run("update chunk maps upstream 404 to typed CHUNK_NOT_FOUND", func(t *testing.T) {
+		h, stub := newRagDashboard()
+		stub.chunkErr = fmt.Errorf("theo-rag returned 404")
+		req := withID(httptest.NewRequest(http.MethodPatch, "/v1/dashboard/rag/chunks/chk_x", strings.NewReader(`{"text":"x"}`)).
+			WithContext(auth.WithUser(context.Background(), &auth.UserContext{TenantID: "t1"})), "chk_x")
+		w := httptest.NewRecorder()
+		h.UpdateChunk(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("want 404, got %d (%s)", w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Body.String(), "CHUNK_NOT_FOUND") {
+			t.Fatalf("want typed CHUNK_NOT_FOUND: %s", w.Body.String())
+		}
+	})
 }

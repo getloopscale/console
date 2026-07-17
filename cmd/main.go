@@ -166,6 +166,9 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		r.Get("/collections/{id}/communities", h.Communities)
 		// M13 — full community report (title + full_content + findings) drill-down.
 		r.Get("/collections/{id}/communities/{key}/report", h.CommunityReport)
+		// chunk-editor — view a document's chunks + read one chunk (rag:read).
+		r.Get("/documents/{id}/chunks", h.ListDocumentChunks)
+		r.Get("/chunks/{id}", h.GetChunk)
 		// writes (M21)
 		r.Post("/collections", h.CreateCollection)
 		r.Delete("/collections/{id}", h.DeleteCollection)
@@ -174,6 +177,8 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		r.Post("/documents/file", h.UploadDocumentFile)
 		r.Delete("/documents/{id}", h.DeleteDocument)
 		r.Post("/answers", h.Ask)
+		// chunk-editor — edit a chunk's text (rag:write); theo-rag re-embeds it server-side.
+		r.Patch("/chunks/{id}", h.UpdateChunk)
 		// connectors (#191 + M8 connect)
 		r.Get("/connectors", h.ListConnectors)
 		r.Post("/connectors/{provider}/connect", h.ConnectConnector)

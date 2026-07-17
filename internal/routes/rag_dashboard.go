@@ -42,6 +42,11 @@ type RagDataClient interface {
 	Communities(ctx context.Context, collectionID, level string) (json.RawMessage, error)
 	// M13 — the full report (title + full_content + findings) for a community. Forwarded opaquely.
 	CommunityReport(ctx context.Context, collectionID, communityKey, level string) (json.RawMessage, error)
+	// chunk-editor — list a document's chunks (read), read one chunk, and edit a chunk's text
+	// (theo-rag re-embeds server-side on write). Forwarded opaquely; rag:read / rag:write gated at theo-rag.
+	ListDocumentChunks(ctx context.Context, documentID, cursor string) (json.RawMessage, error)
+	GetChunk(ctx context.Context, id string) (json.RawMessage, error)
+	UpdateChunk(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
 }
 
 // RagDashboardHandler serves the /v1/dashboard/rag BFF. Browser JWT sessions (requireJWT)
@@ -157,6 +162,84 @@ func (h *RagDashboardHandler) CommunityReport(w http.ResponseWriter, r *http.Req
 		}
 		h.logger.Warn("rag dashboard: community report failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load the community report.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// ListDocumentChunks serves GET /v1/dashboard/rag/documents/{id}/chunks (chunk-editor, rag:read).
+func (h *RagDashboardHandler) ListDocumentChunks(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A document id is required.")
+		return
+	}
+	res, err := h.client.ListDocumentChunks(r.Context(), id, r.URL.Query().Get("cursor"))
+	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			writeError(w, http.StatusNotFound, "DOCUMENT_NOT_FOUND", "That document does not exist.")
+			return
+		}
+		h.logger.Warn("rag dashboard: list chunks failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load the chunks.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// GetChunk serves GET /v1/dashboard/rag/chunks/{id} (chunk-editor, rag:read).
+func (h *RagDashboardHandler) GetChunk(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A chunk id is required.")
+		return
+	}
+	res, err := h.client.GetChunk(r.Context(), id)
+	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			writeError(w, http.StatusNotFound, "CHUNK_NOT_FOUND", "That chunk does not exist.")
+			return
+		}
+		h.logger.Warn("rag dashboard: get chunk failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load the chunk.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// UpdateChunk serves PATCH /v1/dashboard/rag/chunks/{id} (chunk-editor, rag:write). Edits a
+// chunk's text; theo-rag re-embeds it server-side. The body ({text}) is forwarded opaquely.
+func (h *RagDashboardHandler) UpdateChunk(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A chunk id is required.")
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "Could not read the request body.")
+		return
+	}
+	res, err := h.client.UpdateChunk(r.Context(), id, json.RawMessage(body))
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "404"):
+			writeError(w, http.StatusNotFound, "CHUNK_NOT_FOUND", "That chunk does not exist.")
+		case strings.Contains(err.Error(), "400"):
+			writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "The chunk text must not be empty.")
+		default:
+			h.logger.Warn("rag dashboard: update chunk failed", "error", err)
+			writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not save the chunk.")
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
