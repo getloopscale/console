@@ -159,16 +159,25 @@ export function RagAskPage() {
             <Card.Body className="space-y-3">
               <p className="whitespace-pre-wrap">{answer.answer}</p>
               {answer.sources && answer.sources.length > 0 ? (
-                <div className="space-y-1">
-                  <h4 className="text-xs font-semibold text-muted-foreground">Sources</h4>
-                  <ul className="space-y-1 text-sm">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase text-muted-foreground">
+                    Sources · {answer.sources.length}
+                  </h4>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="ask-sources">
                     {answer.sources.map((s, i) => (
-                      <li key={i} className="font-mono">
-                        {s.document_id ?? s.chunk_id ?? 'source'}
-                        {s.score != null ? ` · ${s.score.toFixed(3)}` : ''}
-                      </li>
+                      <div
+                        key={i}
+                        className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2"
+                      >
+                        <span className="truncate font-mono text-xs text-foreground">
+                          {s.document_id ?? s.chunk_id ?? 'source'}
+                        </span>
+                        {s.score != null ? (
+                          <Badge variant="outline">{s.score.toFixed(3)}</Badge>
+                        ) : null}
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               ) : null}
             </Card.Body>
