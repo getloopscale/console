@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.40.0] - 2026-07-17
+
+### Added
 - Knowledge Base (KB2): opening a wiki page now shows it **inline, full-column** (with an OKF metadata header + a Back control) instead of a cramped right-side slide-over panel — the Sheet reader is removed. Rendered markdown (KB1) + folder tree (KB2) complete the read workspace.
 
 ### Changed
