@@ -207,6 +207,7 @@ const MENUS: Record<string, MenuDefinition> = {
           { label: 'Collections', path: '/rag/collections', icon: Boxes },
           { label: 'Connectors', path: '/rag/connectors', icon: Plug },
           { label: 'Documents', path: '/rag/documents', icon: ScrollText },
+          { label: 'Wiki', path: '/rag/wiki', icon: BookOpen },
           { label: 'Ask', path: '/rag/ask', icon: Search },
           { label: 'GraphRAG', path: '/rag/graphrag', icon: Network },
           { label: 'Analytics', path: '/rag/analytics', icon: Activity },

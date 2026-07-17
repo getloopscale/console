@@ -372,7 +372,7 @@ export function LoginPage() {
             <Button
               ref={githubButtonRef}
               variant="secondary"
-              size="lg"
+              size="md"
               className={`w-full justify-center gap-3${providerParam === 'github' ? ' ring-2 ring-primary ring-offset-2' : ''}`}
               onClick={() => submitOIDC('github')}
             >
@@ -383,7 +383,7 @@ export function LoginPage() {
             <Button
               ref={googleButtonRef}
               variant="secondary"
-              size="lg"
+              size="md"
               className={`w-full justify-center gap-3${providerParam === 'google' ? ' ring-2 ring-primary ring-offset-2' : ''}`}
               onClick={() => submitOIDC('google')}
             >
@@ -417,7 +417,7 @@ export function LoginPage() {
               <FormField.Control>
                 <Input
                   name="email"
-                  size="lg"
+                  size="md"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -437,7 +437,7 @@ export function LoginPage() {
               <FormField.Control>
                 <Input
                   name="password"
-                  size="lg"
+                  size="md"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -450,7 +450,7 @@ export function LoginPage() {
             <Button
               type="submit"
               variant="primary"
-              size="lg"
+              size="md"
               className="w-full justify-center"
               disabled={submitting}
             >

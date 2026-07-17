@@ -8,6 +8,11 @@ import path from 'path';
 // manualChunks extracted to a pure, unit-tested module (dashboard-manualchunks-tdz-fix,
 // ADR D1/D2) — keeps the react+react-dom+scheduler co-location invariant testable.
 import { manualChunks } from './src/build/manual-chunks';
+// SW navigation denylist extracted to a pure, unit-tested module (theo-cloud#203) —
+// single source of truth shared by navigateFallbackDenylist + the NetworkOnly
+// runtimeCaching predicate, so a BFF navigation path can never be added to one and
+// forgotten in the other (the recurring #112/#203 bug class).
+import { BFF_NAVIGATION_DENYLIST, BFF_NAVIGATION_REGEXP } from './src/build/sw-bff-paths';
 
 /**
  * Dev-only CSP relaxation. The index.html `<meta>` CSP is PRODUCTION-shaped
@@ -139,22 +144,17 @@ export default defineConfig(({ mode }) => ({
         // every existing user with a warm SW (same class as #100 MIME
         // outage). Mirror in runtimeCaching below as NetworkOnly so the
         // path never enters any cache, even after warmup.
-        navigateFallbackDenylist: [
-          /^\/auth\//,
-          /\/api\/v1\/auth\//,
-          /\/sessions\//,
-          /\/self-service\//,
-          /\/oauth2\//,
-        ],
+        navigateFallbackDenylist: [...BFF_NAVIGATION_DENYLIST],
         runtimeCaching: [
           // Auth/session — NetworkOnly (no fallback, no cache).
+          // urlPattern MUST be a RegExp value, not a function referencing the
+          // isBffNavigationPath import — Workbox stringifies the pattern into sw.js
+          // without bundling imports, so a function form emits an undefined identifier
+          // → "ReferenceError: isBffNavigationPath is not defined" that crashes ALL SW
+          // routing (uploads included). BFF_NAVIGATION_REGEXP is the self-contained,
+          // single-source union of the denylist (see src/build/sw-bff-paths.ts).
           {
-            urlPattern: ({ url }) =>
-              /^\/auth\//.test(url.pathname) ||
-              /\/api\/v1\/auth\//.test(url.pathname) ||
-              /\/sessions\//.test(url.pathname) ||
-              /\/self-service\//.test(url.pathname) ||
-              /\/oauth2\//.test(url.pathname),
+            urlPattern: BFF_NAVIGATION_REGEXP,
             handler: 'NetworkOnly',
           },
           // Generic API — NetworkFirst with 3s timeout, cache fallback.

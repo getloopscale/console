@@ -39,6 +39,17 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Density compacta (32px) — alinha o dashboard ao padrão de dimensão do Builder
+   (theo-studio): controles a 32px, não 36px. O TheoUIProvider aplica
+   data-density="comfortable" (--theo-control-h: 2.25rem = 36px) por default e não
+   expõe prop tipado; forçamos o modo `compact` do próprio design system
+   (--theo-control-h: 2rem = 32px, --theo-control-px: 0.75rem). Especificidade
+   html[data-density] (0,1,1) ganha de [data-density="comfortable"] (0,1,0). */
+html[data-density] {
+  --theo-control-h: 2rem;
+  --theo-control-px: 0.75rem;
+}
+
 @theme {
   --color-theo-50: #e8f4f8;
   --color-theo-100: #b8dfe8;
@@ -101,14 +112,14 @@
    * indicator invisible on auth pages. Canonical violet (HSL 260 80% 45%)
    * yields ~5:1 contrast vs card backgrounds — passes WCAG AA. Per ADR D2
    * (canonical violet over black/red; matches comment line 27 + brand). */
-  --ring: 260 80% 45%;
+  --ring: 262 42% 49%;
 
   /* Red Team theo/theo#163 — WCAG 1.4.3 (normal text contrast ≥ 4.5:1).
    * @usetheo/ui default `--primary: oklch(0.628 0.225 296)` (~#995ffe)
    * failed AA in two Lighthouse-detected surfaces:
    *   - white text on primary bg (buttons/CTAs) → 3.87:1
    *   - primary text on dark bg (project name span) → 4.37:1
-   * Darkening to `oklch(0.55 0.22 296)` (~#7c47dc) raises white-on-primary
+   * Darkening to `oklch(0.50 0.16 296.97)` (~#7c47dc) raises white-on-primary
    * to ~5.1:1 (passes AA) while keeping the violet brand identity.
    * `--primary-deep` + `--primary-glow` are `oklch(from var(--primary) …)`
    * derived tokens in @usetheo/ui/tokens.css, so they cascade the new
@@ -119,7 +130,7 @@
    * so a :root-only override is DEAD in the app's actual runtime theme.
    * Red Team #163 v1 caught this via getComputedStyle. Keeping this
    * :root declaration too so a future light-mode surface also benefits. */
-  --primary: oklch(0.55 0.22 296);
+  --primary: oklch(0.50 0.16 296.97);
 }
 
 /* Red Team theo/theo#163 v2 — dark-mode override.
@@ -129,7 +140,7 @@
  * is the block the app actually uses at runtime; without it the fix
  * ships dead. */
 .dark {
-  --primary: oklch(0.55 0.22 296);
+  --primary: oklch(0.50 0.16 296.97);
 }
 
 /* Red Team theo/theo#163 v2 — WCAG 1.4.3 escape for `text-primary` used

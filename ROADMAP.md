@@ -359,7 +359,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M13 — [ ] GraphRAG rich explorer (community reports + interactions)
+### M13 — [x] GraphRAG rich explorer (community reports + interactions)
 
 > Added 2026-07-16 by `/roadmap-feature` (slug: `graphrag-rich-explorer`). See CHANGELOG `[Unreleased] § Added`. Depends on M10.
 

@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import {
@@ -122,6 +122,9 @@ const RagAnalyticsPage = lazy(() =>
 );
 const RagGraphRagPage = lazy(() =>
   import('@/pages/rag/graphrag').then((m) => ({ default: m.RagGraphRagPage })),
+);
+const RagWikiPage = lazy(() =>
+  import('@/pages/rag/wiki').then((m) => ({ default: m.RagWikiPage })),
 );
 // M44 — lens management dashboard pages; M46 — Overview landing
 const LensOverviewPage = lazy(() =>
@@ -288,6 +291,18 @@ function RepositoryAlias() {
 // shadow-tracking approach via a small registry mounted alongside.
 function RouteScope({ children }: { children: ReactNode }) {
   const location = useLocation();
+  // Radix scroll-lock stuck fix (radix-ui/primitives#2122). Quando um overlay do
+  // @usetheo/ui (Select / DropdownMenu / Dialog — todos Radix) está ABERTO e o
+  // componente DESMONTA durante uma navegação de rota, o Radix não roda o cleanup
+  // e deixa `pointer-events: none` (inline) + `data-scroll-locked` PRESOS no <body>.
+  // Nesse estado a página inteira trava: nenhum clique passa e NENHUM texto pode
+  // ser selecionado/copiado. Reproduzido de forma determinística (abrir dropdown →
+  // navegar → body preso). Limpa a cada troca de rota — idempotente e seguro, pois
+  // ao navegar os overlays da rota anterior já foram desmontados.
+  useEffect(() => {
+    document.body.style.removeProperty('pointer-events');
+    document.body.removeAttribute('data-scroll-locked');
+  }, [location.pathname]);
   return <div key={location.pathname}>{children}</div>;
 }
 
@@ -448,6 +463,7 @@ export default function App() {
                     <Route path="/rag/documents" element={<Boundaried path="/rag/documents"><RagDocumentsPage /></Boundaried>} />
                     <Route path="/rag/ask" element={<Boundaried path="/rag/ask"><RagAskPage /></Boundaried>} />
                     <Route path="/rag/graphrag" element={<Boundaried path="/rag/graphrag"><RagGraphRagPage /></Boundaried>} />
+                    <Route path="/rag/wiki" element={<Boundaried path="/rag/wiki"><RagWikiPage /></Boundaried>} />
                     <Route path="/rag/analytics" element={<Boundaried path="/rag/analytics"><RagAnalyticsPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />

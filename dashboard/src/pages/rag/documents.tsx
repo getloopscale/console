@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch, cloudFetchRaw } from '@/lib/api';
+import { ChunksPanel } from './chunks-panel';
 
 // M11 — file types the engine ingests (PDF/office/CSV/text/image). The engine is the
 // source of truth and returns a typed 422 for anything else; this drives the picker's
@@ -48,6 +49,7 @@ export function RagDocumentsPage() {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Document | null>(null);
+  const [chunksForDoc, setChunksForDoc] = useState<Document | null>(null);
   const [ingestMode, setIngestMode] = useState('fast');
   const [fileError, setFileError] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -151,9 +153,19 @@ export function RagDocumentsPage() {
       label: '',
       align: 'right',
       render: (row) => (
-        <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete ${row.id}`}>
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setChunksForDoc(row)}
+            aria-label={`View chunks for ${row.name ?? row.id}`}
+          >
+            Chunks
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete ${row.id}`}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -181,27 +193,38 @@ export function RagDocumentsPage() {
                   </Select.Content>
                 </Select>
 
-                {/* M11 — file upload (drag-drop or click). The primary ingest path. */}
+                {/* M11 — file upload (drag-drop or click). The primary ingest path.
+                    Gated on a selected collection: the dropzone stays disabled until a
+                    collection is chosen, so a user can never pick a file that the
+                    "Select a collection first" guard would silently discard (the
+                    "can't upload" dead-end). */}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept={ACCEPTED_EXT}
                   className="sr-only"
                   aria-label="Choose a file to upload"
+                  disabled={collectionID === ''}
                   onChange={(e) => onFilePicked(e.target.files?.[0])}
                 />
                 <div
                   role="button"
-                  tabIndex={0}
+                  tabIndex={collectionID === '' ? -1 : 0}
                   aria-label="Upload a document file"
-                  onClick={() => fileInputRef.current?.click()}
+                  aria-disabled={collectionID === ''}
+                  onClick={() => {
+                    if (collectionID === '') return;
+                    fileInputRef.current?.click();
+                  }}
                   onKeyDown={(e) => {
+                    if (collectionID === '') return;
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
                       fileInputRef.current?.click();
                     }
                   }}
                   onDragOver={(e) => {
+                    if (collectionID === '') return;
                     e.preventDefault();
                     setDragOver(true);
                   }}
@@ -209,15 +232,24 @@ export function RagDocumentsPage() {
                   onDrop={(e) => {
                     e.preventDefault();
                     setDragOver(false);
+                    if (collectionID === '') return;
                     onFilePicked(e.dataTransfer.files?.[0]);
                   }}
-                  className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center transition-colors ${
-                    dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                  className={`flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center transition-colors ${
+                    collectionID === ''
+                      ? 'cursor-not-allowed border-border opacity-60'
+                      : dragOver
+                        ? 'cursor-pointer border-primary bg-primary/5'
+                        : 'cursor-pointer border-border hover:border-primary/50'
                   }`}
                 >
                   <Upload className="h-6 w-6 text-muted-foreground" />
                   <div className="text-sm font-medium">
-                    {uploadFile.isPending ? 'Uploading…' : 'Drop a file here, or click to browse'}
+                    {collectionID === ''
+                      ? 'Select a collection above to upload a file'
+                      : uploadFile.isPending
+                        ? 'Uploading…'
+                        : 'Drop a file here, or click to browse'}
                   </div>
                   <div className="text-xs text-muted-foreground">PDF, Word, PowerPoint, Excel, CSV, text, or image · up to 10 MB</div>
                 </div>
@@ -309,6 +341,15 @@ export function RagDocumentsPage() {
           intent="destructive"
           loading={remove.isPending}
           onConfirm={() => remove.mutate(pendingDelete)}
+        />
+      ) : null}
+
+      {chunksForDoc ? (
+        <ChunksPanel
+          documentID={chunksForDoc.id}
+          documentName={chunksForDoc.name ?? chunksForDoc.id}
+          open={chunksForDoc !== null}
+          onOpenChange={(o) => !o && setChunksForDoc(null)}
         />
       ) : null}
     </>

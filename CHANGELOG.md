@@ -12,6 +12,25 @@
 
 ### Security
 
+## [0.37.0] - 2026-07-17
+
+### Added
+- Knowledge Base (KB0): wiki page lifecycle — update (`PUT /v1/dashboard/rag/wiki/pages/{id}`, OKF-aware re-embed + rename/move via frontmatter path) and delete (`DELETE /v1/dashboard/rag/wiki/pages/{id}`) BFF proxies over theo-rag; unblocks the Notion-style editor (edit/rename/delete)
+- RAG: chunk viewer + editor — open a document to see its chunks, edit a chunk's text, and save to regenerate its embedding (the corrected text becomes retrievable). New per-tenant BFF proxies (`GET /v1/dashboard/rag/documents/{id}/chunks`, `GET/PATCH /v1/dashboard/rag/chunks/{id}`) over theo-rag's chunk read + a new `PATCH /v1/chunks/{id}` mutation that re-embeds server-side
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+- RAG documents: the file-upload dropzone is now disabled with clear guidance ("Select a collection above to upload a file") until a collection is selected. Previously the dropzone was always active, so choosing a file with no collection selected hit a validation guard that silently discarded the file — the user then clicked upload and nothing happened. Now the required order (pick a collection, then drop a file) is enforced and obvious.
+- Connectors: the PWA service worker no longer shadows the OAuth broker — "Connect with X" navigations to `/v1/rag-connect/*` now reach the backend instead of dead-ending at "Page not found" for users with a warm service worker (#203)
+- Uploads (and every app action): fixed a service-worker crash (`ReferenceError` in the request router) that broke file upload. The worker's request matcher referenced a helper that Workbox did not bundle into the worker; it is now a self-contained pattern derived from the single-source denylist (#203 follow-up)
+
+### Security
+
 ## [0.36.0] - 2026-07-16
 
 ### Added

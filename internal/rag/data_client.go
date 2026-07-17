@@ -375,6 +375,106 @@ func (c *DataClient) DeleteConnector(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/connectors/"+url.PathEscape(id), nil, nil, nil)
 }
 
+// ListDocumentChunks proxies GET /v1/documents/{id}/chunks (chunk-editor, rag:read). Paginated by index cursor.
+func (c *DataClient) ListDocumentChunks(ctx context.Context, documentID, cursor string) (json.RawMessage, error) {
+	q := url.Values{}
+	if cursor != "" {
+		q.Set("cursor", cursor)
+	}
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/documents/"+url.PathEscape(documentID)+"/chunks", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetChunk proxies GET /v1/chunks/{id} (chunk-editor, rag:read).
+func (c *DataClient) GetChunk(ctx context.Context, id string) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/chunks/"+url.PathEscape(id), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// UpdateChunk proxies PATCH /v1/chunks/{id} (chunk-editor, rag:write). The body ({text}) is
+// forwarded opaquely; theo-rag re-embeds the chunk server-side.
+func (c *DataClient) UpdateChunk(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPatch, "/v1/chunks/"+url.PathEscape(id), nil, body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ListWikiPages proxies GET /v1/wiki/pages?collection_id= (Open Wiki, rag:read).
+func (c *DataClient) ListWikiPages(ctx context.Context, collectionID string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("collection_id", collectionID)
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/wiki/pages", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetWikiPage proxies GET /v1/wiki/pages/{id} (Open Wiki, rag:read).
+func (c *DataClient) GetWikiPage(ctx context.Context, id string) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/wiki/pages/"+url.PathEscape(id), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CreateWikiPage proxies POST /v1/wiki/pages (Open Wiki, rag:write). Body {collection_id,name,content}.
+func (c *DataClient) CreateWikiPage(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/v1/wiki/pages", nil, body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// UpdateWikiPage proxies PUT /v1/wiki/pages/{id} (KB0 page lifecycle, rag:write). Body
+// {name?,content}; theo-rag re-parses the OKF frontmatter, re-embeds, and treats a changed
+// frontmatter `path` as a rename/move.
+func (c *DataClient) UpdateWikiPage(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPut, "/v1/wiki/pages/"+url.PathEscape(id), nil, body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// DeleteWikiPage proxies DELETE /v1/documents/{id} (KB0 page lifecycle, rag:delete). A wiki
+// page is a document, so deletion goes through the documents surface.
+func (c *DataClient) DeleteWikiPage(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/documents/"+url.PathEscape(id), nil, nil, nil)
+}
+
+// WikiIndex proxies GET /v1/wiki/index?collection_id= (M26 OKF directory, rag:read).
+func (c *DataClient) WikiIndex(ctx context.Context, collectionID string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("collection_id", collectionID)
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/wiki/index", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// WikiLog proxies GET /v1/wiki/log?collection_id= (M26 OKF changelog, rag:read).
+func (c *DataClient) WikiLog(ctx context.Context, collectionID string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("collection_id", collectionID)
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/wiki/log", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // getJSON is the read wrapper (kept for the M17 read methods) — a GET via `do`.
 func (c *DataClient) getJSON(ctx context.Context, path string, q url.Values, out any) error {
 	return c.do(ctx, http.MethodGet, path, q, nil, out)

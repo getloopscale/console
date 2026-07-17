@@ -82,9 +82,29 @@ createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         <TheoUIProvider
           theme={{
-            themes: [violetForge],
+            // Primary roxo Dracula neutro (sem brilho): croma reduzida (0.13) +
+            // matiz Dracula (302). #8662b6 = ~4.73:1 vs branco (passa WCAG AA,
+            // ao contrário do default oklch(0.628 0.225 296) = 3.87:1). O --primary
+            // vem do tema via TheoUIProvider (o index.css NÃO tem efeito no primary).
+            themes: [
+              {
+                ...violetForge,
+                light: { ...violetForge.light, primary: 'oklch(0.57 0.13 302)' },
+                // input agora vem do próprio @theokit/ui@1.3.1 (violetForge.dark.input
+                // = oklch(0.34), borda perceptível) — override local removido.
+                dark: { ...violetForge.dark, primary: 'oklch(0.57 0.13 302)' },
+              },
+            ],
             defaultTheme: 'violet-forge',
             defaultMode: 'dark',
+            // Locked dark (D1): o dashboard nunca ofereceu theme picker.
+            // - respectSystemMode:false → ignora o prefers-color-scheme do SO
+            //   (default true faria um usuário com SO em light ver o app claro).
+            // - storageKey:null → desliga a persistência em localStorage; sem isto,
+            //   uma sessão anterior que seguiu o SO gravou mode=light e continuaria
+            //   sobrescrevendo o defaultMode. Nada a persistir num tema travado.
+            respectSystemMode: false,
+            storageKey: null,
           }}
         >
           <App />
