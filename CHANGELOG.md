@@ -10,6 +10,7 @@
 ### Removed
 
 ### Fixed
+- RAG documents: the file-upload dropzone is now disabled with clear guidance ("Select a collection above to upload a file") until a collection is selected. Previously the dropzone was always active, so choosing a file with no collection selected hit a validation guard that silently discarded the file — the user then clicked upload and nothing happened. Now the required order (pick a collection, then drop a file) is enforced and obvious.
 - Connectors: the PWA service worker no longer shadows the OAuth broker — "Connect with X" navigations to `/v1/rag-connect/*` now reach the backend instead of dead-ending at "Page not found" for users with a warm service worker (#203)
 - Uploads (and every app action): fixed a service-worker crash (`ReferenceError` in the request router) that broke file upload. The worker's request matcher referenced a helper that Workbox did not bundle into the worker; it is now a self-contained pattern derived from the single-source denylist (#203 follow-up)
 

@@ -193,27 +193,38 @@ export function RagDocumentsPage() {
                   </Select.Content>
                 </Select>
 
-                {/* M11 — file upload (drag-drop or click). The primary ingest path. */}
+                {/* M11 — file upload (drag-drop or click). The primary ingest path.
+                    Gated on a selected collection: the dropzone stays disabled until a
+                    collection is chosen, so a user can never pick a file that the
+                    "Select a collection first" guard would silently discard (the
+                    "can't upload" dead-end). */}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept={ACCEPTED_EXT}
                   className="sr-only"
                   aria-label="Choose a file to upload"
+                  disabled={collectionID === ''}
                   onChange={(e) => onFilePicked(e.target.files?.[0])}
                 />
                 <div
                   role="button"
-                  tabIndex={0}
+                  tabIndex={collectionID === '' ? -1 : 0}
                   aria-label="Upload a document file"
-                  onClick={() => fileInputRef.current?.click()}
+                  aria-disabled={collectionID === ''}
+                  onClick={() => {
+                    if (collectionID === '') return;
+                    fileInputRef.current?.click();
+                  }}
                   onKeyDown={(e) => {
+                    if (collectionID === '') return;
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
                       fileInputRef.current?.click();
                     }
                   }}
                   onDragOver={(e) => {
+                    if (collectionID === '') return;
                     e.preventDefault();
                     setDragOver(true);
                   }}
@@ -221,15 +232,24 @@ export function RagDocumentsPage() {
                   onDrop={(e) => {
                     e.preventDefault();
                     setDragOver(false);
+                    if (collectionID === '') return;
                     onFilePicked(e.dataTransfer.files?.[0]);
                   }}
-                  className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center transition-colors ${
-                    dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                  className={`flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-8 text-center transition-colors ${
+                    collectionID === ''
+                      ? 'cursor-not-allowed border-border opacity-60'
+                      : dragOver
+                        ? 'cursor-pointer border-primary bg-primary/5'
+                        : 'cursor-pointer border-border hover:border-primary/50'
                   }`}
                 >
                   <Upload className="h-6 w-6 text-muted-foreground" />
                   <div className="text-sm font-medium">
-                    {uploadFile.isPending ? 'Uploading…' : 'Drop a file here, or click to browse'}
+                    {collectionID === ''
+                      ? 'Select a collection above to upload a file'
+                      : uploadFile.isPending
+                        ? 'Uploading…'
+                        : 'Drop a file here, or click to browse'}
                   </div>
                   <div className="text-xs text-muted-foreground">PDF, Word, PowerPoint, Excel, CSV, text, or image · up to 10 MB</div>
                 </div>

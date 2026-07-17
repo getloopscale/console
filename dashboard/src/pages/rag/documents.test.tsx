@@ -55,4 +55,30 @@ describe('RagDocumentsPage (/rag/documents)', () => {
     expect(form.get('collection_id')).toBe('col_1');
     expect(form.get('mode')).toBe('fast');
   });
+
+  it('gates the file dropzone until a collection is selected (no dead-end that discards the file)', async () => {
+    // Bug: the dropzone was always enabled, so picking a file with no collection
+    // selected hit the "Select a collection first" guard AND discarded the file —
+    // the user then clicked upload and nothing happened ("can't upload"). Fix:
+    // disable the dropzone + guide the user until a collection is chosen.
+    mockCloudFetch.mockImplementation((path: string) => {
+      if (path.startsWith('/v1/dashboard/rag/collections'))
+        return Promise.resolve({ items: [{ id: 'col_1', name: 'docs' }] });
+      return Promise.resolve({ items: [] });
+    });
+    render(<RagDocumentsPage />);
+
+    // Before selecting a collection → dropzone disabled + explicit guidance.
+    const dropzone = await screen.findByRole('button', { name: 'Upload a document file' });
+    expect(dropzone).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByText(/select a collection above to upload/i)).toBeInTheDocument();
+    // The hidden file input is disabled so a file can never be picked into the dead-end.
+    expect(screen.getByLabelText('Choose a file to upload')).toBeDisabled();
+
+    // After selecting a collection → enabled and ready to browse.
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Collection' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'docs' }));
+    expect(screen.getByRole('button', { name: 'Upload a document file' })).toHaveAttribute('aria-disabled', 'false');
+    expect(screen.getByLabelText('Choose a file to upload')).not.toBeDisabled();
+  });
 });
