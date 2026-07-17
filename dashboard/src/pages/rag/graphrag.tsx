@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { MessageSquare, Network } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
-import { Badge, Button, Card, PageShell, Select, Sheet, Skeleton, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, Dialog, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -430,12 +430,12 @@ export function RagGraphRagPage() {
     </PageShell>
 
     {/* M13 — full community report drill-down (title + full_content + findings). */}
-    <Sheet open={reportKey !== null} onOpenChange={(o) => { if (!o) setReportKey(null); }}>
-      <Sheet.Content side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-2xl">
-        <Sheet.Header>
-          <Sheet.Title className="pr-6">{reportQuery.data?.title ?? `Community ${reportKey ?? ''}`}</Sheet.Title>
-          <Sheet.Description>Auto-generated report for community {reportKey}.</Sheet.Description>
-        </Sheet.Header>
+    <Dialog open={reportKey !== null} onOpenChange={(o) => { if (!o) setReportKey(null); }}>
+      <Dialog.Content className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <Dialog.Header>
+          <Dialog.Title>{reportQuery.data?.title ?? `Community ${reportKey ?? ''}`}</Dialog.Title>
+          <Dialog.Description>Auto-generated report for community {reportKey}.</Dialog.Description>
+        </Dialog.Header>
         <div className="mt-4 space-y-4">
           {reportQuery.isLoading ? (
             <Skeleton />
@@ -465,8 +465,8 @@ export function RagGraphRagPage() {
             </>
           ) : null}
         </div>
-      </Sheet.Content>
-    </Sheet>
+      </Dialog.Content>
+    </Dialog>
     </>
   );
 }
