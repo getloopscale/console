@@ -1,18 +1,24 @@
-import { useEffect } from 'react';
-import { EditorContent, useEditor } from '@tiptap/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { BubbleMenu, EditorContent, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from 'tiptap-markdown';
 
+import { filterSlashItems, parseSlash, type SlashItem } from './kb-editor-slash';
+
 /**
- * KbEditor (KB3) — the Notion-style block editor for Knowledge Base wiki pages. TipTap
- * (headless) + StarterKit gives block editing with markdown input rules ("# " → heading,
- * "- " → list, "```" → code, "> " → quote); `tiptap-markdown` round-trips the document to
- * OKF markdown so the wire contract (the create/update endpoints consume a markdown string)
- * is unchanged. Styled with the app prose tokens so it looks like Theo, not a vendor editor.
+ * KbEditor (KB3 + KB11) — the Notion-style block editor for Knowledge Base wiki pages.
+ * TipTap (headless) + StarterKit gives block editing with markdown input rules ("# " →
+ * heading, "- " → list, "```" → code, "> " → quote); `tiptap-markdown` round-trips the
+ * document to OKF markdown so the wire contract (create/update endpoints consume a markdown
+ * string) is unchanged.
  *
- * `value` is markdown; `onChange` emits markdown. External `value` changes (loading a page
- * to edit) reset the document only while the editor is not focused, so a live edit is never
- * clobbered by a re-render.
+ * KB11 affordances (Notion parity): a **bubble menu** on text selection (bold / italic /
+ * strike / inline-code / H1 / H2) and a **slash menu** — typing "/" on an empty block opens
+ * an insert palette (headings, lists, quote, code). The open/close + filter LOGIC lives in
+ * `kb-editor-slash.ts` (pure, unit-tested); this component owns POSITIONING + keyboard nav.
+ *
+ * `value` is markdown; `onChange` emits markdown. External `value` changes reset the document
+ * only while the editor is not focused, so a live edit is never clobbered by a re-render.
  */
 export interface KbEditorProps {
   readonly value: string;
@@ -20,7 +26,49 @@ export interface KbEditorProps {
   readonly onChange?: (markdown: string) => void;
 }
 
+interface SlashState {
+  readonly items: readonly SlashItem[];
+  readonly active: number;
+  readonly top: number;
+  readonly left: number;
+  readonly tokenLen: number;
+}
+
+function textBeforeCaret(editor: Editor): string {
+  const { $from } = editor.state.selection;
+  return $from.parent.textBetween(0, $from.parentOffset, '\n', '￼');
+}
+
 export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
+  const [slash, setSlash] = useState<SlashState | null>(null);
+  const slashRef = useRef<SlashState | null>(null);
+  slashRef.current = slash;
+  const editorRef = useRef<Editor | null>(null);
+
+  const refreshSlash = useCallback((editor: Editor) => {
+    const { selection } = editor.state;
+    if (!selection.empty) {
+      setSlash(null);
+      return;
+    }
+    const query = parseSlash(textBeforeCaret(editor));
+    if (query === null) {
+      setSlash(null);
+      return;
+    }
+    const items = filterSlashItems(query);
+    const coords = editor.view.coordsAtPos(selection.$from.pos);
+    setSlash({ items, active: 0, top: coords.bottom + 4, left: coords.left, tokenLen: query.length + 1 });
+  }, []);
+
+  const applyItem = useCallback((editor: Editor, item: SlashItem, tokenLen: number) => {
+    const to = editor.state.selection.$from.pos;
+    const from = to - tokenLen;
+    editor.chain().focus().deleteRange({ from, to }).run();
+    item.apply(editor);
+    setSlash(null);
+  }, []);
+
   const editor = useEditor({
     extensions: [StarterKit, Markdown.configure({ html: false, linkify: true })],
     content: value,
@@ -32,11 +80,37 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
         'data-testid': 'kb-editor',
         'aria-label': 'Page editor',
       },
+      handleKeyDown: (_view, event) => {
+        const st = slashRef.current;
+        const ed = editorRef.current;
+        if (st === null || ed === null || st.items.length === 0) return false;
+        if (event.key === 'ArrowDown') {
+          setSlash({ ...st, active: (st.active + 1) % st.items.length });
+          return true;
+        }
+        if (event.key === 'ArrowUp') {
+          setSlash({ ...st, active: (st.active - 1 + st.items.length) % st.items.length });
+          return true;
+        }
+        if (event.key === 'Enter') {
+          applyItem(ed, st.items[st.active], st.tokenLen);
+          return true;
+        }
+        if (event.key === 'Escape') {
+          setSlash(null);
+          return true;
+        }
+        return false;
+      },
     },
     onUpdate: ({ editor: e }) => {
       onChange?.(e.storage.markdown.getMarkdown());
+      refreshSlash(e);
     },
+    onSelectionUpdate: ({ editor: e }) => refreshSlash(e),
   });
+
+  editorRef.current = editor;
 
   useEffect(() => {
     editor?.setEditable(editable);
@@ -50,5 +124,71 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
     }
   }, [value, editor]);
 
-  return <EditorContent editor={editor} />;
+  const btn = 'rounded px-2 py-1 text-sm hover:bg-muted';
+  const activeBtn = (on: boolean) => `${btn} ${on ? 'bg-muted text-primary' : ''}`;
+
+  return (
+    <div className="relative">
+      {editor ? (
+        <BubbleMenu
+          editor={editor}
+          tippyOptions={{ duration: 100 }}
+          className="flex items-center gap-0.5 rounded-md border border-border bg-card p-1 shadow-md"
+          data-testid="kb-bubble-menu"
+        >
+          <button type="button" className={activeBtn(editor.isActive('bold'))} onClick={() => editor.chain().focus().toggleBold().run()} aria-label="Bold">
+            B
+          </button>
+          <button type="button" className={`${activeBtn(editor.isActive('italic'))} italic`} onClick={() => editor.chain().focus().toggleItalic().run()} aria-label="Italic">
+            i
+          </button>
+          <button type="button" className={`${activeBtn(editor.isActive('strike'))} line-through`} onClick={() => editor.chain().focus().toggleStrike().run()} aria-label="Strikethrough">
+            S
+          </button>
+          <button type="button" className={`${activeBtn(editor.isActive('code'))} font-mono`} onClick={() => editor.chain().focus().toggleCode().run()} aria-label="Inline code">
+            {'</>'}
+          </button>
+          <span className="mx-0.5 h-4 w-px bg-border" aria-hidden="true" />
+          <button type="button" className={activeBtn(editor.isActive('heading', { level: 1 }))} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} aria-label="Heading 1">
+            H1
+          </button>
+          <button type="button" className={activeBtn(editor.isActive('heading', { level: 2 }))} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} aria-label="Heading 2">
+            H2
+          </button>
+        </BubbleMenu>
+      ) : null}
+
+      <EditorContent editor={editor} />
+
+      {slash && editor ? (
+        <div
+          role="listbox"
+          aria-label="Insert block"
+          data-testid="kb-slash-menu"
+          className="fixed z-50 w-56 overflow-hidden rounded-md border border-border bg-card py-1 shadow-lg"
+          style={{ top: slash.top, left: slash.left }}
+        >
+          {slash.items.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
+          ) : (
+            slash.items.map((it, i) => (
+              <button
+                key={it.id}
+                type="button"
+                role="option"
+                aria-selected={i === slash.active}
+                className={`flex w-full items-center px-3 py-1.5 text-left text-sm hover:bg-muted ${i === slash.active ? 'bg-muted' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applyItem(editor, it, slash.tokenLen);
+                }}
+              >
+                {it.label}
+              </button>
+            ))
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
 }

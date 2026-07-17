@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Knowledge Base (KB11): the wiki editor gained Notion-style affordances - a **slash menu** (type / to insert headings, lists, quote, code; filters as you type; arrow/enter/escape nav) and a **bubble menu** on text selection (bold / italic / strike / inline-code / H1 / H2).
 
 ### Changed
 
