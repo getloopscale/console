@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Sheet, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { MarkdownView } from '@/components/common/markdown-view';
 
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -278,7 +279,7 @@ function WikiPageSheet({ pageID, onClose }: { pageID: string | null; onClose: ()
                   ) : null}
                 </div>
               ) : null}
-              <pre className="whitespace-pre-wrap break-words text-sm text-foreground">{page?.content}</pre>
+              <MarkdownView source={page?.content ?? ''} />
             </div>
           )}
         </div>
