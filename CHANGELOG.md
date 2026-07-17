@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.43.0] - 2026-07-17
+
+### Added
 - Knowledge Base (KB5): the GraphRAG community report now opens as a **centered modal** (keeping the graph visible behind) instead of a right-side slide-over — the third and final Sheet is removed. The module's read/drill-down surfaces no longer use the slide-over pattern.
 
 ### Changed
