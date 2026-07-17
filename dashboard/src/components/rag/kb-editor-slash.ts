@@ -65,6 +65,13 @@ export const SLASH_ITEMS: readonly SlashItem[] = [
     apply: (e) => e.chain().focus().toggleOrderedList().run(),
   },
   {
+    id: 'todo',
+    label: 'To-do list',
+    keywords: ['task', 'todo', 'checkbox', 'checklist'],
+    // toggleTaskList is provided by @tiptap/extension-task-list (KB12).
+    apply: (e) => (e.chain().focus() as unknown as { toggleTaskList: () => { run: () => void } }).toggleTaskList().run(),
+  },
+  {
     id: 'quote',
     label: 'Quote',
     keywords: ['blockquote', 'callout'],
