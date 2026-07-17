@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Knowledge Base (KB1): wiki pages now render as **real markdown** (headings, lists, GitHub-flavored tables, code) with sanitized output, replacing the plain-text dump. New shared `MarkdownView` reading component (react-markdown + remark-gfm + rehype-sanitize).
 
 ### Changed
 
