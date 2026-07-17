@@ -37,10 +37,9 @@ describe('filterSlashItems (KB11 palette filter)', () => {
   });
 
   it('matches by keyword', () => {
-    const r = filterSlashItems('todo');
-    // "todo" is not a keyword in the base palette; ensure keyword matching works via "ul"
+    // "todo" is a keyword on the checklist item (KB12); "ul" is a keyword on the bullet item.
+    expect(filterSlashItems('todo').map((i) => i.id)).toEqual(['todo']);
     expect(filterSlashItems('ul').map((i) => i.id)).toContain('bullet');
-    expect(r).toEqual([]);
   });
 
   it('returns empty for a no-match query', () => {

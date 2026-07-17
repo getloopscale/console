@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BubbleMenu, EditorContent, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Placeholder from '@tiptap/extension-placeholder';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 import { Markdown } from 'tiptap-markdown';
 
 import { filterSlashItems, parseSlash, type SlashItem } from './kb-editor-slash';
@@ -70,9 +73,22 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
   }, []);
 
   const editor = useEditor({
-    extensions: [StarterKit, Markdown.configure({ html: false, linkify: true })],
+    extensions: [
+      StarterKit,
+      // KB12 — interactive checklists that round-trip to GFM `- [ ]` markdown.
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      // KB12 — empty-block placeholder ("Type / for commands…").
+      Placeholder.configure({
+        placeholder: ({ node }) =>
+          node.type.name === 'paragraph' ? "Type '/' for commands…" : '',
+      }),
+      Markdown.configure({ html: false, linkify: true }),
+    ],
     content: value,
     editable,
+    // KB12 — auto-focus at the end when the editor is editable (create/edit surfaces).
+    autofocus: editable ? 'end' : false,
     editorProps: {
       attributes: {
         class:
