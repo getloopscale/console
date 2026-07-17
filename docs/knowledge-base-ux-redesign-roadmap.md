@@ -165,6 +165,17 @@ management polish; connectors flow polish (already modal); carry the collection 
 
 ---
 
+### Phase 2 — Notion-grade polish (KB9-KB14)
+
+Added 2026-07-17 after KB0-KB8 shipped: the wiki structure was sound but the reading/editing surface still felt flat ("desconfigurado"). Phase 2 makes the prose and the editor feel like Notion.
+
+- **KB9 — Prose engine (the fix).** Install + `@plugin` the `@tailwindcss/typography` engine under Tailwind v4 (was missing → `prose` classes generated nothing) and bind an unlayered Notion-grade theme to the design tokens: heading scale, bordered/zebra tables, chip inline-code, panelled code blocks, task-list checkboxes. DoD: compiled bundle contains `.prose` rules; rendered markdown shows distinct heading hierarchy + bordered table + code panel (LIVE render proof).
+- **KB10 — Blocks.** Code blocks with syntax highlighting + copy button; callouts/quotes styled; images/links polished. DoD: a fenced code block renders highlighted with a working copy control.
+- **KB11 — Notion editor affordances.** Slash `/` menu to insert blocks, bubble menu on selection, `+ add block` control. DoD: typing `/` opens an insert menu; selecting text shows a formatting bubble.
+- **KB12 — Editor polish.** Placeholders, interactive checklists, collapsible toggles, auto-focus. DoD: empty editor shows placeholder; a checklist item toggles and round-trips to markdown.
+- **KB13 — OKF metadata rail + templates.** Right-hand metadata panel (type/tags/description) + starter templates (Concept/Runbook/API) + autosave indicator. DoD: creating from a template pre-fills body + frontmatter; edits show a saving indicator.
+- **KB14 — Read/edit toggle + command palette + final polish.** One-click read<->edit toggle, Cmd+K palette to jump between pages, hover peek on the tree. DoD: toggle switches modes without navigation; Cmd+K opens a page search.
+
 ## 8. Global invariants (every milestone)
 
 - **Product language (Rule 3):** no `vector`/`pgvector`/`S3`/`bucket`/`embedding-internals` in user copy.
