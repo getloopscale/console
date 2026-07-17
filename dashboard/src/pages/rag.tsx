@@ -82,13 +82,13 @@ export function RagOverviewPage() {
             <h2 className="mb-3 text-base font-semibold">Quick actions</h2>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" data-testid="kb-quick-actions">
               <Button variant="secondary" onClick={() => (window.location.href = '/rag/wiki')} aria-label="New wiki page">
-                📝 New page
+                New page
               </Button>
               <Button variant="secondary" onClick={() => (window.location.href = '/rag/documents')} aria-label="Upload a document">
-                ⬆️ Upload document
+                Upload document
               </Button>
               <Button variant="secondary" onClick={() => (window.location.href = '/rag/ask')} aria-label="Ask a question">
-                🔍 Ask a question
+                Ask a question
               </Button>
             </div>
           </Card.Body>

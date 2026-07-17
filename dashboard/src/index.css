@@ -28,6 +28,11 @@
  *   - Scrollbar styled with theme --primary.
  */
 @import 'tailwindcss';
+/* KB9 — Tailwind v4 typography engine. Without this @plugin the `prose` /
+ * `prose-invert` utility classes (used by MarkdownView + the KbEditor) generate
+ * NOTHING, so wiki markdown rendered unstyled. The @plugin activates the prose
+ * generator; the Notion-grade theme overrides live in the `.prose` block below. */
+@plugin "@tailwindcss/typography";
 /* @usetheo/ui@0.22 stopped shipping preset.css/components.css/fonts-cdn.css
  * (upstream regression #10 — migrated to a Tailwind-v4 utility model). We vendor
  * the canonical token layers from the design system's own Ladle preview and let
@@ -333,3 +338,68 @@ html[data-density] {
     }
   }
 }
+
+/* KB9 — Notion-grade prose theme. Binds the typography plugin's colors to the
+ * design tokens (so it matches the dark theme) and tightens the reading rhythm:
+ * chip-style inline code, panelled code blocks, bordered/zebra tables, heading
+ * scale. Applies to MarkdownView (wiki reader) + the KbEditor content. */
+  .prose {
+    --tw-prose-body: var(--color-foreground);
+    --tw-prose-headings: var(--color-foreground);
+    --tw-prose-links: var(--color-primary);
+    --tw-prose-bold: var(--color-foreground);
+    --tw-prose-counters: var(--color-muted-foreground);
+    --tw-prose-bullets: var(--color-muted-foreground);
+    --tw-prose-hr: var(--color-border);
+    --tw-prose-quotes: var(--color-muted-foreground);
+    --tw-prose-quote-borders: var(--color-border);
+    --tw-prose-code: var(--color-foreground);
+    --tw-prose-pre-code: var(--color-foreground);
+    --tw-prose-pre-bg: var(--color-muted);
+    --tw-prose-th-borders: var(--color-border);
+    --tw-prose-td-borders: var(--color-border);
+    --tw-prose-invert-body: var(--color-foreground);
+    --tw-prose-invert-headings: var(--color-foreground);
+    --tw-prose-invert-links: var(--color-primary);
+    --tw-prose-invert-borders: var(--color-border);
+    max-width: none;
+  }
+  /* inline code as a subtle chip (not the plugin's backtick quotes) */
+  .prose :where(code):not(:where(pre code)) {
+    background: var(--color-muted);
+    padding: 0.12em 0.35em;
+    border-radius: 0.35rem;
+    font-weight: 500;
+  }
+  .prose :where(code):not(:where(pre code))::before,
+  .prose :where(code):not(:where(pre code))::after {
+    content: none;
+  }
+  /* code blocks as a panel */
+  .prose pre {
+    background: var(--color-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+  }
+  /* tables: bordered + zebra header */
+  .prose table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .prose :where(th, td) {
+    border: 1px solid var(--color-border);
+    padding: 0.45rem 0.7rem;
+    text-align: left;
+  }
+  .prose thead th {
+    background: var(--color-muted);
+    font-weight: 600;
+  }
+  /* heading rhythm (Notion-like) */
+  .prose :where(h1) { font-size: 1.6rem; line-height: 1.25; margin-top: 1.2em; margin-bottom: 0.4em; }
+  .prose :where(h2) { font-size: 1.3rem; line-height: 1.3; margin-top: 1.1em; margin-bottom: 0.35em; }
+  .prose :where(h3) { font-size: 1.1rem; line-height: 1.35; margin-top: 1em; margin-bottom: 0.3em; }
+  /* task-list checkboxes render inline (GFM) */
+  .prose :where(ul):has(input[type='checkbox']) { list-style: none; padding-left: 0.25rem; }
+  .prose :where(li):has(input[type='checkbox']) { padding-left: 0; }
+  .prose input[type='checkbox'] { margin-right: 0.5rem; }
