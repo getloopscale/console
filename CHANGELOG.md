@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.44.0] - 2026-07-17
+
+### Added
 - Knowledge Base (KB6): Ask now renders citation **sources as scannable cards** (document/chunk + score badge, two-column grid) instead of a plain mono list, making the citation-backed answer easier to follow.
 
 ### Changed
