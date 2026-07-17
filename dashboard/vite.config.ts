@@ -8,6 +8,11 @@ import path from 'path';
 // manualChunks extracted to a pure, unit-tested module (dashboard-manualchunks-tdz-fix,
 // ADR D1/D2) — keeps the react+react-dom+scheduler co-location invariant testable.
 import { manualChunks } from './src/build/manual-chunks';
+// SW navigation denylist extracted to a pure, unit-tested module (theo-cloud#203) —
+// single source of truth shared by navigateFallbackDenylist + the NetworkOnly
+// runtimeCaching predicate, so a BFF navigation path can never be added to one and
+// forgotten in the other (the recurring #112/#203 bug class).
+import { BFF_NAVIGATION_DENYLIST, isBffNavigationPath } from './src/build/sw-bff-paths';
 
 /**
  * Dev-only CSP relaxation. The index.html `<meta>` CSP is PRODUCTION-shaped
@@ -139,22 +144,11 @@ export default defineConfig(({ mode }) => ({
         // every existing user with a warm SW (same class as #100 MIME
         // outage). Mirror in runtimeCaching below as NetworkOnly so the
         // path never enters any cache, even after warmup.
-        navigateFallbackDenylist: [
-          /^\/auth\//,
-          /\/api\/v1\/auth\//,
-          /\/sessions\//,
-          /\/self-service\//,
-          /\/oauth2\//,
-        ],
+        navigateFallbackDenylist: [...BFF_NAVIGATION_DENYLIST],
         runtimeCaching: [
           // Auth/session — NetworkOnly (no fallback, no cache).
           {
-            urlPattern: ({ url }) =>
-              /^\/auth\//.test(url.pathname) ||
-              /\/api\/v1\/auth\//.test(url.pathname) ||
-              /\/sessions\//.test(url.pathname) ||
-              /\/self-service\//.test(url.pathname) ||
-              /\/oauth2\//.test(url.pathname),
+            urlPattern: ({ url }) => isBffNavigationPath(url.pathname),
             handler: 'NetworkOnly',
           },
           // Generic API — NetworkFirst with 3s timeout, cache fallback.

@@ -9,6 +9,7 @@
 ### Removed
 
 ### Fixed
+- Connectors: the PWA service worker no longer shadows the OAuth broker — "Connect with X" navigations to `/v1/rag-connect/*` now reach the backend instead of dead-ending at "Page not found" for users with a warm service worker (#203)
 
 ### Security
 
