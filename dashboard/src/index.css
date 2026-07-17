@@ -50,6 +50,18 @@ html[data-density] {
   --theo-control-px: 0.75rem;
 }
 
+/* Selects a 24px — paridade com o composer do Agent Builder (theo-studio), que
+   usa selects/menus ultra-compactos (24px / 12px) em vez do controle-padrão de
+   32px do DS. Escopado ao dashboard (o @usetheo/ui mantém 32px como default para
+   os demais consumidores). Os itens do dropdown já batem (py-1.5 = 6px). `lg`
+   fica de fora (mantém selects grandes intencionais). */
+[data-slot="select-trigger"]:not([data-size="lg"]) {
+  height: 1.5rem;
+  padding-block: 0;
+  padding-inline: 0.5rem;
+  font-size: 12px;
+}
+
 @theme {
   --color-theo-50: #e8f4f8;
   --color-theo-100: #b8dfe8;
