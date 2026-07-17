@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, Sheet, Skeleton, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { cloudFetch } from '@/lib/api';
@@ -18,16 +18,15 @@ interface Chunk {
   text: string;
 }
 
+// KB4 — inline chunk editor (replaces the right-side Sheet slide-over).
 export function ChunksPanel({
   documentID,
   documentName,
-  open,
-  onOpenChange,
+  onClose,
 }: {
   documentID: string;
   documentName: string;
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
+  onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -37,7 +36,7 @@ export function ChunksPanel({
     queryKey: ['cloud', '/v1/dashboard/rag/chunks', documentID] as const,
     queryFn: () =>
       cloudFetch<{ items: Chunk[] }>(`/v1/dashboard/rag/documents/${encodeURIComponent(documentID)}/chunks`),
-    enabled: open && documentID !== '',
+    enabled: documentID !== '',
   });
 
   const save = useMutation({
@@ -56,13 +55,15 @@ export function ChunksPanel({
   const chunks = chunksQuery.data?.items ?? [];
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <Sheet.Content side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-2xl">
-        <Sheet.Header>
-          <Sheet.Title className="pr-6">Chunks · {documentName}</Sheet.Title>
-          <Sheet.Description>Edit a chunk&rsquo;s text and save to regenerate its embedding.</Sheet.Description>
-        </Sheet.Header>
-        <div className="space-y-3 py-4">
+    <Card>
+      <Card.Body>
+        <div className="mb-3 flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Back to documents">
+            ← Back
+          </Button>
+          <span className="truncate font-medium">Chunks · {documentName}</span>
+        </div>
+        <div className="space-y-3">
           {chunksQuery.isLoading ? (
             <Skeleton />
           ) : chunksQuery.isError ? (
@@ -130,7 +131,7 @@ export function ChunksPanel({
             ))
           )}
         </div>
-      </Sheet.Content>
-    </Sheet>
+      </Card.Body>
+    </Card>
   );
 }

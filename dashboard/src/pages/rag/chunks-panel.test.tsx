@@ -20,14 +20,14 @@ describe('ChunksPanel (chunk viewer/editor)', () => {
 
   it('lists a document chunks on open', async () => {
     wire();
-    render(<ChunksPanel documentID="doc_1" documentName="README.md" open onOpenChange={() => {}} />);
+    render(<ChunksPanel documentID="doc_1" documentName="README.md" onClose={() => {}} />);
     expect(await screen.findByText('original text')).toBeInTheDocument();
     expect(screen.getByText('#0')).toBeInTheDocument();
   });
 
   it('editing a chunk + Save issues a PATCH with the new text (re-embed)', async () => {
     wire();
-    render(<ChunksPanel documentID="doc_1" documentName="README.md" open onOpenChange={() => {}} />);
+    render(<ChunksPanel documentID="doc_1" documentName="README.md" onClose={() => {}} />);
     await screen.findByText('original text');
     await userEvent.click(screen.getByRole('button', { name: /edit chunk 0/i }));
     const ta = screen.getByLabelText('Chunk 0 text');
@@ -44,7 +44,7 @@ describe('ChunksPanel (chunk viewer/editor)', () => {
 
   it('Save is disabled until the text actually changes', async () => {
     wire();
-    render(<ChunksPanel documentID="doc_1" documentName="README.md" open onOpenChange={() => {}} />);
+    render(<ChunksPanel documentID="doc_1" documentName="README.md" onClose={() => {}} />);
     await screen.findByText('original text');
     await userEvent.click(screen.getByRole('button', { name: /edit chunk 0/i }));
     expect(screen.getByRole('button', { name: /save & re-embed/i })).toBeDisabled();

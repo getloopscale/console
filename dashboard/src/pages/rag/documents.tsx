@@ -177,6 +177,14 @@ export function RagDocumentsPage() {
     <>
       <PageShell title="Documents" description="Upload documents into a collection and track ingestion status.">
         <div className="space-y-6">
+          {chunksForDoc ? (
+            <ChunksPanel
+              documentID={chunksForDoc.id}
+              documentName={chunksForDoc.name ?? chunksForDoc.id}
+              onClose={() => setChunksForDoc(null)}
+            />
+          ) : (
+            <>
           <Card>
             <Card.Body>
               <div className="space-y-3">
@@ -327,6 +335,8 @@ export function RagDocumentsPage() {
               <DataTable columns={columns} data={docs} rowKey={(row) => row.id} />
             </Card>
           )}
+            </>
+          )}
         </div>
       </PageShell>
 
@@ -344,14 +354,6 @@ export function RagDocumentsPage() {
         />
       ) : null}
 
-      {chunksForDoc ? (
-        <ChunksPanel
-          documentID={chunksForDoc.id}
-          documentName={chunksForDoc.name ?? chunksForDoc.id}
-          open={chunksForDoc !== null}
-          onOpenChange={(o) => !o && setChunksForDoc(null)}
-        />
-      ) : null}
     </>
   );
 }
