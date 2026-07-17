@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.39.0] - 2026-07-17
+
+### Added
 - Knowledge Base (KB2): the wiki index is now a **navigable folder tree** (collapsible folders derived from OKF page paths, clickable page leaves) instead of the plain `<pre>` markdown dump; folderless pages bucket under "Ungrouped" (kept last).
 
 ### Changed
