@@ -121,6 +121,8 @@ function TreeLevel({ node, depth, onOpen }: { node: FolderNode; depth: number; o
           className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           style={{ paddingLeft: `${depth * 12 + 20}px` }}
           aria-label={`Open ${p.name}`}
+          /* KB14 — hover peek: native tooltip shows the full OKF path + type. */
+          title={p.type && p.type !== 'concept' ? `${p.name} · ${p.type}` : p.name}
           role="treeitem"
         >
           <FileText className="h-3.5 w-3.5 shrink-0" />

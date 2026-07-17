@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen } from 'lucide-react';
-import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { Badge, Button, Card, CommandPalette, EmptyState, Input, PageShell, Select, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/components/common/markdown-view';
 import { WikiTree } from './wiki-tree';
 import { KbEditor } from '@/components/rag/kb-editor';
 import { applyTemplate, WIKI_TEMPLATES } from './wiki-templates';
+import { toCommandItems } from './wiki-command';
 
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -70,6 +71,19 @@ export function RagWikiPage() {
   const [tags, setTags] = useState('');
   const [description, setDescription] = useState('');
   const [openPageID, setOpenPageID] = useState<string | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // KB14 — Cmd/Ctrl+K opens the wiki page palette (jump to any page without navigation).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
@@ -121,7 +135,30 @@ export function RagWikiPage() {
 
   return (
     <PageShell title="Wiki" description="Markdown-native wiki pages your team can read and Ask over.">
+      {/* KB14 — Cmd+K page palette (jump to any page). */}
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        items={toCommandItems(pages)}
+        onSelect={(id) => {
+          setOpenPageID(id);
+          setPaletteOpen(false);
+        }}
+        placeholder="Search wiki pages…"
+        emptyMessage={pages.length === 0 ? 'Select a collection to search its pages.' : 'No matching pages.'}
+      />
       <div className="space-y-6">
+        <div className="flex justify-end">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Search wiki pages"
+            data-testid="kb-palette-trigger"
+          >
+            Search pages ⌘K
+          </Button>
+        </div>
         {openPageID !== null ? (
           <InlineReader pageID={openPageID} onBack={() => setOpenPageID(null)} />
         ) : (
@@ -316,26 +353,40 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
           </Button>
           <span className="truncate font-medium">{page?.name ?? 'Wiki page'}</span>
           <div className="ml-auto flex items-center gap-2">
-            {editing ? (
-              <>
-                <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={save.isPending}>
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending} aria-label="Save page">
-                  {save.isPending ? 'Saving…' : 'Save'}
-                </Button>
-              </>
-            ) : page ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setDraft(page.content ?? '');
-                  setEditing(true);
-                }}
-                aria-label="Edit page"
+            {/* KB14 — one-click Read/Edit toggle (no navigation between modes). */}
+            {page ? (
+              <div
+                className="inline-flex rounded-md border border-border p-0.5 text-sm"
+                role="group"
+                aria-label="View mode"
+                data-testid="kb-view-toggle"
               >
-                Edit
+                <button
+                  type="button"
+                  aria-pressed={!editing}
+                  disabled={save.isPending}
+                  onClick={() => setEditing(false)}
+                  className={`rounded px-2 py-0.5 ${!editing ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Read
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={editing}
+                  disabled={save.isPending}
+                  onClick={() => {
+                    if (!editing) setDraft(page.content ?? '');
+                    setEditing(true);
+                  }}
+                  className={`rounded px-2 py-0.5 ${editing ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Edit
+                </button>
+              </div>
+            ) : null}
+            {editing ? (
+              <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending} aria-label="Save page">
+                {save.isPending ? 'Saving…' : 'Save'}
               </Button>
             ) : null}
           </div>
