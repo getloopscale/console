@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Knowledge Base (KB13): the wiki create form gained an **OKF metadata rail** (type / tags / description in a side panel), **starter templates** (Concept / Runbook / API) that pre-fill the body and frontmatter in one click, and an **autosave-style status indicator** (Unsaved changes -> Saving -> Saved) in the page editor.
 
 ### Changed
 

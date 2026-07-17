@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/components/common/markdown-view';
 import { WikiTree } from './wiki-tree';
 import { KbEditor } from '@/components/rag/kb-editor';
+import { applyTemplate, WIKI_TEMPLATES } from './wiki-templates';
 
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -106,6 +107,16 @@ export function RagWikiPage() {
 
   const collections = collectionsQuery.data?.items ?? [];
   const pages = pagesQuery.data?.items ?? [];
+  // KB13 — a template pre-fills the body AND the OKF frontmatter fields on the create form.
+  const pickTemplate = (id: string) => {
+    const fill = applyTemplate(id);
+    if (fill === null) return;
+    setType(fill.type);
+    setTags(fill.tags);
+    setDescription(fill.description);
+    setContent(fill.body);
+  };
+
   const canCreate = collectionID !== '' && name.trim() !== '' && content.trim() !== '' && !create.isPending;
 
   return (
@@ -131,19 +142,60 @@ export function RagWikiPage() {
                 </Select.Content>
               </Select>
 
-              <div className="space-y-2">
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Page title"
-                  aria-label="Page title"
-                  disabled={collectionID === ''}
-                />
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {/* KB13 — main editor column + a metadata rail (templates + OKF details). */}
+              <div className="grid gap-4 lg:grid-cols-[1fr_16rem]">
+                <div className="space-y-2">
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Page title"
+                    aria-label="Page title"
+                    disabled={collectionID === ''}
+                  />
+                  <KbEditor value={content} onChange={setContent} editable={collectionID !== ''} />
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      {collectionID === '' ? 'Select a collection first.' : 'New pages become searchable in Ask automatically.'}
+                    </span>
+                    <Button size="sm" disabled={!canCreate} onClick={() => create.mutate()}>
+                      {create.isPending ? 'Creating…' : 'Create page'}
+                    </Button>
+                  </div>
+                  {create.isError ? (
+                    <Alert intent="destructive" title="Could not create the page">
+                      Check the title and content, then try again.
+                    </Alert>
+                  ) : null}
+                </div>
+
+                <aside
+                  className="space-y-3 rounded-md border border-border bg-muted/20 p-3"
+                  aria-label="Page details"
+                >
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Start from a template
+                  </div>
+                  <div className="flex flex-wrap gap-1.5" data-testid="kb-templates">
+                    {WIKI_TEMPLATES.map((t) => (
+                      <Button
+                        key={t.id}
+                        variant="secondary"
+                        size="sm"
+                        disabled={collectionID === ''}
+                        onClick={() => pickTemplate(t.id)}
+                        aria-label={`Use ${t.label} template`}
+                      >
+                        {t.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Page details
+                  </div>
                   <Input
                     value={type}
                     onChange={(e) => setType(e.target.value)}
-                    placeholder="Type (e.g. concept, metric)"
+                    placeholder="Type (e.g. concept)"
                     aria-label="Page type"
                     disabled={collectionID === ''}
                   />
@@ -161,21 +213,7 @@ export function RagWikiPage() {
                     aria-label="Page description"
                     disabled={collectionID === ''}
                   />
-                </div>
-                <KbEditor value={content} onChange={setContent} editable={collectionID !== ''} />
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    {collectionID === '' ? 'Select a collection first.' : 'New pages become searchable in Ask automatically.'}
-                  </span>
-                  <Button size="sm" disabled={!canCreate} onClick={() => create.mutate()}>
-                    {create.isPending ? 'Creating…' : 'Create page'}
-                  </Button>
-                </div>
-                {create.isError ? (
-                  <Alert intent="destructive" title="Could not create the page">
-                    Check the title and content, then try again.
-                  </Alert>
-                ) : null}
+                </aside>
               </div>
             </div>
           </Card.Body>
@@ -266,6 +304,9 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
     },
   });
 
+  // KB13 — autosave-style indicator: dirty (unsaved) → saving → saved.
+  const dirty = editing && draft.trim() !== (page?.content ?? '').trim();
+
   return (
     <Card>
       <Card.Body>
@@ -307,6 +348,17 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
           </Alert>
         ) : editing ? (
           <div className="space-y-2">
+            <div
+              className="flex items-center gap-2 text-xs text-muted-foreground"
+              data-testid="kb-save-status"
+              role="status"
+            >
+              <span
+                className={`inline-block h-2 w-2 rounded-full ${save.isPending ? 'bg-amber-500' : dirty ? 'bg-muted-foreground' : 'bg-emerald-500'}`}
+                aria-hidden="true"
+              />
+              {save.isPending ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved'}
+            </div>
             <KbEditor value={draft} onChange={setDraft} />
             {save.isError ? (
               <Alert intent="destructive" title="Could not save the page">
