@@ -6,6 +6,15 @@
 
 ### Fixed
 
+## [0.41.0] - 2026-07-17
+
+### Added
+- Knowledge Base (KB3): wiki pages are now authored + edited in a **Notion-style block editor** (TipTap + markdown round-trip) — headings, lists, code, quotes via markdown shortcuts — replacing the plain textarea. Opening a page shows an **Edit** action that saves through the KB0 update endpoint (OKF-aware re-embed).
+
+### Changed
+
+### Fixed
+
 ## [0.40.0] - 2026-07-17
 
 ### Added

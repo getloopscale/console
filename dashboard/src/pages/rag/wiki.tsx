@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen } from 'lucide-react';
-import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/components/common/markdown-view';
 import { WikiTree } from './wiki-tree';
+import { KbEditor } from '@/components/rag/kb-editor';
 
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -161,14 +162,7 @@ export function RagWikiPage() {
                     disabled={collectionID === ''}
                   />
                 </div>
-                <Textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Write the page in markdown…"
-                  aria-label="Page content"
-                  rows={6}
-                  disabled={collectionID === ''}
-                />
+                <KbEditor value={content} onChange={setContent} editable={collectionID !== ''} />
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
                     {collectionID === '' ? 'Select a collection first.' : 'New pages become searchable in Ask automatically.'}
@@ -234,8 +228,11 @@ export function RagWikiPage() {
   );
 }
 
-// KB2 — inline full-column page reader (replaces the right-side Sheet slide-over).
+// KB2/KB3 — inline full-column page reader + editor (replaces the right-side Sheet slide-over).
 function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', 'one', pageID] as const,
     queryFn: () =>
@@ -245,6 +242,30 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
     enabled: pageID !== '',
   });
   const page = query.data;
+
+  // KB3 — save an edit through the KB0 update endpoint (OKF-aware; re-embeds server-side).
+  const save = useMutation({
+    mutationFn: () => {
+      const okf = page?.okf;
+      const content = withOkfFrontmatter(
+        draft,
+        okf?.type ?? 'concept',
+        (okf?.tags ?? []).join(', '),
+        okf?.description ?? '',
+      );
+      return cloudFetch(`/v1/dashboard/rag/wiki/pages/${encodeURIComponent(pageID)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: page?.name, content }),
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', 'one', pageID],
+      });
+      setEditing(false);
+    },
+  });
+
   return (
     <Card>
       <Card.Body>
@@ -253,6 +274,30 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
             ← Back
           </Button>
           <span className="truncate font-medium">{page?.name ?? 'Wiki page'}</span>
+          <div className="ml-auto flex items-center gap-2">
+            {editing ? (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={save.isPending}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending} aria-label="Save page">
+                  {save.isPending ? 'Saving…' : 'Save'}
+                </Button>
+              </>
+            ) : page ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDraft(page.content ?? '');
+                  setEditing(true);
+                }}
+                aria-label="Edit page"
+              >
+                Edit
+              </Button>
+            ) : null}
+          </div>
         </div>
         {query.isLoading ? (
           <Skeleton />
@@ -260,6 +305,15 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
           <Alert intent="warning" title="Could not load the page">
             Try again shortly.
           </Alert>
+        ) : editing ? (
+          <div className="space-y-2">
+            <KbEditor value={draft} onChange={setDraft} />
+            {save.isError ? (
+              <Alert intent="destructive" title="Could not save the page">
+                Try again shortly.
+              </Alert>
+            ) : null}
+          </div>
         ) : (
           <div className="space-y-3">
             {page?.okf ? (
