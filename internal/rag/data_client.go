@@ -407,6 +407,35 @@ func (c *DataClient) UpdateChunk(ctx context.Context, id string, body json.RawMe
 	return out, nil
 }
 
+// ListWikiPages proxies GET /v1/wiki/pages?collection_id= (Open Wiki, rag:read).
+func (c *DataClient) ListWikiPages(ctx context.Context, collectionID string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("collection_id", collectionID)
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/wiki/pages", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GetWikiPage proxies GET /v1/wiki/pages/{id} (Open Wiki, rag:read).
+func (c *DataClient) GetWikiPage(ctx context.Context, id string) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/wiki/pages/"+url.PathEscape(id), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CreateWikiPage proxies POST /v1/wiki/pages (Open Wiki, rag:write). Body {collection_id,name,content}.
+func (c *DataClient) CreateWikiPage(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/v1/wiki/pages", nil, body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // getJSON is the read wrapper (kept for the M17 read methods) — a GET via `do`.
 func (c *DataClient) getJSON(ctx context.Context, path string, q url.Values, out any) error {
 	return c.do(ctx, http.MethodGet, path, q, nil, out)

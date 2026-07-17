@@ -169,6 +169,9 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		// chunk-editor — view a document's chunks + read one chunk (rag:read).
 		r.Get("/documents/{id}/chunks", h.ListDocumentChunks)
 		r.Get("/chunks/{id}", h.GetChunk)
+		// Open Wiki — list wiki pages + read one page (rag:read).
+		r.Get("/wiki/pages", h.ListWikiPages)
+		r.Get("/wiki/pages/{id}", h.GetWikiPage)
 		// writes (M21)
 		r.Post("/collections", h.CreateCollection)
 		r.Delete("/collections/{id}", h.DeleteCollection)
@@ -179,6 +182,8 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		r.Post("/answers", h.Ask)
 		// chunk-editor — edit a chunk's text (rag:write); theo-rag re-embeds it server-side.
 		r.Patch("/chunks/{id}", h.UpdateChunk)
+		// Open Wiki — create a markdown wiki page (rag:write).
+		r.Post("/wiki/pages", h.CreateWikiPage)
 		// connectors (#191 + M8 connect)
 		r.Get("/connectors", h.ListConnectors)
 		r.Post("/connectors/{provider}/connect", h.ConnectConnector)

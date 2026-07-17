@@ -47,6 +47,10 @@ type RagDataClient interface {
 	ListDocumentChunks(ctx context.Context, documentID, cursor string) (json.RawMessage, error)
 	GetChunk(ctx context.Context, id string) (json.RawMessage, error)
 	UpdateChunk(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
+	// Open Wiki — list wiki pages in a collection, read one page markdown, create a page.
+	ListWikiPages(ctx context.Context, collectionID string) (json.RawMessage, error)
+	GetWikiPage(ctx context.Context, id string) (json.RawMessage, error)
+	CreateWikiPage(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
 }
 
 // RagDashboardHandler serves the /v1/dashboard/rag BFF. Browser JWT sessions (requireJWT)
@@ -526,4 +530,76 @@ func (h *RagDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, json.RawMessage(out))
+}
+
+
+// ListWikiPages serves GET /v1/dashboard/rag/wiki/pages?collection_id= (Open Wiki, rag:read).
+func (h *RagDashboardHandler) ListWikiPages(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	cid := r.URL.Query().Get("collection_id")
+	if cid == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A collection is required.")
+		return
+	}
+	res, err := h.client.ListWikiPages(r.Context(), cid)
+	if err != nil {
+		h.logger.Warn("rag dashboard: list wiki pages failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load the wiki pages.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// GetWikiPage serves GET /v1/dashboard/rag/wiki/pages/{id} (Open Wiki, rag:read).
+func (h *RagDashboardHandler) GetWikiPage(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A page id is required.")
+		return
+	}
+	res, err := h.client.GetWikiPage(r.Context(), id)
+	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			writeError(w, http.StatusNotFound, "WIKI_PAGE_NOT_FOUND", "That wiki page does not exist.")
+			return
+		}
+		h.logger.Warn("rag dashboard: get wiki page failed", "error", err)
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load the wiki page.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// CreateWikiPage serves POST /v1/dashboard/rag/wiki/pages (Open Wiki, rag:write). Body
+// {collection_id,name,content}; theo-rag ingests + embeds the markdown page.
+func (h *RagDashboardHandler) CreateWikiPage(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "Could not read the request body.")
+		return
+	}
+	res, err := h.client.CreateWikiPage(r.Context(), json.RawMessage(body))
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "404"):
+			writeError(w, http.StatusNotFound, "COLLECTION_NOT_FOUND", "That collection does not exist.")
+		case strings.Contains(err.Error(), "413"):
+			writeError(w, http.StatusRequestEntityTooLarge, "CONTENT_TOO_LARGE", "The page is too large.")
+		case strings.Contains(err.Error(), "422"), strings.Contains(err.Error(), "400"):
+			writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "The page name and content must not be empty.")
+		default:
+			h.logger.Warn("rag dashboard: create wiki page failed", "error", err)
+			writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not create the wiki page.")
+		}
+		return
+	}
+	writeJSON(w, http.StatusAccepted, res)
 }
