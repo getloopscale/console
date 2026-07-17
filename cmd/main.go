@@ -187,6 +187,9 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		r.Patch("/chunks/{id}", h.UpdateChunk)
 		// Open Wiki — create a markdown wiki page (rag:write).
 		r.Post("/wiki/pages", h.CreateWikiPage)
+		// KB0 — wiki page lifecycle: update (rag:write, OKF-aware re-embed + rename/move) + delete (rag:delete).
+		r.Put("/wiki/pages/{id}", h.UpdateWikiPage)
+		r.Delete("/wiki/pages/{id}", h.DeleteWikiPage)
 		// connectors (#191 + M8 connect)
 		r.Get("/connectors", h.ListConnectors)
 		r.Post("/connectors/{provider}/connect", h.ConnectConnector)

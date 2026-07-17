@@ -51,6 +51,8 @@ type RagDataClient interface {
 	ListWikiPages(ctx context.Context, collectionID string) (json.RawMessage, error)
 	GetWikiPage(ctx context.Context, id string) (json.RawMessage, error)
 	CreateWikiPage(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	UpdateWikiPage(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
+	DeleteWikiPage(ctx context.Context, id string) error
 	WikiIndex(ctx context.Context, collectionID string) (json.RawMessage, error)
 	WikiLog(ctx context.Context, collectionID string) (json.RawMessage, error)
 }
@@ -640,4 +642,64 @@ func (h *RagDashboardHandler) CreateWikiPage(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusAccepted, res)
+}
+
+// UpdateWikiPage serves PUT /v1/dashboard/rag/wiki/pages/{id} (KB0 page lifecycle, rag:write).
+// Body {name?,content}; theo-rag re-parses the OKF frontmatter, re-embeds, and a changed
+// frontmatter path is a rename/move.
+func (h *RagDashboardHandler) UpdateWikiPage(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A page id is required.")
+		return
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "Could not read the request body.")
+		return
+	}
+	res, err := h.client.UpdateWikiPage(r.Context(), id, json.RawMessage(body))
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), "404"):
+			writeError(w, http.StatusNotFound, "PAGE_NOT_FOUND", "That page does not exist.")
+		case strings.Contains(err.Error(), "409"):
+			writeError(w, http.StatusConflict, "PAGE_BUSY", "The page is being updated; try again.")
+		case strings.Contains(err.Error(), "413"):
+			writeError(w, http.StatusRequestEntityTooLarge, "CONTENT_TOO_LARGE", "The page is too large.")
+		case strings.Contains(err.Error(), "422"), strings.Contains(err.Error(), "400"):
+			writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "The page content must not be empty.")
+		default:
+			h.logger.Warn("rag dashboard: update wiki page failed", "error", err)
+			writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not update the wiki page.")
+		}
+		return
+	}
+	writeJSON(w, http.StatusAccepted, res)
+}
+
+// DeleteWikiPage serves DELETE /v1/dashboard/rag/wiki/pages/{id} (KB0 page lifecycle, rag:delete).
+func (h *RagDashboardHandler) DeleteWikiPage(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A page id is required.")
+		return
+	}
+	if err := h.client.DeleteWikiPage(r.Context(), id); err != nil {
+		switch {
+		case strings.Contains(err.Error(), "404"):
+			writeError(w, http.StatusNotFound, "PAGE_NOT_FOUND", "That page does not exist.")
+		default:
+			h.logger.Warn("rag dashboard: delete wiki page failed", "error", err)
+			writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not delete the wiki page.")
+		}
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

@@ -174,6 +174,12 @@ func (s *stubRagDataClient) GetWikiPage(_ context.Context, _ string) (json.RawMe
 func (s *stubRagDataClient) CreateWikiPage(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
 	return json.RawMessage(`{"id":"doc_x","status":"pending"}`), nil
 }
+func (s *stubRagDataClient) UpdateWikiPage(_ context.Context, _ string, _ json.RawMessage) (json.RawMessage, error) {
+	return json.RawMessage(`{"id":"doc_x","status":"pending"}`), nil
+}
+func (s *stubRagDataClient) DeleteWikiPage(_ context.Context, _ string) error {
+	return nil
+}
 func (s *stubRagDataClient) WikiIndex(_ context.Context, _ string) (json.RawMessage, error) {
 	return json.RawMessage(`{"markdown":"# tables\n\n* [Customers](tables/customers.md) — The customer table.\n"}`), nil
 }
@@ -402,6 +408,8 @@ func TestRagDashboard_AllWrites_NoJWT_Denied(t *testing.T) {
 		{"deleteCollection", h.DeleteCollection, httptest.NewRequest(http.MethodDelete, "/v1/dashboard/rag/collections/col_x", nil)},
 		{"ingestDocument", h.IngestDocument, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/documents", strings.NewReader(`{"collection_id":"c","text":"t"}`))},
 		{"deleteDocument", h.DeleteDocument, httptest.NewRequest(http.MethodDelete, "/v1/dashboard/rag/documents/doc_x", nil)},
+		{"updateWikiPage", h.UpdateWikiPage, withID(httptest.NewRequest(http.MethodPut, "/v1/dashboard/rag/wiki/pages/doc_x", strings.NewReader(`{"content":"x"}`)), "doc_x")},
+		{"deleteWikiPage", h.DeleteWikiPage, withID(httptest.NewRequest(http.MethodDelete, "/v1/dashboard/rag/wiki/pages/doc_x", nil), "doc_x")},
 		{"ask", h.Ask, httptest.NewRequest(http.MethodPost, "/v1/dashboard/rag/answers", strings.NewReader(`{"collection_id":"c","question":"q"}`))},
 		{"listDocuments", h.ListDocuments, httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/documents?collection_id=c", nil)},
 		{"listConnectors", h.ListConnectors, httptest.NewRequest(http.MethodGet, "/v1/dashboard/rag/connectors", nil)},

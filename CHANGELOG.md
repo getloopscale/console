@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Knowledge Base (KB0): wiki page lifecycle — update (`PUT /v1/dashboard/rag/wiki/pages/{id}`, OKF-aware re-embed + rename/move via frontmatter path) and delete (`DELETE /v1/dashboard/rag/wiki/pages/{id}`) BFF proxies over theo-rag; unblocks the Notion-style editor (edit/rename/delete)
 - RAG: chunk viewer + editor — open a document to see its chunks, edit a chunk's text, and save to regenerate its embedding (the corrected text becomes retrievable). New per-tenant BFF proxies (`GET /v1/dashboard/rag/documents/{id}/chunks`, `GET/PATCH /v1/dashboard/rag/chunks/{id}`) over theo-rag's chunk read + a new `PATCH /v1/chunks/{id}` mutation that re-embeds server-side
 
 ### Changed

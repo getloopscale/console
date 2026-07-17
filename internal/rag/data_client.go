@@ -436,6 +436,23 @@ func (c *DataClient) CreateWikiPage(ctx context.Context, body json.RawMessage) (
 	return out, nil
 }
 
+// UpdateWikiPage proxies PUT /v1/wiki/pages/{id} (KB0 page lifecycle, rag:write). Body
+// {name?,content}; theo-rag re-parses the OKF frontmatter, re-embeds, and treats a changed
+// frontmatter `path` as a rename/move.
+func (c *DataClient) UpdateWikiPage(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
+	var out json.RawMessage
+	if err := c.do(ctx, http.MethodPut, "/v1/wiki/pages/"+url.PathEscape(id), nil, body, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// DeleteWikiPage proxies DELETE /v1/documents/{id} (KB0 page lifecycle, rag:delete). A wiki
+// page is a document, so deletion goes through the documents surface.
+func (c *DataClient) DeleteWikiPage(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/documents/"+url.PathEscape(id), nil, nil, nil)
+}
+
 // WikiIndex proxies GET /v1/wiki/index?collection_id= (M26 OKF directory, rag:read).
 func (c *DataClient) WikiIndex(ctx context.Context, collectionID string) (json.RawMessage, error) {
 	q := url.Values{}
