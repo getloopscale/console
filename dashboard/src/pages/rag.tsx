@@ -76,6 +76,24 @@ export function RagOverviewPage() {
           </div>
         ) : null}
 
+        {/* KB7 — quick actions unify the Knowledge Base surfaces into one home. */}
+        <Card>
+          <Card.Body>
+            <h2 className="mb-3 text-base font-semibold">Quick actions</h2>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" data-testid="kb-quick-actions">
+              <Button variant="secondary" onClick={() => (window.location.href = '/rag/wiki')} aria-label="New wiki page">
+                📝 New page
+              </Button>
+              <Button variant="secondary" onClick={() => (window.location.href = '/rag/documents')} aria-label="Upload a document">
+                ⬆️ Upload document
+              </Button>
+              <Button variant="secondary" onClick={() => (window.location.href = '/rag/ask')} aria-label="Ask a question">
+                🔍 Ask a question
+              </Button>
+            </div>
+          </Card.Body>
+        </Card>
+
         <Card>
           <Card.Body className="space-y-2">
             <h2 className="text-base font-semibold">Getting started</h2>

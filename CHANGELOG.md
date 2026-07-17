@@ -6,6 +6,15 @@
 
 ### Fixed
 
+## [0.45.0] - 2026-07-17
+
+### Added
+- Knowledge Base (KB7): the Knowledge Base home now leads with a **Quick actions** row (New page / Upload document / Ask a question) that jumps straight into the module surfaces, tying them into one workspace.
+
+### Changed
+
+### Fixed
+
 ## [0.44.0] - 2026-07-17
 
 ### Added
