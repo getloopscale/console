@@ -51,6 +51,8 @@ type RagDataClient interface {
 	ListWikiPages(ctx context.Context, collectionID string) (json.RawMessage, error)
 	GetWikiPage(ctx context.Context, id string) (json.RawMessage, error)
 	CreateWikiPage(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	WikiIndex(ctx context.Context, collectionID string) (json.RawMessage, error)
+	WikiLog(ctx context.Context, collectionID string) (json.RawMessage, error)
 }
 
 // RagDashboardHandler serves the /v1/dashboard/rag BFF. Browser JWT sessions (requireJWT)
@@ -547,6 +549,42 @@ func (h *RagDashboardHandler) ListWikiPages(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		h.logger.Warn("rag dashboard: list wiki pages failed", "error", err)
 		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load the wiki pages.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// WikiIndex serves GET /v1/dashboard/rag/wiki/index?collection_id= (M26 OKF directory, rag:read).
+func (h *RagDashboardHandler) WikiIndex(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	cid := r.URL.Query().Get("collection_id")
+	if cid == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A collection id is required.")
+		return
+	}
+	res, err := h.client.WikiIndex(r.Context(), cid)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load the wiki index.")
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// WikiLog serves GET /v1/dashboard/rag/wiki/log?collection_id= (M26 OKF changelog, rag:read).
+func (h *RagDashboardHandler) WikiLog(w http.ResponseWriter, r *http.Request) {
+	if !h.authTenant(w, r) {
+		return
+	}
+	cid := r.URL.Query().Get("collection_id")
+	if cid == "" {
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_REQUEST", "A collection id is required.")
+		return
+	}
+	res, err := h.client.WikiLog(r.Context(), cid)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "UPSTREAM_ERROR", "Could not load the wiki log.")
 		return
 	}
 	writeJSON(w, http.StatusOK, res)

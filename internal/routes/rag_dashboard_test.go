@@ -165,6 +165,22 @@ func (s *stubRagDataClient) ConnectConnector(_ context.Context, provider string,
 	return json.RawMessage(`{"id":"conn_new","provider_id":"` + provider + `","status":"active"}`), nil
 }
 
+func (s *stubRagDataClient) ListWikiPages(_ context.Context, _ string) (json.RawMessage, error) {
+	return json.RawMessage(`{"items":[]}`), nil
+}
+func (s *stubRagDataClient) GetWikiPage(_ context.Context, _ string) (json.RawMessage, error) {
+	return json.RawMessage(`{"id":"doc_x","name":"Page","status":"ready","content":"","okf":{"type":"concept"}}`), nil
+}
+func (s *stubRagDataClient) CreateWikiPage(_ context.Context, _ json.RawMessage) (json.RawMessage, error) {
+	return json.RawMessage(`{"id":"doc_x","status":"pending"}`), nil
+}
+func (s *stubRagDataClient) WikiIndex(_ context.Context, _ string) (json.RawMessage, error) {
+	return json.RawMessage(`{"markdown":"# tables\n\n* [Customers](tables/customers.md) — The customer table.\n"}`), nil
+}
+func (s *stubRagDataClient) WikiLog(_ context.Context, _ string) (json.RawMessage, error) {
+	return json.RawMessage(`{"markdown":"# Directory Update Log\n"}`), nil
+}
+
 func (s *stubRagDataClient) GraphView(_ context.Context, collectionID, level, limit string) (json.RawMessage, error) {
 	s.graphGotColID, s.graphGotLevel, s.graphGotLimit = collectionID, level, limit
 	if s.graphErr != nil {

@@ -436,6 +436,28 @@ func (c *DataClient) CreateWikiPage(ctx context.Context, body json.RawMessage) (
 	return out, nil
 }
 
+// WikiIndex proxies GET /v1/wiki/index?collection_id= (M26 OKF directory, rag:read).
+func (c *DataClient) WikiIndex(ctx context.Context, collectionID string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("collection_id", collectionID)
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/wiki/index", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// WikiLog proxies GET /v1/wiki/log?collection_id= (M26 OKF changelog, rag:read).
+func (c *DataClient) WikiLog(ctx context.Context, collectionID string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("collection_id", collectionID)
+	var out json.RawMessage
+	if err := c.getJSON(ctx, "/v1/wiki/log", q, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // getJSON is the read wrapper (kept for the M17 read methods) — a GET via `do`.
 func (c *DataClient) getJSON(ctx context.Context, path string, q url.Values, out any) error {
 	return c.do(ctx, http.MethodGet, path, q, nil, out)

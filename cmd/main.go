@@ -172,6 +172,9 @@ func mountRagDashboard(r chi.Router, h *routes.RagDashboardHandler, oauth *route
 		// Open Wiki — list wiki pages + read one page (rag:read).
 		r.Get("/wiki/pages", h.ListWikiPages)
 		r.Get("/wiki/pages/{id}", h.GetWikiPage)
+		// M26 — OKF directory: deterministic index.md + agent log.md (rag:read).
+		r.Get("/wiki/index", h.WikiIndex)
+		r.Get("/wiki/log", h.WikiLog)
 		// writes (M21)
 		r.Post("/collections", h.CreateCollection)
 		r.Delete("/collections/{id}", h.DeleteCollection)
