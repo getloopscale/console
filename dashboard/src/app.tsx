@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import {
@@ -288,6 +288,18 @@ function RepositoryAlias() {
 // shadow-tracking approach via a small registry mounted alongside.
 function RouteScope({ children }: { children: ReactNode }) {
   const location = useLocation();
+  // Radix scroll-lock stuck fix (radix-ui/primitives#2122). Quando um overlay do
+  // @usetheo/ui (Select / DropdownMenu / Dialog — todos Radix) está ABERTO e o
+  // componente DESMONTA durante uma navegação de rota, o Radix não roda o cleanup
+  // e deixa `pointer-events: none` (inline) + `data-scroll-locked` PRESOS no <body>.
+  // Nesse estado a página inteira trava: nenhum clique passa e NENHUM texto pode
+  // ser selecionado/copiado. Reproduzido de forma determinística (abrir dropdown →
+  // navegar → body preso). Limpa a cada troca de rota — idempotente e seguro, pois
+  // ao navegar os overlays da rota anterior já foram desmontados.
+  useEffect(() => {
+    document.body.style.removeProperty('pointer-events');
+    document.body.removeAttribute('data-scroll-locked');
+  }, [location.pathname]);
   return <div key={location.pathname}>{children}</div>;
 }
 
