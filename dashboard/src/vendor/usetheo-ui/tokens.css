@@ -8,7 +8,7 @@
  *   - Default é light. Dark é ativado via [data-theme="dark"] ou .dark.
  *   - HSL split (h s l) em vez de hex permite alpha via color-mix() ou hsl(var(--x) / .5).
  *
- * Roxo Theo: #A855F7  →  oklch(0.50 0.16 296.97)  (electric violet — unified 2026-06-09)
+ * Roxo Theo: #6F49B1  →  oklch(0.50 0.16 296.97)  (deep-anchored — 2026-07-17)
  * Burnt sienna:  #C96442  →  hsl(15 54% 53%)
  */
 
@@ -39,7 +39,7 @@
    * still declare these explicitly — the cascade resolves the override.
    * `max()`/`min()` clamps protect dark/light themes from L overflow (EC-7).
    */
-  --primary: oklch(0.50 0.16 296.97); /* #A855F7 — Theo violet electric (unified 2026-06-09) */
+  --primary: oklch(0.50 0.16 296.97); /* #6F49B1 — Theo violet (deep-anchored, hue 296.97, 2026-07-17) */
   --primary-deep: oklch(from var(--primary) max(0.05, calc(l - 0.16)) c h);
   --primary-glow: oklch(from var(--primary) min(0.95, calc(l + 0.18)) c h);
   --primary-foreground: oklch(1 0 0);
