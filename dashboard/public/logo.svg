@@ -1,12 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0%" stop-color="#b7a6ff"/>
-    <stop offset="55%" stop-color="#6e56cf"/>
-    <stop offset="100%" stop-color="#4b38a6"/>
-  </linearGradient></defs>
-  <g fill="url(#g)">
-    <rect x="160" y="288" width="232" height="216" rx="64"/>
-    <rect x="632" y="288" width="232" height="216" rx="64"/>
-    <rect x="408" y="288" width="208" height="544" rx="64"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Theo">
+  <!-- brand mark: #431A7A = oklch(0.34 0.15 296.97) -->
+  <g fill="#431A7A">
+    <rect x="160" y="288" width="232" height="216" rx="64" ry="64"/>
+    <rect x="632" y="288" width="232" height="216" rx="64" ry="64"/>
+    <rect x="408" y="288" width="208" height="544" rx="64" ry="64"/>
   </g>
 </svg>
