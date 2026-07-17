@@ -343,7 +343,6 @@ html[data-density] {
  * design tokens (so it matches the dark theme) and tightens the reading rhythm:
  * chip-style inline code, panelled code blocks, bordered/zebra tables, heading
  * scale. Applies to MarkdownView (wiki reader) + the KbEditor content. */
-@layer components {
   .prose {
     --tw-prose-body: var(--color-foreground);
     --tw-prose-headings: var(--color-foreground);
@@ -404,4 +403,3 @@ html[data-density] {
   .prose :where(ul):has(input[type='checkbox']) { list-style: none; padding-left: 0.25rem; }
   .prose :where(li):has(input[type='checkbox']) { padding-left: 0; }
   .prose input[type='checkbox'] { margin-right: 0.5rem; }
-}
