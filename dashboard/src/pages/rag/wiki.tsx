@@ -4,6 +4,7 @@ import { BookOpen } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Sheet, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/components/common/markdown-view';
+import { WikiTree } from './wiki-tree';
 
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -102,17 +103,8 @@ export function RagWikiPage() {
     },
   });
 
-  // M26 — the deterministic OKF index (progressive disclosure, generated from frontmatter).
-  const indexQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/wiki/index', collectionID] as const,
-    queryFn: () =>
-      cloudFetch<{ markdown: string }>(`/v1/dashboard/rag/wiki/index?collection_id=${encodeURIComponent(collectionID)}`),
-    enabled: collectionID !== '',
-  });
-
   const collections = collectionsQuery.data?.items ?? [];
   const pages = pagesQuery.data?.items ?? [];
-  const okfIndex = indexQuery.data?.markdown ?? '';
   const canCreate = collectionID !== '' && name.trim() !== '' && content.trim() !== '' && !create.isPending;
 
   return (
@@ -191,15 +183,15 @@ export function RagWikiPage() {
           </Card.Body>
         </Card>
 
-        {collectionID !== '' && okfIndex.trim() !== '' ? (
+        {collectionID !== '' && pages.length > 0 ? (
           <Card>
             <Card.Body>
               <div className="mb-2 flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">OKF index</span>
-                <span className="ml-auto text-xs text-muted-foreground">progressive disclosure · generated from frontmatter</span>
+                <span className="text-sm font-medium">Pages</span>
+                <span className="ml-auto text-xs text-muted-foreground">organized by folder</span>
               </div>
-              <pre className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{okfIndex}</pre>
+              <WikiTree pages={pages} onOpen={setOpenPageID} />
             </Card.Body>
           </Card>
         ) : null}
