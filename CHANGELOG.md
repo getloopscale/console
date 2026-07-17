@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Knowledge Base (KB14): final polish - a one-click **Read/Edit toggle** on wiki pages (switches modes without navigation), a **Cmd+K command palette** to fuzzy-search and jump to any page, and **hover peek** (full OKF path + type) on the folder tree.
 
 ### Changed
 
