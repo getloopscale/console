@@ -6,6 +6,15 @@
 
 ### Fixed
 
+## [0.42.0] - 2026-07-17
+
+### Added
+- Knowledge Base (KB4): the chunk viewer/editor now opens **inline, full-column** (with a Back control + inline-editable chunks) instead of a cramped right-side slide-over — the second Sheet is removed. Editing a chunk still re-embeds server-side.
+
+### Changed
+
+### Fixed
+
 ## [0.41.0] - 2026-07-17
 
 ### Added
