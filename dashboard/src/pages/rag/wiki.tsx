@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen } from 'lucide-react';
-import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Sheet, Skeleton, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/components/common/markdown-view';
 import { WikiTree } from './wiki-tree';
@@ -110,6 +110,10 @@ export function RagWikiPage() {
   return (
     <PageShell title="Wiki" description="Markdown-native wiki pages your team can read and Ask over.">
       <div className="space-y-6">
+        {openPageID !== null ? (
+          <InlineReader pageID={openPageID} onBack={() => setOpenPageID(null)} />
+        ) : (
+          <>
         <Card>
           <Card.Body>
             <div className="space-y-4">
@@ -223,59 +227,61 @@ export function RagWikiPage() {
             ))}
           </div>
         )}
+          </>
+        )}
       </div>
-
-      <WikiPageSheet pageID={openPageID} onClose={() => setOpenPageID(null)} />
     </PageShell>
   );
 }
 
-function WikiPageSheet({ pageID, onClose }: { pageID: string | null; onClose: () => void }) {
+// KB2 — inline full-column page reader (replaces the right-side Sheet slide-over).
+function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }) {
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', 'one', pageID] as const,
-    queryFn: () => cloudFetch<{ id: string; name: string; content: string; status: string; okf?: OkfMeta }>(
-      `/v1/dashboard/rag/wiki/pages/${encodeURIComponent(pageID ?? '')}`,
-    ),
-    enabled: pageID !== null,
+    queryFn: () =>
+      cloudFetch<{ id: string; name: string; content: string; status: string; okf?: OkfMeta }>(
+        `/v1/dashboard/rag/wiki/pages/${encodeURIComponent(pageID)}`,
+      ),
+    enabled: pageID !== '',
   });
   const page = query.data;
   return (
-    <Sheet open={pageID !== null} onOpenChange={(o) => (!o ? onClose() : undefined)}>
-      <Sheet.Content side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-2xl">
-        <Sheet.Header>
-          <Sheet.Title className="pr-6">{page?.name ?? 'Wiki page'}</Sheet.Title>
-          <Sheet.Description>Ask over this page for citation-backed answers.</Sheet.Description>
-        </Sheet.Header>
-        <div className="py-4">
-          {query.isLoading ? (
-            <Skeleton />
-          ) : query.isError || page === null ? (
-            <Alert intent="warning" title="Could not load the page">
-              Try again shortly.
-            </Alert>
-          ) : (
-            <div className="space-y-3">
-              {page?.okf ? (
-                <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-medium uppercase text-muted-foreground">OKF</span>
-                    {page.okf.type ? <Badge variant="outline">{page.okf.type}</Badge> : null}
-                    {(page.okf.tags ?? []).map((t) => (
-                      <Badge key={t} variant="default">
-                        {t}
-                      </Badge>
-                    ))}
-                  </div>
-                  {page.okf.description ? (
-                    <p className="text-sm text-muted-foreground">{page.okf.description}</p>
-                  ) : null}
-                </div>
-              ) : null}
-              <MarkdownView source={page?.content ?? ''} />
-            </div>
-          )}
+    <Card>
+      <Card.Body>
+        <div className="mb-3 flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={onBack} aria-label="Back to pages">
+            ← Back
+          </Button>
+          <span className="truncate font-medium">{page?.name ?? 'Wiki page'}</span>
         </div>
-      </Sheet.Content>
-    </Sheet>
+        {query.isLoading ? (
+          <Skeleton />
+        ) : query.isError || page === null ? (
+          <Alert intent="warning" title="Could not load the page">
+            Try again shortly.
+          </Alert>
+        ) : (
+          <div className="space-y-3">
+            {page?.okf ? (
+              <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium uppercase text-muted-foreground">OKF</span>
+                  {page.okf.type ? <Badge variant="outline">{page.okf.type}</Badge> : null}
+                  {(page.okf.tags ?? []).map((t) => (
+                    <Badge key={t} variant="default">
+                      {t}
+                    </Badge>
+                  ))}
+                </div>
+                {page.okf.description ? (
+                  <p className="text-sm text-muted-foreground">{page.okf.description}</p>
+                ) : null}
+              </div>
+            ) : null}
+            <MarkdownView source={page?.content ?? ''} />
+          </div>
+        )}
+      </Card.Body>
+    </Card>
   );
 }
