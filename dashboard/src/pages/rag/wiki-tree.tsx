@@ -90,12 +90,17 @@ function FolderRow({
         style={{ paddingLeft: `${depth * 12 + 6}px` }}
         aria-expanded={open}
         aria-label={`Folder ${name}`}
+        role="treeitem"
       >
         {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
         <Folder className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <span className="truncate">{name}</span>
       </button>
-      {open ? <TreeLevel node={node} depth={depth + 1} onOpen={onOpen} /> : null}
+      {open ? (
+        <div role="group">
+          <TreeLevel node={node} depth={depth + 1} onOpen={onOpen} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -116,6 +121,7 @@ function TreeLevel({ node, depth, onOpen }: { node: FolderNode; depth: number; o
           className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           style={{ paddingLeft: `${depth * 12 + 20}px` }}
           aria-label={`Open ${p.name}`}
+          role="treeitem"
         >
           <FileText className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">{leafName(p.name)}</span>
@@ -129,7 +135,7 @@ export function WikiTree({ pages, onOpen }: { pages: readonly WikiTreePage[]; on
   const root = useMemo(() => buildTree(pages), [pages]);
   if (pages.length === 0) return null;
   return (
-    <div className="text-sm" data-testid="wiki-tree">
+    <div className="text-sm" data-testid="wiki-tree" role="tree" aria-label="Wiki pages">
       <TreeLevel node={root} depth={0} onOpen={onOpen} />
     </div>
   );

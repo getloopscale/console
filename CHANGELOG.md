@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Knowledge Base (KB8): the wiki folder tree now exposes proper **ARIA tree semantics** (role=tree/treeitem/group, aria-expanded on folders) so screen readers announce the page hierarchy; folder/page controls are keyboard-operable.
 
 ### Changed
 

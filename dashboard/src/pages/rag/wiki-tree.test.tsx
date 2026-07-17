@@ -39,4 +39,11 @@ describe('WikiTree (render)', () => {
     const { container } = render(<WikiTree pages={[]} onOpen={vi.fn()} />);
     expect(container.querySelector('[data-testid="wiki-tree"]')).toBeNull();
   });
+
+  it('exposes ARIA tree semantics for screen readers (KB8 a11y)', () => {
+    render(<WikiTree pages={pages} onOpen={vi.fn()} />);
+    expect(screen.getByRole('tree', { name: 'Wiki pages' })).toBeInTheDocument();
+    // each folder + page is a treeitem
+    expect(screen.getAllByRole('treeitem').length).toBeGreaterThanOrEqual(pages.length);
+  });
 });
