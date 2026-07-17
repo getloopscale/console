@@ -95,6 +95,14 @@ createRoot(document.getElementById('root')!).render(
             ],
             defaultTheme: 'violet-forge',
             defaultMode: 'dark',
+            // Locked dark (D1): o dashboard nunca ofereceu theme picker.
+            // - respectSystemMode:false → ignora o prefers-color-scheme do SO
+            //   (default true faria um usuário com SO em light ver o app claro).
+            // - storageKey:null → desliga a persistência em localStorage; sem isto,
+            //   uma sessão anterior que seguiu o SO gravou mode=light e continuaria
+            //   sobrescrevendo o defaultMode. Nada a persistir num tema travado.
+            respectSystemMode: false,
+            storageKey: null,
           }}
         >
           <App />
