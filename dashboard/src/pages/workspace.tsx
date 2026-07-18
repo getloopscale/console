@@ -9,6 +9,7 @@ import { Button, Card, PageShell, Skeleton, EmptyState, Badge, ConfirmDialog, Ch
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch, cloudFetchRaw } from '@/lib/api';
+import { presignedUpload, presignedDownloadURL, type PresignDeps } from './workspace-presign';
 import { useWorkspaceSelection } from './use-workspace-selection';
 import { WorkspacePreviewSheet } from './workspace-preview-sheet';
 import { NewFolderDialog } from './new-folder-dialog';
@@ -206,17 +207,24 @@ export function WorkspacePage() {
     }
   };
 
-  // Download a file with the same auth the JSON path uses (a plain <a> link can't
-  // send the Bearer token), then trigger a browser download from the blob.
+  // M4 — the presigned data plane: the bytes go straight to/from object storage via
+  // a short-lived signed URL; the dashboard API only mints the URL. `fetch` is bound
+  // to window so the direct S3 request carries NO Bearer token (the auth is the
+  // signature in the query), and the cross-origin request relies on bucket CORS.
+  const presignDeps: PresignDeps = { cloudFetch, fetch: window.fetch.bind(window) };
+
+  // Download: mint a presigned GET, fetch the bytes directly from storage, then
+  // trigger a browser download from the blob.
   const onDownload = async (file: StorageFile) => {
-    const res = await cloudFetchRaw(`/v1/dashboard/storage/objects/${encodePath(file.path)}`);
-    if (!res || !res.ok) return;
-    const url = URL.createObjectURL(await res.blob());
+    const url = await presignedDownloadURL(presignDeps, file.path);
+    const res = await window.fetch(url);
+    if (!res.ok) return;
+    const blobURL = URL.createObjectURL(await res.blob());
     const a = document.createElement('a');
-    a.href = url;
+    a.href = blobURL;
     a.download = file.path.split('/').pop() ?? file.path;
     a.click();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(blobURL);
   };
 
   const onUploadFiles = async (files: FileList | null) => {
@@ -225,12 +233,7 @@ export function WorkspacePage() {
     setUploading(true);
     try {
       for (const file of Array.from(files)) {
-        const buf = await file.arrayBuffer();
-        await cloudFetch(
-          `/v1/dashboard/storage/objects/${encodePath(`${prefix}${file.name}`)}`,
-          { method: 'PUT', body: buf, headers: { 'Content-Type': file.type || 'application/octet-stream' } },
-          { throwOnError: true },
-        );
+        await presignedUpload(presignDeps, `${prefix}${file.name}`, file);
       }
       onRefresh();
     } catch (err) {

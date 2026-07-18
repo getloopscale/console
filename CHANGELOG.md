@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Storage (M4 workspace direct transfer): the Workspace uploads/downloads files **directly to/from object storage** via presigned URLs — the dashboard mints the URL, the browser transfers the bytes (no proxy through the BFF). Upload is mint → direct PUT → commit; download mints a short-lived GET. Requires a browser-reachable storage endpoint + bucket CORS (deploy note in docs/presigned-storage-roadmap.md).
 
 ### Changed
 

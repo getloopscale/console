@@ -71,18 +71,31 @@ describe('WorkspacePage (/workspaces)', () => {
     expect(screen.queryByText('README.md')).not.toBeInTheDocument();
   });
 
-  it('uploads into the current folder (PUT to {prefix}{name})', async () => {
-    const put = vi.fn((_url?: string, _init?: unknown) => Promise.resolve({ path: 'data/x.txt', size: 5 }));
-    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
-      if (url.includes('/objects/') && init?.method === 'PUT') return put(url, init);
+  it('uploads into the current folder via presigned PUT (mint → S3 → commit)', async () => {
+    // M4: the byte transfer is a direct window.fetch PUT to the signed S3 URL.
+    const s3put = vi.fn(async () => ({ ok: true, status: 200 }) as Response);
+    vi.stubGlobal('fetch', s3put);
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url.endsWith('/presign-upload')) return Promise.resolve({ url: 'https://s3.example/put?X-Amz-Signature=x' });
+      if (url.endsWith('/presign-commit')) return Promise.resolve({ committed: true });
       return routeByUrl(url);
     });
     render(<WorkspacePage />);
     fireEvent.click(await screen.findByText('data')); // enter data/
     const input = (await screen.findByTestId('file-input')) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['hello'], 'x.txt', { type: 'text/plain' })] } });
-    await waitFor(() => expect(put).toHaveBeenCalled());
-    expect((put.mock.calls[0] as unknown[])[0]).toBe('/v1/dashboard/storage/objects/data/x.txt');
+
+    // bytes went straight to the signed S3 URL (not through the BFF)
+    await waitFor(() => expect(s3put).toHaveBeenCalled());
+    expect((s3put.mock.calls[0] as unknown[])[0]).toBe('https://s3.example/put?X-Amz-Signature=x');
+    // the mint request carried the folder-prefixed path
+    const mint = mockCloudFetch.mock.calls.find((c) => String(c[0]).endsWith('/presign-upload'));
+    expect(JSON.parse((mint![1] as { body: string }).body).path).toBe('data/x.txt');
+    // and a commit followed
+    await waitFor(() =>
+      expect(mockCloudFetch.mock.calls.some((c) => String(c[0]).endsWith('/presign-commit'))).toBe(true),
+    );
+    vi.unstubAllGlobals();
   });
 
   it('creates a folder via the in-app dialog — no native window.prompt (.keep marker)', async () => {
