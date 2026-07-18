@@ -56,7 +56,7 @@ func (f *fakeMetaStore) DeleteByName(ctx context.Context, t, name string) error 
 
 func TestReserve_UnderCap(t *testing.T) {
 	store := &fakeMetaStore{used: 10 << 20} // 10MB used
-	q := NewQuota(store, "starter")          // 100MB aggregate cap
+	q := NewQuota(store, "starter")         // 100MB aggregate cap
 
 	res, err := q.Reserve(context.Background(), "tn", "f", 5<<20, "text/plain")
 	if err != nil {
@@ -107,7 +107,7 @@ func TestReserve_PerFileTooLarge_413_BeforeStore(t *testing.T) {
 
 func TestReserve_EnterpriseUnlimitedAggregate(t *testing.T) {
 	store := &fakeMetaStore{used: 100 << 30} // 100GB already used
-	q := NewQuota(store, "enterprise")        // Unlimited aggregate, 5GB per-file
+	q := NewQuota(store, "enterprise")       // Unlimited aggregate, 5GB per-file
 
 	if _, err := q.Reserve(context.Background(), "tn", "f", 1<<30, "bin"); err != nil {
 		t.Errorf("enterprise unlimited aggregate should accept 1GB: %v", err)

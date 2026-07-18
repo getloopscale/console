@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"io"
+	"time"
 
 	"github.com/usetheodev/theo-cloud/internal/storage/s3x"
 )
@@ -73,6 +74,14 @@ func (a *s3Adapter) HeadObject(ctx context.Context, key string) (ObjectMeta, err
 
 func (a *s3Adapter) DeleteObject(ctx context.Context, key string) error {
 	return a.c.DeleteObject(ctx, key)
+}
+
+func (a *s3Adapter) PresignPut(key string, expires time.Duration) (string, error) {
+	return a.c.PresignPut(key, expires)
+}
+
+func (a *s3Adapter) PresignGet(key string, expires time.Duration) (string, error) {
+	return a.c.PresignGet(key, expires)
 }
 
 // Compile-time interface assertions.

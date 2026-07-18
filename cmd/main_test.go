@@ -143,6 +143,21 @@ func TestRagDashboard_ReadWriteRouteSet(t *testing.T) {
 		"GET /v1/dashboard/rag/connectors/providers",
 		// authorize + callback are NOT here — they are browser-redirect endpoints mounted at the
 		// root path /v1/rag-connect (cookie-session auth, #199), not under this Bearer-only surface.
+		// Chunk editor (RAG chunk inspect / re-embed).
+		"GET /v1/dashboard/rag/chunks/{id}",
+		"PATCH /v1/dashboard/rag/chunks/{id}",
+		"GET /v1/dashboard/rag/documents/{id}/chunks",
+		"POST /v1/dashboard/rag/documents/file",
+		// GraphRAG community report.
+		"GET /v1/dashboard/rag/collections/{id}/communities/{key}/report",
+		// Knowledge Base wiki (KB0-KB8): index/log reads + full page lifecycle.
+		"GET /v1/dashboard/rag/wiki/index",
+		"GET /v1/dashboard/rag/wiki/log",
+		"GET /v1/dashboard/rag/wiki/pages",
+		"GET /v1/dashboard/rag/wiki/pages/{id}",
+		"POST /v1/dashboard/rag/wiki/pages",
+		"PUT /v1/dashboard/rag/wiki/pages/{id}",
+		"DELETE /v1/dashboard/rag/wiki/pages/{id}",
 	}
 	for _, w := range want {
 		if !got[w] {

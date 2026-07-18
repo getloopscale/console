@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"strings"
+	"time"
 )
 
 // ObjectStore is the DIP boundary between the storage service and the concrete
@@ -18,6 +19,10 @@ type ObjectStore interface {
 	GetObject(ctx context.Context, key string) (io.ReadCloser, ObjectMeta, error)
 	HeadObject(ctx context.Context, key string) (ObjectMeta, error)
 	DeleteObject(ctx context.Context, key string) error
+	// PresignPut/PresignGet mint short-lived direct-to-S3 URLs so the bytes never
+	// flow through the BFF (the presigned data-plane; orchestrator M2/M3).
+	PresignPut(key string, expires time.Duration) (string, error)
+	PresignGet(key string, expires time.Duration) (string, error)
 }
 
 // ObjectMeta mirrors the backend's object metadata (kept distinct from s3x's
