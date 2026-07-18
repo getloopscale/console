@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.54.0] - 2026-07-18
+
+### Added
 - Storage (M2/M3 presigned data-plane): new BFF endpoints `POST /v1/…/storage/presign-upload`, `presign-commit`, and `presign-download`. Upload is **two-phase** — mint reserves quota + a pending row + a direct-to-S3 PUT URL; commit HEADs S3 to confirm the bytes landed **and match the declared size** (quota-bypass guard) before finalizing, releasing the reservation on a missing/mismatched upload (typed 409). Download mints a short-lived GET URL for a committed object. Both keep the tenant key server-derived (isolation) and take the path in the JSON body (avoids the `/objects/*` wildcard). Proxy-mode forwards all three to the storage upstream.
 
 ### Changed
