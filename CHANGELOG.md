@@ -3,6 +3,7 @@
 ### Added
 
 ### Changed
+- Wiki (`/rag/wiki`): the New page modal is now larger — ~75% of the viewport width (≈ 25% total margin) and a taller fixed height — so the editor + metadata rail have room to work.
 
 ### Fixed
 
