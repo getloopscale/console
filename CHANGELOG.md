@@ -3,9 +3,13 @@
 ### Added
 
 ### Changed
-- Connectors (`/rag/connectors`, M12): the empty-provider hint now points users to the in-page "connect with a credential" form (S3 / website — no OAuth needed) instead of telling them to use the CLI, matching the paste-credential form the dashboard ships. M12 LIVE-validated on dev-public — a real website paste-credential connect + first sync ingests documents into a collection (0 → 1); OAuth (google-drive) registered and authorize redirects to Google with PKCE. Evidence: `.claude/knowledge-base/audits/m12-connectors-live-validation.md`.
 
 ### Fixed
+
+## [0.57.0] - 2026-07-18
+
+### Changed
+- Connectors (`/rag/connectors`, M12): the empty-provider hint now points users to the in-page "connect with a credential" form (S3 / website — no OAuth needed) instead of telling them to use the CLI, matching the paste-credential form the dashboard ships. M12 LIVE-validated on dev-public — a real website paste-credential connect + first sync ingests documents into a collection (0 → 1); OAuth (google-drive) registered and authorize redirects to Google with PKCE. Evidence: `.claude/knowledge-base/audits/m12-connectors-live-validation.md`.
 
 ## [0.56.0] - 2026-07-18
 
