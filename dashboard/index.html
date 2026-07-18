@@ -49,7 +49,7 @@
          hosted at app-dev.usetheo.dev can complete the same flows against
          the dev-public Kratos/cloud. Stripe + Google + GitHub allowlists
          unchanged (same OAuth/Stripe apps shared between envs per D5). -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://checkout.stripe.com https://*.stripe.com https://auth.usetheo.dev https://auth-dev.usetheo.dev https://cloud.usetheo.dev https://cloud-dev.usetheo.dev; form-action 'self' https://auth.usetheo.dev https://auth-dev.usetheo.dev https://accounts.google.com https://github.com; base-uri 'self'; object-src 'none'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://checkout.stripe.com https://*.stripe.com https://auth.usetheo.dev https://auth-dev.usetheo.dev https://cloud.usetheo.dev https://cloud-dev.usetheo.dev https://storage.usetheo.dev https://storage-dev.usetheo.dev; form-action 'self' https://auth.usetheo.dev https://auth-dev.usetheo.dev https://accounts.google.com https://github.com; base-uri 'self'; object-src 'none'" />
     <!-- Theo brand favicons. Regenerated 2026-07-17 from the current brand mark
          (the three-bar "T" glyph + violet gradient, from theo-web Logo.tsx),
          replacing the previous mascot assets. The SVG favicon renders crisp at
