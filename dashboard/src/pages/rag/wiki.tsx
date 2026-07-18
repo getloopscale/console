@@ -242,7 +242,15 @@ export function RagWikiPage() {
       {/* New page — standardized modal (M14). Mounted only with a collection selected;
           on create it closes and opens the new page in the split reader. */}
       {collectionID !== '' ? (
-        <AppModal open={creating} onClose={() => setCreating(false)} size="xl" title={newPageTitle}>
+        <AppModal
+          open={creating}
+          onClose={() => setCreating(false)}
+          size="xl"
+          title={newPageTitle}
+          // New page holds an editor + a metadata rail — give it room: ~75% of the viewport
+          // width (≈ 25% total margin) and a tall fixed height so editing is comfortable.
+          contentClassName="w-[75vw] max-w-none h-[85vh]"
+        >
           <NewPageEditor
             collectionID={collectionID}
             prefix={prefix}
