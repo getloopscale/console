@@ -69,9 +69,9 @@ func (f *fakeObjectStore) PresignGet(key string, expires time.Duration) (string,
 
 // fakeFullMeta implements the full MetaStore (quota + object ops).
 type fakeFullMeta struct {
-	used      int64
-	rows      map[string]ObjectRecord // name → record (committed)
-	pending   map[string]bool
+	used        int64
+	rows        map[string]ObjectRecord // name → record (committed)
+	pending     map[string]bool
 	compensated int
 }
 
@@ -106,7 +106,10 @@ func (m *fakeFullMeta) RestorePrior(ctx context.Context, id string, priorSize in
 	delete(m.pending, id)
 	return nil
 }
-func (m *fakeFullMeta) MarkCommitted(ctx context.Context, id string) error { delete(m.pending, id); return nil }
+func (m *fakeFullMeta) MarkCommitted(ctx context.Context, id string) error {
+	delete(m.pending, id)
+	return nil
+}
 func (m *fakeFullMeta) DeletePending(ctx context.Context, id string) error {
 	m.compensated++
 	delete(m.pending, id)
