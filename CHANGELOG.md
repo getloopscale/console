@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.53.0] - 2026-07-18
+
+### Added
 - Storage (M1 presigned core): `s3x.Signer.Presign` + `Client.PresignPut/PresignGet` — query-string SigV4 presigned URLs so file bytes can flow **directly to/from S3** instead of through the BFF. Validated against an **independent SigV4 oracle** (byte-identical signature) + a real-MinIO round-trip integration test. Extends the `ObjectStore` DIP interface.
 
 ### Changed
