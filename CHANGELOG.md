@@ -5,6 +5,7 @@
 ### Changed
 
 ### Fixed
+- Knowledge Base (KB9 regression): moved the `@plugin "@tailwindcss/typography"` directive to AFTER all `@import` statements. Placed between `@import 'tailwindcss'` and the vendor token `@import`s it invalidated them (CSS requires `@import` first), so Tailwind stopped emitting the `@theme` color aliases and the whole dashboard rendered unstyled (white). Theme restored; typography preserved.
 
 ## [0.52.0] - 2026-07-17
 
