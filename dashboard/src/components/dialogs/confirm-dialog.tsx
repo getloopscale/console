@@ -1,75 +1,117 @@
 // confirm-dialog.tsx
 //
-// Plan 2026-06-08-dashboard-screens-review-fixes T3.2 + ADR D5.
+// Canonical destructive-action confirmation dialog — a CENTERED modal.
 //
-// Re-export wrapper over `@usetheo/ui`'s ConfirmDialog primitive. The
-// upstream library already implements the FAANG-grade destructive flow:
-//   - open / onOpenChange
-//   - title + description (ReactNode)
-//   - confirmLabel + cancelLabel
-//   - intent: "default" | "destructive"
-//   - confirmationPhrase: type-to-confirm gate (operator MUST type the
-//     exact phrase before the confirm button enables)
-//   - onConfirm: () => void | Promise<void> (loading state managed
-//     internally during async)
-//
-// The local re-export exists so the dashboard codebase has ONE
-// canonical import path for destructive confirmations:
-//
-//   import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
-//
-// vs scattering `import { ConfirmDialog } from '@usetheo/ui'` across
-// pages. When a future plan tightens the contract (e.g. add a default
-// "destructive" intent OR force a confirmationPhrase for production
-// targets) this is the single seam to modify.
-//
-// AUDIT NOTE (2026-06-08, T3.2 plan body):
-//   - delete-environment-dialog → bespoke type-to-confirm (exempt per
-//     ADR D5 — env destruction is too sensitive for the generic
-//     primitive)
-//   - rollback-dialog            → bespoke type-to-confirm for
-//     production env (exempt — same rationale)
-//   - cancel-build-dialog        → bespoke single-click confirm via
-//     Dialog + Alert (exempt — destructive but recoverable; J-17 T6.2
-//     shipped the canonical pattern)
-//   - promote-dialog             → bespoke focus-on-Cancel default
-//     (Vercel/Stripe convention); T4.4 will add cross-project toggle
-//     per EC-4 absorption
-//
-// So this primitive is intentionally idle until a NEW destructive
-// action surface needs confirmation — at that point, prefer this
-// over a fifth bespoke implementation (DRY rule of three already
-// satisfied above).
+// Was a re-export of `@usetheo/ui`'s ConfirmDialog, but that primitive is built on the
+// library's `Dialog`, which in @usetheo/ui@0.28.2 renders as a lateral SHEET (drawer)
+// because `Dialog` and `Sheet` share one object and `Sheet.Content` clobbers
+// `Dialog.Content`. This local implementation is built on the local centered `Dialog`
+// (Radix) so every confirmation is a traditional centered modal. The public props match
+// the previous upstream contract exactly, so no call site changes shape:
+//   open / onOpenChange · title · description · confirmLabel · cancelLabel ·
+//   intent: "default" | "destructive" · confirmationPhrase (type-to-confirm gate) ·
+//   onConfirm: () => void | Promise<void> (loading state managed here) · loading
 
-import { ConfirmDialog as UpstreamConfirmDialog } from '@usetheo/ui';
-import type { ConfirmDialogProps as UpstreamConfirmDialogProps } from '@usetheo/ui';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { Button, Input } from '@usetheo/ui';
+import { Dialog } from '@/components/ui/dialog';
 
-export type ConfirmDialogProps = UpstreamConfirmDialogProps;
+export interface ConfirmDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: ReactNode;
+  description: ReactNode;
+  confirmLabel?: ReactNode;
+  cancelLabel?: ReactNode;
+  intent?: 'default' | 'destructive';
+  confirmationPhrase?: string;
+  onConfirm: () => void | Promise<void>;
+  loading?: boolean;
+}
 
 /**
- * ConfirmDialog — canonical destructive-action confirmation dialog.
- *
- * @example  // Simple destructive (e.g. "Disconnect repo")
- *   <ConfirmDialog
- *     open={open}
- *     onOpenChange={setOpen}
- *     title="Disconnect repository?"
- *     description="The project will stop receiving auto-deploys."
- *     intent="destructive"
- *     confirmLabel="Disconnect"
- *     onConfirm={() => disconnect.mutate()}
- *   />
- *
- * @example  // Type-to-confirm (high-stakes — e.g. "Delete tenant")
- *   <ConfirmDialog
- *     open={open}
- *     onOpenChange={setOpen}
- *     title="Delete tenant?"
- *     description="This is irreversible."
- *     intent="destructive"
- *     confirmationPhrase="delete tenant"
- *     confirmLabel="I understand, delete"
- *     onConfirm={() => deleteTenant.mutate()}
- *   />
+ * ConfirmDialog — centered confirmation modal. Focuses Cancel on open (deliberate — never
+ * the destructive button). `confirmationPhrase` gates confirm behind exact type-to-confirm.
  */
-export const ConfirmDialog = UpstreamConfirmDialog;
+export function ConfirmDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  intent = 'default',
+  confirmationPhrase,
+  onConfirm,
+  loading,
+}: ConfirmDialogProps) {
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setTyped('');
+      // Focus Cancel on open, not the destructive action.
+      const t = setTimeout(() => cancelRef.current?.focus(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
+
+  const phraseRequired = !!confirmationPhrase;
+  const phraseOk = !phraseRequired || typed === confirmationPhrase;
+  const pending = busy || !!loading;
+  const canConfirm = phraseOk && !pending;
+
+  const confirm = async () => {
+    if (!canConfirm) return;
+    try {
+      setBusy(true);
+      await onConfirm();
+      onOpenChange(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog.Content className="max-w-md gap-4">
+        <Dialog.Header>
+          <Dialog.Title>{title}</Dialog.Title>
+          <Dialog.Description>{description}</Dialog.Description>
+        </Dialog.Header>
+        {phraseRequired ? (
+          <div className="space-y-1.5">
+            <p className="text-sm text-muted-foreground">
+              Type <span className="font-mono font-medium text-foreground">{confirmationPhrase}</span> to confirm.
+            </p>
+            <Input
+              autoComplete="off"
+              placeholder={confirmationPhrase}
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void confirm();
+              }}
+              aria-label="Type to confirm"
+            />
+          </div>
+        ) : null}
+        <Dialog.Footer>
+          <Button ref={cancelRef} variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
+            {cancelLabel}
+          </Button>
+          <Button
+            variant={intent === 'destructive' ? 'destructive' : 'primary'}
+            onClick={() => void confirm()}
+            disabled={!canConfirm}
+          >
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : confirmLabel}
+          </Button>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog>
+  );
+}

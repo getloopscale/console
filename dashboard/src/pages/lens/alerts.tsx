@@ -2,7 +2,21 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { History, Trash2 } from 'lucide-react';
-import { Button, Card, ConfirmDialog, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select, type Severity, SeverityBadge, Skeleton, Timestamp } from '@usetheo/ui';
+import {
+  Button,
+  Card,
+  DataTable,
+  type DataTableColumn,
+  EmptyState,
+  Input,
+  PageShell,
+  Select,
+  type Severity,
+  SeverityBadge,
+  Skeleton,
+  Timestamp,
+} from '@usetheo/ui';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 

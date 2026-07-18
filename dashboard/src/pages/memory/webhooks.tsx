@@ -1,7 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RotateCw, Trash2 } from 'lucide-react';
-import { Badge, Button, Card, Checkbox, ConfirmDialog, DataTable, type DataTableColumn, Dialog, EmptyState, Input, PageShell, Sheet, Timestamp, useToast } from '@usetheo/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  DataTable,
+  type DataTableColumn,
+  EmptyState,
+  Input,
+  PageShell,
+  Sheet,
+  Timestamp,
+  useToast,
+} from '@usetheo/ui';
+import { Dialog } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

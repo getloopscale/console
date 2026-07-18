@@ -5,10 +5,10 @@ import {
   Badge,
   Button,
   Card,
-  ConfirmDialog,
   PageShell,
   Table,
 } from '@usetheo/ui';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { usePreviews } from '@/hooks/use-previews';

@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button, Dialog, Input, Label } from '@usetheo/ui';
+import {
+  Button,
+  Input,
+  Label,
+} from '@usetheo/ui';
+import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { engineFetch } from '@/lib/api';
 import type { ScaleResponse } from '@/lib/api/types';

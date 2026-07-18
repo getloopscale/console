@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { Undo2 } from 'lucide-react';
-import { Button, Dialog, Input, Label, useToast } from '@usetheo/ui';
+import {
+  Button,
+  Input,
+  Label,
+  useToast,
+} from '@usetheo/ui';
+import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { ensureSSEToken } from '@/lib/api';
 import { API_URL } from '@/lib/config';

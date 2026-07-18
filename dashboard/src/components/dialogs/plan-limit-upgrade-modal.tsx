@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Crown, Loader2 } from 'lucide-react';
-import { Button, Dialog } from '@usetheo/ui';
+import {
+  Button,
+} from '@usetheo/ui';
+import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { Link } from 'react-router-dom';
 

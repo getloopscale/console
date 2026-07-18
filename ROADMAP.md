@@ -337,7 +337,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M12 — [ ] Connect data sources from the dashboard (OAuth + paste-credential)
+### M12 — [x] Connect data sources from the dashboard (OAuth + paste-credential)
 
 > Added 2026-07-16 by `/roadmap-feature` (slug: `dashboard-connectors-usable`). See CHANGELOG `[Unreleased] § Added`. Depends on M8.
 

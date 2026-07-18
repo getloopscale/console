@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookmarkPlus, Trash2 } from 'lucide-react';
-import { Button, ConfirmDialog, Dialog, Input } from '@usetheo/ui';
+import {
+  Button,
+  Input,
+} from '@usetheo/ui';
+import { Dialog } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
 import { cloudFetch } from '@/lib/api';
 

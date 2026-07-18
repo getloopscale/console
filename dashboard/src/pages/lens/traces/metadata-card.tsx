@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
-import { Badge, Button, Card, ConfirmDialog, Input } from '@usetheo/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  Input,
+} from '@usetheo/ui';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
 import { cloudFetch } from '@/lib/api';
 

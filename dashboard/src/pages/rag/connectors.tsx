@@ -4,10 +4,8 @@ import { Plug, RefreshCw, Trash2 } from 'lucide-react';
 import {
   Button,
   Card,
-  ConfirmDialog,
   DataTable,
   type DataTableColumn,
-  Dialog,
   EmptyState,
   Input,
   Label,
@@ -16,6 +14,8 @@ import {
   Skeleton,
   Timestamp,
 } from '@usetheo/ui';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -304,15 +304,17 @@ export function RagConnectorsPage() {
         </div>
       </PageShell>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <Dialog.Content>
-          <Dialog.Header>
-            <Dialog.Title>Connect a source</Dialog.Title>
-            <Dialog.Description>
-              Pick the collection to ingest into, then authorize the provider. You’ll be redirected to grant access, then back here.
-            </Dialog.Description>
-          </Dialog.Header>
-          <Dialog.Body>
+      <AppModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title="Connect a source"
+        description="Pick the collection to ingest into, then authorize the provider. You’ll be redirected to grant access, then back here."
+        footer={
+          <Button variant="secondary" onClick={() => setAddOpen(false)}>
+            Close
+          </Button>
+        }
+      >
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="connect-collection">Collection</Label>
@@ -413,14 +415,7 @@ export function RagConnectorsPage() {
                 ) : null}
               </div>
             </div>
-          </Dialog.Body>
-          <Dialog.Footer>
-            <Button variant="secondary" onClick={() => setAddOpen(false)}>
-              Close
-            </Button>
-          </Dialog.Footer>
-        </Dialog.Content>
-      </Dialog>
+      </AppModal>
 
       {pendingDelete ? (
         <ConfirmDialog

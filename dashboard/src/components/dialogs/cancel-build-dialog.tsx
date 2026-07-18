@@ -1,5 +1,8 @@
 import { Loader2, XCircle } from 'lucide-react';
-import { Button, Dialog } from '@usetheo/ui';
+import {
+  Button,
+} from '@usetheo/ui';
+import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { useCancelBuild } from '@/hooks/mutations/use-cancel-build';
 import type { Build } from '@/lib/api/types';

@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Loader2, Plus, Rocket } from 'lucide-react';
-import { Button, Dialog, Label } from '@usetheo/ui';
+import {
+  Button,
+  Label,
+} from '@usetheo/ui';
+import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePromoteEnvironment } from '@/hooks/mutations/use-environments';
 

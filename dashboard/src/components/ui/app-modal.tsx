@@ -1,35 +1,29 @@
 import type { ReactNode } from 'react';
+import * as RadixDialog from '@radix-ui/react-dialog';
+import { X } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
-import { Dialog } from '@usetheo/ui';
 
 /**
- * AppModal — the system-wide standardized modal primitive (M14).
+ * AppModal — the system-wide standardized modal primitive.
  *
- * A thin, opinionated wrapper over the design-system `Dialog` (which is built on
- * `@radix-ui/react-dialog`). It does NOT reimplement any dialog behaviour — focus
- * trap, focus RESTORE to the trigger, ESC-to-close, overlay-click, scroll lock and
- * the WAI-ARIA `role="dialog"` / `aria-modal` contract are all delegated to Radix
- * (Rule 9 — Don't Reinvent). What it standardizes is the *shape* every transient
- * action screen should share: a `size` token, a required `title` (the dialog's
- * accessible name), an optional `description`, a body, and a footer-actions slot.
+ * A traditional CENTERED modal (overlay + centered panel), built directly on
+ * `@radix-ui/react-dialog` so it renders correctly regardless of the design system.
  *
- * Use this instead of hand-rolling `<Dialog.Content>` per screen — it is the pattern
- * for New-folder / New-page / and future action dialogs across the dashboard.
+ * Why not the `@usetheo/ui` `Dialog`? In `@usetheo/ui@0.28.2` both `Dialog` and `Sheet`
+ * are the SAME object (`DialogPrimitive.Root`), and `Sheet.Content = <drawer>` runs after
+ * `Dialog.Content = <centered>`, clobbering it — so `Dialog.Content` renders as a right-
+ * anchored SHEET (drawer) everywhere. AppModal bypasses that bug by composing Radix
+ * primitives itself, and delegates focus-trap / focus-restore / ESC / overlay-click / the
+ * WAI-ARIA `role="dialog"` + `aria-modal` contract to Radix (Rule 9 — Don't Reinvent).
  *
- * Controlled only: pass `open` + `onClose`. All three exits (ESC, overlay, X) route
- * through Radix's `onOpenChange(false)` → `onClose`.
+ * Use this instead of `<Dialog.Content>` for every transient action screen — it is the
+ * traditional-modal pattern for the whole dashboard (New folder / New page / connect / …).
  *
- * @example
- *   <AppModal open={open} onClose={close} title="New folder" size="sm"
- *     footer={<><Button variant="secondary" onClick={close}>Cancel</Button>
- *              <Button onClick={create}>Create folder</Button></>}>
- *     <Input ... />
- *   </AppModal>
+ * Controlled only: pass `open` + `onClose`. All exits (ESC / overlay / X) call `onClose`.
  */
 export type AppModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
-/** Size token → max-width. The wrapper's single reason to exist beyond `Dialog`:
- * one width scale instead of an ad-hoc `max-w-*` per call site. */
+/** Size token → max-width. One width scale instead of an ad-hoc `max-w-*` per call site. */
 const SIZE_MAX_WIDTH: Record<AppModalSize, string> = {
   sm: 'max-w-md',
   md: 'max-w-lg',
@@ -44,7 +38,7 @@ export interface AppModalProps {
   readonly onClose: () => void;
   /** The dialog's accessible name — required (Radix warns without a Title). */
   readonly title: ReactNode;
-  /** Optional supporting copy under the title (the dialog's description). */
+  /** Optional supporting copy under the title. */
   readonly description?: ReactNode;
   /** Width token — defaults to `md`. */
   readonly size?: AppModalSize;
@@ -70,23 +64,41 @@ export function AppModal({
   hideCloseButton,
 }: AppModalProps) {
   return (
-    <Dialog
+    <RadixDialog.Root
       open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
     >
-      {/* twMerge so the size token wins over any default `max-w-*` on Content,
-          instead of relying on Tailwind stylesheet order (a real bug for widths
-          smaller than the default). */}
-      <Dialog.Content hideCloseButton={hideCloseButton} className={twMerge('w-full', SIZE_MAX_WIDTH[size], contentClassName)}>
-        <Dialog.Header>
-          <Dialog.Title>{title}</Dialog.Title>
-          {description ? <Dialog.Description>{description}</Dialog.Description> : null}
-        </Dialog.Header>
-        <Dialog.Body>{children}</Dialog.Body>
-        {footer ? <Dialog.Footer>{footer}</Dialog.Footer> : null}
-      </Dialog.Content>
-    </Dialog>
+      <RadixDialog.Portal>
+        <RadixDialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fade-in" />
+        <RadixDialog.Content
+          className={twMerge(
+            'fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-hidden rounded-2xl border border-border bg-background p-6 text-foreground shadow-2xl animate-fade-in',
+            SIZE_MAX_WIDTH[size],
+            contentClassName,
+          )}
+        >
+          <div className="flex flex-col gap-1.5 pr-6">
+            <RadixDialog.Title className="text-lg font-semibold leading-none tracking-tight text-foreground">
+              {title}
+            </RadixDialog.Title>
+            {description ? (
+              <RadixDialog.Description className="text-sm text-muted-foreground">{description}</RadixDialog.Description>
+            ) : null}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          {footer ? <div className="flex items-center justify-end gap-2">{footer}</div> : null}
+          {!hideCloseButton ? (
+            <RadixDialog.Close
+              aria-label="Close"
+              className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="h-4 w-4" />
+            </RadixDialog.Close>
+          ) : null}
+        </RadixDialog.Content>
+      </RadixDialog.Portal>
+    </RadixDialog.Root>
   );
 }

@@ -2,7 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { MessageSquare, Network } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
-import { Badge, Button, Card, Dialog, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  PageShell,
+  Select,
+  Skeleton,
+  Textarea,
+} from '@usetheo/ui';
+import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
