@@ -162,12 +162,15 @@ type Config struct {
 	// the storage vertical. Env: STORAGE_S3_ENDPOINT, STORAGE_S3_BUCKET,
 	// STORAGE_S3_REGION, STORAGE_S3_ACCESS_KEY, STORAGE_S3_SECRET_KEY,
 	// STORAGE_SHARE_SECRET.
-	StorageS3Endpoint  string
-	StorageS3Bucket    string
-	StorageS3Region    string
-	StorageS3AccessKey Secret
-	StorageS3SecretKey Secret
-	StorageShareSecret Secret
+	StorageS3Endpoint string
+	// StorageS3PublicEndpoint (STORAGE_S3_PUBLIC_ENDPOINT) is the browser-reachable
+	// S3 host used ONLY to mint presigned URLs; empty → same as StorageS3Endpoint.
+	StorageS3PublicEndpoint string
+	StorageS3Bucket         string
+	StorageS3Region         string
+	StorageS3AccessKey      Secret
+	StorageS3SecretKey      Secret
+	StorageShareSecret      Secret
 
 	// StorageUpstreamURL, when set, switches the storage vertical to THIN-PROXY
 	// mode: theo-cloud forwards /v1/storage/* to the standalone theo-storage
@@ -252,6 +255,7 @@ func Load() Config {
 	cfg.LensBaseURL = envOr("LENS_BASE_URL", "")
 	cfg.LensPlatformAdminKey = Secret(envOr("LENS_PLATFORM_ADMIN_KEY", ""))
 	cfg.StorageS3Endpoint = envOr("STORAGE_S3_ENDPOINT", "")
+	cfg.StorageS3PublicEndpoint = envOr("STORAGE_S3_PUBLIC_ENDPOINT", "")
 	cfg.StorageS3Bucket = envOr("STORAGE_S3_BUCKET", "")
 	cfg.StorageS3Region = envOr("STORAGE_S3_REGION", "")
 	cfg.StorageS3AccessKey = Secret(envOr("STORAGE_S3_ACCESS_KEY", ""))

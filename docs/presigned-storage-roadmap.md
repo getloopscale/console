@@ -62,3 +62,45 @@ auth, tenant-key derivation, quota, and metadata — never the bytes.
 - Security code (SigV4) validated by round-trip against real MinIO, not just format asserts.
 - No new heavy dependency (ADR-P1). Typed errors. Tenant isolation preserved.
 - LIVE evidence + (M5) benchmark data. Release cut develop→main + self-merge.
+
+## M5 — Benchmark data (measured)
+
+`go test -bench='PresignPut|ProxyPut' -benchmem ./internal/storage/s3x/` (AMD, 12 cores):
+
+| Operation | ns/op | B/op | allocs/op | Cost in file size |
+|---|---:|---:|---:|---|
+| **PresignPut (mint)** | **8,878** | **6,428** | 121 | **O(1) — constant** |
+| ProxyPut 1 KB | 268 | 1,064 | 3 | O(N) |
+| ProxyPut 1 MB | 247,591 | 1,048,621 | 34 | O(N) |
+| ProxyPut 16 MB | 3,750,268 | 16,777,277 | 514 | O(N) |
+| ProxyPut 128 MB | 26,812,720 | 134,217,776 | 4,098 | O(N) |
+
+The mint is constant (~8.9 µs / 6.4 KB) regardless of file size; proxying grows linearly.
+At 128 MB the proxy allocates 128 MB in the BFF **per upload** vs 6.4 KB for a mint — 100
+concurrent 128 MB uploads is ~12.8 GB of BFF RAM (proxy) vs ~640 KB (presign). The benchmark
+measures only the in-process relay; the real proxy also holds a goroutine + two sockets for the
+entire transfer (seconds for large files over the network), which the presigned path removes.
+Crossover: the mint (8.9 µs) is cheaper than proxying anything ≳ 35 KB.
+
+## M4 infra + LIVE end-to-end — DONE (2026-07-18)
+
+The public browser-reachable storage path was provisioned on app-dev and the presigned
+upload was proven LIVE in a real Chrome (Playwright):
+
+1. **DNS** `storage-dev.usetheo.dev` → droplet IP (Cloudflare A record).
+2. **Edge** — Caddy site `storage-dev.usetheo.dev` reverse-proxies to MinIO with the Host
+   header preserved (so the SigV4-signed host matches on verification) + a single, deduped
+   `Access-Control-Allow-Origin: https://app-dev.usetheo.dev` (MinIO's own CORS header is
+   stripped to avoid the duplicate-value rejection) + an OPTIONS preflight handler.
+3. **BFF** — `STORAGE_S3_PUBLIC_ENDPOINT=https://storage-dev.usetheo.dev` (mints against the
+   public host; server-side ops stay in-cluster). theo-cloud rebuilt + rolled out.
+4. **CSP** — the dashboard `connect-src` now allowlists the storage hosts (the CSP is an
+   earlier gate than CORS; without it the browser refused the request before sending it).
+
+**LIVE proof (real Chrome, app-dev, authenticated):** uploading a file in the Workspace fires
+`POST /presign-upload` (mint) → **`PUT https://storage-dev.usetheo.dev/theo-storage/<tenant>/<path>`**
+(bytes go DIRECTLY to S3) → `POST /presign-commit` (the BFF HEADs S3 + commits) → the file
+appears in the list. **Zero `PUT` to the BFF `/objects` proxy path** — the bytes never touch the
+BFF. Screenshot: `.claude/knowledge-base/audits/presign-live-upload-app-dev-2026-07-18.png`. The
+signature+Host+edge+MinIO chain is independently confirmed by the s3x round-trip integration test
+run against the public host (mint PUT → upload → mint GET → read back, PASS).

@@ -93,3 +93,36 @@ func TestPresign_RejectsBadURL(t *testing.T) {
 		t.Error("expected error for malformed URL, got nil")
 	}
 }
+
+// TestClient_PresignUsesPublicEndpoint proves presigned URLs are signed against
+// the browser-reachable PublicEndpoint (so the SigV4 host matches what the client
+// hits) while the BFF's own server-side ops keep using the in-cluster Endpoint.
+func TestClient_PresignUsesPublicEndpoint(t *testing.T) {
+	c, err := New(Config{
+		Endpoint: "http://minio:9000", PublicEndpoint: "https://storage-dev.usetheo.dev",
+		Bucket: "theo-storage", Region: "us-east-1", AccessKey: "AK", SecretKey: "SK",
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	url, err := c.PresignPut("tn/x.txt", time.Minute)
+	if err != nil {
+		t.Fatalf("PresignPut: %v", err)
+	}
+	if !strings.HasPrefix(url, "https://storage-dev.usetheo.dev/theo-storage/tn/x.txt?") {
+		t.Errorf("presign must use the public host, got %s", url)
+	}
+	if got := c.objectURL("tn/x.txt"); got != "http://minio:9000/theo-storage/tn/x.txt" {
+		t.Errorf("server-side url must stay in-cluster, got %s", got)
+	}
+}
+
+// TestClient_PresignFallsBackToEndpoint proves an empty PublicEndpoint signs
+// against Endpoint (single-host deployments unaffected).
+func TestClient_PresignFallsBackToEndpoint(t *testing.T) {
+	c, _ := New(Config{Endpoint: "http://minio:9000", Bucket: "b", Region: "us-east-1", AccessKey: "AK", SecretKey: "SK"})
+	url, _ := c.PresignGet("k", time.Minute)
+	if !strings.HasPrefix(url, "http://minio:9000/b/k?") {
+		t.Errorf("no public endpoint should fall back to endpoint, got %s", url)
+	}
+}
