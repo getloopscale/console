@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Storage (M4 infra): `STORAGE_S3_PUBLIC_ENDPOINT` — a browser-reachable S3 host used ONLY to mint presigned URLs (the SigV4 signature binds the host), while the BFF keeps using the in-cluster `STORAGE_S3_ENDPOINT` for its own server-side ops. Empty falls back to the single endpoint (no behavior change for existing deploys).
 - Storage (M4 workspace direct transfer): the Workspace uploads/downloads files **directly to/from object storage** via presigned URLs — the dashboard mints the URL, the browser transfers the bytes (no proxy through the BFF). Upload is mint → direct PUT → commit; download mints a short-lived GET. Requires a browser-reachable storage endpoint + bucket CORS (deploy note in docs/presigned-storage-roadmap.md).
 
 ### Changed

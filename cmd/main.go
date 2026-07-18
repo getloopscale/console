@@ -959,12 +959,13 @@ func main() {
 			logger.Info("storage vertical enabled (thin proxy)", "upstream", cfg.StorageUpstreamURL)
 		} else {
 			s, err := storage.BuildService(db, storage.BackendConfig{
-				S3Endpoint:  cfg.StorageS3Endpoint,
-				S3Bucket:    cfg.StorageS3Bucket,
-				S3Region:    cfg.StorageS3Region,
-				S3AccessKey: cfg.StorageS3AccessKey.Value(),
-				S3SecretKey: cfg.StorageS3SecretKey.Value(),
-				ShareSecret: cfg.StorageShareSecret.Value(),
+				S3Endpoint:       cfg.StorageS3Endpoint,
+				S3PublicEndpoint: cfg.StorageS3PublicEndpoint,
+				S3Bucket:         cfg.StorageS3Bucket,
+				S3Region:         cfg.StorageS3Region,
+				S3AccessKey:      cfg.StorageS3AccessKey.Value(),
+				S3SecretKey:      cfg.StorageS3SecretKey.Value(),
+				ShareSecret:      cfg.StorageShareSecret.Value(),
 			})
 			if err != nil {
 				logger.Error("storage vertical build failed", "error", err)

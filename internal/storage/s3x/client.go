@@ -30,6 +30,11 @@ type Config struct {
 	Region    string
 	AccessKey string
 	SecretKey string
+	// PublicEndpoint is the browser-reachable S3 host used ONLY when minting
+	// presigned URLs (the SigV4 signature binds the host, so it must be the host
+	// the client actually hits). The BFF's own server-side ops keep using Endpoint
+	// (typically the fast in-cluster address). Empty → falls back to Endpoint.
+	PublicEndpoint string
 }
 
 // ObjectInfo is the metadata returned by Head/Get.
@@ -41,10 +46,11 @@ type ObjectInfo struct {
 // Client is a minimal S3-compatible object client. It is stateless after
 // construction and safe for concurrent use.
 type Client struct {
-	endpoint string // normalized, no trailing slash
-	bucket   string
-	signer   *Signer
-	http     *http.Client
+	endpoint       string // normalized, no trailing slash — used for server-side ops
+	publicEndpoint string // normalized — used only to mint presigned URLs
+	bucket         string
+	signer         *Signer
+	http           *http.Client
 }
 
 // New validates cfg and returns a Client. Path-style addressing is used so the
@@ -53,20 +59,35 @@ func New(cfg Config) (*Client, error) {
 	if cfg.Endpoint == "" || cfg.Bucket == "" || cfg.Region == "" || cfg.AccessKey == "" || cfg.SecretKey == "" {
 		return nil, fmt.Errorf("s3x: incomplete config (endpoint/bucket/region/accessKey/secretKey all required)")
 	}
-	endpoint := strings.TrimRight(cfg.Endpoint, "/")
-	if !strings.HasPrefix(endpoint, "http://") && !strings.HasPrefix(endpoint, "https://") {
-		endpoint = "http://" + endpoint
+	normalize := func(ep string) string {
+		ep = strings.TrimRight(ep, "/")
+		if ep != "" && !strings.HasPrefix(ep, "http://") && !strings.HasPrefix(ep, "https://") {
+			ep = "http://" + ep
+		}
+		return ep
+	}
+	endpoint := normalize(cfg.Endpoint)
+	publicEndpoint := normalize(cfg.PublicEndpoint)
+	if publicEndpoint == "" {
+		publicEndpoint = endpoint // no separate public host → sign against the same host
 	}
 	return &Client{
-		endpoint: endpoint,
-		bucket:   cfg.Bucket,
-		signer:   &Signer{Region: cfg.Region, AccessKey: cfg.AccessKey, SecretKey: cfg.SecretKey},
-		http:     &http.Client{Timeout: 60 * time.Second},
+		endpoint:       endpoint,
+		publicEndpoint: publicEndpoint,
+		bucket:         cfg.Bucket,
+		signer:         &Signer{Region: cfg.Region, AccessKey: cfg.AccessKey, SecretKey: cfg.SecretKey},
+		http:           &http.Client{Timeout: 60 * time.Second},
 	}, nil
 }
 
 func (c *Client) objectURL(key string) string {
 	return c.endpoint + "/" + c.bucket + "/" + strings.TrimPrefix(key, "/")
+}
+
+// publicObjectURL is objectURL against the browser-reachable host — used only when
+// minting presigned URLs so the SigV4-signed host matches what the client hits.
+func (c *Client) publicObjectURL(key string) string {
+	return c.publicEndpoint + "/" + c.bucket + "/" + strings.TrimPrefix(key, "/")
 }
 
 // PutObject streams body (of the given size) to the object at key.

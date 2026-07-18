@@ -16,13 +16,13 @@ import (
 // PresignPut mints a presigned PUT URL for key, valid for expires. The client
 // (a browser) uploads bytes directly to S3 with no BFF in the data path.
 func (c *Client) PresignPut(key string, expires time.Duration) (string, error) {
-	return c.signer.Presign(http.MethodPut, c.objectURL(key), expires, time.Now().UTC())
+	return c.signer.Presign(http.MethodPut, c.publicObjectURL(key), expires, time.Now().UTC())
 }
 
 // PresignGet mints a presigned GET URL for key, valid for expires. The client
 // downloads bytes directly from S3.
 func (c *Client) PresignGet(key string, expires time.Duration) (string, error) {
-	return c.signer.Presign(http.MethodGet, c.objectURL(key), expires, time.Now().UTC())
+	return c.signer.Presign(http.MethodGet, c.publicObjectURL(key), expires, time.Now().UTC())
 }
 
 // Presign returns a query-string SigV4 presigned URL for method on rawURL, valid

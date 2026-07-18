@@ -16,12 +16,13 @@ import (
 // (mirrors the config.Config storage fields; passed explicitly to keep this
 // package independent of internal/config).
 type BackendConfig struct {
-	S3Endpoint  string
-	S3Bucket    string
-	S3Region    string
-	S3AccessKey string
-	S3SecretKey string
-	ShareSecret string
+	S3Endpoint       string
+	S3PublicEndpoint string // browser-reachable host for minting presigned URLs
+	S3Bucket         string
+	S3Region         string
+	S3AccessKey      string
+	S3SecretKey      string
+	ShareSecret      string
 }
 
 // BuildService wires the full storage Service from a DB and backend config — the
@@ -29,11 +30,12 @@ type BackendConfig struct {
 // Callers gate on config.StorageEnabled() before calling.
 func BuildService(db *sql.DB, cfg BackendConfig) (*Service, error) {
 	client, err := s3x.New(s3x.Config{
-		Endpoint:  cfg.S3Endpoint,
-		Bucket:    cfg.S3Bucket,
-		Region:    cfg.S3Region,
-		AccessKey: cfg.S3AccessKey,
-		SecretKey: cfg.S3SecretKey,
+		Endpoint:       cfg.S3Endpoint,
+		PublicEndpoint: cfg.S3PublicEndpoint,
+		Bucket:         cfg.S3Bucket,
+		Region:         cfg.S3Region,
+		AccessKey:      cfg.S3AccessKey,
+		SecretKey:      cfg.S3SecretKey,
 	})
 	if err != nil {
 		return nil, err
