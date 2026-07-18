@@ -3,6 +3,7 @@
 ### Added
 
 ### Changed
+- Wiki (`/rag/wiki`) redesigned as a single folder browser (Workspace parity): the former folder-tree + flat-page-list pair is replaced by one navigable browser with a breadcrumb, folders, and pages. Users create folders (a hidden `.keep` marker, like the Workspace) and create pages from inside the current folder (the page's path is `{folder}{title}`). Reading/editing a page and creating one open in a master-detail split — the browser collapses to a rail while the reader/editor takes the space — with the Cmd+K page palette and Read/Edit toggle preserved.
 
 ### Fixed
 
