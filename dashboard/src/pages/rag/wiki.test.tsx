@@ -67,6 +67,26 @@ describe('RagWikiPage (/rag/wiki) — action screens are modals, reading is the 
     expect(dialog).toHaveAccessibleName(/new folder/i);
   });
 
+  it('creates a folder with a .keep marker whose content is UNIQUE per folder (dedup guard)', async () => {
+    // The RAG store is content-addressed (dedups by sha256); a fixed marker string would
+    // collapse every folder onto the first one created. The content MUST include the path.
+    render(<RagWikiPage />);
+    await selectCollection();
+    await userEvent.click(screen.getByRole('button', { name: /new folder/i }));
+    await userEvent.type(screen.getByLabelText(/folder name/i), 'runbooks');
+    await userEvent.click(screen.getByRole('button', { name: /create folder/i }));
+
+    const post = mockCloudFetch.mock.calls.find(
+      ([url, opts]) => url === '/v1/dashboard/rag/wiki/pages' && (opts as { method?: string })?.method === 'POST',
+    );
+    expect(post).toBeTruthy();
+    const body = JSON.parse((post![1] as { body: string }).body);
+    expect(body.name).toBe('runbooks/.keep');
+    // Unique content: must contain the folder path, not a fixed string.
+    expect(body.content).toContain('runbooks');
+    expect(body.content).not.toBe('folder marker');
+  });
+
   it('opens an existing page in the split — NOT a modal', async () => {
     render(<RagWikiPage />);
     await selectCollection();
