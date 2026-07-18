@@ -10,6 +10,7 @@ import { toCommandItems } from './wiki-command';
 import { WikiBrowser } from './wiki-browser';
 import { WIKI_FOLDER_MARKER, type WikiEntry } from './wiki-entries';
 import { NewFolderDialog } from '../new-folder-dialog';
+import { AppModal } from '@/components/ui/app-modal';
 
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -123,15 +124,24 @@ export function RagWikiPage() {
     },
   });
 
-  const detailOpen = creating || openPageID !== null;
-  const openNewPage = () => {
-    setOpenPageID(null);
-    setCreating(true);
-  };
+  // Reading a page opens the split; CREATING now opens a modal (M14) — it no longer
+  // takes over the detail pane, so the browser stays put behind the New-page modal.
+  const detailOpen = openPageID !== null;
+  const openNewPage = () => setCreating(true);
   const openExisting = (id: string) => {
     setCreating(false);
     setOpenPageID(id);
   };
+  const newPageTitle = (
+    <>
+      New page
+      {prefix ? (
+        <>
+          {' '}in <span className="font-mono text-muted-foreground">{prefix.replace(/\/$/, '')}</span>
+        </>
+      ) : null}
+    </>
+  );
 
   return (
     <PageShell title="Wiki" description="Folders and markdown pages your team can read, edit, and Ask over.">
@@ -208,7 +218,7 @@ export function RagWikiPage() {
         ) : pagesQuery.isLoading ? (
           <Skeleton />
         ) : detailOpen ? (
-          // Master-detail split: the browser collapses to a rail; the page/editor takes the rest.
+          // Master-detail split: the browser collapses to a rail; the page reader takes the rest.
           <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
             <WikiBrowser
               pages={pages}
@@ -218,26 +228,30 @@ export function RagWikiPage() {
               activePageID={openPageID}
               compact
             />
-            {creating ? (
-              <NewPageEditor
-                collectionID={collectionID}
-                prefix={prefix}
-                onCreated={(id) => {
-                  setCreating(false);
-                  invalidatePages();
-                  setOpenPageID(id);
-                }}
-                onCancel={() => setCreating(false)}
-              />
-            ) : (
-              <InlineReader pageID={openPageID as string} onBack={() => setOpenPageID(null)} />
-            )}
+            <InlineReader pageID={openPageID as string} onBack={() => setOpenPageID(null)} />
           </div>
         ) : (
           // Full-width browser.
           <WikiBrowser pages={pages} prefix={prefix} onNavigate={setPrefix} onOpenPage={openExisting} />
         )}
       </div>
+
+      {/* New page — standardized modal (M14). Mounted only with a collection selected;
+          on create it closes and opens the new page in the split reader. */}
+      {collectionID !== '' ? (
+        <AppModal open={creating} onClose={() => setCreating(false)} size="xl" title={newPageTitle}>
+          <NewPageEditor
+            collectionID={collectionID}
+            prefix={prefix}
+            onCreated={(id) => {
+              setCreating(false);
+              invalidatePages();
+              setOpenPageID(id);
+            }}
+            onCancel={() => setCreating(false)}
+          />
+        </AppModal>
+      ) : null}
     </PageShell>
   );
 }
@@ -287,27 +301,8 @@ function NewPageEditor({
   const canCreate = title.trim() !== '' && content.trim() !== '' && !create.isPending;
 
   return (
-    <Card>
-      <Card.Body>
-        <div className="mb-3 flex items-center gap-2">
-          <span className="truncate text-sm font-medium">
-            New page
-            {prefix ? (
-              <>
-                {' '}in <span className="font-mono text-muted-foreground">{prefix.replace(/\/$/, '')}</span>
-              </>
-            ) : null}
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onCancel} disabled={create.isPending}>
-              Cancel
-            </Button>
-            <Button size="sm" disabled={!canCreate} onClick={() => create.mutate()}>
-              {create.isPending ? 'Creating…' : 'Create page'}
-            </Button>
-          </div>
-        </div>
-        <div className="grid gap-4 lg:grid-cols-[1fr_15rem]">
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[1fr_15rem]">
           <div className="space-y-2">
             <Input
               value={title}
@@ -343,8 +338,15 @@ function NewPageEditor({
             />
           </aside>
         </div>
-      </Card.Body>
-    </Card>
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="secondary" onClick={onCancel} disabled={create.isPending}>
+          Cancel
+        </Button>
+        <Button disabled={!canCreate} onClick={() => create.mutate()}>
+          {create.isPending ? 'Creating…' : 'Create page'}
+        </Button>
+      </div>
+    </div>
   );
 }
 

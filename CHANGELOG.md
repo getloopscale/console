@@ -2,8 +2,10 @@
 
 ### Added
 - Roadmap amended: added M14 System-wide standardized modal component (AppModal) (`/roadmap-feature standard-modal-component`)
+- `AppModal` (M14) — a reusable, standardized modal primitive (`components/ui/app-modal.tsx`) built on the design-system `Dialog` (Radix): one `size` scale (sm/md/lg/xl) + a title/description/body/footer contract, delegating focus-trap/ESC/overlay/a11y to Radix. Becomes the system-wide pattern for transient action screens (replaces per-screen ad-hoc `Dialog.Content`).
 
 ### Changed
+- Wiki (`/rag/wiki`) action screens are now standardized modals (M14): New page moved out of the side pane into an `AppModal`; New folder (shared with the Workspace via `NewFolderDialog`) rebuilt on `AppModal`; Search stays the design-system CommandPalette. Reading/editing an existing page stays in the master-detail split.
 - Wiki (`/rag/wiki`) redesigned as a single folder browser (Workspace parity): the former folder-tree + flat-page-list pair is replaced by one navigable browser with a breadcrumb, folders, and pages. Users create folders (a hidden `.keep` marker, like the Workspace) and create pages from inside the current folder (the page's path is `{folder}{title}`). Reading/editing a page and creating one open in a master-detail split — the browser collapses to a rail while the reader/editor takes the space — with the Cmd+K page palette and Read/Edit toggle preserved.
 
 ### Fixed
