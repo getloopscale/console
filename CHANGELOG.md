@@ -3,6 +3,7 @@
 ### Added
 
 ### Changed
+- Modals are now traditional CENTERED dialogs (M14). `AppModal` was rebuilt directly on `@radix-ui/react-dialog` (overlay + centered panel) because `@usetheo/ui@0.28.2` has a bug where `Dialog` and `Sheet` share one object and `Sheet.Content` (a right-side drawer) clobbers `Dialog.Content`, so every `<Dialog.Content>` rendered as a lateral drawer. `AppModal` bypasses that and is the system-wide standard for action modals. Migrated the Connectors "Connect a source" modal to `AppModal` (was a lateral drawer); Wiki New folder / New page already use it.
 
 ### Fixed
 
