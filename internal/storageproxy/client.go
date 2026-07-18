@@ -15,6 +15,7 @@
 package storageproxy
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -321,4 +322,66 @@ func (c *Client) Usage(ctx context.Context, tenantID string) (storage.UsageInfo,
 		PerFileLimit:   body.PerFileLimit,
 		Tier:           body.Tier,
 	}, nil
+}
+
+// presignPost forwards a presign mint (upload/download) to the upstream storage
+// service and decodes the {url, expires_at} envelope. The upstream owns the S3
+// signing; theo-cloud only relays the already-authenticated tenant.
+func (c *Client) presignPost(ctx context.Context, tenantID, endpoint string, reqBody any) (string, time.Time, error) {
+	raw, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	req, err := c.newReq(ctx, http.MethodPost, tenantID, endpoint, bytes.NewReader(raw))
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", time.Time{}, errFromResponse(resp)
+	}
+	var out struct {
+		URL       string `json:"url"`
+		ExpiresAt string `json:"expires_at"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", time.Time{}, err
+	}
+	exp, _ := time.Parse(time.RFC3339, out.ExpiresAt)
+	return out.URL, exp, nil
+}
+
+// PresignUpload forwards POST /v1/storage/presign-upload.
+func (c *Client) PresignUpload(ctx context.Context, tenantID, path string, size int64, mime string) (string, time.Time, error) {
+	return c.presignPost(ctx, tenantID, "/v1/storage/presign-upload",
+		map[string]any{"path": path, "size": size, "content_type": mime})
+}
+
+// PresignDownload forwards POST /v1/storage/presign-download.
+func (c *Client) PresignDownload(ctx context.Context, tenantID, path string) (string, time.Time, error) {
+	return c.presignPost(ctx, tenantID, "/v1/storage/presign-download", map[string]any{"path": path})
+}
+
+// CommitUpload forwards POST /v1/storage/presign-commit.
+func (c *Client) CommitUpload(ctx context.Context, tenantID, path string) error {
+	raw, _ := json.Marshal(map[string]any{"path": path})
+	req, err := c.newReq(ctx, http.MethodPost, tenantID, "/v1/storage/presign-commit", bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return errFromResponse(resp)
+	}
+	return nil
 }

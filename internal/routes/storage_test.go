@@ -24,19 +24,21 @@ import (
 
 // stubStorageService lets us drive each handler branch deterministically.
 type stubStorageService struct {
-	uploadErr  error
-	downloadRC io.ReadCloser
-	downloadMD storage.ObjectMeta
-	downloadErr error
-	statErr    error
-	shareErr   error
-	redeemErr  error
-	gotTenant  string
-	gotPath    string
+	uploadErr          error
+	downloadRC         io.ReadCloser
+	downloadMD         storage.ObjectMeta
+	downloadErr        error
+	statErr            error
+	shareErr           error
+	redeemErr          error
+	gotTenant          string
+	gotPath            string
 	deleteErrByPath    map[string]error
 	deletePrefixResult storage.BulkDeleteResult
 	deletePrefixErr    error
 	gotPrefixes        []string
+	presignErr         error
+	commitErr          error
 }
 
 func (s *stubStorageService) Upload(ctx context.Context, tenant, path string, body io.Reader, size int64, mime string) error {
@@ -81,6 +83,24 @@ func (s *stubStorageService) Share(ctx context.Context, tenant, path string, ttl
 }
 func (s *stubStorageService) Usage(ctx context.Context, tenant string) (storage.UsageInfo, error) {
 	return storage.UsageInfo{UsedBytes: 42, AggregateLimit: 100 << 20, PerFileLimit: 25 << 20, Tier: "starter"}, nil
+}
+func (s *stubStorageService) PresignUpload(ctx context.Context, tenant, path string, size int64, mime string) (string, time.Time, error) {
+	s.gotTenant, s.gotPath = tenant, path
+	if s.presignErr != nil {
+		return "", time.Time{}, s.presignErr
+	}
+	return "https://s3.example/put/" + path + "?X-Amz-Signature=stub", time.Now().Add(5 * time.Minute), nil
+}
+func (s *stubStorageService) CommitUpload(ctx context.Context, tenant, path string) error {
+	s.gotTenant, s.gotPath = tenant, path
+	return s.commitErr
+}
+func (s *stubStorageService) PresignDownload(ctx context.Context, tenant, path string) (string, time.Time, error) {
+	s.gotTenant, s.gotPath = tenant, path
+	if s.presignErr != nil {
+		return "", time.Time{}, s.presignErr
+	}
+	return "https://s3.example/get/" + path + "?X-Amz-Signature=stub", time.Now().Add(5 * time.Minute), nil
 }
 func (s *stubStorageService) Redeem(ctx context.Context, token string) (io.ReadCloser, storage.ObjectMeta, error) {
 	if s.redeemErr != nil {
@@ -432,4 +452,68 @@ func TestStorageHandler_BulkDelete_MetricIncrements(t *testing.T) {
 	if got := metrics.ObjectsDeletedValue() - before; got != 4 {
 		t.Errorf("theo_storage_objects_deleted_total delta = %v, want 4 (1 path + 3 prefix)", got)
 	}
+}
+
+// TestPresignEndpoints_M2M3 covers the presigned data-plane mounts: presign-upload
+// mints a PUT URL, presign-download mints a GET URL, presign-commit finalizes; a
+// commit for an un-uploaded object surfaces the typed 409.
+func TestPresignEndpoints_M2M3(t *testing.T) {
+	newMux := func(stub *stubStorageService) *chi.Mux {
+		h := NewStorageHandler(stub)
+		mux := chi.NewRouter()
+		h.MountDashboardRoutes(mux)
+		return mux
+	}
+	post := func(mux *chi.Mux, path, body string) *httptest.ResponseRecorder {
+		r := withTenant(httptest.NewRequest(http.MethodPost, path, strings.NewReader(body)), "tn-a")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, r)
+		return rec
+	}
+
+	t.Run("presign-upload mints a PUT url", func(t *testing.T) {
+		stub := &stubStorageService{}
+		rec := post(newMux(stub), "/presign-upload", `{"path":"data/x.txt","size":10,"content_type":"text/plain"}`)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), `"method":"PUT"`) || !strings.Contains(rec.Body.String(), "X-Amz-Signature") {
+			t.Errorf("response missing PUT url: %s", rec.Body.String())
+		}
+		if stub.gotPath != "data/x.txt" || stub.gotTenant != "tn-a" {
+			t.Errorf("svc got (%q,%q), want (tn-a, data/x.txt)", stub.gotTenant, stub.gotPath)
+		}
+	})
+
+	t.Run("presign-download mints a GET url", func(t *testing.T) {
+		rec := post(newMux(&stubStorageService{}), "/presign-download", `{"path":"data/x.txt"}`)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"method":"GET"`) {
+			t.Fatalf("download mint: status %d body %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("presign-commit ok", func(t *testing.T) {
+		rec := post(newMux(&stubStorageService{}), "/presign-commit", `{"path":"data/x.txt"}`)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"committed":true`) {
+			t.Fatalf("commit: status %d body %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("presign-commit un-uploaded → 409", func(t *testing.T) {
+		stub := &stubStorageService{commitErr: &storage.UploadNotCompletedError{Path: "data/x.txt"}}
+		rec := post(newMux(stub), "/presign-commit", `{"path":"data/x.txt"}`)
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want 409; body=%s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "upload_not_completed") {
+			t.Errorf("missing typed code: %s", rec.Body.String())
+		}
+	})
+
+	t.Run("missing path → 400", func(t *testing.T) {
+		rec := post(newMux(&stubStorageService{}), "/presign-upload", `{"size":10}`)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400", rec.Code)
+		}
+	})
 }
