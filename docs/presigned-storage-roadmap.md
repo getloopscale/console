@@ -62,3 +62,38 @@ auth, tenant-key derivation, quota, and metadata — never the bytes.
 - Security code (SigV4) validated by round-trip against real MinIO, not just format asserts.
 - No new heavy dependency (ADR-P1). Typed errors. Tenant isolation preserved.
 - LIVE evidence + (M5) benchmark data. Release cut develop→main + self-merge.
+
+## M5 — Benchmark data (measured)
+
+`go test -bench='PresignPut|ProxyPut' -benchmem ./internal/storage/s3x/` (AMD, 12 cores):
+
+| Operation | ns/op | B/op | allocs/op | Cost in file size |
+|---|---:|---:|---:|---|
+| **PresignPut (mint)** | **8,878** | **6,428** | 121 | **O(1) — constant** |
+| ProxyPut 1 KB | 268 | 1,064 | 3 | O(N) |
+| ProxyPut 1 MB | 247,591 | 1,048,621 | 34 | O(N) |
+| ProxyPut 16 MB | 3,750,268 | 16,777,277 | 514 | O(N) |
+| ProxyPut 128 MB | 26,812,720 | 134,217,776 | 4,098 | O(N) |
+
+The mint is constant (~8.9 µs / 6.4 KB) regardless of file size; proxying grows linearly.
+At 128 MB the proxy allocates 128 MB in the BFF **per upload** vs 6.4 KB for a mint — 100
+concurrent 128 MB uploads is ~12.8 GB of BFF RAM (proxy) vs ~640 KB (presign). The benchmark
+measures only the in-process relay; the real proxy also holds a goroutine + two sockets for the
+entire transfer (seconds for large files over the network), which the presigned path removes.
+Crossover: the mint (8.9 µs) is cheaper than proxying anything ≳ 35 KB.
+
+## Remaining deploy step (M4 infra) — NOT yet done
+
+The presigned URLs are minted with the host in `STORAGE_S3_ENDPOINT`, which is signed into the
+SigV4 signature — so that host MUST be the one the browser hits. On app-dev it is currently the
+in-cluster `http://minio.theo-system.svc.cluster.local:9000`, unreachable from the browser. To
+finish the LIVE end-to-end path:
+
+1. Expose MinIO at a browser-reachable HTTPS host (dedicated subdomain, e.g. `storage-dev.usetheo.dev`,
+   reverse-proxied by the edge with the Host header PRESERVED so the SigV4 host matches).
+2. Set `STORAGE_S3_ENDPOINT` to that public host and redeploy theo-cloud.
+3. Configure bucket CORS to allow the app-dev origin for PUT/GET/HEAD.
+
+This exposes object storage publicly on shared dev infra and is a deliberate infra change; it is
+scoped here and pending, not rushed. The backend (M1-M3) + frontend (M4) code paths are complete,
+tested, and released (v0.53.0, v0.54.0); they light up end-to-end once the public endpoint is set.
