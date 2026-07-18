@@ -5,10 +5,10 @@ import {
   Button,
   Card,
   CodeBlock,
-  ConfirmDialog,
   DangerZone,
   PageShell,
 } from '@usetheo/ui';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { logout } from '@/lib/auth';

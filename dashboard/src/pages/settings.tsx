@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, Brain } from 'lucide-react';
-import { Card, CodeBlock, ConfirmDialog, DangerZone, Button, PageShell, StatusDot } from '@usetheo/ui';
+import {
+  Card,
+  CodeBlock,
+  DangerZone,
+  Button,
+  PageShell,
+  StatusDot,
+} from '@usetheo/ui';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useWhoami } from '@/hooks/use-whoami';

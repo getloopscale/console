@@ -3,7 +3,7 @@
 ### Added
 
 ### Changed
-- Modals are now traditional CENTERED dialogs (M14). `AppModal` was rebuilt directly on `@radix-ui/react-dialog` (overlay + centered panel) because `@usetheo/ui@0.28.2` has a bug where `Dialog` and `Sheet` share one object and `Sheet.Content` (a right-side drawer) clobbers `Dialog.Content`, so every `<Dialog.Content>` rendered as a lateral drawer. `AppModal` bypasses that and is the system-wide standard for action modals. Migrated the Connectors "Connect a source" modal to `AppModal` (was a lateral drawer); Wiki New folder / New page already use it.
+- Modals across the dashboard are now traditional CENTERED dialogs (M14). Root cause: `@usetheo/ui@0.28.2` has a bug where `Dialog` and `Sheet` are the same object and `Sheet.Content` (a right-side drawer) clobbers `Dialog.Content`, so every `<Dialog.Content>` rendered as a lateral drawer. Fix: new local centered primitives built on `@radix-ui/react-dialog` — `AppModal` (title/description/footer/size, the standard for new action modals) + a drop-in `Dialog` compound (`components/ui/dialog.tsx`) + a centered `ConfirmDialog` (`components/dialogs/confirm-dialog.tsx`, now shows the type-to-confirm phrase inline). Swapped the dashboard's `Dialog` (17 sites) and `ConfirmDialog` (23 sites) imports to the local centered versions, and migrated the Connectors "Connect a source" + Wiki New folder / New page modals — so action modals and destructive confirmations are centered system-wide (specialized surfaces — command palette, troubleshoot side-sheet — intentionally unchanged).
 
 ### Fixed
 

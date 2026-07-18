@@ -1,6 +1,15 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Box, FolderKanban, Loader2, Play, Rocket } from 'lucide-react';
-import { Badge, Button, Card, CodeBlock, ConfirmDialog, DangerZone, EmptyState, PageShell } from '@usetheo/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CodeBlock,
+  DangerZone,
+  EmptyState,
+  PageShell,
+} from '@usetheo/ui';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/use-projects';

@@ -6,11 +6,11 @@ import {
   Badge,
   Button,
   Card,
-  ConfirmDialog,
   PageShell,
   Select,
   Table,
 } from '@usetheo/ui';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useEngineApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';

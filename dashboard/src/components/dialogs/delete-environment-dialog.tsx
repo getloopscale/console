@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Trash2 } from 'lucide-react';
-import { Button, Dialog, Input, Label } from '@usetheo/ui';
+import {
+  Button,
+  Input,
+  Label,
+} from '@usetheo/ui';
+import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { useDeleteEnvironment } from '@/hooks/mutations/use-environments';
 

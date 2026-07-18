@@ -4,7 +4,16 @@ import {
   RefreshCw, Trash2, Link2, Upload, Folder, FileText, FileCode, FileImage,
   FolderPlus, ChevronRight, Home,
 } from 'lucide-react';
-import { Button, Card, PageShell, Skeleton, EmptyState, Badge, ConfirmDialog, Checkbox } from '@usetheo/ui';
+import {
+  Button,
+  Card,
+  PageShell,
+  Skeleton,
+  EmptyState,
+  Badge,
+  Checkbox,
+} from '@usetheo/ui';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

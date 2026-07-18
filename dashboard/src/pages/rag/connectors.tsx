@@ -4,7 +4,6 @@ import { Plug, RefreshCw, Trash2 } from 'lucide-react';
 import {
   Button,
   Card,
-  ConfirmDialog,
   DataTable,
   type DataTableColumn,
   EmptyState,
@@ -15,6 +14,7 @@ import {
   Skeleton,
   Timestamp,
 } from '@usetheo/ui';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 
