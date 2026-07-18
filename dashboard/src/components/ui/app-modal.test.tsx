@@ -85,4 +85,27 @@ describe('AppModal — standardized modal primitive', () => {
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('calls onClose when the close (X) button is clicked (EC2)', () => {
+    const onClose = vi.fn();
+    render(
+      // No footer → the only button inside the dialog is the built-in close (X).
+      <AppModal open onClose={onClose} title="Closable">
+        <p>body</p>
+      </AppModal>,
+    );
+    const buttons = screen.getAllByRole('button');
+    expect(buttons).toHaveLength(1);
+    fireEvent.click(buttons[0]);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render the close (X) button when hideCloseButton is set', () => {
+    render(
+      <AppModal open onClose={() => {}} title="No X" hideCloseButton>
+        <p>body</p>
+      </AppModal>,
+    );
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
 });
