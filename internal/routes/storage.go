@@ -33,6 +33,10 @@ type StorageService interface {
 	Share(ctx context.Context, tenantID, path string, ttl time.Duration) (token string, expires time.Time, err error)
 	Redeem(ctx context.Context, token string) (io.ReadCloser, storage.ObjectMeta, error)
 	Usage(ctx context.Context, tenantID string) (storage.UsageInfo, error)
+	// Presigned data-plane (M2/M3): mint direct-to-S3 URLs so bytes bypass the BFF.
+	PresignUpload(ctx context.Context, tenantID, path string, size int64, mime string) (string, time.Time, error)
+	CommitUpload(ctx context.Context, tenantID, path string) error
+	PresignDownload(ctx context.Context, tenantID, path string) (string, time.Time, error)
 }
 
 // StorageHandler serves the /v1/storage/* API. Product language only in every
@@ -59,6 +63,11 @@ func (h *StorageHandler) MountDashboardRoutes(r chi.Router) {
 	r.Delete("/objects/*", h.Delete)
 	r.Post("/bulk-delete", h.BulkDelete)
 	r.Post("/share", h.CreateShare)
+	// Presigned data-plane (M2/M3). The path travels in the JSON body (not the URL)
+	// to avoid colliding with the greedy /objects/* wildcard above.
+	r.Post("/presign-upload", h.PresignUpload)
+	r.Post("/presign-commit", h.CommitUpload)
+	r.Post("/presign-download", h.PresignDownload)
 }
 
 func tenantOf(r *http.Request) string {
@@ -91,6 +100,82 @@ func (h *StorageHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(map[string]any{"path": path, "size": r.ContentLength})
+}
+
+// presignReq is the body for the presign endpoints: the object path (and, for an
+// upload mint, the declared size + content type). The path is in the body — not
+// the URL — to avoid the greedy /objects/* wildcard.
+type presignReq struct {
+	Path        string `json:"path"`
+	Size        int64  `json:"size"`
+	ContentType string `json:"content_type"`
+}
+
+func decodePresignReq(w http.ResponseWriter, r *http.Request) (presignReq, bool) {
+	var req presignReq
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&req); err != nil || req.Path == "" {
+		writeStorageError(w, http.StatusBadRequest, "invalid_request", "A JSON body with a non-empty \"path\" is required.")
+		return presignReq{}, false
+	}
+	return req, true
+}
+
+// PresignUpload serves POST /presign-upload: reserves quota + mints a presigned
+// PUT URL so the client uploads the bytes DIRECTLY to S3. Finalized by CommitUpload.
+func (h *StorageHandler) PresignUpload(w http.ResponseWriter, r *http.Request) {
+	req, ok := decodePresignReq(w, r)
+	if !ok {
+		return
+	}
+	mime := req.ContentType
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	url, expires, err := h.svc.PresignUpload(r.Context(), tenantOf(r), req.Path, req.Size, mime)
+	if err != nil {
+		writeStorageError(w, statusForStorageErr(err), codeForStorageErr(err), messageForStorageErr(err))
+		return
+	}
+	writeJSONOK(w, map[string]any{
+		"url":        url,
+		"method":     "PUT",
+		"path":       req.Path,
+		"expires_at": expires.Format(time.RFC3339),
+	})
+}
+
+// CommitUpload serves POST /presign-commit: confirms the direct-to-S3 upload
+// landed (HEAD + size match) and commits the pending metadata row.
+func (h *StorageHandler) CommitUpload(w http.ResponseWriter, r *http.Request) {
+	req, ok := decodePresignReq(w, r)
+	if !ok {
+		return
+	}
+	if err := h.svc.CommitUpload(r.Context(), tenantOf(r), req.Path); err != nil {
+		writeStorageError(w, statusForStorageErr(err), codeForStorageErr(err), messageForStorageErr(err))
+		return
+	}
+	writeJSONOK(w, map[string]any{"path": req.Path, "committed": true})
+}
+
+// PresignDownload serves POST /presign-download: mints a short-lived presigned GET
+// URL for a committed object so the client reads the bytes DIRECTLY from S3.
+func (h *StorageHandler) PresignDownload(w http.ResponseWriter, r *http.Request) {
+	req, ok := decodePresignReq(w, r)
+	if !ok {
+		return
+	}
+	url, expires, err := h.svc.PresignDownload(r.Context(), tenantOf(r), req.Path)
+	if err != nil {
+		writeStorageError(w, statusForStorageErr(err), codeForStorageErr(err), messageForStorageErr(err))
+		return
+	}
+	writeJSONOK(w, map[string]any{
+		"url":        url,
+		"method":     "GET",
+		"path":       req.Path,
+		"expires_at": expires.Format(time.RFC3339),
+	})
 }
 
 // Download serves GET /v1/storage/objects/{path...} (scope storage:read).
@@ -321,6 +406,8 @@ func sanitizeFilename(p string) string {
 func statusForStorageErr(err error) int {
 	var qe *storage.QuotaExceededError
 	var fe *storage.FileTooLargeError
+	var unc *storage.UploadNotCompletedError
+	var sme *storage.SizeMismatchError
 	switch {
 	case errors.Is(err, storage.ErrInvalidPath), errors.Is(err, storage.ErrShareTTLTooLong):
 		return http.StatusBadRequest
@@ -328,6 +415,8 @@ func statusForStorageErr(err error) int {
 		return http.StatusPaymentRequired // 402
 	case errors.As(err, &fe):
 		return http.StatusRequestEntityTooLarge // 413
+	case errors.As(err, &unc), errors.As(err, &sme):
+		return http.StatusConflict // 409 — presigned upload not completed / size mismatch
 	case errors.Is(err, storage.ErrObjectNotFoundMeta):
 		return http.StatusNotFound
 	case errors.Is(err, share.ErrExpired):
@@ -342,6 +431,8 @@ func statusForStorageErr(err error) int {
 func codeForStorageErr(err error) string {
 	var qe *storage.QuotaExceededError
 	var fe *storage.FileTooLargeError
+	var unc *storage.UploadNotCompletedError
+	var sme *storage.SizeMismatchError
 	switch {
 	case errors.Is(err, storage.ErrInvalidPath):
 		return "invalid_path"
@@ -351,6 +442,10 @@ func codeForStorageErr(err error) string {
 		return "storage_quota_exceeded"
 	case errors.As(err, &fe):
 		return "file_too_large"
+	case errors.As(err, &unc):
+		return "upload_not_completed"
+	case errors.As(err, &sme):
+		return "upload_size_mismatch"
 	case errors.Is(err, storage.ErrObjectNotFoundMeta):
 		return "file_not_found"
 	case errors.Is(err, share.ErrExpired):
@@ -365,6 +460,8 @@ func codeForStorageErr(err error) string {
 func messageForStorageErr(err error) string {
 	var qe *storage.QuotaExceededError
 	var fe *storage.FileTooLargeError
+	var unc *storage.UploadNotCompletedError
+	var sme *storage.SizeMismatchError
 	switch {
 	case errors.Is(err, storage.ErrInvalidPath):
 		return "The file path is invalid."
@@ -374,6 +471,10 @@ func messageForStorageErr(err error) string {
 		return "Your plan's storage limit has been reached. Upgrade your plan or delete files to free space."
 	case errors.As(err, &fe):
 		return "This file exceeds the maximum file size for your plan."
+	case errors.As(err, &unc):
+		return "The upload was not completed. Please try uploading the file again."
+	case errors.As(err, &sme):
+		return "The uploaded file did not match the expected size. Please try again."
 	case errors.Is(err, storage.ErrObjectNotFoundMeta):
 		return "The requested file was not found."
 	case errors.Is(err, share.ErrExpired):

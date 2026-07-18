@@ -49,6 +49,15 @@ type MetaStore interface {
 	MarkCommitted(ctx context.Context, id string) error
 	DeletePending(ctx context.Context, id string) error
 
+	// By-name variants for the two-phase presigned upload: the mint and the commit
+	// are SEPARATE HTTP requests, so the commit does not hold the in-memory
+	// Reservation — it addresses the pending row by (tenant, name), unique per the
+	// storage_objects(tenant_id, name) constraint. PendingSizeByName returns the
+	// declared size of the pending row (ErrObjectNotFoundMeta if none).
+	PendingSizeByName(ctx context.Context, tenantID, name string) (int64, error)
+	MarkCommittedByName(ctx context.Context, tenantID, name string) error
+	DeletePendingByName(ctx context.Context, tenantID, name string) error
+
 	// RestorePrior reverts a reservation that REPLACED a previously-committed
 	// object back to that committed object (HIGH-4 fix — an overwrite-then-fail
 	// must not destroy the prior good object).

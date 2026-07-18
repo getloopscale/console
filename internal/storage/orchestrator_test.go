@@ -49,7 +49,12 @@ func (f *fakeObjectStore) GetObject(ctx context.Context, key string) (io.ReadClo
 	return io.NopCloser(bytes.NewReader(b)), ObjectMeta{Size: int64(len(b)), ContentType: "text/plain"}, nil
 }
 func (f *fakeObjectStore) HeadObject(ctx context.Context, key string) (ObjectMeta, error) {
-	return ObjectMeta{}, nil
+	// Reflects whether the object was "uploaded" (present in puts) so the two-phase
+	// presign commit path can simulate a client that did / did not PUT to S3.
+	if b, ok := f.puts[key]; ok {
+		return ObjectMeta{Size: int64(len(b)), ContentType: "application/octet-stream"}, nil
+	}
+	return ObjectMeta{}, ErrObjectNotFoundMeta
 }
 func (f *fakeObjectStore) DeleteObject(ctx context.Context, key string) error {
 	f.deleted = append(f.deleted, key)
@@ -120,6 +125,19 @@ func (m *fakeFullMeta) DeletePending(ctx context.Context, id string) error {
 		delete(m.rows, name)
 	}
 	return nil
+}
+func (m *fakeFullMeta) PendingSizeByName(ctx context.Context, t, name string) (int64, error) {
+	if m.pending["id-"+name] {
+		return m.rows[name].SizeBytes, nil
+	}
+	return 0, ErrObjectNotFoundMeta
+}
+func (m *fakeFullMeta) MarkCommittedByName(ctx context.Context, t, name string) error {
+	delete(m.pending, "id-"+name)
+	return nil
+}
+func (m *fakeFullMeta) DeletePendingByName(ctx context.Context, t, name string) error {
+	return m.DeletePending(ctx, "id-"+name)
 }
 func (m *fakeFullMeta) GetMeta(ctx context.Context, t, name string) (ObjectRecord, error) {
 	if r, ok := m.rows[name]; ok {

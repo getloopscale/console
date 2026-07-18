@@ -143,6 +143,50 @@ func (s *PGStore) DeletePending(ctx context.Context, id string) error {
 	return nil
 }
 
+// PendingSizeByName returns the declared size of the pending row for (tenant,
+// name), or ErrObjectNotFoundMeta when there is no pending upload — the two-phase
+// presign commit addresses the reservation by name (the mint/commit are separate
+// requests). Scoped to status='pending' so a committed object is never re-committed.
+func (s *PGStore) PendingSizeByName(ctx context.Context, tenantID, name string) (int64, error) {
+	var size int64
+	err := s.db.QueryRowContext(ctx,
+		`SELECT size_bytes FROM storage_objects
+		 WHERE tenant_id = $1 AND name = $2 AND status = 'pending'`,
+		tenantID, name,
+	).Scan(&size)
+	if err == sql.ErrNoRows {
+		return 0, ErrObjectNotFoundMeta
+	}
+	if err != nil {
+		return 0, fmt.Errorf("storage: pending size by name: %w", err)
+	}
+	return size, nil
+}
+
+// MarkCommittedByName flips the pending row for (tenant, name) to committed.
+func (s *PGStore) MarkCommittedByName(ctx context.Context, tenantID, name string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE storage_objects SET status = 'committed', updated_at = now()
+		 WHERE tenant_id = $1 AND name = $2 AND status = 'pending'`,
+		tenantID, name)
+	if err != nil {
+		return fmt.Errorf("storage: mark committed by name: %w", err)
+	}
+	return nil
+}
+
+// DeletePendingByName releases the pending reservation for (tenant, name) so a
+// failed / aborted presigned upload never holds quota.
+func (s *PGStore) DeletePendingByName(ctx context.Context, tenantID, name string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM storage_objects WHERE tenant_id = $1 AND name = $2 AND status = 'pending'`,
+		tenantID, name)
+	if err != nil {
+		return fmt.Errorf("storage: delete pending by name: %w", err)
+	}
+	return nil
+}
+
 // GetMeta returns a committed object's metadata, or ErrObjectNotFoundMeta.
 func (s *PGStore) GetMeta(ctx context.Context, tenantID, name string) (ObjectRecord, error) {
 	var r ObjectRecord

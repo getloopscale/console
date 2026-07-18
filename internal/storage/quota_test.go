@@ -40,6 +40,11 @@ func (f *fakeMetaStore) DeletePending(ctx context.Context, id string) error {
 	f.used -= 0
 	return nil
 }
+func (f *fakeMetaStore) PendingSizeByName(ctx context.Context, t, name string) (int64, error) {
+	return 0, ErrObjectNotFoundMeta
+}
+func (f *fakeMetaStore) MarkCommittedByName(ctx context.Context, t, name string) error { return nil }
+func (f *fakeMetaStore) DeletePendingByName(ctx context.Context, t, name string) error { return nil }
 func (f *fakeMetaStore) WithTenantLock(ctx context.Context, tenantID string, fn func(context.Context) error) error {
 	// No real lock in the fake — just run fn (serialization is an integration concern).
 	return fn(ctx)
