@@ -28,11 +28,6 @@
  *   - Scrollbar styled with theme --primary.
  */
 @import 'tailwindcss';
-/* KB9 — Tailwind v4 typography engine. Without this @plugin the `prose` /
- * `prose-invert` utility classes (used by MarkdownView + the KbEditor) generate
- * NOTHING, so wiki markdown rendered unstyled. The @plugin activates the prose
- * generator; the Notion-grade theme overrides live in the `.prose` block below. */
-@plugin "@tailwindcss/typography";
 /* @usetheo/ui@0.22 stopped shipping preset.css/components.css/fonts-cdn.css
  * (upstream regression #10 — migrated to a Tailwind-v4 utility model). We vendor
  * the canonical token layers from the design system's own Ladle preview and let
@@ -40,6 +35,13 @@
 @import './vendor/usetheo-ui/tokens.css';
 @import './vendor/usetheo-ui/tokens-v4.css';
 @import './vendor/usetheo-ui/fonts-cdn.css';
+/* KB9 — Tailwind v4 typography engine. MUST come AFTER every @import: the CSS spec
+ * requires @import to precede all non-import statements, so a @plugin placed between
+ * `@import 'tailwindcss'` and the vendor `@import`s invalidates them and Tailwind stops
+ * emitting the `@theme` color aliases (--color-*), which blanks the whole theme. Without
+ * this @plugin the `prose`/`prose-invert` classes generate nothing; with it, the Notion
+ * theme overrides in the `.prose` block below take effect. */
+@plugin "@tailwindcss/typography";
 @source '../node_modules/@usetheo/ui/dist';
 
 @custom-variant dark (&:is(.dark *));
