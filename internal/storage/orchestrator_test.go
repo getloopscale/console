@@ -58,6 +58,14 @@ func (f *fakeObjectStore) DeleteObject(ctx context.Context, key string) error {
 	}
 	return nil
 }
+func (f *fakeObjectStore) PresignPut(key string, expires time.Duration) (string, error) {
+	f.lastKey = key
+	return "https://s3.fake/put/" + key + "?X-Amz-Signature=fake", nil
+}
+func (f *fakeObjectStore) PresignGet(key string, expires time.Duration) (string, error) {
+	f.lastKey = key
+	return "https://s3.fake/get/" + key + "?X-Amz-Signature=fake", nil
+}
 
 // fakeFullMeta implements the full MetaStore (quota + object ops).
 type fakeFullMeta struct {

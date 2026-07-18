@@ -1,10 +1,12 @@
 ## [Unreleased]
 
 ### Added
+- Storage (M1 presigned core): `s3x.Signer.Presign` + `Client.PresignPut/PresignGet` — query-string SigV4 presigned URLs so file bytes can flow **directly to/from S3** instead of through the BFF. Validated against an **independent SigV4 oracle** (byte-identical signature) + a real-MinIO round-trip integration test. Extends the `ObjectStore` DIP interface.
 
 ### Changed
 
 ### Fixed
+- Test (`cmd`): updated the RAG dashboard route-set guard to include the KB0-KB8 wiki routes + chunk-editor + GraphRAG report routes (the guard was stale since the KB work, failing CI on develop).
 
 ## [0.52.1] - 2026-07-18
 
