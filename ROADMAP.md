@@ -382,7 +382,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M14 — [ ] System-wide standardized modal component (AppModal)
+### M14 — [x] System-wide standardized modal component (AppModal)
 
 > Added 2026-07-18 by `/roadmap-feature` (slug: `standard-modal-component`). See CHANGELOG `[Unreleased] § Added`. Depends on the dashboard + `@usetheo/ui` Dialog (foundational — already present).
 

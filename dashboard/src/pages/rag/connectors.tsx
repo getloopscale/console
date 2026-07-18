@@ -333,7 +333,7 @@ export function RagConnectorsPage() {
                 <Label>Provider</Label>
                 {oauthProviders.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    No OAuth providers are configured yet. Connect a paste-credential source (e.g. S3, web, Slack) with the CLI.
+                    No OAuth providers are configured yet. Use the “or connect with a credential” form below to connect an S3 bucket or a website — no OAuth needed.
                   </p>
                 ) : (
                   <div className="grid gap-2">
