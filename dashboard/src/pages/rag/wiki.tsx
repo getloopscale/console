@@ -114,7 +114,10 @@ export function RagWikiPage() {
         body: JSON.stringify({
           collection_id: collectionID,
           name: `${prefix}${folderName.trim()}/${WIKI_FOLDER_MARKER}`,
-          content: 'folder marker',
+          // Content MUST be unique per folder: the RAG store is content-addressed (dedups by
+          // sha256), so a fixed marker string would collapse every folder's `.keep` onto the
+          // first one created — only one folder would ever persist. Include the path.
+          content: `Folder marker for ${prefix}${folderName.trim()}`,
         }),
       }),
     onSuccess: () => {

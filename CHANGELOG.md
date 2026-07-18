@@ -6,6 +6,11 @@
 
 ### Fixed
 
+## [0.58.1] - 2026-07-18
+
+### Fixed
+- Wiki (`/rag/wiki`): creating more than one folder now works. The RAG store is content-addressed (dedups documents by sha256), and every folder's hidden `.keep` marker used the same fixed content ("folder marker"), so the 2nd+ folder silently deduplicated onto the 1st and never persisted. The marker content now includes the folder path (unique per folder), so each folder is created and shows up.
+
 ## [0.58.0] - 2026-07-18
 
 ### Changed
