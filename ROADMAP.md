@@ -382,6 +382,30 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
+### M14 — [ ] System-wide standardized modal component (AppModal)
+
+> Added 2026-07-18 by `/roadmap-feature` (slug: `standard-modal-component`). See CHANGELOG `[Unreleased] § Added`. Depends on the dashboard + `@usetheo/ui` Dialog (foundational — already present).
+
+**Objective:** make "modal" the system-wide standard for transient action screens by shipping ONE reusable, componentized modal (`AppModal`) built on the design-system `Dialog`, and route the Wiki's action screens (New folder, New page, Search) through it — so future screens reuse one primitive instead of each inventing its own dialog/pane. Reading/editing an existing page stays in the master-detail split (not a modal — long-form editing belongs in a pane).
+
+**Definition of done:**
+
+- [ ] `dashboard/src/components/ui/app-modal.tsx` — a reusable modal (sizes sm/md/lg/xl, header/title/description + body + footer-actions slot) built on `@usetheo/ui` `Dialog` (not reinvented — Rule 9), with unit tests (open/close, sizes, footer render, escape/overlay close).
+- [ ] Wiki (`/rag/wiki`): New folder and New page open through `AppModal` (New page moves OUT of the side pane into the modal; on create it closes and opens the new page in the split reader). Search stays the `@usetheo/ui` CommandPalette (the design-system search modal).
+- [ ] `NewFolderDialog` is rebuilt on `AppModal` so the Wiki AND Workspace "New folder" share the one standardized primitive without touching Workspace page code.
+- [ ] Reading/editing an existing page remains in the master-detail split (unchanged); the browser is full-width behind an open modal.
+- [ ] Typecheck + ESLint + the full dashboard test suite green; production build green.
+- [ ] LIVE-validated on dev-public (`app-dev.usetheo.dev/rag/wiki`): New folder + New page modals open/close/create; the served bundle hash matches the build.
+
+**Dependencies:** none blocking — the dashboard and `@usetheo/ui` `Dialog` already exist; the primitive is applied to the Wiki first (the RAG dashboard surfaces exist). Workspace + remaining screens roll onto `AppModal` in follow-up passes.
+
+**Top risks (new):**
+
+1. `NewFolderDialog` is shared with the Workspace — rebuilding it on `AppModal` could ripple a visual/behavior regression into the Workspace "New folder". Mitigation: preserve the exact props + behavior; the full dashboard test suite (1767 tests) is the regression net; convert only `NewFolderDialog`, defer other Workspace screens.
+2. A modal primitive must trap + restore focus (accessibility) and the PWA service worker can serve a stale bundle after deploy. Mitigation: build on the design-system `Dialog` (already focus-correct + a11y); post-deploy verify the served bundle hash matches the build and hard-reload to clear the SW.
+
+---
+
 ## State-of-the-art references
 
 No peers were cloned for this roadmap: the design is locked in the ADR and the reference model is
