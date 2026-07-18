@@ -82,18 +82,25 @@ measures only the in-process relay; the real proxy also holds a goroutine + two 
 entire transfer (seconds for large files over the network), which the presigned path removes.
 Crossover: the mint (8.9 µs) is cheaper than proxying anything ≳ 35 KB.
 
-## Remaining deploy step (M4 infra) — NOT yet done
+## M4 infra + LIVE end-to-end — DONE (2026-07-18)
 
-The presigned URLs are minted with the host in `STORAGE_S3_ENDPOINT`, which is signed into the
-SigV4 signature — so that host MUST be the one the browser hits. On app-dev it is currently the
-in-cluster `http://minio.theo-system.svc.cluster.local:9000`, unreachable from the browser. To
-finish the LIVE end-to-end path:
+The public browser-reachable storage path was provisioned on app-dev and the presigned
+upload was proven LIVE in a real Chrome (Playwright):
 
-1. Expose MinIO at a browser-reachable HTTPS host (dedicated subdomain, e.g. `storage-dev.usetheo.dev`,
-   reverse-proxied by the edge with the Host header PRESERVED so the SigV4 host matches).
-2. Set `STORAGE_S3_ENDPOINT` to that public host and redeploy theo-cloud.
-3. Configure bucket CORS to allow the app-dev origin for PUT/GET/HEAD.
+1. **DNS** `storage-dev.usetheo.dev` → droplet IP (Cloudflare A record).
+2. **Edge** — Caddy site `storage-dev.usetheo.dev` reverse-proxies to MinIO with the Host
+   header preserved (so the SigV4-signed host matches on verification) + a single, deduped
+   `Access-Control-Allow-Origin: https://app-dev.usetheo.dev` (MinIO's own CORS header is
+   stripped to avoid the duplicate-value rejection) + an OPTIONS preflight handler.
+3. **BFF** — `STORAGE_S3_PUBLIC_ENDPOINT=https://storage-dev.usetheo.dev` (mints against the
+   public host; server-side ops stay in-cluster). theo-cloud rebuilt + rolled out.
+4. **CSP** — the dashboard `connect-src` now allowlists the storage hosts (the CSP is an
+   earlier gate than CORS; without it the browser refused the request before sending it).
 
-This exposes object storage publicly on shared dev infra and is a deliberate infra change; it is
-scoped here and pending, not rushed. The backend (M1-M3) + frontend (M4) code paths are complete,
-tested, and released (v0.53.0, v0.54.0); they light up end-to-end once the public endpoint is set.
+**LIVE proof (real Chrome, app-dev, authenticated):** uploading a file in the Workspace fires
+`POST /presign-upload` (mint) → **`PUT https://storage-dev.usetheo.dev/theo-storage/<tenant>/<path>`**
+(bytes go DIRECTLY to S3) → `POST /presign-commit` (the BFF HEADs S3 + commits) → the file
+appears in the list. **Zero `PUT` to the BFF `/objects` proxy path** — the bytes never touch the
+BFF. Screenshot: `.claude/knowledge-base/audits/presign-live-upload-app-dev-2026-07-18.png`. The
+signature+Host+edge+MinIO chain is independently confirmed by the s3x round-trip integration test
+run against the public host (mint PUT → upload → mint GET → read back, PASS).
