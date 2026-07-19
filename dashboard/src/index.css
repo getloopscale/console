@@ -184,14 +184,18 @@ html[data-density] {
  * issue per original comment). */
 @layer base {
   /* Themed border across all elements — was `border-white/6` (wrong, fixed
-   * white shade fights theme cascade). Now uses --border var which Violet
-   * Forge sets to the correct neutral. */
+   * white shade fights theme cascade). Uses the --border token DIRECTLY: the
+   * tokens are oklch (`--border: oklch(...)`), so the old `hsl(var(--border))`
+   * wrapper produced an invalid color and every bare-`border` element (Radix
+   * Select.Content, tooltips, sheets) fell back to currentColor — a near-white
+   * border on the dark theme. `var(--border)` matches the `border-border`
+   * utility (which resolves via `--color-border: var(--border)`). */
   *,
   ::after,
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: hsl(var(--border));
+    border-color: var(--border);
   }
 
   /* Tailwind v4 dropped the v3 button cursor preflight. Without this, every
@@ -210,8 +214,11 @@ html[data-density] {
   }
 
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    /* Tokens are oklch — reference them directly (hsl(var(--…)) is invalid
+     * and drops the declaration). Matches the bg-background/text-foreground
+     * utilities used on the layout shells. */
+    background-color: var(--background);
+    color: var(--foreground);
     /* OpenType ligatures (Geist 'liga' + 'ss01' is structural for the
      * Vercel-tight glyph combinations) + cv02/03/04/11 stylistic alternates */
     font-feature-settings:
@@ -256,8 +263,11 @@ html[data-density] {
   /* Themed selection — was bg-accent/20 (green), now uses theme primary
    * (violet) for brand consistency. */
   ::selection {
-    background-color: hsl(var(--primary) / 0.25);
-    color: hsl(var(--foreground));
+    /* oklch tokens: hsl(var(--primary) / .25) was invalid, so the selection
+     * highlight had NO background and text looked unselectable. color-mix
+     * applies the alpha in the oklch space. */
+    background-color: color-mix(in oklch, var(--primary) 25%, transparent);
+    color: var(--foreground);
   }
 
   /* Native scrollbar — themed with --primary. Used by elements that don't
@@ -270,21 +280,21 @@ html[data-density] {
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--primary) / 0.25);
+    background-color: color-mix(in oklch, var(--primary) 25%, transparent);
     border: 2px solid transparent;
     background-clip: content-box;
     border-radius: 9999px;
     transition: background-color var(--motion-fast) var(--easing-standard);
   }
   *::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--primary) / 0.5);
+    background-color: color-mix(in oklch, var(--primary) 50%, transparent);
   }
   *::-webkit-scrollbar-thumb:active {
-    background-color: hsl(var(--primary) / 0.75);
+    background-color: color-mix(in oklch, var(--primary) 75%, transparent);
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--primary) / 0.3) transparent;
+    scrollbar-color: color-mix(in oklch, var(--primary) 30%, transparent) transparent;
   }
 }
 
