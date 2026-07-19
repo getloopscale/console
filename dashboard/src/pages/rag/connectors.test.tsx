@@ -19,7 +19,7 @@ describe('RagConnectorsPage (/rag/connectors)', () => {
   it('lists connections and syncs one via POST', async () => {
     mockCloudFetch.mockResolvedValue(ONE);
     render(<RagConnectorsPage />);
-    expect(await screen.findByText('s3')).toBeInTheDocument();
+    expect(await screen.findByText('S3')).toBeInTheDocument();
     expect(screen.getByText('col_1')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /sync conn_1/i }));
@@ -79,7 +79,7 @@ describe('RagConnectorsPage — destructive delete flow', () => {
   it('delete opens ConfirmDialog then calls DELETE on confirm', async () => {
     mockCloudFetch.mockResolvedValue(ONE);
     render(<RagConnectorsPage />);
-    await screen.findByText('s3');
+    await screen.findByText('S3');
     await userEvent.click(screen.getByRole('button', { name: /delete conn_1/i }));
     const confirm = await screen.findByRole('button', { name: /delete connector/i });
     await userEvent.click(confirm);
@@ -98,7 +98,7 @@ describe('RagConnectorsPage — destructive delete flow', () => {
       return Promise.resolve({ items: [] });
     });
     render(<RagConnectorsPage />);
-    await screen.findByText('s3');
+    await screen.findByText('S3');
     await userEvent.click(screen.getByRole('button', { name: /delete conn_1/i }));
     await userEvent.click(await screen.findByRole('button', { name: /delete connector/i }));
     expect(await screen.findByText(/could not delete the connector/i)).toBeInTheDocument();

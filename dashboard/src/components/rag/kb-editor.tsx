@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BubbleMenu, EditorContent, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -27,6 +28,12 @@ export interface KbEditorProps {
   readonly value: string;
   readonly editable?: boolean;
   readonly onChange?: (markdown: string) => void;
+  /** Fill the parent's height (flex column that grows + scrolls internally) instead of the
+   * default fixed `min-h-[240px]`. Use inside a tall container (e.g. the New page modal). */
+  readonly fill?: boolean;
+  /** Document theme for the editing surface: `system` (dark, follows the app) or `white`
+   * (light paper surface even in the dark app). Defaults to `system`. */
+  readonly theme?: 'system' | 'white';
 }
 
 interface SlashState {
@@ -42,7 +49,7 @@ function textBeforeCaret(editor: Editor): string {
   return $from.parent.textBetween(0, $from.parentOffset, '\n', '￼');
 }
 
-export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
+export function KbEditor({ value, editable = true, onChange, fill = false, theme = 'system' }: KbEditorProps) {
   const [slash, setSlash] = useState<SlashState | null>(null);
   const slashRef = useRef<SlashState | null>(null);
   slashRef.current = slash;
@@ -91,8 +98,13 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
     autofocus: editable ? 'end' : false,
     editorProps: {
       attributes: {
-        class:
-          'prose prose-sm min-h-[240px] max-w-none rounded-md border border-border bg-background p-3 focus:outline-none dark:prose-invert',
+        class: [
+          fill
+            ? 'prose prose-sm h-full min-h-0 max-w-none overflow-y-auto rounded-md border border-border p-3 focus:outline-none'
+            : 'prose prose-sm min-h-[240px] max-w-none rounded-md border border-border p-3 focus:outline-none',
+          // Theme (kept in sync at runtime by the effect below when it toggles):
+          theme === 'white' ? 'prose-doc-white bg-white' : 'bg-background dark:prose-invert',
+        ].join(' '),
         'data-testid': 'kb-editor',
         'aria-label': 'Page editor',
       },
@@ -132,6 +144,20 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
     editor?.setEditable(editable);
   }, [editable, editor]);
 
+  // Keep the editing surface in sync with the document theme when it toggles at runtime
+  // (the editor is created once, so the initial class alone would not react to changes).
+  useEffect(() => {
+    const dom = editor?.view.dom;
+    if (!dom) return;
+    if (theme === 'white') {
+      dom.classList.add('prose-doc-white', 'bg-white');
+      dom.classList.remove('bg-background', 'dark:prose-invert');
+    } else {
+      dom.classList.add('bg-background', 'dark:prose-invert');
+      dom.classList.remove('prose-doc-white', 'bg-white');
+    }
+  }, [editor, theme]);
+
   useEffect(() => {
     if (editor === null || editor.isFocused) return;
     const current = editor.storage.markdown.getMarkdown();
@@ -144,7 +170,7 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
   const activeBtn = (on: boolean) => `${btn} ${on ? 'bg-muted text-primary' : ''}`;
 
   return (
-    <div className="relative">
+    <div className={fill ? 'relative flex min-h-0 flex-1 flex-col' : 'relative'}>
       {editor ? (
         <BubbleMenu
           editor={editor}
@@ -174,14 +200,21 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
         </BubbleMenu>
       ) : null}
 
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined} />
 
-      {slash && editor ? (
+      {/* Portal past the modal: the slash menu is `position: fixed` at the caret's viewport
+          coords, but a transformed ancestor (the centered modal's translate) makes `fixed`
+          resolve against the modal instead of the viewport, throwing the menu off. Render it
+          under the theme root (`.dark`, an un-transformed ancestor) — NOT `document.body`,
+          which sits OUTSIDE the theme and would drop the menu's colours to :root (invisible
+          dark text). This fixes both the position AND keeps the app theme. */}
+      {slash && editor
+        ? createPortal(
         <div
           role="listbox"
           aria-label="Insert block"
           data-testid="kb-slash-menu"
-          className="fixed z-50 w-56 overflow-hidden rounded-md border border-border bg-card py-1 shadow-lg"
+          className="fixed z-50 w-56 overflow-hidden rounded-md border border-border bg-card py-1 text-foreground shadow-lg"
           style={{ top: slash.top, left: slash.left }}
         >
           {slash.items.length === 0 ? (
@@ -203,8 +236,17 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
               </button>
             ))
           )}
-        </div>
-      ) : null}
+        </div>,
+            slashPortalRoot(),
+          )
+        : null}
     </div>
   );
+}
+
+/** The theme-aware, un-transformed portal target for the slash menu: the nearest theme root
+ * (`.dark` / `[data-mode]`) so the menu keeps the app's colours, falling back to `<body>`. */
+function slashPortalRoot(): HTMLElement {
+  if (typeof document === 'undefined') return null as unknown as HTMLElement;
+  return (document.querySelector('.dark, [data-mode]') as HTMLElement | null) ?? document.body;
 }

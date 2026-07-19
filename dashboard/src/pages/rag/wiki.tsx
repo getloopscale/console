@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, FolderPlus, Plus } from 'lucide-react';
-import { Badge, Button, Card, CommandPalette, EmptyState, Input, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/components/common/markdown-view';
 import { KbEditor } from '@/components/rag/kb-editor';
+import { DocThemeToggle } from '@/components/rag/doc-theme-toggle';
+import { TagChip } from '@/components/rag/tag-chip';
+import { TagInput } from '@/components/rag/tag-input';
+import { useDocTheme } from '@/hooks/use-doc-theme';
 import { applyTemplate, WIKI_TEMPLATES } from './wiki-templates';
-import { toCommandItems } from './wiki-command';
+import { WikiSearch } from './wiki-search';
 import { WikiBrowser } from './wiki-browser';
 import { WIKI_FOLDER_MARKER, type WikiEntry } from './wiki-entries';
 import { NewFolderDialog } from '../new-folder-dialog';
@@ -148,19 +152,16 @@ export function RagWikiPage() {
 
   return (
     <PageShell title="Wiki" description="Folders and markdown pages your team can read, edit, and Ask over.">
-      {/* KB14 — Cmd+K page palette. Selecting a page navigates the rail to its folder. */}
-      <CommandPalette
+      {/* KB14 — Cmd+K page search (centered modal). Selecting a page navigates the rail to its folder. */}
+      <WikiSearch
         open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        items={toCommandItems(pages)}
+        onClose={() => setPaletteOpen(false)}
+        pages={pages}
         onSelect={(id) => {
           const pg = pages.find((p) => p.id === id);
           if (pg) setPrefix(folderOf(pg.name));
           openExisting(id);
-          setPaletteOpen(false);
         }}
-        placeholder="Search wiki pages…"
-        emptyMessage={pages.length === 0 ? 'Select a collection to search its pages.' : 'No matching pages.'}
       />
 
       <NewFolderDialog
@@ -285,6 +286,7 @@ function NewPageEditor({
   const [type, setType] = useState('concept');
   const [tags, setTags] = useState('');
   const [description, setDescription] = useState('');
+  const [docTheme] = useDocTheme();
 
   const create = useMutation({
     mutationFn: () =>
@@ -312,9 +314,12 @@ function NewPageEditor({
   const canCreate = title.trim() !== '' && content.trim() !== '' && !create.isPending;
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[1fr_15rem]">
-          <div className="space-y-2">
+    <div className="flex h-full flex-col gap-4">
+      <div className="flex items-center justify-end">
+        <DocThemeToggle />
+      </div>
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_15rem]">
+          <div className="flex min-h-0 flex-col gap-2">
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -322,14 +327,14 @@ function NewPageEditor({
               aria-label="Page title"
               data-testid="new-page-title"
             />
-            <KbEditor value={content} onChange={setContent} />
+            <KbEditor value={content} onChange={setContent} fill theme={docTheme} />
             {create.isError ? (
               <Alert intent="destructive" title="Could not create the page">
                 Check the title and content, then try again.
               </Alert>
             ) : null}
           </div>
-          <aside className="space-y-3 rounded-md border border-border bg-muted/20 p-3" aria-label="Page details">
+          <aside className="space-y-3 overflow-y-auto rounded-md border border-border bg-muted/20 p-3" aria-label="Page details">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Start from a template</div>
             <div className="flex flex-wrap gap-1.5" data-testid="kb-templates">
               {WIKI_TEMPLATES.map((t) => (
@@ -340,12 +345,14 @@ function NewPageEditor({
             </div>
             <div className="pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Page details</div>
             <Input value={type} onChange={(e) => setType(e.target.value)} placeholder="Type (e.g. concept)" aria-label="Page type" />
-            <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Tags (comma-separated)" aria-label="Page tags" />
-            <Input
+            <TagInput value={tags} onChange={setTags} />
+            <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Description"
               aria-label="Page description"
+              rows={3}
+              className="resize-y"
             />
           </aside>
         </div>
@@ -367,6 +374,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [docTheme] = useDocTheme();
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', 'one', pageID] as const,
     queryFn: () =>
@@ -408,6 +416,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
           </Button>
           <span className="truncate font-medium">{page?.name ?? 'Wiki page'}</span>
           <div className="ml-auto flex items-center gap-2">
+            {page ? <DocThemeToggle /> : null}
             {page ? (
               <div
                 className="inline-flex rounded-md border border-border p-0.5 text-sm"
@@ -460,7 +469,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
               />
               {save.isPending ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved'}
             </div>
-            <KbEditor value={draft} onChange={setDraft} />
+            <KbEditor value={draft} onChange={setDraft} theme={docTheme} />
             {save.isError ? (
               <Alert intent="destructive" title="Could not save the page">
                 Try again shortly.
@@ -475,15 +484,13 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
                   <span className="text-xs font-medium uppercase text-muted-foreground">OKF</span>
                   {page.okf.type ? <Badge variant="outline">{page.okf.type}</Badge> : null}
                   {(page.okf.tags ?? []).map((t) => (
-                    <Badge key={t} variant="default">
-                      {t}
-                    </Badge>
+                    <TagChip key={t} name={t} />
                   ))}
                 </div>
                 {page.okf.description ? <p className="text-sm text-muted-foreground">{page.okf.description}</p> : null}
               </div>
             ) : null}
-            <MarkdownView source={page?.content ?? ''} />
+            <MarkdownView source={page?.content ?? ''} theme={docTheme} />
           </div>
         )}
       </Card.Body>
