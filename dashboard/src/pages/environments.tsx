@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Box, Lock, Plus, Rocket, Trash2 } from 'lucide-react';
 import { Button, Card, PageShell, StatusDot, Table } from '@usetheo/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -97,26 +98,18 @@ export function EnvironmentsPage() {
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [promoteFrom, setPromoteFrom] = useState<string | undefined>(undefined);
 
-  // J-10 v1.1 ADR (LIVE catch 2026-06-06): projectName was hardcoded to
-  // 'teste' which always 404'd in real tenants. Resolve dynamically:
-  // 1. Prefer ?project=<name> URL search param (planned sub-route shape).
-  // 2. Fallback to first project of the tenant (single-project case which
-  //    is the common Free-tier shape today).
-  // 3. Fallback to 'teste' literal so the legacy fixture flow keeps
-  //    working in vitest + Playwright with VITE_USE_MOCKS=true.
-  const { data: projectsData } = useEngineApi<{
-    projects: Array<{ name: string }>;
-  }>('/api/v1/projects');
-  const urlSearchParams =
-    typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search)
-      : new URLSearchParams();
-  const projectName =
-    urlSearchParams.get('project') ??
-    projectsData?.projects?.[0]?.name ??
-    'teste';
+  // M20: this page is now project-scoped (route /projects/:name/environments).
+  // The project is the ROUTE param — no more guessing (`?project=` ?? first
+  // project ?? the 'teste' fixture), which silently pointed create/promote/
+  // delete at the wrong project. Every mutation below already reads projectName,
+  // so it now always targets the project the user is looking at.
+  const { name: projectName = '' } = useParams<{ name: string }>();
 
-  const environments = data?.environments ?? [];
+  // Scope the tenant-wide env list to this project (the backend list is
+  // ListEnvironments(tenantID) — cross-project — so we filter client-side).
+  const environments = (data?.environments ?? []).filter(
+    (e) => (e.project ?? '') === projectName,
+  );
 
   // M2 v1.2 T5.2 (2026-06-07): search matches across both name AND
   // project so "web" surfaces every env in project=web, "staging"
@@ -171,12 +164,11 @@ export function EnvironmentsPage() {
   return (
     <PageShell
       title="Environments"
+      description={`Environments for ${projectName}.`}
       onTitleChange={setPageTitle}
       search={{
-        // T4.1 finding 1.5: discoverable hint for the "name/project"
-        // search syntax M2 v1.2 added (e.g. "web/staging" filters to
-        // staging envs inside the web project).
-        placeholder: 'Search environments... (try project/env, e.g. web/staging)',
+        // M20: scoped to one project now, so search is a simple name filter.
+        placeholder: 'Search environments...',
         value: searchQuery,
         onChange: setSearchQuery,
       }}

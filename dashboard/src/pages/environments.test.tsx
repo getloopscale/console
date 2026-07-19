@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Routes, Route } from 'react-router-dom';
 import { render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({
@@ -112,50 +113,56 @@ describe('EnvironmentsPage', () => {
   });
 
   // ===========================================================================
-  // M2 v1.2 — T5.2 grouping by project
-  // Plan: 2026-06-07-runtime-envs-per-project-m2 v1.2
+  // M20 — environments are project-scoped (route /projects/:name/environments).
+  // The project is the ROUTE param, not a guess. The page shows only THIS
+  // project's environments.
   // ===========================================================================
 
-  it('test_M2_groups_envs_by_project', () => {
+  function renderAt(path: string) {
+    return render(
+      <Routes>
+        <Route path="/projects/:name/environments" element={<EnvironmentsPage />} />
+      </Routes>,
+      { initialEntries: [path] },
+    );
+  }
+
+  it('test_M20_scopes_to_the_route_project_only', () => {
     mockUseEngineApi.mockReturnValue({
       data: {
         environments: [
           { name: 'staging', status: 'active', project: 'web', protected: false },
           { name: 'production', status: 'active', project: 'web', protected: true },
-          { name: 'staging', status: 'active', project: 'api', protected: false },
-          { name: 'qa', status: 'active', project: 'api', protected: false },
+          { name: 'qa', status: 'active', project: 'api', protected: false }, // other project
         ],
       },
       loading: false,
       error: false,
     });
-    render(<EnvironmentsPage />);
-    // Each project gets its own group header row keyed by name.
-    expect(screen.getByTestId('env-group-header-api')).toBeInTheDocument();
-    expect(screen.getByTestId('env-group-header-web')).toBeInTheDocument();
-    // The legacy bucket is absent when every entry has a project.
-    expect(screen.queryByTestId('env-group-header-legacy')).not.toBeInTheDocument();
-    // Same env name in two different projects coexists (the M2 unique
-    // key is project+name, not name alone).
-    const stagings = screen.getAllByText('staging');
-    expect(stagings.length).toBeGreaterThanOrEqual(2);
+    renderAt('/projects/web/environments');
+    // web's envs are shown…
+    expect(screen.getByText('staging')).toBeInTheDocument();
+    expect(screen.getByText('production')).toBeInTheDocument();
+    // …and another project's env is NOT (no cross-project mixing).
+    expect(screen.queryByText('qa')).not.toBeInTheDocument();
   });
 
-  it('test_M2_renders_legacy_section_for_envs_without_project', () => {
+  it('test_M20_uses_route_project_not_a_guess', () => {
+    // The page must scope by the ROUTE param (api), never a guessed first
+    // project or the old 'teste' fixture.
     mockUseEngineApi.mockReturnValue({
       data: {
         environments: [
-          { name: 'production', status: 'active', protected: true }, // no project → legacy
-          { name: 'staging', status: 'active', project: 'web', protected: false },
+          { name: 'production', status: 'active', project: 'web', protected: true },
+          { name: 'preview', status: 'active', project: 'api', protected: false },
         ],
       },
       loading: false,
       error: false,
     });
-    render(<EnvironmentsPage />);
-    expect(screen.getByTestId('env-group-header-legacy')).toBeInTheDocument();
-    expect(screen.getByTestId('env-group-header-web')).toBeInTheDocument();
-    // Legacy header surfaces the "no project" hint.
-    expect(screen.getByText(/no project/i)).toBeInTheDocument();
+    renderAt('/projects/api/environments');
+    expect(screen.getByText('preview')).toBeInTheDocument();
+    expect(screen.queryByText('production')).not.toBeInTheDocument();
+    expect(screen.getByText(/environments for api/i)).toBeInTheDocument();
   });
 });
