@@ -5,6 +5,8 @@ import { Badge, Button, Card, CommandPalette, EmptyState, Input, PageShell, Sele
 import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/components/common/markdown-view';
 import { KbEditor } from '@/components/rag/kb-editor';
+import { DocThemeToggle } from '@/components/rag/doc-theme-toggle';
+import { useDocTheme } from '@/hooks/use-doc-theme';
 import { applyTemplate, WIKI_TEMPLATES } from './wiki-templates';
 import { toCommandItems } from './wiki-command';
 import { WikiBrowser } from './wiki-browser';
@@ -285,6 +287,7 @@ function NewPageEditor({
   const [type, setType] = useState('concept');
   const [tags, setTags] = useState('');
   const [description, setDescription] = useState('');
+  const [docTheme] = useDocTheme();
 
   const create = useMutation({
     mutationFn: () =>
@@ -313,6 +316,9 @@ function NewPageEditor({
 
   return (
     <div className="flex h-full flex-col gap-4">
+      <div className="flex items-center justify-end">
+        <DocThemeToggle />
+      </div>
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_15rem]">
           <div className="flex min-h-0 flex-col gap-2">
             <Input
@@ -322,7 +328,7 @@ function NewPageEditor({
               aria-label="Page title"
               data-testid="new-page-title"
             />
-            <KbEditor value={content} onChange={setContent} fill />
+            <KbEditor value={content} onChange={setContent} fill theme={docTheme} />
             {create.isError ? (
               <Alert intent="destructive" title="Could not create the page">
                 Check the title and content, then try again.
@@ -367,6 +373,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [docTheme] = useDocTheme();
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', 'one', pageID] as const,
     queryFn: () =>
@@ -408,6 +415,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
           </Button>
           <span className="truncate font-medium">{page?.name ?? 'Wiki page'}</span>
           <div className="ml-auto flex items-center gap-2">
+            {page ? <DocThemeToggle /> : null}
             {page ? (
               <div
                 className="inline-flex rounded-md border border-border p-0.5 text-sm"
@@ -460,7 +468,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
               />
               {save.isPending ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved'}
             </div>
-            <KbEditor value={draft} onChange={setDraft} />
+            <KbEditor value={draft} onChange={setDraft} theme={docTheme} />
             {save.isError ? (
               <Alert intent="destructive" title="Could not save the page">
                 Try again shortly.
@@ -483,7 +491,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
                 {page.okf.description ? <p className="text-sm text-muted-foreground">{page.okf.description}</p> : null}
               </div>
             ) : null}
-            <MarkdownView source={page?.content ?? ''} />
+            <MarkdownView source={page?.content ?? ''} theme={docTheme} />
           </div>
         )}
       </Card.Body>

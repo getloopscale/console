@@ -30,6 +30,9 @@ export interface KbEditorProps {
   /** Fill the parent's height (flex column that grows + scrolls internally) instead of the
    * default fixed `min-h-[240px]`. Use inside a tall container (e.g. the New page modal). */
   readonly fill?: boolean;
+  /** Document theme for the editing surface: `system` (dark, follows the app) or `white`
+   * (light paper surface even in the dark app). Defaults to `system`. */
+  readonly theme?: 'system' | 'white';
 }
 
 interface SlashState {
@@ -45,7 +48,7 @@ function textBeforeCaret(editor: Editor): string {
   return $from.parent.textBetween(0, $from.parentOffset, '\n', '￼');
 }
 
-export function KbEditor({ value, editable = true, onChange, fill = false }: KbEditorProps) {
+export function KbEditor({ value, editable = true, onChange, fill = false, theme = 'system' }: KbEditorProps) {
   const [slash, setSlash] = useState<SlashState | null>(null);
   const slashRef = useRef<SlashState | null>(null);
   slashRef.current = slash;
@@ -94,9 +97,13 @@ export function KbEditor({ value, editable = true, onChange, fill = false }: KbE
     autofocus: editable ? 'end' : false,
     editorProps: {
       attributes: {
-        class: fill
-          ? 'prose prose-sm h-full min-h-0 max-w-none overflow-y-auto rounded-md border border-border bg-background p-3 focus:outline-none dark:prose-invert'
-          : 'prose prose-sm min-h-[240px] max-w-none rounded-md border border-border bg-background p-3 focus:outline-none dark:prose-invert',
+        class: [
+          fill
+            ? 'prose prose-sm h-full min-h-0 max-w-none overflow-y-auto rounded-md border border-border p-3 focus:outline-none'
+            : 'prose prose-sm min-h-[240px] max-w-none rounded-md border border-border p-3 focus:outline-none',
+          // Theme (kept in sync at runtime by the effect below when it toggles):
+          theme === 'white' ? 'bg-white text-neutral-900' : 'bg-background dark:prose-invert',
+        ].join(' '),
         'data-testid': 'kb-editor',
         'aria-label': 'Page editor',
       },
@@ -135,6 +142,20 @@ export function KbEditor({ value, editable = true, onChange, fill = false }: KbE
   useEffect(() => {
     editor?.setEditable(editable);
   }, [editable, editor]);
+
+  // Keep the editing surface in sync with the document theme when it toggles at runtime
+  // (the editor is created once, so the initial class alone would not react to changes).
+  useEffect(() => {
+    const dom = editor?.view.dom;
+    if (!dom) return;
+    if (theme === 'white') {
+      dom.classList.add('bg-white', 'text-neutral-900');
+      dom.classList.remove('bg-background', 'dark:prose-invert');
+    } else {
+      dom.classList.add('bg-background', 'dark:prose-invert');
+      dom.classList.remove('bg-white', 'text-neutral-900');
+    }
+  }, [editor, theme]);
 
   useEffect(() => {
     if (editor === null || editor.isFocused) return;

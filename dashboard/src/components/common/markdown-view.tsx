@@ -40,11 +40,17 @@ function CodeRenderer({ className, children, ...rest }: ComponentPropsWithoutRef
   );
 }
 
-export function MarkdownView({ source }: { source: string }) {
+export function MarkdownView({ source, theme = 'system' }: { source: string; theme?: 'system' | 'white' }) {
   if (source.trim() === '') return null;
+  // `white` renders the document on a light paper surface (dark text) even in the dark app;
+  // `system` follows the app theme (inverted prose on the dark surface).
+  const themeClass =
+    theme === 'white'
+      ? 'rounded-md bg-white p-4 text-neutral-900'
+      : 'dark:prose-invert';
   return (
     <div
-      className="prose prose-sm max-w-none break-words dark:prose-invert"
+      className={`prose prose-sm max-w-none break-words ${themeClass}`}
       data-testid="kb-markdown"
     >
       <ReactMarkdown
