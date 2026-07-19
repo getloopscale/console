@@ -5,11 +5,18 @@
 ### Changed
 
 ### Fixed
+
+## [0.62.0] - 2026-07-19
+
+### Added
+
+### Changed
+
+### Fixed
 - Deploy journey (M16): removed internal terms from user-facing copy — the connect screen no longer says "cosign", and the scale-to-zero toggle no longer mentions "KEDA"/"cluster".
 - Project detail (M16): opening a project no longer shows a false "not found" when you have more than 50 projects — it now fetches the single project by name server-side instead of searching a client-capped list.
 - Runtime logs (M16): added an environment selector — logs were hardwired to production, so a project deployed only to preview/staging showed an empty stream forever.
 - Scale (M16): removed a fabricated "cluster KEDA installed" flag; scale-to-zero availability is enforced by the server at apply time.
-
 ## [0.61.0] - 2026-07-19
 
 ### Added
