@@ -15,7 +15,6 @@ import {
 
   FolderKanban,
   Github,
-  GitPullRequest,
   Globe,
   History,
   Key,
@@ -281,7 +280,6 @@ const MENUS: Record<string, MenuDefinition> = {
         title: 'Configuration',
         items: [
           { label: 'Secrets', path: '/projects/{project}/secrets', icon: KeyRound },
-          { label: 'Previews', path: '/projects/{project}/previews', icon: GitPullRequest },
           { label: 'Repository', path: '/projects/{project}/connect', icon: Github },
         ],
       },

@@ -3,6 +3,7 @@
 ### Added
 
 ### Changed
+- Navigation: removed the Previews item from the project sub-nav. Its route redirected to the old global environments page (removed in M20), so the link was dead; stale `/projects/:name/previews` links now redirect to the project's Environments tab.
 
 ### Fixed
 
