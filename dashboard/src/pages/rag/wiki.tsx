@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, FolderPlus, Plus } from 'lucide-react';
-import { Badge, Button, Card, CommandPalette, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
+import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/components/common/markdown-view';
 import { KbEditor } from '@/components/rag/kb-editor';
@@ -10,7 +10,7 @@ import { TagChip } from '@/components/rag/tag-chip';
 import { TagInput } from '@/components/rag/tag-input';
 import { useDocTheme } from '@/hooks/use-doc-theme';
 import { applyTemplate, WIKI_TEMPLATES } from './wiki-templates';
-import { toCommandItems } from './wiki-command';
+import { WikiSearch } from './wiki-search';
 import { WikiBrowser } from './wiki-browser';
 import { WIKI_FOLDER_MARKER, type WikiEntry } from './wiki-entries';
 import { NewFolderDialog } from '../new-folder-dialog';
@@ -152,19 +152,16 @@ export function RagWikiPage() {
 
   return (
     <PageShell title="Wiki" description="Folders and markdown pages your team can read, edit, and Ask over.">
-      {/* KB14 — Cmd+K page palette. Selecting a page navigates the rail to its folder. */}
-      <CommandPalette
+      {/* KB14 — Cmd+K page search (centered modal). Selecting a page navigates the rail to its folder. */}
+      <WikiSearch
         open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        items={toCommandItems(pages)}
+        onClose={() => setPaletteOpen(false)}
+        pages={pages}
         onSelect={(id) => {
           const pg = pages.find((p) => p.id === id);
           if (pg) setPrefix(folderOf(pg.name));
           openExisting(id);
-          setPaletteOpen(false);
         }}
-        placeholder="Search wiki pages…"
-        emptyMessage={pages.length === 0 ? 'Select a collection to search its pages.' : 'No matching pages.'}
       />
 
       <NewFolderDialog
