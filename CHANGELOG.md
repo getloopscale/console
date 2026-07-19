@@ -5,6 +5,7 @@
 ### Changed
 
 ### Fixed
+- UI: text selection is visible again across the app. The `::selection` highlight (and the themed scrollbar) wrapped the oklch `--primary` token in `hsl()`, which is invalid, so the highlight had no background — selecting text looked like nothing happened. Now uses `color-mix(in oklch, …)`. Same root cause as the white-border fix (oklch tokens must not be wrapped in `hsl()`); the regression guard now covers the whole base layer.
 - UI: dropdown menus (e.g. the "All Projects" project selector), tooltips and other lib surfaces no longer render a white border in dark mode. The global element border-color used `hsl(var(--border))`, but the design tokens are oklch, so the color was invalid and fell back to a near-white currentColor. It now references the `--border` token directly, matching the `border-border` utility.
 
 ## [0.60.0] - 2026-07-19

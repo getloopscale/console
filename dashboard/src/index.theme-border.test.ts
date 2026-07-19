@@ -11,16 +11,29 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 // vitest runs with cwd = dashboard/; the stylesheet lives at src/index.css.
-const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
+// Strip block comments first — the guard checks RULES, not explanatory prose
+// (comments here legitimately quote the forbidden `hsl(var(--…))` pattern).
+const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
-describe('global themed-border rule', () => {
-  it('never wraps an oklch design token in hsl() (invalid → white fallback)', () => {
-    // Tokens are oklch; hsl(var(--border)) / hsl(var(--input)) are invalid.
-    expect(css).not.toMatch(/border-color:\s*hsl\(var\(--border\)\)/);
-    expect(css).not.toMatch(/hsl\(var\(--input\)\)/);
-  });
+describe('global themed base layer — no oklch token wrapped in hsl()', () => {
+  // The oklch tokens (--border, --primary, --foreground, --background, --input)
+  // must NEVER be wrapped in hsl(): that produces an invalid color, so the
+  // declaration is dropped and the property falls back — a white border, an
+  // invisible text-selection highlight, an unstyled scrollbar, etc.
+  // (--ring is intentionally an HSL triplet in :root for light-mode focus
+  //  contrast, so hsl(var(--ring)) is allowed and not asserted here.)
+  it.each(['border', 'primary', 'foreground', 'background', 'input'])(
+    'never wraps --%s in hsl()',
+    (token) => {
+      expect(css).not.toMatch(new RegExp(`hsl\\(var\\(--${token}\\)`));
+    },
+  );
 
   it('sets the global element border-color from the --border token directly', () => {
     expect(css).toMatch(/border-color:\s*var\(--border\)/);
+  });
+
+  it('gives ::selection a visible highlight via color-mix on the oklch primary', () => {
+    expect(css).toMatch(/color-mix\(in oklch, var\(--primary\) 25%, transparent\)/);
   });
 });
