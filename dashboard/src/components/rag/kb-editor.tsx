@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BubbleMenu, EditorContent, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -201,7 +202,12 @@ export function KbEditor({ value, editable = true, onChange, fill = false, theme
 
       <EditorContent editor={editor} className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined} />
 
-      {slash && editor ? (
+      {/* Portal to <body>: the slash menu is `position: fixed` at the caret's viewport
+          coords, but a transformed ancestor (the centered modal's translate) would make
+          `fixed` resolve against the modal instead of the viewport, throwing the menu off.
+          Rendering it at the document root restores caret-anchored positioning. */}
+      {slash && editor
+        ? createPortal(
         <div
           role="listbox"
           aria-label="Insert block"
@@ -228,8 +234,10 @@ export function KbEditor({ value, editable = true, onChange, fill = false, theme
               </button>
             ))
           )}
-        </div>
-      ) : null}
+        </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

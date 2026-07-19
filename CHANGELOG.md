@@ -7,6 +7,7 @@
 - Wiki (`/rag/wiki`): the New page editor now fills the modal's height — the content area grows to occupy the tall modal (scrolls internally) instead of sitting short at the top with empty space below. New `fill` mode on the KB editor.
 
 ### Fixed
+- Wiki (`/rag/wiki`): the `/` slash-command menu now appears anchored to the caret (Notion-style) inside the New page modal. The centered modal's CSS transform made the menu's `position: fixed` resolve against the modal instead of the viewport, throwing it far from the caret; the menu is now rendered in a portal to `document.body`.
 
 ## [0.59.0] - 2026-07-18
 
