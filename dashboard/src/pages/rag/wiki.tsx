@@ -312,9 +312,9 @@ function NewPageEditor({
   const canCreate = title.trim() !== '' && content.trim() !== '' && !create.isPending;
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[1fr_15rem]">
-          <div className="space-y-2">
+    <div className="flex h-full flex-col gap-4">
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_15rem]">
+          <div className="flex min-h-0 flex-col gap-2">
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -322,14 +322,14 @@ function NewPageEditor({
               aria-label="Page title"
               data-testid="new-page-title"
             />
-            <KbEditor value={content} onChange={setContent} />
+            <KbEditor value={content} onChange={setContent} fill />
             {create.isError ? (
               <Alert intent="destructive" title="Could not create the page">
                 Check the title and content, then try again.
               </Alert>
             ) : null}
           </div>
-          <aside className="space-y-3 rounded-md border border-border bg-muted/20 p-3" aria-label="Page details">
+          <aside className="space-y-3 overflow-y-auto rounded-md border border-border bg-muted/20 p-3" aria-label="Page details">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Start from a template</div>
             <div className="flex flex-wrap gap-1.5" data-testid="kb-templates">
               {WIKI_TEMPLATES.map((t) => (

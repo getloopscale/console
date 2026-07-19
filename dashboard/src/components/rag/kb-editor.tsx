@@ -27,6 +27,9 @@ export interface KbEditorProps {
   readonly value: string;
   readonly editable?: boolean;
   readonly onChange?: (markdown: string) => void;
+  /** Fill the parent's height (flex column that grows + scrolls internally) instead of the
+   * default fixed `min-h-[240px]`. Use inside a tall container (e.g. the New page modal). */
+  readonly fill?: boolean;
 }
 
 interface SlashState {
@@ -42,7 +45,7 @@ function textBeforeCaret(editor: Editor): string {
   return $from.parent.textBetween(0, $from.parentOffset, '\n', '￼');
 }
 
-export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
+export function KbEditor({ value, editable = true, onChange, fill = false }: KbEditorProps) {
   const [slash, setSlash] = useState<SlashState | null>(null);
   const slashRef = useRef<SlashState | null>(null);
   slashRef.current = slash;
@@ -91,8 +94,9 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
     autofocus: editable ? 'end' : false,
     editorProps: {
       attributes: {
-        class:
-          'prose prose-sm min-h-[240px] max-w-none rounded-md border border-border bg-background p-3 focus:outline-none dark:prose-invert',
+        class: fill
+          ? 'prose prose-sm h-full min-h-0 max-w-none overflow-y-auto rounded-md border border-border bg-background p-3 focus:outline-none dark:prose-invert'
+          : 'prose prose-sm min-h-[240px] max-w-none rounded-md border border-border bg-background p-3 focus:outline-none dark:prose-invert',
         'data-testid': 'kb-editor',
         'aria-label': 'Page editor',
       },
@@ -144,7 +148,7 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
   const activeBtn = (on: boolean) => `${btn} ${on ? 'bg-muted text-primary' : ''}`;
 
   return (
-    <div className="relative">
+    <div className={fill ? 'relative flex min-h-0 flex-1 flex-col' : 'relative'}>
       {editor ? (
         <BubbleMenu
           editor={editor}
@@ -174,7 +178,7 @@ export function KbEditor({ value, editable = true, onChange }: KbEditorProps) {
         </BubbleMenu>
       ) : null}
 
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined} />
 
       {slash && editor ? (
         <div

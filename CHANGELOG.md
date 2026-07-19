@@ -3,6 +3,7 @@
 ### Added
 
 ### Changed
+- Wiki (`/rag/wiki`): the New page editor now fills the modal's height — the content area grows to occupy the tall modal (scrolls internally) instead of sitting short at the top with empty space below. New `fill` mode on the KB editor.
 
 ### Fixed
 
