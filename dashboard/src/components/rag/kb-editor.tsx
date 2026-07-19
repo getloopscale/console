@@ -202,17 +202,19 @@ export function KbEditor({ value, editable = true, onChange, fill = false, theme
 
       <EditorContent editor={editor} className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined} />
 
-      {/* Portal to <body>: the slash menu is `position: fixed` at the caret's viewport
-          coords, but a transformed ancestor (the centered modal's translate) would make
-          `fixed` resolve against the modal instead of the viewport, throwing the menu off.
-          Rendering it at the document root restores caret-anchored positioning. */}
+      {/* Portal past the modal: the slash menu is `position: fixed` at the caret's viewport
+          coords, but a transformed ancestor (the centered modal's translate) makes `fixed`
+          resolve against the modal instead of the viewport, throwing the menu off. Render it
+          under the theme root (`.dark`, an un-transformed ancestor) — NOT `document.body`,
+          which sits OUTSIDE the theme and would drop the menu's colours to :root (invisible
+          dark text). This fixes both the position AND keeps the app theme. */}
       {slash && editor
         ? createPortal(
         <div
           role="listbox"
           aria-label="Insert block"
           data-testid="kb-slash-menu"
-          className="fixed z-50 w-56 overflow-hidden rounded-md border border-border bg-card py-1 shadow-lg"
+          className="fixed z-50 w-56 overflow-hidden rounded-md border border-border bg-card py-1 text-foreground shadow-lg"
           style={{ top: slash.top, left: slash.left }}
         >
           {slash.items.length === 0 ? (
@@ -235,9 +237,16 @@ export function KbEditor({ value, editable = true, onChange, fill = false, theme
             ))
           )}
         </div>,
-            document.body,
+            slashPortalRoot(),
           )
         : null}
     </div>
   );
+}
+
+/** The theme-aware, un-transformed portal target for the slash menu: the nearest theme root
+ * (`.dark` / `[data-mode]`) so the menu keeps the app's colours, falling back to `<body>`. */
+function slashPortalRoot(): HTMLElement {
+  if (typeof document === 'undefined') return null as unknown as HTMLElement;
+  return (document.querySelector('.dark, [data-mode]') as HTMLElement | null) ?? document.body;
 }
