@@ -364,10 +364,12 @@ export function EnvironmentsPage() {
           // Empty/undefined project resolves to the production-legacy
           // lookup (ADR D2 backward compat).
           project={deleteTarget.project}
-          cascade={{
-            // v1.0: placeholder counts. Future: cascade-preview endpoint per EC-12.
-            workloads: deleteTarget.projects ?? 0,
-          }}
+          // M15 T3: no fabricated cascade counts. `deleteTarget.projects` is a
+          // project count, NOT a workload count, and there is no
+          // GET /environments/:name/cascade-preview endpoint to source real
+          // secrets/domains numbers. Passing no cascade → the dialog shows its
+          // honest qualitative warning ("All workloads, secrets, and domains …
+          // will be deleted") instead of a misleading number.
           onDeleted={() => setDeleteTarget(null)}
         />
       )}

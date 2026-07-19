@@ -210,7 +210,8 @@ export function ProjectStatusPage() {
     p95_latency: p95LatencyMs,
     error_rate: errorRate,
     rps,
-    alerts_active: null as number | null,
+    // M15 T2: bind the real alerts_active from the status wire (was hardcoded null).
+    alerts_active: (status.alerts_active ?? null) as number | null,
     last_deploy_time: status.active_release?.created_at ?? null,
   };
 

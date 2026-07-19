@@ -10,6 +10,10 @@
 ### Changed
 
 ### Fixed
+- Scale page (M15): shows the REAL current replica count from the project's live status instead of a hardcoded "2". The cost estimate and the confirm-impact now reflect the true running replicas (a Pro project running 10 replicas no longer sees "Current: 2").
+- Project status (M15): the Alerts signal now reflects the real `alerts_active` count instead of always-empty.
+- Delete environment (M15): removed the fabricated cascade count (it showed a project count labelled as "workloads"); the dialog now shows an honest qualitative warning until a real cascade-preview exists.
+- Deployment detail (M15): dropped a hardcoded null repo-URL that pretended an "open repo" capability the view could never populate.
 - UI: text selection is visible again across the app. The `::selection` highlight (and the themed scrollbar) wrapped the oklch `--primary` token in `hsl()`, which is invalid, so the highlight had no background — selecting text looked like nothing happened. Now uses `color-mix(in oklch, …)`. Same root cause as the white-border fix (oklch tokens must not be wrapped in `hsl()`); the regression guard now covers the whole base layer.
 - UI: dropdown menus (e.g. the "All Projects" project selector), tooltips and other lib surfaces no longer render a white border in dark mode. The global element border-color used `hsl(var(--border))`, but the design tokens are oklch, so the color was invalid and fell back to a near-white currentColor. It now references the `--border` token directly, matching the `border-border` utility.
 

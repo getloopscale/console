@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button, Card, PageShell } from '@usetheo/ui';
@@ -85,6 +85,23 @@ export function ProjectScalePage() {
   const [serverMonthlyCostUSD, setServerMonthlyCostUSD] = useState<number | null>(
     null,
   );
+
+  // M15 T1: seed the current + proposed replicas from the REAL deployed state once
+  // status loads. `status.scaling.replicas` is the app-spec replica count; fall back
+  // to `replicas_desired` (live desired), then to the default ONLY when the project
+  // has no release yet. Seeded exactly once so a status poll never clobbers the
+  // user's slider edits; the post-save mutation echo (setCurrentReplicas below) still
+  // wins afterwards. Fixes the fabricated hardcoded "Current: 2 replicas".
+  const seededReplicasRef = useRef(false);
+  useEffect(() => {
+    if (seededReplicasRef.current) return;
+    const real = status?.scaling?.replicas ?? status?.replicas_desired;
+    if (typeof real === 'number') {
+      seededReplicasRef.current = true;
+      setCurrentReplicas(real);
+      setReplicas(real);
+    }
+  }, [status?.scaling?.replicas, status?.replicas_desired]);
 
   const scale = useScale(name);
 

@@ -145,7 +145,10 @@ export function DeploymentDetailLayout() {
             commitShort: projectStatus?.active_release?.git_commit?.slice(0, 7) ?? null,
             activeSince: projectStatus?.active_release?.created_at ?? null,
             url: projectStatus?.url ?? null,
-            repoUrl: null,
+            // M15 T4: repoUrl omitted — there is no real repo-URL source in this
+            // view's data, so passing a hardcoded null pretended a capability the
+            // hero can never populate. The hero prop is optional and hides the
+            // affordance when absent.
           }}
         />
         <nav className="border-b border-border" aria-label="Deployment tabs">
