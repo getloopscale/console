@@ -5,10 +5,17 @@
 ### Changed
 
 ### Fixed
+
+## [0.64.0] - 2026-07-19
+
+### Added
+
+### Changed
+
+### Fixed
 - Rollback (M18): rolling back a non-production environment now requires an explicit acknowledgement (a stray click can no longer revert staging/preview); production keeps the stricter type-to-confirm.
 - Connect (M18): disconnecting a repository is now behind a confirmation and surfaces an error if it fails, instead of silently no-opping while the repo stays connected.
 - Add domain (M18): Project, App and Environment are now pickers populated from your real projects/apps/environments — a typo can no longer bind a domain to a non-existent workload.
-
 ## [0.63.0] - 2026-07-19
 
 ### Added
