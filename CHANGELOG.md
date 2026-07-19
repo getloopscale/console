@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Wiki (`/rag/wiki`): page tags are now colored chips. Each tag gets a stable colour derived from its name (a curated 8-colour palette), shown as a live preview under the Tags field in the New page rail and on the reader's OKF header. No storage change — the colour is computed, so it round-trips through the OKF `tags` strings.
 - Wiki (`/rag/wiki`): the page CONTENT now has its own theme — **System** (dark, follows the app) or **White** (a light paper document surface even in the dark app). A `[System | White]` toggle in the document header sets a global preference (persisted) applied to every page's content, in BOTH reading (rendered markdown) and editing (the editor canvas). The rest of the modal chrome stays dark.
 
 ### Changed

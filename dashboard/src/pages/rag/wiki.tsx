@@ -6,6 +6,8 @@ import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/components/common/markdown-view';
 import { KbEditor } from '@/components/rag/kb-editor';
 import { DocThemeToggle } from '@/components/rag/doc-theme-toggle';
+import { TagChip } from '@/components/rag/tag-chip';
+import { parseTags } from '@/components/rag/tag-color';
 import { useDocTheme } from '@/hooks/use-doc-theme';
 import { applyTemplate, WIKI_TEMPLATES } from './wiki-templates';
 import { toCommandItems } from './wiki-command';
@@ -347,6 +349,13 @@ function NewPageEditor({
             <div className="pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Page details</div>
             <Input value={type} onChange={(e) => setType(e.target.value)} placeholder="Type (e.g. concept)" aria-label="Page type" />
             <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Tags (comma-separated)" aria-label="Page tags" />
+            {parseTags(tags).length > 0 ? (
+              <div className="flex flex-wrap gap-1.5" data-testid="tags-preview">
+                {parseTags(tags).map((t) => (
+                  <TagChip key={t} name={t} />
+                ))}
+              </div>
+            ) : null}
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -483,9 +492,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
                   <span className="text-xs font-medium uppercase text-muted-foreground">OKF</span>
                   {page.okf.type ? <Badge variant="outline">{page.okf.type}</Badge> : null}
                   {(page.okf.tags ?? []).map((t) => (
-                    <Badge key={t} variant="default">
-                      {t}
-                    </Badge>
+                    <TagChip key={t} name={t} />
                   ))}
                 </div>
                 {page.okf.description ? <p className="text-sm text-muted-foreground">{page.okf.description}</p> : null}
