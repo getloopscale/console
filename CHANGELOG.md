@@ -3,6 +3,7 @@
 ### Added
 
 ### Changed
+- Deploy journey (M19): removed the dead duplicate deployment-detail page (the routed tabbed view is the only one now), eliminating a drifting surface (un-humanized author, divergent duration formatting). Promote now surfaces the specific failure reason instead of a generic guess (typed errors reach the dialog). The routed detail already surfaces the Live URL of a serving release.
 
 ### Fixed
 

@@ -66,6 +66,8 @@ describe('PromoteDialog', () => {
       expect(mockedEngineFetch).toHaveBeenCalledWith(
         '/api/v1/projects/teste/promote',
         expect.objectContaining({ method: 'POST' }),
+        // M19: promote now opts into throwOnError so typed 4xx reach the dialog.
+        expect.objectContaining({ throwOnError: true }),
       );
     });
     const body = JSON.parse(

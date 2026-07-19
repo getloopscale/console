@@ -98,9 +98,9 @@ describe('pages smoke — modules compile + export named function', () => {
     expect(typeof m.DeploymentsPage).toBe('function');
   });
 
-  it('exports DeploymentDetailPage (plan v1.0 T1.2 — detail + BuildTimeline)', async () => {
-    const m = await import('./deployment-detail');
-    expect(typeof m.DeploymentDetailPage).toBe('function');
+  it('exports DeploymentDetailLayout (the routed tabbed detail; single-page detail deleted M19)', async () => {
+    const m = await import('./deployment-detail-layout');
+    expect(typeof m.DeploymentDetailLayout).toBe('function');
   });
 
   it('exports BuildLogsPage (plan v1.0 T1.3 — SSE log viewer)', async () => {

@@ -201,9 +201,6 @@ const NotFoundPage = lazy(() =>
 const DeploymentsPage = lazy(() =>
   import('@/pages/deployments').then((m) => ({ default: m.DeploymentsPage })),
 );
-const DeploymentDetailPage = lazy(() =>
-  import('@/pages/deployment-detail').then((m) => ({ default: m.DeploymentDetailPage })),
-);
 // Plan J-17 T5.1: layout + 4 tabs replace the 4 sibling routes below.
 const DeploymentDetailLayout = lazy(() =>
   import('@/pages/deployment-detail-layout').then((m) => ({ default: m.DeploymentDetailLayout })),
@@ -235,7 +232,6 @@ const BuildAttestationPage = lazy(() =>
 void BuildLogsPage;
 void BuildSBOMPage;
 void BuildAttestationPage;
-void DeploymentDetailPage;
 const RuntimeLogsPage = lazy(() =>
   import('@/pages/runtime-logs').then((m) => ({ default: m.RuntimeLogsPage })),
 );
