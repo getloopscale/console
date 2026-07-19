@@ -510,6 +510,29 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
+### M20 — [ ] Environments as a project dimension
+
+**Objective.** Move environment management out of the confusing global top-level `/environments` page and into the project context, where the domain actually scopes it (canonical namespace `theo-<tenant>-<project>-<env>`). Make the journey coherent — Overview → Project → Environment switcher → per-env surfaces — and make every environment mutation know its project instead of guessing it.
+
+**Why now.** System Design review (2026-07-19): `/environments` is the ONLY one of 10 per-(project,env) dimensions modelled as a global top-level nav item — the other nine (`secrets`, `scale`, `logs`, `status`, `deployments`, `previews`, `readiness`, `connect`, `repository`) are already nested under `/projects/:name/*`. The global page's `GET /api/v1/environments` mixes every project's envs, and its create/promote/delete GUESS the project (`?project=` ?? first-project ?? the `'teste'` fixture) — a control surface that can't correctly scope its own actions. Industry SOTA (Vercel/Railway/Render/Heroku) all scope environment to the project. This is an IA/System-Design defect, not polish.
+
+**Definition of done:**
+
+- [ ] `/environments` is removed from the top-level sidebar nav; environments live at `/projects/:name/environments` (a project sub-route/tab, consistent with the other nine per-project surfaces). A redirect from the old `/environments` path prevents bookmarked-link 404s.
+- [ ] Create / promote / delete environment operate on the UNAMBIGUOUS project from the route — the `?project=` ?? first-project ?? `'teste'`-fixture guess is deleted; the project is the route param.
+- [ ] A project-level environment switcher is the single source of the active environment; the per-env surfaces (secrets / domains / scale / logs / deployments) read the selected env from it (unifying today's scattered ad-hoc env handling — the secrets filter, the M16 runtime-logs selector, the scale production hardcode).
+- [ ] If a cross-project environment overview is retained for operators, it is READ-ONLY (no create/promote/delete) — every mutation lives only where the project is known.
+- [ ] TDD; typecheck + ESLint + full dashboard suite + production build green; LIVE-validated on `app-dev.usetheo.dev` (create + promote + delete an environment from inside a project; the global nav item is gone; old `/environments` redirects).
+
+**Dependencies:** M15–M19 (deploy-journey hardening baseline, all `[x]`) — M17 (centered AppModal) supplies the create/promote/delete modals this milestone re-homes; M18 (add-domain env Select, rollback env-aware confirm) already assumes a per-project env model.
+
+**Top risks (new):**
+
+1. Removing a top-level nav item + re-homing the route touches routing, the sidebar, and every internal link to `/environments`. Mitigation: grep all `/environments` references; ship a redirect (`/environments` → the project context or the projects list) so old links/bookmarks don't 404; the full suite is the regression net.
+2. The environment switcher must not regress the existing per-surface env handling (secrets filter, M16 runtime-logs selector, scale's production default). Mitigation: introduce the switcher as the single source of the active env and route each surface through it incrementally, keeping `production` as the default; assert per-surface env behaviour with tests before and after.
+
+---
+
 ## State-of-the-art references
 
 No peers were cloned for this roadmap: the design is locked in the ADR and the reference model is

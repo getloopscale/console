@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Roadmap amended: added M20 Environments as a project dimension (`/roadmap-feature environments-as-project-dimension`)
 
 ### Changed
 
