@@ -14,7 +14,16 @@ vi.mock('@/hooks/use-rollback-in-flight', () => ({
 import { RollbackDialog } from './rollback-dialog';
 
 function build(environment: string): Build {
-  return { id: 'b1', commit_sha: 'abcdef1234', environment } as Build;
+  return {
+    id: 'b1',
+    build_id: 'b1',
+    project_id: 'demo',
+    commit_sha: 'abcdef1234',
+    environment,
+    status: 'succeeded',
+    created_by: 'u1',
+    created_at: '2026-07-19T00:00:00Z',
+  } as unknown as Build;
 }
 
 function open(environment: string) {
