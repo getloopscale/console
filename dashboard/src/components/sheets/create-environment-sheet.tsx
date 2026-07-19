@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { Button, Checkbox, Input, Label, Select, Sheet } from '@usetheo/ui';
+import { Button, Checkbox, Input, Label, Select } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { engineFetch } from '@/lib/api';
 import { useEngineApi } from '@/hooks/use-api';
@@ -101,30 +102,24 @@ export function CreateEnvironmentSheet({ open, onOpenChange, onCreated }: Create
   // project to pick), masking the true root cause.
   if (projectsError) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <Sheet.Content side="right" className="w-full sm:max-w-md flex flex-col p-0">
-          <Sheet.Header className="px-6 py-5 border-b border-border/60">
-            <Sheet.Title>New environment</Sheet.Title>
-            <Sheet.Description>
-              We couldn't load the project list.
-            </Sheet.Description>
-          </Sheet.Header>
-
-          <Sheet.Body className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <Alert
-              intent="destructive"
-              title="Couldn't load projects"
-              description="The dashboard couldn't fetch your projects. Check connectivity and reopen this panel."
-            />
-          </Sheet.Body>
-
-          <Sheet.Footer className="px-6 py-4 border-t border-border/60 gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-          </Sheet.Footer>
-        </Sheet.Content>
-      </Sheet>
+      <AppModal
+        open={open}
+        onClose={() => onOpenChange(false)}
+        title="New environment"
+        description="We couldn't load the project list."
+        size="md"
+        footer={
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        }
+      >
+        <Alert
+          intent="destructive"
+          title="Couldn't load projects"
+          description="The dashboard couldn't fetch your projects. Check connectivity and reopen this panel."
+        />
+      </AppModal>
     );
   }
 
@@ -132,52 +127,56 @@ export function CreateEnvironmentSheet({ open, onOpenChange, onCreated }: Create
   // a form the user cannot submit.
   if (!hasProjects && projectsData !== undefined) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <Sheet.Content side="right" className="w-full sm:max-w-md flex flex-col p-0">
-          <Sheet.Header className="px-6 py-5 border-b border-border/60">
-            <Sheet.Title>New environment</Sheet.Title>
-            <Sheet.Description>
-              You need a project before creating an environment.
-            </Sheet.Description>
-          </Sheet.Header>
-
-          <Sheet.Body className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <Alert
-              intent="info"
-              title="No projects yet"
-              description="Environments live inside projects. Create your first project to add an environment to it."
-            />
-            <div data-testid="create-env-empty-state-cta">
-              <Button asChild>
-                <Link to="/projects">Create a project →</Link>
-              </Button>
-            </div>
-          </Sheet.Body>
-
-          <Sheet.Footer className="px-6 py-4 border-t border-border/60 gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Close
+      <AppModal
+        open={open}
+        onClose={() => onOpenChange(false)}
+        title="New environment"
+        description="You need a project before creating an environment."
+        size="md"
+        footer={
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          <Alert
+            intent="info"
+            title="No projects yet"
+            description="Environments live inside projects. Create your first project to add an environment to it."
+          />
+          <div data-testid="create-env-empty-state-cta">
+            <Button asChild>
+              <Link to="/projects">Create a project →</Link>
             </Button>
-          </Sheet.Footer>
-        </Sheet.Content>
-      </Sheet>
+          </div>
+        </div>
+      </AppModal>
     );
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <Sheet.Content side="right" className="w-full sm:max-w-md flex flex-col p-0">
-        <form onSubmit={handleSubmit} className="flex h-full flex-col">
-          <Sheet.Header className="px-6 py-5 border-b border-border/60">
-            <Sheet.Title>New environment</Sheet.Title>
-            <Sheet.Description>
-              Environments are isolated namespaces for your deployments.
-            </Sheet.Description>
-          </Sheet.Header>
-
-          <Sheet.Body className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <div>
-              <Label htmlFor="env-project">Project</Label>
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="New environment"
+      description="Environments are isolated namespaces for your deployments."
+      size="md"
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" form="create-env-form" disabled={submitting || !project || !name}>
+            {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {submitting ? 'Creating…' : 'Create environment'}
+          </Button>
+        </>
+      }
+    >
+      <form id="create-env-form" onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="env-project">Project</Label>
               <Select
                 value={project}
                 onValueChange={(v) => setProject(v)}
@@ -228,20 +227,8 @@ export function CreateEnvironmentSheet({ open, onOpenChange, onCreated }: Create
               </div>
             </div>
 
-            {error && <Alert intent="destructive" description={error} />}
-          </Sheet.Body>
-
-          <Sheet.Footer className="px-6 py-4 border-t border-border/60 gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting || !project || !name}>
-              {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              {submitting ? 'Creating…' : 'Create environment'}
-            </Button>
-          </Sheet.Footer>
-        </form>
-      </Sheet.Content>
-    </Sheet>
+        {error && <Alert intent="destructive" description={error} />}
+      </form>
+    </AppModal>
   );
 }
