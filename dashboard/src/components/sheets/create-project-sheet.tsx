@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button, Input, Label, Sheet } from '@usetheo/ui';
+import { Button, Input, Label } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { engineFetch } from '@/lib/api';
 import type { Project } from '@/lib/api/types';
@@ -14,15 +15,9 @@ interface CreateProjectSheetProps {
 const SLUG_PATTERN = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/;
 
 /**
- * CreateProjectSheet — right-side Sheet (2026 FAANG pattern).
- *
- * Why Sheet vs centered Dialog: forms benefit from preserving context (user
- * still sees the project list behind the sheet). Vercel/Linear/Notion all
- * use right-side sheets for create/edit forms since ~2024.
- *
- * Padding is intentional: Sheet.Header / Sheet.Body / Sheet.Footer don't
- * include internal padding by default — we add `px-6 py-5` for breathing
- * room. Without it, content visually "glues" to the sheet edge.
+ * CreateProjectSheet — the "New project" form, rendered as a centered AppModal
+ * (M17: migrated off the lateral Sheet per the owner's "no lateral panels"
+ * mandate). The name is kept for import stability; the surface is a modal.
  */
 export function CreateProjectSheet({ open, onOpenChange, onCreated }: CreateProjectSheetProps) {
   const [name, setName] = useState('');
@@ -62,18 +57,26 @@ export function CreateProjectSheet({ open, onOpenChange, onCreated }: CreateProj
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <Sheet.Content side="right" className="w-full sm:max-w-md flex flex-col p-0">
-        <form onSubmit={handleSubmit} className="flex h-full flex-col">
-          <Sheet.Header className="px-6 py-5 border-b border-border/60">
-            <Sheet.Title>New project</Sheet.Title>
-            <Sheet.Description>
-              Give your project a name. Connect it to a repository in the next step.
-            </Sheet.Description>
-          </Sheet.Header>
-
-          <Sheet.Body className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <div>
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="New project"
+      description="Give your project a name. Connect it to a repository in the next step."
+      size="md"
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" form="create-project-form" disabled={submitting}>
+            {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {submitting ? 'Creating…' : 'Create project'}
+          </Button>
+        </>
+      }
+    >
+      <form id="create-project-form" onSubmit={handleSubmit} className="space-y-4">
+        <div>
               <Label htmlFor="project-name">Project name</Label>
               <Input
                 id="project-name"
@@ -103,26 +106,14 @@ export function CreateProjectSheet({ open, onOpenChange, onCreated }: CreateProj
               </p>
             </div>
 
-            {error && (
-              <Alert
-                id="project-name-error"
-                intent="destructive"
-                description={error}
-              />
-            )}
-          </Sheet.Body>
-
-          <Sheet.Footer className="px-6 py-4 border-t border-border/60 gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              {submitting ? 'Creating…' : 'Create project'}
-            </Button>
-          </Sheet.Footer>
-        </form>
-      </Sheet.Content>
-    </Sheet>
+        {error && (
+          <Alert
+            id="project-name-error"
+            intent="destructive"
+            description={error}
+          />
+        )}
+      </form>
+    </AppModal>
   );
 }

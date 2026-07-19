@@ -427,7 +427,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M16 — [ ] Rule 3 term-leaks + deploy-journey dead-ends (M-B)
+### M16 — [x] Rule 3 term-leaks + deploy-journey dead-ends (M-B)
 
 **Objective.** Remove the internal-implementation terms leaking into user-facing copy (Unbreakable Rule 3) and the navigation dead-ends found in the deploy journey.
 

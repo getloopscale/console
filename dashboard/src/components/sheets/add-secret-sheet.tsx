@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button, Input, Label, Sheet } from '@usetheo/ui';
+import { Button, Input, Label } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { engineFetch } from '@/lib/api';
 import type { Secret } from '@/lib/api/types';
@@ -73,18 +74,26 @@ export function AddSecretSheet({ open, onOpenChange, onCreated }: AddSecretSheet
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <Sheet.Content side="right" className="w-full sm:max-w-md flex flex-col p-0">
-        <form onSubmit={handleSubmit} className="flex h-full flex-col">
-          <Sheet.Header className="px-6 py-5 border-b border-border/60">
-            <Sheet.Title>Add secret</Sheet.Title>
-            <Sheet.Description>
-              Secret values are encrypted at rest and never logged.
-            </Sheet.Description>
-          </Sheet.Header>
-
-          <Sheet.Body className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <div>
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Add secret"
+      description="Secret values are encrypted at rest and never logged."
+      size="md"
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" form="add-secret-form" disabled={submitting}>
+            {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {submitting ? 'Saving…' : 'Save secret'}
+          </Button>
+        </>
+      }
+    >
+      <form id="add-secret-form" onSubmit={handleSubmit} className="space-y-4">
+        <div>
               <Label htmlFor="secret-name">Key</Label>
               <Input
                 id="secret-name"
@@ -126,20 +135,8 @@ export function AddSecretSheet({ open, onOpenChange, onCreated }: AddSecretSheet
               </p>
             </div>
 
-            {error && <Alert intent="destructive" description={error} />}
-          </Sheet.Body>
-
-          <Sheet.Footer className="px-6 py-4 border-t border-border/60 gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              {submitting ? 'Saving…' : 'Save secret'}
-            </Button>
-          </Sheet.Footer>
-        </form>
-      </Sheet.Content>
-    </Sheet>
+        {error && <Alert intent="destructive" description={error} />}
+      </form>
+    </AppModal>
   );
 }

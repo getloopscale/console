@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button, Input, Label, Sheet } from '@usetheo/ui';
+import { Button, Input, Label } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { engineFetch } from '@/lib/api';
 import type { Domain } from '@/lib/api/types';
@@ -64,18 +65,26 @@ export function AddDomainSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <Sheet.Content side="right" className="w-full sm:max-w-md flex flex-col p-0">
-        <form onSubmit={handleSubmit} className="flex h-full flex-col">
-          <Sheet.Header className="px-6 py-5 border-b border-border/60">
-            <Sheet.Title>Add custom domain</Sheet.Title>
-            <Sheet.Description>
-              We'll generate the DNS records you need to add at your registrar.
-            </Sheet.Description>
-          </Sheet.Header>
-
-          <Sheet.Body className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <div>
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Add custom domain"
+      description="We'll generate the DNS records you need to add at your registrar."
+      size="md"
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" form="add-domain-form" disabled={submitting}>
+            {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            {submitting ? 'Adding…' : 'Add domain'}
+          </Button>
+        </>
+      }
+    >
+      <form id="add-domain-form" onSubmit={handleSubmit} className="space-y-4">
+        <div>
               <Label htmlFor="add-domain">Domain</Label>
               <Input
                 id="add-domain"
@@ -124,20 +133,8 @@ export function AddDomainSheet({
               />
             </div>
 
-            {error && <Alert intent="destructive" description={error} />}
-          </Sheet.Body>
-
-          <Sheet.Footer className="px-6 py-4 border-t border-border/60 gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              {submitting ? 'Adding…' : 'Add domain'}
-            </Button>
-          </Sheet.Footer>
-        </form>
-      </Sheet.Content>
-    </Sheet>
+        {error && <Alert intent="destructive" description={error} />}
+      </form>
+    </AppModal>
   );
 }

@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react';
-import { Button, Sheet } from '@usetheo/ui';
+import { Button } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 
 import { useMetricsRange } from '@/hooks/use-metrics-range';
 import { buildGrafanaDeepLink } from '@/lib/grafana-deep-link';
@@ -67,17 +68,39 @@ export function SignalDetailSheet({
   const label = signal ? SIGNAL_LABELS[signal] : 'Signal';
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <Sheet.Content side="right" className="w-full sm:max-w-md">
-        <Sheet.Header className="border-b border-border px-6 py-5">
-          <Sheet.Title>{label}</Sheet.Title>
-          <Sheet.Description>
-            Last 7 days · {projectName} · {env}
-          </Sheet.Description>
-        </Sheet.Header>
-
-        <Sheet.Body className="px-6 py-5">
-          {status === 'collecting' && (
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={label}
+      description={`Last 7 days · ${projectName} · ${env}`}
+      size="md"
+      footer={
+        grafanaURL ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => window.open(grafanaURL, '_blank', 'noopener,noreferrer')}
+          >
+            <ExternalLink aria-hidden="true" className="size-4" />
+            <span>Open in Grafana</span>
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled
+            aria-label="Grafana deep-link not configured"
+          >
+            <ExternalLink aria-hidden="true" className="size-4" />
+            <span>Open in Grafana</span>
+          </Button>
+        )
+      }
+    >
+      <div>
+        {status === 'collecting' && (
             <div
               role="status"
               aria-live="polite"
@@ -128,33 +151,7 @@ export function SignalDetailSheet({
               )}
             </div>
           )}
-        </Sheet.Body>
-
-        <Sheet.Footer className="border-t border-border px-6 py-4">
-          {grafanaURL ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => window.open(grafanaURL, '_blank', 'noopener,noreferrer')}
-            >
-              <ExternalLink aria-hidden="true" className="size-4" />
-              <span>Open in Grafana</span>
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled
-              aria-label="Grafana deep-link not configured"
-            >
-              <ExternalLink aria-hidden="true" className="size-4" />
-              <span>Open in Grafana</span>
-            </Button>
-          )}
-        </Sheet.Footer>
-      </Sheet.Content>
-    </Sheet>
+      </div>
+    </AppModal>
   );
 }

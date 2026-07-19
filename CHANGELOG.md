@@ -6,6 +6,14 @@
 
 ### Fixed
 
+## [0.63.0] - 2026-07-19
+
+### Added
+
+### Changed
+- Deploy journey (M17): the New project, New environment, Add custom domain, Add secret, and metric drill-down panels are now centered modals instead of lateral side-drawers — completing the system-wide "no lateral panels" migration for the deploy journey.
+
+### Fixed
 ## [0.62.0] - 2026-07-19
 
 ### Added
