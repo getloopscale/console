@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, FolderPlus, Plus } from 'lucide-react';
-import { Badge, Button, Card, CommandPalette, EmptyState, Input, PageShell, Select, Skeleton } from '@usetheo/ui';
+import { Badge, Button, Card, CommandPalette, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { MarkdownView } from '@/components/common/markdown-view';
 import { KbEditor } from '@/components/rag/kb-editor';
@@ -349,11 +349,13 @@ function NewPageEditor({
             <div className="pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Page details</div>
             <Input value={type} onChange={(e) => setType(e.target.value)} placeholder="Type (e.g. concept)" aria-label="Page type" />
             <TagInput value={tags} onChange={setTags} />
-            <Input
+            <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Description"
               aria-label="Page description"
+              rows={3}
+              className="resize-y"
             />
           </aside>
         </div>

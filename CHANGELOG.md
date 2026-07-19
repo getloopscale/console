@@ -5,6 +5,7 @@
 - Wiki (`/rag/wiki`): the page CONTENT now has its own theme — **System** (dark, follows the app) or **White** (a light paper document surface even in the dark app). A `[System | White]` toggle in the document header sets a global preference (persisted) applied to every page's content, in BOTH reading (rendered markdown) and editing (the editor canvas). The rest of the modal chrome stays dark.
 
 ### Changed
+- Wiki (`/rag/wiki`): the New page **Description** field is now a multi-line textarea (resizable) instead of a single-line input.
 - Wiki (`/rag/wiki`): the New page editor now fills the modal's height — the content area grows to occupy the tall modal (scrolls internally) instead of sitting short at the top with empty space below. New `fill` mode on the KB editor.
 
 ### Fixed
