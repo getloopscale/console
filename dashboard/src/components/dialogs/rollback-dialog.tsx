@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Undo2 } from 'lucide-react';
 import {
   Button,
+  Checkbox,
   Input,
   Label,
   useToast,
@@ -31,6 +32,10 @@ export function RollbackDialog({
   onRolledBack,
 }: RollbackDialogProps) {
   const [phrase, setPhrase] = useState('');
+  // M18: non-production rollback still needs an explicit acknowledgement (a
+  // single deliberate step) so a stray click on the grid can't silently revert
+  // staging/preview. Production keeps the stricter type-to-confirm phrase.
+  const [ack, setAck] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast, dismiss } = useToast();
   const startRollback = useStartRollback();
@@ -176,6 +181,17 @@ export function RollbackDialog({
             </div>
           )}
 
+          {!isProd && (
+            <label className="flex items-start gap-2 text-body-sm">
+              <Checkbox checked={ack} onCheckedChange={(c) => setAck(c === true)} aria-label="Confirm rollback" />
+              <span>
+                Yes, replace the current release in{' '}
+                <span className="font-mono">{targetBuild.environment}</span> with commit{' '}
+                <span className="font-mono">{sha}</span>.
+              </span>
+            </label>
+          )}
+
           {error && <Alert intent="destructive" description={error} />}
 
           <Dialog.Footer>
@@ -185,7 +201,7 @@ export function RollbackDialog({
             <Button
               type="submit"
               variant="destructive"
-              disabled={requiresPhrase && phrase !== CONFIRMATION_PHRASE}
+              disabled={(requiresPhrase && phrase !== CONFIRMATION_PHRASE) || (!isProd && !ack)}
             >
               Rollback to {sha}
             </Button>

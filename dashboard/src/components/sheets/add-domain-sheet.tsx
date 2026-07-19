@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button, Input, Label } from '@usetheo/ui';
+import { Button, Input, Label, Select } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { engineFetch } from '@/lib/api';
-import type { Domain } from '@/lib/api/types';
+import { useEngineApi } from '@/hooks/use-api';
+import { useEnvironments } from '@/hooks/use-environments';
+import type { Domain, Project } from '@/lib/api/types';
 
 interface AddDomainSheetProps {
   open: boolean;
@@ -31,6 +33,14 @@ export function AddDomainSheet({
   const [environment, setEnvironment] = useState('production');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // M18: bind project / app / environment from real sources instead of free text,
+  // so a typo can't register a domain against a non-existent workload.
+  const { data: projectsData } = useEngineApi<{ projects: Project[] }>('/api/v1/projects');
+  const projects = projectsData?.projects ?? [];
+  const selectedProject = projects.find((p) => p.name === project);
+  const apps = selectedProject?.apps ?? [];
+  const { envs } = useEnvironments(project);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,37 +110,44 @@ export function AddDomainSheet({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="add-domain-project">Project</Label>
-                <Input
-                  id="add-domain-project"
-                  type="text"
-                  placeholder="acme-web"
-                  value={project}
-                  onChange={(e) => setProject(e.target.value)}
-                  required
-                />
+                <Select value={project} onValueChange={(v) => { setProject(v); setApp(''); }}>
+                  <Select.Trigger id="add-domain-project" className="w-full">
+                    <Select.Value placeholder="Select a project" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {projects.map((p) => (
+                      <Select.Item key={p.name} value={p.name}>{p.name}</Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="add-domain-app">App</Label>
-                <Input
-                  id="add-domain-app"
-                  type="text"
-                  placeholder="frontend"
-                  value={app}
-                  onChange={(e) => setApp(e.target.value)}
-                  required
-                />
+                <Select value={app} onValueChange={setApp} disabled={!project || apps.length === 0}>
+                  <Select.Trigger id="add-domain-app" className="w-full">
+                    <Select.Value placeholder={project ? 'Select an app' : 'Pick a project first'} />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {apps.map((a) => (
+                      <Select.Item key={a.name} value={a.name}>{a.name}</Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
               </div>
             </div>
 
             <div>
               <Label htmlFor="add-domain-env">Environment</Label>
-              <Input
-                id="add-domain-env"
-                type="text"
-                placeholder="production"
-                value={environment}
-                onChange={(e) => setEnvironment(e.target.value)}
-              />
+              <Select value={environment} onValueChange={setEnvironment}>
+                <Select.Trigger id="add-domain-env" className="w-full">
+                  <Select.Value placeholder="Select an environment" />
+                </Select.Trigger>
+                <Select.Content>
+                  {(envs.length > 0 ? envs : ['production']).map((e) => (
+                    <Select.Item key={e} value={e}>{e}</Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
             </div>
 
         {error && <Alert intent="destructive" description={error} />}

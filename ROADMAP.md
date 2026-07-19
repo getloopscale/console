@@ -448,7 +448,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M17 — [ ] Deploy-journey Sheets → centered modals (M-C)
+### M17 — [x] Deploy-journey Sheets → centered modals (M-C)
 
 **Objective.** Finish the owner's "no lateral panels" mandate for the deploy journey — migrate the 5 remaining `Sheet` side-panels to the standardized centered `AppModal` (M14).
 

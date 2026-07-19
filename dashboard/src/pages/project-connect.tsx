@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Github, Link2, Loader2, Unlink2 } from 'lucide-react';
 import { Badge, Button, Card, Checkbox, Input, Label, PageShell } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { engineFetch } from '@/lib/api';
@@ -71,6 +72,8 @@ export function ProjectConnectPage() {
   const [branch, setBranch] = useState('main');
   const [autoDeploy, setAutoDeploy] = useState(true);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
 
   // T2.2 — repo picker state. repos === null while fetching, [] after a
@@ -258,12 +261,22 @@ export function ProjectConnectPage() {
 
   const handleDisconnect = async () => {
     setBusy(true);
+    setDisconnectError(null);
     try {
       await engineFetch(
         `/api/v1/projects/${encodeURIComponent(name)}/connect`,
         { method: 'DELETE' },
       );
       await fetchConn();
+      setDisconnectOpen(false);
+    } catch (e) {
+      // M18: a failed disconnect must NOT no-op silently (the repo stays
+      // connected + auto-deploying). Surface the error so the user retries.
+      setDisconnectError(
+        e instanceof Error
+          ? `Disconnect failed: ${e.message}. The repository is still connected — retry, or contact support if it persists.`
+          : 'Disconnect failed. The repository is still connected — retry, or contact support if it persists.',
+      );
     } finally {
       setBusy(false);
     }
@@ -424,10 +437,13 @@ export function ProjectConnectPage() {
               )}
             </dl>
 
+            {disconnectError && (
+              <Alert intent="destructive" description={disconnectError} className="mb-3" />
+            )}
             <Button
               variant="destructive"
               size="sm"
-              onClick={handleDisconnect}
+              onClick={() => setDisconnectOpen(true)}
               disabled={busy}
               className="inline-flex items-center gap-2"
             >
@@ -435,6 +451,16 @@ export function ProjectConnectPage() {
               <Unlink2 className="size-4" aria-hidden="true" />
               Disconnect repository
             </Button>
+            <ConfirmDialog
+              open={disconnectOpen}
+              onOpenChange={setDisconnectOpen}
+              title="Disconnect repository?"
+              description="Auto-deploy on push will stop. Existing deployments stay live; you can reconnect later."
+              intent="destructive"
+              confirmLabel="Disconnect"
+              onConfirm={handleDisconnect}
+              loading={busy}
+            />
           </Card.Body>
         </Card>
       ) : !effectiveConn?.installation_id ? (
