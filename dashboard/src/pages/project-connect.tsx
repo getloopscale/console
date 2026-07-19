@@ -478,7 +478,7 @@ export function ProjectConnectPage() {
               Connect a GitHub repository
             </Card.Title>
             <Card.Description>
-              Auto-deploy on push to branch. Theo signs every image with cosign.
+              Auto-deploy on push to your branch. Every deploy ships a signed, verifiable image.
             </Card.Description>
           </Card.Header>
           <Card.Body>

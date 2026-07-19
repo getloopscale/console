@@ -78,7 +78,6 @@ export function ProjectScalePage() {
     // does not get clobbered by a stale status poll.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status?.plan_tier]);
-  const [clusterKedaInstalled] = useState(true);
   const [currentReplicas, setCurrentReplicas] = useState(
     DEFAULT_CURRENT_REPLICAS,
   );
@@ -207,7 +206,6 @@ export function ProjectScalePage() {
                   enabled={kedaEnabled}
                   planTier={resolvedPlanTier}
                   onChange={setKedaEnabled}
-                  clusterKedaInstalled={clusterKedaInstalled}
                   disabled={scale.isPending}
                 />
               )}

@@ -15,12 +15,6 @@ export interface KEDAToggleProps {
   planTier: string;
   /** Toggle callback (only fires when tier is eligible). */
   onChange: (enabled: boolean) => void;
-  /**
-   * Cluster KEDA installation flag. Separate from plan-tier — a Pro
-   * tenant on a cluster without KEDA still cannot opt in. When false,
-   * the toggle is disabled with a clarifying tooltip.
-   */
-  clusterKedaInstalled: boolean;
   /** Disable while a mutation is in flight. */
   disabled?: boolean;
 }
@@ -31,7 +25,10 @@ export interface KEDAToggleProps {
  * Opt-in toggle for KEDA scale-to-zero. Two-layer gating:
  *
  *   1. Plan-tier check (Starter → upgrade CTA, never enables)
- *   2. Cluster-feature check (KEDA not installed → disabled + tooltip)
+ *   2. Cluster scale-to-zero availability is enforced server-side at apply
+ *      time (402/422) — the dashboard does NOT assert cluster state it can't
+ *      observe (M16: removed the fabricated "installed" flag + its term-leaking
+ *      "KEDA is not installed on this cluster" alert).
  *
  * Free user bypassing the dashboard via raw API STILL lands in
  * HTTP 402 PLAN_UPGRADE_REQUIRED at the handler — this UI surface is
@@ -45,11 +42,10 @@ export function KEDAToggle({
   enabled,
   planTier,
   onChange,
-  clusterKedaInstalled,
   disabled = false,
 }: KEDAToggleProps) {
   const tierEligible = KEDA_ELIGIBLE_TIERS.has(planTier.toLowerCase());
-  const blocked = !tierEligible || !clusterKedaInstalled;
+  const blocked = !tierEligible;
   return (
     <div className="space-y-2">
       <label className="flex items-start gap-3 cursor-pointer">
@@ -88,18 +84,6 @@ export function KEDAToggle({
         />
       )}
 
-      {tierEligible && !clusterKedaInstalled && (
-        <Alert
-          intent="warning"
-          title="Not available on this cluster"
-          description={
-            <>
-              KEDA is not installed on this cluster. Contact support to enable
-              scale-to-zero, or use min replicas ≥ 1.
-            </>
-          }
-        />
-      )}
     </div>
   );
 }
