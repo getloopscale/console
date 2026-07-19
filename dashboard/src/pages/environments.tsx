@@ -345,6 +345,9 @@ export function EnvironmentsPage() {
       <CreateEnvironmentSheet
         open={createOpen}
         onOpenChange={setCreateOpen}
+        // M20: the page is project-scoped — fix the new env's project to the
+        // route project (the picker is locked, no "pick a project" step).
+        defaultProject={projectName}
       />
 
       {deleteTarget && (

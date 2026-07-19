@@ -11,6 +11,13 @@ import type { Environment, Project } from '@/lib/api/types';
 interface CreateEnvironmentSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * M20: when the modal opens from a project-scoped page
+   * (/projects/:name/environments), the project is fixed by the route —
+   * pre-select it and lock the picker instead of asking the user to pick a
+   * project they're already inside.
+   */
+  defaultProject?: string;
   onCreated?: (env: Environment) => void;
 }
 
@@ -34,7 +41,8 @@ const NAME_PATTERN = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/;
  * project would return 400 MISSING_FIELD from the backend; the front-end
  * gate prevents that round-trip.
  */
-export function CreateEnvironmentSheet({ open, onOpenChange, onCreated }: CreateEnvironmentSheetProps) {
+export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onCreated }: CreateEnvironmentSheetProps) {
+  const projectLocked = !!defaultProject;
   const [name, setName] = useState('');
   const [project, setProject] = useState('');
   const [isProtected, setIsProtected] = useState(false);
@@ -48,6 +56,11 @@ export function CreateEnvironmentSheet({ open, onOpenChange, onCreated }: Create
 
   // Auto-fill when exactly 1 project. Reset when the sheet re-opens.
   useEffect(() => {
+    if (open && projectLocked) {
+      // M20: project fixed by the route — always pre-select it.
+      setProject(defaultProject);
+      return;
+    }
     if (open && singleProject) {
       setProject(projects[0]!.name);
     }
@@ -56,7 +69,7 @@ export function CreateEnvironmentSheet({ open, onOpenChange, onCreated }: Create
       // when the sheet re-opens on a tenant with multiple projects.
       setProject((curr) => (curr && projects.some((p) => p.name === curr) ? curr : ''));
     }
-  }, [open, singleProject, projects]);
+  }, [open, singleProject, projects, projectLocked, defaultProject]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +94,7 @@ export function CreateEnvironmentSheet({ open, onOpenChange, onCreated }: Create
       }
       onCreated?.(res);
       setName('');
-      setProject(singleProject ? projects[0]!.name : '');
+      setProject(defaultProject ?? (singleProject ? projects[0]!.name : ''));
       setIsProtected(false);
       onOpenChange(false);
     } catch (e) {
@@ -180,7 +193,7 @@ export function CreateEnvironmentSheet({ open, onOpenChange, onCreated }: Create
               <Select
                 value={project}
                 onValueChange={(v) => setProject(v)}
-                disabled={singleProject || submitting}
+                disabled={projectLocked || singleProject || submitting}
               >
                 <Select.Trigger id="env-project" data-testid="env-project-trigger">
                   <Select.Value placeholder="Pick a project" />
@@ -193,11 +206,15 @@ export function CreateEnvironmentSheet({ open, onOpenChange, onCreated }: Create
                   ))}
                 </Select.Content>
               </Select>
-              {singleProject && (
+              {projectLocked ? (
+                <p className="text-label text-muted-foreground mt-1">
+                  Creating in {defaultProject}.
+                </p>
+              ) : singleProject ? (
                 <p className="text-label text-muted-foreground mt-1">
                   Only one project — auto-selected.
                 </p>
-              )}
+              ) : null}
             </div>
 
             <div>
