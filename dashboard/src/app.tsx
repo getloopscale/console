@@ -242,10 +242,10 @@ const SecretsPage = lazy(() =>
   import('@/pages/secrets').then((m) => ({ default: m.SecretsPage })),
 );
 // PreviewsPage deleted per plan 2026-06-08-dashboard-screens-review-fixes
-// T1.1 + ADR D1: the multi-row preview table is semantically obsolete
-// under the post-M2 single-slot preview model. /projects/:name/previews
-// now 301-equivalent client-redirects to /environments?project=:name where
-// the single preview slot is rendered inline via PreviewRow.
+// The multi-row preview table is obsolete under the post-M2 single-slot
+// preview model, and Previews was removed from the nav. Stale
+// /projects/:name/previews links redirect to the project's Environments tab
+// (post-M20), where the single preview slot is rendered inline via PreviewRow.
 function PreviewsRedirect() {
   const { name } = useParams();
   // Previews was removed from the project nav; the old target (/environments)

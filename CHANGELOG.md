@@ -6,6 +6,14 @@
 
 ### Fixed
 
+## [0.66.2] - 2026-07-19
+
+### Added
+
+### Changed
+
+### Fixed
+- Environments (M20 follow-up): creating an environment from a project's Environments tab no longer asks you to "pick a project" — the project is fixed to the one you're viewing (picker pre-selected + locked), so a new environment always lands in the right project.
 ## [0.66.1] - 2026-07-19
 
 ### Added

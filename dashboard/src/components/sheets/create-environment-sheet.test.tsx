@@ -66,6 +66,28 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
     expect(screen.getByTestId('env-project-trigger')).toBeInTheDocument();
   });
 
+  // M20: on a project-scoped page, defaultProject fixes the project — the
+  // picker is pre-selected + locked, and the POST targets that project even
+  // when the tenant has multiple projects (no "pick a project" step).
+  it('test_M20_defaultProject_locks_and_preselects_the_project', async () => {
+    mockUseEngineApi.mockReturnValue({
+      data: { projects: [{ name: 'web' }, { name: 'api' }] }, // 2 projects
+      loading: false,
+      error: false,
+    });
+    mockEngineFetch.mockResolvedValue({ name: 'staging', status: 'active' });
+    render(<CreateEnvironmentSheet open={true} onOpenChange={() => {}} defaultProject="api" />);
+    // No "pick a project" step — the fixed project is shown + the picker is disabled.
+    expect(screen.getByText('Creating in api.')).toBeInTheDocument();
+    expect(screen.getByTestId('env-project-trigger')).toBeDisabled();
+    // The POST targets the route project even with 2 projects available.
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'staging' } });
+    fireEvent.click(screen.getByRole('button', { name: /Create environment/i }));
+    await new Promise((r) => setTimeout(r, 0));
+    const [, init] = mockEngineFetch.mock.calls[0]!;
+    expect(JSON.parse((init as { body: string }).body)).toMatchObject({ name: 'staging', project: 'api' });
+  });
+
   // POST body includes the project field — defends T4.1 contract.
   it('test_M2_post_body_includes_project', async () => {
     mockUseEngineApi.mockReturnValue({
