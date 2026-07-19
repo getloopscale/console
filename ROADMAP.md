@@ -406,7 +406,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M15 — [ ] Deploy-journey data honesty (M-A)
+### M15 — [x] Deploy-journey data honesty (M-A)
 
 **Objective.** Every number the deploy journey shows must be REAL — rebind the fabricated / hardcoded values surfaced by the 2026-07-19 deploy-journey review to the backend data that already exists. Same defect class as the Overview Usage fix (v0.60.0): UI bound to values the API never populated.
 
