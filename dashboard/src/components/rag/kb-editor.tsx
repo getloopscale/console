@@ -102,7 +102,7 @@ export function KbEditor({ value, editable = true, onChange, fill = false, theme
             ? 'prose prose-sm h-full min-h-0 max-w-none overflow-y-auto rounded-md border border-border p-3 focus:outline-none'
             : 'prose prose-sm min-h-[240px] max-w-none rounded-md border border-border p-3 focus:outline-none',
           // Theme (kept in sync at runtime by the effect below when it toggles):
-          theme === 'white' ? 'bg-white text-neutral-900' : 'bg-background dark:prose-invert',
+          theme === 'white' ? 'prose-doc-white bg-white' : 'bg-background dark:prose-invert',
         ].join(' '),
         'data-testid': 'kb-editor',
         'aria-label': 'Page editor',
@@ -149,11 +149,11 @@ export function KbEditor({ value, editable = true, onChange, fill = false, theme
     const dom = editor?.view.dom;
     if (!dom) return;
     if (theme === 'white') {
-      dom.classList.add('bg-white', 'text-neutral-900');
+      dom.classList.add('prose-doc-white', 'bg-white');
       dom.classList.remove('bg-background', 'dark:prose-invert');
     } else {
       dom.classList.add('bg-background', 'dark:prose-invert');
-      dom.classList.remove('bg-white', 'text-neutral-900');
+      dom.classList.remove('prose-doc-white', 'bg-white');
     }
   }, [editor, theme]);
 

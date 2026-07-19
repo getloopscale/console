@@ -41,9 +41,12 @@ describe('DocThemeToggle — global document theme', () => {
 });
 
 describe('MarkdownView — theme', () => {
-  it('white theme renders on a light paper surface', () => {
+  it('white theme renders on a light paper surface with dark ink (contrast)', () => {
     render(<MarkdownView source="# hi" theme="white" />);
-    expect(screen.getByTestId('kb-markdown').className).toContain('bg-white');
+    const el = screen.getByTestId('kb-markdown').className;
+    expect(el).toContain('bg-white');
+    // prose-doc-white re-binds the prose colours to dark ink (the app-token bind would be light).
+    expect(el).toContain('prose-doc-white');
   });
 
   it('system theme uses inverted prose (no white surface)', () => {

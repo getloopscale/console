@@ -46,7 +46,7 @@ export function MarkdownView({ source, theme = 'system' }: { source: string; the
   // `system` follows the app theme (inverted prose on the dark surface).
   const themeClass =
     theme === 'white'
-      ? 'rounded-md bg-white p-4 text-neutral-900'
+      ? 'prose-doc-white rounded-md bg-white p-4'
       : 'dark:prose-invert';
   return (
     <div
