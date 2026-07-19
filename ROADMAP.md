@@ -510,7 +510,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M20 — [ ] Environments as a project dimension
+### M20 — [x] Environments as a project dimension
 
 **Objective.** Move environment management out of the confusing global top-level `/environments` page and into the project context, where the domain actually scopes it (canonical namespace `theo-<tenant>-<project>-<env>`). Make the journey coherent — Overview → Project → Environment switcher → per-env surfaces — and make every environment mutation know its project instead of guessing it.
 

@@ -248,12 +248,11 @@ const SecretsPage = lazy(() =>
 // the single preview slot is rendered inline via PreviewRow.
 function PreviewsRedirect() {
   const { name } = useParams();
-  return (
-    <Navigate
-      to={`/environments?project=${encodeURIComponent(name ?? '')}`}
-      replace
-    />
-  );
+  // Previews was removed from the project nav; the old target (/environments)
+  // is now a redirect since M20 re-homed environments. Send stale
+  // /projects/:name/previews links to the project's environments tab, where
+  // preview environments live, instead of the dead global env page.
+  return <Navigate to={`/projects/${encodeURIComponent(name ?? '')}/environments`} replace />;
 }
 
 // Red Team theo-cloud#102 closure: /projects/:name/repository was a dead
