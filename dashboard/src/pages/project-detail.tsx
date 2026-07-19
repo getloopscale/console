@@ -12,7 +12,7 @@ import {
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { useProjects } from '@/hooks/use-projects';
+import { useProject } from '@/hooks/use-project';
 import { useProjectStatus } from '@/hooks/use-project-status';
 import { useDeployments } from '@/hooks/use-deployments';
 import { LiveUrlHero } from '@/components/project/live-url-hero';
@@ -41,7 +41,9 @@ export function ProjectDetailPage() {
   useRequireAuth();
   const { name = '' } = useParams<{ name: string }>();
   useSetPageTitle(name || 'Project');
-  const { projects, loading } = useProjects();
+  // M16: single-project fetch resolves by name server-side (no 50-project client
+  // cap), so opening the 51st+ project no longer shows a false "not found".
+  const { project, loading } = useProject(name);
   const { status, loading: statusLoading } = useProjectStatus(name);
   // Red Team theo-cloud#115 closure (2026-06-28): when the project is
   // preview-only the production status query returns no URL even though
@@ -83,8 +85,6 @@ export function ProjectDetailPage() {
       </PageShell>
     );
   }
-
-  const project = projects.find((p) => p.name === name);
 
   if (!project) {
     return (

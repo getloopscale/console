@@ -25,6 +25,12 @@ vi.mock('@/hooks/use-log-stream', () => ({
 }));
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: vi.fn() }));
 vi.mock('@/hooks/use-page-meta', () => ({ useSetPageTitle: vi.fn() }));
+// M16: env selector reads useEnvironments (react-query). This test renders the
+// page without a QueryClientProvider, so mock it to a stable empty list — the
+// default env stays 'production', keeping the stream-path assertions valid.
+vi.mock('@/hooks/use-environments', () => ({
+  useEnvironments: () => ({ envs: [], loading: false, error: false }),
+}));
 
 function renderPage() {
   return render(

@@ -30,9 +30,9 @@ vi.mock('@/hooks/use-page-meta', async () => {
   return { ...actual, useSetPageTitle: () => {} };
 });
 
-const mockUseProjects = vi.fn();
-vi.mock('@/hooks/use-projects', () => ({
-  useProjects: () => mockUseProjects(),
+const mockUseProject = vi.fn();
+vi.mock('@/hooks/use-project', () => ({
+  useProject: () => mockUseProject(),
 }));
 
 const mockUseProjectStatus = vi.fn(() => ({ status: null as unknown, loading: false }));
@@ -63,12 +63,12 @@ describe('ProjectDetailPage', () => {
     mockUseEngineApi.mockReturnValue({ data: null, loading: false, error: false });
     // Default project that satisfies the existing test suite. Per-test
     // overrides re-mock with the scenario-specific shape.
-    mockUseProjects.mockReturnValue({
-      projects: [{
+    mockUseProject.mockReturnValue({
+      project: {
         name: 'my-project',
         apps: [{ name: 'web' }],
         created_at: '2026-06-01T00:00:00Z',
-      }],
+      },
       loading: false,
     });
   });
@@ -96,8 +96,8 @@ describe('ProjectDetailPage', () => {
   // a failed preview build still mapped to 'failed' via the legacy path)
   // but the SQL signals still indicate preview-only project shape.
   it('test_project_detail_renders_preview_only_when_no_prod_env_and_preview_build (#41)', () => {
-    mockUseProjects.mockReturnValue({
-      projects: [{
+    mockUseProject.mockReturnValue({
+      project: {
         name: 'my-project',
         apps: [{ name: 'web' }],
         created_at: '2026-06-01T00:00:00Z',
@@ -105,7 +105,7 @@ describe('ProjectDetailPage', () => {
         production_env_count: 0,        // canonical signal — no production env
         environment_count: 0,
         latest_build_environment: 'preview',
-      }],
+      },
       loading: false,
     });
     render(<ProjectDetailPage />);
@@ -156,8 +156,8 @@ describe('ProjectDetailPage', () => {
   });
 
   it('test_project_detail_uses_production_env_count_for_live_envs_metric (#41)', () => {
-    mockUseProjects.mockReturnValue({
-      projects: [{
+    mockUseProject.mockReturnValue({
+      project: {
         name: 'my-project',
         apps: [{ name: 'web' }],
         created_at: '2026-06-01T00:00:00Z',
@@ -165,7 +165,7 @@ describe('ProjectDetailPage', () => {
         environment_count: 1,
         production_env_count: 0,
         latest_build_environment: 'preview',
-      }],
+      },
       loading: false,
     });
     render(<ProjectDetailPage />);
@@ -181,8 +181,8 @@ describe('ProjectDetailPage', () => {
   // the SAME page. active_env_count is the new canonical field that
   // counts env_targets (any kind) with a corresponding release ACTIVE.
   it('test_project_detail_uses_active_env_count_for_live_envs_metric (#134)', () => {
-    mockUseProjects.mockReturnValue({
-      projects: [{
+    mockUseProject.mockReturnValue({
+      project: {
         name: 'my-project',
         apps: [{ name: 'web' }],
         created_at: '2026-06-01T00:00:00Z',
@@ -191,7 +191,7 @@ describe('ProjectDetailPage', () => {
         production_env_count: 0, // no permanent env wired (preview-only)
         active_env_count: 1,     // preview env has ACTIVE release
         latest_build_environment: 'preview',
-      }],
+      },
       loading: false,
     });
     render(<ProjectDetailPage />);

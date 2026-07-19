@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { Button, Card, PageShell } from '@usetheo/ui';
+import { Button, Card, PageShell, Select } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
+import { useEnvironments } from '@/hooks/use-environments';
 import { useLogStream } from '@/hooks/use-log-stream';
 import { LogViewer } from '@/components/logs/log-viewer';
 import { TimeRangePicker } from '@/components/logs/time-range-picker';
@@ -24,9 +25,13 @@ export function RuntimeLogsPage() {
   const [paused, setPaused] = useState(false);
   // J-19 T1.1: time-range selector (default last 5 minutes). Drives `?since=`.
   const [selectedRange, setSelectedRange] = useState('5m');
+  // M16: env selector — logs were hardwired to production, so a project whose
+  // only deploys are in preview/staging streamed an empty viewer forever.
+  const { envs } = useEnvironments(name);
+  const [env, setEnv] = useState('production');
 
   const streamPath = name
-    ? `/engine/api/v1/projects/${encodeURIComponent(name)}/logs/stream?env=production&since=${selectedRange}`
+    ? `/engine/api/v1/projects/${encodeURIComponent(name)}/logs/stream?env=${encodeURIComponent(env)}&since=${selectedRange}`
     : null;
   const { lines, connected, error, droppedCount, clear } = useLogStream(streamPath, { paused });
 
@@ -45,7 +50,23 @@ export function RuntimeLogsPage() {
             <span>Back to project</span>
           </Link>
         </Button>
-        <TimeRangePicker value={selectedRange} onChange={setSelectedRange} />
+        <div className="flex items-center gap-2">
+          {envs.length > 0 ? (
+            <Select value={env} onValueChange={setEnv}>
+              <Select.Trigger className="w-[160px]" aria-label="Environment">
+                <Select.Value placeholder="Environment" />
+              </Select.Trigger>
+              <Select.Content>
+                {envs.map((e) => (
+                  <Select.Item key={e} value={e}>
+                    {e}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          ) : null}
+          <TimeRangePicker value={selectedRange} onChange={setSelectedRange} />
+        </div>
       </div>
 
       <Card className="overflow-hidden">
