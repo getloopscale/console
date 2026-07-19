@@ -1,6 +1,11 @@
 ## [Unreleased]
 
 ### Added
+- Roadmap amended: added M15 Deploy-journey data honesty (`/roadmap-feature deploy-journey-hardening`)
+- Roadmap amended: added M16 Rule 3 term-leaks + deploy-journey dead-ends (`/roadmap-feature deploy-journey-hardening`)
+- Roadmap amended: added M17 Deploy-journey Sheets → centered modals (`/roadmap-feature deploy-journey-hardening`)
+- Roadmap amended: added M18 Destructive-action safety + fail-silent errors (`/roadmap-feature deploy-journey-hardening`)
+- Roadmap amended: added M19 Deploy-journey cleanup + Live-URL parity (`/roadmap-feature deploy-journey-hardening`)
 
 ### Changed
 

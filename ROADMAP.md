@@ -406,6 +406,110 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
+### M15 — [ ] Deploy-journey data honesty (M-A)
+
+**Objective.** Every number the deploy journey shows must be REAL — rebind the fabricated / hardcoded values surfaced by the 2026-07-19 deploy-journey review to the backend data that already exists. Same defect class as the Overview Usage fix (v0.60.0): UI bound to values the API never populated.
+
+**Definition of done:**
+
+- [ ] Scale page shows the REAL current replica count from `useProjectStatus` (`status.scaling.replicas ?? replicas_desired`), NOT the hardcoded `DEFAULT_CURRENT_REPLICAS = 2`; the cost delta + confirm-impact paragraph reflect the true current value (`project-scale.tsx:20,82,234`). Falls back to a neutral state only when the field is genuinely absent.
+- [ ] `project-status.tsx` binds `alerts_active` from `status.alerts_active` (present on the wire, `types.ts:491`) instead of hardcoded `null`, so the Alerts signal reflects reality (`:213`).
+- [ ] The KEDA / scale-to-zero cluster-availability flag is sourced from the status/scale response (fail-CLOSED default), not hardcoded `true` (`project-scale.tsx:81`).
+- [ ] `delete-environment-dialog` cascade counts are accurate (real workloads/secrets/domains) OR the numeric cascade lines are removed and only the qualitative warning kept — no fabricated blast-radius number (`:122`); `deployment-detail-layout` no longer passes a hardcoded `repoUrl: null` (`:148`).
+- [ ] TDD for each rebind (RED asserts real value, no hardcode); typecheck + ESLint + full dashboard suite + production build green; LIVE-validated on `app-dev.usetheo.dev` with a real project (Scale shows the true replica count).
+
+**Dependencies:** M14 (baseline). No new backend endpoint — all fields already exist on the status/billing wire.
+
+**Top risks (new):**
+
+1. The status endpoint may omit `scaling` for never-deployed projects → the fallback must be honest (neutral / "—", never a fabricated "2"). Mitigation: fall back only when the field is truly absent; assert this in a negative-case test.
+2. Accurate cascade counts may need a backend field that isn't emitted yet. Mitigation: if absent, DROP the number (qualitative warning only) rather than invent one — honesty over completeness.
+
+---
+
+### M16 — [ ] Rule 3 term-leaks + deploy-journey dead-ends (M-B)
+
+**Objective.** Remove the internal-implementation terms leaking into user-facing copy (Unbreakable Rule 3) and the navigation dead-ends found in the deploy journey.
+
+**Definition of done:**
+
+- [ ] No internal terms in user-facing copy: `cosign` (`project-connect.tsx:481`) and `KEDA` / `cluster` (`keda-toggle.tsx:97`) replaced with product language (e.g. "signed, verifiable image"; "scale-to-zero isn't available on your plan/region").
+- [ ] Opening a project ranked beyond the 50-project page no longer shows a false "Project not found": `project-detail.tsx` resolves the single project via a name-scoped fetch (`GET /projects/:name`) instead of `.find()` over a client-capped list (`:44`).
+- [ ] Runtime logs are not hardwired to `?env=production`: an env selector (or status-derived env) plus an explicit empty-state when the chosen env has no release — no silent empty viewer (`runtime-logs.tsx:28`).
+- [ ] Domains list surfaces `total` and/or pagination so capped rows are reachable (`domains.tsx:159`).
+- [ ] TDD; gates green; LIVE-validated (a >50-project tenant opens the 51st project; a preview-only project sees a real logs empty-state, not a hang).
+
+**Dependencies:** M14 (baseline).
+
+**Top risks (new):**
+
+1. The single-project fetch (`GET /projects/:name`) must return the shape the detail page needs. Mitigation: verify the endpoint contract before swapping the client `.find()`; keep a graceful fallback.
+2. The runtime-logs env selector must not regress the common production-default case. Mitigation: default to the project's active env from status; production stays the default when it has a release.
+
+---
+
+### M17 — [ ] Deploy-journey Sheets → centered modals (M-C)
+
+**Objective.** Finish the owner's "no lateral panels" mandate for the deploy journey — migrate the 5 remaining `Sheet` side-panels to the standardized centered `AppModal` (M14).
+
+**Definition of done:**
+
+- [ ] `create-project-sheet`, `create-environment-sheet`, `add-domain-sheet`, `add-secret-sheet`, and `signal-detail-sheet` render as centered `AppModal` (not lateral drawers), preserving props / behavior / validation.
+- [ ] `create-environment-sheet`'s three return branches (error / empty / form) are all converted; the form submit is wired via `AppModal` `footer` + a form `id`.
+- [ ] No `Sheet`-based side panel remains anywhere in the deploy journey (grep-clean in the migrated files).
+- [ ] TDD per migrated surface; gates green; LIVE-validated each modal opens/closes/submits centered.
+
+**Dependencies:** M14 (AppModal primitive exists).
+
+**Top risks (new):**
+
+1. `AppModal`'s API (`onClose` / `footer` prop) differs from `Sheet` (`onOpenChange` / `<Sheet.Footer>`), so wiring bugs are easy. Mitigation: reuse the M14 migration pattern; the full suite is the regression net.
+2. `add-secret-sheet` is security-sensitive — the migration must NOT change masking / `type=password` / no-echo behavior. Mitigation: a negative-case test asserting the secret value is never rendered survives the migration.
+
+---
+
+### M18 — [ ] Destructive-action safety + fail-silent errors (M-D)
+
+**Objective.** Close the destructive-action friction gaps and the fail-silent error paths in the deploy mutations so a stray click can't revert a release and a failed action never hides its reason.
+
+**Definition of done:**
+
+- [ ] Non-production rollback requires a real confirmation (not a one-click revert) — friction scaled to risk, parity in spirit with the production confirm-phrase (`rollback-dialog.tsx:40`).
+- [ ] `project-connect` Disconnect is behind a confirmation AND has a `catch` that surfaces the error to the user (no silent no-op) (`:259`).
+- [ ] Add-domain binds Project / App / Environment via `Select` populated from real projects/envs — no free-text typo path that registers a domain against a non-existent workload (`add-domain-sheet.tsx:83`).
+- [ ] `usePromoteEnvironment` uses `{ throwOnError: true }` and maps the typed 4xx codes (BUILD_NOT_TERMINAL / PROJECT_NOT_FOUND / ENV_NOT_FOUND) to specific messages — parity with the already-fixed `useRedeploy` (`use-environments.ts:101`).
+- [ ] TDD including negative-case tests that assert the SPECIFIC typed error surfaces (not a generic guess); gates green; LIVE-validated (a failed promote shows the specific reason; a non-prod rollback asks to confirm).
+
+**Dependencies:** M14 (baseline); soft-after M17 if add-domain becomes a modal in that pass (not blocking).
+
+**Top risks (new):**
+
+1. Over-friction on non-prod rollback could annoy day-to-day use. Mitigation: a lightweight confirm (single explicit step), not the full type-the-phrase gate reserved for production.
+2. Turning on `throwOnError` may surface errors elsewhere that were previously swallowed. Mitigation: audit `usePromoteEnvironment` callers; ensure each renders the error rather than crashing.
+
+---
+
+### M19 — [ ] Deploy-journey cleanup + Live-URL parity (M-E)
+
+**Objective.** Remove the duplicated / drifting deploy surfaces and add the missing "click your deployed app" affordance (Vercel-parity).
+
+**Definition of done:**
+
+- [ ] Exactly ONE deployment-detail implementation is routed; the dead one (`deployment-detail.tsx` vs `deployment-detail-layout.tsx`) is deleted after confirming the routed component in `app.tsx`; the humanize-author (`:215`) + hours-aware `formatDuration` (`:57`) divergences are resolved in the survivor.
+- [ ] The legacy `PromoteDialog` (dropdown variant) is deleted after confirming no live caller (the sponsor-preferred `PromoteToProductionDialog` stays) — removing the reintroduced promote race.
+- [ ] A succeeded deploy prominently surfaces the Live URL (`BuildApp.url`, `types.ts:228`) — the "here's your app, click it" link — rendered only when a real active release exists (no fabricated URL).
+- [ ] `formatDuration` extracted to `@/lib/format` (hours-aware) and used by BOTH the list and the detail view (DRY).
+- [ ] TDD; `/code-quality` confirms the deleted surfaces have zero callers (no dead code); gates green; LIVE-validated (a succeeded deploy shows a clickable Live URL).
+
+**Dependencies:** M14 (baseline); logically LAST of M-A..M-E (M-A/M-B/M-D also touch `deployment-detail`, so delete the duplicate after they land to avoid rebase churn).
+
+**Top risks (new):**
+
+1. Deleting the wrong deployment-detail impl breaks the route. Mitigation: confirm the routed component in `app.tsx` FIRST; the full suite + a LIVE smoke are the net.
+2. The Live URL must render only for a genuinely serving release. Mitigation: gate on the real active-release/status URL — never synthesize a URL for a non-serving build.
+
+---
+
 ## State-of-the-art references
 
 No peers were cloned for this roadmap: the design is locked in the ADR and the reference model is
