@@ -489,7 +489,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M19 — [ ] Deploy-journey cleanup + Live-URL parity (M-E)
+### M19 — [x] Deploy-journey cleanup + Live-URL parity (M-E)
 
 **Objective.** Remove the duplicated / drifting deploy surfaces and add the missing "click your deployed app" affordance (Vercel-parity).
 
