@@ -17,6 +17,7 @@ import {
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
+import { ProviderLogo } from '@/components/rag/provider-logo';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -218,7 +219,16 @@ export function RagConnectorsPage() {
     credSpec.fields.every((f) => f.optional || (credFields[f.key]?.trim() ?? '') !== '');
 
   const columns: DataTableColumn<Connection>[] = [
-    { key: 'provider_id', label: 'Provider', render: (row) => <span className="capitalize">{row.provider_id}</span> },
+    {
+      key: 'provider_id',
+      label: 'Provider',
+      render: (row) => (
+        <span className="flex items-center gap-2">
+          <ProviderLogo provider={row.provider_id} className="h-5 w-5" />
+          <span>{providerLabel(row.provider_id)}</span>
+        </span>
+      ),
+    },
     { key: 'collection_id', label: 'Collection', render: (row) => <span className="font-mono text-sm">{row.collection_id}</span> },
     { key: 'status', label: 'Status', render: (row) => <span className="capitalize">{row.status}</span> },
     {
@@ -342,16 +352,20 @@ export function RagConnectorsPage() {
                     {oauthProviders.map((p) =>
                       collectionID ? (
                         <Button key={p} asChild variant="secondary" className="justify-start">
-                          <a href={authorizeHref(p, collectionID)}>Connect with {providerLabel(p)}</a>
+                          <a href={authorizeHref(p, collectionID)} className="flex items-center gap-2">
+                            <ProviderLogo provider={p} className="h-4 w-4" />
+                            Connect with {providerLabel(p)}
+                          </a>
                         </Button>
                       ) : (
                         <Button
                           key={p}
                           variant="secondary"
-                          className="justify-start"
+                          className="justify-start gap-2"
                           disabled
                           aria-label={`Connect with ${providerLabel(p)}`}
                         >
+                          <ProviderLogo provider={p} className="h-4 w-4" />
                           Connect with {providerLabel(p)}
                         </Button>
                       ),
@@ -377,7 +391,10 @@ export function RagConnectorsPage() {
                   <Select.Content>
                     {Object.entries(CRED_PROVIDERS).map(([key, spec]) => (
                       <Select.Item key={key} value={key}>
-                        {spec?.label ?? key}
+                        <span className="flex items-center gap-2">
+                          <ProviderLogo provider={key} className="h-4 w-4" />
+                          {spec?.label ?? key}
+                        </span>
                       </Select.Item>
                     ))}
                   </Select.Content>
