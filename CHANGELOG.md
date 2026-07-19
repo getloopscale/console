@@ -6,6 +6,15 @@
 
 ### Fixed
 
+## [0.66.0] - 2026-07-19
+
+### Added
+- Roadmap amended: added M20 Environments as a project dimension (`/roadmap-feature environments-as-project-dimension`)
+
+### Changed
+- Environments (M20): environment management moved from a confusing global page into the project context — it now lives under the project (`/projects/:name/environments`, in the project sub-nav next to Deployments). Create/promote/delete are scoped to the project you're viewing instead of guessing one, matching how the other nine per-project surfaces already work. The old top-level Environments nav item is gone and `/environments` redirects to Projects.
+
+### Fixed
 ## [0.65.0] - 2026-07-19
 
 ### Added

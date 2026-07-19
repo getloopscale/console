@@ -63,7 +63,7 @@ export function OverviewKPIStrip() {
         label="Deploys (7d)"
         value={kpis.deploys7d === null ? '—' : String(kpis.deploys7d)}
       />
-      <KPICard icon={Layers} label="Active envs" value={String(kpis.activeEnvs)} href="/environments" />
+      <KPICard icon={Layers} label="Active envs" value={String(kpis.activeEnvs)} href="/projects" />
       <KPICard icon={CreditCard} label="Plan" value={formatPlanPrice(kpis.planPrice)} href="/billing" />
     </div>
   );

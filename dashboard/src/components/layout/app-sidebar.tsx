@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   Bell,
 
-  Box,
   Boxes,
   BookOpen,
   Brain,
@@ -105,7 +104,8 @@ const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'Overview', path: '/', icon: LayoutGrid },
           { label: 'Projects', path: '/projects', icon: FolderKanban },
-          { label: 'Environments', path: '/environments', icon: Box },
+          // M20: Environments removed from the top-level nav — they are a project
+          // dimension, managed under /projects/:name/environments (not global).
           { label: 'Domains', path: '/domains', icon: Globe },
           { label: 'Team', path: '/team', icon: Users },
         ],
@@ -268,6 +268,9 @@ const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'Overview', path: '/projects/{project}', icon: LayoutGrid },
           { label: 'Deployments', path: '/projects/{project}/deployments', icon: Rocket },
+          // M20: environments as a project dimension — discoverable in the project
+          // sub-nav next to Deployments (you deploy INTO an environment).
+          { label: 'Environments', path: '/projects/{project}/environments', icon: Boxes },
           { label: 'Status', path: '/projects/{project}/status', icon: Activity },
           { label: 'Runtime logs', path: '/projects/{project}/logs', icon: ScrollText },
           { label: 'Scale', path: '/projects/{project}/scale', icon: SlidersHorizontal },

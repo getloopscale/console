@@ -69,7 +69,7 @@ describe('OverviewKPIStrip (J-06 T2.1)', () => {
     });
     render(<OverviewKPIStrip />);
     expect(screen.getByRole('link', { name: /projects/i })).toHaveAttribute('href', '/projects');
-    expect(screen.getByRole('link', { name: /active envs/i })).toHaveAttribute('href', '/environments');
+    expect(screen.getByRole('link', { name: /active envs/i })).toHaveAttribute('href', '/projects');
     expect(screen.getByRole('link', { name: /plan/i })).toHaveAttribute('href', '/billing');
     // Deploys (7d) has no dedicated page → not a link.
     expect(screen.queryByRole('link', { name: /deploys/i })).not.toBeInTheDocument();

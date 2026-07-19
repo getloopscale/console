@@ -22,7 +22,6 @@ describe('AppSidebar', () => {
     for (const label of [
       'Overview',
       'Projects',
-      'Environments',
       'Domains',
       'Billing',
       'Audit log',

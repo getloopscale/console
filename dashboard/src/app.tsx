@@ -430,7 +430,14 @@ export default function App() {
                       path="/projects/:name/readiness"
                       element={<Boundaried path="/projects/:name/readiness"><ProjectGuard><ProjectReadinessPage /></ProjectGuard></Boundaried>}
                     />
-                    <Route path="/environments" element={<Boundaried path="/environments"><EnvironmentsPage /></Boundaried>} />
+                    {/* M20: environments are a project dimension — the page lives
+                        under the project (unambiguous scope, no project-guess). The
+                        old global /environments redirects so bookmarks don't 404. */}
+                    <Route
+                      path="/projects/:name/environments"
+                      element={<Boundaried path="/projects/:name/environments"><ProjectGuard><EnvironmentsPage /></ProjectGuard></Boundaried>}
+                    />
+                    <Route path="/environments" element={<Navigate to="/projects" replace />} />
                     <Route path="/team" element={<Boundaried path="/team"><TeamPage /></Boundaried>} />
                     <Route path="/billing" element={<Boundaried path="/billing"><BillingPage /></Boundaried>} />
                     <Route path="/domains" element={<Boundaried path="/domains"><DomainsPage /></Boundaried>} />
