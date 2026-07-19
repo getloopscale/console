@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   FolderKanban,
@@ -10,7 +10,6 @@ import {
   Users,
 } from 'lucide-react';
 import {
-  Badge,
   Card,
   EmptyState,
   PageShell,
@@ -19,9 +18,11 @@ import {
 import { UsageMeter } from '@theokit/ui';
 import { ContentGrid } from '@/components/layout';
 import { OverviewKPIStrip } from '@/components/overview/overview-kpi-strip';
+import { DeploysActivity } from '@/components/overview/deploys-activity';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/use-projects';
+import { useBuildStats } from '@/hooks/use-build-stats';
 import { useCloudApi } from '@/hooks/use-api';
 import { formatDate, formatNumber, isZeroTime } from '@/lib/format';
 
@@ -54,6 +55,7 @@ export function OverviewPage() {
   const navigate = useNavigate();
   const { projects, loading } = useProjects();
   const { data: billing } = useCloudApi<BillingResponse>('/v1/billing');
+  const deployStats = useBuildStats('7d');
   const usage = billing?.usage ?? {};
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -74,19 +76,21 @@ export function OverviewPage() {
   // Per ADR-D1.bis: limit===null renders "{used} / Unlimited".
   // UsageMeter primitive natively handles over-quota (value>max → text-warning + warning intent).
   // Uses formatNumber() from lib/format.ts per T-C.2 migration (en-US locale per ADR-D1).
-  function fmtMetric(value: number, max: number | null, opts?: { compactMillions?: boolean }): string {
+  function fmtMetric(value: number, max: number | null): string {
     if (max === null) return `${formatNumber(value, 'grouped')} / Unlimited`;
-    if (opts?.compactMillions && max >= 1_000_000) {
-      return `${formatNumber(value, 'grouped')} / ${formatNumber(max, 'compact')}`;
-    }
     return `${formatNumber(value, 'grouped')} / ${formatNumber(max, 'grouped')}`;
   }
 
-  const dataMetric = pickMetric('Fast Data Transfer', 100);
-  const originMetric = pickMetric('Fast Origin Transfer', 10);
-  const requestsMetric = pickMetric('Edge Requests', 1_000_000);
-  const buildMinutesMetric = pickMetric('Build Minutes', 400);
-  const concurrentBuildsMetric = pickMetric('Concurrent Builds', 4);
+  // T-P0: bind to the REAL /v1/billing.usage keys (billing.go getLimitsForPlan /
+  // getUsageForTenant), NOT the Vercel-mockup vocabulary that never populated.
+  // Fallback limits mirror the starter-plan defaults so a null billing response
+  // still renders honest caps (projects 2, builds 100, environments 1, seats 1).
+  // secrets_per_env / services_per_project are per-scope caps (not account totals)
+  // and are intentionally omitted here (ADR-3).
+  const projectsMetric = pickMetric('projects', 2);
+  const buildsMetric = pickMetric('builds_per_month', 100);
+  const envsMetric = pickMetric('environments', 1);
+  const seatsMetric = pickMetric('seats', 1);
 
   return (
     <PageShell
@@ -120,53 +124,58 @@ export function OverviewPage() {
                 forcing page growth. */}
             <div className="max-h-[400px] overflow-y-auto">
               <UsageMeter
-                title="Last 30 days"
-                action={<Badge variant="outline">Upgrade</Badge>}
+                title="This billing period"
+                action={
+                  <Link
+                    to="/billing"
+                    className="rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    Upgrade
+                  </Link>
+                }
                 metrics={[
                 {
-                  label: 'Fast Data Transfer',
-                  value: dataMetric.value,
-                  max: dataMetric.max ?? Number.MAX_SAFE_INTEGER,
-                  unit: 'GB',
-                  formatter: (v) => fmtMetric(v, dataMetric.max),
-                },
-                {
-                  label: 'Fast Origin Transfer',
-                  value: originMetric.value,
-                  max: originMetric.max ?? Number.MAX_SAFE_INTEGER,
-                  unit: 'GB',
-                  formatter: (v) => fmtMetric(v, originMetric.max),
-                },
-                {
-                  label: 'Edge Requests',
-                  value: requestsMetric.value,
-                  max: requestsMetric.max ?? Number.MAX_SAFE_INTEGER,
-                  unit: 'req',
-                  formatter: (v) => fmtMetric(v, requestsMetric.max, { compactMillions: true }),
-                },
-                {
-                  label: 'Build Minutes',
-                  value: buildMinutesMetric.value,
-                  max: buildMinutesMetric.max ?? Number.MAX_SAFE_INTEGER,
-                  unit: 'min',
-                  formatter: (v) => fmtMetric(v, buildMinutesMetric.max),
-                },
-                {
-                  label: 'Concurrent Builds',
-                  value: concurrentBuildsMetric.value,
-                  max: concurrentBuildsMetric.max ?? Number.MAX_SAFE_INTEGER,
+                  label: 'Projects',
+                  value: projectsMetric.value,
+                  max: projectsMetric.max ?? Number.MAX_SAFE_INTEGER,
                   unit: '',
-                  formatter: (v) => fmtMetric(v, concurrentBuildsMetric.max),
+                  formatter: (v) => fmtMetric(v, projectsMetric.max),
+                },
+                {
+                  label: 'Builds this month',
+                  value: buildsMetric.value,
+                  max: buildsMetric.max ?? Number.MAX_SAFE_INTEGER,
+                  unit: '',
+                  formatter: (v) => fmtMetric(v, buildsMetric.max),
+                },
+                {
+                  label: 'Environments',
+                  value: envsMetric.value,
+                  max: envsMetric.max ?? Number.MAX_SAFE_INTEGER,
+                  unit: '',
+                  formatter: (v) => fmtMetric(v, envsMetric.max),
+                },
+                {
+                  label: 'Seats',
+                  value: seatsMetric.value,
+                  max: seatsMetric.max ?? Number.MAX_SAFE_INTEGER,
+                  unit: '',
+                  formatter: (v) => fmtMetric(v, seatsMetric.max),
                 },
               ]}
               />
             </div>
           </section>
 
-          {/* Alerts section removed v1.2 T-DR-1.1 (closes P1-1): feature
-              not yet backend-shipped; oversized empty state (270px) violated
-              CC-3 (max 1 empty state/page ≤200px). Re-introduce when
-              backend alert engine ships, scoped as inline Alert banner. */}
+          {/* T-P1: deploy activity — the "what happened recently" view, from the
+              real /api/v1/builds/stats 7-day series (useBuildStats). Pairs with the
+              "Deploys (7d)" KPI: the KPI is the count, these bars are the distribution. */}
+          <section>
+            <h2 className="text-label-caps text-muted-foreground uppercase mb-3 tracking-wider">
+              Deploy activity
+            </h2>
+            <DeploysActivity byDay={deployStats.byDay} loading={deployStats.loading} error={deployStats.error} />
+          </section>
         </div>
 
         {/* Right column — Projects + Recent Previews */}
@@ -269,6 +278,17 @@ export function OverviewPage() {
                     href={`/projects/${p.name}`}
                   />
                 ))}
+                {/* T-P2: the preview shows the first 3; link to the full list
+                    when there are more, carrying the real count. */}
+                {filteredProjects.length > 3 ? (
+                  <Link
+                    to="/projects"
+                    className="flex items-center justify-center gap-1.5 rounded-md border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
+                  >
+                    View all {filteredProjects.length} projects
+                    <ArrowRight className="size-4" aria-hidden="true" />
+                  </Link>
+                ) : null}
               </div>
             )}
           </section>

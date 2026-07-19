@@ -57,6 +57,23 @@ describe('OverviewKPIStrip (J-06 T2.1)', () => {
     expect(screen.getByText('—')).toBeInTheDocument(); // Deploys (7d) → —
     expect(screen.getByText('$0/mo')).toBeInTheDocument(); // starter still shows $0
   });
+
+  // T-P3: KPI cards drill down to their detail surface (no dead affordances).
+  it('test_kpi_cards_are_drilldown_links', () => {
+    mocked.mockReturnValue({
+      projects: 4,
+      activeEnvs: 3,
+      deploys7d: 12,
+      planPrice: { amount_minor: 2900, currency: 'usd', interval: 'month' },
+      loading: false,
+    });
+    render(<OverviewKPIStrip />);
+    expect(screen.getByRole('link', { name: /projects/i })).toHaveAttribute('href', '/projects');
+    expect(screen.getByRole('link', { name: /active envs/i })).toHaveAttribute('href', '/environments');
+    expect(screen.getByRole('link', { name: /plan/i })).toHaveAttribute('href', '/billing');
+    // Deploys (7d) has no dedicated page → not a link.
+    expect(screen.queryByRole('link', { name: /deploys/i })).not.toBeInTheDocument();
+  });
 });
 
 describe('formatPlanPrice', () => {

@@ -20,14 +20,23 @@ vi.mock('@/hooks/use-api', () => ({
   useEngineApi: () => mockUseCloudApi(),
 }));
 
+// T-P1: the deploys-activity + KPI strip read useBuildStats (engineFetch). Mock it
+// so the Overview test is deterministic and never hits the network.
+const mockUseBuildStats = vi.fn();
+vi.mock('@/hooks/use-build-stats', () => ({
+  useBuildStats: () => mockUseBuildStats(),
+}));
+
 import { OverviewPage } from './overview';
 
 describe('OverviewPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseProjects.mockReturnValue({ projects: [], loading: false });
+    mockUseProjects.mockReturnValue({ projects: [], loading: false, total: 0 });
     // Default: billing returns null (covers fallback path)
     mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
+    // Default: no deploy activity (deterministic empty state)
+    mockUseBuildStats.mockReturnValue({ byDay: [], last7d: 0, total: 0, loading: false, error: false });
   });
 
   it('test_overview_renders_action_bar_with_add_new', () => {
@@ -35,15 +44,21 @@ describe('OverviewPage', () => {
     expect(screen.getByRole('button', { name: /add new/i })).toBeInTheDocument();
   });
 
-  it('test_overview_renders_usage_meter_with_5_metrics', () => {
-    // T-DR-1.2 v1.2: KPI count 3 → 5 (closes P1-2). Build Minutes +
-    // Concurrent Builds added (data flows from /v1/billing.usage map).
+  it('test_overview_usage_binds_real_backend_keys_not_vercel_mockup', () => {
+    // T-P0: the Usage panel must read the REAL /v1/billing.usage keys
+    // (projects, builds_per_month, environments, seats), NOT the Vercel-mockup
+    // vocabulary that never bound to a Theo metered dimension.
     render(<OverviewPage />);
-    expect(screen.getByText('Fast Data Transfer')).toBeInTheDocument();
-    expect(screen.getByText('Fast Origin Transfer')).toBeInTheDocument();
-    expect(screen.getByText('Edge Requests')).toBeInTheDocument();
-    expect(screen.getByText('Build Minutes')).toBeInTheDocument();
-    expect(screen.getByText('Concurrent Builds')).toBeInTheDocument();
+    // "Projects" also appears as the KPI + the section header, so assert the
+    // Usage-unique labels for presence; "Projects" via getAllByText.
+    expect(screen.getAllByText('Projects').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Builds this month')).toBeInTheDocument();
+    expect(screen.getByText('Environments')).toBeInTheDocument();
+    expect(screen.getByText('Seats')).toBeInTheDocument();
+    // The fabricated keys must be gone.
+    expect(screen.queryByText('Fast Data Transfer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Edge Requests')).not.toBeInTheDocument();
+    expect(screen.queryByText('Concurrent Builds')).not.toBeInTheDocument();
   });
 
   it('test_overview_no_alerts_section_removed_v12', () => {
@@ -99,82 +114,118 @@ describe('OverviewPage', () => {
     expect(screen.queryByText('beta')).not.toBeInTheDocument();
   });
 
-  // ---- v1.1 T-A.2 (B-2 + EC-5 + EC-6) ----
+  // ---- T-P0: real-key Usage binding ----
 
-  it('test_overview_usage_reflects_billing_data_when_loaded', () => {
+  it('test_overview_usage_reflects_real_billing_data_when_loaded', () => {
     mockUseCloudApi.mockReturnValue({
       data: {
         plan: 'pro',
         team: 'acme',
         usage: {
-          'Fast Data Transfer': { used: 412, limit: 1000 },
-          'Fast Origin Transfer': { used: 87, limit: 250 },
-          'Edge Requests': { used: 1_240_000, limit: 10_000_000 },
+          projects: { used: 2, limit: 3 },
+          builds_per_month: { used: 37, limit: 100 },
+          environments: { used: 2, limit: 5 },
+          seats: { used: 1, limit: 3 },
         },
       },
       loading: false,
       error: false,
     });
     render(<OverviewPage />);
-    // Real "used" numbers from billing fixture must appear (412 instead of 0)
-    expect(screen.getByText(/412 \/ 1,000/)).toBeInTheDocument();
-    expect(screen.getByText(/87 \/ 250/)).toBeInTheDocument();
-    // Edge Requests gets compact-millions formatter
-    expect(screen.getByText(/1,240,000 \/ 10M/)).toBeInTheDocument();
+    // Real "used" numbers from billing fixture must appear.
+    expect(screen.getByText(/^2 \/ 3$/)).toBeInTheDocument();
+    expect(screen.getByText(/^37 \/ 100$/)).toBeInTheDocument();
+    expect(screen.getByText(/^2 \/ 5$/)).toBeInTheDocument();
   });
 
-  it('test_overview_usage_falls_back_to_zero_when_billing_null', () => {
+  it('test_overview_usage_falls_back_to_plan_defaults_when_billing_null', () => {
     mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
     render(<OverviewPage />);
-    // No billing → fallback to defaults (used=0, max=defaultLimit per pickMetric)
-    // Anchor regex to end-of-string ($) to avoid "0 / 10" matching "0 / 100"
+    // No billing → starter-plan defaults (projects 0/2, builds 0/100, envs 0/1, seats 0/1)
+    expect(screen.getByText(/^0 \/ 2$/)).toBeInTheDocument();
     expect(screen.getByText(/^0 \/ 100$/)).toBeInTheDocument();
-    expect(screen.getByText(/^0 \/ 10$/)).toBeInTheDocument();
-    expect(screen.getByText(/^0 \/ 1M$/)).toBeInTheDocument();
+    // 0 / 1 appears twice (environments + seats)
+    expect(screen.getAllByText(/^0 \/ 1$/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('test_overview_usage_renders_unlimited_when_limit_null', () => {
-    // EC-5: Enterprise tier returns limit:null → "Unlimited" per ADR-D1.bis
+    // Enterprise tier returns limit:null → "Unlimited".
     mockUseCloudApi.mockReturnValue({
       data: {
         plan: 'enterprise',
         team: 'acme',
         usage: {
-          'Fast Data Transfer': { used: 5000, limit: null },
-          'Fast Origin Transfer': { used: 1500, limit: null },
-          'Edge Requests': { used: 50_000_000, limit: null },
+          projects: { used: 12, limit: null },
+          builds_per_month: { used: 500, limit: null },
+          environments: { used: 8, limit: null },
+          seats: { used: 20, limit: null },
         },
       },
       loading: false,
       error: false,
     });
     render(<OverviewPage />);
-    // All 3 rows show "/ Unlimited" via fmtMetric() when max===null
     const unlimitedLabels = screen.getAllByText(/\/ Unlimited/);
-    expect(unlimitedLabels.length).toBe(3);
+    expect(unlimitedLabels.length).toBe(4);
   });
 
   it('test_overview_usage_renders_over_quota', () => {
-    // EC-6: used > limit. UsageMeter primitive natively flips intent="warning"
-    // and adds text-warning class per .llms.txt over-quota detection.
+    // used > limit renders real numeric + UsageMeter warning styling.
     mockUseCloudApi.mockReturnValue({
       data: {
         plan: 'pro',
         team: 'acme',
         usage: {
-          'Fast Data Transfer': { used: 1200, limit: 1000 },
-          'Fast Origin Transfer': { used: 87, limit: 250 },
-          'Edge Requests': { used: 500_000, limit: 1_000_000 },
+          projects: { used: 4, limit: 3 },
+          builds_per_month: { used: 37, limit: 100 },
+          environments: { used: 2, limit: 5 },
+          seats: { used: 1, limit: 3 },
         },
       },
       loading: false,
       error: false,
     });
     const { container } = render(<OverviewPage />);
-    // Over-quota row shows real numeric (not clamped to limit)
-    expect(screen.getByText(/1,200 \/ 1,000/)).toBeInTheDocument();
-    // UsageMeter primitive applies text-warning class to over-quota value
+    expect(screen.getByText(/^4 \/ 3$/)).toBeInTheDocument();
     expect(container.querySelector('.text-warning')).toBeInTheDocument();
+  });
+
+  // ---- T-P3: Upgrade is a real link, not a dead badge ----
+
+  it('test_overview_upgrade_is_a_link_to_billing', () => {
+    render(<OverviewPage />);
+    const upgrade = screen.getByRole('link', { name: /upgrade/i });
+    expect(upgrade).toHaveAttribute('href', '/billing');
+  });
+
+  // ---- T-P2: projects "View all" affordance ----
+
+  it('test_overview_view_all_projects_link_when_more_than_three', () => {
+    mockUseProjects.mockReturnValue({
+      projects: [
+        { name: 'a', apps: [] },
+        { name: 'b', apps: [] },
+        { name: 'c', apps: [] },
+        { name: 'd', apps: [] },
+        { name: 'e', apps: [] },
+      ],
+      loading: false,
+      total: 5,
+    });
+    render(<OverviewPage />);
+    // Only 3 cards shown, plus a "View all" link carrying the real count.
+    const viewAll = screen.getByRole('link', { name: /view all 5 projects/i });
+    expect(viewAll).toHaveAttribute('href', '/projects');
+  });
+
+  it('test_overview_no_view_all_link_with_three_or_fewer', () => {
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'a', apps: [] }, { name: 'b', apps: [] }],
+      loading: false,
+      total: 2,
+    });
+    render(<OverviewPage />);
+    expect(screen.queryByRole('link', { name: /view all/i })).not.toBeInTheDocument();
   });
 
   // Red Team theo-cloud#53/#76 closure: the Overview project card used to

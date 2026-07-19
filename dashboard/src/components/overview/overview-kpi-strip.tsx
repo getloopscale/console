@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Card } from '@usetheo/ui';
 import { CreditCard, FolderKanban, Layers, Rocket } from 'lucide-react';
 
@@ -24,18 +25,28 @@ interface KPICardProps {
   icon: typeof FolderKanban;
   label: string;
   value: string;
+  /** T-P3: when set, the whole card is a drill-down link to its detail surface. */
+  href?: string;
 }
 
-function KPICard({ icon: Icon, label, value }: KPICardProps) {
-  return (
-    <Card className="flex items-start gap-3 p-4">
+function KPICard({ icon: Icon, label, value, href }: KPICardProps) {
+  const inner = (
+    <>
       <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <p className="text-label uppercase text-muted-foreground">{label}</p>
         <p className="mt-1 font-mono text-body-lg font-semibold tabular-nums text-foreground">{value}</p>
       </div>
-    </Card>
+    </>
   );
+  if (href) {
+    return (
+      <Link to={href} aria-label={label} className="block rounded-lg">
+        <Card className="flex items-start gap-3 p-4 transition-colors hover:bg-muted/40">{inner}</Card>
+      </Link>
+    );
+  }
+  return <Card className="flex items-start gap-3 p-4">{inner}</Card>;
 }
 
 export function OverviewKPIStrip() {
@@ -46,14 +57,14 @@ export function OverviewKPIStrip() {
       role="group"
       aria-label="Overview KPIs"
     >
-      <KPICard icon={FolderKanban} label="Projects" value={String(kpis.projects)} />
+      <KPICard icon={FolderKanban} label="Projects" value={String(kpis.projects)} href="/projects" />
       <KPICard
         icon={Rocket}
         label="Deploys (7d)"
         value={kpis.deploys7d === null ? '—' : String(kpis.deploys7d)}
       />
-      <KPICard icon={Layers} label="Active envs" value={String(kpis.activeEnvs)} />
-      <KPICard icon={CreditCard} label="Plan" value={formatPlanPrice(kpis.planPrice)} />
+      <KPICard icon={Layers} label="Active envs" value={String(kpis.activeEnvs)} href="/environments" />
+      <KPICard icon={CreditCard} label="Plan" value={formatPlanPrice(kpis.planPrice)} href="/billing" />
     </div>
   );
 }
