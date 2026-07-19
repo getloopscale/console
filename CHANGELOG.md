@@ -5,6 +5,7 @@
 ### Changed
 
 ### Fixed
+- UI: dropdown menus (e.g. the "All Projects" project selector), tooltips and other lib surfaces no longer render a white border in dark mode. The global element border-color used `hsl(var(--border))`, but the design tokens are oklch, so the color was invalid and fell back to a near-white currentColor. It now references the `--border` token directly, matching the `border-border` utility.
 
 ## [0.60.0] - 2026-07-19
 

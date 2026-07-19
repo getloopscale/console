@@ -184,14 +184,18 @@ html[data-density] {
  * issue per original comment). */
 @layer base {
   /* Themed border across all elements — was `border-white/6` (wrong, fixed
-   * white shade fights theme cascade). Now uses --border var which Violet
-   * Forge sets to the correct neutral. */
+   * white shade fights theme cascade). Uses the --border token DIRECTLY: the
+   * tokens are oklch (`--border: oklch(...)`), so the old `hsl(var(--border))`
+   * wrapper produced an invalid color and every bare-`border` element (Radix
+   * Select.Content, tooltips, sheets) fell back to currentColor — a near-white
+   * border on the dark theme. `var(--border)` matches the `border-border`
+   * utility (which resolves via `--color-border: var(--border)`). */
   *,
   ::after,
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: hsl(var(--border));
+    border-color: var(--border);
   }
 
   /* Tailwind v4 dropped the v3 button cursor preflight. Without this, every
