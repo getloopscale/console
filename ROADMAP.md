@@ -520,7 +520,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 - [ ] `/environments` is removed from the top-level sidebar nav; environments live at `/projects/:name/environments` (a project sub-route/tab, consistent with the other nine per-project surfaces). A redirect from the old `/environments` path prevents bookmarked-link 404s.
 - [ ] Create / promote / delete environment operate on the UNAMBIGUOUS project from the route — the `?project=` ?? first-project ?? `'teste'`-fixture guess is deleted; the project is the route param.
-- [ ] A project-level environment switcher is the single source of the active environment; the per-env surfaces (secrets / domains / scale / logs / deployments) read the selected env from it (unifying today's scattered ad-hoc env handling — the secrets filter, the M16 runtime-logs selector, the scale production hardcode).
+- [ ] (Refined out per plan ADR-1 — deferred) A project-level environment switcher unifying secrets/domains/scale/logs/deployments requires a shared project layout (the `/projects/:name/*` routes are flat siblings) and does not fit `domains` (flat per-row env); it is a follow-up enhancement, not the KISS "simple to use" core of this milestone. M20 re-homes env management into the project (the actual defect); the cross-surface switcher is explicitly deferred.
 - [ ] If a cross-project environment overview is retained for operators, it is READ-ONLY (no create/promote/delete) — every mutation lives only where the project is known.
 - [ ] TDD; typecheck + ESLint + full dashboard suite + production build green; LIVE-validated on `app-dev.usetheo.dev` (create + promote + delete an environment from inside a project; the global nav item is gone; old `/environments` redirects).
 
