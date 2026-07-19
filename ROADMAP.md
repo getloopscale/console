@@ -468,7 +468,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M18 — [ ] Destructive-action safety + fail-silent errors (M-D)
+### M18 — [x] Destructive-action safety + fail-silent errors (M-D)
 
 **Objective.** Close the destructive-action friction gaps and the fail-silent error paths in the deploy mutations so a stray click can't revert a release and a failed action never hides its reason.
 

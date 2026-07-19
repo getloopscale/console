@@ -102,10 +102,17 @@ export function usePromoteEnvironment(projectName: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { from: string; to: string }) =>
-      engineFetch(`/api/v1/projects/${encodeURIComponent(projectName)}/promote`, {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
+      // M19: throwOnError so a typed 4xx (BUILD_NOT_TERMINAL / PROJECT_NOT_FOUND /
+      // ENV_NOT_FOUND) reaches the dialog as a real error instead of resolving null
+      // and forcing the UI to guess the cause (parity with useRedeploy).
+      engineFetch(
+        `/api/v1/projects/${encodeURIComponent(projectName)}/promote`,
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
+        },
+        { throwOnError: true },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.environments.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.builds.all });
