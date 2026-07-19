@@ -1,6 +1,14 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.60.0] - 2026-07-19
+
+### Added
 - Overview: a Deploy activity view (7-day bars from real build stats) and a "View all N projects" link when there are more than three. KPI cards (Projects, Active envs, Plan) now drill down to their detail page. (P1/P2/P3)
 - Connectors (`/rag/connectors`): each data source now shows its brand logo (Google Drive, Dropbox, Amazon S3, Box, Salesforce, Confluence, Jira, …) — in the connections table, the OAuth connect buttons, and the credential source picker. Logos load from a brand-logo CDN over HTTPS and fall back to a neutral icon if unavailable.
 - Wiki (`/rag/wiki`): colored page tags with a proper tag-entry field. In the New page rail, type a tag and press Enter (or type a comma) to add it as a colored chip; chips accumulate, the X removes one, and Backspace on an empty input removes the last. Each tag has a colour — derived from its name by default, and clickable to pick another from a curated 8-colour palette. Colours also render on the reader's OKF header. The page still stores plain `tags` strings (no OKF/data-plane schema change); a manually-picked colour is a LOCAL per-tag preference (persisted in the browser, keyed by tag name).
@@ -14,7 +22,6 @@
 ### Fixed
 - Overview: the Usage panel now shows real account usage vs plan limits (Projects, Builds this month, Environments, Seats) from `/v1/billing`. It previously rendered hardcoded zeros against fake limits because it read metric keys the backend never emits (Vercel-mockup vocabulary). (P0)
 - Wiki (`/rag/wiki`): the `/` slash-command menu now appears anchored to the caret (Notion-style) with readable text inside the New page modal. The centered modal's CSS transform made the menu's `position: fixed` resolve against the modal (misplaced); it is now portalled to the theme root (`.dark`) so it stays caret-anchored AND keeps the app's colours (a `document.body` portal dropped the text to invisible :root dark).
-
 ## [0.59.0] - 2026-07-18
 
 ### Changed
