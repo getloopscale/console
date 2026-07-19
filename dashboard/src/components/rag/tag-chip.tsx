@@ -1,11 +1,12 @@
-import { tagColorClasses } from './tag-color';
+import { tagColorClasses, useTagColors } from './tag-color';
 
 /**
- * TagChip — a wiki page tag rendered as a colored pill. The colour is derived from the tag
- * name (see tag-color.ts), so tags are consistently coloured everywhere without any stored
- * per-tag colour. Used in the New page rail preview and the reader's OKF header.
+ * TagChip — a read-only wiki page tag rendered as a colored pill (used in the reader's OKF
+ * header). The colour follows the tag's resolved colour (local override, else derived from
+ * the name); it subscribes so it re-renders when the user changes a colour.
  */
 export function TagChip({ name }: { readonly name: string }) {
+  useTagColors();
   return (
     <span
       data-testid="tag-chip"
