@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Badge, Button, Card, CopyButton, EmptyState, PageShell, SessionSummary, SessionTimeline } from '@usetheo/ui';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Badge, Button, Card, CopyButton, EmptyState, PageShell, SessionSummary, SessionTimeline, Tabs } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -12,6 +12,7 @@ import { cloudFetch } from '@/lib/api';
 import { nsToIso } from './traces';
 import type { Trace } from './traces/columns';
 import { toSessionItem } from './session-detail/to-session-item';
+import { SessionConversation } from './session-detail/session-conversation';
 
 /**
  * M9 — /observability/sessions/:sessionId. The session detail screen: fetch the session's traces
@@ -98,6 +99,20 @@ export function LensSessionDetailPage() {
     [query.data?.traces],
   );
 
+  // M132 — Timeline | Conversation tabs, deep-linkable via ?tab=conversation (mirrors trace-detail ?view=).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'conversation' ? 'conversation' : 'timeline';
+  const setTab = (v: string) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (v === 'timeline') next.delete('tab');
+        else next.set('tab', v);
+        return next;
+      },
+      { replace: true },
+    );
+
   return (
     <PageShell title="Session" description="Aggregate metrics and temporal replay for one session.">
       <div className="space-y-6">
@@ -171,20 +186,35 @@ export function LensSessionDetailPage() {
             }
           />
         ) : (
-          <>
-            <Card>
-              <SessionSummary items={items} formatCostUsd={(usd) => formatCost(usd, 4)} />
-            </Card>
-            <Card>
-              <SessionTimeline
-                items={items}
-                selectedId={selectedId}
-                onSelect={openTrace}
-                formatTimestamp={formatTimelineTimestamp}
-                formatCostUsd={(usd) => formatCost(usd, 4)}
-              />
-            </Card>
-          </>
+          // M132 — Timeline (aggregate metrics + temporal replay) | Conversation (turn-by-turn Human→AI
+          // replay). The M131 coherence badge stays in the header above, framing both tabs.
+          <Tabs value={activeTab} onValueChange={setTab}>
+            <Tabs.List>
+              <Tabs.Trigger value="timeline">Timeline</Tabs.Trigger>
+              <Tabs.Trigger value="conversation">Conversation</Tabs.Trigger>
+            </Tabs.List>
+            <Tabs.Content value="timeline">
+              <div className="space-y-6 pt-4">
+                <Card>
+                  <SessionSummary items={items} formatCostUsd={(usd) => formatCost(usd, 4)} />
+                </Card>
+                <Card>
+                  <SessionTimeline
+                    items={items}
+                    selectedId={selectedId}
+                    onSelect={openTrace}
+                    formatTimestamp={formatTimelineTimestamp}
+                    formatCostUsd={(usd) => formatCost(usd, 4)}
+                  />
+                </Card>
+              </div>
+            </Tabs.Content>
+            <Tabs.Content value="conversation">
+              <div className="pt-4">
+                <SessionConversation sessionId={sessionId} traces={query.data?.traces ?? []} />
+              </div>
+            </Tabs.Content>
+          </Tabs>
         )}
       </div>
     </PageShell>

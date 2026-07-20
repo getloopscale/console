@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **M132 — Session Conversation replay (dashboard).** The session-detail page (`/observability/sessions/:id`) gains a **Conversation** tab (beside Timeline) that replays the session turn-by-turn: per member trace, a **Human** input card → an **AI** output card with the FULL text (not the 120-char preview), Pretty/Raw + JSON pretty-print — mirroring Arize AX's "Session Conversation". The M131 coherence badge stays in the header framing both tabs; deep-linkable via `?tab=conversation`. Pure reuse (Rule 9): full I/O fetched lazily per trace via the existing `GET /v1/dashboard/lens/traces/{id}` tree read (shared React-Query cache, no backend change), rendered by `@usetheo/ui` `IOCards` (chat→role cards / JSON→JsonViewer / text→message) + `Tabs`; the only new code is a pure `toConversationTurns` mapper (producer-agnostic representative-I/O extraction — a Claude Code root has no I/O, its tool child does) + the tab wiring. Bounded fan-out (50-turn cap → "view all N traces" link). Absent-I/O turns show "(no input)"/"(no output)"; a failed per-trace fetch shows "(could not load this turn)" and never crashes the tab. Tests: mapper 5/5 + session-detail Conversation tab (full-text render, deep-link, absent-output) 3/3; full lens suite 332/332.
+
 ## [0.68.0] - 2026-07-20
 
 ### Added

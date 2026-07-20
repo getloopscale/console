@@ -96,6 +96,56 @@ describe('LensSessionDetailPage (/observability/sessions/:sessionId)', () => {
     expect(screen.getByTestId('coherence-reasoning')).toHaveTextContent('topic switch at turn 1');
   });
 
+  // M132 — a URL-aware mock: the session traces read, the coherence read, and the per-trace tree read
+  // are distinct endpoints. tr-1's tree carries FULL input/output.
+  const mockConversation = (opts: { output?: string | null } = {}) =>
+    mockCloudFetch.mockImplementation((url: string) => {
+      const s = String(url);
+      if (s.includes('session_id=')) {
+        return Promise.resolve({ traces: [{ traceId: 'tr-1', name: 'turn one', startTimeUnixNano: '100' }] });
+      }
+      if (s.includes('/coherence')) return Promise.resolve({ verdict: null });
+      if (s.includes('/traces/tr-1')) {
+        return Promise.resolve({
+          spanId: 's1',
+          startTimeUnixNano: '100',
+          endTimeUnixNano: '200',
+          inputValue: 'the full user question',
+          ...(opts.output === undefined ? { outputValue: 'the full assistant answer' } : {}),
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+  it('M132 — the Conversation tab replays each trace as a Human→AI turn with FULL text', async () => {
+    mockConversation();
+    renderAt('sess-abc');
+    await screen.findByRole('tab', { name: /conversation/i });
+    await userEvent.click(screen.getByRole('tab', { name: /conversation/i }));
+    // full input + output render inline (not the 120-char preview)
+    expect(await screen.findByText('the full user question')).toBeInTheDocument();
+    expect(screen.getByText('the full assistant answer')).toBeInTheDocument();
+  });
+
+  it('M132 — ?tab=conversation opens the Conversation tab directly (deep-link)', async () => {
+    mockConversation();
+    render(
+      <Routes>
+        <Route path="/observability/sessions/:sessionId" element={<LensSessionDetailPage />} />
+      </Routes>,
+      { initialEntries: ['/observability/sessions/sess-abc?tab=conversation'] },
+    );
+    expect(await screen.findByText('the full user question')).toBeInTheDocument(); // conversation active on load
+  });
+
+  it('M132 — a turn with no output shows "(no output)", never a blank card', async () => {
+    mockConversation({ output: null }); // tree has input but NO outputValue
+    renderAt('sess-abc');
+    await userEvent.click(await screen.findByRole('tab', { name: /conversation/i }));
+    expect(await screen.findByText('the full user question')).toBeInTheDocument();
+    expect(screen.getByText('(no output)')).toBeInTheDocument();
+  });
+
   // (M3 rate-limit coverage lives in the theo-lens api route test — session-coherence-routes.test.ts)
   it('M131 (review M1) — a failed coherence run surfaces an error, never a silent revert', async () => {
     mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
