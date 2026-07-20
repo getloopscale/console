@@ -46,6 +46,9 @@ type LensDataClient interface {
 	AskFeedback(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	DeleteAskFeedback(ctx context.Context, traceID, turnID string) (json.RawMessage, error)
 	Replay(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
+	// M131 — Session Coherence: cached verdict read + billable run (proxied to theo-lens).
+	GetSessionCoherence(ctx context.Context, id string) (json.RawMessage, error)
+	RunSessionCoherence(ctx context.Context, id string) (json.RawMessage, error)
 	// Writes (M44) — datasets / evaluators / guards / trace metadata
 	CreateDataset(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
 	RenameDataset(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
@@ -357,6 +360,21 @@ func (h *LensDashboardHandler) GetTraceTags(w http.ResponseWriter, r *http.Reque
 	id := chi.URLParam(r, "traceID")
 	h.proxy(w, r, "get tags", func() (json.RawMessage, error) { return h.client.GetTraceTags(r.Context(), id) })
 }
+
+// GetSessionCoherence serves GET /v1/dashboard/lens/sessions/{sessionID}/coherence — the cached
+// Session Coherence verdict (theo-lens GET /v1/sessions/:id/coherence, M131). null verdict → badge
+// "pending". Same per-tenant Model-B path + fail-closed guard as the trace reads (h.proxy).
+func (h *LensDashboardHandler) GetSessionCoherence(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "sessionID")
+	h.proxy(w, r, "get session coherence", func() (json.RawMessage, error) { return h.client.GetSessionCoherence(r.Context(), id) })
+}
+
+// RunSessionCoherence serves POST /v1/dashboard/lens/sessions/{sessionID}/coherence — runs the
+// billable session-coherence judge (theo-lens POST, rate-limited + write scope). No request body.
+func (h *LensDashboardHandler) RunSessionCoherence(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "sessionID")
+	h.proxy(w, r, "run session coherence", func() (json.RawMessage, error) { return h.client.RunSessionCoherence(r.Context(), id) })
+}
 func (h *LensDashboardHandler) GetTraceAnnotations(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "traceID")
 	h.proxy(w, r, "get annotations", func() (json.RawMessage, error) { return h.client.GetTraceAnnotations(r.Context(), id) })
@@ -551,6 +569,7 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/traces/{traceID}/tags", h.GetTraceTags)
 		r.Get("/traces/{traceID}/annotations", h.GetTraceAnnotations)
 		r.Get("/sessions", h.ListSessions)
+		r.Get("/sessions/{sessionID}/coherence", h.GetSessionCoherence) // M131 — cached coherence verdict
 		r.Get("/observability", h.Observability)
 		r.Get("/metrics/scores", h.Scores)                  // M90 — score aggregation over time
 		r.Get("/metrics/span-attributes", h.SpanAttributes) // M92 — attribute facet discovery
@@ -570,6 +589,7 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Post("/traces/{traceID}/ask/feedback", h.AskFeedback)         // M83 write-scope thumbs feedback
 		r.Delete("/traces/{traceID}/ask/feedback", h.DeleteAskFeedback) // M83 retract (clear)
 		r.Post("/traces/{traceID}/replay", h.Replay)                    // M55 — read-scope ephemeral provider replay
+		r.Post("/sessions/{sessionID}/coherence", h.RunSessionCoherence) // M131 — run the coherence judge (write scope)
 		// Writes — datasets
 		r.Post("/datasets", h.CreateDataset)
 		r.Put("/datasets/{datasetID}", h.RenameDataset)    // M82 — rename (409 on duplicate)

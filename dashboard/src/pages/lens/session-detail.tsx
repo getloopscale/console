@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Card, CopyButton, EmptyState, PageShell, SessionSummary, SessionTimeline } from '@usetheo/ui';
+import { Badge, Button, Card, CopyButton, EmptyState, PageShell, SessionSummary, SessionTimeline } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -26,6 +26,14 @@ import { toSessionItem } from './session-detail/to-session-item';
 
 interface SessionTracesResult {
   traces: Trace[];
+}
+
+/** M131 — the Session Coherence verdict (GET/POST /v1/dashboard/lens/sessions/:id/coherence). */
+interface CoherenceVerdict {
+  verdict: 'coherent' | 'incoherent' | null;
+  score?: number;
+  reasoning?: string;
+  cached?: boolean;
 }
 
 /** ns (bigint) → an ISO-medium timestamp for the timeline rows, reusing the list's `nsToIso`. */
@@ -60,6 +68,25 @@ export function LensSessionDetailPage() {
     enabled: sessionId !== '',
   });
 
+  // M131 — Session Coherence: read the cached verdict (null → not evaluated) + a mutation to run the
+  // judge on demand. A read is cheap; the run is billable (rate-limited upstream), so it is explicit.
+  const coherenceQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/lens/sessions', sessionId, 'coherence'] as const,
+    queryFn: () =>
+      cloudFetch<CoherenceVerdict>(`/v1/dashboard/lens/sessions/${encodeURIComponent(sessionId)}/coherence`),
+    enabled: sessionId !== '',
+  });
+  const queryClient = useQueryClient();
+  const runCoherence = useMutation({
+    mutationFn: () =>
+      cloudFetch<CoherenceVerdict>(`/v1/dashboard/lens/sessions/${encodeURIComponent(sessionId)}/coherence`, {
+        method: 'POST',
+      }),
+    onSuccess: (data) =>
+      queryClient.setQueryData(['cloud', '/v1/dashboard/lens/sessions', sessionId, 'coherence'], data),
+  });
+  const coherence = runCoherence.data ?? coherenceQuery.data;
+
   // Map the traces-list rows to the generic SessionTraceItem the DS components consume. Memoized so the
   // O(n) map runs only when the data changes, not on every unrelated re-render (e.g. row selection).
   const items = useMemo(
@@ -82,7 +109,36 @@ export function LensSessionDetailPage() {
             {shortId(sessionId)}
           </span>
           {sessionId ? <CopyButton value={sessionId} label="Copy session id" /> : null}
+          {/* M131 — Session Coherence verdict badge (destructive on incoherent, outline on coherent,
+              muted "not evaluated" when null) + an explicit run/re-run of the billable judge. */}
+          <div className="ml-auto flex items-center gap-2">
+            {coherence?.verdict ? (
+              <Badge
+                variant={coherence.verdict === 'incoherent' ? 'destructive' : 'outline'}
+                title={coherence.reasoning}
+                aria-label={`Session coherence: ${coherence.verdict}`}
+              >
+                Coherence: {coherence.verdict}
+              </Badge>
+            ) : (
+              <span className="text-xs text-muted-foreground">Coherence: not evaluated</span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={runCoherence.isPending || sessionId === ''}
+              onClick={() => runCoherence.mutate()}
+            >
+              {runCoherence.isPending ? 'Evaluating…' : coherence?.verdict ? 'Re-run' : 'Run coherence'}
+            </Button>
+          </div>
         </div>
+        {/* The judge's rationale (cites the turn where coherence broke) — shown under the header. */}
+        {coherence?.reasoning ? (
+          <p className="-mt-3 text-xs text-muted-foreground" data-testid="coherence-reasoning">
+            {coherence.reasoning}
+          </p>
+        ) : null}
 
         {query.isLoading ? (
           <ListSkeleton label="session" />

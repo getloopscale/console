@@ -94,6 +94,12 @@ func (s *stubLensDataClient) GetTrace(context.Context, string) (json.RawMessage,
 func (s *stubLensDataClient) GetTraceCost(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"traceId":"t1","costUsd":0.5,"totalTokens":100}`)
 }
+func (s *stubLensDataClient) GetSessionCoherence(context.Context, string) (json.RawMessage, error) {
+	return s.read(`{"verdict":"coherent","score":0.9,"cached":true}`)
+}
+func (s *stubLensDataClient) RunSessionCoherence(context.Context, string) (json.RawMessage, error) {
+	return s.read(`{"verdict":"coherent","score":0.9,"cached":false}`)
+}
 func (s *stubLensDataClient) GetTraceTags(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"tags":[]}`)
 }
@@ -581,9 +587,14 @@ func TestLensDashboard_RouteSet_NoBodyOrAgentsMutation(t *testing.T) {
 		// derives a labeling-queue item from the span; NEVER mutates the trace body).
 		underTrace := strings.HasPrefix(rt.pattern, "/v1/dashboard/lens/traces/{traceID}")
 		writableMeta := strings.Contains(rt.pattern, "/tags") || strings.Contains(rt.pattern, "/annotations") || strings.Contains(rt.pattern, "/ask") || strings.Contains(rt.pattern, "/replay") || strings.Contains(rt.pattern, "/enqueue-for-labeling")
+		// M131 — POST /sessions/{id}/coherence runs the session-coherence judge (a derived eval,
+		// like /replay for a trace); it NEVER mutates the session body. The only permitted mutation
+		// under /sessions.
+		underSession := strings.HasPrefix(rt.pattern, "/v1/dashboard/lens/sessions")
+		sessionCoherence := strings.Contains(rt.pattern, "/sessions/{sessionID}/coherence")
 		bad := rt.pattern == "/v1/dashboard/lens/traces" ||
 			(underTrace && !writableMeta) ||
-			strings.HasPrefix(rt.pattern, "/v1/dashboard/lens/sessions") ||
+			(underSession && !sessionCoherence) ||
 			strings.HasPrefix(rt.pattern, "/v1/dashboard/lens/agents")
 		if bad {
 			t.Fatalf("forbidden mutating route on read-only surface: %s %s", rt.method, rt.pattern)

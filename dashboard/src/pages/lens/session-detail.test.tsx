@@ -76,6 +76,26 @@ describe('LensSessionDetailPage (/observability/sessions/:sessionId)', () => {
     expect(await screen.findByText('traces-route trace=tr-42')).toBeInTheDocument();
   });
 
+  it('M131 — shows the coherence verdict badge + reasoning and runs the judge on click', async () => {
+    // URL-aware mock: the traces read + the coherence read/run are distinct endpoints.
+    mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (String(url).includes('/coherence')) {
+        return opts?.method === 'POST'
+          ? Promise.resolve({ verdict: 'incoherent', score: 0.2, reasoning: 'topic switch at turn 1', cached: false })
+          : Promise.resolve({ verdict: null }); // not yet evaluated
+      }
+      return Promise.resolve({ traces: [{ traceId: 't1', name: 'x', startTimeUnixNano: '1000000000', durationMs: 5 }] });
+    });
+    renderAt('sess-abc');
+    // initially not evaluated (the GET returned a null verdict)
+    expect(await screen.findByText(/coherence: not evaluated/i)).toBeInTheDocument();
+    // run the billable judge
+    await userEvent.click(screen.getByRole('button', { name: /run coherence/i }));
+    // the verdict badge (destructive) + the judge's turn-citing rationale appear
+    expect(await screen.findByLabelText(/session coherence: incoherent/i)).toBeInTheDocument();
+    expect(screen.getByTestId('coherence-reasoning')).toHaveTextContent('topic switch at turn 1');
+  });
+
   it('shows a loading skeleton while the fetch is in flight', () => {
     mockCloudFetch.mockReturnValue(new Promise(() => {})); // never resolves
     renderAt('sess-abc');
