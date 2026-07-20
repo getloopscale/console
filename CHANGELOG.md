@@ -1,7 +1,10 @@
 ## [Unreleased]
 
+## [0.69.2] - 2026-07-20
+
 ### Fixed
 - Dashboard: mouse-wheel scroll restored across the whole app — the shell now uses a fixed viewport with a single scroll container (the content region), so Timeline, the Sessions grid, the Traces grid and the Session Conversation all scroll with the wheel; the Session Conversation no longer traps the wheel in its own nested panel (regression from 0.69.1) (M132)
+- Dashboard: the vertical scrollbar is visible again — the app content scroller now keeps a persistent themed scrollbar with a reserved gutter (the global thin/overlay style was hiding it once the app moved to a single content scroller) (M132)
 
 ## [0.69.1] - 2026-07-20
 
