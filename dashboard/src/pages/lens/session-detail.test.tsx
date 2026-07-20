@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useSearchParams } from 'react-router-dom';
+import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
@@ -50,6 +51,29 @@ describe('LensSessionDetailPage (/observability/sessions/:sessionId)', () => {
     // ∑ tokens = 300 across the two traces (aggregated by the DS component). Exact-match so the
     // $0.0300 cost cell (which also contains "300") does not satisfy the assertion.
     expect(screen.getByText('300')).toBeInTheDocument();
+  });
+
+  it('drills into the trace detail when a session timeline row is clicked (M54 — the drill-down)', async () => {
+    // The end-user report: on the session detail, clicking a trace must open that trace's detail
+    // (session → trace → span). It navigates to the SAME trace-detail the traces list opens.
+    mockCloudFetch.mockResolvedValue({
+      traces: [{ traceId: 'tr-42', name: 'the-turn', startTimeUnixNano: '1000000000', durationMs: 5, costUsd: 0.01, totalTokens: 100, status: 'ok' }],
+    });
+    function TracesRouteProbe() {
+      const [sp] = useSearchParams();
+      return <div>traces-route trace={sp.get('trace')}</div>;
+    }
+    render(
+      <Routes>
+        <Route path="/observability/sessions/:sessionId" element={<LensSessionDetailPage />} />
+        <Route path="/observability/traces" element={<TracesRouteProbe />} />
+      </Routes>,
+      { initialEntries: ['/observability/sessions/sess-abc'] },
+    );
+    const row = await screen.findByRole('button', { name: /the-turn/i });
+    await userEvent.click(row);
+    // navigated to the trace-detail route with this trace's id
+    expect(await screen.findByText('traces-route trace=tr-42')).toBeInTheDocument();
   });
 
   it('shows a loading skeleton while the fetch is in flight', () => {
