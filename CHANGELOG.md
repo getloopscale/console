@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [0.69.4] - 2026-07-20
+
+### Fixed
+- Dashboard: the primary nav sidebar no longer shows a scrollbar — it stays scrollable on short viewports (so the footer/status is always reachable) but the bar is hidden (wheel/trackpad/keyboard still scroll it) (M132)
+
 ## [0.69.3] - 2026-07-20
 
 ### Fixed
