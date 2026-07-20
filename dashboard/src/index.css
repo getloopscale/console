@@ -296,6 +296,17 @@ html[data-density] {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in oklch, var(--primary) 30%, transparent) transparent;
   }
+
+  /* The app shell's single scroll container (DashboardLayout <main>) keeps a
+   * PERSISTENT classic scrollbar. The global `scrollbar-width: thin` above
+   * renders as an auto-hiding overlay bar on Linux/Chromium, which removed the
+   * scroll affordance once the whole app moved to a single content scroller.
+   * `auto` re-enables the themed 10px `::-webkit-scrollbar` thumb; `stable`
+   * reserves the gutter so content never shifts when overflow starts/stops. */
+  #main-content {
+    scrollbar-width: auto;
+    scrollbar-gutter: stable;
+  }
 }
 
 @utility text-balance {
