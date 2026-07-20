@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- Dashboard: mouse-wheel scroll restored across the whole app — the shell now uses a fixed viewport with a single scroll container (the content region), so Timeline, the Sessions grid, the Traces grid and the Session Conversation all scroll with the wheel; the Session Conversation no longer traps the wheel in its own nested panel (regression from 0.69.1) (M132)
+
 ## [0.69.1] - 2026-07-20
 
 ### Fixed

@@ -16,10 +16,10 @@ import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } f
  * tree read the trace-detail uses (shared React-Query cache), ordered by the pure `toConversationTurns`
  * mapper, and rendered with `@usetheo/ui` `IOCards` (chat→role cards / JSON→JsonViewer / text→message).
  *
- * The whole conversation lives in its OWN bounded `overflow-y-auto` panel (like the Arize modal body)
- * so the mouse wheel scrolls the conversation directly — the page shell's document-scroll is unreliable
- * under the flex layout. Each bubble caps its height with a "Show more" toggle so a long tool-output
- * never becomes an unnavigable wall.
+ * The conversation flows in normal document order inside the app shell's single scroll container
+ * (see DashboardLayout — <main> is the scroller), so the mouse wheel scrolls it like every other page.
+ * A subtle bordered surface frames it as a chat; each bubble caps its height with a "Show more" toggle
+ * so a long tool-output never becomes an unnavigable wall.
  */
 
 /** ADR-3 — cap the eager per-trace fetches; beyond it, link to the full traces list. */
@@ -99,10 +99,10 @@ export function SessionConversation({ sessionId, traces }: { sessionId: string; 
   const turns = toConversationTurns(capped, treeByTraceId);
 
   return (
-    // Own scroll region → the mouse wheel scrolls the conversation directly (the document-scroll under
-    // the flex shell is unreliable). Bounded to the viewport minus the header/tabs.
+    // Flows in the app shell's single scroll container (DashboardLayout <main>) — no nested scroll region.
+    // A subtle bordered surface frames the turns as a chat conversation.
     <div
-      className="max-h-[calc(100vh-18rem)] space-y-6 overflow-y-auto rounded-lg border border-border/60 bg-background/40 p-4"
+      className="space-y-6 rounded-lg border border-border/60 bg-background/40 p-4"
       data-testid="session-conversation"
     >
       {turns.map((turn) => {
