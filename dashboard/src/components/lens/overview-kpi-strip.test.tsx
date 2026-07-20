@@ -58,7 +58,16 @@ describe('M60 OverviewKpiStrip', () => {
     const smallN: KpiTile[] = [{ ...tiles[0], series: [10, 10, 20, 20] }]; // 4 buckets → computable but noisy
     render(<OverviewKpiStrip tiles={smallN} onSelectMetric={() => {}} />);
     expect(screen.queryByText('+100%')).not.toBeInTheDocument(); // no bold arrow over 3-4 buckets
-    expect(screen.getByText(/window too sparse/i)).toBeInTheDocument(); // honest hint instead
+    // M53 / #75: the hint names the TREND (not the value) so it can't be read as invalidating the metric.
+    expect(screen.getByText(/trend n\/a/i)).toBeInTheDocument();
+    expect(screen.queryByText(/window too sparse/i)).toBeNull();
+  });
+
+  it('M53 / #75 — the metric VALUE is still shown alongside the trend-N/A hint (not invalidated)', () => {
+    const sparse: KpiTile[] = [{ ...tiles[0], value: '43', series: [5] }];
+    render(<OverviewKpiStrip tiles={sparse} onSelectMetric={() => {}} />);
+    expect(screen.getByText('43')).toBeInTheDocument(); // value is real
+    expect(screen.getByText(/trend n\/a/i)).toBeInTheDocument(); // only the trend is N/A
   });
 
   it('degrades the delta away below the full width threshold (cardMode no-delta)', () => {
