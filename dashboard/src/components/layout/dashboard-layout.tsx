@@ -65,22 +65,29 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       >
         Skip to main content
       </a>
-      <div className="bg-background min-h-screen text-foreground flex">
-        <div className="border-r border-border/60 shrink-0">
+      {/*
+        Fixed-viewport app shell (Linear/Vercel/Arize pattern): the outer frame is
+        h-screen + overflow-hidden so the WINDOW never scrolls, and <main> is the
+        single scroll container. This makes the mouse wheel scroll the content on
+        EVERY page (timeline, sessions grid, traces grid, session conversation) —
+        the previous min-h-screen document-scroll was unreliable under the flex
+        shell. TopBar + sidebar stay pinned; only the content region scrolls.
+      */}
+      <div className="bg-background h-screen overflow-hidden text-foreground flex">
+        <div className="border-r border-border/60 shrink-0 overflow-y-auto">
           <AppSidebar session={session} />
         </div>
         <div className="flex-1 flex flex-col min-w-0">
           <TopBar onCommandPaletteOpen={() => setPaletteOpen(true)} />
-          <main
-            id="main-content"
-            className="flex-1 px-6 py-6 mx-auto w-full max-w-screen-2xl"
-          >
-            {!verified && !onObservability && (
-              <div className="mb-6">
-                <VerificationBanner />
-              </div>
-            )}
-            {children}
+          <main id="main-content" className="flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-screen-2xl px-6 py-6">
+              {!verified && !onObservability && (
+                <div className="mb-6">
+                  <VerificationBanner />
+                </div>
+              )}
+              {children}
+            </div>
           </main>
         </div>
       </div>
