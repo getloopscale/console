@@ -217,8 +217,12 @@ html[data-density] {
   #root {
     height: 100%;
   }
-  html,
-  body {
+  /* Scope the window-scroll lock to dashboard routes (where <main id=main-content>
+   * is the single scroller). Standalone auth pages (login/register/verification —
+   * no #main-content) keep their normal document scroll so a tall card on a short
+   * viewport is never clipped. */
+  html:has(#main-content),
+  body:has(#main-content) {
     overflow: hidden;
   }
 
