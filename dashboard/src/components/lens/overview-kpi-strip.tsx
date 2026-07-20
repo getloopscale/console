@@ -90,7 +90,16 @@ export function OverviewKpiStrip({
               icon={<Icon className="h-4 w-4" aria-hidden="true" />}
               delta={showDelta ? { value: fmtPct(d.pct), trend: d.trend } : undefined}
               invertTrend={t.invert}
-              hint={tooSparse ? 'N/A — window too sparse' : mode === 'full' ? 'vs first half of window' : undefined}
+              hint={
+                tooSparse
+                  ? // M53 / theo-lens#75: name the TREND explicitly. The metric VALUE above is real;
+                    // only the period-over-period delta needs more history. The old "N/A — window too
+                    // sparse" read as if the value itself were N/A.
+                    'Trend N/A — not enough history'
+                  : mode === 'full'
+                    ? 'vs first half of window'
+                    : undefined
+              }
             />
           </button>
         );

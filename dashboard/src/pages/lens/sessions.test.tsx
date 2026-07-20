@@ -40,6 +40,33 @@ describe('LensSessionsPage (/observability/sessions)', () => {
 
   // M74 (audit S-1) — the empty state must name the `session.id` grouping key so a user with
   // traces-but-no-sessions understands what a session requires.
+  it('M54 — a session row is identifiable: first message, last-active, cost, tokens (not just id+count)', async () => {
+    mockCloudFetch.mockResolvedValue({
+      sessions: [{
+        sessionId: 'sess-rich',
+        traceCount: 7,
+        lastSeenAt: '2026-07-20T17:00:00.000Z',
+        costUsd: 0.5,
+        totalTokens: 1234,
+        errorRate: 0,
+        firstMessagePreview: 'refactor the auth module',
+      }],
+      total: 1,
+    });
+    render(<LensSessionsPage />);
+    expect(await screen.findByText('refactor the auth module')).toBeInTheDocument(); // first message preview
+    expect(screen.getByText('$0.50')).toBeInTheDocument(); // cost (formatCost: ≥ 0.01 → 2dp)
+    expect(screen.getByText('1,234')).toBeInTheDocument(); // tokens
+  });
+
+  it('M54 — absent aggregate fields render an em-dash, never a fabricated 0', async () => {
+    mockCloudFetch.mockResolvedValue({ sessions: [{ sessionId: 'sess-bare', traceCount: 1 }], total: 1 });
+    render(<LensSessionsPage />);
+    await screen.findByRole('link', { name: /view traces/i });
+    // cost/tokens/first-message/last-active/errors absent → em-dashes (never a fabricated 0)
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
+  });
+
   it('M74 — the empty state names the session.id grouping key + a docs CTA', async () => {
     mockCloudFetch.mockResolvedValue({ sessions: [] });
     render(<LensSessionsPage />);
@@ -60,7 +87,8 @@ describe('LensSessionsPage (/observability/sessions)', () => {
       sessions: [{ sessionId: 'sess-1' }, { sessionId: 'sess-2', traceCount: 0 }],
     });
     render(<LensSessionsPage />);
-    expect(await screen.findByText('—')).toBeInTheDocument(); // absent
-    expect(screen.getByText('0')).toBeInTheDocument(); // honest zero
+    await screen.findAllByRole('link', { name: /view traces/i });
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0); // absent trace count (+ other absent cells)
+    expect(screen.getByText('0')).toBeInTheDocument(); // honest zero trace count
   });
 });

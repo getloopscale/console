@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { shortId } from '@/lib/format';
+import { formatCost, formatDate, formatTokens, shortId } from '@/lib/format';
 import { cloudFetch } from '@/lib/api';
 
 /**
@@ -19,6 +19,13 @@ import { cloudFetch } from '@/lib/api';
 interface Session {
   sessionId: string;
   traceCount?: number;
+  // M54 — the aggregate fields the lens ALREADY returns (session-list DTO). Rendered so a session is
+  // identifiable without opening it (SOTA parity). All optional → honest em-dash when absent.
+  lastSeenAt?: string;
+  costUsd?: number;
+  totalTokens?: number;
+  errorRate?: number;
+  firstMessagePreview?: string;
 }
 interface SessionsResult {
   sessions: Session[];
@@ -64,8 +71,46 @@ export function LensSessionsPage() {
           <span className="text-muted-foreground">—</span>
         ),
     },
+    // M54 — first user message: the single most identifying signal for a session (SOTA). Truncated
+    // by the lens; absent (no/blank root input) → em-dash.
+    {
+      key: 'firstMessagePreview',
+      label: 'First message',
+      render: (row) =>
+        row.firstMessagePreview ? (
+          <span className="block max-w-[22rem] truncate text-sm text-muted-foreground" title={row.firstMessagePreview}>
+            {row.firstMessagePreview}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      key: 'lastSeenAt',
+      label: 'Last active',
+      render: (row) => (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          {row.lastSeenAt ? formatDate(row.lastSeenAt, 'relative') : '—'}
+        </span>
+      ),
+    },
     // An absent count is unknown → em-dash; a real 0 stays 0.
-    { key: 'traceCount', label: 'Traces', render: (row) => <span>{row.traceCount != null ? row.traceCount : '—'}</span> },
+    { key: 'traceCount', label: 'Traces', align: 'right', render: (row) => <span className="tabular-nums">{row.traceCount != null ? row.traceCount : '—'}</span> },
+    { key: 'totalTokens', label: 'Tokens', align: 'right', render: (row) => <span className="tabular-nums text-xs">{row.totalTokens != null ? formatTokens(row.totalTokens) : '—'}</span> },
+    { key: 'costUsd', label: 'Cost', align: 'right', render: (row) => <span className="tabular-nums text-xs">{row.costUsd != null ? formatCost(row.costUsd) : '—'}</span> },
+    {
+      key: 'errorRate',
+      label: 'Errors',
+      align: 'right',
+      // A healthy session (rate 0 / absent) shows an em-dash — no red noise; a session with errors
+      // shows the rate in the destructive tone so it stands out in a scan.
+      render: (row) =>
+        row.errorRate != null && row.errorRate > 0 ? (
+          <span className="tabular-nums text-xs text-destructive">{Math.round(row.errorRate * 100)}%</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
     {
       key: 'actions',
       label: '',

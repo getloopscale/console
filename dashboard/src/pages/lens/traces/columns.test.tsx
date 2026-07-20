@@ -42,6 +42,15 @@ function renderTable(opts: {
 }
 
 describe('M59 P1 tracesColumns — spine columns', () => {
+  it('labels the trace wall-clock column "Duration", not "Latency" (M53 / #74)', () => {
+    // The column renders the trace wall-clock (durationMs). For interaction traces that is the whole
+    // session (minutes), NOT request latency — so the honest header is "Duration". Request latency
+    // lives in the Overview metric, computed from llm_request spans.
+    renderTable({ data: [full] });
+    expect(screen.getByText('Duration')).toBeInTheDocument();
+    expect(screen.queryByText('Latency')).toBeNull();
+  });
+
   it('renders latency/tokens/cost cells via format.ts for a full row', () => {
     renderTable({ data: [full] });
     expect(screen.getByText(formatDuration(5800))).toBeInTheDocument(); // "5.8s"

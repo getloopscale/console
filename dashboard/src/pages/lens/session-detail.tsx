@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Card, CopyButton, EmptyState, PageShell, SessionSummary, SessionTimeline } from '@usetheo/ui';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
@@ -39,9 +39,15 @@ export function LensSessionDetailPage() {
   useEffect(() => setPageTitle('Observability · Session'), [setPageTitle]);
   useRequireAuth();
 
-  // The timeline is a controlled selection (M9 contract): a row click highlights it. Kept local — the
-  // detail page has no deeper drill-down yet, so selection does not need to be URL-persisted.
+  const navigate = useNavigate();
+  // M54: a timeline row click DRILLS INTO the trace (session → trace → span) — it opens the same
+  // trace detail the traces list opens (`?trace=<id>`). The row is highlighted first (controlled
+  // selection) so the click has an instant affordance, then we navigate.
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const openTrace = (id: string) => {
+    setSelectedId(id);
+    navigate(`/observability/traces?trace=${encodeURIComponent(id)}`);
+  };
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/traces', 'session', sessionId] as const,
@@ -106,7 +112,7 @@ export function LensSessionDetailPage() {
               <SessionTimeline
                 items={items}
                 selectedId={selectedId}
-                onSelect={setSelectedId}
+                onSelect={openTrace}
                 formatTimestamp={formatTimelineTimestamp}
                 formatCostUsd={(usd) => formatCost(usd, 4)}
               />

@@ -7,6 +7,7 @@ import {
   niceAxisTicks,
   packRows,
   spanCostUsd,
+  spanOwnCostUsd,
   toTranscriptRows,
   type TraceSpanNode,
 } from './trace-layout';
@@ -124,6 +125,19 @@ describe('spanCostUsd + aggregateCost — ∑ subtree cost, total (never NaN)', 
     expect(spanCostUsd(span({ attributes: { 'gen_ai.usage.cost': 0.007 } }))).toBeCloseTo(0.007);
     expect(spanCostUsd(span())).toBe(0);
     expect(Number.isNaN(spanCostUsd(span({ attributes: { 'gen_ai.usage.cost': 'oops' } })))).toBe(false);
+  });
+});
+
+describe('spanOwnCostUsd — per-span DISPLAY cost (undefined when no individual cost)', () => {
+  it('returns undefined for a span with no individually-computed cost (→ em-dash, not $0.0000)', () => {
+    expect(spanOwnCostUsd(span())).toBeUndefined();
+    expect(spanOwnCostUsd(span({ costUsd: 0 }))).toBeUndefined();
+    expect(spanOwnCostUsd(span({ costUsd: -1 }))).toBeUndefined();
+  });
+
+  it('returns the positive per-span cost when the span has its own', () => {
+    expect(spanOwnCostUsd(span({ costUsd: 0.0234 }))).toBe(0.0234);
+    expect(spanOwnCostUsd(span({ attributes: { 'gen_ai.usage.cost': 0.007 } }))).toBeCloseTo(0.007);
   });
 });
 

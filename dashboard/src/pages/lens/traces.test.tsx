@@ -593,10 +593,11 @@ describe('LensTracesPage — M59 P3 columns + naming Dialog + viewId + per-tenan
     m52Mock({ traces: [{ traceId: 'tr_1', name: 'a', durationMs: 100, totalTokens: 50, costUsd: 0.01 }] });
     render(<LensTracesPage />);
     await screen.findByText('tr_1');
-    expect(screen.getByText('Latency')).toBeInTheDocument(); // the column header
+    expect(screen.getByText('Duration')).toBeInTheDocument(); // the column header (M53/#74: renamed from "Latency")
     await userEvent.click(screen.getByRole('button', { name: /choose columns/i }));
+    // the toggle aria-label uses the stable column KEY ('latency'), unchanged so saved views survive
     await userEvent.click(await screen.findByRole('checkbox', { name: /toggle latency column/i }));
-    expect(screen.queryByText('Latency')).toBeNull(); // hidden
+    expect(screen.queryByText('Duration')).toBeNull(); // hidden
   });
 
   it('Save current view opens a naming Dialog and POSTs the view', async () => {

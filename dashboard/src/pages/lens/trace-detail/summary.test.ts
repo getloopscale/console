@@ -32,4 +32,44 @@ describe('traceSummary (M72 — the trace-level headline)', () => {
     expect(s.errorCount).toBe(0);
     expect(s.models).toEqual([]);
   });
+
+  it('prefers the stored trace cost on the root over re-summing per-span costs (M53 / #73)', () => {
+    // The #73 shape: interaction root carries the authoritative trace cost (attached by the lens
+    // getTraceTree from traces.cost_usd); children have NO per-span cost. The header must show the
+    // trace cost ($0.40), never a fabricated $0.0000 from summing empty per-span costs.
+    const withStoredCost = {
+      spanId: 'root',
+      traceId: 't',
+      name: 'claude_code.interaction',
+      costUsd: 0.4,
+      children: [
+        { spanId: 'c1', traceId: 't', name: 'claude_code.llm_request', inputTokens: 328, outputTokens: 4341 },
+        { spanId: 'c2', traceId: 't', name: 'claude_code.tool' },
+      ],
+    };
+    expect(traceSummary(withStoredCost).costUsd).toBeCloseTo(0.4, 6);
+  });
+
+  it('uses the authoritative root cost and does NOT double-count a child that carries its own cost (M53 / #73)', () => {
+    // root.costUsd is the trace TOTAL; if a child ever also carries a cost, summing both would
+    // over-count. The header must show the authoritative total (0.4), never 0.5.
+    const root = {
+      spanId: 'root',
+      traceId: 't',
+      name: 'claude_code.interaction',
+      costUsd: 0.4,
+      children: [{ spanId: 'c', traceId: 't', name: 'llm', costUsd: 0.1 }],
+    };
+    expect(traceSummary(root).costUsd).toBeCloseTo(0.4, 6);
+  });
+
+  it('falls back to aggregating per-span costs when the root has no stored cost', () => {
+    const noStored = {
+      spanId: 'root',
+      traceId: 't',
+      name: 'root',
+      children: [{ spanId: 'c', traceId: 't', name: 'llm', costUsd: 0.03 }],
+    };
+    expect(traceSummary(noStored).costUsd).toBeCloseTo(0.03, 6);
+  });
 });
