@@ -206,6 +206,26 @@ html[data-density] {
     cursor: pointer;
   }
 
+  /* Fixed app-shell contract: the window/document itself NEVER scrolls — all
+   * content scrolls inside DashboardLayout's <main> (the single scroll
+   * container). Without locking html + body to the viewport, they default to
+   * overflow: visible and grow with content, producing a SECOND (window)
+   * scrollbar alongside main's — the "two scrollbars" bug. #root fills the
+   * viewport so the shell's h-screen has a full-height parent chain. */
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  /* Scope the window-scroll lock to dashboard routes (where <main id=main-content>
+   * is the single scroller). Standalone auth pages (login/register/verification —
+   * no #main-content) keep their normal document scroll so a tall card on a short
+   * viewport is never clipped. */
+  html:has(#main-content),
+  body:has(#main-content) {
+    overflow: hidden;
+  }
+
   html {
     font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;

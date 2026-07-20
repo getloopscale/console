@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [0.69.3] - 2026-07-20
+
+### Fixed
+- Dashboard: removed the duplicate (second) vertical scrollbar — the window/document is now locked to the viewport on dashboard routes (`:has(#main-content)`), so only the content region shows a scrollbar; standalone auth pages keep normal document scroll (M132)
+
 ## [0.69.2] - 2026-07-20
 
 ### Fixed
