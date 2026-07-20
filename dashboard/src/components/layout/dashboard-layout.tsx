@@ -74,7 +74,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         shell. TopBar + sidebar stay pinned; only the content region scrolls.
       */}
       <div className="bg-background h-screen overflow-hidden text-foreground flex">
-        <div className="border-r border-border/60 shrink-0 overflow-y-auto">
+        <div className="nav-scroll border-r border-border/60 shrink-0 overflow-y-auto">
           <AppSidebar session={session} />
         </div>
         <div className="flex-1 flex flex-col min-w-0">

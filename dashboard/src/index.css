@@ -327,6 +327,17 @@ html[data-density] {
     scrollbar-width: auto;
     scrollbar-gutter: stable;
   }
+
+  /* Primary nav sidebar: must stay scrollable on short viewports (so the footer
+   * — Documentation / status — is always reachable) but WITHOUT a visible
+   * scrollbar; a scrollbar on the main menu reads as unpolished. Wheel, trackpad
+   * and keyboard still scroll it. */
+  .nav-scroll {
+    scrollbar-width: none;
+  }
+  .nav-scroll::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @utility text-balance {
