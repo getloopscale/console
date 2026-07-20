@@ -6,7 +6,7 @@ import { cloudFetch } from '@/lib/api';
 import { shortId } from '@/lib/format';
 import type { TraceSpanNode } from '@/lib/trace-layout';
 import { Markdown } from '../trace-detail/markdown';
-import { toConversationTurns, type SessionTraceRef } from './to-conversation-turns';
+import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } from './to-conversation-turns';
 
 /**
  * M132 — the Session Conversation replay. Renders the session turn-by-turn: per trace a Human
@@ -23,8 +23,11 @@ export const CONVERSATION_TURN_CAP = 50;
 const renderMarkdown = (text: string) => <Markdown source={text} />;
 
 export function SessionConversation({ sessionId, traces }: { sessionId: string; traces: SessionTraceRef[] }) {
-  const capped = traces.slice(0, CONVERSATION_TURN_CAP);
-  const overflow = traces.length - capped.length;
+  // HIGH (review) — sort into conversation order BEFORE capping: the session read is newest-first, so
+  // capping the raw order would keep the LATEST turns and drop the conversation's true start.
+  const ordered = sortSessionTracesByStart(traces);
+  const capped = ordered.slice(0, CONVERSATION_TURN_CAP);
+  const overflow = ordered.length - capped.length;
 
   // One lazy fetch per capped trace. The queryKey MATCHES trace-detail's tree fetch, so opening a trace
   // and the conversation share the cache (no double fetch). cloudFetch returns null on error (no throw).

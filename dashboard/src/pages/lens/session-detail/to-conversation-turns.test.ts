@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TraceSpanNode } from '@/lib/trace-layout';
-import { toConversationTurns, type SessionTraceRef } from './to-conversation-turns';
+import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } from './to-conversation-turns';
 
 function node(o: Partial<TraceSpanNode> & { spanId: string }): TraceSpanNode {
   return { startTimeUnixNano: '100', endTimeUnixNano: '200', ...o } as TraceSpanNode;
@@ -60,6 +60,15 @@ describe('toConversationTurns (M132 T1)', () => {
     expect(turns[1].input).toBeUndefined();
     expect(turns[1].loadFailed).toBe(true); // a null tree is flagged as a failed load (distinct from empty)
     expect(turns).toHaveLength(2);
+  });
+
+  it('sortSessionTracesByStart orders newest-first input into conversation order (review HIGH — cap-before-sort)', () => {
+    // the session read is newest-first; sorting BEFORE the cap keeps the EARLIEST turns, not the latest.
+    const newestFirst = [ref('t3', '300'), ref('t1', '100'), ref('t2', '200')];
+    const ordered = sortSessionTracesByStart(newestFirst);
+    expect(ordered.map((t) => t.traceId)).toEqual(['t1', 't2', 't3']); // earliest → latest
+    // taking the first N of the SORTED list keeps the conversation's start (t1), not the newest (t3).
+    expect(ordered.slice(0, 2).map((t) => t.traceId)).toEqual(['t1', 't2']);
   });
 
   it('whitespace-only I/O is treated as absent (never a blank card)', () => {

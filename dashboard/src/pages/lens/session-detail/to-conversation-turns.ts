@@ -54,6 +54,16 @@ function representativeIO(root: TraceSpanNode): { input?: string; output?: strin
 }
 
 /**
+ * Sort session-trace refs into conversation order (by span start asc). MUST be applied BEFORE capping
+ * the per-trace fetch fan-out — the session read endpoint returns newest-first (traces.tsx defensive
+ * sort), so capping the raw order would keep the LATEST turns and drop the true start of the
+ * conversation. Sort → then slice keeps the EARLIEST N turns in order.
+ */
+export function sortSessionTracesByStart(traces: SessionTraceRef[]): SessionTraceRef[] {
+  return [...traces].sort((a, b) => cmpNano(a.startTimeUnixNano, b.startTimeUnixNano));
+}
+
+/**
  * Build the ordered conversation turns. `treeByTraceId` maps each trace to its fetched full-I/O tree,
  * or `null` when that trace's tree fetch failed (→ the turn is flagged `loadFailed`).
  */
