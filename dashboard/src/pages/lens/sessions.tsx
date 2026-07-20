@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { formatCost, formatDate, formatTokens, shortId } from '@/lib/format';
+import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/format';
 import { cloudFetch } from '@/lib/api';
 
 /**
@@ -26,6 +26,11 @@ interface Session {
   totalTokens?: number;
   errorRate?: number;
   firstMessagePreview?: string;
+  // M131 — Arize-parity residual columns. Last assistant reply (bookend of first message), session
+  // span-time duration, and best-effort user id. All optional → honest em-dash when absent.
+  lastMessagePreview?: string;
+  durationMs?: number;
+  userId?: string;
 }
 interface SessionsResult {
   sessions: Session[];
@@ -85,6 +90,20 @@ export function LensSessionsPage() {
           <span className="text-muted-foreground">—</span>
         ),
     },
+    // M131 — Last message: the session's final assistant reply, bookend of First message. Truncated,
+    // em-dash when absent. Same visual as First message.
+    {
+      key: 'lastMessagePreview',
+      label: 'Last message',
+      render: (row) =>
+        row.lastMessagePreview ? (
+          <span className="block max-w-[22rem] truncate text-sm text-muted-foreground" title={row.lastMessagePreview}>
+            {row.lastMessagePreview}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
     {
       key: 'lastSeenAt',
       label: 'Last active',
@@ -93,6 +112,30 @@ export function LensSessionsPage() {
           {row.lastSeenAt ? formatDate(row.lastSeenAt, 'relative') : '—'}
         </span>
       ),
+    },
+    // M131 — Duration: session span-time (first→last span), humanized; em-dash when unknown.
+    {
+      key: 'durationMs',
+      label: 'Duration',
+      align: 'right',
+      render: (row) => (
+        <span className="tabular-nums text-xs text-muted-foreground">
+          {row.durationMs != null ? formatDuration(row.durationMs) : '—'}
+        </span>
+      ),
+    },
+    // M131 — User: best-effort user id from span attributes; em-dash when absent (never fabricated).
+    {
+      key: 'userId',
+      label: 'User',
+      render: (row) =>
+        row.userId ? (
+          <span className="font-mono text-xs" title={row.userId}>
+            {row.userId}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     // An absent count is unknown → em-dash; a real 0 stays 0.
     { key: 'traceCount', label: 'Traces', align: 'right', render: (row) => <span className="tabular-nums">{row.traceCount != null ? row.traceCount : '—'}</span> },

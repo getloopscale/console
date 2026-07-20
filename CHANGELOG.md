@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **M131 Phase A — Sessions list Arize-parity columns (dashboard).** `/observability/sessions` gains three columns mirroring Arize AX: **Last message** (the session's final assistant reply, bookend of First message, truncated), **Duration** (session span-time, humanized via `formatDuration`), and **User** (best-effort user id from span attributes). All follow the honest em-dash discipline — absent → `—`, never a fabricated value. Backed by theo-lens core (three N+1-free correlated subqueries; the BFF forwards them verbatim). Tests: `sessions.test.tsx` (9/9) incl. a positive render + an em-dash-when-absent regression.
+
 ## [0.67.0] - 2026-07-20
 
 ### Added
