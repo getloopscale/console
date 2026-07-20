@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [0.69.1] - 2026-07-20
+
+### Fixed
+- **M132 Session Conversation — mouse-wheel scroll + chat aesthetic (user feedback).** The first cut rendered the turns as a flat stack that grew the document to ~13k px; under the flex app-shell the mouse wheel did not reliably scroll it, and it did not read as a conversation. Now the conversation lives in its OWN bounded `overflow-y-auto` panel (like the Arize modal body — the wheel scrolls the conversation directly), and each turn is a **chat bubble** — Human left-aligned, AI offset to the right, role-dot labels — with a per-turn height cap + "Show more/less" so a long tool-output never becomes an unnavigable wall. The turn header links to the trace. Tests 21/21.
+
 ## [0.69.0] - 2026-07-20
 
 ### Added
