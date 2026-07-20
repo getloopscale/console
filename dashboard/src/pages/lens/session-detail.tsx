@@ -78,10 +78,14 @@ export function LensSessionDetailPage() {
   });
   const queryClient = useQueryClient();
   const runCoherence = useMutation({
+    // throwOnError so a 429 (rate-limited) or 502 (judge failed) REJECTS → onError/isError fire and we
+    // surface it (fail-loud on a billable, money-adjacent action — never a silent no-op).
     mutationFn: () =>
-      cloudFetch<CoherenceVerdict>(`/v1/dashboard/lens/sessions/${encodeURIComponent(sessionId)}/coherence`, {
-        method: 'POST',
-      }),
+      cloudFetch<CoherenceVerdict>(
+        `/v1/dashboard/lens/sessions/${encodeURIComponent(sessionId)}/coherence`,
+        { method: 'POST' },
+        { throwOnError: true },
+      ),
     onSuccess: (data) =>
       queryClient.setQueryData(['cloud', '/v1/dashboard/lens/sessions', sessionId, 'coherence'], data),
   });
@@ -133,6 +137,13 @@ export function LensSessionDetailPage() {
             </Button>
           </div>
         </div>
+        {/* M1 (review) — fail-loud on a billable run: a 429 (rate-limited) or 502 (judge unavailable)
+            surfaces here instead of silently reverting the button (never burn budget on a blind retry). */}
+        {runCoherence.isError ? (
+          <p className="-mt-3 text-xs text-destructive" role="alert" data-testid="coherence-run-error">
+            Could not run coherence — you may be rate-limited, or the evaluator is unavailable. Try again shortly.
+          </p>
+        ) : null}
         {/* The judge's rationale (cites the turn where coherence broke) — shown under the header. */}
         {coherence?.reasoning ? (
           <p className="-mt-3 text-xs text-muted-foreground" data-testid="coherence-reasoning">

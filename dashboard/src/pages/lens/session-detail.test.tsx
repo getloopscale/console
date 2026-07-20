@@ -96,6 +96,23 @@ describe('LensSessionDetailPage (/observability/sessions/:sessionId)', () => {
     expect(screen.getByTestId('coherence-reasoning')).toHaveTextContent('topic switch at turn 1');
   });
 
+  // (M3 rate-limit coverage lives in the theo-lens api route test — session-coherence-routes.test.ts)
+  it('M131 (review M1) — a failed coherence run surfaces an error, never a silent revert', async () => {
+    mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (String(url).includes('/coherence')) {
+        return opts?.method === 'POST'
+          ? Promise.reject(new Error('429 rate limited')) // billable run rejected
+          : Promise.resolve({ verdict: null });
+      }
+      return Promise.resolve({ traces: [{ traceId: 't1', name: 'x', startTimeUnixNano: '1000000000', durationMs: 5 }] });
+    });
+    renderAt('sess-abc');
+    await screen.findByText(/coherence: not evaluated/i);
+    await userEvent.click(screen.getByRole('button', { name: /run coherence/i }));
+    // fail-loud: the money-adjacent failure is visible (not a blind button revert)
+    expect(await screen.findByTestId('coherence-run-error')).toBeInTheDocument();
+  });
+
   it('shows a loading skeleton while the fetch is in flight', () => {
     mockCloudFetch.mockReturnValue(new Promise(() => {})); // never resolves
     renderAt('sess-abc');
