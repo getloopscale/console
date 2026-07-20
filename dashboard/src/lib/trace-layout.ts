@@ -240,6 +240,27 @@ export function spanCostUsd(node: TraceSpanNode): number {
   return 0;
 }
 
+/**
+ * A single span's OWN cost for per-span DISPLAY: `undefined` when the span has no individually-computed
+ * cost (absent / non-numeric / ≤ 0), else the positive value. Mirror of `@usetheo/ui`'s `spanOwnCostUsd`
+ * (M52 / theo-lens#71 Finding 3). Distinct from `spanCostUsd` (which collapses to 0 for honest `∑`
+ * badges): a per-span cost "exists or doesn't", so the absent case renders `—` (em-dash) instead of a
+ * fabricated `$0.0000`. Cost is a trace-level aggregate — most spans have no cost of their own.
+ */
+export function spanOwnCostUsd(node: TraceSpanNode): number | undefined {
+  if (typeof node.costUsd === 'number' && Number.isFinite(node.costUsd)) {
+    return node.costUsd > 0 ? node.costUsd : undefined;
+  }
+  const attrs = node.attributes ?? {};
+  for (const key of COST_ATTRIBUTE_KEYS) {
+    if (!(key in attrs)) continue;
+    const raw = attrs[key];
+    const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+    if (Number.isFinite(n)) return n > 0 ? n : undefined;
+  }
+  return undefined;
+}
+
 /** Sum a node's own cost + all descendants' cost (`∑`). Total: missing cost counts as 0, never NaN. */
 export function aggregateCost(node: TraceSpanNode): number {
   let total = spanCostUsd(node);

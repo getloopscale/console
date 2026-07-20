@@ -50,4 +50,13 @@ describe('SpanDetail — TokenCostBreakdown (M15)', () => {
     expect(within(tcb as HTMLElement).getByTestId('tcb-cache')).toHaveTextContent('—');
     expect(within(tcb as HTMLElement).getByTestId('tcb-cost')).toHaveTextContent('—');
   });
+
+  it('renders an em-dash (not $0.0000) for a span with no individually-computed cost (costUsd 0)', () => {
+    // M52 / theo-lens#71 Finding 3: cost is a trace-level aggregate. A per-span costUsd of 0 means
+    // "no individually-computed cost" — it renders `—`, never a misleading fabricated "$0.0000".
+    render(<SpanDetail span={llmSpan({ costUsd: 0 })} />);
+    const tcb = screen.getByTestId('span-detail').querySelector('[data-slot="token-cost-breakdown"]');
+    expect(within(tcb as HTMLElement).getByTestId('tcb-cost')).toHaveTextContent('—');
+    expect(within(tcb as HTMLElement).getByTestId('tcb-cost')).not.toHaveTextContent('$0.0000');
+  });
 });
