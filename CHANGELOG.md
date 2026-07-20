@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- **M50 edge Model-B live-seam integration test** (`internal/thelens/live_integration_test.go`, gated by `THEOLENS_LIVE_URL`/`THEOLENS_LIVE_BOOTSTRAP`, skips in normal CI). Drives the REAL `thelens.Broker` (real `AdminClient`) against a live theo-lens over the network — the dev-public seam — proving end-to-end: bootstrap-mint a platform-admin key → `KeyForTenantScoped` mints a per-tenant key over the wire that is NOT the platform key (customer key never reaches the origin) → the minted key is accepted by the live theo-lens OTLP ingest (200). Complements the existing httptest-stub broker tests (`TestBroker_ReturnsMintedSecret_NotPlatformKey`, `TestForwardLens_503OnMintError`) with a real cross-service run for the M50 "Claude Code → /v1/lens" milestone.
 
 ### Changed
 
