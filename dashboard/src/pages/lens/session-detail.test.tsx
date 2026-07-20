@@ -96,6 +96,105 @@ describe('LensSessionDetailPage (/observability/sessions/:sessionId)', () => {
     expect(screen.getByTestId('coherence-reasoning')).toHaveTextContent('topic switch at turn 1');
   });
 
+  // M132 — a URL-aware mock: the session traces read, the coherence read, and the per-trace tree read
+  // are distinct endpoints. tr-1's tree carries FULL input/output.
+  const mockConversation = (opts: { output?: string | null } = {}) =>
+    mockCloudFetch.mockImplementation((url: string) => {
+      const s = String(url);
+      if (s.includes('session_id=')) {
+        return Promise.resolve({ traces: [{ traceId: 'tr-1', name: 'turn one', startTimeUnixNano: '100' }] });
+      }
+      if (s.includes('/coherence')) return Promise.resolve({ verdict: null });
+      if (s.includes('/traces/tr-1')) {
+        return Promise.resolve({
+          spanId: 's1',
+          startTimeUnixNano: '100',
+          endTimeUnixNano: '200',
+          inputValue: 'the full user question',
+          ...(opts.output === undefined ? { outputValue: 'the full assistant answer' } : {}),
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+  it('M132 — the Conversation tab replays each trace as a Human→AI turn with FULL text', async () => {
+    mockConversation();
+    renderAt('sess-abc');
+    await screen.findByRole('tab', { name: /conversation/i });
+    await userEvent.click(screen.getByRole('tab', { name: /conversation/i }));
+    // full input + output render inline (not the 120-char preview)
+    expect(await screen.findByText('the full user question')).toBeInTheDocument();
+    expect(screen.getByText('the full assistant answer')).toBeInTheDocument();
+  });
+
+  it('M132 — ?tab=conversation opens the Conversation tab directly (deep-link)', async () => {
+    mockConversation();
+    render(
+      <Routes>
+        <Route path="/observability/sessions/:sessionId" element={<LensSessionDetailPage />} />
+      </Routes>,
+      { initialEntries: ['/observability/sessions/sess-abc?tab=conversation'] },
+    );
+    expect(await screen.findByText('the full user question')).toBeInTheDocument(); // conversation active on load
+  });
+
+  it('M132 — a turn with no output shows "(no output)", never a blank card', async () => {
+    mockConversation({ output: null }); // tree has input but NO outputValue
+    renderAt('sess-abc');
+    await userEvent.click(await screen.findByRole('tab', { name: /conversation/i }));
+    expect(await screen.findByText('the full user question')).toBeInTheDocument();
+    expect(screen.getByText('(no output)')).toBeInTheDocument();
+  });
+
+  it('M132 (review HIGH/MED) — a >50-turn session caps at 50 turns + a "view all" link (earliest kept)', async () => {
+    // 51 traces returned NEWEST-first (start desc) — the cap must keep the EARLIEST 50, not the latest.
+    const many = Array.from({ length: 51 }, (_, i) => ({
+      traceId: `tr-${i}`,
+      startTimeUnixNano: String(1000 - i), // i=0 is newest (1000), i=50 is oldest (950)
+    }));
+    mockCloudFetch.mockImplementation((url: string) => {
+      const s = String(url);
+      if (s.includes('session_id=')) return Promise.resolve({ traces: many });
+      if (s.includes('/coherence')) return Promise.resolve({ verdict: null });
+      return Promise.resolve(null); // every per-trace tree → null (light: renders the load-fail affordance)
+    });
+    renderAt('sess-abc');
+    await userEvent.click(await screen.findByRole('tab', { name: /conversation/i }));
+    // exactly CONVERSATION_TURN_CAP (50) turn cards + the overflow link disclosing the true total.
+    expect(await screen.findByText(/view all 51 traces/i)).toBeInTheDocument();
+    expect(screen.getAllByTestId('conversation-turn')).toHaveLength(50);
+  });
+
+  it('M132 (review MED) — a failed per-trace fetch shows "(could not load this turn)", others still render', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      const s = String(url);
+      if (s.includes('session_id=')) {
+        return Promise.resolve({ traces: [{ traceId: 'ok', startTimeUnixNano: '100' }, { traceId: 'bad', startTimeUnixNano: '200' }] });
+      }
+      if (s.includes('/coherence')) return Promise.resolve({ verdict: null });
+      if (s.includes('/traces/ok')) return Promise.resolve({ spanId: 's', startTimeUnixNano: '100', endTimeUnixNano: '200', inputValue: 'ok input', outputValue: 'ok output' });
+      return Promise.resolve(null); // /traces/bad → null (fetch failed)
+    });
+    renderAt('sess-abc');
+    await userEvent.click(await screen.findByRole('tab', { name: /conversation/i }));
+    expect(await screen.findByText('ok input')).toBeInTheDocument(); // the good turn renders
+    expect(screen.getByText(/could not load this turn/i)).toBeInTheDocument(); // the failed one degrades gracefully
+  });
+
+  it('M132 (review MED) — a turn with no input shows "(no input)"', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      const s = String(url);
+      if (s.includes('session_id=')) return Promise.resolve({ traces: [{ traceId: 'tr-1', startTimeUnixNano: '100' }] });
+      if (s.includes('/coherence')) return Promise.resolve({ verdict: null });
+      if (s.includes('/traces/tr-1')) return Promise.resolve({ spanId: 's', startTimeUnixNano: '100', endTimeUnixNano: '200', outputValue: 'only output' });
+      return Promise.resolve(null);
+    });
+    renderAt('sess-abc');
+    await userEvent.click(await screen.findByRole('tab', { name: /conversation/i }));
+    expect(await screen.findByText('only output')).toBeInTheDocument();
+    expect(screen.getByText('(no input)')).toBeInTheDocument();
+  });
+
   // (M3 rate-limit coverage lives in the theo-lens api route test — session-coherence-routes.test.ts)
   it('M131 (review M1) — a failed coherence run surfaces an error, never a silent revert', async () => {
     mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
