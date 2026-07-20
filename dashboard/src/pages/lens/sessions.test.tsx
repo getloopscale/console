@@ -67,6 +67,31 @@ describe('LensSessionsPage (/observability/sessions)', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
   });
 
+  it('M131 — a session row shows last message, duration, and user id (Arize parity)', async () => {
+    mockCloudFetch.mockResolvedValue({
+      sessions: [{
+        sessionId: 'sess-m131',
+        traceCount: 3,
+        lastMessagePreview: 'Day 1: Arrival in Marrakech',
+        durationMs: 5846,
+        userId: 'u-8668',
+      }],
+      total: 1,
+    });
+    render(<LensSessionsPage />);
+    expect(await screen.findByText('Day 1: Arrival in Marrakech')).toBeInTheDocument(); // last message
+    expect(screen.getByText('5.8s')).toBeInTheDocument(); // duration humanized via formatDuration(5846)
+    expect(screen.getByText('u-8668')).toBeInTheDocument(); // best-effort user id
+  });
+
+  it('M131 — absent last-message/duration/user-id render em-dash (never fabricated)', async () => {
+    mockCloudFetch.mockResolvedValue({ sessions: [{ sessionId: 'sess-bare', traceCount: 1 }], total: 1 });
+    render(<LensSessionsPage />);
+    await screen.findByRole('link', { name: /view traces/i });
+    // the three M131 columns + the M54 columns are all absent → em-dashes, never a fabricated value
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(6);
+  });
+
   it('M74 — the empty state names the session.id grouping key + a docs CTA', async () => {
     mockCloudFetch.mockResolvedValue({ sessions: [] });
     render(<LensSessionsPage />);

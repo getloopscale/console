@@ -280,6 +280,18 @@ func (c *DataClient) GetTraceCost(ctx context.Context, id string) (json.RawMessa
 	return c.getRaw(ctx, "/v1/traces/"+url.PathEscape(id)+"/cost", nil)
 }
 
+// GetSessionCoherence proxies GET /v1/sessions/{id}/coherence (M131 — the cached Session Coherence
+// verdict; null when never judged). Same per-tenant Model-B path as the trace reads.
+func (c *DataClient) GetSessionCoherence(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/sessions/"+url.PathEscape(id)+"/coherence", nil)
+}
+
+// RunSessionCoherence proxies POST /v1/sessions/{id}/coherence (M131 — run the billable coherence
+// judge; rate-limited + write scope upstream). No request body.
+func (c *DataClient) RunSessionCoherence(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPost, "/v1/sessions/"+url.PathEscape(id)+"/coherence", nil, nil)
+}
+
 // GetTraceTags proxies GET /v1/traces/{id}/tags ({tags}) — the current tag list for the trace.
 func (c *DataClient) GetTraceTags(ctx context.Context, id string) (json.RawMessage, error) {
 	return c.getRaw(ctx, "/v1/traces/"+url.PathEscape(id)+"/tags", nil)
