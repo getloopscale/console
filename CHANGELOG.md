@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+## [0.69.5] - 2026-07-20
+
+### Fixed
+- Observability charts: the "Scores over time" y-axis no longer shows a raw float like `0.7000000000000001` (now `0.70`), the score chart is pinned to a `[0, 1]` axis (so 0.68 reads correctly, not near-max), and chart markers no longer stretch into ovals on wide screens — via `@usetheo/ui@0.30.0` (`TrendChart` `yMax` prop + width-aware viewBox + `niceMax` float fix) (M132)
+
 ## [0.69.4] - 2026-07-20
 
 ### Fixed
