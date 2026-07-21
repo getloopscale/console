@@ -36,6 +36,11 @@ type GuardBreachWindow struct {
 	BreachCount    int  `json:"breachCount"`
 	EvaluatedCount int  `json:"evaluatedCount"`
 	HasData        bool `json:"hasData"`
+	// GuardExists is false when no guard with this id exists in this tenant's workspace — covering
+	// both "deleted" and "belongs to someone else". It is NOT HasData: a real guard with an empty
+	// window is {GuardExists:true, HasData:false}; a deleted one is {false, false}. The first
+	// self-heals, the second never does.
+	GuardExists bool `json:"guardExists"`
 }
 
 // GuardBreachFetcher fetches one guard's windowed breach summary. Injected for the same reason as
@@ -173,7 +178,7 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 			if guardFailures >= guardFailureBudget {
 				// In-tick bulkhead: the carrier is clearly unwell; stop burning the tick budget on
 				// it so series-backed rules — which do not depend on theo-lens at all — still run.
-				metrics.IncLensAlertEvaluation("fetch_error")
+				metrics.IncLensAlertEvaluation("bulkhead_skipped")
 				continue
 			}
 			gk := guardKey{r.tenantID, r.guardID.String, r.windowSeconds}
@@ -208,6 +213,22 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 					continue
 				}
 				guardCache[gk] = w
+				guardFailures = 0 // CONSECUTIVE, as the constant's name promises: a success clears
+				// the streak. A cumulative per-tick total would let three unrelated bad tenants
+				// starve every healthy guard rule in the fleet for the rest of the tick.
+			}
+			if !w.GuardExists {
+				// Definitive: the guard is gone (or was never ours). No number of retries brings it
+				// back, so the rule stops pretending to be armed. This is the branch that used to
+				// depend on a 404 theo-lens never emitted.
+				metrics.IncLensAlertEvaluation("guard_missing")
+				e.logger.Warn("lens alert evaluator: guard no longer exists — disabling rule",
+					"rule", r.id, "guard", r.guardID.String)
+				if _, derr := e.db.ExecContext(ctx,
+					`UPDATE lens_alert_rules SET enabled = FALSE WHERE id = $1`, r.id); derr != nil {
+					e.logger.Warn("lens alert evaluator: disable failed", "rule", r.id, "error", derr)
+				}
+				continue
 			}
 			if w.HasData {
 				metrics.IncLensAlertEvaluation("ok")
@@ -314,14 +335,27 @@ func (e *Evaluator) decide(ctx context.Context, r alertRule, value float64) erro
 		// The monotone last_evaluated_at clause is not cosmetic. A frozen last_evaluated_at is the
 		// only durable signal that evaluation stopped, so a late writer must never rewind it nor
 		// refresh it in a way that masks an outage.
-		_, err := e.db.ExecContext(ctx,
+		res, err := e.db.ExecContext(ctx,
 			`UPDATE lens_alert_rules SET status = $1, last_evaluated_at = $2
 			 WHERE id = $3
 			   AND status = $4
 			   AND last_triggered_at IS NOT DISTINCT FROM $5
 			   AND (last_evaluated_at IS NULL OR last_evaluated_at <= $2)`,
 			d.nextStatus, now, r.id, r.status, r.lastTriggered)
-		return err
+		if err != nil {
+			return err
+		}
+		// Zero rows is EXPECTED when another replica moved the rule first — but it is
+		// indistinguishable from a wedge (a clock step leaving last_evaluated_at in the future makes
+		// the monotone clause fail forever, freezing the rule as both alerting and stale). The fire
+		// path already checks RowsAffected; the one write path that can silently stop must not be
+		// the one nobody counts — that is #247 from the other direction, again.
+		if n, rerr := res.RowsAffected(); rerr == nil && n == 0 {
+			metrics.IncLensAlertEvaluation("write_lost")
+			e.logger.Info("lens alert evaluator: non-fire write affected 0 rows",
+				"rule", r.id, "read_status", r.status)
+		}
+		return nil
 	}
 
 	// Fire: the status flip AND the delivery INSERT run in ONE transaction so a failed INSERT rolls back

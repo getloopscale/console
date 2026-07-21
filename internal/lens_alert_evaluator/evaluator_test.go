@@ -447,3 +447,80 @@ func TestProcessRule_FenceDoesNotWedgeAFreshRule(t *testing.T) {
 		t.Fatalf("a fresh rule must still stamp last_evaluated_at: %v", err)
 	}
 }
+
+// ── The review finding: guardExists, not a 404 ───────────────────────────────────────────────────
+//
+// The previous test injected ErrGuardNotFound at the fetcher seam — downstream of the only code
+// that could construct it — so it proved the double worked while the production path was dead: the
+// carrier never emits 404 (a 404 would confirm the id to another workspace). This test drives the
+// SHAPE the carrier actually returns.
+func TestProcessGuardRule_GuardExistsFalse_DisablesTheRule(t *testing.T) {
+	e, mock, db := newEval(t)
+	defer func() { _ = db.Close() }()
+	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
+		return GuardBreachWindow{GuardExists: false, HasData: false}, nil // exactly what the wire carries
+	}
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(guardRuleRow("lar-del", "g-del"))
+	mock.ExpectExec("UPDATE lens_alert_rules SET enabled = FALSE").
+		WithArgs("lar-del").WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("a deleted guard must disable its rule: %v", err)
+	}
+}
+
+// The companion that keeps the test above from being dangerous: a REAL guard whose window is simply
+// empty must NOT be disabled. {GuardExists:true, HasData:false} and {false,false} differ by one
+// field and by everything that matters.
+func TestProcessGuardRule_RealGuardEmptyWindow_IsNotDisabled(t *testing.T) {
+	e, mock, db := newEval(t)
+	defer func() { _ = db.Close() }()
+	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
+		return GuardBreachWindow{GuardExists: true, HasData: false}, nil
+	}
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(guardRuleRow("lar-quiet", "g-1"))
+	mock.ExpectExec("UPDATE lens_alert_rules SET last_evaluated_at").
+		WillReturnResult(sqlmock.NewResult(0, 1)) // stamped, NOT disabled
+
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("a quiet guard must not be disarmed: %v", err)
+	}
+}
+
+// The bulkhead counts CONSECUTIVE failures, as its constant name promises. A success between
+// failures clears the streak — otherwise three unrelated bad tenants would starve every healthy
+// guard rule in the fleet for the remainder of the tick, and which rules got starved would shift
+// per tick, presenting as intermittent.
+func TestTick_BulkheadStreakResetsOnSuccess(t *testing.T) {
+	e, mock, db := newEval(t)
+	defer func() { _ = db.Close() }()
+	calls := 0
+	e.fetchGuard = func(_ context.Context, _, guardID string, _ int) (GuardBreachWindow, error) {
+		calls++
+		if guardID == "g-ok" {
+			return GuardBreachWindow{GuardExists: true, HasData: true, EvaluatedCount: 1}, nil
+		}
+		return GuardBreachWindow{}, errors.New("hung")
+	}
+	rows := sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"})
+	// fail, fail, SUCCESS, fail, fail, fail  → without the reset the 6th is never attempted.
+	for i, g := range []string{"g-a", "g-b", "g-ok", "g-c", "g-d", "g-e"} {
+		rows.AddRow(fmt.Sprintf("lar-b%d", i), "tn-1", "guard_breach", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, g)
+	}
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(rows)
+	mock.ExpectExec("UPDATE lens_alert_rules SET status").WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 6 {
+		t.Fatalf("a success must clear the failure streak: want 6 carrier calls, got %d", calls)
+	}
+}

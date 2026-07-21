@@ -58,7 +58,7 @@ var (
 	// cardinality discipline, matching storageBytesWritten above.
 	lensAlertEvaluation = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "theo_lens_alert_evaluation_total",
-		Help: "Alert-rule evaluations by result (ok|no_data|fetch_error|guard_missing|unwired).",
+		Help: "Alert-rule evaluations by result (ok|no_data|fetch_error|bulkhead_skipped|guard_missing|write_lost|unwired).",
 	}, []string{"result"})
 
 	tenantProvisioning = prometheus.NewCounterVec(prometheus.CounterOpts{

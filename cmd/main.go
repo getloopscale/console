@@ -1392,7 +1392,11 @@ func main() {
 			raw, err := dc.GuardBreachWindow(ctx, guardID, windowSeconds)
 			if err != nil {
 				var us *thelens.UpstreamStatusError
-				if errors.As(err, &us) && us.Status == http.StatusNotFound {
+				// 403 is classified as definitive here for the same reason the create-time verifier
+				// does: a key that cannot read this guard will not start being able to on retry.
+				// The two call sites classifying the same status oppositely was itself a defect.
+				if errors.As(err, &us) &&
+					(us.Status == http.StatusNotFound || us.Status == http.StatusForbidden) {
 					return lens_alert_evaluator.GuardBreachWindow{}, lens_alert_evaluator.ErrGuardNotFound
 				}
 				return lens_alert_evaluator.GuardBreachWindow{}, err
@@ -1510,13 +1514,25 @@ func guardOwnershipVerifier(lensBaseURL string, broker routes.TenantKeyMinter) r
 			WithKeyResolver(func(ctx context.Context) (string, error) {
 				return broker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
 			})
-		// breach-window over the smallest window: the cheapest call that 404s on an unknown guard.
-		if _, err := dc.GuardBreachWindow(ctx, guardID, 60); err != nil {
+		// breach-window over the smallest window. The endpoint deliberately does NOT 404 on an
+		// unknown guard (that would confirm the id to another workspace), so ownership is read from
+		// the explicit guardExists field rather than from a status code.
+		raw, err := dc.GuardBreachWindow(ctx, guardID, 60)
+		if err != nil {
 			var us *thelens.UpstreamStatusError
 			if errors.As(err, &us) && (us.Status == http.StatusNotFound || us.Status == http.StatusForbidden) {
 				return routes.ErrGuardNotOwned
 			}
 			return err
+		}
+		var w struct {
+			GuardExists bool `json:"guardExists"`
+		}
+		if err := json.Unmarshal(raw, &w); err != nil {
+			return err
+		}
+		if !w.GuardExists {
+			return routes.ErrGuardNotOwned
 		}
 		return nil
 	}
