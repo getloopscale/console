@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **Evaluators — view an evaluator's rule.** The list gains a **Rule** column with a one-line summary (a `rule`'s predicate, or `judge · <model>` for an `llm_judge`) and a **View** action that opens a centered detail modal with the full rule: the span-query predicate (with the `field:value` syntax hint) for a rule evaluator, or the judge prompt + pinned model for an llm_judge. Previously the rule was only visible while creating the evaluator — after creation there was no way to see it. Frontend-only: the `config` already reached the browser (the BFF passes theo-lens's evaluator shape through verbatim); the UI just wasn't surfacing it.
+
 ### Changed
 - **Evaluate module — unified "centered modal" UX (Datasets · Evaluators · Guards · Queues · Experiments).** The module had three different create patterns and no consistent detail surface: some screens opened forms as inline page-body Cards, and Guards (breaches) + Queues (resolve/export) opened them as **lateral Sheets**. Every create/edit/short-detail form is now a centered `AppModal` (opened from the page header's primary action + empty-state CTA), consistent across the module: Datasets "New dataset", Evaluators "New evaluator", Guards "New guard" + breaches detail, Queues resolve + export, Experiments "New run". Deletes stay as centered `ConfirmDialog`; tabular drill-downs (dataset items, run results, compare) stay inline; the deep **trace explorer keeps its lateral panel** (the one deliberate side-panel — a large trace waterfall, the industry norm). Ask is unchanged (full-page conversation).
 

@@ -31,6 +31,22 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     expect(body.config).toEqual({ predicate: 'status:error' });
   });
 
+  it('surfaces each rule in a Rule column and the full rule in a View modal', async () => {
+    mockCloudFetch.mockResolvedValue({
+      evaluators: [
+        { id: 'e1', name: 'has-error', kind: 'rule', config: { predicate: 'status:error' } },
+        { id: 'e2', name: 'quality', kind: 'llm_judge', config: { prompt: 'Rate the answer 0-1.', model: 'gpt-4o-mini' } },
+      ],
+    });
+    render(<LensEvaluatorsPage />);
+    // The list column surfaces a short summary of each rule (predicate / judge · model).
+    expect(await screen.findByText('status:error')).toBeInTheDocument();
+    expect(screen.getByText(/judge · gpt-4o-mini/i)).toBeInTheDocument();
+    // "View" opens a centered modal showing the FULL rule (here the llm_judge prompt).
+    await userEvent.click(screen.getByRole('button', { name: /view rule for quality/i }));
+    expect(await screen.findByTestId('rule-detail')).toHaveTextContent('Rate the answer 0-1.');
+  });
+
   // M76 (E-1) — the llm_judge evaluator class is reachable from the UI: selecting it swaps the config
   // fields (predicate → prompt + model) and POSTs the matching theo-lens discriminated-union body.
   it('M76 — selecting the LLM-judge kind swaps fields and POSTs {kind:llm_judge, config:{prompt,model}}', async () => {

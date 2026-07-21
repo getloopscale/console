@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Trash2 } from 'lucide-react';
 import {
+  Badge,
   Button,
   Card,
   DataTable,
@@ -35,6 +36,16 @@ interface Evaluator {
   name: string;
   kind?: string;
   enabled?: boolean;
+  // The evaluator's rule config — passed through verbatim from theo-lens (BFF `json.RawMessage`).
+  // rule → { predicate }; llm_judge → { prompt, model }. Optional/loose since it's an upstream shape.
+  config?: { predicate?: string; prompt?: string; model?: string };
+}
+
+/** A short, one-line summary of an evaluator's rule for the list column. */
+function ruleSummary(ev: Evaluator): string {
+  if (ev.kind === 'llm_judge') return `judge · ${ev.config?.model?.trim() || '—'}`;
+  const predicate = ev.config?.predicate ?? '';
+  return predicate.trim() === '' ? 'match-all' : predicate;
 }
 interface EvaluatorsResult {
   evaluators: Evaluator[];
@@ -87,6 +98,8 @@ export function LensEvaluatorsPage() {
   // Create is a centered modal (AppModal), consistent with the rest of the dashboard — replaces the
   // former inline Card form (Evaluate UX standardization: forms open as centered modals, never inline/lateral).
   const [createOpen, setCreateOpen] = useState(false);
+  // The evaluator whose rule is being viewed in the detail modal (null = closed).
+  const [viewing, setViewing] = useState<Evaluator | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Evaluator | null>(null);
   // M82 — which evaluator is being renamed inline (+ its draft value).
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
@@ -220,11 +233,24 @@ export function LensEvaluatorsPage() {
     },
     { key: 'kind', label: 'Kind', render: (row) => <span>{row.kind ?? '—'}</span> },
     {
+      key: 'rule',
+      label: 'Rule',
+      // A short one-line summary of the rule (predicate / judge · model); the full text is in the View modal.
+      render: (row) => (
+        <span className="block max-w-[280px] truncate font-mono text-xs text-muted-foreground" title={ruleSummary(row)}>
+          {ruleSummary(row)}
+        </span>
+      ),
+    },
+    {
       key: 'actions',
       label: '',
       align: 'right',
       render: (row) => (
         <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" aria-label={`View rule for ${row.name}`} onClick={() => setViewing(row)}>
+            View
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => run.mutate(row.id)} aria-label={`Run ${row.name}`}>
             <Play className="h-4 w-4" />
           </Button>
@@ -430,6 +456,52 @@ export function LensEvaluatorsPage() {
             </Alert>
           ) : null}
         </div>
+      </AppModal>
+
+      <AppModal
+        open={viewing !== null}
+        onClose={() => setViewing(null)}
+        size="md"
+        title={viewing ? `Rule · ${viewing.name}` : 'Rule'}
+        description={
+          viewing?.kind === 'llm_judge'
+            ? 'LLM-judge evaluator — the judge prompt and pinned model.'
+            : 'Rule evaluator — the span-query predicate.'
+        }
+      >
+        {viewing ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase text-muted-foreground">Kind</span>
+              <Badge variant="outline">{viewing.kind ?? '—'}</Badge>
+            </div>
+            {viewing.kind === 'llm_judge' ? (
+              <>
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold uppercase text-muted-foreground">Model</span>
+                  <p className="font-mono text-sm">{viewing.config?.model?.trim() || '—'}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold uppercase text-muted-foreground">Judge prompt</span>
+                  <pre className="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 font-mono text-xs" data-testid="rule-detail">
+                    {viewing.config?.prompt?.trim() || '—'}
+                  </pre>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-1">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">Predicate</span>
+                <pre className="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 font-mono text-xs" data-testid="rule-detail">
+                  {viewing.config?.predicate?.trim() || 'match-all (empty predicate)'}
+                </pre>
+                <p className="text-xs text-muted-foreground">
+                  Space-separated <code>field:value</code> clauses (all must match). Fields: <code>kind</code>, <code>model</code>,{' '}
+                  <code>status</code>, …
+                </p>
+              </div>
+            )}
+          </div>
+        ) : null}
       </AppModal>
 
       {pendingDelete ? (
