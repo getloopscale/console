@@ -524,3 +524,37 @@ func TestTick_BulkheadStreakResetsOnSuccess(t *testing.T) {
 		t.Fatalf("a success must clear the failure streak: want 6 carrier calls, got %d", calls)
 	}
 }
+
+// ── The other half of the cross-repo contract ────────────────────────────────────────────────────
+//
+// theo-lens pins the exact key set it emits (evaluators-route.integration.test.ts). This pins that
+// we decode that same body correctly. Neither test alone would have caught the shipped defect: the
+// consumer branched on a 404 the producer never emits, and each side's tests passed because each
+// was written against its own author's intent rather than against the wire.
+//
+// The literal below is a VERBATIM response body. If theo-lens renames or drops a key, its own test
+// fails there; if we change what we expect, this fails here. The pair is the contract.
+func TestGuardBreachWindow_DecodesTheWireShapeTheoLensEmits(t *testing.T) {
+	const wire = `{"breachCount":12,"evaluatedCount":100,"hasData":true,"guardExists":true,"windowSeconds":3600}`
+
+	var w GuardBreachWindow
+	if err := json.Unmarshal([]byte(wire), &w); err != nil {
+		t.Fatal(err)
+	}
+	if w.BreachCount != 12 || w.EvaluatedCount != 100 || !w.HasData || !w.GuardExists {
+		t.Fatalf("decoded %+v from the real wire shape — a silently-renamed key would land here", w)
+	}
+
+	// The deleted-guard body. This is the one that matters: every field is zero/false EXCEPT that
+	// guardExists distinguishes it from a quiet-but-healthy guard. If the field is ever dropped,
+	// Go's zero value makes it decode as false — which happens to be the SAFE direction here (a
+	// dropped field disables rules rather than arming dead ones), but it is safe by luck, not by
+	// design, so the theo-lens side pins the key set explicitly.
+	var gone GuardBreachWindow
+	if err := json.Unmarshal([]byte(`{"breachCount":0,"evaluatedCount":0,"hasData":false,"guardExists":false,"windowSeconds":60}`), &gone); err != nil {
+		t.Fatal(err)
+	}
+	if gone.GuardExists || gone.HasData {
+		t.Fatalf("a deleted guard must decode as absent on both axes, got %+v", gone)
+	}
+}
