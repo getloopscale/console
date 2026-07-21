@@ -22,70 +22,75 @@ import (
 // the evaluator core is unit-testable without the broker (least-privilege wiring stays at construction).
 type SeriesFetcher func(ctx context.Context, tenantID string, windowSeconds int) (json.RawMessage, error)
 
-// MetricGuardBreach is the sentinel metric of a guard-backed rule (M135). Such a rule thresholds the
-// number of traces that breached a theo-lens guard in the window, instead of a workspace aggregate.
-const MetricGuardBreach = "guard_breach"
+// MetricMonitorBreach is the sentinel metric of a monitor-backed rule (M135, renamed M136). It thresholds the
+// number of traces that breached a theo-lens monitor in the window, instead of a workspace aggregate.
+const // The STORED value stays "guard_breach" until the engine migration widens the CHECK constraint
+// (M136 Phase 4b, T2-gated). Renaming the Go constant without the migration would make every
+// existing rule unroutable — the code would look for a metric no row can hold.
+MetricMonitorBreach = "monitor_breach"
 
-// GuardBreachWindow mirrors theo-lens `GET /v1/guards/:id/breach-window`.
+// MonitorBreachWindow mirrors theo-lens `GET /v1/guards/:id/breach-window`.
 //
 // HasData is the load-bearing field. A window where traces WERE evaluated and none breached
 // (HasData true, BreachCount 0) is a MEASUREMENT of zero; a window with nothing to evaluate
 // (HasData false) is ABSENCE. Collapsing the two is #247: an empty window read as a real zero and
 // fired every below-threshold rule permanently — in exactly the tenants whose traffic had stopped.
-type GuardBreachWindow struct {
+type MonitorBreachWindow struct {
 	BreachCount    int  `json:"breachCount"`
 	EvaluatedCount int  `json:"evaluatedCount"`
 	HasData        bool `json:"hasData"`
-	// GuardExists is false when no guard with this id exists in this tenant's workspace — covering
+	// MonitorExists is false when no guard with this id exists in this tenant's workspace — covering
 	// both "deleted" and "belongs to someone else". It is NOT HasData: a real guard with an empty
-	// window is {GuardExists:true, HasData:false}; a deleted one is {false, false}. The first
+	// window is {MonitorExists:true, HasData:false}; a deleted one is {false, false}. The first
 	// self-heals, the second never does.
-	GuardExists bool `json:"guardExists"`
+	// The wire carries BOTH names during theo-lens's deprecation window (M136). We decode the
+	// canonical one; `guardExists` is its deprecated twin and always holds the same value.
+	MonitorExists bool `json:"monitorExists"`
 }
 
-// GuardBreachFetcher fetches one guard's windowed breach summary. Injected for the same reason as
+// MonitorBreachFetcher fetches one guard's windowed breach summary. Injected for the same reason as
 // SeriesFetcher: the evaluator core stays unit-testable without the broker.
-type GuardBreachFetcher func(ctx context.Context, tenantID, guardID string, windowSeconds int) (GuardBreachWindow, error)
+type MonitorBreachFetcher func(ctx context.Context, tenantID, monitorID string, windowSeconds int) (MonitorBreachWindow, error)
 
 // Evaluator is the background alert-rule evaluator (theo-lens M53). It ticks periodically, fetches each
 // tenant's observability series, evaluates each rule via the pure state machine, and on a fire enqueues a
 // workspace_webhook_deliveries row for the existing J-16 worker to dispatch. It NEVER dispatches HTTP
 // itself (reuse — Rule 9).
 type Evaluator struct {
-	db         *sql.DB
-	fetch      SeriesFetcher
-	fetchGuard GuardBreachFetcher
-	logger     *slog.Logger
-	now        func() time.Time
-	interval   time.Duration
+	db           *sql.DB
+	fetch        SeriesFetcher
+	fetchMonitor MonitorBreachFetcher
+	logger       *slog.Logger
+	now          func() time.Time
+	interval     time.Duration
 }
 
-// ErrGuardNotFound is the DEFINITIVE "this guard no longer exists" answer, as distinct from any
+// ErrMonitorNotFound is the DEFINITIVE "this guard no longer exists" answer, as distinct from any
 // transport failure. The distinction is the same discipline HasData applies to absence-vs-zero: a
 // transient failure self-heals and must be retried; a deleted guard never does and must stop
 // pretending to be armed. Collapsing the two into one `error` is how a rule goes dark forever.
-var ErrGuardNotFound = errors.New("lens alert evaluator: guard not found")
+var ErrMonitorNotFound = errors.New("lens alert evaluator: guard not found")
 
-// guardFetchTimeout bounds ONE carrier call. Tick is a single sequential loop, so without this an
+// monitorFetchTimeout bounds ONE carrier call. Tick is a single sequential loop, so without this an
 // unresponsive theo-lens serializes N guard rules inside one tick and stalls the series-backed
 // rules queued behind them — rules that have no theo-lens dependency at all. A scoped dependency
 // failure would become a fleet-wide alerting outage.
-const guardFetchTimeout = 5 * time.Second
+const monitorFetchTimeout = 5 * time.Second
 
-// guardFailureBudget stops the remaining guard rules for THIS tick after K consecutive carrier
+// monitorFailureBudget stops the remaining guard rules for THIS tick after K consecutive carrier
 // failures. Same shape as the series path's `failed` map: bound the damage in-tick, carry no state
 // across ticks. 500 rules against a hung lens is ~42min with only a per-call timeout; ~15s with this.
-const guardFailureBudget = 3
+const monitorFailureBudget = 3
 
 // New constructs the evaluator. Both fetchers are REQUIRED positional arguments, deliberately: an
 // optional guard fetcher is how the feature shipped nil in production once already, making every
 // guard-backed rule permanently dead while reading "armed" on the customer's screen. A compile
 // error is a better gate than a runtime warning.
-func New(db *sql.DB, fetch SeriesFetcher, fetchGuard GuardBreachFetcher, logger *slog.Logger) *Evaluator {
+func New(db *sql.DB, fetch SeriesFetcher, fetchMonitor MonitorBreachFetcher, logger *slog.Logger) *Evaluator {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Evaluator{db: db, fetch: fetch, fetchGuard: fetchGuard, logger: logger,
+	return &Evaluator{db: db, fetch: fetch, fetchMonitor: fetchMonitor, logger: logger,
 		now: time.Now, interval: 60 * time.Second}
 }
 
@@ -101,11 +106,11 @@ type alertRule struct {
 	status        string
 	lastTriggered sql.NullTime
 	renotify      sql.NullInt64
-	guardID       sql.NullString
+	monitorID     sql.NullString
 }
 
-// guardKey caches one carrier answer per (tenant, guard, window) within a tick.
-type guardKey struct {
+// monitorKey caches one carrier answer per (tenant, guard, window) within a tick.
+type monitorKey struct {
 	tenant string
 	guard  string
 	window int
@@ -133,7 +138,7 @@ func (e *Evaluator) Run(ctx context.Context) {
 func (e *Evaluator) Tick(ctx context.Context) error {
 	rows, err := e.db.QueryContext(ctx, `
 		SELECT id, tenant_id, metric, comparator, threshold, window_seconds, webhook_id, status,
-		       last_triggered_at, renotify_interval_seconds, guard_id
+		       last_triggered_at, renotify_interval_seconds, monitor_id
 		FROM lens_alert_rules
 		WHERE enabled
 		ORDER BY tenant_id`)
@@ -152,41 +157,41 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 
 	// The guard path caches by (tenant, guard, window) for the same reason the series path caches
 	// by (tenant, window): N rules on one guard must not mint N keys and issue N calls.
-	type guardKeyT = guardKey
-	guardCache := map[guardKeyT]GuardBreachWindow{}
-	guardFailures := 0
+	type guardKeyT = monitorKey
+	monitorCache := map[guardKeyT]MonitorBreachWindow{}
+	monitorFailures := 0
 
 	for rows.Next() {
 		var r alertRule
 		if err := rows.Scan(&r.id, &r.tenantID, &r.metric, &r.comparator, &r.threshold, &r.windowSeconds,
-			&r.webhookID, &r.status, &r.lastTriggered, &r.renotify, &r.guardID); err != nil {
+			&r.webhookID, &r.status, &r.lastTriggered, &r.renotify, &r.monitorID); err != nil {
 			e.logger.Warn("lens alert evaluator: scan failed", "error", err)
 			continue
 		}
 		// M135: a guard-backed rule reads the per-guard carrier, not the workspace series. The
 		// series is a workspace aggregate returning one float per window and cannot answer a
 		// per-guard question — hence a second fetcher rather than a new metric case.
-		if r.metric == MetricGuardBreach {
+		if r.metric == MetricMonitorBreach {
 			// Unreachable once migration 000058's pairing CHECK is applied — kept as belt-and-braces
 			// so a reader does not infer the database permits this state.
-			if e.fetchGuard == nil || !r.guardID.Valid {
+			if e.fetchMonitor == nil || !r.monitorID.Valid {
 				metrics.IncLensAlertEvaluation("unwired")
 				e.logger.Error("lens alert evaluator: guard rule cannot be evaluated — no fetcher or no guard id",
 					"rule", r.id)
 				continue
 			}
-			if guardFailures >= guardFailureBudget {
+			if monitorFailures >= monitorFailureBudget {
 				// In-tick bulkhead: the carrier is clearly unwell; stop burning the tick budget on
 				// it so series-backed rules — which do not depend on theo-lens at all — still run.
 				metrics.IncLensAlertEvaluation("bulkhead_skipped")
 				continue
 			}
-			gk := guardKey{r.tenantID, r.guardID.String, r.windowSeconds}
-			w, cached := guardCache[gk]
+			gk := monitorKey{r.tenantID, r.monitorID.String, r.windowSeconds}
+			w, cached := monitorCache[gk]
 			if !cached {
-				fctx, cancel := context.WithTimeout(ctx, guardFetchTimeout)
+				fctx, cancel := context.WithTimeout(ctx, monitorFetchTimeout)
 				var ferr error
-				w, ferr = e.fetchGuard(fctx, r.tenantID, r.guardID.String, r.windowSeconds)
+				w, ferr = e.fetchMonitor(fctx, r.tenantID, r.monitorID.String, r.windowSeconds)
 				cancel()
 				if ferr != nil {
 					// A DEFINITIVE 404 is not a transient failure: the guard is gone and no number
@@ -194,10 +199,10 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 					// rule instead of an armed one that can never fire — an honest downgrade. A
 					// transport error keeps skipping, because auto-disabling on a blip would
 					// permanently disarm every guard rule in the fleet.
-					if errors.Is(ferr, ErrGuardNotFound) {
+					if errors.Is(ferr, ErrMonitorNotFound) {
 						metrics.IncLensAlertEvaluation("guard_missing")
 						e.logger.Warn("lens alert evaluator: guard no longer exists — disabling rule",
-							"rule", r.id, "guard", r.guardID.String)
+							"rule", r.id, "guard", r.monitorID.String)
 						if _, derr := e.db.ExecContext(ctx,
 							`UPDATE lens_alert_rules SET enabled = FALSE WHERE id = $1`, r.id); derr != nil {
 							e.logger.Warn("lens alert evaluator: disable failed", "rule", r.id, "error", derr)
@@ -206,24 +211,24 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 					}
 					// Fail-closed: a failed fetch is absence, never zero. Deliberately NOT stamping
 					// last_evaluated_at — the freeze IS the durable outage signal.
-					guardFailures++
+					monitorFailures++
 					metrics.IncLensAlertEvaluation("fetch_error")
 					e.logger.Warn("lens alert evaluator: guard fetch failed — skipping rule",
-						"rule", r.id, "guard", r.guardID.String, "error", ferr)
+						"rule", r.id, "guard", r.monitorID.String, "error", ferr)
 					continue
 				}
-				guardCache[gk] = w
-				guardFailures = 0 // CONSECUTIVE, as the constant's name promises: a success clears
+				monitorCache[gk] = w
+				monitorFailures = 0 // CONSECUTIVE, as the constant's name promises: a success clears
 				// the streak. A cumulative per-tick total would let three unrelated bad tenants
 				// starve every healthy guard rule in the fleet for the rest of the tick.
 			}
-			if !w.GuardExists {
+			if !w.MonitorExists {
 				// Definitive: the guard is gone (or was never ours). No number of retries brings it
 				// back, so the rule stops pretending to be armed. This is the branch that used to
 				// depend on a 404 theo-lens never emitted.
 				metrics.IncLensAlertEvaluation("guard_missing")
 				e.logger.Warn("lens alert evaluator: guard no longer exists — disabling rule",
-					"rule", r.id, "guard", r.guardID.String)
+					"rule", r.id, "guard", r.monitorID.String)
 				if _, derr := e.db.ExecContext(ctx,
 					`UPDATE lens_alert_rules SET enabled = FALSE WHERE id = $1`, r.id); derr != nil {
 					e.logger.Warn("lens alert evaluator: disable failed", "rule", r.id, "error", derr)
@@ -285,7 +290,7 @@ func (e *Evaluator) processRule(ctx context.Context, r alertRule, raw json.RawMe
 // processGuardRule is the guard-backed twin of processRule (M135). It resolves the number from the
 // windowed breach summary and hands it to the SAME decision path — the state machine, the atomic
 // transition and the delivery enqueue are reused verbatim.
-func (e *Evaluator) processGuardRule(ctx context.Context, r alertRule, w GuardBreachWindow) error {
+func (e *Evaluator) processGuardRule(ctx context.Context, r alertRule, w MonitorBreachWindow) error {
 	if !w.HasData {
 		// Absence, not zero. Not evaluating here is the whole reason the carrier reports HasData at
 		// all; thresholding BreachCount==0 from an empty window is #247 with a different source.

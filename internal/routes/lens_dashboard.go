@@ -35,8 +35,8 @@ type LensDataClient interface {
 	ListDatasets(ctx context.Context) (json.RawMessage, error)
 	GetDataset(ctx context.Context, id string) (json.RawMessage, error)
 	ListEvaluators(ctx context.Context) (json.RawMessage, error)
-	ListGuards(ctx context.Context) (json.RawMessage, error)
-	GuardBreaches(ctx context.Context, id string) (json.RawMessage, error)
+	ListMonitors(ctx context.Context) (json.RawMessage, error)
+	MonitorBreaches(ctx context.Context, id string) (json.RawMessage, error)
 	ListAgents(ctx context.Context) (json.RawMessage, error)
 	GetTrace(ctx context.Context, id string) (json.RawMessage, error)
 	GetTraceCost(ctx context.Context, id string) (json.RawMessage, error)
@@ -61,8 +61,8 @@ type LensDataClient interface {
 	// M133 — poll an async evaluator-run job's status/progress.
 	GetEvaluatorRunJob(ctx context.Context, id string) (json.RawMessage, error)
 	DeleteEvaluator(ctx context.Context, id string) (json.RawMessage, error)
-	CreateGuard(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
-	DeleteGuard(ctx context.Context, id string) (json.RawMessage, error)
+	CreateMonitor(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	DeleteMonitor(ctx context.Context, id string) (json.RawMessage, error)
 	AddTraceTag(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
 	DeleteTraceTag(ctx context.Context, traceID, tag string) (json.RawMessage, error)
 	AddTraceAnnotation(ctx context.Context, traceID string, body json.RawMessage) (json.RawMessage, error)
@@ -335,12 +335,12 @@ func (h *LensDashboardHandler) GetDataset(w http.ResponseWriter, r *http.Request
 func (h *LensDashboardHandler) ListEvaluators(w http.ResponseWriter, r *http.Request) {
 	h.proxy(w, r, "list evaluators", func() (json.RawMessage, error) { return h.client.ListEvaluators(r.Context()) })
 }
-func (h *LensDashboardHandler) ListGuards(w http.ResponseWriter, r *http.Request) {
-	h.proxy(w, r, "list guards", func() (json.RawMessage, error) { return h.client.ListGuards(r.Context()) })
+func (h *LensDashboardHandler) ListMonitors(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "list guards", func() (json.RawMessage, error) { return h.client.ListMonitors(r.Context()) })
 }
-func (h *LensDashboardHandler) GuardBreaches(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "guardID")
-	h.proxy(w, r, "load guard breaches", func() (json.RawMessage, error) { return h.client.GuardBreaches(r.Context(), id) })
+func (h *LensDashboardHandler) MonitorBreaches(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "monitorID")
+	h.proxy(w, r, "load guard breaches", func() (json.RawMessage, error) { return h.client.MonitorBreaches(r.Context(), id) })
 }
 func (h *LensDashboardHandler) ListAgents(w http.ResponseWriter, r *http.Request) {
 	h.proxy(w, r, "list agents", func() (json.RawMessage, error) { return h.client.ListAgents(r.Context()) })
@@ -475,12 +475,12 @@ func (h *LensDashboardHandler) GetEvaluatorRunJob(w http.ResponseWriter, r *http
 
 // Writes — guards.
 
-func (h *LensDashboardHandler) CreateGuard(w http.ResponseWriter, r *http.Request) {
-	h.proxyBody(w, r, "create guard", func(body json.RawMessage) (json.RawMessage, error) { return h.client.CreateGuard(r.Context(), body) })
+func (h *LensDashboardHandler) CreateMonitor(w http.ResponseWriter, r *http.Request) {
+	h.proxyBody(w, r, "create guard", func(body json.RawMessage) (json.RawMessage, error) { return h.client.CreateMonitor(r.Context(), body) })
 }
-func (h *LensDashboardHandler) DeleteGuard(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "guardID")
-	h.proxy(w, r, "delete guard", func() (json.RawMessage, error) { return h.client.DeleteGuard(r.Context(), id) })
+func (h *LensDashboardHandler) DeleteMonitor(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "monitorID")
+	h.proxy(w, r, "delete guard", func() (json.RawMessage, error) { return h.client.DeleteMonitor(r.Context(), id) })
 }
 
 // Writes — trace metadata (tags + annotations). The trace/session BODY is never mutated (ADR-3).
@@ -585,18 +585,22 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/datasets", h.ListDatasets)
 		r.Get("/datasets/{datasetID}", h.GetDataset)
 		r.Get("/evaluators", h.ListEvaluators)
-		r.Get("/guards", h.ListGuards)
-		r.Get("/guards/{guardID}/breaches", h.GuardBreaches)
+		// M136 — /monitors is canonical; /guards is the deprecated alias for one release, pointing
+		// at the SAME handler so the two can never drift apart.
+		r.Get("/monitors", h.ListMonitors)
+		r.Get("/monitors/{monitorID}/breaches", h.MonitorBreaches)
+		r.Get("/guards", h.ListMonitors)
+		r.Get("/guards/{monitorID}/breaches", h.MonitorBreaches)
 		r.Get("/agents", h.ListAgents)
 		r.Get("/labeling-queue", h.ListLabelingQueue) // M63 — read-scope queue list
 		r.Get("/labeling-queue/{itemID}", h.GetLabelingQueueItem)
 		r.Get("/experiment-runs", h.ListExperimentRuns)            // M64 — read-scope run list
 		r.Get("/experiment-runs/compare", h.CompareExperimentRuns) // before :runID so "compare" is not a run id
 		r.Get("/experiment-runs/{runID}", h.GetExperimentRun)
-		r.Post("/traces/{traceID}/ask", h.Ask)                          // read-scope copilot query
-		r.Post("/traces/{traceID}/ask/feedback", h.AskFeedback)         // M83 write-scope thumbs feedback
-		r.Delete("/traces/{traceID}/ask/feedback", h.DeleteAskFeedback) // M83 retract (clear)
-		r.Post("/traces/{traceID}/replay", h.Replay)                    // M55 — read-scope ephemeral provider replay
+		r.Post("/traces/{traceID}/ask", h.Ask)                           // read-scope copilot query
+		r.Post("/traces/{traceID}/ask/feedback", h.AskFeedback)          // M83 write-scope thumbs feedback
+		r.Delete("/traces/{traceID}/ask/feedback", h.DeleteAskFeedback)  // M83 retract (clear)
+		r.Post("/traces/{traceID}/replay", h.Replay)                     // M55 — read-scope ephemeral provider replay
 		r.Post("/sessions/{sessionID}/coherence", h.RunSessionCoherence) // M131 — run the coherence judge (write scope)
 		// Writes — datasets
 		r.Post("/datasets", h.CreateDataset)
@@ -611,8 +615,10 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/evaluator-run-jobs/{jobID}", h.GetEvaluatorRunJob) // M133 — poll async run progress
 		r.Delete("/evaluators/{evaluatorID}", h.DeleteEvaluator)
 		// Writes — guards
-		r.Post("/guards", h.CreateGuard)
-		r.Delete("/guards/{guardID}", h.DeleteGuard)
+		r.Post("/monitors", h.CreateMonitor)
+		r.Delete("/monitors/{monitorID}", h.DeleteMonitor)
+		r.Post("/guards", h.CreateMonitor)
+		r.Delete("/guards/{monitorID}", h.DeleteMonitor)
 		// Writes — trace metadata (tags + annotations); NEVER the trace/session body
 		r.Post("/traces/{traceID}/tags", h.AddTraceTag)
 		r.Delete("/traces/{traceID}/tags", h.DeleteTraceTag)

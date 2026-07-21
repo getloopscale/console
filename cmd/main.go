@@ -1073,7 +1073,7 @@ func main() {
 	// M53: lens alert rules — per-tenant threshold rules (engine migration 000054). Same db-gated
 	// cloud-owned Postgres resource; the evaluator worker that consumes them starts below.
 	if db != nil {
-		routes.MountLensAlertRules(r, routes.NewLensAlertRulesHandler(db, guardOwnershipVerifier(cfg.LensBaseURL, lensBroker), logger), requireJWT)
+		routes.MountLensAlertRules(r, routes.NewLensAlertRulesHandler(db, monitorOwnershipVerifier(cfg.LensBaseURL, lensBroker), logger), requireJWT)
 	}
 	// M66: lens custom dashboards — per-workspace board config (engine migration 000055). Same
 	// db-gated cloud-owned Postgres resource; the board data reads through the lens BFF above.
@@ -1384,12 +1384,12 @@ func main() {
 		// M135: guard-backed rules read a per-guard carrier, not the workspace series. A definitive
 		// 404 is translated to the typed sentinel so the evaluator can disable a rule whose guard is
 		// gone, while a transport error keeps retrying — the two must never collapse into one error.
-		fetchGuard := func(ctx context.Context, tenantID, guardID string, windowSeconds int) (lens_alert_evaluator.GuardBreachWindow, error) {
+		fetchMonitor := func(ctx context.Context, tenantID, monitorID string, windowSeconds int) (lens_alert_evaluator.MonitorBreachWindow, error) {
 			dc := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
 				WithKeyResolver(func(ctx context.Context) (string, error) {
 					return lensBroker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
 				})
-			raw, err := dc.GuardBreachWindow(ctx, guardID, windowSeconds)
+			raw, err := dc.MonitorBreachWindow(ctx, monitorID, windowSeconds)
 			if err != nil {
 				var us *thelens.UpstreamStatusError
 				// 403 is classified as definitive here for the same reason the create-time verifier
@@ -1397,17 +1397,17 @@ func main() {
 				// The two call sites classifying the same status oppositely was itself a defect.
 				if errors.As(err, &us) &&
 					(us.Status == http.StatusNotFound || us.Status == http.StatusForbidden) {
-					return lens_alert_evaluator.GuardBreachWindow{}, lens_alert_evaluator.ErrGuardNotFound
+					return lens_alert_evaluator.MonitorBreachWindow{}, lens_alert_evaluator.ErrMonitorNotFound
 				}
-				return lens_alert_evaluator.GuardBreachWindow{}, err
+				return lens_alert_evaluator.MonitorBreachWindow{}, err
 			}
-			var w lens_alert_evaluator.GuardBreachWindow
+			var w lens_alert_evaluator.MonitorBreachWindow
 			if err := json.Unmarshal(raw, &w); err != nil {
-				return lens_alert_evaluator.GuardBreachWindow{}, err
+				return lens_alert_evaluator.MonitorBreachWindow{}, err
 			}
 			return w, nil
 		}
-		go lens_alert_evaluator.New(db, fetch, fetchGuard, logger).Run(schedulerCtx)
+		go lens_alert_evaluator.New(db, fetch, fetchMonitor, logger).Run(schedulerCtx)
 		logger.Info("lens alert evaluator started")
 	}
 
@@ -1497,19 +1497,19 @@ func main() {
 	}
 }
 
-// guardOwnershipVerifier answers "does this guard exist AND belong to this tenant?" on the alert-rule
+// monitorOwnershipVerifier answers "does this guard exist AND belong to this tenant?" on the alert-rule
 // create path. It mints a per-tenant observability:read key, so a guard belonging to another tenant
 // is simply not visible — the check is tenant-scoped by construction rather than by a WHERE clause
-// we could forget. There is no FK on guard_id (guards live in theo-lens), so this is the only
+// we could forget. There is no FK on monitor_id (guards live in theo-lens), so this is the only
 // create-time guarantee that exists.
 //
 // A 404 is DEFINITIVE and rejects the create; anything else is transport and is reported as such, so
 // the caller can accept the rule rather than import theo-lens's availability into our write path.
-func guardOwnershipVerifier(lensBaseURL string, broker routes.TenantKeyMinter) routes.GuardOwnershipVerifier {
+func monitorOwnershipVerifier(lensBaseURL string, broker routes.TenantKeyMinter) routes.MonitorOwnershipVerifier {
 	if broker == nil || lensBaseURL == "" {
 		return nil
 	}
-	return func(ctx context.Context, tenantID, guardID string) error {
+	return func(ctx context.Context, tenantID, monitorID string) error {
 		dc := thelens.NewDataClient(lensBaseURL, &http.Client{Timeout: 2 * time.Second}).
 			WithKeyResolver(func(ctx context.Context) (string, error) {
 				return broker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
@@ -1517,22 +1517,22 @@ func guardOwnershipVerifier(lensBaseURL string, broker routes.TenantKeyMinter) r
 		// breach-window over the smallest window. The endpoint deliberately does NOT 404 on an
 		// unknown guard (that would confirm the id to another workspace), so ownership is read from
 		// the explicit guardExists field rather than from a status code.
-		raw, err := dc.GuardBreachWindow(ctx, guardID, 60)
+		raw, err := dc.MonitorBreachWindow(ctx, monitorID, 60)
 		if err != nil {
 			var us *thelens.UpstreamStatusError
 			if errors.As(err, &us) && (us.Status == http.StatusNotFound || us.Status == http.StatusForbidden) {
-				return routes.ErrGuardNotOwned
+				return routes.ErrMonitorNotOwned
 			}
 			return err
 		}
 		var w struct {
-			GuardExists bool `json:"guardExists"`
+			MonitorExists bool `json:"guardExists"`
 		}
 		if err := json.Unmarshal(raw, &w); err != nil {
 			return err
 		}
-		if !w.GuardExists {
-			return routes.ErrGuardNotOwned
+		if !w.MonitorExists {
+			return routes.ErrMonitorNotOwned
 		}
 		return nil
 	}

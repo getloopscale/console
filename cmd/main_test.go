@@ -221,7 +221,7 @@ func TestLensDashboard_ReadWriteRouteSet(t *testing.T) {
 		"POST /v1/dashboard/lens/evaluators/{evaluatorID}/run",
 		"DELETE /v1/dashboard/lens/evaluators/{evaluatorID}",
 		"POST /v1/dashboard/lens/guards",
-		"DELETE /v1/dashboard/lens/guards/{guardID}",
+		"DELETE /v1/dashboard/lens/guards/{monitorID}",
 		"POST /v1/dashboard/lens/traces/{traceID}/tags",
 		"DELETE /v1/dashboard/lens/traces/{traceID}/tags",
 		"POST /v1/dashboard/lens/traces/{traceID}/annotations",

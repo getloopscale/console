@@ -6,16 +6,16 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) })
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
-import { LensGuardsPage } from './guards';
+import { LensMonitorsPage } from './monitors';
 
-describe('LensGuardsPage (/observability/guards)', () => {
+describe('LensMonitorsPage (/observability/monitors)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   // #179 — pick the evaluator from a <Select> (fed by GET /evaluators), not a free-text id.
   function withEvaluators(evaluators = [{ id: 'ev_1', name: 'Answer relevance' }]) {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators });
-      return Promise.resolve({ guards: [] });
+      return Promise.resolve({ monitors: [] });
     });
   }
 
@@ -23,18 +23,18 @@ describe('LensGuardsPage (/observability/guards)', () => {
   function withGuardAndBreaches(traceIds: string[]) {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'Answer relevance' }] });
-      if (/\/guards\/gd_1\/breaches$/.test(url)) return Promise.resolve({ traceIds });
-      if (url === '/v1/dashboard/lens/guards') return Promise.resolve({ guards: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      if (/\/monitors\/gd_1\/breaches$/.test(url)) return Promise.resolve({ traceIds });
+      if (url === '/v1/dashboard/lens/monitors') return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
       return Promise.resolve({});
     });
   }
 
   it('M77 — View breaches lists the breaching traces, each deep-linking to its trace peek', async () => {
     withGuardAndBreaches(['tr-a', 'tr-b']);
-    render(<LensGuardsPage />);
+    render(<LensMonitorsPage />);
     await userEvent.click(await screen.findByRole('button', { name: /view breaches/i }));
     // the breaches read fires for this guard
-    expect(mockCloudFetch.mock.calls.some((c) => /\/guards\/gd_1\/breaches$/.test(String(c[0])))).toBe(true);
+    expect(mockCloudFetch.mock.calls.some((c) => /\/monitors\/gd_1\/breaches$/.test(String(c[0])))).toBe(true);
     // each breaching trace is a link to its ?trace= peek (M76)
     const a = await screen.findByRole('link', { name: /tr-a/i });
     expect(a).toHaveAttribute('href', '/observability/traces?trace=tr-a');
@@ -43,7 +43,7 @@ describe('LensGuardsPage (/observability/guards)', () => {
 
   it('M77 — the breaches panel shows the guard rule and an honest empty state', async () => {
     withGuardAndBreaches([]); // no trace has failed this guard
-    render(<LensGuardsPage />);
+    render(<LensMonitorsPage />);
     await userEvent.click(await screen.findByRole('button', { name: /view breaches/i }));
     // the guard rule is shown as context (evaluator name + operator symbol + threshold) in the description
     expect(await screen.findByText(/Traces failing Answer relevance ≥ 0\.8/)).toBeInTheDocument();
@@ -55,11 +55,11 @@ describe('LensGuardsPage (/observability/guards)', () => {
   it('M77 — a failed breaches read fails closed to a typed Alert (never a silent empty state)', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'Answer relevance' }] });
-      if (/\/guards\/gd_1\/breaches$/.test(url)) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
-      if (url === '/v1/dashboard/lens/guards') return Promise.resolve({ guards: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      if (/\/monitors\/gd_1\/breaches$/.test(url)) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
+      if (url === '/v1/dashboard/lens/monitors') return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
       return Promise.resolve({});
     });
-    render(<LensGuardsPage />);
+    render(<LensMonitorsPage />);
     await userEvent.click(await screen.findByRole('button', { name: /view breaches/i }));
     expect(await screen.findByTestId('breaches-error')).toBeInTheDocument();
     // fail-closed: the empty-state text must NOT show (a failure is not "no breaches")
@@ -68,7 +68,7 @@ describe('LensGuardsPage (/observability/guards)', () => {
 
   it('creates a guard by SELECTING an evaluator + operator (no free-text id) — #179', async () => {
     withEvaluators();
-    render(<LensGuardsPage />);
+    render(<LensMonitorsPage />);
     await screen.findByText(/no guards yet/i);
 
     // the create form lives in a centered modal (AppModal) — open it via the primary action first
@@ -81,7 +81,7 @@ describe('LensGuardsPage (/observability/guards)', () => {
     await userEvent.click(screen.getByRole('button', { name: /create guard/i }));
 
     const call = mockCloudFetch.mock.calls.find(
-      (c) => c[0] === '/v1/dashboard/lens/guards' && (c[1] as { method?: string })?.method === 'POST',
+      (c) => c[0] === '/v1/dashboard/lens/monitors' && (c[1] as { method?: string })?.method === 'POST',
     );
     expect(call).toBeTruthy();
     const body = JSON.parse((call![1] as { body: string }).body);
@@ -92,7 +92,7 @@ describe('LensGuardsPage (/observability/guards)', () => {
 
   it('hides the threshold and omits it for a label_eq guard — #179', async () => {
     withEvaluators();
-    render(<LensGuardsPage />);
+    render(<LensMonitorsPage />);
     await screen.findByText(/no guards yet/i);
     await userEvent.click(screen.getByRole('button', { name: /new guard/i }));
     await userEvent.click(await screen.findByRole('combobox', { name: /evaluator/i }));
@@ -104,7 +104,7 @@ describe('LensGuardsPage (/observability/guards)', () => {
     await userEvent.click(screen.getByRole('button', { name: /create guard/i }));
 
     const call = mockCloudFetch.mock.calls.find(
-      (c) => c[0] === '/v1/dashboard/lens/guards' && (c[1] as { method?: string })?.method === 'POST',
+      (c) => c[0] === '/v1/dashboard/lens/monitors' && (c[1] as { method?: string })?.method === 'POST',
     );
     const body = JSON.parse((call![1] as { body: string }).body);
     expect(body.operator).toBe('label_eq');
@@ -113,7 +113,7 @@ describe('LensGuardsPage (/observability/guards)', () => {
 
   it('M73 — the empty state has a CTA that opens the create modal (one clear action)', async () => {
     mockCloudFetch.mockResolvedValue({ guards: [] });
-    render(<LensGuardsPage />);
+    render(<LensMonitorsPage />);
     await screen.findByText(/no guards yet/i);
     await userEvent.click(screen.getByRole('button', { name: /create your first guard/i }));
     // the CTA opens the centered create modal — its evaluator field is now available
@@ -121,12 +121,12 @@ describe('LensGuardsPage (/observability/guards)', () => {
   });
 
   it('renders empty state and delete flow via ConfirmDialog', async () => {
-    mockCloudFetch.mockResolvedValue({ guards: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
-    render(<LensGuardsPage />);
+    mockCloudFetch.mockResolvedValue({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+    render(<LensMonitorsPage />);
     await userEvent.click(await screen.findByRole('button', { name: /delete gd_1/i }));
     await userEvent.click(await screen.findByRole('button', { name: /delete guard/i }));
     expect(mockCloudFetch).toHaveBeenCalledWith(
-      '/v1/dashboard/lens/guards/gd_1',
+      '/v1/dashboard/lens/monitors/gd_1',
       expect.objectContaining({ method: 'DELETE' }),
     );
   });

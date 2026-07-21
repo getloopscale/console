@@ -41,7 +41,7 @@ export const LENS_CAPABILITIES: LensCapability[] = [
   { group: 'Observe', label: 'Sessions', path: '/observability/sessions', icon: ListChecks, description: 'Replay grouped executions.' },
   { group: 'Evaluate', label: 'Datasets', path: '/observability/datasets', icon: Database, description: 'Curate trace datasets for evaluation.' },
   { group: 'Evaluate', label: 'Evaluators', path: '/observability/evaluators', icon: FlaskConical, description: 'Score traces with rule or LLM-judge evaluators.' },
-  { group: 'Evaluate', label: 'Guards', path: '/observability/guards', icon: ShieldCheck, description: 'Gate traces on evaluator thresholds.' },
+  { group: 'Evaluate', label: 'Guards', path: '/observability/monitors', icon: ShieldCheck, description: 'Gate traces on evaluator thresholds.' },
   { group: 'Evaluate', label: 'Queues', path: '/observability/labeling-queue', icon: ClipboardCheck, description: 'Review and label spans by hand.' },
   { group: 'Evaluate', label: 'Experiments', path: '/observability/experiments', icon: FlaskConical, description: 'Run a dataset through a variant and compare.' },
   { group: 'Evaluate', label: 'Ask', path: '/observability/ask', icon: Search, description: 'Ask the copilot about a trace.' },

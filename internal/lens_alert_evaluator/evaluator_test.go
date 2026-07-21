@@ -131,7 +131,7 @@ func TestTick_FetchErrorSkipsTenant(t *testing.T) {
 	mock.ExpectQuery("SELECT id, tenant_id, metric, comparator").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "tenant_id", "metric", "comparator", "threshold", "window_seconds", "webhook_id", "status",
-			"last_triggered_at", "renotify_interval_seconds", "guard_id",
+			"last_triggered_at", "renotify_interval_seconds", "monitor_id",
 		}).AddRow("lar-1", "tn-1", "error_rate", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, nil))
 	// NO UPDATE / INSERT expected — the fetch error skips the tenant.
 
@@ -160,11 +160,11 @@ func TestProcessGuardRule_NoData_DoesNotFire(t *testing.T) {
 	mock.ExpectExec("UPDATE lens_alert_rules SET last_evaluated_at").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	r := alertRule{id: "lar-g1", tenantID: "tn-1", metric: "guard_breach", comparator: "gt",
+	r := alertRule{id: "lar-g1", tenantID: "tn-1", metric: "monitor_breach", comparator: "gt",
 		threshold: 0, windowSeconds: 3600, webhookID: "wwh-1", status: "OK",
-		guardID: sql.NullString{String: "g-1", Valid: true}}
+		monitorID: sql.NullString{String: "g-1", Valid: true}}
 
-	if err := e.processGuardRule(context.Background(), r, GuardBreachWindow{HasData: false}); err != nil {
+	if err := e.processGuardRule(context.Background(), r, MonitorBreachWindow{HasData: false}); err != nil {
 		t.Fatal(err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -181,12 +181,12 @@ func TestProcessGuardRule_MeasuredZero_EvaluatesNormally(t *testing.T) {
 		WithArgs("OK", sqlmock.AnyArg(), "lar-g2", sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	r := alertRule{id: "lar-g2", tenantID: "tn-1", metric: "guard_breach", comparator: "gt",
+	r := alertRule{id: "lar-g2", tenantID: "tn-1", metric: "monitor_breach", comparator: "gt",
 		threshold: 0, windowSeconds: 3600, webhookID: "wwh-1", status: "OK",
-		guardID: sql.NullString{String: "g-1", Valid: true}}
+		monitorID: sql.NullString{String: "g-1", Valid: true}}
 
 	if err := e.processGuardRule(context.Background(), r,
-		GuardBreachWindow{HasData: true, EvaluatedCount: 40, BreachCount: 0}); err != nil {
+		MonitorBreachWindow{HasData: true, EvaluatedCount: 40, BreachCount: 0}); err != nil {
 		t.Fatal(err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -204,12 +204,12 @@ func TestProcessGuardRule_Breach_FiresOnce(t *testing.T) {
 	mock.ExpectExec("INSERT INTO lens_fired_alerts").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	r := alertRule{id: "lar-g3", tenantID: "tn-1", metric: "guard_breach", comparator: "gt",
+	r := alertRule{id: "lar-g3", tenantID: "tn-1", metric: "monitor_breach", comparator: "gt",
 		threshold: 5, windowSeconds: 3600, webhookID: "wwh-1", status: "OK",
-		guardID: sql.NullString{String: "g-1", Valid: true}}
+		monitorID: sql.NullString{String: "g-1", Valid: true}}
 
 	if err := e.processGuardRule(context.Background(), r,
-		GuardBreachWindow{HasData: true, EvaluatedCount: 100, BreachCount: 12}); err != nil {
+		MonitorBreachWindow{HasData: true, EvaluatedCount: 100, BreachCount: 12}); err != nil {
 		t.Fatal(err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -225,13 +225,13 @@ func TestProcessGuardRule_SustainedBreach_DoesNotReFire(t *testing.T) {
 	mock.ExpectExec("UPDATE lens_alert_rules SET status = \\$1, last_evaluated_at").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	r := alertRule{id: "lar-g4", tenantID: "tn-1", metric: "guard_breach", comparator: "gt",
+	r := alertRule{id: "lar-g4", tenantID: "tn-1", metric: "monitor_breach", comparator: "gt",
 		threshold: 5, windowSeconds: 3600, webhookID: "wwh-1", status: "TRIGGERED",
 		lastTriggered: sql.NullTime{Time: time.Unix(1_699_999_000, 0), Valid: true},
-		guardID:       sql.NullString{String: "g-1", Valid: true}}
+		monitorID:     sql.NullString{String: "g-1", Valid: true}}
 
 	if err := e.processGuardRule(context.Background(), r,
-		GuardBreachWindow{HasData: true, EvaluatedCount: 100, BreachCount: 12}); err != nil {
+		MonitorBreachWindow{HasData: true, EvaluatedCount: 100, BreachCount: 12}); err != nil {
 		t.Fatal(err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -243,13 +243,13 @@ func TestProcessGuardRule_SustainedBreach_DoesNotReFire(t *testing.T) {
 func TestTick_GuardFetchError_SkipsRule(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
-	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
-		return GuardBreachWindow{}, errors.New("carrier down")
+	e.fetchMonitor = func(context.Context, string, string, int) (MonitorBreachWindow, error) {
+		return MonitorBreachWindow{}, errors.New("carrier down")
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold", "window_seconds",
-			"webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"}).
-			AddRow("lar-g5", "tn-1", "guard_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, "g-1"))
+			"webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"}).
+			AddRow("lar-g5", "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, "g-1"))
 
 	if err := e.Tick(context.Background()); err != nil {
 		t.Fatal(err)
@@ -302,13 +302,13 @@ func TestProcessRule_NonFireWriteIsFenced(t *testing.T) {
 func TestFetchErrorDoesNotStampLastEvaluated(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
-	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
-		return GuardBreachWindow{}, errors.New("carrier down")
+	e.fetchMonitor = func(context.Context, string, string, int) (MonitorBreachWindow, error) {
+		return MonitorBreachWindow{}, errors.New("carrier down")
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold", "window_seconds",
-			"webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"}).
-			AddRow("lar-s", "tn-1", "guard_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, "g-1"))
+			"webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"}).
+			AddRow("lar-s", "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, "g-1"))
 	// NO UPDATE expected at all — sqlmock fails on any unexpected statement.
 
 	if err := e.Tick(context.Background()); err != nil {
@@ -329,10 +329,10 @@ func TestFetchErrorDoesNotStampLastEvaluated(t *testing.T) {
 func TestTick_GuardNotFound_DisablesTheRule(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
-	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
-		return GuardBreachWindow{}, ErrGuardNotFound
+	e.fetchMonitor = func(context.Context, string, string, int) (MonitorBreachWindow, error) {
+		return MonitorBreachWindow{}, ErrMonitorNotFound
 	}
-	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(guardRuleRow("lar-gone", "g-gone"))
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(monitorRuleRow("lar-gone", "g-gone"))
 	mock.ExpectExec("UPDATE lens_alert_rules SET enabled = FALSE").
 		WithArgs("lar-gone").WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -350,10 +350,10 @@ func TestTick_GuardNotFound_DisablesTheRule(t *testing.T) {
 func TestTick_TransportError_DoesNotDisable(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
-	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
-		return GuardBreachWindow{}, errors.New("connection reset")
+	e.fetchMonitor = func(context.Context, string, string, int) (MonitorBreachWindow, error) {
+		return MonitorBreachWindow{}, errors.New("connection reset")
 	}
-	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(guardRuleRow("lar-blip", "g-1"))
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(monitorRuleRow("lar-blip", "g-1"))
 	// No UPDATE of any kind expected.
 
 	if err := e.Tick(context.Background()); err != nil {
@@ -371,14 +371,14 @@ func TestTick_GuardBulkheadStopsAfterBudget(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
 	calls := 0
-	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
+	e.fetchMonitor = func(context.Context, string, string, int) (MonitorBreachWindow, error) {
 		calls++
-		return GuardBreachWindow{}, errors.New("hung")
+		return MonitorBreachWindow{}, errors.New("hung")
 	}
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
-		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"})
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"})
 	for i := 0; i < 10; i++ {
-		rows.AddRow(fmt.Sprintf("lar-%d", i), "tn-1", "guard_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil,
+		rows.AddRow(fmt.Sprintf("lar-%d", i), "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil,
 			fmt.Sprintf("g-%d", i)) // distinct guards, so the per-guard cache cannot mask the budget
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(rows)
@@ -386,8 +386,8 @@ func TestTick_GuardBulkheadStopsAfterBudget(t *testing.T) {
 	if err := e.Tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if calls != guardFailureBudget {
-		t.Fatalf("bulkhead must stop the carrier after %d failures, got %d calls", guardFailureBudget, calls)
+	if calls != monitorFailureBudget {
+		t.Fatalf("bulkhead must stop the carrier after %d failures, got %d calls", monitorFailureBudget, calls)
 	}
 }
 
@@ -396,14 +396,14 @@ func TestTick_GuardResultIsCachedPerGuardAndWindow(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
 	calls := 0
-	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
+	e.fetchMonitor = func(context.Context, string, string, int) (MonitorBreachWindow, error) {
 		calls++
-		return GuardBreachWindow{HasData: true, EvaluatedCount: 10, BreachCount: 0}, nil
+		return MonitorBreachWindow{HasData: true, EvaluatedCount: 10, BreachCount: 0}, nil
 	}
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
-		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"})
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"})
 	for i := 0; i < 3; i++ {
-		rows.AddRow(fmt.Sprintf("lar-c%d", i), "tn-1", "guard_breach", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, "g-same")
+		rows.AddRow(fmt.Sprintf("lar-c%d", i), "tn-1", "monitor_breach", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, "g-same")
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(rows)
 	for i := 0; i < 3; i++ {
@@ -418,10 +418,10 @@ func TestTick_GuardResultIsCachedPerGuardAndWindow(t *testing.T) {
 	}
 }
 
-func guardRuleRow(ruleID, guardID string) *sqlmock.Rows {
+func monitorRuleRow(ruleID, monitorID string) *sqlmock.Rows {
 	return sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
-		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"}).
-		AddRow(ruleID, "tn-1", "guard_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, guardID)
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"}).
+		AddRow(ruleID, "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, monitorID)
 }
 
 // The fence must not WEDGE a fresh rule. A rule evaluated for the first time has status='OK',
@@ -450,17 +450,17 @@ func TestProcessRule_FenceDoesNotWedgeAFreshRule(t *testing.T) {
 
 // ── The review finding: guardExists, not a 404 ───────────────────────────────────────────────────
 //
-// The previous test injected ErrGuardNotFound at the fetcher seam — downstream of the only code
+// The previous test injected ErrMonitorNotFound at the fetcher seam — downstream of the only code
 // that could construct it — so it proved the double worked while the production path was dead: the
 // carrier never emits 404 (a 404 would confirm the id to another workspace). This test drives the
 // SHAPE the carrier actually returns.
 func TestProcessGuardRule_GuardExistsFalse_DisablesTheRule(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
-	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
-		return GuardBreachWindow{GuardExists: false, HasData: false}, nil // exactly what the wire carries
+	e.fetchMonitor = func(context.Context, string, string, int) (MonitorBreachWindow, error) {
+		return MonitorBreachWindow{MonitorExists: false, HasData: false}, nil // exactly what the wire carries
 	}
-	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(guardRuleRow("lar-del", "g-del"))
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(monitorRuleRow("lar-del", "g-del"))
 	mock.ExpectExec("UPDATE lens_alert_rules SET enabled = FALSE").
 		WithArgs("lar-del").WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -473,15 +473,15 @@ func TestProcessGuardRule_GuardExistsFalse_DisablesTheRule(t *testing.T) {
 }
 
 // The companion that keeps the test above from being dangerous: a REAL guard whose window is simply
-// empty must NOT be disabled. {GuardExists:true, HasData:false} and {false,false} differ by one
+// empty must NOT be disabled. {MonitorExists:true, HasData:false} and {false,false} differ by one
 // field and by everything that matters.
 func TestProcessGuardRule_RealGuardEmptyWindow_IsNotDisabled(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
-	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
-		return GuardBreachWindow{GuardExists: true, HasData: false}, nil
+	e.fetchMonitor = func(context.Context, string, string, int) (MonitorBreachWindow, error) {
+		return MonitorBreachWindow{MonitorExists: true, HasData: false}, nil
 	}
-	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(guardRuleRow("lar-quiet", "g-1"))
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(monitorRuleRow("lar-quiet", "g-1"))
 	mock.ExpectExec("UPDATE lens_alert_rules SET last_evaluated_at").
 		WillReturnResult(sqlmock.NewResult(0, 1)) // stamped, NOT disabled
 
@@ -501,18 +501,18 @@ func TestTick_BulkheadStreakResetsOnSuccess(t *testing.T) {
 	e, mock, db := newEval(t)
 	defer func() { _ = db.Close() }()
 	calls := 0
-	e.fetchGuard = func(_ context.Context, _, guardID string, _ int) (GuardBreachWindow, error) {
+	e.fetchMonitor = func(_ context.Context, _, monitorID string, _ int) (MonitorBreachWindow, error) {
 		calls++
-		if guardID == "g-ok" {
-			return GuardBreachWindow{GuardExists: true, HasData: true, EvaluatedCount: 1}, nil
+		if monitorID == "g-ok" {
+			return MonitorBreachWindow{MonitorExists: true, HasData: true, EvaluatedCount: 1}, nil
 		}
-		return GuardBreachWindow{}, errors.New("hung")
+		return MonitorBreachWindow{}, errors.New("hung")
 	}
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
-		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"})
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"})
 	// fail, fail, SUCCESS, fail, fail, fail  → without the reset the 6th is never attempted.
 	for i, g := range []string{"g-a", "g-b", "g-ok", "g-c", "g-d", "g-e"} {
-		rows.AddRow(fmt.Sprintf("lar-b%d", i), "tn-1", "guard_breach", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, g)
+		rows.AddRow(fmt.Sprintf("lar-b%d", i), "tn-1", "monitor_breach", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, g)
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(rows)
 	mock.ExpectExec("UPDATE lens_alert_rules SET status").WillReturnResult(sqlmock.NewResult(0, 1))
@@ -535,13 +535,14 @@ func TestTick_BulkheadStreakResetsOnSuccess(t *testing.T) {
 // The literal below is a VERBATIM response body. If theo-lens renames or drops a key, its own test
 // fails there; if we change what we expect, this fails here. The pair is the contract.
 func TestGuardBreachWindow_DecodesTheWireShapeTheoLensEmits(t *testing.T) {
-	const wire = `{"breachCount":12,"evaluatedCount":100,"hasData":true,"guardExists":true,"windowSeconds":3600}`
+	// Verbatim from theo-lens, which emits BOTH names during its deprecation window (M136).
+	const wire = `{"breachCount":12,"evaluatedCount":100,"hasData":true,"monitorExists":true,"guardExists":true,"windowSeconds":3600}`
 
-	var w GuardBreachWindow
+	var w MonitorBreachWindow
 	if err := json.Unmarshal([]byte(wire), &w); err != nil {
 		t.Fatal(err)
 	}
-	if w.BreachCount != 12 || w.EvaluatedCount != 100 || !w.HasData || !w.GuardExists {
+	if w.BreachCount != 12 || w.EvaluatedCount != 100 || !w.HasData || !w.MonitorExists {
 		t.Fatalf("decoded %+v from the real wire shape — a silently-renamed key would land here", w)
 	}
 
@@ -550,11 +551,11 @@ func TestGuardBreachWindow_DecodesTheWireShapeTheoLensEmits(t *testing.T) {
 	// Go's zero value makes it decode as false — which happens to be the SAFE direction here (a
 	// dropped field disables rules rather than arming dead ones), but it is safe by luck, not by
 	// design, so the theo-lens side pins the key set explicitly.
-	var gone GuardBreachWindow
-	if err := json.Unmarshal([]byte(`{"breachCount":0,"evaluatedCount":0,"hasData":false,"guardExists":false,"windowSeconds":60}`), &gone); err != nil {
+	var gone MonitorBreachWindow
+	if err := json.Unmarshal([]byte(`{"breachCount":0,"evaluatedCount":0,"hasData":false,"monitorExists":false,"guardExists":false,"windowSeconds":60}`), &gone); err != nil {
 		t.Fatal(err)
 	}
-	if gone.GuardExists || gone.HasData {
+	if gone.MonitorExists || gone.HasData {
 		t.Fatalf("a deleted guard must decode as absent on both axes, got %+v", gone)
 	}
 }

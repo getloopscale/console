@@ -1,5 +1,16 @@
 ## [Unreleased]
 
+### Changed
+
+- Guards are now called Monitors across the BFF, the dashboard screen and the alert-rule surface (M136). Behaviour is unchanged; the old name promised request-path enforcement that was never implemented, while `guardrail` properly names a span kind emitted by *your* application's inline blocker.
+- Alert rules use `metric: "monitor_breach"` and `monitor_id` (engine migration `000059`). Existing rules and their fired-alert history are migrated, not discarded.
+
+### Deprecated
+
+- `/v1/dashboard/lens/guards*` — alias on the same handlers for one release; use `/v1/dashboard/lens/monitors*`.
+- The `guard_id` request and response field on alert rules — accepted and emitted alongside `monitor_id` for one release, always the same value. `monitor_id` wins when both are sent.
+
+
 
 ### Fixed
 - The alert evaluator's non-fire status write is now fenced on read-time state, so a replica with a stale non-breaching read can no longer reset another replica's TRIGGERED and trigger an alert storm (#248).

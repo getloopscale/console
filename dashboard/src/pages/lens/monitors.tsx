@@ -26,8 +26,8 @@ import { shortId } from '@/lib/format';
 import { cloudFetch } from '@/lib/api';
 
 /**
- * M44 — /lens/guards. List / create / delete guards via the read+write lens management BFF
- * (`/v1/dashboard/lens/guards`). The create body matches theo-lens:
+ * M44 — /lens/monitors. List / create / delete monitors via the read+write lens management BFF
+ * (`/v1/dashboard/lens/monitors`). The create body matches theo-lens:
  * {evaluatorId, operator:"lt"|"lte"|"gt"|"gte"|"eq"|"label_eq", threshold?}.
  */
 
@@ -37,8 +37,8 @@ interface Guard {
   operator?: string;
   threshold?: number;
 }
-interface GuardsResult {
-  guards: Guard[];
+interface MonitorsResult {
+  monitors: Guard[];
 }
 interface Evaluator {
   id: string;
@@ -59,7 +59,7 @@ const OPERATORS = [
   { value: 'label_eq', label: 'matches label' },
 ] as const;
 
-export function LensGuardsPage() {
+export function LensMonitorsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Observability · Guards'), [setPageTitle]);
   useRequireAuth();
@@ -79,8 +79,8 @@ export function LensGuardsPage() {
   const needsThreshold = operator !== 'label_eq';
 
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/guards'] as const,
-    queryFn: () => cloudFetch<GuardsResult>('/v1/dashboard/lens/guards'),
+    queryKey: ['cloud', '/v1/dashboard/lens/monitors'] as const,
+    queryFn: () => cloudFetch<MonitorsResult>('/v1/dashboard/lens/monitors'),
   });
   // #179 — the evaluator is chosen from the workspace's evaluators (by name), not typed as a raw id
   // the Evaluators screen never surfaced. value = id, label = name.
@@ -100,18 +100,18 @@ export function LensGuardsPage() {
 
   // M77 — the breaches read (flag-only: `{ traceIds }`) for the open guard. Fetched on demand only.
   const breachesQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/guards', activeGuard?.id, 'breaches'] as const,
+    queryKey: ['cloud', '/v1/dashboard/lens/monitors', activeGuard?.id, 'breaches'] as const,
     queryFn: () =>
-      cloudFetch<{ traceIds: string[] }>(`/v1/dashboard/lens/guards/${encodeURIComponent(activeGuard!.id)}/breaches`, {}, { throwOnError: true }),
+      cloudFetch<{ traceIds: string[] }>(`/v1/dashboard/lens/monitors/${encodeURIComponent(activeGuard!.id)}/breaches`, {}, { throwOnError: true }),
     enabled: activeGuard !== null,
   });
   const breachTraceIds = breachesQuery.data?.traceIds ?? [];
 
-  const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/guards'] });
+  const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/monitors'] });
 
   const create = useMutation({
     mutationFn: (input: { evaluatorId: string; operator: string; threshold?: number }) =>
-      cloudFetch<Guard>('/v1/dashboard/lens/guards', {
+      cloudFetch<Guard>('/v1/dashboard/lens/monitors', {
         method: 'POST',
         body: JSON.stringify(
           // omit threshold entirely for a label match (no fabricated 0)
@@ -152,7 +152,7 @@ export function LensGuardsPage() {
 
   const remove = useMutation({
     mutationFn: (g: Guard) =>
-      cloudFetch<null>(`/v1/dashboard/lens/guards/${encodeURIComponent(g.id)}`, { method: 'DELETE' }),
+      cloudFetch<null>(`/v1/dashboard/lens/monitors/${encodeURIComponent(g.id)}`, { method: 'DELETE' }),
     onSuccess: () => {
       setPendingDelete(null);
       invalidate();
@@ -194,7 +194,7 @@ export function LensGuardsPage() {
     },
   ];
 
-  const guards = query.data?.guards ?? [];
+  const monitors = query.data?.monitors ?? [];
 
   return (
     <>
@@ -210,7 +210,7 @@ export function LensGuardsPage() {
             <Alert intent="warning" title="Could not load guards">
               The lens service is unavailable. Try again shortly.
             </Alert>
-          ) : guards.length === 0 ? (
+          ) : monitors.length === 0 ? (
             <EmptyState
               title="No guards yet"
               description="Create your first guard to gate traces on a threshold."
@@ -222,7 +222,7 @@ export function LensGuardsPage() {
             />
           ) : (
             <Card>
-              <DataTable columns={columns} data={guards} rowKey={(row) => row.id} />
+              <DataTable columns={columns} data={monitors} rowKey={(row) => row.id} />
             </Card>
           )}
         </div>

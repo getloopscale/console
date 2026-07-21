@@ -130,7 +130,7 @@ func TestLensAlertRules_List_ScopedToSubjectAndTenant(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "name", "metric", "comparator", "threshold", "window_seconds", "webhook_id", "enabled",
 			"status", "last_evaluated_at", "last_triggered_at", "renotify_interval_seconds", "created_at",
-			"guard_id", "stale",
+			"monitor_id", "stale",
 		}).AddRow("lar-0011223344556677", "errs", "error_rate", "gt", 5.0, 3600, "wwh-1", true,
 			"TRIGGERED", "2026-07-04T10:00:00Z", "2026-07-04T10:05:00Z", nil, "2026-07-04T09:00:00Z",
 			nil, false))
@@ -326,10 +326,10 @@ func TestLensAlertRules_History_ClampsPageParams(t *testing.T) {
 // instead of a constraint violation, and it must reject BOTH directions: a guard rule without a
 // guard, and a guard on a rule that cannot use one. Both are silently broken states otherwise —
 // the first is an armed rule that can never fire, the second is a field quietly ignored.
-func TestLensAlertRules_Create_GuardPairingIsEnforced(t *testing.T) {
+func TestLensAlertRules_Create_MonitorPairingIsEnforced(t *testing.T) {
 	for _, tc := range []struct{ name, body string }{
-		{"guard_breach without guard_id", `{"name":"g","metric":"guard_breach","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-1"}`},
-		{"guard_id on a cost rule", `{"name":"g","metric":"cost","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-1","guard_id":"g-1"}`},
+		{"monitor_breach without monitor_id", `{"name":"g","metric":"monitor_breach","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-1"}`},
+		{"monitor_id on a cost rule", `{"name":"g","metric":"cost","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-1","monitor_id":"g-1"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dbConn, _, _ := sqlmock.New()
@@ -340,8 +340,8 @@ func TestLensAlertRules_Create_GuardPairingIsEnforced(t *testing.T) {
 			if w.Code != http.StatusBadRequest {
 				t.Fatalf("code = %d, want 400 (%s)", w.Code, tc.name)
 			}
-			if !strings.Contains(w.Body.String(), "INVALID_GUARD") {
-				t.Fatalf("want typed INVALID_GUARD, got %s", w.Body.String())
+			if !strings.Contains(w.Body.String(), "INVALID_MONITOR") {
+				t.Fatalf("want typed INVALID_MONITOR, got %s", w.Body.String())
 			}
 		})
 	}
@@ -350,8 +350,8 @@ func TestLensAlertRules_Create_GuardPairingIsEnforced(t *testing.T) {
 // A definitive not-owned answer rejects the create — validate at the one moment a human is present
 // to fix the typo. A transport failure must NOT reject: importing theo-lens's availability into our
 // write path would trade a rare typo for a common outage.
-func TestLensAlertRules_Create_GuardOwnership(t *testing.T) {
-	body := `{"name":"g","metric":"guard_breach","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-1","guard_id":"g-1"}`
+func TestLensAlertRules_Create_MonitorOwnership(t *testing.T) {
+	body := `{"name":"g","metric":"monitor_breach","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-1","monitor_id":"g-1"}`
 
 	t.Run("not owned rejects", func(t *testing.T) {
 		dbConn, mock, _ := sqlmock.New()
@@ -359,12 +359,12 @@ func TestLensAlertRules_Create_GuardOwnership(t *testing.T) {
 		mock.ExpectQuery("SELECT 1 FROM workspace_webhooks").WithArgs("wwh-1", "tn-1").
 			WillReturnRows(sqlmock.NewRows([]string{"?column?"}).AddRow(1))
 		h := NewLensAlertRulesHandler(dbConn, func(context.Context, string, string) error {
-			return ErrGuardNotOwned
+			return ErrMonitorNotOwned
 		}, nil)
 		w := httptest.NewRecorder()
 		h.Create(w, larReq(http.MethodPost, "/v1/dashboard/lens/alert-rules", body, "tn-1"))
-		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "INVALID_GUARD") {
-			t.Fatalf("code = %d body = %s, want 400 INVALID_GUARD", w.Code, w.Body.String())
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "INVALID_MONITOR") {
+			t.Fatalf("code = %d body = %s, want 400 INVALID_MONITOR", w.Code, w.Body.String())
 		}
 	})
 
@@ -383,4 +383,82 @@ func TestLensAlertRules_Create_GuardOwnership(t *testing.T) {
 			t.Fatalf("code = %d body = %s, want 200 (a lens blip must not block a create)", w.Code, w.Body.String())
 		}
 	})
+}
+
+// ── M136 — the deprecated request field must still work ──────────────────────────────────────────
+//
+// The rename is only safe if a client written against the previous shape keeps working. Asserting
+// it here means the compatibility is a tested property rather than an intention stated in a
+// CHANGELOG — the class of claim that rots silently precisely because nothing exercises it.
+func TestLensAlertRules_Create_AcceptsTheDeprecatedGuardIdField(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New()
+	defer func() { _ = dbConn.Close() }()
+	mock.ExpectQuery("SELECT 1 FROM workspace_webhooks").WithArgs("wwh-1", "tn-1").
+		WillReturnRows(sqlmock.NewRows([]string{"?column?"}).AddRow(1))
+	mock.ExpectExec("INSERT INTO lens_alert_rules").WillReturnResult(sqlmock.NewResult(0, 1))
+
+	var seen string
+	h := NewLensAlertRulesHandler(dbConn, func(_ context.Context, _, id string) error {
+		seen = id
+		return nil
+	}, nil)
+	// Old shape: monitor_id only, no monitor_id.
+	body := `{"name":"legacy","metric":"monitor_breach","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-1","guard_id":"g-legacy"}`
+	w := httptest.NewRecorder()
+	h.Create(w, larReq(http.MethodPost, "/v1/dashboard/lens/alert-rules", body, "tn-1"))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("code = %d body = %s, want 200 — the deprecated field must still create a rule", w.Code, w.Body.String())
+	}
+	if seen != "g-legacy" {
+		t.Fatalf("verifier saw %q — the deprecated field must reach the same code path", seen)
+	}
+}
+
+// When BOTH names arrive, the canonical one wins. A client mid-migration sending both must never be
+// ambiguous, and "last field wins" would depend on struct order — an accident, not a contract.
+func TestLensAlertRules_Create_CanonicalFieldWinsOverDeprecated(t *testing.T) {
+	dbConn, mock, _ := sqlmock.New()
+	defer func() { _ = dbConn.Close() }()
+	mock.ExpectQuery("SELECT 1 FROM workspace_webhooks").WithArgs("wwh-1", "tn-1").
+		WillReturnRows(sqlmock.NewRows([]string{"?column?"}).AddRow(1))
+	mock.ExpectExec("INSERT INTO lens_alert_rules").WillReturnResult(sqlmock.NewResult(0, 1))
+
+	var seen string
+	h := NewLensAlertRulesHandler(dbConn, func(_ context.Context, _, id string) error {
+		seen = id
+		return nil
+	}, nil)
+	body := `{"name":"both","metric":"monitor_breach","comparator":"gt","threshold":5,"window_seconds":3600,"webhook_id":"wwh-1","monitor_id":"m-new","guard_id":"g-old"}`
+	w := httptest.NewRecorder()
+	h.Create(w, larReq(http.MethodPost, "/v1/dashboard/lens/alert-rules", body, "tn-1"))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200", w.Code)
+	}
+	if seen != "m-new" {
+		t.Fatalf("verifier saw %q, want the canonical monitor_id to win", seen)
+	}
+}
+
+// The response must carry BOTH names, same value. `go vet` caught a regex slip that rewrote the
+// deprecated tag to the canonical one, which would have silently dropped `guard_id` from every
+// response — the exact break the dual field exists to prevent, introduced by the mechanism meant
+// to prevent it. A struct-tag mistake is invisible to every test that only reads the Go field.
+func TestLensAlertRuleView_EmitsBothMonitorIdNames(t *testing.T) {
+	id := "m-1"
+	raw, err := json.Marshal(LensAlertRuleView{MonitorID: &id, GuardID: &id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded["monitor_id"] != id {
+		t.Fatalf("canonical monitor_id missing from %s", raw)
+	}
+	if decoded["guard_id"] != id {
+		t.Fatalf("deprecated guard_id missing from %s — dropping it is a silent break", raw)
+	}
 }

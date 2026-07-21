@@ -355,11 +355,11 @@ func TestDataClient_CreateGuard_RealSchema(t *testing.T) {
 	var got capturedReq
 	srv := captureWrite(t, &got, http.StatusOK, `{"id":"gd_1","evaluatorId":"ev_1","operator":"gte"}`)
 	body := json.RawMessage(`{"evaluatorId":"ev_1","operator":"gte","threshold":0.8}`)
-	if _, err := writeClient(t, srv).CreateGuard(context.Background(), body); err != nil {
-		t.Fatalf("CreateGuard: %v", err)
+	if _, err := writeClient(t, srv).CreateMonitor(context.Background(), body); err != nil {
+		t.Fatalf("CreateMonitor: %v", err)
 	}
-	if got.method != http.MethodPost || got.path != "/v1/guards" {
-		t.Fatalf("got %s %s, want POST /v1/guards", got.method, got.path)
+	if got.method != http.MethodPost || got.path != "/v1/monitors" {
+		t.Fatalf("got %s %s, want POST /v1/monitors", got.method, got.path)
 	}
 	if !strings.Contains(got.body, `"evaluatorId":"ev_1"`) || !strings.Contains(got.body, `"operator":"gte"`) {
 		t.Fatalf("forwarded body = %q, want {evaluatorId,operator}", got.body)
@@ -369,11 +369,11 @@ func TestDataClient_CreateGuard_RealSchema(t *testing.T) {
 func TestDataClient_DeleteGuard_204(t *testing.T) {
 	var got capturedReq
 	srv := captureWrite(t, &got, http.StatusNoContent, ``)
-	if _, err := writeClient(t, srv).DeleteGuard(context.Background(), "gd_1"); err != nil {
-		t.Fatalf("DeleteGuard: %v", err)
+	if _, err := writeClient(t, srv).DeleteMonitor(context.Background(), "gd_1"); err != nil {
+		t.Fatalf("DeleteMonitor: %v", err)
 	}
-	if got.method != http.MethodDelete || got.path != "/v1/guards/gd_1" {
-		t.Fatalf("got %s %s, want DELETE /v1/guards/gd_1", got.method, got.path)
+	if got.method != http.MethodDelete || got.path != "/v1/monitors/gd_1" {
+		t.Fatalf("got %s %s, want DELETE /v1/monitors/gd_1", got.method, got.path)
 	}
 }
 
@@ -474,17 +474,17 @@ func TestDataClient_ListGuards_And_Breaches_RealPath(t *testing.T) {
 	var got capturedReq
 	srv := captureWrite(t, &got, http.StatusOK, `{"guards":[]}`)
 	c := writeClient(t, srv)
-	if _, err := c.ListGuards(context.Background()); err != nil {
-		t.Fatalf("ListGuards: %v", err)
+	if _, err := c.ListMonitors(context.Background()); err != nil {
+		t.Fatalf("ListMonitors: %v", err)
 	}
-	if got.path != "/v1/guards" {
-		t.Fatalf("path = %q, want /v1/guards", got.path)
+	if got.path != "/v1/monitors" {
+		t.Fatalf("path = %q, want /v1/monitors", got.path)
 	}
-	if _, err := c.GuardBreaches(context.Background(), "gd_1"); err != nil {
-		t.Fatalf("GuardBreaches: %v", err)
+	if _, err := c.MonitorBreaches(context.Background(), "gd_1"); err != nil {
+		t.Fatalf("MonitorBreaches: %v", err)
 	}
-	if got.path != "/v1/guards/gd_1/breaches" {
-		t.Fatalf("path = %q, want /v1/guards/gd_1/breaches", got.path)
+	if got.path != "/v1/monitors/gd_1/breaches" {
+		t.Fatalf("path = %q, want /v1/monitors/gd_1/breaches", got.path)
 	}
 }
 
