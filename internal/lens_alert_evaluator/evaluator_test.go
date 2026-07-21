@@ -423,3 +423,27 @@ func guardRuleRow(ruleID, guardID string) *sqlmock.Rows {
 		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"}).
 		AddRow(ruleID, "tn-1", "guard_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, guardID)
 }
+
+// The fence must not WEDGE a fresh rule. A rule evaluated for the first time has status='OK',
+// last_triggered_at NULL and last_evaluated_at NULL — if any of the three fence predicates failed to
+// match that shape, the rule would never stamp last_evaluated_at and would read permanently stale,
+// turning the outage signal added alongside it into a permanent false alarm.
+//
+// `NULL IS NOT DISTINCT FROM NULL` is TRUE, which is precisely why the fence uses it rather than `=`.
+func TestProcessRule_FenceDoesNotWedgeAFreshRule(t *testing.T) {
+	e, mock, db := newEval(t)
+	defer func() { _ = db.Close() }()
+	mock.ExpectExec("UPDATE lens_alert_rules SET status = \\$1, last_evaluated_at = \\$2").
+		WithArgs("OK", sqlmock.AnyArg(), "lar-new", "OK", nil).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	r := alertRule{id: "lar-new", tenantID: "tn-1", metric: "error_rate", comparator: "gt",
+		threshold: 5, windowSeconds: 3600, webhookID: "wwh-1", status: "OK"} // both timestamps zero
+
+	if err := e.processRule(context.Background(), r, json.RawMessage(okSeries)); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("a fresh rule must still stamp last_evaluated_at: %v", err)
+	}
+}
