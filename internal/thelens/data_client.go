@@ -234,9 +234,15 @@ func (c *DataClient) UpdateEvaluator(ctx context.Context, id string, body json.R
 	return c.doRaw(ctx, http.MethodPut, "/v1/evaluators/"+url.PathEscape(id), nil, body)
 }
 
-// RunEvaluator proxies POST /v1/evaluators/{id}/run ({traceIds?,limit?}).
+// RunEvaluator proxies POST /v1/evaluators/{id}/run ({traceIds?,limit?}) — M133: returns a queued
+// job (202) that the client polls via GetEvaluatorRunJob (the run itself is now async upstream).
 func (c *DataClient) RunEvaluator(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
 	return c.doRaw(ctx, http.MethodPost, "/v1/evaluators/"+url.PathEscape(id)+"/run", nil, body)
+}
+
+// GetEvaluatorRunJob proxies GET /v1/evaluator-run-jobs/{id} (M133 — async run status/progress).
+func (c *DataClient) GetEvaluatorRunJob(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodGet, "/v1/evaluator-run-jobs/"+url.PathEscape(id), nil, nil)
 }
 
 // DeleteEvaluator proxies DELETE /v1/evaluators/{id} (204).

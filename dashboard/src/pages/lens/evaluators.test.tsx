@@ -83,14 +83,26 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     expect(await screen.findByText(/field:value/i)).toBeInTheDocument(); // names the real span-query DSL
   });
 
-  it('runs an evaluator via POST /run', async () => {
-    mockCloudFetch.mockResolvedValue({ evaluators: [{ id: 'ev_1', name: 'r', kind: 'rule' }] });
+  it('M133 — runs an evaluator via async POST /run then polls the job to completion', async () => {
+    mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (url === '/v1/dashboard/lens/evaluators' && opts?.method === undefined)
+        return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'r', kind: 'rule' }] });
+      if (url === '/v1/dashboard/lens/evaluators/ev_1/run' && opts?.method === 'POST')
+        return Promise.resolve({ id: 'job1', status: 'queued', total: 0, scored: 0, skipped: 0, errors: 0, truncated: false });
+      if (url === '/v1/dashboard/lens/evaluator-run-jobs/job1')
+        return Promise.resolve({ id: 'job1', status: 'completed', total: 3, scored: 3, skipped: 0, errors: 0, truncated: false });
+      return Promise.resolve({});
+    });
     render(<LensEvaluatorsPage />);
     await userEvent.click(await screen.findByRole('button', { name: /run r/i }));
+    // POST /run is async — it returns a queued job (not a synchronous result).
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/evaluators/ev_1/run',
       expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ throwOnError: true }),
     );
+    // Polling the job resolves to completed → the inline status region shows the tally (feedback, not silence).
+    expect(await screen.findByTestId('run-status')).toHaveTextContent(/scored 3 of 3 spans/i);
   });
 
   it('delete opens ConfirmDialog then calls DELETE on confirm', async () => {

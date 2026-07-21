@@ -149,7 +149,10 @@ func (s *stubLensDataClient) UpdateEvaluator(_ context.Context, _ string, body j
 	return s.write(`{"id":"ev_1","name":"renamed","kind":"rule"}`)
 }
 func (s *stubLensDataClient) RunEvaluator(context.Context, string, json.RawMessage) (json.RawMessage, error) {
-	return s.write(`{"evaluator":"e","written":1}`)
+	return s.write(`{"id":"job1","status":"queued","total":0,"scored":0}`)
+}
+func (s *stubLensDataClient) GetEvaluatorRunJob(context.Context, string) (json.RawMessage, error) {
+	return s.read(`{"id":"job1","status":"completed","total":3,"scored":3}`)
 }
 func (s *stubLensDataClient) DeleteEvaluator(context.Context, string) (json.RawMessage, error) {
 	return s.write(`{}`)

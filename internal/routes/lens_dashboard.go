@@ -58,6 +58,8 @@ type LensDataClient interface {
 	CreateEvaluator(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
 	UpdateEvaluator(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
 	RunEvaluator(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error)
+	// M133 — poll an async evaluator-run job's status/progress.
+	GetEvaluatorRunJob(ctx context.Context, id string) (json.RawMessage, error)
 	DeleteEvaluator(ctx context.Context, id string) (json.RawMessage, error)
 	CreateGuard(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
 	DeleteGuard(ctx context.Context, id string) (json.RawMessage, error)
@@ -465,6 +467,12 @@ func (h *LensDashboardHandler) DeleteEvaluator(w http.ResponseWriter, r *http.Re
 	h.proxy(w, r, "delete evaluator", func() (json.RawMessage, error) { return h.client.DeleteEvaluator(r.Context(), id) })
 }
 
+// GetEvaluatorRunJob polls an async evaluator-run job (M133): status + scored/total progress.
+func (h *LensDashboardHandler) GetEvaluatorRunJob(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "jobID")
+	h.proxy(w, r, "get evaluator run job", func() (json.RawMessage, error) { return h.client.GetEvaluatorRunJob(r.Context(), id) })
+}
+
 // Writes — guards.
 
 func (h *LensDashboardHandler) CreateGuard(w http.ResponseWriter, r *http.Request) {
@@ -600,6 +608,7 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Post("/evaluators", h.CreateEvaluator)
 		r.Put("/evaluators/{evaluatorID}", h.UpdateEvaluator) // M82 — rename/partial-edit (409 on duplicate)
 		r.Post("/evaluators/{evaluatorID}/run", h.RunEvaluator)
+		r.Get("/evaluator-run-jobs/{jobID}", h.GetEvaluatorRunJob) // M133 — poll async run progress
 		r.Delete("/evaluators/{evaluatorID}", h.DeleteEvaluator)
 		// Writes — guards
 		r.Post("/guards", h.CreateGuard)

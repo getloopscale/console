@@ -47,6 +47,18 @@ function ruleSummary(ev: Evaluator): string {
   const predicate = ev.config?.predicate ?? '';
   return predicate.trim() === '' ? 'match-all' : predicate;
 }
+
+/** M133 — an async evaluator-run job (POST /run returns this queued; the client polls for progress). */
+interface RunJob {
+  id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  total: number;
+  scored: number;
+  skipped: number;
+  errors: number;
+  truncated: boolean;
+  errorMessage?: string;
+}
 interface EvaluatorsResult {
   evaluators: Evaluator[];
 }
@@ -153,13 +165,39 @@ export function LensEvaluatorsPage() {
     },
   });
 
+  // M133 — a manual run is async: POST registers a job (202); we then poll GET /evaluator-run-jobs/:id
+  // for status + scored/total progress. `activeRun` tracks the in-flight job for the inline status region.
+  const [activeRun, setActiveRun] = useState<{ evaluatorName: string; jobId: string } | null>(null);
   const run = useMutation({
-    mutationFn: (id: string) =>
-      cloudFetch<{ written: number }>(`/v1/dashboard/lens/evaluators/${encodeURIComponent(id)}/run`, {
-        method: 'POST',
-        body: JSON.stringify({ limit: 100 }),
-      }),
+    mutationFn: (ev: { id: string; name: string }) =>
+      cloudFetch<RunJob>(
+        `/v1/dashboard/lens/evaluators/${encodeURIComponent(ev.id)}/run`,
+        { method: 'POST', body: JSON.stringify({ limit: 100 }) },
+        { throwOnError: true },
+      ),
+    retry: false,
+    onSuccess: (job, ev) => {
+      if (job) setActiveRun({ evaluatorName: ev.name, jobId: job.id });
+    },
   });
+
+  // Poll the async run job until terminal; on completion, refresh the scores chart so the new verdicts show.
+  const runJobQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/lens/evaluator-run-jobs', activeRun?.jobId] as const,
+    queryFn: () => cloudFetch<RunJob>(`/v1/dashboard/lens/evaluator-run-jobs/${encodeURIComponent(activeRun!.jobId)}`),
+    enabled: activeRun !== null,
+    refetchInterval: (q) => {
+      const s = (q.state.data as RunJob | undefined)?.status;
+      return s === 'completed' || s === 'failed' ? false : 1500; // poll ~1.5s until terminal
+    },
+  });
+  const runJob = runJobQuery.data ?? null;
+  useEffect(() => {
+    if (runJob?.status === 'completed') {
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/metrics/scores'] });
+    }
+  }, [runJob?.status, queryClient]);
+  const runInFlight = run.isPending || (runJob !== null && runJob.status !== 'completed' && runJob.status !== 'failed');
 
   const remove = useMutation({
     mutationFn: (e: Evaluator) =>
@@ -251,7 +289,13 @@ export function LensEvaluatorsPage() {
           <Button variant="ghost" size="sm" aria-label={`View rule for ${row.name}`} onClick={() => setViewing(row)}>
             View
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => run.mutate(row.id)} aria-label={`Run ${row.name}`}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => run.mutate({ id: row.id, name: row.name })}
+            disabled={runInFlight}
+            aria-label={`Run ${row.name}`}
+          >
             <Play className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" aria-label={`Rename evaluator ${row.name}`} onClick={() => setRenaming({ id: row.id, value: row.name })}>
@@ -285,9 +329,26 @@ export function LensEvaluatorsPage() {
       >
         <div className="space-y-6">
           {run.isError ? (
-            <Alert intent="warning" title="Could not run the evaluator">
+            <Alert intent="warning" title="Could not start the run" data-testid="run-error">
               Try again shortly.
             </Alert>
+          ) : activeRun && runJob ? (
+            runJob.status === 'failed' ? (
+              <Alert intent="warning" title={`Run failed · ${activeRun.evaluatorName}`} data-testid="run-status">
+                {runJob.errorMessage ?? 'The evaluator run failed.'}
+              </Alert>
+            ) : runJob.status === 'completed' ? (
+              <Alert intent="success" title={`Run complete · ${activeRun.evaluatorName}`} data-testid="run-status">
+                Scored {runJob.scored} of {runJob.total} span{runJob.total === 1 ? '' : 's'}
+                {runJob.errors > 0 ? ` (${runJob.errors} error${runJob.errors === 1 ? '' : 's'})` : ''}.
+              </Alert>
+            ) : (
+              <Alert intent="info" title={`Scoring · ${activeRun.evaluatorName}`} data-testid="run-status">
+                {runJob.status === 'queued'
+                  ? 'Queued…'
+                  : `Scoring ${runJob.scored}${runJob.total ? ` / ${runJob.total}` : ''}…`}
+              </Alert>
+            )
           ) : null}
 
           {query.isLoading ? (
