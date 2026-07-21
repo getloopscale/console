@@ -474,9 +474,13 @@ export function GraphPage() {
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/memory/graph', activeScope, includeSuperseded] as const,
+    // throwOnError so a failed fetch is query.isError, not an empty graph rendered
+    // as "no relations" (theo-cloud#250).
     queryFn: () =>
       cloudFetch<GraphResult>(
         `/v1/dashboard/memory/graph?scope=${activeScope}${includeSuperseded ? '&includeSuperseded=true' : ''}`,
+        {},
+        { throwOnError: true },
       ),
   });
 

@@ -55,6 +55,8 @@ describe('SkillsPage (/memory/skills)', () => {
     expect(screen.getByText('repo-b')).toBeInTheDocument();
     expect(mockCloudFetch).toHaveBeenCalledWith(
       expect.stringContaining('/v1/dashboard/memory/skills/all?'),
+      expect.anything(),
+      expect.objectContaining({ throwOnError: true }),
     );
   });
 
@@ -72,7 +74,7 @@ describe('SkillsPage (/memory/skills)', () => {
     const input = await screen.findByLabelText(/search/i);
     await userEvent.type(input, 'csv');
     // last call carries q=csv
-    expect(mockCloudFetch).toHaveBeenLastCalledWith(expect.stringContaining('q=csv'));
+    expect(mockCloudFetch).toHaveBeenLastCalledWith(expect.stringContaining('q=csv'), expect.anything(), expect.objectContaining({ throwOnError: true }));
   });
 
   it('pagination: Next advances offset; Previous is disabled on the first page', async () => {
@@ -87,7 +89,7 @@ describe('SkillsPage (/memory/skills)', () => {
     const next = screen.getByRole('button', { name: /next/i });
     expect(next).toBeEnabled();
     await userEvent.click(next);
-    expect(mockCloudFetch).toHaveBeenLastCalledWith(expect.stringContaining('offset=25'));
+    expect(mockCloudFetch).toHaveBeenLastCalledWith(expect.stringContaining('offset=25'), expect.anything(), expect.objectContaining({ throwOnError: true }));
   });
 
   it('code is NOT a table column; View details opens a dialog with the full code', async () => {

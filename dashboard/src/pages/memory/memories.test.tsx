@@ -46,6 +46,31 @@ describe('MemoryListPage (/memory/memories)', () => {
     expect(await screen.findByText(/No memories yet/i)).toBeInTheDocument();
   });
 
+  it('a failed fetch shows an error state, NOT an empty state (theo-cloud#250)', async () => {
+    // The whole point: a 404/502 must NOT read as "no memories". cloudFetch resolves
+    // null on failure by default, which the page would render as empty; the page opts
+    // into throwOnError so a rejection becomes query.isError.
+    const err = Object.assign(new Error('API request failed with status 502'), { status: 502 });
+    mockCloudFetch.mockRejectedValueOnce(err);
+    render(<MemoryListPage />);
+    expect(await screen.findByText(/Could not load memories/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No memories yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/hasn't stored any memories/i)).not.toBeInTheDocument();
+  });
+
+  it('passes throwOnError so failures reject instead of resolving null (theo-cloud#250)', async () => {
+    mockCloudFetch.mockResolvedValueOnce({ memories: [] });
+    render(<MemoryListPage />);
+    await screen.findByText(/No memories yet/i);
+    // The list query must opt into throwOnError, or a failed fetch silently becomes
+    // an empty list. Config is the 3rd arg to cloudFetch.
+    const listCall = mockCloudFetch.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('/v1/dashboard/memory/list'),
+    );
+    expect(listCall, 'the list query must call cloudFetch').toBeDefined();
+    expect(listCall?.[2]).toMatchObject({ throwOnError: true });
+  });
+
   it('typing in the category filter triggers a refetch with the new query', async () => {
     mockCloudFetch.mockResolvedValueOnce({ memories: [] });
     const user = userEvent.setup();

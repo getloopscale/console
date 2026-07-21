@@ -13,6 +13,7 @@
 
 
 ### Fixed
+- Dashboard memory pages (memories, entities, graph, skills, webhooks) rendered a failed fetch (4xx/5xx) as an empty state instead of an error, so a routing/broker outage read as "no memories yet"; the read queries now surface the error (#250)
 - The alert evaluator's non-fire status write is now fenced on read-time state, so a replica with a stale non-breaching read can no longer reset another replica's TRIGGERED and trigger an alert storm (#248).
 
 - Alert rules that fire *below* a threshold no longer raise a false alarm on a quiet workspace (#247). A window with no traffic produced the value `0`, and since `lt`/`lte` are valid comparators, a rule like "alert if cost drops below $10" fired permanently on any workspace that simply had no activity — and the anti-storm behaviour then held it open, so it could not be cleared without disabling the rule. Those are exactly the rules you write to detect that a pipeline stopped. "No data" and "the metric is genuinely zero" are now distinguished, and a rule over an empty window is skipped rather than evaluated.

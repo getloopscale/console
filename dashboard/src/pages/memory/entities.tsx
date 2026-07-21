@@ -72,7 +72,14 @@ export function EntitiesPage() {
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/memory/entities', activeScope] as const,
-    queryFn: () => cloudFetch<EntitiesResult>(`/v1/dashboard/memory/entities?scope=${activeScope}`),
+    // throwOnError so a failed fetch is query.isError, not an empty list rendered
+    // as "no entities" (theo-cloud#250).
+    queryFn: () =>
+      cloudFetch<EntitiesResult>(
+        `/v1/dashboard/memory/entities?scope=${activeScope}`,
+        {},
+        { throwOnError: true },
+      ),
   });
 
   // D3 cascade: list memories under this entity, then forget each in
