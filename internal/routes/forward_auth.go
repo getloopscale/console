@@ -136,6 +136,14 @@ func (h *ForwardAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// onto the upstream request via authResponseHeaders. The consumer's own key
 	// is stripped at the edge (D3) so the backend sees ONLY this scoped key.
 	w.Header().Set("Authorization", "Bearer "+minted)
+	// Also hand the credential's user identity so the REST backend can bind the user
+	// tier the SAME way the MCP path does (theo-cloud#249). Auth-trusted — from the
+	// resolved credential, never a client header. The edge strips any client-supplied
+	// X-Theo-User-Id and copies THIS one via authResponseHeaders. Empty for legacy
+	// credentials; the backend then keeps its body-tier behavior.
+	if uc.Subject != "" {
+		w.Header().Set("X-Theo-User-Id", uc.Subject)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 

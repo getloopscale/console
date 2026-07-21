@@ -95,6 +95,40 @@ func TestForwardAuth_ValidKey_Returns200WithMintedAuthorization(t *testing.T) {
 	}
 }
 
+// theo-cloud#249: ForwardAuth hands the credential's user identity upstream as
+// X-Theo-User-Id, so the REST backend binds the user tier like the MCP path.
+func TestForwardAuth_ValidKey_InjectsUserIdHeader(t *testing.T) {
+	h := NewForwardAuthHandler(
+		resolveTo(&auth.UserContext{Subject: "user-de110292", TenantID: "tenant-a"}, []string{"memory:read"}, nil),
+		&stubMinter{key: "theo_live_mintedForA"},
+		allowAuth, "memory:read", quietLogger(),
+	)
+	rec := serveForwardAuth(t, h)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("X-Theo-User-Id"); got != "user-de110292" {
+		t.Fatalf("want the credential subject in X-Theo-User-Id, got %q", got)
+	}
+}
+
+// A legacy credential with no subject sets no X-Theo-User-Id — the backend then keeps
+// its body-tier behavior instead of being pinned to an empty identity.
+func TestForwardAuth_NoSubject_OmitsUserIdHeader(t *testing.T) {
+	h := NewForwardAuthHandler(
+		resolveTo(&auth.UserContext{Subject: "", TenantID: "tenant-a"}, []string{"memory:read"}, nil),
+		&stubMinter{key: "theo_live_mintedForA"},
+		allowAuth, "memory:read", quietLogger(),
+	)
+	rec := serveForwardAuth(t, h)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("X-Theo-User-Id"); got != "" {
+		t.Fatalf("want no X-Theo-User-Id for a subject-less credential, got %q", got)
+	}
+}
+
 func TestForwardAuth_InvalidKey_Returns401_NoAuthorizationHeader(t *testing.T) {
 	h := NewForwardAuthHandler(
 		resolveTo(nil, nil, auth.ErrInvalidCredential),
