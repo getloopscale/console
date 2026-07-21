@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -1380,7 +1381,29 @@ func main() {
 				})
 			return dc.Observability(ctx, lens_alert_evaluator.WindowToRange(windowSeconds))
 		}
-		go lens_alert_evaluator.New(db, fetch, logger).Run(schedulerCtx)
+		// M135: guard-backed rules read a per-guard carrier, not the workspace series. A definitive
+		// 404 is translated to the typed sentinel so the evaluator can disable a rule whose guard is
+		// gone, while a transport error keeps retrying — the two must never collapse into one error.
+		fetchGuard := func(ctx context.Context, tenantID, guardID string, windowSeconds int) (lens_alert_evaluator.GuardBreachWindow, error) {
+			dc := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
+				WithKeyResolver(func(ctx context.Context) (string, error) {
+					return lensBroker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
+				})
+			raw, err := dc.GuardBreachWindow(ctx, guardID, windowSeconds)
+			if err != nil {
+				var us *thelens.UpstreamStatusError
+				if errors.As(err, &us) && us.Status == http.StatusNotFound {
+					return lens_alert_evaluator.GuardBreachWindow{}, lens_alert_evaluator.ErrGuardNotFound
+				}
+				return lens_alert_evaluator.GuardBreachWindow{}, err
+			}
+			var w lens_alert_evaluator.GuardBreachWindow
+			if err := json.Unmarshal(raw, &w); err != nil {
+				return lens_alert_evaluator.GuardBreachWindow{}, err
+			}
+			return w, nil
+		}
+		go lens_alert_evaluator.New(db, fetch, fetchGuard, logger).Run(schedulerCtx)
 		logger.Info("lens alert evaluator started")
 	}
 

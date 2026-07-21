@@ -9,6 +9,8 @@
 - **Evaluators — the Run (play) button now works and shows progress (was silent / 502 for LLM judges).** Clicking Run appeared to do nothing: an `llm_judge` evaluator scored every recent span synchronously and exceeded the edge timeout (502), while the dashboard swallowed the error (no `throwOnError`) and never surfaced success either. The run is now **async** end-to-end (theo-lens M133): Run posts a job, the dashboard **polls** `/v1/dashboard/lens/evaluator-run-jobs/:id` and shows an inline status — `Scoring N/total…` → `Run complete · Scored N of M spans` (or a typed failure) — then refreshes the Scores-over-time chart. The Run button is disabled while a run is in flight. BFF gains the job-status proxy route.
 
 ### Added
+- Alert rules may reference a theo-lens guard (`metric: guard_breach`), so a quality threshold is evaluated on the existing 60s cadence instead of only when someone opens the screen (M135).
+- `theo_lens_alert_evaluation_total{result}` — every alert-rule visit, including the paths that skip.
 - **Evaluators — view an evaluator's rule.** The list gains a **Rule** column with a one-line summary (a `rule`'s predicate, or `judge · <model>` for an `llm_judge`) and a **View** action that opens a centered detail modal with the full rule: the span-query predicate (with the `field:value` syntax hint) for a rule evaluator, or the judge prompt + pinned model for an llm_judge. Previously the rule was only visible while creating the evaluator — after creation there was no way to see it. Frontend-only: the `config` already reached the browser (the BFF passes theo-lens's evaluator shape through verbatim); the UI just wasn't surfacing it.
 
 ### Changed

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func newEval(t *testing.T) (*Evaluator, sqlmock.Sqlmock, *sql.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := New(db, nil, nil)
+	e := New(db, nil, nil, nil)
 	e.now = func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }
 	return e, mock, db
 }
@@ -316,4 +317,109 @@ func TestFetchErrorDoesNotStampLastEvaluated(t *testing.T) {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("a fetch error must leave last_evaluated_at frozen: %v", err)
 	}
+}
+
+// ── SRE condition 6 — a deleted guard is not a transient failure ─────────────────────────────────
+//
+// A transport failure self-heals; a deleted guard never does. Skipping forever is correct for
+// neither. On a DEFINITIVE 404 the rule is disabled, so the customer sees a disabled rule rather
+// than an armed one that can never fire — an honest downgrade. The customer has no reason to
+// connect "I deleted a guard in theo-lens" with "an alert in theo-cloud went dark"; the disabled
+// flag is the breadcrumb.
+func TestTick_GuardNotFound_DisablesTheRule(t *testing.T) {
+	e, mock, db := newEval(t)
+	defer func() { _ = db.Close() }()
+	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
+		return GuardBreachWindow{}, ErrGuardNotFound
+	}
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(guardRuleRow("lar-gone", "g-gone"))
+	mock.ExpectExec("UPDATE lens_alert_rules SET enabled = FALSE").
+		WithArgs("lar-gone").WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("a definitive 404 must disable the rule: %v", err)
+	}
+}
+
+// A TRANSPORT error must NOT disable — auto-disabling on a blip would permanently disarm every
+// guard rule in the fleet the first time theo-lens hiccups. This is the assertion that makes the
+// test above safe rather than dangerous.
+func TestTick_TransportError_DoesNotDisable(t *testing.T) {
+	e, mock, db := newEval(t)
+	defer func() { _ = db.Close() }()
+	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
+		return GuardBreachWindow{}, errors.New("connection reset")
+	}
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(guardRuleRow("lar-blip", "g-1"))
+	// No UPDATE of any kind expected.
+
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("a transport blip must never disarm a rule: %v", err)
+	}
+}
+
+// The in-tick bulkhead: after K consecutive carrier failures the remaining guard rules are skipped
+// for this tick, so a hung theo-lens cannot serialize N × timeout inside one tick and stall the
+// series-backed rules queued behind it — rules with no theo-lens dependency at all.
+func TestTick_GuardBulkheadStopsAfterBudget(t *testing.T) {
+	e, mock, db := newEval(t)
+	defer func() { _ = db.Close() }()
+	calls := 0
+	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
+		calls++
+		return GuardBreachWindow{}, errors.New("hung")
+	}
+	rows := sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"})
+	for i := 0; i < 10; i++ {
+		rows.AddRow(fmt.Sprintf("lar-%d", i), "tn-1", "guard_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil,
+			fmt.Sprintf("g-%d", i)) // distinct guards, so the per-guard cache cannot mask the budget
+	}
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(rows)
+
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != guardFailureBudget {
+		t.Fatalf("bulkhead must stop the carrier after %d failures, got %d calls", guardFailureBudget, calls)
+	}
+}
+
+// N rules on ONE guard must mint one key and issue one call, mirroring the series path's cache.
+func TestTick_GuardResultIsCachedPerGuardAndWindow(t *testing.T) {
+	e, mock, db := newEval(t)
+	defer func() { _ = db.Close() }()
+	calls := 0
+	e.fetchGuard = func(context.Context, string, string, int) (GuardBreachWindow, error) {
+		calls++
+		return GuardBreachWindow{HasData: true, EvaluatedCount: 10, BreachCount: 0}, nil
+	}
+	rows := sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"})
+	for i := 0; i < 3; i++ {
+		rows.AddRow(fmt.Sprintf("lar-c%d", i), "tn-1", "guard_breach", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, "g-same")
+	}
+	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(rows)
+	for i := 0; i < 3; i++ {
+		mock.ExpectExec("UPDATE lens_alert_rules SET status").WillReturnResult(sqlmock.NewResult(0, 1))
+	}
+
+	if err := e.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("3 rules on one guard must issue 1 carrier call, got %d", calls)
+	}
+}
+
+func guardRuleRow(ruleID, guardID string) *sqlmock.Rows {
+	return sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "guard_id"}).
+		AddRow(ruleID, "tn-1", "guard_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, guardID)
 }

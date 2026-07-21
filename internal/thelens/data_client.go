@@ -260,6 +260,17 @@ func (c *DataClient) GuardBreaches(ctx context.Context, id string) (json.RawMess
 	return c.getRaw(ctx, "/v1/guards/"+url.PathEscape(id)+"/breaches", nil)
 }
 
+// GuardBreachWindow proxies GET /v1/guards/{id}/breach-window?window=N.
+//
+// M135: this is what the alert evaluator reads. The observability series is a WORKSPACE aggregate
+// returning one float per window and structurally cannot answer a per-guard question — there is no
+// parameter through which a guard id could travel.
+func (c *DataClient) GuardBreachWindow(ctx context.Context, id string, windowSeconds int) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("window", strconv.Itoa(windowSeconds))
+	return c.getRaw(ctx, "/v1/guards/"+url.PathEscape(id)+"/breach-window", q)
+}
+
 // CreateGuard proxies POST /v1/guards ({evaluatorId,operator,...}).
 func (c *DataClient) CreateGuard(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
 	return c.doRaw(ctx, http.MethodPost, "/v1/guards", nil, body)

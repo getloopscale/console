@@ -9,8 +9,11 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+
+	"github.com/usetheodev/theo-cloud/internal/metrics"
 	"time"
 )
 
@@ -52,12 +55,33 @@ type Evaluator struct {
 	interval time.Duration
 }
 
-// New constructs the evaluator. `fetch` is the per-tenant series fetcher (broker+data-client in prod).
-func New(db *sql.DB, fetch SeriesFetcher, logger *slog.Logger) *Evaluator {
+// ErrGuardNotFound is the DEFINITIVE "this guard no longer exists" answer, as distinct from any
+// transport failure. The distinction is the same discipline HasData applies to absence-vs-zero: a
+// transient failure self-heals and must be retried; a deleted guard never does and must stop
+// pretending to be armed. Collapsing the two into one `error` is how a rule goes dark forever.
+var ErrGuardNotFound = errors.New("lens alert evaluator: guard not found")
+
+// guardFetchTimeout bounds ONE carrier call. Tick is a single sequential loop, so without this an
+// unresponsive theo-lens serializes N guard rules inside one tick and stalls the series-backed
+// rules queued behind them — rules that have no theo-lens dependency at all. A scoped dependency
+// failure would become a fleet-wide alerting outage.
+const guardFetchTimeout = 5 * time.Second
+
+// guardFailureBudget stops the remaining guard rules for THIS tick after K consecutive carrier
+// failures. Same shape as the series path's `failed` map: bound the damage in-tick, carry no state
+// across ticks. 500 rules against a hung lens is ~42min with only a per-call timeout; ~15s with this.
+const guardFailureBudget = 3
+
+// New constructs the evaluator. Both fetchers are REQUIRED positional arguments, deliberately: an
+// optional guard fetcher is how the feature shipped nil in production once already, making every
+// guard-backed rule permanently dead while reading "armed" on the customer's screen. A compile
+// error is a better gate than a runtime warning.
+func New(db *sql.DB, fetch SeriesFetcher, fetchGuard GuardBreachFetcher, logger *slog.Logger) *Evaluator {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Evaluator{db: db, fetch: fetch, logger: logger, now: time.Now, interval: 60 * time.Second}
+	return &Evaluator{db: db, fetch: fetch, fetchGuard: fetchGuard, logger: logger,
+		now: time.Now, interval: 60 * time.Second}
 }
 
 // alertRule is the subset of lens_alert_rules the evaluator reads.
@@ -73,6 +97,13 @@ type alertRule struct {
 	lastTriggered sql.NullTime
 	renotify      sql.NullInt64
 	guardID       sql.NullString
+}
+
+// guardKey caches one carrier answer per (tenant, guard, window) within a tick.
+type guardKey struct {
+	tenant string
+	guard  string
+	window int
 }
 
 // Run drives the periodic evaluation loop until ctx is cancelled (graceful shutdown).
@@ -114,6 +145,12 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 	cache := map[key]json.RawMessage{}
 	failed := map[key]bool{}
 
+	// The guard path caches by (tenant, guard, window) for the same reason the series path caches
+	// by (tenant, window): N rules on one guard must not mint N keys and issue N calls.
+	type guardKeyT = guardKey
+	guardCache := map[guardKeyT]GuardBreachWindow{}
+	guardFailures := 0
+
 	for rows.Next() {
 		var r alertRule
 		if err := rows.Scan(&r.id, &r.tenantID, &r.metric, &r.comparator, &r.threshold, &r.windowSeconds,
@@ -125,16 +162,57 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 		// series is a workspace aggregate returning one float per window and cannot answer a
 		// per-guard question — hence a second fetcher rather than a new metric case.
 		if r.metric == MetricGuardBreach {
+			// Unreachable once migration 000058's pairing CHECK is applied — kept as belt-and-braces
+			// so a reader does not infer the database permits this state.
 			if e.fetchGuard == nil || !r.guardID.Valid {
-				e.logger.Warn("lens alert evaluator: guard rule without a guard fetch — skipping", "rule", r.id)
+				metrics.IncLensAlertEvaluation("unwired")
+				e.logger.Error("lens alert evaluator: guard rule cannot be evaluated — no fetcher or no guard id",
+					"rule", r.id)
 				continue
 			}
-			w, ferr := e.fetchGuard(ctx, r.tenantID, r.guardID.String, r.windowSeconds)
-			if ferr != nil {
-				// Fail-closed, identical to the series path: a failed fetch is absence, never zero.
-				e.logger.Warn("lens alert evaluator: guard fetch failed — skipping rule",
-					"rule", r.id, "guard", r.guardID.String, "error", ferr)
+			if guardFailures >= guardFailureBudget {
+				// In-tick bulkhead: the carrier is clearly unwell; stop burning the tick budget on
+				// it so series-backed rules — which do not depend on theo-lens at all — still run.
+				metrics.IncLensAlertEvaluation("fetch_error")
 				continue
+			}
+			gk := guardKey{r.tenantID, r.guardID.String, r.windowSeconds}
+			w, cached := guardCache[gk]
+			if !cached {
+				fctx, cancel := context.WithTimeout(ctx, guardFetchTimeout)
+				var ferr error
+				w, ferr = e.fetchGuard(fctx, r.tenantID, r.guardID.String, r.windowSeconds)
+				cancel()
+				if ferr != nil {
+					// A DEFINITIVE 404 is not a transient failure: the guard is gone and no number
+					// of retries brings it back. Disable the rule so the customer sees a disabled
+					// rule instead of an armed one that can never fire — an honest downgrade. A
+					// transport error keeps skipping, because auto-disabling on a blip would
+					// permanently disarm every guard rule in the fleet.
+					if errors.Is(ferr, ErrGuardNotFound) {
+						metrics.IncLensAlertEvaluation("guard_missing")
+						e.logger.Warn("lens alert evaluator: guard no longer exists — disabling rule",
+							"rule", r.id, "guard", r.guardID.String)
+						if _, derr := e.db.ExecContext(ctx,
+							`UPDATE lens_alert_rules SET enabled = FALSE WHERE id = $1`, r.id); derr != nil {
+							e.logger.Warn("lens alert evaluator: disable failed", "rule", r.id, "error", derr)
+						}
+						continue
+					}
+					// Fail-closed: a failed fetch is absence, never zero. Deliberately NOT stamping
+					// last_evaluated_at — the freeze IS the durable outage signal.
+					guardFailures++
+					metrics.IncLensAlertEvaluation("fetch_error")
+					e.logger.Warn("lens alert evaluator: guard fetch failed — skipping rule",
+						"rule", r.id, "guard", r.guardID.String, "error", ferr)
+					continue
+				}
+				guardCache[gk] = w
+			}
+			if w.HasData {
+				metrics.IncLensAlertEvaluation("ok")
+			} else {
+				metrics.IncLensAlertEvaluation("no_data")
 			}
 			if perr := e.processGuardRule(ctx, r, w); perr != nil {
 				e.logger.Warn("lens alert evaluator: process guard rule failed", "rule", r.id, "error", perr)

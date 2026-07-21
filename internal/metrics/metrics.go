@@ -52,6 +52,15 @@ var (
 		Help: "Total objects removed from tenant blob storage (incl. bulk/folder deletes).",
 	})
 
+	// M135 — every alert-rule visit, INCLUDING the paths that skip. A rule that stops evaluating
+	// and says nothing is the operational twin of theo-cloud#247: #247 claimed something was wrong
+	// when nothing was; a silent skip claims nothing is wrong when everything is. No tenant label —
+	// cardinality discipline, matching storageBytesWritten above.
+	lensAlertEvaluation = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "theo_lens_alert_evaluation_total",
+		Help: "Alert-rule evaluations by result (ok|no_data|fetch_error|guard_missing|unwired).",
+	}, []string{"result"})
+
 	tenantProvisioning = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "theo_tenant_provisioning_total",
 		Help: "Tenant provisioning operations.",
@@ -132,6 +141,7 @@ func init() {
 		deviceFlowBrowserSuccess,
 		storageBytesWritten,
 		storageObjectsDeleted,
+		lensAlertEvaluation,
 		tenantProvisioning,
 		tenantProvisioningDuration,
 		authRejections,
@@ -184,6 +194,13 @@ func ObjectsDeletedValue() float64 {
 		return 0
 	}
 	return m.GetCounter().GetValue()
+}
+
+// IncLensAlertEvaluation records one alert-rule visit. `result` is one of ok / no_data /
+// fetch_error / guard_missing / unwired. Sustained fetch_error is the page-worthy signal: it means
+// rules the customer believes are armed are not being evaluated at all.
+func IncLensAlertEvaluation(result string) {
+	lensAlertEvaluation.WithLabelValues(result).Inc()
 }
 
 // IncTokenExchange increments token exchange counter.
