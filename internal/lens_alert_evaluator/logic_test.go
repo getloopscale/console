@@ -4,8 +4,8 @@
 package lens_alert_evaluator
 
 import (
-	"math"
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 )

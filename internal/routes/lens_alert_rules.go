@@ -4,8 +4,10 @@
 package routes
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -24,9 +26,30 @@ import (
 // lens_saved_views isolation: every row scoped by (subject, tenant_id) from the Principal — never the
 // body — with a cross-tenant delete collapsing to 404 (existence-leak prevention).
 type LensAlertRulesHandler struct {
-	db     *sql.DB
-	logger *slog.Logger
+	db          *sql.DB
+	logger      *slog.Logger
+	verifyGuard GuardOwnershipVerifier
 }
+
+// GuardOwnershipVerifier answers "does this guard exist AND belong to this tenant?" for the create
+// path. There is no FK on guard_id — guards live in theo-lens — so this single check is the ONLY
+// create-time guarantee, and it is doing both jobs: catching a typo, and stopping tenant A from
+// pointing a rule at tenant B's guard.
+//
+// Returned error semantics are deliberately split (M135, SRE condition 6): ErrGuardNotOwned is a
+// DEFINITIVE answer and rejects the create; any other error is transport and the create proceeds,
+// because importing theo-lens's availability into theo-cloud's write path trades a rare typo for a
+// common outage.
+type GuardOwnershipVerifier func(ctx context.Context, tenantID, guardID string) error
+
+// ErrGuardNotOwned means the guard does not exist, or exists under another tenant. Both collapse to
+// one answer on purpose: distinguishing them would confirm the existence of another tenant's id.
+var ErrGuardNotOwned = errors.New("guard not found for this tenant")
+
+// staleAfterTicks — a rule that has not been evaluated for this many tick intervals is reported
+// stale. The customer cannot do this arithmetic themselves: the 60s cadence is not published.
+const staleAfterTicks = 3
+const evaluatorTickSeconds = 60
 
 const lensAlertRuleIDPrefix = "lar-"
 const alertRuleNameMax = 64
@@ -34,7 +57,8 @@ const alertRuleNameMax = 64
 var lensAlertRuleIDPattern = regexp.MustCompile(`^lar-[0-9a-f]{16}$`)
 
 // Closed enums (mirrored by the DB CHECK constraints).
-var validAlertMetrics = map[string]bool{"error_rate": true, "cost": true, "p95_latency": true}
+var validAlertMetrics = map[string]bool{"error_rate": true, "cost": true, "p95_latency": true,
+	"guard_breach": true}
 var validAlertComparators = map[string]bool{"gt": true, "gte": true, "lt": true, "lte": true}
 
 // The 4 windows that map to theo-lens's observability range presets (1h/24h/7d/30d). The evaluator
@@ -42,22 +66,28 @@ var validAlertComparators = map[string]bool{"gt": true, "gte": true, "lt": true,
 var validAlertWindows = map[int]bool{3600: true, 86400: true, 604800: true, 2592000: true}
 
 // NewLensAlertRulesHandler constructs the handler over the shared engine DB.
-func NewLensAlertRulesHandler(db *sql.DB, logger *slog.Logger) *LensAlertRulesHandler {
+// The verifier is a REQUIRED argument, not an option. M135 shipped an optional guard fetcher nil
+// once already and every guard rule went silently dead; the lesson generalises to this seam.
+func NewLensAlertRulesHandler(db *sql.DB, verifyGuard GuardOwnershipVerifier, logger *slog.Logger) *LensAlertRulesHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &LensAlertRulesHandler{db: db, logger: logger}
+	return &LensAlertRulesHandler{db: db, verifyGuard: verifyGuard, logger: logger}
 }
 
 // LensAlertRuleView is the JSON shape returned to the dashboard.
 type LensAlertRuleView struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	Metric          string  `json:"metric"`
-	Comparator      string  `json:"comparator"`
-	Threshold       float64 `json:"threshold"`
-	WindowSeconds   int     `json:"window_seconds"`
-	WebhookID       string  `json:"webhook_id"`
+	ID            string  `json:"id"`
+	Name          string  `json:"name"`
+	Metric        string  `json:"metric"`
+	Comparator    string  `json:"comparator"`
+	Threshold     float64 `json:"threshold"`
+	WindowSeconds int     `json:"window_seconds"`
+	WebhookID     string  `json:"webhook_id"`
+	GuardID       *string `json:"guard_id,omitempty"`
+	// Stale is derived at read time: the rule is enabled but has not been evaluated for
+	// staleAfterTicks intervals. It distinguishes "healthy, never breached" from "nobody is looking".
+	Stale           bool    `json:"stale"`
 	Enabled         bool    `json:"enabled"`
 	Status          string  `json:"status"`
 	LastEvaluatedAt *string `json:"last_evaluated_at"`
@@ -199,6 +229,7 @@ func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		WindowSeconds int     `json:"window_seconds"`
 		WebhookID     string  `json:"webhook_id"`
 		Renotify      *int    `json:"renotify_interval_seconds"`
+		GuardID       string  `json:"guard_id"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid JSON body.")
@@ -210,7 +241,21 @@ func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validAlertMetrics[req.Metric] {
-		writeError(w, http.StatusBadRequest, "INVALID_METRIC", "metric must be error_rate | cost | p95_latency.")
+		writeError(w, http.StatusBadRequest, "INVALID_METRIC",
+			"metric must be error_rate | cost | p95_latency | guard_breach.")
+		return
+	}
+	// M135 — the guard pairing. The DB CHECK enforces it too (migration 000058); this is the
+	// friendly half, so the user gets a typed message instead of a constraint violation.
+	guardID := strings.TrimSpace(req.GuardID)
+	if req.Metric == "guard_breach" && guardID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_GUARD",
+			"A guard_id is required for a guard_breach rule.")
+		return
+	}
+	if req.Metric != "guard_breach" && guardID != "" {
+		writeError(w, http.StatusBadRequest, "INVALID_GUARD",
+			"guard_id is only valid on a guard_breach rule.")
 		return
 	}
 	if !validAlertComparators[req.Comparator] {
@@ -246,12 +291,32 @@ func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ownership check for the guard, mirroring the webhook check above. Validate at the one moment
+	// a human is present to fix a typo: accepting a bad reference silently produces a rule the user
+	// believes protects them and which can never fire.
+	if guardID != "" {
+		if h.verifyGuard == nil {
+			h.logger.Error("lens alert rules create: no guard verifier wired — refusing guard rule")
+			writeError(w, http.StatusInternalServerError, "INTERNAL", "Could not create rule. Try again.")
+			return
+		}
+		if verr := h.verifyGuard(r.Context(), user.TenantID, guardID); verr != nil {
+			if errors.Is(verr, ErrGuardNotOwned) {
+				writeError(w, http.StatusBadRequest, "INVALID_GUARD", "guard_id must be one of your guards.")
+				return
+			}
+			// Transport failure: accept and let the evaluator carry it. Do NOT import theo-lens's
+			// availability into this write path.
+			h.logger.Warn("lens alert rules create: guard verify unavailable — accepting", "error", verr)
+		}
+	}
+
 	id := lensAlertRuleIDPrefix + randomHex16()
 	const q = `INSERT INTO lens_alert_rules
-		(id, subject, tenant_id, name, metric, comparator, threshold, window_seconds, webhook_id, renotify_interval_seconds)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`
+		(id, subject, tenant_id, name, metric, comparator, threshold, window_seconds, webhook_id, renotify_interval_seconds, guard_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULLIF($11,''))`
 	if _, err := h.db.ExecContext(r.Context(), q,
-		id, user.Subject, user.TenantID, name, req.Metric, req.Comparator, req.Threshold, req.WindowSeconds, req.WebhookID, req.Renotify); err != nil {
+		id, user.Subject, user.TenantID, name, req.Metric, req.Comparator, req.Threshold, req.WindowSeconds, req.WebhookID, req.Renotify, guardID); err != nil {
 		h.logger.Warn("lens alert rules create: insert failed", "error", err, "id", id)
 		writeError(w, http.StatusInternalServerError, "INTERNAL", "Could not create rule. Try again.")
 		return
@@ -266,13 +331,22 @@ func (h *LensAlertRulesHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
 		return
 	}
+	// `stale` is DERIVED, not stored. last_evaluated_at freezing is the only durable signal that
+	// evaluation stopped (the evaluator deliberately does not stamp on a fetch error), but the 60s
+	// cadence is not published, so the customer cannot do this arithmetic. We do it for them.
+	//
+	// created_at is the fallback baseline: a rule with a NULL last_evaluated_at is only stale once
+	// it has existed long enough to have been evaluated — otherwise every rule reads stale for its
+	// first minute, and a signal that cries wolf is worse than none.
 	const q = `SELECT id, name, metric, comparator, threshold, window_seconds, webhook_id, enabled, status,
-		last_evaluated_at, last_triggered_at, renotify_interval_seconds, created_at
+		last_evaluated_at, last_triggered_at, renotify_interval_seconds, created_at, guard_id,
+		(enabled AND COALESCE(last_evaluated_at, created_at) < now() - make_interval(secs => $3)) AS stale
 		FROM lens_alert_rules
 		WHERE subject = $1 AND tenant_id = $2
 		ORDER BY created_at DESC
 		LIMIT 200`
-	rows, err := h.db.QueryContext(r.Context(), q, user.Subject, user.TenantID)
+	rows, err := h.db.QueryContext(r.Context(), q, user.Subject, user.TenantID,
+		float64(staleAfterTicks*evaluatorTickSeconds))
 	if err != nil {
 		h.logger.Warn("lens alert rules list: query failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "INTERNAL", "Could not list rules. Try again.")
@@ -282,12 +356,16 @@ func (h *LensAlertRulesHandler) List(w http.ResponseWriter, r *http.Request) {
 	out := make([]LensAlertRuleView, 0, 16)
 	for rows.Next() {
 		var v LensAlertRuleView
-		var lastEval, lastTrig sql.NullString
+		var lastEval, lastTrig, guardID sql.NullString
 		var renotify sql.NullInt64
 		if err := rows.Scan(&v.ID, &v.Name, &v.Metric, &v.Comparator, &v.Threshold, &v.WindowSeconds,
-			&v.WebhookID, &v.Enabled, &v.Status, &lastEval, &lastTrig, &renotify, &v.CreatedAt); err != nil {
+			&v.WebhookID, &v.Enabled, &v.Status, &lastEval, &lastTrig, &renotify, &v.CreatedAt,
+			&guardID, &v.Stale); err != nil {
 			h.logger.Warn("lens alert rules list: scan failed", "error", err)
 			continue
+		}
+		if guardID.Valid {
+			v.GuardID = &guardID.String
 		}
 		if lastEval.Valid {
 			v.LastEvaluatedAt = &lastEval.String

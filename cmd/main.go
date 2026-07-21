@@ -1073,7 +1073,7 @@ func main() {
 	// M53: lens alert rules — per-tenant threshold rules (engine migration 000054). Same db-gated
 	// cloud-owned Postgres resource; the evaluator worker that consumes them starts below.
 	if db != nil {
-		routes.MountLensAlertRules(r, routes.NewLensAlertRulesHandler(db, logger), requireJWT)
+		routes.MountLensAlertRules(r, routes.NewLensAlertRulesHandler(db, guardOwnershipVerifier(cfg.LensBaseURL, lensBroker), logger), requireJWT)
 	}
 	// M66: lens custom dashboards — per-workspace board config (engine migration 000055). Same
 	// db-gated cloud-owned Postgres resource; the board data reads through the lens BFF above.
@@ -1490,5 +1490,34 @@ func main() {
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		logger.Error("server failed", "error", err)
 		os.Exit(1)
+	}
+}
+
+// guardOwnershipVerifier answers "does this guard exist AND belong to this tenant?" on the alert-rule
+// create path. It mints a per-tenant observability:read key, so a guard belonging to another tenant
+// is simply not visible — the check is tenant-scoped by construction rather than by a WHERE clause
+// we could forget. There is no FK on guard_id (guards live in theo-lens), so this is the only
+// create-time guarantee that exists.
+//
+// A 404 is DEFINITIVE and rejects the create; anything else is transport and is reported as such, so
+// the caller can accept the rule rather than import theo-lens's availability into our write path.
+func guardOwnershipVerifier(lensBaseURL string, broker routes.TenantKeyMinter) routes.GuardOwnershipVerifier {
+	if broker == nil || lensBaseURL == "" {
+		return nil
+	}
+	return func(ctx context.Context, tenantID, guardID string) error {
+		dc := thelens.NewDataClient(lensBaseURL, &http.Client{Timeout: 2 * time.Second}).
+			WithKeyResolver(func(ctx context.Context) (string, error) {
+				return broker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
+			})
+		// breach-window over the smallest window: the cheapest call that 404s on an unknown guard.
+		if _, err := dc.GuardBreachWindow(ctx, guardID, 60); err != nil {
+			var us *thelens.UpstreamStatusError
+			if errors.As(err, &us) && (us.Status == http.StatusNotFound || us.Status == http.StatusForbidden) {
+				return routes.ErrGuardNotOwned
+			}
+			return err
+		}
+		return nil
 	}
 }

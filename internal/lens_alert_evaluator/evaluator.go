@@ -50,9 +50,9 @@ type Evaluator struct {
 	db         *sql.DB
 	fetch      SeriesFetcher
 	fetchGuard GuardBreachFetcher
-	logger   *slog.Logger
-	now      func() time.Time
-	interval time.Duration
+	logger     *slog.Logger
+	now        func() time.Time
+	interval   time.Duration
 }
 
 // ErrGuardNotFound is the DEFINITIVE "this guard no longer exists" answer, as distinct from any
@@ -365,7 +365,7 @@ func (e *Evaluator) decide(ctx context.Context, r alertRule, value float64) erro
 
 // deliveryIDFor / transitionIDFor centralize the id shapes so the delivery row and its history row
 // share the SAME transition_id (the anti-storm dedup key) and reference the SAME delivery id.
-func deliveryIDFor() string                    { return "wwd-" + randomHex16() }
+func deliveryIDFor() string { return "wwd-" + randomHex16() }
 func transitionIDFor(ruleID string, now time.Time) string {
 	return fmt.Sprintf("alert-%s-%d", ruleID, now.Unix())
 }
