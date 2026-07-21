@@ -189,3 +189,37 @@ func TestMetricFromSeries_GenuineZeroStillEvaluates(t *testing.T) {
 		t.Error("a real zero below the threshold SHOULD breach an lt rule")
 	}
 }
+
+// ── M135 — the renotify boundary the suite never touched ─────────────────────────────────────────
+//
+// The predicate is `now.Sub(lastTriggered) >= renotifyS` (logic.go). The existing test covers 100s
+// (suppress) and 400s (fire) against a 300s interval — it straddles the boundary without ever
+// standing on it, so a `>` / `>=` off-by-one passes both cases. Equality is the only input that
+// tells the two predicates apart, and it is the input a fixed-cadence tick hits routinely: a 60s
+// tick against a 300s renotify lands on the boundary exactly, every fifth tick.
+//
+// Guard-backed rules make this load-bearing rather than academic. A renotify that is silently one
+// tick late is invisible in a log and indistinguishable from a slow tick.
+func TestNextAlertState_RenotifyExactBoundaryFires(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	d := nextAlertState("TRIGGERED", true, now.Add(-300*time.Second), 300, now)
+	if !d.fire {
+		t.Fatalf("at exactly the renotify interval the alert must re-fire (>= not >), got %+v", d)
+	}
+	// One second short of the boundary must still suppress — the assertion that keeps the test
+	// above honest. Without it, a predicate that always fires would pass.
+	if d := nextAlertState("TRIGGERED", true, now.Add(-299*time.Second), 300, now); d.fire {
+		t.Fatalf("one second before the interval must suppress, got %+v", d)
+	}
+}
+
+// A TRIGGERED rule with renotify configured but NO recorded last_triggered_at. The guard clause is
+// `!lastTriggered.IsZero()`, so the zero time must suppress rather than be treated as "the epoch,
+// therefore infinitely long ago" — which would re-fire on every single tick. Reachable in practice:
+// a row written by an older evaluator, or a status flip whose timestamp write was lost.
+func TestNextAlertState_RenotifyWithZeroLastTriggeredSuppresses(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	if d := nextAlertState("TRIGGERED", true, time.Time{}, 300, now); d.fire {
+		t.Fatalf("zero last_triggered must not be read as an elapsed interval, got %+v", d)
+	}
+}

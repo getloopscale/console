@@ -19,13 +19,34 @@ import (
 // the evaluator core is unit-testable without the broker (least-privilege wiring stays at construction).
 type SeriesFetcher func(ctx context.Context, tenantID string, windowSeconds int) (json.RawMessage, error)
 
+// MetricGuardBreach is the sentinel metric of a guard-backed rule (M135). Such a rule thresholds the
+// number of traces that breached a theo-lens guard in the window, instead of a workspace aggregate.
+const MetricGuardBreach = "guard_breach"
+
+// GuardBreachWindow mirrors theo-lens `GET /v1/guards/:id/breach-window`.
+//
+// HasData is the load-bearing field. A window where traces WERE evaluated and none breached
+// (HasData true, BreachCount 0) is a MEASUREMENT of zero; a window with nothing to evaluate
+// (HasData false) is ABSENCE. Collapsing the two is #247: an empty window read as a real zero and
+// fired every below-threshold rule permanently — in exactly the tenants whose traffic had stopped.
+type GuardBreachWindow struct {
+	BreachCount    int  `json:"breachCount"`
+	EvaluatedCount int  `json:"evaluatedCount"`
+	HasData        bool `json:"hasData"`
+}
+
+// GuardBreachFetcher fetches one guard's windowed breach summary. Injected for the same reason as
+// SeriesFetcher: the evaluator core stays unit-testable without the broker.
+type GuardBreachFetcher func(ctx context.Context, tenantID, guardID string, windowSeconds int) (GuardBreachWindow, error)
+
 // Evaluator is the background alert-rule evaluator (theo-lens M53). It ticks periodically, fetches each
 // tenant's observability series, evaluates each rule via the pure state machine, and on a fire enqueues a
 // workspace_webhook_deliveries row for the existing J-16 worker to dispatch. It NEVER dispatches HTTP
 // itself (reuse — Rule 9).
 type Evaluator struct {
-	db       *sql.DB
-	fetch    SeriesFetcher
+	db         *sql.DB
+	fetch      SeriesFetcher
+	fetchGuard GuardBreachFetcher
 	logger   *slog.Logger
 	now      func() time.Time
 	interval time.Duration
@@ -51,6 +72,7 @@ type alertRule struct {
 	status        string
 	lastTriggered sql.NullTime
 	renotify      sql.NullInt64
+	guardID       sql.NullString
 }
 
 // Run drives the periodic evaluation loop until ctx is cancelled (graceful shutdown).
@@ -75,7 +97,7 @@ func (e *Evaluator) Run(ctx context.Context) {
 func (e *Evaluator) Tick(ctx context.Context) error {
 	rows, err := e.db.QueryContext(ctx, `
 		SELECT id, tenant_id, metric, comparator, threshold, window_seconds, webhook_id, status,
-		       last_triggered_at, renotify_interval_seconds
+		       last_triggered_at, renotify_interval_seconds, guard_id
 		FROM lens_alert_rules
 		WHERE enabled
 		ORDER BY tenant_id`)
@@ -95,8 +117,28 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 	for rows.Next() {
 		var r alertRule
 		if err := rows.Scan(&r.id, &r.tenantID, &r.metric, &r.comparator, &r.threshold, &r.windowSeconds,
-			&r.webhookID, &r.status, &r.lastTriggered, &r.renotify); err != nil {
+			&r.webhookID, &r.status, &r.lastTriggered, &r.renotify, &r.guardID); err != nil {
 			e.logger.Warn("lens alert evaluator: scan failed", "error", err)
+			continue
+		}
+		// M135: a guard-backed rule reads the per-guard carrier, not the workspace series. The
+		// series is a workspace aggregate returning one float per window and cannot answer a
+		// per-guard question — hence a second fetcher rather than a new metric case.
+		if r.metric == MetricGuardBreach {
+			if e.fetchGuard == nil || !r.guardID.Valid {
+				e.logger.Warn("lens alert evaluator: guard rule without a guard fetch — skipping", "rule", r.id)
+				continue
+			}
+			w, ferr := e.fetchGuard(ctx, r.tenantID, r.guardID.String, r.windowSeconds)
+			if ferr != nil {
+				// Fail-closed, identical to the series path: a failed fetch is absence, never zero.
+				e.logger.Warn("lens alert evaluator: guard fetch failed — skipping rule",
+					"rule", r.id, "guard", r.guardID.String, "error", ferr)
+				continue
+			}
+			if perr := e.processGuardRule(ctx, r, w); perr != nil {
+				e.logger.Warn("lens alert evaluator: process guard rule failed", "rule", r.id, "error", perr)
+			}
 			continue
 		}
 		k := key{r.tenantID, r.windowSeconds}
@@ -132,11 +174,41 @@ func (e *Evaluator) processRule(ctx context.Context, r alertRule, raw json.RawMe
 	}
 	value, ok := metricFromSeries(series, r.metric)
 	if !ok {
-		// No data in the window (or an unrecognised metric). Skip rather than
-		// evaluate — identical in spirit to the fail-closed fetch-error path
-		// above: absence must never be read as a measurement. Fixes #247.
-		return nil
+		// No data in the window (or an unrecognised metric). Never evaluated as a measurement —
+		// that is #247. But the rule WAS looked at, so the evaluation is recorded: freezing
+		// last_evaluated_at would make the screen claim we stopped checking, which is a second
+		// silent lie of the same family as the first.
+		return e.recordEvaluation(ctx, r)
 	}
+	return e.decide(ctx, r, value)
+}
+
+// processGuardRule is the guard-backed twin of processRule (M135). It resolves the number from the
+// windowed breach summary and hands it to the SAME decision path — the state machine, the atomic
+// transition and the delivery enqueue are reused verbatim.
+func (e *Evaluator) processGuardRule(ctx context.Context, r alertRule, w GuardBreachWindow) error {
+	if !w.HasData {
+		// Absence, not zero. Not evaluating here is the whole reason the carrier reports HasData at
+		// all; thresholding BreachCount==0 from an empty window is #247 with a different source.
+		// The evaluation itself is still recorded — see recordEvaluation.
+		return e.recordEvaluation(ctx, r)
+	}
+	return e.decide(ctx, r, float64(w.BreachCount))
+}
+
+// recordEvaluation stamps last_evaluated_at without touching status, for a window that held no
+// measurement. "We looked and there was nothing" and "we stopped looking" are different facts and
+// the screen must be able to tell them apart.
+func (e *Evaluator) recordEvaluation(ctx context.Context, r alertRule) error {
+	_, err := e.db.ExecContext(ctx,
+		`UPDATE lens_alert_rules SET last_evaluated_at = $1 WHERE id = $2`, e.now(), r.id)
+	return err
+}
+
+// decide applies the pure state machine to an already-resolved value and performs the transition.
+// Splitting it out is what lets a guard rule reuse the anti-storm machinery rather than grow a
+// second copy of it — the reuse boundary the milestone turns on.
+func (e *Evaluator) decide(ctx context.Context, r alertRule, value float64) error {
 	breached := evaluateBreach(value, r.threshold, r.comparator)
 
 	lastTrig := time.Time{}
@@ -151,10 +223,26 @@ func (e *Evaluator) processRule(ctx context.Context, r alertRule, raw json.RawMe
 	d := nextAlertState(r.status, breached, lastTrig, renotify, now)
 
 	if !d.fire {
-		// Record the evaluation + any status change (e.g. TRIGGERED → OK on clear); unconditional.
+		// Record the evaluation + any status change (e.g. TRIGGERED → OK on clear), FENCED on the
+		// state we read (#248). It used to be unconditional, which let a replica holding a stale
+		// non-breaching read reset a TRIGGERED another replica had just latched — and because
+		// transition_id is `alert-{rule}-{unix-second}`, the resulting re-fire got a fresh id and
+		// ON CONFLICT did not dedupe it. An alert storm out of the anti-storm machinery.
+		//
+		// transition_id is defence-in-depth; the conditional UPDATE is the only real serialization
+		// point, so BOTH write paths must use it. Zero rows means another replica moved the rule
+		// since our read: a no-op, not an error.
+		//
+		// The monotone last_evaluated_at clause is not cosmetic. A frozen last_evaluated_at is the
+		// only durable signal that evaluation stopped, so a late writer must never rewind it nor
+		// refresh it in a way that masks an outage.
 		_, err := e.db.ExecContext(ctx,
-			`UPDATE lens_alert_rules SET status = $1, last_evaluated_at = $2 WHERE id = $3`,
-			d.nextStatus, now, r.id)
+			`UPDATE lens_alert_rules SET status = $1, last_evaluated_at = $2
+			 WHERE id = $3
+			   AND status = $4
+			   AND last_triggered_at IS NOT DISTINCT FROM $5
+			   AND (last_evaluated_at IS NULL OR last_evaluated_at <= $2)`,
+			d.nextStatus, now, r.id, r.status, r.lastTriggered)
 		return err
 	}
 
