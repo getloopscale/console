@@ -31,14 +31,14 @@ import { cloudFetch } from '@/lib/api';
  * {evaluatorId, operator:"lt"|"lte"|"gt"|"gte"|"eq"|"label_eq", threshold?}.
  */
 
-interface Guard {
+interface Monitor {
   id: string;
   evaluatorId?: string;
   operator?: string;
   threshold?: number;
 }
 interface MonitorsResult {
-  monitors: Guard[];
+  monitors: Monitor[];
 }
 interface Evaluator {
   id: string;
@@ -48,7 +48,7 @@ interface EvaluatorsResult {
   evaluators: Evaluator[];
 }
 
-// The guard operators theo-lens accepts. `label_eq` matches a label string (no numeric threshold);
+// The monitor operators theo-lens accepts. `label_eq` matches a label string (no numeric threshold);
 // the others compare the evaluator score to a threshold.
 const OPERATORS = [
   { value: 'gte', label: '≥ threshold' },
@@ -61,7 +61,7 @@ const OPERATORS = [
 
 export function LensMonitorsPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Observability · Guards'), [setPageTitle]);
+  useEffect(() => setPageTitle('Observability · Monitors'), [setPageTitle]);
   useRequireAuth();
   const queryClient = useQueryClient();
 
@@ -71,9 +71,9 @@ export function LensMonitorsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [operator, setOperator] = useState<string>('gte');
   const [threshold, setThreshold] = useState('');
-  const [pendingDelete, setPendingDelete] = useState<Guard | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Monitor | null>(null);
   // M77 — the guard whose breaches are open in the side panel (null = closed).
-  const [activeGuard, setActiveGuard] = useState<Guard | null>(null);
+  const [activeMonitor, setActiveMonitor] = useState<Monitor | null>(null);
 
   // `label_eq` matches a label, so it takes NO numeric threshold — the field is hidden + omitted.
   const needsThreshold = operator !== 'label_eq';
@@ -93,17 +93,17 @@ export function LensMonitorsPage() {
 
   // M77 — a human rule string for the breaches panel (numeric operators as symbols; label_eq spelled out).
   const OP_SYMBOL: Record<string, string> = { gte: '≥', gt: '>', lte: '≤', lt: '<', eq: '=' };
-  const guardRuleText = (g: Guard) =>
+  const guardRuleText = (g: Monitor) =>
     g.operator === 'label_eq'
       ? `Traces failing ${evaluatorName(g.evaluatorId)} (label match)`
       : `Traces failing ${evaluatorName(g.evaluatorId)} ${OP_SYMBOL[g.operator ?? ''] ?? g.operator ?? ''} ${g.threshold ?? ''}`.trim();
 
   // M77 — the breaches read (flag-only: `{ traceIds }`) for the open guard. Fetched on demand only.
   const breachesQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/monitors', activeGuard?.id, 'breaches'] as const,
+    queryKey: ['cloud', '/v1/dashboard/lens/monitors', activeMonitor?.id, 'breaches'] as const,
     queryFn: () =>
-      cloudFetch<{ traceIds: string[] }>(`/v1/dashboard/lens/monitors/${encodeURIComponent(activeGuard!.id)}/breaches`, {}, { throwOnError: true }),
-    enabled: activeGuard !== null,
+      cloudFetch<{ traceIds: string[] }>(`/v1/dashboard/lens/monitors/${encodeURIComponent(activeMonitor!.id)}/breaches`, {}, { throwOnError: true }),
+    enabled: activeMonitor !== null,
   });
   const breachTraceIds = breachesQuery.data?.traceIds ?? [];
 
@@ -111,7 +111,7 @@ export function LensMonitorsPage() {
 
   const create = useMutation({
     mutationFn: (input: { evaluatorId: string; operator: string; threshold?: number }) =>
-      cloudFetch<Guard>('/v1/dashboard/lens/monitors', {
+      cloudFetch<Monitor>('/v1/dashboard/lens/monitors', {
         method: 'POST',
         body: JSON.stringify(
           // omit threshold entirely for a label match (no fabricated 0)
@@ -151,7 +151,7 @@ export function LensMonitorsPage() {
   };
 
   const remove = useMutation({
-    mutationFn: (g: Guard) =>
+    mutationFn: (g: Monitor) =>
       cloudFetch<null>(`/v1/dashboard/lens/monitors/${encodeURIComponent(g.id)}`, { method: 'DELETE' }),
     onSuccess: () => {
       setPendingDelete(null);
@@ -159,7 +159,7 @@ export function LensMonitorsPage() {
     },
   });
 
-  const columns: DataTableColumn<Guard>[] = [
+  const columns: DataTableColumn<Monitor>[] = [
     {
       key: 'evaluatorId',
       label: 'Evaluator',
@@ -183,7 +183,7 @@ export function LensMonitorsPage() {
       align: 'right',
       render: (row) => (
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="sm" onClick={() => setActiveGuard(row)} aria-label={`View breaches for ${evaluatorName(row.evaluatorId)}`}>
+          <Button variant="ghost" size="sm" onClick={() => setActiveMonitor(row)} aria-label={`View breaches for ${evaluatorName(row.evaluatorId)}`}>
             <ShieldAlert className="mr-1 h-4 w-4" /> View breaches
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setPendingDelete(row)} aria-label={`Delete ${row.id}`}>
@@ -199,24 +199,24 @@ export function LensMonitorsPage() {
   return (
     <>
       <PageShell
-        title="Guards"
-        description="Gate traces on evaluator thresholds."
-        primaryAction={{ label: 'New guard', icon: Plus, onClick: () => setCreateOpen(true) }}
+        title="Monitors"
+        description="Alert when evaluator scores cross a threshold."
+        primaryAction={{ label: 'New monitor', icon: Plus, onClick: () => setCreateOpen(true) }}
       >
         <div className="space-y-6">
           {query.isLoading ? (
-            <ListSkeleton label="guards" />
+            <ListSkeleton label="monitors" />
           ) : query.isError ? (
-            <Alert intent="warning" title="Could not load guards">
+            <Alert intent="warning" title="Could not load monitors">
               The lens service is unavailable. Try again shortly.
             </Alert>
           ) : monitors.length === 0 ? (
             <EmptyState
-              title="No guards yet"
-              description="Create your first guard to gate traces on a threshold."
+              title="No monitors yet"
+              description="Create your first monitor to be alerted when scores cross a threshold."
               action={
                 <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
-                  Create your first guard
+                  Create your first monitor
                 </Button>
               }
             />
@@ -232,8 +232,8 @@ export function LensMonitorsPage() {
         open={createOpen}
         onClose={closeCreate}
         size="md"
-        title="New guard"
-        description="Gate traces on an evaluator threshold."
+        title="New monitor"
+        description="Alert when an evaluator score crosses a threshold."
         footer={
           <>
             <Button variant="secondary" onClick={closeCreate}>
@@ -250,9 +250,9 @@ export function LensMonitorsPage() {
       >
         <div className="space-y-4">
           <div>
-            <Label htmlFor="guard-evaluator">Evaluator</Label>
+            <Label htmlFor="monitor-evaluator">Evaluator</Label>
             <Select value={evaluatorId} onValueChange={setEvaluatorId}>
-              <Select.Trigger id="guard-evaluator" className="w-full" aria-label="Evaluator">
+              <Select.Trigger id="monitor-evaluator" className="w-full" aria-label="Evaluator">
                 <Select.Value placeholder={evaluators.length === 0 ? 'No evaluators — create one first' : 'Choose an evaluator'} />
               </Select.Trigger>
               <Select.Content>
@@ -265,9 +265,9 @@ export function LensMonitorsPage() {
             </Select>
           </div>
           <div>
-            <Label htmlFor="guard-operator">Operator</Label>
+            <Label htmlFor="monitor-operator">Operator</Label>
             <Select value={operator} onValueChange={setOperator}>
-              <Select.Trigger id="guard-operator" className="w-full" aria-label="Operator">
+              <Select.Trigger id="monitor-operator" className="w-full" aria-label="Operator">
                 <Select.Value />
               </Select.Trigger>
               <Select.Content>
@@ -281,9 +281,9 @@ export function LensMonitorsPage() {
           </div>
           {needsThreshold ? (
             <div>
-              <Label htmlFor="guard-threshold">Threshold</Label>
+              <Label htmlFor="monitor-threshold">Threshold</Label>
               <Input
-                id="guard-threshold"
+                id="monitor-threshold"
                 value={threshold}
                 onChange={(e) => setThreshold(e.target.value)}
                 onKeyDown={(e) => {
@@ -306,7 +306,7 @@ export function LensMonitorsPage() {
           open={pendingDelete !== null}
           onOpenChange={(o) => !o && setPendingDelete(null)}
           title={`Delete guard ${pendingDelete.id}?`}
-          description={<p className="text-sm">This permanently deletes the guard. This cannot be undone.</p>}
+          description={<p className="text-sm">This permanently deletes the monitor. This cannot be undone.</p>}
           confirmLabel={remove.isPending ? 'Deleting…' : 'Delete guard'}
           cancelLabel="Cancel"
           intent="destructive"
@@ -319,11 +319,11 @@ export function LensMonitorsPage() {
           so we list the breaching traces (deep-linked to their peek) and frame them with the guard's own
           rule — never a fabricated per-breach score/time. A centered modal (AppModal), not a lateral Sheet. */}
       <AppModal
-        open={activeGuard !== null}
-        onClose={() => setActiveGuard(null)}
+        open={activeMonitor !== null}
+        onClose={() => setActiveMonitor(null)}
         size="lg"
-        title={activeGuard ? `Breaches · ${evaluatorName(activeGuard.evaluatorId)}` : 'Guard breaches'}
-        description={activeGuard ? guardRuleText(activeGuard) : ''}
+        title={activeMonitor ? `Breaches · ${evaluatorName(activeMonitor.evaluatorId)}` : 'Monitor breaches'}
+        description={activeMonitor ? guardRuleText(activeMonitor) : ''}
       >
         <div className="space-y-3">
           {breachesQuery.isPending ? (
@@ -333,7 +333,7 @@ export function LensMonitorsPage() {
               The lens service is unavailable. Try again shortly.
             </Alert>
           ) : breachTraceIds.length === 0 ? (
-            <EmptyState title="No breaches yet" description="No trace has failed this guard." />
+            <EmptyState title="No breaches yet" description="No trace has breached this monitor." />
           ) : (
             <ul className="space-y-1">
               {breachTraceIds.map((tid) => (

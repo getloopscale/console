@@ -570,7 +570,7 @@ export function LensEvaluatorsPage() {
           open={pendingDelete !== null}
           onOpenChange={(o) => !o && setPendingDelete(null)}
           title={`Delete evaluator ${pendingDelete.name}?`}
-          description={<p className="text-sm">This permanently deletes the evaluator and its guards. This cannot be undone.</p>}
+          description={<p className="text-sm">This permanently deletes the evaluator and its monitors. This cannot be undone.</p>}
           confirmLabel={remove.isPending ? 'Deleting…' : 'Delete evaluator'}
           cancelLabel="Cancel"
           intent="destructive"

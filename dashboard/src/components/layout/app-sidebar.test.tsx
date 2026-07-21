@@ -71,7 +71,7 @@ describe('AppSidebar', () => {
     expect(screen.getByText('Evaluate')).toBeInTheDocument();
     expect(screen.getByText('Improve')).toBeInTheDocument();
     // …and every lens-unique item is still present at its unchanged path.
-    for (const label of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Agents', 'Ask']) {
+    for (const label of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Monitors', 'Agents', 'Ask']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     // paths are unchanged (the grouping is data-only) — the Traces item still navigates the same route.

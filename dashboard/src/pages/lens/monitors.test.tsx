@@ -41,14 +41,14 @@ describe('LensMonitorsPage (/observability/monitors)', () => {
     expect(screen.getByRole('link', { name: /tr-b/i })).toHaveAttribute('href', '/observability/traces?trace=tr-b');
   });
 
-  it('M77 — the breaches panel shows the guard rule and an honest empty state', async () => {
+  it('M77 — the breaches panel shows the monitor rule and an honest empty state', async () => {
     withGuardAndBreaches([]); // no trace has failed this guard
     render(<LensMonitorsPage />);
     await userEvent.click(await screen.findByRole('button', { name: /view breaches/i }));
     // the guard rule is shown as context (evaluator name + operator symbol + threshold) in the description
     expect(await screen.findByText(/Traces failing Answer relevance ≥ 0\.8/)).toBeInTheDocument();
     // honest empty state — no fabricated breach
-    expect(screen.getByText(/no trace has failed this guard/i)).toBeInTheDocument();
+    expect(screen.getByText(/no trace has breached this monitor/i)).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /open trace/i })).not.toBeInTheDocument();
   });
 
@@ -63,16 +63,16 @@ describe('LensMonitorsPage (/observability/monitors)', () => {
     await userEvent.click(await screen.findByRole('button', { name: /view breaches/i }));
     expect(await screen.findByTestId('breaches-error')).toBeInTheDocument();
     // fail-closed: the empty-state text must NOT show (a failure is not "no breaches")
-    expect(screen.queryByText(/no trace has failed this guard/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no trace has breached this monitor/i)).not.toBeInTheDocument();
   });
 
-  it('creates a guard by SELECTING an evaluator + operator (no free-text id) — #179', async () => {
+  it('creates a monitor by SELECTING an evaluator + operator (no free-text id) — #179', async () => {
     withEvaluators();
     render(<LensMonitorsPage />);
-    await screen.findByText(/no guards yet/i);
+    await screen.findByText(/no monitors yet/i);
 
     // the create form lives in a centered modal (AppModal) — open it via the primary action first
-    await userEvent.click(screen.getByRole('button', { name: /new guard/i }));
+    await userEvent.click(screen.getByRole('button', { name: /new monitor/i }));
 
     // the evaluator is a Select fed by GET /evaluators, labelled by name (not a free-text id box)
     await userEvent.click(await screen.findByRole('combobox', { name: /evaluator/i }));
@@ -90,11 +90,11 @@ describe('LensMonitorsPage (/observability/monitors)', () => {
     expect(body.threshold).toBe(0.8);
   });
 
-  it('hides the threshold and omits it for a label_eq guard — #179', async () => {
+  it('hides the threshold and omits it for a label_eq monitor — #179', async () => {
     withEvaluators();
     render(<LensMonitorsPage />);
-    await screen.findByText(/no guards yet/i);
-    await userEvent.click(screen.getByRole('button', { name: /new guard/i }));
+    await screen.findByText(/no monitors yet/i);
+    await userEvent.click(screen.getByRole('button', { name: /new monitor/i }));
     await userEvent.click(await screen.findByRole('combobox', { name: /evaluator/i }));
     await userEvent.click(await screen.findByRole('option', { name: /answer relevance/i }));
     // pick the label_eq operator → the threshold field disappears
@@ -114,8 +114,8 @@ describe('LensMonitorsPage (/observability/monitors)', () => {
   it('M73 — the empty state has a CTA that opens the create modal (one clear action)', async () => {
     mockCloudFetch.mockResolvedValue({ guards: [] });
     render(<LensMonitorsPage />);
-    await screen.findByText(/no guards yet/i);
-    await userEvent.click(screen.getByRole('button', { name: /create your first guard/i }));
+    await screen.findByText(/no monitors yet/i);
+    await userEvent.click(screen.getByRole('button', { name: /create your first monitor/i }));
     // the CTA opens the centered create modal — its evaluator field is now available
     expect(await screen.findByRole('combobox', { name: /evaluator/i })).toBeInTheDocument();
   });
@@ -129,5 +129,28 @@ describe('LensMonitorsPage (/observability/monitors)', () => {
       '/v1/dashboard/lens/monitors/gd_1',
       expect.objectContaining({ method: 'DELETE' }),
     );
+  });
+});
+
+/**
+ * M136 — the user-visible copy, asserted.
+ *
+ * The LIVE test found this milestone had renamed the file, the component, the route and the fetch
+ * path while leaving every string a user actually reads saying "Guards" — including the subtitle
+ * "Gate traces on evaluator thresholds", which is the exact over-promise the milestone exists to
+ * remove. Every hermetic test passed, because none of them looked at copy.
+ *
+ * "Gate" and "guard" imply blocking. Theo Lens observes; your own application blocks.
+ */
+describe('M136 user-visible copy', () => {
+  it('reads Monitors, never Guards, and never promises gating', async () => {
+    mockCloudFetch.mockImplementation(() => Promise.resolve({ monitors: [] }));
+    render(<LensMonitorsPage />);
+
+    expect(await screen.findByText('Monitors')).toBeInTheDocument();
+    // The words that promise enforcement must not appear anywhere the user can read.
+    for (const forbidden of [/\bguard/i, /\bgate\b/i]) {
+      expect(document.body.textContent ?? '').not.toMatch(forbidden);
+    }
   });
 });
