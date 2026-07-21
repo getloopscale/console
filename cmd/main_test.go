@@ -196,9 +196,13 @@ func TestLensDashboard_ReadWriteRouteSet(t *testing.T) {
 			writableMeta := strings.Contains(route, "/tags") || strings.Contains(route, "/annotations") ||
 				strings.Contains(route, "/ask") || strings.Contains(route, "/replay") ||
 				strings.Contains(route, "/enqueue-for-labeling")
+			// M131 — the session-coherence run is a sanctioned session-level write (runs the judge +
+			// persists a verdict; it never mutates the immutable session/trace body), like the trace
+			// metadata writes above. Behind the same fail-closed per-tenant guard.
+			sessionCoherence := strings.HasSuffix(route, "/coherence")
 			bad := route == "/v1/dashboard/lens/traces" ||
 				(underTrace && !writableMeta) ||
-				strings.HasPrefix(route, "/v1/dashboard/lens/sessions") ||
+				(strings.HasPrefix(route, "/v1/dashboard/lens/sessions") && !sessionCoherence) ||
 				strings.HasPrefix(route, "/v1/dashboard/lens/agents")
 			if bad {
 				t.Fatalf("ADR-3 violation: mutating %s on read-only surface %q", method, route)
