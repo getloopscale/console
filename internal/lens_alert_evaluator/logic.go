@@ -57,13 +57,25 @@ type observabilitySeries struct {
 	} `json:"tokensByModel"`
 }
 
-// metricFromSeries extracts the alert metric value over the window:
+// metricFromSeries extracts the alert metric value over the window, plus whether the window had data
+// at all. The bool is the whole point: without it "no data" and "the metric is genuinely zero" collapse
+// into the same float, and the comparator then reads absence as a measurement.
+//
+// That collapse was theo-cloud#247. An empty window yielded 0, `lt`/`lte` are accepted comparators
+// (internal/routes/lens_alert_rules.go:38), and 0 < threshold is true — so a traffic-free workspace
+// fired a permanent false alert on any "alert if X drops below N" rule, which is precisely the rule
+// shape you use to detect that your pipeline STOPPED. The anti-storm machine then latched it, so the
+// user could not clear it without disabling the rule.
+//
+// The caller MUST skip the rule when ok is false. Special-casing lt/lte at the comparator instead
+// would treat the symptom: a third below-comparator would reintroduce the bug.
+//
 //   - error_rate: the overall window rate = sum(errorCount)/sum(traceCount) × 100 (percent; honest
-//     aggregate, not a max-bucket proxy). No traffic → 0 (a no-data window is not a breach).
+//     aggregate, not a max-bucket proxy). No traffic → (0, false).
 //   - cost: sum of per-model costUsd over the window.
 //   - p95_latency: the worst per-bucket p95 over the window (bucket p95s are not re-aggregatable into an
 //     overall p95, so "did p95 exceed X in any bucket" is the honest semantics).
-func metricFromSeries(s observabilitySeries, metric string) float64 {
+func metricFromSeries(s observabilitySeries, metric string) (float64, bool) {
 	switch metric {
 	case "error_rate":
 		var errs, total float64
@@ -72,25 +84,33 @@ func metricFromSeries(s observabilitySeries, metric string) float64 {
 			total += t.TraceCount
 		}
 		if total == 0 {
-			return 0
+			return 0, false // no traffic — absence, not a rate of zero
 		}
-		return errs / total * 100
+		return errs / total * 100, true
 	case "cost":
+		if len(s.TokensByModel) == 0 {
+			return 0, false
+		}
 		var sum float64
 		for _, r := range s.TokensByModel {
 			sum += r.CostUsd
 		}
-		return sum
+		return sum, true
 	case "p95_latency":
+		if len(s.Latency) == 0 {
+			return 0, false
+		}
 		var max float64
 		for _, l := range s.Latency {
 			if l.P95Ms > max {
 				max = l.P95Ms
 			}
 		}
-		return max
+		return max, true
 	default:
-		return 0
+		// An unknown metric is not a zero measurement either. Returning (0, true)
+		// here would let a typo'd metric name fire every lt rule in the workspace.
+		return 0, false
 	}
 }
 

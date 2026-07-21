@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+
+### Fixed
+
+- Alert rules that fire *below* a threshold no longer raise a false alarm on a quiet workspace (#247). A window with no traffic produced the value `0`, and since `lt`/`lte` are valid comparators, a rule like "alert if cost drops below $10" fired permanently on any workspace that simply had no activity — and the anti-storm behaviour then held it open, so it could not be cleared without disabling the rule. Those are exactly the rules you write to detect that a pipeline stopped. "No data" and "the metric is genuinely zero" are now distinguished, and a rule over an empty window is skipped rather than evaluated.
 ### Fixed
 - **Evaluators — the Run (play) button now works and shows progress (was silent / 502 for LLM judges).** Clicking Run appeared to do nothing: an `llm_judge` evaluator scored every recent span synchronously and exceeded the edge timeout (502), while the dashboard swallowed the error (no `throwOnError`) and never surfaced success either. The run is now **async** end-to-end (theo-lens M133): Run posts a job, the dashboard **polls** `/v1/dashboard/lens/evaluator-run-jobs/:id` and shows an inline status — `Scoring N/total…` → `Run complete · Scored N of M spans` (or a typed failure) — then refreshes the Scores-over-time chart. The Run button is disabled while a run is in flight. BFF gains the job-status proxy route.
 

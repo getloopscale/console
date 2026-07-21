@@ -130,7 +130,13 @@ func (e *Evaluator) processRule(ctx context.Context, r alertRule, raw json.RawMe
 	if err := json.Unmarshal(raw, &series); err != nil {
 		return fmt.Errorf("parse series: %w", err)
 	}
-	value := metricFromSeries(series, r.metric)
+	value, ok := metricFromSeries(series, r.metric)
+	if !ok {
+		// No data in the window (or an unrecognised metric). Skip rather than
+		// evaluate — identical in spirit to the fail-closed fetch-error path
+		// above: absence must never be read as a measurement. Fixes #247.
+		return nil
+	}
 	breached := evaluateBreach(value, r.threshold, r.comparator)
 
 	lastTrig := time.Time{}
