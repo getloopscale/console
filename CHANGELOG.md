@@ -1,6 +1,10 @@
 ## [Unreleased]
 
-## [0.69.5] - 2026-07-20
+### Changed
+- **Evaluate module — unified "centered modal" UX (Datasets · Evaluators · Guards · Queues · Experiments).** The module had three different create patterns and no consistent detail surface: some screens opened forms as inline page-body Cards, and Guards (breaches) + Queues (resolve/export) opened them as **lateral Sheets**. Every create/edit/short-detail form is now a centered `AppModal` (opened from the page header's primary action + empty-state CTA), consistent across the module: Datasets "New dataset", Evaluators "New evaluator", Guards "New guard" + breaches detail, Queues resolve + export, Experiments "New run". Deletes stay as centered `ConfirmDialog`; tabular drill-downs (dataset items, run results, compare) stay inline; the deep **trace explorer keeps its lateral panel** (the one deliberate side-panel — a large trace waterfall, the industry norm). Ask is unchanged (full-page conversation).
+
+### Fixed
+- **Dashboard modals no longer risk opening as a lateral drawer** — root-caused to `@usetheo/ui` where `Dialog` and `Sheet` were the *same object* (`DialogPrimitive.Root`) so `Sheet.Content` (a drawer) clobbered `Dialog.Content` (centered) by module-evaluation order. Fixed at the source in `@usetheo/ui@0.31.0` (each wraps Radix `Root` in its own component); the dashboard bumps to `^0.31.0`. Also removes a stale, no-longer-applying `patch-package` patch whose a11y fix (ActionBar search `aria-label`) is already upstream.
 
 ### Fixed
 - Observability charts: the "Scores over time" y-axis no longer shows a raw float like `0.7000000000000001` (now `0.70`), the score chart is pinned to a `[0, 1]` axis (so 0.68 reads correctly, not near-max), and chart markers no longer stretch into ovals on wide screens — via `@usetheo/ui@0.30.0` (`TrendChart` `yMax` prop + width-aware viewBox + `niceMax` float fix) (M132)

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ShieldAlert, Trash2 } from 'lucide-react';
+import { Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import {
   Button,
   Card,
@@ -13,9 +13,9 @@ import {
   Label,
   PageShell,
   Select,
-  Sheet,
   Skeleton,
 } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
@@ -66,7 +66,9 @@ export function LensGuardsPage() {
   const queryClient = useQueryClient();
 
   const [evaluatorId, setEvaluatorId] = useState('');
-  const evaluatorTriggerRef = useRef<HTMLButtonElement>(null); // M73 — empty-state CTA focuses the create form
+  // Create is a centered modal (AppModal), consistent with the rest of the dashboard — replaces the
+  // former inline Card form (Evaluate UX standardization: forms open as centered modals, never inline/lateral).
+  const [createOpen, setCreateOpen] = useState(false);
   const [operator, setOperator] = useState<string>('gte');
   const [threshold, setThreshold] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Guard | null>(null);
@@ -122,9 +124,31 @@ export function LensGuardsPage() {
       setEvaluatorId('');
       setOperator('gte');
       setThreshold('');
+      setCreateOpen(false);
       invalidate();
     },
   });
+
+  // Reset the create form + clear any error, then close the modal (every close path).
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setEvaluatorId('');
+    setOperator('gte');
+    setThreshold('');
+    create.reset();
+  };
+
+  // Submit the create form (shared by the footer button + Enter on the threshold field).
+  const submitCreate = () => {
+    if (!evaluatorId) return;
+    if (needsThreshold) {
+      const t = Number(threshold);
+      if (threshold.trim() === '' || Number.isNaN(t)) return;
+      create.mutate({ evaluatorId, operator, threshold: t });
+    } else {
+      create.mutate({ evaluatorId, operator }); // label_eq — no threshold
+    }
+  };
 
   const remove = useMutation({
     mutationFn: (g: Guard) =>
@@ -174,80 +198,12 @@ export function LensGuardsPage() {
 
   return (
     <>
-      <PageShell title="Guards" description="Gate traces on evaluator thresholds.">
+      <PageShell
+        title="Guards"
+        description="Gate traces on evaluator thresholds."
+        primaryAction={{ label: 'New guard', icon: Plus, onClick: () => setCreateOpen(true) }}
+      >
         <div className="space-y-6">
-          <Card>
-            <Card.Body>
-              <form
-                className="flex flex-wrap items-end gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!evaluatorId) return;
-                  if (needsThreshold) {
-                    const t = Number(threshold);
-                    if (threshold.trim() === '' || Number.isNaN(t)) return;
-                    create.mutate({ evaluatorId, operator, threshold: t });
-                  } else {
-                    create.mutate({ evaluatorId, operator }); // label_eq — no threshold
-                  }
-                }}
-              >
-                <div className="min-w-[200px] flex-1">
-                  <Label htmlFor="guard-evaluator">Evaluator</Label>
-                  <Select value={evaluatorId} onValueChange={setEvaluatorId}>
-                    <Select.Trigger ref={evaluatorTriggerRef} id="guard-evaluator" className="w-full" aria-label="Evaluator">
-                      <Select.Value placeholder={evaluators.length === 0 ? 'No evaluators — create one first' : 'Choose an evaluator'} />
-                    </Select.Trigger>
-                    <Select.Content>
-                      {evaluators.map((ev) => (
-                        <Select.Item key={ev.id} value={ev.id}>
-                          {ev.name}
-                        </Select.Item>
-                      ))}
-                    </Select.Content>
-                  </Select>
-                </div>
-                <div className="w-40">
-                  <Label htmlFor="guard-operator">Operator</Label>
-                  <Select value={operator} onValueChange={setOperator}>
-                    <Select.Trigger id="guard-operator" className="w-full" aria-label="Operator">
-                      <Select.Value />
-                    </Select.Trigger>
-                    <Select.Content>
-                      {OPERATORS.map((op) => (
-                        <Select.Item key={op.value} value={op.value}>
-                          {op.label}
-                        </Select.Item>
-                      ))}
-                    </Select.Content>
-                  </Select>
-                </div>
-                {needsThreshold ? (
-                  <div className="w-32">
-                    <Label htmlFor="guard-threshold">Threshold</Label>
-                    <Input
-                      id="guard-threshold"
-                      value={threshold}
-                      onChange={(e) => setThreshold(e.target.value)}
-                      placeholder="0.5"
-                    />
-                  </div>
-                ) : null}
-                <Button
-                  type="submit"
-                  disabled={!evaluatorId || (needsThreshold && threshold.trim() === '') || create.isPending}
-                >
-                  Create guard
-                </Button>
-              </form>
-              {create.isError ? (
-                <Alert intent="destructive" title="Could not create the guard" className="mt-3">
-                  Try again shortly.
-                </Alert>
-              ) : null}
-            </Card.Body>
-          </Card>
-
           {query.isLoading ? (
             <ListSkeleton label="guards" />
           ) : query.isError ? (
@@ -259,7 +215,7 @@ export function LensGuardsPage() {
               title="No guards yet"
               description="Create your first guard to gate traces on a threshold."
               action={
-                <Button variant="secondary" size="sm" onClick={() => evaluatorTriggerRef.current?.focus()}>
+                <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
                   Create your first guard
                 </Button>
               }
@@ -271,6 +227,79 @@ export function LensGuardsPage() {
           )}
         </div>
       </PageShell>
+
+      <AppModal
+        open={createOpen}
+        onClose={closeCreate}
+        size="md"
+        title="New guard"
+        description="Gate traces on an evaluator threshold."
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeCreate}>
+              Cancel
+            </Button>
+            <Button
+              onClick={submitCreate}
+              disabled={!evaluatorId || (needsThreshold && threshold.trim() === '') || create.isPending}
+            >
+              {create.isPending ? 'Creating…' : 'Create guard'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="guard-evaluator">Evaluator</Label>
+            <Select value={evaluatorId} onValueChange={setEvaluatorId}>
+              <Select.Trigger id="guard-evaluator" className="w-full" aria-label="Evaluator">
+                <Select.Value placeholder={evaluators.length === 0 ? 'No evaluators — create one first' : 'Choose an evaluator'} />
+              </Select.Trigger>
+              <Select.Content>
+                {evaluators.map((ev) => (
+                  <Select.Item key={ev.id} value={ev.id}>
+                    {ev.name}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="guard-operator">Operator</Label>
+            <Select value={operator} onValueChange={setOperator}>
+              <Select.Trigger id="guard-operator" className="w-full" aria-label="Operator">
+                <Select.Value />
+              </Select.Trigger>
+              <Select.Content>
+                {OPERATORS.map((op) => (
+                  <Select.Item key={op.value} value={op.value}>
+                    {op.label}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </div>
+          {needsThreshold ? (
+            <div>
+              <Label htmlFor="guard-threshold">Threshold</Label>
+              <Input
+                id="guard-threshold"
+                value={threshold}
+                onChange={(e) => setThreshold(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitCreate();
+                }}
+                placeholder="0.5"
+              />
+            </div>
+          ) : null}
+          {create.isError ? (
+            <Alert intent="destructive" title="Could not create the guard">
+              Try again shortly.
+            </Alert>
+          ) : null}
+        </div>
+      </AppModal>
 
       {pendingDelete ? (
         <ConfirmDialog
@@ -288,41 +317,41 @@ export function LensGuardsPage() {
 
       {/* M77 — the breaches panel: what this guard actually gated. The read is flag-only ({traceIds}),
           so we list the breaching traces (deep-linked to their peek) and frame them with the guard's own
-          rule — never a fabricated per-breach score/time. */}
-      <Sheet open={activeGuard !== null} onOpenChange={(open) => !open && setActiveGuard(null)}>
-        <Sheet.Content side="right" className="w-full sm:max-w-md">
-          <Sheet.Header className="border-b border-border px-6 py-4">
-            <Sheet.Title>Guard breaches</Sheet.Title>
-            <Sheet.Description>{activeGuard ? guardRuleText(activeGuard) : ''}</Sheet.Description>
-          </Sheet.Header>
-          <Sheet.Body className="space-y-3 px-6 py-5">
-            {breachesQuery.isPending ? (
-              <Skeleton className="h-24 w-full" aria-label="Loading breaches" />
-            ) : breachesQuery.isError ? (
-              <Alert intent="warning" title="Could not load breaches" data-testid="breaches-error">
-                The lens service is unavailable. Try again shortly.
-              </Alert>
-            ) : breachTraceIds.length === 0 ? (
-              <EmptyState title="No breaches yet" description="No trace has failed this guard." />
-            ) : (
-              <ul className="space-y-1">
-                {breachTraceIds.map((tid) => (
-                  <li key={tid} className="flex items-center gap-2">
-                    <Link
-                      to={`/observability/traces?trace=${encodeURIComponent(tid)}`}
-                      className="font-mono text-xs text-primary underline underline-offset-2"
-                      aria-label={`Open trace ${tid}`}
-                    >
-                      {shortId(tid)}
-                    </Link>
-                    <CopyButton value={tid} label="Copy trace id" />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Sheet.Body>
-        </Sheet.Content>
-      </Sheet>
+          rule — never a fabricated per-breach score/time. A centered modal (AppModal), not a lateral Sheet. */}
+      <AppModal
+        open={activeGuard !== null}
+        onClose={() => setActiveGuard(null)}
+        size="lg"
+        title={activeGuard ? `Breaches · ${evaluatorName(activeGuard.evaluatorId)}` : 'Guard breaches'}
+        description={activeGuard ? guardRuleText(activeGuard) : ''}
+      >
+        <div className="space-y-3">
+          {breachesQuery.isPending ? (
+            <Skeleton className="h-24 w-full" aria-label="Loading breaches" />
+          ) : breachesQuery.isError ? (
+            <Alert intent="warning" title="Could not load breaches" data-testid="breaches-error">
+              The lens service is unavailable. Try again shortly.
+            </Alert>
+          ) : breachTraceIds.length === 0 ? (
+            <EmptyState title="No breaches yet" description="No trace has failed this guard." />
+          ) : (
+            <ul className="space-y-1">
+              {breachTraceIds.map((tid) => (
+                <li key={tid} className="flex items-center gap-2">
+                  <Link
+                    to={`/observability/traces?trace=${encodeURIComponent(tid)}`}
+                    className="font-mono text-xs text-primary underline underline-offset-2"
+                    aria-label={`Open trace ${tid}`}
+                  >
+                    {shortId(tid)}
+                  </Link>
+                  <CopyButton value={tid} label="Copy trace id" />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </AppModal>
     </>
   );
 }

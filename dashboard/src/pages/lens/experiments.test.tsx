@@ -97,10 +97,11 @@ describe('M64 LensExperimentsPage', () => {
       return Promise.resolve({});
     });
     render(<LensExperimentsPage />, { initialEntries: ['/observability/experiments'] });
-    // a dataset picker (Select) is offered on the bare page — pick one → the run form appears
+    // the run form is a centered modal opened by the "New run" action — pick a dataset → run is enabled
+    await userEvent.click(await screen.findByRole('button', { name: /new run/i }));
     await userEvent.click(await screen.findByRole('combobox', { name: /dataset/i }));
     await userEvent.click(await screen.findByRole('option', { name: /golden set/i }));
-    // the run form (with the Model override input) is now reachable from the previously-dead page
+    // the run form (with the "Run experiment" submit) is reachable from the previously-dead page
     expect(await screen.findByRole('button', { name: /run experiment/i })).toBeInTheDocument();
   });
 

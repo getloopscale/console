@@ -16,6 +16,8 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     render(<LensEvaluatorsPage />);
     await screen.findByText(/no evaluators yet/i);
 
+    // The create form is a centered modal — open it from the PageShell primary action first.
+    await userEvent.click(screen.getByRole('button', { name: /new evaluator/i }));
     await userEvent.type(screen.getByLabelText(/^name$/i), 'nonempty');
     await userEvent.type(screen.getByLabelText(/rule predicate/i), 'status:error'); // real span-query DSL
     await userEvent.click(screen.getByRole('button', { name: /create evaluator/i }));
@@ -36,6 +38,8 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     render(<LensEvaluatorsPage />);
     await screen.findByText(/no evaluators yet/i);
 
+    // Open the create modal (PageShell primary action) before filling the form.
+    await userEvent.click(screen.getByRole('button', { name: /new evaluator/i }));
     await userEvent.type(screen.getByLabelText(/^name$/i), 'faithfulness');
     await userEvent.click(screen.getByRole('combobox', { name: /evaluator kind/i }));
     await userEvent.click(await screen.findByRole('option', { name: /llm judge/i }));
@@ -58,7 +62,9 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     mockCloudFetch.mockResolvedValue({ evaluators: [] });
     render(<LensEvaluatorsPage />);
     await screen.findByText(/no evaluators yet/i);
-    expect(screen.getByText(/field:value/i)).toBeInTheDocument(); // names the real span-query DSL
+    // The predicate hint lives inside the create modal — open it first.
+    await userEvent.click(screen.getByRole('button', { name: /new evaluator/i }));
+    expect(await screen.findByText(/field:value/i)).toBeInTheDocument(); // names the real span-query DSL
   });
 
   it('runs an evaluator via POST /run', async () => {

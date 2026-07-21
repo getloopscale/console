@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Play, Trash2 } from 'lucide-react';
+import { Play, Plus, Trash2 } from 'lucide-react';
 import {
   Button,
   Card,
@@ -13,6 +13,7 @@ import {
   Select,
   Textarea,
 } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
@@ -83,6 +84,9 @@ export function LensEvaluatorsPage() {
   const [predicate, setPredicate] = useState('');
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState('');
+  // Create is a centered modal (AppModal), consistent with the rest of the dashboard — replaces the
+  // former inline Card form (Evaluate UX standardization: forms open as centered modals, never inline/lateral).
+  const [createOpen, setCreateOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Evaluator | null>(null);
   // M82 — which evaluator is being renamed inline (+ its draft value).
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
@@ -131,6 +135,7 @@ export function LensEvaluatorsPage() {
       setPredicate('');
       setPrompt('');
       setModel('');
+      setCreateOpen(false);
       invalidate();
     },
   });
@@ -177,6 +182,18 @@ export function LensEvaluatorsPage() {
       return;
     }
     rename.mutate({ id: row.id, name });
+  };
+
+  const submitCreate = () => {
+    if (canCreate) create.mutate(buildCreateBody());
+  };
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setName('');
+    setPredicate('');
+    setPrompt('');
+    setModel('');
+    create.reset();
   };
 
   const columns: DataTableColumn<Evaluator>[] = [
@@ -235,85 +252,17 @@ export function LensEvaluatorsPage() {
 
   return (
     <>
-      <PageShell title="Evaluators" description="Score traces with rule or LLM-judge evaluators.">
+      <PageShell
+        title="Evaluators"
+        description="Score traces with rule or LLM-judge evaluators."
+        primaryAction={{ label: 'New evaluator', icon: Plus, onClick: () => setCreateOpen(true) }}
+      >
         <div className="space-y-6">
-          <Card>
-            <Card.Body>
-              <form
-                className="space-y-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (canCreate) create.mutate(buildCreateBody());
-                }}
-              >
-                <Label htmlFor="evaluator-name">Name</Label>
-                <Input
-                  id="evaluator-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="evaluator-name"
-                />
-                <Label htmlFor="evaluator-kind">Kind</Label>
-                <Select value={kind} onValueChange={(v) => setKind(v as EvaluatorKind)}>
-                  <Select.Trigger id="evaluator-kind" className="w-[220px]" aria-label="Evaluator kind">
-                    <Select.Value />
-                  </Select.Trigger>
-                  <Select.Content>
-                    <Select.Item value="rule">Rule (predicate)</Select.Item>
-                    <Select.Item value="llm_judge">LLM judge (prompt + model)</Select.Item>
-                  </Select.Content>
-                </Select>
-                {kind === 'rule' ? (
-                  <>
-                    <Label htmlFor="evaluator-predicate">Rule predicate</Label>
-                    <Textarea
-                      id="evaluator-predicate"
-                      value={predicate}
-                      onChange={(e) => setPredicate(e.target.value)}
-                      placeholder="status:error"
-                    />
-                    {/* E-2: a concrete example matching the real span-query DSL (space-separated
-                        field:value clauses, AND-ed) — not a JS expression, which would fail validation. */}
-                    <p className="text-xs text-muted-foreground">
-                      Space-separated <code>field:value</code> clauses (all must match). Fields: <code>kind</code>,{' '}
-                      <code>name</code>, <code>status</code>, <code>model</code>. e.g. <code>status:error</code> or{' '}
-                      <code>kind:llm model:gpt-4o</code>.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <Label htmlFor="evaluator-prompt">Judge prompt</Label>
-                    <Textarea
-                      id="evaluator-prompt"
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="Grade the answer for factual accuracy. Reply PASS or FAIL."
-                    />
-                    <Label htmlFor="evaluator-model">Judge model</Label>
-                    <Input
-                      id="evaluator-model"
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      placeholder="e.g. gpt-4o-mini"
-                    />
-                  </>
-                )}
-                <Button type="submit" disabled={!canCreate || create.isPending}>
-                  Create evaluator
-                </Button>
-              </form>
-              {create.isError ? (
-                <Alert intent="destructive" title="Could not create the evaluator" className="mt-3">
-                  Try again shortly.
-                </Alert>
-              ) : null}
-              {run.isError ? (
-                <Alert intent="warning" title="Could not run the evaluator" className="mt-3">
-                  Try again shortly.
-                </Alert>
-              ) : null}
-            </Card.Body>
-          </Card>
+          {run.isError ? (
+            <Alert intent="warning" title="Could not run the evaluator">
+              Try again shortly.
+            </Alert>
+          ) : null}
 
           {query.isLoading ? (
             <ListSkeleton label="evaluators" />
@@ -322,7 +271,15 @@ export function LensEvaluatorsPage() {
               The lens service is unavailable. Try again shortly.
             </Alert>
           ) : evaluators.length === 0 ? (
-            <EmptyState title="No evaluators yet" description="Create your first evaluator to score traces." />
+            <EmptyState
+              title="No evaluators yet"
+              description="Create your first evaluator to score traces."
+              action={
+                <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
+                  Create your first evaluator
+                </Button>
+              }
+            />
           ) : (
             <Card>
               <DataTable columns={columns} data={evaluators} rowKey={(row) => row.id} />
@@ -389,6 +346,91 @@ export function LensEvaluatorsPage() {
           </section>
         </div>
       </PageShell>
+
+      <AppModal
+        open={createOpen}
+        onClose={closeCreate}
+        size="md"
+        title="New evaluator"
+        description="Score traces with a rule predicate or an LLM judge."
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeCreate}>
+              Cancel
+            </Button>
+            <Button onClick={submitCreate} disabled={!canCreate || create.isPending}>
+              {create.isPending ? 'Creating…' : 'Create evaluator'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Label htmlFor="evaluator-name">Name</Label>
+          <Input
+            id="evaluator-name"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitCreate();
+            }}
+            placeholder="evaluator-name"
+          />
+          <Label htmlFor="evaluator-kind">Kind</Label>
+          <Select value={kind} onValueChange={(v) => setKind(v as EvaluatorKind)}>
+            <Select.Trigger id="evaluator-kind" className="w-[220px]" aria-label="Evaluator kind">
+              <Select.Value />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="rule">Rule (predicate)</Select.Item>
+              <Select.Item value="llm_judge">LLM judge (prompt + model)</Select.Item>
+            </Select.Content>
+          </Select>
+          {kind === 'rule' ? (
+            <>
+              <Label htmlFor="evaluator-predicate">Rule predicate</Label>
+              <Textarea
+                id="evaluator-predicate"
+                value={predicate}
+                onChange={(e) => setPredicate(e.target.value)}
+                placeholder="status:error"
+              />
+              {/* E-2: a concrete example matching the real span-query DSL (space-separated
+                  field:value clauses, AND-ed) — not a JS expression, which would fail validation. */}
+              <p className="text-xs text-muted-foreground">
+                Space-separated <code>field:value</code> clauses (all must match). Fields: <code>kind</code>,{' '}
+                <code>name</code>, <code>status</code>, <code>model</code>. e.g. <code>status:error</code> or{' '}
+                <code>kind:llm model:gpt-4o</code>.
+              </p>
+            </>
+          ) : (
+            <>
+              <Label htmlFor="evaluator-prompt">Judge prompt</Label>
+              <Textarea
+                id="evaluator-prompt"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Grade the answer for factual accuracy. Reply PASS or FAIL."
+              />
+              <Label htmlFor="evaluator-model">Judge model</Label>
+              <Input
+                id="evaluator-model"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitCreate();
+                }}
+                placeholder="e.g. gpt-4o-mini"
+              />
+            </>
+          )}
+          {create.isError ? (
+            <Alert intent="destructive" title="Could not create the evaluator">
+              Try again shortly.
+            </Alert>
+          ) : null}
+        </div>
+      </AppModal>
 
       {pendingDelete ? (
         <ConfirmDialog

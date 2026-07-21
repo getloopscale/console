@@ -71,8 +71,11 @@ describe('LensGuardsPage (/observability/guards)', () => {
     render(<LensGuardsPage />);
     await screen.findByText(/no guards yet/i);
 
+    // the create form lives in a centered modal (AppModal) — open it via the primary action first
+    await userEvent.click(screen.getByRole('button', { name: /new guard/i }));
+
     // the evaluator is a Select fed by GET /evaluators, labelled by name (not a free-text id box)
-    await userEvent.click(screen.getByRole('combobox', { name: /evaluator/i }));
+    await userEvent.click(await screen.findByRole('combobox', { name: /evaluator/i }));
     await userEvent.click(await screen.findByRole('option', { name: /answer relevance/i }));
     await userEvent.type(screen.getByLabelText(/threshold/i), '0.8');
     await userEvent.click(screen.getByRole('button', { name: /create guard/i }));
@@ -91,7 +94,8 @@ describe('LensGuardsPage (/observability/guards)', () => {
     withEvaluators();
     render(<LensGuardsPage />);
     await screen.findByText(/no guards yet/i);
-    await userEvent.click(screen.getByRole('combobox', { name: /evaluator/i }));
+    await userEvent.click(screen.getByRole('button', { name: /new guard/i }));
+    await userEvent.click(await screen.findByRole('combobox', { name: /evaluator/i }));
     await userEvent.click(await screen.findByRole('option', { name: /answer relevance/i }));
     // pick the label_eq operator → the threshold field disappears
     await userEvent.click(screen.getByRole('combobox', { name: /operator/i }));
@@ -107,12 +111,13 @@ describe('LensGuardsPage (/observability/guards)', () => {
     expect(body.threshold).toBeUndefined(); // no fabricated threshold for a label match
   });
 
-  it('M73 — the empty state has a CTA that focuses the create form (one clear action)', async () => {
+  it('M73 — the empty state has a CTA that opens the create modal (one clear action)', async () => {
     mockCloudFetch.mockResolvedValue({ guards: [] });
     render(<LensGuardsPage />);
     await screen.findByText(/no guards yet/i);
     await userEvent.click(screen.getByRole('button', { name: /create your first guard/i }));
-    expect(screen.getByRole('combobox', { name: /evaluator/i })).toHaveFocus();
+    // the CTA opens the centered create modal — its evaluator field is now available
+    expect(await screen.findByRole('combobox', { name: /evaluator/i })).toBeInTheDocument();
   });
 
   it('renders empty state and delete flow via ConfirmDialog', async () => {

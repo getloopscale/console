@@ -2,7 +2,9 @@ import { lensErrorMessage } from '../../lib/lens-error';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, EmptyState, Input, PageShell, Select } from '@usetheo/ui';
+import { Plus } from 'lucide-react';
+import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Select, Textarea } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -115,6 +117,10 @@ export function LensExperimentsPage() {
 
   const [model, setModel] = useState('');
   const [prompt, setPrompt] = useState('');
+  // Run is a centered modal (AppModal): a dataset picker + variant overrides — replaces the two former
+  // inline Cards. Auto-opens once when arriving with `?datasetId=` (the "Run experiment" link from Datasets).
+  const [runOpen, setRunOpen] = useState(Boolean(datasetId));
+  const [runDatasetId, setRunDatasetId] = useState(datasetId);
   const [viewTrace, setViewTrace] = useState<string | null>(null);
   // Compare-picker: select exactly two runs, then open the side-by-side compare via `?compare=`.
   const [picked, setPicked] = useState<string[]>([]);
@@ -126,7 +132,8 @@ export function LensExperimentsPage() {
   const datasetsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/datasets'] as const,
     queryFn: () => cloudFetch<{ datasets: { id: string; name: string }[] }>('/v1/dashboard/lens/datasets'),
-    enabled: datasetId === '' && compareIds.length < 2,
+    // The run modal's dataset picker needs the list whenever we're not in the compare view.
+    enabled: compareIds.length < 2,
   });
   const datasets = datasetsQuery.data?.datasets ?? [];
 
@@ -152,14 +159,17 @@ export function LensExperimentsPage() {
         {
           method: 'POST',
           body: JSON.stringify({
-            datasetId,
+            datasetId: runDatasetId,
             variant: { ...(model.trim() ? { model: model.trim() } : {}), ...(prompt.trim() ? { promptOverride: prompt.trim() } : {}) },
           }),
         },
         { throwOnError: true },
       ),
     retry: false,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/experiment-runs'] }),
+    onSuccess: () => {
+      setRunOpen(false);
+      void qc.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/experiment-runs'] });
+    },
   });
   const latest = run.data ?? null;
 
@@ -254,57 +264,25 @@ export function LensExperimentsPage() {
 
   const runs = runsQuery.data?.runs ?? [];
   return (
-    <PageShell title="Experiments" description="Run a regression dataset against a variant and compare runs.">
-      {/* M73 — self-serve: pick a dataset to start a run right here (no need to arrive via Traces).
-          Selecting one sets `?datasetId=` → the run form below appears (D1 — one URL-driven path). */}
-      {!datasetId && datasets.length > 0 ? (
+    <PageShell
+      title="Experiments"
+      description="Run a regression dataset against a variant and compare runs."
+      primaryAction={{
+        label: 'New run',
+        icon: Plus,
+        onClick: () => {
+          setRunDatasetId(datasetId || runDatasetId);
+          setRunOpen(true);
+        },
+      }}
+    >
+      {/* The latest run's result renders inline (tabular output, not a form — the run FORM is the modal). */}
+      {latest ? (
         <Card className="mb-4">
-          <Card.Body className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase text-muted-foreground">Start a run</span>
-            <Select
-              value=""
-              onValueChange={(id) =>
-                // Merge (not replace) so any other URL state is preserved — set datasetId only.
-                setParams((prev) => {
-                  prev.set('datasetId', id);
-                  return prev;
-                })
-              }
-            >
-              <Select.Trigger className="w-[240px]" aria-label="Dataset to run">
-                <Select.Value placeholder="Choose a dataset…" />
-              </Select.Trigger>
-              <Select.Content>
-                {datasets.map((d) => (
-                  <Select.Item key={d.id} value={d.id}>
-                    {d.name}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
-          </Card.Body>
-        </Card>
-      ) : null}
-      {datasetId ? (
-        <Card className="mb-4">
-          <Card.Body className="space-y-2">
-            <span className="text-xs font-semibold uppercase text-muted-foreground">Run dataset {shortId(datasetId, 12)}</span>
-            <div className="flex flex-wrap items-end gap-2">
-              <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model (default)" className="w-[220px] font-mono text-xs" aria-label="Model override" />
-              <Input value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="system prompt override (optional)" className="flex-1 font-mono text-xs" aria-label="Prompt override" />
-              <Button size="sm" onClick={() => run.mutate()} disabled={run.isPending}>
-                {run.isPending ? 'Running…' : 'Run experiment'}
-              </Button>
-            </div>
-            {run.isError ? (
-              <Alert intent="warning" title="Could not run" description={errorMessage(run.error)} data-testid="run-error" />
-            ) : null}
-            {latest ? (
-              <div className="space-y-2" data-testid="latest-run">
-                <RunSummary run={latest} />
-                <DataTable data={latest.items ?? []} columns={itemColumns} rowKey={(row) => row.datasetItemTraceId} />
-              </div>
-            ) : null}
+          <Card.Body className="space-y-2" data-testid="latest-run">
+            <span className="text-xs font-semibold uppercase text-muted-foreground">Latest run</span>
+            <RunSummary run={latest} />
+            <DataTable data={latest.items ?? []} columns={itemColumns} rowKey={(row) => row.datasetItemTraceId} />
           </Card.Body>
         </Card>
       ) : null}
@@ -349,6 +327,80 @@ export function LensExperimentsPage() {
           ]}
         />
       )}
+
+      <AppModal
+        open={runOpen}
+        onClose={() => {
+          setRunOpen(false);
+          run.reset();
+        }}
+        size="md"
+        title="New experiment run"
+        description="Run a dataset against a variant (model / system-prompt override)."
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setRunOpen(false);
+                run.reset();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => run.mutate()} disabled={!runDatasetId || run.isPending}>
+              {run.isPending ? 'Running…' : 'Run experiment'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="run-dataset">Dataset</Label>
+            <Select value={runDatasetId} onValueChange={setRunDatasetId}>
+              <Select.Trigger id="run-dataset" className="w-full" aria-label="Dataset to run">
+                <Select.Value placeholder="Choose a dataset…" />
+              </Select.Trigger>
+              <Select.Content>
+                {datasets.map((d) => (
+                  <Select.Item key={d.id} value={d.id}>
+                    {d.name}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+            {datasets.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No datasets yet — create one on the Datasets page first.</p>
+            ) : null}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="run-model">Model override</Label>
+            <Input
+              id="run-model"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="model (default)"
+              className="font-mono text-xs"
+              aria-label="Model override"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="run-prompt">System-prompt override (optional)</Label>
+            <Textarea
+              id="run-prompt"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="system prompt override (optional)"
+              className="font-mono text-xs"
+              rows={3}
+              aria-label="Prompt override"
+            />
+          </div>
+          {run.isError ? (
+            <Alert intent="warning" title="Could not run" description={errorMessage(run.error)} data-testid="run-error" />
+          ) : null}
+        </div>
+      </AppModal>
 
       <TracePeekSheet traceId={viewTrace} onClose={() => setViewTrace(null)} />
     </PageShell>

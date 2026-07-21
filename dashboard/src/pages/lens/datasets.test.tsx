@@ -16,8 +16,9 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     render(<LensDatasetsPage />);
     expect(await screen.findByText('golden')).toBeInTheDocument();
 
+    await userEvent.click(screen.getByRole('button', { name: /new dataset/i })); // open the centered create modal
     await userEvent.type(screen.getByLabelText(/dataset name/i), 'reports');
-    await userEvent.click(screen.getByRole('button', { name: /^create$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /create dataset/i }));
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/datasets',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: 'reports' }) }),
@@ -37,10 +38,11 @@ describe('LensDatasetsPage (/observability/datasets)', () => {
     expect(await screen.findByText(/no datasets yet/i)).toBeInTheDocument();
   });
 
-  it('M73 — the empty state has a CTA that focuses the create input (one clear action)', async () => {
+  it('M73 — the empty state CTA opens the create modal with the name field focused (one clear action)', async () => {
     mockCloudFetch.mockResolvedValue({ datasets: [] });
     render(<LensDatasetsPage />);
     await screen.findByText(/no datasets yet/i);
+    // The create form now lives in a centered modal; the CTA opens it (autoFocus lands on the name field).
     await userEvent.click(screen.getByRole('button', { name: /name your first dataset/i }));
     expect(screen.getByLabelText(/dataset name/i)).toHaveFocus();
   });
