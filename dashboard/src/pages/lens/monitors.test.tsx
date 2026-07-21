@@ -154,3 +154,32 @@ describe('M136 user-visible copy', () => {
     }
   });
 });
+
+/**
+ * M136 — a bookmarked /observability/guards must not 404.
+ *
+ * The LIVE test caught this: the route was renamed with no alias at all, so anyone holding a
+ * bookmark landed on "Page not found". The milestone's own risk register lists "breaking external
+ * consumers" first, and a bookmarked URL is a consumer.
+ *
+ * A redirect is right HERE and wrong for the API: a browser follows one natively, while an HTTP
+ * client may not — which is why the API alias mounts the same handler instead.
+ */
+describe('M136 deprecated UI route', () => {
+  it('declares a redirect for /observability/guards instead of leaving it to the 404 catch-all', async () => {
+    // Deliberately a SOURCE assertion, not a render: mounting <App/> nests a second Router.
+    // It proves the route is DECLARED; that it actually redirects was verified in a real browser
+    // against dev-public, which is how the missing alias was found in the first place.
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const src = fs.readFileSync(path.resolve(process.cwd(), 'src/app.tsx'), 'utf8');
+    // Match the ROUTE line, not the comment above it — the first draft of this assertion picked
+    // the comment and failed against correct code, which is the same wrong-thing-matched mistake
+    // this milestone kept surfacing at larger scales.
+    const line = src
+      .split('\n')
+      .find((l) => l.includes('<Route path="/observability/guards"'));
+    expect(line, '/observability/guards must still be routed').toBeDefined();
+    expect(line).toMatch(/Navigate to="\/observability\/monitors"/);
+  });
+});

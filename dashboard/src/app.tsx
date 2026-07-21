@@ -476,6 +476,12 @@ export default function App() {
                     <Route path="/observability/datasets" element={<Boundaried path="/observability/datasets"><LensDatasetsPage /></Boundaried>} />
                     <Route path="/observability/evaluators" element={<Boundaried path="/observability/evaluators"><LensEvaluatorsPage /></Boundaried>} />
                     <Route path="/observability/monitors" element={<Boundaried path="/observability/monitors"><LensMonitorsPage /></Boundaried>} />
+                    {/* M136 — a bookmarked /observability/guards must not 404. Unlike the API alias
+                        (which mounts the same handler because a redirect breaks non-redirect-following
+                        clients), a browser follows a redirect natively, so `replace` is the right shape
+                        here: the user lands on the canonical URL and their history is not polluted with
+                        a dead one. Found by the LIVE test — the rename shipped with no UI alias at all. */}
+                    <Route path="/observability/guards" element={<Navigate to="/observability/monitors" replace />} />
                     <Route path="/observability/alerts" element={<Boundaried path="/observability/alerts"><LensAlertsPage /></Boundaried>} />
                     <Route path="/observability/agents" element={<Boundaried path="/observability/agents"><LensAgentsPage /></Boundaried>} />
                     <Route path="/observability/ask" element={<Boundaried path="/observability/ask"><LensAskPage /></Boundaried>} />
