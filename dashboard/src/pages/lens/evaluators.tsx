@@ -372,7 +372,12 @@ export function LensEvaluatorsPage() {
             ) : (
               <Card aria-label="Evaluation scores over time trend">
                 <Card.Body className="space-y-2">
-                  <TrendChart title="Mean score by evaluator" series={scoreSeries} />
+                  <TrendChart
+                    title="Mean score by evaluator"
+                    series={scoreSeries}
+                    yMax={1}
+                    valueFormatter={(v) => v.toFixed(2)}
+                  />
                   {hiddenEvaluatorCount > 0 ? (
                     <p className="text-xs text-muted-foreground" data-testid="scores-truncation-note">
                       Showing the top {scoreSeries.length} of {numericEvaluatorCount} evaluators by sample volume.
