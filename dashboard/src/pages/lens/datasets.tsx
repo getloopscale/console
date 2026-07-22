@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useQueryState, parseAsString } from 'nuqs';
-import { Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   Button,
   Card,
@@ -14,6 +14,7 @@ import {
   PageShell,
   Timestamp,
 } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
@@ -72,11 +73,13 @@ export function LensDatasetsPage() {
   const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
+  // Create is a centered modal (AppModal), consistent with the rest of the dashboard — replaces the
+  // former inline Card form (Evaluate UX standardization: forms open as centered modals, never inline/lateral).
+  const [createOpen, setCreateOpen] = useState(false);
   // M70 — the open items-panel is URL-state (`?dataset=`), so it is shareable + browser-Back-closable
   // (the useQueryState/nuqs pattern the Traces page uses). `null` clears the param.
   const [openID, setOpenID] = useQueryState('dataset', parseAsString);
   const [peekTrace, setPeekTrace] = useState<string | null>(null); // dataset item → source-span peek (M70)
-  const nameInputRef = useRef<HTMLInputElement>(null); // M73 — empty-state CTA focuses the create input
   const [pendingRemove, setPendingRemove] = useState<{ datasetID: string; traceId: string } | null>(null);
   // M82 list-management state: which dataset is being renamed inline (+ its draft), and a pending delete.
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
@@ -107,6 +110,7 @@ export function LensDatasetsPage() {
       }),
     onSuccess: () => {
       setName('');
+      setCreateOpen(false);
       invalidate();
     },
   });
@@ -260,39 +264,12 @@ export function LensDatasetsPage() {
 
   return (
     <>
-      <PageShell title="Datasets" description="Curate trace datasets for evaluation.">
+      <PageShell
+        title="Datasets"
+        description="Curate trace datasets for evaluation."
+        primaryAction={{ label: 'New dataset', icon: Plus, onClick: () => setCreateOpen(true) }}
+      >
         <div className="space-y-6">
-          <Card>
-            <Card.Body>
-              <form
-                className="flex items-end gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (name.trim()) create.mutate(name.trim());
-                }}
-              >
-                <div className="flex-1">
-                  <Label htmlFor="dataset-name">Dataset name</Label>
-                  <Input
-                    ref={nameInputRef}
-                    id="dataset-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="New dataset name"
-                  />
-                </div>
-                <Button type="submit" disabled={!name.trim() || create.isPending}>
-                  Create
-                </Button>
-              </form>
-              {create.isError ? (
-                <Alert intent="destructive" title="Could not create the dataset" className="mt-3">
-                  Try again shortly.
-                </Alert>
-              ) : null}
-            </Card.Body>
-          </Card>
-
           {query.isLoading ? (
             <ListSkeleton label="datasets" />
           ) : query.isError ? (
@@ -304,7 +281,7 @@ export function LensDatasetsPage() {
               title="No datasets yet"
               description="Create your first dataset to start curating traces."
               action={
-                <Button variant="secondary" size="sm" onClick={() => nameInputRef.current?.focus()}>
+                <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
                   Name your first dataset
                 </Button>
               }
@@ -349,6 +326,52 @@ export function LensDatasetsPage() {
           ) : null}
         </div>
       </PageShell>
+
+      <AppModal
+        open={createOpen}
+        onClose={() => {
+          setCreateOpen(false);
+          setName('');
+          create.reset();
+        }}
+        size="sm"
+        title="New dataset"
+        description="Curate a set of traces to evaluate together."
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setCreateOpen(false);
+                setName('');
+                create.reset();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => name.trim() && create.mutate(name.trim())} disabled={!name.trim() || create.isPending}>
+              {create.isPending ? 'Creating…' : 'Create dataset'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="dataset-name">Dataset name</Label>
+          <Input
+            id="dataset-name"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && name.trim()) create.mutate(name.trim());
+            }}
+            placeholder="New dataset name"
+          />
+          {create.isError ? (
+            <p className="text-xs text-destructive">Could not create the dataset. Try again shortly.</p>
+          ) : null}
+        </div>
+      </AppModal>
 
       {pendingRemove ? (
         <ConfirmDialog

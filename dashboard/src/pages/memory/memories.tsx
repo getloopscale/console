@@ -88,7 +88,15 @@ export function MemoryListPage() {
       // RFC3339 datetimes (ADR D3). Widen the day to its full inclusive range.
       if (from) params.set('from', `${from}T00:00:00Z`);
       if (to) params.set('to', `${to}T23:59:59Z`);
-      return cloudFetch<ListResult>(`/v1/dashboard/memory/list?${params.toString()}`);
+      // throwOnError so a failed fetch REJECTS (→ query.isError) instead of
+      // resolving null. cloudFetch's default swallows 4xx/5xx to null, which this
+      // page would render identically to an empty list — the exact "No memories yet
+      // on a 404/502" defect (theo-cloud#250).
+      return cloudFetch<ListResult>(
+        `/v1/dashboard/memory/list?${params.toString()}`,
+        {},
+        { throwOnError: true },
+      );
     },
   });
 

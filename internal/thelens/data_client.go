@@ -234,9 +234,15 @@ func (c *DataClient) UpdateEvaluator(ctx context.Context, id string, body json.R
 	return c.doRaw(ctx, http.MethodPut, "/v1/evaluators/"+url.PathEscape(id), nil, body)
 }
 
-// RunEvaluator proxies POST /v1/evaluators/{id}/run ({traceIds?,limit?}).
+// RunEvaluator proxies POST /v1/evaluators/{id}/run ({traceIds?,limit?}) — M133: returns a queued
+// job (202) that the client polls via GetEvaluatorRunJob (the run itself is now async upstream).
 func (c *DataClient) RunEvaluator(ctx context.Context, id string, body json.RawMessage) (json.RawMessage, error) {
 	return c.doRaw(ctx, http.MethodPost, "/v1/evaluators/"+url.PathEscape(id)+"/run", nil, body)
+}
+
+// GetEvaluatorRunJob proxies GET /v1/evaluator-run-jobs/{id} (M133 — async run status/progress).
+func (c *DataClient) GetEvaluatorRunJob(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodGet, "/v1/evaluator-run-jobs/"+url.PathEscape(id), nil, nil)
 }
 
 // DeleteEvaluator proxies DELETE /v1/evaluators/{id} (204).
@@ -244,24 +250,35 @@ func (c *DataClient) DeleteEvaluator(ctx context.Context, id string) (json.RawMe
 	return c.doRaw(ctx, http.MethodDelete, "/v1/evaluators/"+url.PathEscape(id), nil, nil)
 }
 
-// ListGuards proxies GET /v1/guards.
-func (c *DataClient) ListGuards(ctx context.Context) (json.RawMessage, error) {
-	return c.getRaw(ctx, "/v1/guards", nil)
+// ListMonitors proxies GET /v1/monitors.
+func (c *DataClient) ListMonitors(ctx context.Context) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/monitors", nil)
 }
 
-// GuardBreaches proxies GET /v1/guards/{id}/breaches ({traceIds}).
-func (c *DataClient) GuardBreaches(ctx context.Context, id string) (json.RawMessage, error) {
-	return c.getRaw(ctx, "/v1/guards/"+url.PathEscape(id)+"/breaches", nil)
+// MonitorBreaches proxies GET /v1/monitors/{id}/breaches ({traceIds}).
+func (c *DataClient) MonitorBreaches(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/monitors/"+url.PathEscape(id)+"/breaches", nil)
 }
 
-// CreateGuard proxies POST /v1/guards ({evaluatorId,operator,...}).
-func (c *DataClient) CreateGuard(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
-	return c.doRaw(ctx, http.MethodPost, "/v1/guards", nil, body)
+// MonitorBreachWindow proxies GET /v1/monitors/{id}/breach-window?window=N.
+//
+// M135: this is what the alert evaluator reads. The observability series is a WORKSPACE aggregate
+// returning one float per window and structurally cannot answer a per-guard question — there is no
+// parameter through which a guard id could travel.
+func (c *DataClient) MonitorBreachWindow(ctx context.Context, id string, windowSeconds int) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("window", strconv.Itoa(windowSeconds))
+	return c.getRaw(ctx, "/v1/monitors/"+url.PathEscape(id)+"/breach-window", q)
 }
 
-// DeleteGuard proxies DELETE /v1/guards/{id} (204).
-func (c *DataClient) DeleteGuard(ctx context.Context, id string) (json.RawMessage, error) {
-	return c.doRaw(ctx, http.MethodDelete, "/v1/guards/"+url.PathEscape(id), nil, nil)
+// CreateMonitor proxies POST /v1/monitors ({evaluatorId,operator,...}).
+func (c *DataClient) CreateMonitor(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodPost, "/v1/monitors", nil, body)
+}
+
+// DeleteMonitor proxies DELETE /v1/monitors/{id} (204).
+func (c *DataClient) DeleteMonitor(ctx context.Context, id string) (json.RawMessage, error) {
+	return c.doRaw(ctx, http.MethodDelete, "/v1/monitors/"+url.PathEscape(id), nil, nil)
 }
 
 // ListAgents proxies GET /v1/agents (read-only derived catalog).

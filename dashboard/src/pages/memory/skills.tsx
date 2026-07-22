@@ -84,7 +84,13 @@ export function SkillsPage() {
       params.set('limit', String(PAGE_SIZE));
       if (offset > 0) params.set('offset', String(offset));
       if (q !== '') params.set('q', q);
-      return cloudFetch<SkillsAllResult>(`/v1/dashboard/memory/skills/all?${params.toString()}`);
+      // throwOnError so a failed fetch is query.isError, not an empty list rendered
+      // as "no skills" (theo-cloud#250).
+      return cloudFetch<SkillsAllResult>(
+        `/v1/dashboard/memory/skills/all?${params.toString()}`,
+        {},
+        { throwOnError: true },
+      );
     },
   });
 

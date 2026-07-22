@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Play, Trash2 } from 'lucide-react';
+import { Play, Plus, Trash2 } from 'lucide-react';
 import {
+  Badge,
   Button,
   Card,
   DataTable,
@@ -13,6 +14,7 @@ import {
   Select,
   Textarea,
 } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
@@ -34,6 +36,28 @@ interface Evaluator {
   name: string;
   kind?: string;
   enabled?: boolean;
+  // The evaluator's rule config — passed through verbatim from theo-lens (BFF `json.RawMessage`).
+  // rule → { predicate }; llm_judge → { prompt, model }. Optional/loose since it's an upstream shape.
+  config?: { predicate?: string; prompt?: string; model?: string };
+}
+
+/** A short, one-line summary of an evaluator's rule for the list column. */
+function ruleSummary(ev: Evaluator): string {
+  if (ev.kind === 'llm_judge') return `judge · ${ev.config?.model?.trim() || '—'}`;
+  const predicate = ev.config?.predicate ?? '';
+  return predicate.trim() === '' ? 'match-all' : predicate;
+}
+
+/** M133 — an async evaluator-run job (POST /run returns this queued; the client polls for progress). */
+interface RunJob {
+  id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  total: number;
+  scored: number;
+  skipped: number;
+  errors: number;
+  truncated: boolean;
+  errorMessage?: string;
 }
 interface EvaluatorsResult {
   evaluators: Evaluator[];
@@ -83,6 +107,11 @@ export function LensEvaluatorsPage() {
   const [predicate, setPredicate] = useState('');
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState('');
+  // Create is a centered modal (AppModal), consistent with the rest of the dashboard — replaces the
+  // former inline Card form (Evaluate UX standardization: forms open as centered modals, never inline/lateral).
+  const [createOpen, setCreateOpen] = useState(false);
+  // The evaluator whose rule is being viewed in the detail modal (null = closed).
+  const [viewing, setViewing] = useState<Evaluator | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Evaluator | null>(null);
   // M82 — which evaluator is being renamed inline (+ its draft value).
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
@@ -131,17 +160,44 @@ export function LensEvaluatorsPage() {
       setPredicate('');
       setPrompt('');
       setModel('');
+      setCreateOpen(false);
       invalidate();
     },
   });
 
+  // M133 — a manual run is async: POST registers a job (202); we then poll GET /evaluator-run-jobs/:id
+  // for status + scored/total progress. `activeRun` tracks the in-flight job for the inline status region.
+  const [activeRun, setActiveRun] = useState<{ evaluatorName: string; jobId: string } | null>(null);
   const run = useMutation({
-    mutationFn: (id: string) =>
-      cloudFetch<{ written: number }>(`/v1/dashboard/lens/evaluators/${encodeURIComponent(id)}/run`, {
-        method: 'POST',
-        body: JSON.stringify({ limit: 100 }),
-      }),
+    mutationFn: (ev: { id: string; name: string }) =>
+      cloudFetch<RunJob>(
+        `/v1/dashboard/lens/evaluators/${encodeURIComponent(ev.id)}/run`,
+        { method: 'POST', body: JSON.stringify({ limit: 100 }) },
+        { throwOnError: true },
+      ),
+    retry: false,
+    onSuccess: (job, ev) => {
+      if (job) setActiveRun({ evaluatorName: ev.name, jobId: job.id });
+    },
   });
+
+  // Poll the async run job until terminal; on completion, refresh the scores chart so the new verdicts show.
+  const runJobQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/lens/evaluator-run-jobs', activeRun?.jobId] as const,
+    queryFn: () => cloudFetch<RunJob>(`/v1/dashboard/lens/evaluator-run-jobs/${encodeURIComponent(activeRun!.jobId)}`),
+    enabled: activeRun !== null,
+    refetchInterval: (q) => {
+      const s = (q.state.data as RunJob | undefined)?.status;
+      return s === 'completed' || s === 'failed' ? false : 1500; // poll ~1.5s until terminal
+    },
+  });
+  const runJob = runJobQuery.data ?? null;
+  useEffect(() => {
+    if (runJob?.status === 'completed') {
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/metrics/scores'] });
+    }
+  }, [runJob?.status, queryClient]);
+  const runInFlight = run.isPending || (runJob !== null && runJob.status !== 'completed' && runJob.status !== 'failed');
 
   const remove = useMutation({
     mutationFn: (e: Evaluator) =>
@@ -179,6 +235,18 @@ export function LensEvaluatorsPage() {
     rename.mutate({ id: row.id, name });
   };
 
+  const submitCreate = () => {
+    if (canCreate) create.mutate(buildCreateBody());
+  };
+  const closeCreate = () => {
+    setCreateOpen(false);
+    setName('');
+    setPredicate('');
+    setPrompt('');
+    setModel('');
+    create.reset();
+  };
+
   const columns: DataTableColumn<Evaluator>[] = [
     {
       key: 'name',
@@ -203,12 +271,31 @@ export function LensEvaluatorsPage() {
     },
     { key: 'kind', label: 'Kind', render: (row) => <span>{row.kind ?? '—'}</span> },
     {
+      key: 'rule',
+      label: 'Rule',
+      // A short one-line summary of the rule (predicate / judge · model); the full text is in the View modal.
+      render: (row) => (
+        <span className="block max-w-[280px] truncate font-mono text-xs text-muted-foreground" title={ruleSummary(row)}>
+          {ruleSummary(row)}
+        </span>
+      ),
+    },
+    {
       key: 'actions',
       label: '',
       align: 'right',
       render: (row) => (
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="sm" onClick={() => run.mutate(row.id)} aria-label={`Run ${row.name}`}>
+          <Button variant="ghost" size="sm" aria-label={`View rule for ${row.name}`} onClick={() => setViewing(row)}>
+            View
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => run.mutate({ id: row.id, name: row.name })}
+            disabled={runInFlight}
+            aria-label={`Run ${row.name}`}
+          >
             <Play className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" aria-label={`Rename evaluator ${row.name}`} onClick={() => setRenaming({ id: row.id, value: row.name })}>
@@ -235,85 +322,34 @@ export function LensEvaluatorsPage() {
 
   return (
     <>
-      <PageShell title="Evaluators" description="Score traces with rule or LLM-judge evaluators.">
+      <PageShell
+        title="Evaluators"
+        description="Score traces with rule or LLM-judge evaluators."
+        primaryAction={{ label: 'New evaluator', icon: Plus, onClick: () => setCreateOpen(true) }}
+      >
         <div className="space-y-6">
-          <Card>
-            <Card.Body>
-              <form
-                className="space-y-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (canCreate) create.mutate(buildCreateBody());
-                }}
-              >
-                <Label htmlFor="evaluator-name">Name</Label>
-                <Input
-                  id="evaluator-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="evaluator-name"
-                />
-                <Label htmlFor="evaluator-kind">Kind</Label>
-                <Select value={kind} onValueChange={(v) => setKind(v as EvaluatorKind)}>
-                  <Select.Trigger id="evaluator-kind" className="w-[220px]" aria-label="Evaluator kind">
-                    <Select.Value />
-                  </Select.Trigger>
-                  <Select.Content>
-                    <Select.Item value="rule">Rule (predicate)</Select.Item>
-                    <Select.Item value="llm_judge">LLM judge (prompt + model)</Select.Item>
-                  </Select.Content>
-                </Select>
-                {kind === 'rule' ? (
-                  <>
-                    <Label htmlFor="evaluator-predicate">Rule predicate</Label>
-                    <Textarea
-                      id="evaluator-predicate"
-                      value={predicate}
-                      onChange={(e) => setPredicate(e.target.value)}
-                      placeholder="status:error"
-                    />
-                    {/* E-2: a concrete example matching the real span-query DSL (space-separated
-                        field:value clauses, AND-ed) — not a JS expression, which would fail validation. */}
-                    <p className="text-xs text-muted-foreground">
-                      Space-separated <code>field:value</code> clauses (all must match). Fields: <code>kind</code>,{' '}
-                      <code>name</code>, <code>status</code>, <code>model</code>. e.g. <code>status:error</code> or{' '}
-                      <code>kind:llm model:gpt-4o</code>.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <Label htmlFor="evaluator-prompt">Judge prompt</Label>
-                    <Textarea
-                      id="evaluator-prompt"
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="Grade the answer for factual accuracy. Reply PASS or FAIL."
-                    />
-                    <Label htmlFor="evaluator-model">Judge model</Label>
-                    <Input
-                      id="evaluator-model"
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      placeholder="e.g. gpt-4o-mini"
-                    />
-                  </>
-                )}
-                <Button type="submit" disabled={!canCreate || create.isPending}>
-                  Create evaluator
-                </Button>
-              </form>
-              {create.isError ? (
-                <Alert intent="destructive" title="Could not create the evaluator" className="mt-3">
-                  Try again shortly.
-                </Alert>
-              ) : null}
-              {run.isError ? (
-                <Alert intent="warning" title="Could not run the evaluator" className="mt-3">
-                  Try again shortly.
-                </Alert>
-              ) : null}
-            </Card.Body>
-          </Card>
+          {run.isError ? (
+            <Alert intent="warning" title="Could not start the run" data-testid="run-error">
+              Try again shortly.
+            </Alert>
+          ) : activeRun && runJob ? (
+            runJob.status === 'failed' ? (
+              <Alert intent="warning" title={`Run failed · ${activeRun.evaluatorName}`} data-testid="run-status">
+                {runJob.errorMessage ?? 'The evaluator run failed.'}
+              </Alert>
+            ) : runJob.status === 'completed' ? (
+              <Alert intent="success" title={`Run complete · ${activeRun.evaluatorName}`} data-testid="run-status">
+                Scored {runJob.scored} of {runJob.total} span{runJob.total === 1 ? '' : 's'}
+                {runJob.errors > 0 ? ` (${runJob.errors} error${runJob.errors === 1 ? '' : 's'})` : ''}.
+              </Alert>
+            ) : (
+              <Alert intent="info" title={`Scoring · ${activeRun.evaluatorName}`} data-testid="run-status">
+                {runJob.status === 'queued'
+                  ? 'Queued…'
+                  : `Scoring ${runJob.scored}${runJob.total ? ` / ${runJob.total}` : ''}…`}
+              </Alert>
+            )
+          ) : null}
 
           {query.isLoading ? (
             <ListSkeleton label="evaluators" />
@@ -322,7 +358,15 @@ export function LensEvaluatorsPage() {
               The lens service is unavailable. Try again shortly.
             </Alert>
           ) : evaluators.length === 0 ? (
-            <EmptyState title="No evaluators yet" description="Create your first evaluator to score traces." />
+            <EmptyState
+              title="No evaluators yet"
+              description="Create your first evaluator to score traces."
+              action={
+                <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
+                  Create your first evaluator
+                </Button>
+              }
+            />
           ) : (
             <Card>
               <DataTable columns={columns} data={evaluators} rowKey={(row) => row.id} />
@@ -390,12 +434,143 @@ export function LensEvaluatorsPage() {
         </div>
       </PageShell>
 
+      <AppModal
+        open={createOpen}
+        onClose={closeCreate}
+        size="md"
+        title="New evaluator"
+        description="Score traces with a rule predicate or an LLM judge."
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeCreate}>
+              Cancel
+            </Button>
+            <Button onClick={submitCreate} disabled={!canCreate || create.isPending}>
+              {create.isPending ? 'Creating…' : 'Create evaluator'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Label htmlFor="evaluator-name">Name</Label>
+          <Input
+            id="evaluator-name"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitCreate();
+            }}
+            placeholder="evaluator-name"
+          />
+          <Label htmlFor="evaluator-kind">Kind</Label>
+          <Select value={kind} onValueChange={(v) => setKind(v as EvaluatorKind)}>
+            <Select.Trigger id="evaluator-kind" className="w-[220px]" aria-label="Evaluator kind">
+              <Select.Value />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="rule">Rule (predicate)</Select.Item>
+              <Select.Item value="llm_judge">LLM judge (prompt + model)</Select.Item>
+            </Select.Content>
+          </Select>
+          {kind === 'rule' ? (
+            <>
+              <Label htmlFor="evaluator-predicate">Rule predicate</Label>
+              <Textarea
+                id="evaluator-predicate"
+                value={predicate}
+                onChange={(e) => setPredicate(e.target.value)}
+                placeholder="status:error"
+              />
+              {/* E-2: a concrete example matching the real span-query DSL (space-separated
+                  field:value clauses, AND-ed) — not a JS expression, which would fail validation. */}
+              <p className="text-xs text-muted-foreground">
+                Space-separated <code>field:value</code> clauses (all must match). Fields: <code>kind</code>,{' '}
+                <code>name</code>, <code>status</code>, <code>model</code>. e.g. <code>status:error</code> or{' '}
+                <code>kind:llm model:gpt-4o</code>.
+              </p>
+            </>
+          ) : (
+            <>
+              <Label htmlFor="evaluator-prompt">Judge prompt</Label>
+              <Textarea
+                id="evaluator-prompt"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Grade the answer for factual accuracy. Reply PASS or FAIL."
+              />
+              <Label htmlFor="evaluator-model">Judge model</Label>
+              <Input
+                id="evaluator-model"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitCreate();
+                }}
+                placeholder="e.g. gpt-4o-mini"
+              />
+            </>
+          )}
+          {create.isError ? (
+            <Alert intent="destructive" title="Could not create the evaluator">
+              Try again shortly.
+            </Alert>
+          ) : null}
+        </div>
+      </AppModal>
+
+      <AppModal
+        open={viewing !== null}
+        onClose={() => setViewing(null)}
+        size="md"
+        title={viewing ? `Rule · ${viewing.name}` : 'Rule'}
+        description={
+          viewing?.kind === 'llm_judge'
+            ? 'LLM-judge evaluator — the judge prompt and pinned model.'
+            : 'Rule evaluator — the span-query predicate.'
+        }
+      >
+        {viewing ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase text-muted-foreground">Kind</span>
+              <Badge variant="outline">{viewing.kind ?? '—'}</Badge>
+            </div>
+            {viewing.kind === 'llm_judge' ? (
+              <>
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold uppercase text-muted-foreground">Model</span>
+                  <p className="font-mono text-sm">{viewing.config?.model?.trim() || '—'}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold uppercase text-muted-foreground">Judge prompt</span>
+                  <pre className="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 font-mono text-xs" data-testid="rule-detail">
+                    {viewing.config?.prompt?.trim() || '—'}
+                  </pre>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-1">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">Predicate</span>
+                <pre className="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 font-mono text-xs" data-testid="rule-detail">
+                  {viewing.config?.predicate?.trim() || 'match-all (empty predicate)'}
+                </pre>
+                <p className="text-xs text-muted-foreground">
+                  Space-separated <code>field:value</code> clauses (all must match). Fields: <code>kind</code>, <code>model</code>,{' '}
+                  <code>status</code>, …
+                </p>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </AppModal>
+
       {pendingDelete ? (
         <ConfirmDialog
           open={pendingDelete !== null}
           onOpenChange={(o) => !o && setPendingDelete(null)}
           title={`Delete evaluator ${pendingDelete.name}?`}
-          description={<p className="text-sm">This permanently deletes the evaluator and its guards. This cannot be undone.</p>}
+          description={<p className="text-sm">This permanently deletes the evaluator and its monitors. This cannot be undone.</p>}
           confirmLabel={remove.isPending ? 'Deleting…' : 'Delete evaluator'}
           cancelLabel="Cancel"
           intent="destructive"

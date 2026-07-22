@@ -1,8 +1,52 @@
 ## [Unreleased]
 
-## [0.69.5] - 2026-07-20
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
 
 ### Fixed
+
+### Security
+
+## [0.70.0] - 2026-07-22
+
+### Added
+- theo-trust Model B broker + ForwardAuth handler (M10): `internal/trust` broker (LRU + singleflight, least-privilege scope intersection, **fail-closed** — no master fallback) + AdminClient (holds `trust:platform-admin`, mints per-tenant `trust_live_*` via `POST /v1/admin/keys`, control/data split closing CWE-441). Registered at `/internal/authz/forward-trust` when `TRUST_BASE_URL` set; config `TRUST_BASE_URL` + `TRUST_PLATFORM_ADMIN_KEY` (required-when-enabled). Ported from `internal/themory` (Rule 9). Consumer `trust:*` scopes are free-form (no migration). (M10)
+- Alert rules report a derived `stale` flag — the rule is enabled but has not been evaluated for three tick intervals, which distinguishes "healthy, never breached" from "nobody is looking".
+- Alert rules may reference a theo-lens guard (`metric: guard_breach`), so a quality threshold is evaluated on the existing 60s cadence instead of only when someone opens the screen (M135).
+- `theo_lens_alert_evaluation_total{result}` — every alert-rule visit, including the paths that skip.
+- **Evaluators — view an evaluator's rule.** The list gains a **Rule** column with a one-line summary (a `rule`'s predicate, or `judge · <model>` for an `llm_judge`) and a **View** action that opens a centered detail modal with the full rule: the span-query predicate (with the `field:value` syntax hint) for a rule evaluator, or the judge prompt + pinned model for an llm_judge. Previously the rule was only visible while creating the evaluator — after creation there was no way to see it. Frontend-only: the `config` already reached the browser (the BFF passes theo-lens's evaluator shape through verbatim); the UI just wasn't surfacing it.
+
+
+### Changed
+
+- Guards are now called Monitors across the BFF, the dashboard screen and the alert-rule surface (M136). Behaviour is unchanged; the old name promised request-path enforcement that was never implemented, while `guardrail` properly names a span kind emitted by *your* application's inline blocker.
+- Alert rules use `metric: "monitor_breach"` and `monitor_id` (engine migration `000059`). Existing rules and their fired-alert history are migrated, not discarded.
+
+- **Evaluate module — unified "centered modal" UX (Datasets · Evaluators · Guards · Queues · Experiments).** The module had three different create patterns and no consistent detail surface: some screens opened forms as inline page-body Cards, and Guards (breaches) + Queues (resolve/export) opened them as **lateral Sheets**. Every create/edit/short-detail form is now a centered `AppModal` (opened from the page header's primary action + empty-state CTA), consistent across the module: Datasets "New dataset", Evaluators "New evaluator", Guards "New guard" + breaches detail, Queues resolve + export, Experiments "New run". Deletes stay as centered `ConfirmDialog`; tabular drill-downs (dataset items, run results, compare) stay inline; the deep **trace explorer keeps its lateral panel** (the one deliberate side-panel — a large trace waterfall, the industry norm). Ask is unchanged (full-page conversation).
+
+
+### Deprecated
+
+- `/v1/dashboard/lens/guards*` — alias on the same handlers for one release; use `/v1/dashboard/lens/monitors*`.
+- The `guard_id` request and response field on alert rules — accepted and emitted alongside `monitor_id` for one release, always the same value. `monitor_id` wins when both are sent.
+
+
+
+
+### Fixed
+- Dashboard memory pages (memories, entities, graph, skills, webhooks) rendered a failed fetch (4xx/5xx) as an empty state instead of an error, so a routing/broker outage read as "no memories yet"; the read queries now surface the error (#250)
+- The alert evaluator's non-fire status write is now fenced on read-time state, so a replica with a stale non-breaching read can no longer reset another replica's TRIGGERED and trigger an alert storm (#248).
+
+- Alert rules that fire *below* a threshold no longer raise a false alarm on a quiet workspace (#247). A window with no traffic produced the value `0`, and since `lt`/`lte` are valid comparators, a rule like "alert if cost drops below $10" fired permanently on any workspace that simply had no activity — and the anti-storm behaviour then held it open, so it could not be cleared without disabling the rule. Those are exactly the rules you write to detect that a pipeline stopped. "No data" and "the metric is genuinely zero" are now distinguished, and a rule over an empty window is skipped rather than evaluated.
+- **Evaluators — the Run (play) button now works and shows progress (was silent / 502 for LLM judges).** Clicking Run appeared to do nothing: an `llm_judge` evaluator scored every recent span synchronously and exceeded the edge timeout (502), while the dashboard swallowed the error (no `throwOnError`) and never surfaced success either. The run is now **async** end-to-end (theo-lens M133): Run posts a job, the dashboard **polls** `/v1/dashboard/lens/evaluator-run-jobs/:id` and shows an inline status — `Scoring N/total…` → `Run complete · Scored N of M spans` (or a typed failure) — then refreshes the Scores-over-time chart. The Run button is disabled while a run is in flight. BFF gains the job-status proxy route.
+
+- **Dashboard modals no longer risk opening as a lateral drawer** — root-caused to `@usetheo/ui` where `Dialog` and `Sheet` were the *same object* (`DialogPrimitive.Root`) so `Sheet.Content` (a drawer) clobbered `Dialog.Content` (centered) by module-evaluation order. Fixed at the source in `@usetheo/ui@0.31.0` (each wraps Radix `Root` in its own component); the dashboard bumps to `^0.31.0`. Also removes a stale, no-longer-applying `patch-package` patch whose a11y fix (ActionBar search `aria-label`) is already upstream.
+
 - Observability charts: the "Scores over time" y-axis no longer shows a raw float like `0.7000000000000001` (now `0.70`), the score chart is pinned to a `[0, 1]` axis (so 0.68 reads correctly, not near-max), and chart markers no longer stretch into ovals on wide screens — via `@usetheo/ui@0.30.0` (`TrendChart` `yMax` prop + width-aware viewBox + `niceMax` float fix) (M132)
 
 ## [0.69.4] - 2026-07-20

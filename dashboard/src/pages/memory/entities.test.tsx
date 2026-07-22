@@ -39,7 +39,7 @@ describe('EntitiesPage (/memory/entities)', () => {
     render(<EntitiesPage />);
     // First call to backend must include scope=user.
     expect(await screen.findByRole('tab', { name: /user/i })).toBeInTheDocument();
-    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=user'));
+    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=user'), expect.anything(), expect.objectContaining({ throwOnError: true }));
   });
 
   it('empty entities renders EmptyState (D3 inheritance — no broken table)', async () => {

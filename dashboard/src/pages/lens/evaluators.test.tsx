@@ -16,6 +16,8 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     render(<LensEvaluatorsPage />);
     await screen.findByText(/no evaluators yet/i);
 
+    // The create form is a centered modal — open it from the PageShell primary action first.
+    await userEvent.click(screen.getByRole('button', { name: /new evaluator/i }));
     await userEvent.type(screen.getByLabelText(/^name$/i), 'nonempty');
     await userEvent.type(screen.getByLabelText(/rule predicate/i), 'status:error'); // real span-query DSL
     await userEvent.click(screen.getByRole('button', { name: /create evaluator/i }));
@@ -29,6 +31,22 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     expect(body.config).toEqual({ predicate: 'status:error' });
   });
 
+  it('surfaces each rule in a Rule column and the full rule in a View modal', async () => {
+    mockCloudFetch.mockResolvedValue({
+      evaluators: [
+        { id: 'e1', name: 'has-error', kind: 'rule', config: { predicate: 'status:error' } },
+        { id: 'e2', name: 'quality', kind: 'llm_judge', config: { prompt: 'Rate the answer 0-1.', model: 'gpt-4o-mini' } },
+      ],
+    });
+    render(<LensEvaluatorsPage />);
+    // The list column surfaces a short summary of each rule (predicate / judge · model).
+    expect(await screen.findByText('status:error')).toBeInTheDocument();
+    expect(screen.getByText(/judge · gpt-4o-mini/i)).toBeInTheDocument();
+    // "View" opens a centered modal showing the FULL rule (here the llm_judge prompt).
+    await userEvent.click(screen.getByRole('button', { name: /view rule for quality/i }));
+    expect(await screen.findByTestId('rule-detail')).toHaveTextContent('Rate the answer 0-1.');
+  });
+
   // M76 (E-1) — the llm_judge evaluator class is reachable from the UI: selecting it swaps the config
   // fields (predicate → prompt + model) and POSTs the matching theo-lens discriminated-union body.
   it('M76 — selecting the LLM-judge kind swaps fields and POSTs {kind:llm_judge, config:{prompt,model}}', async () => {
@@ -36,6 +54,8 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     render(<LensEvaluatorsPage />);
     await screen.findByText(/no evaluators yet/i);
 
+    // Open the create modal (PageShell primary action) before filling the form.
+    await userEvent.click(screen.getByRole('button', { name: /new evaluator/i }));
     await userEvent.type(screen.getByLabelText(/^name$/i), 'faithfulness');
     await userEvent.click(screen.getByRole('combobox', { name: /evaluator kind/i }));
     await userEvent.click(await screen.findByRole('option', { name: /llm judge/i }));
@@ -58,17 +78,31 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     mockCloudFetch.mockResolvedValue({ evaluators: [] });
     render(<LensEvaluatorsPage />);
     await screen.findByText(/no evaluators yet/i);
-    expect(screen.getByText(/field:value/i)).toBeInTheDocument(); // names the real span-query DSL
+    // The predicate hint lives inside the create modal — open it first.
+    await userEvent.click(screen.getByRole('button', { name: /new evaluator/i }));
+    expect(await screen.findByText(/field:value/i)).toBeInTheDocument(); // names the real span-query DSL
   });
 
-  it('runs an evaluator via POST /run', async () => {
-    mockCloudFetch.mockResolvedValue({ evaluators: [{ id: 'ev_1', name: 'r', kind: 'rule' }] });
+  it('M133 — runs an evaluator via async POST /run then polls the job to completion', async () => {
+    mockCloudFetch.mockImplementation((url: string, opts?: { method?: string }) => {
+      if (url === '/v1/dashboard/lens/evaluators' && opts?.method === undefined)
+        return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'r', kind: 'rule' }] });
+      if (url === '/v1/dashboard/lens/evaluators/ev_1/run' && opts?.method === 'POST')
+        return Promise.resolve({ id: 'job1', status: 'queued', total: 0, scored: 0, skipped: 0, errors: 0, truncated: false });
+      if (url === '/v1/dashboard/lens/evaluator-run-jobs/job1')
+        return Promise.resolve({ id: 'job1', status: 'completed', total: 3, scored: 3, skipped: 0, errors: 0, truncated: false });
+      return Promise.resolve({});
+    });
     render(<LensEvaluatorsPage />);
     await userEvent.click(await screen.findByRole('button', { name: /run r/i }));
+    // POST /run is async — it returns a queued job (not a synchronous result).
     expect(mockCloudFetch).toHaveBeenCalledWith(
       '/v1/dashboard/lens/evaluators/ev_1/run',
       expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ throwOnError: true }),
     );
+    // Polling the job resolves to completed → the inline status region shows the tally (feedback, not silence).
+    expect(await screen.findByTestId('run-status')).toHaveTextContent(/scored 3 of 3 spans/i);
   });
 
   it('delete opens ConfirmDialog then calls DELETE on confirm', async () => {

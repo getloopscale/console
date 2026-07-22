@@ -49,7 +49,7 @@ describe('LensOverviewPage (/observability Overview landing)', () => {
     expect(screen.getByText('Latency p95 (ms)')).toBeInTheDocument();
     // M70 — the Explore grid is generated from the capability registry (now also incl. Dashboards,
     // Queues, Experiments, Alerts). The cards are SPA links (not full-reload buttons).
-    for (const t of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Agents', 'Ask', 'Alerts', 'Experiments']) {
+    for (const t of ['Traces', 'Sessions', 'Datasets', 'Evaluators', 'Monitors', 'Agents', 'Ask', 'Alerts', 'Experiments']) {
       expect(screen.getAllByText(t).length).toBeGreaterThan(0);
     }
     const openLinks = screen.getAllByRole('link', { name: /open →/i });

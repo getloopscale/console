@@ -206,7 +206,7 @@ export function LensOverviewPage() {
             <h2 className="text-base font-semibold">Getting started</h2>
             <p className="text-sm text-muted-foreground">
               Instrument an agent with the SDK and send OTLP spans to see executions here, then curate
-              datasets, score them with evaluators, and gate on guards.
+              datasets, score them with evaluators, and monitor the scores.
             </p>
             <Button asChild variant="ghost">
               <Link to="/observability/traces">Browse traces →</Link>

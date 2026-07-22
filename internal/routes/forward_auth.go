@@ -36,6 +36,12 @@ const AuthzForwardRagPath = "/internal/authz/forward-rag"
 // Traefik `forward-auth-lens` middleware targets it.
 const AuthzForwardLensPath = "/internal/authz/forward-lens"
 
+// AuthzForwardTrustPath is the internal ForwardAuth endpoint for the theo-trust
+// capability (M10 — Model B). The generic ForwardAuthHandler is reused (wired with
+// the trust broker + "trust:read"); only the path differs so the Traefik
+// `forward-auth-trust` middleware targets it.
+const AuthzForwardTrustPath = "/internal/authz/forward-trust"
+
 // APIKeyResolver validates an inbound Authorization header and resolves the
 // tenant. Injected (not a concrete *sql.DB dependency) so the handler is unit-
 // testable without a database; in production it closes over auth.ResolveAPIKey.
@@ -136,6 +142,14 @@ func (h *ForwardAuthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// onto the upstream request via authResponseHeaders. The consumer's own key
 	// is stripped at the edge (D3) so the backend sees ONLY this scoped key.
 	w.Header().Set("Authorization", "Bearer "+minted)
+	// Also hand the credential's user identity so the REST backend can bind the user
+	// tier the SAME way the MCP path does (theo-cloud#249). Auth-trusted — from the
+	// resolved credential, never a client header. The edge strips any client-supplied
+	// X-Theo-User-Id and copies THIS one via authResponseHeaders. Empty for legacy
+	// credentials; the backend then keeps its body-tier behavior.
+	if uc.Subject != "" {
+		w.Header().Set("X-Theo-User-Id", uc.Subject)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 

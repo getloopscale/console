@@ -185,7 +185,7 @@ describe('GraphPage (/memory/graph)', () => {
     mockCloudFetch.mockResolvedValueOnce({ nodes: [], edges: [] });
     render(<GraphPage />);
     expect(await screen.findByRole('tab', { name: /user/i })).toBeInTheDocument();
-    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=user'));
+    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=user'), expect.anything(), expect.objectContaining({ throwOnError: true }));
   });
 
   it('empty graph renders EmptyState (D5 — no broken canvas)', async () => {
@@ -231,7 +231,7 @@ describe('GraphPage (/memory/graph)', () => {
     mockCloudFetch.mockResolvedValueOnce({ nodes: [], edges: [] });
     render(<GraphPage />, { initialEntries: ['/memory/graph?scope=session'] });
     expect(await screen.findByText(/no graph under/i)).toBeInTheDocument();
-    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=session'));
+    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=session'), expect.anything(), expect.objectContaining({ throwOnError: true }));
   });
 
   it('toggles hiding unconnected (isolated) nodes (#3)', async () => {
@@ -258,14 +258,14 @@ describe('GraphPage (/memory/graph)', () => {
     render(<GraphPage />);
     await screen.findByTestId('force-graph');
     // baseline: active-only (no includeSuperseded param)
-    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=user'));
-    expect(mockCloudFetch).not.toHaveBeenCalledWith(expect.stringContaining('includeSuperseded=true'));
+    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=user'), expect.anything(), expect.objectContaining({ throwOnError: true }));
+    expect(mockCloudFetch).not.toHaveBeenCalledWith(expect.stringContaining('includeSuperseded=true'), expect.anything(), expect.anything());
 
     fireEvent.click(screen.getByRole('checkbox', { name: /include superseded edges/i }));
 
     // after the toggle: the audit-view param is forwarded to the BFF
     await vi.waitFor(() =>
-      expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('includeSuperseded=true')),
+      expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('includeSuperseded=true'), expect.anything(), expect.objectContaining({ throwOnError: true })),
     );
   });
 });

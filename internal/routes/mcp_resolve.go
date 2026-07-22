@@ -43,7 +43,17 @@ type MCPCapabilityBinding struct {
 // NEVER logged. Scopes are the consumer's resolved scopes (the gateway maps them to
 // its per-tenant tool allowlist; themory is the authoritative downstream gate).
 type mcpPrincipal struct {
-	TenantID      string   `json:"tenant_id"`
+	TenantID string `json:"tenant_id"`
+	// Subject is the credential's owning user, forwarded so the gateway can bind the
+	// upstream's per-user tier (X-Theo-User-Id) to the SAME identity the dashboard
+	// reads. Without it the MCP upstream falls back to a per-deployment constant, so
+	// an agent's memories land under an identity no consumer queries — the dashboard
+	// lists /v1/scopes/user/{session-subject}/memories and finds nothing.
+	//
+	// Auth-trusted: it comes from the resolved credential, never from a client header.
+	// Empty for legacy credentials with no subject; the gateway then omits the header
+	// and the upstream keeps its existing fallback.
+	Subject       string   `json:"subject,omitempty"`
 	DownstreamKey string   `json:"downstream_key"`
 	Scopes        []string `json:"scopes"`
 }
@@ -126,7 +136,12 @@ func (h *MCPResolveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// upstream leg and maps Scopes to its per-tenant tool allowlist.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(mcpPrincipal{TenantID: uc.TenantID, DownstreamKey: minted, Scopes: binding.grantedTools(scopes)})
+	_ = json.NewEncoder(w).Encode(mcpPrincipal{
+		TenantID:      uc.TenantID,
+		Subject:       uc.Subject,
+		DownstreamKey: minted,
+		Scopes:        binding.grantedTools(scopes),
+	})
 }
 
 // grantedTools translates the consumer's data scopes into the MCP tool names the

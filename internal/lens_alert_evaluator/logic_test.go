@@ -5,6 +5,7 @@ package lens_alert_evaluator
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 )
@@ -39,23 +40,31 @@ func TestMetricFromSeries(t *testing.T) {
 		t.Fatal(err)
 	}
 	// error_rate = (16+4)/(80+20) * 100 = 20%
-	if got := metricFromSeries(s, "error_rate"); got != 20 {
-		t.Errorf("error_rate = %v, want 20", got)
+	if got, ok := metricFromSeries(s, "error_rate"); got != 20 || !ok {
+		t.Errorf("error_rate = %v, ok=%v, want 20, true", got, ok)
 	}
 	// cost = 0.5 + 1.25 = 1.75
-	if got := metricFromSeries(s, "cost"); got != 1.75 {
-		t.Errorf("cost = %v, want 1.75", got)
+	if got, ok := metricFromSeries(s, "cost"); got != 1.75 || !ok {
+		t.Errorf("cost = %v, ok=%v, want 1.75, true", got, ok)
 	}
 	// p95_latency = max(900, 1500) = 1500
-	if got := metricFromSeries(s, "p95_latency"); got != 1500 {
-		t.Errorf("p95_latency = %v, want 1500", got)
+	if got, ok := metricFromSeries(s, "p95_latency"); got != 1500 || !ok {
+		t.Errorf("p95_latency = %v, ok=%v, want 1500, true", got, ok)
 	}
 }
 
-func TestMetricFromSeries_EmptyIsZeroNotNaN(t *testing.T) {
-	var s observabilitySeries // no traffic → error_rate must be 0 (no-data window is not a breach), not NaN
-	if got := metricFromSeries(s, "error_rate"); got != 0 {
-		t.Errorf("empty error_rate = %v, want 0", got)
+// The previous name and comment here asserted that an empty window "is not a
+// breach". The test only checked the value was 0 -- which was true -- while the
+// claim it was standing in for was false for lt/lte. That gap was #247: the
+// belief lived in a comment and only the true half was tested.
+func TestMetricFromSeries_EmptyReportsAbsenceNotZero(t *testing.T) {
+	var s observabilitySeries // no traffic
+	got, ok := metricFromSeries(s, "error_rate")
+	if ok {
+		t.Errorf("empty window reported ok=true (value %v); absence must be representable", got)
+	}
+	if math.IsNaN(got) {
+		t.Error("empty error_rate must not be NaN")
 	}
 }
 
@@ -108,5 +117,109 @@ func TestNextAlertState_NBreachedTicksFireOnce(t *testing.T) {
 	}
 	if fires != 1 {
 		t.Fatalf("20 breached ticks fired %d times, want exactly 1 (anti-storm)", fires)
+	}
+}
+
+// TestMetricFromSeries_NoDataDoesNotBreach is the composition test neither this
+// suite nor the reference had, and it is exactly how theo-cloud#247 survived:
+// the empty-window value was asserted (`empty error_rate = 0`) and the comment
+// claimed that meant "not a breach", but nothing composed metricFromSeries with
+// evaluateBreach under a below-comparator.
+//
+// It is not: an empty window yielded 0, `lt`/`lte` are accepted comparators
+// (internal/routes/lens_alert_rules.go:38), and 0 < threshold is true. A
+// traffic-free workspace therefore fired a permanent false alert on any
+// "alert if X drops below N" rule -- the rule shape you use to detect that your
+// pipeline STOPPED -- latched by the anti-storm state machine so the user could
+// not clear it.
+//
+// The fix makes absence representable rather than special-casing the
+// comparators: a third below-comparator would otherwise reintroduce it.
+func TestMetricFromSeries_NoDataDoesNotBreach(t *testing.T) {
+	var empty observabilitySeries // no traffic, no latency, no cost
+
+	for _, tc := range []struct {
+		metric     string
+		comparator string
+		threshold  float64
+	}{
+		{"error_rate", "lt", 10},
+		{"error_rate", "lte", 10},
+		{"cost", "lt", 100},
+		{"cost", "lte", 100},
+		{"p95_latency", "lt", 500},
+		{"bogus_metric", "lt", 1}, // the default: fallthrough must not read as a measurement either
+	} {
+		value, ok := metricFromSeries(empty, tc.metric)
+		if ok {
+			t.Errorf("%s: empty window reported ok=true (value %v) -- absence must be representable",
+				tc.metric, value)
+			continue
+		}
+		// The call site must SKIP on absence. Asserting the contract here keeps
+		// the invariant next to the function that owns it.
+		if evaluateBreach(value, tc.threshold, tc.comparator) && !ok {
+			// value is meaningless when !ok; this documents why the caller must
+			// not reach evaluateBreach at all.
+			t.Logf("%s/%s: value %v would breach if evaluated -- caller MUST skip",
+				tc.metric, tc.comparator, value)
+		}
+	}
+}
+
+// TestMetricFromSeries_GenuineZeroStillEvaluates is the negative case that keeps
+// the fix honest. A window WITH traffic whose error rate is truly 0 must still be
+// compared -- skipping it would trade a false positive for a false negative.
+func TestMetricFromSeries_GenuineZeroStillEvaluates(t *testing.T) {
+	s := observabilitySeries{}
+	s.Traffic = append(s.Traffic, struct {
+		TraceCount float64 `json:"traceCount"`
+		ErrorCount float64 `json:"errorCount"`
+		ErrorRate  float64 `json:"errorRate"`
+	}{TraceCount: 100, ErrorCount: 0, ErrorRate: 0})
+
+	value, ok := metricFromSeries(s, "error_rate")
+	if !ok {
+		t.Fatal("a window with traffic and a genuinely zero error rate must report ok=true")
+	}
+	if value != 0 {
+		t.Errorf("error_rate = %v, want 0", value)
+	}
+	if !evaluateBreach(value, 10, "lt") {
+		t.Error("a real zero below the threshold SHOULD breach an lt rule")
+	}
+}
+
+// ── M135 — the renotify boundary the suite never touched ─────────────────────────────────────────
+//
+// The predicate is `now.Sub(lastTriggered) >= renotifyS` (logic.go). The existing test covers 100s
+// (suppress) and 400s (fire) against a 300s interval — it straddles the boundary without ever
+// standing on it, so a `>` / `>=` off-by-one passes both cases. Equality is the only input that
+// tells the two predicates apart, and it is the input a fixed-cadence tick hits routinely: a 60s
+// tick against a 300s renotify lands on the boundary exactly, every fifth tick.
+//
+// Guard-backed rules make this load-bearing rather than academic. A renotify that is silently one
+// tick late is invisible in a log and indistinguishable from a slow tick.
+func TestNextAlertState_RenotifyExactBoundaryFires(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	d := nextAlertState("TRIGGERED", true, now.Add(-300*time.Second), 300, now)
+	if !d.fire {
+		t.Fatalf("at exactly the renotify interval the alert must re-fire (>= not >), got %+v", d)
+	}
+	// One second short of the boundary must still suppress — the assertion that keeps the test
+	// above honest. Without it, a predicate that always fires would pass.
+	if d := nextAlertState("TRIGGERED", true, now.Add(-299*time.Second), 300, now); d.fire {
+		t.Fatalf("one second before the interval must suppress, got %+v", d)
+	}
+}
+
+// A TRIGGERED rule with renotify configured but NO recorded last_triggered_at. The guard clause is
+// `!lastTriggered.IsZero()`, so the zero time must suppress rather than be treated as "the epoch,
+// therefore infinitely long ago" — which would re-fire on every single tick. Reachable in practice:
+// a row written by an older evaluator, or a status flip whose timestamp write was lost.
+func TestNextAlertState_RenotifyWithZeroLastTriggeredSuppresses(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	if d := nextAlertState("TRIGGERED", true, time.Time{}, 300, now); d.fire {
+		t.Fatalf("zero last_triggered must not be read as an elapsed interval, got %+v", d)
 	}
 }

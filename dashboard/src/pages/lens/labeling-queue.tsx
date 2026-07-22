@@ -2,7 +2,8 @@ import { lensErrorMessage } from '../../lib/lens-error';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Badge, Button, CopyButton, DataTable, type DataTableColumn, Input, Label, PageShell, Sheet, StatusDot } from '@usetheo/ui';
+import { Badge, Button, CopyButton, DataTable, type DataTableColumn, Input, Label, PageShell, StatusDot } from '@usetheo/ui';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -204,69 +205,75 @@ export function LensLabelingQueuePage() {
         </div>
       ) : null}
 
-      {/* Resolve Sheet — span context + label/score/note form. */}
-      <Sheet open={active !== null} onOpenChange={(open) => !open && closeResolve()}>
-        <Sheet.Content side="right" className="w-full sm:max-w-lg">
-          <Sheet.Header className="border-b border-border px-6 py-4">
-            <Sheet.Title>Resolve labeling item</Sheet.Title>
-            <Sheet.Description className="font-mono text-xs">
-              {active ? `span ${shortId(active.spanId, 12)} · trace ${shortId(active.traceId, 12)}` : ''}
-            </Sheet.Description>
-          </Sheet.Header>
-          <ResolveForm
-            values={values}
-            onChange={setValues}
-            canResolve={body.label.trim() !== ''}
-            pending={resolve.isPending}
-            error={resolve.isError ? errorMessage(resolve.error) : null}
-            onCancel={closeResolve}
-            onResolve={() => active && resolve.mutate(active)}
-          />
-        </Sheet.Content>
-      </Sheet>
+      {/* Resolve modal — span context + label/score/note form (centered, not lateral). */}
+      <AppModal
+        open={active !== null}
+        onClose={closeResolve}
+        size="lg"
+        title="Resolve labeling item"
+        description={
+          active ? (
+            <span className="font-mono text-xs">{`span ${shortId(active.spanId, 12)} · trace ${shortId(active.traceId, 12)}`}</span>
+          ) : (
+            ''
+          )
+        }
+      >
+        <ResolveForm
+          values={values}
+          onChange={setValues}
+          canResolve={body.label.trim() !== ''}
+          pending={resolve.isPending}
+          error={resolve.isError ? errorMessage(resolve.error) : null}
+          onCancel={closeResolve}
+          onResolve={() => active && resolve.mutate(active)}
+        />
+      </AppModal>
 
-      {/* Export Sheet — name the golden dataset. */}
-      <Sheet open={exporting} onOpenChange={(open) => !open && setExporting(false)}>
-        <Sheet.Content side="right" className="w-full sm:max-w-md">
-          <Sheet.Header className="border-b border-border px-6 py-4">
-            <Sheet.Title>Export resolved items as a dataset</Sheet.Title>
-            <Sheet.Description>The resolved queue items become a golden dataset (reuses your datasets).</Sheet.Description>
-          </Sheet.Header>
-          <Sheet.Body className="space-y-4 px-6 py-5">
-            <div className="space-y-1">
-              <Label htmlFor="export-name">Dataset name</Label>
-              <Input id="export-name" value={exportName} onChange={(e) => setExportName(e.target.value)} placeholder="golden-2026-07" />
-            </div>
-            {resolvedCount === 0 ? (
-              <Alert intent="warning" title="No resolved items to export" data-testid="export-empty-guard">
-                Resolve at least one item (add a label) before exporting — an export of zero resolved items
-                would produce an empty dataset.
-              </Alert>
-            ) : null}
-            {exportMutation.isError ? (
-              <Alert intent="warning" title="Could not export" data-testid="export-error">
-                {errorMessage(exportMutation.error)}
-              </Alert>
-            ) : exportMutation.isSuccess ? (
-              <Alert intent="success" title="Exported">
-                <Badge variant="outline">golden dataset created</Badge>
-              </Alert>
-            ) : null}
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setExporting(false)}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={!exportName.trim() || resolvedCount === 0 || exportMutation.isPending}
-                onClick={() => exportMutation.mutate()}
-              >
-                {exportMutation.isPending ? 'Exporting…' : 'Export'}
-              </Button>
-            </div>
-          </Sheet.Body>
-        </Sheet.Content>
-      </Sheet>
+      {/* Export modal — name the golden dataset (centered, not lateral). */}
+      <AppModal
+        open={exporting}
+        onClose={() => setExporting(false)}
+        size="sm"
+        title="Export resolved items as a dataset"
+        description="The resolved queue items become a golden dataset (reuses your datasets)."
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setExporting(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!exportName.trim() || resolvedCount === 0 || exportMutation.isPending}
+              onClick={() => exportMutation.mutate()}
+            >
+              {exportMutation.isPending ? 'Exporting…' : 'Export'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="export-name">Dataset name</Label>
+            <Input id="export-name" value={exportName} onChange={(e) => setExportName(e.target.value)} placeholder="golden-2026-07" />
+          </div>
+          {resolvedCount === 0 ? (
+            <Alert intent="warning" title="No resolved items to export" data-testid="export-empty-guard">
+              Resolve at least one item (add a label) before exporting — an export of zero resolved items
+              would produce an empty dataset.
+            </Alert>
+          ) : null}
+          {exportMutation.isError ? (
+            <Alert intent="warning" title="Could not export" data-testid="export-error">
+              {errorMessage(exportMutation.error)}
+            </Alert>
+          ) : exportMutation.isSuccess ? (
+            <Alert intent="success" title="Exported">
+              <Badge variant="outline">golden dataset created</Badge>
+            </Alert>
+          ) : null}
+        </div>
+      </AppModal>
     </PageShell>
   );
 }

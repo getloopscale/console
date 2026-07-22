@@ -79,10 +79,10 @@ func (s *stubLensDataClient) GetDataset(context.Context, string) (json.RawMessag
 func (s *stubLensDataClient) ListEvaluators(context.Context) (json.RawMessage, error) {
 	return s.read(`{"evaluators":[]}`)
 }
-func (s *stubLensDataClient) ListGuards(context.Context) (json.RawMessage, error) {
+func (s *stubLensDataClient) ListMonitors(context.Context) (json.RawMessage, error) {
 	return s.read(`{"guards":[]}`)
 }
-func (s *stubLensDataClient) GuardBreaches(context.Context, string) (json.RawMessage, error) {
+func (s *stubLensDataClient) MonitorBreaches(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"traceIds":[]}`)
 }
 func (s *stubLensDataClient) ListAgents(context.Context) (json.RawMessage, error) {
@@ -149,15 +149,18 @@ func (s *stubLensDataClient) UpdateEvaluator(_ context.Context, _ string, body j
 	return s.write(`{"id":"ev_1","name":"renamed","kind":"rule"}`)
 }
 func (s *stubLensDataClient) RunEvaluator(context.Context, string, json.RawMessage) (json.RawMessage, error) {
-	return s.write(`{"evaluator":"e","written":1}`)
+	return s.write(`{"id":"job1","status":"queued","total":0,"scored":0}`)
+}
+func (s *stubLensDataClient) GetEvaluatorRunJob(context.Context, string) (json.RawMessage, error) {
+	return s.read(`{"id":"job1","status":"completed","total":3,"scored":3}`)
 }
 func (s *stubLensDataClient) DeleteEvaluator(context.Context, string) (json.RawMessage, error) {
 	return s.write(`{}`)
 }
-func (s *stubLensDataClient) CreateGuard(context.Context, json.RawMessage) (json.RawMessage, error) {
+func (s *stubLensDataClient) CreateMonitor(context.Context, json.RawMessage) (json.RawMessage, error) {
 	return s.write(`{"id":"gd_1"}`)
 }
-func (s *stubLensDataClient) DeleteGuard(context.Context, string) (json.RawMessage, error) {
+func (s *stubLensDataClient) DeleteMonitor(context.Context, string) (json.RawMessage, error) {
 	return s.write(`{}`)
 }
 func (s *stubLensDataClient) AddTraceTag(context.Context, string, json.RawMessage) (json.RawMessage, error) {

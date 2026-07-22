@@ -98,7 +98,10 @@ export function WebhooksPage() {
 
   const list = useQuery({
     queryKey: ['cloud', '/v1/dashboard/memory/webhooks/list'] as const,
-    queryFn: () => cloudFetch<ListResult>('/v1/dashboard/memory/webhooks/list'),
+    // throwOnError so a failed fetch is query.isError, not an empty list rendered
+    // as "no webhooks" (theo-cloud#250).
+    queryFn: () =>
+      cloudFetch<ListResult>('/v1/dashboard/memory/webhooks/list', {}, { throwOnError: true }),
   });
 
   const [createOpen, setCreateOpen] = useState(false);
