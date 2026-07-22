@@ -39,6 +39,7 @@ import (
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/normalize"
 	"github.com/usetheodev/theo-cloud/internal/promptly"
+	"github.com/usetheodev/theo-cloud/internal/trust"
 	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
@@ -406,6 +407,36 @@ func main() {
 		logger.Info("theo-promptly Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
 	}
 
+	// M10 (theo-trust Model B L2): a ForwardAuth handler for the /v1/trust
+	// capability. Reuses the generic handler wired with the trust broker +
+	// "trust:read"; only registered when TRUST_BASE_URL is set. The broker mints a
+	// per-tenant trust_live_* key (least-privilege intersection of the consumer's
+	// trust:* scopes with the data scopes) and fails CLOSED — no master fallback.
+	var trustForwardAuthHandler *routes.ForwardAuthHandler
+	if cfg.TrustBaseURL != "" {
+		trustHTTP := &http.Client{Timeout: 10 * time.Second}
+		trustAdmin := trust.NewAdminClient(cfg.TrustBaseURL, cfg.TrustPlatformAdminKey.Value(), trustHTTP)
+		trustBroker, tErr := trust.NewBroker(trustAdmin, 1024, time.Hour,
+			[]string{"trust:read", "trust:write", "trust:delete"})
+		if tErr != nil {
+			logger.Error("failed to construct trust credential broker — refusing to start", "error", tErr)
+			os.Exit(1)
+		}
+		trustForwardAuthHandler = routes.NewForwardAuthHandler(
+			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+			},
+			trustBroker,
+			// cross-account guard — does the resolved account own this tenant?
+			func(ctx context.Context, accountID, tenantID string) (bool, error) {
+				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+			},
+			"trust:read",
+			logger,
+		)
+		logger.Info("theo-trust Model B broker wired (L2)", "base_url", cfg.TrustBaseURL)
+	}
+
 	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
 	// capability. Built via buildRagForwardAuth (testable) — nil when RAG_BASE_URL
 	// is unset (feature off), error → refuse to start (boot-failure).
@@ -761,6 +792,12 @@ func main() {
 	if lensForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardLensPath, lensForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardLensPath, lensForwardAuthHandler.ServeHTTP)
+	}
+	// M10: the theo-trust ForwardAuth endpoint the edge's forward-auth-trust
+	// middleware calls. Same generic handler, distinct path + trust broker.
+	if trustForwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardTrustPath, trustForwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardTrustPath, trustForwardAuthHandler.ServeHTTP)
 	}
 	// M14: the theo-rag ForwardAuth endpoint the edge's forward-auth-rag middleware
 	// calls. Same generic handler, distinct path + rag broker.

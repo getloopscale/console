@@ -88,6 +88,26 @@ func TestValidate_prod_passes_when_promptly_fully_configured(t *testing.T) {
 	}
 }
 
+func TestValidate_prod_requires_trust_key_when_trust_base_url_set(t *testing.T) {
+	// M10: the trust broker cannot mint per-tenant keys without the platform-admin
+	// credential — fail-fast at boot rather than mint unauthenticated.
+	c := prodValidBaseline()
+	c.TrustBaseURL = "http://host.docker.internal:18085"
+	c.TrustPlatformAdminKey = Secret("")
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected Validate() to fail when TRUST_BASE_URL is set but TRUST_PLATFORM_ADMIN_KEY is empty in prod")
+	}
+}
+
+func TestValidate_prod_passes_when_trust_fully_configured(t *testing.T) {
+	c := prodValidBaseline()
+	c.TrustBaseURL = "http://host.docker.internal:18085"
+	c.TrustPlatformAdminKey = Secret("trust_live_platform_admin")
+	if err := c.Validate(); err != nil {
+		t.Fatalf("expected Validate() to pass when trust fully configured; got %v", err)
+	}
+}
+
 func TestValidate_prod_passes_when_promptly_disabled(t *testing.T) {
 	c := prodValidBaseline() // PromptlyBaseURL empty → promptly check must not fire
 	if err := c.Validate(); err != nil {

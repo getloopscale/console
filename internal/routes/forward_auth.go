@@ -36,6 +36,12 @@ const AuthzForwardRagPath = "/internal/authz/forward-rag"
 // Traefik `forward-auth-lens` middleware targets it.
 const AuthzForwardLensPath = "/internal/authz/forward-lens"
 
+// AuthzForwardTrustPath is the internal ForwardAuth endpoint for the theo-trust
+// capability (M10 — Model B). The generic ForwardAuthHandler is reused (wired with
+// the trust broker + "trust:read"); only the path differs so the Traefik
+// `forward-auth-trust` middleware targets it.
+const AuthzForwardTrustPath = "/internal/authz/forward-trust"
+
 // APIKeyResolver validates an inbound Authorization header and resolves the
 // tenant. Injected (not a concrete *sql.DB dependency) so the handler is unit-
 // testable without a database; in production it closes over auth.ResolveAPIKey.
