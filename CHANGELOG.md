@@ -1,8 +1,12 @@
 ## [Unreleased]
 
 ### Added
+- Dashboard /memory/memories: pager Previous/Next com faixa "N–M of total" (antes só a primeira página de 25 era alcançável) + textos longos clampados em 3 linhas com "Show more" inline (memórias importadas de 10K+ chars inutilizavam a tabela); preview do dialogo de forget também clampado.
+- Dashboard /memory/playground: resultado do Reflect renderizado como cards legíveis de insights consolidados (texto + badge "distilled from N memories") em vez de dump de JSON cru, e contador de segundos decorridos durante a consolidação (runs reais levam ~40s — botão mudo parecia travado).
 
 ### Changed
+- Dashboard /memory (Overview): os dois TokenUsageChart que plotavam CONTAGENS de memória sob o copy fixo "Input tokens / Output tokens" foram substituídos por painéis honestos "Activity today" + "Graph coverage" (barras proporcionais com labels corretos + razão entidades/memória); card "Documentation" do Explore agora aponta para docs.usetheo.dev (apontava para /memory/entities).
+- Dashboard /memory/entities: summaries clampados em 2 linhas com expand (entidades-frase estouravam as linhas da tabela).
 
 ### Deprecated
 

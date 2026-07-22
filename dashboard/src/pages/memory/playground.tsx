@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Brain, Search, Sparkles } from 'lucide-react';
+import { Brain, Search } from 'lucide-react';
 import { Badge, Button, Card, Input, PageShell, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { ReflectCard } from '@/pages/memory/reflect-card';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -99,13 +100,6 @@ export function PlaygroundPage() {
   });
 
   // --- Reflect panel ---
-  const reflect = useMutation({
-    mutationFn: async () =>
-      cloudFetch<Record<string, unknown>>('/v1/dashboard/memory/reflect', {
-        method: 'POST',
-        body: '{}',
-      }, { throwOnError: true }),
-  });
 
   return (
     <PageShell
@@ -273,40 +267,9 @@ export function PlaygroundPage() {
           </Card.Body>
         </Card>
 
-        {/* Reflect */}
-        <Card>
-          <Card.Header>
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-4 text-muted-foreground" />
-              <h2 className="text-base font-semibold">Reflect</h2>
-            </div>
-          </Card.Header>
-          <Card.Body className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Consolidate this scope's memories — deduplicate, distill, and resolve
-              conflicts. Runs the same pipeline the agent triggers automatically.
-            </p>
-            <Button
-              variant="secondary"
-              onClick={() => reflect.mutate()}
-              disabled={reflect.isPending}
-            >
-              Run reflection
-            </Button>
-            {reflect.isError ? (
-              <Alert intent="warning" title="Could not reflect">
-                The Memory service rejected the reflection. Try again in a moment.
-              </Alert>
-            ) : null}
-            {reflect.data ? (
-              <Alert intent="success" title="Reflection complete">
-                <pre className="mt-1 text-xs overflow-x-auto">
-                  {JSON.stringify(reflect.data, null, 2)}
-                </pre>
-              </Alert>
-            ) : null}
-          </Card.Body>
-        </Card>
+        {/* Reflect — extracted to its own module (300-line budget); owns the
+            mutation, elapsed feedback, and readable derived-memory rendering. */}
+        <ReflectCard />
       </div>
     </PageShell>
   );

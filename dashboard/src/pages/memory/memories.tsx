@@ -14,6 +14,7 @@ import {
   Timestamp,
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
+import { EmDash, ExpandableText, TablePager } from '@/pages/memory/row-cells';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -77,6 +78,10 @@ export function MemoryListPage() {
     setSearchParams(next, { replace: true });
   };
 
+  const updateOffset = (nextOffset: number) => {
+    updateParam('offset', nextOffset > 0 ? String(nextOffset) : '');
+  };
+
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/memory/list', { category, from, to, offset }] as const,
     queryFn: () => {
@@ -119,27 +124,19 @@ export function MemoryListPage() {
     {
       key: 'content',
       label: 'Memory',
-      render: (row) => <span className="text-sm">{row.content}</span>,
+      // UX pass 2026-07-22: imported memories reach tens of thousands of chars —
+      // unclamped rows made the table unusable. Clamp to 3 lines; expand on demand.
+      render: (row) => <ExpandableText text={row.content} />,
     },
     {
       key: 'category',
       label: 'Category',
-      render: (row) =>
-        row.category ? (
-          <Badge variant="outline">{row.category}</Badge>
-        ) : (
-          <span className="text-muted-foreground text-xs">—</span>
-        ),
+      render: (row) => (row.category ? <Badge variant="outline">{row.category}</Badge> : <EmDash />),
     },
     {
       key: 'created_at',
       label: 'Created',
-      render: (row) =>
-        row.created_at ? (
-          <Timestamp value={row.created_at} />
-        ) : (
-          <span className="text-muted-foreground text-xs">—</span>
-        ),
+      render: (row) => (row.created_at ? <Timestamp value={row.created_at} /> : <EmDash />),
     },
     {
       key: 'actions',
@@ -222,6 +219,16 @@ export function MemoryListPage() {
         ) : (
           <Card>
             <DataTable columns={columns} data={memories} rowKey={(row) => row.id} />
+            {/* UX pass 2026-07-22 — the pager was MISSING: with 25/page, everything
+                past the first page was unreachable from the UI. */}
+            <TablePager
+              offset={offset}
+              pageSize={PAGE_SIZE}
+              pageCount={memories.length}
+              total={query.data?.total}
+              busy={query.isFetching}
+              onOffsetChange={updateOffset}
+            />
           </Card>
         )}
        </div>
@@ -239,7 +246,11 @@ export function MemoryListPage() {
           title={`Forget memory ${pendingDelete.id.slice(0, 12)}…`}
           description={
             <div className="space-y-2 text-sm">
-              <p className="font-mono bg-muted p-2 rounded">{pendingDelete.content}</p>
+              <p className="font-mono bg-muted p-2 rounded max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
+                {pendingDelete.content.length > 600
+                  ? `${pendingDelete.content.slice(0, 600)}…`
+                  : pendingDelete.content}
+              </p>
               <p>
                 This memory will be {hardDelete ? 'permanently erased' : 'forgotten'}. Your
                 agent will no longer recall it.

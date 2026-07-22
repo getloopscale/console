@@ -14,6 +14,7 @@ import {
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
+import { ExpandableText } from '@/pages/memory/row-cells';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -131,7 +132,7 @@ export function EntitiesPage() {
       label: 'Summary',
       render: (row) =>
         row.summary ? (
-          <span className="text-sm">{row.summary}</span>
+          <ExpandableText text={row.summary} lines={2} />
         ) : (
           <span className="text-muted-foreground text-xs">—</span>
         ),
