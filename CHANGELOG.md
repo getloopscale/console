@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- Gateway themory client: `offset` agora é ENVIADO ao provider (a paginação SQL real chegou ao theo-memory em 2026-07-22 — antes o client descartava o offset deliberadamente e toda página do dashboard repetia os primeiros itens); `total` real do provider decodificado e repassado ao pager ("N–M of total").
+
 ### Added
 - Dashboard /memory/memories: pager Previous/Next com faixa "N–M of total" (antes só a primeira página de 25 era alcançável) + textos longos clampados em 3 linhas com "Show more" inline (memórias importadas de 10K+ chars inutilizavam a tabela); preview do dialogo de forget também clampado.
 - Dashboard /memory/playground: hint do campo "Attributed to" movido para fora da linha `items-end` (o único campo com texto embaixo empurrava o input para fora da baseline compartilhada — os 3 controles agora alinham); copy do hint reescrito para explicar a semântica ("stored verbatim as that peer's statement").

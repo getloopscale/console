@@ -186,8 +186,10 @@ func TestTheMemoryClient_PropagatesSupportedQueryParams(t *testing.T) {
 	if q.Get("cursor") != "abc" {
 		t.Errorf("cursor = %q, want abc", q.Get("cursor"))
 	}
-	if q.Has("offset") {
-		t.Errorf("offset must NOT be sent (provider gap); got %q", q.Get("offset"))
+	// 2026-07-22: the provider implements real SQL offset pagination — the
+	// client now FORWARDS it (the old pin asserted the inverse during the gap).
+	if q.Get("offset") != "50" {
+		t.Errorf("offset = %q, want 50 (forwarded to the provider)", q.Get("offset"))
 	}
 }
 

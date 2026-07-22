@@ -103,8 +103,8 @@ type ListOptions struct {
 	From     string // RFC3339 lower bound on created_at (inclusive); empty = unset
 	To       string // RFC3339 upper bound on created_at (inclusive); empty = unset
 
-	// Not supported by the provider (cursor-only pagination); retained for
-	// API stability but never sent upstream.
+	// SQL-level page offset — supported by the provider since 2026-07-22
+	// (real OFFSET pagination on the scope listing); sent when > 0.
 	Offset int
 }
 
@@ -343,6 +343,9 @@ type scopeMemoryItem struct {
 type scopeListResponse struct {
 	Items      []scopeMemoryItem `json:"items"`
 	NextCursor *string           `json:"nextCursor"`
+	// Real scope total (provider fast path, 2026-07-22) — forwarded so the
+	// dashboard pager can render "N–M of total".
+	Total *int `json:"total"`
 }
 
 // userScopePath builds the provider listing path for a user subject.
@@ -379,6 +382,12 @@ func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*Li
 	if opts.To != "" {
 		q.Set("to", opts.To)
 	}
+	// Dashboard pager (2026-07-22): the provider now implements REAL SQL offset
+	// pagination on the scope listing — forward it (previously "not supported"
+	// and silently dropped, so every dashboard page repeated the first items).
+	if opts.Offset > 0 {
+		q.Set("offset", strconv.Itoa(opts.Offset))
+	}
 
 	var raw scopeListResponse
 	if err := c.do(ctx, http.MethodGet, userScopePath(userID), q, nil, &raw); err != nil {
@@ -392,6 +401,7 @@ func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*Li
 	if raw.NextCursor != nil && *raw.NextCursor != "" {
 		out.NextCursor = raw.NextCursor
 	}
+	out.Total = raw.Total
 	return out, nil
 }
 
