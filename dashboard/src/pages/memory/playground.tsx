@@ -148,9 +148,6 @@ export function PlaygroundPage() {
                   className="w-48"
                   aria-describedby="pg-peer-hint"
                 />
-                <p id="pg-peer-hint" className="text-xs text-muted-foreground mt-1 max-w-48">
-                  Stores the fact verbatim (skips auto fact-extraction).
-                </p>
               </div>
               <Button
                 onClick={() => remember.mutate()}
@@ -159,6 +156,14 @@ export function PlaygroundPage() {
                 Remember
               </Button>
             </div>
+            {/* UX 2026-07-22: the peer hint lived INSIDE the items-end flex row, so the
+                one field with text below it pushed its input off the shared baseline.
+                Full-width note under the row keeps all three controls aligned; the
+                aria-describedby link to the field is preserved. */}
+            <p id="pg-peer-hint" className="text-xs text-muted-foreground">
+              Attributed to: when set, the fact is stored verbatim as that peer&apos;s statement
+              (skips auto fact-extraction).
+            </p>
             {remember.isError ? (
               <Alert intent="warning" title="Could not remember">
                 The Memory service rejected the write. Try again in a moment.

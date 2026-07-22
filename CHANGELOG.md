@@ -2,6 +2,7 @@
 
 ### Added
 - Dashboard /memory/memories: pager Previous/Next com faixa "N–M of total" (antes só a primeira página de 25 era alcançável) + textos longos clampados em 3 linhas com "Show more" inline (memórias importadas de 10K+ chars inutilizavam a tabela); preview do dialogo de forget também clampado.
+- Dashboard /memory/playground: hint do campo "Attributed to" movido para fora da linha `items-end` (o único campo com texto embaixo empurrava o input para fora da baseline compartilhada — os 3 controles agora alinham); copy do hint reescrito para explicar a semântica ("stored verbatim as that peer's statement").
 - Dashboard /memory/playground: resultado do Reflect renderizado como cards legíveis de insights consolidados (texto + badge "distilled from N memories") em vez de dump de JSON cru, e contador de segundos decorridos durante a consolidação (runs reais levam ~40s — botão mudo parecia travado).
 
 ### Changed
