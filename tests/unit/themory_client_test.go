@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/usetheodev/theo-cloud/internal/auth"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 )
 
@@ -165,10 +166,39 @@ func TestTheMemoryClient_ListScopesBySubjectInPath(t *testing.T) {
 	if gotPath != "/v1/scopes/user/user-alex-from-auth/memories" {
 		t.Errorf("list path = %q, want /v1/scopes/user/user-alex-from-auth/memories", gotPath)
 	}
-	// The real server ignores X-Theo-User-Id; the old client relied on it and
-	// silently broke isolation. Assert we do NOT depend on it.
+	// Isolation NEVER depends on the header: without an authenticated user in the
+	// context (boot probe / control-plane client) nothing is sent, and the path
+	// alone still scopes the request.
 	if got := stub.listRequests[0].Header.Get("X-Theo-User-Id"); got != "" {
-		t.Errorf("X-Theo-User-Id should not be sent (server ignores it); got %q", got)
+		t.Errorf("X-Theo-User-Id should not be sent without an authenticated ctx; got %q", got)
+	}
+}
+
+// theo-memory#119 — the session/agent tiers are isolated by the (workspace, user,
+// tier) pair (theo-memory ADR-0021), so the path alone does NOT identify the
+// reader: `/v1/scopes/session/{id}/entities` without the acting user matches only
+// ownerless rows and returns an empty list over a populated session. The provider
+// stopped ignoring X-Theo-User-Id when M8 landed (its `actingUserId` reads it as
+// the auth-trusted identity — the same header Traefik ForwardAuth already injects
+// on the SDK path), so the BFF client MUST send it too.
+func TestTheMemoryClient_SendsActingUserFromContext(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	ctx := auth.WithUser(context.Background(), &auth.UserContext{Subject: "user-alex-from-auth"})
+
+	if _, err := client.Entities(ctx, "user-alex-from-auth", "session:sess-1"); err != nil {
+		t.Fatalf("Entities: %v", err)
+	}
+
+	if len(stub.entitiesRequests) != 1 {
+		t.Fatalf("entities requests = %d, want 1", len(stub.entitiesRequests))
+	}
+	req := stub.entitiesRequests[0]
+	if got := req.URL.Path; got != "/v1/scopes/session/sess-1/entities" {
+		t.Errorf("entities path = %q, want /v1/scopes/session/sess-1/entities", got)
+	}
+	if got := req.Header.Get("X-Theo-User-Id"); got != "user-alex-from-auth" {
+		t.Errorf("X-Theo-User-Id = %q, want %q", got, "user-alex-from-auth")
 	}
 }
 

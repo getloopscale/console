@@ -51,6 +51,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/usetheodev/theo-cloud/internal/auth"
 )
 
 // Client talks to TheMemory's REST API. Construct via NewClient.
@@ -935,6 +937,18 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
 	req.Header.Set("Accept", "application/json")
+	// theo-memory#119: the provider isolates the session/agent tiers by the
+	// (workspace, user, tier) pair (theo-memory ADR-0021), so the scope path alone
+	// does not identify the reader — a session read without the acting user matches
+	// only ownerless rows and comes back empty over a populated session. Send the
+	// auth-trusted subject the same way Traefik ForwardAuth already injects it on
+	// the SDK path. Isolation still does NOT depend on this header: it is only ever
+	// the authenticated ctx subject (never client input), and the scope-in-path
+	// contract stands on its own for the user tier. Absent on the boot probe and
+	// the control-plane clients, whose ctx carries no user.
+	if u := auth.GetUser(ctx); u != nil && u.Subject != "" {
+		req.Header.Set("X-Theo-User-Id", u.Subject)
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
