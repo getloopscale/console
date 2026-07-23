@@ -101,6 +101,25 @@ jobs:
           ref: develop # match the develop-level integration under test (sibling default branch is `main`)
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-data/theo-memory
+      # EDGE=1 builds the rag + lens images from their sibling checkouts
+      # (run.sh § 2b/2c — M18/M40, pinned local source, NOT a floating GHCR
+      # :develop). They are INDEPENDENT repos, so each needs its own checkout;
+      # without them run.sh fails fast with "theo-rag repo not found". Their
+      # absence is what broke this job from 2026-07-03 onward.
+      - name: Checkout theo-rag (edge stack — M18)
+        uses: actions/checkout@v4
+        with:
+          repository: usetheodev/theo-rag
+          ref: develop
+          token: ${{ secrets.GOMOD_TOKEN }}
+          path: theo-data/theo-rag
+      - name: Checkout theo-lens (edge stack — M40)
+        uses: actions/checkout@v4
+        with:
+          repository: usetheodev/theo-lens
+          ref: develop
+          token: ${{ secrets.GOMOD_TOKEN }}
+          path: theo-data/theo-lens
 
       - uses: actions/setup-go@v5
         with:
@@ -117,7 +136,13 @@ jobs:
         working-directory: theo-cloud/theo-cloud
         env:
           GOPRIVATE: github.com/usetheodev/*
+          # Point run.sh at the sibling checkouts EXPLICITLY. Its relative default
+          # (${ROOT}/../../theo-data/<repo>) assumes the dev-box layout; on the
+          # runner the repo nests one level deeper, so the default resolved to a
+          # path that does not exist.
           THEMORY_DIR: ${{ github.workspace }}/theo-data/theo-memory
+          THEORAG_DIR: ${{ github.workspace }}/theo-data/theo-rag
+          THELENS_DIR: ${{ github.workspace }}/theo-data/theo-lens
         run: make e2e-edge
 
       - name: Dump stack logs on failure
