@@ -3,6 +3,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, History, Search, X } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell, Timestamp } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { ScopeSelect } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -48,6 +49,9 @@ export function EpisodesPage() {
 
   const [order, setOrder] = useState<'desc' | 'asc'>('desc');
   const [queryText, setQueryText] = useState('');
+  // Session-separation (2026-07-23): '' = Global tier; a session id switches the
+  // temporal log to that session's working memory (SESSION scope at the provider).
+  const [session, setSession] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [asOfLocal, setAsOfLocal] = useState('');
 
@@ -60,11 +64,16 @@ export function EpisodesPage() {
   const asOf = toIsoInstant(asOfLocal);
 
   const query = useInfiniteQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/episodes', { order, q: debouncedQuery, asOf }] as const,
+    queryKey: ['cloud', '/v1/dashboard/memory/episodes', { order, q: debouncedQuery, asOf, session }] as const,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams();
-      params.set('scope', 'user');
+      if (session) {
+        params.set('scope', 'session');
+        params.set('session_id', session);
+      } else {
+        params.set('scope', 'user');
+      }
       params.set('limit', String(PAGE_SIZE));
       params.set('order', order);
       if (debouncedQuery) params.set('q', debouncedQuery);
@@ -92,6 +101,7 @@ export function EpisodesPage() {
       <Card>
         <Card.Body>
           <div className="flex flex-wrap items-end gap-3">
+            <ScopeSelect value={session} onChange={setSession} id="ep-scope" />
             <div className="min-w-[220px] flex-1">
               <label className="text-muted-foreground mb-1 block text-xs font-medium" htmlFor="ep-q">
                 Filter (text contains)

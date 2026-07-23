@@ -15,6 +15,7 @@ import {
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { ExpandableText } from '@/pages/memory/row-cells';
+import { SessionPicker } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -64,6 +65,14 @@ export function EntitiesPage() {
     SCOPES.includes(scopeParam as Scope) ? (scopeParam as Scope) : 'user';
 
   const [pendingDelete, setPendingDelete] = useState<Entity | null>(null);
+  // Session-separation (2026-07-23): the SESSION tab needs an instance.
+  const session = searchParams.get('session') ?? '';
+  const setSession = (next: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (next) params.set('session', next);
+    else params.delete('session');
+    setSearchParams(params, { replace: true });
+  };
 
   const setScope = (next: Scope) => {
     const params = new URLSearchParams(searchParams);
@@ -72,12 +81,14 @@ export function EntitiesPage() {
   };
 
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/entities', activeScope] as const,
+    queryKey: ['cloud', '/v1/dashboard/memory/entities', activeScope, session] as const,
     // throwOnError so a failed fetch is query.isError, not an empty list rendered
     // as "no entities" (theo-cloud#250).
     queryFn: () =>
       cloudFetch<EntitiesResult>(
-        `/v1/dashboard/memory/entities?scope=${activeScope}`,
+        `/v1/dashboard/memory/entities?scope=${activeScope}${
+          activeScope === 'session' && session ? `&session_id=${encodeURIComponent(session)}` : ''
+        }`,
         {},
         { throwOnError: true },
       ),
@@ -180,6 +191,10 @@ export function EntitiesPage() {
           </Tabs.List>
         </Tabs>
 
+        {activeScope === 'session' ? (
+          <SessionPicker value={session} onChange={setSession} />
+        ) : null}
+
         {query.isError ? (
           <Alert intent="warning" title="Could not load entities">
             The Memory service is not reachable right now. Try refreshing in a moment.
@@ -193,7 +208,9 @@ export function EntitiesPage() {
             description={
               activeScope === 'user'
                 ? 'Your agent hasn\'t learned about any users yet.'
-                : `No ${activeScope} entities have been recorded yet.`
+                : activeScope === 'session' && !session
+                  ? 'Pick a session above to inspect its working-memory entities.'
+                  : `No ${activeScope} entities have been recorded yet.`
             }
           />
         ) : (

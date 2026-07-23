@@ -51,6 +51,7 @@ type fakeTheMemory struct {
 	// (>0) makes List reject opts.Limit > cap with a 422-shaped error, reproducing
 	// the provider's `limit <= 100` zod cap.
 	listPagesByCursor map[string]*themory.ListResult
+	sessionsResp      *themory.SessionsResult
 	listAllOpts       []themory.ListOptions
 	listLimitCap      int
 	metricsResp       *themory.MetricsResult
@@ -144,6 +145,14 @@ func (f *fakeTheMemory) List(_ context.Context, userID string, opts themory.List
 		return &themory.ListResult{}, nil
 	}
 	return f.listResp, f.listErr
+}
+
+func (f *fakeTheMemory) ListSessions(_ context.Context, userID string) (*themory.SessionsResult, error) {
+	f.lastUserID = userID
+	if f.sessionsResp != nil {
+		return f.sessionsResp, nil
+	}
+	return &themory.SessionsResult{Sessions: []themory.SessionRow{}}, nil
 }
 
 func (f *fakeTheMemory) Metrics(_ context.Context, userID string) (*themory.MetricsResult, error) {

@@ -13,8 +13,9 @@ import {
   PageShell,
   Timestamp,
 } from '@usetheo/ui';
-import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
+import { ForgetMemoryDialog } from '@/pages/memory/forget-dialog';
 import { EmDash, ExpandableText, TablePager } from '@/pages/memory/row-cells';
+import { ScopeSelect } from '@/pages/memory/scope-switcher';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -38,6 +39,8 @@ interface MemoryRow {
   content: string;
   category?: string;
   created_at?: string;
+  /** Session-separation (2026-07-23): non-empty marks a SESSION-tier row. */
+  session_id?: string;
 }
 
 interface ListResult {
@@ -60,6 +63,9 @@ export function MemoryListPage() {
   const from = searchParams.get('from') ?? '';
   const to = searchParams.get('to') ?? '';
   const offset = Number(searchParams.get('offset') ?? '0');
+  // Session-separation (2026-07-23): '' = Global tier; a session id switches the
+  // listing to that session's working memory (SESSION ∪ GLOBAL at the provider).
+  const session = searchParams.get('session') ?? '';
 
   const [pendingDelete, setPendingDelete] = useState<MemoryRow | null>(null);
   // ADR D4 — hard-delete (GDPR) is opt-in per forget; default stays soft.
@@ -83,12 +89,16 @@ export function MemoryListPage() {
   };
 
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/list', { category, from, to, offset }] as const,
+    queryKey: ['cloud', '/v1/dashboard/memory/list', { category, from, to, offset, session }] as const,
     queryFn: () => {
       const params = new URLSearchParams();
       params.set('limit', String(PAGE_SIZE));
       if (offset > 0) params.set('offset', String(offset));
       if (category) params.set('category', category);
+      if (session) {
+        params.set('scope', 'session');
+        params.set('session_id', session);
+      }
       // <input type="date"> yields YYYY-MM-DD; the provider's from/to expect
       // RFC3339 datetimes (ADR D3). Widen the day to its full inclusive range.
       if (from) params.set('from', `${from}T00:00:00Z`);
@@ -128,6 +138,23 @@ export function MemoryListPage() {
       // unclamped rows made the table unusable. Clamp to 3 lines; expand on demand.
       render: (row) => <ExpandableText text={row.content} />,
     },
+    // In a session view the listing mixes the session's working memory with the
+    // global tier (provider SESSION ∪ GLOBAL) — badge the tier per row so the
+    // separation is visible. Hidden in the Global view (all rows are global).
+    ...(session
+      ? [
+          {
+            key: 'scope',
+            label: 'Scope',
+            render: (row: MemoryRow) =>
+              row.session_id ? (
+                <Badge>Session</Badge>
+              ) : (
+                <Badge variant="outline">Global</Badge>
+              ),
+          } satisfies DataTableColumn<MemoryRow>,
+        ]
+      : []),
     {
       key: 'category',
       label: 'Category',
@@ -164,6 +191,7 @@ export function MemoryListPage() {
        <div className="space-y-6">
         <Card>
           <Card.Body className="flex flex-wrap gap-3 items-end">
+            <ScopeSelect value={session} onChange={(s) => updateParam('session', s)} />
             <div>
               <label htmlFor="filter-category" className="text-xs text-muted-foreground block mb-1">
                 Category
@@ -235,53 +263,16 @@ export function MemoryListPage() {
       </PageShell>
 
       {pendingDelete ? (
-        <ConfirmDialog
-          open={pendingDelete !== null}
-          onOpenChange={(o) => {
-            if (!o) {
-              setPendingDelete(null);
-              setHardDelete(false);
-            }
-          }}
-          title={`Forget memory ${pendingDelete.id.slice(0, 12)}…`}
-          description={
-            <div className="space-y-2 text-sm">
-              <p className="font-mono bg-muted p-2 rounded max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
-                {pendingDelete.content.length > 600
-                  ? `${pendingDelete.content.slice(0, 600)}…`
-                  : pendingDelete.content}
-              </p>
-              <p>
-                This memory will be {hardDelete ? 'permanently erased' : 'forgotten'}. Your
-                agent will no longer recall it.
-              </p>
-              <label className="flex items-start gap-2 text-muted-foreground">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={hardDelete}
-                  onChange={(e) => setHardDelete(e.target.checked)}
-                  aria-label="Permanently erase (GDPR, cannot be recovered)"
-                />
-                <span>
-                  Permanently erase (GDPR). Skips the soft-delete audit trail — this
-                  cannot be recovered.
-                </span>
-              </label>
-            </div>
-          }
-          confirmLabel={
-            forget.isPending
-              ? 'Forgetting…'
-              : hardDelete
-                ? 'Permanently erase'
-                : 'Forget memory'
-          }
-          cancelLabel="Cancel"
-          intent="destructive"
-          confirmationPhrase={pendingDelete.id}
-          loading={forget.isPending}
+        <ForgetMemoryDialog
+          memory={pendingDelete}
+          hardDelete={hardDelete}
+          onHardDeleteChange={setHardDelete}
+          pending={forget.isPending}
           onConfirm={() => forget.mutate({ id: pendingDelete.id, hard: hardDelete })}
+          onClose={() => {
+            setPendingDelete(null);
+            setHardDelete(false);
+          }}
         />
       ) : null}
     </>

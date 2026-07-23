@@ -106,6 +106,12 @@ type ListOptions struct {
 	// SQL-level page offset — supported by the provider since 2026-07-22
 	// (real OFFSET pagination on the scope listing); sent when > 0.
 	Offset int
+
+	// SessionID switches the listing to the SESSION tier (session-separation,
+	// 2026-07-23): `/v1/scopes/session/{id}/memories` — the M8 working memory
+	// `(workspace, user, session)`, which reads SESSION ∪ GLOBAL. Empty = the
+	// user (global) tier, unchanged.
+	SessionID string
 }
 
 // MemoryRow is one entry in the List response, shaped for the dashboard.
@@ -114,6 +120,23 @@ type MemoryRow struct {
 	Content   string `json:"content"`
 	Category  string `json:"category,omitempty"`
 	CreatedAt string `json:"created_at,omitempty"`
+	// SessionID marks a SESSION-tier row (session-separation, 2026-07-23) —
+	// projected from the provider's metadata.session_id so the dashboard can
+	// badge working-memory rows vs global rows. Empty = global tier.
+	SessionID string `json:"session_id,omitempty"`
+}
+
+// SessionRow is one session sub-scope in the ListSessions response
+// (session-separation, 2026-07-23 — the M8 session picker data source).
+type SessionRow struct {
+	SessionID      string `json:"session_id"`
+	MemoryCount    int    `json:"memory_count"`
+	LastActivityAt string `json:"last_activity_at,omitempty"`
+}
+
+// SessionsResult is the gateway's GET /v1/dashboard/memory/sessions response.
+type SessionsResult struct {
+	Sessions []SessionRow `json:"sessions"`
 }
 
 // ListResult is the gateway's GET /v1/memory/list response shape.
@@ -353,10 +376,22 @@ func userScopePath(userID string) string {
 	return "/v1/scopes/user/" + url.PathEscape(userID) + "/memories"
 }
 
+// sessionScopePath builds the provider listing path for a SESSION sub-scope
+// (session-separation, 2026-07-23 — M8 working memory tier).
+func sessionScopePath(sessionID string) string {
+	return "/v1/scopes/session/" + url.PathEscape(sessionID) + "/memories"
+}
+
 func toRow(item scopeMemoryItem) MemoryRow {
 	row := MemoryRow{ID: item.ID, Content: item.Text, CreatedAt: item.CreatedAt}
 	if c, ok := item.Metadata["category"].(string); ok {
 		row.Category = c
+	}
+	// Session-separation (2026-07-23): surface the tier so the dashboard can
+	// badge working-memory rows; previously discarded (the SESSION ∪ GLOBAL
+	// listing was indistinguishable).
+	if s, ok := item.Metadata["session_id"].(string); ok {
+		row.SessionID = s
 	}
 	return row
 }
@@ -389,8 +424,16 @@ func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*Li
 		q.Set("offset", strconv.Itoa(opts.Offset))
 	}
 
+	// Session-separation (2026-07-23): a non-empty SessionID targets the SESSION
+	// tier path; the provider binds the workspace (+ acting user when the key's
+	// Principal carries one), so cross-tenant isolation is unchanged.
+	path := userScopePath(userID)
+	if opts.SessionID != "" {
+		path = sessionScopePath(opts.SessionID)
+	}
+
 	var raw scopeListResponse
-	if err := c.do(ctx, http.MethodGet, userScopePath(userID), q, nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodGet, path, q, nil, &raw); err != nil {
 		return nil, err
 	}
 
@@ -402,6 +445,34 @@ func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*Li
 		out.NextCursor = raw.NextCursor
 	}
 	out.Total = raw.Total
+	return out, nil
+}
+
+// sessionsWireRow mirrors the provider's SessionSummary wire shape.
+type sessionsWireRow struct {
+	SessionID      string `json:"sessionId"`
+	MemoryCount    int    `json:"memoryCount"`
+	LastActivityAt string `json:"lastActivityAt"`
+}
+
+// ListSessions enumerates the subject's SESSION sub-scopes via the provider's
+// `GET /v1/scopes/user/{subject}/sessions` (session-separation, 2026-07-23).
+func (c *Client) ListSessions(ctx context.Context, userID string) (*SessionsResult, error) {
+	var raw struct {
+		Sessions []sessionsWireRow `json:"sessions"`
+	}
+	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/sessions"
+	if err := c.do(ctx, http.MethodGet, path, nil, nil, &raw); err != nil {
+		return nil, err
+	}
+	out := &SessionsResult{Sessions: make([]SessionRow, 0, len(raw.Sessions))}
+	for _, s := range raw.Sessions {
+		out.Sessions = append(out.Sessions, SessionRow{
+			SessionID:      s.SessionID,
+			MemoryCount:    s.MemoryCount,
+			LastActivityAt: s.LastActivityAt,
+		})
+	}
 	return out, nil
 }
 
@@ -533,12 +604,27 @@ func (c *Client) Metrics(ctx context.Context, userID string) (*MetricsResult, er
 // In the gateway's shared-key model each customer is a single USER subject, so
 // only the `user` scope tab carries entities; session/agent/repo tabs return
 // empty (no such sub-subject exists for the customer) — honest, not an error.
+// scopePathFor resolves the provider scope path segment for a gateway scope
+// value (session-separation, 2026-07-23): "" / "user" → the user tier;
+// "session:<id>" → that session's sub-scope; anything else (bare "session" /
+// "agent" / "repo" — a tier without an instance) → "" (caller returns empty,
+// the pre-existing honest behavior for unenumerable tiers).
+func scopePathFor(userID, scope, resource string) string {
+	if scope == "" || scope == "user" {
+		return "/v1/scopes/user/" + url.PathEscape(userID) + "/" + resource
+	}
+	if id, ok := strings.CutPrefix(scope, "session:"); ok && id != "" {
+		return "/v1/scopes/session/" + url.PathEscape(id) + "/" + resource
+	}
+	return ""
+}
+
 func (c *Client) Entities(ctx context.Context, userID, scope string) (*EntitiesResult, error) {
-	if scope != "" && scope != "user" {
+	path := scopePathFor(userID, scope, "entities")
+	if path == "" {
 		return &EntitiesResult{Entities: []Entity{}}, nil
 	}
 	var out EntitiesResult
-	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/entities"
 	if err := c.do(ctx, http.MethodGet, path, nil, nil, &out); err != nil {
 		return nil, err
 	}
@@ -558,7 +644,8 @@ func (c *Client) Entities(ctx context.Context, userID, scope string) (*EntitiesR
 // sub-subject exists for the customer) — honest, not an error. Items is always a
 // non-nil slice (the dashboard never sees null).
 func (c *Client) Episodes(ctx context.Context, userID, scope string, opts EpisodeOptions) (*EpisodesResult, error) {
-	if scope != "" && scope != "user" {
+	path := scopePathFor(userID, scope, "episodes")
+	if path == "" {
 		return &EpisodesResult{Items: []EpisodeItem{}}, nil
 	}
 	q := url.Values{}
@@ -581,7 +668,6 @@ func (c *Client) Episodes(ctx context.Context, userID, scope string, opts Episod
 		q.Set("q", opts.Query)
 	}
 	var out EpisodesResult
-	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/episodes"
 	if err := c.do(ctx, http.MethodGet, path, q, nil, &out); err != nil {
 		return nil, err
 	}
@@ -597,11 +683,11 @@ func (c *Client) Episodes(ctx context.Context, userID, scope string, opts Episod
 // exists for the customer) — honest, not an error. Nodes AND edges are always
 // non-nil slices (D5 — the dashboard never sees null).
 func (c *Client) Graph(ctx context.Context, userID, scope string, includeSuperseded bool) (*GraphResult, error) {
-	if scope != "" && scope != "user" {
+	path := scopePathFor(userID, scope, "graph")
+	if path == "" {
 		return &GraphResult{Nodes: []GraphNode{}, Edges: []GraphEdge{}}, nil
 	}
 	var out GraphResult
-	path := "/v1/scopes/user/" + url.PathEscape(userID) + "/graph"
 	// M1 — audit view: forward the include-superseded flag so the dashboard can
 	// show retired (invalidated) edges alongside the active ones.
 	if includeSuperseded {

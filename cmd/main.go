@@ -1051,6 +1051,7 @@ func main() {
 		r.Route("/v1/dashboard/memory", func(r chi.Router) {
 			r.Use(requireJWT)
 			r.Get("/list", memoryHandler.List)
+			r.Get("/sessions", memoryHandler.Sessions)
 			r.Get("/metrics", memoryHandler.Metrics)
 			r.Get("/entities", memoryHandler.Entities)
 			r.Get("/graph", memoryHandler.Graph)

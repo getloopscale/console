@@ -500,3 +500,29 @@ func TestTheMemoryClient_ForgetSkillMaps404ToErrNotFound(t *testing.T) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
+
+// Session-separation (2026-07-23): a non-empty SessionID targets the SESSION
+// tier path `/v1/scopes/session/{id}/memories` (M8 working memory).
+func TestTheMemoryClient_SessionIDTargetsSessionScopePath(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	if _, err := client.List(context.Background(), "u", themory.ListOptions{SessionID: "sess-42"}); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := stub.listRequests[0].URL.Path; got != "/v1/scopes/session/sess-42/memories" {
+		t.Errorf("path = %q, want /v1/scopes/session/sess-42/memories", got)
+	}
+}
+
+// Session-separation (2026-07-23): ListSessions hits the provider's session
+// enumeration endpoint for the subject.
+func TestTheMemoryClient_ListSessionsPath(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	if _, err := client.ListSessions(context.Background(), "user-A"); err != nil {
+		t.Fatalf("ListSessions: %v", err)
+	}
+	if got := stub.listRequests[0].URL.Path; got != "/v1/scopes/user/user-A/sessions" {
+		t.Errorf("path = %q, want /v1/scopes/user/user-A/sessions", got)
+	}
+}
