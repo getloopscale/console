@@ -132,6 +132,35 @@ jobs:
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
+      # This job builds THREE images from source (themory + theo-rag + theo-lens)
+      # on a PERSISTENT self-hosted runner, so images/layers/volumes accumulate
+      # across runs. Run 30053242424 died mid-stack with `No space left on device`
+      # — and because the runner could not even write its own diagnostic log, the
+      # failure looked like a broken test (steps left with no conclusion, log
+      # truncated). Log the disk unconditionally so that is never ambiguous again,
+      # and reclaim only when actually tight — an unconditional `prune -af` would
+      # throw away the warm build cache on every run.
+      - name: Report disk and reclaim if tight
+        run: |
+          set -u
+          echo "── disk before ──"; df -h /; docker system df || true
+          USE=$(df --output=pcent / | tail -1 | tr -dc '0-9')
+          if [ -z "$USE" ]; then
+            # Never let the guard go silently inert: if the usage cannot be read,
+            # say so LOUDLY and prune anyway — a stale cache costs minutes, a full
+            # disk costs the whole run (and hides itself as a broken test).
+            echo "── WARN: could not read disk usage — pruning defensively ──"
+            USE=100
+          fi
+          if [ "$USE" -ge 80 ]; then
+            echo "── / at ${USE}% (>=80%) — pruning docker artifacts older than 24h ──"
+            docker system prune -f --filter 'until=24h' || true
+            docker builder prune -f --filter 'until=24h' || true
+            echo "── disk after ──"; df -h /; docker system df || true
+          else
+            echo "── / at ${USE}% — under threshold, keeping the build cache ──"
+          fi
+
       - name: Run the edge ForwardAuth e2e (make e2e-edge)
         working-directory: theo-cloud/theo-cloud
         env:
