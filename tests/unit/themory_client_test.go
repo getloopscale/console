@@ -526,3 +526,15 @@ func TestTheMemoryClient_ListSessionsPath(t *testing.T) {
 		t.Errorf("path = %q, want /v1/scopes/user/user-A/sessions", got)
 	}
 }
+
+// theo-cloud#252: the per-entity filter forwards to the provider's ?entity=.
+func TestTheMemoryClient_ForwardsEntityFilter(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	if _, err := client.List(context.Background(), "u", themory.ListOptions{Entity: "Codex Reviewer"}); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := stub.listRequests[0].URL.Query().Get("entity"); got != "Codex Reviewer" {
+		t.Errorf("entity = %q, want %q", got, "Codex Reviewer")
+	}
+}

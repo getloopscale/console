@@ -112,6 +112,11 @@ type ListOptions struct {
 	// `(workspace, user, session)`, which reads SESSION ∪ GLOBAL. Empty = the
 	// user (global) tier, unchanged.
 	SessionID string
+
+	// Entity filters the listing to the memories LINKED to one entity
+	// (theo-cloud#252 — provider `?entity=` via the memory_entities join).
+	// Surface name as returned by the entities listing. Empty = no filter.
+	Entity string
 }
 
 // MemoryRow is one entry in the List response, shaped for the dashboard.
@@ -422,6 +427,10 @@ func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*Li
 	// and silently dropped, so every dashboard page repeated the first items).
 	if opts.Offset > 0 {
 		q.Set("offset", strconv.Itoa(opts.Offset))
+	}
+	// theo-cloud#252 — per-entity filter (provider-side memory_entities join).
+	if opts.Entity != "" {
+		q.Set("entity", opts.Entity)
 	}
 
 	// Session-separation (2026-07-23): a non-empty SessionID targets the SESSION

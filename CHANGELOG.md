@@ -1,6 +1,10 @@
 ## [Unreleased]
 
+### Fixed
+- **Entities cascade-forget (#252, BLOCKER).** O cascade da tela Entities ignorava a entidade e deletava a primeira página GLOBAL (`/list?limit=200` sem filtro) — até 200 memórias arbitrárias do usuário num clique. Agora usa o filtro server-side novo do provider (`?entity=` via JOIN `memory_entities`) e itera até esgotar SOMENTE as memórias da entidade (`entity-cascade.ts`: rounds de 100, concorrência 5, teto 50 rounds, fail-loud se um round não progride); client Go ganha `ListOptions.Entity` e o BFF repassa `?entity=` verbatim. (#252)
+
 ### Added
+- Dashboard /memory/entities (#253 Fase 1): busca client-side por nome + paginação (TablePager, 25/página — antes as 447 linhas renderizavam de uma vez); coluna SUMMARY renomeada para "Relations" e oculta quando o conjunto filtrado não tem nenhum resumo (antes: parede de "—" que lia como quebrada). Coluna TYPE deferida: os types persistidos hoje são rótulos do mecanismo de extração (PROPER/COMPOUND/QUOTED), não semânticos — exposta após a re-extração LLM (theo-memory#111/M13). (#253)
 - Separação por sessão no dashboard (modelo M8 do theo-memory): novo endpoint BFF `GET /v1/dashboard/memory/sessions` (enumeração das sessões do usuário via o novo `/v1/scopes/user/{subject}/sessions` do provider); `/memory/list` aceita `?scope=session&session_id=` (tier de working memory, SESSION ∪ GLOBal no provider) e as linhas carregam `session_id`; Entities/Graph aceitam `session_id` na tab SESSION (antes a tab retornava vazio por design — seletor de tipo sem seletor de instância); client Go ganha `ListSessions` + rota por escopo (`scopePathFor`). Dashboard: seletor "Global | Sessão" em Memories (badge Session/Global por linha na visão de sessão) e Episodes; session picker nas tabs SESSION de Entities e Graph.
 
 ### Fixed

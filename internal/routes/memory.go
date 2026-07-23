@@ -236,6 +236,9 @@ func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		Cursor:   q.Get("cursor"),
 		From:     q.Get("from"),
 		To:       q.Get("to"),
+		// theo-cloud#252 — per-entity filter, forwarded verbatim (the provider
+		// normalizes the name and applies the memory_entities join).
+		Entity: q.Get("entity"),
 	}
 	// TheMemory caps the scope-list `limit` at 100 (zod `.max(100)`); forwarding
 	// more 422s INVALID_QUERY (issue #6 sibling). Out-of-range values are dropped
