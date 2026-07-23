@@ -151,6 +151,9 @@ type ListResult struct {
 	// no further page. (Replaces the never-functional NextOffset.)
 	NextCursor *string `json:"next_cursor,omitempty"`
 	Total      *int    `json:"total,omitempty"`
+	// Entity echoes the provider-applied ?entity= filter (fail-closed contract,
+	// incident 2026-07-23) — absent when the provider ignored the param.
+	Entity *string `json:"entity,omitempty"`
 }
 
 // MetricsResult is the GET /metrics response shape, mapped from the provider's
@@ -374,6 +377,10 @@ type scopeListResponse struct {
 	// Real scope total (provider fast path, 2026-07-22) — forwarded so the
 	// dashboard pager can render "N–M of total".
 	Total *int `json:"total"`
+	// Entity is the provider's fail-closed ECHO of an applied ?entity= filter
+	// (incident 2026-07-23): an old provider silently ignores the param and
+	// returns no echo — cascade-delete clients MUST abort in that case.
+	Entity *string `json:"entity"`
 }
 
 // userScopePath builds the provider listing path for a user subject.
@@ -454,6 +461,7 @@ func (c *Client) List(ctx context.Context, userID string, opts ListOptions) (*Li
 		out.NextCursor = raw.NextCursor
 	}
 	out.Total = raw.Total
+	out.Entity = raw.Entity
 	return out, nil
 }
 

@@ -53,6 +53,9 @@ type recordingServer struct {
 
 	// listItems is the canned listing returned by the scope endpoint.
 	listItems []map[string]any
+	// listEntityEcho, when non-empty, is echoed as the response `entity` field
+	// (fail-closed cascade contract, incident 2026-07-23).
+	listEntityEcho string
 	// metricsBody is the canned body returned by the /metrics endpoint.
 	metricsBody map[string]any
 	// entitiesItems is the canned entities array returned by /entities.
@@ -116,7 +119,11 @@ func newRecordingServer(t *testing.T) *recordingServer {
 				items = []map[string]any{}
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
+			body := map[string]any{"items": items}
+			if s.listEntityEcho != "" {
+				body["entity"] = s.listEntityEcho
+			}
+			_ = json.NewEncoder(w).Encode(body)
 		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/memories/"):
 			s.deleteRequests = append(s.deleteRequests, r.Clone(context.Background()))
 			w.WriteHeader(s.forgetStatus)
@@ -536,5 +543,20 @@ func TestTheMemoryClient_ForwardsEntityFilter(t *testing.T) {
 	}
 	if got := stub.listRequests[0].URL.Query().Get("entity"); got != "Codex Reviewer" {
 		t.Errorf("entity = %q, want %q", got, "Codex Reviewer")
+	}
+}
+
+// Incident 2026-07-23: the provider's ?entity= echo threads through so
+// cascade-delete clients can FAIL CLOSED when a provider ignored the filter.
+func TestTheMemoryClient_DecodesEntityEcho(t *testing.T) {
+	stub := newRecordingServer(t)
+	stub.listEntityEcho = "Codex"
+	client := themory.NewClient(stub.URL, "k", nil)
+	res, err := client.List(context.Background(), "u", themory.ListOptions{Entity: "Codex"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if res.Entity == nil || *res.Entity != "Codex" {
+		t.Errorf("Entity echo = %v, want Codex", res.Entity)
 	}
 }

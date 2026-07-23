@@ -39,11 +39,21 @@ export async function cascadeForgetEntity(
       params.set('session_id', sessionId);
     }
     // Always offset 0 — each round's deletions shrink the filtered set.
-    const listResp = await cloudFetch<{ memories: { id: string }[] }>(
+    const listResp = await cloudFetch<{ memories: { id: string }[]; entity?: string }>(
       `/v1/dashboard/memory/list?${params.toString()}`,
       {},
       { throwOnError: true },
     );
+    // FAIL-CLOSED echo guard (incident 2026-07-23): a provider that does not
+    // support `?entity=` silently IGNORES it and returns the unfiltered scope
+    // — deleting that set destroyed 60+ unrelated memories. The provider now
+    // ECHOES the applied filter; no echo (old provider / proxy stripping the
+    // param) → abort BEFORE any delete.
+    if (listResp?.entity !== entityName) {
+      throw new Error(
+        'cascade aborted: the memory service did not confirm the entity filter — refusing to delete an unfiltered listing.',
+      );
+    }
     const ids = (listResp?.memories ?? []).map((m) => m.id);
     if (ids.length === 0) return forgotten;
 

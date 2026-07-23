@@ -210,6 +210,14 @@ export function EntitiesPage() {
           />
         </div>
 
+        {cascadeForget.isError ? (
+          <Alert intent="warning" title="Cascade forget aborted">
+            {cascadeForget.error instanceof Error
+              ? cascadeForget.error.message
+              : 'The entity cascade could not run safely. No further memories were deleted.'}
+          </Alert>
+        ) : null}
+
         {query.isError ? (
           <Alert intent="warning" title="Could not load entities">
             The Memory service is not reachable right now. Try refreshing in a moment.
