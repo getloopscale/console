@@ -153,7 +153,17 @@ jobs:
             USE=100
           fi
           if [ "$USE" -ge 80 ]; then
-            echo "── / at ${USE}% (>=80%) — pruning docker artifacts older than 24h ──"
+            echo "── / at ${USE}% (>=80%) — reclaiming ──"
+            # Volumes FIRST and with NO age filter. Each e2e stack brings up
+            # Postgres with volumes; tearing it down leaves them orphaned. On the
+            # 2026-07-23 cleanup they were 14.16 GB of the ~21 GB reclaimed — the
+            # dominant cause. Two traps this line avoids: `docker system prune`
+            # does NOT touch volumes without `--volumes`, and `until=24h` would
+            # skip nearly everything on a runner doing ~40 runs/day. An orphaned
+            # volume has no useful age: if no container uses it, it is garbage
+            # from a previous run (docker refuses to remove in-use ones).
+            docker volume prune -f || true
+            # Age filters DO make sense here — they protect the warm cache.
             docker system prune -f --filter 'until=24h' || true
             docker builder prune -f --filter 'until=24h' || true
             echo "── disk after ──"; df -h /; docker system df || true
