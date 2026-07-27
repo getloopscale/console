@@ -20,7 +20,7 @@
 - Dashboard /memory/playground: resultado do Reflect renderizado como cards legíveis de insights consolidados (texto + badge "distilled from N memories") em vez de dump de JSON cru, e contador de segundos decorridos durante a consolidação (runs reais levam ~40s — botão mudo parecia travado).
 
 ### Changed
-- O pipeline `ci` deixou de rodar duas vezes o mesmo commit: push e PR do mesmo código caíam em grupos de concorrência distintos (chave por `github.ref`) e ambos executavam, dobrando a carga num runner de executor único dividido por cinco repositórios. Medido: 2 SHAs duplicados nos últimos 60 runs. Mesma correção de theo-memory#129.
+- O pipeline `ci` deixou de rodar duas vezes o mesmo commit: push e PR do mesmo código caíam em grupos de concorrência distintos (chave por `github.ref`) e ambos executavam, dobrando a carga num runner compartilhado (cada repo tem seu próprio processo, mas os cinco dividem o mesmo host de 2 vCPU/2 GB — a disputa é por CPU e RAM, e cada job desperdiçado rouba CPU dos outros). Medido: 2 SHAs duplicados nos últimos 60 runs. Mesma correção de theo-memory#129.
 - Dashboard /memory (Overview): os dois TokenUsageChart que plotavam CONTAGENS de memória sob o copy fixo "Input tokens / Output tokens" foram substituídos por painéis honestos "Activity today" + "Graph coverage" (barras proporcionais com labels corretos + razão entidades/memória); card "Documentation" do Explore agora aponta para docs.usetheo.dev (apontava para /memory/entities).
 - Dashboard /memory/entities: summaries clampados em 2 linhas com expand (entidades-frase estouravam as linhas da tabela).
 

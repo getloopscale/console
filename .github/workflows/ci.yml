@@ -19,9 +19,11 @@ permissions:
   contents: read
 # Chaveado pela BRANCH, não por `github.ref` (mesma correção de theo-memory#129 e theo-rag).
 # Um push em `develop` e o PR do MESMO commit carregam `github.ref` diferentes
-# (`refs/heads/develop` vs `refs/pull/N/merge`), caem em grupos distintos e AMBOS rodam — o dobro do
-# trabalho para o mesmo código, num runner de executor único dividido por 5 repositórios.
-# Medido em 2026-07-27: 2 SHAs com run duplicado (par push+pull_request) nos últimos 60 runs deste repo.
+# (`refs/heads/develop` vs `refs/pull/N/merge`), caem em grupos distintos e AMBOS rodam.
+#
+# Cada repo tem seu PRÓPRIO processo de runner, mas os cinco rodam no MESMO host de 2 vCPU / 2 GB:
+# a disputa é por CPU e RAM, então um run duplicado rouba CPU dos outros quatro repositórios.
+# Medido em 2026-07-27: 2 SHAs com run duplicado (par push+pull_request) nos últimos 60 runs.
 concurrency:
   group: test-e2e-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
