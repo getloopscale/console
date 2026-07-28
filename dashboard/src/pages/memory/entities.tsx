@@ -8,12 +8,16 @@ import {
   DataTable,
   type DataTableColumn,
   EmptyState,
+  Input,
   PageShell,
   Tabs,
   Timestamp,
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
+import { cascadeForgetEntity } from '@/pages/memory/entity-cascade';
+import { ExpandableText, TablePager } from '@/pages/memory/row-cells';
+import { SessionPicker } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -49,7 +53,7 @@ interface EntitiesResult {
 const SCOPES = ['user', 'session', 'agent', 'repo'] as const;
 type Scope = (typeof SCOPES)[number];
 
-const FORGET_CONCURRENCY = 5;
+const PAGE_SIZE = 25;
 
 export function EntitiesPage() {
   const { setPageTitle } = usePageMeta();
@@ -63,57 +67,64 @@ export function EntitiesPage() {
     SCOPES.includes(scopeParam as Scope) ? (scopeParam as Scope) : 'user';
 
   const [pendingDelete, setPendingDelete] = useState<Entity | null>(null);
+  // #253 Fase 1 — client-side search + pagination over the fetched set.
+  const [q, setQ] = useState('');
+  const [offset, setOffset] = useState(0);
+  // Session-separation (2026-07-23): the SESSION tab needs an instance.
+  const session = searchParams.get('session') ?? '';
+  const setSession = (next: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (next) params.set('session', next);
+    else params.delete('session');
+    setSearchParams(params, { replace: true });
+    setOffset(0);
+  };
 
   const setScope = (next: Scope) => {
     const params = new URLSearchParams(searchParams);
     params.set('scope', next);
     setSearchParams(params, { replace: true });
+    setOffset(0);
   };
 
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/entities', activeScope] as const,
+    queryKey: ['cloud', '/v1/dashboard/memory/entities', activeScope, session] as const,
     // throwOnError so a failed fetch is query.isError, not an empty list rendered
     // as "no entities" (theo-cloud#250).
     queryFn: () =>
       cloudFetch<EntitiesResult>(
-        `/v1/dashboard/memory/entities?scope=${activeScope}`,
+        `/v1/dashboard/memory/entities?scope=${activeScope}${
+          activeScope === 'session' && session ? `&session_id=${encodeURIComponent(session)}` : ''
+        }`,
         {},
         { throwOnError: true },
       ),
   });
 
-  // D3 cascade: list memories under this entity, then forget each in
-  // parallel with bounded concurrency. We deliberately do NOT introduce a
-  // batch endpoint (per Plan 2 D3 ADR) — re-use the P1 Forget primitive.
+  // #252 REAL cascade: every round lists ONLY the entity's memories via the
+  // provider's `?entity=` filter (memory_entities join) and forgets them until
+  // the filtered set is empty — never the unfiltered global page.
   const cascadeForget = useMutation({
-    mutationFn: async (_entity: Entity) => {
-      // Page through memories filtered by the entity. The /v1/dashboard/memory/list
-      // endpoint accepts a `category` filter but not scope_type/id —
-      // operator gap honestly disclosed in the plan's D3 trade-off.
-      // For v0.1 we approximate: fetch the first page and forget all ids
-      // we find. Real cascade requires upstream TheMemory to expose a
-      // /memories?entity=<id> filter.
-      const listResp = await cloudFetch<{ memories: { id: string }[] }>(
-        `/v1/dashboard/memory/list?limit=200`,
-      );
-      const ids = (listResp?.memories ?? []).map((m) => m.id);
-      // Bounded concurrency — chunks of FORGET_CONCURRENCY.
-      for (let i = 0; i < ids.length; i += FORGET_CONCURRENCY) {
-        const batch = ids.slice(i, i + FORGET_CONCURRENCY);
-        await Promise.all(
-          batch.map((id) =>
-            cloudFetch<null>(`/v1/dashboard/memory/forget/${id}`, { method: 'DELETE' }).catch(() => null),
-          ),
-        );
-      }
-    },
+    mutationFn: (entity: Entity) =>
+      cascadeForgetEntity(entity.id, {
+        scope: activeScope,
+        ...(session ? { sessionId: session } : {}),
+      }),
     onSuccess: () => {
       setPendingDelete(null);
       void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/entities'] });
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/list'] });
     },
   });
 
-  const entities = query.data?.entities ?? [];
+  const all = query.data?.entities ?? [];
+  const filtered = q
+    ? all.filter((e) => e.id.toLowerCase().includes(q.trim().toLowerCase()))
+    : all;
+  const entities = filtered.slice(offset, offset + PAGE_SIZE);
+  // #253 — hide the SUMMARY column when the whole filtered set has none
+  // (instead of a wall of em-dashes that reads as broken).
+  const hasSummaries = filtered.some((e) => e.summary);
 
   const columns: DataTableColumn<Entity>[] = [
     {
@@ -126,16 +137,20 @@ export function EntitiesPage() {
       label: 'Memories',
       render: (row) => <span>{row.memory_count}</span>,
     },
-    {
-      key: 'summary',
-      label: 'Summary',
-      render: (row) =>
-        row.summary ? (
-          <span className="text-sm">{row.summary}</span>
-        ) : (
-          <span className="text-muted-foreground text-xs">—</span>
-        ),
-    },
+    ...(hasSummaries
+      ? [
+          {
+            key: 'summary',
+            label: 'Relations',
+            render: (row: Entity) =>
+              row.summary ? (
+                <ExpandableText text={row.summary} lines={2} />
+              ) : (
+                <span className="text-muted-foreground text-xs">—</span>
+              ),
+          } satisfies DataTableColumn<Entity>,
+        ]
+      : []),
     {
       key: 'last_seen_at',
       label: 'Last seen',
@@ -179,25 +194,61 @@ export function EntitiesPage() {
           </Tabs.List>
         </Tabs>
 
+        <div className="flex flex-wrap items-end gap-3">
+          {activeScope === 'session' ? (
+            <SessionPicker value={session} onChange={setSession} />
+          ) : null}
+          <Input
+            aria-label="Search entities"
+            placeholder="Search entities…"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setOffset(0);
+            }}
+            className="w-64"
+          />
+        </div>
+
+        {cascadeForget.isError ? (
+          <Alert intent="warning" title="Cascade forget aborted">
+            {cascadeForget.error instanceof Error
+              ? cascadeForget.error.message
+              : 'The entity cascade could not run safely. No further memories were deleted.'}
+          </Alert>
+        ) : null}
+
         {query.isError ? (
           <Alert intent="warning" title="Could not load entities">
             The Memory service is not reachable right now. Try refreshing in a moment.
           </Alert>
         ) : query.isLoading ? (
           <Card>Loading…</Card>
-        ) : entities.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={UserIcon}
             title={`No entities under ${activeScope}`}
             description={
-              activeScope === 'user'
-                ? 'Your agent hasn\'t learned about any users yet.'
-                : `No ${activeScope} entities have been recorded yet.`
+              q
+                ? 'No entities match the search. Try a different term.'
+                : activeScope === 'user'
+                  ? 'Your agent hasn\'t learned about any users yet.'
+                  : activeScope === 'session' && !session
+                    ? 'Pick a session above to inspect its working-memory entities.'
+                    : `No ${activeScope} entities have been recorded yet.`
             }
           />
         ) : (
           <Card>
             <DataTable columns={columns} data={entities} rowKey={(row) => row.id} />
+            <TablePager
+              offset={offset}
+              pageSize={PAGE_SIZE}
+              pageCount={entities.length}
+              total={filtered.length}
+              busy={query.isFetching}
+              onOffsetChange={setOffset}
+            />
           </Card>
         )}
        </div>

@@ -169,7 +169,7 @@ func TestTraefikDynamicConfig_GatewaySubpathsReachBffNotThemory(t *testing.T) {
 	}
 	gw := routerPriority(t, cfg, "memory-gateway-edge")
 	mem := routerPriority(t, cfg, "memory-edge")
-	if !(gw > mem) {
+	if gw <= mem {
 		t.Errorf("memory-gateway-edge(%d) must out-rank memory-edge(%d) so the gateway paths are not shadowed → themory 404", gw, mem)
 	}
 	block := routerBlock(cfg, "memory-gateway-edge")
@@ -228,13 +228,13 @@ func TestTraefikDynamicConfig_CapabilityRoutePrecedence(t *testing.T) {
 	bff := routerPriority(t, cfg, "bff")
 	kratos := routerPriority(t, cfg, "kratos")
 	spa := routerPriority(t, cfg, "dashboard-spa")
-	if !(mem > bff && bff > spa) {
+	if mem <= bff || bff <= spa {
 		t.Errorf("precedence must be memory(%d) > bff(%d) > spa(%d) — capability must beat the catch-alls", mem, bff, spa)
 	}
 	// ADR D3 defense-in-depth covers ALL routers: kratos must also beat the SPA
 	// catch-all by an EXPLICIT priority (not rule-length), so a future rule edit
 	// cannot silently let the catch-all swallow the auth flows (ARCH-03/CV-04).
-	if !(kratos > spa) {
+	if kratos <= spa {
 		t.Errorf("kratos(%d) must out-rank the SPA catch-all spa(%d) by explicit priority", kratos, spa)
 	}
 	if spa == 0 || kratos == 0 {

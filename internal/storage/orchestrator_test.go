@@ -201,7 +201,7 @@ func TestService_UploadDownload_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Download: %v", err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	body, _ := io.ReadAll(rc)
 	if string(body) != "hello world" {
 		t.Errorf("body = %q, want hello world", body)
@@ -268,7 +268,7 @@ func TestService_ShareRedeem_RoundTrip_IsolatesTenantKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Redeem: %v", err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	// The redemption must re-derive the key from the token's tenant claim.
 	if obj.lastKey != "tn-owner/pic.png" {
 		t.Errorf("redeem key = %q, want tn-owner/pic.png (from token claim)", obj.lastKey)

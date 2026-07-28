@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Share2, Sparkles, Zap } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
-import { TokenUsageChart, type TokenUsagePoint } from '@theokit/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -60,14 +59,11 @@ export function MemoryPage() {
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/memory/metrics'] });
   };
 
-  // Placeholder trend until a P2-era usage aggregator ships. Plotting
-  // today's snapshot once is honest "you haven't been tracking yet" UX.
-  const trendPoints: TokenUsagePoint[] = [
-    { label: 'Today', input: metrics.add_events, output: metrics.retrieval_api_usage },
-  ];
-  const entityTrendPoints: TokenUsagePoint[] = [
-    { label: 'Today', input: metrics.entity_count, output: metrics.total_memories },
-  ];
+  // UX pass 2026-07-22: the previous TokenUsageChart pair plotted MEMORY counts
+  // under the chart's baked-in "Input tokens / Output tokens" copy — semantically
+  // wrong labels (Rule 3). Until the P2 usage aggregator ships multi-day series,
+  // the honest composition is a correctly-labeled proportional summary (below),
+  // not a one-point pseudo-trend with token axis copy.
 
   return (
     <PageShell
@@ -124,13 +120,42 @@ export function MemoryPage() {
 
             <ContentGrid columns="2-equal">
               <Card>
-                <Card.Body>
-                  <TokenUsageChart title="Usage trend" points={trendPoints} height={180} />
+                <Card.Body className="space-y-4">
+                  <h3 className="text-sm font-semibold">Activity today</h3>
+                  <ActivityBar
+                    label="Memories written"
+                    value={metrics.add_events}
+                    max={Math.max(metrics.add_events, metrics.retrieval_api_usage, 1)}
+                  />
+                  <ActivityBar
+                    label="Memories retrieved"
+                    value={metrics.retrieval_api_usage}
+                    max={Math.max(metrics.add_events, metrics.retrieval_api_usage, 1)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Writes vs reads since the last reset. Multi-day trends arrive with the
+                    usage aggregator.
+                  </p>
                 </Card.Body>
               </Card>
               <Card>
-                <Card.Body>
-                  <TokenUsageChart title="Entities trend" points={entityTrendPoints} height={180} />
+                <Card.Body className="space-y-4">
+                  <h3 className="text-sm font-semibold">Graph coverage</h3>
+                  <ActivityBar
+                    label="Memories stored"
+                    value={metrics.total_memories}
+                    max={Math.max(metrics.total_memories, metrics.entity_count, 1)}
+                  />
+                  <ActivityBar
+                    label="Entities extracted"
+                    value={metrics.entity_count}
+                    max={Math.max(metrics.total_memories, metrics.entity_count, 1)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {metrics.total_memories > 0
+                      ? `≈ ${(metrics.entity_count / metrics.total_memories).toFixed(2)} entities per memory in the knowledge graph.`
+                      : 'Entities appear here as your agent stores memories.'}
+                  </p>
                 </Card.Body>
               </Card>
             </ContentGrid>
@@ -188,12 +213,41 @@ export function MemoryPage() {
               icon={BookOpen}
               title="Documentation"
               description="Read the architecture + every endpoint."
-              href="/memory/entities"
+              href="https://docs.usetheo.dev/"
             />
           </div>
         </section>
       </div>
     </PageShell>
+  );
+}
+
+interface ActivityBarProps {
+  label: string;
+  value: number;
+  max: number;
+}
+
+/**
+ * One labeled proportional bar (pure CSS, brand primary). Replaces the
+ * mislabeled TokenUsageChart pair on this page: correct labels, honest
+ * single-snapshot presentation, no fake axis (UX pass 2026-07-22).
+ */
+function ActivityBar({ label, value, max }: ActivityBarProps) {
+  const pct = Math.max(2, Math.round((value / max) * 100));
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-mono font-medium tabular-nums">{value.toLocaleString()}</span>
+      </div>
+      <div className="h-2 rounded-full bg-muted overflow-hidden" role="presentation">
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+          style={{ width: `${String(pct)}%` }}
+        />
+      </div>
+    </div>
   );
 }
 

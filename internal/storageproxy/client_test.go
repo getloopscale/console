@@ -100,7 +100,7 @@ func TestDownload_StreamsBytesAndMeta(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Download: %v", err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	got, _ := io.ReadAll(rc)
 	if string(got) != "the bytes" {
 		t.Errorf("body = %q, want 'the bytes'", got)
@@ -170,7 +170,7 @@ func TestRedeem_StreamsAndMapsExpiredInvalid(t *testing.T) {
 		t.Fatalf("Redeem: %v", err)
 	}
 	b, _ := io.ReadAll(rc)
-	rc.Close()
+	_ = rc.Close()
 	if string(b) != "shared" || meta.Size != 6 {
 		t.Errorf("redeem body=%q meta=%+v", b, meta)
 	}

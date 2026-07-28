@@ -9,6 +9,7 @@ import ForceGraph2D, {
 } from 'react-force-graph-2d';
 import { Card, EmptyState, PageShell, Tabs } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { SessionPicker } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -468,17 +469,28 @@ export function GraphPage() {
     setSearchParams(params, { replace: true });
   };
 
+  // Session-separation (2026-07-23): the SESSION tab needs an instance.
+  const session = searchParams.get('session') ?? '';
+  const setSession = (next: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (next) params.set('session', next);
+    else params.delete('session');
+    setSearchParams(params, { replace: true });
+  };
+
   // M1 — audit view: include retired (superseded/invalidated) edges alongside the
   // active graph. Default OFF (active edges only).
   const [includeSuperseded, setIncludeSuperseded] = useState(false);
 
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/graph', activeScope, includeSuperseded] as const,
+    queryKey: ['cloud', '/v1/dashboard/memory/graph', activeScope, session, includeSuperseded] as const,
     // throwOnError so a failed fetch is query.isError, not an empty graph rendered
     // as "no relations" (theo-cloud#250).
     queryFn: () =>
       cloudFetch<GraphResult>(
-        `/v1/dashboard/memory/graph?scope=${activeScope}${includeSuperseded ? '&includeSuperseded=true' : ''}`,
+        `/v1/dashboard/memory/graph?scope=${activeScope}${
+          activeScope === 'session' && session ? `&session_id=${encodeURIComponent(session)}` : ''
+        }${includeSuperseded ? '&includeSuperseded=true' : ''}`,
         {},
         { throwOnError: true },
       ),
@@ -515,6 +527,10 @@ export function GraphPage() {
             <Tabs.Trigger value="repo">REPO</Tabs.Trigger>
           </Tabs.List>
         </Tabs>
+
+        {activeScope === 'session' ? (
+          <SessionPicker value={session} onChange={setSession} />
+        ) : null}
 
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <input

@@ -1051,6 +1051,7 @@ func main() {
 		r.Route("/v1/dashboard/memory", func(r chi.Router) {
 			r.Use(requireJWT)
 			r.Get("/list", memoryHandler.List)
+			r.Get("/sessions", memoryHandler.Sessions)
 			r.Get("/metrics", memoryHandler.Metrics)
 			r.Get("/entities", memoryHandler.Entities)
 			r.Get("/graph", memoryHandler.Graph)
@@ -1315,7 +1316,11 @@ func main() {
 						logger.Warn("service-auth signature attach failed", "error", sErr, "path", targetPath)
 						w.Header().Set("Content-Type", "application/json")
 						w.WriteHeader(http.StatusBadGateway)
-						json.NewEncoder(w).Encode(map[string]string{"code": "SERVICE_AUTH_SIGN_FAILED", "message": "Service authentication failure. Try again."})
+						// O erro do Encode nao tem acao possivel: o status ja foi escrito, entao
+						// nao ha como mudar a resposta, e falhar aqui significa que o cliente
+						// desapareceu. `_ =` registra que a decisao foi tomada em vez de deixar o
+						// leitor supondo — a diferenca entre "avaliamos e ignoramos" e "ninguem olhou".
+						_ = json.NewEncoder(w).Encode(map[string]string{"code": "SERVICE_AUTH_SIGN_FAILED", "message": "Service authentication failure. Try again."})
 						return
 					}
 				}

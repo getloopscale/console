@@ -82,7 +82,7 @@ func newMockKratosServer(t *testing.T, cfg mockKratosCfg) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		if cfg.statusCode != 0 && cfg.statusCode != http.StatusOK {
 			w.WriteHeader(cfg.statusCode)
-			json.NewEncoder(w).Encode(map[string]string{"error": "not authenticated"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not authenticated"})
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -96,7 +96,7 @@ func newMockKratosServer(t *testing.T, cfg mockKratosCfg) *httptest.Server {
 				},
 			},
 		}
-		json.NewEncoder(w).Encode(body)
+		_ = json.NewEncoder(w).Encode(body)
 	}))
 }
 
@@ -184,7 +184,7 @@ func TestExchange_RoundTrip_MintThenValidate(t *testing.T) {
 	var resp struct {
 		AccessToken string `json:"access_token"`
 	}
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	claims, err := issuer.ValidateSession(resp.AccessToken)
 	if err != nil {
@@ -302,7 +302,7 @@ func TestExchange_NewUser_AutoProvisionsTenant(t *testing.T) {
 	var resp struct {
 		AccessToken string `json:"access_token"`
 	}
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	claims, err := issuer.ValidateSession(resp.AccessToken)
 	if err != nil {
@@ -350,7 +350,7 @@ func TestExchange_MalformedKratosBody_Returns401(t *testing.T) {
 	// curious client.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "{this is not json}")
+		_, _ = fmt.Fprint(w, "{this is not json}")
 	}))
 	defer srv.Close()
 

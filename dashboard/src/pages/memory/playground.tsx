@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Brain, Search, Sparkles } from 'lucide-react';
+import { Brain, Search } from 'lucide-react';
 import { Badge, Button, Card, Input, PageShell, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { ReflectCard } from '@/pages/memory/reflect-card';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
@@ -99,13 +100,6 @@ export function PlaygroundPage() {
   });
 
   // --- Reflect panel ---
-  const reflect = useMutation({
-    mutationFn: async () =>
-      cloudFetch<Record<string, unknown>>('/v1/dashboard/memory/reflect', {
-        method: 'POST',
-        body: '{}',
-      }, { throwOnError: true }),
-  });
 
   return (
     <PageShell
@@ -154,9 +148,6 @@ export function PlaygroundPage() {
                   className="w-48"
                   aria-describedby="pg-peer-hint"
                 />
-                <p id="pg-peer-hint" className="text-xs text-muted-foreground mt-1 max-w-48">
-                  Stores the fact verbatim (skips auto fact-extraction).
-                </p>
               </div>
               <Button
                 onClick={() => remember.mutate()}
@@ -165,6 +156,14 @@ export function PlaygroundPage() {
                 Remember
               </Button>
             </div>
+            {/* UX 2026-07-22: the peer hint lived INSIDE the items-end flex row, so the
+                one field with text below it pushed its input off the shared baseline.
+                Full-width note under the row keeps all three controls aligned; the
+                aria-describedby link to the field is preserved. */}
+            <p id="pg-peer-hint" className="text-xs text-muted-foreground">
+              Attributed to: when set, the fact is stored verbatim as that peer&apos;s statement
+              (skips auto fact-extraction).
+            </p>
             {remember.isError ? (
               <Alert intent="warning" title="Could not remember">
                 The Memory service rejected the write. Try again in a moment.
@@ -273,40 +272,9 @@ export function PlaygroundPage() {
           </Card.Body>
         </Card>
 
-        {/* Reflect */}
-        <Card>
-          <Card.Header>
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-4 text-muted-foreground" />
-              <h2 className="text-base font-semibold">Reflect</h2>
-            </div>
-          </Card.Header>
-          <Card.Body className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Consolidate this scope's memories — deduplicate, distill, and resolve
-              conflicts. Runs the same pipeline the agent triggers automatically.
-            </p>
-            <Button
-              variant="secondary"
-              onClick={() => reflect.mutate()}
-              disabled={reflect.isPending}
-            >
-              Run reflection
-            </Button>
-            {reflect.isError ? (
-              <Alert intent="warning" title="Could not reflect">
-                The Memory service rejected the reflection. Try again in a moment.
-              </Alert>
-            ) : null}
-            {reflect.data ? (
-              <Alert intent="success" title="Reflection complete">
-                <pre className="mt-1 text-xs overflow-x-auto">
-                  {JSON.stringify(reflect.data, null, 2)}
-                </pre>
-              </Alert>
-            ) : null}
-          </Card.Body>
-        </Card>
+        {/* Reflect — extracted to its own module (300-line budget); owns the
+            mutation, elapsed feedback, and readable derived-memory rendering. */}
+        <ReflectCard />
       </div>
     </PageShell>
   );

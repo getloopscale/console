@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/usetheodev/theo-cloud/internal/auth"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 )
 
@@ -53,6 +54,9 @@ type recordingServer struct {
 
 	// listItems is the canned listing returned by the scope endpoint.
 	listItems []map[string]any
+	// listEntityEcho, when non-empty, is echoed as the response `entity` field
+	// (fail-closed cascade contract, incident 2026-07-23).
+	listEntityEcho string
 	// metricsBody is the canned body returned by the /metrics endpoint.
 	metricsBody map[string]any
 	// entitiesItems is the canned entities array returned by /entities.
@@ -116,7 +120,11 @@ func newRecordingServer(t *testing.T) *recordingServer {
 				items = []map[string]any{}
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
+			body := map[string]any{"items": items}
+			if s.listEntityEcho != "" {
+				body["entity"] = s.listEntityEcho
+			}
+			_ = json.NewEncoder(w).Encode(body)
 		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/memories/"):
 			s.deleteRequests = append(s.deleteRequests, r.Clone(context.Background()))
 			w.WriteHeader(s.forgetStatus)
@@ -158,10 +166,39 @@ func TestTheMemoryClient_ListScopesBySubjectInPath(t *testing.T) {
 	if gotPath != "/v1/scopes/user/user-alex-from-auth/memories" {
 		t.Errorf("list path = %q, want /v1/scopes/user/user-alex-from-auth/memories", gotPath)
 	}
-	// The real server ignores X-Theo-User-Id; the old client relied on it and
-	// silently broke isolation. Assert we do NOT depend on it.
+	// Isolation NEVER depends on the header: without an authenticated user in the
+	// context (boot probe / control-plane client) nothing is sent, and the path
+	// alone still scopes the request.
 	if got := stub.listRequests[0].Header.Get("X-Theo-User-Id"); got != "" {
-		t.Errorf("X-Theo-User-Id should not be sent (server ignores it); got %q", got)
+		t.Errorf("X-Theo-User-Id should not be sent without an authenticated ctx; got %q", got)
+	}
+}
+
+// theo-memory#119 — the session/agent tiers are isolated by the (workspace, user,
+// tier) pair (theo-memory ADR-0021), so the path alone does NOT identify the
+// reader: `/v1/scopes/session/{id}/entities` without the acting user matches only
+// ownerless rows and returns an empty list over a populated session. The provider
+// stopped ignoring X-Theo-User-Id when M8 landed (its `actingUserId` reads it as
+// the auth-trusted identity — the same header Traefik ForwardAuth already injects
+// on the SDK path), so the BFF client MUST send it too.
+func TestTheMemoryClient_SendsActingUserFromContext(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	ctx := auth.WithUser(context.Background(), &auth.UserContext{Subject: "user-alex-from-auth"})
+
+	if _, err := client.Entities(ctx, "user-alex-from-auth", "session:sess-1"); err != nil {
+		t.Fatalf("Entities: %v", err)
+	}
+
+	if len(stub.entitiesRequests) != 1 {
+		t.Fatalf("entities requests = %d, want 1", len(stub.entitiesRequests))
+	}
+	req := stub.entitiesRequests[0]
+	if got := req.URL.Path; got != "/v1/scopes/session/sess-1/entities" {
+		t.Errorf("entities path = %q, want /v1/scopes/session/sess-1/entities", got)
+	}
+	if got := req.Header.Get("X-Theo-User-Id"); got != "user-alex-from-auth" {
+		t.Errorf("X-Theo-User-Id = %q, want %q", got, "user-alex-from-auth")
 	}
 }
 
@@ -186,8 +223,10 @@ func TestTheMemoryClient_PropagatesSupportedQueryParams(t *testing.T) {
 	if q.Get("cursor") != "abc" {
 		t.Errorf("cursor = %q, want abc", q.Get("cursor"))
 	}
-	if q.Has("offset") {
-		t.Errorf("offset must NOT be sent (provider gap); got %q", q.Get("offset"))
+	// 2026-07-22: the provider implements real SQL offset pagination — the
+	// client now FORWARDS it (the old pin asserted the inverse during the gap).
+	if q.Get("offset") != "50" {
+		t.Errorf("offset = %q, want 50 (forwarded to the provider)", q.Get("offset"))
 	}
 }
 
@@ -496,5 +535,58 @@ func TestTheMemoryClient_ForgetSkillMaps404ToErrNotFound(t *testing.T) {
 	err := client.ForgetSkill(context.Background(), "sub:acme", "sk-x")
 	if !themory.IsNotFound(err) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+// Session-separation (2026-07-23): a non-empty SessionID targets the SESSION
+// tier path `/v1/scopes/session/{id}/memories` (M8 working memory).
+func TestTheMemoryClient_SessionIDTargetsSessionScopePath(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	if _, err := client.List(context.Background(), "u", themory.ListOptions{SessionID: "sess-42"}); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := stub.listRequests[0].URL.Path; got != "/v1/scopes/session/sess-42/memories" {
+		t.Errorf("path = %q, want /v1/scopes/session/sess-42/memories", got)
+	}
+}
+
+// Session-separation (2026-07-23): ListSessions hits the provider's session
+// enumeration endpoint for the subject.
+func TestTheMemoryClient_ListSessionsPath(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	if _, err := client.ListSessions(context.Background(), "user-A"); err != nil {
+		t.Fatalf("ListSessions: %v", err)
+	}
+	if got := stub.listRequests[0].URL.Path; got != "/v1/scopes/user/user-A/sessions" {
+		t.Errorf("path = %q, want /v1/scopes/user/user-A/sessions", got)
+	}
+}
+
+// theo-cloud#252: the per-entity filter forwards to the provider's ?entity=.
+func TestTheMemoryClient_ForwardsEntityFilter(t *testing.T) {
+	stub := newRecordingServer(t)
+	client := themory.NewClient(stub.URL, "k", nil)
+	if _, err := client.List(context.Background(), "u", themory.ListOptions{Entity: "Codex Reviewer"}); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := stub.listRequests[0].URL.Query().Get("entity"); got != "Codex Reviewer" {
+		t.Errorf("entity = %q, want %q", got, "Codex Reviewer")
+	}
+}
+
+// Incident 2026-07-23: the provider's ?entity= echo threads through so
+// cascade-delete clients can FAIL CLOSED when a provider ignored the filter.
+func TestTheMemoryClient_DecodesEntityEcho(t *testing.T) {
+	stub := newRecordingServer(t)
+	stub.listEntityEcho = "Codex"
+	client := themory.NewClient(stub.URL, "k", nil)
+	res, err := client.List(context.Background(), "u", themory.ListOptions{Entity: "Codex"})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if res.Entity == nil || *res.Entity != "Codex" {
+		t.Errorf("Entity echo = %v, want Codex", res.Entity)
 	}
 }

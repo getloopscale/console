@@ -89,10 +89,15 @@ dump_logs() {
 # --- preflight ---------------------------------------------------------------
 command -v docker >/dev/null || { fail "docker not found"; exit 1; }
 command -v go >/dev/null || { fail "go not found"; exit 1; }
-[[ -f "${THEMORY_DIR}/Dockerfile" ]] || {
-  fail "TheMemory repo not found at THEMORY_DIR=${THEMORY_DIR} (set THEMORY_DIR=/path/to/theo-memory)"
-  exit 1
-}
+# O checkout do vizinho so e exigido quando NAO ha imagem pre-construida. Com
+# `THEMORY_IMAGE` setada (o caminho do CI, que puxa do GHCR por digest) nao ha o que
+# buildar, e exigir o diretorio faria o e2e depender de um repo que ele nao usa.
+if [[ -z "${THEMORY_IMAGE:-}" ]]; then
+  [[ -f "${THEMORY_DIR}/Dockerfile" ]] || {
+    fail "TheMemory repo not found at THEMORY_DIR=${THEMORY_DIR} (set THEMORY_DIR=/path/to/theo-memory, ou passe THEMORY_IMAGE=<ref>)"
+    exit 1
+  }
+fi
 
 trap teardown EXIT
 
@@ -115,10 +120,12 @@ fi
 # --- 2b. (EDGE=1, M18) build the theo-rag image from the sibling checkout ------
 # D1: pinned local source (M11/M12/M13), NOT a floating GHCR :develop.
 if [[ "${EDGE}" == "1" ]]; then
-  [[ -f "${THEORAG_DIR}/packages/api/Dockerfile" ]] || {
-    fail "theo-rag repo not found at THEORAG_DIR=${THEORAG_DIR} (set THEORAG_DIR=/path/to/theo-rag)"
-    exit 1
-  }
+  if [[ -z "${THEORAG_IMAGE:-}" ]]; then
+    [[ -f "${THEORAG_DIR}/packages/api/Dockerfile" ]] || {
+      fail "theo-rag repo not found at THEORAG_DIR=${THEORAG_DIR} (set THEORAG_DIR=/path/to/theo-rag, ou passe THEORAG_IMAGE=<ref>)"
+      exit 1
+    }
+  fi
   if [[ -n "${THEORAG_IMAGE:-}" ]]; then
     log "using pre-built theo-rag image: ${THEORAG_IMAGE}"
     export THEORAG_IMAGE
@@ -133,10 +140,12 @@ fi
 # Pinned local source (M22/M37/M38), NOT a floating GHCR :develop. theo-lens's
 # Dockerfile is at the repo ROOT (a multi-stage pnpm-workspace build serving API + UI).
 if [[ "${EDGE}" == "1" ]]; then
-  [[ -f "${THELENS_DIR}/Dockerfile" ]] || {
-    fail "theo-lens repo not found at THELENS_DIR=${THELENS_DIR} (set THELENS_DIR=/path/to/theo-lens)"
-    exit 1
-  }
+  if [[ -z "${THELENS_IMAGE:-}" ]]; then
+    [[ -f "${THELENS_DIR}/Dockerfile" ]] || {
+      fail "theo-lens repo not found at THELENS_DIR=${THELENS_DIR} (set THELENS_DIR=/path/to/theo-lens, ou passe THELENS_IMAGE=<ref>)"
+      exit 1
+    }
+  fi
   if [[ -n "${THELENS_IMAGE:-}" ]]; then
     log "using pre-built theo-lens image: ${THELENS_IMAGE}"
     export THELENS_IMAGE

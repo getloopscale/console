@@ -37,6 +37,9 @@ import (
 // inject a fake without touching the HTTP layer.
 type TheMemoryClient interface {
 	List(ctx context.Context, userID string, opts themory.ListOptions) (*themory.ListResult, error)
+	// ListSessions enumerates the subject's SESSION sub-scopes (session-separation,
+	// 2026-07-23 — the M8 session picker data source).
+	ListSessions(ctx context.Context, userID string) (*themory.SessionsResult, error)
 	Metrics(ctx context.Context, userID string) (*themory.MetricsResult, error)
 	Forget(ctx context.Context, userID, memoryID string, hard bool) error
 	Entities(ctx context.Context, userID, scope string) (*themory.EntitiesResult, error)
@@ -233,6 +236,9 @@ func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		Cursor:   q.Get("cursor"),
 		From:     q.Get("from"),
 		To:       q.Get("to"),
+		// theo-cloud#252 — per-entity filter, forwarded verbatim (the provider
+		// normalizes the name and applies the memory_entities join).
+		Entity: q.Get("entity"),
 	}
 	// TheMemory caps the scope-list `limit` at 100 (zod `.max(100)`); forwarding
 	// more 422s INVALID_QUERY (issue #6 sibling). Out-of-range values are dropped
@@ -247,6 +253,19 @@ func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 			opts.Offset = n
 		}
 	}
+	// Session-separation (2026-07-23): `?scope=session&session_id=X` lists the
+	// M8 SESSION working memory (SESSION ∪ GLOBAL at the provider). The session
+	// id is an instance selector WITHIN the subject's own space — the provider
+	// still anchors isolation on the key's workspace, so this never widens
+	// access (D1 invariant on the subject is unchanged).
+	if q.Get("scope") == "session" {
+		sessionID := q.Get("session_id")
+		if sessionID == "" {
+			writeError(w, http.StatusBadRequest, "SESSION_ID_REQUIRED", "scope=session requires session_id")
+			return
+		}
+		opts.SessionID = sessionID
+	}
 
 	result, err := h.client.List(r.Context(), user.Subject, opts)
 	if err != nil {
@@ -258,6 +277,30 @@ func (h *MemoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		result.Memories = []themory.MemoryRow{}
 	}
 
+	writeJSON(w, http.StatusOK, result)
+}
+
+// =============================================================================
+// GET /v1/memory/sessions — session-separation (2026-07-23)
+// =============================================================================
+
+// Sessions enumerates the subject's SESSION sub-scopes (the M8 session picker
+// data source). Same D1 invariant as List: the subject comes from the
+// authenticated session only.
+func (h *MemoryHandler) Sessions(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Run: theo login")
+		return
+	}
+	result, err := h.client.ListSessions(r.Context(), user.Subject)
+	if err != nil {
+		h.writeUpstreamError(w, err, "memory sessions", "subject", user.Subject)
+		return
+	}
+	if result.Sessions == nil {
+		result.Sessions = []themory.SessionRow{}
+	}
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -346,6 +389,19 @@ func (h *MemoryHandler) Forget(w http.ResponseWriter, r *http.Request) {
 // GET /v1/memory/entities — T2.3 (Plan 2)
 // =============================================================================
 
+// withSessionInstance upgrades a bare "session" scope to "session:<id>" when the
+// request names a session instance (session-separation, 2026-07-23). The id is an
+// instance selector within the subject's own space — provider isolation anchors
+// (workspace/user) are unchanged. Other scopes pass through untouched.
+func withSessionInstance(scope string, r *http.Request) string {
+	if scope == "session" {
+		if id := r.URL.Query().Get("session_id"); id != "" {
+			return "session:" + id
+		}
+	}
+	return scope
+}
+
 // Entities returns aggregated entities for the authenticated subject under
 // the requested scope (user / session / agent / repo). Per Plan 2 D2:
 // gated by RequireScope("memory:read") — same scope as List + Metrics.
@@ -363,6 +419,10 @@ func (h *MemoryHandler) Entities(w http.ResponseWriter, r *http.Request) {
 			`Scope must be one of: user, session, agent, repo.`)
 		return
 	}
+	// Session-separation (2026-07-23): a session INSTANCE (`session_id`) upgrades
+	// the bare tier to that session's sub-scope; without it the tier stays
+	// unenumerable and returns empty (pre-existing honest behavior).
+	scope = withSessionInstance(scope, r)
 
 	result, err := h.client.Entities(r.Context(), user.Subject, scope)
 	if err != nil {
@@ -397,6 +457,10 @@ func (h *MemoryHandler) Graph(w http.ResponseWriter, r *http.Request) {
 			`Scope must be one of: user, session, agent, repo.`)
 		return
 	}
+
+	// Session-separation (2026-07-23): upgrade a bare session tier to the
+	// requested session instance (`session_id`), mirroring Entities.
+	scope = withSessionInstance(scope, r)
 
 	// M1 — audit view: forward the include-superseded flag to the upstream graph.
 	includeSuperseded := r.URL.Query().Get("includeSuperseded") == "true"
@@ -441,6 +505,9 @@ func (h *MemoryHandler) Episodes(w http.ResponseWriter, r *http.Request) {
 			`Scope must be one of: user, session, agent, repo.`)
 		return
 	}
+
+	// Session-separation (2026-07-23): mirror Entities/Graph.
+	scope = withSessionInstance(scope, r)
 
 	opts := themory.EpisodeOptions{
 		After:  q.Get("after"),

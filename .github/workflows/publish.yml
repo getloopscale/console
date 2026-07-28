@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref == 'refs/heads/develop' }}
 jobs:
   plan:
-    runs-on: [self-hosted, linux, x64] # self-hosted (GitHub-hosted billing-blocked) — theo-ci-runner droplet
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     outputs:
       images: ${{ steps.set.outputs.images }}
       sign: ${{ steps.set.outputs.sign }}
@@ -59,12 +59,17 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.images) }}
-    uses: usetheodev/theo/.github/workflows/build-publish.yml@develop   # cutover to pinned tag at release (owner-gated)
+    uses: ./.github/workflows/build-publish.yml
     with:
       image: ${{ matrix.image }}
       dockerfile: ${{ matrix.dockerfile }}
       context: ${{ matrix.context }}
       sign: ${{ needs.plan.outputs.sign == 'true' }}
       verify: ${{ needs.plan.outputs.sign == 'true' }} # identity-pinned cosign verify on release (same gate as sign)
-      runner: '["self-hosted","linux","x64"]' # GitHub-hosted minutes are billing-blocked — build on the theo-ci-runner droplet (build-publish.yml gained this input @develop)
-    secrets: inherit
+    # Explicito, nao `secrets: inherit`. O reusable declara TRES secrets, todos opcionais;
+    # herdar tudo passa cada segredo do repo para um workflow que usa no maximo tres — e o
+    # semgrep sinaliza `secrets-inherit` por isso mesmo. A enumeracao nao custa nada.
+    secrets:
+      GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

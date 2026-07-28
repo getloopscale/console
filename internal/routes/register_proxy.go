@@ -131,7 +131,7 @@ func (h *RegisterProxyHandler) Post(w http.ResponseWriter, r *http.Request) {
 		h.writeUniversal(w)
 		return
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	// Build the upstream request using net/url (F-sec-3 absorption —
 	// SSRF defense: never concat user-controlled `?flow=` into the
@@ -206,7 +206,7 @@ func (h *RegisterProxyHandler) Post(w http.ResponseWriter, r *http.Request) {
 		h.writeError503(w)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// On upstream 5xx, return generic 503. EC-4: never propagate upstream
 	// error details — they may include "user exists" or similar leaks.
