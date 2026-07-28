@@ -1,0 +1,50 @@
+# Secret-scan config. Modelado no do theo-memory, cuja motivação foi um incidente real
+# (#126 — duas chaves `theo_live_` verdadeiras chegaram ao histórico).
+#
+# DUAS DECISÕES QUE PARECEM FROUXAS E NÃO SÃO:
+#
+# 1. ESCANEIA A ÁRVORE, NÃO O HISTÓRICO. Reescrever histórico é proibido (Regra 4), então
+#    flagrar um segredo já commitado produz um alarme que NINGUÉM pode resolver — ele toca
+#    a cada run até virar ruído ignorado, e o próximo achado real passa junto com os falsos.
+#    A mitigação correta para segredo exposto é ROTAÇÃO, que o neutraliza sem tocar no
+#    histórico. Este gate previne RECORRÊNCIA.
+#
+# 2. RULESET ALVO, NÃO O GENÉRICO. Medido no primeiro run deste gate (2026-07-28): os
+#    achados do ruleset padrão estavam TODOS em `dashboard/src/pages/api-keys.test.tsx`,
+#    `internal/routes/mcp_resolve_test.go` e `dev/README.md` — fixtures de teste e um
+#    exemplo de `curl` na documentação. Zero em código de produção. Um gate que grita sobre
+#    a própria documentação treina o time a ignorá-lo.
+title = "theo-cloud secret scan"
+
+[[rules]]
+id = "theo-live-api-key"
+description = "Chave theo_live_ hardcoded (a real é hex longo; fixtures usam sufixo legível)"
+# Uma chave real é `theo_live_` + segredo hex longo. As fixtures deste repo usam sufixos
+# legíveis (`theo_live_consumer`), então este regex nunca casa com elas — só um segredo
+# genuinamente hardcoded o dispara.
+regex = '''theo_live_[a-f0-9]{20,}'''
+keywords = ["theo_live_"]
+
+[[rules]]
+id = "stripe-secret-key"
+description = "Chave secreta Stripe — este repo é o control plane com billing"
+regex = '''sk_live_[A-Za-z0-9]{20,}'''
+keywords = ["sk_live_"]
+
+[[rules]]
+id = "private-key-block"
+description = "Bloco de chave privada (Ed25519 do serviceauth, TLS, deploy)"
+regex = '''-----BEGIN ([A-Z ]+ )?PRIVATE KEY-----'''
+keywords = ["BEGIN", "PRIVATE KEY"]
+
+[allowlist]
+description = "Fora do escopo do gate"
+paths = [
+  '''knowledge-base/.*''',
+  '''\.claude/.*''',
+  '''node_modules/.*''',
+  '''.*/node_modules/.*''',
+  # Artefato GERADO de documentação, não código de produção (o mesmo motivo pelo qual o
+  # semgrep exclui `docs/`).
+  '''dashboard/docs/.*''',
+]

@@ -41,11 +41,18 @@ jobs:
       - name: semgrep (TypeScript / OWASP)
         # Imagem fixada por DIGEST. Sem tag nem digest resolve para `:latest` — mutavel — e o
         # gate verifica coisa diferente a cada run, com o codigo-fonte montado dentro.
+        # `--exclude=docs`: `dashboard/docs/theo-lens/support.js` e GERADO
+        # ("// GENERATED from dc-runtime/src/*.ts — do not edit") e vive em documentacao, nao
+        # em codigo de producao. Editar o achado ali seria desfeito no proximo build, e o
+        # arquivo nao roda no dashboard. Mesmo criterio ja aplicado a node_modules.
         run: |
           set -euo pipefail
           docker run --rm -v "$PWD/dashboard:/src" \
             semgrep/semgrep@sha256:b68f9b68483955b85042dac7b4533757779625a02dcf91e470da4c2df1b430be \
-            semgrep scan --config p/typescript --config p/owasp-top-ten --error --skip-unknown-extensions /src
+            semgrep scan --config p/typescript --config p/owasp-top-ten --error \
+              --skip-unknown-extensions \
+              --exclude=docs \
+              /src
 
   gitleaks:
     runs-on: blacksmith-8vcpu-ubuntu-2404

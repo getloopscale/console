@@ -33,16 +33,36 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # `theo-contracts` e um modulo Go PRIVADO. Sem esta configuracao o `go build` tenta
+      # baixa-lo por HTTPS anonimo e morre com "could not read Username for github.com" — o
+      # que aconteceu no primeiro run deste gate. Mesmo mecanismo que o job e2e deste repo e
+      # o Dockerfile ja usam; o token nunca e impresso.
+      #
+      # Meu `go build` LOCAL passou porque a maquina tem credencial — ponto cego da validacao
+      # local que so o CI expoe. Vale registrar: validar localmente reduz o ciclo, nao
+      # substitui o ambiente limpo.
+      - name: Configure private module access (theo-contracts)
+        run: |
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
+        env:
+          GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+
       - name: Build
+        env:
+          GOPRIVATE: github.com/usetheodev/*
         run: go build ./...
 
       - name: Test (race detector)
+        env:
+          GOPRIVATE: github.com/usetheodev/*
         # `-race` nao e luxo num control plane: ele serve requisicoes HTTP concorrentes sobre
         # estado compartilhado (contas, projetos, billing). Suite single-thread verde nao prova
         # ausencia de corrida — prova que ninguem a exercitou.
         run: go test -race -count=1 ./...
 
       - name: Vet
+        env:
+          GOPRIVATE: github.com/usetheodev/*
         run: go vet ./...
 
       - name: Lint
