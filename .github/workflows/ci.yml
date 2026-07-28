@@ -58,7 +58,12 @@ jobs:
           # `theo-contracts` e `theo` seguem em `usetheodev` e por isso NAO foram tocados.
           repository: usetheoai/theo-memory
           ref: develop # match the develop-level integration under test (sibling default branch is `main`)
-          token: ${{ secrets.GOMOD_TOKEN }}
+          # SEM `token:` — este repo esta na MESMA org e teve `access_level=organization`
+          # habilitado, entao o GITHUB_TOKEN do proprio run ja o alcanca. O PAT anterior
+          # (`GOMOD_TOKEN`) foi criado quando os repos viviam em `usetheodev` e nao enxerga
+          # a org — dava "Write access to repository not granted", mensagem que sugere
+          # permissao de escrita quando o problema e ESCOPO do token.
+          # Menos um segredo para rotacionar, expirar ou vazar.
           path: theo-data/theo-memory
 
       - uses: actions/setup-go@v5
@@ -111,7 +116,12 @@ jobs:
         with:
           repository: usetheoai/theo-memory
           ref: develop # match the develop-level integration under test (sibling default branch is `main`)
-          token: ${{ secrets.GOMOD_TOKEN }}
+          # SEM `token:` — este repo esta na MESMA org e teve `access_level=organization`
+          # habilitado, entao o GITHUB_TOKEN do proprio run ja o alcanca. O PAT anterior
+          # (`GOMOD_TOKEN`) foi criado quando os repos viviam em `usetheodev` e nao enxerga
+          # a org — dava "Write access to repository not granted", mensagem que sugere
+          # permissao de escrita quando o problema e ESCOPO do token.
+          # Menos um segredo para rotacionar, expirar ou vazar.
           path: theo-data/theo-memory
       # EDGE=1 builds the rag + lens images from their sibling checkouts
       # (run.sh § 2b/2c — M18/M40, pinned local source, NOT a floating GHCR
@@ -123,14 +133,24 @@ jobs:
         with:
           repository: usetheoai/theo-rag
           ref: develop
-          token: ${{ secrets.GOMOD_TOKEN }}
+          # SEM `token:` — este repo esta na MESMA org e teve `access_level=organization`
+          # habilitado, entao o GITHUB_TOKEN do proprio run ja o alcanca. O PAT anterior
+          # (`GOMOD_TOKEN`) foi criado quando os repos viviam em `usetheodev` e nao enxerga
+          # a org — dava "Write access to repository not granted", mensagem que sugere
+          # permissao de escrita quando o problema e ESCOPO do token.
+          # Menos um segredo para rotacionar, expirar ou vazar.
           path: theo-data/theo-rag
       - name: Checkout theo-lens (edge stack — M40)
         uses: actions/checkout@v4
         with:
           repository: usetheoai/theo-lens
           ref: develop
-          token: ${{ secrets.GOMOD_TOKEN }}
+          # SEM `token:` — este repo esta na MESMA org e teve `access_level=organization`
+          # habilitado, entao o GITHUB_TOKEN do proprio run ja o alcanca. O PAT anterior
+          # (`GOMOD_TOKEN`) foi criado quando os repos viviam em `usetheodev` e nao enxerga
+          # a org — dava "Write access to repository not granted", mensagem que sugere
+          # permissao de escrita quando o problema e ESCOPO do token.
+          # Menos um segredo para rotacionar, expirar ou vazar.
           path: theo-data/theo-lens
 
       - uses: actions/setup-go@v5
