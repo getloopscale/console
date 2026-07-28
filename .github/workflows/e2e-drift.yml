@@ -48,12 +48,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # O engine entra no drift pelo MESMO motivo das imagens: `THEO_ENGINE_REF` fixa um SHA,
+      # e uma migration nova no engine e exatamente o tipo de mudanca que precisa ser vista
+      # antes de alguem subir o pin as cegas.
+      - name: Checkout theo (engine — migrations do :develop de hoje)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: usetheodev/theo
+          ref: develop
+          token: ${{ secrets.GOMOD_TOKEN }}
+          path: theo-cloud/theo
+          persist-credentials: false
+
       - name: Comparar o pin com o :develop de hoje
         id: compare
+        env:
+          GH_TOKEN: ${{ secrets.GOMOD_TOKEN }}
         run: |
           set -euo pipefail
           set -a; . .github/e2e-images.env; set +a
           drift=0
+          live_engine=$(gh api repos/usetheodev/theo/commits/develop --jq .sha 2>/dev/null || echo unreachable)
+          if [ "$THEO_ENGINE_REF" != "$live_engine" ]; then
+            echo "::warning::engine: o pin esta atras do develop (pin=$THEO_ENGINE_REF live=$live_engine)"
+            drift=1
+          fi
           for pair in "themory:$THEMORY_IMAGE" "theo-rag:$THEORAG_IMAGE" "theo-lens:$THELENS_IMAGE"; do
             img="${pair%%:*}"; pinned="${pair#*:}"
             live=$(docker buildx imagetools inspect "ghcr.io/usetheoai/${img}:develop" \

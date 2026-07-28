@@ -31,6 +31,9 @@ concurrency:
 jobs:
   e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
+      THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
     steps:
       # Replicate the dev sibling layout so the compose relative mounts resolve:
       #   theo-cloud/theo-cloud  (this repo — tests/e2e lives here)
@@ -44,7 +47,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: usetheodev/theo
-          ref: develop # sibling default branch is `main`, which lacks the current schema (e.g. accounts @ migration 000034); the e2e tests the develop-level theo-cloud, so pin develop
+          # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
+          # atual (accounts @ migration 000034), mas `develop` e alvo MOVEL: o engine podia
+          # mudar a migration entre dois runs do MESMO commit daqui, e o vermelho nao teria
+          # causa no PR. Mesma correcao que aplicamos as imagens dos vizinhos.
+          ref: ${{ env.THEO_ENGINE_REF }}
           # GITHUB_TOKEN is scoped to THIS repo; cross-repo private checkout needs a
           # PAT with read access to usetheodev/theo (+ theo-memory, theo-contracts).
           token: ${{ secrets.GOMOD_TOKEN }}
@@ -101,6 +108,9 @@ jobs:
   # (TestEdgeForwardAuth*), which the default `e2e` job SKIPs (it runs no Traefik).
   e2e-edge:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
+      THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
     steps:
       - name: Checkout theo-cloud
         uses: actions/checkout@v4
@@ -110,7 +120,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: usetheodev/theo
-          ref: develop # sibling default branch is `main`, which lacks the current schema (e.g. accounts @ migration 000034); the e2e tests the develop-level theo-cloud, so pin develop
+          # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
+          # atual (accounts @ migration 000034), mas `develop` e alvo MOVEL: o engine podia
+          # mudar a migration entre dois runs do MESMO commit daqui, e o vermelho nao teria
+          # causa no PR. Mesma correcao que aplicamos as imagens dos vizinhos.
+          ref: ${{ env.THEO_ENGINE_REF }}
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
       - uses: actions/setup-go@v5
