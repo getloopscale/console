@@ -58,12 +58,22 @@ jobs:
           # `theo-contracts` e `theo` seguem em `usetheodev` e por isso NAO foram tocados.
           repository: usetheoai/theo-memory
           ref: develop # match the develop-level integration under test (sibling default branch is `main`)
-          # SEM `token:` — este repo esta na MESMA org e teve `access_level=organization`
-          # habilitado, entao o GITHUB_TOKEN do proprio run ja o alcanca. O PAT anterior
-          # (`GOMOD_TOKEN`) foi criado quando os repos viviam em `usetheodev` e nao enxerga
-          # a org — dava "Write access to repository not granted", mensagem que sugere
-          # permissao de escrita quando o problema e ESCOPO do token.
-          # Menos um segredo para rotacionar, expirar ou vazar.
+          token: ${{ secrets.GOMOD_TOKEN }}
+          # `GOMOD_TOKEN` PRECISA ter escopo na org `usetheoai`. O PAT atual foi criado em
+          # 2026-07-23, quando estes repos viviam em `usetheodev`, e um PAT de conta pessoal
+          # nao passa a enxergar repositorios de uma organizacao porque o repo mudou de dono.
+          #
+          # Tentei substitui-lo por `access_level=organization` + GITHUB_TOKEN do run. NAO
+          # FUNCIONA para este caso, e a mensagem de erro conta por que ao MUDAR:
+          #   com o PAT antigo  -> "Write access to repository not granted"  (token sem escopo)
+          #   com o GITHUB_TOKEN -> "Repository not found"                   (sem visibilidade)
+          # `access_level` governa o compartilhamento de WORKFLOWS e ACTIONS entre repos da
+          # org; ele nao concede leitura de CONTEUDO para `actions/checkout` de repo privado.
+          #
+          # A correcao e a credencial: um fine-grained PAT com escopo em `usetheoai` e
+          # `contents: read`, de preferencia como secret de ORGANIZACAO — assim os repos ja
+          # migrados param de depender de tokens per-repo com escopo antigo, e a proxima
+          # transferencia nao repete isto.
           path: theo-data/theo-memory
 
       - uses: actions/setup-go@v5
@@ -116,12 +126,22 @@ jobs:
         with:
           repository: usetheoai/theo-memory
           ref: develop # match the develop-level integration under test (sibling default branch is `main`)
-          # SEM `token:` — este repo esta na MESMA org e teve `access_level=organization`
-          # habilitado, entao o GITHUB_TOKEN do proprio run ja o alcanca. O PAT anterior
-          # (`GOMOD_TOKEN`) foi criado quando os repos viviam em `usetheodev` e nao enxerga
-          # a org — dava "Write access to repository not granted", mensagem que sugere
-          # permissao de escrita quando o problema e ESCOPO do token.
-          # Menos um segredo para rotacionar, expirar ou vazar.
+          token: ${{ secrets.GOMOD_TOKEN }}
+          # `GOMOD_TOKEN` PRECISA ter escopo na org `usetheoai`. O PAT atual foi criado em
+          # 2026-07-23, quando estes repos viviam em `usetheodev`, e um PAT de conta pessoal
+          # nao passa a enxergar repositorios de uma organizacao porque o repo mudou de dono.
+          #
+          # Tentei substitui-lo por `access_level=organization` + GITHUB_TOKEN do run. NAO
+          # FUNCIONA para este caso, e a mensagem de erro conta por que ao MUDAR:
+          #   com o PAT antigo  -> "Write access to repository not granted"  (token sem escopo)
+          #   com o GITHUB_TOKEN -> "Repository not found"                   (sem visibilidade)
+          # `access_level` governa o compartilhamento de WORKFLOWS e ACTIONS entre repos da
+          # org; ele nao concede leitura de CONTEUDO para `actions/checkout` de repo privado.
+          #
+          # A correcao e a credencial: um fine-grained PAT com escopo em `usetheoai` e
+          # `contents: read`, de preferencia como secret de ORGANIZACAO — assim os repos ja
+          # migrados param de depender de tokens per-repo com escopo antigo, e a proxima
+          # transferencia nao repete isto.
           path: theo-data/theo-memory
       # EDGE=1 builds the rag + lens images from their sibling checkouts
       # (run.sh § 2b/2c — M18/M40, pinned local source, NOT a floating GHCR
@@ -133,24 +153,44 @@ jobs:
         with:
           repository: usetheoai/theo-rag
           ref: develop
-          # SEM `token:` — este repo esta na MESMA org e teve `access_level=organization`
-          # habilitado, entao o GITHUB_TOKEN do proprio run ja o alcanca. O PAT anterior
-          # (`GOMOD_TOKEN`) foi criado quando os repos viviam em `usetheodev` e nao enxerga
-          # a org — dava "Write access to repository not granted", mensagem que sugere
-          # permissao de escrita quando o problema e ESCOPO do token.
-          # Menos um segredo para rotacionar, expirar ou vazar.
+          token: ${{ secrets.GOMOD_TOKEN }}
+          # `GOMOD_TOKEN` PRECISA ter escopo na org `usetheoai`. O PAT atual foi criado em
+          # 2026-07-23, quando estes repos viviam em `usetheodev`, e um PAT de conta pessoal
+          # nao passa a enxergar repositorios de uma organizacao porque o repo mudou de dono.
+          #
+          # Tentei substitui-lo por `access_level=organization` + GITHUB_TOKEN do run. NAO
+          # FUNCIONA para este caso, e a mensagem de erro conta por que ao MUDAR:
+          #   com o PAT antigo  -> "Write access to repository not granted"  (token sem escopo)
+          #   com o GITHUB_TOKEN -> "Repository not found"                   (sem visibilidade)
+          # `access_level` governa o compartilhamento de WORKFLOWS e ACTIONS entre repos da
+          # org; ele nao concede leitura de CONTEUDO para `actions/checkout` de repo privado.
+          #
+          # A correcao e a credencial: um fine-grained PAT com escopo em `usetheoai` e
+          # `contents: read`, de preferencia como secret de ORGANIZACAO — assim os repos ja
+          # migrados param de depender de tokens per-repo com escopo antigo, e a proxima
+          # transferencia nao repete isto.
           path: theo-data/theo-rag
       - name: Checkout theo-lens (edge stack — M40)
         uses: actions/checkout@v4
         with:
           repository: usetheoai/theo-lens
           ref: develop
-          # SEM `token:` — este repo esta na MESMA org e teve `access_level=organization`
-          # habilitado, entao o GITHUB_TOKEN do proprio run ja o alcanca. O PAT anterior
-          # (`GOMOD_TOKEN`) foi criado quando os repos viviam em `usetheodev` e nao enxerga
-          # a org — dava "Write access to repository not granted", mensagem que sugere
-          # permissao de escrita quando o problema e ESCOPO do token.
-          # Menos um segredo para rotacionar, expirar ou vazar.
+          token: ${{ secrets.GOMOD_TOKEN }}
+          # `GOMOD_TOKEN` PRECISA ter escopo na org `usetheoai`. O PAT atual foi criado em
+          # 2026-07-23, quando estes repos viviam em `usetheodev`, e um PAT de conta pessoal
+          # nao passa a enxergar repositorios de uma organizacao porque o repo mudou de dono.
+          #
+          # Tentei substitui-lo por `access_level=organization` + GITHUB_TOKEN do run. NAO
+          # FUNCIONA para este caso, e a mensagem de erro conta por que ao MUDAR:
+          #   com o PAT antigo  -> "Write access to repository not granted"  (token sem escopo)
+          #   com o GITHUB_TOKEN -> "Repository not found"                   (sem visibilidade)
+          # `access_level` governa o compartilhamento de WORKFLOWS e ACTIONS entre repos da
+          # org; ele nao concede leitura de CONTEUDO para `actions/checkout` de repo privado.
+          #
+          # A correcao e a credencial: um fine-grained PAT com escopo em `usetheoai` e
+          # `contents: read`, de preferencia como secret de ORGANIZACAO — assim os repos ja
+          # migrados param de depender de tokens per-repo com escopo antigo, e a proxima
+          # transferencia nao repete isto.
           path: theo-data/theo-lens
 
       - uses: actions/setup-go@v5
