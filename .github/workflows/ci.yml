@@ -62,14 +62,21 @@ jobs:
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
-      # `packages: read` no bloco `permissions:` cobre o GITHUB_TOKEN para GHCR da propria
-      # org — nao e preciso PAT aqui, ao contrario do checkout de repo privado.
+      # Login com `GOMOD_TOKEN`, NAO com o GITHUB_TOKEN do run. Medido: com o GITHUB_TOKEN o
+      # pull de `themory` falha com `manifest unknown` — a MESMA referencia que resolve
+      # localmente com um PAT. Permissao de PACKAGE no GHCR e por-package, nao herdada de
+      # `packages: read` no workflow: o package `themory` pertence ao theo-memory e nao lista
+      # o theo-cloud entre os repos com acesso.
+      #
+      # `manifest unknown` engana — sugere digest errado, quando o digest esta certo e o token
+      # e que nao enxerga o package. Mesma familia dos outros erros de hoje: a mensagem
+      # descreve o sintoma no ponto errado da pilha.
       - name: Login to GHCR (pull das imagens dos vizinhos)
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GOMOD_TOKEN }}
 
       - name: Run the full e2e suite (make e2e)
         working-directory: theo-cloud/theo-cloud
@@ -156,14 +163,21 @@ jobs:
             echo "── / at ${USE}% — under threshold, keeping the build cache ──"
           fi
 
-      # `packages: read` no bloco `permissions:` cobre o GITHUB_TOKEN para GHCR da propria
-      # org — nao e preciso PAT aqui, ao contrario do checkout de repo privado.
+      # Login com `GOMOD_TOKEN`, NAO com o GITHUB_TOKEN do run. Medido: com o GITHUB_TOKEN o
+      # pull de `themory` falha com `manifest unknown` — a MESMA referencia que resolve
+      # localmente com um PAT. Permissao de PACKAGE no GHCR e por-package, nao herdada de
+      # `packages: read` no workflow: o package `themory` pertence ao theo-memory e nao lista
+      # o theo-cloud entre os repos com acesso.
+      #
+      # `manifest unknown` engana — sugere digest errado, quando o digest esta certo e o token
+      # e que nao enxerga o package. Mesma familia dos outros erros de hoje: a mensagem
+      # descreve o sintoma no ponto errado da pilha.
       - name: Login to GHCR (pull das imagens dos vizinhos)
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GOMOD_TOKEN }}
 
       - name: Run the edge ForwardAuth e2e (make e2e-edge)
         working-directory: theo-cloud/theo-cloud
