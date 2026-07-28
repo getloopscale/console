@@ -1,0 +1,76 @@
+# Tres scanners com alvos DIFERENTES — nao e redundancia:
+#   gosec    → defeito no codigo Go (SQL injection, path traversal, permissao de arquivo)
+#   semgrep  → defeito no TypeScript do dashboard (OWASP)
+#   gitleaks → SEGREDO no repositorio, que nenhum SAST de codigo procura
+#
+# Este repo e o CONTROL PLANE: contas, projetos, billing e o broker que cunha chaves MCP
+# por tenant. Um segredo hardcoded aqui passa por build, teste e vet sem uma reclamacao.
+name: Security SAST
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+permissions:
+  contents: read
+jobs:
+  gosec:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: gosec
+        run: |
+          set -euo pipefail
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.22.9
+          # knowledge-base = material de estudo de terceiros; escanea-lo afoga o sinal real
+          # (medido no theo-rag: 43 arquivos nossos vs milhares).
+          "$(go env GOPATH)/bin/gosec" -exclude-dir=knowledge-base -exclude-dir=node_modules ./...
+
+  semgrep:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: semgrep (TypeScript / OWASP)
+        # Imagem fixada por DIGEST. Sem tag nem digest resolve para `:latest` — mutavel — e o
+        # gate verifica coisa diferente a cada run, com o codigo-fonte montado dentro.
+        # `--exclude=docs`: `dashboard/docs/theo-lens/support.js` e GERADO
+        # ("// GENERATED from dc-runtime/src/*.ts — do not edit") e vive em documentacao, nao
+        # em codigo de producao. Editar o achado ali seria desfeito no proximo build, e o
+        # arquivo nao roda no dashboard. Mesmo criterio ja aplicado a node_modules.
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD/dashboard:/src" \
+            semgrep/semgrep@sha256:b68f9b68483955b85042dac7b4533757779625a02dcf91e470da4c2df1b430be \
+            semgrep scan --config p/typescript --config p/owasp-top-ten --error \
+              --skip-unknown-extensions \
+              --exclude=docs \
+              /src
+
+  gitleaks:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: gitleaks
+        # BINARIO, nao a action: `gitleaks/gitleaks-action` cobra licenca para repositorio de
+        # ORGANIZACAO — medido no theo-traefik-mcp logo apos a transferencia. O scanner e MIT;
+        # a restricao e do involucro. Sem licenca no CI que expire e mate o gate em silencio.
+        run: |
+          set -euo pipefail
+          VER=8.30.0
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          # --no-git varre a ARVORE, nao o historico. Reescrever historico e proibido (Regra 4),
+          # entao flagrar segredo ja commitado produz alarme que NINGUEM pode resolver — ele toca
+          # a cada run ate virar ruido. A mitigacao correta para segredo exposto e ROTACAO; este
+          # gate previne RECORRENCIA.
+          ./gitleaks detect --no-git --redact --verbose

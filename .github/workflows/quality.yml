@@ -1,0 +1,105 @@
+# O gate que faltava. Este repo tinha `ci.yml` com DOIS jobs — `e2e` e `e2e-edge` — e
+# nenhum deles verifica build, tipos, teste unitario ou lint. Um control plane com 27
+# pacotes de teste Go e um dashboard TypeScript passava por PR sem que nada disso rodasse.
+#
+# POR QUE NAO CHAMAR `task lint` / `task test`: o Taskfile DEGRADA EM SILENCIO —
+#
+#   if command -v golangci-lint ...; else echo "[lint] not installed — skipping"; fi
+#   cd dashboard && npm run lint || echo "[lint] not configured"
+#
+# — ou seja, sem a ferramenta instalada o alvo IMPRIME e PASSA. Isso e sensato num atalho
+# de desenvolvimento e e exatamente o oposto do que um gate precisa: um gate que passa sem
+# verificar e pior que gate nenhum, porque produz a sensacao de cobertura. Aqui as
+# ferramentas sao instaladas explicitamente e o job falha quando elas falham.
+name: quality
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+permissions:
+  contents: read
+jobs:
+  go:
+    name: go — build + test (race) + vet + lint
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # `theo-contracts` e um modulo Go PRIVADO. Sem esta configuracao o `go build` tenta
+      # baixa-lo por HTTPS anonimo e morre com "could not read Username for github.com" — o
+      # que aconteceu no primeiro run deste gate. Mesmo mecanismo que o job e2e deste repo e
+      # o Dockerfile ja usam; o token nunca e impresso.
+      #
+      # Meu `go build` LOCAL passou porque a maquina tem credencial — ponto cego da validacao
+      # local que so o CI expoe. Vale registrar: validar localmente reduz o ciclo, nao
+      # substitui o ambiente limpo.
+      - name: Configure private module access (theo-contracts)
+        run: |
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
+        env:
+          GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+
+      - name: Build
+        env:
+          GOPRIVATE: github.com/usetheodev/*
+        run: go build ./...
+
+      - name: Test (race detector)
+        env:
+          GOPRIVATE: github.com/usetheodev/*
+        # `-race` nao e luxo num control plane: ele serve requisicoes HTTP concorrentes sobre
+        # estado compartilhado (contas, projetos, billing). Suite single-thread verde nao prova
+        # ausencia de corrida — prova que ninguem a exercitou.
+        run: go test -race -count=1 ./...
+
+      - name: Vet
+        env:
+          GOPRIVATE: github.com/usetheodev/*
+        run: go vet ./...
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          # Versao PINADA. A action resolve em runtime quando nao pinada, e uma v2.11.3 nova
+          # quebrou o theo-traefik-mcp sem nenhuma mudanca de codigo: o gate nao mudou, a
+          # ferramenta mudou debaixo dele.
+          version: v2.6.0
+
+  dashboard:
+    name: dashboard — typecheck + lint + build
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # Build ANTES de lint: regras type-aware precisam de um projeto que compile. Rodar lint
+      # primeiro produz erro de tipo em codigo intocado e esconde o defeito real — defeito que
+      # ficou meses invisivel no theo-memory.
+      # `npm run build` ja e `tsc -b && vite build` — o typecheck esta dentro dele. Um passo
+      # `tsc --noEmit` separado rodaria o compilador duas vezes para a mesma garantia.
+      - name: Build (inclui typecheck via tsc -b)
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint

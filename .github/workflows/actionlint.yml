@@ -1,0 +1,28 @@
+# O gate mais barato do repositorio, e o unico que pega uma classe inteira de defeito:
+# um workflow com YAML invalido NAO FALHA — ele simplesmente nao roda. Precedente medido
+# no theo-db (95 de 100 runs perdidos em silencio) e reproduzido no theo-lens, onde
+# `paths` + `paths-ignore` no mesmo evento matava o sdk-go no PARSE: jobs=0, sem log,
+# vermelho sem causa visivel.
+name: actionlint
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+permissions:
+  contents: read
+jobs:
+  actionlint:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: actionlint (workflows + shellcheck dos blocos run:)
+        # Imagem fixada por DIGEST — nao `bash <(curl .../main/...)`, que baixa e executa um
+        # script de branch mutavel no runner. Este repo pina actions por SHA; a disciplina de
+        # supply-chain nao pode falhar justamente no gate de qualidade.
+        run: |
+          docker run --rm -v "$PWD:/repo" --workdir /repo \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+            -color

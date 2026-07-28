@@ -53,5 +53,12 @@ export function hasAnsi(line: string | null | undefined): boolean {
 export function parseAnsi(line: string): ReactNode {
   if (!hasAnsi(line)) return line;
   const html = convert.toHtml(line);
+  // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml
+  // O padrao e genuinamente perigoso e a regra esta certa em aponta-lo. Aqui ele e seguro por
+  // uma razao VERIFICAVEL, nao por promessa: o `Convert` acima e construido com
+  // `escapeXML: true` (EC-10), entao todo `<`, `>` e `&` vindos do payload sao escapados
+  // ANTES da emissao de HTML — a biblioteca so emite as tags de cor que ela propria gera.
+  // `ansi.test.tsx` cobre o caso adversarial: payload XSS DENTRO de uma sequencia ANSI.
+  // Suprimir sem essas duas coisas seria esconder o alarme; com elas, e registrar a analise.
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }
