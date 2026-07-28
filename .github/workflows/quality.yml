@@ -68,10 +68,15 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          # Versao PINADA. A action resolve em runtime quando nao pinada, e uma v2.11.3 nova
-          # quebrou o theo-traefik-mcp sem nenhuma mudanca de codigo: o gate nao mudou, a
-          # ferramenta mudou debaixo dele.
-          version: v2.6.0
+          # Versao PINADA — a action resolve em runtime quando nao pinada, e foi assim que uma
+          # v2.11.3 nova quebrou o theo-traefik-mcp sem nenhuma mudanca de codigo.
+          #
+          # POR QUE v2.12.2 E NAO a v2.6.0 dos repos irmaos: o binario do golangci-lint carrega
+          # a versao de Go com que foi COMPILADO, e ela precisa ser >= a do `go.mod` do alvo.
+          # Este repo esta em `go 1.26.1` (os irmaos em 1.25.x), e a v2.6.0 — compilada com
+          # go1.25 — recusa: "the Go language version (go1.25) used to build golangci-lint is
+          # lower than the targeted Go version". Nao e preferencia: e um piso.
+          version: v2.12.2
 
   dashboard:
     name: dashboard — typecheck + lint + build

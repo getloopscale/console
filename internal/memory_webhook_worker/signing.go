@@ -22,7 +22,8 @@ import (
 // Returns the signature in lowercase hex.
 func Sign(secret string, unixTimestamp int64, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(fmt.Sprintf("%d.", unixTimestamp)))
+	// `hash.Hash.Write` nunca retorna erro (contrato da stdlib); `_, _ =` explicita.
+	_, _ = fmt.Fprintf(mac, "%d.", unixTimestamp)
 	mac.Write(body)
 	return hex.EncodeToString(mac.Sum(nil))
 }

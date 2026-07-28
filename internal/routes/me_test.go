@@ -58,7 +58,7 @@ func TestMe_SubscriptionExists_ProvisioningActive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	defer dbConn.Close()
+	defer func() { _ = dbConn.Close() }()
 	mock.ExpectQuery(meSubQuery).WithArgs("tn-1").
 		WillReturnRows(sqlmock.NewRows([]string{"plan", "status"}).AddRow("starter", "active"))
 
@@ -94,7 +94,7 @@ func TestMe_NoSubscription_ProvisioningPending(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	defer dbConn.Close()
+	defer func() { _ = dbConn.Close() }()
 	mock.ExpectQuery(meSubQuery).WithArgs("tn-2").WillReturnError(sql.ErrNoRows)
 
 	w := httptest.NewRecorder()
@@ -118,7 +118,7 @@ func TestMe_DBError_ProvisioningUnknown_Still200(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	defer dbConn.Close()
+	defer func() { _ = dbConn.Close() }()
 	mock.ExpectQuery(meSubQuery).WithArgs("tn-3").WillReturnError(errors.New("db unreachable"))
 
 	w := httptest.NewRecorder()
@@ -163,7 +163,7 @@ func TestMe_NoSubscription_LazyProvisionsStarter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	defer dbConn.Close()
+	defer func() { _ = dbConn.Close() }()
 	mock.ExpectQuery(meSubQuery).WithArgs("tn-5").WillReturnError(sql.ErrNoRows)
 	prov := &stubProvisioner{}
 
@@ -193,7 +193,7 @@ func TestMe_LazyProvisionFails_StaysPending(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock: %v", err)
 	}
-	defer dbConn.Close()
+	defer func() { _ = dbConn.Close() }()
 	mock.ExpectQuery(meSubQuery).WithArgs("tn-6").WillReturnError(sql.ErrNoRows)
 	prov := &stubProvisioner{err: errors.New("insert failed")}
 

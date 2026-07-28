@@ -31,7 +31,7 @@ func whoamiServer(t *testing.T, status int, active bool, id, email string) *http
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		if status == http.StatusOK {
-			fmt.Fprintf(w, `{"active":%t,"identity":{"id":%q,"traits":{"email":%q}}}`, active, id, email)
+			_, _ = fmt.Fprintf(w, `{"active":%t,"identity":{"id":%q,"traits":{"email":%q}}}`, active, id, email)
 		}
 	}))
 }

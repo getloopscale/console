@@ -255,7 +255,11 @@ func (w *Worker) reapStaleDeliveries(ctx context.Context) (int64, error) {
 	}
 	_ = rows.Close()
 
-	const reapErr = "delivery lease expired (worker crash/stall)"
+	// `reapErr` foi removida: a mensagem existia como constante e nunca era escrita — nem no
+	// banco (os dois UPDATE abaixo nao gravam motivo) nem no log. Manter uma string que
+	// descreve um evento que ninguem registra so sugere um diagnostico que nao existe.
+	// Se o motivo do reap precisar ser observavel, o lugar e uma coluna ou uma linha de log,
+	// nao uma constante nao lida.
 	var reaped int64
 	for _, s := range staleRows {
 		newAttempt := s.attempt + 1

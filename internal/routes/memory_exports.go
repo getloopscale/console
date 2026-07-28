@@ -304,7 +304,17 @@ func (h *MemoryExportsHandler) runWorker(id, subject, tenantID string) {
 	// D1: filename derives from the validated id ONLY — no client input,
 	// no traversal possible.
 	path := filepath.Join(h.exportDir, id+".json")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o640)
+	// G302 CORRIGIDO (nao suprimido): 0o640 -> 0o600. O arquivo e escrito e lido pelo mesmo
+	// processo; a permissao de grupo nao servia a ninguem e ampliava o alcance de um export
+	// que pode conter memoria de tenant. Corrigir remove a vulnerabilidade; suprimir apenas
+	// removeria o alarme.
+	//
+	// G304 SUPRIMIDO com a razao, porque o achado nao se aplica: `id` NAO vem do cliente —
+	// e `exportIDPrefix + uuid.NewString()`, gerado no servidor (linha ~113), e a rota de
+	// leitura ainda valida a forma `export-{uuid}` antes de tocar no disco. Nao ha input do
+	// chamador neste caminho, entao nao ha traversal a construir.
+	// #nosec G304 -- path derives from a server-generated uuid, never from client input (D1 / EC-16)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		h.failExport(bg, id, fmt.Sprintf("open failed: %v", err))
 		return

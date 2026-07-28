@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -32,8 +31,6 @@ const (
 	maxGraceWindowHours     = 168 // 7 days
 )
 
-// suppress unused import — io/ioutil is reserved for future doc snippet generators.
-var _ = ioutil.Discard
 
 // Plan 0 of dashboard-memory-section-roadmap.md (T0.3-T0.5).
 // Platform unified API keys with scopes — single table, single key shape
@@ -181,12 +178,16 @@ func (h *APIKeysHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 	// gateway artifact, never user-created, and must never surface in the
 	// customer's own key list. The BFFKeyVault that wrote them is removed; this
 	// filter hides any rows that predate the removal.
-	const q = `SELECT id, key_name, key_prefix, scopes, created_at, last_used_at, expires_at
+	// O cap vem da constante `listLimit`, nao de um 100 digitado aqui. Antes a constante
+	// existia sem uso e o 100 estava hardcoded na query: mudar uma nao mudava a outra, e o
+	// comentario da constante prometia um cap que ela nao controlava. `%d` mantem o SQL
+	// final identico (`LIMIT 100`), que e o que `TestListKeys_QueryContainsLIMIT100` trava.
+	q := fmt.Sprintf(`SELECT id, key_name, key_prefix, scopes, created_at, last_used_at, expires_at
 		FROM theo_api_keys
 		WHERE subject = $1 AND tenant_id = $2 AND revoked_at IS NULL
 		  AND COALESCE(bff_minted, false) = false
 		ORDER BY created_at DESC
-		LIMIT 100`
+		LIMIT %d`, listLimit)
 
 	rows, err := h.db.QueryContext(r.Context(), q, user.Subject, user.TenantID)
 	if err != nil {

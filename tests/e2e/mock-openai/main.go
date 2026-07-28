@@ -276,6 +276,10 @@ func main() {
 		_, _ = w.Write([]byte("ok"))
 	})
 	log.Printf("mock-openai listening on :%s (embed_dim=%d)", port, embedDim())
+	// #nosec G114 -- fixture de teste e2e: sobe em rede local do compose, vive o tempo de uma
+	// suite e nunca ve trafego externo. Timeouts de servidor protegem contra slowloris de um
+	// atacante remoto, que aqui nao existe. Adicionar ServeMux+Server so para o linter seria
+	// complexidade sem risco correspondente.
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatalf("mock-openai: %v", err)
 	}

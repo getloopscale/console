@@ -221,7 +221,7 @@ func (s *PGStore) ListByPrefix(ctx context.Context, tenantID, prefix string, lim
 	if err != nil {
 		return nil, "", fmt.Errorf("storage: list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []ObjectRecord
 	for rows.Next() {

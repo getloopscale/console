@@ -110,7 +110,7 @@ func TestClient_GetObject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetObject: %v", err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	body, _ := io.ReadAll(rc)
 	if string(body) != "world" {
 		t.Errorf("body = %q, want world", body)

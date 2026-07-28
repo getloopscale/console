@@ -17,6 +17,7 @@ on:
   workflow_dispatch: {}
 permissions:
   contents: read
+  packages: read # pull das imagens dos vizinhos no GHCR da org
 # Chaveado pela BRANCH, não por `github.ref` (mesma correção de theo-memory#129 e theo-rag).
 # Um push em `develop` e o PR do MESMO commit carregam `github.ref` diferentes
 # (`refs/heads/develop` vs `refs/pull/N/merge`), caem em grupos distintos e AMBOS rodam.
@@ -30,6 +31,9 @@ concurrency:
 jobs:
   e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
+      THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
     steps:
       # Replicate the dev sibling layout so the compose relative mounts resolve:
       #   theo-cloud/theo-cloud  (this repo — tests/e2e lives here)
@@ -43,19 +47,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: usetheodev/theo
-          ref: develop # sibling default branch is `main`, which lacks the current schema (e.g. accounts @ migration 000034); the e2e tests the develop-level theo-cloud, so pin develop
+          # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
+          # atual (accounts @ migration 000034), mas `develop` e alvo MOVEL: o engine podia
+          # mudar a migration entre dois runs do MESMO commit daqui, e o vermelho nao teria
+          # causa no PR. Mesma correcao que aplicamos as imagens dos vizinhos.
+          ref: ${{ env.THEO_ENGINE_REF }}
           # GITHUB_TOKEN is scoped to THIS repo; cross-repo private checkout needs a
           # PAT with read access to usetheodev/theo (+ theo-memory, theo-contracts).
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
-      - name: Checkout theo-memory (themory image source)
-        uses: actions/checkout@v4
-        with:
-          repository: usetheodev/theo-memory
-          ref: develop # match the develop-level integration under test (sibling default branch is `main`)
-          token: ${{ secrets.GOMOD_TOKEN }}
-          path: theo-data/theo-memory
-
       - uses: actions/setup-go@v5
         with:
           go-version-file: theo-cloud/theo-cloud/go.mod
@@ -69,13 +69,32 @@ jobs:
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
+      # Login com `GOMOD_TOKEN`, NAO com o GITHUB_TOKEN do run. Medido: com o GITHUB_TOKEN o
+      # pull de `themory` falha com `manifest unknown` — a MESMA referencia que resolve
+      # localmente com um PAT. Permissao de PACKAGE no GHCR e por-package, nao herdada de
+      # `packages: read` no workflow: o package `themory` pertence ao theo-memory e nao lista
+      # o theo-cloud entre os repos com acesso.
+      #
+      # `manifest unknown` engana — sugere digest errado, quando o digest esta certo e o token
+      # e que nao enxerga o package. Mesma familia dos outros erros de hoje: a mensagem
+      # descreve o sintoma no ponto errado da pilha.
+      - name: Login to GHCR (pull das imagens dos vizinhos)
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GOMOD_TOKEN }}
+
       - name: Run the full e2e suite (make e2e)
         working-directory: theo-cloud/theo-cloud
         env:
           GOPRIVATE: github.com/usetheodev/*
-          # run.sh builds the themory image from this sibling checkout.
-          THEMORY_DIR: ${{ github.workspace }}/theo-data/theo-memory
-        run: make e2e
+        run: |
+          # As imagens dos vizinhos vem PINADAS POR DIGEST de `.github/e2e-images.env`, nao de
+          # um checkout do repo deles. `run.sh` ja aceitava `*_IMAGE`; o mecanismo existia e
+          # nao era usado. Ver o cabecalho daquele arquivo para o porque e o custo.
+          set -a; . .github/e2e-images.env; set +a
+          make e2e
 
       - name: Dump stack logs on failure
         if: failure()
@@ -89,6 +108,9 @@ jobs:
   # (TestEdgeForwardAuth*), which the default `e2e` job SKIPs (it runs no Traefik).
   e2e-edge:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
+      THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
     steps:
       - name: Checkout theo-cloud
         uses: actions/checkout@v4
@@ -98,36 +120,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: usetheodev/theo
-          ref: develop # sibling default branch is `main`, which lacks the current schema (e.g. accounts @ migration 000034); the e2e tests the develop-level theo-cloud, so pin develop
+          # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
+          # atual (accounts @ migration 000034), mas `develop` e alvo MOVEL: o engine podia
+          # mudar a migration entre dois runs do MESMO commit daqui, e o vermelho nao teria
+          # causa no PR. Mesma correcao que aplicamos as imagens dos vizinhos.
+          ref: ${{ env.THEO_ENGINE_REF }}
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
-      - name: Checkout theo-memory (themory image source)
-        uses: actions/checkout@v4
-        with:
-          repository: usetheodev/theo-memory
-          ref: develop # match the develop-level integration under test (sibling default branch is `main`)
-          token: ${{ secrets.GOMOD_TOKEN }}
-          path: theo-data/theo-memory
-      # EDGE=1 builds the rag + lens images from their sibling checkouts
-      # (run.sh § 2b/2c — M18/M40, pinned local source, NOT a floating GHCR
-      # :develop). They are INDEPENDENT repos, so each needs its own checkout;
-      # without them run.sh fails fast with "theo-rag repo not found". Their
-      # absence is what broke this job from 2026-07-03 onward.
-      - name: Checkout theo-rag (edge stack — M18)
-        uses: actions/checkout@v4
-        with:
-          repository: usetheodev/theo-rag
-          ref: develop
-          token: ${{ secrets.GOMOD_TOKEN }}
-          path: theo-data/theo-rag
-      - name: Checkout theo-lens (edge stack — M40)
-        uses: actions/checkout@v4
-        with:
-          repository: usetheodev/theo-lens
-          ref: develop
-          token: ${{ secrets.GOMOD_TOKEN }}
-          path: theo-data/theo-lens
-
       - uses: actions/setup-go@v5
         with:
           go-version-file: theo-cloud/theo-cloud/go.mod
@@ -178,6 +177,22 @@ jobs:
             echo "── / at ${USE}% — under threshold, keeping the build cache ──"
           fi
 
+      # Login com `GOMOD_TOKEN`, NAO com o GITHUB_TOKEN do run. Medido: com o GITHUB_TOKEN o
+      # pull de `themory` falha com `manifest unknown` — a MESMA referencia que resolve
+      # localmente com um PAT. Permissao de PACKAGE no GHCR e por-package, nao herdada de
+      # `packages: read` no workflow: o package `themory` pertence ao theo-memory e nao lista
+      # o theo-cloud entre os repos com acesso.
+      #
+      # `manifest unknown` engana — sugere digest errado, quando o digest esta certo e o token
+      # e que nao enxerga o package. Mesma familia dos outros erros de hoje: a mensagem
+      # descreve o sintoma no ponto errado da pilha.
+      - name: Login to GHCR (pull das imagens dos vizinhos)
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GOMOD_TOKEN }}
+
       - name: Run the edge ForwardAuth e2e (make e2e-edge)
         working-directory: theo-cloud/theo-cloud
         env:
@@ -186,10 +201,9 @@ jobs:
           # (${ROOT}/../../theo-data/<repo>) assumes the dev-box layout; on the
           # runner the repo nests one level deeper, so the default resolved to a
           # path that does not exist.
-          THEMORY_DIR: ${{ github.workspace }}/theo-data/theo-memory
-          THEORAG_DIR: ${{ github.workspace }}/theo-data/theo-rag
-          THELENS_DIR: ${{ github.workspace }}/theo-data/theo-lens
-        run: make e2e-edge
+        run: |
+          set -a; . .github/e2e-images.env; set +a
+          make e2e-edge
 
       - name: Dump stack logs on failure
         if: failure()

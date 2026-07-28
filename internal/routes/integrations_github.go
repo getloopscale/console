@@ -147,7 +147,10 @@ func (h *GitHubIntegrationsHandler) Callback(w http.ResponseWriter, r *http.Requ
 
 	// EC-1: distinguish setup_action.
 	setupAction := r.URL.Query().Get("setup_action")
-	resultQuery := "installed=1"
+	// Declarado sem valor: todo ramo do switch atribui, entao um valor inicial seria escrito
+	// e descartado sem nunca ser lido (ineffassign). Declarar vazio deixa o compilador
+	// reclamar se um ramo novo esquecer de atribuir — a inicializacao mascarava isso.
+	var resultQuery string
 	switch setupAction {
 	case "", "install":
 		resultQuery = "installed=1"
