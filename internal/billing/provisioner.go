@@ -34,8 +34,11 @@ func (p *Provisioner) ProvisionStarter(ctx context.Context, userID, email, tenan
 	}
 
 	// Insert subscription row for starter plan (DB-only, no Stripe)
-	id := generateSubscriptionID()
-	_, err := p.db.ExecContext(ctx,
+	id, err := generateSubscriptionID()
+	if err != nil {
+		return err
+	}
+	_, err = p.db.ExecContext(ctx,
 		// M2: one subscription per Account. Derive account_id from the tenant and
 		// conflict on account_id, so a 2nd tenant of an existing account does NOT
 		// create a 2nd subscription.
@@ -122,8 +125,14 @@ func (p *Provisioner) EnsureStripeCustomer(ctx context.Context, tenantID, email,
 	return customer.ID, nil
 }
 
-func generateSubscriptionID() string {
+func generateSubscriptionID() (string, error) {
 	b := make([]byte, 12)
-	rand.Read(b)
-	return fmt.Sprintf("sub_%x", b)
+	// O erro de `crypto/rand.Read` NAO pode ser ignorado aqui. Ignorado, um `b` zerado produz
+	// SEMPRE o mesmo id — `sub_000000000000000000000000` — e ids de assinatura colidem em
+	// silencio num sistema de billing. Falha de entropia e irrecuperavel neste ponto: nao ha
+	// fallback correto, so propagar (Regra 8 — falhe alto, falhe cedo, falhe claro).
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("billing: subscription id entropy unavailable: %w", err)
+	}
+	return fmt.Sprintf("sub_%x", b), nil
 }
