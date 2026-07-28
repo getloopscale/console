@@ -1,0 +1,76 @@
+# O par do `e2e` do PR. Existe porque digest pinado e tag flutuante respondem a perguntas
+# DIFERENTES, e usar so um dos dois deixa um buraco:
+#
+#   "meu PR quebra o sistema?"  -> gate de PR, com DIGEST: precisa ser deterministico, senao
+#                                  um vermelho pode nao ter causa no seu diff
+#   "os produtos divergiram?"   -> este workflow, com `:develop`: precisa ver o estado de HOJE
+#
+# O digest pinado em `.github/e2e-images.env` fica velho entre atualizacoes — esse e o custo
+# declarado la. Este job limita a janela a 24h: quando um vizinho publica algo incompativel
+# com o pin, ele fica vermelho e diz qual imagem mudou, transformando "atualizar o pin" em
+# trabalho visivel em vez de descoberta tardia.
+#
+# NAO BLOQUEIA PR ALGUM, de proposito. Ele reporta divergencia entre produtos; um PR deste
+# repo nao deve ficar refem do que outro time publicou nas ultimas horas.
+name: e2e-drift
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC — depois da janela de publish dos produtos
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  packages: read
+jobs:
+  drift:
+    name: e2e contra o :develop de hoje (nao bloqueia PR)
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Configure private module access (theo-contracts)
+        run: |
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
+        env:
+          GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comparar o pin com o :develop de hoje
+        id: compare
+        run: |
+          set -euo pipefail
+          set -a; . .github/e2e-images.env; set +a
+          drift=0
+          for pair in "themory:$THEMORY_IMAGE" "theo-rag:$THEORAG_IMAGE" "theo-lens:$THELENS_IMAGE"; do
+            img="${pair%%:*}"; pinned="${pair#*:}"
+            live=$(docker buildx imagetools inspect "ghcr.io/usetheoai/${img}:develop" \
+                     --format '{{.Manifest.Digest}}' 2>/dev/null || echo "unreachable")
+            if [ "${pinned##*@}" != "$live" ]; then
+              echo "::warning::${img}: o pin esta atras do :develop (pin=${pinned##*@} live=${live})"
+              drift=1
+            fi
+          done
+          echo "drift=$drift" >> "$GITHUB_OUTPUT"
+          # Divergir NAO e falha: os produtos evoluem. A falha, se vier, e do e2e abaixo —
+          # o que prova que a divergencia QUEBRA a integracao, e nao apenas que ela existe.
+
+      - name: Rodar o e2e contra o :develop
+        env:
+          GOPRIVATE: github.com/usetheodev/*
+          THEMORY_IMAGE: ghcr.io/usetheoai/themory:develop
+          THEORAG_IMAGE: ghcr.io/usetheoai/theo-rag:develop
+          THELENS_IMAGE: ghcr.io/usetheoai/theo-lens:develop
+        run: make e2e-edge

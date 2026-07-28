@@ -17,6 +17,7 @@ on:
   workflow_dispatch: {}
 permissions:
   contents: read
+  packages: read # pull das imagens dos vizinhos no GHCR da org
 # Chaveado pela BRANCH, não por `github.ref` (mesma correção de theo-memory#129 e theo-rag).
 # Um push em `develop` e o PR do MESMO commit carregam `github.ref` diferentes
 # (`refs/heads/develop` vs `refs/pull/N/merge`), caem em grupos distintos e AMBOS rodam.
@@ -48,34 +49,6 @@ jobs:
           # PAT with read access to usetheodev/theo (+ theo-memory, theo-contracts).
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
-      - name: Checkout theo-memory (themory image source)
-        uses: actions/checkout@v4
-        with:
-          # Owner atualizado: estes repos migraram para a org `usetheoai` (ROADMAP_CICD).
-          # A URL antiga NAO redireciona para checkout autenticado — o job morre com
-          # "Write access to repository not granted", que e uma mensagem enganosa: o problema
-          # nao e permissao de escrita, e o repositorio nao existir mais naquele dono.
-          # `theo-contracts` e `theo` seguem em `usetheodev` e por isso NAO foram tocados.
-          repository: usetheoai/theo-memory
-          ref: develop # match the develop-level integration under test (sibling default branch is `main`)
-          token: ${{ secrets.GOMOD_TOKEN }}
-          # `GOMOD_TOKEN` PRECISA ter escopo na org `usetheoai`. O PAT atual foi criado em
-          # 2026-07-23, quando estes repos viviam em `usetheodev`, e um PAT de conta pessoal
-          # nao passa a enxergar repositorios de uma organizacao porque o repo mudou de dono.
-          #
-          # Tentei substitui-lo por `access_level=organization` + GITHUB_TOKEN do run. NAO
-          # FUNCIONA para este caso, e a mensagem de erro conta por que ao MUDAR:
-          #   com o PAT antigo  -> "Write access to repository not granted"  (token sem escopo)
-          #   com o GITHUB_TOKEN -> "Repository not found"                   (sem visibilidade)
-          # `access_level` governa o compartilhamento de WORKFLOWS e ACTIONS entre repos da
-          # org; ele nao concede leitura de CONTEUDO para `actions/checkout` de repo privado.
-          #
-          # A correcao e a credencial: um fine-grained PAT com escopo em `usetheoai` e
-          # `contents: read`, de preferencia como secret de ORGANIZACAO — assim os repos ja
-          # migrados param de depender de tokens per-repo com escopo antigo, e a proxima
-          # transferencia nao repete isto.
-          path: theo-data/theo-memory
-
       - uses: actions/setup-go@v5
         with:
           go-version-file: theo-cloud/theo-cloud/go.mod
@@ -89,13 +62,25 @@ jobs:
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
 
+      # `packages: read` no bloco `permissions:` cobre o GITHUB_TOKEN para GHCR da propria
+      # org — nao e preciso PAT aqui, ao contrario do checkout de repo privado.
+      - name: Login to GHCR (pull das imagens dos vizinhos)
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run the full e2e suite (make e2e)
         working-directory: theo-cloud/theo-cloud
         env:
           GOPRIVATE: github.com/usetheodev/*
-          # run.sh builds the themory image from this sibling checkout.
-          THEMORY_DIR: ${{ github.workspace }}/theo-data/theo-memory
-        run: make e2e
+        run: |
+          # As imagens dos vizinhos vem PINADAS POR DIGEST de `.github/e2e-images.env`, nao de
+          # um checkout do repo deles. `run.sh` ja aceitava `*_IMAGE`; o mecanismo existia e
+          # nao era usado. Ver o cabecalho daquele arquivo para o porque e o custo.
+          set -a; . .github/e2e-images.env; set +a
+          make e2e
 
       - name: Dump stack logs on failure
         if: failure()
@@ -121,78 +106,6 @@ jobs:
           ref: develop # sibling default branch is `main`, which lacks the current schema (e.g. accounts @ migration 000034); the e2e tests the develop-level theo-cloud, so pin develop
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
-      - name: Checkout theo-memory (themory image source)
-        uses: actions/checkout@v4
-        with:
-          repository: usetheoai/theo-memory
-          ref: develop # match the develop-level integration under test (sibling default branch is `main`)
-          token: ${{ secrets.GOMOD_TOKEN }}
-          # `GOMOD_TOKEN` PRECISA ter escopo na org `usetheoai`. O PAT atual foi criado em
-          # 2026-07-23, quando estes repos viviam em `usetheodev`, e um PAT de conta pessoal
-          # nao passa a enxergar repositorios de uma organizacao porque o repo mudou de dono.
-          #
-          # Tentei substitui-lo por `access_level=organization` + GITHUB_TOKEN do run. NAO
-          # FUNCIONA para este caso, e a mensagem de erro conta por que ao MUDAR:
-          #   com o PAT antigo  -> "Write access to repository not granted"  (token sem escopo)
-          #   com o GITHUB_TOKEN -> "Repository not found"                   (sem visibilidade)
-          # `access_level` governa o compartilhamento de WORKFLOWS e ACTIONS entre repos da
-          # org; ele nao concede leitura de CONTEUDO para `actions/checkout` de repo privado.
-          #
-          # A correcao e a credencial: um fine-grained PAT com escopo em `usetheoai` e
-          # `contents: read`, de preferencia como secret de ORGANIZACAO — assim os repos ja
-          # migrados param de depender de tokens per-repo com escopo antigo, e a proxima
-          # transferencia nao repete isto.
-          path: theo-data/theo-memory
-      # EDGE=1 builds the rag + lens images from their sibling checkouts
-      # (run.sh § 2b/2c — M18/M40, pinned local source, NOT a floating GHCR
-      # :develop). They are INDEPENDENT repos, so each needs its own checkout;
-      # without them run.sh fails fast with "theo-rag repo not found". Their
-      # absence is what broke this job from 2026-07-03 onward.
-      - name: Checkout theo-rag (edge stack — M18)
-        uses: actions/checkout@v4
-        with:
-          repository: usetheoai/theo-rag
-          ref: develop
-          token: ${{ secrets.GOMOD_TOKEN }}
-          # `GOMOD_TOKEN` PRECISA ter escopo na org `usetheoai`. O PAT atual foi criado em
-          # 2026-07-23, quando estes repos viviam em `usetheodev`, e um PAT de conta pessoal
-          # nao passa a enxergar repositorios de uma organizacao porque o repo mudou de dono.
-          #
-          # Tentei substitui-lo por `access_level=organization` + GITHUB_TOKEN do run. NAO
-          # FUNCIONA para este caso, e a mensagem de erro conta por que ao MUDAR:
-          #   com o PAT antigo  -> "Write access to repository not granted"  (token sem escopo)
-          #   com o GITHUB_TOKEN -> "Repository not found"                   (sem visibilidade)
-          # `access_level` governa o compartilhamento de WORKFLOWS e ACTIONS entre repos da
-          # org; ele nao concede leitura de CONTEUDO para `actions/checkout` de repo privado.
-          #
-          # A correcao e a credencial: um fine-grained PAT com escopo em `usetheoai` e
-          # `contents: read`, de preferencia como secret de ORGANIZACAO — assim os repos ja
-          # migrados param de depender de tokens per-repo com escopo antigo, e a proxima
-          # transferencia nao repete isto.
-          path: theo-data/theo-rag
-      - name: Checkout theo-lens (edge stack — M40)
-        uses: actions/checkout@v4
-        with:
-          repository: usetheoai/theo-lens
-          ref: develop
-          token: ${{ secrets.GOMOD_TOKEN }}
-          # `GOMOD_TOKEN` PRECISA ter escopo na org `usetheoai`. O PAT atual foi criado em
-          # 2026-07-23, quando estes repos viviam em `usetheodev`, e um PAT de conta pessoal
-          # nao passa a enxergar repositorios de uma organizacao porque o repo mudou de dono.
-          #
-          # Tentei substitui-lo por `access_level=organization` + GITHUB_TOKEN do run. NAO
-          # FUNCIONA para este caso, e a mensagem de erro conta por que ao MUDAR:
-          #   com o PAT antigo  -> "Write access to repository not granted"  (token sem escopo)
-          #   com o GITHUB_TOKEN -> "Repository not found"                   (sem visibilidade)
-          # `access_level` governa o compartilhamento de WORKFLOWS e ACTIONS entre repos da
-          # org; ele nao concede leitura de CONTEUDO para `actions/checkout` de repo privado.
-          #
-          # A correcao e a credencial: um fine-grained PAT com escopo em `usetheoai` e
-          # `contents: read`, de preferencia como secret de ORGANIZACAO — assim os repos ja
-          # migrados param de depender de tokens per-repo com escopo antigo, e a proxima
-          # transferencia nao repete isto.
-          path: theo-data/theo-lens
-
       - uses: actions/setup-go@v5
         with:
           go-version-file: theo-cloud/theo-cloud/go.mod
@@ -243,6 +156,15 @@ jobs:
             echo "── / at ${USE}% — under threshold, keeping the build cache ──"
           fi
 
+      # `packages: read` no bloco `permissions:` cobre o GITHUB_TOKEN para GHCR da propria
+      # org — nao e preciso PAT aqui, ao contrario do checkout de repo privado.
+      - name: Login to GHCR (pull das imagens dos vizinhos)
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run the edge ForwardAuth e2e (make e2e-edge)
         working-directory: theo-cloud/theo-cloud
         env:
@@ -251,10 +173,9 @@ jobs:
           # (${ROOT}/../../theo-data/<repo>) assumes the dev-box layout; on the
           # runner the repo nests one level deeper, so the default resolved to a
           # path that does not exist.
-          THEMORY_DIR: ${{ github.workspace }}/theo-data/theo-memory
-          THEORAG_DIR: ${{ github.workspace }}/theo-data/theo-rag
-          THELENS_DIR: ${{ github.workspace }}/theo-data/theo-lens
-        run: make e2e-edge
+        run: |
+          set -a; . .github/e2e-images.env; set +a
+          make e2e-edge
 
       - name: Dump stack logs on failure
         if: failure()
