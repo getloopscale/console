@@ -486,11 +486,7 @@ func (c *Client) ListSessions(ctx context.Context, userID string) (*SessionsResu
 	}
 	out := &SessionsResult{Sessions: make([]SessionRow, 0, len(raw.Sessions))}
 	for _, s := range raw.Sessions {
-		out.Sessions = append(out.Sessions, SessionRow{
-			SessionID:      s.SessionID,
-			MemoryCount:    s.MemoryCount,
-			LastActivityAt: s.LastActivityAt,
-		})
+		out.Sessions = append(out.Sessions, SessionRow(s))
 	}
 	return out, nil
 }

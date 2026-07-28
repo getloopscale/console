@@ -75,7 +75,7 @@ func TestLive_ModelB_MintAndIngest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ingest with minted key: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("minted key ingest expected 200, got %d body=%s", resp.StatusCode, string(body))
@@ -93,7 +93,7 @@ func mintLiveKey(t *testing.T, hc *http.Client, base, boot, name, ws string, sco
 	if err != nil {
 		t.Fatalf("mint request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var out struct {
 		Secret string `json:"secret"`
 	}

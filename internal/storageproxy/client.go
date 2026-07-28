@@ -128,7 +128,7 @@ func (c *Client) Upload(ctx context.Context, tenantID, path string, body io.Read
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
@@ -152,7 +152,7 @@ func (c *Client) stream(ctx context.Context, method, tenant, path string) (io.Re
 		return nil, storage.ObjectMeta{}, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		return nil, storage.ObjectMeta{}, errFromResponse(resp)
 	}
 	size, _ := strconv.ParseInt(resp.Header.Get("Content-Length"), 10, 64)
@@ -169,7 +169,7 @@ func (c *Client) Stat(ctx context.Context, tenantID, path string) (storage.Objec
 	if err != nil {
 		return storage.ObjectRecord{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return storage.ObjectRecord{}, errFromResponse(resp)
 	}
@@ -208,7 +208,7 @@ func (c *Client) List(ctx context.Context, tenantID, prefix string, limit int, c
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", errFromResponse(resp)
 	}
@@ -240,7 +240,7 @@ func (c *Client) Delete(ctx context.Context, tenantID, path string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusOK {
 		return nil
 	}
@@ -271,7 +271,7 @@ func (c *Client) Share(ctx context.Context, tenantID, path string, ttl time.Dura
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", time.Time{}, errFromResponse(resp)
 	}
@@ -303,7 +303,7 @@ func (c *Client) Usage(ctx context.Context, tenantID string) (storage.UsageInfo,
 	if err != nil {
 		return storage.UsageInfo{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return storage.UsageInfo{}, errFromResponse(resp)
 	}
@@ -341,7 +341,7 @@ func (c *Client) presignPost(ctx context.Context, tenantID, endpoint string, req
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", time.Time{}, errFromResponse(resp)
 	}
@@ -379,7 +379,7 @@ func (c *Client) CommitUpload(ctx context.Context, tenantID, path string) error 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return errFromResponse(resp)
 	}

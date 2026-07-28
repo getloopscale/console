@@ -130,7 +130,8 @@ func TestDispatch_SetsSignatureHeaderWhenSecretPresent(t *testing.T) {
 	}
 
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(fmt.Sprintf("%d.", ts)))
+	// `hash.Hash.Write` nunca retorna erro (contrato da stdlib); `_, _ =` explicita.
+	_, _ = fmt.Fprintf(mac, "%d.", ts)
 	mac.Write(body)
 	want := hex.EncodeToString(mac.Sum(nil))
 	if hexHMAC != want {

@@ -185,7 +185,7 @@ func (h *StorageHandler) Download(w http.ResponseWriter, r *http.Request) {
 		writeStorageError(w, statusForStorageErr(err), codeForStorageErr(err), messageForStorageErr(err))
 		return
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	writeObjectStream(w, rc, meta, chi.URLParam(r, "*"))
 }
 
@@ -356,7 +356,7 @@ func (h *StorageHandler) RedeemShare(w http.ResponseWriter, r *http.Request) {
 		writeStorageError(w, statusForStorageErr(err), codeForStorageErr(err), messageForStorageErr(err))
 		return
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	writeObjectStream(w, rc, meta, "download")
 }
 

@@ -30,7 +30,7 @@ func TestHandleCheckoutCompleted_DoesNotElevatePlan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// The UPDATE statement must NOT contain `plan = $N` after the fix.
 	// We assert positionally: only stripe_subscription_id and status are
@@ -84,7 +84,7 @@ func TestHandleCheckoutCompleted_SQLDoesNotMentionPlan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Capture the actual SQL via QueryMatcher. We set a permissive expectation
 	// and then verify the recorded SQL does not contain "plan = $".
@@ -123,7 +123,7 @@ func TestHandleCheckoutCompleted_SkipsNonSubscriptionMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// No DB calls expected.
 
@@ -160,7 +160,7 @@ func TestHandleSubscriptionUpdated_PersistsAmountAndCurrency_Pro(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// SET clause must carry amount_minor + currency; args 8 and 9 are 2900/usd.
 	mock.ExpectExec(`(?s)UPDATE subscriptions SET .*amount_minor = \$8, currency = \$9`).
@@ -202,7 +202,7 @@ func TestHandleSubscriptionUpdated_MissingPrice_GracefulNoAmountWrite(t *testing
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	mock.ExpectExec(`(?s)UPDATE subscriptions SET status = \$1,\s*stripe_subscription_id = \$2`).
 		WithArgs("active", "sub_np_1", "", sqlmock.AnyArg(), sqlmock.AnyArg(), "cus_np_1").
@@ -237,7 +237,7 @@ func TestHandleSubscriptionUpdated_ZeroUnitAmount_PersistsZero(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	mock.ExpectExec(`(?s)UPDATE subscriptions SET .*amount_minor = \$8, currency = \$9`).
 		WithArgs("active", "team", "sub_comp", "si_comp",
@@ -277,7 +277,7 @@ func TestHandleSubscriptionUpdated_Team_PersistsAmountAndCurrency(t *testing.T) 
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	mock.ExpectExec(`(?s)UPDATE subscriptions SET .*amount_minor = \$8, currency = \$9`).
 		WithArgs("active", "team", "sub_team", "si_team",
