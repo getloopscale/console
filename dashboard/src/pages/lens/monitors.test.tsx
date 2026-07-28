@@ -183,3 +183,119 @@ describe('M136 deprecated UI route', () => {
     expect(line).toMatch(/Navigate to="\/observability\/monitors"/);
   });
 });
+
+/**
+ * theo-cloud#259 — the M135 DoD that shipped open: the Monitors screen shows severity + last-evaluated.
+ *
+ * The state ALREADY exists — the evaluator writes `status` / `last_evaluated_at` / `stale` onto the
+ * monitor-backed rule in `lens_alert_rules`, and `GET /v1/dashboard/lens/alert-rules` already returns
+ * all three keyed by `monitor_id`. Nothing was persisted or exposed for this; the screen simply never
+ * read it, so the scheduler held a severity no surface displayed.
+ *
+ * The tests below pin the distinctions that make the column honest. Collapsing any of them back into
+ * a green "OK" is the exact failure the M135 risk register called "two sources of truth".
+ */
+describe('#259 — monitor severity + last-evaluated', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** One monitor (gd_1) plus whatever alert-rules the case wants to pair with it. */
+  function withMonitorAndRules(alert_rules: unknown[], opts: { rulesFail?: boolean } = {}) {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'Answer relevance' }] });
+      if (url === '/v1/dashboard/lens/monitors') return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      if (String(url).startsWith('/v1/dashboard/lens/alert-rules')) {
+        if (opts.rulesFail) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
+        return Promise.resolve({ alert_rules });
+      }
+      return Promise.resolve({});
+    });
+  }
+
+  const rule = (over: Record<string, unknown> = {}) => ({
+    id: 'lar-0000000000000001', name: 'r', metric: 'monitor_breach', comparator: 'gt', threshold: 0,
+    window_seconds: 3600, webhook_id: 'wwh-1', monitor_id: 'gd_1', enabled: true, status: 'OK',
+    stale: false, last_evaluated_at: '2026-07-28T20:00:00Z', last_triggered_at: null, ...over,
+  });
+
+  it('a cleared monitor-backed rule shows OK and its last-evaluated time', async () => {
+    withMonitorAndRules([rule()]);
+    render(<LensMonitorsPage />);
+    expect(await screen.findByTestId('monitor-severity-gd_1')).toHaveTextContent(/ok/i);
+    expect(screen.getByTestId('monitor-last-evaluated-gd_1')).not.toHaveTextContent('—');
+  });
+
+  it('a firing rule shows Alert — the severity the webhook already fired on', async () => {
+    withMonitorAndRules([rule({ status: 'TRIGGERED', last_triggered_at: '2026-07-28T20:01:00Z' })]);
+    render(<LensMonitorsPage />);
+    expect(await screen.findByTestId('monitor-severity-gd_1')).toHaveTextContent(/triggered/i);
+  });
+
+  /**
+   * The core of #259. A monitor with NO alert rule is not healthy — nothing evaluates it. Rendering
+   * "OK" here would assert a measurement that never happened.
+   */
+  it('a monitor with no alert rule reads "Not monitored" — never OK', async () => {
+    withMonitorAndRules([]); // no rule points at gd_1
+    render(<LensMonitorsPage />);
+    const cell = await screen.findByTestId('monitor-severity-gd_1');
+    expect(cell).toHaveTextContent(/not monitored/i);
+    expect(cell).not.toHaveTextContent(/\bok\b/i);
+    // and there is no evaluation time to show
+    expect(screen.getByTestId('monitor-last-evaluated-gd_1')).toHaveTextContent('—');
+  });
+
+  /**
+   * A rule that stopped being evaluated is the failure the whole feature exists to catch: the tick
+   * died, so no breach can ever fire. Showing the last known status alone would look healthy.
+   */
+  it('a stale rule is surfaced as Stale, not as its last known status', async () => {
+    withMonitorAndRules([rule({ stale: true, status: 'OK' })]);
+    render(<LensMonitorsPage />);
+    expect(await screen.findByTestId('monitor-severity-gd_1')).toHaveTextContent(/stale/i);
+  });
+
+  it('a disabled rule reads Disabled — inert, not OK', async () => {
+    withMonitorAndRules([rule({ enabled: false })]);
+    render(<LensMonitorsPage />);
+    const cell = await screen.findByTestId('monitor-severity-gd_1');
+    expect(cell).toHaveTextContent(/disabled/i);
+    expect(cell).not.toHaveTextContent(/\bok\b/i);
+  });
+
+  /**
+   * Fail-closed (error-handling.md): a failed rules read must NOT degrade into "Not monitored" —
+   * that would claim, from an outage, that the operator has no coverage.
+   */
+  it('a failed alert-rules read shows Unknown, never "Not monitored" or OK', async () => {
+    withMonitorAndRules([], { rulesFail: true });
+    render(<LensMonitorsPage />);
+    const cell = await screen.findByTestId('monitor-severity-gd_1');
+    expect(cell).toHaveTextContent(/unknown/i);
+    expect(cell).not.toHaveTextContent(/not monitored/i);
+    expect(cell).not.toHaveTextContent(/\bok\b/i);
+  });
+});
+
+/**
+ * #259 — the field names this screen reads are produced by Go, and nothing else connects the two.
+ *
+ * The React tests above mock `cloudFetch`, so they pin how the screen CONSUMES the payload;
+ * `internal/routes/lens_alert_rules_test.go` pins what the route EMITS. Both can stay green while
+ * drifting apart, and the drift is silent in the worst possible direction: rename `monitor_id` in Go
+ * and every monitor renders "Not monitored" — the screen would assert, confidently, that the operator
+ * has no coverage at all.
+ *
+ * A SOURCE assertion is the cheap guard, and it is a pattern this file already uses (the M136 route
+ * alias test below reads app.tsx the same way) rather than new contract-test machinery nobody asked for.
+ */
+describe('#259 — the alert-rule contract the Monitors screen depends on', () => {
+  it('lens_alert_rules.go still emits monitor_id, stale and last_evaluated_at', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    // dashboard/ → theo-cloud/
+    const src = fs.readFileSync(path.resolve(process.cwd(), '../internal/routes/lens_alert_rules.go'), 'utf8');
+    for (const tag of ['json:"monitor_id,omitempty"', 'json:"stale"', 'json:"last_evaluated_at"']) {
+      expect(src, `${tag} is read by the Monitors screen — renaming it silently blanks the Status column`).toContain(tag);
+    }
+  });
+});
