@@ -51,7 +51,12 @@ jobs:
       - name: Checkout theo-memory (themory image source)
         uses: actions/checkout@v4
         with:
-          repository: usetheodev/theo-memory
+          # Owner atualizado: estes repos migraram para a org `usetheoai` (ROADMAP_CICD).
+          # A URL antiga NAO redireciona para checkout autenticado — o job morre com
+          # "Write access to repository not granted", que e uma mensagem enganosa: o problema
+          # nao e permissao de escrita, e o repositorio nao existir mais naquele dono.
+          # `theo-contracts` e `theo` seguem em `usetheodev` e por isso NAO foram tocados.
+          repository: usetheoai/theo-memory
           ref: develop # match the develop-level integration under test (sibling default branch is `main`)
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-data/theo-memory
@@ -104,7 +109,7 @@ jobs:
       - name: Checkout theo-memory (themory image source)
         uses: actions/checkout@v4
         with:
-          repository: usetheodev/theo-memory
+          repository: usetheoai/theo-memory
           ref: develop # match the develop-level integration under test (sibling default branch is `main`)
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-data/theo-memory
@@ -116,14 +121,14 @@ jobs:
       - name: Checkout theo-rag (edge stack — M18)
         uses: actions/checkout@v4
         with:
-          repository: usetheodev/theo-rag
+          repository: usetheoai/theo-rag
           ref: develop
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-data/theo-rag
       - name: Checkout theo-lens (edge stack — M40)
         uses: actions/checkout@v4
         with:
-          repository: usetheodev/theo-lens
+          repository: usetheoai/theo-lens
           ref: develop
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-data/theo-lens
