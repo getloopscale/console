@@ -146,9 +146,16 @@ export function LensMonitorsPage() {
   // #259 — the live state of each monitor. Read from the SAME endpoint the Alerts screen uses, so the
   // two surfaces cannot disagree about a rule (Rule 9 — the route already returns status,
   // last_evaluated_at and the derived `stale`, keyed by monitor_id; nothing new was persisted for this).
+  //
+  // `throwOnError` is NOT optional here. `cloudFetch` defaults to `T | null` and does NOT throw, so
+  // without it a 502 resolves to `null`, the query reports SUCCESS, and every monitor renders
+  // "Not monitored" — the screen would assert, from an outage, that nothing is watching. That is the
+  // precise failure the Unknown state exists to prevent, and it survived the unit tests because the
+  // mock throws where the real client returns null. Found by driving the live stack (#259).
   const rulesQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/alert-rules'] as const,
-    queryFn: () => cloudFetch<AlertRulesResult>('/v1/dashboard/lens/alert-rules'),
+    queryFn: () => cloudFetch<AlertRulesResult>('/v1/dashboard/lens/alert-rules', {}, { throwOnError: true }),
+    retry: false,
   });
   // Last rule wins per monitor. Two rules on one monitor is legal and rare; picking one arbitrarily is
   // honest only because every state below is derived from the rule shown — never merged across rules.

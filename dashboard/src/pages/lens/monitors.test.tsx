@@ -299,3 +299,35 @@ describe('#259 — the alert-rule contract the Monitors screen depends on', () =
     }
   });
 });
+
+/**
+ * #259 regression — the defect the mocked tests above could NOT catch.
+ *
+ * `cloudFetch` defaults to `T | null` and does NOT throw; it only rejects when the call site opts in
+ * with `{ throwOnError: true }`. The failure test above passes a mock that THROWS, which is the
+ * behaviour of an opted-in call — so it stayed green against a query that had not opted in. Driving
+ * the real stack exposed it: with the BFF returning 502, the query resolved `null`, reported SUCCESS,
+ * and every monitor rendered "Not monitored" — asserting, from an outage, that nothing is watching.
+ *
+ * This test reproduces the REAL client contract (resolve null) instead of the opted-in one.
+ */
+describe('#259 — a null-resolving alert-rules read must not read as "Not monitored"', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('resolving null (cloudFetch default on failure) still shows Unknown', async () => {
+    mockCloudFetch.mockImplementation((url: string, _init?: unknown, opts?: { throwOnError?: boolean }) => {
+      if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [] });
+      if (url === '/v1/dashboard/lens/monitors') return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      if (String(url).startsWith('/v1/dashboard/lens/alert-rules')) {
+        // The real client: throws ONLY when the call site opted in; otherwise resolves null.
+        if (opts?.throwOnError) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
+        return Promise.resolve(null);
+      }
+      return Promise.resolve({});
+    });
+    render(<LensMonitorsPage />);
+    const cell = await screen.findByTestId('monitor-severity-gd_1');
+    expect(cell, 'the page must opt into throwOnError, or a 502 reads as "no coverage"').toHaveTextContent(/unknown/i);
+    expect(cell).not.toHaveTextContent(/not monitored/i);
+  });
+});
