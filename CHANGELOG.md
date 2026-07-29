@@ -1,5 +1,19 @@
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.71.0] - 2026-07-29
+
 ### Fixed
 - **Os seis HIGH do `/review` do M21.** (1) **O indicador parou de mentir em verde e passou a mentir em cinza.** `cloudFetch` sem `throwOnError` RESOLVE `null` em todo 5xx e toda falha de rede, então a query tinha SUCESSO sem dado e o rodapé exibia "Checking…" — uma palavra que afirma sondagem em andamento — indefinidamente, com `aria-label` "0 operational, 0 unreachable, 0 not deployed": tres zeros com cara de medicao produzidos por uma requisicao que nunca voltou. A pagina `/status` ja tratava o mesmo `null` com `role="alert"`, entao as duas superficies discordavam exatamente no caso em que a ADR D3 afirma que nao podem. Agora o hook opta pelo contrato que lanca e o rodape tem um estado "Status unavailable" distinto de "carregando"; o ponto segue neutro em vez de ambar, porque ambar e o veredito "um servico esta degradado" e uma leitura que falhou nao mediu nada. (2) **O rotulo acessivel nao contava estado fora da uniao** — para `[ok, quarantined]` o ponto ficava ambar e a unica frase que a tecnologia assistiva le anunciava tudo certo; as contagens agora somam sempre o total de servicos. (3) **O orcamento global era inerte:** `Collect` prometia no proprio doc retornar "once all of them have settled or the budget ran out" e tinha um `wg.Wait()` nu — com um transporte que ignora o contexto, o teto real da resposta era o `Timeout: 10s` do client, 3x o orcamento anunciado (medido: 2.001s sob um orcamento de 300ms). (4) **Nada amarrava a URL do cliente a rota do servidor** — um typo passava com os 65 testes verdes e dava 404 na primeira carga; um teste passou a ler o fonte Go e conferir. (5) **Apagar a montagem do composition root nao reprovava teste algum.** (6) O resumo de implementacao que o proprio `cycle-review` declara como pre-condicao nao existia.
 - **O guard de disco do CI não alcançava a maior fatia do lixo (theo-cloud#255).** `docker system prune` **não** remove volumes sem `--volumes`, e cada stack e2e derrubada deixa volumes de Postgres órfãos — 14.16 GB dos ~21 GB recuperados na limpeza de 2026-07-23. O filtro `until=24h` agravava: num runner com ~40 runs/dia quase nada tem 24h. Agora o step poda volumes explicitamente e sem filtro de idade (volume órfão não tem idade útil; o docker se recusa a remover os em uso), mantendo os filtros de idade em imagens/cache, que existem para preservar o cache quente. (theo-cloud#255)
