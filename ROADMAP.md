@@ -533,6 +533,53 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
+### M21 — [ ] Painel discreto de versões dos serviços
+
+**Objetivo:** dar verdade ao indicador de status do sidebar e expor, num painel discreto,
+qual versão de cada serviço Theo está de fato implantada.
+
+O rodapé do sidebar já mostra `● Operational` com `role="status"` e
+`aria-label="System status: all systems operational"` — **hardcoded**. Ele fica verde com
+todos os serviços fora do ar. Isso é pior que ausência: quem olha para de procurar.
+Somado a isso, hoje não há como saber qual versão está implantada sem SSH no host.
+
+**Gatilho (medido em 2026-07-28):** a imagem do theo-memory ficou **nove commits sem
+construir** e ninguém percebeu; o theo-rag trocou de versão **duas vezes em quatro
+minutos** (`36ccf49` → `3dc878c`), invisível para todos.
+
+**O que já existe e é reusado** (nenhuma peça nova de infraestrutura):
+
+| Peça | Onde |
+|---|---|
+| `GET /v1/version`, contrato idêntico | theo-memory, theo-rag, theo-lens |
+| Clients por capacidade | `internal/{themory,rag,thelens,storage}` |
+| Slot discreto no rodapé | `dashboard/src/components/layout/app-sidebar.tsx` |
+
+**Conteúdo exibido:** `version` + estado + horário (`built_at` quando houver).
+**NÃO** expõe `git_sha` — é dado de infraestrutura.
+
+**Escopo:** ambiente de **dev** apenas. `theo-storage` aparece como `not_deployed` em vez
+de ser omitido — omiti-lo esconderia que ele existe e não subiu.
+
+**Definition of done:**
+
+- [ ] Um `GET` no gateway agrega os três serviços **em paralelo**, com timeout curto, devolvendo por serviço `{name, version, state, built_at}`.
+- [ ] Os **três** estados têm teste: `ok`, `unreachable`, `not_deployed` — e `unreachable` **nunca** exibe a última versão conhecida.
+- [ ] O `●` do rodapé do sidebar deixa de ser hardcoded e reflete o agregado.
+- [ ] Clicar nele abre a página.
+- [ ] A resposta carrega o horário da **coleta**, distinto do `built_at`.
+
+**Dependencies:** nenhuma. Os 21 milestones anteriores estão `[x]`, então qualquer
+dependência declarada estaria satisfeita na hora e seria decorativa. As peças reusadas
+(clients, sidebar, endpoints) já existem e não são milestones pendentes.
+
+**Top risks (new):**
+
+1. **O agregador segura o sidebar.** A rota consulta três serviços por request; se um pendurar sem timeout, ela segura o sidebar **inteiro** — um painel de diagnóstico derrubando a navegação é o pior desfecho possível, porque a ferramenta que existe para revelar falha vira a falha. Mitigação: timeout curto por serviço + render otimista, com o `●` nunca bloqueando a renderização.
+2. **Regressão global pelo componente compartilhado.** `app-sidebar.tsx` é usado por **todas** as páginas; regressão ali não é local. Mitigação: a suíte já existe (`app-sidebar.test.tsx`, `app-sidebar-nav.test.tsx`) e passa a cobrir os três estados.
+
+---
+
 ## State-of-the-art references
 
 No peers were cloned for this roadmap: the design is locked in the ADR and the reference model is
