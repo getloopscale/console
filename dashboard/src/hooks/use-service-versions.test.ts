@@ -53,6 +53,24 @@ describe('describeStatus', () => {
     expect(describeStatus([late('theo-lens'), absent('theo-storage')]))
       .toBe('System status: 0 operational, 1 unreachable, 1 not deployed');
   });
+
+  // F-web-1 — the same alien payload that `aggregateState` turns amber (line 40
+  // above) fell into NO bucket here, so the dot said "Degraded" while the only
+  // sentence assistive technology reads announced an all-clear. The lie the
+  // milestone removed from the visual channel had simply moved into the AT one.
+  it('accounts for a state outside the union, so the dot and the label cannot disagree', () => {
+    const alien = { name: 'theo-lens', state: 'quarantined', checked_at: at } as unknown as ServiceStatus;
+    expect(describeStatus([ok('theo-rag', '0.35.0'), alien]))
+      .toBe('System status: 1 operational, 0 unreachable, 0 not deployed, 1 unknown');
+  });
+
+  // The counts are a census, not a sample: whatever the wire sends, they add up.
+  it('always sums to the number of services reported', () => {
+    const alien = { name: 'theo-lens', state: 'quarantined', checked_at: at } as unknown as ServiceStatus;
+    const services = [ok('theo-rag', '0.35.0'), down('theo-memory'), absent('theo-storage'), alien];
+    const total = [...describeStatus(services).matchAll(/(\d+)\s/g)].reduce((sum, m) => sum + Number(m[1]), 0);
+    expect(total).toBe(services.length);
+  });
 });
 
 describe('the ServiceStatus union', () => {

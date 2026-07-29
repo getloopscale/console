@@ -54,12 +54,22 @@ export function aggregateState(services: readonly ServiceStatus[] | undefined): 
  * keeps a `not_deployed` service visible to assistive technology even though it does
  * not drag the dot down (ADR D7 § Consequences). A `timeout` counts as unreachable so
  * the label never undercounts a failure.
+ *
+ * The counts are a CENSUS: they always sum to `services.length`. Enumerating only the
+ * four known states left a state outside the union in no bucket at all, so the same
+ * payload that `aggregateState` turns amber announced an all-clear to assistive
+ * technology (F-web-1) — the indicator's lie relocated from the visual channel into
+ * the one channel that cannot be double-checked by looking. The residual bucket is
+ * derived by subtraction for the same reason `aggregateState` is an allowlist: the
+ * payload comes from the wire, not from the compiler (ADR D9).
  */
 export function describeStatus(services: readonly ServiceStatus[]): string {
   const operational = services.filter((s) => s.state === 'ok').length;
   const unreachable = services.filter((s) => s.state === 'unreachable' || s.state === 'timeout').length;
   const notDeployed = services.filter((s) => s.state === 'not_deployed').length;
-  return `System status: ${operational} operational, ${unreachable} unreachable, ${notDeployed} not deployed`;
+  const unknown = services.length - operational - unreachable - notDeployed;
+  const counted = `System status: ${operational} operational, ${unreachable} unreachable, ${notDeployed} not deployed`;
+  return unknown > 0 ? `${counted}, ${unknown} unknown` : counted;
 }
 
 /**
