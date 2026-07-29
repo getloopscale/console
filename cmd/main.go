@@ -155,15 +155,22 @@ func newRagDashboardKeyResolver(minter ragDashMinter) func(ctx context.Context) 
 
 // serviceVersionTargets is the data-plane fleet the M21 status panel probes.
 //
-// theo-storage carries an empty base URL on purpose: it resolves to not_deployed
-// by the generic rule. Omitting it would hide that it exists and did not come up —
-// the absence IS the news the panel exists to report.
+// Cada alvo lê sua URL da configuração. Uma URL vazia resolve para `not_deployed`
+// pela regra genérica — e o serviço continua LISTADO: omiti-lo esconderia que ele
+// existe e não subiu, e essa ausência é justamente a notícia que o painel existe
+// para dar.
+//
+// `theo-storage` carregava `""` LITERAL até 2026-07-29, quando de fato não havia
+// deploy dele. Passou a haver, e o literal fazia o painel reportar `not deployed`
+// sobre um serviço saudável — a mesma classe de mentira que o painel combate, só
+// que na direção oposta. Ler da config é o que faz a resposta seguir o ambiente em
+// vez de uma constante escrita num dia específico.
 func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 	return []serviceversions.Target{
 		{Name: "theo-memory", BaseURL: cfg.ThemoryBaseURL},
 		{Name: "theo-rag", BaseURL: cfg.RagBaseURL},
 		{Name: "theo-lens", BaseURL: cfg.LensBaseURL},
-		{Name: "theo-storage", BaseURL: ""},
+		{Name: "theo-storage", BaseURL: cfg.StorageBaseURL},
 	}
 }
 
