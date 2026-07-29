@@ -57,6 +57,10 @@ const TeamPage = lazy(() =>
 const BillingPage = lazy(() =>
   import('@/pages/billing').then((m) => ({ default: m.BillingPage })),
 );
+// M21 — the detail behind the sidebar health indicator.
+const StatusPage = lazy(() =>
+  import('@/pages/status').then((m) => ({ default: m.StatusPage })),
+);
 const SettingsPage = lazy(() =>
   import('@/pages/settings').then((m) => ({ default: m.SettingsPage })),
 );
@@ -491,6 +495,8 @@ export default function App() {
                     {/* M86 — webhook management inside observability: reuse the exact settings CRUD component
                         (same /v1/settings/webhooks/* endpoints) so alert setup stays in one module. */}
                     <Route path="/observability/webhooks" element={<Boundaried path="/observability/webhooks"><WorkspaceWebhooksPage context="observability" /></Boundaried>} />
+                    {/* M21 — distinct from /projects/:name/status: this one is the platform-wide aggregate. */}
+                    <Route path="/status" element={<Boundaried path="/status"><StatusPage /></Boundaried>} />
                     <Route path="/settings" element={<Boundaried path="/settings"><SettingsPage /></Boundaried>} />
                     <Route
                       path="/settings/members"

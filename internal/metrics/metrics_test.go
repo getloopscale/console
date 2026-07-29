@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -85,5 +86,55 @@ func TestHandler_ReturnsPrometheusFormat(t *testing.T) {
 	}
 	if !strings.Contains(body, "theo_tenant_provisioning_duration_seconds") {
 		t.Error("missing theo_tenant_provisioning_duration_seconds in /metrics output")
+	}
+}
+
+func TestIncServiceVersionProbe_increments_labelled_series(t *testing.T) {
+	before := ServiceVersionProbeValue("theo-rag", "ok")
+
+	IncServiceVersionProbe("theo-rag", "ok")
+	IncServiceVersionProbe("theo-rag", "ok")
+	IncServiceVersionProbe("theo-lens", "timeout")
+
+	if got := ServiceVersionProbeValue("theo-rag", "ok") - before; got != 2 {
+		t.Fatalf("theo-rag/ok delta = %v, want 2", got)
+	}
+	if got := ServiceVersionProbeValue("theo-lens", "timeout"); got < 1 {
+		t.Fatalf("theo-lens/timeout = %v, want >= 1", got)
+	}
+}
+
+func TestIncServiceVersionProbe_does_not_cross_contaminate_labels(t *testing.T) {
+	IncServiceVersionProbe("theo-storage", "not_deployed")
+
+	if got := ServiceVersionProbeValue("theo-storage", "unreachable"); got != 0 {
+		t.Fatalf("theo-storage/unreachable = %v, want 0 — labels cross-contaminated", got)
+	}
+}
+
+// The gateway serves requests in parallel, so this counter is written by N request
+// goroutines at once. CounterVec promises safety; a contract that is never
+// exercised is an assumption, so this exercises it.
+func TestIncServiceVersionProbe_is_safe_under_concurrent_requests(t *testing.T) {
+	const goroutines, perGoroutine = 8, 100
+	before := ServiceVersionProbeValue("theo-memory", "ok")
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perGoroutine; j++ {
+				IncServiceVersionProbe("theo-memory", "ok")
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := ServiceVersionProbeValue("theo-memory", "ok") - before; got != goroutines*perGoroutine {
+		t.Fatalf("delta = %v, want %d — increment lost under concurrency", got, goroutines*perGoroutine)
+	}
+	if got := ServiceVersionProbeValue("theo-memory", "timeout"); got != 0 {
+		t.Fatalf("neighbouring series = %v, want 0 — labels contaminated under concurrency", got)
 	}
 }
