@@ -14,7 +14,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@/test/render';
+import { render, screen, within } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -188,5 +188,58 @@ describe('the /status route', () => {
 
     const catchAllIdx = app.lastIndexOf('path="*"');
     expect(routeIdx).toBeLessThan(catchAllIdx);
+  });
+});
+
+describe('layout em colunas', () => {
+  it('apresenta os serviços como TABELA, com cabeçalho de coluna', async () => {
+    // A lista de linhas flex empilhava nome, estado, versão e build num fluxo só:
+    // com quatro serviços o olho não alinha nada verticalmente, e um leitor de
+    // tela não tem como dizer QUAL coluna está lendo.
+    //
+    // `<table>` com `<th scope="col">` é o elemento nativo para dado tabular
+    // (rung 3 da escada) — resolve a leitura visual E a acessibilidade sem
+    // nenhuma dependência nova.
+    stubVersions({
+      collected_at: '2026-07-28T10:00:00Z',
+      services: [
+        { name: 'theo-rag', state: 'ok', version: '0.35.0', built_at: '2026-07-28T09:00:00Z' },
+        { name: 'theo-storage', state: 'not_deployed' },
+      ],
+    });
+    render(<StatusPage />);
+
+    const table = await screen.findByRole('table');
+    const headers = within(table).getAllByRole('columnheader').map((h) => h.textContent);
+    expect(headers).toEqual(['Service', 'State', 'Version', 'Built']);
+  });
+
+  it('cada serviço é uma linha, e a versão fica na coluna de versão', async () => {
+    stubVersions({
+      collected_at: '2026-07-28T10:00:00Z',
+      services: [{ name: 'theo-rag', state: 'ok', version: '0.35.0', built_at: null }],
+    });
+    render(<StatusPage />);
+
+    const row = await screen.findByTestId('service-row-theo-rag');
+    const cells = within(row).getAllByRole('cell').map((c) => c.textContent?.trim());
+    expect(cells[0]).toBe('theo-rag');
+    expect(cells[2]).toContain('0.35.0');
+  });
+
+  it('serviço sem versão deixa a célula VAZIA, não escreve "undefined"', async () => {
+    // O invariante do D3 na camada visual: `not_deployed` não tem `version` no
+    // tipo, então a célula não pode inventar texto. Vazio é a leitura honesta.
+    stubVersions({
+      collected_at: '2026-07-28T10:00:00Z',
+      services: [{ name: 'theo-storage', state: 'not_deployed' }],
+    });
+    render(<StatusPage />);
+
+    const row = await screen.findByTestId('service-row-theo-storage');
+    const cells = within(row).getAllByRole('cell').map((c) => c.textContent?.trim());
+    expect(cells[2]).toBe('');
+    expect(cells[3]).toBe('');
+    expect(row.textContent).not.toMatch(/undefined|null|NaN/);
   });
 });

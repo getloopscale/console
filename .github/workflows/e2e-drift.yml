@@ -89,7 +89,7 @@ jobs:
       - name: Rodar o e2e contra o :develop
         env:
           GOPRIVATE: github.com/usetheodev/*
-          THEMORY_IMAGE: ghcr.io/usetheoai/themory:develop
+          THEMORY_IMAGE: ghcr.io/usetheoai/theo-memory:develop
           THEORAG_IMAGE: ghcr.io/usetheoai/theo-rag:develop
           THELENS_IMAGE: ghcr.io/usetheoai/theo-lens:develop
         run: make e2e-edge

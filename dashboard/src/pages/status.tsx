@@ -51,54 +51,87 @@ function Report({ data }: { data: { collected_at: string; services: readonly Ser
         {data.services.length === 0 ? (
           <p className="text-body-sm text-muted-foreground">No services configured.</p>
         ) : (
-          <ul className="mt-4 flex flex-col gap-2">
-            {data.services.map((s) => (
-              <li key={s.name} data-testid={`service-row-${s.name}`} className="flex items-center gap-3 flex-wrap">
-                <span className="font-mono text-label text-foreground">{s.name}</span>
-                {renderState(s)}
-              </li>
-            ))}
-          </ul>
+          // `<table>` e nao lista de linhas flex: dado tabular tem elemento nativo
+          // (rung 3 da escada), e ele resolve as DUAS coisas de uma vez — o olho
+          // alinha as colunas verticalmente, e o leitor de tela anuncia qual
+          // coluna esta lendo. Empilhado, nenhuma das duas acontecia.
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full border-collapse text-label">
+              <thead>
+                <tr className="border-b border-border text-left text-muted-foreground">
+                  <th scope="col" className="py-2 pr-6 font-normal">Service</th>
+                  <th scope="col" className="py-2 pr-6 font-normal">State</th>
+                  <th scope="col" className="py-2 pr-6 font-normal">Version</th>
+                  <th scope="col" className="py-2 font-normal">Built</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.services.map((s) => (
+                  <tr
+                    key={s.name}
+                    data-testid={`service-row-${s.name}`}
+                    className="border-b border-border/50 last:border-0"
+                  >
+                    <td className="py-2.5 pr-6 font-mono text-foreground">{s.name}</td>
+                    <td className="py-2.5 pr-6">{stateCell(s)}</td>
+                    <td className="py-2.5 pr-6 font-mono text-muted-foreground">{versionCell(s)}</td>
+                    <td className="py-2.5 text-muted-foreground tabular-nums">{builtCell(s)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card.Body>
     </Card>
   );
 }
 
-/** The state cell of one row. One branch per variant of the union. */
-function renderState(s: ServiceStatus) {
+/**
+ * As tres celulas variaveis de uma linha, uma funcao por COLUNA.
+ *
+ * Separar por coluna (em vez de um `renderState` que devolvia tudo em fragmento)
+ * e o que permite a tabela: cada celula precisa saber o proprio conteudo. E
+ * mantem o invariante do ADR D3 intacto — nos ramos `unreachable`/`timeout`/
+ * `not_deployed` o campo `version` NAO EXISTE no tipo estreitado, entao a coluna
+ * de versao nao consegue mostrar valor velho nem por acidente.
+ */
+function stateCell(s: ServiceStatus) {
   switch (s.state) {
     case 'ok':
-      return (
-        <>
-          <Badge variant="success">ok</Badge>
-          <span className="font-mono text-label">v{s.version}</span>
-          {s.built_at ? <span className="text-label text-muted-foreground">built {formatInstant(s.built_at)}</span> : null}
-        </>
-      );
+      return <Badge variant="success">ok</Badge>;
     case 'unreachable':
       return (
-        <>
+        <span className="flex items-center gap-2">
           <Badge variant="destructive">unreachable</Badge>
-          <span className="text-label text-muted-foreground">{s.reason}</span>
-        </>
+          <span className="text-muted-foreground">{s.reason}</span>
+        </span>
       );
     case 'timeout':
       return (
-        <>
+        <span className="flex items-center gap-2">
           <Badge variant="warning">timeout</Badge>
-          <span className="text-label text-muted-foreground">{s.reason ?? 'timed out'}</span>
-        </>
+          <span className="text-muted-foreground">{s.reason ?? 'timed out'}</span>
+        </span>
       );
     case 'not_deployed':
       return <Badge variant="outline">not deployed</Badge>;
-    // ADR D11: do NOT throw. The `never` parameter keeps compile-time exhaustiveness
-    // (dropping a case above breaks `tsc`), while the runtime degrades to showing the
-    // literal state that arrived. Throwing here would blank the entire page — taking
-    // the healthy services with it — because this payload comes from the wire.
+    // ADR D11: nao lanca. O parametro `never` mantem a exaustividade de
+    // compilacao (remover um `case` acima quebra o `tsc`), e em runtime degrada
+    // para o estado literal que chegou. Lancar aqui apagaria a pagina INTEIRA —
+    // levando os servicos saudaveis junto — porque este payload vem da rede.
     default:
       return <Badge variant="outline">{unknownStateOf(s)}</Badge>;
   }
+}
+
+/** Celula vazia quando nao ha versao — nunca "undefined". Ausencia e a leitura honesta. */
+function versionCell(s: ServiceStatus) {
+  return s.state === 'ok' ? s.version : null;
+}
+
+function builtCell(s: ServiceStatus) {
+  return s.state === 'ok' && s.built_at ? formatInstant(s.built_at) : null;
 }
 
 function unknownStateOf(s: never): string {
