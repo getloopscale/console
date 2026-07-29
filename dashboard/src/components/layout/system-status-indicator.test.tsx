@@ -79,6 +79,63 @@ describe('SystemStatusIndicator', () => {
     expect(indicator).toHaveTextContent(/checking/i);
   });
 
+  // F-xval-1 / F-web-2 / F-wire-1 — the failure this milestone exists to remove,
+  // in its softer form. The footer stopped claiming health it never measured and
+  // started claiming a measurement was in flight that will never land: `cloudFetch`
+  // without `throwOnError` RESOLVES null on any 5xx or network failure, so the query
+  // SUCCEEDS with no data, `isPending` is false forever, and the level settles on
+  // 'unknown' whose copy is the literal pending word. The /status page renders
+  // role="alert" for exactly the same payload (status.test.tsx), so the two surfaces
+  // disagree in precisely the case ADR D3 claims they cannot.
+  it('says the status is unavailable — not "Checking…" — when the aggregate cannot be read', async () => {
+    mockCloudFetch.mockResolvedValue(null);
+
+    render(<SystemStatusIndicator />);
+
+    const indicator = await screen.findByTestId('system-status-indicator');
+    await waitFor(() => expect(indicator).toHaveTextContent(/unavailable/i));
+    // "Checking…" asserts a probe still running. Nothing is running.
+    expect(indicator).not.toHaveTextContent(/checking/i);
+    expect(indicator).not.toHaveTextContent(/operational/i);
+  });
+
+  it('never announces measured-looking zeros for a read that never returned', async () => {
+    mockCloudFetch.mockResolvedValue(null);
+
+    render(<SystemStatusIndicator />);
+
+    const region = await screen.findByRole('status');
+    await waitFor(() => expect(region.getAttribute('aria-label')).toMatch(/unavailable/i));
+    // Three zeros produced by a request that never landed read as a measurement.
+    expect(region.getAttribute('aria-label')).not.toBe('System status: 0 operational, 0 unreachable, 0 not deployed');
+  });
+
+  it('treats a rejected query the same as an unreadable one', async () => {
+    mockCloudFetch.mockRejectedValue(new Error('network request failed'));
+
+    render(<SystemStatusIndicator />);
+
+    const indicator = await screen.findByTestId('system-status-indicator');
+    await waitFor(() => expect(indicator).toHaveTextContent(/unavailable/i));
+    expect(indicator).not.toHaveTextContent(/checking/i);
+  });
+
+  // The half of the fix that only production sees: with the default contract every
+  // non-2xx resolves null, so the query SUCCEEDS and the retry guard in
+  // lib/query-client.ts is inert for it. Opting in makes a failure an actual failure.
+  it('opts into the throwing contract so a 5xx is an error, not a successful null', async () => {
+    stubVersions([{ name: 'theo-rag', state: 'ok', checked_at: at, version: '0.35.0' }]);
+
+    render(<SystemStatusIndicator />);
+    await screen.findByText(/operational/i);
+
+    expect(mockCloudFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.anything(),
+      expect.objectContaining({ throwOnError: true }),
+    );
+  });
+
   // R1 — the indicator is rendered on every authenticated page. It must never
   // suspend or return null, or a slow probe would hold the whole navigation.
   it('renders immediately while the query is pending, without suspending', () => {

@@ -122,6 +122,17 @@ describe('StatusPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not read/i);
   });
 
+  // Blast radius of the F-web-2 fix: the hook now opts into `throwOnError`, so in
+  // production a 5xx arrives here as a REJECTION rather than as a resolved null.
+  // The page must keep telling the same truth on the path it did not use to take.
+  it('surfaces the same alert when the query rejects instead of resolving null', async () => {
+    mockCloudFetch.mockRejectedValue(new Error('network request failed'));
+
+    render(<StatusPage />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not read/i);
+  });
+
   it('says no services are configured instead of showing an empty page', async () => {
     stubVersions({ collected_at: at, services: [] });
 

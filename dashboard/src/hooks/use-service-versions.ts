@@ -79,10 +79,18 @@ export function describeStatus(services: readonly ServiceStatus[]): string {
  * This hook overrides NO cache policy on purpose: the global client already sets one
  * (`lib/query-client.ts:39-42`), and the staleness window that follows from it is an
  * ACCEPTED, documented risk (plan § R7) rather than something silently tightened here.
+ *
+ * `throwOnError` IS overridden, and deliberately: under the default contract every
+ * 5xx and every network rejection RESOLVES `null`, so the query SUCCEEDS holding
+ * nothing — a failed read becomes indistinguishable from a pending one, and the
+ * retry guard in `lib/query-client.ts:20-36` never sees a failure to retry. Opting
+ * in makes a failure an `isError`, which is the only thing the footer can tell
+ * apart from "still loading" (F-web-2). Repo precedent: `pages/memory/graph.tsx:487`
+ * and `pages/memory/webhooks.tsx:101` opted in for the same reason.
  */
 export function useServiceVersions(): UseQueryResult<ServiceVersionsReport | null> {
   return useQuery({
     queryKey: ['dashboard', 'status', 'versions'],
-    queryFn: () => cloudFetch<ServiceVersionsReport>('/v1/dashboard/status/versions'),
+    queryFn: () => cloudFetch<ServiceVersionsReport>('/v1/dashboard/status/versions', {}, { throwOnError: true }),
   });
 }

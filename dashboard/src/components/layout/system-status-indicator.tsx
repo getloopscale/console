@@ -27,17 +27,42 @@ import {
  *    indicator would stop being announced as something one can open — while an
  *    `href` assertion would still pass, because the attribute stays in the DOM.
  */
-const TEXT: Record<AggregateState, string> = {
+/**
+ * The levels the footer can show. `unavailable` is NOT an aggregate — no aggregate
+ * exists when the read failed — so it is a rendering level, kept out of
+ * `AggregateState` on purpose: the derivation stays a function of the services.
+ */
+type IndicatorLevel = AggregateState | 'unavailable';
+
+const TEXT: Record<IndicatorLevel, string> = {
   operational: 'Operational',
   degraded: 'Degraded',
   unknown: 'Checking…',
+  unavailable: 'Status unavailable',
 };
 
 export function SystemStatusIndicator() {
-  const { data, isPending } = useServiceVersions();
+  const { data, isPending, isError } = useServiceVersions();
   const services = data?.services;
-  const level: AggregateState = isPending ? 'unknown' : aggregateState(services);
-  const label = isPending ? 'System status: checking' : describeStatus(services ?? []);
+  /**
+   * A settled query holding nothing is a FAILED read, never a pending one. Both
+   * arms are load-bearing: `isError` is the real path now that the hook opts into
+   * the throwing contract, and `data == null` still catches a 2xx with no body —
+   * and is what a suite mocking `@/lib/api` wholesale can reach.
+   *
+   * Collapsing this into `unknown` published "Checking…", a word that asserts a
+   * probe still running, over a pipeline that will never land again — with an
+   * accessible name of three measured-looking zeros produced by a request that
+   * never returned (error-handling.md § 2: the pending state was being used as
+   * the magic value for "read failed").
+   */
+  const unreadable = !isPending && (isError || data == null);
+  const level: IndicatorLevel = isPending ? 'unknown' : unreadable ? 'unavailable' : aggregateState(services);
+  const label = isPending
+    ? 'System status: checking'
+    : unreadable
+      ? 'System status: unavailable'
+      : describeStatus(services ?? []);
 
   return (
     <Link
@@ -57,8 +82,13 @@ export function SystemStatusIndicator() {
  * The dot. Only the healthy level keeps the ping animation — on a neutral or
  * degraded state that animation reinforced exactly the false liveliness this
  * component exists to remove.
+ *
+ * `unavailable` shares the neutral tone with `unknown` rather than going amber:
+ * amber is the verdict "a service is degraded", which is a measurement, and a read
+ * that failed measured nothing. The words carry the difference; the colour would
+ * only claim knowledge we do not have.
  */
-function StatusDot({ level }: { level: AggregateState }) {
+function StatusDot({ level }: { level: IndicatorLevel }) {
   if (level === 'operational') {
     return (
       <span className="relative flex size-2 shrink-0">
