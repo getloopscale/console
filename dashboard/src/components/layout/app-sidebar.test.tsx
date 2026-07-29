@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@/test/render';
+import { render, screen, within } from '@/test/render';
 import { AppSidebar } from './app-sidebar';
 import type { Session } from '@/lib/auth';
 
@@ -78,5 +78,27 @@ describe('AppSidebar', () => {
     expect(screen.getByRole('button', { name: /traces/i })).toBeInTheDocument();
     // (the workspace switcher lives in the root sidebar view — untouched by this data-only regrouping;
     //  it is covered by test_app_sidebar_team_switcher_renders_session_name.)
+  });
+
+  // M21 T2.1 (R3) — the sidebar is about to become asynchronous. Without a global
+  // fetch stub, jsdom issues a REAL request: the symptom is not a red test, it is an
+  // unhandled rejection plus act() noise, which does not block a merge.
+  it('renders without touching the network', () => {
+    render(<AppSidebar session={makeSession()} />);
+
+    const f = globalThis.fetch as unknown as { mock?: { calls: unknown[][] } };
+    expect(f.mock, 'global fetch is not stubbed — jsdom will hit the real network').toBeDefined();
+
+    const absolute = (f.mock?.calls ?? []).filter((c) => String(c[0]).startsWith('http'));
+    expect(absolute, `sidebar issued real network calls: ${JSON.stringify(absolute)}`).toHaveLength(0);
+  });
+
+  // M21 T3.1 — the guard that did not exist: nothing stopped the footer from
+  // declaring "all systems operational" with three services down.
+  it('footer status is no longer the hardcoded literal', () => {
+    render(<AppSidebar session={makeSession()} />);
+    const indicator = screen.getByTestId('system-status-indicator');
+    const region = within(indicator).getByRole('status');
+    expect(region.getAttribute('aria-label')).not.toBe('System status: all systems operational');
   });
 });

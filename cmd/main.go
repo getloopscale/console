@@ -43,6 +43,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/serviceversions"
 	"github.com/usetheodev/theo-cloud/internal/storage"
 	"github.com/usetheodev/theo-cloud/internal/storageproxy"
 	"github.com/usetheodev/theo-cloud/internal/thelens"
@@ -150,6 +151,47 @@ func newRagDashboardKeyResolver(minter ragDashMinter) func(ctx context.Context) 
 		// per-verb scope still gates every verb; workspace_id == tenant_id is preserved.
 		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"rag:read", "rag:write", "rag:delete"})
 	}
+}
+
+// serviceVersionTargets is the data-plane fleet the M21 status panel probes.
+//
+// theo-storage carries an empty base URL on purpose: it resolves to not_deployed
+// by the generic rule. Omitting it would hide that it exists and did not come up —
+// the absence IS the news the panel exists to report.
+func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
+	return []serviceversions.Target{
+		{Name: "theo-memory", BaseURL: cfg.ThemoryBaseURL},
+		{Name: "theo-rag", BaseURL: cfg.RagBaseURL},
+		{Name: "theo-lens", BaseURL: cfg.LensBaseURL},
+		{Name: "theo-storage", BaseURL: ""},
+	}
+}
+
+// mountServiceVersions assembles and registers the M21 status aggregate.
+//
+// It is a named function rather than inline wiring so the composition can be
+// exercised (cmd/service_versions_wiring_test.go): the route set, the JWT gate and
+// the probed fleet were all unasserted while this lived inside main().
+//
+// D5 — a dedicated client, never safehttp: safehttp.IsDisallowedIP rejects
+// loopback, RFC1918 and the 100.64.0.0/10 CGNAT range, which is exactly where
+// these targets live, so every probe would fail and the UI would read the security
+// guard as "the service is down". otelhttp keeps the most diagnostic call in the
+// system visible in theo-lens.
+func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, requireJWT func(http.Handler) http.Handler) {
+	versionHTTP := &http.Client{
+		Timeout:   10 * time.Second, // last-resort ceiling, never the policy (D1)
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+	}
+	collector := serviceversions.NewCollector(serviceversions.Options{
+		Client:     versionHTTP,
+		Targets:    serviceVersionTargets(cfg),
+		PerService: 2 * time.Second,
+		Global:     3 * time.Second,
+		OnResult:   cloudmetrics.IncServiceVersionProbe,
+		Logger:     logger,
+	})
+	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(collector, logger), requireJWT)
 }
 
 // mountRagDashboard registers the /v1/dashboard/rag BFF route group. M17 shipped it
@@ -1118,6 +1160,9 @@ func main() {
 	if db != nil {
 		routes.MountLensDashboards(r, routes.NewLensDashboardsHandler(db, logger), requireJWT)
 	}
+	// M21: the sidebar's status dot stops being a JSX literal and starts deriving
+	// from a real probe of each data-plane service's /v1/version.
+	mountServiceVersions(r, cfg, logger, requireJWT)
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
 	// below alongside the metering scheduler, sharing the schedulerCtx for

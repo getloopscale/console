@@ -1,11 +1,29 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
 // Auto-cleanup DOM after each test to prevent state bleeding.
 // Vitest 4.x with @testing-library/react v16+ does NOT auto-cleanup by default.
 afterEach(() => {
   cleanup();
+});
+
+// M21 T2.1 (risk R3) — deterministic fetch stub so NO test touches the real network.
+// The sidebar becomes asynchronous in T3.1, and every suite that renders it (plus
+// dashboard-layout and the e2e journeys) would otherwise issue a real request in jsdom.
+// The symptom would not be a red test — it is an unhandled rejection plus act() noise,
+// which does not block a merge. 503 (rather than a rejection) keeps existing suites on
+// the path they already had when the network did not answer: `cloudFetch` resolves null.
+//
+// The stub is INSTALLED ONLY when fetch is not already a mock. Several suites
+// (login, register, verification) call `vi.stubGlobal('fetch', …)` at module scope,
+// which runs once at import; replacing it here on every test would detach their mock
+// from globalThis and break them. For the same reason `vi.unstubAllGlobals()` is NOT
+// called: it would restore the real fetch after their first test.
+beforeEach(() => {
+  if (!vi.isMockFunction(globalThis.fetch)) {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 503 })));
+  }
 });
 
 // Polyfill window.matchMedia for jsdom (used by Radix media queries internally).
