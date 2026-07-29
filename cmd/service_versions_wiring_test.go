@@ -113,6 +113,7 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 		ThemoryBaseURL: "http://theo-memory:8080",
 		RagBaseURL:     "http://theo-rag:8787",
 		LensBaseURL:    "http://theo-lens:18082",
+		StorageBaseURL: "http://host.docker.internal:18086",
 	})
 
 	got := map[string]string{}
@@ -127,9 +128,42 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 	if len(targets) != 4 {
 		t.Fatalf("got %d targets, want 4", len(targets))
 	}
-	// theo-storage carries an empty base URL on purpose: it resolves to
-	// not_deployed by the generic rule instead of being omitted.
-	if got["theo-storage"] != "" {
-		t.Fatalf("theo-storage BaseURL = %q, want empty (not_deployed by the generic rule)", got["theo-storage"])
+	// Every target's URL must FLOW FROM CONFIG. This assertion replaced one that
+	// pinned theo-storage to the empty string: that was true while the service had no
+	// deployment, and it silently became a lie the day it got one — the panel reported
+	// `not deployed` over a healthy service, which is the same class of falsehood the
+	// panel exists to prevent, only in the opposite direction.
+	//
+	// The PORT is asserted, not just the presence of a value. The doc records why
+	// (theo-workspace/docs/service-version-endpoint.md, "a segunda armadilha"): the
+	// panel once showed an empty `Built` for theo-rag because the manifest pointed at a
+	// stray process on another port. Nothing went red — a stray process answers 200
+	// just the same — and the gate of the day only checked that the variable was set,
+	// not with what.
+	for name, want := range map[string]string{
+		"theo-memory":  "http://theo-memory:8080",
+		"theo-rag":     "http://theo-rag:8787",
+		"theo-lens":    "http://theo-lens:18082",
+		"theo-storage": "http://host.docker.internal:18086",
+	} {
+		if got[name] != want {
+			t.Fatalf("%s BaseURL = %q, want %q (the URL must come from config, port included)", name, got[name], want)
+		}
+	}
+}
+
+// An unconfigured service must still be LISTED, as not_deployed. Omitting it would
+// hide that it exists and did not come up, and the operator counts the rows and
+// concludes the fleet is complete.
+func TestServiceVersionTargets_UnconfiguredServiceIsListedNotDropped(t *testing.T) {
+	targets := serviceVersionTargets(config.Config{}) // nada configurado
+
+	if len(targets) != 4 {
+		t.Fatalf("got %d targets with an empty config, want all 4 still listed", len(targets))
+	}
+	for _, tg := range targets {
+		if tg.BaseURL != "" {
+			t.Errorf("%s has BaseURL %q from an empty config — it must come from config, never a literal", tg.Name, tg.BaseURL)
+		}
 	}
 }
