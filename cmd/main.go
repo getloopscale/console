@@ -43,6 +43,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheodev/theo-cloud/internal/serviceversions"
 	"github.com/usetheodev/theo-cloud/internal/storage"
 	"github.com/usetheodev/theo-cloud/internal/storageproxy"
 	"github.com/usetheodev/theo-cloud/internal/thelens"
@@ -1118,6 +1119,35 @@ func main() {
 	if db != nil {
 		routes.MountLensDashboards(r, routes.NewLensDashboardsHandler(db, logger), requireJWT)
 	}
+	// M21: the sidebar's status dot stops being a JSX literal and starts deriving
+	// from a real probe of each data-plane service's /v1/version.
+	//
+	// D5 — a dedicated client, never safehttp: safehttp.IsDisallowedIP rejects
+	// loopback, RFC1918 and the 100.64.0.0/10 CGNAT range, which is exactly where
+	// these targets live, so every probe would fail and the UI would read the
+	// security guard as "the service is down". otelhttp keeps the most diagnostic
+	// call in the system visible in theo-lens.
+	versionHTTP := &http.Client{
+		Timeout:   10 * time.Second, // last-resort ceiling, never the policy (D1)
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+	}
+	// theo-storage carries an empty base URL on purpose: it resolves to
+	// not_deployed by the generic rule. Omitting it would hide that it exists and
+	// did not come up.
+	versionCollector := serviceversions.NewCollector(serviceversions.Options{
+		Client: versionHTTP,
+		Targets: []serviceversions.Target{
+			{Name: "theo-memory", BaseURL: cfg.ThemoryBaseURL},
+			{Name: "theo-rag", BaseURL: cfg.RagBaseURL},
+			{Name: "theo-lens", BaseURL: cfg.LensBaseURL},
+			{Name: "theo-storage", BaseURL: ""},
+		},
+		PerService: 2 * time.Second,
+		Global:     3 * time.Second,
+		OnResult:   cloudmetrics.IncServiceVersionProbe,
+		Logger:     logger,
+	})
+	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(versionCollector, logger), requireJWT)
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
 	// below alongside the metering scheduler, sharing the schedulerCtx for
