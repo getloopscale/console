@@ -16,6 +16,8 @@ vi.mock('@/lib/api', () => ({
   engineFetch: (...args: unknown[]) => mockCloudFetch(...args),
 }));
 
+import { SERVICE_VERSIONS_PATH } from '@/hooks/use-service-versions';
+
 import { SystemStatusIndicator } from './system-status-indicator';
 
 const at = '2026-07-28T10:00:00Z';
@@ -129,8 +131,11 @@ describe('SystemStatusIndicator', () => {
     render(<SystemStatusIndicator />);
     await screen.findByText(/operational/i);
 
+    // The path is asserted, not merely accepted: the constant is what
+    // use-service-versions.test.ts binds to the Go route, so pinning the CALL to it
+    // closes the remaining hole — a hook that goes back to a hardcoded literal.
     expect(mockCloudFetch).toHaveBeenCalledWith(
-      expect.any(String),
+      SERVICE_VERSIONS_PATH,
       expect.anything(),
       expect.objectContaining({ throwOnError: true }),
     );

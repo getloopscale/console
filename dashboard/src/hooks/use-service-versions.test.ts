@@ -5,8 +5,11 @@
 // The aggregate is an ALLOWLIST (ADR D9): green requires proof, and the absence of
 // proof is 'unknown' — never 'operational'.
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, it, expect } from 'vitest';
-import { aggregateState, describeStatus, type ServiceStatus } from './use-service-versions';
+import { aggregateState, describeStatus, SERVICE_VERSIONS_PATH, type ServiceStatus } from './use-service-versions';
 
 const at = '2026-07-28T10:00:00Z';
 const ok = (name: string, version: string): ServiceStatus => ({ name, state: 'ok', checked_at: at, version });
@@ -81,5 +84,29 @@ describe('the ServiceStatus union', () => {
     // with "Unused '@ts-expect-error' directive".
     const leaked = s.version;
     expect(leaked).toBeUndefined();
+  });
+});
+
+// F-test-1 — the whole milestone is ONE HTTP contract, and until now each side was
+// tested against its own copy of the string: the Go suite asserts the chi route,
+// this suite mocks the transport wholesale and resolves for ANY url. Changing the
+// client path to "/v1/dashboard/status/version" left all 65 tests green and 404'd
+// on first load. This test is the only thing that reads both sides at once.
+//
+// It reads the Go source rather than mirroring the path in a second literal — a
+// mirror is a third copy that drifts with the other two. Repo precedent for
+// crossing a layer boundary in a test: status.test.tsx reads src/app.tsx.
+describe('the client/server path contract', () => {
+  it('requests exactly the route the gateway mounts', () => {
+    const goSource = readFileSync(resolve(process.cwd(), '../internal/routes/service_versions.go'), 'utf8');
+
+    // MountServiceVersions: r.Route("<group>", …) with an r.Get("<leaf>", …) inside.
+    const group = goSource.match(/r\.Route\("([^"]+)"/);
+    const leaf = goSource.match(/r\.Get\("([^"]+)"/);
+    expect(group, 'MountServiceVersions no longer declares an r.Route group').not.toBeNull();
+    expect(leaf, 'MountServiceVersions no longer declares an r.Get leaf').not.toBeNull();
+
+    const mounted = `${group![1]}${leaf![1]}`;
+    expect(SERVICE_VERSIONS_PATH).toBe(mounted);
   });
 });

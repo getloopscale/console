@@ -18,6 +18,16 @@ export type ServiceStatus =
   | { readonly name: string; readonly state: 'timeout'; readonly checked_at: string; readonly reason?: string }
   | { readonly name: string; readonly state: 'not_deployed'; readonly checked_at: string };
 
+/**
+ * The one path the gateway mounts (`internal/routes/service_versions.go`).
+ *
+ * It is a named export so a test can hold BOTH sides of the contract at once: the
+ * Go suite asserts the chi route and this suite mocks the transport wholesale, so
+ * until `use-service-versions.test.ts` read the Go source, a typo on either side
+ * kept every test green and 404'd on the first load (F-test-1).
+ */
+export const SERVICE_VERSIONS_PATH = '/v1/dashboard/status/versions';
+
 export interface ServiceVersionsReport {
   readonly collected_at: string;
   readonly services: readonly ServiceStatus[];
@@ -91,6 +101,6 @@ export function describeStatus(services: readonly ServiceStatus[]): string {
 export function useServiceVersions(): UseQueryResult<ServiceVersionsReport | null> {
   return useQuery({
     queryKey: ['dashboard', 'status', 'versions'],
-    queryFn: () => cloudFetch<ServiceVersionsReport>('/v1/dashboard/status/versions', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<ServiceVersionsReport>(SERVICE_VERSIONS_PATH, {}, { throwOnError: true }),
   });
 }
