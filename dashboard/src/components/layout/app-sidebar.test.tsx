@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@/test/render';
+import { render, screen, within } from '@/test/render';
 import { AppSidebar } from './app-sidebar';
 import type { Session } from '@/lib/auth';
 
@@ -91,5 +91,14 @@ describe('AppSidebar', () => {
 
     const absolute = (f.mock?.calls ?? []).filter((c) => String(c[0]).startsWith('http'));
     expect(absolute, `sidebar issued real network calls: ${JSON.stringify(absolute)}`).toHaveLength(0);
+  });
+
+  // M21 T3.1 — the guard that did not exist: nothing stopped the footer from
+  // declaring "all systems operational" with three services down.
+  it('footer status is no longer the hardcoded literal', () => {
+    render(<AppSidebar session={makeSession()} />);
+    const indicator = screen.getByTestId('system-status-indicator');
+    const region = within(indicator).getByRole('status');
+    expect(region.getAttribute('aria-label')).not.toBe('System status: all systems operational');
   });
 });

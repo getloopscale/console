@@ -38,6 +38,7 @@ import {
   Users,
   Webhook, FolderTree, Network } from 'lucide-react';
 import { Input, Sidebar } from '@usetheo/ui';
+import { SystemStatusIndicator } from './system-status-indicator';
 import type { Session } from '@/lib/auth';
 import { TeamSwitcher } from '@/components/team/team-switcher';
 import { useOnboardingState } from '@/hooks/use-onboarding-state';
@@ -563,17 +564,9 @@ export function AppSidebar({ session }: AppSidebarProps) {
                   <span>Replay onboarding</span>
                 </button>
               )}
-              <div
-                className="flex items-center gap-2 text-label text-muted-foreground whitespace-nowrap"
-                role="status"
-                aria-label="System status: all systems operational"
-              >
-                <span className="relative flex size-2 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
-                  <span className="relative inline-flex size-2 rounded-full bg-success" />
-                </span>
-                <span>Operational</span>
-              </div>
+              {/* M21 — was a literal `● Operational` with a fixed aria-label and no
+                  data behind it. Now derived from the real aggregate, and clickable. */}
+              <SystemStatusIndicator />
             </div>
           </Sidebar.Footer>
         </div>
