@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -64,6 +63,13 @@ func NewCollector(opts Options) *Collector {
 	return c
 }
 
+// slotResult carries one probe outcome back to the join, tagged with the slot it
+// belongs to so the caller — and only the caller — writes into the report slice.
+type slotResult struct {
+	index  int
+	status ServiceStatus
+}
+
 // Report is one collection: when it was taken, and every service's outcome.
 type Report struct {
 	CollectedAt time.Time
@@ -111,25 +117,58 @@ func (c *Collector) Collect(ctx context.Context) Report {
 		out[i] = Timeout(t.Name, collectedAt)
 	}
 
-	var wg sync.WaitGroup
+	// Results travel on a channel instead of being written into `out` directly, so
+	// the join below can abandon a straggler without racing it: once the budget
+	// expires the caller returns while the goroutine may still be running, and a
+	// goroutine writing into a slice its caller already returned is a data race.
+	// The buffer is exactly len(targets), so no sender ever blocks and no goroutine
+	// leaks even when nobody is left reading.
+	results := make(chan slotResult, len(c.targets))
 	for i, t := range c.targets {
-		wg.Add(1)
 		go func(i int, t Target) {
-			defer wg.Done() // declared FIRST => runs LAST (LIFO)
-			// EC-3: declared AFTER wg.Done() so it runs BEFORE it — the slot is
-			// already written when Wait releases. A panic in a goroutine is not
-			// contained by the handler's recovery: without this, one defective
-			// probe takes down the whole gateway process.
+			// A panic in a goroutine is not contained by the handler's recovery:
+			// without this, one defective probe takes down the whole gateway
+			// process (EC-3). The recovery still reports its slot, so a panicking
+			// probe degrades itself rather than starving the join.
 			defer func() {
 				if r := recover(); r != nil {
-					out[i] = Unreachable(t.Name, reasonProbePanic, c.now())
 					c.logger.Error("service version probe panicked", "service", t.Name, "panic", r)
+					results <- slotResult{index: i, status: Unreachable(t.Name, reasonProbePanic, c.now())}
 				}
 			}()
-			out[i] = probe(gctx, c.client, t, c.perService, c.now)
+			results <- slotResult{index: i, status: probe(gctx, c.client, t, c.perService, c.now)}
 		}(i, t)
 	}
-	wg.Wait()
+
+	// The join honours BOTH halves of this function's contract: it returns once
+	// every target settled OR the budget ran out. A bare wait would make `global`
+	// inert — every in-repo probe derives its deadline from gctx, but a transport
+	// that ignores cancellation (F-wire-2) would hold the join far past the budget,
+	// leaving the client's last-resort Timeout as the real ceiling.
+	budgetExpired := false
+join:
+	for settled := 0; settled < len(c.targets); settled++ {
+		select {
+		case r := <-results:
+			out[r.index] = r.status
+		case <-gctx.Done():
+			budgetExpired = true
+			break join
+		}
+	}
+	if budgetExpired {
+		// Drain what settled before the deadline but had not been read yet:
+		// reporting a probe that DID answer as `timeout` would be its own small lie.
+		for draining := true; draining; {
+			select {
+			case r := <-results:
+				out[r.index] = r.status
+			default:
+				draining = false
+			}
+		}
+		c.logger.Warn("service version collection hit its budget", "budget", c.global, "targets", len(c.targets))
+	}
 
 	// Observed after the join, on the caller's goroutine: the counter is never
 	// touched concurrently by this package's own fan-out.

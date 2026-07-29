@@ -3,8 +3,10 @@ package serviceversions
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -320,5 +322,121 @@ func TestCollect_parent_cancel_returns_early(t *testing.T) {
 		if s.State() != StateTimeout {
 			t.Fatalf("%s = %q, want timeout — caller cancellation must not be reported as unreachable (D10)", s.Name(), s.State())
 		}
+	}
+}
+
+// stubbornTransport answers after d REGARDLESS of the request context. It is the
+// class of transport the global budget exists for: every in-repo probe path derives
+// its deadline from gctx, so with a well-behaved transport the per-service deadline
+// always fires first and `Global` never governs anything. A RoundTripper that
+// ignores cancellation (a buggy middleware, a CGO client, a blocking DNS resolver)
+// is what turns the bare `wg.Wait()` into an unbounded join.
+type stubbornTransport struct{ d time.Duration }
+
+func (t stubbornTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	time.Sleep(t.d)
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`{"version":"9.9.9","built_at":"2026-07-01T00:00:00Z"}`)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+	}, nil
+}
+
+// TestCollect_global_budget_releases_the_join is the review's F-wire-2: Collect's
+// own doc says it "returns once all of them have settled OR THE BUDGET RAN OUT",
+// and only the first half was implemented. With a transport that does not honour
+// the context, the bare join waits for the slowest goroutine — here 2s — so the
+// 300ms global budget is inert and the BFF's real ceiling is the client Timeout.
+func TestCollect_global_budget_releases_the_join(t *testing.T) {
+	c := NewCollector(Options{
+		Client: &http.Client{Transport: stubbornTransport{d: 2 * time.Second}},
+		Targets: []Target{
+			{Name: "theo-rag", BaseURL: "http://stubborn.invalid"},
+			{Name: "theo-lens", BaseURL: "http://stubborn.invalid"},
+			{Name: "theo-memory", BaseURL: "http://stubborn.invalid"},
+		},
+		PerService: 5 * time.Second,
+		Global:     300 * time.Millisecond,
+	})
+
+	start := time.Now()
+	rep := c.Collect(context.Background())
+	elapsed := time.Since(start)
+
+	if elapsed > time.Second {
+		t.Fatalf("Collect took %v with a 300ms global budget — the join is unbounded, so Global is inert", elapsed)
+	}
+	if len(rep.Services) != 3 {
+		t.Fatalf("got %d services, want 3 — an expired budget must still answer for every target", len(rep.Services))
+	}
+	for _, s := range rep.Services {
+		if s.State() != StateTimeout {
+			t.Fatalf("%s = %q, want timeout — a target that never settled inside the budget is a timeout", s.Name(), s.State())
+		}
+	}
+	// The slot must not carry a version it never read.
+	for _, s := range servicesFromJSON(t, rep) {
+		if _, present := s["version"]; present {
+			t.Fatalf("unsettled slot leaked a version key: %v", s)
+		}
+	}
+}
+
+// TestCollect_all_targets_hung_returns_within_the_global_budget is the worst case
+// the plan declared and never wrote (§ Failure scenarios, "Os três alvos,
+// simultaneamente"): every target hangs and the global budget is SMALLER than the
+// per-service one, so the budget — not the per-service deadline — is what returns.
+func TestCollect_all_targets_hung_returns_within_the_global_budget(t *testing.T) {
+	hung := hungServer(t)
+	c := NewCollector(Options{
+		Client: &http.Client{},
+		Targets: []Target{
+			{Name: "theo-rag", BaseURL: hung.URL},
+			{Name: "theo-lens", BaseURL: hung.URL},
+			{Name: "theo-memory", BaseURL: hung.URL},
+			{Name: "theo-storage", BaseURL: hung.URL},
+		},
+		PerService: 3 * time.Second,
+		Global:     400 * time.Millisecond,
+	})
+
+	start := time.Now()
+	rep := c.Collect(context.Background())
+	elapsed := time.Since(start)
+
+	if elapsed > 1500*time.Millisecond {
+		t.Fatalf("Collect took %v with a 400ms global budget and a 3s per-service one — the global budget did not bind", elapsed)
+	}
+	for _, s := range rep.Services {
+		if s.State() != StateTimeout {
+			t.Fatalf("%s = %q, want timeout", s.Name(), s.State())
+		}
+	}
+}
+
+// TestCollect_settled_results_survive_an_expired_budget: a probe that DID answer
+// before the deadline must be reported as answered. Returning its pre-filled
+// `timeout` placeholder would be a small lie of exactly the kind M21 exists to
+// remove — the panel would report a healthy service as unreachable.
+func TestCollect_settled_results_survive_an_expired_budget(t *testing.T) {
+	fast := versionServer(t, `{"version":"0.35.0","built_at":"2026-07-01T00:00:00Z"}`)
+	c := NewCollector(Options{
+		Client: &http.Client{Transport: nil}, // default transport for the fast target
+		Targets: []Target{
+			{Name: "theo-rag", BaseURL: fast.URL},
+			{Name: "theo-storage", BaseURL: ""}, // resolves instantly to not_deployed
+		},
+		PerService: 5 * time.Second,
+		Global:     400 * time.Millisecond,
+	})
+
+	rep := c.Collect(context.Background())
+
+	got := statesByName(rep)
+	if got["theo-rag"] != StateOK {
+		t.Fatalf("theo-rag = %q, want ok — a probe that settled before the budget expired must keep its result", got["theo-rag"])
+	}
+	if got["theo-storage"] != StateNotDeployed {
+		t.Fatalf("theo-storage = %q, want not_deployed", got["theo-storage"])
 	}
 }
