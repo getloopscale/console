@@ -56,6 +56,15 @@ var (
 	// and says nothing is the operational twin of theo-cloud#247: #247 claimed something was wrong
 	// when nothing was; a silent skip claims nothing is wrong when everything is. No tenant label —
 	// cardinality discipline, matching storageBytesWritten above.
+	// M21: one observation per /v1/version probe of a data-plane service. Both
+	// labels come from closed sets — `service` from the fixed target list built at
+	// the composition root, `result` from the four ServiceStatus states — so the
+	// series ceiling is targets x states and no user input reaches a label.
+	serviceVersionProbe = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "theo_cloud_service_version_probe_total",
+		Help: "One observation per /v1/version probe. result is one of ok / unreachable / timeout / not_deployed.",
+	}, []string{"service", "result"})
+
 	lensAlertEvaluation = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "theo_lens_alert_evaluation_total",
 		Help: "Alert-rule evaluations by result (ok|no_data|fetch_error|bulkhead_skipped|guard_missing|write_lost|unwired).",
@@ -142,6 +151,7 @@ func init() {
 		storageBytesWritten,
 		storageObjectsDeleted,
 		lensAlertEvaluation,
+		serviceVersionProbe,
 		tenantProvisioning,
 		tenantProvisioningDuration,
 		authRejections,
@@ -201,6 +211,29 @@ func ObjectsDeletedValue() float64 {
 // rules the customer believes are armed are not being evaluated at all.
 func IncLensAlertEvaluation(result string) {
 	lensAlertEvaluation.WithLabelValues(result).Inc()
+}
+
+// IncServiceVersionProbe records one /v1/version probe outcome. `result` is one of
+// ok / unreachable / timeout / not_deployed. Sustained unreachable or timeout on a
+// service the operator believes is up is the actionable signal: it is exactly the
+// state the sidebar used to render as a hardcoded green "Operational".
+func IncServiceVersionProbe(service, result string) {
+	serviceVersionProbe.WithLabelValues(service, result).Inc()
+}
+
+// ServiceVersionProbeValue returns the current value of one labelled series
+// (test-only helper, in the shape of ObjectsDeletedValue above). It is what lets a
+// test prove the probe counter is non-zero rather than merely compiling.
+func ServiceVersionProbeValue(service, result string) float64 {
+	var m dto.Metric
+	c, err := serviceVersionProbe.GetMetricWithLabelValues(service, result)
+	if err != nil {
+		return 0
+	}
+	if err := c.Write(&m); err != nil {
+		return 0
+	}
+	return m.GetCounter().GetValue()
 }
 
 // IncTokenExchange increments token exchange counter.
