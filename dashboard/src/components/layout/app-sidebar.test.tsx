@@ -79,4 +79,17 @@ describe('AppSidebar', () => {
     // (the workspace switcher lives in the root sidebar view — untouched by this data-only regrouping;
     //  it is covered by test_app_sidebar_team_switcher_renders_session_name.)
   });
+
+  // M21 T2.1 (R3) — the sidebar is about to become asynchronous. Without a global
+  // fetch stub, jsdom issues a REAL request: the symptom is not a red test, it is an
+  // unhandled rejection plus act() noise, which does not block a merge.
+  it('renders without touching the network', () => {
+    render(<AppSidebar session={makeSession()} />);
+
+    const f = globalThis.fetch as unknown as { mock?: { calls: unknown[][] } };
+    expect(f.mock, 'global fetch is not stubbed — jsdom will hit the real network').toBeDefined();
+
+    const absolute = (f.mock?.calls ?? []).filter((c) => String(c[0]).startsWith('http'));
+    expect(absolute, `sidebar issued real network calls: ${JSON.stringify(absolute)}`).toHaveLength(0);
+  });
 });
