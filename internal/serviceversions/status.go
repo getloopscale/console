@@ -96,6 +96,11 @@ func NotDeployed(name string, at time.Time) ServiceStatus {
 // layer needs to label a probe outcome.
 func (s ServiceStatus) State() State { return s.state }
 
+// Name returns the service this outcome describes. Together with State it is the
+// whole surface the metrics label needs; nothing exposes version outside the
+// marshaller, so no caller can read a version off a failure variant.
+func (s ServiceStatus) Name() string { return s.name }
+
 // statusEnvelope is the wire shape. version and built_at are only ever populated
 // for the ok variant, which is what makes the union strict on the wire too.
 type statusEnvelope struct {
