@@ -418,13 +418,31 @@ func TestCollect_all_targets_hung_returns_within_the_global_budget(t *testing.T)
 // before the deadline must be reported as answered. Returning its pre-filled
 // `timeout` placeholder would be a small lie of exactly the kind M21 exists to
 // remove — the panel would report a healthy service as unreachable.
+//
+// The two `stubbornTransport` targets are load-bearing, not decoration: without
+// them every target settles in ~1ms, the join ends via `settled == len(targets)`
+// and the budget NEVER expires — the test would assert its own name away and pass
+// just as well against the old unbounded `wg.Wait()`. With them the loop really
+// does break on `gctx.Done()`, so the surviving results are read under the
+// post-expiry path this test claims to cover.
+//
+// Honest limit: this covers the budget-expiry path, NOT the non-blocking drain at
+// collector.go:162. The drain only holds a value when `select` finds `results` and
+// `gctx.Done()` ready in the same instant and picks Done — Go chooses uniformly at
+// random there, so that branch cannot be forced deterministically, and a test that
+// tried would be flaky (testing.md § 3). It is a best-effort recovery on top of
+// the pre-filled Timeout placeholders, never the only thing keeping a slot honest.
 func TestCollect_settled_results_survive_an_expired_budget(t *testing.T) {
 	fast := versionServer(t, `{"version":"0.35.0","built_at":"2026-07-01T00:00:00Z"}`)
+	hung := hungServer(t)
 	c := NewCollector(Options{
 		Client: &http.Client{Transport: nil}, // default transport for the fast target
 		Targets: []Target{
 			{Name: "theo-rag", BaseURL: fast.URL},
 			{Name: "theo-storage", BaseURL: ""}, // resolves instantly to not_deployed
+			// Hang past the budget so the join is forced to break on the deadline.
+			{Name: "theo-memory", BaseURL: hung.URL},
+			{Name: "theo-lens", BaseURL: hung.URL},
 		},
 		PerService: 5 * time.Second,
 		Global:     400 * time.Millisecond,
