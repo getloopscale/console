@@ -533,7 +533,7 @@ Direct customer demand — sponsor verbatim 2026-07-14: "Uma feature que os clie
 
 ---
 
-### M21 — [ ] Painel discreto de versões dos serviços
+### M21 — [x] Painel discreto de versões dos serviços
 
 **Objetivo:** dar verdade ao indicador de status do sidebar e expor, num painel discreto,
 qual versão de cada serviço Theo está de fato implantada.
