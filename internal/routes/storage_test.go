@@ -517,3 +517,42 @@ func TestPresignEndpoints_M2M3(t *testing.T) {
 		}
 	})
 }
+
+// TestStorageHandler_Upload_EncodedPathReachesServiceRaw — theo-cloud#195.
+//
+// Mede, em vez de deduzir, QUAL forma do nome chega ao serviço. Isso importa porque a correção do #195
+// vive em `storage.ValidatePath`, e ela só fecha o buraco se a string que ela recebe for a que o caller
+// escreveu. O achado LIVE (503 em vez de 400 para `..%2f..%2fetc%2fpasswd`) só é explicável se o
+// wildcard chegar ainda PERCENT-ENCODED — um único segmento, que não é "..", e portanto passava.
+//
+// Se um dia o roteador passar a decodificar antes do handler, este teste muda de valor esperado e
+// avisa; a validação continua correta nos dois mundos, porque julga a forma literal E as decodificadas.
+func TestStorageHandler_Upload_EncodedPathReachesServiceRaw(t *testing.T) {
+	stub := &stubStorageService{}
+	h := NewStorageHandler(stub)
+	mux := chi.NewRouter()
+	h.MountDashboardRoutes(mux)
+
+	const encoded = "..%2f..%2fetc%2fpasswd"
+	r := withTenant(httptest.NewRequest(http.MethodPut, "/objects/"+encoded, strings.NewReader("x")), "tn")
+	r.ContentLength = 1
+	mux.ServeHTTP(httptest.NewRecorder(), r)
+
+	if stub.gotPath == "" {
+		t.Fatal("o serviço não foi chamado — a rota mudou e este teste perdeu o objeto de medida")
+	}
+	// A asserção que interessa não é a igualdade exata: é que o path NÃO chega decodificado em
+	// separadores reais, porque é isso que torna o percent-encoding invisível para uma validação que
+	// só olha segmentos.
+	if strings.Contains(stub.gotPath, "/") {
+		t.Fatalf("path chegou com separador real (%q) — o roteador decodificou; revisar a premissa do #195", stub.gotPath)
+	}
+	// E a ponta final: essa mesma string é rejeitada pela validação (400 invalid_path), que é o que o
+	// #195 pedia em lugar do 503.
+	if err := storage.ValidatePath(stub.gotPath); !errors.Is(err, storage.ErrInvalidPath) {
+		t.Fatalf("ValidatePath(%q) = %v, quero ErrInvalidPath", stub.gotPath, err)
+	}
+	if got := statusForStorageErr(storage.ErrInvalidPath); got != http.StatusBadRequest {
+		t.Fatalf("mapeamento HTTP = %d, quero 400", got)
+	}
+}
