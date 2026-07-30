@@ -177,6 +177,18 @@ type Config struct {
 	// Env: STORAGE_BASE_URL
 	StorageBaseURL string
 
+	// SkillsBaseURL is the theo-skills REST URL, probed by the M21 status panel.
+	//
+	// Mesmo contrato do theo-storage acima: NÃO cunha credencial. O painel consome apenas
+	// `GET /v1/version`, auth-exempt por contrato — um endpoint de versão atrás de
+	// credencial faz "o serviço caiu" e "minha chave está errada" produzirem a mesma
+	// resposta, e o agregador não consegue separar os dois.
+	//
+	// Vazia = serviço não configurado NESTE ambiente; o coletor o lista como
+	// `not_deployed`, que é informação, não erro.
+	// Env: SKILLS_BASE_URL
+	SkillsBaseURL string
+
 	// LensPlatformAdminKey is the CONTROL-PLANE credential (carrying
 	// observability:platform-admin) the gateway uses ONLY to mint per-tenant theo-lens keys
 	// via POST /v1/admin/keys. NEVER on the data path (Model B). Required when
@@ -284,6 +296,7 @@ func Load() Config {
 	cfg.RagPlatformAdminKey = Secret(envOr("RAG_PLATFORM_ADMIN_KEY", ""))
 	cfg.LensBaseURL = envOr("LENS_BASE_URL", "")
 	cfg.StorageBaseURL = envOr("STORAGE_BASE_URL", "")
+	cfg.SkillsBaseURL = envOr("SKILLS_BASE_URL", "")
 	cfg.LensPlatformAdminKey = Secret(envOr("LENS_PLATFORM_ADMIN_KEY", ""))
 	cfg.StorageS3Endpoint = envOr("STORAGE_S3_ENDPOINT", "")
 	cfg.StorageS3PublicEndpoint = envOr("STORAGE_S3_PUBLIC_ENDPOINT", "")

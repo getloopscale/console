@@ -172,6 +172,7 @@ func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 		{Name: "theo-rag", BaseURL: cfg.RagBaseURL},
 		{Name: "theo-lens", BaseURL: cfg.LensBaseURL},
 		{Name: "theo-storage", BaseURL: cfg.StorageBaseURL},
+		{Name: "theo-skills", BaseURL: cfg.SkillsBaseURL},
 	}
 }
 
