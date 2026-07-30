@@ -28,9 +28,48 @@ describe('traceSummary (M72 — the trace-level headline)', () => {
 
   it('an empty trace is honest zeros, not fabricated values', () => {
     const s = traceSummary({ spanId: 'r', traceId: 't', name: 'r', children: [] });
-    expect(s.totalTokens).toBe(0);
+    // theo-cloud#186 SUPERSEDES the former `toBe(0)` assertion on this line. A trace whose spans never
+    // recorded a token count is UNKNOWN, not zero — and the per-span rows below the header already
+    // render `—` for exactly this span (M89). The header claiming "0" while the rows say "—" is the
+    // two surfaces disagreeing about the same trace, which is the whole finding.
+    expect(s.totalTokens).toBeNaN();
     expect(s.errorCount).toBe(0);
     expect(s.models).toEqual([]);
+  });
+
+  /**
+   * theo-cloud#186 — the trace-level roll-up showed "0" for an all-unmeasured trace while the per-span
+   * rows showed "—". M89 fixed the per-span half and deliberately scoped the aggregate out (ADR-3),
+   * because an aggregate 0 is genuinely ambiguous: a trace with no token-bearing spans has a REAL 0,
+   * while a trace whose spans exist but never recorded tokens is UNKNOWN. Distinguishing them needs to
+   * know whether ANY descendant is token-bearing — which is what these tests pin.
+   */
+  describe('#186 — an all-unmeasured trace is unknown, not zero', () => {
+    const span = (id: string, extra: Record<string, unknown> = {}) => ({ spanId: id, traceId: 't', name: id, ...extra });
+
+    it('is NaN (rendered "—") when NO span recorded a token count', () => {
+      const s = traceSummary({ ...span('r'), children: [span('a'), span('b')] });
+      expect(s.totalTokens).toBeNaN();
+    });
+
+    it('is the real sum when at least one span recorded — including a genuine zero', () => {
+      // The ambiguity M89 named: this trace DID measure, and it measured 0. That 0 is a fact and must
+      // survive as a number. Reporting "—" here would be the mirror-image lie.
+      const s = traceSummary({ ...span('r'), children: [span('a', { inputTokens: 0, outputTokens: 0 }), span('b')] });
+      expect(s.totalTokens).toBe(0);
+    });
+
+    it('counts a HALF-recorded span as measured (same rule as the per-span column)', () => {
+      // M89's per-span rule: only "both counts absent" is unknown; one half recorded is a real value.
+      // The aggregate must use the identical predicate or the two surfaces disagree again.
+      const s = traceSummary({ ...span('r'), children: [span('a', { inputTokens: 7 })] });
+      expect(s.totalTokens).toBe(7);
+    });
+
+    it('does not let one unmeasured sibling erase a measured one', () => {
+      const s = traceSummary({ ...span('r'), children: [span('a', { inputTokens: 5, outputTokens: 5 }), span('b')] });
+      expect(s.totalTokens).toBe(10);
+    });
   });
 
   it('prefers the stored trace cost on the root over re-summing per-span costs (M53 / #73)', () => {

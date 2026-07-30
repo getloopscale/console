@@ -10,6 +10,7 @@
  *                      error from any error span) for the delta table.
  */
 import { durationMs, type TraceSpanNode } from './trace-detail';
+import { hasRecordedTokens } from '../../lib/trace-layout';
 import { isSpanError } from '../../lib/span-status';
 
 /** Per-trace cost summary DTO — theo-lens `GET /v1/traces/:id/cost` (M5). */
@@ -151,15 +152,23 @@ export interface TraceMetrics {
  */
 export const isErrorStatus = isSpanError;
 
-/** A single span's own token count (input + output) — for the per-span tokens delta. */
-export function spanTokens(node: TraceSpanNode): number {
-  return (node.inputTokens ?? 0) + (node.outputTokens ?? 0);
-}
-
+/**
+ * #186 — the tree token sum, or NaN when NOT ONE span in the tree recorded a count.
+ *
+ * A measured 0 survives as 0; only total absence of measurement is unknown. Uses the same
+ * `hasRecordedTokens` predicate as the header and the playground column, so the three surfaces cannot
+ * drift apart again — deriving it independently is what produced #186.
+ */
 function sumTreeTokens(node: TraceSpanNode): number {
-  let total = (node.inputTokens ?? 0) + (node.outputTokens ?? 0);
-  for (const c of node.children ?? []) total += sumTreeTokens(c);
-  return total;
+  let total = 0;
+  let anyMeasured = false;
+  const walk = (n: TraceSpanNode) => {
+    if (hasRecordedTokens(n)) anyMeasured = true;
+    total += (n.inputTokens ?? 0) + (n.outputTokens ?? 0);
+    for (const c of n.children ?? []) walk(c);
+  };
+  walk(node);
+  return anyMeasured ? total : NaN;
 }
 
 function anyError(node: TraceSpanNode): boolean {
