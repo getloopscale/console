@@ -43,13 +43,29 @@ services:
       PGURI: postgres://therag:therag@pg-rag:5432/therag
     volumes:
       - ./sql/rag/00-extensions.sql:/mig/00-extensions.sql:ro
-      - ../../../../theo-data/theo-rag/packages/core/src/infrastructure/db/migrations:/mig/drizzle:ro
+      # Caminho vem de `THEORAG_MIGRATIONS_DIR` (exportado por run.sh), NAO hardcoded: o
+      # valor anterior apontava para `theo-data/`, diretorio que nao existe em layout algum.
+      - ${THEORAG_MIGRATIONS_DIR:?run.sh deve exportar THEORAG_MIGRATIONS_DIR}:/mig/drizzle:ro
     entrypoint:
       - sh
       - -c
       - |
         set -e
         psql "$$PGURI" -v ON_ERROR_STOP=1 -f /mig/00-extensions.sql
+        # ZERO MIGRATION E FALHA, NAO SUCESSO. Antes, um bind de origem ausente virava
+        # diretorio vazio, o `for` iterava zero vezes e este container saia 0 — schema
+        # jamais aplicado e migracao "verde". O theo-rag subia healthy (o healthcheck nao
+        # toca tabela) e so quebrava depois, com 503 em /v1/admin/keys, que o harness lia
+        # como "bootstrap consumido". Contar antes de aplicar e o que mata essa classe.
+        count=$$(ls /mig/drizzle/*.sql 2>/dev/null | wc -l)
+        if [ "$$count" -eq 0 ]; then
+          echo "rag-migrate: NENHUMA migration em /mig/drizzle — o bind de THEORAG_MIGRATIONS_DIR" >&2
+          echo "rag-migrate: aponta para um diretorio vazio ou inexistente. Abortando: aplicar" >&2
+          echo "rag-migrate: zero migration e sair 0 deixaria o schema ausente e o defeito" >&2
+          echo "rag-migrate: apareceria depois, como 503 numa rota de admin." >&2
+          exit 1
+        fi
+        echo "rag-migrate: aplicando $$count migrations"
         for f in $$(ls /mig/drizzle/*.sql | sort); do
           echo "applying $$f"
           psql "$$PGURI" -v ON_ERROR_STOP=1 -f "$$f"

@@ -111,6 +111,7 @@ jobs:
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
       THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
+      THEORAG_REF: 59654ff87dd4ea8917023884532ca4e859bdef34
     steps:
       - name: Checkout theo-cloud
         uses: actions/checkout@v4
@@ -127,6 +128,17 @@ jobs:
           ref: ${{ env.THEO_ENGINE_REF }}
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
+      - name: Checkout theo-rag (migrations do rag-migrate)
+        uses: actions/checkout@v4
+        with:
+          # Diferente do theo-lens, que MIGRA NO BOOT, o theo-rag nao aplica o proprio
+          # schema — o `rag-migrate` do e2e o semeia com `psql`. Sem este checkout o bind
+          # aponta para um diretorio inexistente, zero migration e aplicada, o container
+          # sai 0, e o defeito reaparece depois como 503 em /v1/admin/keys (#271).
+          repository: usetheoai/theo-rag
+          ref: ${{ env.THEORAG_REF }}
+          token: ${{ secrets.GOMOD_TOKEN }}
+          path: theo-cloud/theo-rag
       - uses: actions/setup-go@v5
         with:
           go-version-file: theo-cloud/theo-cloud/go.mod
@@ -197,10 +209,12 @@ jobs:
         working-directory: theo-cloud/theo-cloud
         env:
           GOPRIVATE: github.com/usetheodev/*
-          # Point run.sh at the sibling checkouts EXPLICITLY. Its relative default
-          # (${ROOT}/../../theo-data/<repo>) assumes the dev-box layout; on the
-          # runner the repo nests one level deeper, so the default resolved to a
-          # path that does not exist.
+          # Aponta o run.sh para o checkout vizinho EXPLICITAMENTE. Este comentario ja
+          # existia descrevendo a correcao — e as variaveis nunca foram adicionadas, entao
+          # o default continuou resolvendo para um caminho inexistente. O default tambem
+          # foi corrigido (`../theo-rag`, nao `../../theo-data/theo-rag`), de modo que os
+          # dois layouts funcionem; esta linha e o cinto por cima do suspensorio.
+          THEORAG_DIR: ${{ github.workspace }}/theo-cloud/theo-rag
         run: |
           set -a; . .github/e2e-images.env; set +a
           make e2e-edge
