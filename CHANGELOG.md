@@ -8,6 +8,7 @@
 
 ### Changed
 
+- Os testes de forma de workflow usam `go.yaml.in/yaml/v3`, que já estava no grafo do módulo, em vez de introduzir `gopkg.in/yaml.v3` como requisito direto — cujo upstream está arquivado. É promoção de indirect para direct, não adição: nenhuma aresta nova de supply-chain entra no build, e em nenhum dos casos o parser é linkado no binário publicado (#roadmap-m22)
 - Onze jobs de CI ganharam `timeout-minutes` dimensionado pela duração medida (o mais lento da janela roda 98,9s). Antes, 12 de 13 jobs não tinham teto numa frota **paga** de 8 vCPU, onde um job travado fatura o máximo da plataforma: 6 horas. Jobs `uses:` foram deixados de fora de propósito — o GitHub não honra `timeout-minutes` neles (#roadmap-m22)
 - O canal `:develop` — o que a produção de fato executa — passou a ser escaneado (`trivy`) e assinado (`cosign`). Antes o gate de CVE não rodava em **canal nenhum**, release incluído, porque o input tinha default `false` e nunca era passado; e `sign` estava preso a tags. O `verify` fica preso a tag de propósito: ele resolve contra Rekor/Fulcio **depois** do push, então uma indisponibilidade do Sigstore vermelharia um run cuja imagem já publicou (#roadmap-m22)
 - O input `attest` foi separado de `sign` no reusable de build: assinar é barato e local ao run, enquanto SBOM + provenance `mode=max` é o export pesado. Conflacionar os dois obrigava a escolher entre não assinar produção e pagar o export em todo push (#roadmap-m22)
