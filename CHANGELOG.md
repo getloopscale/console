@@ -17,6 +17,8 @@
 
 ### Security
 
+- Superfície de CVE da imagem do `theo-cloud` zerada antes de ligar o gate de vulnerabilidade: 14 achados HIGH (0 CRITICAL) medidos com os parâmetros exatos do gate (`CRITICAL,HIGH` + `--ignore-unfixed`) foram para 0. Onze eram `stdlib` do Go, corrigidos pelo bump do toolchain para 1.26.5; os outros por `golang.org/x/text` v0.39.0 e `google.golang.org/grpc` v1.82.1. Nenhum `.trivyignore` foi criado — a correção é upgrade, não allowlist (#roadmap-m22)
+
 ## [0.71.0] - 2026-07-29
 
 ### Fixed
