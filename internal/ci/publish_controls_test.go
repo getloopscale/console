@@ -175,7 +175,7 @@ func TestEveryNonReusableJobHasATimeout(t *testing.T) {
 // Measured in review: the resulting binary reports version "", `normalizeUnknown("")` returns "",
 // `OK()` degrades the row to Unreachable and the panel sits at `degraded` permanently — the exact
 // failure the "dev" sentinel exists to prevent. The reusable advertises these inputs as optional
-// with `default: ''`, so any future caller that omits them walks into it.
+// with `default: ”`, so any future caller that omits them walks into it.
 func TestProvenanceArgsCoerceEmptyToSentinels(t *testing.T) {
 	b, err := os.ReadFile(filepath.Clean("../../Dockerfile"))
 	if err != nil {
@@ -260,6 +260,56 @@ func TestSecurityUpgradeLayerCannotBeServedFromCache(t *testing.T) {
 			t.Errorf("%s: `apk upgrade` is not preceded by a per-build ARG in its own stage, so "+
 				"buildkit serves it from cache and the upgrade silently stops applying. Measured: "+
 				"4 HIGH in CI versus 0 on a --no-cache build of the same file", df)
+		}
+	}
+}
+
+// TestExternalActionsArePinnedBySHA — DoD do M22, item 6.
+//
+// Uma tag de action e MUTAVEL. `actions/checkout@v4` resolve para o que o dono do repositorio
+// apontar hoje; quem controla a tag executa codigo arbitrario dentro de um job que tem
+// `packages: write` e `id-token: write`. O SHA e imutavel: e a unica forma de o que rodou ontem
+// ser o que roda amanha.
+//
+// `dorny/paths-filter` e o unico terceiro de fato — e e justamente ele que decide QUAIS imagens
+// saem. Uma tag reapontada ali nao precisa nem sequer publicar nada: basta devolver um filtro
+// vazio para que a entrega pare em silencio, com o run verde.
+func TestExternalActionsArePinnedBySHA(t *testing.T) {
+	sha40 := regexp.MustCompile(`^[0-9a-f]{40}$`)
+	uses := regexp.MustCompile(`uses:\s*([^\s#]+)`)
+
+	files, err := filepath.Glob("../../.github/workflows/*.yml")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("nenhum workflow encontrado: %v", err)
+	}
+
+	for _, f := range files {
+		body, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatalf("%s: %v", f, err)
+		}
+		for i, line := range strings.Split(string(body), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "#") {
+				continue // comentario: a prosa deste repositorio cita `uses:` ao explicar a divida
+			}
+			m := uses.FindStringSubmatch(line)
+			if m == nil {
+				continue
+			}
+			ref := m[1]
+			if strings.HasPrefix(ref, "./") {
+				continue // reusable local: versionado com este repositorio, nao ha tag a reapontar
+			}
+			at := strings.LastIndex(ref, "@")
+			if at < 0 {
+				t.Errorf("%s:%d: `uses: %s` sem versao alguma", filepath.Base(f), i+1, ref)
+				continue
+			}
+			if !sha40.MatchString(ref[at+1:]) {
+				t.Errorf("%s:%d: `uses: %s` esta preso a uma tag MUTAVEL. Fixe o SHA de 40 "+
+					"hex (mantenha a tag no comentario ao lado para legibilidade)",
+					filepath.Base(f), i+1, ref)
+			}
 		}
 	}
 }
