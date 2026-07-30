@@ -105,7 +105,7 @@ func TestServiceVersions_RouteSet(t *testing.T) {
 	}
 }
 
-// TestServiceVersionTargets_CoverTheFleet pins the four data-plane services the
+// TestServiceVersionTargets_CoverTheFleet pins the five data-plane services the
 // panel claims to cover. Dropping one would silently shrink the fleet the operator
 // believes is being watched — the absence is exactly what the panel must show.
 func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
@@ -114,19 +114,20 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 		RagBaseURL:     "http://theo-rag:8787",
 		LensBaseURL:    "http://theo-lens:18082",
 		StorageBaseURL: "http://host.docker.internal:18086",
+		SkillsBaseURL:  "http://host.docker.internal:18087",
 	})
 
 	got := map[string]string{}
 	for _, tg := range targets {
 		got[tg.Name] = tg.BaseURL
 	}
-	for _, name := range []string{"theo-memory", "theo-rag", "theo-lens", "theo-storage"} {
+	for _, name := range []string{"theo-memory", "theo-rag", "theo-lens", "theo-storage", "theo-skills"} {
 		if _, ok := got[name]; !ok {
 			t.Fatalf("%s missing from the probed fleet; got %+v", name, got)
 		}
 	}
-	if len(targets) != 4 {
-		t.Fatalf("got %d targets, want 4", len(targets))
+	if len(targets) != 5 {
+		t.Fatalf("got %d targets, want 5", len(targets))
 	}
 	// Every target's URL must FLOW FROM CONFIG. This assertion replaced one that
 	// pinned theo-storage to the empty string: that was true while the service had no
@@ -158,8 +159,8 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 func TestServiceVersionTargets_UnconfiguredServiceIsListedNotDropped(t *testing.T) {
 	targets := serviceVersionTargets(config.Config{}) // nada configurado
 
-	if len(targets) != 4 {
-		t.Fatalf("got %d targets with an empty config, want all 4 still listed", len(targets))
+	if len(targets) != 5 {
+		t.Fatalf("got %d targets with an empty config, want all 5 still listed", len(targets))
 	}
 	for _, tg := range targets {
 		if tg.BaseURL != "" {
