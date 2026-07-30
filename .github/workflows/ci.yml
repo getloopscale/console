@@ -67,11 +67,11 @@ jobs:
       #   theo-cloud/theo        (engine — its migrations are mounted by cloud-migrate)
       #   theo-data/theo-memory  (themory source — run.sh builds its image)
       - name: Checkout theo-cloud
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: theo-cloud/theo-cloud
       - name: Checkout theo (engine — migrations)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: usetheodev/theo
           # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
@@ -83,7 +83,7 @@ jobs:
           # PAT with read access to usetheodev/theo (+ theo-memory, theo-contracts).
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: theo-cloud/theo-cloud/go.mod
           cache-dependency-path: theo-cloud/theo-cloud/go.sum
@@ -142,11 +142,11 @@ jobs:
       THEORAG_REF: 59654ff87dd4ea8917023884532ca4e859bdef34
     steps:
       - name: Checkout theo-cloud
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: theo-cloud/theo-cloud
       - name: Checkout theo (engine — migrations)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: usetheodev/theo
           # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
@@ -157,7 +157,7 @@ jobs:
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
       - name: Checkout theo-rag (migrations do rag-migrate)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # Diferente do theo-lens, que MIGRA NO BOOT, o theo-rag nao aplica o proprio
           # schema — o `rag-migrate` do e2e o semeia com `psql`. Sem este checkout o bind
@@ -167,7 +167,7 @@ jobs:
           ref: ${{ env.THEORAG_REF }}
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo-rag
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: theo-cloud/theo-cloud/go.mod
           cache-dependency-path: theo-cloud/theo-cloud/go.sum
