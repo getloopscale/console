@@ -26,8 +26,25 @@ describe('MemoryListPage (/memory/memories)', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Answer the page's OWN list read, and the <ScopeSelect/> sessions read with an empty list.
+   *
+   * These tests used `mockResolvedValueOnce`, which queues ONE response for whichever call arrives
+   * first. The page renders <ScopeSelect/>, which issues its own `cloudFetch` — so the queued response
+   * was consumed by whichever query won the race, and the list query received `undefined`. React Query
+   * rejects a queryFn that does not return a promise, so the page rendered "Could not load memories"
+   * and FIVE tests in this file had been RED in develop. Nobody saw it because no workflow runs the
+   * dashboard suite (see theo-cloud#276). Routing by URL removes the race instead of reordering it.
+   */
+  function respondList(payload: unknown, mode: 'resolve' | 'reject' = 'resolve') {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (String(url).includes('/sessions')) return Promise.resolve({ sessions: [] });
+      return mode === 'reject' ? Promise.reject(payload) : Promise.resolve(payload);
+    });
+  }
+
   it('renders memories returned by the backend', async () => {
-    mockCloudFetch.mockResolvedValueOnce({
+    respondList({
       memories: [
         { id: 'mem-aaaa1111bbbb2222', content: 'prefers TypeScript', category: 'preferences', created_at: new Date().toISOString() },
         { id: 'mem-cccc3333dddd4444', content: 'lives in Lisbon', category: 'facts', created_at: new Date().toISOString() },
@@ -41,7 +58,7 @@ describe('MemoryListPage (/memory/memories)', () => {
   });
 
   it('empty result renders a friendly EmptyState (D3 — no broken UI on first run)', async () => {
-    mockCloudFetch.mockResolvedValueOnce({ memories: [] });
+    respondList({ memories: [] });
     render(<MemoryListPage />);
     expect(await screen.findByText(/No memories yet/i)).toBeInTheDocument();
   });
@@ -51,7 +68,7 @@ describe('MemoryListPage (/memory/memories)', () => {
     // null on failure by default, which the page would render as empty; the page opts
     // into throwOnError so a rejection becomes query.isError.
     const err = Object.assign(new Error('API request failed with status 502'), { status: 502 });
-    mockCloudFetch.mockRejectedValueOnce(err);
+    respondList(err, 'reject');
     render(<MemoryListPage />);
     expect(await screen.findByText(/Could not load memories/i)).toBeInTheDocument();
     expect(screen.queryByText(/No memories yet/i)).not.toBeInTheDocument();
@@ -59,7 +76,7 @@ describe('MemoryListPage (/memory/memories)', () => {
   });
 
   it('passes throwOnError so failures reject instead of resolving null (theo-cloud#250)', async () => {
-    mockCloudFetch.mockResolvedValueOnce({ memories: [] });
+    respondList({ memories: [] });
     render(<MemoryListPage />);
     await screen.findByText(/No memories yet/i);
     // The list query must opt into throwOnError, or a failed fetch silently becomes
@@ -72,14 +89,14 @@ describe('MemoryListPage (/memory/memories)', () => {
   });
 
   it('typing in the category filter triggers a refetch with the new query', async () => {
-    mockCloudFetch.mockResolvedValueOnce({ memories: [] });
+    respondList({ memories: [] });
     const user = userEvent.setup();
     render(<MemoryListPage />);
 
     // Wait for the first load to settle.
     expect(await screen.findByText(/No memories yet/i)).toBeInTheDocument();
 
-    mockCloudFetch.mockResolvedValueOnce({ memories: [] });
+    respondList({ memories: [] });
     await user.type(screen.getByLabelText(/category/i), 'preferences');
 
     // The category propagates into the request URL — the assertion
@@ -92,7 +109,7 @@ describe('MemoryListPage (/memory/memories)', () => {
   });
 
   it('ConfirmDialog gates Forget until confirmationPhrase matches memory id', async () => {
-    mockCloudFetch.mockResolvedValueOnce({
+    respondList({
       memories: [
         { id: 'mem-aaaa1111bbbb2222', content: 'fact', created_at: new Date().toISOString() },
       ],

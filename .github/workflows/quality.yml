@@ -79,7 +79,7 @@ jobs:
           version: v2.12.2
 
   dashboard:
-    name: dashboard — typecheck + lint + build
+    name: dashboard — typecheck + lint + build + test
     runs-on: blacksmith-8vcpu-ubuntu-2404
     defaults:
       run:
@@ -108,3 +108,15 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # theo-cloud#276 — the dashboard suite (247 files / 1925 tests) had NEVER run in CI. No workflow
+      # invoked vitest at all; the job name was honest about doing only build+lint, and nobody wired
+      # the rest. The cost was measured, not feared: SIX tests were red in `develop` and had been for
+      # as long as the code they cover — two suites rotted when a child component started issuing its
+      # own fetch (the queued one-shot mock was consumed by whichever query won the race), one when a
+      # column was renamed. `npm run build` proves the code COMPILES; only this step proves it WORKS.
+      #
+      # Last, on purpose: build and lint are minutes cheaper, so they fail fast. This is the slowest
+      # gate in the job, and a gate that runs is worth more than a gate that runs first.
+      - name: Test (vitest)
+        run: npm test

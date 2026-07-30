@@ -97,6 +97,9 @@ describe('EntitiesPage (/memory/entities)', () => {
     });
     render(<EntitiesPage />);
     expect(await screen.findByText('loves → Nike')).toBeInTheDocument();
-    expect(screen.getByText(/^summary$/i)).toBeInTheDocument(); // the column header
+    // The column header is "Relations", not "Summary": it renders `relation → target` digests, and the
+    // label was corrected to say what the cell shows. This assertion still read `/^summary$/i` and had
+    // been RED in develop since the rename — invisible because no workflow runs this suite (#276).
+    expect(screen.getByText(/^relations$/i)).toBeInTheDocument(); // the column header
   });
 });

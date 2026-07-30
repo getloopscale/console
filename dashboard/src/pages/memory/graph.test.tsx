@@ -45,7 +45,7 @@ beforeEach(() => {
   );
 });
 
-import { GraphPage, toGraphData, withHub } from './graph';
+import { GraphPage, toGraphData, withHub, defaultShowIsolated, topLabelIds } from './graph';
 
 describe('toGraphData (pure shaping)', () => {
   it('drops a dangling edge whose endpoint is not a node', () => {
@@ -228,7 +228,14 @@ describe('GraphPage (/memory/graph)', () => {
   });
 
   it('non-user scope shows the empty state (D3 — F3)', async () => {
-    mockCloudFetch.mockResolvedValueOnce({ nodes: [], edges: [] });
+    // Routed by URL, not `mockResolvedValueOnce`. The session scope also renders <SessionPicker/>,
+    // which issues its OWN cloudFetch — so the single queued "Once" was consumed by whichever query
+    // fired first, and the graph query got `undefined`. React Query rejects a queryFn that does not
+    // return a promise, so the page rendered the error Alert and this test had been RED in develop.
+    // It went unnoticed because no workflow runs the dashboard suite at all (see theo-cloud#276).
+    mockCloudFetch.mockImplementation((url: string) =>
+      Promise.resolve(url.includes('/sessions') ? { sessions: [] } : { nodes: [], edges: [] }),
+    );
     render(<GraphPage />, { initialEntries: ['/memory/graph?scope=session'] });
     expect(await screen.findByText(/no graph under/i)).toBeInTheDocument();
     expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('scope=session'), expect.anything(), expect.objectContaining({ throwOnError: true }));
@@ -267,5 +274,103 @@ describe('GraphPage (/memory/graph)', () => {
     await vi.waitFor(() =>
       expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('includeSuperseded=true'), expect.anything(), expect.objectContaining({ throwOnError: true })),
     );
+  });
+});
+
+/**
+ * theo-cloud#254 — the Graph tab was an illegible hairball in its DEFAULT state: 4423 nodes and
+ * 2954 relations, 1266 of them (29%) unconnected, every connected node labelled unconditionally.
+ *
+ * Both mitigations already EXISTED as buttons; neither was on. The complaint is not that the screen
+ * cannot be made readable — it is that the operator has to discover how. A default that requires
+ * discovery is not a default.
+ */
+describe('#254 — the Graph is legible in its default state', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  describe('defaultShowIsolated', () => {
+    it('hides unconnected nodes once the graph is big enough to be a hairball', () => {
+      expect(defaultShowIsolated(4423, 1266)).toBe(false);
+    });
+
+    it('keeps a small graph whole — showing everything is legible there', () => {
+      // Graceful degradation, the issue's own framing: "bases pequenas continuam com o grafo completo".
+      expect(defaultShowIsolated(40, 12)).toBe(true);
+    });
+
+    it('never hides when hiding would blank the canvas', () => {
+      // Every node unconnected: hiding leaves NOTHING. An empty graph over a populated workspace is a
+      // worse lie than a crowded one — it reads as "you have no entities".
+      expect(defaultShowIsolated(4423, 4423)).toBe(true);
+    });
+
+    it('is a no-op when there is nothing unconnected to hide', () => {
+      expect(defaultShowIsolated(4423, 0)).toBe(true);
+    });
+  });
+
+  describe('topLabelIds', () => {
+    const node = (id: string) => ({ id, memoryCount: 1, group: 0, isolated: false });
+
+    it('labels every node while they still fit', () => {
+      const data = { nodes: [node('A'), node('B')], links: [{ source: 'A', target: 'B', relation: 'r' }] };
+      expect(topLabelIds(data, 40)).toEqual(new Set(['A', 'B']));
+    });
+
+    it('past the limit, keeps the most-CONNECTED nodes', () => {
+      // Degree, not memoryCount: this screen is about relations, so the nodes worth naming are the
+      // ones the graph converges on. A hub with 30 edges must keep its label; a leaf need not.
+      const nodes = ['hub', 'a', 'b', 'c'].map(node);
+      const links = [
+        { source: 'hub', target: 'a', relation: 'r' },
+        { source: 'hub', target: 'b', relation: 'r' },
+        { source: 'a', target: 'b', relation: 'r' },
+        { source: 'c', target: 'c', relation: 'r' },
+      ];
+      const kept = topLabelIds({ nodes, links }, 2);
+      expect(kept.size).toBe(2);
+      expect(kept.has('hub')).toBe(true);
+    });
+
+    it('reads endpoints that the force simulation already replaced with node objects', () => {
+      // react-force-graph MUTATES links in place, swapping the id string for the node object. A
+      // degree count that assumed strings would silently see degree 0 for every node — and then
+      // label nothing at all.
+      const nodes = [node('A'), node('B')];
+      const links = [{ source: { id: 'A' }, target: { id: 'B' }, relation: 'r' }] as unknown as Parameters<typeof topLabelIds>[0]['links'];
+      expect(topLabelIds({ nodes, links }, 1).size).toBe(1);
+    });
+  });
+
+  it('a large graph hands the canvas only the connected nodes, and says so', async () => {
+    // 600 nodes, 200 of them unconnected — over the hairball threshold.
+    const connected = Array.from({ length: 400 }, (_, i) => ({ id: `c${String(i)}`, scope_type: 'user', memory_count: 1 }));
+    const isolated = Array.from({ length: 200 }, (_, i) => ({ id: `i${String(i)}`, scope_type: 'user', memory_count: 1 }));
+    const edges = connected.slice(0, 399).map((n, i) => ({ source: n.id, target: `c${String(i + 1)}`, relation: 'r' }));
+    mockCloudFetch.mockResolvedValue({ nodes: [...connected, ...isolated], edges });
+
+    render(<GraphPage />);
+    await screen.findByTestId('force-graph');
+
+    // 400 connected + 1 synthetic hub root (hub view is on by default).
+    expect(Number(screen.getByTestId('fg-nodes').textContent)).toBe(401);
+    // Honest and reversible: the button states what is hidden and offers it back.
+    expect(screen.getByRole('button', { name: /show 200 unconnected/i })).toBeInTheDocument();
+  });
+
+  it('a small graph is still handed whole', async () => {
+    mockCloudFetch.mockResolvedValue({
+      nodes: [
+        { id: 'A', scope_type: 'user', memory_count: 1 },
+        { id: 'B', scope_type: 'user', memory_count: 1 },
+        { id: 'lonely', scope_type: 'user', memory_count: 1 },
+      ],
+      edges: [{ source: 'A', target: 'B', relation: 'r' }],
+    });
+    render(<GraphPage />);
+    await screen.findByTestId('force-graph');
+    // 3 real + 1 hub — nothing hidden.
+    expect(Number(screen.getByTestId('fg-nodes').textContent)).toBe(4);
+    expect(screen.getByRole('button', { name: /hide 1 unconnected/i })).toBeInTheDocument();
   });
 });
