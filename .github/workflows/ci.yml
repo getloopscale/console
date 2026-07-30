@@ -11,10 +11,23 @@
 # "locally proven; CI pending first push".
 name: ci
 on:
+  # Invocado por publish.yml como gate (workflow_call) e disparado direto num PR.
+  #
+  # SEM `push:` e SEM `workflow_dispatch:`, de proposito. MEDIDO em 2026-07-30 (theo-memory, runs
+  # 30522117234 e 30522853797): um `workflow_call` callee NAO herda o `concurrency` do chamador —
+  # ele mantem o PROPRIO grupo, avaliado no contexto do chamador. Como este arquivo declara
+  # `test-e2e-${branch}` com cancel-in-progress, um run avulso e a chamada gateada caem no MESMO
+  # grupo e um mata o outro; o run do publish termina `cancelled` e `images` vira `skipped` num
+  # commit verde. theo-lens sofreu o mesmo defeito (F-sec-2) e corrigiu deletando os gatilhos
+  # avulsos — theo-lens/.github/workflows/integration.yml:28-32.
+  #
+  # A cobertura do commit de merge nao se perde: ela passa a vir do gate em publish.yml.
+  workflow_call:
+    secrets:
+      GOMOD_TOKEN:
+        required: true
+        description: PAT com leitura no modulo privado theo-contracts; um callee NAO herda secrets.
   pull_request: {}
-  push:
-    branches: [develop]
-  workflow_dispatch: {}
 permissions:
   contents: read
   packages: read # pull das imagens dos vizinhos no GHCR da org

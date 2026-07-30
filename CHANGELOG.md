@@ -6,6 +6,9 @@
 
 ### Changed
 
+- **Nenhuma imagem sai mais com um gate de teste vermelho.** O job `images` do `publish.yml` passou a depender de `ci`, `quality` e `security-sast`, invocados por `workflow_call`. Medido na janela da auditoria: 12 commits publicaram imagem com gate vermelho (17 pushes no total); `3daf3663` subiu duas imagens com os três gates falhando (#roadmap-m22)
+- `ci.yml` e `quality.yml` deixaram de disparar em `push` e passaram a ser invocados como gate. Medido em 2026-07-30 (theo-memory, runs `30522117234`/`30522853797`): um callee de `workflow_call` **não** herda o `concurrency` do chamador — mantém o próprio, avaliado no contexto do chamador —, então um run avulso e a chamada gateada colidiam e um cancelava o outro. O `security-sast.yml` manteve o `push:` de propósito: o gitleaks precisa ver todo commit, inclusive merges só de documentação (#roadmap-m22)
+
 ### Deprecated
 
 ### Removed

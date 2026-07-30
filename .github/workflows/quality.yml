@@ -13,10 +13,15 @@
 # ferramentas sao instaladas explicitamente e o job falha quando elas falham.
 name: quality
 on:
+  # Gate de publish.yml + PR. Sem `push:`: um commit que nao produz imagem nao tem o que o quality
+  # cheque, e o commit de merge passa a ser coberto pelo gate.
+  workflow_call:
+    secrets:
+      GOMOD_TOKEN:
+        required: true
+        description: PAT com leitura no modulo privado theo-contracts; um callee NAO herda secrets.
   pull_request:
     branches: [develop, main]
-  push:
-    branches: [develop]
 permissions:
   contents: read
 jobs:
