@@ -36,11 +36,17 @@ on:
       dockerfile:      { required: true,  type: string }
       context:         { required: false, type: string,  default: "." }
       registry:        { required: false, type: string,  default: "ghcr.io/usetheoai" }
-      sign:            { required: false, type: boolean, default: false }   # SBOM+provenance(mode=max)+cosign — release only
+      sign:            { required: false, type: boolean, default: false }   # cosign keyless — barato, local ao run
+      attest:          { required: false, type: boolean, default: false }   # SBOM + provenance mode=max — export PESADO, so em release
       verify:          { required: false, type: boolean, default: false }   # identity-pinned cosign verify (needs sign=true)
       trivy:           { required: false, type: boolean, default: false }   # CRITICAL/HIGH Trivy gate before push (uses .trivyignore if present)
       dockerhub_image: { required: false, type: string,  default: "" }      # e.g. "usetheo/theo-cloud" — also push to Docker Hub when DOCKERHUB_TOKEN is set
       runner:          { required: false, type: string,  default: '["blacksmith-8vcpu-ubuntu-2404"]' }   # JSON array
+      # Proveniencia. Vai para os DOIS builds: um build-arg muda o digest da camada final, entao
+      # passa-lo so no push voidaria a identidade de cache declarada mais abaixo — o Trivy
+      # escanearia um artefato diferente do que e publicado.
+      git_sha:         { required: false, type: string,  default: '' }
+      version_label:   { required: false, type: string,  default: '' }
     secrets:
       GOMOD_TOKEN:        { required: false }   # cross-repo read for the pinned private theo-contracts module
       DOCKERHUB_USERNAME: { required: false }
@@ -80,6 +86,13 @@ jobs:
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       # --- Optional Trivy gate (build locally, scan, THEN push the cache-identical image) ---
+      # O instante do BUILD, nao um input herdado: o `built_at` do contrato tem de ser o mesmo fato
+      # que o metadata-action grava em org.opencontainers.image.created. Um input estatico traria a
+      # hora de OUTRA coisa — foi o erro que este step existe para nao repetir.
+      - name: Carimbar o instante do build
+        id: provenance
+        run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Build for scan (Trivy gate)
         if: ${{ inputs.trivy }}
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
@@ -88,6 +101,10 @@ jobs:
           file: ${{ inputs.dockerfile }}
           load: true
           tags: ${{ inputs.image }}:scan-target
+          build-args: |
+            VERSION=${{ inputs.version_label }}
+            GIT_SHA=${{ inputs.git_sha }}
+            BUILT_AT=${{ steps.provenance.outputs.built_at }}
           cache-from: type=gha,scope=${{ inputs.image }}
           # ignore-error: the GitHub Actions cache service (type=gha) intermittently 500s /
           # returns BlobNotFound on export (esp. large mode=max exports on self-hosted
@@ -137,8 +154,17 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          sbom: ${{ inputs.sign }}
-          provenance: ${{ inputs.sign && 'mode=max' || 'false' }}
+          # `attest`, nao `sign`: assinar e barato e local ao run; SBOM + provenance mode=max e o
+          # export pesado que o cache do GHA devolve 500/BlobNotFound. Conflacionar os dois obrigava
+          # a escolher entre nao assinar o canal de producao e pagar o export em todo push.
+          sbom: ${{ inputs.attest }}
+          # NUNCA o literal 'false': isso DESLIGA o mode=min que o buildx ja faz por padrao, e o
+          # canal de producao ficaria com MENOS proveniencia que um build sem configuracao alguma.
+          provenance: ${{ inputs.attest && 'mode=max' || 'mode=min' }}
+          build-args: |
+            VERSION=${{ inputs.version_label }}
+            GIT_SHA=${{ inputs.git_sha }}
+            BUILT_AT=${{ steps.provenance.outputs.built_at }}
           cache-from: type=gha,scope=${{ inputs.image }}
           # ignore-error: the GitHub Actions cache service (type=gha) intermittently 500s /
           # returns BlobNotFound on export (esp. large mode=max exports on self-hosted
@@ -177,5 +203,5 @@ jobs:
           IMAGE_REF: ${{ inputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}
         run: |
           cosign verify "$IMAGE_REF" \
-            --certificate-identity-regexp '^https://github\.com/usetheoai/theo-cloud/\.github/workflows/build-publish\.yml@' \
+            --certificate-identity-regexp '^https://github\.com/usetheoai/theo-cloud/\.github/workflows/build-publish\.yml@refs/(heads|tags)/.+$' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com

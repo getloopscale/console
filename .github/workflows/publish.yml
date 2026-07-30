@@ -102,8 +102,21 @@ jobs:
       image: ${{ matrix.image }}
       dockerfile: ${{ matrix.dockerfile }}
       context: ${{ matrix.context }}
-      sign: ${{ needs.plan.outputs.sign == 'true' }}
-      verify: ${{ needs.plan.outputs.sign == 'true' }} # identity-pinned cosign verify on release (same gate as sign)
+      # O canal que a producao CONSUME e :develop. Deixar scan e assinatura presos a tags protegia
+      # artefatos que este host nunca puxa, e nao protegia o que ele executa.
+      trivy: true
+      sign: true
+      # A MESMA verdade que o metadata-action grava em org.opencontainers.image.revision no mesmo
+      # run. Binario e label viram duas projecoes de um unico fato, entao o criterio de aceite do
+      # M22 (`/v1/version` bate com o label da imagem em execucao) e verdadeiro por construcao.
+      git_sha: ${{ github.sha }}
+      version_label: ${{ github.ref_name }}
+      # `verify` fica preso a tag de proposito (EC-3): o cosign verify resolve contra Rekor/Fulcio
+      # DEPOIS do push, entao uma indisponibilidade do Sigstore vermelharia um run cuja imagem ja
+      # publicou — e o reconciliador convergiria numa imagem que a pipeline diz ter falhado.
+      verify: ${{ needs.plan.outputs.sign == 'true' }}
+      # SBOM + provenance mode=max e o export pesado; so na release.
+      attest: ${{ needs.plan.outputs.sign == 'true' }}
     # Explicito, nao `secrets: inherit`. O reusable declara TRES secrets, todos opcionais;
     # herdar tudo passa cada segredo do repo para um workflow que usa no maximo tres — e o
     # semgrep sinaliza `secrets-inherit` por isso mesmo. A enumeracao nao custa nada.

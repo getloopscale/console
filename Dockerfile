@@ -30,9 +30,23 @@ COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY openapi/ ./openapi/
 
+# Proveniencia injetada no link. Declarada DEPOIS do `go mod download` de proposito: um valor que
+# muda a cada commit invalidaria a camada de modulos e o build re-baixaria o grafo inteiro toda vez.
+#
+# Os defaults reproduzem os sentinelas do pacote: um build local sem --build-arg reporta "dev" e
+# "unknown", nunca uma string vazia e nunca um valor mentiroso.
+ARG VERSION=dev
+ARG GIT_SHA=unknown
+ARG BUILT_AT=unknown
+
 RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /cloud-api ./cmd/main.go
+    CGO_ENABLED=0 go build -trimpath \
+      -ldflags="-s -w \
+        -X github.com/usetheodev/theo-cloud/internal/version.Version=${VERSION} \
+        -X github.com/usetheodev/theo-cloud/internal/version.GitSHA=${GIT_SHA} \
+        -X github.com/usetheodev/theo-cloud/internal/version.BuiltAt=${BUILT_AT}" \
+      -o /cloud-api ./cmd/main.go
 
 # Distroless static runtime (find_infra_009): no shell/apk/utilities to reduce
 # post-compromise attack surface. Includes ca-certificates and runs as the

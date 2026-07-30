@@ -2,10 +2,13 @@
 
 ### Added
 
+- **`GET /v1/version`**, auth-exempt, reportando os cinco campos do contrato (`name`, `version`, `git_sha`, `built_at`, `node`). Até agora o `theo-cloud` consumia esse endpoint de todos os serviços irmãos e não servia nenhum — a rota devolvia 404 literal, medido 6/6 contra o edge de public-dev, enquanto o reconciliador do host sondava outro endpoint e lia o 401 dele como "a rota existe" (#roadmap-m22)
 - Roadmap amended: added M22 "theo-cloud diz a verdade sobre si mesmo (entrega confiável + presença no painel)" via `/roadmap-feature theo-cloud-delivery-truth` — fecha o caminho de entrega atrás dos gates de teste, faz o `/v1/version` reportar o commit em execução e coloca o `theo-cloud` na página `/status` ao lado dos demais serviços (#roadmap-m22)
 
 ### Changed
 
+- O canal `:develop` — o que a produção de fato executa — passou a ser escaneado (`trivy`) e assinado (`cosign`). Antes o gate de CVE não rodava em **canal nenhum**, release incluído, porque o input tinha default `false` e nunca era passado; e `sign` estava preso a tags. O `verify` fica preso a tag de propósito: ele resolve contra Rekor/Fulcio **depois** do push, então uma indisponibilidade do Sigstore vermelharia um run cuja imagem já publicou (#roadmap-m22)
+- O input `attest` foi separado de `sign` no reusable de build: assinar é barato e local ao run, enquanto SBOM + provenance `mode=max` é o export pesado. Conflacionar os dois obrigava a escolher entre não assinar produção e pagar o export em todo push (#roadmap-m22)
 - **Nenhuma imagem sai mais com um gate de teste vermelho.** O job `images` do `publish.yml` passou a depender de `ci`, `quality` e `security-sast`, invocados por `workflow_call`. Medido na janela da auditoria: 12 commits publicaram imagem com gate vermelho (17 pushes no total); `3daf3663` subiu duas imagens com os três gates falhando (#roadmap-m22)
 - `ci.yml` e `quality.yml` deixaram de disparar em `push` e passaram a ser invocados como gate. Medido em 2026-07-30 (theo-memory, runs `30522117234`/`30522853797`): um callee de `workflow_call` **não** herda o `concurrency` do chamador — mantém o próprio, avaliado no contexto do chamador —, então um run avulso e a chamada gateada colidiam e um cancelava o outro. O `security-sast.yml` manteve o `push:` de propósito: o gitleaks precisa ver todo commit, inclusive merges só de documentação (#roadmap-m22)
 
@@ -20,6 +23,8 @@
 
 ### Security
 
+- A âncora de identidade do `cosign` ganhou terminador: era `…build-publish\.yml@`, que casava qualquer **sufixo** — uma assinatura produzida por outro workflow do mesmo repositório seria aceita como se fosse deste. Agora é `@refs/(heads|tags)/.+$` (#roadmap-m22)
+- `provenance` deixou de receber o literal `'false'` no caminho develop, que **desligava** o `mode=min` que o buildx faz por padrão: o canal de produção ficava com menos proveniência que um build sem configuração alguma (#roadmap-m22)
 - Superfície de CVE da imagem do `theo-cloud` zerada antes de ligar o gate de vulnerabilidade: 14 achados HIGH (0 CRITICAL) medidos com os parâmetros exatos do gate (`CRITICAL,HIGH` + `--ignore-unfixed`) foram para 0. Onze eram `stdlib` do Go, corrigidos pelo bump do toolchain para 1.26.5; os outros por `golang.org/x/text` v0.39.0 e `google.golang.org/grpc` v1.82.1. Nenhum `.trivyignore` foi criado — a correção é upgrade, não allowlist (#roadmap-m22)
 
 ## [0.71.0] - 2026-07-29
