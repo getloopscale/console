@@ -31,6 +31,17 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [flow, setFlow] = useState<Flow | null>(null);
+  // theo#140 — a provider the user picked BEFORE the login flow resolved.
+  //
+  // `submitOIDC` cannot POST without a flow id + CSRF token, so it used to
+  // start a new flow and return. That silently DISCARDED the click: no error,
+  // no spinner, no navigation — the user saw the page re-render (the new flow
+  // arriving) and nothing else, and concluded the button was broken.
+  //
+  // A ref rather than state: this is not rendered, and it must be readable by
+  // the effect below without adding a render cycle between the flow landing
+  // and the submit.
+  const pendingOIDCProvider = useRef<'github' | 'google' | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -197,6 +208,10 @@ export function LoginPage() {
   const submitOIDC = (provider: 'github' | 'google') => {
     startAuthAttempt(provider);
     if (!flow) {
+      // theo#140: remember WHICH provider was chosen so the effect below can
+      // finish the job once the flow lands. Dropping it here is what made the
+      // click vanish.
+      pendingOIDCProvider.current = provider;
       startLogin();
       return;
     }
@@ -220,6 +235,22 @@ export function LoginPage() {
     document.body.appendChild(form);
     form.submit();
   };
+
+  // theo#140 — finish a click that arrived before the flow was ready.
+  //
+  // Runs on every flow change, but the ref is cleared BEFORE submitting, so a
+  // later flow refresh cannot re-fire a stale provider and bounce the user to
+  // an OIDC redirect they did not ask for.
+  useEffect(() => {
+    const pending = pendingOIDCProvider.current;
+    if (!flow || !pending) return;
+    pendingOIDCProvider.current = null;
+    submitOIDC(pending);
+    // submitOIDC is redefined each render; depending on it would re-run this
+    // effect without the flow changing. The ref guard is what makes the run
+    // at-most-once per pending click.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flow]);
 
   // SECURITY: submit password login via top-level HTML form POST instead of
   // XHR fetch — same pattern as submitOIDC above. Top-level navigation sends
