@@ -580,6 +580,76 @@ dependência declarada estaria satisfeita na hora e seria decorativa. As peças 
 
 ---
 
+### M22 — [ ] theo-cloud diz a verdade sobre si mesmo (entrega confiável + presença no painel)
+
+> Added 2026-07-30 by `/roadmap-feature` (slug: `theo-cloud-delivery-truth`).
+> See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-delivery-truth-feature-grill.md`.
+
+**Objetivo:** fechar o caminho de entrega do `theo-cloud` para que nada chegue ao host de
+public-dev sem passar pelos testes, e fazer o serviço reportar honestamente qual versão está
+rodando — aparecendo na página `/status` ao lado dos outros, com `Service · State · Version · Built`.
+
+**Gatilho (medido em 2026-07-30, `/loop-devops-audit`, veredito `INVALID` score 46.0):**
+
+| O que foi medido | Número |
+|---|---|
+| Commits que publicaram imagem com gate vermelho | **12** (`3daf3663` subiu 2 imagens com `ci`+`quality`+`SAST` falhando) |
+| `needs` do `publish.yml` sobre `ci`/`quality`/`security-sast` | **nenhum** |
+| Resposta do `/v1/version` do theo-cloud | **401**, contada pelo reconciliador como "proveniência confere" |
+| Serviços no agregado de `/status` (`cmd/main.go:168`) | **4** — o theo-cloud não está entre eles |
+| Canais em que o gate Trivy roda | **nenhum** — `trivy` default `false`, `publish.yml` nunca o passa |
+| Jobs sem `timeout-minutes` | **12 de 13** |
+
+O modelo de referência resolve isto no mesmo workspace: `theo-memory/.github/workflows/publish.yml:143`
+declara `needs: [guard-release-on-main, gate-ci, gate-contract]` e passa `trivy/sign/verify: true` no
+caminho develop, usando **o mesmo reusable vendorizado**. Não é limite de plataforma — é configuração
+não herdada.
+
+**Definition of done:**
+
+- [ ] `publish.yml` não publica imagem sem `ci`, `quality` e `security-sast` verdes — gates invocados por `workflow_call` (síncrono, mesmo run, preserva `github.sha`), nunca `workflow_run`. Verificável: um commit com teste vermelho não produz job `images` bem-sucedido.
+- [ ] O canal `:develop` sai escaneado e assinado — `trivy: true`, `sign: true`, `verify: true` — e `provenance` deixa de receber o literal `false`. Verificável: `cosign verify` resolve para a tag `:develop` publicada.
+- [ ] `GET /v1/version` do theo-cloud responde sem 401 e reporta o commit **da imagem em execução**. Verificável: o valor bate com `org.opencontainers.image.revision` da imagem que o host roda.
+- [ ] `theo-cloud` aparece em `https://app-dev.usetheo.dev/status` junto aos demais, com as quatro colunas já existentes, alimentado por **metadados de build in-process** — nunca por uma chamada HTTP do serviço para si mesmo.
+- [ ] O `Dockerfile` não deixa credencial em camada: o `git config --global` da linha 20 deixa de persistir `/root/.gitconfig`, que hoje é exportado ao cache do Actions por `cache-to: mode=max`.
+- [ ] Higiene de pipeline fechada: `timeout-minutes` nos 12 jobs sem ele, `concurrency` chaveada por commit (não por branch — a chave atual não elimina o run duplicado, medido 5 de 40 SHAs), e as 9 actions não pinadas fixadas por SHA (prioridade `dorny/paths-filter`, o único terceiro e justamente o que decide se a imagem sai).
+
+**Não entra neste milestone** (registrado aqui, não na seção macro de escopo — cada item com destino):
+
+| Item | Por que fora | Destino |
+|---|---|---|
+| Rotação do `GOMOD_TOKEN` + purge do cache `gha` | Caches passados já contêm o token; esperar o milestone fechar mantém a exposição aberta | **Ação imediata**, decisão do operador em 2026-07-30 |
+| Reconciliador convergente + eixo de proveniência tratando 401 como INDETERMINADO | O script vive em `theo-ops`, outro repositório | `theo-ops` |
+| Branch protection / segregação de funções (CC6.3, CC8.1) | `403 Upgrade to GitHub Pro` — decisão de plano ou de divulgação, não tarefa de engenharia | Decisão do dono |
+| `theo-host-firewall.service` morto, portas em `0.0.0.0` | Hardening de host; sem exposição ativa (probe externo: todas closed/filtered) | `loop-security-audit` |
+| Instância órfã `theo-workspace-theo-cloud-1` (26h desatualizada) | Operação de host, não código deste repo | `theo-ops` |
+
+**Dependencies:** `M21`. Os 21 anteriores estão `[x]`, então a dependência seria decorativa na
+maioria dos casos — M21 é nomeada por ser **substantiva**: este milestone estende o agregado que ela
+construiu, e sem ele a quarta linha da DoD não teria onde aterrissar.
+
+**Top risks (new):**
+
+1. **Colocar o gate converte falha invisível em entrega parada.** A taxa de falha medida em develop é
+   alta, e a auditoria a atribuiu a gates *reprodutivelmente* vermelhos, não a flakiness
+   (`rerun_rate = 0.017`, abaixo do piso de 0.05). Ou seja: o risco não é teste instável — é que
+   falhas reais, hoje invisíveis para a entrega, passem a aparecer como entrega bloqueada. É o
+   comportamento pretendido, e vai parecer regressão na primeira semana. Mitigação: fechar os gates
+   vermelhos **dentro** deste milestone, não depois dele.
+2. **Auto-probe no agregado.** O coletor roda dentro do processo que passaria a sondar. Uma fiação
+   ingênua faz a saúde da página depender do próprio caminho de request que ela reporta, e uma falha
+   parcial produziria uma página que trava em vez de uma que diz "degradado". Mitigação: reportar o
+   `theo-cloud` por metadados de build in-process e deixar a política de timeout dos quatro serviços
+   remotos intacta.
+
+**Why now:** o `/status` existe desde M21 e omite justamente o serviço que o serve; adicioná-lo hoje
+o mostraria `unreachable`, porque o `/v1/version` responde 401. O mesmo 401 é o eixo de proveniência
+que o reconciliador conta como verde. E acima dos dois, nada impede que código com teste vermelho
+chegue ao host em ~6 minutos. Os três são o mesmo problema visto de três ângulos: o sistema não
+consegue provar o que está rodando.
+
+---
+
 ## State-of-the-art references
 
 No peers were cloned for this roadmap: the design is locked in the ADR and the reference model is

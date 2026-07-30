@@ -14,8 +14,8 @@ import (
 
 // DeviceHandler handles Device Code Flow endpoints.
 type DeviceHandler struct {
-	hydra         *auth.HydraClient
-	dashboardURL  string // Public dashboard URL for verification redirect
+	hydra        *auth.HydraClient
+	dashboardURL string // Public dashboard URL for verification redirect
 }
 
 // NewDeviceHandler creates a new DeviceHandler.

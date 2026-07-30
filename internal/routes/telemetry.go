@@ -18,10 +18,11 @@ import (
 // pipeline (D6 of plan 2026-05-27-backend-frontend-integration).
 //
 // Four endpoints are served via a single handler factory keyed by category:
-//   POST /v1/telemetry/errors        — uncaught window errors
-//   POST /v1/telemetry/web-vitals    — CLS / LCP / INP web-vitals
-//   POST /v1/telemetry/events        — business events (deploy_clicked, …)
-//   POST /v1/telemetry/interactions  — UI interaction counters
+//
+//	POST /v1/telemetry/errors        — uncaught window errors
+//	POST /v1/telemetry/web-vitals    — CLS / LCP / INP web-vitals
+//	POST /v1/telemetry/events        — business events (deploy_clicked, …)
+//	POST /v1/telemetry/interactions  — UI interaction counters
 //
 // All four are PUBLIC (no JWT) — sendBeacon cannot set custom headers.
 // DOS protection: body ≤ 64 KiB (EC-03). Rate-limiting accepted as

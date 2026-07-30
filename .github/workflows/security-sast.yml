@@ -7,6 +7,18 @@
 # por tenant. Um segredo hardcoded aqui passa por build, teste e vet sem uma reclamacao.
 name: Security SAST
 on:
+  # Gate de publish.yml, PR, E push — os tres.
+  #
+  # O `push:` FICA, ao contrario dos outros dois gates: o gitleaks precisa ver TODO commit que chega
+  # em develop, inclusive um merge so de documentacao, que nao produz imagem e portanto nao dispara
+  # gate nenhum. Este arquivo nao declara `concurrency`, entao nao ha risco de auto-cancelamento
+  # (o defeito medido que tirou o `push:` do ci.yml); o custo e ~36s duplicados nos commits que
+  # produzem imagem, que e o preco de cobertura incondicional de segredo.
+  workflow_call:
+    secrets:
+      GOMOD_TOKEN:
+        required: true
+        description: PAT com leitura no modulo privado theo-contracts; um callee NAO herda secrets.
   pull_request:
     branches: [develop, main]
   push:
@@ -16,6 +28,7 @@ permissions:
 jobs:
   gosec:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -45,6 +58,7 @@ jobs:
 
   semgrep:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -67,6 +81,7 @@ jobs:
 
   gitleaks:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

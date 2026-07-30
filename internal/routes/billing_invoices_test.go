@@ -25,9 +25,9 @@ import (
 const invoiceCustomerSQL = "SELECT stripe_customer_id FROM subscriptions WHERE account_id = (SELECT account_id FROM tenants WHERE id = $1) AND stripe_customer_id IS NOT NULL LIMIT 1"
 
 type fakeInvoiceLister struct {
-	invoices   []billing.Invoice
-	err        error
-	called     bool
+	invoices     []billing.Invoice
+	err          error
+	called       bool
 	gotCustGiven string
 }
 

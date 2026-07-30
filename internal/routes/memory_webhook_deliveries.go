@@ -279,8 +279,8 @@ func (h *MemoryWebhookDeliveriesHandler) Replay(w http.ResponseWriter, r *http.R
 		WHERE d.id = $1 AND w.subject = $2 AND w.tenant_id = $3
 	`
 	var (
-		status     string
-		ownerWHID  string
+		status    string
+		ownerWHID string
 	)
 	row := h.db.QueryRowContext(r.Context(), sel, deliveryID, user.Subject, user.TenantID)
 	if err := row.Scan(&status, &ownerWHID); err != nil {

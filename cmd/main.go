@@ -39,7 +39,6 @@ import (
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/normalize"
 	"github.com/usetheodev/theo-cloud/internal/promptly"
-	"github.com/usetheodev/theo-cloud/internal/trust"
 	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
@@ -49,6 +48,8 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/thelens"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
+	"github.com/usetheodev/theo-cloud/internal/trust"
+	"github.com/usetheodev/theo-cloud/internal/version"
 	"github.com/usetheodev/theo-cloud/internal/workspace_webhook_worker"
 )
 
@@ -198,7 +199,24 @@ func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, 
 		OnResult:   cloudmetrics.IncServiceVersionProbe,
 		Logger:     logger,
 	})
-	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(collector, logger), requireJWT)
+	// M22 — o proprio gateway entra no painel que ele serve.
+	//
+	// A decoracao acontece AQUI, no composition root, e nao dentro de internal/serviceversions: a
+	// interface VersionCollector e declarada do lado do CONSUMIDOR e satisfeita implicitamente, o
+	// que faz dela o seam certo — a quinta linha custa zero mudanca ao pacote do M21, cuja union
+	// type continua com quatro construtores e campos nao exportados.
+	//
+	// A linha vem de metadados de build IN-PROCESS, nunca de uma chamada HTTP a nos mesmos: um
+	// servico que se sonda reporta a propria vivacidade, que e o unico fato que um painel de status
+	// nao consegue aprender assim.
+	//
+	// O OnResult do coletor dispara uma vez por TARGET dentro de Collect, entao a linha apendada
+	// depois seria invisivel para ele e o censo do Prometheus discordaria do censo do JSON por um.
+	// Por isso o decorator emite a propria observacao.
+	selfAware := routes.NewSelfReportingCollector(
+		collector, version.Read(), time.Now, cloudmetrics.IncServiceVersionProbe,
+	)
+	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(selfAware, logger), requireJWT)
 }
 
 // mountRagDashboard registers the /v1/dashboard/rag BFF route group. M17 shipped it
@@ -822,6 +840,19 @@ func main() {
 
 	// §4.1+4.2: Metrics endpoint (Prometheus text format)
 	r.Get("/metrics", cloudmetrics.Handler())
+
+	// M22 — GET /v1/version: a proveniencia do binario que esta respondendo.
+	//
+	// AUTH-EXEMPT POR CONTRATO, e registrado aqui fora de qualquer middleware de auth de proposito.
+	// Com credencial na frente, "o servico caiu" e "sua credencial esta errada" produzem a MESMA
+	// resposta, e nem o operador nem o reconciliador conseguem distinguir — que e exatamente a
+	// ambiguidade que este endpoint existe para remover.
+	//
+	// Ate o M22 este servico CONSUMIA /v1/version de todos os irmaos (internal/serviceversions) e nao
+	// servia nenhum: a rota devolvia 404 literal, medido 6/6 contra o edge de public-dev. O
+	// reconciliador do host sondava OUTRO endpoint (o agregado do M21, com JWT), lia o 401 dele como
+	// "a rota existe" e declarava a proveniencia convergida.
+	r.Get("/v1/version", version.Handler())
 
 	// platform-api-gateway-edge-slice1 (M6, ADR D7): internal ForwardAuth authz
 	// endpoint. Only the Traefik edge calls it (subrequest) — it is NOT under any

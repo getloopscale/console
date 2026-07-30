@@ -22,6 +22,7 @@ concurrency:
 jobs:
   plan:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
     outputs:
       images: ${{ steps.set.outputs.images }}
       sign: ${{ steps.set.outputs.sign }}
@@ -52,8 +53,46 @@ jobs:
             echo "images=$SEL" >> "$GITHUB_OUTPUT"
             echo "sign=false" >> "$GITHUB_OUTPUT"
           fi
-  images:
+  # --- Gates: nenhuma imagem sai com um deles vermelho -------------------------------------
+  #
+  # MEDIDO na janela da auditoria de 2026-07-30: 12 commits publicaram ao menos uma imagem com um
+  # gate vermelho (17 pushes de imagem no total); 3daf3663 subiu DUAS imagens com ci, quality e
+  # security-sast falhando os tres. O host converge :develop em ~5 min, entao cada um foi ao ar.
+  #
+  # `needs:` e o mecanismo — nao um passo de saida antecipada dentro do job. `needs:` aborta ANTES
+  # do job comecar, entao nenhuma credencial de registry e adquirida e nao ha push parcial a
+  # desfazer.
+  #
+  # `workflow_run` e PROIBIDO como gate (tres rejeicoes independentes neste workspace): e assincrono
+  # e `github.sha` vira o do evento ANTERIOR, o que quebra o compare/main...$SHA do promotion guard.
+  #
+  # O `if:` replica a condicao do `images`: sem ele, um commit so de documentacao rodaria os tres
+  # gates por inteiro e publicaria nada — piorando os 4.812 runner-segundos que a auditoria ja
+  # mediu em commits de docs. O gitleaks continua vendo esses commits pelo `push:` proprio do
+  # security-sast.yml, que por isso e o unico dos tres que manteve o gatilho avulso.
+  gate-ci:
     needs: plan
+    if: ${{ needs.plan.outputs.images != '[]' && needs.plan.outputs.images != '' }}
+    uses: ./.github/workflows/ci.yml
+    secrets:
+      GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+
+  gate-quality:
+    needs: plan
+    if: ${{ needs.plan.outputs.images != '[]' && needs.plan.outputs.images != '' }}
+    uses: ./.github/workflows/quality.yml
+    secrets:
+      GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+
+  gate-sast:
+    needs: plan
+    if: ${{ needs.plan.outputs.images != '[]' && needs.plan.outputs.images != '' }}
+    uses: ./.github/workflows/security-sast.yml
+    secrets:
+      GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
+
+  images:
+    needs: [plan, gate-ci, gate-quality, gate-sast]
     if: ${{ needs.plan.outputs.images != '[]' && needs.plan.outputs.images != '' }}
     strategy:
       fail-fast: false
@@ -64,8 +103,21 @@ jobs:
       image: ${{ matrix.image }}
       dockerfile: ${{ matrix.dockerfile }}
       context: ${{ matrix.context }}
-      sign: ${{ needs.plan.outputs.sign == 'true' }}
-      verify: ${{ needs.plan.outputs.sign == 'true' }} # identity-pinned cosign verify on release (same gate as sign)
+      # O canal que a producao CONSUME e :develop. Deixar scan e assinatura presos a tags protegia
+      # artefatos que este host nunca puxa, e nao protegia o que ele executa.
+      trivy: true
+      sign: true
+      # A MESMA verdade que o metadata-action grava em org.opencontainers.image.revision no mesmo
+      # run. Binario e label viram duas projecoes de um unico fato, entao o criterio de aceite do
+      # M22 (`/v1/version` bate com o label da imagem em execucao) e verdadeiro por construcao.
+      git_sha: ${{ github.sha }}
+      version_label: ${{ github.ref_name }}
+      # `verify` fica preso a tag de proposito (EC-3): o cosign verify resolve contra Rekor/Fulcio
+      # DEPOIS do push, entao uma indisponibilidade do Sigstore vermelharia um run cuja imagem ja
+      # publicou — e o reconciliador convergiria numa imagem que a pipeline diz ter falhado.
+      verify: ${{ needs.plan.outputs.sign == 'true' }}
+      # SBOM + provenance mode=max e o export pesado; so na release.
+      attest: ${{ needs.plan.outputs.sign == 'true' }}
     # Explicito, nao `secrets: inherit`. O reusable declara TRES secrets, todos opcionais;
     # herdar tudo passa cada segredo do repo para um workflow que usa no maximo tres — e o
     # semgrep sinaliza `secrets-inherit` por isso mesmo. A enumeracao nao custa nada.

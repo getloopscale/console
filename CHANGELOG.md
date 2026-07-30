@@ -2,7 +2,18 @@
 
 ### Added
 
+- O **`theo-cloud` aparece na própria página `/status`**, ao lado dos serviços de data-plane, com as quatro colunas que já existiam (`Service · State · Version · Built`). A linha vem de metadados de build in-process — nunca de uma chamada HTTP do serviço para si mesmo, que reportaria apenas a própria vivacidade (#roadmap-m22)
+- **`GET /v1/version`**, auth-exempt, reportando os cinco campos do contrato (`name`, `version`, `git_sha`, `built_at`, `node`). Até agora o `theo-cloud` consumia esse endpoint de todos os serviços irmãos e não servia nenhum — a rota devolvia 404 literal, medido 6/6 contra o edge de public-dev, enquanto o reconciliador do host sondava outro endpoint e lia o 401 dele como "a rota existe" (#roadmap-m22)
+- Roadmap amended: added M22 "theo-cloud diz a verdade sobre si mesmo (entrega confiável + presença no painel)" via `/roadmap-feature theo-cloud-delivery-truth` — fecha o caminho de entrega atrás dos gates de teste, faz o `/v1/version` reportar o commit em execução e coloca o `theo-cloud` na página `/status` ao lado dos demais serviços (#roadmap-m22)
+
 ### Changed
+
+- Os testes de forma de workflow usam `go.yaml.in/yaml/v3`, que já estava no grafo do módulo, em vez de introduzir `gopkg.in/yaml.v3` como requisito direto — cujo upstream está arquivado. É promoção de indirect para direct, não adição: nenhuma aresta nova de supply-chain entra no build, e em nenhum dos casos o parser é linkado no binário publicado (#roadmap-m22)
+- Onze jobs de CI ganharam `timeout-minutes` dimensionado pela duração medida (o mais lento da janela roda 98,9s). Antes, 12 de 13 jobs não tinham teto numa frota **paga** de 8 vCPU, onde um job travado fatura o máximo da plataforma: 6 horas. Jobs `uses:` foram deixados de fora de propósito — o GitHub não honra `timeout-minutes` neles (#roadmap-m22)
+- O canal `:develop` — o que a produção de fato executa — passou a ser escaneado (`trivy`) e assinado (`cosign`). Antes o gate de CVE não rodava em **canal nenhum**, release incluído, porque o input tinha default `false` e nunca era passado; e `sign` estava preso a tags. O `verify` fica preso a tag de propósito: ele resolve contra Rekor/Fulcio **depois** do push, então uma indisponibilidade do Sigstore vermelharia um run cuja imagem já publicou (#roadmap-m22)
+- O input `attest` foi separado de `sign` no reusable de build: assinar é barato e local ao run, enquanto SBOM + provenance `mode=max` é o export pesado. Conflacionar os dois obrigava a escolher entre não assinar produção e pagar o export em todo push (#roadmap-m22)
+- **Nenhuma imagem sai mais com um gate de teste vermelho.** O job `images` do `publish.yml` passou a depender de `ci`, `quality` e `security-sast`, invocados por `workflow_call`. Medido na janela da auditoria: 12 commits publicaram imagem com gate vermelho (17 pushes no total); `3daf3663` subiu duas imagens com os três gates falhando (#roadmap-m22)
+- `ci.yml` e `quality.yml` deixaram de disparar em `push` e passaram a ser invocados como gate. Medido em 2026-07-30 (theo-memory, runs `30522117234`/`30522853797`): um callee de `workflow_call` **não** herda o `concurrency` do chamador — mantém o próprio, avaliado no contexto do chamador —, então um run avulso e a chamada gateada colidiam e um cancelava o outro. O `security-sast.yml` manteve o `push:` de propósito: o gitleaks precisa ver todo commit, inclusive merges só de documentação (#roadmap-m22)
 
 ### Deprecated
 
@@ -10,7 +21,17 @@
 
 ### Fixed
 
+- **O gate de publish deixou de poder cancelar a si mesmo no ritual de release.** A chave de `concurrency` do `ci.yml` não distinguia a chamada gateada de um run avulso: um PR `develop → main` resolve `head.ref` para `develop` e caía no mesmo grupo do callee rodando sob push em develop, cancelando o gate em voo. Medido: 10 dos 10 últimos PRs para `main` vêm de `develop`. O resultado seria um commit de release publicando nada, reportado em cinza (`cancelled`) e não em vermelho (#roadmap-m22)
+- Um `--build-arg VERSION=` explicitamente vazio deixou de derrotar o sentinela de versão. Vazio sobrescreve o default do `ARG` e não recai nele; a versão vazia é normalizada para `""`, degrada a linha do gateway para `unreachable` e prende o painel em `degraded` permanentemente. A coerção agora está na fonte (`${VAR:-sentinela}`), não na confiança de que todo caller preenche (#roadmap-m22)
+- O detector diário de divergência (`e2e-drift`) voltou a rodar: o login no GHCR usava o `GITHUB_TOKEN` do run, que não tem ACL no pacote de um repositório irmão, e todo pull falhava com `denied`. Agora usa `GOMOD_TOKEN`, a mesma correção que `f5ee627` aplicou aos jobs e2e do `ci.yml` e que este workflow não recebeu (#roadmap-m22)
+- O laço de drift do `e2e-drift` deixou de reportar divergência falsa permanente: a chave `themory` remontava `ghcr.io/usetheoai/themory`, repositório que não existe desde o rename (#roadmap-m22)
+
 ### Security
+
+- O PAT deixou de persistir na camada do builder. O `git config --global` gravava `$HOME/.gitconfig` com o token já expandido, e `cache-to: mode=max` exporta camadas de estágios intermediários para o cache do Actions com escopo de repositório — quem pudesse rodar um workflow restauraria o cache e leria o token. A imagem publicada nunca teve o problema (estágio final distroless, um único `COPY --from`); o cache tinha. A config do git agora vai para um `tmpfs`, então o arquivo nunca chega a existir numa camada (#roadmap-m22)
+- A âncora de identidade do `cosign` ganhou terminador: era `…build-publish\.yml@`, que casava qualquer **sufixo** — uma assinatura produzida por outro workflow do mesmo repositório seria aceita como se fosse deste. Agora é `@refs/(heads|tags)/.+$` (#roadmap-m22)
+- `provenance` deixou de receber o literal `'false'` no caminho develop, que **desligava** o `mode=min` que o buildx faz por padrão: o canal de produção ficava com menos proveniência que um build sem configuração alguma (#roadmap-m22)
+- Superfície de CVE da imagem do `theo-cloud` zerada antes de ligar o gate de vulnerabilidade: 14 achados HIGH (0 CRITICAL) medidos com os parâmetros exatos do gate (`CRITICAL,HIGH` + `--ignore-unfixed`) foram para 0. Onze eram `stdlib` do Go, corrigidos pelo bump do toolchain para 1.26.5; os outros por `golang.org/x/text` v0.39.0 e `google.golang.org/grpc` v1.82.1. Nenhum `.trivyignore` foi criado — a correção é upgrade, não allowlist (#roadmap-m22)
 
 ## [0.71.0] - 2026-07-29
 

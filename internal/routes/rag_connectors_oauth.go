@@ -138,7 +138,7 @@ const (
 	oauthStateCookie      = "theo_rag_oauth_state"
 	oauthCollectionCookie = "theo_rag_oauth_collection"
 	oauthVerifierCookie   = "theo_rag_oauth_verifier"
-	oauthCookieTTL        = 600              // 10-minute consent window
+	oauthCookieTTL        = 600               // 10-minute consent window
 	oauthCookiePath       = "/v1/rag-connect" // scope the CSRF/PKCE cookies to the broker path only
 )
 

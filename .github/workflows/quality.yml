@@ -13,16 +13,22 @@
 # ferramentas sao instaladas explicitamente e o job falha quando elas falham.
 name: quality
 on:
+  # Gate de publish.yml + PR. Sem `push:`: um commit que nao produz imagem nao tem o que o quality
+  # cheque, e o commit de merge passa a ser coberto pelo gate.
+  workflow_call:
+    secrets:
+      GOMOD_TOKEN:
+        required: true
+        description: PAT com leitura no modulo privado theo-contracts; um callee NAO herda secrets.
   pull_request:
     branches: [develop, main]
-  push:
-    branches: [develop]
 permissions:
   contents: read
 jobs:
   go:
     name: go — build + test (race) + vet + lint
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -81,6 +87,7 @@ jobs:
   dashboard:
     name: dashboard — typecheck + lint + build + test
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: dashboard
