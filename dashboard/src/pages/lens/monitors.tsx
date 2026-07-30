@@ -130,15 +130,26 @@ export function LensMonitorsPage() {
   // `label_eq` matches a label, so it takes NO numeric threshold — the field is hidden + omitted.
   const needsThreshold = operator !== 'label_eq';
 
+  // #261 — `throwOnError` here for the SAME reason it is on `rulesQuery` below, and its absence had
+  // the same shape of consequence: a 502 resolved to `null`, the query reported SUCCESS, `monitors`
+  // fell back to `[]`, and the screen rendered "No monitors yet — Create your first monitor". The
+  // operator reads "you have none" when the truth is "I could not ask" — and a monitor may exist and
+  // be firing. The `query.isError` branch below already existed and was UNREACHABLE, which is what
+  // made the code read as correct.
+  //
+  // The comment two blocks down already spelled this rule out; these two queries simply did not
+  // follow it. Same movement as #250 did for Memories.
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/monitors'] as const,
-    queryFn: () => cloudFetch<MonitorsResult>('/v1/dashboard/lens/monitors'),
+    queryFn: () => cloudFetch<MonitorsResult>('/v1/dashboard/lens/monitors', {}, { throwOnError: true }),
+    retry: false,
   });
   // #179 — the evaluator is chosen from the workspace's evaluators (by name), not typed as a raw id
   // the Evaluators screen never surfaced. value = id, label = name.
   const evaluatorsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] as const,
-    queryFn: () => cloudFetch<EvaluatorsResult>('/v1/dashboard/lens/evaluators'),
+    queryFn: () => cloudFetch<EvaluatorsResult>('/v1/dashboard/lens/evaluators', {}, { throwOnError: true }),
+    retry: false,
   });
   const evaluators = evaluatorsQuery.data?.evaluators ?? [];
   const evaluatorName = (id?: string) => evaluators.find((e) => e.id === id)?.name ?? (id ? shortId(id) : '—');
@@ -351,7 +362,21 @@ export function LensMonitorsPage() {
             <Label htmlFor="monitor-evaluator">Evaluator</Label>
             <Select value={evaluatorId} onValueChange={setEvaluatorId}>
               <Select.Trigger id="monitor-evaluator" className="w-full" aria-label="Evaluator">
-                <Select.Value placeholder={evaluators.length === 0 ? 'No evaluators — create one first' : 'Choose an evaluator'} />
+                {/*
+                  #261 — an empty list and a FAILED read are different facts and must not share copy.
+                  "No evaluators — create one first" told the operator to create something that may
+                  already exist, from an outage. `evaluatorsQuery.isError` is only reachable at all
+                  because the query above now opts into `throwOnError`.
+                */}
+                <Select.Value
+                  placeholder={
+                    evaluatorsQuery.isError
+                      ? 'Could not load evaluators'
+                      : evaluators.length === 0
+                        ? 'No evaluators — create one first'
+                        : 'Choose an evaluator'
+                  }
+                />
               </Select.Trigger>
               <Select.Content>
                 {evaluators.map((ev) => (
@@ -390,6 +415,11 @@ export function LensMonitorsPage() {
                 placeholder="0.5"
               />
             </div>
+          ) : null}
+          {evaluatorsQuery.isError ? (
+            <Alert intent="warning" title="Could not load evaluators">
+              The list above is incomplete — this is an outage, not an empty workspace. Try again shortly.
+            </Alert>
           ) : null}
           {create.isError ? (
             <Alert intent="destructive" title="Could not create the guard">
