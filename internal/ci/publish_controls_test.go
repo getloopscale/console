@@ -192,3 +192,31 @@ func TestProvenanceArgsCoerceEmptyToSentinels(t *testing.T) {
 		}
 	}
 }
+
+// The Trivy gate must not point at an ignore file that does not exist.
+//
+// Measured, run 30570111324: the gate died in 17ms with `ERROR: cannot find ignorefile
+// '.trivyignore'` — the scan NEVER RAN. It failed closed, so nothing was published, which is the
+// right outcome for the wrong reason: a reader seeing a red `images` job would look for a CVE that
+// was never searched for.
+//
+// The invariant is two-sided on purpose. Either the input is absent (no allowlist — the state M22
+// chose, since it fixed CVEs by upgrading rather than suppressing), or the file it names exists.
+// Both halves are needed: dropping only the input would let someone re-add it later against a
+// missing file, and creating only the file would leave an allowlist nobody asked for.
+func TestTrivyIgnoreFileInputMatchesReality(t *testing.T) {
+	body := readWF(t, "build-publish.yml")
+
+	re := regexp.MustCompile(`(?m)^\s*trivyignores:\s*(\S+)\s*$`)
+	m := re.FindStringSubmatch(body)
+	if m == nil {
+		return // no allowlist declared — nothing to point at, nothing to break
+	}
+
+	named := m[1]
+	if _, err := os.Stat(filepath.Join("../..", named)); err != nil {
+		t.Fatalf("build-publish.yml declares `trivyignores: %s` but that file does not exist: %v\n"+
+			"trivy exits 1 before scanning anything, so the gate reports a vulnerability failure "+
+			"for a scan that never ran", named, err)
+	}
+}

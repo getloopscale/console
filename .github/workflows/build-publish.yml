@@ -124,7 +124,14 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: '1'
           ignore-unfixed: true
-          trivyignores: .trivyignore
+          # SEM `trivyignores:`. MEDIDO no run 30570111324: apontar para um `.trivyignore`
+          # inexistente faz o trivy sair 1 em 17ms com `cannot find ignorefile` — o scan NAO
+          # RODA, e o gate reporta falha de vulnerabilidade para uma varredura que nunca houve.
+          #
+          # Nao criamos um arquivo vazio so para satisfazer o ponteiro: o M22 zerou a
+          # superficie por UPGRADE (14 HIGH -> 0), nao por supressao, e um allowlist vazio no
+          # repo e um convite para a primeira supressao. Se um dia for preciso allowlistar um
+          # CVE, o arquivo E o input voltam juntos, com sunset — e internal/ci trava os dois.
 
       # Registry login happens HERE — AFTER the (slow, cold-cache) Trivy build-for-scan — so the
       # GHCR token is FRESH at push time. A long build (e.g. a native-compile image via the Trivy
