@@ -46,7 +46,11 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # NAO o GITHUB_TOKEN do run: permissao de package no GHCR e por-package e nao e herdada
+          # de `packages: read`. O package `theo-memory` pertence ao repo irmao e nao lista o
+          # theo-cloud. Medido: run 30527179585 falha com `denied`; o mesmo pull com PAT resolve.
+          # Mesma correcao que f5ee627 aplicou aos dois jobs e2e do ci.yml — este ficou para tras.
+          password: ${{ secrets.GOMOD_TOKEN }}
 
       # O engine entra no drift pelo MESMO motivo das imagens: `THEO_ENGINE_REF` fixa um SHA,
       # e uma migration nova no engine e exatamente o tipo de mudanca que precisa ser vista
@@ -73,7 +77,7 @@ jobs:
             echo "::warning::engine: o pin esta atras do develop (pin=$THEO_ENGINE_REF live=$live_engine)"
             drift=1
           fi
-          for pair in "themory:$THEMORY_IMAGE" "theo-rag:$THEORAG_IMAGE" "theo-lens:$THELENS_IMAGE"; do
+          for pair in "theo-memory:$THEMORY_IMAGE" "theo-rag:$THEORAG_IMAGE" "theo-lens:$THELENS_IMAGE"; do
             img="${pair%%:*}"; pinned="${pair#*:}"
             live=$(docker buildx imagetools inspect "ghcr.io/usetheoai/${img}:develop" \
                      --format '{{.Manifest.Digest}}' 2>/dev/null || echo "unreachable")

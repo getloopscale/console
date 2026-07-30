@@ -2,6 +2,8 @@
 
 ### Added
 
+- Roadmap amended: added M22 "theo-cloud diz a verdade sobre si mesmo (entrega confiável + presença no painel)" via `/roadmap-feature theo-cloud-delivery-truth` — fecha o caminho de entrega atrás dos gates de teste, faz o `/v1/version` reportar o commit em execução e coloca o `theo-cloud` na página `/status` ao lado dos demais serviços (#roadmap-m22)
+
 ### Changed
 
 ### Deprecated
@@ -9,6 +11,9 @@
 ### Removed
 
 ### Fixed
+
+- O detector diário de divergência (`e2e-drift`) voltou a rodar: o login no GHCR usava o `GITHUB_TOKEN` do run, que não tem ACL no pacote de um repositório irmão, e todo pull falhava com `denied`. Agora usa `GOMOD_TOKEN`, a mesma correção que `f5ee627` aplicou aos jobs e2e do `ci.yml` e que este workflow não recebeu (#roadmap-m22)
+- O laço de drift do `e2e-drift` deixou de reportar divergência falsa permanente: a chave `themory` remontava `ghcr.io/usetheoai/themory`, repositório que não existe desde o rename (#roadmap-m22)
 
 ### Security
 
