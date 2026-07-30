@@ -536,7 +536,6 @@ func (h *RagDashboardHandler) Ask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, json.RawMessage(out))
 }
 
-
 // ListWikiPages serves GET /v1/dashboard/rag/wiki/pages?collection_id= (Open Wiki, rag:read).
 func (h *RagDashboardHandler) ListWikiPages(w http.ResponseWriter, r *http.Request) {
 	if !h.authTenant(w, r) {

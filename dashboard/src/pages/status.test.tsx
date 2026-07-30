@@ -243,3 +243,49 @@ describe('layout em colunas', () => {
     expect(row.textContent).not.toMatch(/undefined|null|NaN/);
   });
 });
+
+// M22 T6.2 — the gateway now appears on the panel it serves.
+//
+// The page holds no hardcoded roster (it maps `data.services`), so the fifth row is a data change.
+// What is NOT free is the aggregate sentence and the git_sha boundary — both are asserted here.
+describe('M22 — theo-cloud on its own panel', () => {
+  it('renders the gateway row alongside the data-plane services', async () => {
+    stubVersions({
+      collected_at: at,
+      services: [
+        { name: 'theo-cloud', state: 'ok', checked_at: at, version: '0.71.0', built_at: at },
+        { name: 'theo-memory', state: 'ok', checked_at: at, version: '1.2.3' },
+        { name: 'theo-rag', state: 'unreachable', checked_at: at, reason: 'connection_refused' },
+      ],
+    });
+
+    render(<StatusPage />);
+
+    const row = await screen.findByRole('row', { name: /theo-cloud/ });
+    expect(within(row).getByText('0.71.0')).toBeInTheDocument();
+  });
+
+  // ROADMAP M21: git_sha is infrastructure data and must not reach the dashboard — even though it
+  // IS part of the /v1/version wire contract the gateway now serves. The two surfaces are
+  // deliberately different: the endpoint serves operators and the reconciler, the panel serves users.
+  it('never surfaces a commit sha in the panel', async () => {
+    stubVersions({
+      collected_at: at,
+      services: [
+        {
+          name: 'theo-cloud',
+          state: 'ok',
+          checked_at: at,
+          version: '0.71.0',
+          built_at: at,
+          git_sha: '3c4aaf97a9bd0bfdec19ef3bc7dc64d87d8b665d',
+        },
+      ],
+    });
+
+    const { container } = render(<StatusPage />);
+    await screen.findByRole('row', { name: /theo-cloud/ });
+
+    expect(container.textContent ?? '').not.toMatch(/[0-9a-f]{40}/);
+  });
+});

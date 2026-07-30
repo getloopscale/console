@@ -58,6 +58,7 @@ permissions:
 jobs:
   build-publish:
     runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 30
     env:
       # `secrets` is NOT allowed in step `if:` — lift the token to a job-level env so the
       # Docker Hub guards below can use `env.*` (valid in if/with). Stays masked in logs.

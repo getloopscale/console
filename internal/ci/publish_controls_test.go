@@ -128,3 +128,43 @@ func TestProvenanceBuildArgsReachBothBuildSteps(t *testing.T) {
 		t.Fatalf("expected both the scan build and the push build, found %d", builds)
 	}
 }
+
+// T7.2 — every job that CAN carry a timeout carries one.
+//
+// Measured: 12 of 13 jobs had none, on a PAID 8-vCPU fleet, so a hang bills the platform maximum of
+// 6h. The slowest job in the audit window ran 98.9s, so a 15-minute cap is ~9x headroom and cannot
+// produce a false red.
+//
+// `timeout-minutes` is NOT honored on a `uses:` job — it only works inside the reusable. Applying it
+// to publish.yml's gate jobs would be silently inert, so those are skipped rather than "fixed".
+func TestEveryNonReusableJobHasATimeout(t *testing.T) {
+	files, err := filepath.Glob("../../.github/workflows/*.yml")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("globbing workflows: %v (%d files)", err, len(files))
+	}
+
+	for _, f := range files {
+		b, err := os.ReadFile(filepath.Clean(f))
+		if err != nil {
+			t.Fatalf("reading %s: %v", f, err)
+		}
+		var wf struct {
+			Jobs map[string]struct {
+				Uses    string `yaml:"uses"`
+				Timeout int    `yaml:"timeout-minutes"`
+			} `yaml:"jobs"`
+		}
+		if err := yaml.Unmarshal(b, &wf); err != nil {
+			t.Fatalf("parsing %s: %v", f, err)
+		}
+		for name, job := range wf.Jobs {
+			if job.Uses != "" {
+				continue // inert on a `uses:` job
+			}
+			if job.Timeout == 0 {
+				t.Errorf("%s job %q declares no timeout-minutes; a hang bills 6h of a paid 8-vCPU runner",
+					filepath.Base(f), name)
+			}
+		}
+	}
+}

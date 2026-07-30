@@ -22,6 +22,7 @@ concurrency:
 jobs:
   plan:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
     outputs:
       images: ${{ steps.set.outputs.images }}
       sign: ${{ steps.set.outputs.sign }}

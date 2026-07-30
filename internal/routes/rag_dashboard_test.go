@@ -20,40 +20,40 @@ import (
 
 // stubRagDataClient records the calls; it never talks to a real theo-rag.
 type stubRagDataClient struct {
-	listErr             error
-	analyticsErr        error
-	writeErr            error
-	listCalls           int
-	analytics           int
-	analyticsGotColID   string
-	analyticsGotSince   string
-	analyticsRes        *rag.AnalyticsResult // when non-nil, overrides the default
-	createCalls         int
-	deleteCalls         int
-	ingestCalls         int
-	askCalls            int
-	askGotStrategy      string // M9 — the strategy the handler forwarded to theo-rag
-	listConnCalls       int
-	syncCalls           int
-	delConnCalls        int
-	connectCalls        int    // M8
-	connectGotProvider  string // M8 — the provider the handler forwarded
-	connectGotBody      string // M8 — the opaque credential body the handler forwarded
-	graphGotColID       string // M10 — the collection the graph handler forwarded
-	graphGotLevel       string // M10
-	graphGotLimit       string // M10
-	commGotColID        string // M10 — the collection the communities handler forwarded
-	graphErr            error  // M10 — when set, GraphView/Communities fail
-	uploadCalls         int    // M11 — file upload
-	uploadGotColID      string // M11
-	uploadGotFilename   string // M11
-	uploadGotMode       string // M11
-	uploadGotFileBody   string // M11 — the file bytes the handler streamed through
-	chunkErr            error  // chunk-editor — when set, chunk methods fail
-	listChunksGotDocID  string // chunk-editor
-	getChunkGotID       string // chunk-editor
-	updateChunkGotID    string // chunk-editor
-	updateChunkGotBody  string // chunk-editor — the opaque {text} body forwarded
+	listErr            error
+	analyticsErr       error
+	writeErr           error
+	listCalls          int
+	analytics          int
+	analyticsGotColID  string
+	analyticsGotSince  string
+	analyticsRes       *rag.AnalyticsResult // when non-nil, overrides the default
+	createCalls        int
+	deleteCalls        int
+	ingestCalls        int
+	askCalls           int
+	askGotStrategy     string // M9 — the strategy the handler forwarded to theo-rag
+	listConnCalls      int
+	syncCalls          int
+	delConnCalls       int
+	connectCalls       int    // M8
+	connectGotProvider string // M8 — the provider the handler forwarded
+	connectGotBody     string // M8 — the opaque credential body the handler forwarded
+	graphGotColID      string // M10 — the collection the graph handler forwarded
+	graphGotLevel      string // M10
+	graphGotLimit      string // M10
+	commGotColID       string // M10 — the collection the communities handler forwarded
+	graphErr           error  // M10 — when set, GraphView/Communities fail
+	uploadCalls        int    // M11 — file upload
+	uploadGotColID     string // M11
+	uploadGotFilename  string // M11
+	uploadGotMode      string // M11
+	uploadGotFileBody  string // M11 — the file bytes the handler streamed through
+	chunkErr           error  // chunk-editor — when set, chunk methods fail
+	listChunksGotDocID string // chunk-editor
+	getChunkGotID      string // chunk-editor
+	updateChunkGotID   string // chunk-editor
+	updateChunkGotBody string // chunk-editor — the opaque {text} body forwarded
 }
 
 func (s *stubRagDataClient) ListCollections(_ context.Context, _, _ int) (*rag.CollectionsResult, error) {

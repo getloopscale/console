@@ -29,11 +29,11 @@ import (
 // (no extra auth dance) while the runtime invariant holds: by the time any
 // `auto_deploy` webhook fires, the installation is in the DB.
 type GitHubIntegrationsHandler struct {
-	appSlug        string // GitHub App slug, e.g. "theo-platform"
-	dashboardURL   string // e.g. "https://app-dev.usetheo.dev"
-	loginURL       string // e.g. "https://app-dev.usetheo.dev/login" — used on session expiry (EC-15)
-	cookieDomain   string // explicit Domain= on the state cookie (EC-2 host-only)
-	cookieSecure   bool   // false only in tests
+	appSlug         string // GitHub App slug, e.g. "theo-platform"
+	dashboardURL    string // e.g. "https://app-dev.usetheo.dev"
+	loginURL        string // e.g. "https://app-dev.usetheo.dev/login" — used on session expiry (EC-15)
+	cookieDomain    string // explicit Domain= on the state cookie (EC-2 host-only)
+	cookieSecure    bool   // false only in tests
 	sessionResolver func(r *http.Request) bool
 }
 
@@ -43,11 +43,11 @@ type GitHubIntegrationsHandler struct {
 // Production wires this to Kratos /sessions/whoami; tests stub.
 func NewGitHubIntegrationsHandler(appSlug, dashboardURL, loginURL, cookieDomain string, sessionResolver func(r *http.Request) bool) *GitHubIntegrationsHandler {
 	return &GitHubIntegrationsHandler{
-		appSlug:        appSlug,
-		dashboardURL:   dashboardURL,
-		loginURL:       loginURL,
-		cookieDomain:   cookieDomain,
-		cookieSecure:   true,
+		appSlug:         appSlug,
+		dashboardURL:    dashboardURL,
+		loginURL:        loginURL,
+		cookieDomain:    cookieDomain,
+		cookieSecure:    true,
 		sessionResolver: sessionResolver,
 	}
 }

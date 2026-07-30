@@ -199,7 +199,24 @@ func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, 
 		OnResult:   cloudmetrics.IncServiceVersionProbe,
 		Logger:     logger,
 	})
-	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(collector, logger), requireJWT)
+	// M22 — o proprio gateway entra no painel que ele serve.
+	//
+	// A decoracao acontece AQUI, no composition root, e nao dentro de internal/serviceversions: a
+	// interface VersionCollector e declarada do lado do CONSUMIDOR e satisfeita implicitamente, o
+	// que faz dela o seam certo — a quinta linha custa zero mudanca ao pacote do M21, cuja union
+	// type continua com quatro construtores e campos nao exportados.
+	//
+	// A linha vem de metadados de build IN-PROCESS, nunca de uma chamada HTTP a nos mesmos: um
+	// servico que se sonda reporta a propria vivacidade, que e o unico fato que um painel de status
+	// nao consegue aprender assim.
+	//
+	// O OnResult do coletor dispara uma vez por TARGET dentro de Collect, entao a linha apendada
+	// depois seria invisivel para ele e o censo do Prometheus discordaria do censo do JSON por um.
+	// Por isso o decorator emite a propria observacao.
+	selfAware := routes.NewSelfReportingCollector(
+		collector, version.Read(), time.Now, cloudmetrics.IncServiceVersionProbe,
+	)
+	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(selfAware, logger), requireJWT)
 }
 
 // mountRagDashboard registers the /v1/dashboard/rag BFF route group. M17 shipped it

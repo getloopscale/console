@@ -44,6 +44,7 @@ concurrency:
 jobs:
   e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
       THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
@@ -121,6 +122,7 @@ jobs:
   # (TestEdgeForwardAuth*), which the default `e2e` job SKIPs (it runs no Traefik).
   e2e-edge:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
       THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
