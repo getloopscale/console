@@ -17,7 +17,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.43.0
 )
 
-require gopkg.in/yaml.v3 v3.0.1
+require go.yaml.in/yaml/v3 v3.0.4
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
