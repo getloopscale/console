@@ -53,7 +53,7 @@ export function useDomainStatusPolling(
   const visible = useDocumentVisible();
   const query = useQuery({
     queryKey: ['engine', `/api/v1/domains/${domainName}`] as const,
-    queryFn: () => engineFetch<Domain>(`/api/v1/domains/${encodeURIComponent(domainName ?? '')}`),
+    queryFn: () => engineFetch<Domain>(`/api/v1/domains/${encodeURIComponent(domainName ?? '')}`, {}, { throwOnError: true }),
     enabled: !!domainName,
     refetchInterval: (q) => {
       // Reach into the latest data via the query state.

@@ -59,6 +59,7 @@ interface UseEnvironmentsResult {
 export function useEnvironments(projectName?: string): UseEnvironmentsResult {
   const query = useQuery({
     queryKey: [...queryKeys.environments.all, 'list-names', projectName ?? ''] as const,
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: () => engineFetch<EnvironmentsResponse>('/api/v1/environments'),
   });
 

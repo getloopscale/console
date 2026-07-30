@@ -93,7 +93,7 @@ export function ApiKeysPage() {
 
   const listQuery = useQuery({
     queryKey: ['cloud', '/v1/api-keys/list'] as const,
-    queryFn: () => cloudFetch<ListKeysResponse>('/v1/api-keys/list'),
+    queryFn: () => cloudFetch<ListKeysResponse>('/v1/api-keys/list', {}, { throwOnError: true }),
   });
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -324,7 +324,7 @@ function LineageSheet({ target, onClose }: LineageSheetProps) {
   const open = target !== null;
   const query = useQuery({
     queryKey: ['cloud', `/v1/api-keys/${target?.id ?? ''}/lineage`] as const,
-    queryFn: () => cloudFetch<LineageResult>(`/v1/api-keys/${target!.id}/lineage`),
+    queryFn: () => cloudFetch<LineageResult>(`/v1/api-keys/${target!.id}/lineage`, {}, { throwOnError: true }),
     enabled: open && !!target,
   });
 

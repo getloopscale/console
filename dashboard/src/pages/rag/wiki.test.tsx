@@ -144,6 +144,6 @@ describe('RagWikiPage (/rag/wiki) — action screens are modals, reading is the 
 
     // Modal closes and the split reader now reflects the NEW page (fetch for p2).
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    await waitFor(() => expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/rag/wiki/pages/p2'));
+    await waitFor(() => expect(mockCloudFetch).toHaveBeenCalledWith('/v1/dashboard/rag/wiki/pages/p2', expect.anything(), expect.objectContaining({ throwOnError: true })));
   });
 });

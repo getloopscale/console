@@ -19,6 +19,7 @@ export function usePreviews(
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: queryKeys.previews.list(projectName, filters),
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: () => {
       const qs = filters?.status ? `?status=${encodeURIComponent(filters.status)}` : '';
       return engineFetch<PreviewListResponse>(

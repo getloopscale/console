@@ -30,7 +30,7 @@ export function LensAgentsPage() {
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/agents'] as const,
-    queryFn: () => cloudFetch<AgentsResult>('/v1/dashboard/lens/agents'),
+    queryFn: () => cloudFetch<AgentsResult>('/v1/dashboard/lens/agents', {}, { throwOnError: true }),
   });
 
   const columns: DataTableColumn<Agent>[] = [

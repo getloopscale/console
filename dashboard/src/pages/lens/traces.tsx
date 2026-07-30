@@ -231,14 +231,13 @@ export function LensTracesPage() {
     queryKey: ['cloud', '/v1/dashboard/lens/traces', filters, page] as const,
     queryFn: () =>
       cloudFetch<TracesResult>(
-        `/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now(), { limit: TRACES_PAGE_SIZE, offset: (page - 1) * TRACES_PAGE_SIZE })}`,
-      ),
+        `/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now(), { limit: TRACES_PAGE_SIZE, offset: (page - 1) * TRACES_PAGE_SIZE })}`, {}, { throwOnError: true }),
   });
   // M92 — facet discovery: the workspace's top attribute keys, to suggest in the attribute filter.
   // A failed/empty discovery leaves the key input as free-text (the filter still works).
   const attrKeysQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/metrics/span-attributes'] as const,
-    queryFn: () => cloudFetch<{ mode: 'keys'; keys: { key: string; count: number }[] }>('/v1/dashboard/lens/metrics/span-attributes'),
+    queryFn: () => cloudFetch<{ mode: 'keys'; keys: { key: string; count: number }[] }>('/v1/dashboard/lens/metrics/span-attributes', {}, { throwOnError: true }),
   });
   const attributeKeys = (attrKeysQuery.data?.keys ?? []).map((k) => k.key);
 

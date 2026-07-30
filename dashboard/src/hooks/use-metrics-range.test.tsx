@@ -118,8 +118,12 @@ describe('useMetricsRange — T2.2 J-18', () => {
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
 
+    // #274 — a leitura passou a optar por `throwOnError`, então a chamada tem 3 argumentos. A
+    // assertiva afirma o TERCEIRO em vez de ignorá-lo: sem isso, um futuro que remova o opt-in
+    // deixaria este teste verde de novo, e o estado vazio voltaria a mentir.
     expect(mockedEngineFetch).toHaveBeenCalledWith(
       expect.stringMatching(/^\/api\/v1\/projects\/proj%2Fwith%2Fslashes\/metrics\?range=24h&signal=p95_latency$/),
+      expect.anything(), expect.objectContaining({ throwOnError: true }),
     );
   });
 
@@ -137,7 +141,7 @@ describe('useMetricsRange — T2.2 J-18', () => {
     );
 
     await waitFor(() => {
-      expect(mockedEngineFetch).toHaveBeenCalledWith(expect.stringContaining('range=7d'));
+      expect(mockedEngineFetch).toHaveBeenCalledWith(expect.stringContaining('range=7d'), expect.anything(), expect.objectContaining({ throwOnError: true }));
     });
   });
 

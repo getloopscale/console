@@ -52,8 +52,7 @@ export function LensSessionsPage() {
     queryKey: ['cloud', '/v1/dashboard/lens/sessions', page] as const,
     queryFn: () =>
       cloudFetch<SessionsResult>(
-        `/v1/dashboard/lens/sessions?limit=${SESSIONS_PAGE_SIZE}&offset=${(page - 1) * SESSIONS_PAGE_SIZE}`,
-      ),
+        `/v1/dashboard/lens/sessions?limit=${SESSIONS_PAGE_SIZE}&offset=${(page - 1) * SESSIONS_PAGE_SIZE}`, {}, { throwOnError: true }),
   });
   const total = query.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / SESSIONS_PAGE_SIZE));

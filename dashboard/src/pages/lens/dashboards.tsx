@@ -193,7 +193,7 @@ export function LensDashboardsPage() {
 
   const listQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/dashboards'] as const,
-    queryFn: () => cloudFetch<{ dashboards: DashboardRow[] }>('/v1/dashboard/lens/dashboards'),
+    queryFn: () => cloudFetch<{ dashboards: DashboardRow[] }>('/v1/dashboard/lens/dashboards', {}, { throwOnError: true }),
   });
   const boardQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/dashboards', boardId] as const,

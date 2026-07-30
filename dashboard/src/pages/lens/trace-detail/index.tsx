@@ -55,7 +55,7 @@ export function LensTraceDetail({ traceId }: { traceId: string }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/traces', traceId, 'tree'] as const,
-    queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}`),
+    queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}`, {}, { throwOnError: true }),
   });
 
   const root = query.data;

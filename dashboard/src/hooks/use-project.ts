@@ -20,6 +20,7 @@ export function useProject(name: string | undefined): {
 } {
   const query = useQuery({
     queryKey: queryKeys.projects.detail(name ?? ''),
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: () => cloudFetch<Project>(`/engine/api/v1/projects/${encodeURIComponent(name!)}`),
     enabled: !!name,
   });

@@ -38,6 +38,7 @@ export function useCloudApi<T>(path: string, options: UseApiOptions = {}): UseAp
   const enabled = options.enabled ?? true;
   const query = useQuery({
     queryKey: ['cloud', path] as const,
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: () => cloudFetch<T>(path),
     enabled,
   });
@@ -51,6 +52,7 @@ export function useCloudApi<T>(path: string, options: UseApiOptions = {}): UseAp
 export function useEngineApi<T>(path: string): UseApiResult<T> {
   const query = useQuery({
     queryKey: ['engine', path] as const,
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: () => engineFetch<T>(path),
   });
   return {

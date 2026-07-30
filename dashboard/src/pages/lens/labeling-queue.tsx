@@ -77,7 +77,7 @@ export function LensLabelingQueuePage() {
   const [page, setPage] = useState(1);
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/labeling-queue', page] as const,
-    queryFn: () => cloudFetch<QueuePage>(`/v1/dashboard/lens/labeling-queue?page=${page}`),
+    queryFn: () => cloudFetch<QueuePage>(`/v1/dashboard/lens/labeling-queue?page=${page}`, {}, { throwOnError: true }),
   });
   const items = query.data?.items ?? [];
   // Q-3: exporting with zero resolved items produces an empty/partial golden dataset. Guard the export

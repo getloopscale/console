@@ -33,6 +33,7 @@ interface UseBuildEnvsResult {
 export function useBuildEnvs(projectName: string): UseBuildEnvsResult {
   const query = useQuery({
     queryKey: ['build-envs', projectName] as const,
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: () =>
       engineFetch<BuildEnvsResponse>(
         `/api/v1/projects/${encodeURIComponent(projectName)}/build-envs`,

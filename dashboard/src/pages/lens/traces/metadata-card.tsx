@@ -37,7 +37,7 @@ export function MetadataCard({ traceId, onClose }: MetadataCardProps) {
   const tagsKey = ['cloud', '/v1/dashboard/lens/traces', traceId, 'tags'] as const;
   const tags = useQuery({
     queryKey: tagsKey,
-    queryFn: () => cloudFetch<TagsResult>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/tags`),
+    queryFn: () => cloudFetch<TagsResult>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}/tags`, {}, { throwOnError: true }),
   });
   const invalidateTags = () => void queryClient.invalidateQueries({ queryKey: tagsKey });
 

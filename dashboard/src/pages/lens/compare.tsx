@@ -10,7 +10,6 @@ import { cloudFetch } from '@/lib/api';
 import { formatCost } from '@/lib/format';
 import { type TraceSpanNode } from './trace-detail';
 import { toTraceSpan } from './trace-detail/to-trace-span';
-import { type TraceCostSummary } from './compare-core';
 
 /**
  * M54 / M8 — /observability/compare?ids=A,B. Compare two traces side by side. The side-by-side lanes,
@@ -30,16 +29,14 @@ interface LaneData {
 function useLane(id: string | undefined): LaneData {
   const treeQ = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/traces', id, 'tree'] as const,
-    queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(id!)}`),
+    queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(id!)}`, {}, { throwOnError: true }),
     enabled: !!id,
   });
-  // The per-lane /cost summary is still fetched so a future richer lane can use it; the mapped span
-  // tree already carries per-span costUsd, which `TraceCompare` aggregates for the lane header.
-  useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/traces', id, 'cost'] as const,
-    queryFn: () => cloudFetch<TraceCostSummary>(`/v1/dashboard/lens/traces/${encodeURIComponent(id!)}/cost`),
-    enabled: !!id,
-  });
+  // O fetch de `/cost` por lane foi REMOVIDO aqui (#274). Ele existia "so a future richer lane can use
+  // it" — resultado descartado, nenhum consumidor: duas requisições por comparação, custeadas em
+  // latência e em quota do BFF, para alimentar ninguém. A escada de parcimônia responde no primeiro
+  // degrau: código que não precisa existir não precisa de `throwOnError`, precisa sair. O header da
+  // lane já agrega o `costUsd` por span que a árvore mapeada carrega, então nada visível muda.
   return {
     id: id ?? '',
     tree: treeQ.data ?? undefined,
