@@ -220,3 +220,46 @@ func TestTrivyIgnoreFileInputMatchesReality(t *testing.T) {
 			"for a scan that never ran", named, err)
 	}
 }
+
+// A security-upgrade layer that the build cache can serve is a security upgrade that stopped
+// happening.
+//
+// MEASURED, run 30577983071 vs a local `--no-cache` build of the SAME Dockerfile against the SAME
+// base:
+//
+//	CI (cache-from: type=gha)   4 HIGH  (c-ares 1.34.6-r0, libexpat 2.7.5-r0)
+//	local --no-cache            0 HIGH
+//
+// The base image is not at fault: every candidate base carries those same CVEs, and every one lists
+// the fix as available. `apk upgrade --no-cache` clears them — when it runs. In CI it did not,
+// because nothing above that layer changes between releases, so buildkit served it from the GHA
+// cache, frozen at whenever it was first built.
+//
+// The fix reuses machinery already plumbed for provenance: BUILT_AT is a per-run timestamp, so
+// declaring `ARG BUILT_AT` immediately before the upgrade invalidates exactly that layer on every
+// build, and nothing above it. No new mechanism (parsimony rung 4).
+func TestSecurityUpgradeLayerCannotBeServedFromCache(t *testing.T) {
+	for _, df := range []string{"dashboard/Dockerfile"} {
+		b, err := os.ReadFile(filepath.Clean(filepath.Join("../..", df)))
+		if err != nil {
+			t.Fatalf("reading %s: %v", df, err)
+		}
+		body := string(b)
+
+		idx := strings.Index(body, "apk upgrade")
+		if idx < 0 {
+			continue // no upgrade layer to protect
+		}
+		// Everything between the final FROM and the upgrade must contain a per-build ARG.
+		lastFrom := strings.LastIndex(body[:idx], "\nFROM ")
+		if lastFrom < 0 {
+			t.Fatalf("%s: could not locate the stage containing `apk upgrade`", df)
+		}
+		preamble := body[lastFrom:idx]
+		if !strings.Contains(preamble, "ARG BUILT_AT") {
+			t.Errorf("%s: `apk upgrade` is not preceded by a per-build ARG in its own stage, so "+
+				"buildkit serves it from cache and the upgrade silently stops applying. Measured: "+
+				"4 HIGH in CI versus 0 on a --no-cache build of the same file", df)
+		}
+	}
+}

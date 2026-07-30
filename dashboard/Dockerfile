@@ -13,6 +13,22 @@ LABEL org.opencontainers.image.source="https://github.com/usetheo/theo"
 LABEL org.opencontainers.image.title="theo-dashboard"
 
 # Upgrade Alpine packages to get latest security patches (openssl, musl).
+#
+# ARG BUILT_AT existe AQUI por seguranca, nao por proveniencia. MEDIDO (run 30577983071 contra um
+# build local --no-cache do MESMO arquivo, MESMA base):
+#
+#   CI, com cache-from: type=gha ....... 4 HIGH  (c-ares 1.34.6-r0, libexpat 2.7.5-r0)
+#   local, --no-cache .................. 0 HIGH
+#
+# A base nao tem culpa: TODAS as candidatas carregam esses CVEs, e todas listam a correcao como
+# disponivel. O `apk upgrade` resolve — quando roda. No CI ele nao rodava: nada acima desta camada
+# muda entre releases, entao o buildkit a servia do cache, congelada em quando foi criada. Um
+# upgrade de seguranca em cache e um upgrade que parou de acontecer.
+#
+# BUILT_AT muda a cada run e ja e passado aos dois builds para carimbar proveniencia, entao declara-lo
+# imediatamente antes do upgrade invalida exatamente esta camada e nenhuma acima dela. Sem mecanismo
+# novo. O custo e o de reinstalar pacotes no estagio final, que e pequeno.
+ARG BUILT_AT=unknown
 USER root
 RUN apk upgrade --no-cache
 USER 101
