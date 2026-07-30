@@ -331,3 +331,62 @@ describe('#259 — a null-resolving alert-rules read must not read as "Not monit
     expect(cell).not.toHaveTextContent(/not monitored/i);
   });
 });
+
+/**
+ * #261 regression — a 502 on the LIST read must not render "No monitors yet".
+ *
+ * Same root cause as #259 above, one query over: `cloudFetch` resolves `null` unless the call site
+ * opts into `throwOnError`, so a 502 reported SUCCESS, `monitors` fell back to `[]`, and the screen
+ * rendered the empty state. The operator reads "you have none" when the truth is "I could not ask" —
+ * and a monitor may exist and be firing. The `query.isError` branch already existed and was
+ * unreachable, which is exactly what made the code read as correct.
+ *
+ * The mock below reproduces the REAL client contract (resolve null unless opted in), so this test
+ * fails against a query that has not opted in — which the mocks that always throw could not do.
+ */
+describe('#261 — a null-resolving monitors list must not read as "No monitors yet"', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const nullUnlessOptedIn = (failing: string) =>
+    mockCloudFetch.mockImplementation((url: string, _init?: unknown, opts?: { throwOnError?: boolean }) => {
+      if (String(url).startsWith(failing)) {
+        if (opts?.throwOnError) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
+        return Promise.resolve(null);
+      }
+      if (url === '/v1/dashboard/lens/monitors') return Promise.resolve({ monitors: [] });
+      if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [] });
+      return Promise.resolve({});
+    });
+
+  it('a failing monitors read shows an error, never the empty state', async () => {
+    nullUnlessOptedIn('/v1/dashboard/lens/monitors');
+    render(<LensMonitorsPage />);
+    // POSITIVE assertion FIRST, and this ordering is the point. A bare
+    // `waitFor(() => expect(queryByText(/no monitors yet/i)).not.toBeInTheDocument())` passes on the
+    // FIRST tick — the list is still a skeleton, so the copy is legitimately absent and `waitFor`
+    // returns satisfied before any data arrives. That test passes against the UNFIXED code. Waiting
+    // for the error surface to appear forces the query to have SETTLED before the absence is judged.
+    expect(await screen.findByText(/could not load monitors/i)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/no monitors yet/i),
+      'a 502 rendered the empty state — the screen asserts "you have none" from an outage',
+    ).not.toBeInTheDocument();
+  });
+
+  it('a failing evaluators read does not read as "No evaluators — create one first"', async () => {
+    nullUnlessOptedIn('/v1/dashboard/lens/evaluators');
+    render(<LensMonitorsPage />);
+    // The monitors list itself is fine here (200 with []), so the empty state is HONEST. The lie
+    // lives one layer in: the create modal's evaluator picker shares copy between "none exist" and
+    // "could not ask", telling the operator to create something that may already be there.
+    expect(await screen.findByText(/no monitors yet/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /new monitor/i }));
+    // TWO surfaces, deliberately: the picker's own placeholder (so the empty dropdown is explained
+    // where the operator is looking) and an Alert (so it is visible without opening the dropdown).
+    expect(await screen.findAllByText(/could not load evaluators/i)).toHaveLength(2);
+    expect(
+      screen.queryByText(/no evaluators — create one first/i),
+      'a failed evaluators read told the operator to create an evaluator that may already exist',
+    ).not.toBeInTheDocument();
+  });
+});
