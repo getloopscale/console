@@ -18,6 +18,7 @@ export function useWhoami(): {
 } {
   const query = useQuery({
     queryKey: queryKeys.whoami.all,
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: () => engineFetch<Whoami>('/api/v1/auth/whoami'),
     staleTime: Infinity,
   });

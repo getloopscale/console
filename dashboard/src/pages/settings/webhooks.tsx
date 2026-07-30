@@ -114,7 +114,7 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
 
   const list = useQuery({
     queryKey: LIST_KEY,
-    queryFn: () => cloudFetch<ListResult>('/v1/settings/webhooks/list'),
+    queryFn: () => cloudFetch<ListResult>('/v1/settings/webhooks/list', {}, { throwOnError: true }),
   });
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -326,7 +326,7 @@ function DeliveriesSheet({
 }) {
   const query = useQuery({
     queryKey: ['cloud', `/v1/settings/webhooks/${webhook.id}/deliveries`] as const,
-    queryFn: () => cloudFetch<{ deliveries: Delivery[] }>(`/v1/settings/webhooks/${webhook.id}/deliveries`),
+    queryFn: () => cloudFetch<{ deliveries: Delivery[] }>(`/v1/settings/webhooks/${webhook.id}/deliveries`, {}, { throwOnError: true }),
     enabled: open,
   });
   const deliveries = query.data?.deliveries ?? [];

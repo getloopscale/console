@@ -71,15 +71,14 @@ export function RagDocumentsPage() {
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections'),
+    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
   });
 
   const docsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/documents', collectionID] as const,
     queryFn: () =>
       cloudFetch<{ items: Document[] }>(
-        `/v1/dashboard/rag/documents?collection_id=${encodeURIComponent(collectionID)}`,
-      ),
+        `/v1/dashboard/rag/documents?collection_id=${encodeURIComponent(collectionID)}`, {}, { throwOnError: true }),
     enabled: collectionID !== '',
     // Poll while any document is still ingesting so status transitions surface.
     refetchInterval: (q) =>

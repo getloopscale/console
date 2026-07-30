@@ -35,7 +35,7 @@ export function ChunksPanel({
   const chunksQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/chunks', documentID] as const,
     queryFn: () =>
-      cloudFetch<{ items: Chunk[] }>(`/v1/dashboard/rag/documents/${encodeURIComponent(documentID)}/chunks`),
+      cloudFetch<{ items: Chunk[] }>(`/v1/dashboard/rag/documents/${encodeURIComponent(documentID)}/chunks`, {}, { throwOnError: true }),
     enabled: documentID !== '',
   });
 

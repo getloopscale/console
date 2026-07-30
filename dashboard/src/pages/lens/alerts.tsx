@@ -159,11 +159,11 @@ export function LensAlertsPage() {
   const rulesKey = ['cloud', '/v1/dashboard/lens/alert-rules'] as const;
   const rules = useQuery({
     queryKey: rulesKey,
-    queryFn: () => cloudFetch<AlertRulesResult>('/v1/dashboard/lens/alert-rules'),
+    queryFn: () => cloudFetch<AlertRulesResult>('/v1/dashboard/lens/alert-rules', {}, { throwOnError: true }),
   });
   const webhooks = useQuery({
     queryKey: ['cloud', '/v1/settings/webhooks/list'] as const,
-    queryFn: () => cloudFetch<WebhooksResult>('/v1/settings/webhooks/list'),
+    queryFn: () => cloudFetch<WebhooksResult>('/v1/settings/webhooks/list', {}, { throwOnError: true }),
   });
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: rulesKey });
 

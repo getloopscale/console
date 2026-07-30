@@ -29,7 +29,7 @@ export function LensAskPage() {
   // Reused M58 trace fetch (Rule 9 — no new endpoint) → the span tree for the entity map.
   const tree = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/traces', traceId] as const,
-    queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}`),
+    queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(traceId)}`, {}, { throwOnError: true }),
     enabled: traceId !== '',
   });
 

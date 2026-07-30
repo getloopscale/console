@@ -46,7 +46,7 @@ export function RagCollectionsPage() {
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<CollectionsResult>('/v1/dashboard/rag/collections'),
+    queryFn: () => cloudFetch<CollectionsResult>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
   });
 
   const invalidate = () =>

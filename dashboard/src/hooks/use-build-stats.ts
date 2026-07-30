@@ -37,7 +37,7 @@ export interface BuildStats {
 export function useBuildStats(window: BuildStatsWindow = '30d'): BuildStats {
   const query = useQuery({
     queryKey: ['build-stats', window],
-    queryFn: () => engineFetch<BuildStatsResponse>(`/api/v1/builds/stats?window=${window}`),
+    queryFn: () => engineFetch<BuildStatsResponse>(`/api/v1/builds/stats?window=${window}`, {}, { throwOnError: true }),
     staleTime: 60_000,
   });
 

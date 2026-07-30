@@ -70,7 +70,7 @@ export function useProjects(
   const query = useQuery({
     queryKey: [...queryKeys.projects.list(), { limit }] as const,
     queryFn: () =>
-      cloudFetch<ProjectsResponse>(`/engine/api/v1/projects?limit=${limit}`),
+      cloudFetch<ProjectsResponse>(`/engine/api/v1/projects?limit=${limit}`, {}, { throwOnError: true }),
   });
   return {
     projects: query.data?.projects ?? [],

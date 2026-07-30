@@ -127,7 +127,7 @@ export function LensEvaluatorsPage() {
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/evaluators'] as const,
-    queryFn: () => cloudFetch<EvaluatorsResult>('/v1/dashboard/lens/evaluators'),
+    queryFn: () => cloudFetch<EvaluatorsResult>('/v1/dashboard/lens/evaluators', {}, { throwOnError: true }),
   });
 
   // M90 — score-over-time: a range-selectable per-evaluator mean trend (theo-lens
@@ -184,7 +184,7 @@ export function LensEvaluatorsPage() {
   // Poll the async run job until terminal; on completion, refresh the scores chart so the new verdicts show.
   const runJobQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/evaluator-run-jobs', activeRun?.jobId] as const,
-    queryFn: () => cloudFetch<RunJob>(`/v1/dashboard/lens/evaluator-run-jobs/${encodeURIComponent(activeRun!.jobId)}`),
+    queryFn: () => cloudFetch<RunJob>(`/v1/dashboard/lens/evaluator-run-jobs/${encodeURIComponent(activeRun!.jobId)}`, {}, { throwOnError: true }),
     enabled: activeRun !== null,
     refetchInterval: (q) => {
       const s = (q.state.data as RunJob | undefined)?.status;
