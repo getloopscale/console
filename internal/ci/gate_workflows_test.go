@@ -139,3 +139,51 @@ func TestGatesDeclareTheSecretsTheyConsume(t *testing.T) {
 		}
 	}
 }
+
+// HIGH-1 (review 2026-07-30) — a gate must not be able to enter the same concurrency group as a
+// standalone run of itself, by ANY route.
+//
+// D4 removed `push:` and `workflow_dispatch:` and closed two doors. It left a third: `ci.yml`'s
+// `pull_request:` has no branch filter, and this repo's release ritual is a `develop -> main` PR —
+// measured, 10 of the last 10 PRs into main have head `develop`, and 5 recent ci runs carry
+// event=pull_request with head_branch=develop.
+//
+// Such a PR resolves `github.event.pull_request.head.ref` to "develop", landing in
+// `test-e2e-develop`. The gated callee, running under a push to develop, falls through to
+// `github.ref_name` == "develop" and lands in the SAME group. With cancel-in-progress the release
+// PR cancels the in-flight gate; `needs:` goes unsatisfied, `images` is skipped, and the release
+// commit publishes nothing — reported as `cancelled`, i.e. grey rather than red.
+//
+// Before M22 that collision cost a duplicate CI signal. Gating publish on the callee converts it
+// into blocked delivery.
+//
+// The key must therefore carry something that differs between the two. `github.event_name` is used
+// because the mechanism is MEASURED: a callee evaluates its group expression in the CALLER's
+// context (theo-memory runs 30522117234 / 30522853797, where `github.ref_name` resolved to the
+// caller's branch). A standalone PR run sees `pull_request`; the gated callee under a push sees
+// `push`.
+func TestGateConcurrencyGroupCannotCollideWithAStandaloneRun(t *testing.T) {
+	for _, g := range gateSpec {
+		_, body := parseGate(t, g.file)
+
+		var wf struct {
+			Concurrency struct {
+				Group string `yaml:"group"`
+			} `yaml:"concurrency"`
+		}
+		if err := yaml.Unmarshal([]byte(body), &wf); err != nil {
+			t.Fatalf("%s: %v", g.file, err)
+		}
+		group := wf.Concurrency.Group
+		if group == "" {
+			continue // no group: nothing to collide with, and nothing to cancel
+		}
+		if !strings.Contains(group, "github.event_name") {
+			t.Errorf("%s: concurrency group %q does not distinguish the gated call from a "+
+				"standalone run. A `develop -> main` release PR resolves head.ref to \"develop\" "+
+				"and enters the same group as the callee running under a push to develop, "+
+				"cancelling the gate mid-flight and skipping `images` on the release commit",
+				g.file, group)
+		}
+	}
+}

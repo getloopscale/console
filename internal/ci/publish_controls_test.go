@@ -168,3 +168,27 @@ func TestEveryNonReusableJobHasATimeout(t *testing.T) {
 		}
 	}
 }
+
+// MEDIUM-1 (review 2026-07-30) — an explicitly empty build-arg must not reach the linker.
+//
+// `--build-arg VERSION=` overrides the Dockerfile's `ARG VERSION=dev`; it does not fall back to it.
+// Measured in review: the resulting binary reports version "", `normalizeUnknown("")` returns "",
+// `OK()` degrades the row to Unreachable and the panel sits at `degraded` permanently — the exact
+// failure the "dev" sentinel exists to prevent. The reusable advertises these inputs as optional
+// with `default: ''`, so any future caller that omits them walks into it.
+func TestProvenanceArgsCoerceEmptyToSentinels(t *testing.T) {
+	b, err := os.ReadFile(filepath.Clean("../../Dockerfile"))
+	if err != nil {
+		t.Fatalf("reading Dockerfile: %v", err)
+	}
+	body := string(b)
+	for arg, sentinel := range map[string]string{
+		"VERSION": "dev", "GIT_SHA": "unknown", "BUILT_AT": "unknown",
+	} {
+		want := "${" + arg + ":-" + sentinel + "}"
+		if !strings.Contains(body, want) {
+			t.Errorf("Dockerfile passes %s without the %q coercion: an explicitly empty build-arg "+
+				"would reach the linker and degrade the status row permanently", arg, want)
+		}
+	}
+}

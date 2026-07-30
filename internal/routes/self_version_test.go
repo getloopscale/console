@@ -68,9 +68,11 @@ func TestDecoratorDoesNotMutateTheInnerReport(t *testing.T) {
 	dec := NewSelfReportingCollector(inner, stamped(), func() time.Time { return fixedNow }, nil)
 	_ = dec.Collect(context.Background())
 
-	if len(inner.report.Services) != 1 {
-		t.Fatalf("inner report grew to %d entries", len(inner.report.Services))
-	}
+	// NOTA: nao ha assercao sobre len(inner.report.Services) aqui, de proposito. Ela seria
+	// TAUTOLOGICA — `append` devolve um novo slice header e nunca muta o `len` do header guardado
+	// no callee, escreva ele in-place ou nao. Passaria contra um append-in-place quebrado, diluindo
+	// o sinal de falha. A assercao abaixo e a que faz o trabalho: `backing` tem cap 8 e len 1, entao
+	// `backing[:2][1]` alcanca o slot 1 do array diretamente. (Review LOW-1.)
 	if got := backing[:2][1].Name(); got == "theo-cloud" {
 		t.Fatal("EC-1: the decorator wrote the self-row into the inner collector's backing array " +
 			"instead of copying; two concurrent requests would corrupt each other's report")

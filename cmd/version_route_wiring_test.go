@@ -15,8 +15,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/version"
 )
 
-// M22 T5.3 — GET /v1/version must be registered, and it must be registered OUTSIDE any auth
-// middleware.
+// M22 T5.3 — GET /v1/version must be registered, and registered OUTSIDE any auth middleware.
 //
 // Until M22 this service consumed /v1/version from every sibling and served none itself: the route
 // returned a literal 404, measured 6/6 against the public-dev edge. The host reconciler probed the
@@ -25,8 +24,8 @@ import (
 //
 // The assertion is on the composition root because that is where the defect would live: a handler
 // that exists but is never mounted, or is mounted behind requireJWT, is indistinguishable from the
-// 404 it replaces. This mirrors cmd/service_versions_wiring_test.go, which exists for the same
-// reason — a route-table test stays green when the call is deleted from main().
+// 404 it replaces. Mirrors cmd/service_versions_wiring_test.go, which exists for the same reason —
+// a route-table test stays green when the call is deleted from main().
 
 func TestVersionRouteIsRegisteredInTheCompositionRoot(t *testing.T) {
 	fset := token.NewFileSet()
@@ -34,6 +33,46 @@ func TestVersionRouteIsRegisteredInTheCompositionRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parsing main.go: %v", err)
 	}
+
+	// Two shapes must be caught, not one:
+	//
+	//   r.With(requireJWT).Get("/v1/version", …)                     — receiver is a call to With
+	//   r.Group(func(r chi.Router) { r.Use(requireJWT); r.Get(…) })  — nested in an auth scope
+	//
+	// The second is the DOMINANT idiom in this file (ten call sites), so a check that knows only
+	// the first passes green with the endpoint behind auth — review finding MEDIUM-2.
+	//
+	// Containment is decided by token POSITION, not by tracking a stack during the walk.
+	// ast.Inspect calls the visitor with nil on leaving EVERY node, so a naive push/pop
+	// desynchronises immediately. A first attempt did exactly that and PASSED against a
+	// deliberately mutated main.go with the route moved behind requireJWT. That mutation is
+	// recorded here rather than left as a silent near-miss: any future edit to this check must be
+	// re-proved the same way.
+	type span struct{ lo, hi token.Pos }
+	var authSpans []span
+	ast.Inspect(f, func(n ast.Node) bool {
+		lit, ok := n.(*ast.FuncLit)
+		if !ok {
+			return true
+		}
+		ast.Inspect(lit.Body, func(m ast.Node) bool {
+			call, ok := m.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "Use" {
+				return true
+			}
+			for _, a := range call.Args {
+				if id, ok := a.(*ast.Ident); ok && strings.Contains(id.Name, "requireJWT") {
+					authSpans = append(authSpans, span{lit.Pos(), lit.End()})
+				}
+			}
+			return true
+		})
+		return true
+	})
 
 	var found, behindAuth bool
 	ast.Inspect(f, func(n ast.Node) bool {
@@ -50,9 +89,14 @@ func TestVersionRouteIsRegisteredInTheCompositionRoot(t *testing.T) {
 			return true
 		}
 		found = true
-		// `r.With(requireJWT).Get(...)` — the receiver of .Get would itself be a call to With.
+
 		if inner, ok := sel.X.(*ast.CallExpr); ok {
 			if innerSel, ok := inner.Fun.(*ast.SelectorExpr); ok && innerSel.Sel.Name == "With" {
+				behindAuth = true
+			}
+		}
+		for _, sp := range authSpans {
+			if call.Pos() >= sp.lo && call.End() <= sp.hi {
 				behindAuth = true
 			}
 		}
@@ -64,14 +108,14 @@ func TestVersionRouteIsRegisteredInTheCompositionRoot(t *testing.T) {
 			`probe would keep hitting a 404 while reporting convergence`)
 	}
 	if behindAuth {
-		t.Fatal("/v1/version is registered behind a middleware chain. It is auth-exempt by " +
+		t.Fatal("/v1/version is registered inside an authenticated scope. It is auth-exempt by " +
 			"contract: with a credential in front, \"service down\" and \"credential wrong\" " +
 			"produce the same response, which is the ambiguity the endpoint exists to remove")
 	}
 }
 
-// The handler contract itself is exercised without the composition root, so a failure here points
-// at the handler and a failure above points at the wiring.
+// The handler contract is exercised without the composition root, so a failure here points at the
+// handler and a failure above points at the wiring.
 func TestVersionHandlerAnswersUnauthenticated(t *testing.T) {
 	w := httptest.NewRecorder()
 	version.Handler()(w, httptest.NewRequest(http.MethodGet, "/v1/version", nil))

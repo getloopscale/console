@@ -50,6 +50,11 @@ COPY openapi/ ./openapi/
 #
 # Os defaults reproduzem os sentinelas do pacote: um build local sem --build-arg reporta "dev" e
 # "unknown", nunca uma string vazia e nunca um valor mentiroso.
+# `${VAR:-sentinela}` no uso, e nao so o default do ARG: um `--build-arg VERSION=` EXPLICITAMENTE
+# vazio sobrescreve o default e passaria "" adiante. Medido na review: version="" faz
+# normalizeUnknown devolver "", OK() degradar a linha para Unreachable e o painel inteiro ficar
+# `degraded` para sempre — exatamente a falha que o sentinela "dev" existe para evitar. O reusable
+# declara esses inputs como opcionais com default '', entao qualquer caller futuro cai nisso.
 ARG VERSION=dev
 ARG GIT_SHA=unknown
 ARG BUILT_AT=unknown
@@ -58,9 +63,9 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath \
       -ldflags="-s -w \
-        -X github.com/usetheodev/theo-cloud/internal/version.Version=${VERSION} \
-        -X github.com/usetheodev/theo-cloud/internal/version.GitSHA=${GIT_SHA} \
-        -X github.com/usetheodev/theo-cloud/internal/version.BuiltAt=${BUILT_AT}" \
+        -X github.com/usetheodev/theo-cloud/internal/version.Version=${VERSION:-dev} \
+        -X github.com/usetheodev/theo-cloud/internal/version.GitSHA=${GIT_SHA:-unknown} \
+        -X github.com/usetheodev/theo-cloud/internal/version.BuiltAt=${BUILT_AT:-unknown}" \
       -o /cloud-api ./cmd/main.go
 
 # Distroless static runtime (find_infra_009): no shell/apk/utilities to reduce

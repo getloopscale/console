@@ -20,6 +20,8 @@
 
 ### Fixed
 
+- **O gate de publish deixou de poder cancelar a si mesmo no ritual de release.** A chave de `concurrency` do `ci.yml` não distinguia a chamada gateada de um run avulso: um PR `develop → main` resolve `head.ref` para `develop` e caía no mesmo grupo do callee rodando sob push em develop, cancelando o gate em voo. Medido: 10 dos 10 últimos PRs para `main` vêm de `develop`. O resultado seria um commit de release publicando nada, reportado em cinza (`cancelled`) e não em vermelho (#roadmap-m22)
+- Um `--build-arg VERSION=` explicitamente vazio deixou de derrotar o sentinela de versão. Vazio sobrescreve o default do `ARG` e não recai nele; a versão vazia é normalizada para `""`, degrada a linha do gateway para `unreachable` e prende o painel em `degraded` permanentemente. A coerção agora está na fonte (`${VAR:-sentinela}`), não na confiança de que todo caller preenche (#roadmap-m22)
 - O detector diário de divergência (`e2e-drift`) voltou a rodar: o login no GHCR usava o `GITHUB_TOKEN` do run, que não tem ACL no pacote de um repositório irmão, e todo pull falhava com `denied`. Agora usa `GOMOD_TOKEN`, a mesma correção que `f5ee627` aplicou aos jobs e2e do `ci.yml` e que este workflow não recebeu (#roadmap-m22)
 - O laço de drift do `e2e-drift` deixou de reportar divergência falsa permanente: a chave `themory` remontava `ghcr.io/usetheoai/themory`, repositório que não existe desde o rename (#roadmap-m22)
 

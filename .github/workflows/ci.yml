@@ -39,7 +39,20 @@ permissions:
 # a disputa é por CPU e RAM, então um run duplicado rouba CPU dos outros quatro repositórios.
 # Medido em 2026-07-27: 2 SHAs com run duplicado (par push+pull_request) nos últimos 60 runs.
 concurrency:
-  group: test-e2e-${{ github.event.pull_request.head.ref || github.ref_name }}
+  # `github.event_name` na chave NAO e enfeite — sem ele o gate cancela a si mesmo no ritual de
+  # release deste repo.
+  #
+  # MEDIDO (review 2026-07-30): 10 dos ultimos 10 PRs para `main` tem head `develop`, e 5 runs
+  # recentes de `ci` carregam event=pull_request com head_branch=develop. Um PR `develop -> main`
+  # resolve `head.ref` para "develop" e cai em `test-e2e-develop`. O callee gateado, rodando sob um
+  # push para develop, cai no MESMO grupo (a expressao e avaliada no contexto do CHAMADOR — medido
+  # nos runs 30522117234/30522853797 do theo-memory). Com cancel-in-progress, o PR de release
+  # cancela o gate em voo: `needs:` fica insatisfeito, `images` pula, e o commit de release publica
+  # NADA — reportado como `cancelled`, ou seja, cinza em vez de vermelho.
+  #
+  # Antes do M22 essa colisao custava um sinal duplicado. Gatear o publish no callee a converteu em
+  # bloqueio de entrega.
+  group: test-e2e-${{ github.event_name }}-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
   e2e:
