@@ -648,3 +648,30 @@ func TestImagesJobIfDoesNotDisableTheImplicitSuccessGate(t *testing.T) {
 		}
 	}
 }
+
+// T8.1 — o Dockerfile compila o PACOTE `./cmd`, nunca um arquivo solto.
+//
+// MEDIDO em 2026-07-31, run 30662741833: o build da imagem falhou com
+// `cmd/main.go:536:20: undefined: newTrustDashboardKeyResolver` e o marcador `# command-line-arguments`,
+// enquanto `go build ./...` passava local. A causa era `-o /cloud-api ./cmd/main.go`: apontar um
+// ARQUIVO faz o Go compilar so ele e ignorar os irmaos do mesmo pacote.
+//
+// O efeito e perverso porque e silencioso na direcao errada — o gate local fica VERDE e so a
+// imagem quebra. E explica por que toda a fiacao deste repo vivia inline num main.go de ~1750
+// linhas: qualquer split em `cmd/` quebrava o container sem que nada local avisasse. Ou seja, a
+// linha nao custava so um bug: custava a possibilidade de organizar o composition root.
+func TestDockerfileBuildsThePackageNotASingleFile(t *testing.T) {
+	b, err := os.ReadFile(filepath.Clean("../../Dockerfile"))
+	if err != nil {
+		t.Fatalf("Dockerfile: %v", err)
+	}
+	src := string(b)
+	if strings.Contains(src, "./cmd/main.go") {
+		t.Error("o Dockerfile compila `./cmd/main.go` (um arquivo): os demais arquivos do pacote " +
+			"`cmd` sao IGNORADOS, e o build local com `go build ./...` continua verde. Use `./cmd`.")
+	}
+	if !strings.Contains(src, "-o /cloud-api ./cmd") {
+		t.Error("nao encontrei `-o /cloud-api ./cmd` no Dockerfile — o alvo do build mudou de forma " +
+			"nao prevista por este guard")
+	}
+}
