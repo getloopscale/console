@@ -94,13 +94,13 @@ export function RagWikiPage() {
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections'),
+    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
   });
 
   const pagesQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', collectionID] as const,
     queryFn: () =>
-      cloudFetch<{ items: WikiPage[] }>(`/v1/dashboard/rag/wiki/pages?collection_id=${encodeURIComponent(collectionID)}`),
+      cloudFetch<{ items: WikiPage[] }>(`/v1/dashboard/rag/wiki/pages?collection_id=${encodeURIComponent(collectionID)}`, {}, { throwOnError: true }),
     enabled: collectionID !== '',
   });
 
@@ -379,8 +379,7 @@ function InlineReader({ pageID, onBack }: { pageID: string; onBack: () => void }
     queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', 'one', pageID] as const,
     queryFn: () =>
       cloudFetch<{ id: string; name: string; content: string; status: string; okf?: OkfMeta }>(
-        `/v1/dashboard/rag/wiki/pages/${encodeURIComponent(pageID)}`,
-      ),
+        `/v1/dashboard/rag/wiki/pages/${encodeURIComponent(pageID)}`, {}, { throwOnError: true }),
     enabled: pageID !== '',
   });
   const page = query.data;

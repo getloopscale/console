@@ -131,23 +131,21 @@ export function RagGraphRagPage() {
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections'),
+    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
   });
   const graphQuery = useQuery({
     enabled: collectionID !== '',
     queryKey: ['cloud', 'rag-graph', collectionID, level] as const,
     queryFn: () =>
       cloudFetch<GraphData>(
-        `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/graph?level=${level}&limit=300`,
-      ),
+        `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/graph?level=${level}&limit=300`, {}, { throwOnError: true }),
   });
   const communitiesQuery = useQuery({
     enabled: collectionID !== '',
     queryKey: ['cloud', 'rag-communities', collectionID, level] as const,
     queryFn: () =>
       cloudFetch<CommunitiesData>(
-        `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/communities?level=${level}`,
-      ),
+        `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/communities?level=${level}`, {}, { throwOnError: true }),
   });
   // M13 — the full report for the open community (drill-down): title + full_content + findings.
   const reportQuery = useQuery({
@@ -155,8 +153,7 @@ export function RagGraphRagPage() {
     queryKey: ['cloud', 'rag-community-report', collectionID, reportKey, level] as const,
     queryFn: () =>
       cloudFetch<CommunityReport>(
-        `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/communities/${encodeURIComponent(reportKey ?? '')}/report?level=${level}`,
-      ),
+        `/v1/dashboard/rag/collections/${encodeURIComponent(collectionID)}/communities/${encodeURIComponent(reportKey ?? '')}/report?level=${level}`, {}, { throwOnError: true }),
   });
 
   const ask = useMutation({

@@ -31,3 +31,7 @@ sdk/storage-ts/.npmrc
 sdk/storage-ts/node_modules
 sdk/storage-ts/dist
 sdk/storage-ts/package-lock.json
+
+# Saida de ferramenta de auditoria (loop-devops-audit): .db + relatorios gerados.
+# Evidencia de uma execucao, nao codigo — vive no knowledge-base quando vira decisao.
+devops-audit-output/

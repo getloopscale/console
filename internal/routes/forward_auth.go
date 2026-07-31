@@ -42,6 +42,12 @@ const AuthzForwardLensPath = "/internal/authz/forward-lens"
 // `forward-auth-trust` middleware targets it.
 const AuthzForwardTrustPath = "/internal/authz/forward-trust"
 
+// AuthzForwardSkillsPath is the internal ForwardAuth endpoint for the theo-skills
+// capability (M22 — Model B). The generic ForwardAuthHandler is reused (wired with
+// the skills broker + "skills:read"); only the path differs so the Traefik
+// `forward-auth-skills` middleware targets it.
+const AuthzForwardSkillsPath = "/internal/authz/forward-skills"
+
 // APIKeyResolver validates an inbound Authorization header and resolves the
 // tenant. Injected (not a concrete *sql.DB dependency) so the handler is unit-
 // testable without a database; in production it closes over auth.ResolveAPIKey.

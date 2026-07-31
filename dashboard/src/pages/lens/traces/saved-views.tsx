@@ -48,7 +48,7 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
   const savedViewsKey = ['cloud', '/v1/dashboard/lens/saved-views'] as const;
   const savedViews = useQuery({
     queryKey: savedViewsKey,
-    queryFn: () => cloudFetch<SavedViewsResult>('/v1/dashboard/lens/saved-views'),
+    queryFn: () => cloudFetch<SavedViewsResult>('/v1/dashboard/lens/saved-views', {}, { throwOnError: true }),
   });
   const invalidateViews = () => void queryClient.invalidateQueries({ queryKey: savedViewsKey });
 

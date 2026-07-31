@@ -31,9 +31,9 @@ import (
 // of the customer's data).
 
 const (
-	webhookIDPrefix    = "mwh-"
-	webhookLabelMax    = 64
-	webhookListLimit   = 100
+	webhookIDPrefix  = "mwh-"
+	webhookLabelMax  = 64
+	webhookListLimit = 100
 )
 
 var webhookIDPattern = regexp.MustCompile(`^mwh-[0-9a-f]{16}$`)

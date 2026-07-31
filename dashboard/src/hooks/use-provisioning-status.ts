@@ -40,6 +40,13 @@ export function useProvisioningStatus(enabled = true): {
 } {
   const query = useQuery({
     queryKey: ['provisioning-status'],
+    // silent-null-ok: esta tela FALHA PARA FRENTE por desenho, e isso está declarado em
+    // `register-completing-screen.tsx`: *"a terminal `unknown` / absent field — all mean 'stop waiting,
+    // the dashboard can take it from here'"*, e o escape manual de timeout chama o MESMO `onReady`. Uma
+    // leitura falha produz `status: undefined`, que cai nesse caso deliberado. Passar `throwOnError`
+    // aqui não mudaria comportamento algum (o status seguiria `undefined`) e criaria um `isError` que
+    // ninguém lê — ou seja, exatamente o defeito que o #274 combate, em vez de corrigi-lo. Bloquear o
+    // registro num poll falho é decisão de produto, não refactor mecânico. #274
     queryFn: () => cloudFetch<MeProvisioning>('/v1/auth/me'),
     enabled,
     refetchInterval: (q) => provisioningRefetchInterval(q.state.data),

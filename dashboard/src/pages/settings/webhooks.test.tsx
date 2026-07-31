@@ -56,7 +56,10 @@ describe('WorkspaceWebhooksPage (/settings/webhooks)', () => {
     expect(screen.getByText('https://hook.example.com/deploys')).toBeInTheDocument();
     expect(screen.getByText('deploy.succeeded')).toBeInTheDocument();
     // List query hits the settings endpoint (not the memory one).
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/settings/webhooks/list');
+    // #274 — a leitura passou a optar por `throwOnError`, então a chamada tem 3 argumentos. A
+    // assertiva afirma o TERCEIRO em vez de ignorá-lo: sem isso, um futuro que remova o opt-in
+    // deixaria este teste verde de novo, e o estado vazio voltaria a mentir.
+    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/settings/webhooks/list', expect.anything(), expect.objectContaining({ throwOnError: true }));
   });
 
   it('create shows the signing secret exactly once (show-once contract)', async () => {
@@ -128,7 +131,7 @@ describe('WorkspaceWebhooksPage (/settings/webhooks)', () => {
 
     // The sheet fetches from the scoped endpoint and renders the delivery.
     expect(await screen.findByTestId('delivery-wwd-1')).toBeInTheDocument();
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/settings/webhooks/wwh-0011223344556677/deliveries');
+    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/settings/webhooks/wwh-0011223344556677/deliveries', expect.anything(), expect.objectContaining({ throwOnError: true }));
   });
 
   it('delete opens a destructive confirm dialog scoped to the webhook label', async () => {

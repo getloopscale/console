@@ -268,7 +268,7 @@ function RecentDeliveriesBadge({
 }) {
   const query = useQuery({
     queryKey: ['cloud', `/v1/dashboard/memory/webhooks/${webhookId}/deliveries`] as const,
-    queryFn: () => cloudFetch<DeliveriesResult>(`/v1/dashboard/memory/webhooks/${webhookId}/deliveries`),
+    queryFn: () => cloudFetch<DeliveriesResult>(`/v1/dashboard/memory/webhooks/${webhookId}/deliveries`, {}, { throwOnError: true }),
   });
   const deliveries = query.data?.deliveries ?? [];
   if (query.isLoading) {
@@ -313,7 +313,7 @@ function DeliveriesSheet({ webhook, open, onOpenChange }: DeliveriesSheetProps) 
 
   const query = useQuery({
     queryKey: ['cloud', `/v1/dashboard/memory/webhooks/${webhook.id}/deliveries`] as const,
-    queryFn: () => cloudFetch<DeliveriesResult>(`/v1/dashboard/memory/webhooks/${webhook.id}/deliveries`),
+    queryFn: () => cloudFetch<DeliveriesResult>(`/v1/dashboard/memory/webhooks/${webhook.id}/deliveries`, {}, { throwOnError: true }),
     enabled: open,
   });
 

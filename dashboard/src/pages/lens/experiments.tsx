@@ -131,7 +131,7 @@ export function LensExperimentsPage() {
   // dead-end that only works via `?datasetId=` from Traces). Reuses the existing datasets read (Rule 9).
   const datasetsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/datasets'] as const,
-    queryFn: () => cloudFetch<{ datasets: { id: string; name: string }[] }>('/v1/dashboard/lens/datasets'),
+    queryFn: () => cloudFetch<{ datasets: { id: string; name: string }[] }>('/v1/dashboard/lens/datasets', {}, { throwOnError: true }),
     // The run modal's dataset picker needs the list whenever we're not in the compare view.
     enabled: compareIds.length < 2,
   });
@@ -141,14 +141,14 @@ export function LensExperimentsPage() {
   const runsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/experiment-runs', datasetId] as const,
     queryFn: () =>
-      cloudFetch<{ runs: ExperimentRun[] }>(`/v1/dashboard/lens/experiment-runs${datasetId ? `?datasetId=${encodeURIComponent(datasetId)}` : ''}`),
+      cloudFetch<{ runs: ExperimentRun[] }>(`/v1/dashboard/lens/experiment-runs${datasetId ? `?datasetId=${encodeURIComponent(datasetId)}` : ''}`, {}, { throwOnError: true }),
     enabled: compareIds.length < 2,
   });
 
   // Compare view: two+ runs (with items) aligned by source trace id.
   const compareQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/experiment-runs/compare', compareIds.join(',')] as const,
-    queryFn: () => cloudFetch<{ runs: ExperimentRun[]; deltas: RunCompareDeltas | null }>(`/v1/dashboard/lens/experiment-runs/compare?ids=${encodeURIComponent(compareIds.join(','))}`),
+    queryFn: () => cloudFetch<{ runs: ExperimentRun[]; deltas: RunCompareDeltas | null }>(`/v1/dashboard/lens/experiment-runs/compare?ids=${encodeURIComponent(compareIds.join(','))}`, {}, { throwOnError: true }),
     enabled: compareIds.length >= 2,
   });
 

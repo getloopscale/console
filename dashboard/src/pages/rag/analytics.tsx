@@ -57,7 +57,7 @@ export function RagAnalyticsPage() {
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections'),
+    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
   });
 
   // When a collection is picked, the fetch key changes AND the URL carries
@@ -67,6 +67,7 @@ export function RagAnalyticsPage() {
     : '/v1/dashboard/rag/analytics';
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/analytics', collectionID] as const,
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: () => cloudFetch<AnalyticsResult>(analyticsPath),
   });
 

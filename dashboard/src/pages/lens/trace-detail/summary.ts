@@ -1,4 +1,4 @@
-import { aggregateCost, type TraceSpanNode } from '@/lib/trace-layout';
+import { aggregateCost, hasRecordedTokens, type TraceSpanNode } from '@/lib/trace-layout';
 import { isSpanError } from '@/lib/span-status';
 import { durationMs, flattenAll } from './helpers';
 
@@ -11,6 +11,7 @@ import { durationMs, flattenAll } from './helpers';
 export interface TraceSummary {
   durationMs: number | null;
   costUsd: number;
+  /** #186 — NaN (rendered `—`) when NO span recorded a count; a measured 0 stays 0. */
   totalTokens: number;
   errorCount: number;
   models: string[];
@@ -19,9 +20,15 @@ export interface TraceSummary {
 export function traceSummary(root: TraceSpanNode): TraceSummary {
   const spans = flattenAll(root);
   let totalTokens = 0;
+  // #186 — a trace where NO span ever recorded a token count is UNKNOWN, not zero. Summing `?? 0` over
+  // it produced a fabricated "0" in the header while the per-span rows right below already showed `—`
+  // (M89): the two surfaces disagreeing about the same trace. A trace that DID measure and measured 0
+  // keeps its 0 — that is a fact, and reporting `—` for it would be the mirror-image lie.
+  let anyMeasured = false;
   let errorCount = 0;
   const models = new Set<string>();
   for (const s of spans) {
+    if (hasRecordedTokens(s)) anyMeasured = true;
     totalTokens += (s.inputTokens ?? 0) + (s.outputTokens ?? 0);
     if (isSpanError(s.statusCode)) errorCount += 1;
     if (s.model) models.add(s.model);
@@ -33,7 +40,7 @@ export function traceSummary(root: TraceSpanNode): TraceSummary {
     // which are absent for interaction/tool spans ($0.0000) and would double-count if a child ever
     // carried its own cost. Fall back to the aggregate only when the root has no stored cost.
     costUsd: root.costUsd ?? aggregateCost(root),
-    totalTokens,
+    totalTokens: anyMeasured ? totalTokens : NaN,
     errorCount,
     models: [...models].sort(),
   };

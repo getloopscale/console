@@ -42,6 +42,7 @@ export function useSecrets(opts: { project: string; env?: string }): {
   const query = useQuery({
     queryKey: [...queryKeys.secrets.list(), { project, env: env ?? 'all' }],
     enabled: project.length > 0,
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: async () => {
       const rows: RawSecretRow[] = [];
       for (const e of envsToFetch) {

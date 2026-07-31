@@ -57,7 +57,7 @@ export function RagAskPage() {
 
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections'),
+    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
   });
 
   const ask = useMutation({

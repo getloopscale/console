@@ -13,7 +13,9 @@
 #   make e2e-down            # tear a left-up stack down
 #
 # Overridable env:
-#   THEMORY_DIR    path to the sibling theo-memory repo (default: ../../theo-data/theo-memory)
+#   THEMORY_DIR    path to the sibling theo-memory repo (default: ../theo-memory)
+#   THEORAG_DIR    path to the sibling theo-rag repo    (default: ../theo-rag)
+#   THELENS_DIR    path to the sibling theo-lens repo   (default: ../theo-lens)
 #   THEMORY_IMAGE  pre-built themory image to use instead of building one
 #   KEEP_UP=1      do not tear the stack down after the test (debug)
 set -euo pipefail
@@ -27,17 +29,31 @@ EDGE="${EDGE:-0}"
 EDGE_COMPOSE_FILE="${E2E_DIR}/docker-compose.edge.e2e.yaml"
 BIN_DIR="${E2E_DIR}/bin"
 
-THEMORY_DIR="${THEMORY_DIR:-${ROOT}/../../theo-data/theo-memory}"
+THEMORY_DIR="${THEMORY_DIR:-${ROOT}/../theo-memory}"
 THEMORY_MASTER_KEY="${THEMORY_MASTER_KEY:-e2e-master-key}"
 export THEMORY_MASTER_KEY
 
 # M18 (KEYSTONE) — the sibling theo-rag checkout (pinned source with M11/M12/M13).
-THEORAG_DIR="${THEORAG_DIR:-${ROOT}/../../theo-data/theo-rag}"
+THEORAG_DIR="${THEORAG_DIR:-${ROOT}/../theo-rag}"
 THEORAG_ADMIN_BOOTSTRAP_TOKEN="${THEORAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}"
 export THEORAG_ADMIN_BOOTSTRAP_TOKEN
 
+# O COMPOSE NAO LIA `THEORAG_DIR` — ele hardcodava
+# `../../../../theo-data/theo-rag/packages/.../migrations`, um caminho que NAO EXISTE nem no
+# dev-box nem no runner. Bind de origem ausente vira DIRETORIO VAZIO, o loop de `psql`
+# itera zero vezes, e o container sai 0: schema nunca aplicado, migracao "verde".
+#
+# O theo-rag entao subia healthy (o healthcheck so bate `/v1/healthz`, que nao toca tabela)
+# e `POST /v1/admin/keys` devolvia 503 sobre tabela inexistente. O harness lia esse 503 como
+# "bootstrap consumido" — palpite errado que mandou o leitor investigar o token por semanas
+# (#271). Diferente do theo-lens, que MIGRA NO BOOT e por isso nunca teve esse modo.
+#
+# Exportado para o compose consumir; o guard abaixo torna o no-op silencioso impossivel.
+THEORAG_MIGRATIONS_DIR="${THEORAG_MIGRATIONS_DIR:-${THEORAG_DIR}/packages/core/src/infrastructure/db/migrations}"
+export THEORAG_MIGRATIONS_DIR
+
 # M40 (KEYSTONE) — the sibling theo-lens checkout (pinned source with M22/M37/M38).
-THELENS_DIR="${THELENS_DIR:-${ROOT}/../../theo-data/theo-lens}"
+THELENS_DIR="${THELENS_DIR:-${ROOT}/../theo-lens}"
 THELENS_ADMIN_BOOTSTRAP="${THELENS_ADMIN_BOOTSTRAP:-e2e-bootstrap-token-change-me-min-32-chars}"
 export THELENS_ADMIN_BOOTSTRAP
 
@@ -84,6 +100,43 @@ dump_logs() {
   echo "── pg-cloud ──";      compose logs --no-color --tail=40 pg-cloud || true
   compose logs --tail=80 themory theo-cloud mock-openai || true
   if [[ "${EDGE}" == "1" ]]; then compose logs --tail=80 traefik rag lens pg-lens || true; fi
+}
+
+# --- mint_admin_key: cunha uma chave de platform-admin e DIZ O QUE ACONTECEU -------
+#
+# POR QUE ISTO EXISTE. Os tres blocos de provisionamento descartavam a resposta HTTP
+# (`2>/dev/null` + grep) e, quando o grep nao casava, reportavam um palpite:
+# "bootstrap may be consumed". Em #271 a causa real era **503** — schema ausente, token
+# perfeitamente valido — e a mensagem mandou o leitor investigar o token. Um diagnostico
+# que aponta para o lugar errado custa mais que a ausencia de diagnostico.
+#
+# Agora o status e o corpo aparecem. `$1` = rotulo, `$2` = url, `$3` = token,
+# `$4` = payload, `$5` = expressao sed que extrai a chave (o shape difere por servico:
+# themory/lens usam `secret` plano, rag usa `raw_key` aninhado).
+MINT_STATUS=""
+MINT_BODY=""
+MINT_KEY=""
+mint_admin_key() {
+  local label="$1" url="$2" token="$3" payload="$4" extract="$5" raw
+  raw="$(curl -s -m 10 -w $'\n%{http_code}' -X POST "${url}" \
+    -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" \
+    -d "${payload}" 2>&1 || true)"
+  MINT_STATUS="$(printf '%s' "${raw}" | tail -n1)"
+  MINT_BODY="$(printf '%s' "${raw}" | sed '$d')"
+  MINT_KEY="$(printf '%s' "${MINT_BODY}" | sed -n "${extract}")"
+  [[ -n "${MINT_KEY}" ]] && return 0
+
+  fail "${label}: nao consegui cunhar a chave de platform-admin."
+  # O corpo e truncado porque uma resposta de erro pode ser uma pagina inteira; 400 chars
+  # bastam para distinguir 401 (token) de 503 (dependencia) de 404 (rota ausente).
+  printf '  HTTP %s\n  corpo: %s\n' "${MINT_STATUS:-<sem resposta>}" "$(printf '%s' "${MINT_BODY}" | head -c 400)" >&2
+  case "${MINT_STATUS}" in
+    401|403) printf '  → credencial recusada: o bootstrap pode estar consumido ou o token difere.\n' >&2 ;;
+    404)     printf '  → rota ausente nesta imagem: o pin do vizinho pode ser velho demais.\n' >&2 ;;
+    503)     printf '  → dependencia indisponivel no servico (schema ausente e a causa comum — ver #271).\n' >&2 ;;
+    "")      printf '  → sem resposta: o servico nao esta escutando na porta esperada.\n' >&2 ;;
+  esac
+  return 1
 }
 
 # --- preflight ---------------------------------------------------------------
@@ -176,15 +229,14 @@ if [[ -z "${THEMORY_PLATFORM_ADMIN_KEY:-}" ]]; then
   # `|| true` on the pipe so a no-match grep (e.g. bootstrap already consumed on a
   # KEEP_UP re-run) does NOT trip `set -e`/`pipefail` before the explicit guard +
   # dump_logs below — otherwise a mint failure is an opaque, log-less red.
-  PA_KEY="$( (curl -s -m 10 -X POST "http://localhost:${E2E_THEMORY_PORT}/v1/admin/keys" \
-    -H "Authorization: Bearer ${BOOTSTRAP}" -H "Content-Type: application/json" \
-    -d '{"name":"theo-cloud-platform-admin","scopes":["memory:platform-admin"]}' \
-    2>/dev/null | grep -oE '"secret":"theo_live_[^"]+"' | sed 's/^"secret":"//; s/"$//') || true)"
-  if [[ -z "${PA_KEY}" ]]; then
+  if ! mint_admin_key "memory" "http://localhost:${E2E_THEMORY_PORT}/v1/admin/keys" \
+    "${BOOTSTRAP}" \
+    '{"name":"theo-cloud-platform-admin","scopes":["memory:platform-admin"]}' \
+    's/.*"secret":"\(theo_live_[^"]*\)".*/\1/p'; then
     dump_logs
-    fail "could not mint the platform-admin key (bootstrap may be consumed) — the broker mint will fail CLOSED."
     exit 1
   fi
+  PA_KEY="${MINT_KEY}"
   export THEMORY_PLATFORM_ADMIN_KEY="${PA_KEY}"
   log "minted platform-admin key; recreating the gateway with it…"
   compose up -d --no-deps --wait --wait-timeout 90 theo-cloud
@@ -196,15 +248,14 @@ fi
 # required, response nested under `raw_key` — NOT themory's flat `secret`).
 if [[ "${EDGE}" == "1" && -z "${RAG_PLATFORM_ADMIN_KEY:-}" ]]; then
   log "provisioning rag Model B platform-admin key via the theo-rag bootstrap token…"
-  RA_KEY="$( (curl -s -m 10 -X POST "http://localhost:${E2E_RAG_PORT}/v1/admin/keys" \
-    -H "Authorization: Bearer ${THEORAG_ADMIN_BOOTSTRAP_TOKEN}" -H "Content-Type: application/json" \
-    -d '{"name":"theo-cloud-rag-admin","workspace_id":"default","scopes":["rag:platform-admin","rag:admin","rag:read","rag:write","rag:delete"]}' \
-    2>/dev/null | sed -n 's/.*"raw_key":"\([^"]*\)".*/\1/p') || true)"
-  if [[ -z "${RA_KEY}" ]]; then
+  if ! mint_admin_key "rag" "http://localhost:${E2E_RAG_PORT}/v1/admin/keys" \
+    "${THEORAG_ADMIN_BOOTSTRAP_TOKEN}" \
+    '{"name":"theo-cloud-rag-admin","workspace_id":"default","scopes":["rag:platform-admin","rag:admin","rag:read","rag:write","rag:delete"]}' \
+    's/.*"raw_key":"\([^"]*\)".*/\1/p'; then
     dump_logs
-    fail "could not mint the rag platform-admin key (bootstrap may be consumed) — the rag broker mint will fail CLOSED."
     exit 1
   fi
+  RA_KEY="${MINT_KEY}"
   export RAG_PLATFORM_ADMIN_KEY="${RA_KEY}"
   log "minted rag platform-admin key; recreating the gateway with it…"
   compose up -d --no-deps --wait --wait-timeout 90 theo-cloud
@@ -216,15 +267,14 @@ fi
 # workspace_id required, response is FLAT `secret` — NOT rag's nested `raw_key`).
 if [[ "${EDGE}" == "1" && -z "${LENS_PLATFORM_ADMIN_KEY:-}" ]]; then
   log "provisioning lens Model B platform-admin key via the theo-lens bootstrap token…"
-  LA_KEY="$( (curl -s -m 10 -X POST "http://localhost:${E2E_LENS_PORT}/v1/admin/keys" \
-    -H "Authorization: Bearer ${THELENS_ADMIN_BOOTSTRAP}" -H "Content-Type: application/json" \
-    -d '{"name":"theo-cloud-lens-admin","workspace_id":"default","scopes":["observability:platform-admin","observability:admin","observability:read","observability:write","observability:delete"]}' \
-    2>/dev/null | sed -n 's/.*"secret":"\([^"]*\)".*/\1/p') || true)"
-  if [[ -z "${LA_KEY}" ]]; then
+  if ! mint_admin_key "lens" "http://localhost:${E2E_LENS_PORT}/v1/admin/keys" \
+    "${THELENS_ADMIN_BOOTSTRAP}" \
+    '{"name":"theo-cloud-lens-admin","workspace_id":"default","scopes":["observability:platform-admin","observability:admin","observability:read","observability:write","observability:delete"]}' \
+    's/.*"secret":"\([^"]*\)".*/\1/p'; then
     dump_logs
-    fail "could not mint the lens platform-admin key (bootstrap may be consumed) — the lens broker mint will fail CLOSED."
     exit 1
   fi
+  LA_KEY="${MINT_KEY}"
   export LENS_PLATFORM_ADMIN_KEY="${LA_KEY}"
   log "minted lens platform-admin key; recreating the gateway with it…"
   compose up -d --no-deps --wait --wait-timeout 90 theo-cloud

@@ -28,6 +28,7 @@ export function useDeployments(
 } {
   const query = useQuery({
     queryKey: queryKeys.builds.list(projectName, filters),
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: () => {
       const params = new URLSearchParams();
       if (filters?.status) params.set('status', filters.status);

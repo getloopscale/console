@@ -116,7 +116,7 @@ export const VariantColumn = forwardRef<
   // Datasets for the opt-in save (loaded only once there's a result to save; shared across columns by key).
   const datasets = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/datasets'] as const,
-    queryFn: () => cloudFetch<DatasetsResult>('/v1/dashboard/lens/datasets'),
+    queryFn: () => cloudFetch<DatasetsResult>('/v1/dashboard/lens/datasets', {}, { throwOnError: true }),
     enabled: replay.isSuccess,
   });
   const datasetOptions = datasets.data?.datasets ?? [];

@@ -31,7 +31,6 @@ const (
 	maxGraceWindowHours     = 168 // 7 days
 )
 
-
 // Plan 0 of dashboard-memory-section-roadmap.md (T0.3-T0.5).
 // Platform unified API keys with scopes — single table, single key shape
 // (theo_live_{base64url(32)}), gated by scope on read.
@@ -106,6 +105,36 @@ var validScopes = map[string]bool{
 	// storage:admin: the vertical is in-process (no broker key mint, unlike rag).
 	"storage:read":  true,
 	"storage:write": true,
+	// Trust vertical (theo-trust, M10-M11 Model B L2) — a customer issues a key
+	// carrying trust:read/write/delete for the unified /v1/trust edge.
+	//
+	// ESTAVA AUSENTE, e a ausência era invisível: medido em 2026-07-31, a cadeia
+	// inteira já funcionava — borda roteando, forward-auth-trust ligado, broker
+	// cunhando chave por tenant — e nenhum cliente podia alcançá-la, porque o escopo
+	// que a borda exige não era emitível. Cada camada parecia correta isolada.
+	//
+	// O conjunto é EXATAMENTE o que o broker sabe cunhar (cmd/main.go:
+	// KeyForTenantScoped). `trust:admin` e `trust:platform-admin` ficam de fora pelo
+	// mesmo motivo de `rag:admin`/`storage:admin`: são credenciais de ciclo de vida,
+	// do broker, nunca do consumidor.
+	"trust:read":   true,
+	"trust:write":  true,
+	"trust:delete": true,
+	// Skills vertical (theo-skills, M22 Model B) — a customer issues a key carrying
+	// skills:read/write/publish for the /v1/skills edge.
+	//
+	// O conjunto é EXATAMENTE o que o broker sabe cunhar (cmd/main.go: a lista
+	// passada a skills.NewBroker). `skills:admin` fica de fora pelo mesmo motivo de
+	// `rag:admin` e `trust:admin`: é a credencial de CICLO DE VIDA de chave, e uma
+	// credencial cunhada pelo gateway jamais pode provisionar outras.
+	//
+	// Ao contrário do trust — cuja cadeia já estava de pé e só faltava o escopo —
+	// aqui NADA existia: sem broker, sem forward-auth, sem rota de borda. Adicionar
+	// o escopo antes dessas peças teria oferecido uma capacidade que não conecta,
+	// que é o defeito oposto e igualmente silencioso.
+	"skills:read":    true,
+	"skills:write":   true,
+	"skills:publish": true,
 }
 
 // reservedScopes are RESERVED for future verticals per D2. Requesting one

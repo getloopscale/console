@@ -1,0 +1,105 @@
+---
+# promotion-guard — detecta um commit que chegou em develop/main SEM passar por PR.
+#
+# POR QUE EXISTE. O contrato do workspace diz que duas camadas garantem coisas diferentes: o hook local
+# garante a ORIGEM do trabalho (nasceu em `workspace`), e a **branch protection no remoto é o que torna
+# o PR obrigatório**. Neste repositório a segunda camada NÃO EXISTE e não pode existir no plano atual —
+# medido, não suposto:
+#
+#   $ gh api repos/usetheoai/theo-cloud/branches/develop/protection
+#   403 "Upgrade to GitHub Pro or make this repository public to enable this feature."
+#   $ gh api repos/usetheoai/theo-cloud/rulesets
+#   403 (idem)
+#
+# Ou seja: hoje o PR é convenção, não garantia. Habilitar a camada real custa uma decisão de plano
+# (upgrade) ou de divulgação (tornar público) — nenhuma das duas é decisão de um workflow.
+#
+# O QUE ESTE GATE FAZ, E O QUE ELE NÃO FAZ. Ele **não impede** nada: quando roda, o commit já está na
+# branch. O que ele faz é converter um bypass INVISÍVEL num CI vermelho, com o SHA e o autor. É
+# estritamente menos que branch protection e estritamente mais que nada — e a diferença entre
+# "aconteceu e ninguém soube" e "aconteceu e está vermelho" é a única que este plano permite comprar.
+#
+# Ver `theo-cloud#276` para a medição da ausência de branch protection.
+name: promotion-guard
+
+on:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+  # Necessária para perguntar à API se este SHA pertence a um PR mergeado. Sem ela a checagem cairia
+  # no parent-count, que dá FALSO POSITIVO em squash/rebase merge — ambos produzem commit de um pai só
+  # e ambos vêm de PR legítimo. Um gate que reprova a estratégia de merge do time é desligado na
+  # primeira semana.
+  pull-requests: read
+
+jobs:
+  merge-commit-only:
+    name: promoção veio de um PR?
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Precisa do pai para distinguir merge de commit direto. `fetch-depth: 0` seria mais simples e
+          # baixa o histórico inteiro por nada; 2 é o mínimo que responde a pergunta.
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: HEAD veio de um PR
+        env:
+          BRANCH: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          subject="$(git log -1 --format=%s "${sha}")"
+          parents="$(git rev-list --parents -n 1 "${sha}" | wc -w)"
+          parents=$((parents - 1))
+          printf 'branch=%s sha=%s pais=%s\nassunto=%s\n' "${BRANCH}" "${sha}" "${parents}" "${subject}"
+
+          # Caminho rápido: 2+ pais é um merge commit (a estratégia "Create a merge commit").
+          if [ "${parents}" -ge 2 ]; then
+            echo "OK: merge commit."
+            exit 0
+          fi
+
+          # Um pai NÃO significa bypass. `squash` e `rebase merge` também produzem commit de um pai só,
+          # e ambos vêm de PR legítimo — contar pais sozinho reprovaria a estratégia de merge do time, e
+          # um gate que reprova o fluxo normal é desligado na primeira semana. Então perguntamos à API
+          # se este SHA pertence a algum PR MERGEADO.
+          #
+          # SEM filtrar por `base.ref`, e isso foi medido: o commit 3813394 está em `develop` e seu PR
+          # (#262) tem base `main`. Uma versão anterior deste gate filtrava por base e o marcaria como
+          # bypass — falso positivo. A pergunta que importa é "passou por revisão em ALGUM PR", não
+          # "por qual porta entrou": um commit promovido a main e depois presente em develop passou
+          # pelo mesmo gate humano.
+          prs="$(gh api "repos/${REPO}/commits/${sha}/pulls" \
+                   --jq '[.[] | select(.merged_at != null) | "#\(.number)(base=\(.base.ref))"] | join(" ")' \
+                 2>/dev/null || echo '')"
+          if [ -n "${prs}" ]; then
+            echo "OK: este commit pertence a PR mergeado — ${prs}."
+            exit 0
+          fi
+
+          # Push de TAG não chega aqui (o gatilho é só branches), e o release carrega seus commits pelo
+          # mesmo PR de promoção — então não há exceção legítima a abrir. Se aparecer uma, ela merece um
+          # ADR, não um `|| true`.
+          cat >&2 <<MSG
+          FALHOU: '${BRANCH}' avançou por um commit que não pertence a nenhum PR mergeado.
+
+            sha:    ${sha}
+            autor:  ${ACTOR}
+            msg:    ${subject}
+
+          Este repositório NÃO tem branch protection — medido: a API devolve 403
+          "Upgrade to GitHub Pro" tanto em /branches/${BRANCH}/protection quanto em /rulesets
+          (ver theo-cloud#276). Logo NADA no servidor impediu isto, e este gate não impede: ele
+          apenas garante que não passe em silêncio.
+
+          O caminho é: o trabalho nasce em 'workspace' -> PR para 'develop' -> PR para 'main'.
+          MSG
+          exit 1

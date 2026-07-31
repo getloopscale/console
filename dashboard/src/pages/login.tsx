@@ -7,6 +7,8 @@ import { GoogleBrandIcon } from '@/components/google-brand-icon';
 import { LoginErrorBanner } from '@/components/login/login-error-banner';
 import { CookieBlockedAlert } from '@/components/login/cookie-blocked-alert';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
+import { usePendingOIDC } from '@/hooks/use-pending-oidc';
+import { postOIDCForm } from '@/lib/oidc-form';
 import { getSession, startLogin } from '@/lib/auth';
 import { clearToken } from '@/lib/api';
 import { API_URL, AUTH_URL } from '@/lib/config';
@@ -194,32 +196,34 @@ export function LoginPage() {
    * Aqui só emitimos 'attempt'. Outcome telemetry para OIDC é responsabilidade
    * do callback handler (fora deste plano).
    */
+  // SO o POST. Uma tentativa pertence ao CLIQUE, nao a cada vez que o POST e executado —
+  // por isso o hook de retomada recebe esta funcao, e nao `submitOIDC`. Reexecutar o comando
+  // inteiro emitia um segundo `auth.method.attempt` com correlation_id novo, orfanando o
+  // primeiro contexto e inflando a contagem de tentativas exatamente na coorte de rede lenta
+  // que o theo#140 existe para atender.
+  const postOIDC = (provider: 'github' | 'google') => {
+    if (!flow) return;
+    postOIDCForm(
+      flow.ui.action,
+      flow.ui.nodes.find((n) => n.attributes.name === 'csrf_token')?.attributes
+        .value || '',
+      provider,
+    );
+  };
+
   const submitOIDC = (provider: 'github' | 'google') => {
     startAuthAttempt(provider);
     if (!flow) {
+      // theo#140: dropping the provider here is what made the click vanish.
+      rememberPendingOIDC(provider);
       startLogin();
       return;
     }
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = flow.ui.action;
-    const csrfNode = flow.ui.nodes.find(
-      (n) => n.attributes.name === 'csrf_token',
-    );
-    for (const [name, value] of [
-      ['csrf_token', csrfNode?.attributes.value || ''],
-      ['method', 'oidc'],
-      ['provider', provider],
-    ]) {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = name;
-      input.value = value;
-      form.appendChild(input);
-    }
-    document.body.appendChild(form);
-    form.submit();
+    postOIDC(provider);
   };
+
+  // theo#140 — completes a click that landed before the flow was ready (logic in the hook).
+  const { remember: rememberPendingOIDC } = usePendingOIDC(flow, postOIDC);
 
   // SECURITY: submit password login via top-level HTML form POST instead of
   // XHR fetch — same pattern as submitOIDC above. Top-level navigation sends

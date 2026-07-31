@@ -39,16 +39,18 @@ import (
 	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
 	"github.com/usetheodev/theo-cloud/internal/normalize"
 	"github.com/usetheodev/theo-cloud/internal/promptly"
-	"github.com/usetheodev/theo-cloud/internal/trust"
 	"github.com/usetheodev/theo-cloud/internal/rag"
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
 	"github.com/usetheodev/theo-cloud/internal/serviceversions"
+	"github.com/usetheodev/theo-cloud/internal/skills"
 	"github.com/usetheodev/theo-cloud/internal/storage"
 	"github.com/usetheodev/theo-cloud/internal/storageproxy"
 	"github.com/usetheodev/theo-cloud/internal/thelens"
 	"github.com/usetheodev/theo-cloud/internal/themory"
 	"github.com/usetheodev/theo-cloud/internal/tracing"
+	"github.com/usetheodev/theo-cloud/internal/trust"
+	"github.com/usetheodev/theo-cloud/internal/version"
 	"github.com/usetheodev/theo-cloud/internal/workspace_webhook_worker"
 )
 
@@ -155,15 +157,45 @@ func newRagDashboardKeyResolver(minter ragDashMinter) func(ctx context.Context) 
 
 // serviceVersionTargets is the data-plane fleet the M21 status panel probes.
 //
-// theo-storage carries an empty base URL on purpose: it resolves to not_deployed
-// by the generic rule. Omitting it would hide that it exists and did not come up —
-// the absence IS the news the panel exists to report.
+// Cada alvo lê sua URL da configuração. Uma URL vazia resolve para `not_deployed`
+// pela regra genérica — e o serviço continua LISTADO: omiti-lo esconderia que ele
+// existe e não subiu, e essa ausência é justamente a notícia que o painel existe
+// para dar.
+//
+// `theo-storage` carregava `""` LITERAL até 2026-07-29, quando de fato não havia
+// deploy dele. Passou a haver, e o literal fazia o painel reportar `not deployed`
+// sobre um serviço saudável — a mesma classe de mentira que o painel combate, só
+// que na direção oposta. Ler da config é o que faz a resposta seguir o ambiente em
+// vez de uma constante escrita num dia específico.
 func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 	return []serviceversions.Target{
 		{Name: "theo-memory", BaseURL: cfg.ThemoryBaseURL},
 		{Name: "theo-rag", BaseURL: cfg.RagBaseURL},
 		{Name: "theo-lens", BaseURL: cfg.LensBaseURL},
-		{Name: "theo-storage", BaseURL: ""},
+		{Name: "theo-storage", BaseURL: cfg.StorageBaseURL},
+		{Name: "theo-skills", BaseURL: cfg.SkillsBaseURL},
+		// theo-promptly e theo-trust JA' viviam na config e ficavam FORA desta
+		// lista. Era a mesma omissao que o paragrafo acima condena: um servico
+		// ausente do painel nao parece ausente — parece inexistente, e quem conta
+		// as linhas conclui que a frota esta' completa.
+		{Name: "theo-promptly", BaseURL: cfg.PromptlyBaseURL},
+		{Name: "theo-trust", BaseURL: cfg.TrustBaseURL},
+		// O engine. So' pode ser sondado desde que passou a falar o contrato da
+		// frota (`GET /v1/version` -> {version, built_at}): antes servia
+		// `/api/v1/version` com `build_date`, divergindo em path E em campo, e o
+		// coletor nao tem como negociar formato por alvo.
+		//
+		// Reusa EngineAPIURL, a MESMA URL pela qual este gateway ja' faz proxy do
+		// engine. Uma variavel propria poderia divergir dela e o painel passaria a
+		// reportar sobre um endereco que ninguem mais usa.
+		{Name: "theo-api", BaseURL: cfg.EngineAPIURL},
+		// O gateway MCP. A URL aponta para a RAIZ do processo, nao para a borda
+		// `/mcp` do Traefik: aquele roteador NAO remove o prefixo (deliberado — o
+		// gateway precisa do path completo para rotear MCP), entao uma sonda via
+		// `/mcp` chegaria como `/mcp/v1/version`, cairia no catch-all do proxy e
+		// devolveria 404 sobre um servico saudavel. Medido: 404 pela borda, 200
+		// pela raiz.
+		{Name: "theo-traefik-mcp", BaseURL: cfg.TraefikMcpBaseURL},
 	}
 }
 
@@ -191,7 +223,24 @@ func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, 
 		OnResult:   cloudmetrics.IncServiceVersionProbe,
 		Logger:     logger,
 	})
-	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(collector, logger), requireJWT)
+	// M22 — o proprio gateway entra no painel que ele serve.
+	//
+	// A decoracao acontece AQUI, no composition root, e nao dentro de internal/serviceversions: a
+	// interface VersionCollector e declarada do lado do CONSUMIDOR e satisfeita implicitamente, o
+	// que faz dela o seam certo — a quinta linha custa zero mudanca ao pacote do M21, cuja union
+	// type continua com quatro construtores e campos nao exportados.
+	//
+	// A linha vem de metadados de build IN-PROCESS, nunca de uma chamada HTTP a nos mesmos: um
+	// servico que se sonda reporta a propria vivacidade, que e o unico fato que um painel de status
+	// nao consegue aprender assim.
+	//
+	// O OnResult do coletor dispara uma vez por TARGET dentro de Collect, entao a linha apendada
+	// depois seria invisivel para ele e o censo do Prometheus discordaria do censo do JSON por um.
+	// Por isso o decorator emite a propria observacao.
+	selfAware := routes.NewSelfReportingCollector(
+		collector, version.Read(), time.Now, cloudmetrics.IncServiceVersionProbe,
+	)
+	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(selfAware, logger), requireJWT)
 }
 
 // mountRagDashboard registers the /v1/dashboard/rag BFF route group. M17 shipped it
@@ -477,6 +526,44 @@ func main() {
 			logger,
 		)
 		logger.Info("theo-trust Model B broker wired (L2)", "base_url", cfg.TrustBaseURL)
+	}
+
+	// M22 (theo-skills Model B): a ForwardAuth handler for the /v1/skills
+	// capability. Reuses the generic handler wired with the skills broker +
+	// "skills:read"; only registered when SKILLS_BASE_URL is set. The broker mints a
+	// per-tenant theoskill_live_* key (least-privilege intersection of the consumer's
+	// skills:* scopes with the data scopes) and fails CLOSED — no master fallback.
+	//
+	// The mint targets theo-skills' PLATFORM route, not its admin one: the admin
+	// route derives the workspace from the caller's principal and requires the
+	// target to be a member of it, so a broker cannot use it to reach an arbitrary
+	// tenant.
+	var skillsForwardAuthHandler *routes.ForwardAuthHandler
+	if cfg.SkillsBaseURL != "" && cfg.SkillsPlatformAdminKey.Value() != "" {
+		skillsHTTP := &http.Client{Timeout: 10 * time.Second}
+		skillsAdmin := skills.NewAdminClient(cfg.SkillsBaseURL, cfg.SkillsPlatformAdminKey.Value(), skillsHTTP)
+		// `skills:admin` is deliberately ABSENT from the mintable set: it is the
+		// key-lifecycle scope, and a gateway-minted credential must never be able to
+		// provision further credentials. Same posture as rag:admin.
+		skillsBroker, sErr := skills.NewBroker(skillsAdmin, 1024, time.Hour,
+			[]string{"skills:read", "skills:write", "skills:publish"})
+		if sErr != nil {
+			logger.Error("failed to construct skills credential broker — refusing to start", "error", sErr)
+			os.Exit(1)
+		}
+		skillsForwardAuthHandler = routes.NewForwardAuthHandler(
+			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+			},
+			skillsBroker,
+			// cross-account guard — does the resolved account own this tenant?
+			func(ctx context.Context, accountID, tenantID string) (bool, error) {
+				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+			},
+			"skills:read",
+			logger,
+		)
+		logger.Info("theo-skills Model B broker wired", "base_url", cfg.SkillsBaseURL)
 	}
 
 	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
@@ -816,6 +903,19 @@ func main() {
 	// §4.1+4.2: Metrics endpoint (Prometheus text format)
 	r.Get("/metrics", cloudmetrics.Handler())
 
+	// M22 — GET /v1/version: a proveniencia do binario que esta respondendo.
+	//
+	// AUTH-EXEMPT POR CONTRATO, e registrado aqui fora de qualquer middleware de auth de proposito.
+	// Com credencial na frente, "o servico caiu" e "sua credencial esta errada" produzem a MESMA
+	// resposta, e nem o operador nem o reconciliador conseguem distinguir — que e exatamente a
+	// ambiguidade que este endpoint existe para remover.
+	//
+	// Ate o M22 este servico CONSUMIA /v1/version de todos os irmaos (internal/serviceversions) e nao
+	// servia nenhum: a rota devolvia 404 literal, medido 6/6 contra o edge de public-dev. O
+	// reconciliador do host sondava OUTRO endpoint (o agregado do M21, com JWT), lia o 401 dele como
+	// "a rota existe" e declarava a proveniencia convergida.
+	r.Get("/v1/version", version.Handler())
+
 	// platform-api-gateway-edge-slice1 (M6, ADR D7): internal ForwardAuth authz
 	// endpoint. Only the Traefik edge calls it (subrequest) — it is NOT under any
 	// auth middleware because it IS the auth. GET + POST so any edge transport works.
@@ -840,6 +940,12 @@ func main() {
 	if trustForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardTrustPath, trustForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardTrustPath, trustForwardAuthHandler.ServeHTTP)
+	}
+	// M22: the theo-skills ForwardAuth endpoint the edge's forward-auth-skills
+	// middleware calls. Same generic handler, distinct path + skills broker.
+	if skillsForwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardSkillsPath, skillsForwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardSkillsPath, skillsForwardAuthHandler.ServeHTTP)
 	}
 	// M14: the theo-rag ForwardAuth endpoint the edge's forward-auth-rag middleware
 	// calls. Same generic handler, distinct path + rag broker.

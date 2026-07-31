@@ -11,10 +11,23 @@
 # "locally proven; CI pending first push".
 name: ci
 on:
+  # Invocado por publish.yml como gate (workflow_call) e disparado direto num PR.
+  #
+  # SEM `push:` e SEM `workflow_dispatch:`, de proposito. MEDIDO em 2026-07-30 (theo-memory, runs
+  # 30522117234 e 30522853797): um `workflow_call` callee NAO herda o `concurrency` do chamador —
+  # ele mantem o PROPRIO grupo, avaliado no contexto do chamador. Como este arquivo declara
+  # `test-e2e-${branch}` com cancel-in-progress, um run avulso e a chamada gateada caem no MESMO
+  # grupo e um mata o outro; o run do publish termina `cancelled` e `images` vira `skipped` num
+  # commit verde. theo-lens sofreu o mesmo defeito (F-sec-2) e corrigiu deletando os gatilhos
+  # avulsos — theo-lens/.github/workflows/integration.yml:28-32.
+  #
+  # A cobertura do commit de merge nao se perde: ela passa a vir do gate em publish.yml.
+  workflow_call:
+    secrets:
+      GOMOD_TOKEN:
+        required: true
+        description: PAT com leitura no modulo privado theo-contracts; um callee NAO herda secrets.
   pull_request: {}
-  push:
-    branches: [develop]
-  workflow_dispatch: {}
 permissions:
   contents: read
   packages: read # pull das imagens dos vizinhos no GHCR da org
@@ -26,11 +39,25 @@ permissions:
 # a disputa é por CPU e RAM, então um run duplicado rouba CPU dos outros quatro repositórios.
 # Medido em 2026-07-27: 2 SHAs com run duplicado (par push+pull_request) nos últimos 60 runs.
 concurrency:
-  group: test-e2e-${{ github.event.pull_request.head.ref || github.ref_name }}
+  # `github.event_name` na chave NAO e enfeite — sem ele o gate cancela a si mesmo no ritual de
+  # release deste repo.
+  #
+  # MEDIDO (review 2026-07-30): 10 dos ultimos 10 PRs para `main` tem head `develop`, e 5 runs
+  # recentes de `ci` carregam event=pull_request com head_branch=develop. Um PR `develop -> main`
+  # resolve `head.ref` para "develop" e cai em `test-e2e-develop`. O callee gateado, rodando sob um
+  # push para develop, cai no MESMO grupo (a expressao e avaliada no contexto do CHAMADOR — medido
+  # nos runs 30522117234/30522853797 do theo-memory). Com cancel-in-progress, o PR de release
+  # cancela o gate em voo: `needs:` fica insatisfeito, `images` pula, e o commit de release publica
+  # NADA — reportado como `cancelled`, ou seja, cinza em vez de vermelho.
+  #
+  # Antes do M22 essa colisao custava um sinal duplicado. Gatear o publish no callee a converteu em
+  # bloqueio de entrega.
+  group: test-e2e-${{ github.event_name }}-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
   e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
       THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
@@ -40,11 +67,11 @@ jobs:
       #   theo-cloud/theo        (engine — its migrations are mounted by cloud-migrate)
       #   theo-data/theo-memory  (themory source — run.sh builds its image)
       - name: Checkout theo-cloud
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: theo-cloud/theo-cloud
       - name: Checkout theo (engine — migrations)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: usetheodev/theo
           # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
@@ -56,7 +83,7 @@ jobs:
           # PAT with read access to usetheodev/theo (+ theo-memory, theo-contracts).
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: theo-cloud/theo-cloud/go.mod
           cache-dependency-path: theo-cloud/theo-cloud/go.sum
@@ -108,16 +135,18 @@ jobs:
   # (TestEdgeForwardAuth*), which the default `e2e` job SKIPs (it runs no Traefik).
   e2e-edge:
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
     env:
       # Pin do engine lido do arquivo versionado; ver `.github/e2e-images.env`.
       THEO_ENGINE_REF: f17ceed6169e9bbd10f72778742cfc010930c9da
+      THEORAG_REF: 59654ff87dd4ea8917023884532ca4e859bdef34
     steps:
       - name: Checkout theo-cloud
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: theo-cloud/theo-cloud
       - name: Checkout theo (engine — migrations)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: usetheodev/theo
           # SHA fixo de `.github/e2e-images.env`, nao `develop`. `main` nao carrega o schema
@@ -127,7 +156,18 @@ jobs:
           ref: ${{ env.THEO_ENGINE_REF }}
           token: ${{ secrets.GOMOD_TOKEN }}
           path: theo-cloud/theo
-      - uses: actions/setup-go@v5
+      - name: Checkout theo-rag (migrations do rag-migrate)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Diferente do theo-lens, que MIGRA NO BOOT, o theo-rag nao aplica o proprio
+          # schema — o `rag-migrate` do e2e o semeia com `psql`. Sem este checkout o bind
+          # aponta para um diretorio inexistente, zero migration e aplicada, o container
+          # sai 0, e o defeito reaparece depois como 503 em /v1/admin/keys (#271).
+          repository: usetheoai/theo-rag
+          ref: ${{ env.THEORAG_REF }}
+          token: ${{ secrets.GOMOD_TOKEN }}
+          path: theo-cloud/theo-rag
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: theo-cloud/theo-cloud/go.mod
           cache-dependency-path: theo-cloud/theo-cloud/go.sum
@@ -197,10 +237,12 @@ jobs:
         working-directory: theo-cloud/theo-cloud
         env:
           GOPRIVATE: github.com/usetheodev/*
-          # Point run.sh at the sibling checkouts EXPLICITLY. Its relative default
-          # (${ROOT}/../../theo-data/<repo>) assumes the dev-box layout; on the
-          # runner the repo nests one level deeper, so the default resolved to a
-          # path that does not exist.
+          # Aponta o run.sh para o checkout vizinho EXPLICITAMENTE. Este comentario ja
+          # existia descrevendo a correcao — e as variaveis nunca foram adicionadas, entao
+          # o default continuou resolvendo para um caminho inexistente. O default tambem
+          # foi corrigido (`../theo-rag`, nao `../../theo-data/theo-rag`), de modo que os
+          # dois layouts funcionem; esta linha e o cinto por cima do suspensorio.
+          THEORAG_DIR: ${{ github.workspace }}/theo-cloud/theo-rag
         run: |
           set -a; . .github/e2e-images.env; set +a
           make e2e-edge

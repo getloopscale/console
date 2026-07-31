@@ -3,7 +3,6 @@ import {
   numericDelta,
   alignSpanTrees,
   traceMetrics,
-  spanTokens,
   isErrorStatus,
   type TraceCostSummary,
 } from './compare-core';
@@ -88,6 +87,30 @@ describe('alignSpanTrees — match by name+kind+sibling-ordinal, honest "only-in
   });
 });
 
+/**
+ * theo-cloud#186 — the same all-unmeasured asymmetry the trace-summary header had, on the compare
+ * delta table. The playground baseline column already applies the M89 rule per span; this aggregate
+ * must reach the same answer for the same trace, or two surfaces of the product contradict.
+ */
+describe('#186 — traceMetrics tokens: unmeasured is unknown, not zero', () => {
+  it('is NaN when no span recorded and the cost summary is absent', () => {
+    const root = span('r', 'root', {}, [span('a', 'a'), span('b', 'b')]);
+    expect(traceMetrics(root, undefined).tokens).toBeNaN();
+  });
+
+  it('keeps a real measured zero as a number', () => {
+    const root = span('r', 'root', {}, [span('a', 'a', { inputTokens: 0, outputTokens: 0 })]);
+    expect(traceMetrics(root, undefined).tokens).toBe(0);
+  });
+
+  it("the cost summary's totalTokens still wins — including a real 0 from the lens", () => {
+    // The summary is authoritative when present: it is the same number the trace list shows. A 0 there
+    // is the lens reporting a measurement, not an absence, so the tree fallback must not override it.
+    const root = span('r', 'root', {}, [span('a', 'a')]);
+    expect(traceMetrics(root, { traceId: 't', costUsd: 0, totalTokens: 0 }).tokens).toBe(0);
+  });
+});
+
 describe('traceMetrics — per-trace roll-up from tree + cost summary', () => {
   const cost: TraceCostSummary = { traceId: 't', costUsd: 0.42, totalTokens: 300 };
 
@@ -117,10 +140,6 @@ describe('traceMetrics — per-trace roll-up from tree + cost summary', () => {
 });
 
 describe('per-span helpers', () => {
-  it('spanTokens sums input+output for the node only (not descendants)', () => {
-    expect(spanTokens(span('s', 'x', { inputTokens: 7, outputTokens: 3 }, [span('c', 'y', { inputTokens: 100 })]))).toBe(10);
-    expect(spanTokens(span('s', 'x'))).toBe(0);
-  });
   it('isErrorStatus: only the sanctioned error tokens are errors (#176)', () => {
     expect(isErrorStatus('2')).toBe(true);
     expect(isErrorStatus('ERROR')).toBe(true);

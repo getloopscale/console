@@ -87,7 +87,7 @@ export function LensDatasetsPage() {
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/datasets'] as const,
-    queryFn: () => cloudFetch<DatasetsResult>('/v1/dashboard/lens/datasets'),
+    queryFn: () => cloudFetch<DatasetsResult>('/v1/dashboard/lens/datasets', {}, { throwOnError: true }),
   });
 
   const detail = useQuery({

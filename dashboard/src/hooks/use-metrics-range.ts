@@ -75,7 +75,7 @@ export function useMetricsRange(
 
   const query = useQuery({
     queryKey: ['metricsRange', projectName, resolvedEnv, signal, range],
-    queryFn: () => engineFetch<MetricsRangeResponse>(path),
+    queryFn: () => engineFetch<MetricsRangeResponse>(path, {}, { throwOnError: true }),
     enabled: !!projectName && !!signal,
     // Histogram is mostly static once Prometheus warms up — refetch every 30s
     // is plenty (vs 5s for status snapshot). Pause when tab hidden.

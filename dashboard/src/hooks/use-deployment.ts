@@ -14,6 +14,7 @@ export function useDeployment(buildId: string | undefined): {
 } {
   const query = useQuery({
     queryKey: queryKeys.builds.detail(buildId ?? ''),
+    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
     queryFn: () => engineFetch<Build>(`/api/v1/builds/${encodeURIComponent(buildId!)}`),
     enabled: !!buildId,
   });

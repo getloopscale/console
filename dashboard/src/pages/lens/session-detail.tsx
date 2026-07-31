@@ -64,8 +64,7 @@ export function LensSessionDetailPage() {
     // theo-lens — the same one the traces list's advanced `session` filter uses).
     queryFn: () =>
       cloudFetch<SessionTracesResult>(
-        `/v1/dashboard/lens/traces?session_id=${encodeURIComponent(sessionId)}`,
-      ),
+        `/v1/dashboard/lens/traces?session_id=${encodeURIComponent(sessionId)}`, {}, { throwOnError: true }),
     enabled: sessionId !== '',
   });
 
@@ -74,7 +73,7 @@ export function LensSessionDetailPage() {
   const coherenceQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/sessions', sessionId, 'coherence'] as const,
     queryFn: () =>
-      cloudFetch<CoherenceVerdict>(`/v1/dashboard/lens/sessions/${encodeURIComponent(sessionId)}/coherence`),
+      cloudFetch<CoherenceVerdict>(`/v1/dashboard/lens/sessions/${encodeURIComponent(sessionId)}/coherence`, {}, { throwOnError: true }),
     enabled: sessionId !== '',
   });
   const queryClient = useQueryClient();

@@ -580,6 +580,206 @@ dependência declarada estaria satisfeita na hora e seria decorativa. As peças 
 
 ---
 
+### M22 — [ ] theo-cloud diz a verdade sobre si mesmo (entrega confiável + presença no painel)
+
+> Added 2026-07-30 by `/roadmap-feature` (slug: `theo-cloud-delivery-truth`).
+> See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-delivery-truth-feature-grill.md`.
+
+**Objetivo:** fechar o caminho de entrega do `theo-cloud` para que nada chegue ao host de
+public-dev sem passar pelos testes, e fazer o serviço reportar honestamente qual versão está
+rodando — aparecendo na página `/status` ao lado dos outros, com `Service · State · Version · Built`.
+
+**Gatilho (medido em 2026-07-30, `/loop-devops-audit`, veredito `INVALID` score 46.0):**
+
+| O que foi medido | Número |
+|---|---|
+| Commits que publicaram imagem com gate vermelho | **12** (`3daf3663` subiu 2 imagens com `ci`+`quality`+`SAST` falhando) |
+| `needs` do `publish.yml` sobre `ci`/`quality`/`security-sast` | **nenhum** |
+| Resposta do `/v1/version` do theo-cloud | **401**, contada pelo reconciliador como "proveniência confere" |
+| Serviços no agregado de `/status` (`cmd/main.go:168`) | **4** — o theo-cloud não está entre eles |
+| Canais em que o gate Trivy roda | **nenhum** — `trivy` default `false`, `publish.yml` nunca o passa |
+| Jobs sem `timeout-minutes` | **12 de 13** |
+
+O modelo de referência resolve isto no mesmo workspace: `theo-memory/.github/workflows/publish.yml:143`
+declara `needs: [guard-release-on-main, gate-ci, gate-contract]` e passa `trivy/sign/verify: true` no
+caminho develop, usando **o mesmo reusable vendorizado**. Não é limite de plataforma — é configuração
+não herdada.
+
+**Definition of done:**
+
+- [ ] `publish.yml` não publica imagem sem `ci`, `quality` e `security-sast` verdes — gates invocados por `workflow_call` (síncrono, mesmo run, preserva `github.sha`), nunca `workflow_run`. Verificável: um commit com teste vermelho não produz job `images` bem-sucedido.
+- [ ] O canal `:develop` sai escaneado e assinado — `trivy: true`, `sign: true` — e `provenance` deixa de receber o literal `false`. Verificável: `cosign verify` resolve para a tag `:develop` publicada.
+
+  > **`verify` permanece preso a tag, por ADR 0004 (ACCEPTED, 2026-07-30) § D1** —
+  > `.claude/knowledge-base/adrs/0004-m22-dod-verify-e-concurrency.md`. O texto original deste item
+  > pedia `verify: true` no canal develop; a implementação assina incondicionalmente mas só
+  > *verifica* em tag. Motivo: `cosign verify` resolve contra Rekor/Fulcio **depois** do push, então
+  > uma indisponibilidade do Sigstore reprovaria um run cuja imagem **já foi publicada** — e o
+  > reconciliador do host converge por `:develop` a cada 5 min, adotando uma imagem que o pipeline
+  > declara ter falhado. O raio de dano é assimétrico: em tag não há reconciliador convergindo.
+  >
+  > O critério observável do item continua satisfazível — `sign: true` é incondicional e a âncora de
+  > identidade aceita `refs/heads/develop` — mas **ninguém o executa automaticamente**, e isso é a
+  > dívida: uma regressão de assinatura no canal que a produção consome só apareceria na próxima tag.
+  > Destino registrado no ADR: verificação out-of-band do `:develop` (job agendado ou step
+  > `continue-on-error`), nenhuma das duas reintroduzindo o modo de falha acima.
+  >
+  > Emenda escrita em 2026-07-31, após a review do milestone apontar que esta divergência — ao
+  > contrário da do item 6 — estava decidida em ADR mas não refletida aqui. O texto do DoD afirmava
+  > algo que o código não faz.
+- [ ] `GET /v1/version` do theo-cloud responde sem 401 e reporta o commit **da imagem em execução**. Verificável: o valor bate com `org.opencontainers.image.revision` da imagem que o host roda.
+- [ ] `theo-cloud` aparece em `https://app-dev.usetheo.dev/status` junto aos demais, com as quatro colunas já existentes, alimentado por **metadados de build in-process** — nunca por uma chamada HTTP do serviço para si mesmo.
+- [ ] O `Dockerfile` não deixa credencial em camada: o `git config --global` da linha 20 deixa de persistir `/root/.gitconfig`, que hoje é exportado ao cache do Actions por `cache-to: mode=max`.
+- [ ] Higiene de pipeline fechada: `timeout-minutes` em todo job que pode carregá-lo, as 9 actions não pinadas fixadas por SHA (prioridade `dorny/paths-filter`, o único terceiro e justamente o que decide se a imagem sai), e a chave de `concurrency` do publish **presa ao ref**, travada por teste.
+
+  > **A prescrição de re-chavear `concurrency` por commit foi rejeitada em ADR 0004 (ACCEPTED,
+  > 2026-07-30)** — `.claude/knowledge-base/adrs/0004-m22-dod-verify-e-concurrency.md` § D2. O sintoma
+  > que o DoD nomeia (run duplicado) já foi fechado por outro mecanismo: o M22 removeu o gatilho
+  > `push:` de `ci.yml` e `quality.yml`, que passaram a ser invocados por `workflow_call`. O run deixa
+  > de **existir** em vez de ser iniciado e cancelado — degrau 1 da parsimônia, e mais barato, porque
+  > um run cancelado ainda paga fila e setup. Confirmado em 2026-07-31: os dois workflows declaram
+  > apenas `workflow_call` + `pull_request`, e **todo duplicado observado no histórico é de 23–29/07,
+  > anterior à cirurgia**.
+  >
+  > Re-chavear por commit também quebraria o caso tag: `github.sha` é **idêntico** entre o push de uma
+  > tag e o commit de develop que ela aponta, então uma chave por SHA faria um run cancelar o outro,
+  > perdendo um dos dois artefatos.
+  >
+  > Acrescentado em 2026-07-31: a decisão passou a ser travada por teste em
+  > `internal/ci/publish_controls_test.go` (`TestPublishConcurrencyStaysKeyedByRefNotCommit` mais um
+  > guard sintético que prova que a asserção reprova a configuração ruim). O ADR registrava a decisão;
+  > o teste impede que alguém a desfaça lendo só o texto deste DoD.
+
+**Não entra neste milestone** (registrado aqui, não na seção macro de escopo — cada item com destino):
+
+| Item | Por que fora | Destino |
+|---|---|---|
+| Rotação do `GOMOD_TOKEN` + purge do cache `gha` | Caches passados já contêm o token; esperar o milestone fechar mantém a exposição aberta | **Ação imediata**, decisão do operador em 2026-07-30 |
+| Reconciliador convergente + eixo de proveniência tratando 401 como INDETERMINADO | O script vive em `theo-ops`, outro repositório | `theo-ops` |
+| Branch protection / segregação de funções (CC6.3, CC8.1) | `403 Upgrade to GitHub Pro` — decisão de plano ou de divulgação, não tarefa de engenharia | Decisão do dono |
+| `theo-host-firewall.service` morto, portas em `0.0.0.0` | Hardening de host; sem exposição ativa (probe externo: todas closed/filtered) | `loop-security-audit` |
+| Instância órfã `theo-workspace-theo-cloud-1` (26h desatualizada) | Operação de host, não código deste repo | `theo-ops` |
+
+**Dependencies:** `M21`. Os 21 anteriores estão `[x]`, então a dependência seria decorativa na
+maioria dos casos — M21 é nomeada por ser **substantiva**: este milestone estende o agregado que ela
+construiu, e sem ele a quarta linha da DoD não teria onde aterrissar.
+
+**Top risks (new):**
+
+1. **Colocar o gate converte falha invisível em entrega parada.** A taxa de falha medida em develop é
+   alta, e a auditoria a atribuiu a gates *reprodutivelmente* vermelhos, não a flakiness
+   (`rerun_rate = 0.017`, abaixo do piso de 0.05). Ou seja: o risco não é teste instável — é que
+   falhas reais, hoje invisíveis para a entrega, passem a aparecer como entrega bloqueada. É o
+   comportamento pretendido, e vai parecer regressão na primeira semana. Mitigação: fechar os gates
+   vermelhos **dentro** deste milestone, não depois dele.
+2. **Auto-probe no agregado.** O coletor roda dentro do processo que passaria a sondar. Uma fiação
+   ingênua faz a saúde da página depender do próprio caminho de request que ela reporta, e uma falha
+   parcial produziria uma página que trava em vez de uma que diz "degradado". Mitigação: reportar o
+   `theo-cloud` por metadados de build in-process e deixar a política de timeout dos quatro serviços
+   remotos intacta.
+
+**Why now:** o `/status` existe desde M21 e omite justamente o serviço que o serve; adicioná-lo hoje
+o mostraria `unreachable`, porque o `/v1/version` responde 401. O mesmo 401 é o eixo de proveniência
+que o reconciliador conta como verde. E acima dos dois, nada impede que código com teste vermelho
+chegue ao host em ~6 minutos. Os três são o mesmo problema visto de três ângulos: o sistema não
+consegue provar o que está rodando.
+
+---
+
+### M23 — [ ] A camada de confiança fica visível no dashboard (leitura)
+
+> Added 2026-07-31 by `/roadmap-feature` (slug: `theo-cloud-trust-dashboard`).
+> See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-trust-dashboard-feature-grill.md`.
+
+**Objetivo:** dar ao operador as duas primeiras superfícies da capacidade `trust` no dashboard —
+uma visão geral com KPIs e tendências, e a lista de violações de política navegável até a conversa
+de origem — atravessando as três camadas que lens e RAG já usam (data client Go → rota BFF → tela
+React), com dado real vindo da instância implantada do `theo-trust`.
+
+**Gatilho (medido em 2026-07-31 contra a instância implantada e os dois repositórios):**
+
+| O que foi medido | Resultado |
+|---|---|
+| `theo-trust` responde pela borda pública com a chave real do operador | `GET /v1/trust/version` → **200** `develop-6f17600`; `policy-violations` → **200** com dados |
+| Telas de trust no dashboard | **zero** — `ls dashboard/src/pages` não tem `trust` |
+| Broker Model B por tenant | **existe e testado** — `internal/trust/broker.go`, `internal/trust/admin_client.go` |
+| Rotas BFF consumindo esse broker | **zero** — `grep -rn "internal/trust" internal/routes/` não retorna nada |
+| Data client de leitura para o `theo-trust` | **inexistente** (o análogo do lens é `internal/thelens/data_client.go`) |
+
+A capacidade produz sinal que hoje só é observável por `curl`. A parte cara — isolamento por tenant,
+cunhagem de menor privilégio, fail-closed sem fallback master — **já está pronta**; falta o caminho
+de leitura e a superfície.
+
+**Definition of done:**
+
+- [ ] Data client de leitura em `internal/trust` consome o broker existente por tenant, resolvendo o Bearer por requisição a partir do JWT — **sem credencial permanente e sem fallback master**. Verificável: um resolver que falha produz zero requisição upstream (paridade com `internal/thelens/data_client.go`).
+- [ ] Rotas BFF `GET /v1/dashboard/trust/trends`, `/policy-violations` e `/conversations/{id}` atrás de `requireJWT`, exigindo `trust:read`. Verificável: chamada sem o escopo responde 403, não 200 com dado de outro tenant.
+- [ ] Páginas `/trust` (visão geral, KPIs + tendências) e `/trust/violations` (lista + detalhe navegável até a conversa) sob o `DESIGN.md` travado, com validação manual 5Q-3s pelo revisor — o gate universal daquele documento.
+- [ ] Isolamento por tenant provado por teste: dois tenants distintos, a resposta de um nunca contém linha do outro.
+- [ ] **Funcional e2e:** chave real do dashboard → tela → BFF → broker → API do `theo-trust` implantada → dado real renderizado. Um milestone que compila e testa, mas cuja tela não mostra dado vindo do serviço implantado, NÃO fecha.
+
+**Dependências:** M21 `[x]` e M22 `[ ]`. A dependência de M22 é **de sequência, não técnica** — nada
+em M22 bloqueia este trabalho; a decisão (operador, 2026-07-31) é que o painel de status seja
+confiável antes de somar mais uma capacidade a ele. `cycle-roadmap` só selecionará M23 quando M22
+fechar.
+
+**Top risks (new):**
+
+1. **O BFF vira um segundo caminho de autorização para o mesmo serviço.** Hoje o `theo-trust` é Level 1 na borda — `dev/traefik/dynamic.yml:82`: *"theo-trust authenticates its OWN trust_live_* bearer keys ... so NO forward-auth at the edge"*. Dois caminhos que divergem em autorização é a classe de defeito que o Model B fechou (CWE-441). *Mitigação:* o BFF exige o mesmo escopo do serviço e o broker cunha pela interseção de menor privilégio — nunca uma chave mais forte que a do chamador.
+2. **Amplificação de cunhagem.** Uma tela com vários painéis pode multiplicar chamadas ao broker. *Mitigação:* o cache com TTL já existe e é testado (`TestBroker_CacheHit_NoSecondMint`); medir a taxa de mint por carga de tela antes de fechar.
+
+**Não entra neste milestone:**
+
+| Item | Por que fora | Destino |
+|---|---|---|
+| Registro de validators e auditoria de enforcement | Caminho de mutação, perfil de risco distinto | **M24** |
+| Graduar o `theo-trust` de Level 1 para Level 2 na borda | Decisão de arquitetura de borda, independente do dashboard | ADR própria |
+| Ingestão de conversas pelo dashboard (`POST /v1/conversations`) | Escrita no plano de observação; nenhum caso de uso pediu | não planejado |
+
+---
+
+### M24 — [ ] Operar guardrails pelo dashboard (validators + auditoria de enforcement)
+
+> Added 2026-07-31 by `/roadmap-feature` (slug: `theo-cloud-trust-dashboard`).
+> See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-trust-dashboard-feature-grill.md`.
+
+**Objetivo:** permitir que o operador veja o catálogo de guardrails do seu tenant, crie e remova
+validators, **teste antes de salvar**, e audite o que o enforcement inline bloqueou — fechando o
+ciclo entre configurar uma política e observar o efeito dela.
+
+**Gatilho:** o registro `/v1/validators` existe, é multi-tenant e tem contrato de erro tipado
+(`422 INVALID_SPEC`, `422 VALIDATOR_NAME_RESERVED`, `409 CONFLICT`), mas a única forma de exercitá-lo
+hoje é `curl` ou o `dev/validators-console` do `theo-trust` — que o próprio README declara
+**dev-only, "never ships"**. `GET /v1/enforcement-events` registra cada bloqueio inline e nada o lê.
+
+**Definition of done:**
+
+- [ ] Rotas BFF `GET/POST /v1/dashboard/trust/validators`, `DELETE .../validators/{id}` e `POST .../validators:test`, cada uma exigindo o escopo correspondente — `trust:read` para listar, `trust:write` para criar/testar, `trust:delete` para remover. Verificável: uma chave só de leitura recebe 403 no DELETE.
+- [ ] Tela de registro mostra o catálogo **mesclado** (plataforma + tenant), distinguindo visualmente o que é herdado do que o tenant criou.
+- [ ] **Testar antes de salvar é obrigatório no fluxo**, não opcional: a tela exercita `POST /v1/validators:test` (dry-run) e mostra o resultado antes de permitir a criação. Um validator mal configurado não é erro de UI — é enforcement inline derrubando conversa em produção.
+- [ ] Erros tipados do serviço chegam ao usuário **com a mensagem do serviço**, nunca como "erro genérico". Verificável: criar uma guardrail `moderation` num deploy sem classificador renderiza o texto do `422 INVALID_SPEC` que `usetheoai/theo-trust#35` introduziu — não "ocorreu um erro".
+- [ ] Remoção é ação destrutiva isolada, com confirmação, conforme a regra de zonas destrutivas do `DESIGN.md`.
+- [ ] Tela de auditoria lê `GET /v1/enforcement-events` com categoria e conteúdo redigido — **nunca conteúdo bruto**.
+- [ ] **Funcional e2e:** criar → testar → salvar → bloquear de verdade pelo `/v1/guard` → aparecer na auditoria, tudo pela tela, contra a instância implantada.
+
+**Dependências:** M23 `[ ]`. Reusa o data client e o padrão de rota que M23 estabelece; sem ele, este
+milestone reimplementaria a mesma camada.
+
+**Top risks (new):**
+
+1. **O dashboard passa a criar objetos que bloqueiam tráfego inline do tenant.** Um validator errado derruba conversas em produção. *Mitigação:* dry-run obrigatório no fluxo (DoD acima) e o contrato `422` fail-fast na fronteira.
+2. **Erro de escopo vira ação destrutiva.** `DELETE` de um validator do tenant é irreversível pela UI. *Mitigação:* escopo `trust:delete` separado de `trust:write` — a separação já existe no serviço e no catálogo de escopos do `theo-cloud` — mais confirmação explícita na tela.
+
+**Não entra neste milestone:**
+
+| Item | Por que fora | Destino |
+|---|---|---|
+| Portar o `dev/validators-console` como está | É ferramenta de teste manual do `theo-trust`, declarada "never ships"; serve de referência funcional, não de código | referência apenas |
+| Editar um validator existente (PUT) | O serviço não expõe update — só create/delete. Adicionar o verbo é decisão do `theo-trust` | `theo-trust` |
+| Superfície de temas (`GET /v1/themes`) | Nenhum caso de uso pediu; entra quando houver | não planejado |
+
+---
+
 ## State-of-the-art references
 
 No peers were cloned for this roadmap: the design is locked in the ADR and the reference model is

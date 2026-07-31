@@ -62,7 +62,10 @@ interface ListKeysResponse {
   keys: APIKeyView[];
 }
 
-const ACTIVE_SCOPES = [
+// Exportado para que `api-keys-scope-catalog.test.ts` confronte esta lista com o enum
+// `validScopes` do backend. Enquanto cada lado tinha só o SEU teste, as duas divergiram
+// nos dois sentidos — `trust:*` faltava aqui E lá, `storage:*` existia lá e não aqui.
+export const ACTIVE_SCOPES = [
   { id: 'memory:read', label: 'memory:read', description: 'Recall memories and read history' },
   { id: 'memory:write', label: 'memory:write', description: 'Remember new facts and reflect' },
   { id: 'memory:delete', label: 'memory:delete', description: 'Forget specific memories' },
@@ -76,6 +79,25 @@ const ACTIVE_SCOPES = [
   { id: 'rag:read', label: 'rag:read', description: 'Retrieve chunks and answer questions' },
   { id: 'rag:write', label: 'rag:write', description: 'Create collections and ingest documents' },
   { id: 'rag:delete', label: 'rag:delete', description: 'Delete documents and collections' },
+  // Storage vertical (M7). O backend já aceitava estes dois — e havia teste Go fixando
+  // isso — enquanto a tela não os oferecia: capacidade emitível por API e invisível para
+  // quem usa o produto.
+  { id: 'storage:read', label: 'storage:read', description: 'Download and list stored objects' },
+  { id: 'storage:write', label: 'storage:write', description: 'Upload and delete stored objects' },
+  // Trust vertical (theo-trust, Model B L2). A cadeia inteira já estava de pé — borda
+  // roteando /v1/trust/*, forward-auth cunhando chave por tenant — e nenhum cliente podia
+  // alcançá-la, porque o escopo que a borda exige não era emitível em lugar nenhum.
+  { id: 'trust:read', label: 'trust:read', description: 'Read conversations, themes, trends and policy violations' },
+  { id: 'trust:write', label: 'trust:write', description: 'Ingest conversations and run inline guardrails' },
+  { id: 'trust:delete', label: 'trust:delete', description: 'Delete conversations and custom validators' },
+  // Skills vertical (theo-skills, M22 Model B). Diferente do trust — onde a cadeia já
+  // estava de pé e só o escopo faltava — aqui NADA existia: sem broker, sem forward-auth,
+  // sem rota de borda. Oferecer o escopo antes dessas peças entregaria uma chave que
+  // nenhuma borda aceita: o defeito oposto, e igualmente silencioso. `skills:admin` é
+  // omitido de propósito, como `rag:admin` — é o escopo de ciclo de vida de chave.
+  { id: 'skills:read', label: 'skills:read', description: 'Search and download agent skills' },
+  { id: 'skills:write', label: 'skills:write', description: 'Publish, update and delete skills' },
+  { id: 'skills:publish', label: 'skills:publish', description: 'Promote skills to the shared catalog' },
 ] as const;
 
 const RESERVED_SCOPES = [
@@ -93,7 +115,7 @@ export function ApiKeysPage() {
 
   const listQuery = useQuery({
     queryKey: ['cloud', '/v1/api-keys/list'] as const,
-    queryFn: () => cloudFetch<ListKeysResponse>('/v1/api-keys/list'),
+    queryFn: () => cloudFetch<ListKeysResponse>('/v1/api-keys/list', {}, { throwOnError: true }),
   });
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -324,7 +346,7 @@ function LineageSheet({ target, onClose }: LineageSheetProps) {
   const open = target !== null;
   const query = useQuery({
     queryKey: ['cloud', `/v1/api-keys/${target?.id ?? ''}/lineage`] as const,
-    queryFn: () => cloudFetch<LineageResult>(`/v1/api-keys/${target!.id}/lineage`),
+    queryFn: () => cloudFetch<LineageResult>(`/v1/api-keys/${target!.id}/lineage`, {}, { throwOnError: true }),
     enabled: open && !!target,
   });
 

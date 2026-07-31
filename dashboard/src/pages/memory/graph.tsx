@@ -225,6 +225,63 @@ export function withHub(data: ForceGraphData, label: string): ForceGraphData {
   return { nodes: [root, ...data.nodes], links: [...data.links, ...spokes] };
 }
 
+/**
+ * theo-cloud#254 — above this many nodes the unfiltered graph is a hairball, so the two mitigations
+ * that already existed as buttons are ON by default. Below it the full graph is legible and stays
+ * whole: a default that hides data on a 40-node workspace would be its own defect.
+ *
+ * 500 is the order of magnitude at which the reported screen became unreadable (4423 nodes), not a
+ * measured optimum — it is a threshold chosen to separate "small" from "hairball", and both sides of
+ * it are reversible by the buttons the operator can see.
+ */
+export const HAIRBALL_NODE_THRESHOLD = 500;
+
+/** Labels drawn at the default zoom. Past this many nodes the text overlaps into a wash. */
+export const LABEL_BUDGET = 40;
+
+/**
+ * theo-cloud#254 — whether unconnected (degree-0) nodes are shown on FIRST paint.
+ *
+ * 1266 of 4423 nodes (29%) were unconnected, occupying area and adding nothing to a graph whose whole
+ * subject is relations. "Hide N unconnected" already existed; it was just off, so the operator had to
+ * discover it. A default that requires discovery is not a default.
+ */
+export function defaultShowIsolated(nodeCount: number, isolatedCount: number): boolean {
+  if (isolatedCount === 0) return true; // nothing to hide
+  // Hiding must never blank the canvas. With every node unconnected, hiding leaves NOTHING — and an
+  // empty graph over a populated workspace reads as "you have no entities", a worse lie than a
+  // crowded one. Same principle as #250/#261: never assert absence you did not observe.
+  if (nodeCount - isolatedCount === 0) return true;
+  return nodeCount <= HAIRBALL_NODE_THRESHOLD;
+}
+
+/**
+ * theo-cloud#254 — the ids whose label is drawn at the default zoom: the `limit` most-CONNECTED nodes.
+ *
+ * Every connected node used to be labelled unconditionally (`!n.isolated`), so 3157 labels overlapped
+ * into an unreadable wash — the single largest contributor to the illegibility, and the one that
+ * survives hiding the unconnected 29%.
+ *
+ * Degree, not `memoryCount`: this screen is about relations, so the nodes worth naming are the ones
+ * the graph converges on. Zooming past the threshold still labels everything, so nothing is lost —
+ * only deferred.
+ */
+export function topLabelIds(data: ForceGraphData, limit = LABEL_BUDGET): Set<string> {
+  if (data.nodes.length <= limit) return new Set(data.nodes.map((n) => n.id));
+  const degree = new Map<string, number>();
+  for (const l of data.links) {
+    for (const id of [endpointId(l.source), endpointId(l.target)]) {
+      if (id !== '') degree.set(id, (degree.get(id) ?? 0) + 1);
+    }
+  }
+  return new Set(
+    [...data.nodes]
+      .sort((a, b) => (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0))
+      .slice(0, limit)
+      .map((n) => n.id),
+  );
+}
+
 /** id of a link endpoint whether it is still a string, already resolved to a
  *  node object, or absent (the lib types source/target as possibly-undefined). */
 function endpointId(end: string | number | NodeObject | undefined): string {
@@ -233,7 +290,7 @@ function endpointId(end: string | number | NodeObject | undefined): string {
   return String(end);
 }
 
-function GraphCanvas({ data }: { data: ForceGraphData }) {
+function GraphCanvas({ data, labelIds }: { data: ForceGraphData; labelIds: ReadonlySet<string> }) {
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 520 });
@@ -328,9 +385,10 @@ function GraphCanvas({ data }: { data: ForceGraphData }) {
       ctx.strokeStyle = theme.border;
       ctx.stroke();
 
-      // Labels: always for clustered nodes; isolated ones only when zoomed in
-      // (keeps the periphery noise from cluttering the overview).
-      const showLabel = active && (!n.isolated || scale > 2.4);
+      // Labels: the label BUDGET at default zoom (#254 — every connected node used to be labelled,
+      // so 3157 labels overlapped into a wash), and everything once zoomed in past the threshold.
+      // Nothing is hidden permanently: zoom reveals the rest.
+      const showLabel = active && (labelIds.has(n.id) || scale > 2.4);
       if (showLabel) {
         const fontSize = Math.max(10 / scale, 1.5);
         ctx.font = `${String(fontSize)}px Inter, system-ui, sans-serif`;
@@ -341,7 +399,7 @@ function GraphCanvas({ data }: { data: ForceGraphData }) {
       }
       ctx.globalAlpha = 1;
     },
-    [isNodeActive, theme],
+    [isNodeActive, theme, labelIds],
   );
 
   const paintPointerArea = useCallback(
@@ -501,8 +559,15 @@ export function GraphPage() {
 
   // #3 — hide unconnected (degree-0) nodes. Links already only reference connected
   // nodes, so filtering isolated ones never leaves a dangling edge.
-  const [showIsolated, setShowIsolated] = useState(true);
   const isolatedCount = useMemo(() => data.nodes.filter((n) => n.isolated).length, [data]);
+  // #254 — the DEFAULT is derived from the graph that actually arrived, because the sensible default
+  // depends on its size and the data is async. `null` means "operator has not decided", so a scope
+  // switch that changes the graph's size re-derives; one click pins the choice and the derivation
+  // stops overriding it. A plain `useState(false)` would hide nodes on a 3-node workspace, and a
+  // `useEffect` that re-seeds on every fetch would fight the operator's own click.
+  const [isolatedChoice, setIsolatedChoice] = useState<boolean | null>(null);
+  const showIsolated = isolatedChoice ?? defaultShowIsolated(data.nodes.length, isolatedCount);
+  const setShowIsolated = (next: (prev: boolean) => boolean) => setIsolatedChoice(next(showIsolated));
   const viewData = useMemo(
     () => (showIsolated ? data : { nodes: data.nodes.filter((n) => !n.isolated), links: data.links }),
     [data, showIsolated],
@@ -512,6 +577,9 @@ export function GraphPage() {
   // excluded from the entity/relation counts below).
   const [hub, setHub] = useState(true);
   const displayData = useMemo(() => (hub ? withHub(viewData, 'You') : viewData), [viewData, hub]);
+  // #254 — computed on the DISPLAYED graph, so hiding the unconnected 29% frees label budget for the
+  // nodes that remain instead of spending it on nodes nobody can see.
+  const labelIds = useMemo(() => topLabelIds(displayData), [displayData]);
 
   return (
     <PageShell
@@ -581,7 +649,7 @@ export function GraphPage() {
               ) : null}
             </div>
             <Card className="overflow-hidden p-0">
-              <GraphCanvas data={displayData} />
+              <GraphCanvas data={displayData} labelIds={labelIds} />
             </Card>
             <p className="text-xs text-muted-foreground">
               {viewData.nodes.length} entities · {viewData.links.length} relations · node size = how

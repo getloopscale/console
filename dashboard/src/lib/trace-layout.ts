@@ -261,6 +261,19 @@ export function spanOwnCostUsd(node: TraceSpanNode): number | undefined {
   return undefined;
 }
 
+/**
+ * theo-cloud#186 / M89 — the ONE predicate for "this span recorded a token count".
+ *
+ * Only BOTH halves absent means never-measured; one half recorded is a real (partial) measurement, and
+ * a recorded 0 is a fact. It lives here, next to the span type, because three surfaces need the exact
+ * same answer — the playground baseline column, the trace-summary header and the compare delta table —
+ * and #186 is precisely what happened when two of them derived it independently: the rows said `—`
+ * while the header said `0`, about the same trace.
+ */
+export function hasRecordedTokens(node: Pick<TraceSpanNode, 'inputTokens' | 'outputTokens'>): boolean {
+  return node.inputTokens !== undefined || node.outputTokens !== undefined;
+}
+
 /** Sum a node's own cost + all descendants' cost (`∑`). Total: missing cost counts as 0, never NaN. */
 export function aggregateCost(node: TraceSpanNode): number {
   let total = spanCostUsd(node);

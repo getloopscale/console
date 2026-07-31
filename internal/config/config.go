@@ -163,6 +163,59 @@ type Config struct {
 	// Env: LENS_BASE_URL
 	LensBaseURL string
 
+	// StorageBaseURL is the theo-storage REST URL, probed by the M21 status panel.
+	//
+	// Diferente das irmãs, esta NÃO cunha credencial: o painel consome apenas
+	// `GET /v1/version`, que é auth-exempt por contrato
+	// (theo-workspace/docs/service-version-endpoint.md). Não há
+	// `StoragePlatformAdminKey` correspondente, e por isso nenhuma regra em
+	// Validate() a exige — acrescentar uma sem consumidor seria um gate que só pode
+	// reprovar deploy legítimo.
+	//
+	// Vazia = serviço não configurado NESTE ambiente; o coletor o lista como
+	// `not_deployed`, que é informação, não erro.
+	// Env: STORAGE_BASE_URL
+	StorageBaseURL string
+
+	// SkillsBaseURL is the theo-skills REST URL, probed by the M21 status panel.
+	//
+	// Mesmo contrato do theo-storage acima: NÃO cunha credencial. O painel consome apenas
+	// `GET /v1/version`, auth-exempt por contrato — um endpoint de versão atrás de
+	// credencial faz "o serviço caiu" e "minha chave está errada" produzirem a mesma
+	// resposta, e o agregador não consegue separar os dois.
+	//
+	// Vazia = serviço não configurado NESTE ambiente; o coletor o lista como
+	// `not_deployed`, que é informação, não erro.
+	// Env: SKILLS_BASE_URL
+	SkillsBaseURL string
+
+	// SkillsPlatformAdminKey is the CONTROL-PLANE credential the gateway uses ONLY
+	// to mint per-tenant theo-skills keys via POST /v1/platform/keys. NEVER on the
+	// data path (Model B). Required when SkillsBaseURL is set AND the broker is
+	// enabled.
+	//
+	// theo-skills exposes a route SEPARATE from its human-facing admin one: that
+	// route derives the workspace from the caller's principal and requires the
+	// target to be a member of it, so a broker cannot use it to mint into an
+	// arbitrary tenant.
+	// Env: SKILLS_PLATFORM_ADMIN_KEY
+	SkillsPlatformAdminKey Secret
+
+	// TraefikMcpBaseURL is the theo-traefik-mcp gateway URL, probed by the status panel.
+	//
+	// Mesmo contrato dos dois acima: NÃO cunha credencial, e o painel consome apenas
+	// `GET /v1/version` — auth-exempt por contrato do lado do gateway.
+	//
+	// A URL aponta para a RAIZ do gateway, não para a borda `/mcp` do Traefik. O
+	// roteador do edge não remove o prefixo (é deliberado: o gateway precisa do path
+	// completo para rotear MCP), então `{base}/v1/version` via `/mcp` chegaria como
+	// `/mcp/v1/version` e cairia no catch-all do proxy — 404 sobre um serviço saudável.
+	//
+	// Vazia = serviço não configurado NESTE ambiente; o coletor o lista como
+	// `not_deployed`, que é informação, não erro.
+	// Env: TRAEFIK_MCP_BASE_URL
+	TraefikMcpBaseURL string
+
 	// LensPlatformAdminKey is the CONTROL-PLANE credential (carrying
 	// observability:platform-admin) the gateway uses ONLY to mint per-tenant theo-lens keys
 	// via POST /v1/admin/keys. NEVER on the data path (Model B). Required when
@@ -269,6 +322,10 @@ func Load() Config {
 	cfg.RagBaseURL = envOr("RAG_BASE_URL", "")
 	cfg.RagPlatformAdminKey = Secret(envOr("RAG_PLATFORM_ADMIN_KEY", ""))
 	cfg.LensBaseURL = envOr("LENS_BASE_URL", "")
+	cfg.StorageBaseURL = envOr("STORAGE_BASE_URL", "")
+	cfg.SkillsBaseURL = envOr("SKILLS_BASE_URL", "")
+	cfg.SkillsPlatformAdminKey = Secret(envOr("SKILLS_PLATFORM_ADMIN_KEY", ""))
+	cfg.TraefikMcpBaseURL = envOr("TRAEFIK_MCP_BASE_URL", "")
 	cfg.LensPlatformAdminKey = Secret(envOr("LENS_PLATFORM_ADMIN_KEY", ""))
 	cfg.StorageS3Endpoint = envOr("STORAGE_S3_ENDPOINT", "")
 	cfg.StorageS3PublicEndpoint = envOr("STORAGE_S3_PUBLIC_ENDPOINT", "")

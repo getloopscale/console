@@ -157,15 +157,15 @@ export function RagConnectorsPage() {
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/connectors'] as const,
-    queryFn: () => cloudFetch<ConnectionsResult>('/v1/dashboard/rag/connectors'),
+    queryFn: () => cloudFetch<ConnectionsResult>('/v1/dashboard/rag/connectors', {}, { throwOnError: true }),
   });
   const providersQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/connectors/providers'] as const,
-    queryFn: () => cloudFetch<OAuthProvidersResult>('/v1/dashboard/rag/connectors/providers'),
+    queryFn: () => cloudFetch<OAuthProvidersResult>('/v1/dashboard/rag/connectors/providers', {}, { throwOnError: true }),
   });
   const collectionsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<CollectionsResult>('/v1/dashboard/rag/collections'),
+    queryFn: () => cloudFetch<CollectionsResult>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
   });
 
   const invalidate = () =>
