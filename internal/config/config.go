@@ -189,6 +189,18 @@ type Config struct {
 	// Env: SKILLS_BASE_URL
 	SkillsBaseURL string
 
+	// SkillsPlatformAdminKey is the CONTROL-PLANE credential the gateway uses ONLY
+	// to mint per-tenant theo-skills keys via POST /v1/platform/keys. NEVER on the
+	// data path (Model B). Required when SkillsBaseURL is set AND the broker is
+	// enabled.
+	//
+	// theo-skills exposes a route SEPARATE from its human-facing admin one: that
+	// route derives the workspace from the caller's principal and requires the
+	// target to be a member of it, so a broker cannot use it to mint into an
+	// arbitrary tenant.
+	// Env: SKILLS_PLATFORM_ADMIN_KEY
+	SkillsPlatformAdminKey Secret
+
 	// TraefikMcpBaseURL is the theo-traefik-mcp gateway URL, probed by the status panel.
 	//
 	// Mesmo contrato dos dois acima: NÃO cunha credencial, e o painel consome apenas
@@ -312,6 +324,7 @@ func Load() Config {
 	cfg.LensBaseURL = envOr("LENS_BASE_URL", "")
 	cfg.StorageBaseURL = envOr("STORAGE_BASE_URL", "")
 	cfg.SkillsBaseURL = envOr("SKILLS_BASE_URL", "")
+	cfg.SkillsPlatformAdminKey = Secret(envOr("SKILLS_PLATFORM_ADMIN_KEY", ""))
 	cfg.TraefikMcpBaseURL = envOr("TRAEFIK_MCP_BASE_URL", "")
 	cfg.LensPlatformAdminKey = Secret(envOr("LENS_PLATFORM_ADMIN_KEY", ""))
 	cfg.StorageS3Endpoint = envOr("STORAGE_S3_ENDPOINT", "")

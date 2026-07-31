@@ -90,6 +90,14 @@ export const ACTIVE_SCOPES = [
   { id: 'trust:read', label: 'trust:read', description: 'Read conversations, themes, trends and policy violations' },
   { id: 'trust:write', label: 'trust:write', description: 'Ingest conversations and run inline guardrails' },
   { id: 'trust:delete', label: 'trust:delete', description: 'Delete conversations and custom validators' },
+  // Skills vertical (theo-skills, M22 Model B). Diferente do trust — onde a cadeia já
+  // estava de pé e só o escopo faltava — aqui NADA existia: sem broker, sem forward-auth,
+  // sem rota de borda. Oferecer o escopo antes dessas peças entregaria uma chave que
+  // nenhuma borda aceita: o defeito oposto, e igualmente silencioso. `skills:admin` é
+  // omitido de propósito, como `rag:admin` — é o escopo de ciclo de vida de chave.
+  { id: 'skills:read', label: 'skills:read', description: 'Search and download agent skills' },
+  { id: 'skills:write', label: 'skills:write', description: 'Publish, update and delete skills' },
+  { id: 'skills:publish', label: 'skills:publish', description: 'Promote skills to the shared catalog' },
 ] as const;
 
 const RESERVED_SCOPES = [

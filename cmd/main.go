@@ -43,6 +43,7 @@ import (
 	"github.com/usetheodev/theo-cloud/internal/ratelimit"
 	"github.com/usetheodev/theo-cloud/internal/routes"
 	"github.com/usetheodev/theo-cloud/internal/serviceversions"
+	"github.com/usetheodev/theo-cloud/internal/skills"
 	"github.com/usetheodev/theo-cloud/internal/storage"
 	"github.com/usetheodev/theo-cloud/internal/storageproxy"
 	"github.com/usetheodev/theo-cloud/internal/thelens"
@@ -527,6 +528,44 @@ func main() {
 		logger.Info("theo-trust Model B broker wired (L2)", "base_url", cfg.TrustBaseURL)
 	}
 
+	// M22 (theo-skills Model B): a ForwardAuth handler for the /v1/skills
+	// capability. Reuses the generic handler wired with the skills broker +
+	// "skills:read"; only registered when SKILLS_BASE_URL is set. The broker mints a
+	// per-tenant theoskill_live_* key (least-privilege intersection of the consumer's
+	// skills:* scopes with the data scopes) and fails CLOSED — no master fallback.
+	//
+	// The mint targets theo-skills' PLATFORM route, not its admin one: the admin
+	// route derives the workspace from the caller's principal and requires the
+	// target to be a member of it, so a broker cannot use it to reach an arbitrary
+	// tenant.
+	var skillsForwardAuthHandler *routes.ForwardAuthHandler
+	if cfg.SkillsBaseURL != "" && cfg.SkillsPlatformAdminKey.Value() != "" {
+		skillsHTTP := &http.Client{Timeout: 10 * time.Second}
+		skillsAdmin := skills.NewAdminClient(cfg.SkillsBaseURL, cfg.SkillsPlatformAdminKey.Value(), skillsHTTP)
+		// `skills:admin` is deliberately ABSENT from the mintable set: it is the
+		// key-lifecycle scope, and a gateway-minted credential must never be able to
+		// provision further credentials. Same posture as rag:admin.
+		skillsBroker, sErr := skills.NewBroker(skillsAdmin, 1024, time.Hour,
+			[]string{"skills:read", "skills:write", "skills:publish"})
+		if sErr != nil {
+			logger.Error("failed to construct skills credential broker — refusing to start", "error", sErr)
+			os.Exit(1)
+		}
+		skillsForwardAuthHandler = routes.NewForwardAuthHandler(
+			func(ctx context.Context, rawAuthHeader string) (*auth.UserContext, []string, error) {
+				return auth.ResolveAPIKey(ctx, db, rawAuthHeader)
+			},
+			skillsBroker,
+			// cross-account guard — does the resolved account own this tenant?
+			func(ctx context.Context, accountID, tenantID string) (bool, error) {
+				return auth.AccountOwnsTenant(ctx, db, accountID, tenantID)
+			},
+			"skills:read",
+			logger,
+		)
+		logger.Info("theo-skills Model B broker wired", "base_url", cfg.SkillsBaseURL)
+	}
+
 	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
 	// capability. Built via buildRagForwardAuth (testable) — nil when RAG_BASE_URL
 	// is unset (feature off), error → refuse to start (boot-failure).
@@ -901,6 +940,12 @@ func main() {
 	if trustForwardAuthHandler != nil {
 		r.Get(routes.AuthzForwardTrustPath, trustForwardAuthHandler.ServeHTTP)
 		r.Post(routes.AuthzForwardTrustPath, trustForwardAuthHandler.ServeHTTP)
+	}
+	// M22: the theo-skills ForwardAuth endpoint the edge's forward-auth-skills
+	// middleware calls. Same generic handler, distinct path + skills broker.
+	if skillsForwardAuthHandler != nil {
+		r.Get(routes.AuthzForwardSkillsPath, skillsForwardAuthHandler.ServeHTTP)
+		r.Post(routes.AuthzForwardSkillsPath, skillsForwardAuthHandler.ServeHTTP)
 	}
 	// M14: the theo-rag ForwardAuth endpoint the edge's forward-auth-rag middleware
 	// calls. Same generic handler, distinct path + rag broker.
