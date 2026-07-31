@@ -10,6 +10,8 @@
 
 ### Fixed
 
+- O gate de qualidade de planos de discovery voltou a emitir veredito. Ele lia as faixas de nota de um arquivo escrito `chave = valor` com um parser que só entendia `NOME | valor`, então saía sempre de mãos vazias — e sem faixa nenhuma para comparar, a função de veredito caía no `INVALID` final. O efeito era um portão cego: **todo** plano de discovery era reprovado, com qualquer nota, e o relatório parecia estar funcionando. Um plano que pontuou 99,5 recebia `INVALID`. O parser agora entende os dois formatos, e o comando falha alto se o arquivo de faixas não produzir faixa alguma, em vez de reprovar em silêncio. O orquestrador era o único script da skill sem teste próprio — passou a ter (#roadmap-m24)
+
 ### Security
 
 ## [0.73.0] - 2026-07-31
