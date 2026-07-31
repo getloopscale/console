@@ -7,7 +7,12 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { fetchTrust } from '@/components/trust/trust-api';
-import type { ViolationsPayload, PolicyViolation } from '@/components/trust/trust-series';
+import {
+  conversationMessages,
+  type ViolationsPayload,
+  type PolicyViolation,
+  type ConversationPayload,
+} from '@/components/trust/trust-series';
 
 /**
  * M23 — `/trust/violations`: a lista de violações de política, navegável até a conversa de origem.
@@ -45,7 +50,7 @@ export function TrustViolationsPage() {
     // Só busca quando há uma conversa selecionada — ver nota de N+1 no cabeçalho.
     enabled: Boolean(selected),
     queryFn: () =>
-      fetchTrust<Record<string, unknown>>(`/conversations/${encodeURIComponent(selected ?? '')}`),
+      fetchTrust<ConversationPayload>(`/conversations/${encodeURIComponent(selected ?? '')}`),
   });
 
   const rows = Array.isArray(listQuery.data?.violations) ? listQuery.data.violations : [];
@@ -137,9 +142,37 @@ export function TrustViolationsPage() {
               description="A violação continua válida; apenas o detalhe não pôde ser lido agora."
             />
           ) : (
-            <pre className="overflow-x-auto rounded bg-muted p-3 text-xs">
-              {JSON.stringify(detailQuery.data, null, 2)}
-            </pre>
+            (() => {
+              // JSON cru obrigava o operador a ler chaves de schema para descobrir quem disse o
+              // quê — no momento em que ele está investigando um incidente. Aqui a conversa é
+              // conversa. O conteúdo já vem redigido do lado do theo-trust; a tela nunca
+              // reconstrói o trecho bruto a partir da violação.
+              const msgs = conversationMessages(detailQuery.data);
+              if (msgs.length === 0) {
+                return (
+                  <p className="text-sm text-muted-foreground">
+                    A conversa foi lida, mas não trouxe mensagens legíveis.
+                  </p>
+                );
+              }
+              return (
+                <ol className="space-y-3">
+                  {msgs.map((m, i) => (
+                    <li key={m.id ?? `msg-${i}`} className="rounded border p-3">
+                      <div className="mb-1 flex items-baseline justify-between gap-3">
+                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {m.role ?? 'desconhecido'}
+                        </span>
+                        {m.createdAt ? (
+                          <span className="text-xs tabular-nums text-muted-foreground">{m.createdAt}</span>
+                        ) : null}
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm">{m.content}</p>
+                    </li>
+                  ))}
+                </ol>
+              );
+            })()
           )}
         </Card>
       ) : null}

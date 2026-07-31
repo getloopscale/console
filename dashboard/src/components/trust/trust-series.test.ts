@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toSeries, totalInWindow, violationCount, byPolicy, peakSeverity, coverageGap, unenforcedCount } from './trust-series';
+import { toSeries, totalInWindow, violationCount, byPolicy, peakSeverity, coverageGap, unenforcedCount, conversationMessages } from './trust-series';
 
 describe('toSeries', () => {
   it('projeta baldes bem formados', () => {
@@ -135,5 +135,25 @@ describe('coverageGap — a distância entre observado e bloqueado', () => {
     expect(unenforcedCount(coverageGap(violations, {
       validators: [{ policy: 'credential_leak' }, { policy: 'pii_exposure' }, { policy: 'prohibited_content' }],
     }))).toBe(0);
+  });
+});
+
+describe('conversationMessages', () => {
+  it('extrai as mensagens legiveis', () => {
+    expect(conversationMessages({ messages: [
+      { id: 'm1', role: 'user', content: 'oi' },
+      { id: 'm2', role: 'assistant', content: 'ola' },
+    ]})).toHaveLength(2);
+  });
+
+  it('descarta mensagem sem conteudo em vez de renderizar "undefined"', () => {
+    expect(conversationMessages({ messages: [{ id: 'm1', role: 'user' }, { id: 'm2', content: '' }] }))
+      .toEqual([]);
+  });
+
+  it('sobrevive a payload nulo ou sem messages', () => {
+    expect(conversationMessages(null)).toEqual([]);
+    expect(conversationMessages({})).toEqual([]);
+    expect(conversationMessages({ messages: 'nope' } as never)).toEqual([]);
   });
 });

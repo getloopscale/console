@@ -174,3 +174,35 @@ export function coverageGap(
 export function unenforcedCount(coverage: readonly PolicyCoverage[]): number {
   return coverage.filter((c) => !c.enforced).length;
 }
+
+/** Uma mensagem da conversa, como o theo-trust a devolve (já redigida do lado do serviço). */
+export interface ConversationMessage {
+  readonly id?: string;
+  readonly role?: string;
+  readonly content?: string;
+  readonly createdAt?: string;
+  readonly [k: string]: unknown;
+}
+
+export interface ConversationPayload {
+  readonly id?: string;
+  readonly messages?: readonly ConversationMessage[];
+  readonly [k: string]: unknown;
+}
+
+/**
+ * Extrai as mensagens da conversa para render.
+ *
+ * Existe porque a alternativa que estava no lugar — `JSON.stringify` — é artefato de
+ * desenvolvedor, não produto: obriga o operador a ler chaves de schema para descobrir quem disse o
+ * quê, num momento em que ele está investigando um incidente.
+ *
+ * Mensagem sem `content` de texto é descartada em vez de virar "undefined" na tela.
+ */
+export function conversationMessages(
+  payload: ConversationPayload | null | undefined,
+): ConversationMessage[] {
+  const msgs = payload?.messages;
+  if (!Array.isArray(msgs)) return [];
+  return msgs.filter((m) => typeof m?.content === 'string' && m.content !== '');
+}
