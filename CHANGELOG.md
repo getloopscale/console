@@ -1,6 +1,8 @@
 ## [Unreleased]
 
 ### Added
+- O dashboard passa a poder ler o log de auditoria do enforcement inline: `GET /v1/dashboard/trust/enforcement-events`, isolado por tenant e com teto de `limit`. O serviço registrava cada bloqueio desde o M17 e nada no painel conseguia lê-lo (#roadmap-m24)
+
 
 ### Changed
 

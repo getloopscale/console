@@ -88,6 +88,22 @@ func (c *DataClient) Validators(ctx context.Context) (json.RawMessage, error) {
 	return c.getRaw(ctx, "/v1/validators", nil)
 }
 
+// EnforcementEvents devolve o log de auditoria do enforcement inline (`GET /v1/enforcement-events`).
+//
+// O corpo e repassado como veio. O upstream ja garante a redacao na origem — conteudo bruto nunca
+// chega aquela tabela — entao redigir de novo aqui criaria uma SEGUNDA fonte de verdade sobre o que
+// e seguro exibir, e duas fontes divergem em silencio.
+//
+// limit <= 0 deixa o default do upstream decidir, como em PolicyViolations: o BFF nao inventa
+// paginacao propria.
+func (c *DataClient) EnforcementEvents(ctx context.Context, limit int) (json.RawMessage, error) {
+	q := url.Values{}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	return c.getRaw(ctx, "/v1/enforcement-events", q)
+}
+
 // getRaw executa a requisicao autenticada por tenant e devolve o corpo do upstream.
 //
 // Ordem deliberada: o resolver e consultado ANTES de qualquer coisa de rede. E o que torna

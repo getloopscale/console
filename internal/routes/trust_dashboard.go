@@ -25,6 +25,7 @@ type trustReader interface {
 	PolicyViolations(ctx context.Context, limit int) (json.RawMessage, error)
 	Conversation(ctx context.Context, id string) (json.RawMessage, error)
 	Validators(ctx context.Context) (json.RawMessage, error)
+	EnforcementEvents(ctx context.Context, limit int) (json.RawMessage, error)
 }
 
 // TrustDashboardHandler serve as leituras do plano de observacao do trust para o dashboard.
@@ -102,6 +103,24 @@ func (h *TrustDashboardHandler) Validators(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// EnforcementEvents serve GET /v1/dashboard/trust/enforcement-events — a AUDITORIA do que o
+// enforcement inline bloqueou.
+//
+// O corpo do upstream sai como veio: a redacao acontece na origem (conteudo bruto nunca chega a
+// tabela do M17), e redigir de novo aqui criaria uma segunda fonte de verdade sobre o que e seguro
+// exibir. O `limit` do usuario e capado pelo mesmo teto das demais leituras.
+func (h *TrustDashboardHandler) EnforcementEvents(w http.ResponseWriter, r *http.Request) {
+	limit := 0
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			limit = min(n, maxLimit)
+		}
+	}
+	h.proxy(w, r, "enforcement events", func() (json.RawMessage, error) {
+		return h.client.EnforcementEvents(r.Context(), limit)
+	})
+}
+
 // MountTrustDashboard registra o BFF de leitura sob `requireJWT`.
 //
 // Apenas verbos de leitura: M23 e o caminho de observacao. Gestao de validators entra em M24, com
@@ -114,5 +133,6 @@ func MountTrustDashboard(r chi.Router, h *TrustDashboardHandler, requireJWT func
 		r.Get("/policy-violations", h.PolicyViolations)
 		r.Get("/conversations/{conversationID}", h.Conversation)
 		r.Get("/validators", h.Validators)
+		r.Get("/enforcement-events", h.EnforcementEvents)
 	})
 }
