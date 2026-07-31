@@ -17,6 +17,7 @@ package ci
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -410,26 +411,22 @@ func needsOf(v any) []string {
 
 // T6.b — a chave de `concurrency` do publish fica presa ao REF, e nunca ao commit.
 //
-// O DoD do M22 prescreve "concurrency chaveada por commit (não por branch — a chave atual não
-// elimina o run duplicado, medido 5 de 40 SHAs)". MEDIDO em 2026-07-31 contra a API do GitHub,
-// a premissa não se sustenta e a prescrição degradaria o sistema:
+// A DECISAO e do ADR 0004 (ACCEPTED, 2026-07-30), § D2 — este teste apenas a trava. Dois motivos,
+// nenhum deles obvio lendo so o texto do DoD:
 //
-//	publish.yml       60 SHAs, 0 duplicados   <- a chave por ref JA faz o trabalho
-//	ci.yml            52 SHAs, 7 duplicados
-//	quality.yml       47 SHAs, 5 duplicados
-//	security-sast.yml 55 SHAs, 5 duplicados
+//  1. O sintoma que o DoD nomeia (run duplicado) ja foi fechado por OUTRO mecanismo: o M22 removeu
+//     o gatilho `push:` de ci.yml e quality.yml, que passaram a ser invocados por `workflow_call`.
+//     O run deixa de EXISTIR em vez de ser iniciado e cancelado — mais barato, porque um run
+//     cancelado ainda paga fila e setup. Confirmado em 2026-07-31: os dois declaram apenas
+//     `workflow_call` + `pull_request`, e todo duplicado no historico e de 23-29/07, ANTERIOR a
+//     cirurgia.
+//  2. `github.sha` e IDENTICO entre o push de uma tag e o commit de develop que ela aponta. Uma
+//     chave por SHA faria o run de tag cancelar o de develop (ou vice-versa), perdendo um dos dois
+//     artefatos.
 //
-// E TODO duplicado é um par `pull_request` + `push` sobre o mesmo SHA (ou `workflow_dispatch`,
-// re-run manual). Não é desperdício de chave ruim: é o GitHub disparando dois eventos para um push
-// numa branch de PR. Chavear por commit com cancel-in-progress faria um cancelar o outro — e o
-// cancelado pode ser justamente o run de `pull_request` que a branch protection exige.
-//
-// No publish o dano seria maior. Ele empurra a tag MUTÁVEL `:develop`: dois commits publicando em
-// paralelo racejam pelo mesmo nome, e nada garante que o vencedor seja o mais novo — o host
-// convergiria para a imagem de um commit ANTERIOR, exatamente o tipo de mentira sobre "o que está
-// rodando" que o M22 existe para eliminar. A serialização por ref é o que impede a corrida.
-//
-// Este teste trava a decisão para que ninguém a "corrija" de volta lendo só o texto do DoD.
+// E o publish empurra a tag MUTAVEL `:develop`: serializar por ref e o que impede dois commits de
+// disputarem o mesmo nome, com o host podendo convergir para o mais antigo — a mentira sobre "o que
+// esta rodando" que o M22 existe para eliminar.
 func TestPublishConcurrencyStaysKeyedByRefNotCommit(t *testing.T) {
 	var wf struct {
 		Concurrency struct {
@@ -444,6 +441,9 @@ func TestPublishConcurrencyStaysKeyedByRefNotCommit(t *testing.T) {
 	if group == "" {
 		t.Fatal("publish.yml perdeu o bloco `concurrency`: sem ele dois pushes publicam :develop " +
 			"em paralelo e o commit mais antigo pode vencer a corrida pela tag mutável")
+	}
+	if isBadConcurrencyGroup(group) {
+		t.Errorf("concurrency.group = %q reprovado por isBadConcurrencyGroup", group)
 	}
 	if !strings.Contains(group, "github.ref") {
 		t.Errorf("concurrency.group = %q; precisa conter `github.ref` para serializar por branch — "+
@@ -471,8 +471,7 @@ func TestConcurrencyGuardRejectsCommitKeyedGroups(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			bad := c.group == "" || !strings.Contains(c.group, "github.ref") || strings.Contains(c.group, "github.sha")
-			if bad != c.bad {
+			if bad := isBadConcurrencyGroup(c.group); bad != c.bad {
 				t.Errorf("group %q: guard disse bad=%v, esperado %v", c.group, bad, c.bad)
 			}
 		})
@@ -500,7 +499,7 @@ func TestVersionLabelIdentifiesTheBuildOnTheDevelopChannel(t *testing.T) {
 		} `yaml:"jobs"`
 	}
 	if err := yaml.Unmarshal([]byte(raw), &wf); err != nil {
-		t.Fatalf("publish.yml não parseia: %v", err)
+		t.Fatalf("publish.yml nao parseia: %v", err)
 	}
 
 	plan, ok := wf.Jobs["plan"]
@@ -508,25 +507,144 @@ func TestVersionLabelIdentifiesTheBuildOnTheDevelopChannel(t *testing.T) {
 		t.Fatal("publish.yml perdeu o job `plan`")
 	}
 	if _, ok := plan.Outputs["version_label"]; !ok {
-		t.Error("o job `plan` não expõe o output `version_label`: sem ele o label é composto no " +
-			"ponto de uso e o canal develop publica a imagem rotulada apenas como \"develop\"")
+		t.Error("o job `plan` nao expoe o output `version_label`")
 	}
-
 	images, ok := wf.Jobs["images"]
 	if !ok {
 		t.Fatal("publish.yml perdeu o job `images`")
 	}
 	got, _ := images.With["version_label"].(string)
-	if strings.Contains(got, "github.ref_name") && !strings.Contains(got, "needs.plan") {
-		t.Errorf("images.with.version_label = %q — `github.ref_name` cru vira \"develop\" no canal "+
-			"que a produção consome; o label precisa vir do output composto do job `plan`", got)
-	}
 	if !strings.Contains(got, "needs.plan.outputs.version_label") {
 		t.Errorf("images.with.version_label = %q; esperado consumir needs.plan.outputs.version_label", got)
 	}
+}
 
-	// O compositor precisa de fato usar o SHA — senão o output existe e mente.
-	if !strings.Contains(raw, "version_label=") {
-		t.Error("nenhum passo compõe `version_label=` no job plan")
+// A asserção estrutural acima nao prova a CORRECAO: ela passaria com o composer revertido para
+// `version_label=${GITHUB_REF_NAME}` nu — o bug original. Este teste EXECUTA o script do passo
+// `set` com env sinteticas e afirma o valor emitido, nos dois canais.
+func TestVersionLabelComposerEmitsTheRightValuePerChannel(t *testing.T) {
+	script := extractSetStepScript(t, readWF(t, "publish.yml"))
+
+	cases := []struct {
+		name    string
+		isTag   string
+		refName string
+		sha     string
+		want    string
+	}{
+		{"develop carrega o commit curto", "false", "develop", "789c96525f8b4b6799a1cf36a708c809946cd173", "develop-789c965"},
+		{"tag e a versao, sem sufixo", "true", "v1.2.3", "789c96525f8b4b6799a1cf36a708c809946cd173", "v1.2.3"},
+		{"branch com barra preserva o nome", "false", "feat/x", "abcdef1234567890abcdef1234567890abcdef12", "feat/x-abcdef1"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := runComposer(t, script, c.isTag, c.refName, c.sha)
+			if got != c.want {
+				t.Errorf("version_label = %q; esperado %q", got, c.want)
+			}
+		})
+	}
+}
+
+// extractSetStepScript devolve o `run:` do passo `id: set` do job `plan`.
+func extractSetStepScript(t *testing.T, raw string) string {
+	t.Helper()
+	var wf struct {
+		Jobs map[string]struct {
+			Steps []map[string]any `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(raw), &wf); err != nil {
+		t.Fatalf("publish.yml nao parseia: %v", err)
+	}
+	for _, st := range wf.Jobs["plan"].Steps {
+		if id, _ := st["id"].(string); id == "set" {
+			run, _ := st["run"].(string)
+			if run == "" {
+				t.Fatal("o passo `set` do job plan nao tem `run`")
+			}
+			return run
+		}
+	}
+	t.Fatal("nao achei o passo `id: set` no job plan")
+	return ""
+}
+
+// runComposer roda o script com um GITHUB_OUTPUT temporario e devolve o version_label emitido.
+// O script pode falhar depois (o ramo nao-tag chama jq); o label ja foi escrito antes disso, e o
+// que importa e o valor emitido, nao o exit code do resto do passo.
+func runComposer(t *testing.T, script, isTag, refName, sha string) string {
+	t.Helper()
+	out := filepath.Join(t.TempDir(), "gh_output")
+	if err := os.WriteFile(out, nil, 0o600); err != nil {
+		t.Fatalf("temp GITHUB_OUTPUT: %v", err)
+	}
+	cmd := exec.Command("bash", "-c", script)
+	cmd.Env = append(os.Environ(),
+		"GITHUB_OUTPUT="+out,
+		"GITHUB_REF_NAME="+refName,
+		"GITHUB_SHA="+sha,
+		"IS_TAG="+isTag,
+		"IS_DISPATCH=false",
+		"CHANGES=[]",
+	)
+	_ = cmd.Run() // exit code irrelevante: ver doc acima
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("lendo GITHUB_OUTPUT: %v", err)
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if v, ok := strings.CutPrefix(line, "version_label="); ok {
+			return v
+		}
+	}
+	t.Fatalf("o composer nao emitiu version_label; GITHUB_OUTPUT=%q", string(b))
+	return ""
+}
+
+// isBadConcurrencyGroup e o predicado UNICO consumido pelos dois testes de concurrency. Antes a
+// expressao vivia colada nos dois, entao o "guard sintetico" provava apenas que uma copia
+// concordava com a outra — e uma deriva em so um dos lados passaria despercebida.
+func isBadConcurrencyGroup(group string) bool {
+	return group == "" ||
+		!strings.Contains(group, "github.ref") ||
+		strings.Contains(group, "github.sha")
+}
+
+// T1.2 — o `if:` do job `images` nao pode conter funcao de status.
+//
+// MEDIDO no run 30576821713 deste repositorio: `gate-quality / dashboard` = failure e `images` =
+// skipped. O `needs:` GATEIA de fato, apesar de o job declarar `if:` proprio — o GitHub aplica o
+// `success()` implicito justamente porque a condicao NAO usa `always()`, `failure()` nem
+// `cancelled()`. Um review de 2026-07-31 levantou este ponto como BLOCKER; a evidencia do run
+// refutou a hipotese.
+//
+// O que a evidencia NAO garante e o futuro: acrescentar `always()` aquele `if:` desliga o
+// `success()` implicito e reabre exatamente o buraco que o M22 fechou — a imagem sairia com gate
+// vermelho, em silencio, e nenhum outro teste notaria. Este guard existe por isso.
+func TestImagesJobIfDoesNotDisableTheImplicitSuccessGate(t *testing.T) {
+	var wf struct {
+		Jobs map[string]struct {
+			If    string `yaml:"if"`
+			Needs any    `yaml:"needs"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(readWF(t, "publish.yml")), &wf); err != nil {
+		t.Fatalf("publish.yml nao parseia: %v", err)
+	}
+	images, ok := wf.Jobs["images"]
+	if !ok {
+		t.Fatal("publish.yml perdeu o job `images`")
+	}
+	for _, fn := range []string{"always(", "failure(", "cancelled("} {
+		if strings.Contains(strings.ReplaceAll(images.If, " ", ""), fn) {
+			t.Errorf("images.if = %q contem %s — isso DESLIGA o success() implicito do `needs:` e "+
+				"a imagem passa a sair mesmo com gate vermelho (o defeito que o M22 fechou)", images.If, fn)
+		}
+	}
+	for _, g := range []string{"gate-ci", "gate-quality", "gate-sast"} {
+		if !slices.Contains(needsOf(images.Needs), g) {
+			t.Errorf("images.needs = %v; falta %q", needsOf(images.Needs), g)
+		}
 	}
 }

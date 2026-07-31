@@ -608,25 +608,47 @@ não herdada.
 **Definition of done:**
 
 - [ ] `publish.yml` não publica imagem sem `ci`, `quality` e `security-sast` verdes — gates invocados por `workflow_call` (síncrono, mesmo run, preserva `github.sha`), nunca `workflow_run`. Verificável: um commit com teste vermelho não produz job `images` bem-sucedido.
-- [ ] O canal `:develop` sai escaneado e assinado — `trivy: true`, `sign: true`, `verify: true` — e `provenance` deixa de receber o literal `false`. Verificável: `cosign verify` resolve para a tag `:develop` publicada.
+- [ ] O canal `:develop` sai escaneado e assinado — `trivy: true`, `sign: true` — e `provenance` deixa de receber o literal `false`. Verificável: `cosign verify` resolve para a tag `:develop` publicada.
+
+  > **`verify` permanece preso a tag, por ADR 0004 (ACCEPTED, 2026-07-30) § D1** —
+  > `.claude/knowledge-base/adrs/0004-m22-dod-verify-e-concurrency.md`. O texto original deste item
+  > pedia `verify: true` no canal develop; a implementação assina incondicionalmente mas só
+  > *verifica* em tag. Motivo: `cosign verify` resolve contra Rekor/Fulcio **depois** do push, então
+  > uma indisponibilidade do Sigstore reprovaria um run cuja imagem **já foi publicada** — e o
+  > reconciliador do host converge por `:develop` a cada 5 min, adotando uma imagem que o pipeline
+  > declara ter falhado. O raio de dano é assimétrico: em tag não há reconciliador convergindo.
+  >
+  > O critério observável do item continua satisfazível — `sign: true` é incondicional e a âncora de
+  > identidade aceita `refs/heads/develop` — mas **ninguém o executa automaticamente**, e isso é a
+  > dívida: uma regressão de assinatura no canal que a produção consome só apareceria na próxima tag.
+  > Destino registrado no ADR: verificação out-of-band do `:develop` (job agendado ou step
+  > `continue-on-error`), nenhuma das duas reintroduzindo o modo de falha acima.
+  >
+  > Emenda escrita em 2026-07-31, após a review do milestone apontar que esta divergência — ao
+  > contrário da do item 6 — estava decidida em ADR mas não refletida aqui. O texto do DoD afirmava
+  > algo que o código não faz.
 - [ ] `GET /v1/version` do theo-cloud responde sem 401 e reporta o commit **da imagem em execução**. Verificável: o valor bate com `org.opencontainers.image.revision` da imagem que o host roda.
 - [ ] `theo-cloud` aparece em `https://app-dev.usetheo.dev/status` junto aos demais, com as quatro colunas já existentes, alimentado por **metadados de build in-process** — nunca por uma chamada HTTP do serviço para si mesmo.
 - [ ] O `Dockerfile` não deixa credencial em camada: o `git config --global` da linha 20 deixa de persistir `/root/.gitconfig`, que hoje é exportado ao cache do Actions por `cache-to: mode=max`.
 - [ ] Higiene de pipeline fechada: `timeout-minutes` em todo job que pode carregá-lo, as 9 actions não pinadas fixadas por SHA (prioridade `dorny/paths-filter`, o único terceiro e justamente o que decide se a imagem sai), e a chave de `concurrency` do publish **presa ao ref**, travada por teste.
 
-  > **Emenda de 2026-07-31 — a prescrição original deste item foi falsificada por medição.** O texto
-  > pedia `concurrency` chaveada por commit, citando "5 de 40 SHAs" com run duplicado. Medido contra a
-  > API do GitHub: `publish.yml` tem **0 duplicados em 60 SHAs** — a chave por ref já faz o trabalho.
-  > Os duplicados vivem nos gates (`ci` 7/52, `quality` 5/47, `security-sast` 5/55) e **todos são pares
-  > `pull_request` + `push` sobre o mesmo SHA** — comportamento normal do GitHub para push em branch de
-  > PR, não desperdício. Chavear por commit com `cancel-in-progress` faria um cancelar o outro,
-  > possivelmente o run de `pull_request` que a branch protection exige. E no publish o dano seria
-  > maior: ele empurra a tag **mutável** `:develop`, então dois commits em paralelo racejam pelo mesmo
-  > nome e o host pode convergir para o **mais antigo** — exatamente a mentira sobre "o que está
-  > rodando" que este milestone existe para eliminar. Implementar o texto literal degradaria o sistema
-  > nos dois lugares. A decisão está travada em `internal/ci/publish_controls_test.go`
-  > (`TestPublishConcurrencyStaysKeyedByRefNotCommit` + o guard sintético que prova que a asserção
-  > reprova a configuração ruim), para que ninguém a "corrija" de volta lendo só o texto do DoD.
+  > **A prescrição de re-chavear `concurrency` por commit foi rejeitada em ADR 0004 (ACCEPTED,
+  > 2026-07-30)** — `.claude/knowledge-base/adrs/0004-m22-dod-verify-e-concurrency.md` § D2. O sintoma
+  > que o DoD nomeia (run duplicado) já foi fechado por outro mecanismo: o M22 removeu o gatilho
+  > `push:` de `ci.yml` e `quality.yml`, que passaram a ser invocados por `workflow_call`. O run deixa
+  > de **existir** em vez de ser iniciado e cancelado — degrau 1 da parsimônia, e mais barato, porque
+  > um run cancelado ainda paga fila e setup. Confirmado em 2026-07-31: os dois workflows declaram
+  > apenas `workflow_call` + `pull_request`, e **todo duplicado observado no histórico é de 23–29/07,
+  > anterior à cirurgia**.
+  >
+  > Re-chavear por commit também quebraria o caso tag: `github.sha` é **idêntico** entre o push de uma
+  > tag e o commit de develop que ela aponta, então uma chave por SHA faria um run cancelar o outro,
+  > perdendo um dos dois artefatos.
+  >
+  > Acrescentado em 2026-07-31: a decisão passou a ser travada por teste em
+  > `internal/ci/publish_controls_test.go` (`TestPublishConcurrencyStaysKeyedByRefNotCommit` mais um
+  > guard sintético que prova que a asserção reprova a configuração ruim). O ADR registrava a decisão;
+  > o teste impede que alguém a desfaça lendo só o texto deste DoD.
 
 **Não entra neste milestone** (registrado aqui, não na seção macro de escopo — cada item com destino):
 

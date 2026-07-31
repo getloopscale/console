@@ -60,7 +60,10 @@ jobs:
           if [ "$IS_TAG" = "true" ]; then
             echo "version_label=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
-            echo "version_label=${GITHUB_REF_NAME}-$(printf '%s' "$GITHUB_SHA" | cut -c1-7)" >> "$GITHUB_OUTPUT"
+            # SHORT numa atribuicao propria: dentro de `echo "...$(...)"` o `set -e` NAO aborta se
+            # o comando substituido falhar — o status vira o do echo. Aqui aborta.
+            SHORT=$(printf '%s' "$GITHUB_SHA" | cut -c1-7)
+            echo "version_label=${GITHUB_REF_NAME}-${SHORT}" >> "$GITHUB_OUTPUT"
           fi
           if [ "$IS_TAG" = "true" ] || [ "$IS_DISPATCH" = "true" ]; then
             echo "images=$ALL" >> "$GITHUB_OUTPUT"
