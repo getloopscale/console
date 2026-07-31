@@ -31,6 +31,10 @@ jobs:
     outputs:
       images: ${{ steps.set.outputs.images }}
       sign: ${{ steps.set.outputs.sign }}
+      # O rotulo que o painel /status mostra na coluna Version. Composto AQUI, e nao no ponto de
+      # uso, porque este job ja e o dono das decisoes de canal: para tag, `ref_name` JA e a versao
+      # (`v1.2.3`) e nao deve ganhar sufixo; para develop, `ref_name` sozinho e so o nome do canal.
+      version_label: ${{ steps.set.outputs.version_label }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with: { fetch-depth: 0 }
@@ -49,6 +53,15 @@ jobs:
         run: |
           set -euo pipefail
           ALL='[{"image":"theo-cloud","dockerfile":"Dockerfile","context":"."},{"image":"theo-dashboard","dockerfile":"dashboard/Dockerfile","context":"dashboard"}]'
+          # MEDIDO em 2026-07-31 na /status implantada: nove servicos mostravam `develop-<sha>` e o
+          # theo-cloud mostrava `develop` — a unica linha do painel que nao dizia QUAL build estava
+          # rodando. Em tag, `ref_name` ja E a versao e nao leva sufixo; fora dela, o nome do canal
+          # sozinho nao identifica nada, entao carrega o commit curto.
+          if [ "$IS_TAG" = "true" ]; then
+            echo "version_label=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version_label=${GITHUB_REF_NAME}-$(printf '%s' "$GITHUB_SHA" | cut -c1-7)" >> "$GITHUB_OUTPUT"
+          fi
           if [ "$IS_TAG" = "true" ] || [ "$IS_DISPATCH" = "true" ]; then
             echo "images=$ALL" >> "$GITHUB_OUTPUT"
             echo "sign=$IS_TAG" >> "$GITHUB_OUTPUT"
@@ -116,7 +129,7 @@ jobs:
       # run. Binario e label viram duas projecoes de um unico fato, entao o criterio de aceite do
       # M22 (`/v1/version` bate com o label da imagem em execucao) e verdadeiro por construcao.
       git_sha: ${{ github.sha }}
-      version_label: ${{ github.ref_name }}
+      version_label: ${{ needs.plan.outputs.version_label }}
       # `verify` fica preso a tag de proposito (EC-3): o cosign verify resolve contra Rekor/Fulcio
       # DEPOIS do push, entao uma indisponibilidade do Sigstore vermelharia um run cuja imagem ja
       # publicou — e o reconciliador convergiria numa imagem que a pipeline diz ter falhado.

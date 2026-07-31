@@ -612,7 +612,21 @@ não herdada.
 - [ ] `GET /v1/version` do theo-cloud responde sem 401 e reporta o commit **da imagem em execução**. Verificável: o valor bate com `org.opencontainers.image.revision` da imagem que o host roda.
 - [ ] `theo-cloud` aparece em `https://app-dev.usetheo.dev/status` junto aos demais, com as quatro colunas já existentes, alimentado por **metadados de build in-process** — nunca por uma chamada HTTP do serviço para si mesmo.
 - [ ] O `Dockerfile` não deixa credencial em camada: o `git config --global` da linha 20 deixa de persistir `/root/.gitconfig`, que hoje é exportado ao cache do Actions por `cache-to: mode=max`.
-- [ ] Higiene de pipeline fechada: `timeout-minutes` nos 12 jobs sem ele, `concurrency` chaveada por commit (não por branch — a chave atual não elimina o run duplicado, medido 5 de 40 SHAs), e as 9 actions não pinadas fixadas por SHA (prioridade `dorny/paths-filter`, o único terceiro e justamente o que decide se a imagem sai).
+- [ ] Higiene de pipeline fechada: `timeout-minutes` em todo job que pode carregá-lo, as 9 actions não pinadas fixadas por SHA (prioridade `dorny/paths-filter`, o único terceiro e justamente o que decide se a imagem sai), e a chave de `concurrency` do publish **presa ao ref**, travada por teste.
+
+  > **Emenda de 2026-07-31 — a prescrição original deste item foi falsificada por medição.** O texto
+  > pedia `concurrency` chaveada por commit, citando "5 de 40 SHAs" com run duplicado. Medido contra a
+  > API do GitHub: `publish.yml` tem **0 duplicados em 60 SHAs** — a chave por ref já faz o trabalho.
+  > Os duplicados vivem nos gates (`ci` 7/52, `quality` 5/47, `security-sast` 5/55) e **todos são pares
+  > `pull_request` + `push` sobre o mesmo SHA** — comportamento normal do GitHub para push em branch de
+  > PR, não desperdício. Chavear por commit com `cancel-in-progress` faria um cancelar o outro,
+  > possivelmente o run de `pull_request` que a branch protection exige. E no publish o dano seria
+  > maior: ele empurra a tag **mutável** `:develop`, então dois commits em paralelo racejam pelo mesmo
+  > nome e o host pode convergir para o **mais antigo** — exatamente a mentira sobre "o que está
+  > rodando" que este milestone existe para eliminar. Implementar o texto literal degradaria o sistema
+  > nos dois lugares. A decisão está travada em `internal/ci/publish_controls_test.go`
+  > (`TestPublishConcurrencyStaysKeyedByRefNotCommit` + o guard sintético que prova que a asserção
+  > reprova a configuração ruim), para que ninguém a "corrija" de volta lendo só o texto do DoD.
 
 **Não entra neste milestone** (registrado aqui, não na seção macro de escopo — cada item com destino):
 

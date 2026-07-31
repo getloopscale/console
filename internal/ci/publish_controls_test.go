@@ -407,3 +407,126 @@ func needsOf(v any) []string {
 	}
 	return nil
 }
+
+// T6.b — a chave de `concurrency` do publish fica presa ao REF, e nunca ao commit.
+//
+// O DoD do M22 prescreve "concurrency chaveada por commit (não por branch — a chave atual não
+// elimina o run duplicado, medido 5 de 40 SHAs)". MEDIDO em 2026-07-31 contra a API do GitHub,
+// a premissa não se sustenta e a prescrição degradaria o sistema:
+//
+//	publish.yml       60 SHAs, 0 duplicados   <- a chave por ref JA faz o trabalho
+//	ci.yml            52 SHAs, 7 duplicados
+//	quality.yml       47 SHAs, 5 duplicados
+//	security-sast.yml 55 SHAs, 5 duplicados
+//
+// E TODO duplicado é um par `pull_request` + `push` sobre o mesmo SHA (ou `workflow_dispatch`,
+// re-run manual). Não é desperdício de chave ruim: é o GitHub disparando dois eventos para um push
+// numa branch de PR. Chavear por commit com cancel-in-progress faria um cancelar o outro — e o
+// cancelado pode ser justamente o run de `pull_request` que a branch protection exige.
+//
+// No publish o dano seria maior. Ele empurra a tag MUTÁVEL `:develop`: dois commits publicando em
+// paralelo racejam pelo mesmo nome, e nada garante que o vencedor seja o mais novo — o host
+// convergiria para a imagem de um commit ANTERIOR, exatamente o tipo de mentira sobre "o que está
+// rodando" que o M22 existe para eliminar. A serialização por ref é o que impede a corrida.
+//
+// Este teste trava a decisão para que ninguém a "corrija" de volta lendo só o texto do DoD.
+func TestPublishConcurrencyStaysKeyedByRefNotCommit(t *testing.T) {
+	var wf struct {
+		Concurrency struct {
+			Group             string `yaml:"group"`
+			CancelInProgress  string `yaml:"cancel-in-progress"`
+		} `yaml:"concurrency"`
+	}
+	if err := yaml.Unmarshal([]byte(readWF(t, "publish.yml")), &wf); err != nil {
+		t.Fatalf("publish.yml não parseia: %v", err)
+	}
+	group := wf.Concurrency.Group
+	if group == "" {
+		t.Fatal("publish.yml perdeu o bloco `concurrency`: sem ele dois pushes publicam :develop " +
+			"em paralelo e o commit mais antigo pode vencer a corrida pela tag mutável")
+	}
+	if !strings.Contains(group, "github.ref") {
+		t.Errorf("concurrency.group = %q; precisa conter `github.ref` para serializar por branch — "+
+			"é o que impede dois commits de disputarem a tag mutável :develop", group)
+	}
+	if strings.Contains(group, "github.sha") {
+		t.Errorf("concurrency.group = %q contém `github.sha`: chavear por commit permite que dois "+
+			"commits publiquem :develop concorrentemente, e o host pode convergir para o mais "+
+			"antigo. Ver o cabeçalho deste teste para a medição que motivou a decisão.", group)
+	}
+}
+
+// A asserção acima só vale se ela REPROVA a configuração ruim. Este teste exercita o mesmo
+// predicado contra entradas sintéticas — a prova de que o guard morde, e não apenas passa.
+func TestConcurrencyGuardRejectsCommitKeyedGroups(t *testing.T) {
+	cases := []struct {
+		name  string
+		group string
+		bad   bool
+	}{
+		{"por ref (atual, correto)", "artifacts-${{ github.ref }}", false},
+		{"por commit", "artifacts-${{ github.sha }}", true},
+		{"ref + commit — ainda permite corrida entre commits", "artifacts-${{ github.ref }}-${{ github.sha }}", true},
+		{"vazio", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			bad := c.group == "" || !strings.Contains(c.group, "github.ref") || strings.Contains(c.group, "github.sha")
+			if bad != c.bad {
+				t.Errorf("group %q: guard disse bad=%v, esperado %v", c.group, bad, c.bad)
+			}
+		})
+	}
+}
+
+// T3.2 — a coluna Version do painel precisa IDENTIFICAR o build, não só nomear o canal.
+//
+// MEDIDO em 2026-07-31 na página /status implantada: nove serviços mostram `develop-<sha>` e o
+// theo-cloud mostra `develop`. Num milestone chamado "diz a verdade sobre si mesmo", a linha dele
+// era a única do painel que não respondia "qual build está rodando" — o operador via o canal e
+// tinha de ir ao registry para descobrir o commit.
+//
+// A causa é `version_label: ${{ github.ref_name }}`: em `develop` isso é literalmente "develop".
+// Para tag, `ref_name` JÁ é a versão correta (`v1.2.3`) e não deve ganhar sufixo — então o label
+// é composto no job `plan`, que é o dono das decisões de canal, e não no ponto de uso.
+func TestVersionLabelIdentifiesTheBuildOnTheDevelopChannel(t *testing.T) {
+	raw := readWF(t, "publish.yml")
+
+	var wf struct {
+		Jobs map[string]struct {
+			Outputs map[string]string `yaml:"outputs"`
+			Steps   []map[string]any  `yaml:"steps"`
+			With    map[string]any    `yaml:"with"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(raw), &wf); err != nil {
+		t.Fatalf("publish.yml não parseia: %v", err)
+	}
+
+	plan, ok := wf.Jobs["plan"]
+	if !ok {
+		t.Fatal("publish.yml perdeu o job `plan`")
+	}
+	if _, ok := plan.Outputs["version_label"]; !ok {
+		t.Error("o job `plan` não expõe o output `version_label`: sem ele o label é composto no " +
+			"ponto de uso e o canal develop publica a imagem rotulada apenas como \"develop\"")
+	}
+
+	images, ok := wf.Jobs["images"]
+	if !ok {
+		t.Fatal("publish.yml perdeu o job `images`")
+	}
+	got, _ := images.With["version_label"].(string)
+	if strings.Contains(got, "github.ref_name") && !strings.Contains(got, "needs.plan") {
+		t.Errorf("images.with.version_label = %q — `github.ref_name` cru vira \"develop\" no canal "+
+			"que a produção consome; o label precisa vir do output composto do job `plan`", got)
+	}
+	if !strings.Contains(got, "needs.plan.outputs.version_label") {
+		t.Errorf("images.with.version_label = %q; esperado consumir needs.plan.outputs.version_label", got)
+	}
+
+	// O compositor precisa de fato usar o SHA — senão o output existe e mente.
+	if !strings.Contains(raw, "version_label=") {
+		t.Error("nenhum passo compõe `version_label=` no job plan")
+	}
+}
