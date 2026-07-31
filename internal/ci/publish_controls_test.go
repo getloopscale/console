@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -138,10 +139,7 @@ func TestProvenanceBuildArgsReachBothBuildSteps(t *testing.T) {
 // `timeout-minutes` is NOT honored on a `uses:` job — it only works inside the reusable. Applying it
 // to publish.yml's gate jobs would be silently inert, so those are skipped rather than "fixed".
 func TestEveryNonReusableJobHasATimeout(t *testing.T) {
-	files, err := filepath.Glob("../../.github/workflows/*.yml")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("globbing workflows: %v (%d files)", err, len(files))
-	}
+	files := workflowFiles(t)
 
 	for _, f := range files {
 		b, err := os.ReadFile(filepath.Clean(f))
@@ -205,19 +203,40 @@ func TestProvenanceArgsCoerceEmptyToSentinels(t *testing.T) {
 // Both halves are needed: dropping only the input would let someone re-add it later against a
 // missing file, and creating only the file would leave an allowlist nobody asked for.
 func TestTrivyIgnoreFileInputMatchesReality(t *testing.T) {
-	body := readWF(t, "build-publish.yml")
-
-	re := regexp.MustCompile(`(?m)^\s*trivyignores:\s*(\S+)\s*$`)
-	m := re.FindStringSubmatch(body)
-	if m == nil {
-		return // no allowlist declared — nothing to point at, nothing to break
+	// PARSEIA, nao grepa. O plano deste milestone proibe explicitamente a forma grep
+	// ("a grep passes on a commented-out line") e este arquivo ja importa o parser. A regex
+	// anterior ainda exigia o valor na MESMA linha: um `trivyignores:` escrito em bloco YAML
+	// passaria como "nao declarado" — veredito vazio com um ignorefile de fato configurado,
+	// que e precisamente o modo de falha silenciosa que este teste existe para impedir.
+	var wf struct {
+		Jobs map[string]struct {
+			Steps []struct {
+				Uses string         `yaml:"uses"`
+				With map[string]any `yaml:"with"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(readWF(t, "build-publish.yml")), &wf); err != nil {
+		t.Fatalf("build-publish.yml: %v", err)
 	}
 
-	named := m[1]
-	if _, err := os.Stat(filepath.Join("../..", named)); err != nil {
-		t.Fatalf("build-publish.yml declares `trivyignores: %s` but that file does not exist: %v\n"+
-			"trivy exits 1 before scanning anything, so the gate reports a vulnerability failure "+
-			"for a scan that never ran", named, err)
+	for job, j := range wf.Jobs {
+		for i, st := range j.Steps {
+			raw, ok := st.With["trivyignores"]
+			if !ok {
+				continue // chave ausente do mapa parseado: nada apontado, nada a quebrar
+			}
+			named := strings.TrimSpace(fmt.Sprintf("%v", raw))
+			if named == "" {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join("../..", named)); err != nil {
+				t.Fatalf("jobs.%s.steps[%d] declara `trivyignores: %s`, que nao existe: %v\n"+
+					"o trivy sai 1 em ~17ms com `cannot find ignorefile` — o scan NAO RODA, e o "+
+					"gate reporta falha de vulnerabilidade para uma varredura que nunca houve",
+					job, i, named, err)
+			}
+		}
 	}
 }
 
@@ -278,10 +297,7 @@ func TestExternalActionsArePinnedBySHA(t *testing.T) {
 	sha40 := regexp.MustCompile(`^[0-9a-f]{40}$`)
 	uses := regexp.MustCompile(`uses:\s*([^\s#]+)`)
 
-	files, err := filepath.Glob("../../.github/workflows/*.yml")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("nenhum workflow encontrado: %v", err)
-	}
+	files := workflowFiles(t)
 
 	for _, f := range files {
 		body, err := os.ReadFile(f)
@@ -312,4 +328,82 @@ func TestExternalActionsArePinnedBySHA(t *testing.T) {
 			}
 		}
 	}
+}
+
+// workflowFiles — o GitHub executa `.yml` E `.yaml`. Globar so uma extensao faz um workflow
+// futuro nascer FORA de todo gate deste pacote, em silencio: o teste segue verde porque nunca
+// olhou o arquivo. Hoje os 8 sao `.yml`; o invariante nao pode depender disso.
+func workflowFiles(t *testing.T) []string {
+	t.Helper()
+	var out []string
+	for _, pat := range []string{"../../.github/workflows/*.yml", "../../.github/workflows/*.yaml"} {
+		m, err := filepath.Glob(pat)
+		if err != nil {
+			t.Fatalf("glob %s: %v", pat, err)
+		}
+		out = append(out, m...)
+	}
+	if len(out) == 0 {
+		t.Fatal("nenhum workflow encontrado")
+	}
+	return out
+}
+
+// TestGateAndImagesShareOneCondition — o `if:` que decide se os gates rodam esta copiado
+// LITERALMENTE em quatro jobs. Se um deles divergir, `images` roda com um gate `skipped` e a
+// imagem sai sem passar por ele: exatamente o que a auditoria de 2026-07-30 mediu 12 vezes.
+//
+// A direcao da falha hoje e fail-closed (sem `always()`, o `success()` implicito do `needs`
+// vale), mas isso e propriedade da forma ATUAL. O que este teste trava e a forma: uma unica
+// condicao, e `images` dependendo dos tres gates. `internal/ci` ja trava pin por SHA, timeout,
+// ignorefile e camada de upgrade — nao travava justamente o mecanismo do gate.
+func TestGateAndImagesShareOneCondition(t *testing.T) {
+	var wf struct {
+		Jobs map[string]struct {
+			If string `yaml:"if"`
+			// `needs:` aceita escalar OU lista em YAML, e este workflow usa as duas formas
+			// (`needs: plan` nos gates, `needs: [plan, gate-ci, ...]` em images). Tipar como
+			// []string quebra o parse — foi o que este teste encontrou na primeira execucao.
+			Needs any `yaml:"needs"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(readWF(t, "publish.yml")), &wf); err != nil {
+		t.Fatalf("publish.yml: %v", err)
+	}
+
+	gates := []string{"gate-ci", "gate-quality", "gate-sast"}
+	want := strings.TrimSpace(wf.Jobs["images"].If)
+	if want == "" {
+		t.Fatal("jobs.images nao declara `if:` — o filtro de caminhos deixou de gatear a publicacao")
+	}
+	for _, g := range append(gates, "images") {
+		if got := strings.TrimSpace(wf.Jobs[g].If); got != want {
+			t.Errorf("jobs.%s tem `if:` diferente de jobs.images:\n  %s\n  %s\n"+
+				"condicoes divergentes fazem um gate ser pulado enquanto `images` roda — "+
+				"a imagem sai sem aquele gate", g, got, want)
+		}
+	}
+
+	for _, g := range gates {
+		if !slices.Contains(needsOf(wf.Jobs["images"].Needs), g) {
+			t.Errorf("jobs.images.needs nao contem %q (tem %v). `needs` aborta o job ANTES de ele "+
+				"comecar: sem ele nenhuma credencial de registry e adquirida e nao ha push parcial "+
+				"a desfazer — sem `needs`, a imagem sai com o gate vermelho", g, wf.Jobs["images"].Needs)
+		}
+	}
+}
+
+// needsOf normaliza as duas formas que o YAML aceita para `needs:` — escalar e sequencia.
+func needsOf(v any) []string {
+	switch t := v.(type) {
+	case string:
+		return []string{t}
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, e := range t {
+			out = append(out, fmt.Sprintf("%v", e))
+		}
+		return out
+	}
+	return nil
 }

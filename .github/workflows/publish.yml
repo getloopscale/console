@@ -23,6 +23,11 @@ jobs:
   plan:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 10
+    # Menor privilegio. Este job so faz checkout, paths-filter e jq — nao escreve em registry
+    # nem cunha token OIDC. E e exatamente onde roda `dorny/paths-filter`, o unico terceiro da
+    # cadeia: nao ha razao para ele herdar `packages: write` + `id-token: write` do workflow.
+    permissions:
+      contents: read
     outputs:
       images: ${{ steps.set.outputs.images }}
       sign: ${{ steps.set.outputs.sign }}

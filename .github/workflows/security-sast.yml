@@ -93,8 +93,16 @@ jobs:
         run: |
           set -euo pipefail
           VER=8.30.0
-          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz" \
-            | tar -xz gitleaks
+          # SHA256 fixado. O `curl | tar` anterior executava o conteudo ANTES de qualquer
+          # verificacao ser possivel: o proprio scanner de segredos era o unico executavel de
+          # terceiro a entrar sem verificacao alguma na cadeia — as actions ja sao pinadas por
+          # SHA e o semgrep por digest de imagem. Baixar primeiro, conferir, so entao extrair.
+          SUM=79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e
+          TGZ="$RUNNER_TEMP/gitleaks.tar.gz"
+          curl -fsSL -o "$TGZ" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
+          echo "${SUM}  ${TGZ}" | sha256sum -c -
+          tar -xzf "$TGZ" gitleaks
           # --no-git varre a ARVORE, nao o historico. Reescrever historico e proibido (Regra 4),
           # entao flagrar segredo ja commitado produz alarme que NINGUEM pode resolver — ele toca
           # a cada run ate virar ruido. A mitigacao correta para segredo exposto e ROTACAO; este
