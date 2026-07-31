@@ -106,6 +106,21 @@ var validScopes = map[string]bool{
 	// storage:admin: the vertical is in-process (no broker key mint, unlike rag).
 	"storage:read":  true,
 	"storage:write": true,
+	// Trust vertical (theo-trust, M10-M11 Model B L2) — a customer issues a key
+	// carrying trust:read/write/delete for the unified /v1/trust edge.
+	//
+	// ESTAVA AUSENTE, e a ausência era invisível: medido em 2026-07-31, a cadeia
+	// inteira já funcionava — borda roteando, forward-auth-trust ligado, broker
+	// cunhando chave por tenant — e nenhum cliente podia alcançá-la, porque o escopo
+	// que a borda exige não era emitível. Cada camada parecia correta isolada.
+	//
+	// O conjunto é EXATAMENTE o que o broker sabe cunhar (cmd/main.go:
+	// KeyForTenantScoped). `trust:admin` e `trust:platform-admin` ficam de fora pelo
+	// mesmo motivo de `rag:admin`/`storage:admin`: são credenciais de ciclo de vida,
+	// do broker, nunca do consumidor.
+	"trust:read":   true,
+	"trust:write":  true,
+	"trust:delete": true,
 }
 
 // reservedScopes are RESERVED for future verticals per D2. Requesting one
