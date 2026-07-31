@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toSeries, totalInWindow, violationCount, byPolicy, peakSeverity } from './trust-series';
+import { toSeries, totalInWindow, violationCount, byPolicy, peakSeverity, coverageGap, unenforcedCount } from './trust-series';
 
 describe('toSeries', () => {
   it('projeta baldes bem formados', () => {
@@ -89,5 +89,51 @@ describe('peakSeverity', () => {
     expect(peakSeverity({ violations: [] })).toBeNull();
     expect(peakSeverity(null)).toBeNull();
     expect(peakSeverity({ violations: [{ severity: 'inventada' }] })).toBeNull();
+  });
+});
+
+describe('coverageGap — a distância entre observado e bloqueado', () => {
+  const violations = {
+    violations: [
+      { policy: 'credential_leak' }, { policy: 'credential_leak' }, { policy: 'credential_leak' },
+      { policy: 'pii_exposure' }, { policy: 'pii_exposure' },
+      { policy: 'prohibited_content' },
+    ],
+  };
+
+  it('marca como enforced apenas o que tem guardrail no catalogo', () => {
+    const got = coverageGap(violations, { validators: [{ policy: 'pii_exposure' }] });
+    expect(got.find((c) => c.policy === 'pii_exposure')?.enforced).toBe(true);
+    expect(got.find((c) => c.policy === 'credential_leak')?.enforced).toBe(false);
+  });
+
+  it('o DESCOBERTO vem primeiro, e dentro dele o mais frequente', () => {
+    // A linha de cima e sempre a decisao mais urgente. Ordenar por frequencia apenas colocaria
+    // credential_leak no topo mesmo se ele ja estivesse bloqueado — enterrando o risco real.
+    const got = coverageGap(violations, { validators: [{ policy: 'credential_leak' }] });
+    expect(got.map((c) => c.policy)).toEqual(['pii_exposure', 'prohibited_content', 'credential_leak']);
+  });
+
+  it('sem catalogo, tudo conta como descoberto — nao como coberto', () => {
+    // Falha ao ler o catalogo NAO pode virar "esta tudo bloqueado": seria o falso negativo
+    // exato que esta tela existe para eliminar.
+    expect(coverageGap(violations, null).every((c) => !c.enforced)).toBe(true);
+  });
+
+  it('aceita `items` alem de `validators` como nome da lista', () => {
+    expect(coverageGap(violations, { items: [{ policy: 'pii_exposure' }] })
+      .find((c) => c.policy === 'pii_exposure')?.enforced).toBe(true);
+  });
+
+  it('cai para `category` quando o validator nao declara `policy`', () => {
+    expect(coverageGap(violations, { validators: [{ category: 'credential_leak' }] })
+      .find((c) => c.policy === 'credential_leak')?.enforced).toBe(true);
+  });
+
+  it('unenforcedCount conta o que ainda passa', () => {
+    expect(unenforcedCount(coverageGap(violations, { validators: [{ policy: 'pii_exposure' }] }))).toBe(2);
+    expect(unenforcedCount(coverageGap(violations, {
+      validators: [{ policy: 'credential_leak' }, { policy: 'pii_exposure' }, { policy: 'prohibited_content' }],
+    }))).toBe(0);
   });
 });

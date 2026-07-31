@@ -44,6 +44,9 @@ func (s *stubTrustReader) PolicyViolations(ctx context.Context, _ int) (json.Raw
 func (s *stubTrustReader) Conversation(ctx context.Context, _ string) (json.RawMessage, error) {
 	return s.read(ctx)
 }
+func (s *stubTrustReader) Validators(ctx context.Context) (json.RawMessage, error) {
+	return s.read(ctx)
+}
 
 // tenantOf le o tenant que o teste injetou no contexto, emulando o que o resolver Model B faz a
 // partir do JWT.

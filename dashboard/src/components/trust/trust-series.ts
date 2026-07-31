@@ -116,3 +116,61 @@ export function peakSeverity(payload: ViolationsPayload | null | undefined): str
   }
   return peak >= 0 ? SEVERITY_ORDER[peak] : null;
 }
+
+/** Um validator do catálogo mesclado plataforma+tenant. */
+export interface Validator {
+  readonly name?: string;
+  readonly category?: string;
+  readonly policy?: string;
+  readonly [k: string]: unknown;
+}
+
+export interface ValidatorsPayload {
+  readonly validators?: readonly Validator[];
+  readonly items?: readonly Validator[];
+  readonly [k: string]: unknown;
+}
+
+/** Uma política observada, com a informação que decide a ação: existe guardrail para ela? */
+export interface PolicyCoverage {
+  readonly policy: string;
+  readonly observed: number;
+  readonly enforced: boolean;
+}
+
+/**
+ * A pergunta que a tela existe para responder: **o que o sistema vê e não bloqueia**.
+ *
+ * O plano de observação enxerga toda conversa ingerida; o plano inline só bloqueia o que tem
+ * guardrail. A distância entre os dois é onde o risco mora, e nenhum número isolado a mostra —
+ * "12 violações" não diz se elas continuam passando.
+ *
+ * Ordena o descoberto primeiro, e dentro dele o mais frequente: a linha de cima é sempre a decisão
+ * mais urgente. Empate resolvido alfabeticamente para o render ser determinístico.
+ */
+export function coverageGap(
+  violations: ViolationsPayload | null | undefined,
+  validators: ValidatorsPayload | null | undefined,
+): PolicyCoverage[] {
+  const rows = validators?.validators ?? validators?.items;
+  const enforcedPolicies = new Set(
+    (Array.isArray(rows) ? rows : [])
+      .map((v) => (typeof v?.policy === 'string' ? v.policy : typeof v?.category === 'string' ? v.category : ''))
+      .filter((p): p is string => p !== ''),
+  );
+
+  return byPolicy(violations).map((p) => ({
+    policy: p.label,
+    observed: p.value,
+    enforced: enforcedPolicies.has(p.label),
+  })).sort((a, b) =>
+    Number(a.enforced) - Number(b.enforced) ||
+    b.observed - a.observed ||
+    a.policy.localeCompare(b.policy),
+  );
+}
+
+/** Quantas políticas passam sem guardrail — o número que a tela abre. */
+export function unenforcedCount(coverage: readonly PolicyCoverage[]): number {
+  return coverage.filter((c) => !c.enforced).length;
+}

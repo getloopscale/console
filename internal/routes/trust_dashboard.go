@@ -24,6 +24,7 @@ type trustReader interface {
 	Trends(ctx context.Context, timeRange string) (json.RawMessage, error)
 	PolicyViolations(ctx context.Context, limit int) (json.RawMessage, error)
 	Conversation(ctx context.Context, id string) (json.RawMessage, error)
+	Validators(ctx context.Context) (json.RawMessage, error)
 }
 
 // TrustDashboardHandler serve as leituras do plano de observacao do trust para o dashboard.
@@ -91,6 +92,16 @@ func (h *TrustDashboardHandler) Conversation(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+// Validators serve GET /v1/dashboard/trust/validators — LEITURA do catalogo.
+//
+// A tela cruza este catalogo com as violacoes para mostrar o que e observado sem ser bloqueado.
+// Somente leitura: criar e remover entram em M24 com trust:write / trust:delete.
+func (h *TrustDashboardHandler) Validators(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "validators", func() (json.RawMessage, error) {
+		return h.client.Validators(r.Context())
+	})
+}
+
 // MountTrustDashboard registra o BFF de leitura sob `requireJWT`.
 //
 // Apenas verbos de leitura: M23 e o caminho de observacao. Gestao de validators entra em M24, com
@@ -102,5 +113,6 @@ func MountTrustDashboard(r chi.Router, h *TrustDashboardHandler, requireJWT func
 		r.Get("/trends", h.Trends)
 		r.Get("/policy-violations", h.PolicyViolations)
 		r.Get("/conversations/{conversationID}", h.Conversation)
+		r.Get("/validators", h.Validators)
 	})
 }
