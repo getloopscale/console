@@ -580,7 +580,7 @@ dependência declarada estaria satisfeita na hora e seria decorativa. As peças 
 
 ---
 
-### M22 — [ ] theo-cloud diz a verdade sobre si mesmo (entrega confiável + presença no painel)
+### M22 — [x] theo-cloud diz a verdade sobre si mesmo (entrega confiável + presença no painel)
 
 > Added 2026-07-30 by `/roadmap-feature` (slug: `theo-cloud-delivery-truth`).
 > See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-delivery-truth-feature-grill.md`.
