@@ -116,3 +116,93 @@ export function peakSeverity(payload: ViolationsPayload | null | undefined): str
   }
   return peak >= 0 ? SEVERITY_ORDER[peak] : null;
 }
+
+/** Um validator do catálogo mesclado plataforma+tenant. */
+export interface Validator {
+  readonly name?: string;
+  readonly category?: string;
+  readonly policy?: string;
+  readonly [k: string]: unknown;
+}
+
+export interface ValidatorsPayload {
+  readonly validators?: readonly Validator[];
+  readonly items?: readonly Validator[];
+  readonly [k: string]: unknown;
+}
+
+/** Uma política observada, com a informação que decide a ação: existe guardrail para ela? */
+export interface PolicyCoverage {
+  readonly policy: string;
+  readonly observed: number;
+  readonly enforced: boolean;
+}
+
+/**
+ * A pergunta que a tela existe para responder: **o que o sistema vê e não bloqueia**.
+ *
+ * O plano de observação enxerga toda conversa ingerida; o plano inline só bloqueia o que tem
+ * guardrail. A distância entre os dois é onde o risco mora, e nenhum número isolado a mostra —
+ * "12 violações" não diz se elas continuam passando.
+ *
+ * Ordena o descoberto primeiro, e dentro dele o mais frequente: a linha de cima é sempre a decisão
+ * mais urgente. Empate resolvido alfabeticamente para o render ser determinístico.
+ */
+export function coverageGap(
+  violations: ViolationsPayload | null | undefined,
+  validators: ValidatorsPayload | null | undefined,
+): PolicyCoverage[] {
+  const rows = validators?.validators ?? validators?.items;
+  const enforcedPolicies = new Set(
+    (Array.isArray(rows) ? rows : [])
+      .map((v) => (typeof v?.policy === 'string' ? v.policy : typeof v?.category === 'string' ? v.category : ''))
+      .filter((p): p is string => p !== ''),
+  );
+
+  return byPolicy(violations).map((p) => ({
+    policy: p.label,
+    observed: p.value,
+    enforced: enforcedPolicies.has(p.label),
+  })).sort((a, b) =>
+    Number(a.enforced) - Number(b.enforced) ||
+    b.observed - a.observed ||
+    a.policy.localeCompare(b.policy),
+  );
+}
+
+/** Quantas políticas passam sem guardrail — o número que a tela abre. */
+export function unenforcedCount(coverage: readonly PolicyCoverage[]): number {
+  return coverage.filter((c) => !c.enforced).length;
+}
+
+/** Uma mensagem da conversa, como o theo-trust a devolve (já redigida do lado do serviço). */
+export interface ConversationMessage {
+  readonly id?: string;
+  readonly role?: string;
+  readonly content?: string;
+  readonly createdAt?: string;
+  readonly [k: string]: unknown;
+}
+
+export interface ConversationPayload {
+  readonly id?: string;
+  readonly messages?: readonly ConversationMessage[];
+  readonly [k: string]: unknown;
+}
+
+/**
+ * Extrai as mensagens da conversa para render.
+ *
+ * Existe porque a alternativa que estava no lugar — `JSON.stringify` — é artefato de
+ * desenvolvedor, não produto: obriga o operador a ler chaves de schema para descobrir quem disse o
+ * quê, num momento em que ele está investigando um incidente.
+ *
+ * Mensagem sem `content` de texto é descartada em vez de virar "undefined" na tela.
+ */
+export function conversationMessages(
+  payload: ConversationPayload | null | undefined,
+): ConversationMessage[] {
+  const msgs = payload?.messages;
+  if (!Array.isArray(msgs)) return [];
+  return msgs.filter((m) => typeof m?.content === 'string' && m.content !== '');
+}
