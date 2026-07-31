@@ -189,6 +189,21 @@ type Config struct {
 	// Env: SKILLS_BASE_URL
 	SkillsBaseURL string
 
+	// TraefikMcpBaseURL is the theo-traefik-mcp gateway URL, probed by the status panel.
+	//
+	// Mesmo contrato dos dois acima: NÃO cunha credencial, e o painel consome apenas
+	// `GET /v1/version` — auth-exempt por contrato do lado do gateway.
+	//
+	// A URL aponta para a RAIZ do gateway, não para a borda `/mcp` do Traefik. O
+	// roteador do edge não remove o prefixo (é deliberado: o gateway precisa do path
+	// completo para rotear MCP), então `{base}/v1/version` via `/mcp` chegaria como
+	// `/mcp/v1/version` e cairia no catch-all do proxy — 404 sobre um serviço saudável.
+	//
+	// Vazia = serviço não configurado NESTE ambiente; o coletor o lista como
+	// `not_deployed`, que é informação, não erro.
+	// Env: TRAEFIK_MCP_BASE_URL
+	TraefikMcpBaseURL string
+
 	// LensPlatformAdminKey is the CONTROL-PLANE credential (carrying
 	// observability:platform-admin) the gateway uses ONLY to mint per-tenant theo-lens keys
 	// via POST /v1/admin/keys. NEVER on the data path (Model B). Required when
@@ -297,6 +312,7 @@ func Load() Config {
 	cfg.LensBaseURL = envOr("LENS_BASE_URL", "")
 	cfg.StorageBaseURL = envOr("STORAGE_BASE_URL", "")
 	cfg.SkillsBaseURL = envOr("SKILLS_BASE_URL", "")
+	cfg.TraefikMcpBaseURL = envOr("TRAEFIK_MCP_BASE_URL", "")
 	cfg.LensPlatformAdminKey = Secret(envOr("LENS_PLATFORM_ADMIN_KEY", ""))
 	cfg.StorageS3Endpoint = envOr("STORAGE_S3_ENDPOINT", "")
 	cfg.StorageS3PublicEndpoint = envOr("STORAGE_S3_PUBLIC_ENDPOINT", "")

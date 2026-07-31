@@ -188,6 +188,13 @@ func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 		// engine. Uma variavel propria poderia divergir dela e o painel passaria a
 		// reportar sobre um endereco que ninguem mais usa.
 		{Name: "theo-api", BaseURL: cfg.EngineAPIURL},
+		// O gateway MCP. A URL aponta para a RAIZ do processo, nao para a borda
+		// `/mcp` do Traefik: aquele roteador NAO remove o prefixo (deliberado — o
+		// gateway precisa do path completo para rotear MCP), entao uma sonda via
+		// `/mcp` chegaria como `/mcp/v1/version`, cairia no catch-all do proxy e
+		// devolveria 404 sobre um servico saudavel. Medido: 404 pela borda, 200
+		// pela raiz.
+		{Name: "theo-traefik-mcp", BaseURL: cfg.TraefikMcpBaseURL},
 	}
 }
 
