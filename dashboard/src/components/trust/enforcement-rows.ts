@@ -8,9 +8,9 @@
  * omissão: teria de ser adicionado aqui, de propósito, por alguém.
  */
 
-export type EnforcementDecision = 'block' | 'modify' | 'allow' | 'unknown';
+type EnforcementDecision = 'block' | 'modify' | 'allow' | 'unknown';
 
-export interface EnforcementEvent {
+interface EnforcementEvent {
   readonly id?: string;
   readonly decision?: string;
   readonly direction?: string;

@@ -14,7 +14,7 @@
 export type GuardrailOrigin = 'platform' | 'tenant';
 
 /** Uma linha do catálogo como o serviço a devolve. Campos extras são ignorados de propósito. */
-export interface CatalogEntry {
+interface CatalogEntry {
   readonly source?: string;
   readonly id?: string;
   readonly name?: string;

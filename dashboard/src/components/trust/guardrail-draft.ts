@@ -17,7 +17,7 @@
  * decisão de bloquear ou mascarar. Os termos são escapados pelo serviço, então não há ReDoS.
  */
 
-export type GuardrailAction = 'block' | 'modify';
+type GuardrailAction = 'block' | 'modify';
 
 export interface GuardrailDraft {
   readonly name: string;
