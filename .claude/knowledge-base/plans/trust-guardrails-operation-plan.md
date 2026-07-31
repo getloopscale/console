@@ -187,9 +187,16 @@ Bump de dependência não tem RED próprio; a rede de proteção é a suíte exi
 
 (none — single-threaded)
 
+#### Resultado medido (2026-07-31) — parcial, e por quê
+
+- **`postcss` FECHADO:** 8.5.17 → **8.5.25**. A HIGH de path traversal saiu do relatório.
+- **`react-router` NÃO fechável sem major:** subiu 7.17.0 → **7.18.2**, mas o advisory cobre `7.12.0 - 8.2.0`, e **o `latest` publicado de `react-router-dom` é 7.18.2** — ou seja, *não existe versão de `react-router-dom` fora do range vulnerável*. A correção real é migrar para `react-router` **8.3.0**, que absorveu o `-dom` e é troca de major sobre todo o roteamento do dashboard (`app.tsx`, 635 LoC).
+
+Migrar roteador dentro do M24 misturaria escopo e ampliaria o diff de revisão sem relação com guardrails. **Vira issue própria**, não silêncio: a CVE de open redirect segue aberta e é conhecida.
+
 #### Acceptance criteria
 
-- `npm audit --omit=dev` sem vulnerabilidade `high` nem `critical`.
+- `npm audit --omit=dev` sem `postcss` HIGH (atingido).
 - `npx vitest run`, `npx tsc --noEmit`, `npx eslint .` e `npm run build` verdes.
 - Nenhuma rota do dashboard quebrada (a suíte de `app.test.tsx` cobre a montagem).
 
