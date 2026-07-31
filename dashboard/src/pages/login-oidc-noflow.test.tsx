@@ -39,6 +39,12 @@ vi.mock('@/lib/api', () => ({
   clearToken: vi.fn(),
 }));
 
+const reportEventSpy = vi.fn();
+vi.mock('@/lib/rum', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/rum')>()),
+  reportEvent: (...args: unknown[]) => reportEventSpy(...args),
+}));
+
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
@@ -128,6 +134,41 @@ describe('login OIDC — click before the flow resolves (theo#140)', () => {
       expect(bag.provider).toBe('github');
       expect(bag.csrf_token).toBe('csrf-abc');
     }
+
+    submitStub.mockRestore();
+  });
+
+  // Um clique do usuario e UMA tentativa. Retomar o clique quando o flow chega nao pode
+  // emitir um segundo `auth.method.attempt`: `startAuthAttempt` sobrescreve
+  // `authCtxRef.current` com um novo correlation_id, entao o primeiro contexto fica ORFAO —
+  // nenhum evento de desfecho jamais o carrega. O invariante de funnel-stitting declarado em
+  // login.tsx:40 quebra exatamente na coorte de rede lenta que esta correcao existe para
+  // atender, e a conversao dessa coorte passa a parecer pior do que e.
+  it('test_slow_flow_click_emits_exactly_one_auth_attempt', async () => {
+    let releaseFlow: (v: unknown) => void = () => undefined;
+    const pendingFlow = new Promise((resolve) => {
+      releaseFlow = resolve;
+    });
+    mockFetch.mockReturnValueOnce(
+      pendingFlow.then(() => ({ ok: true, json: async () => flowFixture() })),
+    );
+    const submitStub = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
+
+    const user = userEvent.setup();
+    render(<LoginPage />);
+    await user.click(
+      await screen.findByRole('button', { name: /continue with github/i }),
+    );
+    releaseFlow(null);
+    await waitFor(() => expect(submitStub).toHaveBeenCalled(), { timeout: 2000 });
+
+    const attempts = reportEventSpy.mock.calls.filter(
+      ([event]) => event === 'auth.method.attempt',
+    );
+    expect(attempts).toHaveLength(1);
+    expect((attempts[0]?.[1] as { method?: string })?.method).toBe('github');
 
     submitStub.mockRestore();
   });
