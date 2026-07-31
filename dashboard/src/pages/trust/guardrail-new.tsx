@@ -74,8 +74,14 @@ export function TrustGuardrailNewPage() {
     setBusy('testing');
     setError(null);
     try {
-      const result = await testGuardrail<DryRunVerdict>(toTestBody(current, sample));
-      setVerdict(result ?? null);
+      // O `/v1/validators:test` responde `{valid, result:{action, modified}}` — o veredito vem
+      // ANINHADO. Ler `action` do topo devolveria sempre `undefined`, e a tela ficaria muda
+      // depois de um teste bem-sucedido. Foi o e2e que pegou isto: o teste de unidade passava
+      // porque o dobre dele devolvia o formato achatado, e não o do serviço.
+      const response = await testGuardrail<{ result?: DryRunVerdict } & DryRunVerdict>(
+        toTestBody(current, sample),
+      );
+      setVerdict(response?.result ?? response ?? null);
       setTestedSpec(currentSpec);
     } catch (err) {
       setVerdict(null);

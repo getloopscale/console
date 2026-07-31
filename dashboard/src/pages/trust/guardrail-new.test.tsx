@@ -54,7 +54,7 @@ async function runDryRun(user: ReturnType<typeof userEvent.setup>) {
 
 /** A coreografia dos casos de erro tipado: testar → salvar → o serviço recusa. */
 async function saveRejectedWith(error: ApiError) {
-  mockTest.mockResolvedValueOnce({ action: 'block' });
+  mockTest.mockResolvedValueOnce({ valid: true, result: { action: 'block' } });
   mockCreate.mockRejectedValueOnce(error);
   const user = await openWithValidDraft();
   await user.click(await runDryRun(user));
@@ -72,7 +72,7 @@ describe('TrustGuardrailNewPage', () => {
   });
 
   it('oferece salvar depois do dry-run, e grava a spec testada', async () => {
-    mockTest.mockResolvedValueOnce({ action: 'block' });
+    mockTest.mockResolvedValueOnce({ valid: true, result: { action: 'block' } });
     mockCreate.mockResolvedValueOnce({ id: 'val-9' });
     const user = await openWithValidDraft();
 
@@ -85,7 +85,7 @@ describe('TrustGuardrailNewPage', () => {
   });
 
   it('mostra o veredito no futuro do pretérito — nada mudou ainda', async () => {
-    mockTest.mockResolvedValueOnce({ action: 'block' });
+    mockTest.mockResolvedValueOnce({ valid: true, result: { action: 'block' } });
     const user = await openWithValidDraft();
     await runDryRun(user);
 
@@ -93,7 +93,7 @@ describe('TrustGuardrailNewPage', () => {
   });
 
   it('alterar a regra depois do teste retira de novo o caminho de salvar', async () => {
-    mockTest.mockResolvedValueOnce({ action: 'block' });
+    mockTest.mockResolvedValueOnce({ valid: true, result: { action: 'block' } });
     const user = await openWithValidDraft();
     await runDryRun(user);
 
@@ -107,7 +107,7 @@ describe('TrustGuardrailNewPage', () => {
   it('reescrever um campo com o MESMO valor não invalida o veredito', async () => {
     // O par do teste anterior. Sem ele, "invalidar" poderia ser implementado por contagem de
     // eventos de edição — e o operador seria obrigado a re-testar sem ter mudado nada.
-    mockTest.mockResolvedValueOnce({ action: 'block' });
+    mockTest.mockResolvedValueOnce({ valid: true, result: { action: 'block' } });
     const user = await openWithValidDraft();
     await runDryRun(user);
 
