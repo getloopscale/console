@@ -241,6 +241,11 @@ const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'Overview', path: '/trust', icon: LayoutGrid },
           { label: 'Violations', path: '/trust/violations', icon: ShieldAlert },
+          // M24 — a gestão chegou: o operador cria e remove as próprias guardrails, e vê o
+          // que o enforcement inline barrou. Sem estas entradas as rotas existem e ninguém
+          // as encontra — foi um defeito real do M23, corrigido em 31521ed.
+          { label: 'Guardrails', path: '/trust/guardrails', icon: ShieldCheck },
+          { label: 'Enforcement', path: '/trust/enforcement', icon: ScrollText },
         ],
       },
     ],

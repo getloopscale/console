@@ -137,6 +137,16 @@ const TrustOverviewPage = lazy(() =>
 const TrustViolationsPage = lazy(() =>
   import('@/pages/trust/violations').then((m) => ({ default: m.TrustViolationsPage })),
 );
+// M24 — operar guardrails: catálogo, criação com dry-run obrigatório e auditoria do enforcement.
+const TrustGuardrailsPage = lazy(() =>
+  import('@/pages/trust/guardrails').then((m) => ({ default: m.TrustGuardrailsPage })),
+);
+const TrustGuardrailNewPage = lazy(() =>
+  import('@/pages/trust/guardrail-new').then((m) => ({ default: m.TrustGuardrailNewPage })),
+);
+const TrustEnforcementPage = lazy(() =>
+  import('@/pages/trust/enforcement').then((m) => ({ default: m.TrustEnforcementPage })),
+);
 // M44 — lens management dashboard pages; M46 — Overview landing
 const LensOverviewPage = lazy(() =>
   import('@/pages/lens').then((m) => ({ default: m.LensOverviewPage })),
@@ -480,6 +490,9 @@ export default function App() {
                     <Route path="/rag/analytics" element={<Boundaried path="/rag/analytics"><RagAnalyticsPage /></Boundaried>} />
                     <Route path="/trust" element={<Boundaried path="/trust"><TrustOverviewPage /></Boundaried>} />
                     <Route path="/trust/violations" element={<Boundaried path="/trust/violations"><TrustViolationsPage /></Boundaried>} />
+                    <Route path="/trust/guardrails" element={<Boundaried path="/trust/guardrails"><TrustGuardrailsPage /></Boundaried>} />
+                    <Route path="/trust/guardrails/new" element={<Boundaried path="/trust/guardrails/new"><TrustGuardrailNewPage /></Boundaried>} />
+                    <Route path="/trust/enforcement" element={<Boundaried path="/trust/enforcement"><TrustEnforcementPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />
