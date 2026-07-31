@@ -38,3 +38,25 @@ func newTrustDashboardKeyResolver(minter trustDashMinter) func(ctx context.Conte
 		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"trust:read"})
 	}
 }
+
+// newTrustGuardrailsKeyResolver devolve o resolver do caminho de MUTACAO (M24).
+//
+// Existe separado de `newTrustDashboardKeyResolver` porque a separacao e o mecanismo de seguranca,
+// nao organizacao: o cliente de LEITURA recebe uma credencial cunhada apenas com `trust:read` e
+// portanto NAO CONSEGUE escrever, mesmo que alguem registre por engano uma rota mutante sobre ele.
+// O menor privilegio vira propriedade da chave, e nao de uma checagem que se pode esquecer de
+// aplicar numa rota nova.
+//
+// `trust:delete` entra junto de `trust:write` porque remover uma guardrail e parte da gestao — mas
+// o broker so concede a intersecao com o que o chamador de fato possui, entao um operador sem
+// permissao de remocao recebe uma chave sem ela.
+func newTrustGuardrailsKeyResolver(minter trustDashMinter) func(ctx context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		u := auth.GetUser(ctx)
+		if u == nil || u.TenantID == "" {
+			return "", fmt.Errorf("trust guardrails: no authenticated tenant in context")
+		}
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID,
+			[]string{"trust:read", "trust:write", "trust:delete"})
+	}
+}
