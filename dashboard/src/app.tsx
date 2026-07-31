@@ -130,6 +130,13 @@ const RagGraphRagPage = lazy(() =>
 const RagWikiPage = lazy(() =>
   import('@/pages/rag/wiki').then((m) => ({ default: m.RagWikiPage })),
 );
+// M23 — a capacidade trust chega ao dashboard (visão geral + violações).
+const TrustOverviewPage = lazy(() =>
+  import('@/pages/trust').then((m) => ({ default: m.TrustOverviewPage })),
+);
+const TrustViolationsPage = lazy(() =>
+  import('@/pages/trust/violations').then((m) => ({ default: m.TrustViolationsPage })),
+);
 // M44 — lens management dashboard pages; M46 — Overview landing
 const LensOverviewPage = lazy(() =>
   import('@/pages/lens').then((m) => ({ default: m.LensOverviewPage })),
@@ -471,6 +478,8 @@ export default function App() {
                     <Route path="/rag/graphrag" element={<Boundaried path="/rag/graphrag"><RagGraphRagPage /></Boundaried>} />
                     <Route path="/rag/wiki" element={<Boundaried path="/rag/wiki"><RagWikiPage /></Boundaried>} />
                     <Route path="/rag/analytics" element={<Boundaried path="/rag/analytics"><RagAnalyticsPage /></Boundaried>} />
+                    <Route path="/trust" element={<Boundaried path="/trust"><TrustOverviewPage /></Boundaried>} />
+                    <Route path="/trust/violations" element={<Boundaried path="/trust/violations"><TrustViolationsPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />
