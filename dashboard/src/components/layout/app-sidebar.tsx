@@ -120,6 +120,9 @@ const MENUS: Record<string, MenuDefinition> = {
           { label: 'Knowledge Base', path: '/rag', icon: BookOpen, drillsInto: 'rag' },
           { label: 'Workspace', path: '/workspaces', icon: FolderTree },
           { label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' },
+          // M23 — a capacidade trust. Sem esta entrada as rotas /trust existem e ninguém as
+          // alcança pela navegação: o serviço registrava violações que só apareciam por `curl`.
+          { label: 'Trust', path: '/trust', icon: ShieldCheck, drillsInto: 'trust' },
         ],
       },
       {
@@ -226,6 +229,21 @@ const MENUS: Record<string, MenuDefinition> = {
       title: g.title,
       items: g.items.map((i) => ({ label: i.label, path: i.path, icon: i.icon })),
     })),
+  },
+  // M23 — o submenu da capacidade trust. Duas superfícies de LEITURA; a gestão de validators
+  // entra em M24 com escopo próprio, e não aqui.
+  trust: {
+    id: 'trust',
+    title: 'Trust',
+    parent: 'main',
+    groups: [
+      {
+        items: [
+          { label: 'Overview', path: '/trust', icon: LayoutGrid },
+          { label: 'Violations', path: '/trust/violations', icon: ShieldAlert },
+        ],
+      },
+    ],
   },
   memory: {
     id: 'memory',

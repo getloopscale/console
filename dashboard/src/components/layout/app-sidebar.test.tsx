@@ -102,3 +102,27 @@ describe('AppSidebar', () => {
     expect(region.getAttribute('aria-label')).not.toBe('System status: all systems operational');
   });
 });
+
+/**
+ * M23 — toda capacidade do data plane precisa de porta de entrada no menu.
+ *
+ * Este teste existe porque o defeito que ele trava passou por typecheck, lint, 15 testes de
+ * projeção e dois PRs mesclados: as rotas `/trust` estavam registradas e as telas renderizavam,
+ * mas NENHUMA entrada no menu apontava para elas. Do ponto de vista do operador, a capacidade não
+ * existia — exatamente o problema que M23 veio resolver, reintroduzido um nível acima.
+ *
+ * A asserção é sobre a LISTA de capacidades, não sobre "Trust" isolado: um item novo que alguém
+ * adicione às rotas sem adicionar ao menu continua invisível, e nenhum teste de rota o pega.
+ */
+describe('menu — capacidades do data plane', () => {
+  it('toda capacidade tem entrada no grupo Capabilities', () => {
+    render(<AppSidebar session={makeSession('Paulo')} />);
+
+    for (const label of ['Memory', 'Knowledge Base', 'Workspace', 'Observability', 'Trust']) {
+      expect(
+        screen.getByRole('button', { name: label }),
+        `a capacidade ${label} não tem entrada no menu: as rotas dela existem e ninguém as alcança`,
+      ).toBeInTheDocument();
+    }
+  });
+});
