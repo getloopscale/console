@@ -2,6 +2,20 @@
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.72.0] - 2026-07-31
+
+### Added
+
 - O **`theo-cloud` aparece na própria página `/status`**, ao lado dos serviços de data-plane, com as quatro colunas que já existiam (`Service · State · Version · Built`). A linha vem de metadados de build in-process — nunca de uma chamada HTTP do serviço para si mesmo, que reportaria apenas a própria vivacidade (#roadmap-m22)
 - **`GET /v1/version`**, auth-exempt, reportando os cinco campos do contrato (`name`, `version`, `git_sha`, `built_at`, `node`). Até agora o `theo-cloud` consumia esse endpoint de todos os serviços irmãos e não servia nenhum — a rota devolvia 404 literal, medido 6/6 contra o edge de public-dev, enquanto o reconciliador do host sondava outro endpoint e lia o 401 dele como "a rota existe" (#roadmap-m22)
 - Roadmap amended: added M22 "theo-cloud diz a verdade sobre si mesmo (entrega confiável + presença no painel)" via `/roadmap-feature theo-cloud-delivery-truth` — fecha o caminho de entrega atrás dos gates de teste, faz o `/v1/version` reportar o commit em execução e coloca o `theo-cloud` na página `/status` ao lado dos demais serviços (#roadmap-m22)
@@ -19,10 +33,6 @@
 - O input `attest` foi separado de `sign` no reusable de build: assinar é barato e local ao run, enquanto SBOM + provenance `mode=max` é o export pesado. Conflacionar os dois obrigava a escolher entre não assinar produção e pagar o export em todo push (#roadmap-m22)
 - **Nenhuma imagem sai mais com um gate de teste vermelho.** O job `images` do `publish.yml` passou a depender de `ci`, `quality` e `security-sast`, invocados por `workflow_call`. Medido na janela da auditoria: 12 commits publicaram imagem com gate vermelho (17 pushes no total); `3daf3663` subiu duas imagens com os três gates falhando (#roadmap-m22)
 - `ci.yml` e `quality.yml` deixaram de disparar em `push` e passaram a ser invocados como gate. Medido em 2026-07-30 (theo-memory, runs `30522117234`/`30522853797`): um callee de `workflow_call` **não** herda o `concurrency` do chamador — mantém o próprio, avaliado no contexto do chamador —, então um run avulso e a chamada gateada colidiam e um cancelava o outro. O `security-sast.yml` manteve o `push:` de propósito: o gitleaks precisa ver todo commit, inclusive merges só de documentação (#roadmap-m22)
-
-### Deprecated
-
-### Removed
 
 ### Fixed
 
