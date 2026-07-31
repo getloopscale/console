@@ -31,7 +31,6 @@ const (
 	maxGraceWindowHours     = 168 // 7 days
 )
 
-
 // Plan 0 of dashboard-memory-section-roadmap.md (T0.3-T0.5).
 // Platform unified API keys with scopes — single table, single key shape
 // (theo_live_{base64url(32)}), gated by scope on read.
@@ -121,6 +120,21 @@ var validScopes = map[string]bool{
 	"trust:read":   true,
 	"trust:write":  true,
 	"trust:delete": true,
+	// Skills vertical (theo-skills, M22 Model B) — a customer issues a key carrying
+	// skills:read/write/publish for the /v1/skills edge.
+	//
+	// O conjunto é EXATAMENTE o que o broker sabe cunhar (cmd/main.go: a lista
+	// passada a skills.NewBroker). `skills:admin` fica de fora pelo mesmo motivo de
+	// `rag:admin` e `trust:admin`: é a credencial de CICLO DE VIDA de chave, e uma
+	// credencial cunhada pelo gateway jamais pode provisionar outras.
+	//
+	// Ao contrário do trust — cuja cadeia já estava de pé e só faltava o escopo —
+	// aqui NADA existia: sem broker, sem forward-auth, sem rota de borda. Adicionar
+	// o escopo antes dessas peças teria oferecido uma capacidade que não conecta,
+	// que é o defeito oposto e igualmente silencioso.
+	"skills:read":    true,
+	"skills:write":   true,
+	"skills:publish": true,
 }
 
 // reservedScopes are RESERVED for future verticals per D2. Requesting one
