@@ -66,7 +66,7 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
         -X github.com/usetheodev/theo-cloud/internal/version.Version=${VERSION:-dev} \
         -X github.com/usetheodev/theo-cloud/internal/version.GitSHA=${GIT_SHA:-unknown} \
         -X github.com/usetheodev/theo-cloud/internal/version.BuiltAt=${BUILT_AT:-unknown}" \
-      -o /cloud-api ./cmd/main.go
+      -o /cloud-api ./cmd
 
 # Distroless static runtime (find_infra_009): no shell/apk/utilities to reduce
 # post-compromise attack surface. Includes ca-certificates and runs as the
