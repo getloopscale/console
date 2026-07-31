@@ -62,7 +62,10 @@ interface ListKeysResponse {
   keys: APIKeyView[];
 }
 
-const ACTIVE_SCOPES = [
+// Exportado para que `api-keys-scope-catalog.test.ts` confronte esta lista com o enum
+// `validScopes` do backend. Enquanto cada lado tinha só o SEU teste, as duas divergiram
+// nos dois sentidos — `trust:*` faltava aqui E lá, `storage:*` existia lá e não aqui.
+export const ACTIVE_SCOPES = [
   { id: 'memory:read', label: 'memory:read', description: 'Recall memories and read history' },
   { id: 'memory:write', label: 'memory:write', description: 'Remember new facts and reflect' },
   { id: 'memory:delete', label: 'memory:delete', description: 'Forget specific memories' },
@@ -76,6 +79,17 @@ const ACTIVE_SCOPES = [
   { id: 'rag:read', label: 'rag:read', description: 'Retrieve chunks and answer questions' },
   { id: 'rag:write', label: 'rag:write', description: 'Create collections and ingest documents' },
   { id: 'rag:delete', label: 'rag:delete', description: 'Delete documents and collections' },
+  // Storage vertical (M7). O backend já aceitava estes dois — e havia teste Go fixando
+  // isso — enquanto a tela não os oferecia: capacidade emitível por API e invisível para
+  // quem usa o produto.
+  { id: 'storage:read', label: 'storage:read', description: 'Download and list stored objects' },
+  { id: 'storage:write', label: 'storage:write', description: 'Upload and delete stored objects' },
+  // Trust vertical (theo-trust, Model B L2). A cadeia inteira já estava de pé — borda
+  // roteando /v1/trust/*, forward-auth cunhando chave por tenant — e nenhum cliente podia
+  // alcançá-la, porque o escopo que a borda exige não era emitível em lugar nenhum.
+  { id: 'trust:read', label: 'trust:read', description: 'Read conversations, themes, trends and policy violations' },
+  { id: 'trust:write', label: 'trust:write', description: 'Ingest conversations and run inline guardrails' },
+  { id: 'trust:delete', label: 'trust:delete', description: 'Delete conversations and custom validators' },
 ] as const;
 
 const RESERVED_SCOPES = [
