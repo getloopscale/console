@@ -17,8 +17,10 @@ package ci
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -138,10 +140,7 @@ func TestProvenanceBuildArgsReachBothBuildSteps(t *testing.T) {
 // `timeout-minutes` is NOT honored on a `uses:` job — it only works inside the reusable. Applying it
 // to publish.yml's gate jobs would be silently inert, so those are skipped rather than "fixed".
 func TestEveryNonReusableJobHasATimeout(t *testing.T) {
-	files, err := filepath.Glob("../../.github/workflows/*.yml")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("globbing workflows: %v (%d files)", err, len(files))
-	}
+	files := workflowFiles(t)
 
 	for _, f := range files {
 		b, err := os.ReadFile(filepath.Clean(f))
@@ -205,19 +204,40 @@ func TestProvenanceArgsCoerceEmptyToSentinels(t *testing.T) {
 // Both halves are needed: dropping only the input would let someone re-add it later against a
 // missing file, and creating only the file would leave an allowlist nobody asked for.
 func TestTrivyIgnoreFileInputMatchesReality(t *testing.T) {
-	body := readWF(t, "build-publish.yml")
-
-	re := regexp.MustCompile(`(?m)^\s*trivyignores:\s*(\S+)\s*$`)
-	m := re.FindStringSubmatch(body)
-	if m == nil {
-		return // no allowlist declared — nothing to point at, nothing to break
+	// PARSEIA, nao grepa. O plano deste milestone proibe explicitamente a forma grep
+	// ("a grep passes on a commented-out line") e este arquivo ja importa o parser. A regex
+	// anterior ainda exigia o valor na MESMA linha: um `trivyignores:` escrito em bloco YAML
+	// passaria como "nao declarado" — veredito vazio com um ignorefile de fato configurado,
+	// que e precisamente o modo de falha silenciosa que este teste existe para impedir.
+	var wf struct {
+		Jobs map[string]struct {
+			Steps []struct {
+				Uses string         `yaml:"uses"`
+				With map[string]any `yaml:"with"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(readWF(t, "build-publish.yml")), &wf); err != nil {
+		t.Fatalf("build-publish.yml: %v", err)
 	}
 
-	named := m[1]
-	if _, err := os.Stat(filepath.Join("../..", named)); err != nil {
-		t.Fatalf("build-publish.yml declares `trivyignores: %s` but that file does not exist: %v\n"+
-			"trivy exits 1 before scanning anything, so the gate reports a vulnerability failure "+
-			"for a scan that never ran", named, err)
+	for job, j := range wf.Jobs {
+		for i, st := range j.Steps {
+			raw, ok := st.With["trivyignores"]
+			if !ok {
+				continue // chave ausente do mapa parseado: nada apontado, nada a quebrar
+			}
+			named := strings.TrimSpace(fmt.Sprintf("%v", raw))
+			if named == "" {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join("../..", named)); err != nil {
+				t.Fatalf("jobs.%s.steps[%d] declara `trivyignores: %s`, que nao existe: %v\n"+
+					"o trivy sai 1 em ~17ms com `cannot find ignorefile` — o scan NAO RODA, e o "+
+					"gate reporta falha de vulnerabilidade para uma varredura que nunca houve",
+					job, i, named, err)
+			}
+		}
 	}
 }
 
@@ -278,10 +298,7 @@ func TestExternalActionsArePinnedBySHA(t *testing.T) {
 	sha40 := regexp.MustCompile(`^[0-9a-f]{40}$`)
 	uses := regexp.MustCompile(`uses:\s*([^\s#]+)`)
 
-	files, err := filepath.Glob("../../.github/workflows/*.yml")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("nenhum workflow encontrado: %v", err)
-	}
+	files := workflowFiles(t)
 
 	for _, f := range files {
 		body, err := os.ReadFile(f)
@@ -310,6 +327,324 @@ func TestExternalActionsArePinnedBySHA(t *testing.T) {
 					"hex (mantenha a tag no comentario ao lado para legibilidade)",
 					filepath.Base(f), i+1, ref)
 			}
+		}
+	}
+}
+
+// workflowFiles — o GitHub executa `.yml` E `.yaml`. Globar so uma extensao faz um workflow
+// futuro nascer FORA de todo gate deste pacote, em silencio: o teste segue verde porque nunca
+// olhou o arquivo. Hoje os 8 sao `.yml`; o invariante nao pode depender disso.
+func workflowFiles(t *testing.T) []string {
+	t.Helper()
+	var out []string
+	for _, pat := range []string{"../../.github/workflows/*.yml", "../../.github/workflows/*.yaml"} {
+		m, err := filepath.Glob(pat)
+		if err != nil {
+			t.Fatalf("glob %s: %v", pat, err)
+		}
+		out = append(out, m...)
+	}
+	if len(out) == 0 {
+		t.Fatal("nenhum workflow encontrado")
+	}
+	return out
+}
+
+// TestGateAndImagesShareOneCondition — o `if:` que decide se os gates rodam esta copiado
+// LITERALMENTE em quatro jobs. Se um deles divergir, `images` roda com um gate `skipped` e a
+// imagem sai sem passar por ele: exatamente o que a auditoria de 2026-07-30 mediu 12 vezes.
+//
+// A direcao da falha hoje e fail-closed (sem `always()`, o `success()` implicito do `needs`
+// vale), mas isso e propriedade da forma ATUAL. O que este teste trava e a forma: uma unica
+// condicao, e `images` dependendo dos tres gates. `internal/ci` ja trava pin por SHA, timeout,
+// ignorefile e camada de upgrade — nao travava justamente o mecanismo do gate.
+func TestGateAndImagesShareOneCondition(t *testing.T) {
+	var wf struct {
+		Jobs map[string]struct {
+			If string `yaml:"if"`
+			// `needs:` aceita escalar OU lista em YAML, e este workflow usa as duas formas
+			// (`needs: plan` nos gates, `needs: [plan, gate-ci, ...]` em images). Tipar como
+			// []string quebra o parse — foi o que este teste encontrou na primeira execucao.
+			Needs any `yaml:"needs"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(readWF(t, "publish.yml")), &wf); err != nil {
+		t.Fatalf("publish.yml: %v", err)
+	}
+
+	gates := []string{"gate-ci", "gate-quality", "gate-sast"}
+	want := strings.TrimSpace(wf.Jobs["images"].If)
+	if want == "" {
+		t.Fatal("jobs.images nao declara `if:` — o filtro de caminhos deixou de gatear a publicacao")
+	}
+	for _, g := range append(gates, "images") {
+		if got := strings.TrimSpace(wf.Jobs[g].If); got != want {
+			t.Errorf("jobs.%s tem `if:` diferente de jobs.images:\n  %s\n  %s\n"+
+				"condicoes divergentes fazem um gate ser pulado enquanto `images` roda — "+
+				"a imagem sai sem aquele gate", g, got, want)
+		}
+	}
+
+	for _, g := range gates {
+		if !slices.Contains(needsOf(wf.Jobs["images"].Needs), g) {
+			t.Errorf("jobs.images.needs nao contem %q (tem %v). `needs` aborta o job ANTES de ele "+
+				"comecar: sem ele nenhuma credencial de registry e adquirida e nao ha push parcial "+
+				"a desfazer — sem `needs`, a imagem sai com o gate vermelho", g, wf.Jobs["images"].Needs)
+		}
+	}
+}
+
+// needsOf normaliza as duas formas que o YAML aceita para `needs:` — escalar e sequencia.
+func needsOf(v any) []string {
+	switch t := v.(type) {
+	case string:
+		return []string{t}
+	case []any:
+		out := make([]string, 0, len(t))
+		for _, e := range t {
+			out = append(out, fmt.Sprintf("%v", e))
+		}
+		return out
+	}
+	return nil
+}
+
+// T6.b — a chave de `concurrency` do publish fica presa ao REF, e nunca ao commit.
+//
+// A DECISAO e do ADR 0004 (ACCEPTED, 2026-07-30), § D2 — este teste apenas a trava. Dois motivos,
+// nenhum deles obvio lendo so o texto do DoD:
+//
+//  1. O sintoma que o DoD nomeia (run duplicado) ja foi fechado por OUTRO mecanismo: o M22 removeu
+//     o gatilho `push:` de ci.yml e quality.yml, que passaram a ser invocados por `workflow_call`.
+//     O run deixa de EXISTIR em vez de ser iniciado e cancelado — mais barato, porque um run
+//     cancelado ainda paga fila e setup. Confirmado em 2026-07-31: os dois declaram apenas
+//     `workflow_call` + `pull_request`, e todo duplicado no historico e de 23-29/07, ANTERIOR a
+//     cirurgia.
+//  2. `github.sha` e IDENTICO entre o push de uma tag e o commit de develop que ela aponta. Uma
+//     chave por SHA faria o run de tag cancelar o de develop (ou vice-versa), perdendo um dos dois
+//     artefatos.
+//
+// E o publish empurra a tag MUTAVEL `:develop`: serializar por ref e o que impede dois commits de
+// disputarem o mesmo nome, com o host podendo convergir para o mais antigo — a mentira sobre "o que
+// esta rodando" que o M22 existe para eliminar.
+func TestPublishConcurrencyStaysKeyedByRefNotCommit(t *testing.T) {
+	var wf struct {
+		Concurrency struct {
+			Group             string `yaml:"group"`
+			CancelInProgress  string `yaml:"cancel-in-progress"`
+		} `yaml:"concurrency"`
+	}
+	if err := yaml.Unmarshal([]byte(readWF(t, "publish.yml")), &wf); err != nil {
+		t.Fatalf("publish.yml não parseia: %v", err)
+	}
+	group := wf.Concurrency.Group
+	if group == "" {
+		t.Fatal("publish.yml perdeu o bloco `concurrency`: sem ele dois pushes publicam :develop " +
+			"em paralelo e o commit mais antigo pode vencer a corrida pela tag mutável")
+	}
+	if isBadConcurrencyGroup(group) {
+		t.Errorf("concurrency.group = %q reprovado por isBadConcurrencyGroup", group)
+	}
+	if !strings.Contains(group, "github.ref") {
+		t.Errorf("concurrency.group = %q; precisa conter `github.ref` para serializar por branch — "+
+			"é o que impede dois commits de disputarem a tag mutável :develop", group)
+	}
+	if strings.Contains(group, "github.sha") {
+		t.Errorf("concurrency.group = %q contém `github.sha`: chavear por commit permite que dois "+
+			"commits publiquem :develop concorrentemente, e o host pode convergir para o mais "+
+			"antigo. Ver o cabeçalho deste teste para a medição que motivou a decisão.", group)
+	}
+}
+
+// A asserção acima só vale se ela REPROVA a configuração ruim. Este teste exercita o mesmo
+// predicado contra entradas sintéticas — a prova de que o guard morde, e não apenas passa.
+func TestConcurrencyGuardRejectsCommitKeyedGroups(t *testing.T) {
+	cases := []struct {
+		name  string
+		group string
+		bad   bool
+	}{
+		{"por ref (atual, correto)", "artifacts-${{ github.ref }}", false},
+		{"por commit", "artifacts-${{ github.sha }}", true},
+		{"ref + commit — ainda permite corrida entre commits", "artifacts-${{ github.ref }}-${{ github.sha }}", true},
+		{"vazio", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if bad := isBadConcurrencyGroup(c.group); bad != c.bad {
+				t.Errorf("group %q: guard disse bad=%v, esperado %v", c.group, bad, c.bad)
+			}
+		})
+	}
+}
+
+// T3.2 — a coluna Version do painel precisa IDENTIFICAR o build, não só nomear o canal.
+//
+// MEDIDO em 2026-07-31 na página /status implantada: nove serviços mostram `develop-<sha>` e o
+// theo-cloud mostra `develop`. Num milestone chamado "diz a verdade sobre si mesmo", a linha dele
+// era a única do painel que não respondia "qual build está rodando" — o operador via o canal e
+// tinha de ir ao registry para descobrir o commit.
+//
+// A causa é `version_label: ${{ github.ref_name }}`: em `develop` isso é literalmente "develop".
+// Para tag, `ref_name` JÁ é a versão correta (`v1.2.3`) e não deve ganhar sufixo — então o label
+// é composto no job `plan`, que é o dono das decisões de canal, e não no ponto de uso.
+func TestVersionLabelIdentifiesTheBuildOnTheDevelopChannel(t *testing.T) {
+	raw := readWF(t, "publish.yml")
+
+	var wf struct {
+		Jobs map[string]struct {
+			Outputs map[string]string `yaml:"outputs"`
+			Steps   []map[string]any  `yaml:"steps"`
+			With    map[string]any    `yaml:"with"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(raw), &wf); err != nil {
+		t.Fatalf("publish.yml nao parseia: %v", err)
+	}
+
+	plan, ok := wf.Jobs["plan"]
+	if !ok {
+		t.Fatal("publish.yml perdeu o job `plan`")
+	}
+	if _, ok := plan.Outputs["version_label"]; !ok {
+		t.Error("o job `plan` nao expoe o output `version_label`")
+	}
+	images, ok := wf.Jobs["images"]
+	if !ok {
+		t.Fatal("publish.yml perdeu o job `images`")
+	}
+	got, _ := images.With["version_label"].(string)
+	if !strings.Contains(got, "needs.plan.outputs.version_label") {
+		t.Errorf("images.with.version_label = %q; esperado consumir needs.plan.outputs.version_label", got)
+	}
+}
+
+// A asserção estrutural acima nao prova a CORRECAO: ela passaria com o composer revertido para
+// `version_label=${GITHUB_REF_NAME}` nu — o bug original. Este teste EXECUTA o script do passo
+// `set` com env sinteticas e afirma o valor emitido, nos dois canais.
+func TestVersionLabelComposerEmitsTheRightValuePerChannel(t *testing.T) {
+	script := extractSetStepScript(t, readWF(t, "publish.yml"))
+
+	cases := []struct {
+		name    string
+		isTag   string
+		refName string
+		sha     string
+		want    string
+	}{
+		{"develop carrega o commit curto", "false", "develop", "789c96525f8b4b6799a1cf36a708c809946cd173", "develop-789c965"},
+		{"tag e a versao, sem sufixo", "true", "v1.2.3", "789c96525f8b4b6799a1cf36a708c809946cd173", "v1.2.3"},
+		{"branch com barra preserva o nome", "false", "feat/x", "abcdef1234567890abcdef1234567890abcdef12", "feat/x-abcdef1"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := runComposer(t, script, c.isTag, c.refName, c.sha)
+			if got != c.want {
+				t.Errorf("version_label = %q; esperado %q", got, c.want)
+			}
+		})
+	}
+}
+
+// extractSetStepScript devolve o `run:` do passo `id: set` do job `plan`.
+func extractSetStepScript(t *testing.T, raw string) string {
+	t.Helper()
+	var wf struct {
+		Jobs map[string]struct {
+			Steps []map[string]any `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(raw), &wf); err != nil {
+		t.Fatalf("publish.yml nao parseia: %v", err)
+	}
+	for _, st := range wf.Jobs["plan"].Steps {
+		if id, _ := st["id"].(string); id == "set" {
+			run, _ := st["run"].(string)
+			if run == "" {
+				t.Fatal("o passo `set` do job plan nao tem `run`")
+			}
+			return run
+		}
+	}
+	t.Fatal("nao achei o passo `id: set` no job plan")
+	return ""
+}
+
+// runComposer roda o script com um GITHUB_OUTPUT temporario e devolve o version_label emitido.
+// O script pode falhar depois (o ramo nao-tag chama jq); o label ja foi escrito antes disso, e o
+// que importa e o valor emitido, nao o exit code do resto do passo.
+func runComposer(t *testing.T, script, isTag, refName, sha string) string {
+	t.Helper()
+	out := filepath.Join(t.TempDir(), "gh_output")
+	if err := os.WriteFile(out, nil, 0o600); err != nil {
+		t.Fatalf("temp GITHUB_OUTPUT: %v", err)
+	}
+	cmd := exec.Command("bash", "-c", script)
+	cmd.Env = append(os.Environ(),
+		"GITHUB_OUTPUT="+out,
+		"GITHUB_REF_NAME="+refName,
+		"GITHUB_SHA="+sha,
+		"IS_TAG="+isTag,
+		"IS_DISPATCH=false",
+		"CHANGES=[]",
+	)
+	_ = cmd.Run() // exit code irrelevante: ver doc acima
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("lendo GITHUB_OUTPUT: %v", err)
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if v, ok := strings.CutPrefix(line, "version_label="); ok {
+			return v
+		}
+	}
+	t.Fatalf("o composer nao emitiu version_label; GITHUB_OUTPUT=%q", string(b))
+	return ""
+}
+
+// isBadConcurrencyGroup e o predicado UNICO consumido pelos dois testes de concurrency. Antes a
+// expressao vivia colada nos dois, entao o "guard sintetico" provava apenas que uma copia
+// concordava com a outra — e uma deriva em so um dos lados passaria despercebida.
+func isBadConcurrencyGroup(group string) bool {
+	return group == "" ||
+		!strings.Contains(group, "github.ref") ||
+		strings.Contains(group, "github.sha")
+}
+
+// T1.2 — o `if:` do job `images` nao pode conter funcao de status.
+//
+// MEDIDO no run 30576821713 deste repositorio: `gate-quality / dashboard` = failure e `images` =
+// skipped. O `needs:` GATEIA de fato, apesar de o job declarar `if:` proprio — o GitHub aplica o
+// `success()` implicito justamente porque a condicao NAO usa `always()`, `failure()` nem
+// `cancelled()`. Um review de 2026-07-31 levantou este ponto como BLOCKER; a evidencia do run
+// refutou a hipotese.
+//
+// O que a evidencia NAO garante e o futuro: acrescentar `always()` aquele `if:` desliga o
+// `success()` implicito e reabre exatamente o buraco que o M22 fechou — a imagem sairia com gate
+// vermelho, em silencio, e nenhum outro teste notaria. Este guard existe por isso.
+func TestImagesJobIfDoesNotDisableTheImplicitSuccessGate(t *testing.T) {
+	var wf struct {
+		Jobs map[string]struct {
+			If    string `yaml:"if"`
+			Needs any    `yaml:"needs"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(readWF(t, "publish.yml")), &wf); err != nil {
+		t.Fatalf("publish.yml nao parseia: %v", err)
+	}
+	images, ok := wf.Jobs["images"]
+	if !ok {
+		t.Fatal("publish.yml perdeu o job `images`")
+	}
+	for _, fn := range []string{"always(", "failure(", "cancelled("} {
+		if strings.Contains(strings.ReplaceAll(images.If, " ", ""), fn) {
+			t.Errorf("images.if = %q contem %s — isso DESLIGA o success() implicito do `needs:` e "+
+				"a imagem passa a sair mesmo com gate vermelho (o defeito que o M22 fechou)", images.If, fn)
+		}
+	}
+	for _, g := range []string{"gate-ci", "gate-quality", "gate-sast"} {
+		if !slices.Contains(needsOf(images.Needs), g) {
+			t.Errorf("images.needs = %v; falta %q", needsOf(images.Needs), g)
 		}
 	}
 }

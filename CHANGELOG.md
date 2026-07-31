@@ -2,11 +2,29 @@
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.72.0] - 2026-07-31
+
+### Added
+
 - O **`theo-cloud` aparece na própria página `/status`**, ao lado dos serviços de data-plane, com as quatro colunas que já existiam (`Service · State · Version · Built`). A linha vem de metadados de build in-process — nunca de uma chamada HTTP do serviço para si mesmo, que reportaria apenas a própria vivacidade (#roadmap-m22)
 - **`GET /v1/version`**, auth-exempt, reportando os cinco campos do contrato (`name`, `version`, `git_sha`, `built_at`, `node`). Até agora o `theo-cloud` consumia esse endpoint de todos os serviços irmãos e não servia nenhum — a rota devolvia 404 literal, medido 6/6 contra o edge de public-dev, enquanto o reconciliador do host sondava outro endpoint e lia o 401 dele como "a rota existe" (#roadmap-m22)
 - Roadmap amended: added M22 "theo-cloud diz a verdade sobre si mesmo (entrega confiável + presença no painel)" via `/roadmap-feature theo-cloud-delivery-truth` — fecha o caminho de entrega atrás dos gates de teste, faz o `/v1/version` reportar o commit em execução e coloca o `theo-cloud` na página `/status` ao lado dos demais serviços (#roadmap-m22)
+- Roadmap amended: added M23 "A camada de confiança fica visível no dashboard (leitura)" e M24 "Operar guardrails pelo dashboard (validators + auditoria de enforcement)" via `/roadmap-feature theo-cloud-trust-dashboard` — a capacidade `trust` está implantada e verificada pela borda pública, mas não tem uma única tela: o sinal que ela produz só é observável por `curl`. M23 entrega o caminho de leitura (visão geral + violações) e M24 o de gestão (registro de validators com teste antes de salvar + auditoria de enforcement), cada um funcional ponta a ponta por exigência do operador (#roadmap-m23, #roadmap-m24)
 
 ### Changed
+
+- A coluna **Version** do `theo-cloud` na página `/status` passa a identificar o build (`develop-<commit>`), como já faziam os outros nove serviços. Ele era o único do painel a mostrar apenas o nome do canal — num serviço cujo trabalho é dizer a verdade sobre o que está rodando, a linha dele era a que menos dizia, e o operador precisava ir ao registry para descobrir o commit. Em release a versão continua sendo a tag, sem sufixo (#roadmap-m22)
+- A chave de `concurrency` do publish fica presa ao ref, agora travada por teste. A prescrição original do milestone pedia chavear por commit; medido contra a API do GitHub, o publish não tem run duplicado algum (0 em 60 commits) e os duplicados dos gates são pares push+pull_request do mesmo commit — comportamento normal, não desperdício. Chavear por commit cancelaria um dos dois e, no publish, deixaria dois commits disputando a mesma tag móvel, podendo deixar no ar o mais antigo (#roadmap-m22)
 
 - A lógica do clique OIDC pendente saiu de `login.tsx` para o hook `usePendingOIDC`. A página estava em 525 linhas contra um orçamento de 500 que existe justamente para impedir que ela volte a inchar; subir o teto teria removido o guarda em vez de honrá-lo. A extração também tornou a lógica testável — ela cobre agora o caso em que um refresh de flow posterior não pode re-disparar um provider velho e jogar o usuário num redirect que ele não pediu (theo#140)
 - Os testes de forma de workflow usam `go.yaml.in/yaml/v3`, que já estava no grafo do módulo, em vez de introduzir `gopkg.in/yaml.v3` como requisito direto — cujo upstream está arquivado. É promoção de indirect para direct, não adição: nenhuma aresta nova de supply-chain entra no build, e em nenhum dos casos o parser é linkado no binário publicado (#roadmap-m22)
@@ -15,10 +33,6 @@
 - O input `attest` foi separado de `sign` no reusable de build: assinar é barato e local ao run, enquanto SBOM + provenance `mode=max` é o export pesado. Conflacionar os dois obrigava a escolher entre não assinar produção e pagar o export em todo push (#roadmap-m22)
 - **Nenhuma imagem sai mais com um gate de teste vermelho.** O job `images` do `publish.yml` passou a depender de `ci`, `quality` e `security-sast`, invocados por `workflow_call`. Medido na janela da auditoria: 12 commits publicaram imagem com gate vermelho (17 pushes no total); `3daf3663` subiu duas imagens com os três gates falhando (#roadmap-m22)
 - `ci.yml` e `quality.yml` deixaram de disparar em `push` e passaram a ser invocados como gate. Medido em 2026-07-30 (theo-memory, runs `30522117234`/`30522853797`): um callee de `workflow_call` **não** herda o `concurrency` do chamador — mantém o próprio, avaliado no contexto do chamador —, então um run avulso e a chamada gateada colidiam e um cancelava o outro. O `security-sast.yml` manteve o `push:` de propósito: o gitleaks precisa ver todo commit, inclusive merges só de documentação (#roadmap-m22)
-
-### Deprecated
-
-### Removed
 
 ### Fixed
 
