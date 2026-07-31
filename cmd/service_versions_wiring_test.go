@@ -110,24 +110,37 @@ func TestServiceVersions_RouteSet(t *testing.T) {
 // believes is being watched — the absence is exactly what the panel must show.
 func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 	targets := serviceVersionTargets(config.Config{
-		ThemoryBaseURL: "http://theo-memory:8080",
-		RagBaseURL:     "http://theo-rag:8787",
-		LensBaseURL:    "http://theo-lens:18082",
-		StorageBaseURL: "http://host.docker.internal:18086",
-		SkillsBaseURL:  "http://host.docker.internal:18087",
+		ThemoryBaseURL:  "http://theo-memory:8080",
+		RagBaseURL:      "http://theo-rag:8787",
+		LensBaseURL:     "http://theo-lens:18082",
+		StorageBaseURL:  "http://host.docker.internal:18086",
+		SkillsBaseURL:   "http://host.docker.internal:18087",
+		PromptlyBaseURL: "http://theo-promptly:18085",
+		TrustBaseURL:    "http://theo-trust:18088",
+		EngineAPIURL:    "http://theo-api.theo-system:8080",
 	})
 
 	got := map[string]string{}
 	for _, tg := range targets {
 		got[tg.Name] = tg.BaseURL
 	}
-	for _, name := range []string{"theo-memory", "theo-rag", "theo-lens", "theo-storage", "theo-skills"} {
+	// theo-promptly e theo-trust JA' existiam na config e estavam fora desta lista.
+	// A omissao contradizia o invariante declarado logo abaixo (e no comentario de
+	// serviceVersionTargets): um servico ausente esconde que ele existe e nao subiu.
+	//
+	// theo-api e' o engine. Entrou quando passou a falar o contrato da frota
+	// (`GET /v1/version` -> {version, built_at}); antes divergia em path e em nome
+	// de campo, e por isso nao havia como sonda-lo com o mesmo coletor.
+	for _, name := range []string{
+		"theo-memory", "theo-rag", "theo-lens", "theo-storage", "theo-skills",
+		"theo-promptly", "theo-trust", "theo-api",
+	} {
 		if _, ok := got[name]; !ok {
 			t.Fatalf("%s missing from the probed fleet; got %+v", name, got)
 		}
 	}
-	if len(targets) != 5 {
-		t.Fatalf("got %d targets, want 5", len(targets))
+	if len(targets) != 8 {
+		t.Fatalf("got %d targets, want 8", len(targets))
 	}
 	// Every target's URL must FLOW FROM CONFIG. This assertion replaced one that
 	// pinned theo-storage to the empty string: that was true while the service had no
@@ -142,10 +155,13 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 	// just the same — and the gate of the day only checked that the variable was set,
 	// not with what.
 	for name, want := range map[string]string{
-		"theo-memory":  "http://theo-memory:8080",
-		"theo-rag":     "http://theo-rag:8787",
-		"theo-lens":    "http://theo-lens:18082",
-		"theo-storage": "http://host.docker.internal:18086",
+		"theo-memory":   "http://theo-memory:8080",
+		"theo-rag":      "http://theo-rag:8787",
+		"theo-lens":     "http://theo-lens:18082",
+		"theo-storage":  "http://host.docker.internal:18086",
+		"theo-promptly": "http://theo-promptly:18085",
+		"theo-trust":    "http://theo-trust:18088",
+		"theo-api":      "http://theo-api.theo-system:8080",
 	} {
 		if got[name] != want {
 			t.Fatalf("%s BaseURL = %q, want %q (the URL must come from config, port included)", name, got[name], want)
@@ -159,8 +175,8 @@ func TestServiceVersionTargets_CoverTheFleet(t *testing.T) {
 func TestServiceVersionTargets_UnconfiguredServiceIsListedNotDropped(t *testing.T) {
 	targets := serviceVersionTargets(config.Config{}) // nada configurado
 
-	if len(targets) != 5 {
-		t.Fatalf("got %d targets with an empty config, want all 5 still listed", len(targets))
+	if len(targets) != 8 {
+		t.Fatalf("got %d targets with an empty config, want all 8 still listed", len(targets))
 	}
 	for _, tg := range targets {
 		if tg.BaseURL != "" {

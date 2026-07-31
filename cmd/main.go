@@ -173,6 +173,21 @@ func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 		{Name: "theo-lens", BaseURL: cfg.LensBaseURL},
 		{Name: "theo-storage", BaseURL: cfg.StorageBaseURL},
 		{Name: "theo-skills", BaseURL: cfg.SkillsBaseURL},
+		// theo-promptly e theo-trust JA' viviam na config e ficavam FORA desta
+		// lista. Era a mesma omissao que o paragrafo acima condena: um servico
+		// ausente do painel nao parece ausente — parece inexistente, e quem conta
+		// as linhas conclui que a frota esta' completa.
+		{Name: "theo-promptly", BaseURL: cfg.PromptlyBaseURL},
+		{Name: "theo-trust", BaseURL: cfg.TrustBaseURL},
+		// O engine. So' pode ser sondado desde que passou a falar o contrato da
+		// frota (`GET /v1/version` -> {version, built_at}): antes servia
+		// `/api/v1/version` com `build_date`, divergindo em path E em campo, e o
+		// coletor nao tem como negociar formato por alvo.
+		//
+		// Reusa EngineAPIURL, a MESMA URL pela qual este gateway ja' faz proxy do
+		// engine. Uma variavel propria poderia divergir dela e o painel passaria a
+		// reportar sobre um endereco que ninguem mais usa.
+		{Name: "theo-api", BaseURL: cfg.EngineAPIURL},
 	}
 }
 
