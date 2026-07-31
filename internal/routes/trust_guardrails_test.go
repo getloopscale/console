@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/usetheodev/theo-cloud/internal/trust"
 )
 
 type stubTrustWriter struct {
@@ -156,5 +158,75 @@ func TestOversizedSpecIsRejectedBeforeUpstream(t *testing.T) {
 	}
 	if w.created != 0 {
 		t.Errorf("o corpo gigante chegou ao upstream (%d chamada[s])", w.created)
+	}
+}
+
+// --- Review do M24: o codigo tipado do servico precisa CHEGAR ao operador -------------------
+//
+// Ate o review, `mutate` colapsava QUALQUER erro num 502 com frase propria — enquanto o
+// comentario da funcao afirmava o contrario. O efeito: `INVALID_SPEC` ("seu termo esta vazio")
+// virava "a camada de confianca recusou a operacao", e o operador tentava de novo identico.
+// Os testes abaixo sao os que teriam pego isso.
+
+func TestClientRefusalTravelsWithStatusAndBody(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"spec invalida", http.StatusUnprocessableEntity, `{"code":"INVALID_SPEC","message":"terms must not be empty"}`},
+		{"nome reservado", http.StatusUnprocessableEntity, `{"code":"VALIDATOR_NAME_RESERVED","message":"name \"pii\" is reserved"}`},
+		{"nome ja existe", http.StatusConflict, `{"code":"CONFLICT","message":"a validator with this name already exists"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &stubTrustWriter{err: &trust.UpstreamError{
+				Status: tc.status, Body: json.RawMessage(tc.body), Method: http.MethodPost, Path: "/v1/validators",
+			}}
+			rec := httptest.NewRecorder()
+			mountGuardrails(t, w, true).ServeHTTP(rec, httptest.NewRequest(
+				http.MethodPost, "/v1/dashboard/trust/guardrails/", strings.NewReader(`{"name":"x"}`)))
+
+			if rec.Code != tc.status {
+				t.Errorf("status = %d, quero %d (o do upstream)", rec.Code, tc.status)
+			}
+			if rec.Body.String() != tc.body {
+				t.Errorf("corpo = %s, quero o do upstream intacto: %s", rec.Body.String(), tc.body)
+			}
+		})
+	}
+}
+
+// 5xx do upstream NAO atravessa: o corpo ali fala de topologia interna, e o operador nao tem o
+// que fazer com isso. A distincao entre "voce escreveu algo invalido" e "nosso lado falhou" e o
+// ponto todo — colapsar as duas foi o defeito original, e inverte-lo seria o defeito espelhado.
+func TestUpstreamServerErrorDoesNotLeakInternals(t *testing.T) {
+	w := &stubTrustWriter{err: &trust.UpstreamError{
+		Status: http.StatusInternalServerError,
+		Body:   json.RawMessage(`{"code":"DB_DOWN","message":"pgbouncer at 10.0.3.7:6432 refused"}`),
+	}}
+	rec := httptest.NewRecorder()
+	mountGuardrails(t, w, true).ServeHTTP(rec, httptest.NewRequest(
+		http.MethodPost, "/v1/dashboard/trust/guardrails/", strings.NewReader(`{"name":"x"}`)))
+
+	if rec.Code != http.StatusBadGateway {
+		t.Errorf("status = %d, quero 502", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "pgbouncer") || strings.Contains(rec.Body.String(), "10.0.3.7") {
+		t.Errorf("vazou topologia interna no corpo: %s", rec.Body.String())
+	}
+}
+
+// Falha de transporte (sem resposta do upstream) tambem nao atravessa — nao ha status a repassar.
+func TestTransportFailureIsNotRenderedAsClientRefusal(t *testing.T) {
+	w := &stubTrustWriter{err: errors.New("dial tcp: connection refused")}
+	rec := httptest.NewRecorder()
+	mountGuardrails(t, w, true).ServeHTTP(rec, httptest.NewRequest(
+		http.MethodDelete, "/v1/dashboard/trust/guardrails/val-1", nil))
+
+	if rec.Code != http.StatusBadGateway {
+		t.Errorf("status = %d, quero 502", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "connection refused") {
+		t.Errorf("vazou detalhe de transporte: %s", rec.Body.String())
 	}
 }

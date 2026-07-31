@@ -65,10 +65,17 @@ export function TrustGuardrailNewPage() {
 
   // O coração da tela: o veredito só vale para a spec que o produziu.
   const verdictIsCurrent = testedSpec !== null && testedSpec === currentSpec;
+  const summary = verdictIsCurrent ? verdictSummary(verdict) : null;
+
   // `busy` NÃO entra aqui de propósito: durante o save o botão precisa continuar renderizado
   // para mostrar progresso (`DESIGN.md § 2.2`). O que ele não pode é ser clicado de novo —
   // e disso cuida o `disabled` abaixo.
-  const canSave = verdictIsCurrent && problems.length === 0;
+  //
+  // `summary` entra porque o DoD pede "mostra o RESULTADO antes de permitir a criação". Se o
+  // serviço devolver uma ação que não sabemos traduzir (um `kind` novo, por exemplo),
+  // `verdictSummary` responde null — e liberar o salvar ali daria ao operador a impressão de
+  // que ele viu um veredito que a tela nunca mostrou. Achado do review do M24.
+  const canSave = verdictIsCurrent && summary !== null && problems.length === 0;
 
   async function onTest() {
     setBusy('testing');
@@ -118,8 +125,6 @@ export function TrustGuardrailNewPage() {
       setBusy('idle');
     }
   }
-
-  const summary = verdictIsCurrent ? verdictSummary(verdict) : null;
 
   return (
     <PageShell

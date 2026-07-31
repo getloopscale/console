@@ -14,6 +14,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/usetheodev/theo-cloud/internal/trust"
 )
 
 // trustWriter e o subconjunto mutante que este handler consome.
@@ -60,8 +62,22 @@ func (h *TrustGuardrailsHandler) mutate(w http.ResponseWriter, r *http.Request, 
 	body, err := call()
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "trust guardrails: "+op+" failed", "error", err, "path", r.URL.Path)
+
+		// Recusa de VALIDACAO (4xx) atravessa com status e corpo do upstream. E o codigo tipado
+		// (`INVALID_SPEC`, `VALIDATOR_NAME_RESERVED`, `CONFLICT`) que diz ao operador O QUE
+		// corrigir; colapsa-lo num 502 generico faz ele tentar de novo identico.
+		//
+		// 5xx e falha de transporte NAO atravessam: ali o corpo fala de topologia interna, e o
+		// operador nao tem o que fazer com isso.
+		if ue, ok := trust.AsUpstreamError(err); ok && ue.IsClientRefusal() {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(ue.Status)
+			_, _ = w.Write(ue.Body)
+			return
+		}
+
 		writeJSON(w, http.StatusBadGateway, map[string]string{
-			"code": "TRUST_UPSTREAM_REJECTED", "message": "a camada de confiança recusou a operação; nada foi alterado"})
+			"code": "TRUST_UPSTREAM_UNAVAILABLE", "message": "a camada de confiança não respondeu; nada foi alterado"})
 		return
 	}
 	if len(body) == 0 {

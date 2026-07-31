@@ -78,8 +78,12 @@ func (c *DataClient) sendRaw(ctx context.Context, method, path string, body json
 		// O corpo carrega o codigo TIPADO do theo-trust (INVALID_SPEC, VALIDATOR_NAME_RESERVED,
 		// CONFLICT). Ele precisa sobreviver ate a tela: sem o motivo, o operador ve "erro" e nao
 		// sabe O QUE corrigir — e tenta de novo igual.
-		return nil, fmt.Errorf("trust data client: %s %s: upstream %d: %s",
-			method, path, resp.StatusCode, truncate(string(out), 300))
+		//
+		// Por isso o erro e ESTRUTURADO e nao uma string formatada. Ate 2026-07-31 esta funcao
+		// embutia status e corpo num `fmt.Errorf`, e o handler — sem ter como le-los de volta —
+		// respondia 502 com uma frase generica. O codigo tipado morria aqui, e a promessa que
+		// este comentario faz era falsa. O review do M24 pegou.
+		return nil, &UpstreamError{Status: resp.StatusCode, Body: json.RawMessage(out), Method: method, Path: path}
 	}
 	return json.RawMessage(out), nil
 }
