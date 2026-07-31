@@ -504,6 +504,7 @@ func main() {
 	// per-tenant trust_live_* key (least-privilege intersection of the consumer's
 	// trust:* scopes with the data scopes) and fails CLOSED — no master fallback.
 	var trustForwardAuthHandler *routes.ForwardAuthHandler
+	var trustDashboardHandler *routes.TrustDashboardHandler
 	if cfg.TrustBaseURL != "" {
 		trustHTTP := &http.Client{Timeout: 10 * time.Second}
 		trustAdmin := trust.NewAdminClient(cfg.TrustBaseURL, cfg.TrustPlatformAdminKey.Value(), trustHTTP)
@@ -526,6 +527,15 @@ func main() {
 			logger,
 		)
 		logger.Info("theo-trust Model B broker wired (L2)", "base_url", cfg.TrustBaseURL)
+
+		// M23 — o BFF de LEITURA do dashboard reusa o MESMO broker, mas com um resolver proprio
+		// que cunha somente `trust:read`. O ForwardAuth acima carrega os tres escopos porque
+		// intermedia o consumidor (que pode legitimamente escrever); o dashboard, no caminho de
+		// leitura, nao pode — e a chave que ele recebe nao deve poder.
+		trustDataClient := trust.NewDataClient(cfg.TrustBaseURL, &http.Client{Timeout: 15 * time.Second}).
+			WithKeyResolver(newTrustDashboardKeyResolver(trustBroker))
+		trustDashboardHandler = routes.NewTrustDashboardHandler(trustDataClient, logger)
+		logger.Info("dashboard trust enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/trust")
 	}
 
 	// M22 (theo-skills Model B): a ForwardAuth handler for the /v1/skills
@@ -1249,6 +1259,11 @@ func main() {
 	// from /v1/lens/* (the edge surface).
 	if lensDashboardHandler != nil {
 		routes.MountLensDashboard(r, lensDashboardHandler, requireJWT)
+	}
+	// M23 — BFF de leitura da capacidade trust. Montado só quando TRUST_BASE_URL está configurado;
+	// sem broker não há cunhagem por tenant, e sem ela a rota não deve existir.
+	if trustDashboardHandler != nil {
+		routes.MountTrustDashboard(r, trustDashboardHandler, requireJWT)
 	}
 	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
 	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even

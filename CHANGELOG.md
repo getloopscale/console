@@ -2,6 +2,8 @@
 
 ### Added
 
+- A capacidade **Trust ganha tela no dashboard**: `/trust` mostra o que a camada de confiança observou nas conversas dos seus agentes (eventos na janela, violações de política, severidade mais alta), e `/trust/violations` lista cada sinal com caminho até a conversa de origem. Até agora esse sinal só era observável por `curl` — o serviço registrava violações que ninguém conseguia ver. Uma falha de leitura aparece como erro explícito, nunca como "nenhuma violação": num painel de segurança os dois significam coisas opostas (#roadmap-m23)
+
 ### Changed
 
 ### Deprecated
