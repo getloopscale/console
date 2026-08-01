@@ -10,11 +10,11 @@ vi.mock('@/lib/auth', () => ({
 
 const mockHasValidToken = vi.fn();
 const mockExchangeSessionToken = vi.fn();
-const mockWasLastExchangeRateLimited = vi.fn();
+const mockSessionDefinitivelyExpired = vi.fn();
 vi.mock('@/lib/api', () => ({
   hasValidToken: () => mockHasValidToken(),
   exchangeSessionToken: () => mockExchangeSessionToken(),
-  wasLastExchangeRateLimited: () => mockWasLastExchangeRateLimited(),
+  sessionDefinitivelyExpired: () => mockSessionDefinitivelyExpired(),
 }));
 
 const mockNavigate = vi.fn();
@@ -37,7 +37,7 @@ describe('useRequireAuth — Red Team theo-cloud#50 LCP closure', () => {
     vi.clearAllMocks();
     mockHasValidToken.mockReturnValue(false);
     mockExchangeSessionToken.mockResolvedValue(true);
-    mockWasLastExchangeRateLimited.mockReturnValue(false);
+    mockSessionDefinitivelyExpired.mockReturnValue(false);
   });
 
   // Red Team theo-cloud#50: the prior behavior awaited TWO sequential
@@ -98,9 +98,9 @@ describe('useRequireAuth — Red Team theo-cloud#50 LCP closure', () => {
       identity: { id: 'u', traits: { email: 'u@x.com' } },
     });
     mockExchangeSessionToken.mockResolvedValue(false);
-    // Explicito: esta e a falha PERMANENTE. O par abaixo cobre a temporaria,
-    // e as duas resolvem `false` — e por isso que so `false` nao decide nada.
-    mockWasLastExchangeRateLimited.mockReturnValue(false);
+    // Cookie velho => o whoami do Kratos nega => o handler responde 401. Este
+    // e o UNICO caso terminal, e o #110 existe justamente por causa dele.
+    mockSessionDefinitivelyExpired.mockReturnValue(true);
     renderHook(() => useRequireAuth(), { wrapper });
 
     await waitFor(() => {
@@ -108,20 +108,19 @@ describe('useRequireAuth — Red Team theo-cloud#50 LCP closure', () => {
     });
   });
 
-  // #324, terceira rodada. As duas correcoes anteriores fecharam os caminhos de
-  // fetch dentro de `lib/api.ts`; o redirect sobreviveu porque nasce AQUI — num
-  // efeito React, depois da pintura do shell, e por `navigate()` do router (nao
-  // `window.location`). Por isso nao exibia "Session expired" e nao recarregava
-  // a pagina: os dois criterios que eu tinha declarado passavam com o defeito
-  // intacto. Sob 429 a sessao Kratos segue VALIDA (medido: expira 15h depois) —
-  // mandar o usuario para /login e falso, e o reload realimenta a cota.
-  it('nao navega para /login quando a troca falhou por rate limit (sessao segue valida)', async () => {
+  // #324, forma final. O contrato DESTE hook e o booleano: falhou a troca e a
+  // sessao NAO acabou => fica onde esta. Quais status significam "nao acabou"
+  // (429 / 500 / 502 / rejeicao de rede) e contrato do `lib/api.ts`, e a
+  // enumeracao vive la, contra respostas HTTP de verdade — enumerar aqui, com
+  // o booleano mockado, seriam quatro copias do mesmo caminho: teatro, nao
+  // cobertura.
+  it('nao navega para /login quando a troca falha sem a sessao ter acabado', async () => {
     mockGetSession.mockResolvedValue({
       active: true,
       identity: { id: 'u', traits: { email: 'u@x.com' } },
     });
     mockExchangeSessionToken.mockResolvedValue(false);
-    mockWasLastExchangeRateLimited.mockReturnValue(true);
+    mockSessionDefinitivelyExpired.mockReturnValue(false);
     const { result } = renderHook(() => useRequireAuth(), { wrapper });
 
     // Espera o shell pintar E a troca diferida resolver — sem isso a assercao
