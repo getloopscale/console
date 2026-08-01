@@ -96,3 +96,57 @@ describe('tenantRowCount', () => {
     expect(tenantRowCount(rows)).toBe(0);
   });
 });
+
+describe('o catalogo diz O QUE cada guardrail faz', () => {
+  // Payload REAL capturado de app-dev em 2026-08-01. O `kind` do tenant nao vive no topo
+  // como o da plataforma — vive dentro de `spec`. Ler so o topo mostrava "—" justamente nas
+  // linhas que o operador criou, e descartava `terms`/`action`, que sao a unica informacao
+  // que responde "esta regra ainda faz sentido?".
+  const REAL = {
+    catalogVersion: 1,
+    validators: [
+      {
+        source: 'platform', name: 'credential-mask', category: 'credential_leak',
+        kind: 'rule', directions: ['input', 'output'],
+      },
+      {
+        source: 'tenant', id: 'aeb69818', name: 'dddd', category: null,
+        spec: { kind: 'ban-list', terms: ['ddd'], action: 'modify', replacement: '[redigido]' },
+        directions: ['input'],
+      },
+      {
+        source: 'tenant', id: '38dabc22', name: 'pub-ban', category: null,
+        spec: { kind: 'ban-list', terms: ['proibido', 'sigiloso'], action: 'block' },
+        directions: ['input'],
+      },
+    ],
+  };
+
+  const rowNamed = (name: string) => catalogRows(REAL).find((r) => r.name === name)!;
+
+  it('le o kind do tenant de dentro de spec', () => {
+    expect(rowNamed('dddd').kind).toBe('ban-list');
+    expect(rowNamed('pub-ban').kind).toBe('ban-list');
+  });
+
+  it('mantem o kind da plataforma, que vive no topo', () => {
+    expect(rowNamed('credential-mask').kind).toBe('rule');
+  });
+
+  it('resume o efeito da regra do tenant — acao e quantos termos', () => {
+    expect(rowNamed('pub-ban').effect).toBe('Bloqueia 2 termos');
+    expect(rowNamed('dddd').effect).toBe('Substitui 1 termo');
+  });
+
+  it('para a plataforma, o efeito e a categoria que ela detecta', () => {
+    // E a MESMA chave que /trust usa para dizer "credential_leak observada 2x, bloqueada" —
+    // sem ela o operador ve a violacao e nao descobre qual guardrail responde por ela.
+    expect(rowNamed('credential-mask').effect).toBe('credential_leak');
+  });
+
+  it('nao inventa efeito quando nao ha dado', () => {
+    const [row] = catalogRows({ validators: [{ source: 'tenant', id: 'x', name: 'vazia' }] });
+    expect(row.effect).toBe('—');
+    expect(row.kind).toBe('—');
+  });
+});

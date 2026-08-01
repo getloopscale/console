@@ -13,12 +13,24 @@
 
 export type GuardrailOrigin = 'platform' | 'tenant';
 
+/** A spec de uma regra do tenant. É aqui que vive o `kind` dela — não no topo da entrada. */
+interface CatalogSpec {
+  readonly kind?: string;
+  readonly terms?: readonly string[];
+  readonly action?: string;
+}
+
 /** Uma linha do catálogo como o serviço a devolve. Campos extras são ignorados de propósito. */
 interface CatalogEntry {
   readonly source?: string;
   readonly id?: string;
   readonly name?: string;
+  /** Presente nas regras de PLATAFORMA. Nas do tenant o equivalente é `spec.kind`. */
   readonly kind?: string;
+  /** O que a regra de plataforma detecta (`credential_leak`, `pii_exposure`, …). */
+  readonly category?: string | null;
+  /** Presente nas regras do TENANT. */
+  readonly spec?: CatalogSpec;
   readonly directions?: readonly string[];
 }
 
@@ -32,6 +44,15 @@ export interface CatalogRow {
   readonly key: string;
   readonly name: string;
   readonly kind: string;
+  /**
+   * O que esta regra faz, em uma frase curta.
+   *
+   * É a coluna que responde "esta guardrail ainda faz sentido?" — sem ela o catálogo lista
+   * nomes que só quem os escolheu entende. Para a plataforma é a **categoria** que ela detecta,
+   * que é a MESMA chave usada em `/trust` ("credential_leak observada 2×, bloqueada"): é o que
+   * liga a violação observada à regra que responde por ela.
+   */
+  readonly effect: string;
   readonly origin: GuardrailOrigin;
   /** Legs em que a regra atua. Vazio quando o serviço não informou. */
   readonly directions: readonly string[];
@@ -45,6 +66,24 @@ export interface CatalogRow {
  * Só é removível o que o tenant criou E que tem id — sem id não há o que remover, e inventar um
  * seria oferecer uma ação que falha no clique.
  */
+/** Texto não-vazio, ou `undefined`. */
+function text(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+/**
+ * Resume o efeito de uma regra do tenant: a ação e quantos termos ela cobre.
+ *
+ * A contagem em vez da lista é deliberada — uma regra com 40 termos estouraria a célula, e o
+ * número é o que o operador compara de relance. Os termos em si pertencem ao detalhe da regra.
+ */
+function tenantEffect(spec: CatalogSpec | undefined): string | undefined {
+  const terms = Array.isArray(spec?.terms) ? spec.terms.length : 0;
+  if (terms === 0) return undefined;
+  const verb = spec?.action === 'modify' ? 'Substitui' : 'Bloqueia';
+  return `${verb} ${terms} ${terms === 1 ? 'termo' : 'termos'}`;
+}
+
 export function catalogRows(payload: CatalogPayload | null | undefined): CatalogRow[] {
   const entries = Array.isArray(payload?.validators) ? payload.validators : [];
 
@@ -56,7 +95,10 @@ export function catalogRows(payload: CatalogPayload | null | undefined): Catalog
     return {
       key: id ?? `${origin}-${name}-${index}`,
       name,
-      kind: typeof entry.kind === 'string' && entry.kind !== '' ? entry.kind : '—',
+      // O `kind` da plataforma vem no topo; o do tenant vive dentro de `spec`. Ler só o topo
+      // mostrava "—" justamente nas linhas que o operador criou.
+      kind: text(entry.kind) ?? text(entry.spec?.kind) ?? '—',
+      effect: text(entry.category ?? undefined) ?? tenantEffect(entry.spec) ?? '—',
       origin,
       directions: Array.isArray(entry.directions)
         ? (entry.directions as readonly unknown[]).filter((d): d is string => typeof d === 'string')

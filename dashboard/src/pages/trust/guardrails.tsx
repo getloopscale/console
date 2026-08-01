@@ -70,6 +70,14 @@ export function TrustGuardrailsPage() {
       render: (row) => <span className="text-muted-foreground">{row.kind}</span>,
     },
     {
+      // Sem esta coluna o catálogo lista nomes que só quem os escolheu entende — e o operador
+      // não tem como decidir se uma regra ainda faz sentido. Na plataforma é a categoria
+      // detectada, a mesma chave que `/trust` usa ("credential_leak observada 2×").
+      key: 'effect',
+      label: 'O que faz',
+      render: (row) => <span className="text-muted-foreground">{row.effect}</span>,
+    },
+    {
       key: 'origin',
       label: 'Origem',
       // Texto, não só cor: a distinção precisa sobreviver a daltonismo e a impressão.
