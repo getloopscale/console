@@ -7,6 +7,7 @@ import {
   toCreateBody,
   toTestBody,
   verdictSummary,
+  draftProblemsByField,
   type GuardrailDraft,
 } from './guardrail-draft';
 
@@ -142,5 +143,32 @@ describe('verdictSummary', () => {
     expect(verdictSummary(undefined)).toBeNull();
     expect(verdictSummary({})).toBeNull();
     expect(verdictSummary({ action: 'algo-que-nao-existe' })).toBeNull();
+  });
+});
+
+describe('draftProblemsByField', () => {
+  it('endereça o problema ao campo que o causou', () => {
+    // Sem isto, a frase aparece no rodapé e o operador adivinha qual campo corrigir.
+    const byField = draftProblemsByField(EMPTY_DRAFT);
+    expect(byField.name).toContain('nome');
+    expect(byField.terms).toContain('termo');
+  });
+
+  it('aponta o nome reservado para o campo de nome', () => {
+    const byField = draftProblemsByField(draft({ name: 'pii', terms: ['x'] }));
+    expect(byField.name).toContain('reservado');
+    expect(byField.terms).toBeUndefined();
+  });
+
+  it('aponta o replacement ausente para o próprio campo', () => {
+    const byField = draftProblemsByField(
+      draft({ name: 'n', terms: ['x'], action: 'modify', replacement: '  ' }),
+    );
+    expect(byField.replacement).toBeDefined();
+    expect(byField.name).toBeUndefined();
+  });
+
+  it('não reporta campo algum num rascunho válido', () => {
+    expect(draftProblemsByField(draft({ name: 'n', terms: ['x'] }))).toEqual({});
   });
 });

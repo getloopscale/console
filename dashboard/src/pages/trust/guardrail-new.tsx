@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Card, PageShell } from '@usetheo/ui';
+import { FlaskConical, ShieldCheck } from 'lucide-react';
+import { Button, Card, FormField, Input, PageShell, Select, Textarea } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -16,6 +17,7 @@ import {
   EMPTY_DRAFT,
   cleanTerms,
   draftProblems,
+  draftProblemsByField,
   toCreateBody,
   toTestBody,
   verdictSummary,
@@ -61,6 +63,7 @@ export function TrustGuardrailNewPage() {
   );
 
   const problems = draftProblems(current);
+  const fieldProblems = draftProblemsByField(current);
   const currentSpec = useMemo(() => JSON.stringify(toCreateBody(current)), [current]);
 
   // O coração da tela: o veredito só vale para a spec que o produziu.
@@ -132,105 +135,122 @@ export function TrustGuardrailNewPage() {
       description="Os termos abaixo passam a ser bloqueados nas conversas deste workspace assim que a regra for salva."
     >
       <Card>
-        <div className="space-y-4">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Nome</span>
-            <input
-              className="w-full rounded border px-3 py-2 text-sm"
-              value={draft.name}
-              aria-label="Nome"
-              onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-            />
-          </label>
+        <div className="space-y-5">
+          <FormField id="guardrail-name" invalid={Boolean(fieldProblems.name)}>
+            <FormField.Label>Nome</FormField.Label>
+            <FormField.Control>
+              <Input
+                aria-label="Nome"
+                size="md"
+                value={draft.name}
+                placeholder="termos-internos"
+                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+              />
+            </FormField.Control>
+            {fieldProblems.name ? <FormField.Error>{fieldProblems.name}</FormField.Error> : null}
+          </FormField>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Termos a bloquear (um por linha)</span>
-            <textarea
-              className="w-full rounded border px-3 py-2 font-mono text-sm"
-              rows={4}
-              value={termsText}
-              aria-label="Termos a bloquear"
-              onChange={(e) => setTermsText(e.target.value)}
-            />
-          </label>
+          <FormField id="guardrail-terms" invalid={Boolean(fieldProblems.terms)}>
+            <FormField.Label>Termos a bloquear</FormField.Label>
+            <FormField.Control>
+              <Textarea
+                aria-label="Termos a bloquear"
+                rows={4}
+                className="font-mono"
+                value={termsText}
+                placeholder={'projeto-fenix\ncodinome-interno'}
+                onChange={(e) => setTermsText(e.target.value)}
+              />
+            </FormField.Control>
+            {fieldProblems.terms ? (
+              <FormField.Error>{fieldProblems.terms}</FormField.Error>
+            ) : (
+              <FormField.Hint>Um termo por linha.</FormField.Hint>
+            )}
+          </FormField>
 
-          <fieldset>
-            <legend className="mb-1 text-sm font-medium">O que fazer ao encontrar</legend>
-            <label className="mr-4 text-sm">
-              <input
-                type="radio"
-                name="action"
-                checked={draft.action === 'block'}
-                onChange={() => setDraft((d) => ({ ...d, action: 'block' }))}
-              />{' '}
-              Bloquear a mensagem
-            </label>
-            <label className="text-sm">
-              <input
-                type="radio"
-                name="action"
-                checked={draft.action === 'modify'}
-                onChange={() => setDraft((d) => ({ ...d, action: 'modify' }))}
-              />{' '}
-              Substituir o termo
-            </label>
-          </fieldset>
+          <FormField id="guardrail-action">
+            <FormField.Label>O que fazer ao encontrar</FormField.Label>
+            <FormField.Control>
+              <Select
+                value={draft.action}
+                onValueChange={(v) => setDraft((d) => ({ ...d, action: v as GuardrailDraft['action'] }))}
+              >
+                <Select.Trigger aria-label="O que fazer ao encontrar">
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="block">Bloquear a mensagem</Select.Item>
+                  <Select.Item value="modify">Substituir o termo</Select.Item>
+                </Select.Content>
+              </Select>
+            </FormField.Control>
+          </FormField>
 
           {draft.action === 'modify' ? (
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Substituir por</span>
-              <input
-                className="w-full rounded border px-3 py-2 text-sm"
-                value={draft.replacement}
-                aria-label="Substituir por"
-                onChange={(e) => setDraft((d) => ({ ...d, replacement: e.target.value }))}
-              />
-            </label>
+            <FormField id="guardrail-replacement" invalid={Boolean(fieldProblems.replacement)}>
+              <FormField.Label>Substituir por</FormField.Label>
+              <FormField.Control>
+                <Input
+                  aria-label="Substituir por"
+                  size="md"
+                  value={draft.replacement}
+                  onChange={(e) => setDraft((d) => ({ ...d, replacement: e.target.value }))}
+                />
+              </FormField.Control>
+              {fieldProblems.replacement ? (
+                <FormField.Error>{fieldProblems.replacement}</FormField.Error>
+              ) : null}
+            </FormField>
           ) : null}
 
-          {problems.length > 0 ? (
-            <ul className="list-inside list-disc text-sm text-muted-foreground">
-              {problems.map((p) => (
-                <li key={p}>{p}</li>
-              ))}
-            </ul>
-          ) : null}
         </div>
       </Card>
 
       <Card>
-        <h2 className="mb-2 text-sm font-medium">Teste antes de salvar</h2>
-        <p className="mb-3 text-sm text-muted-foreground">
-          Escreva uma mensagem de exemplo e veja o que aconteceria com ela. Este passo não altera
-          nada — e é por ele que se chega ao salvar.
-        </p>
-        <textarea
-          className="mb-3 w-full rounded border px-3 py-2 text-sm"
-          rows={2}
-          value={sample}
-          aria-label="Mensagem de exemplo"
-          onChange={(e) => setSample(e.target.value)}
-        />
-        <button
-          type="button"
-          className="rounded border px-3 py-2 text-sm"
-          disabled={problems.length > 0 || busy !== 'idle'}
-          onClick={() => void onTest()}
-        >
-          {busy === 'testing' ? 'Testando…' : 'Testar'}
-        </button>
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-sm font-medium">Teste antes de salvar</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Escreva uma mensagem de exemplo e veja o que aconteceria com ela. Este passo não
+              altera nada — e é por ele que se chega ao salvar.
+            </p>
+          </div>
 
-        {summary ? (
-          <p className="mt-3 rounded bg-muted p-3 text-sm" role="status">
-            {summary}
-          </p>
-        ) : null}
+          <FormField id="guardrail-sample">
+            <FormField.Label>Mensagem de exemplo</FormField.Label>
+            <FormField.Control>
+              <Textarea
+                aria-label="Mensagem de exemplo"
+                rows={2}
+                value={sample}
+                placeholder="uma mensagem que contenha um dos termos acima"
+                onChange={(e) => setSample(e.target.value)}
+              />
+            </FormField.Control>
+          </FormField>
 
-        {testedSpec !== null && !verdictIsCurrent ? (
-          <p className="mt-3 text-sm text-muted-foreground" role="status">
-            A regra mudou depois do teste. Teste de novo para poder salvar.
-          </p>
-        ) : null}
+          <Button
+            variant="secondary"
+            disabled={problems.length > 0 || busy !== 'idle'}
+            onClick={() => void onTest()}
+          >
+            <FlaskConical className="size-4" />
+            {busy === 'testing' ? 'Testando…' : 'Testar'}
+          </Button>
+
+          {summary ? (
+            <div role="status">
+              <Alert intent="info" title={summary} />
+            </div>
+          ) : null}
+
+          {testedSpec !== null && !verdictIsCurrent ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              A regra mudou depois do teste. Teste de novo para poder salvar.
+            </p>
+          ) : null}
+        </div>
       </Card>
 
       {error ? (
@@ -244,18 +264,16 @@ export function TrustGuardrailNewPage() {
       */}
       {canSave ? (
         <Card>
-          <p className="mb-3 text-sm">
-            Ao salvar, {cleanTerms(current.terms).length} termo(s) passam a valer imediatamente nas
-            conversas deste workspace.
-          </p>
-          <button
-            type="button"
-            className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
-            disabled={busy !== 'idle'}
-            onClick={() => void onSave()}
-          >
-            {busy === 'saving' ? 'Salvando…' : 'Salvar e ativar'}
-          </button>
+          <div className="space-y-3">
+            <p className="text-sm">
+              Ao salvar, {cleanTerms(current.terms).length} termo(s) passam a valer imediatamente
+              nas conversas deste workspace.
+            </p>
+            <Button disabled={busy !== 'idle'} onClick={() => void onSave()}>
+              <ShieldCheck className="size-4" />
+              {busy === 'saving' ? 'Salvando…' : 'Salvar e ativar'}
+            </Button>
+          </div>
         </Card>
       ) : null}
     </PageShell>

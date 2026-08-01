@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw } from 'lucide-react';
-import { Card, PageShell, Skeleton } from '@usetheo/ui';
+import { RefreshCw, ShieldCheck } from 'lucide-react';
+import { Badge, Card, EmptyState, PageShell, Skeleton, Table, Timestamp } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -11,6 +11,7 @@ import {
   blockedCount,
   enforcementRows,
   type EnforcementPayload,
+  type EnforcementRow,
 } from '@/components/trust/enforcement-rows';
 
 /**
@@ -28,6 +29,12 @@ import {
 const PAGE_LIMIT = 100;
 
 const QUERY_KEY = ['cloud', '/v1/dashboard/trust/enforcement-events'] as const;
+
+/** A decisão é o dado mais lido da tabela — vai como Badge rotulado, nunca só como cor. */
+function decisionBadge(row: EnforcementRow) {
+  const variant = row.decision === 'block' ? 'destructive' : row.decision === 'modify' ? 'warning' : 'outline';
+  return <Badge variant={variant}>{row.decisionLabel}</Badge>;
+}
 
 export function TrustEnforcementPage() {
   const { setPageTitle } = usePageMeta();
@@ -48,7 +55,7 @@ export function TrustEnforcementPage() {
       title="Enforcement"
       description="Cada linha é uma vez em que a proteção agiu numa conversa deste workspace."
       primaryAction={{
-        label: 'Refresh',
+        label: 'Atualizar',
         icon: RefreshCw,
         onClick: () => void queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
       }}
@@ -64,46 +71,49 @@ export function TrustEnforcementPage() {
       {query.isLoading ? (
         <Skeleton className="h-40" />
       ) : rows.length === 0 ? (
-        <Card>
-          <div className="space-y-2 py-6 text-center">
-            <p className="text-sm font-medium">
-              {failed ? 'Sem dados — a leitura falhou.' : 'Nenhuma ação de enforcement registrada'}
-            </p>
-            {!failed ? (
-              <p className="text-sm text-muted-foreground">
-                Nenhuma mensagem foi bloqueada ou reescrita nas últimas {PAGE_LIMIT} ocorrências.
-              </p>
-            ) : null}
-          </div>
-        </Card>
+        <EmptyState
+          icon={ShieldCheck}
+          title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma ação de enforcement registrada'}
+          description={
+            failed
+              ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que foi barrado.'
+              : `Nenhuma mensagem foi bloqueada ou reescrita nas últimas ${PAGE_LIMIT} ocorrências.`
+          }
+        />
       ) : (
         <Card>
-          <p className="mb-3 text-sm text-muted-foreground">
+          <p className="mb-4 text-sm text-muted-foreground">
             {blockedCount(rows)} bloqueio(s) entre {rows.length} registro(s).
           </p>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="py-2 font-medium">Decisão</th>
-                <th className="py-2 font-medium">Guardrail</th>
-                <th className="py-2 font-medium">Categoria</th>
-                <th className="py-2 font-medium">Trecho (redigido)</th>
-                <th className="py-2 font-medium">Quando</th>
-              </tr>
-            </thead>
-            <tbody>
+
+          <Table>
+            <Table.Header>
+              <Table.Row>
+                <Table.HeaderCell>Decisão</Table.HeaderCell>
+                <Table.HeaderCell>Guardrail</Table.HeaderCell>
+                <Table.HeaderCell>Categoria</Table.HeaderCell>
+                <Table.HeaderCell className="hidden lg:table-cell">Trecho (redigido)</Table.HeaderCell>
+                <Table.HeaderCell align="right">Quando</Table.HeaderCell>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
               {rows.map((row) => (
-                <tr key={row.key} className="border-b last:border-0">
-                  {/* Texto, não só cor: a distinção precisa sobreviver a daltonismo e impressão. */}
-                  <td className="py-2 font-medium">{row.decisionLabel}</td>
-                  <td className="py-2 font-mono">{row.validatorName}</td>
-                  <td className="py-2">{row.category}</td>
-                  <td className="py-2 font-mono text-muted-foreground">{row.redacted}</td>
-                  <td className="py-2 tabular-nums">{row.createdAt}</td>
-                </tr>
+                <Table.Row key={row.key}>
+                  <Table.Cell>{decisionBadge(row)}</Table.Cell>
+                  <Table.Cell className="font-mono">{row.validatorName}</Table.Cell>
+                  <Table.Cell className="text-muted-foreground">{row.category}</Table.Cell>
+                  <Table.Cell className="hidden font-mono text-xs text-muted-foreground lg:table-cell">
+                    {row.redacted}
+                  </Table.Cell>
+                  <Table.Cell align="right" numeric>
+                    {/* Data legível — o ISO cru obriga o operador a converter de cabeça
+                        no momento em que ele está investigando um incidente. */}
+                    {row.createdAt === '—' ? '—' : <Timestamp value={row.createdAt} format="both" />}
+                  </Table.Cell>
+                </Table.Row>
               ))}
-            </tbody>
-          </table>
+            </Table.Body>
+          </Table>
         </Card>
       )}
     </PageShell>

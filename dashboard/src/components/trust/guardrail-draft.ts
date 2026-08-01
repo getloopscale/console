@@ -66,6 +66,29 @@ export function draftProblems(d: GuardrailDraft): string[] {
   return out;
 }
 
+/** Os campos do formulário que podem carregar um problema. */
+export type DraftField = 'name' | 'terms' | 'replacement';
+
+/**
+ * Os mesmos problemas de `draftProblems`, mas endereçados ao campo que os causou.
+ *
+ * Existe porque uma lista solta de frases no rodapé do formulário obriga o operador a adivinhar
+ * qual campo corrigir — e o `DESIGN.md § 6.2` pede o erro junto do campo, associado por
+ * `aria-describedby`. A mensagem é a mesma; o que muda é onde ela aparece.
+ */
+export function draftProblemsByField(d: GuardrailDraft): Partial<Record<DraftField, string>> {
+  const out: Partial<Record<DraftField, string>> = {};
+  for (const problem of draftProblems(d)) {
+    // `substitui` vem ANTES de `termo`: a frase do replacement é "Defina o texto que substitui o
+    // TERMO encontrado" — checar `termo` primeiro a mandaria para o campo errado. O teste que
+    // pegou isso vale mais que a ordem parecer arbitrária, então ela fica documentada.
+    if (problem.includes('nome') || problem.includes('reservado')) out.name ??= problem;
+    else if (problem.includes('substitui')) out.replacement ??= problem;
+    else if (problem.includes('termo')) out.terms ??= problem;
+  }
+  return out;
+}
+
 /** Termos utilizáveis: sem brancos, sem duplicatas, preservando a ordem que o operador digitou. */
 export function cleanTerms(terms: readonly string[]): string[] {
   const seen = new Set<string>();

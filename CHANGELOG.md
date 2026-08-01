@@ -7,6 +7,8 @@
 
 
 ### Changed
+- As telas de guardrails passaram a usar os componentes do design system em vez de HTML solto: a listagem virou tabela do sistema com etiqueta de origem, o formulário ganhou campos rotulados com o erro **junto do campo** que o causou, e as datas da auditoria aparecem legíveis ("31 de jul., 09:00 (ontem)") no lugar do carimbo ISO. A confirmação de remoção passou a ser o mesmo diálogo de `domains` e `previews` — havia uma segunda coreografia destrutiva escrita à mão (#roadmap-m24)
+
 
 ### Deprecated
 

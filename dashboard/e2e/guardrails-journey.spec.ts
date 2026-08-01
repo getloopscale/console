@@ -39,8 +39,9 @@ async function cleanup(page: Page) {
   if ((await row.count()) === 0) return;
 
   await row.getByRole('button', { name: /remover/i }).click();
-  await page.getByLabel('Confirmação').fill(NAME);
-  await page.getByRole('button', { name: /remover guardrail/i }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('textbox').fill(NAME);
+  await dialog.getByRole('button', { name: /remover guardrail/i }).click();
   await expect(page.getByRole('row').filter({ hasText: NAME })).toHaveCount(0);
 }
 
@@ -91,12 +92,14 @@ test.describe('M24 — operar guardrails pelo dashboard', () => {
     await expect(row).toHaveCount(1);
     await expect(row).toContainText('Deste workspace');
 
-    // Remoção exige a frase digitada (DESIGN.md § 2.2).
+    // Remoção exige a frase digitada — agora pelo ConfirmDialog canônico do dashboard,
+    // o mesmo de `domains`/`previews` (DESIGN.md § 2.2).
     await row.getByRole('button', { name: /remover/i }).click();
-    const confirm = page.getByRole('button', { name: /remover guardrail/i });
+    const dialog = page.getByRole('dialog');
+    const confirm = dialog.getByRole('button', { name: /remover guardrail/i });
     await expect(confirm).toBeDisabled();
 
-    await page.getByLabel('Confirmação').fill(NAME);
+    await dialog.getByRole('textbox').fill(NAME);
     await expect(confirm).toBeEnabled();
     await confirm.click();
 
