@@ -9,7 +9,6 @@ import {
   DataTable,
   EmptyState,
   PageShell,
-  Timestamp,
   type DataTableColumn,
 } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
@@ -101,10 +100,14 @@ export function TrustViolationsPage() {
         ) : DASH,
     },
     {
-      key: 'detectedAt',
-      label: 'Detectada em',
-      // Data legível: o ISO cru obriga a converter de cabeça no meio de uma investigação.
-      render: (row) => (row.detectedAt ? <Timestamp value={row.detectedAt} format="both" /> : DASH),
+      // O que foi detectado — já redigido pelo serviço, nunca o conteúdo bruto. É o único campo
+      // que descreve a violação, e ocupa a coluna que `detectedAt` ocuparia: medido em
+      // 2026-08-01, o `/policy-violations` do deploy não devolve `detectedAt`, e uma coluna
+      // permanentemente vazia é ruído que empurra a informação real para fora da tela.
+      key: 'redacted',
+      label: 'Trecho (redigido)',
+      render: (row) =>
+        row.redacted ? <code className="font-mono text-xs">{row.redacted}</code> : DASH,
     },
     {
       key: 'conversation',
