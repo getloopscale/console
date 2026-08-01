@@ -1,8 +1,16 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
-import { Card, PageShell, Skeleton } from '@usetheo/ui';
+import { ArrowRight, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
+import {
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  EmptyState,
+  PageShell,
+  type DataTableColumn,
+} from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -10,6 +18,7 @@ import { fetchTrust } from '@/components/trust/trust-api';
 import {
   coverageGap,
   unenforcedCount,
+  type PolicyCoverage,
   type ViolationsPayload,
   type ValidatorsPayload,
 } from '@/components/trust/trust-series';
@@ -24,6 +33,10 @@ import {
  *
  * Cada linha descoberta é uma decisão, não um item de lista. O caminho de leitura termina numa
  * ação — sem isso a tela é um alarme sem interruptor.
+ *
+ * A frase de julgamento é o `Card.Title`, e não um `<p>` solto: ela É o título daquele cartão —
+ * o veredito que o resto detalha. As linhas usam `DataTable`, o mesmo componente de `api-keys` e
+ * do catálogo de guardrails, em vez de uma `<ul>` montada à mão.
  *
  * 5Q-3s do `DESIGN.md`:
  *   Onde estou?          título "Trust"
@@ -63,11 +76,56 @@ export function TrustOverviewPage() {
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/trust/validators'] });
   };
 
+  const columns: DataTableColumn<PolicyCoverage>[] = [
+    {
+      key: 'policy',
+      label: 'Política',
+      render: (row) => <span className="font-mono font-medium">{row.policy}</span>,
+    },
+    {
+      key: 'observed',
+      label: 'Observada',
+      render: (row) => (
+        <span className="tabular-nums text-muted-foreground">{row.observed}&times;</span>
+      ),
+    },
+    {
+      key: 'enforced',
+      label: 'No caminho inline',
+      align: 'right',
+      // A linha descoberta termina numa AÇÃO, não num rótulo: uma tela que só avisa é um alarme
+      // sem interruptor. A bloqueada termina num Badge, porque não há nada a decidir nela.
+      render: (row) =>
+        row.enforced ? (
+          <Badge variant="outline">
+            <ShieldCheck className="size-3.5" aria-hidden="true" />
+            Bloqueada
+          </Badge>
+        ) : (
+          <Button variant="secondary" size="sm" asChild>
+            <Link to={`/trust/violations?policy=${encodeURIComponent(row.policy)}`}>
+              <ShieldAlert className="size-4" aria-hidden="true" />
+              Revisar e bloquear
+            </Link>
+          </Button>
+        ),
+    },
+  ];
+
+  /** O veredito da tela, em uma frase — já com o julgamento embutido. */
+  const headline = failed
+    ? 'Sem leitura da camada de confiança.'
+    : coverage.length === 0
+      ? 'Nenhuma violação registrada.'
+      : gaps === 0
+        ? 'Toda política observada já está sendo bloqueada.'
+        : `${gaps} ${gaps === 1 ? 'política observada não está sendo bloqueada' : 'políticas observadas não estão sendo bloqueadas'}.`;
+
   return (
     <PageShell
       title="Trust"
       description="O que a camada de confiança observou — e o que dela ainda passa sem ser bloqueado."
-      primaryAction={{ label: 'Refresh', icon: RefreshCw, onClick: onRefresh }}
+      primaryAction={{ label: 'Atualizar', icon: RefreshCw, onClick: onRefresh }}
     >
       {failed ? (
         <Alert
@@ -85,65 +143,45 @@ export function TrustOverviewPage() {
         />
       ) : null}
 
-      {isLoading ? (
-        <Skeleton className="h-40" />
-      ) : (
-        <Card>
-          {/* A abertura é uma frase, não um número solto: ela já carrega o julgamento. */}
-          <p className="mb-4 text-lg">
-            {failed ? (
-              'Sem leitura da camada de confiança.'
-            ) : coverage.length === 0 ? (
-              'Nenhuma violação registrada. As guardrails ativas seguem valendo no caminho inline.'
-            ) : gaps === 0 ? (
-              <>
-                Toda política observada <strong>já está sendo bloqueada</strong> no caminho inline.
-              </>
-            ) : (
-              <>
-                <strong>
-                  {gaps} {gaps === 1 ? 'política observada não está' : 'políticas observadas não estão'}
-                </strong>{' '}
-                sendo {gaps === 1 ? 'bloqueada' : 'bloqueadas'}.
-              </>
-            )}
-          </p>
-
-          {coverage.length > 0 ? (
-            <ul className="divide-y">
-              {coverage.map((c) => (
-                <li key={c.policy} className="flex items-center justify-between gap-4 py-3">
-                  <div className="min-w-0">
-                    <span className="font-mono text-sm">{c.policy}</span>
-                    <span className="ml-2 text-sm text-muted-foreground">
-                      observada {c.observed}&times;
-                    </span>
-                  </div>
-                  {c.enforced ? (
-                    <span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
-                      <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                      bloqueada
-                    </span>
-                  ) : (
-                    <Link
-                      to={`/trust/violations?policy=${encodeURIComponent(c.policy)}`}
-                      className="flex shrink-0 items-center gap-1.5 text-sm font-medium underline"
-                    >
-                      <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-                      revisar e bloquear
-                    </Link>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </Card>
-      )}
-
       <Card>
-        <Link to="/trust/violations" className="text-sm font-medium underline">
-          Ver todas as violações &rarr;
-        </Link>
+        <Card.Header>
+          {/* A frase de julgamento É o título deste cartão — não um parágrafo solto acima dele.
+              asChild → <h2> porque o PageShell já rende o <h1> (WCAG 1.3.1). */}
+          <Card.Title asChild>
+            <h2>{headline}</h2>
+          </Card.Title>
+          <Card.Description>
+            O plano de observação vê toda conversa; o inline só bloqueia o que tem guardrail. A
+            distância entre os dois é o que esta lista mede.
+          </Card.Description>
+        </Card.Header>
+
+        <DataTable
+          columns={columns}
+          data={coverage}
+          rowKey={(row) => row.policy}
+          loading={isLoading}
+          emptyState={
+            <EmptyState
+              icon={failed ? ShieldAlert : ShieldCheck}
+              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma violação registrada'}
+              description={
+                failed
+                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que passou.'
+                  : 'As guardrails ativas seguem valendo no caminho inline.'
+              }
+            />
+          }
+        />
+
+        <Card.Footer>
+          <Button variant="ghost" asChild>
+            <Link to="/trust/violations">
+              Ver todas as violações
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        </Card.Footer>
       </Card>
     </PageShell>
   );

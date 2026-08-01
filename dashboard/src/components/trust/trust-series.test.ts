@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toSeries, totalInWindow, violationCount, byPolicy, peakSeverity, coverageGap, unenforcedCount, conversationMessages } from './trust-series';
+import { toSeries, totalInWindow, violationCount, byPolicy, peakSeverity, coverageGap, unenforcedCount, conversationMessages, filterByPolicy } from './trust-series';
 
 describe('toSeries', () => {
   it('projeta baldes bem formados', () => {
@@ -155,5 +155,35 @@ describe('conversationMessages', () => {
     expect(conversationMessages(null)).toEqual([]);
     expect(conversationMessages({})).toEqual([]);
     expect(conversationMessages({ messages: 'nope' } as never)).toEqual([]);
+  });
+});
+
+describe('filterByPolicy', () => {
+  const violations = [
+    { id: 'a', policy: 'credential_leak' },
+    { id: 'b', policy: 'pii_exposure' },
+    { id: 'c', policy: 'credential_leak' },
+  ];
+
+  it('devolve so as violacoes da politica pedida', () => {
+    // `/trust` promete "revisar ESTA politica"; devolver a lista inteira quebra a promessa
+    // em silencio — o operador nao ve erro, so uma lista que nao corresponde ao que clicou.
+    expect(filterByPolicy(violations, 'credential_leak').map((v) => v.id)).toEqual(['a', 'c']);
+  });
+
+  it('devolve tudo quando nao ha filtro — a rota tambem e alcancavel direto', () => {
+    expect(filterByPolicy(violations, null)).toHaveLength(3);
+    expect(filterByPolicy(violations, undefined)).toHaveLength(3);
+    expect(filterByPolicy(violations, '')).toHaveLength(3);
+  });
+
+  it('devolve lista vazia quando a politica nao aparece', () => {
+    expect(filterByPolicy(violations, 'nao-existe')).toEqual([]);
+  });
+
+  it('nao muta a lista recebida', () => {
+    const out = filterByPolicy(violations, null);
+    out.push({ id: 'z' });
+    expect(violations).toHaveLength(3);
   });
 });

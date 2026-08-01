@@ -1,14 +1,24 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useQueryState } from 'nuqs';
-import { RefreshCw } from 'lucide-react';
-import { Card, PageShell, Skeleton } from '@usetheo/ui';
+import { RefreshCw, ShieldCheck, X } from 'lucide-react';
+import {
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  EmptyState,
+  PageShell,
+  Timestamp,
+  type DataTableColumn,
+} from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { ConversationPanel } from '@/components/trust/conversation-panel';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { fetchTrust } from '@/components/trust/trust-api';
 import {
-  conversationMessages,
+  filterByPolicy,
   type ViolationsPayload,
   type PolicyViolation,
   type ConversationPayload,
@@ -22,15 +32,25 @@ import {
  * cunhando chave no broker. O id vive na URL para que o operador possa compartilhar o link exato do
  * que está vendo.
  *
- * O conteúdo da conversa É o dado sensível que a violação denuncia. Esta tela mostra o que o
- * serviço devolve — que já vem redigido do lado do `theo-trust` — e nunca reconstrói o trecho
- * bruto a partir da violação.
+ * `?policy=<X>` filtra a lista. `/trust` manda o operador para cá dizendo "revisar e bloquear
+ * AQUELA política" — ignorar o parâmetro quebraria a promessa em silêncio: ele não veria erro
+ * algum, só uma lista que não corresponde ao que clicou.
  */
 
-/** Uma linha da lista; o id pode vir por dois nomes conforme a origem do registro. */
-function rowId(v: PolicyViolation, i: number): string {
-  return v.id ?? v.messageId ?? `row-${i}`;
+/**
+ * Chave estável de uma linha. O id pode vir por dois nomes conforme a origem do registro; sem
+ * nenhum dos dois, deriva do próprio conteúdo — nunca do índice, que muda quando o filtro entra
+ * e faria o React reusar a linha errada.
+ */
+function rowKey(v: PolicyViolation): string {
+  return v.id ?? v.messageId ?? `${v.policy ?? 'sem-politica'}@${v.detectedAt ?? 'sem-data'}`;
 }
+
+/** Severidades que merecem destaque — o resto vai neutro, para o destaque significar algo. */
+const LOUD_SEVERITY = new Set(['critical', 'high', 'error']);
+
+/** Ausência de valor. Um traço apagado, nunca um espaço em branco que parece defeito de render. */
+const DASH = <span className="text-muted-foreground">&mdash;</span>;
 
 export function TrustViolationsPage() {
   const { setPageTitle } = usePageMeta();
@@ -39,6 +59,7 @@ export function TrustViolationsPage() {
   const queryClient = useQueryClient();
 
   const [selected, setSelected] = useQueryState('conversation');
+  const [policy, setPolicy] = useQueryState('policy');
 
   const listQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/trust/policy-violations'] as const,
@@ -53,7 +74,8 @@ export function TrustViolationsPage() {
       fetchTrust<ConversationPayload>(`/conversations/${encodeURIComponent(selected ?? '')}`),
   });
 
-  const rows = Array.isArray(listQuery.data?.violations) ? listQuery.data.violations : [];
+  const all = Array.isArray(listQuery.data?.violations) ? listQuery.data.violations : [];
+  const rows = filterByPolicy(all, policy);
   const failed = Boolean(listQuery.error);
 
   const onRefresh = () => {
@@ -62,11 +84,50 @@ export function TrustViolationsPage() {
     });
   };
 
+  const columns: DataTableColumn<PolicyViolation>[] = [
+    {
+      key: 'policy',
+      label: 'Política',
+      render: (row) => <span className="font-mono font-medium">{row.policy ?? '—'}</span>,
+    },
+    {
+      key: 'severity',
+      label: 'Severidade',
+      render: (row) =>
+        row.severity ? (
+          <Badge variant={LOUD_SEVERITY.has(row.severity.toLowerCase()) ? 'destructive' : 'outline'}>
+            {row.severity}
+          </Badge>
+        ) : DASH,
+    },
+    {
+      key: 'detectedAt',
+      label: 'Detectada em',
+      // Data legível: o ISO cru obriga a converter de cabeça no meio de uma investigação.
+      render: (row) => (row.detectedAt ? <Timestamp value={row.detectedAt} format="both" /> : DASH),
+    },
+    {
+      key: 'conversation',
+      label: 'Conversa',
+      align: 'right',
+      render: (row) =>
+        row.conversationId ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void setSelected(row.conversationId ?? null)}
+          >
+            Abrir
+          </Button>
+        ) : DASH,
+    },
+  ];
+
   return (
     <PageShell
       title="Violações de política"
       description="Cada linha é um sinal que a camada de confiança registrou. Abra para ver a conversa de origem."
-      primaryAction={{ label: 'Refresh', icon: RefreshCw, onClick: onRefresh }}
+      primaryAction={{ label: 'Atualizar', icon: RefreshCw, onClick: onRefresh }}
     >
       {failed ? (
         <Alert
@@ -76,105 +137,70 @@ export function TrustViolationsPage() {
         />
       ) : null}
 
-      {listQuery.isLoading ? (
-        <Skeleton className="h-40" />
-      ) : rows.length === 0 ? (
-        <Card>
-          <p className="text-sm text-muted-foreground">
-            {failed
-              ? 'Sem dados — a leitura falhou.'
-              : 'Nenhuma violação registrada para este workspace.'}
-          </p>
-        </Card>
-      ) : (
-        <Card>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="py-2 font-medium">Política</th>
-                <th className="py-2 font-medium">Severidade</th>
-                <th className="py-2 font-medium">Detectada em</th>
-                <th className="py-2 font-medium">Conversa</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((v, i) => (
-                <tr key={rowId(v, i)} className="border-b last:border-0">
-                  <td className="py-2 font-mono">{v.policy ?? '—'}</td>
-                  <td className="py-2">{v.severity ?? '—'}</td>
-                  <td className="py-2 tabular-nums">{v.detectedAt ?? '—'}</td>
-                  <td className="py-2">
-                    {v.conversationId ? (
-                      <button
-                        type="button"
-                        className="underline"
-                        onClick={() => void setSelected(v.conversationId ?? null)}
-                      >
-                        abrir
-                      </button>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
+      <Card>
+        <Card.Header>
+          {/* asChild → <h2>: o PageShell já rende o <h1> (WCAG 1.3.1). */}
+          <Card.Title asChild>
+            <h2>{policy ? `Violações de ${policy}` : 'Todas as violações'}</h2>
+          </Card.Title>
+          <Card.Description>
+            {rows.length} de {all.length} registro(s) na janela.
+          </Card.Description>
+        </Card.Header>
+
+        <DataTable
+          columns={columns}
+          data={rows}
+          rowKey={rowKey}
+          loading={listQuery.isLoading}
+          emptyState={
+            <EmptyState
+              icon={ShieldCheck}
+              title={
+                failed
+                  ? 'Sem dados — a leitura falhou'
+                  : policy
+                    ? `Nenhuma violação de ${policy}`
+                    : 'Nenhuma violação registrada'
+              }
+              description={
+                failed
+                  ? 'Tente novamente em instantes.'
+                  : policy
+                    ? 'Nenhum registro desta política na janela atual.'
+                    : 'Nenhuma violação registrada para este workspace.'
+              }
+              action={
+                policy ? (
+                  <Button variant="secondary" onClick={() => void setPolicy(null)}>
+                    Ver todas as violações
+                  </Button>
+                ) : undefined
+              }
+            />
+          }
+        />
+
+        {/* O filtro precisa ser visível E removível: um recorte silencioso faz o operador ler a
+            lista parcial como se fosse o total. */}
+        {policy ? (
+          <Card.Footer>
+            <Button variant="ghost" size="sm" onClick={() => void setPolicy(null)}>
+              <X className="size-4" aria-hidden="true" />
+              Limpar filtro
+            </Button>
+          </Card.Footer>
+        ) : null}
+      </Card>
 
       {selected ? (
-        <Card>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-medium">
-              Conversa <span className="font-mono">{selected}</span>
-            </h2>
-            <button type="button" className="text-sm underline" onClick={() => void setSelected(null)}>
-              fechar
-            </button>
-          </div>
-          {detailQuery.isLoading ? (
-            <Skeleton className="h-24" />
-          ) : detailQuery.error ? (
-            <Alert
-              intent="destructive"
-              title="Não foi possível carregar a conversa"
-              description="A violação continua válida; apenas o detalhe não pôde ser lido agora."
-            />
-          ) : (
-            (() => {
-              // JSON cru obrigava o operador a ler chaves de schema para descobrir quem disse o
-              // quê — no momento em que ele está investigando um incidente. Aqui a conversa é
-              // conversa. O conteúdo já vem redigido do lado do theo-trust; a tela nunca
-              // reconstrói o trecho bruto a partir da violação.
-              const msgs = conversationMessages(detailQuery.data);
-              if (msgs.length === 0) {
-                return (
-                  <p className="text-sm text-muted-foreground">
-                    A conversa foi lida, mas não trouxe mensagens legíveis.
-                  </p>
-                );
-              }
-              return (
-                <ol className="space-y-3">
-                  {msgs.map((m, i) => (
-                    <li key={m.id ?? `msg-${i}`} className="rounded border p-3">
-                      <div className="mb-1 flex items-baseline justify-between gap-3">
-                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          {m.role ?? 'desconhecido'}
-                        </span>
-                        {m.createdAt ? (
-                          <span className="text-xs tabular-nums text-muted-foreground">{m.createdAt}</span>
-                        ) : null}
-                      </div>
-                      <p className="whitespace-pre-wrap text-sm">{m.content}</p>
-                    </li>
-                  ))}
-                </ol>
-              );
-            })()
-          )}
-        </Card>
+        <ConversationPanel
+          conversationId={selected}
+          data={detailQuery.data}
+          isLoading={detailQuery.isLoading}
+          failed={Boolean(detailQuery.error)}
+          onClose={() => void setSelected(null)}
+        />
       ) : null}
     </PageShell>
   );
