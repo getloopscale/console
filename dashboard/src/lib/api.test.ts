@@ -317,3 +317,43 @@ describe('cloudFetch — 204 No Content is a success (M75)', () => {
       .resolves.toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// LT/#324 — um 429 na troca de sessão NÃO é sessão expirada.
+//
+// O defeito, medido ao vivo em 2026-08-01: `exchangeSessionToken` faz
+// `if (!resp.ok) return false`, colapsando TODO erro num único booleano. Um
+// `429` (cota de 10/min por IP, `internal/routes/session_token.go:29-30`) fica
+// indistinguível de um `401`, e o chamador traduz isso em
+// `redirectToLogin('expired')`. O redirect recarrega a página, zera o dedup de
+// refresh e dispara nova troca — que consome mais da cota já estourada. O
+// estado se auto-perpetua: o usuário fica preso num loop vendo "Session
+// expired" com a sessão VÁLIDA (`/sessions/whoami` respondendo 200).
+//
+// A suíte cobria o caminho de `401` e não o de `429` — por isso passou.
+// ---------------------------------------------------------------------------
+
+describe('troca de sessão sob rate limit (#324)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('um 429 na troca de token não anuncia sessão expirada nem redireciona', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        // O servidor diz "tente de novo em breve", com o instante de reset.
+        return new Response(JSON.stringify({ code: 'RATE_LIMITED' }), {
+          status: 429,
+          headers: { 'Retry-After': '30' },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    await engineFetch('/foo').catch(() => undefined);
+
+    // O sintoma que prende o usuário: o aviso de sessão expirada. Um 429 não
+    // é logout — a sessão do Kratos segue válida.
+    expect(document.body.textContent ?? '').not.toContain('Session expired');
+  });
+});
