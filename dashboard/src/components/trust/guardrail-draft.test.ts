@@ -8,6 +8,8 @@ import {
   toTestBody,
   verdictSummary,
   draftProblemsByField,
+  visibleFieldProblems,
+  type DraftField,
   type GuardrailDraft,
 } from './guardrail-draft';
 
@@ -170,5 +172,26 @@ describe('draftProblemsByField', () => {
 
   it('não reporta campo algum num rascunho válido', () => {
     expect(draftProblemsByField(draft({ name: 'n', terms: ['x'] }))).toEqual({});
+  });
+});
+
+describe('visibleFieldProblems', () => {
+  it('cala sobre campo que o operador ainda não visitou', () => {
+    // Um formulário que abre acusando campos vazios transforma a tela de partida numa tela de
+    // erro, e ensina a ignorar o vermelho justamente onde ele vai importar.
+    expect(visibleFieldProblems(EMPTY_DRAFT, new Set())).toEqual({});
+  });
+
+  it('reporta apenas o campo visitado', () => {
+    const visible = visibleFieldProblems(EMPTY_DRAFT, new Set<DraftField>(['name']));
+
+    expect(visible.name).toContain('nome');
+    expect(visible.terms).toBeUndefined();
+  });
+
+  it('não inventa problema para campo visitado e válido', () => {
+    const valid = draft({ name: 'n', terms: ['x'] });
+
+    expect(visibleFieldProblems(valid, new Set<DraftField>(['name', 'terms']))).toEqual({});
   });
 });
