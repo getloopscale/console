@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, ShieldCheck, Trash2 } from 'lucide-react';
-import { Badge, Button, Card, EmptyState, PageShell, Skeleton, Table } from '@usetheo/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  EmptyState,
+  PageShell,
+  type DataTableColumn,
+} from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
@@ -25,10 +33,9 @@ import {
  * é texto (um `Badge` rotulado), não cor; e a linha de plataforma simplesmente **não tem** ação
  * de remover: ausência, não botão cinza (ADR D2).
  *
- * A confirmação de remoção é o `ConfirmDialog` canônico do dashboard, com `confirmationPhrase` —
- * o mesmo type-to-confirm que `domains` e `previews` usam. Uma versão local desse diálogo seria
- * uma quarta coreografia destrutiva no produto, e o `DESIGN.md § 2.2` existe justamente para que
- * exista uma só.
+ * A listagem é `DataTable` — o mesmo componente de `api-keys` — e não uma `Table` montada à mão:
+ * ele já traz `loading`, `emptyState` e `rowActions`, que era o encadeamento condicional que esta
+ * tela reimplementava. A confirmação é o `ConfirmDialog` canônico, com `confirmationPhrase`.
  */
 
 const QUERY_KEY = ['cloud', '/v1/dashboard/trust/validators'] as const;
@@ -51,6 +58,63 @@ export function TrustGuardrailsPage() {
   const rows = catalogRows(query.data);
   const failed = Boolean(query.error);
 
+  const columns: DataTableColumn<CatalogRow>[] = [
+    {
+      key: 'name',
+      label: 'Nome',
+      render: (row) => <span className="font-mono font-medium">{row.name}</span>,
+    },
+    {
+      key: 'kind',
+      label: 'Tipo',
+      render: (row) => <span className="text-muted-foreground">{row.kind}</span>,
+    },
+    {
+      key: 'origin',
+      label: 'Origem',
+      // Texto, não só cor: a distinção precisa sobreviver a daltonismo e a impressão.
+      render: (row) => (
+        <Badge variant={row.origin === 'platform' ? 'outline' : 'primary'}>
+          {originLabel(row.origin)}
+        </Badge>
+      ),
+    },
+    {
+      key: 'directions',
+      label: 'Atua em',
+      render: (row) => (
+        <span className="font-mono text-xs text-muted-foreground">
+          {row.directions.length > 0 ? row.directions.join(', ') : '—'}
+        </span>
+      ),
+    },
+    {
+      // Coluna própria em vez do `rowActions` do DataTable, de propósito: `rowActions` renderiza
+      // o gatilho `⋮` em TODA linha, mesmo quando o callback devolve null — a linha de plataforma
+      // ganharia um menu vazio, que convida a clicar e não entrega nada. Pior que o botão cinza
+      // que o ADR D2 recusa. Aqui a célula fica vazia: ausência de verdade.
+      key: 'actions',
+      label: '',
+      align: 'right',
+      width: '1%',
+      render: (row) =>
+        row.removableId ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Remover ${row.name}`}
+            onClick={() => {
+              setRemoveError(null);
+              setPending(row);
+            }}
+          >
+            <Trash2 className="size-4" />
+            Remover
+          </Button>
+        ) : null,
+    },
+  ];
+
   async function confirmRemoval() {
     if (!pending?.removableId) return;
     setRemoveError(null);
@@ -69,7 +133,11 @@ export function TrustGuardrailsPage() {
     <PageShell
       title="Guardrails"
       description="O que a camada de confiança bloqueia nas conversas deste workspace, antes de elas acontecerem."
-      primaryAction={{ label: 'Nova guardrail', icon: Plus, onClick: () => void navigate('/trust/guardrails/new') }}
+      primaryAction={{
+        label: 'Nova guardrail',
+        icon: Plus,
+        onClick: () => void navigate('/trust/guardrails/new'),
+      }}
     >
       {failed ? (
         <Alert
@@ -83,78 +151,43 @@ export function TrustGuardrailsPage() {
         <Alert intent="destructive" title="A guardrail não foi removida" description={removeError} />
       ) : null}
 
-      {query.isLoading ? (
-        <Skeleton className="h-40" />
-      ) : rows.length === 0 ? (
-        <EmptyState
-          icon={ShieldCheck}
-          title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma guardrail ativa'}
-          description={
-            failed
-              ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que está valendo.'
-              : 'Nada está sendo bloqueado nas conversas deste workspace no momento.'
-          }
-          action={
-            failed ? undefined : (
-              <Button asChild>
-                <Link to="/trust/guardrails/new">Criar a primeira guardrail</Link>
-              </Button>
-            )
+      <Card>
+        <Card.Header>
+          {/* asChild → <h2>: o PageShell já rende o <h1>, e pular de h1 para o h3 padrão do
+              Card.Title quebraria a hierarquia (WCAG 1.3.1). Mesmo tratamento de project-detail. */}
+          <Card.Title asChild>
+            <h2>Regras ativas</h2>
+          </Card.Title>
+          <Card.Description>
+            {rows.length} no total · {tenantRowCount(rows)} criada(s) neste workspace
+          </Card.Description>
+        </Card.Header>
+
+        <DataTable
+          columns={columns}
+          data={rows}
+          rowKey={(row) => row.key}
+          loading={query.isLoading}
+          emptyState={
+            <EmptyState
+              icon={ShieldCheck}
+              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma guardrail ativa'}
+              description={
+                failed
+                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que está valendo.'
+                  : 'Nada está sendo bloqueado nas conversas deste workspace no momento.'
+              }
+              action={
+                failed ? undefined : (
+                  <Button asChild>
+                    <Link to="/trust/guardrails/new">Criar a primeira guardrail</Link>
+                  </Button>
+                )
+              }
+            />
           }
         />
-      ) : (
-        <Card>
-          <p className="mb-4 text-sm text-muted-foreground">
-            {rows.length} regra(s) ativa(s) · {tenantRowCount(rows)} criada(s) aqui
-          </p>
-
-          <Table>
-            <Table.Header>
-              <Table.Row>
-                <Table.HeaderCell>Nome</Table.HeaderCell>
-                <Table.HeaderCell>Tipo</Table.HeaderCell>
-                <Table.HeaderCell>Origem</Table.HeaderCell>
-                <Table.HeaderCell className="hidden md:table-cell">Atua em</Table.HeaderCell>
-                <Table.HeaderCell align="right">Ações</Table.HeaderCell>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {rows.map((row) => (
-                <Table.Row key={row.key}>
-                  <Table.Cell className="font-mono">{row.name}</Table.Cell>
-                  <Table.Cell className="text-muted-foreground">{row.kind}</Table.Cell>
-                  <Table.Cell>
-                    {/* Texto, não só cor: a distinção precisa sobreviver a daltonismo e a impressão. */}
-                    <Badge variant={row.origin === 'platform' ? 'outline' : 'primary'}>
-                      {originLabel(row.origin)}
-                    </Badge>
-                  </Table.Cell>
-                  <Table.Cell className="hidden font-mono text-xs text-muted-foreground md:table-cell">
-                    {row.directions.length > 0 ? row.directions.join(', ') : '—'}
-                  </Table.Cell>
-                  <Table.Cell align="right">
-                    {/* Linha de plataforma não renderiza ação alguma — ADR D2. */}
-                    {row.removableId ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Remover ${row.name}`}
-                        onClick={() => {
-                          setRemoveError(null);
-                          setPending(row);
-                        }}
-                      >
-                        <Trash2 className="size-4" />
-                        Remover
-                      </Button>
-                    ) : null}
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table>
-        </Card>
-      )}
+      </Card>
 
       <ConfirmDialog
         open={pending !== null}

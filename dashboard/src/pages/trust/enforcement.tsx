@@ -1,7 +1,15 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
-import { Badge, Card, EmptyState, PageShell, Skeleton, Table, Timestamp } from '@usetheo/ui';
+import {
+  Badge,
+  Card,
+  DataTable,
+  EmptyState,
+  PageShell,
+  Timestamp,
+  type DataTableColumn,
+} from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -23,18 +31,16 @@ import {
  * O conteúdo já chega redigido da origem — conteúdo bruto nunca entra na tabela do M17. A tela
  * exibe o marcador; ela não redige nada, porque redigir aqui sugeriria que o dado bruto passou
  * por este caminho.
+ *
+ * Composição igual à das demais listagens do dashboard (`api-keys`, `domains`): `Card` com
+ * cabeçalho semântico + `DataTable`, que já traz `loading` e `emptyState` — e não o encadeamento
+ * de ternários que esta tela montava à mão.
  */
 
 /** Explícito de propósito: sem `limit` herdaríamos o teto do servidor sem saber qual é. */
 const PAGE_LIMIT = 100;
 
 const QUERY_KEY = ['cloud', '/v1/dashboard/trust/enforcement-events'] as const;
-
-/** A decisão é o dado mais lido da tabela — vai como Badge rotulado, nunca só como cor. */
-function decisionBadge(row: EnforcementRow) {
-  const variant = row.decision === 'block' ? 'destructive' : row.decision === 'modify' ? 'warning' : 'outline';
-  return <Badge variant={variant}>{row.decisionLabel}</Badge>;
-}
 
 export function TrustEnforcementPage() {
   const { setPageTitle } = usePageMeta();
@@ -49,6 +55,53 @@ export function TrustEnforcementPage() {
 
   const rows = enforcementRows(query.data);
   const failed = Boolean(query.error);
+
+  const columns: DataTableColumn<EnforcementRow>[] = [
+    {
+      key: 'decision',
+      label: 'Decisão',
+      // Badge rotulado: a decisão é o dado mais lido da tabela e não pode depender só de cor.
+      render: (row) => (
+        <Badge
+          variant={
+            row.decision === 'block' ? 'destructive' : row.decision === 'modify' ? 'warning' : 'outline'
+          }
+        >
+          {row.decisionLabel}
+        </Badge>
+      ),
+    },
+    {
+      key: 'validatorName',
+      label: 'Guardrail',
+      render: (row) => <span className="font-mono">{row.validatorName}</span>,
+    },
+    {
+      // Categoria é CONTEXTO — é ela que sai da tela estreita, não o trecho.
+      key: 'category',
+      label: 'Categoria',
+      className: 'hidden lg:table-cell',
+      render: (row) => <span className="text-muted-foreground">{row.category}</span>,
+    },
+    {
+      // Sempre visível, inclusive no celular. Esconder o trecho em tela estreita tirava
+      // justamente a informação que a tela existe para dar — o e2e mobile pegou isso.
+      key: 'redacted',
+      label: 'Trecho (redigido)',
+      render: (row) => (
+        <span className="font-mono text-xs text-muted-foreground">{row.redacted}</span>
+      ),
+    },
+    {
+      key: 'createdAt',
+      label: 'Quando',
+      align: 'right',
+      // Data legível — o ISO cru obriga o operador a converter de cabeça justamente no
+      // momento em que ele está investigando um incidente.
+      render: (row) =>
+        row.createdAt === '—' ? '—' : <Timestamp value={row.createdAt} format="both" />,
+    },
+  ];
 
   return (
     <PageShell
@@ -68,54 +121,35 @@ export function TrustEnforcementPage() {
         />
       ) : null}
 
-      {query.isLoading ? (
-        <Skeleton className="h-40" />
-      ) : rows.length === 0 ? (
-        <EmptyState
-          icon={ShieldCheck}
-          title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma ação de enforcement registrada'}
-          description={
-            failed
-              ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que foi barrado.'
-              : `Nenhuma mensagem foi bloqueada ou reescrita nas últimas ${PAGE_LIMIT} ocorrências.`
+      <Card>
+        <Card.Header>
+          {/* asChild → <h2>: o PageShell já rende o <h1> (WCAG 1.3.1). */}
+          <Card.Title asChild>
+            <h2>Ações registradas</h2>
+          </Card.Title>
+          <Card.Description>
+            {blockedCount(rows)} bloqueio(s) entre {rows.length} registro(s).
+          </Card.Description>
+        </Card.Header>
+
+        <DataTable
+          columns={columns}
+          data={rows}
+          rowKey={(row) => row.key}
+          loading={query.isLoading}
+          emptyState={
+            <EmptyState
+              icon={ShieldCheck}
+              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma ação de enforcement registrada'}
+              description={
+                failed
+                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que foi barrado.'
+                  : `Nenhuma mensagem foi bloqueada ou reescrita nas últimas ${PAGE_LIMIT} ocorrências.`
+              }
+            />
           }
         />
-      ) : (
-        <Card>
-          <p className="mb-4 text-sm text-muted-foreground">
-            {blockedCount(rows)} bloqueio(s) entre {rows.length} registro(s).
-          </p>
-
-          <Table>
-            <Table.Header>
-              <Table.Row>
-                <Table.HeaderCell>Decisão</Table.HeaderCell>
-                <Table.HeaderCell>Guardrail</Table.HeaderCell>
-                <Table.HeaderCell>Categoria</Table.HeaderCell>
-                <Table.HeaderCell className="hidden lg:table-cell">Trecho (redigido)</Table.HeaderCell>
-                <Table.HeaderCell align="right">Quando</Table.HeaderCell>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {rows.map((row) => (
-                <Table.Row key={row.key}>
-                  <Table.Cell>{decisionBadge(row)}</Table.Cell>
-                  <Table.Cell className="font-mono">{row.validatorName}</Table.Cell>
-                  <Table.Cell className="text-muted-foreground">{row.category}</Table.Cell>
-                  <Table.Cell className="hidden font-mono text-xs text-muted-foreground lg:table-cell">
-                    {row.redacted}
-                  </Table.Cell>
-                  <Table.Cell align="right" numeric>
-                    {/* Data legível — o ISO cru obriga o operador a converter de cabeça
-                        no momento em que ele está investigando um incidente. */}
-                    {row.createdAt === '—' ? '—' : <Timestamp value={row.createdAt} format="both" />}
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table>
-        </Card>
-      )}
+      </Card>
     </PageShell>
   );
 }

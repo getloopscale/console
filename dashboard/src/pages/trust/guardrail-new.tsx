@@ -135,7 +135,17 @@ export function TrustGuardrailNewPage() {
       description="Os termos abaixo passam a ser bloqueados nas conversas deste workspace assim que a regra for salva."
     >
       <Card>
-        <div className="space-y-5">
+        <Card.Header>
+          {/* asChild → <h2>: o PageShell já rende o <h1> (WCAG 1.3.1). */}
+          <Card.Title asChild>
+            <h2>A regra</h2>
+          </Card.Title>
+          <Card.Description>
+            O nome identifica a guardrail no catálogo e na auditoria; os termos são o que ela procura.
+          </Card.Description>
+        </Card.Header>
+
+        <Card.Body className="space-y-5">
           <FormField id="guardrail-name" invalid={Boolean(fieldProblems.name)}>
             <FormField.Label>Nome</FormField.Label>
             <FormField.Control>
@@ -203,20 +213,21 @@ export function TrustGuardrailNewPage() {
               ) : null}
             </FormField>
           ) : null}
-
-        </div>
+        </Card.Body>
       </Card>
 
       <Card>
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-sm font-medium">Teste antes de salvar</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Escreva uma mensagem de exemplo e veja o que aconteceria com ela. Este passo não
-              altera nada — e é por ele que se chega ao salvar.
-            </p>
-          </div>
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Teste antes de salvar</h2>
+          </Card.Title>
+          <Card.Description>
+            Escreva uma mensagem de exemplo e veja o que aconteceria com ela. Este passo não altera
+            nada — e é por ele que se chega ao salvar.
+          </Card.Description>
+        </Card.Header>
 
+        <Card.Body className="space-y-4">
           <FormField id="guardrail-sample">
             <FormField.Label>Mensagem de exemplo</FormField.Label>
             <FormField.Control>
@@ -250,7 +261,7 @@ export function TrustGuardrailNewPage() {
               A regra mudou depois do teste. Teste de novo para poder salvar.
             </p>
           ) : null}
-        </div>
+        </Card.Body>
       </Card>
 
       {error ? (
@@ -264,16 +275,21 @@ export function TrustGuardrailNewPage() {
       */}
       {canSave ? (
         <Card>
-          <div className="space-y-3">
-            <p className="text-sm">
-              Ao salvar, {cleanTerms(current.terms).length} termo(s) passam a valer imediatamente
-              nas conversas deste workspace.
-            </p>
+          <Card.Header>
+            <Card.Title asChild>
+              <h2>Ativar</h2>
+            </Card.Title>
+            <Card.Description>
+              Ao salvar, {cleanTerms(current.terms).length} termo(s) passam a valer imediatamente nas
+              conversas deste workspace.
+            </Card.Description>
+          </Card.Header>
+          <Card.Footer>
             <Button disabled={busy !== 'idle'} onClick={() => void onSave()}>
               <ShieldCheck className="size-4" />
               {busy === 'saving' ? 'Salvando…' : 'Salvar e ativar'}
             </Button>
-          </div>
+          </Card.Footer>
         </Card>
       ) : null}
     </PageShell>
