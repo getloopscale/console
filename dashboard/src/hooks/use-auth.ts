@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSession, type Session } from '@/lib/auth';
-import { exchangeSessionToken, hasValidToken } from '@/lib/api';
+import { exchangeSessionToken, hasValidToken, wasLastExchangeRateLimited } from '@/lib/api';
 
 /** Check Kratos session + exchange for JWT. Redirects to /login if not authenticated. */
 export function useRequireAuth(): Session | null {
@@ -25,7 +25,13 @@ export function useRequireAuth(): Session | null {
       // hangs in "Loading". Closes Red Team theo-cloud#110.
       if (!hasValidToken()) {
         exchangeSessionToken().then((ok) => {
-          if (!ok) navigate('/login', { replace: true });
+          // #324: `!ok` sozinho nao decide. Sob rate limit (429) a sessao
+          // Kratos segue valida — mandar para /login e falso E realimenta a
+          // cota, porque a navegacao remonta a arvore e refaz a troca. So o
+          // fracasso NAO-temporario (cookie velho, #110 acima) justifica sair.
+          if (!ok && !wasLastExchangeRateLimited()) {
+            navigate('/login', { replace: true });
+          }
         });
       }
       setChecked(true);
