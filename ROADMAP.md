@@ -686,7 +686,7 @@ consegue provar o que está rodando.
 
 ---
 
-### M23 — [ ] A camada de confiança fica visível no dashboard (leitura)
+### M23 — [x] A camada de confiança fica visível no dashboard (leitura)
 
 > Added 2026-07-31 by `/roadmap-feature` (slug: `theo-cloud-trust-dashboard`).
 > See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-trust-dashboard-feature-grill.md`.

@@ -1,6 +1,10 @@
 ## [Unreleased]
 
 ### Added
+- O operador passa a **criar e remover as próprias guardrails pelo dashboard**, em `/trust/guardrails`. O catálogo mostra junto o que é herdado da plataforma e o que foi criado no workspace — e o que é herdado não oferece remoção, porque não pertence a quem opera. Criar exige **testar antes**: a tela só mostra o caminho de salvar depois de um teste da regra exata que será gravada; mudar a regra depois do teste retira o caminho de novo. Recusa do serviço chega com a frase do serviço, que diz qual campo corrigir — nunca "ocorreu um erro". Remover pede a confirmação digitada, porque desliga uma proteção ativa (#roadmap-m24)
+- `/trust/enforcement` mostra o que a proteção de fato barrou — decisão, guardrail, categoria e o trecho já redigido pelo serviço. Fecha o ciclo entre configurar uma regra e ver o efeito dela (#roadmap-m24)
+- O dashboard passa a poder ler o log de auditoria do enforcement inline: `GET /v1/dashboard/trust/enforcement-events`, isolado por tenant e com teto de `limit`. O serviço registrava cada bloqueio desde o M17 e nada no painel conseguia lê-lo (#roadmap-m24)
+
 
 ### Changed
 
@@ -10,7 +14,11 @@
 
 ### Fixed
 
+- O gate de qualidade de planos de discovery voltou a emitir veredito. Ele lia as faixas de nota de um arquivo escrito `chave = valor` com um parser que só entendia `NOME | valor`, então saía sempre de mãos vazias — e sem faixa nenhuma para comparar, a função de veredito caía no `INVALID` final. O efeito era um portão cego: **todo** plano de discovery era reprovado, com qualquer nota, e o relatório parecia estar funcionando. Um plano que pontuou 99,5 recebia `INVALID`. O parser agora entende os dois formatos, e o comando falha alto se o arquivo de faixas não produzir faixa alguma, em vez de reprovar em silêncio. O orquestrador era o único script da skill sem teste próprio — passou a ter (#roadmap-m24)
+
 ### Security
+- Uma falha de path traversal na leitura de source maps (`postcss`) deixou de ser servida pelo dashboard. Continuam abertos 5 avisos do `react-router` cujo conserto exige trocar a major do roteador — rastreado em #301, deliberadamente fora deste milestone (#roadmap-m24)
+
 
 ## [0.73.0] - 2026-07-31
 

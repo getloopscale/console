@@ -22,7 +22,7 @@ dashboard/test-results/
 .claude/**/.mypy_cache/
 .claude/.compaction-snapshots/
 .claude/knowledge-base/implementations/.progress-*.json
-.claude/knowledge-base/references/*/
+.claude/knowledge-base/references/
 
 # Playwright test reports (build output)
 dashboard/playwright-report/

@@ -505,6 +505,7 @@ func main() {
 	// trust:* scopes with the data scopes) and fails CLOSED — no master fallback.
 	var trustForwardAuthHandler *routes.ForwardAuthHandler
 	var trustDashboardHandler *routes.TrustDashboardHandler
+	var trustGuardrailsHandler *routes.TrustGuardrailsHandler
 	if cfg.TrustBaseURL != "" {
 		trustHTTP := &http.Client{Timeout: 10 * time.Second}
 		trustAdmin := trust.NewAdminClient(cfg.TrustBaseURL, cfg.TrustPlatformAdminKey.Value(), trustHTTP)
@@ -536,6 +537,14 @@ func main() {
 			WithKeyResolver(newTrustDashboardKeyResolver(trustBroker))
 		trustDashboardHandler = routes.NewTrustDashboardHandler(trustDataClient, logger)
 		logger.Info("dashboard trust enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/trust")
+
+		// M24 — o caminho de MUTACAO recebe um cliente PROPRIO, com resolver proprio. Dois clientes
+		// e nao um porque a credencial e a fronteira: o de leitura carrega so `trust:read` e nao
+		// consegue escrever nem por engano.
+		trustWriteClient := trust.NewDataClient(cfg.TrustBaseURL, &http.Client{Timeout: 20 * time.Second}).
+			WithKeyResolver(newTrustGuardrailsKeyResolver(trustBroker))
+		trustGuardrailsHandler = routes.NewTrustGuardrailsHandler(trustWriteClient, logger)
+		logger.Info("dashboard trust guardrails enabled (per-tenant write broker)", "mount", "/v1/dashboard/trust/guardrails")
 	}
 
 	// M22 (theo-skills Model B): a ForwardAuth handler for the /v1/skills
@@ -1264,6 +1273,9 @@ func main() {
 	// sem broker não há cunhagem por tenant, e sem ela a rota não deve existir.
 	if trustDashboardHandler != nil {
 		routes.MountTrustDashboard(r, trustDashboardHandler, requireJWT)
+	}
+	if trustGuardrailsHandler != nil {
+		routes.MountTrustGuardrails(r, trustGuardrailsHandler, requireJWT)
 	}
 	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
 	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even

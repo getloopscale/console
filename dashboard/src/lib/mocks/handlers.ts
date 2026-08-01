@@ -53,6 +53,7 @@ import {
 } from './fixtures';
 import { registerRoute } from './server';
 import { registerSSE } from './sse';
+import { registerTrustHandlers } from './trust-handlers';
 
 // ============================================================================
 // In-memory "DB" — mutates per session to simulate CRUD persistence
@@ -723,6 +724,7 @@ export function registerAllMockHandlers(): void {
   registerBillingHandlers();
   registerTenantHandlers();
   registerSystemHandlers();
+  registerTrustHandlers();
 }
 
 /** Test-only: reset the in-memory DB to initial fixture state. */
