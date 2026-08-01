@@ -76,21 +76,29 @@ try {
   // BroadcastChannel not available (e.g., some workers) — graceful degradation
 }
 
-// #324: verdadeiro quando a ULTIMA troca de token falhou por rate limit. Nao e
-// estado de autenticacao — e a diferenca entre "tente daqui a pouco" e "voce
-// foi deslogado", que a resposta HTTP carrega e o booleano de retorno perde.
-let lastExchangeWasRateLimited = false;
+// #324: status HTTP da ULTIMA troca de token (null = rejeicao de rede, sem
+// resposta). Nao e estado de autenticacao — e a diferenca entre "tente daqui a
+// pouco" e "voce foi deslogado", que a resposta carrega e o booleano perde.
+let lastExchangeStatus: number | null = null;
 
 /**
- * #324: expoe a MESMA distincao para quem chama `exchangeSessionToken()` de
- * fora deste modulo — hoje `useRequireAuth`. O booleano de retorno colapsa
- * "cota estourada" (sessao valida, tente depois) e "cookie Kratos velho"
- * (sessao morta, va para /login) num unico `false`, e as duas exigem reacoes
- * opostas. Getter em vez de mudar a assinatura: os call-sites do `boolean`
- * continuam validos e a origem da verdade segue unica.
+ * #324, forma final. As tres rodadas anteriores enumeravam o lado TRANSITORIO
+ * ("foi 429?"), e esse conjunto e ABERTO: `/v1/auth/session/token` falha com
+ * 429, 500 (INTERNAL_ERROR / TENANT_ERROR / TOKEN_ERROR), 502
+ * (AUTH_SERVICE_UNAVAILABLE — cuja propria mensagem diz "Try again") ou sem
+ * status algum (rejeicao de rede). Cada correcao fechava um caminho e deixava
+ * os outros.
+ *
+ * O lado TERMINAL tem um membro so: `401 AUTH_REQUIRED`, emitido quando o
+ * `/sessions/whoami` do Kratos nega ou devolve a sessao inativa. Entao a
+ * pergunta certa nao e "foi temporario?" mas "a sessao ACABOU?" — e o default
+ * de qualquer status novo cai no lado seguro (tente de novo), nunca em logout.
+ *
+ * Mantem o #110 fechado por construcao: um cookie Kratos velho faz o whoami
+ * negar, o handler responde 401, e o redirect continua acontecendo.
  */
-export function wasLastExchangeRateLimited(): boolean {
-  return lastExchangeWasRateLimited;
+export function sessionDefinitivelyExpired(): boolean {
+  return lastExchangeStatus === 401;
 }
 
 /** Exchange Kratos session cookie for a JWT. Called after login. */
@@ -114,17 +122,17 @@ export async function exchangeSessionToken(): Promise<boolean> {
         credentials: 'include', // Send Kratos session cookie
         headers: { 'Content-Type': 'application/json' },
       });
-      // #324: um 429 NAO e logout. A cota de /v1/auth/session/token e de 10/min
-      // por IP (pre-auth), e colapsar todo erro num unico `false` fazia o
-      // chamador redirecionar para /login dizendo "Session expired" — o
-      // redirect recarregava a pagina, zerava este dedup e disparava nova
-      // troca, consumindo mais da cota ja estourada. O loop se auto-alimentava
-      // com a sessao Kratos VALIDA. Guardamos o motivo para o chamador decidir.
+      // #324: guardamos o STATUS, nao um julgamento. Colapsar todo erro num
+      // unico `false` fazia o chamador redirecionar para /login dizendo
+      // "Session expired" — o redirect recarregava a pagina, zerava este dedup
+      // e disparava nova troca, consumindo mais da cota ja estourada. O loop se
+      // auto-alimentava com a sessao Kratos VALIDA. Quem decide e
+      // `sessionDefinitivelyExpired()`.
       if (!resp.ok) {
-        lastExchangeWasRateLimited = resp.status === 429;
+        lastExchangeStatus = resp.status;
         return false;
       }
-      lastExchangeWasRateLimited = false;
+      lastExchangeStatus = resp.status;
 
       const data = await resp.json() as { access_token: string; expires_in: number };
       accessToken = data.access_token;
@@ -134,6 +142,9 @@ export async function exchangeSessionToken(): Promise<boolean> {
       // from its Kratos session cookie on demand (see ensureToken).
       return true;
     } catch {
+      // Rejeicao de rede: nao ha resposta, logo nao ha como afirmar que a
+      // sessao acabou. Lado seguro — transitorio.
+      lastExchangeStatus = null;
       return false;
     } finally {
       refreshPromise = null;
@@ -210,10 +221,9 @@ export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg
   // is purely WHO answers the network call.
   const token = await ensureToken();
   if (!token) {
-    // #324: so redireciona quando a sessao de fato acabou. Sob rate limit a
-    // sessao segue valida e redirecionar realimenta a cota — ver a nota em
-    // `lastExchangeWasRateLimited`.
-    if (lastExchangeWasRateLimited) {
+    // #324: so redireciona quando a sessao de fato acabou (401). Qualquer outra
+    // falha e transitoria — ver `sessionDefinitivelyExpired()`.
+    if (!sessionDefinitivelyExpired()) {
       if (cfg.throwOnError === true) {
         throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
       }
@@ -242,8 +252,8 @@ export async function engineFetch<T>(path: string, options: RequestInit = {}, cf
 export async function cloudFetchRaw(path: string, options: RequestInit = {}): Promise<Response | null> {
   const token = await ensureToken();
   if (!token) {
-    // #324: sob rate limit a sessao segue valida — ver `lastExchangeWasRateLimited`.
-    if (lastExchangeWasRateLimited) return null;
+    // #324: so o 401 encerra sessao — ver `sessionDefinitivelyExpired()`.
+    if (!sessionDefinitivelyExpired()) return null;
     redirectToLogin('expired');
     return null;
   }
@@ -297,11 +307,10 @@ async function fetchWithAuth<T>(base: string, path: string, token: string, optio
       accessToken = null;
       const newToken = await ensureToken();
       if (!newToken) {
-        // #324, segunda rodada: ESTE e o caminho que mantinha o loop vivo. Um 401
-        // numa chamada de dados dispara o refresh; o refresh bate na cota de
-        // 10/min; e o redirect recarrega a pagina, que refaz a troca e consome
-        // mais cota. A primeira correcao cobriu so o cloudFetch — um de tres.
-        if (lastExchangeWasRateLimited) {
+        // #324: um 401 na chamada de DADOS dispara o refresh; se o refresh
+        // falhar por algo transitorio (cota, 5xx, rede), o redirect recarrega a
+        // pagina e realimenta o problema. So o 401 NA TROCA encerra a sessao.
+        if (!sessionDefinitivelyExpired()) {
           if (throwOnError) {
             throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
           }
