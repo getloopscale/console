@@ -738,7 +738,7 @@ fechar.
 
 ---
 
-### M24 — [ ] Operar guardrails pelo dashboard (validators + auditoria de enforcement)
+### M24 — [x] Operar guardrails pelo dashboard (validators + auditoria de enforcement)
 
 > Added 2026-07-31 by `/roadmap-feature` (slug: `theo-cloud-trust-dashboard`).
 > See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-trust-dashboard-feature-grill.md`.
