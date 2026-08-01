@@ -89,6 +89,28 @@ export function draftProblemsByField(d: GuardrailDraft): Partial<Record<DraftFie
   return out;
 }
 
+/**
+ * Os problemas que a tela pode MOSTRAR agora: só os dos campos que o operador já visitou.
+ *
+ * O formulário abre vazio porque esse é o estado inicial legítimo, não um engano dele. Acusar
+ * "Dê um nome à guardrail" antes do primeiro toque transforma a tela de partida numa tela de
+ * erro — e ensina a ignorar o vermelho justamente onde ele vai importar, na hora de gravar algo
+ * que passa a bloquear conversa de produção.
+ *
+ * Isto governa apenas a EXIBIÇÃO. A validação em si não afrouxa: `draftProblems` continua sendo
+ * quem libera o dry-run, e o serviço continua sendo a autoridade final.
+ */
+export function visibleFieldProblems(
+  d: GuardrailDraft,
+  touched: ReadonlySet<DraftField>,
+): Partial<Record<DraftField, string>> {
+  const out: Partial<Record<DraftField, string>> = {};
+  for (const [field, problem] of Object.entries(draftProblemsByField(d))) {
+    if (touched.has(field as DraftField)) out[field as DraftField] = problem;
+  }
+  return out;
+}
+
 /** Termos utilizáveis: sem brancos, sem duplicatas, preservando a ordem que o operador digitou. */
 export function cleanTerms(terms: readonly string[]): string[] {
   const seen = new Set<string>();

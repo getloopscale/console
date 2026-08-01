@@ -151,4 +151,45 @@ describe('TrustGuardrailNewPage', () => {
     expect(saveButton()).not.toBeInTheDocument();
     expect(mockCreate).not.toHaveBeenCalled();
   });
+
+  describe('quando o erro do campo aparece', () => {
+    /**
+     * O formulário abre vazio — que é o estado inicial legítimo, não um engano do operador.
+     * Acusar "Dê um nome à guardrail" antes de ele tocar em qualquer campo transforma a tela
+     * de partida numa tela de erro, e ensina a ignorar o vermelho justamente onde ele vai
+     * importar. O erro pertence ao campo VISITADO e deixado inválido.
+     */
+    it('não acusa campo nenhum ao abrir', () => {
+      render(<TrustGuardrailNewPage />);
+
+      expect(screen.queryByText('Dê um nome à guardrail.')).not.toBeInTheDocument();
+      expect(screen.queryByText('Adicione ao menos um termo a bloquear.')).not.toBeInTheDocument();
+    });
+
+    /** Monta a tela e visita o campo `Nome`, saindo dele sem preencher. */
+    async function visitNameAndLeaveItEmpty() {
+      const user = userEvent.setup();
+      render(<TrustGuardrailNewPage />);
+      await user.click(screen.getByLabelText('Nome'));
+      await user.tab();
+      return user;
+    }
+
+    it('acusa o campo depois que o operador o visita e o deixa inválido', async () => {
+      await visitNameAndLeaveItEmpty();
+
+      expect(await screen.findByText('Dê um nome à guardrail.')).toBeInTheDocument();
+      // O campo que ele ainda não visitou continua calado.
+      expect(screen.queryByText('Adicione ao menos um termo a bloquear.')).not.toBeInTheDocument();
+    });
+
+    it('para de acusar assim que o campo fica válido', async () => {
+      const user = await visitNameAndLeaveItEmpty();
+      expect(await screen.findByText('Dê um nome à guardrail.')).toBeInTheDocument();
+
+      await user.type(screen.getByLabelText('Nome'), 'termos-internos');
+
+      expect(screen.queryByText('Dê um nome à guardrail.')).not.toBeInTheDocument();
+    });
+  });
 });

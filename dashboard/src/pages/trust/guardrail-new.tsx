@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { FlaskConical, ShieldCheck } from 'lucide-react';
-import { Button, Card, FormField, Input, PageShell, Select, Textarea } from '@usetheo/ui';
+import { Button, Card, FormField, PageShell, Textarea } from '@usetheo/ui';
+
+import { GuardrailRuleFields } from '@/components/trust/guardrail-rule-fields';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -17,10 +19,11 @@ import {
   EMPTY_DRAFT,
   cleanTerms,
   draftProblems,
-  draftProblemsByField,
   toCreateBody,
   toTestBody,
   verdictSummary,
+  visibleFieldProblems,
+  type DraftField,
   type DryRunVerdict,
   type GuardrailDraft,
 } from '@/components/trust/guardrail-draft';
@@ -54,6 +57,10 @@ export function TrustGuardrailNewPage() {
   const [verdict, setVerdict] = useState<DryRunVerdict | null>(null);
   /** A spec exata que foi testada. Enquanto bater com a atual, o veredito vale. */
   const [testedSpec, setTestedSpec] = useState<string | null>(null);
+  /** Campos que o operador já visitou — só eles podem acusar erro. */
+  const [touched, setTouched] = useState<ReadonlySet<DraftField>>(new Set());
+  const markTouched = (field: DraftField) =>
+    setTouched((t) => (t.has(field) ? t : new Set(t).add(field)));
   const [busy, setBusy] = useState<'idle' | 'testing' | 'saving'>('idle');
   const [error, setError] = useState<{ title: string; description: string } | null>(null);
 
@@ -63,7 +70,8 @@ export function TrustGuardrailNewPage() {
   );
 
   const problems = draftProblems(current);
-  const fieldProblems = draftProblemsByField(current);
+  // Só o campo já visitado acusa erro — ver `visibleFieldProblems`.
+  const fieldProblems = visibleFieldProblems(current, touched);
   const currentSpec = useMemo(() => JSON.stringify(toCreateBody(current)), [current]);
 
   // O coração da tela: o veredito só vale para a spec que o produziu.
@@ -134,87 +142,14 @@ export function TrustGuardrailNewPage() {
       title="Nova guardrail"
       description="Os termos abaixo passam a ser bloqueados nas conversas deste workspace assim que a regra for salva."
     >
-      <Card>
-        <Card.Header>
-          {/* asChild → <h2>: o PageShell já rende o <h1> (WCAG 1.3.1). */}
-          <Card.Title asChild>
-            <h2>A regra</h2>
-          </Card.Title>
-          <Card.Description>
-            O nome identifica a guardrail no catálogo e na auditoria; os termos são o que ela procura.
-          </Card.Description>
-        </Card.Header>
-
-        <Card.Body className="space-y-5">
-          <FormField id="guardrail-name" invalid={Boolean(fieldProblems.name)}>
-            <FormField.Label>Nome</FormField.Label>
-            <FormField.Control>
-              <Input
-                aria-label="Nome"
-                size="md"
-                value={draft.name}
-                placeholder="termos-internos"
-                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-              />
-            </FormField.Control>
-            {fieldProblems.name ? <FormField.Error>{fieldProblems.name}</FormField.Error> : null}
-          </FormField>
-
-          <FormField id="guardrail-terms" invalid={Boolean(fieldProblems.terms)}>
-            <FormField.Label>Termos a bloquear</FormField.Label>
-            <FormField.Control>
-              <Textarea
-                aria-label="Termos a bloquear"
-                rows={4}
-                className="font-mono"
-                value={termsText}
-                placeholder={'projeto-fenix\ncodinome-interno'}
-                onChange={(e) => setTermsText(e.target.value)}
-              />
-            </FormField.Control>
-            {fieldProblems.terms ? (
-              <FormField.Error>{fieldProblems.terms}</FormField.Error>
-            ) : (
-              <FormField.Hint>Um termo por linha.</FormField.Hint>
-            )}
-          </FormField>
-
-          <FormField id="guardrail-action">
-            <FormField.Label>O que fazer ao encontrar</FormField.Label>
-            <FormField.Control>
-              <Select
-                value={draft.action}
-                onValueChange={(v) => setDraft((d) => ({ ...d, action: v as GuardrailDraft['action'] }))}
-              >
-                <Select.Trigger aria-label="O que fazer ao encontrar">
-                  <Select.Value />
-                </Select.Trigger>
-                <Select.Content>
-                  <Select.Item value="block">Bloquear a mensagem</Select.Item>
-                  <Select.Item value="modify">Substituir o termo</Select.Item>
-                </Select.Content>
-              </Select>
-            </FormField.Control>
-          </FormField>
-
-          {draft.action === 'modify' ? (
-            <FormField id="guardrail-replacement" invalid={Boolean(fieldProblems.replacement)}>
-              <FormField.Label>Substituir por</FormField.Label>
-              <FormField.Control>
-                <Input
-                  aria-label="Substituir por"
-                  size="md"
-                  value={draft.replacement}
-                  onChange={(e) => setDraft((d) => ({ ...d, replacement: e.target.value }))}
-                />
-              </FormField.Control>
-              {fieldProblems.replacement ? (
-                <FormField.Error>{fieldProblems.replacement}</FormField.Error>
-              ) : null}
-            </FormField>
-          ) : null}
-        </Card.Body>
-      </Card>
+      <GuardrailRuleFields
+        draft={draft}
+        termsText={termsText}
+        fieldProblems={fieldProblems}
+        onDraftChange={(patch: Partial<GuardrailDraft>) => setDraft((d) => ({ ...d, ...patch }))}
+        onTermsTextChange={setTermsText}
+        onFieldTouched={markTouched}
+      />
 
       <Card>
         <Card.Header>
