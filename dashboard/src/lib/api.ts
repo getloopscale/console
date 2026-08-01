@@ -230,6 +230,8 @@ export async function engineFetch<T>(path: string, options: RequestInit = {}, cf
 export async function cloudFetchRaw(path: string, options: RequestInit = {}): Promise<Response | null> {
   const token = await ensureToken();
   if (!token) {
+    // #324: sob rate limit a sessao segue valida — ver `lastExchangeWasRateLimited`.
+    if (lastExchangeWasRateLimited) return null;
     redirectToLogin('expired');
     return null;
   }
@@ -283,6 +285,16 @@ async function fetchWithAuth<T>(base: string, path: string, token: string, optio
       accessToken = null;
       const newToken = await ensureToken();
       if (!newToken) {
+        // #324, segunda rodada: ESTE e o caminho que mantinha o loop vivo. Um 401
+        // numa chamada de dados dispara o refresh; o refresh bate na cota de
+        // 10/min; e o redirect recarrega a pagina, que refaz a troca e consome
+        // mais cota. A primeira correcao cobriu so o cloudFetch — um de tres.
+        if (lastExchangeWasRateLimited) {
+          if (throwOnError) {
+            throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
+          }
+          return null;
+        }
         redirectToLogin('expired');
         // Coherent error contract (F-api-1): under throwOnError the auth-expiry
         // surfaces as ApiError(401) so an opted-in mutation rejects → isError
