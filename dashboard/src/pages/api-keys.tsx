@@ -90,6 +90,17 @@ export const ACTIVE_SCOPES = [
   { id: 'trust:read', label: 'trust:read', description: 'Read conversations, themes, trends and policy violations' },
   { id: 'trust:write', label: 'trust:write', description: 'Ingest conversations and run inline guardrails' },
   { id: 'trust:delete', label: 'trust:delete', description: 'Delete conversations and custom validators' },
+  // Promptly vertical (theo-promptly, M11 Model B L2). MESMA história do trust logo acima,
+  // e a terceira vez que ela se repete: em 2026-08-01 a cadeia estava inteira de pé — borda
+  // roteando /v1/promptly/*, ForwardAuth exigindo `promptly:read`, broker cunhando por
+  // tenant — e o produto era inutilizável, porque o escopo não era emitível.
+  //
+  // Esta tela é a TERCEIRA metade do mesmo defeito, e a mais fácil de esquecer: acrescentar
+  // o escopo só no enum do backend torna a chave aceitável e continua sem um jeito de o
+  // cliente PEDIR. `api-keys-scope-catalog.test.ts` existe exatamente para isso e foi o que
+  // pegou a omissão — a tela precisa oferecer EXATAMENTE o que o backend aceita.
+  { id: 'promptly:read', label: 'promptly:read', description: 'Resolve prompts and read revisions, labels and evaluations' },
+  { id: 'promptly:write', label: 'promptly:write', description: 'Create prompt revisions and move environment labels' },
   // Skills vertical (theo-skills, M22 Model B). Diferente do trust — onde a cadeia já
   // estava de pé e só o escopo faltava — aqui NADA existia: sem broker, sem forward-auth,
   // sem rota de borda. Oferecer o escopo antes dessas peças entregaria uma chave que
