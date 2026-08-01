@@ -357,3 +357,44 @@ describe('troca de sessão sob rate limit (#324)', () => {
     expect(document.body.textContent ?? '').not.toContain('Session expired');
   });
 });
+
+// ---------------------------------------------------------------------------
+// #324, segunda rodada — a primeira correção cobriu UM caminho de três.
+//
+// `api.ts` chama `redirectToLogin('expired')` em três lugares, e só o de
+// `cloudFetch` consultava a flag de rate limit. O caminho que o red team
+// exercitou ao vivo é outro: uma chamada de dados devolve `401`, o
+// `fetchWithAuth` tenta refrescar o token, o refresh bate na cota de 10/min —
+// e redireciona. O loop persistiu com a correção no ar, comprovadamente.
+//
+// O teste anterior exercitava a troca DIRETA de sessão. Uma correção parcial
+// passa nele: é a pergunta que esta corrida ensinou — existe uma implementação
+// errada que passaria neste teste? Passava.
+// ---------------------------------------------------------------------------
+
+describe('rate limit no refresh apos 401 (#324, segunda rodada)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('um 401 seguido de 429 no refresh nao anuncia sessao expirada', async () => {
+    let tokenCalls = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        tokenCalls += 1;
+        // A primeira troca funciona (o usuario esta logado); o REFRESH bate na cota.
+        if (tokenCalls === 1) {
+          return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ code: 'RATE_LIMITED' }), { status: 429 });
+      }
+      // A chamada de dados expira: dispara o caminho de refresh.
+      return new Response(JSON.stringify({ code: 'UNAUTHORIZED' }), { status: 401 });
+    });
+
+    await exchangeSessionToken();
+    await cloudFetch('/foo').catch(() => undefined);
+
+    expect(document.body.textContent ?? '').not.toContain('Session expired');
+  });
+});
