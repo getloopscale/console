@@ -24,6 +24,7 @@
 package unit
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -365,5 +366,51 @@ func TestExchange_MalformedKratosBody_Returns401(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401 (graceful), got %d", w.Code)
+	}
+}
+
+// #330: o handler responde 401 AUTH_REQUIRED tanto quando o cookie de sessao
+// NAO chegou quanto quando chegou e o Ory o recusou. As duas causas exigem
+// investigacoes opostas — escopo de dominio do cookie de um lado, estado da
+// sessao do outro — e hoje sao indistinguiveis a partir do log. Medido em
+// app-dev: o Ory registra "No valid session credentials found" com um header
+// `cookie` PRESENTE, e nao ha como saber dali se o cookie de sessao estava
+// entre os repassados.
+//
+// O par de assercoes e o que da valor ao teste: exigir o NOME e proibir o
+// VALOR. Uma implementacao que despejasse o header inteiro satisfaria a
+// primeira metade e vazaria credencial de sessao no log — que e exatamente o
+// modo de falha que um diagnostico apressado introduz.
+func TestExchange_LogsCookieNamesNeverValues_WhenKratosRejects(t *testing.T) {
+	const sessionCookieValue = "valor-de-sessao-que-nunca-pode-aparecer-em-log"
+
+	kratos := newMockKratosServer(t, mockKratosCfg{statusCode: http.StatusUnauthorized})
+	defer kratos.Close()
+	handler, _ := buildHandler(t, kratos)
+
+	var logBuf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer slog.SetDefault(prev)
+
+	w := postWithCookie(t, handler, map[string]string{
+		"ory_kratos_session": sessionCookieValue,
+		"csrf_token":         "irrelevante",
+	})
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, quero 401", w.Code)
+	}
+
+	logged := logBuf.String()
+	if !strings.Contains(logged, "ory_kratos_session") {
+		t.Errorf("o log nao registra o NOME do cookie de sessao; sem isso nao se distingue "+
+			"'cookie nao chegou' de 'cookie recusado'.\nlog: %s", logged)
+	}
+	if !strings.Contains(logged, "401") {
+		t.Errorf("o log nao registra o status devolvido pelo Ory.\nlog: %s", logged)
+	}
+	if strings.Contains(logged, sessionCookieValue) {
+		t.Fatalf("VAZAMENTO: o valor do cookie de sessao apareceu no log")
 	}
 }
