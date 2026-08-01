@@ -141,11 +141,17 @@ export function ApiKeysPage() {
 
   const createMutation = useMutation({
     mutationFn: async (input: { name: string; scopes: string[]; expires_at?: string | null }) =>
+      // `throwOnError` NÃO é opcional aqui, apesar de a doc de `cloudFetch` chamá-lo
+      // de "opt-in": sem ele o helper RESOLVE para `null` num 4xx, o React Query trata
+      // como sucesso e o `onSuccess` abaixo fecha o diálogo — o operador sai convencido
+      // de que criou uma chave que o backend recusou. Medido ao vivo em 2026-08-01
+      // (LT-019): um 400 UNKNOWN_SCOPE fechou o diálogo sem mensagem alguma. O caminho
+      // de LEITURA desta página sempre passou a flag; os de MUTAÇÃO não passavam.
       cloudFetch<CreateKeyResponse>('/v1/api-keys', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(input),
-      }),
+      }, { throwOnError: true }),
     onSuccess: (resp) => {
       setRevealed(resp);
       setCreateOpen(false);
@@ -155,7 +161,10 @@ export function ApiKeysPage() {
 
   const revokeMutation = useMutation({
     mutationFn: async (id: string) =>
-      cloudFetch<null>(`/v1/api-keys/${id}`, { method: 'DELETE' }),
+      // Mesma classe do create (LT-019): sem a flag, uma revogação recusada fecharia
+      // o confirm e sumiria da lista como se tivesse dado certo — a pior mentira
+      // possível numa operação de segurança.
+      cloudFetch<null>(`/v1/api-keys/${id}`, { method: 'DELETE' }, { throwOnError: true }),
     onSuccess: () => {
       setPendingDelete(null);
       invalidate();
@@ -166,11 +175,13 @@ export function ApiKeysPage() {
   // On success, reuse the existing RevealedSecretDialog for show-once secret.
   const rotateMutation = useMutation({
     mutationFn: async (id: string) =>
+      // Mesma classe do create (LT-019): uma rotação recusada abriria o diálogo de
+      // segredo com `null` e o operador perderia a chave antiga achando que tem a nova.
       cloudFetch<CreateKeyResponse>(`/v1/api-keys/${id}/rotate`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({}),
-      }),
+      }, { throwOnError: true }),
     onSuccess: (resp) => {
       setRevealed(resp);
       setPendingRotate(null);
