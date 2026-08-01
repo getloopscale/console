@@ -81,6 +81,18 @@ try {
 // foi deslogado", que a resposta HTTP carrega e o booleano de retorno perde.
 let lastExchangeWasRateLimited = false;
 
+/**
+ * #324: expoe a MESMA distincao para quem chama `exchangeSessionToken()` de
+ * fora deste modulo — hoje `useRequireAuth`. O booleano de retorno colapsa
+ * "cota estourada" (sessao valida, tente depois) e "cookie Kratos velho"
+ * (sessao morta, va para /login) num unico `false`, e as duas exigem reacoes
+ * opostas. Getter em vez de mudar a assinatura: os call-sites do `boolean`
+ * continuam validos e a origem da verdade segue unica.
+ */
+export function wasLastExchangeRateLimited(): boolean {
+  return lastExchangeWasRateLimited;
+}
+
 /** Exchange Kratos session cookie for a JWT. Called after login. */
 export async function exchangeSessionToken(): Promise<boolean> {
   // Visual-validation mock layer (dev-only, gated by VITE_USE_MOCKS).

@@ -10,9 +10,11 @@ vi.mock('@/lib/auth', () => ({
 
 const mockHasValidToken = vi.fn();
 const mockExchangeSessionToken = vi.fn();
+const mockWasLastExchangeRateLimited = vi.fn();
 vi.mock('@/lib/api', () => ({
   hasValidToken: () => mockHasValidToken(),
   exchangeSessionToken: () => mockExchangeSessionToken(),
+  wasLastExchangeRateLimited: () => mockWasLastExchangeRateLimited(),
 }));
 
 const mockNavigate = vi.fn();
@@ -35,6 +37,7 @@ describe('useRequireAuth — Red Team theo-cloud#50 LCP closure', () => {
     vi.clearAllMocks();
     mockHasValidToken.mockReturnValue(false);
     mockExchangeSessionToken.mockResolvedValue(true);
+    mockWasLastExchangeRateLimited.mockReturnValue(false);
   });
 
   // Red Team theo-cloud#50: the prior behavior awaited TWO sequential
@@ -95,10 +98,39 @@ describe('useRequireAuth — Red Team theo-cloud#50 LCP closure', () => {
       identity: { id: 'u', traits: { email: 'u@x.com' } },
     });
     mockExchangeSessionToken.mockResolvedValue(false);
+    // Explicito: esta e a falha PERMANENTE. O par abaixo cobre a temporaria,
+    // e as duas resolvem `false` — e por isso que so `false` nao decide nada.
+    mockWasLastExchangeRateLimited.mockReturnValue(false);
     renderHook(() => useRequireAuth(), { wrapper });
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
     });
+  });
+
+  // #324, terceira rodada. As duas correcoes anteriores fecharam os caminhos de
+  // fetch dentro de `lib/api.ts`; o redirect sobreviveu porque nasce AQUI — num
+  // efeito React, depois da pintura do shell, e por `navigate()` do router (nao
+  // `window.location`). Por isso nao exibia "Session expired" e nao recarregava
+  // a pagina: os dois criterios que eu tinha declarado passavam com o defeito
+  // intacto. Sob 429 a sessao Kratos segue VALIDA (medido: expira 15h depois) —
+  // mandar o usuario para /login e falso, e o reload realimenta a cota.
+  it('nao navega para /login quando a troca falhou por rate limit (sessao segue valida)', async () => {
+    mockGetSession.mockResolvedValue({
+      active: true,
+      identity: { id: 'u', traits: { email: 'u@x.com' } },
+    });
+    mockExchangeSessionToken.mockResolvedValue(false);
+    mockWasLastExchangeRateLimited.mockReturnValue(true);
+    const { result } = renderHook(() => useRequireAuth(), { wrapper });
+
+    // Espera o shell pintar E a troca diferida resolver — sem isso a assercao
+    // negativa passaria por so ter chegado cedo demais.
+    await waitFor(() => expect(result.current).not.toBeNull());
+    await waitFor(() => expect(mockExchangeSessionToken).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockNavigate).not.toHaveBeenCalledWith('/login', { replace: true });
   });
 });
