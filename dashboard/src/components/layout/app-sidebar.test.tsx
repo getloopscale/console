@@ -80,6 +80,27 @@ describe('AppSidebar', () => {
     //  it is covered by test_app_sidebar_team_switcher_renders_session_name.)
   });
 
+  it('M24 — uma rota /trust abre o submenu trust, com as quatro telas da capacidade', () => {
+    // O submenu `trust` estava DEFINIDO com as quatro telas e mesmo assim nunca abria:
+    // `resolveActiveMenu` mapeava /settings, /profile, /rag, /observability e /memory, e não
+    // /trust. O efeito era total — Guardrails e Enforcement só eram alcançáveis digitando a URL,
+    // e nenhum teste cobria a resolução, então o menu podia declarar telas que ninguém achava.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/trust'] });
+
+    for (const label of ['Overview', 'Violations', 'Guardrails', 'Enforcement']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it('M24 — o submenu trust continua aberto nas rotas filhas', () => {
+    // Se a resolução casasse só o caminho exato, entrar em Guardrails fecharia o menu que
+    // levou até ela — e o operador perderia a navegação assim que a usasse.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/trust/guardrails'] });
+
+    expect(screen.getByText('Enforcement')).toBeInTheDocument();
+    expect(screen.getByText('Violations')).toBeInTheDocument();
+  });
+
   // M21 T2.1 (R3) — the sidebar is about to become asynchronous. Without a global
   // fetch stub, jsdom issues a REAL request: the symptom is not a red test, it is an
   // unhandled rejection plus act() noise, which does not block a merge.

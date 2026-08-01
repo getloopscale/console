@@ -192,4 +192,35 @@ describe('TrustGuardrailNewPage', () => {
       expect(screen.queryByText('Dê um nome à guardrail.')).not.toBeInTheDocument();
     });
   });
+
+  describe('a tela tem saida e diz o que falta', () => {
+    it('oferece volta ao catalogo — quem abriu por engano nao fica preso', () => {
+      // O item "Trust" do menu leva ao OVERVIEW, nao de volta ao catalogo; sem esta saida a
+      // unica escapatoria era o botao do navegador.
+      render(<TrustGuardrailNewPage />);
+
+      const back = screen.getByRole('link', { name: /voltar para as guardrails/i });
+      expect(back).toHaveAttribute('href', '/trust/guardrails');
+    });
+
+    it('explica por que Testar esta desabilitado num rascunho vazio', () => {
+      // Os erros por campo so aparecem depois da visita — correto —, mas isso deixava a tela
+      // recem-aberta com um botao cinza e nenhuma pista. A frase descreve o proximo passo.
+      render(<TrustGuardrailNewPage />);
+
+      expect(screen.getByRole('button', { name: /testar/i })).toBeDisabled();
+      expect(screen.getByText(/nome e ao menos um termo/i)).toBeInTheDocument();
+    });
+
+    it('some com a pista quando o rascunho fica testavel', async () => {
+      const user = userEvent.setup();
+      render(<TrustGuardrailNewPage />);
+
+      await user.type(screen.getByLabelText('Nome'), 'regra-x');
+      await user.type(screen.getByLabelText('Termos a bloquear'), 'segredo');
+
+      expect(screen.queryByText(/nome e ao menos um termo/i)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /testar/i })).toBeEnabled();
+    });
+  });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { FlaskConical, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, FlaskConical, ShieldCheck } from 'lucide-react';
 import { Button, Card, FormField, PageShell, Textarea } from '@usetheo/ui';
 
 import { GuardrailRuleFields } from '@/components/trust/guardrail-rule-fields';
@@ -176,14 +176,26 @@ export function TrustGuardrailNewPage() {
             </FormField.Control>
           </FormField>
 
-          <Button
-            variant="secondary"
-            disabled={problems.length > 0 || busy !== 'idle'}
-            onClick={() => void onTest()}
-          >
-            <FlaskConical className="size-4" />
-            {busy === 'testing' ? 'Testando…' : 'Testar'}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="secondary"
+              disabled={problems.length > 0 || busy !== 'idle'}
+              onClick={() => void onTest()}
+            >
+              <FlaskConical className="size-4" />
+              {busy === 'testing' ? 'Testando…' : 'Testar'}
+            </Button>
+
+            {/* Um botão cinza sem motivo faz o operador procurar o que não existe. Os erros por
+                campo só aparecem depois que ele visita o campo — correto —, mas isso deixava a
+                tela recém-aberta sem pista alguma do que falta. Esta frase é a pista, e não
+                acusa nada: descreve o próximo passo. */}
+            {problems.length > 0 ? (
+              <p className="text-body-sm text-muted-foreground">
+                Dê um nome e ao menos um termo para poder testar.
+              </p>
+            ) : null}
+          </div>
 
           {summary ? (
             <div role="status">
@@ -227,6 +239,15 @@ export function TrustGuardrailNewPage() {
           </Card.Footer>
         </Card>
       ) : null}
+
+      {/* A saída. Sem ela, quem abre esta tela por engano só escapa pelo botão do navegador —
+          e o item "Trust" do menu leva ao overview, não de volta ao catálogo. */}
+      <Button variant="ghost" asChild>
+        <Link to="/trust/guardrails">
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          Voltar para as guardrails
+        </Link>
+      </Button>
     </PageShell>
   );
 }
