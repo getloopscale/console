@@ -31,6 +31,14 @@ export interface PolicyViolation {
   readonly policy?: string;
   readonly severity?: string;
   readonly detectedAt?: string;
+  /**
+   * O trecho já redigido pelo serviço (`"sk…ab"`) — nunca o conteúdo bruto.
+   *
+   * É o único campo que descreve O QUE foi detectado, e o serviço o manda hoje. `detectedAt` e
+   * `conversationId` estão declarados porque o contrato os prevê, mas medido em 2026-08-01 o
+   * `/policy-violations` do deploy NÃO os devolve — ver a issue de contrato.
+   */
+  readonly redacted?: string;
   readonly [k: string]: unknown;
 }
 
