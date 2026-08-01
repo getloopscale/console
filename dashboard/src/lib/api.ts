@@ -76,6 +76,11 @@ try {
   // BroadcastChannel not available (e.g., some workers) — graceful degradation
 }
 
+// #324: verdadeiro quando a ULTIMA troca de token falhou por rate limit. Nao e
+// estado de autenticacao — e a diferenca entre "tente daqui a pouco" e "voce
+// foi deslogado", que a resposta HTTP carrega e o booleano de retorno perde.
+let lastExchangeWasRateLimited = false;
+
 /** Exchange Kratos session cookie for a JWT. Called after login. */
 export async function exchangeSessionToken(): Promise<boolean> {
   // Visual-validation mock layer (dev-only, gated by VITE_USE_MOCKS).
@@ -97,7 +102,17 @@ export async function exchangeSessionToken(): Promise<boolean> {
         credentials: 'include', // Send Kratos session cookie
         headers: { 'Content-Type': 'application/json' },
       });
-      if (!resp.ok) return false;
+      // #324: um 429 NAO e logout. A cota de /v1/auth/session/token e de 10/min
+      // por IP (pre-auth), e colapsar todo erro num unico `false` fazia o
+      // chamador redirecionar para /login dizendo "Session expired" — o
+      // redirect recarregava a pagina, zerava este dedup e disparava nova
+      // troca, consumindo mais da cota ja estourada. O loop se auto-alimentava
+      // com a sessao Kratos VALIDA. Guardamos o motivo para o chamador decidir.
+      if (!resp.ok) {
+        lastExchangeWasRateLimited = resp.status === 429;
+        return false;
+      }
+      lastExchangeWasRateLimited = false;
 
       const data = await resp.json() as { access_token: string; expires_in: number };
       accessToken = data.access_token;
@@ -183,6 +198,15 @@ export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg
   // is purely WHO answers the network call.
   const token = await ensureToken();
   if (!token) {
+    // #324: so redireciona quando a sessao de fato acabou. Sob rate limit a
+    // sessao segue valida e redirecionar realimenta a cota — ver a nota em
+    // `lastExchangeWasRateLimited`.
+    if (lastExchangeWasRateLimited) {
+      if (cfg.throwOnError === true) {
+        throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
+      }
+      return null;
+    }
     redirectToLogin('expired');
     return null;
   }
