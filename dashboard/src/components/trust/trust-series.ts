@@ -176,6 +176,23 @@ export function unenforcedCount(coverage: readonly PolicyCoverage[]): number {
 }
 
 /** Uma mensagem da conversa, como o theo-trust a devolve (já redigida do lado do serviço). */
+/**
+ * As violações de uma política só — o filtro que o link "Revisar e bloquear" promete.
+ *
+ * `/trust` manda o operador para `/trust/violations?policy=<X>` dizendo que ele vai revisar
+ * AQUELA política. Devolver a lista inteira quebra a promessa em silêncio: ele não vê erro algum,
+ * só uma lista que não corresponde ao que clicou, e não tem como saber que o filtro se perdeu.
+ *
+ * `policy` ausente devolve tudo — a rota também é alcançável direto, sem filtro.
+ */
+export function filterByPolicy(
+  violations: readonly PolicyViolation[],
+  policy: string | null | undefined,
+): PolicyViolation[] {
+  if (!policy) return [...violations];
+  return violations.filter((v) => v.policy === policy);
+}
+
 export interface ConversationMessage {
   readonly id?: string;
   readonly role?: string;
