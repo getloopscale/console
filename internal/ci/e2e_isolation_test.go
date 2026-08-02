@@ -239,8 +239,8 @@ func TestCloudHealthcheckRespectsTheProbeVerdict(t *testing.T) {
 	if test == "" {
 		t.Fatal("o servico theo-cloud perdeu o healthcheck — a sonda existe e ninguem a le")
 	}
-	if !strings.Contains(test, "/health") {
-		t.Errorf("o healthcheck nao sonda /health: %q", test)
+	if !strings.Contains(test, "/ready") {
+		t.Errorf("o healthcheck tem de sondar /ready (readiness), nao /health: %q", test)
 	}
 	if strings.Contains(test, "|| true") || strings.Contains(test, "|| exit 0") {
 		t.Errorf("o healthcheck engole o veredito da sonda: %q", test)

@@ -21,14 +21,32 @@ type Pinger interface {
 type HealthHandler struct {
 	db           Pinger
 	probeTimeout time.Duration
+	// failWhenDegraded separa readiness de liveness — ver NewReadyHandler.
+	failWhenDegraded bool
 	// integrations devolve, por integracao, a lista de configuracoes AUSENTES (vazia = habilitada).
 	// Reusa config.MissingSettings, que o #334 ja usa no boot — a mesma verdade, agora tambem
 	// legivel em runtime por quem sonda.
 	integrations func() map[string][]string
 }
 
+// NewHealthHandler — LIVENESS. "O processo esta vivo." NUNCA reprova por falha de dependencia:
+// um livenessProbe que reprova porque o banco piscou MATA o container, e o container reinicia
+// sem corrigir nada (LT-038 do theo-trust, LT-040/LT-041 do promptly). O estado do banco vai no
+// corpo, para quem investiga; nao no status, que e o que decide se o processo morre.
 func NewHealthHandler(db Pinger, integrations func() map[string][]string) *HealthHandler {
 	return &HealthHandler{db: db, probeTimeout: 2 * time.Second, integrations: integrations}
+}
+
+// NewReadyHandler — READINESS. "Consigo servir agora." REPROVA quando a dependencia nao serve,
+// para que o trafego seja retirado desta instancia enquanto ela nao pode atender.
+//
+// As duas existem porque as perguntas sao diferentes e as acoes tambem: liveness reprovada mata o
+// processo, readiness reprovada apenas o tira do balanceamento. Um endpoint so obriga a escolher
+// entre nao detectar degradacao e derrubar o servico por um piscar do banco.
+func NewReadyHandler(db Pinger, integrations func() map[string][]string) *HealthHandler {
+	h := NewHealthHandler(db, integrations)
+	h.failWhenDegraded = true
+	return h
 }
 
 func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +83,7 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// por causa dela derrubaria o container em toda topologia que nao a configura. Ela e
 	// REPORTADA no corpo — que era o que faltava no #334 e no theo-workspace#27, onde a
 	// capacidade sumiu com o container saudavel.
-	if status != "ok" {
+	if status != "ok" && h.failWhenDegraded {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 	_ = json.NewEncoder(w).Encode(body)
