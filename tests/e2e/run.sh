@@ -57,29 +57,98 @@ THELENS_DIR="${THELENS_DIR:-${ROOT}/../theo-lens}"
 THELENS_ADMIN_BOOTSTRAP="${THELENS_ADMIN_BOOTSTRAP:-e2e-bootstrap-token-change-me-min-32-chars}"
 export THELENS_ADMIN_BOOTSTRAP
 
+# --- BEGIN e2e-stack-identity (extraido e EXECUTADO por internal/ci/e2e_isolation_test.go) ---
+# --- Isolamento de pilha (issue #333) ----------------------------------------
+#
+# MEDIDO no run 30723256775: `e2e` e `e2e-edge` sao dois jobs do MESMO run, comecam no mesmo
+# segundo e a Blacksmith os colocou no MESMO host (`ip-172-31-64-123`) — runners distintos,
+# daemon Docker compartilhado. Ambos usavam o literal `theo-cloud-memory-e2e` e as mesmas
+# portas fixas. O `e2e` morreu ao ligar 55432, ANTES de qualquer teste rodar.
+#
+# Duas propriedades fecham a classe, e sao independentes:
+#   (a) IDENTIDADE — o nome do projeto compose e containers/rede/volumes e o alvo de
+#       `compose down -v`. Constante = os dois jobs sao a MESMA pilha para o Docker, e o
+#       teardown de um apaga a do outro no meio do teste.
+#   (b) PORTA — o recurso de fato disputado.
+#
+# O isolamento e por CI, nao por execucao. Localmente o projeto continua FIXO porque o
+# `make e2e-down` do Makefile aponta para o literal: variar aqui faria `make e2e-up` deixar uma
+# pilha que o `e2e-down` nao encontra — teardown que reporta sucesso sem fazer nada, com volumes
+# de Postgres orfaos crescendo em silencio. Foi o defeito que a primeira versao desta correcao
+# introduziu, e `TestE2ELocalProjectMatchesTheMakefileTeardown` existe por causa dele.
+E2E_PROJECT_BASE="theo-cloud-memory-e2e"
+if [[ -n "${GITHUB_ACTIONS:-}" || "${E2E_DYNAMIC_PORTS:-0}" == "1" ]]; then
+  E2E_STACK_ID="${E2E_STACK_ID:-${GITHUB_JOB:-job}-${GITHUB_RUN_ATTEMPT:-0}-$$}"
+  # Docker exige [a-z0-9][a-z0-9_-]* no nome do projeto.
+  E2E_STACK_ID="$(printf '%s' "${E2E_STACK_ID}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-')"
+  E2E_PROJECT="${E2E_PROJECT:-${E2E_PROJECT_BASE}-${E2E_STACK_ID}}"
+else
+  E2E_PROJECT="${E2E_PROJECT:-theo-cloud-memory-e2e}"
+fi
+export E2E_PROJECT
+# O passo de dump do ci.yml roda noutro shell; sem isto ele olharia um projeto que nao existe
+# e devolveria log VAZIO exatamente quando ele e mais necessario.
+if [[ -n "${GITHUB_ENV:-}" ]]; then echo "E2E_PROJECT=${E2E_PROJECT}" >> "${GITHUB_ENV}"; fi
+
+# Codigos de saida distintos (pedido explicito da #333). Falha de HARNESS ("nao consegui
+# subir") e falha de TESTE ("tal comportamento quebrou") sao diagnosticos diferentes e exigem
+# acoes diferentes. Sairem iguais foi o que fez um PR ser mergeado com este check vermelho:
+# o leitor concluiu "flaky, re-roda" sem abrir o log.
+E2E_EXIT_HARNESS=86
+E2E_EXIT_TEST=1
+
+# free_port — pede ao kernel uma porta livre em vez de apostar num literal. Existe porque o
+# Kratos assa a porta no `SERVE_PUBLIC_BASE_URL` ANTES de o container subir, entao publicar
+# `0` e descobrir depois nao serve: a porta tem de ser conhecida de antemao.
+free_port() {
+  python3 -c 'import socket
+s = socket.socket()
+s.bind(("", 0))
+print(s.getsockname()[1])
+s.close()'
+}
+
+# Em CI as portas sao dinamicas; localmente seguem fixas de proposito — um dev faz
+# `psql localhost:55432` na pilha de pe, e sortear a porta a cada run quebraria isso sem
+# fechar defeito algum (o host do dev nao roda dois jobs irmaos ao mesmo tempo).
+# Um `E2E_*_PORT` explicito sempre vence, nos dois modos.
+if [[ -n "${GITHUB_ACTIONS:-}" || "${E2E_DYNAMIC_PORTS:-0}" == "1" ]]; then
+  dyn_port() { free_port; }
+else
+  dyn_port() { printf '%s' "$1"; }
+fi
+
 # Host-mapped ports (kept in sync with docker-compose.e2e.yaml defaults).
 # A port already taken on the host (e.g. another stack on 55432) is resolved by
 # exporting the matching E2E_*_PORT before running — the compose honors them.
-E2E_CLOUD_PORT="${E2E_CLOUD_PORT:-13002}"
-E2E_THEMORY_PORT="${E2E_THEMORY_PORT:-18080}"
-E2E_RAG_PORT="${E2E_RAG_PORT:-18082}"
-E2E_LENS_PORT="${E2E_LENS_PORT:-18084}"
-E2E_PG_CLOUD_PORT="${E2E_PG_CLOUD_PORT:-55432}"
-E2E_PG_THEMORY_PORT="${E2E_PG_THEMORY_PORT:-55434}"
-E2E_PG_RAG_PORT="${E2E_PG_RAG_PORT:-55435}"
-E2E_PG_LENS_PORT="${E2E_PG_LENS_PORT:-55436}"
-E2E_KRATOS_PUBLIC_PORT="${E2E_KRATOS_PUBLIC_PORT:-14433}"
-E2E_KRATOS_ADMIN_PORT="${E2E_KRATOS_ADMIN_PORT:-14434}"
-E2E_EDGE_PORT="${E2E_EDGE_PORT:-8090}"
+E2E_CLOUD_PORT="${E2E_CLOUD_PORT:-$(dyn_port 13002)}"
+E2E_THEMORY_PORT="${E2E_THEMORY_PORT:-$(dyn_port 18080)}"
+E2E_RAG_PORT="${E2E_RAG_PORT:-$(dyn_port 18082)}"
+E2E_LENS_PORT="${E2E_LENS_PORT:-$(dyn_port 18084)}"
+E2E_PG_CLOUD_PORT="${E2E_PG_CLOUD_PORT:-$(dyn_port 55432)}"
+E2E_PG_THEMORY_PORT="${E2E_PG_THEMORY_PORT:-$(dyn_port 55434)}"
+E2E_PG_RAG_PORT="${E2E_PG_RAG_PORT:-$(dyn_port 55435)}"
+E2E_PG_LENS_PORT="${E2E_PG_LENS_PORT:-$(dyn_port 55436)}"
+E2E_KRATOS_PUBLIC_PORT="${E2E_KRATOS_PUBLIC_PORT:-$(dyn_port 14433)}"
+E2E_KRATOS_ADMIN_PORT="${E2E_KRATOS_ADMIN_PORT:-$(dyn_port 14434)}"
+E2E_EDGE_PORT="${E2E_EDGE_PORT:-$(dyn_port 8090)}"
 export E2E_CLOUD_PORT E2E_THEMORY_PORT E2E_RAG_PORT E2E_LENS_PORT E2E_PG_CLOUD_PORT E2E_PG_THEMORY_PORT E2E_PG_RAG_PORT E2E_PG_LENS_PORT E2E_KRATOS_PUBLIC_PORT E2E_KRATOS_ADMIN_PORT E2E_EDGE_PORT
+# --- END e2e-stack-identity ---
 
 log()  { printf '\033[1;36m[e2e]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[e2e] FAIL:\033[0m %s\n' "$*" >&2; }
+# A distincao que a #333 pede, dita em PROSA alem do codigo — quem le o log so ve o texto.
+harness_fail() {
+  printf '\033[1;31m[e2e] HARNESS FAIL (exit %s):\033[0m %s\n' "${E2E_EXIT_HARNESS}" "$*" >&2
+  printf '\033[1;31m[e2e]\033[0m a pilha nao subiu — NENHUM teste chegou a rodar. Isto nao e um\n' >&2
+  printf '\033[1;31m[e2e]\033[0m comportamento quebrado do produto, e o ambiente. Nao releia como flaky:\n' >&2
+  printf '\033[1;31m[e2e]\033[0m projeto=%s  (identidade da pilha, por job — issue #333)\n' "${E2E_PROJECT}" >&2
+}
 
 # In EDGE mode, layer the Traefik overlay on top of the base compose file.
 COMPOSE_ARGS=(-f "${COMPOSE_FILE}")
 if [[ "${EDGE}" == "1" ]]; then COMPOSE_ARGS+=(-f "${EDGE_COMPOSE_FILE}"); fi
-compose() { docker compose -p theo-cloud-memory-e2e "${COMPOSE_ARGS[@]}" "$@"; }
+compose() { docker compose -p "${E2E_PROJECT}" "${COMPOSE_ARGS[@]}" "$@"; }
 
 teardown() {
   if [[ "${KEEP_UP:-0}" == "1" ]]; then
@@ -91,7 +160,7 @@ teardown() {
 }
 
 dump_logs() {
-  fail "harness failed — recent service logs:"
+  harness_fail "harness failed — recent service logs:"
   compose ps -a || true
   # The schema-bearing one-shots (cloud-migrate / kratos-migrate) are the #1 silent
   # failure on a fresh/slow runner — a missing accounts table means migrate didn't apply.
@@ -148,7 +217,7 @@ command -v go >/dev/null || { fail "go not found"; exit 1; }
 if [[ -z "${THEMORY_IMAGE:-}" ]]; then
   [[ -f "${THEMORY_DIR}/Dockerfile" ]] || {
     fail "TheMemory repo not found at THEMORY_DIR=${THEMORY_DIR} (set THEMORY_DIR=/path/to/theo-memory, ou passe THEMORY_IMAGE=<ref>)"
-    exit 1
+    exit "${E2E_EXIT_HARNESS}"
   }
 fi
 
@@ -176,7 +245,7 @@ if [[ "${EDGE}" == "1" ]]; then
   if [[ -z "${THEORAG_IMAGE:-}" ]]; then
     [[ -f "${THEORAG_DIR}/packages/api/Dockerfile" ]] || {
       fail "theo-rag repo not found at THEORAG_DIR=${THEORAG_DIR} (set THEORAG_DIR=/path/to/theo-rag, ou passe THEORAG_IMAGE=<ref>)"
-      exit 1
+      exit "${E2E_EXIT_HARNESS}"
     }
   fi
   if [[ -n "${THEORAG_IMAGE:-}" ]]; then
@@ -196,7 +265,7 @@ if [[ "${EDGE}" == "1" ]]; then
   if [[ -z "${THELENS_IMAGE:-}" ]]; then
     [[ -f "${THELENS_DIR}/Dockerfile" ]] || {
       fail "theo-lens repo not found at THELENS_DIR=${THELENS_DIR} (set THELENS_DIR=/path/to/theo-lens, ou passe THELENS_IMAGE=<ref>)"
-      exit 1
+      exit "${E2E_EXIT_HARNESS}"
     }
   fi
   if [[ -n "${THELENS_IMAGE:-}" ]]; then
@@ -213,7 +282,7 @@ fi
 log "booting stack (this waits for every service to report healthy)…"
 if ! compose up -d --build --wait --wait-timeout 240; then
   dump_logs
-  exit 1
+  exit "${E2E_EXIT_HARNESS}"
 fi
 log "stack healthy."
 
@@ -234,7 +303,7 @@ if [[ -z "${THEMORY_PLATFORM_ADMIN_KEY:-}" ]]; then
     '{"name":"theo-cloud-platform-admin","scopes":["memory:platform-admin"]}' \
     's/.*"secret":"\(theo_live_[^"]*\)".*/\1/p'; then
     dump_logs
-    exit 1
+    exit "${E2E_EXIT_HARNESS}"
   fi
   PA_KEY="${MINT_KEY}"
   export THEMORY_PLATFORM_ADMIN_KEY="${PA_KEY}"
@@ -253,7 +322,7 @@ if [[ "${EDGE}" == "1" && -z "${RAG_PLATFORM_ADMIN_KEY:-}" ]]; then
     '{"name":"theo-cloud-rag-admin","workspace_id":"default","scopes":["rag:platform-admin","rag:admin","rag:read","rag:write","rag:delete"]}' \
     's/.*"raw_key":"\([^"]*\)".*/\1/p'; then
     dump_logs
-    exit 1
+    exit "${E2E_EXIT_HARNESS}"
   fi
   RA_KEY="${MINT_KEY}"
   export RAG_PLATFORM_ADMIN_KEY="${RA_KEY}"
@@ -272,7 +341,7 @@ if [[ "${EDGE}" == "1" && -z "${LENS_PLATFORM_ADMIN_KEY:-}" ]]; then
     '{"name":"theo-cloud-lens-admin","workspace_id":"default","scopes":["observability:platform-admin","observability:admin","observability:read","observability:write","observability:delete"]}' \
     's/.*"secret":"\([^"]*\)".*/\1/p'; then
     dump_logs
-    exit 1
+    exit "${E2E_EXIT_HARNESS}"
   fi
   LA_KEY="${MINT_KEY}"
   export LENS_PLATFORM_ADMIN_KEY="${LA_KEY}"
@@ -313,7 +382,7 @@ if [[ "${EDGE}" == "1" ]]; then
   if [[ "${edge_ready}" != "1" ]]; then
     dump_logs
     fail "Traefik edge never reached the fail-closed deny on /v1/memory (last code: ${code:-none})."
-    exit 1
+    exit "${E2E_EXIT_HARNESS}"
   fi
   log "edge ready (ForwardAuth denies unauthenticated requests)."
 
@@ -329,7 +398,7 @@ if [[ "${EDGE}" == "1" ]]; then
   if [[ "${rag_edge_ready}" != "1" ]]; then
     dump_logs
     fail "Traefik edge never reached the fail-closed deny on /v1/rag (last code: ${rcode:-none})."
-    exit 1
+    exit "${E2E_EXIT_HARNESS}"
   fi
   log "rag edge ready (forward-auth-rag denies unauthenticated requests)."
 
@@ -345,7 +414,7 @@ if [[ "${EDGE}" == "1" ]]; then
   if [[ "${lens_edge_ready}" != "1" ]]; then
     dump_logs
     fail "Traefik edge never reached the fail-closed deny on /v1/lens (last code: ${lcode:-none})."
-    exit 1
+    exit "${E2E_EXIT_HARNESS}"
   fi
   log "lens edge ready (forward-auth-lens denies unauthenticated requests)."
 fi
@@ -357,14 +426,14 @@ if [[ "${EDGE}" == "1" ]]; then
   log "running edge ForwardAuth e2e tests through the Traefik edge…"
   if ! ( cd "${ROOT}" && go test -tags e2e -count=1 -v -run TestEdgeForwardAuth ./tests/e2e/... ); then
     dump_logs
-    exit 1
+    exit "${E2E_EXIT_TEST}"
   fi
   log "edge e2e PASSED ✔"
 else
   log "running Go e2e test against real endpoints…"
   if ! ( cd "${ROOT}" && go test -tags e2e -count=1 -v ./tests/e2e/... ); then
     dump_logs
-    exit 1
+    exit "${E2E_EXIT_TEST}"
   fi
   log "e2e PASSED ✔"
 fi

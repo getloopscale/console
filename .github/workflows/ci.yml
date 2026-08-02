@@ -127,7 +127,7 @@ jobs:
         if: failure()
         working-directory: theo-cloud/theo-cloud
         run: |
-          docker compose -p theo-cloud-memory-e2e -f tests/e2e/docker-compose.e2e.yaml logs --tail=200 || true
+          docker compose -p "${E2E_PROJECT:-theo-cloud-memory-e2e}" -f tests/e2e/docker-compose.e2e.yaml logs --tail=200 || true
 
   # #113 — restores automated coverage of the edge ForwardAuth confused-deputy
   # (CWE-441) closure. Brings up the SAME hermetic stack PLUS the Traefik single
@@ -251,4 +251,4 @@ jobs:
         if: failure()
         working-directory: theo-cloud/theo-cloud
         run: |
-          docker compose -p theo-cloud-memory-e2e -f tests/e2e/docker-compose.e2e.yaml -f tests/e2e/docker-compose.edge.e2e.yaml logs --tail=200 || true
+          docker compose -p "${E2E_PROJECT:-theo-cloud-memory-e2e}" -f tests/e2e/docker-compose.e2e.yaml -f tests/e2e/docker-compose.edge.e2e.yaml logs --tail=200 || true
