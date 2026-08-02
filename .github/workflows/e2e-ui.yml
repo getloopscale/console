@@ -21,14 +21,43 @@
 #   • Só `chromium`. Os outros três projetos do config (firefox / webkit / mobile-chrome) ficam de
 #     fora por custo; um defeito específico de engine não é pego aqui.
 #
-# ESCOPO DECLARADO, NUNCA SILENCIOSO. O job roda uma LISTA EXPLÍCITA de specs, não `e2e/`. Medido
-# em 2026-08-02: dos 17 specs, **22 casos em 7 arquivos já falhavam** antes deste trabalho
-# (`a11y`, `dashboard-m12-fase-a-bundle-grep-migration`, `j10-environments`, `journeys`,
-# `observability-screens`, `project-connect`, `recovery`) mais um caso em `deploy-timeline`.
-# Incluí-los faria o job **nascer vermelho** — e um check que já chega vermelho é um check que se
-# aprende a ignorar, que é o oposto do que ele existe para fazer. Ficam FORA, declarados aqui, para
-# entrarem um a um conforme forem corrigidos. `promptly-journey-live` também fica fora por outra
-# razão: ele aponta para a instância implantada e exige credencial — é trabalho separado.
+# ESCOPO DECLARADO, NUNCA SILENCIOSO. O job roda uma LISTA EXPLÍCITA de specs, não `e2e/`, porque
+# parte da suíte já falhava antes deste trabalho. Incluí-los faria o job **nascer vermelho** — e um
+# check que já chega vermelho é um check que se aprende a ignorar, o oposto do que ele existe para
+# fazer. Ficam FORA, declarados aqui, para entrarem um a um conforme forem corrigidos.
+#
+# ESTADO MEDIDO (`--reporter=json`, suíte inteira, 2026-08-02): **16 casos vermelhos em 6 arquivos**,
+# de 87 casos em 17 arquivos. Os seis, com a CAUSA de cada um — porque a causa decide quem pode
+# consertar:
+#
+#   • `recovery` (3/3) — **premissa de estado não estabelecida.** O teste pressupõe usuário
+#     DESLOGADO; com a sessão dos mocks, `/recovery` oferece "Sign out and continue" e nenhum campo.
+#     O produto está certo; o teste é que nunca estabelece sua premissa. Consertável no teste.
+#   • `project-connect` (1/4) — **premissa de fixture.** O projeto do cenário já está `Connected`,
+#     então o caminho de instalar o app nunca é oferecido. Consertável no teste.
+#   • `j10-environments` (5/7) — **rota re-alocada no M20**, e o próprio `app.tsx` documenta:
+#     `/environments` global virou redirect, a tela vive em `/projects/:name/environments`.
+#     Mecânico: apontar o spec para o destino documentado.
+#   • `observability-screens` (2/2) — **renomeação no M136**: `Guards` virou `Monitors`, com
+#     redirect declarado e teste que o trava. Mecânico. (Verificado que NÃO é rota órfã — a
+#     suspeita foi levantada e refutada por medição, não descartada por intuição.)
+#   • `journeys` (2/8) — **redesenho de produto, e o único que NÃO é mecânico.** `view logs` e
+#     `rollback to here` não existem mais; a tela de deploy hoje oferece Redeploy / Build / Sign /
+#     Release (M15–M19). Reescrever exige DECIDIR qual é a jornada canônica — decisão de produto.
+#   • `dashboard-m12-fase-a-bundle-grep-migration` (3/22) — ainda não classificado.
+#
+# CORREÇÃO DE UMA AFIRMAÇÃO ANTERIOR DESTE CABEÇALHO: ele dizia haver "um caso em `deploy-timeline`".
+# **Falso hoje** — mede 10/10 verde, isolado (3 execuções) e dentro da suíte inteira. Não foi
+# contenção sob paralelismo, hipótese que foi testada e descartada. Não sei dizer se o caso foi
+# corrigido por outra frente ou se a contagem original estava errada, e afirmar qualquer uma das
+# duas sem evidência seria inventar. Por medir verde e estável, `deploy-timeline` ENTROU no job.
+#
+# `promptly-journey-live` fica fora por outra razão: aponta para a instância implantada e exige
+# credencial — é trabalho separado. Ele aparece "ok" na suíte por se auto-pular, não por passar.
+#
+# ENTRARAM DEPOIS: `a11y` (2026-08-02) — seus dois casos vermelhos eram defeito DE TESTE, não de
+# produto: asserções posicionais/por substring que casavam o elemento errado, uma delas reprovando
+# um produto correto. `deploy-timeline` (2026-08-02) — ver a correção acima.
 name: e2e-ui
 
 on:
@@ -82,7 +111,8 @@ jobs:
             e2e/device-success.spec.ts \
             e2e/verification.spec.ts \
             e2e/knowledge-base.spec.ts \
-            e2e/a11y.spec.ts
+            e2e/a11y.spec.ts \
+            e2e/deploy-timeline.spec.ts
 
       # O relatório só interessa quando algo falha; guardá-lo sempre encheria o storage do repo
       # com artefatos de runs verdes que ninguém abre.
