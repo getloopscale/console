@@ -778,7 +778,19 @@ milestone reimplementaria a mesma camada.
 | Editar um validator existente (PUT) | O serviço não expõe update — só create/delete. Adicionar o verbo é decisão do `theo-trust` | `theo-trust` |
 | Superfície de temas (`GET /v1/themes`) | Nenhum caso de uso pediu; entra quando houver | não planejado |
 
-### M25 — [ ] Operar prompts pelo dashboard (catálogo, revisões, promoção de label)
+### M25 — [x] Operar prompts pelo dashboard (catálogo, revisões, promoção de label)
+
+> **Fechado em 2026-08-02 por veredito independente**, com **dois caveats declarados**
+> — não são omissões, são limites conhecidos:
+>
+> 1. **A integração com a borda está coberta por spec que não roda.** O job `e2e-ui`
+>    executa as jornadas contra **mocks** (prova a tela, não a integração). O spec
+>    contra a instância implantada existe e é operado, não automático.
+> 2. **O `200` de `policies/:label` está bloqueado por desenho** (`#373`). Nenhuma
+>    credencial obtenível pelo dashboard cria política: o teto `member` do
+>    `theo-promptly` fecha uma escalada real de privilégio (lavagem de papel via
+>    escopo). As duas saídas — enfraquecer o teto, ou criar o dado direto no banco —
+>    foram **recusadas**: a segunda mediria um estado que o usuário não alcança.
 
 > Added 2026-08-02 by `/roadmap-feature` (slug: `theo-cloud-promptly-dashboard`).
 > See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-promptly-dashboard-feature-grill.md`.
@@ -830,7 +842,13 @@ pede pequena e inteira.
 
 ---
 
-### M26 — [ ] A interface do registro de skills, no padrão do ecossistema
+### M26 — [x] A interface do registro de skills, no padrão do ecossistema
+
+> **Fechado em 2026-08-02 por veredito independente**, 5/5 verificados no ar.
+> A promoção foi exercitada nos **dois** ramos — canal novo e canal que já servia —
+> com o efeito medido por leitura, não pelo status do `PUT`, e o par `403/200`
+> registrado. A letra sobre "quantos consumidores" permanece fora do escopo: o
+> serviço não sabe, e a tela **não inventa**.
 
 > **Movido de `theo-skills/ROADMAP.md` § M29 em 2026-08-02**, preservando o conteúdo. Razão
 > mecânica: `cycle-release` fase `roadmap-checkbox-flip` vira o checkbox no ROADMAP do repo
