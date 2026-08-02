@@ -1,8 +1,11 @@
-import { Badge, Card, PageShell, Skeleton } from '@usetheo/ui';
+import { Badge, Card, PageShell, Skeleton } from "@usetheo/ui";
 
-import { usePageMeta } from '@/hooks/use-page-meta';
-import { useRequireAuth } from '@/hooks/use-auth';
-import { useServiceVersions, type ServiceStatus } from '@/hooks/use-service-versions';
+import { usePageMeta } from "@/hooks/use-page-meta";
+import { useRequireAuth } from "@/hooks/use-auth";
+import {
+  useServiceVersions,
+  type ServiceStatus,
+} from "@/hooks/use-service-versions";
 
 /**
  * /status (M21) — the detail behind the sidebar's health indicator: one row per
@@ -24,12 +27,23 @@ export function StatusPage() {
       description="What each platform service reports about itself."
       onTitleChange={setPageTitle}
     >
-      {isPending ? <Skeleton className="h-24 w-full" /> : <Report data={data} />}
+      {isPending ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <Report data={data} />
+      )}
     </PageShell>
   );
 }
 
-function Report({ data }: { data: { collected_at: string; services: readonly ServiceStatus[] } | null | undefined }) {
+function Report({
+  data,
+}: {
+  data:
+    | { collected_at: string; services: readonly ServiceStatus[] }
+    | null
+    | undefined;
+}) {
   // Never an empty list in silence: not knowing is itself the news (the failure
   // mode this milestone exists to remove).
   if (!data) {
@@ -45,11 +59,16 @@ function Report({ data }: { data: { collected_at: string; services: readonly Ser
   return (
     <Card>
       <Card.Body>
-        <p className="text-body-sm text-muted-foreground" data-testid="collected-at">
+        <p
+          className="text-body-sm text-muted-foreground"
+          data-testid="collected-at"
+        >
           Checked at {formatInstant(data.collected_at)}
         </p>
         {data.services.length === 0 ? (
-          <p className="text-body-sm text-muted-foreground">No services configured.</p>
+          <p className="text-body-sm text-muted-foreground">
+            No services configured.
+          </p>
         ) : (
           // `<table>` e nao lista de linhas flex: dado tabular tem elemento nativo
           // (rung 3 da escada), e ele resolve as DUAS coisas de uma vez — o olho
@@ -59,10 +78,18 @@ function Report({ data }: { data: { collected_at: string; services: readonly Ser
             <table className="w-full border-collapse text-label">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
-                  <th scope="col" className="py-2 pr-6 font-normal">Service</th>
-                  <th scope="col" className="py-2 pr-6 font-normal">State</th>
-                  <th scope="col" className="py-2 pr-6 font-normal">Version</th>
-                  <th scope="col" className="py-2 font-normal">Built</th>
+                  <th scope="col" className="py-2 pr-6 font-normal">
+                    Service
+                  </th>
+                  <th scope="col" className="py-2 pr-6 font-normal">
+                    State
+                  </th>
+                  <th scope="col" className="py-2 pr-6 font-normal">
+                    Version
+                  </th>
+                  <th scope="col" className="py-2 font-normal">
+                    Built
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -72,10 +99,16 @@ function Report({ data }: { data: { collected_at: string; services: readonly Ser
                     data-testid={`service-row-${s.name}`}
                     className="border-b border-border/50 last:border-0"
                   >
-                    <td className="py-2.5 pr-6 font-mono text-foreground">{s.name}</td>
+                    <td className="py-2.5 pr-6 font-mono text-foreground">
+                      {s.name}
+                    </td>
                     <td className="py-2.5 pr-6">{stateCell(s)}</td>
-                    <td className="py-2.5 pr-6 font-mono text-muted-foreground">{versionCell(s)}</td>
-                    <td className="py-2.5 text-muted-foreground tabular-nums">{builtCell(s)}</td>
+                    <td className="py-2.5 pr-6 font-mono text-muted-foreground">
+                      {versionCell(s)}
+                    </td>
+                    <td className="py-2.5 text-muted-foreground tabular-nums">
+                      {builtCell(s)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -98,24 +131,38 @@ function Report({ data }: { data: { collected_at: string; services: readonly Ser
  */
 function stateCell(s: ServiceStatus) {
   switch (s.state) {
-    case 'ok':
+    case "ok":
       return <Badge variant="success">ok</Badge>;
-    case 'unreachable':
+    case "unreachable":
       return (
         <span className="flex items-center gap-2">
           <Badge variant="destructive">unreachable</Badge>
           <span className="text-muted-foreground">{s.reason}</span>
         </span>
       );
-    case 'timeout':
+    case "timeout":
       return (
         <span className="flex items-center gap-2">
           <Badge variant="warning">timeout</Badge>
-          <span className="text-muted-foreground">{s.reason ?? 'timed out'}</span>
+          <span className="text-muted-foreground">
+            {s.reason ?? "timed out"}
+          </span>
         </span>
       );
-    case 'not_deployed':
+    case "not_deployed":
       return <Badge variant="outline">not deployed</Badge>;
+    // #345 — o alvo RESPONDEU e recusou a sondagem. Nao e degradacao (a pilha esta de pe), entao
+    // nao usa o visual de falha; mas tambem nao e saude, entao a razao aparece: e a configuracao
+    // que falta, e escondê-la era o que fazia o indicador ficar vermelho sem dizer por que.
+    case "unauthorized":
+      return (
+        <span className="flex items-center gap-2">
+          <Badge variant="outline">not measured</Badge>
+          <span className="text-muted-foreground">
+            probe not authorized ({s.reason})
+          </span>
+        </span>
+      );
     // ADR D11: nao lanca. O parametro `never` mantem a exaustividade de
     // compilacao (remover um `case` acima quebra o `tsc`), e em runtime degrada
     // para o estado literal que chegou. Lancar aqui apagaria a pagina INTEIRA —
@@ -127,11 +174,11 @@ function stateCell(s: ServiceStatus) {
 
 /** Celula vazia quando nao ha versao — nunca "undefined". Ausencia e a leitura honesta. */
 function versionCell(s: ServiceStatus) {
-  return s.state === 'ok' ? s.version : null;
+  return s.state === "ok" ? s.version : null;
 }
 
 function builtCell(s: ServiceStatus) {
-  return s.state === 'ok' && s.built_at ? formatInstant(s.built_at) : null;
+  return s.state === "ok" && s.built_at ? formatInstant(s.built_at) : null;
 }
 
 function unknownStateOf(s: never): string {
@@ -146,5 +193,5 @@ function unknownStateOf(s: never): string {
 function formatInstant(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+  return `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
