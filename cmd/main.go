@@ -529,8 +529,12 @@ func main() {
 	if cfg.TrustBaseURL != "" {
 		trustHTTP := &http.Client{Timeout: 10 * time.Second}
 		trustAdmin := trust.NewAdminClient(cfg.TrustBaseURL, cfg.TrustPlatformAdminKey.Value(), trustHTTP)
-		trustBroker, tErr := trust.NewBroker(trustAdmin, 1024, time.Hour,
-			[]string{"trust:read", "trust:write", "trust:delete"})
+		// LT-052 — a lista vem de `trust.CustomerScopes`, fonte ÚNICA compartilhada com o
+		// enum de emissão. Era um literal aqui, e a divergência entre os dois lugares já
+		// produziu quatro falhas silenciosas: escopo no broker e fora do enum deixa a
+		// capacidade inalcançável; escopo no enum e fora do broker faz a borda DESCARTÁ-LO
+		// na travessia, com a API respondendo 200 e cunhando a chave assim mesmo.
+		trustBroker, tErr := trust.NewBroker(trustAdmin, 1024, time.Hour, trust.CustomerScopes)
 		if tErr != nil {
 			logger.Error("failed to construct trust credential broker — refusing to start", "error", tErr)
 			os.Exit(1)
