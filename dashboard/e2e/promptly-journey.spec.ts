@@ -54,7 +54,9 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     await expect(page.getByText('despedida')).toBeVisible();
 
     // A coluna que responde "isto está servindo produção?" — a pergunta que traz o operador aqui.
-    await expect(page.getByText('prod → v1')).toBeVisible();
+    // A célula lista TODOS os ambientes do prompt numa string só, e a asserção é sobre ela
+    // inteira: um `prod → v1` solto casaria por substring com o `prod → v12` de outro prompt.
+    await expect(page.getByText('prod → v1, staging → v2', { exact: true })).toBeVisible();
     // E o prompt que não serve ambiente algum diz isso, em vez de deixar a célula vazia: célula
     // vazia é indistinguível de dado que não carregou.
     await expect(page.getByText('nenhum')).toBeVisible();
@@ -66,7 +68,8 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     // O trecho da revisão — o suficiente para reconhecê-la. O corpo inteiro é editor, e editor
     // está fora deste milestone por decisão registrada.
     await expect(page.getByText(/sou o assistente/)).toBeVisible();
-    await expect(page.getByText('prod → v1')).toBeVisible();
+    // No detalhe cada ambiente é um selo próprio, então aqui a igualdade exata é a asserção certa.
+    await expect(page.getByText('prod → v1', { exact: true })).toBeVisible();
 
     // ---- A POLÍTICA, ANTES DO ATO --------------------------------------------------------
     // Este prompt não tem política: a promoção é livre, e a tela precisa DIZER isso. Silêncio
@@ -87,8 +90,8 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     // ---- O ORÁCULO É O ESTADO, NÃO A RESPOSTA --------------------------------------------
     // O que prova a promoção é o ponteiro ter mudado na tela: um 200 do servidor com o label
     // parado seria exatamente o defeito que este passo existe para pegar.
-    await expect(page.getByText('prod → v3')).toBeVisible();
-    await expect(page.getByText('prod → v1')).toHaveCount(0);
+    await expect(page.getByText('prod → v3', { exact: true })).toBeVisible();
+    await expect(page.getByText('prod → v1', { exact: true })).toHaveCount(0);
   });
 
   test('a recusa da política chega ao operador com o motivo do serviço', async ({ page }) => {
@@ -113,6 +116,23 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     await expect(page.getByText(/melhor execução desta revisão obteve 0\.41/i)).toBeVisible();
     // E o ponteiro NÃO se moveu: a recusa foi honrada, não apenas exibida.
     await expect(page.getByText('staging → v2')).toBeVisible();
+  });
+
+  test('num prompt longo, a lista mostra as revisões RECENTES — não o começo do histórico', async ({ page }) => {
+    // #364. A rota ordena da mais ANTIGA para a mais nova e corta com `limit`: sem cursor, um
+    // prompt de 30 revisões exibia v1..v10 sob o rótulo "as 10 mais recentes", e a revisão atual
+    // não aparecia. Numa tela de PROMOÇÃO, quem clicasse na "mais nova" reapontaria produção para
+    // uma revisão velha — com o diálogo confirmando a errada com convicção.
+    await navegarAteOCatalogoPeloMenu(page);
+    await page.getByRole('link', { name: 'longo' }).click();
+    await expect(page).toHaveURL(/\/promptly\/longo$/);
+
+    // A revisão ATUAL está na tela...
+    await expect(page.getByRole('cell', { name: 'v30', exact: true })).toBeVisible();
+    // ...e o começo do histórico NÃO está — este é o par que discrimina.
+    await expect(page.getByRole('cell', { name: 'v1', exact: true })).toHaveCount(0);
+    // A legenda declara até onde a página vai, em vez de prometer algo inauditável.
+    await expect(page.getByText(/até a v30/i)).toBeVisible();
   });
 
   test('o prompt sem label algum diz isso, em vez de oferecer promoção às cegas', async ({ page }) => {

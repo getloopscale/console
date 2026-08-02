@@ -15,6 +15,7 @@ const mockRevisions = vi.fn();
 const mockLabels = vi.fn();
 const mockPolicy = vi.fn();
 const mockPromote = vi.fn();
+const mockPrompt = vi.fn();
 vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
   return {
@@ -22,6 +23,7 @@ vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
     fetchRevisions: (...a: unknown[]) => mockRevisions(...a),
     fetchLabels: (...a: unknown[]) => mockLabels(...a),
     fetchPolicy: (...a: unknown[]) => mockPolicy(...a),
+    fetchPrompt: (...a: unknown[]) => mockPrompt(...a),
     promoteLabel: (...a: unknown[]) => mockPromote(...a),
   };
 });
@@ -48,8 +50,10 @@ beforeEach(() => {
   mockLabels.mockReset();
   mockPolicy.mockReset();
   mockPromote.mockReset();
+  mockPrompt.mockReset();
   mockRevisions.mockResolvedValue(REVISOES);
   mockLabels.mockResolvedValue(LABELS);
+  mockPrompt.mockResolvedValue({ version: 3 });
   mockPolicy.mockResolvedValue(null);
   mockPromote.mockResolvedValue({ name: 'saudacao', label: 'prod', version: 3 });
 });
@@ -64,6 +68,43 @@ describe('PromptDetailPage', () => {
     const [, limite] = mockRevisions.mock.calls[0];
     expect(limite).toBeGreaterThan(0);
     expect(limite).toBeLessThanOrEqual(20);
+  });
+
+  it('num prompt com 30 revisões, pede a JANELA FINAL — não as 10 primeiras (#364)', async () => {
+    // O defeito que este teste tranca: a rota ordena da mais ANTIGA para a mais nova e corta com
+    // `limit`. Sem cursor, `limit=10` devolve v1..v10 — e esta é a tela de onde sai a promoção.
+    // Quem promovesse "a mais recente da lista" reapontaria produção para uma revisão velha.
+    mockPrompt.mockResolvedValue({ version: 30 });
+    mockRevisions.mockResolvedValue([{ version: 30, content: 'atual', createdAt: '' }]);
+
+    render(<PromptDetailPage />);
+
+    await screen.findByText('v30');
+    const [, limite, after] = mockRevisions.mock.calls[0];
+    expect(limite).toBe(10);
+    expect(after).toBe(20); // 30 − 10: a janela termina na última revisão
+  });
+
+  it('num prompt que cabe na página, NÃO usa cursor — senão cortaria linhas que cabiam', async () => {
+    // O par que discrimina: um cursor incondicional esconderia o começo do histórico de prompts
+    // pequenos, que é justamente onde ele cabe inteiro.
+    mockPrompt.mockResolvedValue({ version: 3 });
+
+    render(<PromptDetailPage />);
+
+    await screen.findByText('v3');
+    expect(mockRevisions.mock.calls[0][2]).toBe(0);
+  });
+
+  it('a legenda declara ATÉ QUAL revisão a página vai, em vez de prometer "as mais recentes"', async () => {
+    // A frase agora é verificável contra o dado: se a janela estiver errada, o número exibido
+    // denuncia. "As 10 mais recentes" era inauditável — e era falso.
+    mockPrompt.mockResolvedValue({ version: 30 });
+    mockRevisions.mockResolvedValue([{ version: 30, content: 'atual', createdAt: '' }]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/até a v30/i)).toBeInTheDocument();
   });
 
   it('mostra a revisão que cada ambiente serve HOJE', async () => {

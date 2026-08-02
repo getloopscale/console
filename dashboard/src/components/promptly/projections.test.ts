@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   catalogRows,
   revisionRows,
+  revisionsWindow,
   labelRows,
   promotionConsequence,
   policySummary,
@@ -84,6 +85,35 @@ describe('revisionRows', () => {
     ]);
 
     expect(linhas.map((l) => l.version)).toEqual([3, 2, 1]);
+  });
+});
+
+describe('revisionsWindow', () => {
+  // O defeito que este cálculo existe para impedir (#364): a rota de revisões ordena da MAIS
+  // ANTIGA para a mais nova e corta com `limit`. Pedir `limit=10` num prompt de 30 revisões
+  // devolve v1..v10 — e a tela as rotulava "as 10 mais recentes". Numa tela de PROMOÇÃO isso é
+  // grave: quem promove "a mais recente da lista" reaponta produção para uma revisão velha.
+
+  it('pede a ÚLTIMA janela: com 30 revisões e limite 10, começa depois da v20', () => {
+    expect(revisionsWindow(30, 10)).toEqual({ after: 20 });
+  });
+
+  it('não usa cursor quando o prompt cabe inteiro na página', () => {
+    // 8 revisões e limite 10: pedir `after` cortaria linhas que a página comporta.
+    expect(revisionsWindow(8, 10)).toEqual({ after: 0 });
+    expect(revisionsWindow(10, 10)).toEqual({ after: 0 });
+  });
+
+  it('trata a fronteira exata: 11 revisões e limite 10 começa depois da v1', () => {
+    expect(revisionsWindow(11, 10)).toEqual({ after: 1 });
+  });
+
+  it('sem saber a última versão, não inventa cursor — pede do começo', () => {
+    // `latestVersion` desconhecido é o estado em que o catálogo ainda não respondeu. Chutar um
+    // cursor aqui esconderia revisões; pedir do começo mostra MENOS do que se quer, nunca o
+    // errado rotulado como certo.
+    expect(revisionsWindow(null, 10)).toEqual({ after: 0 });
+    expect(revisionsWindow(0, 10)).toEqual({ after: 0 });
   });
 });
 
