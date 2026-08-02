@@ -205,6 +205,10 @@ describe('ApiKeysPage', () => {
     );
     // Name the key + submit.
     await user.type(screen.getByLabelText(/name/i), 'test');
+    // #348: o diálogo não pré-marca mais escopo algum — o submit fica bloqueado até o usuário
+    // escolher um. Este passo NÃO existia porque `memory:read` vinha marcado de fábrica, que é
+    // exatamente o default que a tela desaconselhava em texto próprio.
+    await user.click(screen.getAllByRole('checkbox')[0]);
     await user.click(screen.getByRole('button', { name: /create key/i }));
 
     // Show-once dialog renders the secret.
@@ -267,6 +271,7 @@ describe('ApiKeysPage', () => {
       (await screen.findAllByRole('button', { name: /create api key/i }))[0],
     );
     await user.type(screen.getByLabelText(/name/i), 'chave-lt-019');
+    await user.click(screen.getAllByRole('checkbox')[0]); // #348 — escopo agora é escolha explícita
     mockCloudFetch.mockRejectedValueOnce(new Error('Scope "promptly:read" is not a known scope.'));
     await user.click(screen.getByRole('button', { name: /^create key$/i }));
 
@@ -289,6 +294,7 @@ describe('ApiKeysPage', () => {
       (await screen.findAllByRole('button', { name: /create api key/i }))[0],
     );
     await user.type(screen.getByLabelText(/name/i), 'chave-lt-019');
+    await user.click(screen.getAllByRole('checkbox')[0]); // #348 — escopo agora é escolha explícita
     mockCloudFetch.mockRejectedValueOnce(new Error('Scope "promptly:read" is not a known scope.'));
     await user.click(screen.getByRole('button', { name: /^create key$/i }));
 

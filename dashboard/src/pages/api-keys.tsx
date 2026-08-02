@@ -66,35 +66,104 @@ interface ListKeysResponse {
 // `validScopes` do backend. Enquanto cada lado tinha só o SEU teste, as duas divergiram
 // nos dois sentidos — `trust:*` faltava aqui E lá, `storage:*` existia lá e não aqui.
 export const ACTIVE_SCOPES = [
-  { id: 'memory:read', label: 'memory:read', description: 'Recall memories and read history' },
-  { id: 'memory:write', label: 'memory:write', description: 'Remember new facts and reflect' },
-  { id: 'memory:delete', label: 'memory:delete', description: 'Forget specific memories' },
-  { id: 'memory:admin', label: 'memory:admin', description: 'Settings, webhooks, exports' },
-  { id: 'observability:read', label: 'observability:read', description: 'Read traces, sessions, analytics' },
-  { id: 'observability:write', label: 'observability:write', description: 'Ingest spans; manage datasets/evaluators/guards' },
-  { id: 'observability:delete', label: 'observability:delete', description: 'Delete dataset items, evaluators, guards, tags' },
-  { id: 'observability:admin', label: 'observability:admin', description: 'Observability key lifecycle' },
+  {
+    id: 'memory:read',
+    label: 'memory:read',
+    description: 'Recall memories and read history',
+  },
+  {
+    id: 'memory:write',
+    label: 'memory:write',
+    description: 'Remember new facts and reflect',
+  },
+  {
+    id: 'memory:delete',
+    label: 'memory:delete',
+    description: 'Forget specific memories',
+  },
+  {
+    id: 'memory:admin',
+    label: 'memory:admin',
+    description: 'Settings, webhooks, exports',
+  },
+  {
+    id: 'observability:read',
+    label: 'observability:read',
+    description: 'Read traces, sessions, analytics',
+  },
+  {
+    id: 'observability:write',
+    label: 'observability:write',
+    description: 'Ingest spans; manage datasets/evaluators/guards',
+  },
+  {
+    id: 'observability:delete',
+    label: 'observability:delete',
+    description: 'Delete dataset items, evaluators, guards, tags',
+  },
+  {
+    id: 'observability:admin',
+    label: 'observability:admin',
+    description: 'Observability key lifecycle',
+  },
   // RAG vertical (theo-rag, M12-M20) — customer-issuable (#168). rag:admin is intentionally
   // omitted: it is theo-rag's broker-held key-lifecycle scope, never minted to a consumer.
-  { id: 'rag:read', label: 'rag:read', description: 'Retrieve chunks and answer questions' },
-  { id: 'rag:write', label: 'rag:write', description: 'Create collections and ingest documents' },
-  { id: 'rag:delete', label: 'rag:delete', description: 'Delete documents and collections' },
+  {
+    id: 'rag:read',
+    label: 'rag:read',
+    description: 'Retrieve chunks and answer questions',
+  },
+  {
+    id: 'rag:write',
+    label: 'rag:write',
+    description: 'Create collections and ingest documents',
+  },
+  {
+    id: 'rag:delete',
+    label: 'rag:delete',
+    description: 'Delete documents and collections',
+  },
   // Storage vertical (M7). O backend já aceitava estes dois — e havia teste Go fixando
   // isso — enquanto a tela não os oferecia: capacidade emitível por API e invisível para
   // quem usa o produto.
-  { id: 'storage:read', label: 'storage:read', description: 'Download and list stored objects' },
-  { id: 'storage:write', label: 'storage:write', description: 'Upload and delete stored objects' },
+  {
+    id: 'storage:read',
+    label: 'storage:read',
+    description: 'Download and list stored objects',
+  },
+  {
+    id: 'storage:write',
+    label: 'storage:write',
+    description: 'Upload and delete stored objects',
+  },
   // Trust vertical (theo-trust, Model B L2). A cadeia inteira já estava de pé — borda
   // roteando /v1/trust/*, forward-auth cunhando chave por tenant — e nenhum cliente podia
   // alcançá-la, porque o escopo que a borda exige não era emitível em lugar nenhum.
-  { id: 'trust:read', label: 'trust:read', description: 'Read conversations, themes, trends and policy violations' },
-  { id: 'trust:write', label: 'trust:write', description: 'Ingest conversations and run inline guardrails' },
-  { id: 'trust:delete', label: 'trust:delete', description: 'Delete conversations and custom validators' },
+  {
+    id: 'trust:read',
+    label: 'trust:read',
+    description: 'Read conversations, themes, trends and policy violations',
+  },
+  {
+    id: 'trust:write',
+    label: 'trust:write',
+    description: 'Ingest conversations and run inline guardrails',
+  },
+  {
+    id: 'trust:delete',
+    label: 'trust:delete',
+    description: 'Delete conversations and custom validators',
+  },
   // LT-012 / ADR 0009 (opção B). Separado de `trust:read` de propósito: o conteúdo bruto
   // inclui o trecho que o scanner marcou como segredo, então ler uma violação e ler o
   // texto que a produziu deixaram de ser a mesma permissão. A descrição diz o que a chave
   // passa a alcançar, para que conceder deixe de ser um clique sem consequência aparente.
-  { id: 'trust:content', label: 'trust:content', description: 'Read raw conversation text, including content flagged as a secret' },
+  {
+    id: 'trust:content',
+    label: 'trust:content',
+    description:
+      'Read raw conversation text, including content flagged as a secret',
+  },
   // Promptly vertical (theo-promptly, M11 Model B L2). MESMA história do trust logo acima,
   // e a terceira vez que ela se repete: em 2026-08-01 a cadeia estava inteira de pé — borda
   // roteando /v1/promptly/*, ForwardAuth exigindo `promptly:read`, broker cunhando por
@@ -104,16 +173,36 @@ export const ACTIVE_SCOPES = [
   // o escopo só no enum do backend torna a chave aceitável e continua sem um jeito de o
   // cliente PEDIR. `api-keys-scope-catalog.test.ts` existe exatamente para isso e foi o que
   // pegou a omissão — a tela precisa oferecer EXATAMENTE o que o backend aceita.
-  { id: 'promptly:read', label: 'promptly:read', description: 'Resolve prompts and read revisions, labels and evaluations' },
-  { id: 'promptly:write', label: 'promptly:write', description: 'Create prompt revisions and move environment labels' },
+  {
+    id: 'promptly:read',
+    label: 'promptly:read',
+    description: 'Resolve prompts and read revisions, labels and evaluations',
+  },
+  {
+    id: 'promptly:write',
+    label: 'promptly:write',
+    description: 'Create prompt revisions and move environment labels',
+  },
   // Skills vertical (theo-skills, M22 Model B). Diferente do trust — onde a cadeia já
   // estava de pé e só o escopo faltava — aqui NADA existia: sem broker, sem forward-auth,
   // sem rota de borda. Oferecer o escopo antes dessas peças entregaria uma chave que
   // nenhuma borda aceita: o defeito oposto, e igualmente silencioso. `skills:admin` é
   // omitido de propósito, como `rag:admin` — é o escopo de ciclo de vida de chave.
-  { id: 'skills:read', label: 'skills:read', description: 'Search and download agent skills' },
-  { id: 'skills:write', label: 'skills:write', description: 'Publish, update and delete skills' },
-  { id: 'skills:publish', label: 'skills:publish', description: 'Promote skills to the shared catalog' },
+  {
+    id: 'skills:read',
+    label: 'skills:read',
+    description: 'Search and download agent skills',
+  },
+  {
+    id: 'skills:write',
+    label: 'skills:write',
+    description: 'Publish, update and delete skills',
+  },
+  {
+    id: 'skills:publish',
+    label: 'skills:publish',
+    description: 'Promote skills to the shared catalog',
+  },
 ] as const;
 
 const RESERVED_SCOPES = [
@@ -131,7 +220,12 @@ export function ApiKeysPage() {
 
   const listQuery = useQuery({
     queryKey: ['cloud', '/v1/api-keys/list'] as const,
-    queryFn: () => cloudFetch<ListKeysResponse>('/v1/api-keys/list', {}, { throwOnError: true }),
+    queryFn: () =>
+      cloudFetch<ListKeysResponse>(
+        '/v1/api-keys/list',
+        {},
+        { throwOnError: true },
+      ),
   });
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -142,21 +236,30 @@ export function ApiKeysPage() {
   // API Key Lineage View plan T7.4 — pendingLineage opens the Sheet.
   const [pendingLineage, setPendingLineage] = useState<APIKeyView | null>(null);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/api-keys/list'] });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/api-keys/list'] });
 
   const createMutation = useMutation({
-    mutationFn: async (input: { name: string; scopes: string[]; expires_at?: string | null }) =>
+    mutationFn: async (input: {
+      name: string;
+      scopes: string[];
+      expires_at?: string | null;
+    }) =>
       // `throwOnError` NÃO é opcional aqui, apesar de a doc de `cloudFetch` chamá-lo
       // de "opt-in": sem ele o helper RESOLVE para `null` num 4xx, o React Query trata
       // como sucesso e o `onSuccess` abaixo fecha o diálogo — o operador sai convencido
       // de que criou uma chave que o backend recusou. Medido ao vivo em 2026-08-01
       // (LT-019): um 400 UNKNOWN_SCOPE fechou o diálogo sem mensagem alguma. O caminho
       // de LEITURA desta página sempre passou a flag; os de MUTAÇÃO não passavam.
-      cloudFetch<CreateKeyResponse>('/v1/api-keys', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(input),
-      }, { throwOnError: true }),
+      cloudFetch<CreateKeyResponse>(
+        '/v1/api-keys',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(input),
+        },
+        { throwOnError: true },
+      ),
     onSuccess: (resp) => {
       setRevealed(resp);
       setCreateOpen(false);
@@ -169,7 +272,11 @@ export function ApiKeysPage() {
       // Mesma classe do create (LT-019): sem a flag, uma revogação recusada fecharia
       // o confirm e sumiria da lista como se tivesse dado certo — a pior mentira
       // possível numa operação de segurança.
-      cloudFetch<null>(`/v1/api-keys/${id}`, { method: 'DELETE' }, { throwOnError: true }),
+      cloudFetch<null>(
+        `/v1/api-keys/${id}`,
+        { method: 'DELETE' },
+        { throwOnError: true },
+      ),
     onSuccess: () => {
       setPendingDelete(null);
       invalidate();
@@ -182,11 +289,15 @@ export function ApiKeysPage() {
     mutationFn: async (id: string) =>
       // Mesma classe do create (LT-019): uma rotação recusada abriria o diálogo de
       // segredo com `null` e o operador perderia a chave antiga achando que tem a nova.
-      cloudFetch<CreateKeyResponse>(`/v1/api-keys/${id}/rotate`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      }, { throwOnError: true }),
+      cloudFetch<CreateKeyResponse>(
+        `/v1/api-keys/${id}/rotate`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        },
+        { throwOnError: true },
+      ),
     onSuccess: (resp) => {
       setRevealed(resp);
       setPendingRotate(null);
@@ -206,7 +317,9 @@ export function ApiKeysPage() {
       key: 'key',
       label: 'Key',
       render: (row) => (
-        <code className="text-xs font-mono text-muted-foreground">{row.key_prefix}…</code>
+        <code className="text-xs font-mono text-muted-foreground">
+          {row.key_prefix}…
+        </code>
       ),
     },
     {
@@ -278,7 +391,7 @@ export function ApiKeysPage() {
     <>
       <PageShell
         title="API Keys"
-        description="Manage your unified Theo platform keys. Each key carries explicit scopes for memory and future product surfaces."
+        description="Manage your unified Theo platform keys. Each key carries explicit scopes, chosen per product surface."
         primaryAction={{
           label: 'Create API Key',
           icon: Plus,
@@ -326,14 +439,18 @@ export function ApiKeysPage() {
       <ConfirmDeleteDialog
         target={pendingDelete}
         onCancel={() => setPendingDelete(null)}
-        onConfirm={() => pendingDelete && revokeMutation.mutate(pendingDelete.id)}
+        onConfirm={() =>
+          pendingDelete && revokeMutation.mutate(pendingDelete.id)
+        }
         submitting={revokeMutation.isPending}
       />
 
       <ConfirmRotateDialog
         target={pendingRotate}
         onCancel={() => setPendingRotate(null)}
-        onConfirm={() => pendingRotate && rotateMutation.mutate(pendingRotate.id)}
+        onConfirm={() =>
+          pendingRotate && rotateMutation.mutate(pendingRotate.id)
+        }
         submitting={rotateMutation.isPending}
       />
 
@@ -373,7 +490,12 @@ function LineageSheet({ target, onClose }: LineageSheetProps) {
   const open = target !== null;
   const query = useQuery({
     queryKey: ['cloud', `/v1/api-keys/${target?.id ?? ''}/lineage`] as const,
-    queryFn: () => cloudFetch<LineageResult>(`/v1/api-keys/${target!.id}/lineage`, {}, { throwOnError: true }),
+    queryFn: () =>
+      cloudFetch<LineageResult>(
+        `/v1/api-keys/${target!.id}/lineage`,
+        {},
+        { throwOnError: true },
+      ),
     enabled: open && !!target,
   });
 
@@ -383,14 +505,20 @@ function LineageSheet({ target, onClose }: LineageSheetProps) {
         <Sheet.Header>
           <Sheet.Title>Rotation history</Sheet.Title>
           <Sheet.Description>
-            {target ? `Lineage of "${target.name}" — root key first, current key last.` : null}
+            {target
+              ? `Lineage of "${target.name}" — root key first, current key last.`
+              : null}
           </Sheet.Description>
         </Sheet.Header>
         <div className="p-4 space-y-3" data-testid="lineage-timeline">
           {query.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading lineage…</p>
           ) : query.isError ? (
-            <Alert intent="warning" title="Could not load lineage" description="Try again in a moment." />
+            <Alert
+              intent="warning"
+              title="Could not load lineage"
+              description="Try again in a moment."
+            />
           ) : (
             (query.data?.lineage ?? []).map((item) => (
               <LineageRow key={item.id} item={item} />
@@ -404,7 +532,8 @@ function LineageSheet({ target, onClose }: LineageSheetProps) {
 
 function LineageRow({ item }: { item: LineageItem }) {
   let statusLabel = 'Active';
-  let statusVariant: 'default' | 'success' | 'warning' | 'destructive' = 'default';
+  let statusVariant: 'default' | 'success' | 'warning' | 'destructive' =
+    'default';
   if (item.revoked_at) {
     statusLabel = 'Revoked';
     statusVariant = 'destructive';
@@ -423,10 +552,15 @@ function LineageRow({ item }: { item: LineageItem }) {
     >
       <div className="p-3 space-y-1">
         <div className="flex items-center justify-between gap-2">
-          <code className="font-mono text-xs text-muted-foreground">{item.key_prefix}…</code>
+          <code className="font-mono text-xs text-muted-foreground">
+            {item.key_prefix}…
+          </code>
           <div className="flex gap-1">
             {item.is_current ? (
-              <Badge variant="success" data-testid={`lineage-current-${item.id}`}>
+              <Badge
+                variant="success"
+                data-testid={`lineage-current-${item.id}`}
+              >
                 Current
               </Badge>
             ) : null}
@@ -455,7 +589,12 @@ interface ConfirmRotateDialogProps {
  * Body copy explains the 24h default grace window so the customer
  * understands BOTH keys will work during the overlap.
  */
-function ConfirmRotateDialog({ target, onCancel, onConfirm, submitting }: ConfirmRotateDialogProps) {
+function ConfirmRotateDialog({
+  target,
+  onCancel,
+  onConfirm,
+  submitting,
+}: ConfirmRotateDialogProps) {
   if (!target) return null;
 
   return (
@@ -489,7 +628,11 @@ function ConfirmRotateDialog({ target, onCancel, onConfirm, submitting }: Confir
 interface CreateApiKeyDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (input: { name: string; scopes: string[]; expires_at?: string | null }) => void;
+  onSubmit: (input: {
+    name: string;
+    scopes: string[];
+    expires_at?: string | null;
+  }) => void;
   submitting: boolean;
   error: unknown;
 }
@@ -500,14 +643,28 @@ interface CreateApiKeyDialogProps {
  * `EMPTY_NAME`, `NAME_TOO_LONG`, `EXPIRES_IN_PAST`) so the customer never
  * sees a server-side 400 they could have prevented client-side.
  */
-function CreateApiKeyDialog({ open, onClose, onSubmit, submitting, error }: CreateApiKeyDialogProps) {
+function CreateApiKeyDialog({
+  open,
+  onClose,
+  onSubmit,
+  submitting,
+  error,
+}: CreateApiKeyDialogProps) {
   const [name, setName] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set(['memory:read']));
+  const [selected, setSelected] = useState<Set<string>>(
+    // #348 — NADA pre-marcado. A tela aconselha "a key with fewer scopes is safer if it leaks" e
+    // pre-marcava `memory:read`: quem seguia a jornada de outro produto saia com o escopo de um
+    // terceiro sem ter pedido. Nao era escalacao (dava para desmarcar), era um default empurrando
+    // na direcao oposta a que a propria tela recomenda — e o custo so aparece no cenario sobre o
+    // qual a frase adverte. A guarda de selecao vazia ja existia (`selected.size === 0`), entao
+    // remover o default nao abre caminho para chave sem escopo.
+    new Set(),
+  );
   const [expiresAt, setExpiresAt] = useState('');
 
   const reset = () => {
     setName('');
-    setSelected(new Set(['memory:read']));
+    setSelected(new Set()); // #348 — o reset segue o mesmo default: nenhum.
     setExpiresAt('');
   };
 
@@ -541,7 +698,8 @@ function CreateApiKeyDialog({ open, onClose, onSubmit, submitting, error }: Crea
     });
   };
 
-  const submitDisabled = submitting || name.trim() === '' || selected.size === 0;
+  const submitDisabled =
+    submitting || name.trim() === '' || selected.size === 0;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
@@ -549,13 +707,21 @@ function CreateApiKeyDialog({ open, onClose, onSubmit, submitting, error }: Crea
         <Dialog.Header>
           <Dialog.Title>Create API Key</Dialog.Title>
           <Dialog.Description>
-            Choose scopes carefully — a key with fewer scopes is safer if it leaks.
+            Choose scopes carefully — a key with fewer scopes is safer if it
+            leaks.
           </Dialog.Description>
         </Dialog.Header>
         <Dialog.Body>
-          <form id="create-api-key-form" className="space-y-4" onSubmit={handleSubmit}>
+          <form
+            id="create-api-key-form"
+            className="space-y-4"
+            onSubmit={handleSubmit}
+          >
             <div>
-              <label htmlFor="api-key-name" className="text-sm font-medium block mb-1">
+              <label
+                htmlFor="api-key-name"
+                className="text-sm font-medium block mb-1"
+              >
                 Name
               </label>
               <Input
@@ -575,7 +741,10 @@ function CreateApiKeyDialog({ open, onClose, onSubmit, submitting, error }: Crea
               <legend className="text-sm font-medium mb-2">Scopes</legend>
               <div className="space-y-2">
                 {ACTIVE_SCOPES.map((scope) => (
-                  <label key={scope.id} className="flex items-start gap-2 cursor-pointer">
+                  <label
+                    key={scope.id}
+                    className="flex items-start gap-2 cursor-pointer"
+                  >
                     <Checkbox
                       checked={selected.has(scope.id)}
                       onCheckedChange={() => toggleScope(scope.id)}
@@ -583,7 +752,9 @@ function CreateApiKeyDialog({ open, onClose, onSubmit, submitting, error }: Crea
                     />
                     <span>
                       <span className="font-mono text-sm">{scope.label}</span>
-                      <span className="text-xs text-muted-foreground block">{scope.description}</span>
+                      <span className="text-xs text-muted-foreground block">
+                        {scope.description}
+                      </span>
                     </span>
                   </label>
                 ))}
@@ -607,8 +778,12 @@ function CreateApiKeyDialog({ open, onClose, onSubmit, submitting, error }: Crea
             </fieldset>
 
             <div>
-              <label htmlFor="api-key-expires" className="text-sm font-medium block mb-1">
-                Expiration <span className="text-muted-foreground">(optional)</span>
+              <label
+                htmlFor="api-key-expires"
+                className="text-sm font-medium block mb-1"
+              >
+                Expiration{' '}
+                <span className="text-muted-foreground">(optional)</span>
               </label>
               <Input
                 id="api-key-expires"
@@ -630,10 +805,19 @@ function CreateApiKeyDialog({ open, onClose, onSubmit, submitting, error }: Crea
           </form>
         </Dialog.Body>
         <Dialog.Footer>
-          <Button type="button" variant="ghost" onClick={handleClose} disabled={submitting}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleClose}
+            disabled={submitting}
+          >
             Cancel
           </Button>
-          <Button type="submit" form="create-api-key-form" disabled={submitDisabled}>
+          <Button
+            type="submit"
+            form="create-api-key-form"
+            disabled={submitDisabled}
+          >
             {submitting ? 'Creating…' : 'Create key'}
           </Button>
         </Dialog.Footer>
@@ -655,7 +839,10 @@ interface RevealedSecretDialogProps {
  * customer dismisses without copying, the only recovery path is "revoke
  * and create new" (intentional friction).
  */
-function RevealedSecretDialog({ revealed, onClose }: RevealedSecretDialogProps) {
+function RevealedSecretDialog({
+  revealed,
+  onClose,
+}: RevealedSecretDialogProps) {
   const [copied, setCopied] = useState(false);
 
   if (!revealed) return null;
@@ -731,7 +918,12 @@ interface ConfirmDeleteDialogProps {
  * Uses @usetheo/ui's built-in `confirmationPhrase` (typed verification)
  * + `intent="destructive"` (NOT primary).
  */
-function ConfirmDeleteDialog({ target, onCancel, onConfirm, submitting }: ConfirmDeleteDialogProps) {
+function ConfirmDeleteDialog({
+  target,
+  onCancel,
+  onConfirm,
+  submitting,
+}: ConfirmDeleteDialogProps) {
   if (!target) return null;
 
   return (
