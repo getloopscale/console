@@ -141,7 +141,7 @@ func TestCollect_is_concurrent_not_serial(t *testing.T) {
 		},
 		PerService: 2 * time.Second,
 		Global:     3 * time.Second,
-		OnResult:   func(string, string) { atomic.AddInt32(&calls, 1) },
+		OnResult:   func(string, string, string) { atomic.AddInt32(&calls, 1) },
 	})
 
 	start := time.Now()
@@ -226,7 +226,7 @@ func TestCollect_calls_onResult_once_per_target(t *testing.T) {
 		},
 		PerService: time.Second,
 		Global:     2 * time.Second,
-		OnResult: func(service, result string) {
+		OnResult: func(service, result, _ string) {
 			atomic.AddInt32(&calls, 1)
 			seen <- [2]string{service, result}
 		},

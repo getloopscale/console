@@ -32,7 +32,7 @@ type selfReportingCollector struct {
 	inner VersionCollector
 	info  version.Info
 	now   func() time.Time
-	onRow func(service, result string)
+	onRow func(service, result, version string)
 }
 
 // NewSelfReportingCollector wraps inner so its report also carries this process's own row.
@@ -45,7 +45,7 @@ func NewSelfReportingCollector(
 	inner VersionCollector,
 	info version.Info,
 	now func() time.Time,
-	onRow func(service, result string),
+	onRow func(service, result, version string),
 ) VersionCollector {
 	return selfReportingCollector{inner: inner, info: info, now: now, onRow: onRow}
 }
@@ -69,7 +69,14 @@ func (c selfReportingCollector) Collect(ctx context.Context) serviceversions.Rep
 	services = append(services, self)
 
 	if c.onRow != nil {
-		c.onRow(c.info.Name, string(self.State()))
+		// Mesma narrowing do coletor: a versao so acompanha o estado ok. Um build sem
+		// carimbo sai `no_provenance` e NAO pode carregar a versao sentinela para a
+		// metrica — seria o painel afirmando revisao que ele proprio declarou nao saber.
+		selfVersion := ""
+		if self.State() == serviceversions.StateOK {
+			selfVersion = c.info.Version
+		}
+		c.onRow(c.info.Name, string(self.State()), selfVersion)
 	}
 
 	return serviceversions.Report{CollectedAt: report.CollectedAt, Services: services}

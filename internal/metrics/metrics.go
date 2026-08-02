@@ -65,6 +65,31 @@ var (
 		Help: "One observation per /v1/version probe. result is one of ok / unreachable / timeout / not_deployed.",
 	}, []string{"service", "result"})
 
+	// M21 / theo-workspace#37 — o ESTADO CORRENTE de cada alvo da frota, como info-metric.
+	//
+	// Coexiste com o counter acima e responde a outra pergunta. O counter diz "quantas
+	// sondagens aconteceram" e so materializa serie depois da primeira — num /metrics
+	// recem-reiniciado ele e' indistinguivel de coletor quebrado. Este gauge diz "qual e'
+	// o estado AGORA", e existe para todo alvo declarado, inclusive os nao configurados.
+	//
+	// `version` e' label de proposito (padrao info-metric): permite alertar sobre drift de
+	// revisao sem um segundo caminho de coleta. Cardinalidade fica contida porque o setter
+	// RETIRA a serie anterior do mesmo servico a cada transicao — sem isso, cada deploy
+	// deixaria uma serie morta valendo 1 e o alvo apareceria em varios estados ao mesmo
+	// tempo.
+	//
+	// O QUE ELA NAO COBRE, e a distincao e real (ver theo-workspace#368): ela afirma que o
+	// processo respondeu `/v1/version`, NAO que a capacidade do servico funciona. Um alvo
+	// pode sair `ok` aqui e ter a funcionalidade quebrada — este e' um sinal de
+	// proveniencia e alcance, nunca de corretude funcional.
+	serviceVersionInfo = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "theo_cloud_service_version_info",
+		Help: "Current state of each fleet target. Always 1; the meaning is in the labels. " +
+			"state is one of ok / no_provenance / unreachable / timeout / unauthorized / " +
+			"not_deployed / not_collected. version is non-empty ONLY when state=ok. " +
+			"Asserts the target answered /v1/version — NOT that its capability works.",
+	}, []string{"service", "state", "version"})
+
 	lensAlertEvaluation = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "theo_lens_alert_evaluation_total",
 		Help: "Alert-rule evaluations by result (ok|no_data|fetch_error|bulkhead_skipped|guard_missing|write_lost|unwired).",
@@ -152,6 +177,7 @@ func init() {
 		storageObjectsDeleted,
 		lensAlertEvaluation,
 		serviceVersionProbe,
+		serviceVersionInfo,
 		tenantProvisioning,
 		tenantProvisioningDuration,
 		authRejections,
@@ -211,6 +237,46 @@ func ObjectsDeletedValue() float64 {
 // rules the customer believes are armed are not being evaluated at all.
 func IncLensAlertEvaluation(result string) {
 	lensAlertEvaluation.WithLabelValues(result).Inc()
+}
+
+// SetServiceVersionInfo publishes the CURRENT state of one fleet target, retiring
+// whatever state that target was in before.
+//
+// The retirement is the load-bearing part. `state` and `version` are labels, so a
+// naive Set would leave the previous series at 1 forever next to the new one and the
+// target would appear in two states at once — the same class of lie the /status panel
+// spent a day removing. DeletePartialMatch drops every series of this service first.
+//
+// `version` MUST be empty for any state other than ok. The emitter
+// (internal/serviceversions) guarantees it; this function does not second-guess the
+// caller, but the test suite pins the behaviour.
+func SetServiceVersionInfo(service, state, version string) {
+	serviceVersionInfo.DeletePartialMatch(prometheus.Labels{"service": service})
+	serviceVersionInfo.WithLabelValues(service, state, version).Set(1)
+}
+
+// SeedServiceVersionInfo declares a target BEFORE anything has been collected, so a
+// scrape taken between process start and the first collection still lists it.
+//
+// Without seeding, absence of a series means two different things — "not declared"
+// and "not collected yet" — and that ambiguity is precisely what made the existing
+// counter useless for answering "what is the fleet state right now".
+func SeedServiceVersionInfo(service string) {
+	serviceVersionInfo.WithLabelValues(service, "not_collected", "").Set(1)
+}
+
+// ServiceVersionInfoValue returns the current value of one labelled series
+// (test-only helper, same shape as ServiceVersionProbeValue).
+func ServiceVersionInfoValue(service, state, version string) float64 {
+	var m dto.Metric
+	g, err := serviceVersionInfo.GetMetricWithLabelValues(service, state, version)
+	if err != nil {
+		return 0
+	}
+	if err := g.Write(&m); err != nil {
+		return 0
+	}
+	return m.GetGauge().GetValue()
 }
 
 // IncServiceVersionProbe records one /v1/version probe outcome. `result` is one of
