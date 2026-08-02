@@ -41,9 +41,15 @@
 #     outra razão, mais funda: ele intercepta `/engine/api/v1/projects/*/connect` pela REDE, e sob
 #     `VITE_USE_MOCKS=true` essa rota é servida **em processo** pela camada de dublê — o
 #     `page.route` nunca dispara. Os Cenários 2–4 precisam de outra alavanca, não de outro fixture.
-#   • `journeys` (2/8) — **redesenho de produto, e o único que NÃO é mecânico.** `view logs` e
-#     `rollback to here` não existem mais; a tela de deploy hoje oferece Redeploy / Build / Sign /
-#     Release (M15–M19). Reescrever exige DECIDIR qual é a jornada canônica — decisão de produto.
+#   • `journeys` (2/8) — **renomeação, não redesenho.** CORRIJO O QUE ESTE CABEÇALHO AFIRMAVA: eu
+#     havia escrito que `view logs` e `rollback to here` "não existem mais" e que reescrever exigia
+#     uma decisão de produto. **Falso, e o erro tem uma forma reconhecível** — eu li a lista de
+#     botões da tela de deploy que FALHOU e afirmei sobre o produto inteiro. As duas afordâncias
+#     existem: `Logs` é aba (`…/deployments/{id}/logs`) e `Rollback` é botão na tela de deploy
+#     BEM-SUCEDIDO, onde faz sentido — `RollbackDialog` está fiado em `deployment-detail-layout.tsx`.
+#     Olhar um estado e concluir sobre todos é o mesmo erro que este arquivo já registra em outro
+#     lugar. Resta um gap menor e real: a aba `Logs` renderiza os filtros e NENHUMA linha, porque o
+#     dublê não tem entradas de log para aquele build — a asserção de conteúdo não tem lastro.
 #   • `dashboard-m12-fase-a-bundle-grep-migration` (3/22) — os 19 casos de DOM passam; os 3
 #     vermelhos são **baselines de screenshot desatualizadas por redesenho**. Comparadas as
 #     imagens (não deduzido): a baseline é de **tema claro com o logotipo antigo**, e o produto
