@@ -68,6 +68,11 @@ func probe(ctx context.Context, client *http.Client, t Target, perService time.D
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// #345 — 401/403 ANTES do balde generico: o alvo respondeu, entao a pilha esta de pe e o que
+	// faltou foi credencial. Tratar como inalcancavel pinta o dashboard de vermelho permanente.
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return Unauthorized(t.Name, fmt.Sprintf("http %d", resp.StatusCode), now())
+	}
 	if resp.StatusCode != http.StatusOK {
 		return Unreachable(t.Name, fmt.Sprintf("http %d", resp.StatusCode), now())
 	}

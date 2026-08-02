@@ -26,6 +26,16 @@ const (
 	// StateTimeout means the probe did not conclude within the available budget,
 	// either because the per-service deadline expired or the caller gave up.
 	StateTimeout State = "timeout"
+	// StateUnauthorized means the target ANSWERED but refused the probe (401/403).
+	//
+	// #345 — deliberadamente separado de StateUnreachable. Um 401 prova que a pilha HTTP do alvo
+	// esta DE PE; o que faltou foi credencial no probe. Colapsar os dois pintava o indicador do
+	// dashboard de vermelho permanente, e um indicador sempre-vermelho e um indicador desligado:
+	// o usuario aprende a ignorar, e quando algo degradar de verdade ninguem olha.
+	//
+	// E o espelho do defeito que o reconciliador deste mesmo ambiente tinha, lendo 401 como "a
+	// rota existe". Nos dois casos o erro e tratar "nao me deixaram medir" como uma medicao.
+	StateUnauthorized State = "unauthorized"
 	// StateNotDeployed means the target has no base URL configured, so nothing
 	// was measured. It is a declared absence, not a failure.
 	StateNotDeployed State = "not_deployed"
@@ -78,6 +88,12 @@ func OK(name, version, builtAt string, at time.Time) ServiceStatus {
 // host and port into the browser (R5).
 func Unreachable(name, reason string, at time.Time) ServiceStatus {
 	return ServiceStatus{name: name, state: StateUnreachable, checkedAt: at, reason: reason}
+}
+
+// Unauthorized reports that name answered but refused the probe (401/403). NAO e degradacao: e
+// ausencia de medicao, e o painel a mostra como tal em vez de afirmar saude que ninguem apurou.
+func Unauthorized(name, reason string, at time.Time) ServiceStatus {
+	return ServiceStatus{name: name, state: StateUnauthorized, checkedAt: at, reason: reason}
 }
 
 // Timeout reports that the probe of name did not conclude within the budget.

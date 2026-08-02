@@ -110,3 +110,36 @@ describe('the client/server path contract', () => {
     expect(SERVICE_VERSIONS_PATH).toBe(mounted);
   });
 });
+
+// #345 — o par que discrimina: 401 no probe NAO pode pintar o indicador de vermelho, e uma
+// dependencia REALMENTE fora ainda tem de pintar. So a primeira metade aceitaria um indicador
+// sempre-verde, que e pior que o sempre-vermelho que o issue relata.
+describe('aggregateState — unauthorized nao e degradacao (#345)', () => {
+  const at = '2026-08-02T12:00:00Z';
+
+  it('nao reporta degraded quando o probe apenas nao foi autorizado', () => {
+    expect(
+      aggregateState([
+        { name: 'theo-lens', state: 'ok', checked_at: at, version: '1.0.0' },
+        { name: 'theo-api', state: 'unauthorized', checked_at: at, reason: 'http 401' },
+      ]),
+    ).toBe('operational');
+  });
+
+  it('AINDA reporta degraded quando uma dependencia real esta fora', () => {
+    expect(
+      aggregateState([
+        { name: 'theo-lens', state: 'ok', checked_at: at, version: '1.0.0' },
+        { name: 'theo-api', state: 'unreachable', checked_at: at, reason: 'http 502' },
+      ]),
+    ).toBe('degraded');
+  });
+
+  it('conta o nao-medido no censo do label, para nao sumir', () => {
+    const label = describeStatus([
+      { name: 'theo-lens', state: 'ok', checked_at: at, version: '1.0.0' },
+      { name: 'theo-api', state: 'unauthorized', checked_at: at, reason: 'http 401' },
+    ]);
+    expect(label).toContain('1 unknown');
+  });
+});
