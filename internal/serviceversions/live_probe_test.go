@@ -25,6 +25,22 @@ import (
 //
 // Sem a variavel ele e SKIP, entao CI e maquina de desenvolvimento nao dependem de
 // nenhum servico no ar.
+//
+// # DE ONDE RODAR — isto nao e detalhe operacional, e parte do contrato
+//
+// O instrumento mede do lugar de onde e' executado, e um alvo inalcancavel DAQUI e
+// indistinguivel de um alvo fora do ar. Rodado da maquina errada ele reporta a frota
+// inteira como caida, com total conviccao e zero erro.
+//
+// Aconteceu na primeira execucao real (2026-08-02): rodado de uma estacao apontando
+// para as portas do host remoto, devolveu `unreachable / connection refused` nos OITO
+// alvos. Parar ali teria reportado a plataforma inteira fora do ar — quando o defeito
+// era o ponto de observacao. E' o MESMO defeito do `theo-api`
+// (usetheodev/theo-workspace#38): alvo correto, ponto de observacao errado.
+//
+// Rode de onde o COLETOR roda — o host que serve o painel — ou por tunel SSH ate' ele.
+// O guard abaixo detecta o padrao e diz as duas leituras possiveis, porque daqui elas
+// sao indistinguiveis e escolher uma seria inventar.
 func TestLiveProbe(t *testing.T) {
 	spec := os.Getenv("THEO_LIVE_PROBE_TARGETS")
 	if spec == "" {
@@ -35,8 +51,13 @@ func TestLiveProbe(t *testing.T) {
 	client := &http.Client{Timeout: 10 * time.Second}
 
 	t.Logf("%-22s %-16s %s", "SERVICE", "STATE", "VERSION / REASON")
+	transportDown := 0
 	for _, tgt := range targets {
 		got := probe(context.Background(), client, tgt, 2*time.Second, time.Now)
+		if got.State() == StateUnreachable &&
+			(got.reason == "connection refused" || got.reason == "dns failure" || got.reason == "transport error") {
+			transportDown++
+		}
 
 		detail := got.reason
 		if got.State() == StateOK {
@@ -54,6 +75,22 @@ func TestLiveProbe(t *testing.T) {
 		if got.State() == StateOK && got.version == "" {
 			t.Errorf("%s saiu ok SEM versao — o painel afirmaria saude nao medida", got.Name())
 		}
+	}
+
+	// TODOS os alvos mudos na camada de transporte tem DUAS leituras, e daqui elas sao
+	// indistinguiveis. Escolher uma seria inventar; nao dizer nada deixaria o operador
+	// escolher a errada — que foi o que quase aconteceu na primeira execucao real.
+	//
+	// Nao falha o teste: uma frota genuinamente fora do ar e' um resultado legitimo do
+	// instrumento, nao um defeito dele.
+	if transportDown == len(targets) && len(targets) > 1 {
+		t.Logf("")
+		t.Logf("  !! os %d alvos falharam no TRANSPORTE (refused/dns/transport). Duas leituras:", transportDown)
+		t.Logf("     (a) a frota esta' fora do ar;")
+		t.Logf("     (b) voce esta' medindo do lugar errado — daqui as duas sao IDENTICAS.")
+		t.Logf("     Confirme o ponto de observacao antes de reportar (a): rode de onde o")
+		t.Logf("     coletor roda, ou por tunel ate' ele. Precedente: 8/8 assim em 2026-08-02,")
+		t.Logf("     e a causa era (b).")
 	}
 }
 
