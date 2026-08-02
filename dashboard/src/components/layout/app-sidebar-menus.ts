@@ -120,6 +120,11 @@ export const MENUS: Record<string, MenuDefinition> = {
           // M23 — a capacidade trust. Sem esta entrada as rotas /trust existem e ninguém as
           // alcança pela navegação: o serviço registrava violações que só apareciam por `curl`.
           { label: 'Trust', path: '/trust', icon: ShieldCheck, drillsInto: 'trust' },
+          // M26 — PEÇA 1 de 3. A capacidade skills. Até aqui o único item chamado "Skills" no
+          // menu inteiro era o de `/memory/skills`, que é do theo-memory: quem procurava o
+          // registro chegava no produto errado, sem erro algum. As outras duas peças são o
+          // objeto `skills:` abaixo e a linha em `resolveActiveMenu` — as três, ou nenhuma.
+          { label: 'Skills', path: '/skills', icon: Boxes, drillsInto: 'skills' },
         ],
       },
       {
@@ -247,6 +252,21 @@ export const MENUS: Record<string, MenuDefinition> = {
       },
     ],
   },
+  // M26 — PEÇA 2 de 3. O submenu da capacidade skills.
+  //
+  // Um item só, e isso é honesto e não preguiça: as outras duas telas da jornada — o detalhe e
+  // as versões/canais — são POR SKILL, alcançadas a partir da lista. Inventar entradas de menu
+  // para elas exigiria um identificador que o menu não tem, e o item levaria a lugar nenhum.
+  skills: {
+    id: 'skills',
+    title: 'Skills',
+    parent: 'main',
+    groups: [
+      {
+        items: [{ label: 'Overview', path: '/skills', icon: LayoutGrid }],
+      },
+    ],
+  },
   memory: {
     id: 'memory',
     title: 'Memory',
@@ -335,6 +355,10 @@ export function resolveActiveMenu(pathname: string): ResolvedMenu {
   // Guardrails e Enforcement só eram alcançáveis digitando a URL. Declarar o submenu não basta;
   // é aqui que a rota o ativa, e as duas metades vivem a 200 linhas uma da outra.
   if (pathname.startsWith('/trust')) return { id: 'trust' };
+  // M26 — PEÇA 3 de 3, a que ninguém lembra e a que faz o menu ABRIR. Sem esta linha o submenu
+  // `skills` existe inteiro e nunca aparece: as telas ficam alcançáveis só digitando a URL, que
+  // é o único caminho que o usuário real não tem. Foi exatamente esta omissão que custou o M23.
+  if (pathname.startsWith('/skills')) return { id: 'skills' };
   return { id: 'main' };
 }
 

@@ -101,6 +101,41 @@ describe('AppSidebar', () => {
     expect(screen.getByText('Violations')).toBeInTheDocument();
   });
 
+  it('M26 — a capacidade Skills está na raiz e leva ao submenu por CLIQUE', () => {
+    // A peça 1. Até este milestone o único item chamado "Skills" no menu inteiro era o de
+    // `/memory/skills`, que é do theo-memory: quem procurava o registro chegava no produto
+    // errado, sem erro algum. Aqui a asserção é sobre a RAIZ, porque é dali que o usuário parte.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/'] });
+
+    expect(screen.getByRole('button', { name: /^skills$/i })).toBeInTheDocument();
+  });
+
+  it('M26 — uma rota /skills abre o submenu skills, e não a raiz', () => {
+    // A peça 3, a que falha em SILÊNCIO. O submenu pode estar declarado inteiro e nunca abrir se
+    // `resolveActiveMenu` não reconhecer o prefixo — foi exatamente essa omissão que deixou
+    // quatro telas do trust alcançáveis só digitando a URL, com três rodadas de validação
+    // passando por cima porque validavam digitando.
+    //
+    // A asserção é pela AUSÊNCIA dos itens que só a raiz tem, e isso não é rebuscamento: a
+    // primeira versão deste teste afirmava `getByText('Overview')` e passava COM E SEM a linha
+    // de resolução, porque 'Overview' também é item da raiz. Um guard que não distingue os dois
+    // estados não guarda nada — é o mesmo erro, uma camada acima, de validar digitando a URL.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/skills'] });
+
+    expect(screen.queryByText('Domains')).not.toBeInTheDocument();
+    expect(screen.queryByText('Projects')).not.toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+  });
+
+  it('M26 — o submenu skills continua aberto nas rotas de uma skill', () => {
+    // O detalhe e as versões são POR SKILL. Se a resolução casasse só o caminho exato, abrir uma
+    // skill fecharia o menu que levou até ela — e o operador perderia a navegação ao usá-la.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/skills/sk_1/versions'] });
+
+    expect(screen.queryByText('Domains')).not.toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+  });
+
   // M21 T2.1 (R3) — the sidebar is about to become asynchronous. Without a global
   // fetch stub, jsdom issues a REAL request: the symptom is not a red test, it is an
   // unhandled rejection plus act() noise, which does not block a merge.
