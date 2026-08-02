@@ -474,6 +474,16 @@ func main() {
 	// promptly broker + "promptly:read"; only registered when PROMPTLY_BASE_URL is
 	// set. The broker translates promptly:* -> prompt:* and mints per-tenant.
 	var promptlyForwardAuthHandler *routes.ForwardAuthHandler
+	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
+	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
+	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
+	// ligue uma coisa a outra. Nomes, nunca valores: varios destes sao credenciais.
+	if missing := config.MissingSettings(
+		config.Setting{Name: "PROMPTLY_BASE_URL", Value: cfg.PromptlyBaseURL},
+	); len(missing) > 0 {
+		logger.Warn("integration disabled — configuration absent",
+			"integration", "promptly", "missing", missing)
+	}
 	if cfg.PromptlyBaseURL != "" {
 		promptlyHTTP := &http.Client{Timeout: 10 * time.Second}
 		promptlyAdmin := promptly.NewAdminClient(cfg.PromptlyBaseURL, cfg.PromptlyPlatformAdminKey.Value(), promptlyHTTP)
@@ -506,6 +516,16 @@ func main() {
 	var trustForwardAuthHandler *routes.ForwardAuthHandler
 	var trustDashboardHandler *routes.TrustDashboardHandler
 	var trustGuardrailsHandler *routes.TrustGuardrailsHandler
+	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
+	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
+	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
+	// ligue uma coisa a outra. Nomes, nunca valores: varios destes sao credenciais.
+	if missing := config.MissingSettings(
+		config.Setting{Name: "TRUST_BASE_URL", Value: cfg.TrustBaseURL},
+	); len(missing) > 0 {
+		logger.Warn("integration disabled — configuration absent",
+			"integration", "trust", "missing", missing)
+	}
 	if cfg.TrustBaseURL != "" {
 		trustHTTP := &http.Client{Timeout: 10 * time.Second}
 		trustAdmin := trust.NewAdminClient(cfg.TrustBaseURL, cfg.TrustPlatformAdminKey.Value(), trustHTTP)
@@ -558,6 +578,17 @@ func main() {
 	// target to be a member of it, so a broker cannot use it to reach an arbitrary
 	// tenant.
 	var skillsForwardAuthHandler *routes.ForwardAuthHandler
+	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
+	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
+	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
+	// ligue uma coisa a outra. Nomes, nunca valores: varios destes sao credenciais.
+	if missing := config.MissingSettings(
+		config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
+		config.Setting{Name: "SKILLS_PLATFORM_ADMIN_KEY", Value: cfg.SkillsPlatformAdminKey.Value()},
+	); len(missing) > 0 {
+		logger.Warn("integration disabled — configuration absent",
+			"integration", "skills", "missing", missing)
+	}
 	if cfg.SkillsBaseURL != "" && cfg.SkillsPlatformAdminKey.Value() != "" {
 		skillsHTTP := &http.Client{Timeout: 10 * time.Second}
 		skillsAdmin := skills.NewAdminClient(cfg.SkillsBaseURL, cfg.SkillsPlatformAdminKey.Value(), skillsHTTP)
@@ -688,6 +719,16 @@ func main() {
 	// once, after both, so it exists whenever ANY capability is configured — the rag MCP
 	// binding is no longer coupled to memory being enabled.
 	mcpCaps := map[string]routes.MCPCapabilityBinding{}
+	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
+	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
+	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
+	// ligue uma coisa a outra. Nomes, nunca valores: varios destes sao credenciais.
+	if missing := config.MissingSettings(
+		config.Setting{Name: "THEMORY_BASE_URL", Value: cfg.ThemoryBaseURL},
+	); len(missing) > 0 {
+		logger.Warn("integration disabled — configuration absent",
+			"integration", "memory", "missing", missing)
+	}
 	if cfg.ThemoryBaseURL != "" {
 		themoryHTTP := &http.Client{
 			Timeout:   30 * time.Second,
