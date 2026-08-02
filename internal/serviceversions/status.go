@@ -50,6 +50,14 @@ const unknownSentinel = "unknown"
 // but could not be turned into a version.
 const reasonMalformedPayload = "malformed payload"
 
+// reasonNoProvenance distingue o alvo que respondeu o SENTINELA honesto (`unknown`,
+// mandado pelo contrato quando o deploy nao injetou proveniencia) do alvo que emitiu
+// lixo. Os dois degradam para `unreachable` — um ok sem versao nao tem o que mostrar
+// (ADR D8) —, mas a razao e o unico campo que diz ONDE procurar: `malformed payload`
+// manda depurar o servico, e nesse caso o servico esta certo e quem falhou foi a
+// camada de deploy.
+const reasonNoProvenance = "no provenance reported"
+
 // reasonDeadlineExceeded is the fixed reason of every timeout variant. It is a
 // constant rather than an error string so no internal host:port can leak (R5).
 const reasonDeadlineExceeded = "deadline exceeded"
@@ -71,7 +79,15 @@ type ServiceStatus struct {
 // version, so an empty or sentinel version degrades to unreachable rather than
 // producing a successful variant with nothing to show (ADR D8).
 func OK(name, version, builtAt string, at time.Time) ServiceStatus {
-	if normalizeUnknown(version) == "" {
+	// Duas causas distintas chegam aqui com a mesma consequencia e razoes DIFERENTES.
+	// O sentinela `unknown` e' o que o contrato manda o alvo emitir quando o deploy nao
+	// injetou proveniencia — payload bem formado, servico honesto, falha da camada de
+	// deploy. Reportar isso como `malformed payload` mandaria depurar o servico certo
+	// pelo motivo errado.
+	if version == unknownSentinel {
+		return Unreachable(name, reasonNoProvenance, at)
+	}
+	if version == "" {
 		return Unreachable(name, reasonMalformedPayload, at)
 	}
 	return ServiceStatus{
