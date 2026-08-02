@@ -16,7 +16,11 @@ export type ServiceStatus =
   | { readonly name: string; readonly state: 'ok'; readonly checked_at: string; readonly version: string; readonly built_at?: string }
   | { readonly name: string; readonly state: 'unreachable'; readonly checked_at: string; readonly reason: string }
   | { readonly name: string; readonly state: 'timeout'; readonly checked_at: string; readonly reason?: string }
-  | { readonly name: string; readonly state: 'not_deployed'; readonly checked_at: string };
+  | { readonly name: string; readonly state: 'not_deployed'; readonly checked_at: string }
+  // #345 — o alvo RESPONDEU e recusou o probe (401/403). Nao e degradacao: e ausencia de
+  // medicao. Separado de `unreachable` porque o servico esta de pe — o que faltou foi
+  // credencial —, e colapsar os dois pintava o indicador de vermelho permanente.
+  | { readonly name: string; readonly state: 'unauthorized'; readonly checked_at: string; readonly reason: string };
 
 /**
  * The one path the gateway mounts (`internal/routes/service_versions.go`).
@@ -55,7 +59,14 @@ export type AggregateState = 'operational' | 'degraded' | 'unknown';
 export function aggregateState(services: readonly ServiceStatus[] | undefined): AggregateState {
   if (!services || services.length === 0) return 'unknown';
   if (services.every((s) => s.state === 'not_deployed')) return 'unknown';
-  if (!services.every((s) => s.state === 'ok' || s.state === 'not_deployed')) return 'degraded';
+  // `unauthorized` NAO arrasta o ponto para baixo, pelo mesmo motivo de `not_deployed` (ADR D7):
+  // nenhum dos dois e EVIDENCIA de degradacao. Um indicador permanentemente vermelho e um
+  // indicador desligado — o usuario aprende a ignora-lo, e quando algo degradar de verdade
+  // ninguem olha. A visibilidade vem do censo em `describeStatus` (que o conta como `unknown`) e
+  // da pagina /status, nao de pintar tudo de vermelho.
+  const measured = (s: ServiceStatus) =>
+    s.state === 'ok' || s.state === 'not_deployed' || s.state === 'unauthorized';
+  if (!services.every(measured)) return 'degraded';
   return 'operational';
 }
 

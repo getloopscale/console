@@ -59,7 +59,9 @@ export interface SeriesPoint {
  * Descartar em vez de coagir é deliberado: um balde sem `total` numérico coagido para 0 desenharia
  * um vale que nunca existiu, e o operador leria queda de violações onde houve lacuna de dados.
  */
-export function toSeries(payload: TrendsPayload | null | undefined): SeriesPoint[] {
+export function toSeries(
+  payload: TrendsPayload | null | undefined,
+): SeriesPoint[] {
   const buckets = payload?.buckets;
   if (!Array.isArray(buckets)) return [];
   return buckets.flatMap((b) => {
@@ -74,7 +76,9 @@ export function toSeries(payload: TrendsPayload | null | undefined): SeriesPoint
 /**
  * Total de eventos na janela — `null` quando não há série, jamais `0`.
  */
-export function totalInWindow(payload: TrendsPayload | null | undefined): number | null {
+export function totalInWindow(
+  payload: TrendsPayload | null | undefined,
+): number | null {
   const points = toSeries(payload);
   if (points.length === 0) return null;
   return points.reduce((acc, p) => acc + p.value, 0);
@@ -83,7 +87,9 @@ export function totalInWindow(payload: TrendsPayload | null | undefined): number
 /**
  * Quantas violações a lista trouxe — `null` quando o payload não é uma lista.
  */
-export function violationCount(payload: ViolationsPayload | null | undefined): number | null {
+export function violationCount(
+  payload: ViolationsPayload | null | undefined,
+): number | null {
   const rows = payload?.violations;
   return Array.isArray(rows) ? rows.length : null;
 }
@@ -94,17 +100,22 @@ export function violationCount(payload: ViolationsPayload | null | undefined): n
  * Empates saem em ordem alfabética para que a tela seja determinística entre renders — sem isso a
  * ordem depende da iteração do objeto e duas cargas iguais podem desenhar linhas trocadas.
  */
-export function byPolicy(payload: ViolationsPayload | null | undefined): SeriesPoint[] {
+export function byPolicy(
+  payload: ViolationsPayload | null | undefined,
+): SeriesPoint[] {
   const rows = payload?.violations;
   if (!Array.isArray(rows)) return [];
   const counts = new Map<string, number>();
   for (const r of rows) {
-    const p = typeof r?.policy === 'string' && r.policy !== '' ? r.policy : 'desconhecida';
+    const p =
+      typeof r?.policy === 'string' && r.policy !== ''
+        ? r.policy
+        : 'desconhecida';
     counts.set(p, (counts.get(p) ?? 0) + 1);
   }
   return [...counts.entries()]
     .map(([label, value]) => ({ label, value }))
-    .sort((a, b) => (b.value - a.value) || a.label.localeCompare(b.label));
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
 }
 
 /**
@@ -113,7 +124,9 @@ export function byPolicy(payload: ViolationsPayload | null | undefined): SeriesP
  */
 const SEVERITY_ORDER = ['low', 'medium', 'high', 'critical'] as const;
 
-export function peakSeverity(payload: ViolationsPayload | null | undefined): string | null {
+export function peakSeverity(
+  payload: ViolationsPayload | null | undefined,
+): string | null {
   const rows = payload?.violations;
   if (!Array.isArray(rows) || rows.length === 0) return null;
   let peak = -1;
@@ -163,19 +176,28 @@ export function coverageGap(
   const rows = validators?.validators ?? validators?.items;
   const enforcedPolicies = new Set(
     (Array.isArray(rows) ? rows : [])
-      .map((v) => (typeof v?.policy === 'string' ? v.policy : typeof v?.category === 'string' ? v.category : ''))
+      .map((v) =>
+        typeof v?.policy === 'string'
+          ? v.policy
+          : typeof v?.category === 'string'
+            ? v.category
+            : '',
+      )
       .filter((p): p is string => p !== ''),
   );
 
-  return byPolicy(violations).map((p) => ({
-    policy: p.label,
-    observed: p.value,
-    enforced: enforcedPolicies.has(p.label),
-  })).sort((a, b) =>
-    Number(a.enforced) - Number(b.enforced) ||
-    b.observed - a.observed ||
-    a.policy.localeCompare(b.policy),
-  );
+  return byPolicy(violations)
+    .map((p) => ({
+      policy: p.label,
+      observed: p.value,
+      enforced: enforcedPolicies.has(p.label),
+    }))
+    .sort(
+      (a, b) =>
+        Number(a.enforced) - Number(b.enforced) ||
+        b.observed - a.observed ||
+        a.policy.localeCompare(b.policy),
+    );
 }
 
 /** Quantas políticas passam sem guardrail — o número que a tela abre. */
@@ -224,6 +246,37 @@ export interface ConversationPayload {
  *
  * Mensagem sem `content` de texto é descartada em vez de virar "undefined" na tela.
  */
+/**
+ * O que a conversa REALMENTE trouxe — distinguindo ausência-por-permissão de ausência-de-dado.
+ *
+ * #347: o back-end SUPRIME `content` quando a credencial não traz o escopo `trust:content`, e a
+ * razão é deliberada (LT-012): "a ausência descreve uma permissão, o vazio descreveria o dado".
+ * `conversationMessages` filtra exatamente essas mensagens — então uma conversa com 3 mensagens
+ * chegava à tela como zero, e o texto culpava o DADO por um fato de PERMISSÃO.
+ *
+ * Quem lê "não trouxe mensagens legíveis" investiga ingestão, parsing, banco — tudo funcionando.
+ * A UI estava do lado errado de uma distinção que o back-end fez com cuidado.
+ *
+ * `readable` cobre o caso PARCIAL de propósito: se alguma mensagem tem conteúdo, a tela mostra o
+ * que existe em vez de esconder tudo atrás de um aviso.
+ */
+export type ConversationContentState =
+  | { readonly kind: 'readable'; readonly total: number }
+  | { readonly kind: 'withheld'; readonly total: number }
+  | { readonly kind: 'empty'; readonly total: 0 };
+
+export function conversationContentState(
+  payload: ConversationPayload | null | undefined,
+): ConversationContentState {
+  const msgs = payload?.messages;
+  if (!Array.isArray(msgs) || msgs.length === 0)
+    return { kind: 'empty', total: 0 };
+  const readable = conversationMessages(payload).length;
+  return readable > 0
+    ? { kind: 'readable', total: msgs.length }
+    : { kind: 'withheld', total: msgs.length };
+}
+
 export function conversationMessages(
   payload: ConversationPayload | null | undefined,
 ): ConversationMessage[] {
