@@ -474,6 +474,9 @@ func main() {
 	// promptly broker + "promptly:read"; only registered when PROMPTLY_BASE_URL is
 	// set. The broker translates promptly:* -> prompt:* and mints per-tenant.
 	var promptlyForwardAuthHandler *routes.ForwardAuthHandler
+	// M25 — o BFF do catálogo de prompts do dashboard. Nil quando PROMPTLY_BASE_URL está ausente:
+	// sem broker não há cunhagem por inquilino, e sem ela a rota não deve existir.
+	var promptlyDashboardHandler *routes.PromptlyDashboardHandler
 	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
 	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
 	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
@@ -505,6 +508,14 @@ func main() {
 			"promptly:read",
 			logger,
 		)
+		// M25 — o BFF do catálogo de prompts. DOIS clientes, com credenciais distintas: o de
+		// leitura recebe uma chave que não consegue promover, e a promoção é o único caminho com
+		// `prompt:write`. A separação é o menor privilégio; ver `promptly_dashboard_wiring.go`.
+		promptlyDataClient := promptly.NewDataClient(cfg.PromptlyBaseURL, promptlyHTTP).
+			WithKeyResolver(newPromptlyDashboardKeyResolver(promptlyBroker))
+		promptlyWriteClient := promptly.NewWriteClient(cfg.PromptlyBaseURL, promptlyHTTP).
+			WithKeyResolver(newPromptlyPromotionKeyResolver(promptlyBroker))
+		promptlyDashboardHandler = routes.NewPromptlyDashboardHandler(promptlyDataClient, promptlyWriteClient, logger)
 		logger.Info("theo-promptly Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
 	}
 
@@ -1343,6 +1354,11 @@ func main() {
 	}
 	if trustGuardrailsHandler != nil {
 		routes.MountTrustGuardrails(r, trustGuardrailsHandler, requireJWT)
+	}
+	// M25 — catálogo de prompts, revisões e promoção de label. Mesmo gate dos demais: montado só
+	// quando o broker existe.
+	if promptlyDashboardHandler != nil {
+		routes.MountPromptlyDashboard(r, promptlyDashboardHandler, requireJWT)
 	}
 	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
 	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even
