@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useQueryState } from "nuqs";
-import { RefreshCw, ShieldCheck, X } from "lucide-react";
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryState } from 'nuqs';
+import { RefreshCw, ShieldCheck, X } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -11,18 +11,18 @@ import {
   PageShell,
   Timestamp,
   type DataTableColumn,
-} from "@usetheo/ui";
-import { Alert } from "@/components/ui/alert-guard";
-import { ConversationPanel } from "@/components/trust/conversation-panel";
-import { usePageMeta } from "@/hooks/use-page-meta";
-import { useRequireAuth } from "@/hooks/use-auth";
-import { fetchTrust } from "@/components/trust/trust-api";
+} from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
+import { ConversationPanel } from '@/components/trust/conversation-panel';
+import { usePageMeta } from '@/hooks/use-page-meta';
+import { useRequireAuth } from '@/hooks/use-auth';
+import { fetchTrust } from '@/components/trust/trust-api';
 import {
   filterByPolicy,
   type ViolationsPayload,
   type PolicyViolation,
   type ConversationPayload,
-} from "@/components/trust/trust-series";
+} from '@/components/trust/trust-series';
 
 /**
  * M23 — `/trust/violations`: a lista de violações de política, navegável até a conversa de origem.
@@ -46,12 +46,12 @@ function rowKey(v: PolicyViolation): string {
   return (
     v.id ??
     v.messageId ??
-    `${v.policy ?? "sem-politica"}@${v.detectedAt ?? "sem-data"}`
+    `${v.policy ?? 'sem-politica'}@${v.detectedAt ?? 'sem-data'}`
   );
 }
 
 /** Severidades que merecem destaque — o resto vai neutro, para o destaque significar algo. */
-const LOUD_SEVERITY = new Set(["critical", "high", "error"]);
+const LOUD_SEVERITY = new Set(['critical', 'high', 'error']);
 
 /** Ausência de valor. Um traço apagado, nunca um espaço em branco que parece defeito de render. */
 const DASH = <span className="text-muted-foreground">&mdash;</span>;
@@ -72,8 +72,8 @@ export function violationColumns(
       //
       // Sem data, duas violacoes iguais em politica e severidade sao indistinguiveis, e "isso e
       // de agora ou de semanas atras?" e a primeira pergunta de quem abre a tela.
-      key: "detectedAt",
-      label: "Detectada em",
+      key: 'detectedAt',
+      label: 'Detectada em',
       render: (row) =>
         row.detectedAt ? (
           <Timestamp value={row.detectedAt} format="both" />
@@ -83,22 +83,22 @@ export function violationColumns(
     },
 
     {
-      key: "policy",
-      label: "Política",
+      key: 'policy',
+      label: 'Política',
       render: (row) => (
-        <span className="font-mono font-medium">{row.policy ?? "—"}</span>
+        <span className="font-mono font-medium">{row.policy ?? '—'}</span>
       ),
     },
     {
-      key: "severity",
-      label: "Severidade",
+      key: 'severity',
+      label: 'Severidade',
       render: (row) =>
         row.severity ? (
           <Badge
             variant={
               LOUD_SEVERITY.has(row.severity.toLowerCase())
-                ? "destructive"
-                : "outline"
+                ? 'destructive'
+                : 'outline'
             }
           >
             {row.severity}
@@ -112,8 +112,8 @@ export function violationColumns(
       // que descreve a violação, e ocupa a coluna que `detectedAt` ocuparia: medido em
       // 2026-08-01, o `/policy-violations` do deploy não devolve `detectedAt`, e uma coluna
       // permanentemente vazia é ruído que empurra a informação real para fora da tela.
-      key: "redacted",
-      label: "Trecho (redigido)",
+      key: 'redacted',
+      label: 'Trecho (redigido)',
       render: (row) =>
         row.redacted ? (
           <code className="font-mono text-xs">{row.redacted}</code>
@@ -122,9 +122,9 @@ export function violationColumns(
         ),
     },
     {
-      key: "conversation",
-      label: "Conversa",
-      align: "right",
+      key: 'conversation',
+      label: 'Conversa',
+      align: 'right',
       render: (row) =>
         row.conversationId ? (
           <Button
@@ -143,26 +143,26 @@ export function violationColumns(
 
 export function TrustViolationsPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle("Trust — violações"), [setPageTitle]);
+  useEffect(() => setPageTitle('Trust — violações'), [setPageTitle]);
   useRequireAuth();
   const queryClient = useQueryClient();
 
-  const [selected, setSelected] = useQueryState("conversation");
-  const [policy, setPolicy] = useQueryState("policy");
+  const [selected, setSelected] = useQueryState('conversation');
+  const [policy, setPolicy] = useQueryState('policy');
 
   const listQuery = useQuery({
-    queryKey: ["cloud", "/v1/dashboard/trust/policy-violations"] as const,
+    queryKey: ['cloud', '/v1/dashboard/trust/policy-violations'] as const,
     queryFn: () =>
-      fetchTrust<ViolationsPayload>("/policy-violations?limit=100"),
+      fetchTrust<ViolationsPayload>('/policy-violations?limit=100'),
   });
 
   const detailQuery = useQuery({
-    queryKey: ["cloud", "/v1/dashboard/trust/conversations", selected] as const,
+    queryKey: ['cloud', '/v1/dashboard/trust/conversations', selected] as const,
     // Só busca quando há uma conversa selecionada — ver nota de N+1 no cabeçalho.
     enabled: Boolean(selected),
     queryFn: () =>
       fetchTrust<ConversationPayload>(
-        `/conversations/${encodeURIComponent(selected ?? "")}`,
+        `/conversations/${encodeURIComponent(selected ?? '')}`,
       ),
   });
 
@@ -174,7 +174,7 @@ export function TrustViolationsPage() {
 
   const onRefresh = () => {
     void queryClient.invalidateQueries({
-      queryKey: ["cloud", "/v1/dashboard/trust/policy-violations"],
+      queryKey: ['cloud', '/v1/dashboard/trust/policy-violations'],
     });
   };
 
@@ -185,7 +185,7 @@ export function TrustViolationsPage() {
       title="Violações de política"
       description="Cada linha é um sinal que a camada de confiança registrou. Abra para ver a conversa de origem."
       primaryAction={{
-        label: "Atualizar",
+        label: 'Atualizar',
         icon: RefreshCw,
         onClick: onRefresh,
       }}
@@ -202,7 +202,7 @@ export function TrustViolationsPage() {
         <Card.Header>
           {/* asChild → <h2>: o PageShell já rende o <h1> (WCAG 1.3.1). */}
           <Card.Title asChild>
-            <h2>{policy ? `Violações de ${policy}` : "Todas as violações"}</h2>
+            <h2>{policy ? `Violações de ${policy}` : 'Todas as violações'}</h2>
           </Card.Title>
           <Card.Description>
             {rows.length} de {all.length} registro(s) na janela.
@@ -219,17 +219,17 @@ export function TrustViolationsPage() {
               icon={ShieldCheck}
               title={
                 failed
-                  ? "Sem dados — a leitura falhou"
+                  ? 'Sem dados — a leitura falhou'
                   : policy
                     ? `Nenhuma violação de ${policy}`
-                    : "Nenhuma violação registrada"
+                    : 'Nenhuma violação registrada'
               }
               description={
                 failed
-                  ? "Tente novamente em instantes."
+                  ? 'Tente novamente em instantes.'
                   : policy
-                    ? "Nenhum registro desta política na janela atual."
-                    : "Nenhuma violação registrada para este workspace."
+                    ? 'Nenhum registro desta política na janela atual.'
+                    : 'Nenhuma violação registrada para este workspace.'
               }
               action={
                 policy ? (

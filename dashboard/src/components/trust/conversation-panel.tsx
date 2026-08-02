@@ -1,13 +1,13 @@
-import { useState } from "react";
-import { Eye, EyeOff, X } from "lucide-react";
-import { Button, Card, Skeleton, Timestamp } from "@usetheo/ui";
+import { useState } from 'react';
+import { Eye, EyeOff, X } from 'lucide-react';
+import { Button, Card, Skeleton, Timestamp } from '@usetheo/ui';
 
-import { Alert } from "@/components/ui/alert-guard";
+import { Alert } from '@/components/ui/alert-guard';
 import {
   conversationContentState,
   conversationMessages,
   type ConversationPayload,
-} from "./trust-series";
+} from './trust-series';
 
 /**
  * M23 — a conversa de origem de uma violação, aberta ao lado da lista.
@@ -48,7 +48,7 @@ export function ConversationPanel(props: ConversationPanelProps) {
         {/* asChild → <h2>: o PageShell já rende o <h1> (WCAG 1.3.1). */}
         <Card.Title asChild>
           <h2>
-            Conversa{" "}
+            Conversa{' '}
             <span className="font-mono text-base">{conversationId}</span>
           </h2>
         </Card.Title>
@@ -68,7 +68,7 @@ export function ConversationPanel(props: ConversationPanelProps) {
             title="Não foi possível carregar a conversa"
             description="A violação continua válida; apenas o detalhe não pôde ser lido agora."
           />
-        ) : content.kind === "withheld" ? (
+        ) : content.kind === 'withheld' ? (
           /* #347 — a mensagem antiga ("não trouxe mensagens legíveis") descrevia o DADO quando o
              fato é sobre PERMISSÃO, e mandava o leitor investigar ingestão/parsing/banco, todos
              funcionando. O back-end SUPRIME `content` sem o escopo, de propósito (LT-012): "a
@@ -79,7 +79,7 @@ export function ConversationPanel(props: ConversationPanelProps) {
             intent="info"
             title="Conteúdo não exibido por falta de permissão"
             description={`Esta conversa tem ${content.total} ${
-              content.total === 1 ? "mensagem" : "mensagens"
+              content.total === 1 ? 'mensagem' : 'mensagens'
             }, e o texto delas não foi entregue porque a credencial em uso não inclui o escopo trust:content. A ingestão está correta; o que falta é permissão de leitura.`}
           />
         ) : messages.length === 0 ? (
@@ -95,7 +95,7 @@ export function ConversationPanel(props: ConversationPanelProps) {
               >
                 <div className="mb-1 flex items-baseline justify-between gap-3">
                   <span className="text-label uppercase text-muted-foreground">
-                    {m.role ?? "desconhecido"}
+                    {m.role ?? 'desconhecido'}
                   </span>
                   {m.createdAt ? (
                     <span className="text-body-sm text-muted-foreground">
@@ -134,7 +134,7 @@ export function ConversationPanel(props: ConversationPanelProps) {
             ) : (
               <Eye className="size-4" aria-hidden="true" />
             )}
-            {revealed ? "Ocultar conteúdo" : "Revelar conteúdo original"}
+            {revealed ? 'Ocultar conteúdo' : 'Revelar conteúdo original'}
           </Button>
         ) : null}
         <Button

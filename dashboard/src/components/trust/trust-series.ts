@@ -67,8 +67,8 @@ export function toSeries(
   return buckets.flatMap((b) => {
     const value = b?.total;
     const label = b?.bucket;
-    if (typeof value !== "number" || !Number.isFinite(value)) return [];
-    if (typeof label !== "string" || label === "") return [];
+    if (typeof value !== 'number' || !Number.isFinite(value)) return [];
+    if (typeof label !== 'string' || label === '') return [];
     return [{ label, value }];
   });
 }
@@ -108,9 +108,9 @@ export function byPolicy(
   const counts = new Map<string, number>();
   for (const r of rows) {
     const p =
-      typeof r?.policy === "string" && r.policy !== ""
+      typeof r?.policy === 'string' && r.policy !== ''
         ? r.policy
-        : "desconhecida";
+        : 'desconhecida';
     counts.set(p, (counts.get(p) ?? 0) + 1);
   }
   return [...counts.entries()]
@@ -122,7 +122,7 @@ export function byPolicy(
  * A severidade mais alta presente — a ordem é a do domínio, não alfabética.
  * `null` quando não há linha alguma.
  */
-const SEVERITY_ORDER = ["low", "medium", "high", "critical"] as const;
+const SEVERITY_ORDER = ['low', 'medium', 'high', 'critical'] as const;
 
 export function peakSeverity(
   payload: ViolationsPayload | null | undefined,
@@ -131,7 +131,7 @@ export function peakSeverity(
   if (!Array.isArray(rows) || rows.length === 0) return null;
   let peak = -1;
   for (const r of rows) {
-    const s = typeof r?.severity === "string" ? r.severity.toLowerCase() : "";
+    const s = typeof r?.severity === 'string' ? r.severity.toLowerCase() : '';
     const idx = SEVERITY_ORDER.indexOf(s as (typeof SEVERITY_ORDER)[number]);
     if (idx > peak) peak = idx;
   }
@@ -177,13 +177,13 @@ export function coverageGap(
   const enforcedPolicies = new Set(
     (Array.isArray(rows) ? rows : [])
       .map((v) =>
-        typeof v?.policy === "string"
+        typeof v?.policy === 'string'
           ? v.policy
-          : typeof v?.category === "string"
+          : typeof v?.category === 'string'
             ? v.category
-            : "",
+            : '',
       )
-      .filter((p): p is string => p !== ""),
+      .filter((p): p is string => p !== ''),
   );
 
   return byPolicy(violations)
@@ -261,20 +261,20 @@ export interface ConversationPayload {
  * que existe em vez de esconder tudo atrás de um aviso.
  */
 export type ConversationContentState =
-  | { readonly kind: "readable"; readonly total: number }
-  | { readonly kind: "withheld"; readonly total: number }
-  | { readonly kind: "empty"; readonly total: 0 };
+  | { readonly kind: 'readable'; readonly total: number }
+  | { readonly kind: 'withheld'; readonly total: number }
+  | { readonly kind: 'empty'; readonly total: 0 };
 
 export function conversationContentState(
   payload: ConversationPayload | null | undefined,
 ): ConversationContentState {
   const msgs = payload?.messages;
   if (!Array.isArray(msgs) || msgs.length === 0)
-    return { kind: "empty", total: 0 };
+    return { kind: 'empty', total: 0 };
   const readable = conversationMessages(payload).length;
   return readable > 0
-    ? { kind: "readable", total: msgs.length }
-    : { kind: "withheld", total: msgs.length };
+    ? { kind: 'readable', total: msgs.length }
+    : { kind: 'withheld', total: msgs.length };
 }
 
 export function conversationMessages(
@@ -282,5 +282,5 @@ export function conversationMessages(
 ): ConversationMessage[] {
   const msgs = payload?.messages;
   if (!Array.isArray(msgs)) return [];
-  return msgs.filter((m) => typeof m?.content === "string" && m.content !== "");
+  return msgs.filter((m) => typeof m?.content === 'string' && m.content !== '');
 }
