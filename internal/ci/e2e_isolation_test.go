@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+
+	yaml "go.yaml.in/yaml/v3"
 	"strings"
 	"testing"
 )
@@ -207,5 +209,44 @@ func TestE2ETwoCIJobsGetDisjointStacks(t *testing.T) {
 				"30723256775: os dois caem no mesmo host e o segundo morre no setup, antes de "+
 				"qualquer teste rodar", k, a[k])
 		}
+	}
+}
+
+// TestCloudHealthcheckRespectsTheProbeVerdict — #338. Uma sonda que reprova nao vale nada se
+// quem a consome ignora o veredito.
+//
+// O /health passou a devolver 503 quando o servico nao consegue servir. Isso so tem efeito
+// porque o healthcheck usa `wget -qO-`, que sai != 0 em status de erro. Trocar por `curl` sem
+// `-f`, ou acrescentar `|| true`, devolveria a sonda ao estado que o #338 descreve: verde sobre
+// um servico degradado — e o diff pareceria inofensivo.
+func TestCloudHealthcheckRespectsTheProbeVerdict(t *testing.T) {
+	b, err := os.ReadFile("../../tests/e2e/docker-compose.e2e.yaml")
+	if err != nil {
+		t.Fatalf("lendo o compose do e2e: %v", err)
+	}
+	var compose struct {
+		Services map[string]struct {
+			Healthcheck struct {
+				Test []string `yaml:"test"`
+			} `yaml:"healthcheck"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(b, &compose); err != nil {
+		t.Fatalf("compose do e2e: %v", err)
+	}
+
+	test := strings.Join(compose.Services["theo-cloud"].Healthcheck.Test, " ")
+	if test == "" {
+		t.Fatal("o servico theo-cloud perdeu o healthcheck — a sonda existe e ninguem a le")
+	}
+	if !strings.Contains(test, "/health") {
+		t.Errorf("o healthcheck nao sonda /health: %q", test)
+	}
+	if strings.Contains(test, "|| true") || strings.Contains(test, "|| exit 0") {
+		t.Errorf("o healthcheck engole o veredito da sonda: %q", test)
+	}
+	// `wget` sai != 0 em status de erro; `curl` NAO, a menos que receba -f/--fail.
+	if strings.Contains(test, "curl") && !strings.Contains(test, "-f") {
+		t.Errorf("`curl` sem `-f` sai 0 mesmo em 503 — a sonda volta a nao significar nada: %q", test)
 	}
 }

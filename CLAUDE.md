@@ -129,8 +129,20 @@ matrix live in the **engine** (`theo/`). See § Durable enforcement.
 6. **Acyclic invariant is sacred** — this repo imports ONLY `theo-contracts`; never an
    engine-internal package (`usetheodev/theo/pkg/*`, `/api/*`, `/internal/*`). Talk to the
    engine over the `/engine/*` HTTP proxy. Enforced by the engine's `acyclic-graph` gate.
-7. **CHANGELOG discipline** — every change lands in `CHANGELOG.md § [Unreleased]` first
-   (Keep a Changelog + SemVer), with a ticket/PR ref.
+7. **CHANGELOG discipline** — every change lands in `[Unreleased]` first (Keep a Changelog +
+   SemVer), with a ticket/PR ref. **No CHANGELOG do UMBRELLA**, não neste repo, e com atribuição
+   no início da linha: `- **theo-cloud:** …`. Contrato: `../.claude/rules/umbrella-scope.md` § 5.
+   A razão é operacional: `/release` filtra `[Unreleased]` pelo projeto-alvo para derivar a
+   versão, e entrada sem atribuição não pode ser liberada porque ninguém sabe de quem é a versão.
+   Uma iteração commita em **dois** repositórios — código aqui, CHANGELOG e artefatos de ciclo no
+   umbrella.
+
+   > **Atenção — conflito conhecido.** O `.claude/hooks/stop-validation.sh` deste repo é
+   > histórico congelado e ainda BLOQUEIA quando o `CHANGELOG.md` **local** não muda junto com
+   > código. Seguir o contrato acima **garante** o bloqueio. Enquanto
+   > `usetheodev/theo-workspace#26` não for resolvido, o encerramento precisa de
+   > `STOP_VALIDATION_WARN_ONLY=1`. **Não** resolva escrevendo no CHANGELOG local: isso cria
+   > duas fontes de verdade que divergem, que é exatamente o que a regra evita.
 8. **Git** — work on `develop`; never commit to `main` (release-only, via PR); never
    `git checkout`/`revert`/`push --force`/`reset --hard`; no `Co-Authored-By` trailers.
 
@@ -230,7 +242,7 @@ The decomposition guarantees are mechanically enforced from the engine repo:
 [ ] No internal terms in user-facing strings (CR-9)
 [ ] Webhook / billing handlers are idempotent AND order-independent
 [ ] Seam change? contract test updated (serviceauth / themory) + openapi/themory.yaml in sync
-[ ] CHANGELOG.md [Unreleased] updated
+[ ] CHANGELOG do UMBRELLA `[Unreleased]` atualizado, com `- **theo-cloud:**` (nunca o local)
 [ ] Dashboard route change? docs/dashboard-governance.md consulted
 ```
 

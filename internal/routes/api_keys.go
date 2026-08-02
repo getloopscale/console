@@ -120,6 +120,13 @@ var validScopes = map[string]bool{
 	"trust:read":   true,
 	"trust:write":  true,
 	"trust:delete": true,
+	// LT-012 / ADR 0009 (opção B) — ler o conteúdo BRUTO da conversa deixou de vir junto
+	// de `trust:read`. `messages.content` guarda o texto original, inclusive o trecho que
+	// o próprio scanner classificou como segredo, e servi-lo a toda credencial de leitura
+	// tornava a ingestão um SEGUNDO lugar onde o segredo existe. Quem precisa do bruto
+	// (auditoria, reprodução de incidente) pede este escopo explicitamente; o dashboard
+	// NÃO o recebe, e é isso que reduz a exposição.
+	"trust:content": true,
 	// Promptly vertical (theo-promptly, M11 Model B L2) — a customer issues a key
 	// carrying promptly:read/write for the /v1/promptly edge.
 	//

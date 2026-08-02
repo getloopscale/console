@@ -252,7 +252,10 @@ services:
       # transition fallback; provision a real platform-admin theo_live_* key
       # (via themory's bootstrap token) for true per-tenant isolation.
       THEMORY_PLATFORM_ADMIN_KEY: ${THEMORY_PLATFORM_ADMIN_KEY:-}
-      SESSION_TOKEN_SECRET: dev-session-secret-at-least-32-characters-long
+      # #331: a variavel foi REMOVIDA de proposito. Sem ela, `Load()` sorteia 32 bytes por boot
+      # (config.go: devSecretFor -> generateDevSecret). Sessoes nao sobrevivem a restart, o que o
+      # proprio comentario daquela funcao ja declara aceitavel em dev — e um placeholder fixo no
+      # compose e justamente o que faz um segredo previsivel sobreviver ate um host publico.
       APP_PUBLIC_URL: http://localhost:${DEV_ORIGIN_PORT:-5173}
       BILLING_RETURN_URL: http://localhost:${DEV_ORIGIN_PORT:-5173}
       # Kratos wiring (Phase 2). Browser-facing URL goes through the single-origin

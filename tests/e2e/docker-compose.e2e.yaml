@@ -189,7 +189,10 @@ services:
       # run.sh provisions it from themory's bootstrap token after the stack is up,
       # then recreates this service with the minted value injected here.
       THEMORY_PLATFORM_ADMIN_KEY: ${THEMORY_PLATFORM_ADMIN_KEY:-}
-      SESSION_TOKEN_SECRET: e2e-session-secret-at-least-32-characters-long
+      # #331: sorteado por execucao em run.sh, nao fixo aqui. Precisa ser ESTAVEL dentro do run
+      # porque o servico `theo-cloud` e recriado no meio (provisionamento da chave Model-B), e um
+      # segredo novo invalidaria as sessoes ja emitidas.
+      SESSION_TOKEN_SECRET: ${E2E_SESSION_TOKEN_SECRET:?run.sh precisa sortear este valor}
       # M6: real Kratos session validation for /v1/auth/session/token.
       KRATOS_INTERNAL_URL: http://kratos:4433
       KRATOS_PUBLIC_URL: http://localhost:${E2E_KRATOS_PUBLIC_PORT:-14433}

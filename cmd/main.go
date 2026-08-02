@@ -934,31 +934,32 @@ func main() {
 		})
 	})
 
-	// Health check — reports DB connectivity for operational visibility
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		dbStatus := "not_configured"
-		if db != nil {
-			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-			defer cancel()
-			if err := db.PingContext(ctx); err != nil {
-				dbStatus = "disconnected"
-			} else {
-				dbStatus = "connected"
-			}
+	// #338 — a sonda REPROVA quando o servico nao consegue servir.
+	//
+	// O handler anterior ja calculava `degraded` com o banco fora e terminava sem WriteHeader;
+	// sem ele o Go devolve 200, e `wget -qO- .../health` (o healthcheck do compose) so falha em
+	// status de erro. A sonda ficava verde sobre um servico incapaz de servir /v1, /engine e o
+	// ForwardAuth que a borda consulta para autorizar cada produto.
+	//
+	// O corpo passa a nomear integracao desligada, reusando o mesmo config.MissingSettings do
+	// boot (#334). Reportada, NUNCA gatilho de reprovacao: sao opcionais por ambiente, e reprovar
+	// por causa delas derrubaria o container em toda topologia que nao as configura.
+	r.Get("/health", routes.NewHealthHandler(healthPinger(db), func() map[string][]string {
+		return map[string][]string{
+			"skills": config.MissingSettings(
+				config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
+				config.Setting{Name: "SKILLS_PLATFORM_ADMIN_KEY", Value: cfg.SkillsPlatformAdminKey.Value()},
+			),
+			"promptly": config.MissingSettings(
+				config.Setting{Name: "PROMPTLY_BASE_URL", Value: cfg.PromptlyBaseURL},
+				config.Setting{Name: "PROMPTLY_PLATFORM_ADMIN_KEY", Value: cfg.PromptlyPlatformAdminKey.Value()},
+			),
+			"trust": config.MissingSettings(
+				config.Setting{Name: "TRUST_BASE_URL", Value: cfg.TrustBaseURL},
+				config.Setting{Name: "TRUST_PLATFORM_ADMIN_KEY", Value: cfg.TrustPlatformAdminKey.Value()},
+			),
 		}
-
-		status := "ok"
-		if db != nil && dbStatus != "connected" {
-			status = "degraded"
-		}
-
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"status": status,
-			"db":     dbStatus,
-		})
-	})
+	}).ServeHTTP)
 
 	// §4.1+4.2: Metrics endpoint (Prometheus text format)
 	r.Get("/metrics", cloudmetrics.Handler())
@@ -1797,4 +1798,16 @@ func monitorOwnershipVerifier(lensBaseURL string, broker routes.TenantKeyMinter)
 		}
 		return nil
 	}
+}
+
+// healthPinger converte o *sql.DB em routes.Pinger PRESERVANDO o nil.
+//
+// Sem isto, um `db` nil de tipo concreto vira uma interface NAO-nil: o handler tentaria pingar e
+// devolveria 503 num deploy legitimo sem banco. E a armadilha classica de nil tipado em Go, e
+// TestHealth_returns_200_when_no_database_is_configured e o par que a mantem fechada.
+func healthPinger(db *sql.DB) routes.Pinger {
+	if db == nil {
+		return nil
+	}
+	return db
 }

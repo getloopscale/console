@@ -18,6 +18,19 @@
 #   THELENS_DIR    path to the sibling theo-lens repo   (default: ../theo-lens)
 #   THEMORY_IMAGE  pre-built themory image to use instead of building one
 #   KEEP_UP=1      do not tear the stack down after the test (debug)
+#
+# Isolamento de pilha (#333) — em CI cada job recebe projeto e portas proprios; localmente
+# ambos sao FIXOS de proposito, para que `make e2e-down` continue achando a pilha:
+#   E2E_PROJECT              nome do projeto compose (default: theo-cloud-memory-e2e local;
+#                            theo-cloud-memory-e2e-<job>-<tentativa>-<pid> em CI)
+#   E2E_STACK_ID             sufixo do projeto em CI (default: $GITHUB_JOB-$GITHUB_RUN_ATTEMPT-$$)
+#   E2E_DYNAMIC_PORTS=1      forca portas sorteadas do kernel fora de CI (default: 0)
+#   E2E_*_PORT               fixa uma porta especifica; vence em qualquer modo
+#   E2E_SESSION_TOKEN_SECRET segredo de assinatura de sessao (#331); sorteado por execucao
+#                            se ausente. O compose o exige com `:?` — esquecer falha alto
+#                            em vez de cair num default previsivel.
+#
+# Codigos de saida: 0 sucesso · 1 TESTE reprovou · 86 HARNESS nao subiu (nenhum teste rodou).
 set -euo pipefail
 
 E2E_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,6 +45,12 @@ BIN_DIR="${E2E_DIR}/bin"
 THEMORY_DIR="${THEMORY_DIR:-${ROOT}/../theo-memory}"
 THEMORY_MASTER_KEY="${THEMORY_MASTER_KEY:-e2e-master-key}"
 export THEMORY_MASTER_KEY
+
+# #331 — segredo de assinatura de sessao, sorteado por execucao. O compose o exige (`:?`), entao
+# esquecer de exportar falha ALTO em vez de cair num default previsivel: um default que "funciona"
+# e o que faz o placeholder sobreviver ate producao.
+E2E_SESSION_TOKEN_SECRET="${E2E_SESSION_TOKEN_SECRET:-$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')}"
+export E2E_SESSION_TOKEN_SECRET
 
 # M18 (KEYSTONE) — the sibling theo-rag checkout (pinned source with M11/M12/M13).
 THEORAG_DIR="${THEORAG_DIR:-${ROOT}/../theo-rag}"
