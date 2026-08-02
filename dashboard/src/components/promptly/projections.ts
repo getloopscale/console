@@ -89,6 +89,29 @@ function truncar(s: string): string {
   return s.length <= PREVIEW_MAX ? s : `${s.slice(0, PREVIEW_MAX)}…`;
 }
 
+/**
+ * Qual JANELA de revisões pedir ao servidor para obter as MAIS RECENTES (#364).
+ *
+ * A rota de revisões ordena da mais antiga para a mais nova e corta com `limit` — medido em
+ * `prompt-repository.pg.ts` (`orderBy(asc(version))` seguido de `.limit()`). Portanto pedir
+ * `limit=10` num prompt de 30 revisões devolve **v1..v10**, e a tela as rotulava "as 10 mais
+ * recentes". Numa tela de PROMOÇÃO isso não é cosmético: quem promove "a mais recente da lista"
+ * reaponta produção para uma revisão velha, e o diálogo confirma com convicção a revisão errada.
+ *
+ * A correção usa o cursor que a rota já oferece, sem inventar API: começar `limit` posições antes
+ * do fim. `latestVersion` vem do catálogo, que já o devolve.
+ *
+ * **Por que isto é seguro mesmo se as versões não forem contíguas:** a aritmética assume
+ * numeração sem buracos (o serviço atribui `max+1` a cada revisão imutável, então hoje ela é
+ * contígua). Se algum dia houver buraco, o cursor cai um pouco antes do ideal e a página traz
+ * MENOS linhas do que caberia — nunca linhas antigas rotuladas como recentes. O modo de falha
+ * degrada para "mostro menos", não para "minto".
+ */
+export function revisionsWindow(latestVersion: number | null | undefined, limit: number): { after: number } {
+  if (!latestVersion || latestVersion <= limit) return { after: 0 };
+  return { after: latestVersion - limit };
+}
+
 export function labelRows(payload: unknown): LabelPointer[] {
   return asArray<LabelPointer>(payload);
 }

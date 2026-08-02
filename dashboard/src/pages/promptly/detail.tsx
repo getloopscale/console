@@ -12,6 +12,7 @@ import { ApiError } from '@/lib/api';
 import {
   fetchLabels,
   fetchPolicy,
+  fetchPrompt,
   fetchRevisions,
   promoteLabel,
 } from '@/components/promptly/promptly-api';
@@ -20,6 +21,7 @@ import {
   policySummary,
   promotionConsequence,
   revisionRows,
+  revisionsWindow,
   type LabelPointer,
   type PromotionPolicy,
   type RevisionRow,
@@ -61,13 +63,29 @@ export function PromptDetailPage() {
   const [labelAlvo, setLabelAlvo] = useState<string>('');
   const [promoteError, setPromoteError] = useState<string | null>(null);
 
-  const revisionsKey = ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'revisions'] as const;
   const labelsKey = ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'labels'] as const;
+
+  // Qual é a ÚLTIMA revisão? A pergunta parece supérflua e não é: a rota de revisões ordena da
+  // mais ANTIGA para a mais nova, então sem cursor a página traz o começo do histórico. Sem este
+  // número não há como pedir o FIM dele — e esta é a tela de onde sai a promoção (#364).
+  const prompt = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName],
+    queryFn: () => fetchPrompt<{ version?: number }>(promptName),
+    enabled: promptName !== '',
+  });
+  const latestVersion = prompt.data?.version ?? null;
+  const janela = revisionsWindow(latestVersion, REVISIONS_LIMIT);
+
+  const revisionsKey = [
+    'cloud', '/v1/dashboard/promptly/prompts', promptName, 'revisions', janela.after,
+  ] as const;
 
   const revisions = useQuery({
     queryKey: revisionsKey,
-    queryFn: () => fetchRevisions<unknown>(promptName, REVISIONS_LIMIT),
-    enabled: promptName !== '',
+    queryFn: () => fetchRevisions<unknown>(promptName, REVISIONS_LIMIT, janela.after),
+    // Só depois de saber a última versão: pedir antes traria a janela errada e a tela piscaria
+    // do histórico velho para o novo, com o operador podendo clicar no intervalo.
+    enabled: promptName !== '' && !prompt.isLoading,
   });
 
   const labels = useQuery({
@@ -216,7 +234,9 @@ export function PromptDetailPage() {
             <h2>Revisões</h2>
           </Card.Title>
           <Card.Description>
-            {`As ${REVISIONS_LIMIT} mais recentes — a página vem do servidor, e o histórico completo continua na API.`}
+            {latestVersion === null
+              ? `As ${REVISIONS_LIMIT} primeiras — a página vem do servidor.`
+              : `As ${REVISIONS_LIMIT} mais recentes (até a v${latestVersion}) — a página vem do servidor, e o histórico completo continua na API.`}
           </Card.Description>
         </Card.Header>
 
