@@ -21,7 +21,7 @@ import (
 // VERIFICAVEL em vez de afirmado. Tambem registra o id pedido, para provar que o handler le o
 // parametro de rota e nao um valor fixo.
 type stubSkillsReader struct {
-	byTenant map[string]string
+	byTenant   map[string]string
 	seenTenant []string
 	seenID     []string
 	err        error
@@ -317,9 +317,9 @@ func (s *limitSpySkillsReader) List(ctx context.Context, limit int, cursor strin
 // ---- M26 T3.5 — o caminho de MUTACAO: promover canal -------------------------------------
 
 type stubSkillsPromoter struct {
-	seenTenant  []string
-	seenArgs    []string
-	err         error
+	seenTenant []string
+	seenArgs   []string
+	err        error
 }
 
 func (s *stubSkillsPromoter) PromoteChannel(ctx context.Context, skillID, channel, revisionID string) (json.RawMessage, error) {
@@ -432,5 +432,59 @@ func TestSkillsPromotion_semPrincipalNaoPromove(t *testing.T) {
 	}
 	if len(p.seenArgs) != 0 {
 		t.Fatalf("promoveu sem principal: %v", p.seenArgs)
+	}
+}
+
+// REGRESSAO (medida em producao 2026-08-02): os dois mounts precisam COEXISTIR no MESMO roteador.
+//
+// Este teste faltava, e a ausencia dele deixou passar um defeito real: `MountSkillsPromotion`
+// montava um subtree em `/v1/dashboard/skills/{skillID}/channels`, e no chi um subtree ali
+// SOMBREIA o `GET /{skillID}/channels` registrado pelo roteador pai. Resultado no ar: a leitura de
+// canais passou a devolver `404 page not found` — texto puro, nem JSON —, e a coluna de canais da
+// tela de versoes parou de funcionar.
+//
+// Os testes anteriores nao podiam pegar isso: cada um montava UM roteador. A coexistencia so
+// existia no `main.go`, que teste nenhum exercitava. Montar os dois juntos e o que torna a
+// interacao verificavel — e a interacao era o defeito.
+func TestSkillsRoutes_promocaoNaoSombreiaALeituraDeCanais(t *testing.T) {
+	reader := &stubSkillsReader{byTenant: map[string]string{"acme": `{"channels":[{"channel":"stable"}]}`}}
+	promoter := &stubSkillsPromoter{}
+
+	r := chi.NewRouter()
+	passthrough := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ctx := context.WithValue(req.Context(), skillsTestTenantKey{}, "acme")
+			next.ServeHTTP(w, req.WithContext(ctx))
+		})
+	}
+	// A ORDEM importa e e a do main.go: leitura primeiro, promocao depois.
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))), passthrough)
+	MountSkillsPromotion(r, NewSkillsPromotionHandler(promoter, slog.New(slog.NewTextHandler(io.Discard, nil))), passthrough)
+
+	// A LEITURA de canais continua servindo — a metade que a regressao quebrou.
+	rec := getSkills(t, r, "/v1/dashboard/skills/sk_1/channels")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /channels devolveu %d (%s) — a promocao sombreou a leitura", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "stable") {
+		t.Fatalf("GET /channels nao devolveu o corpo do upstream: %s", rec.Body.String())
+	}
+
+	// E a PROMOCAO tambem serve, no mesmo roteador.
+	rec = putPromote(t, r, "/v1/dashboard/skills/sk_1/channels/stable", `{"revision_id":"rev_nova"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT /channels/{channel} devolveu %d (%s)", rec.Code, rec.Body.String())
+	}
+
+	// E as demais leituras seguem intactas — o controle que impede "consertei uma e quebrei outra".
+	for _, p := range []string{
+		"/v1/dashboard/skills",
+		"/v1/dashboard/skills/sk_1",
+		"/v1/dashboard/skills/sk_1/versions",
+		"/v1/dashboard/skills/sk_1/instructions",
+	} {
+		if rec := getSkills(t, r, p); rec.Code != http.StatusOK {
+			t.Errorf("%s devolveu %d — regressao colateral", p, rec.Code)
+		}
 	}
 }

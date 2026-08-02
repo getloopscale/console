@@ -122,13 +122,17 @@ func TestSelfRowEmitsItsOwnMetricObservation(t *testing.T) {
 	inner := &stubCollector{report: serviceversions.Report{CollectedAt: fixedNow}}
 
 	NewSelfReportingCollector(inner, stamped(), func() time.Time { return fixedNow },
-		func(service, result string) { seen = append(seen, service+":"+result) }).Collect(context.Background())
+		func(service, result, version string) {
+			seen = append(seen, service+":"+result+":"+version)
+		}).Collect(context.Background())
 
 	if len(seen) != 1 {
 		t.Fatalf("metric observations = %d, want exactly 1", len(seen))
 	}
-	if seen[0] != "theo-cloud:ok" {
-		t.Errorf("observation = %q, want %q", seen[0], "theo-cloud:ok")
+	// A versao acompanha a observacao quando — e SO quando — o estado e' ok. E' o que
+	// permite a metrica info publicar a revisao sem um segundo caminho de coleta.
+	if seen[0] != "theo-cloud:ok:"+stamped().Version {
+		t.Errorf("observation = %q, want %q", seen[0], "theo-cloud:ok:"+stamped().Version)
 	}
 }
 

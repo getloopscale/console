@@ -34,7 +34,10 @@ func newPromptlyDashboardKeyResolver(minter promptlyDashMinter) func(ctx context
 		if u == nil || u.TenantID == "" {
 			return "", fmt.Errorf("promptly dashboard: no authenticated tenant in context")
 		}
-		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"prompt:read"})
+		// O namespace pedido é o do CLOUD (`promptly:`), não o do serviço. O broker TRADUZ
+		// (`promptly:X` → `prompt:X`) e DESCARTA o que já vier traduzido — pedir `prompt:read`
+		// aqui produz interseção vazia, o mint falha, e a tela recebe 502 opaco (#366).
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"promptly:read"})
 	}
 }
 
@@ -55,6 +58,7 @@ func newPromptlyPromotionKeyResolver(minter promptlyDashMinter) func(ctx context
 		if u == nil || u.TenantID == "" {
 			return "", fmt.Errorf("promptly promotion: no authenticated tenant in context")
 		}
-		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"prompt:read", "prompt:write"})
+		// Idem: namespace do cloud. Ver o comentário no resolver de leitura e o `#366`.
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"promptly:read", "promptly:write"})
 	}
 }

@@ -215,12 +215,37 @@ func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, 
 		Timeout:   10 * time.Second, // last-resort ceiling, never the policy (D1)
 		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
+	targets := serviceVersionTargets(cfg)
+
+	// theo-workspace#37 — UMA observacao alimenta AS DUAS metricas.
+	//
+	// Deliberadamente um adaptador sobre o hook existente, e nao um segundo caminho de
+	// coleta: dois caminhos divergem, e divergencia entre duas leituras do mesmo fato ja
+	// custou tres diagnosticos errados num unico dia (dois theo-cloud, dois paineis).
+	//
+	// O counter responde "quantas sondagens aconteceram"; o gauge responde "qual e' o
+	// estado AGORA". Sao perguntas diferentes e nenhuma das duas responde a outra.
+	observe := func(service, result, version string) {
+		cloudmetrics.IncServiceVersionProbe(service, result)
+		cloudmetrics.SetServiceVersionInfo(service, result, version)
+	}
+
+	// Semeia TODO alvo declarado antes da primeira coleta. Sem isto, um scrape tomado
+	// entre o start do processo e a primeira coleta nao lista alvo algum, e a ausencia de
+	// serie significaria duas coisas — "nao declarado" e "ainda nao coletado". Essa
+	// ambiguidade e' exatamente o que tornava o counter inutil para responder "qual e' o
+	// estado da frota agora".
+	for _, t := range targets {
+		cloudmetrics.SeedServiceVersionInfo(t.Name)
+	}
+	cloudmetrics.SeedServiceVersionInfo(version.Read().Name)
+
 	collector := serviceversions.NewCollector(serviceversions.Options{
 		Client:     versionHTTP,
-		Targets:    serviceVersionTargets(cfg),
+		Targets:    targets,
 		PerService: 2 * time.Second,
 		Global:     3 * time.Second,
-		OnResult:   cloudmetrics.IncServiceVersionProbe,
+		OnResult:   observe,
 		Logger:     logger,
 	})
 	// M22 — o proprio gateway entra no painel que ele serve.
@@ -238,7 +263,7 @@ func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, 
 	// depois seria invisivel para ele e o censo do Prometheus discordaria do censo do JSON por um.
 	// Por isso o decorator emite a propria observacao.
 	selfAware := routes.NewSelfReportingCollector(
-		collector, version.Read(), time.Now, cloudmetrics.IncServiceVersionProbe,
+		collector, version.Read(), time.Now, observe,
 	)
 	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(selfAware, logger), requireJWT)
 }

@@ -256,9 +256,19 @@ func (h *SkillsPromotionHandler) reject(w http.ResponseWriter, r *http.Request, 
 //
 // Montada separadamente do BFF de leitura, e não como mais um verbo dentro dele: são handlers
 // distintos porque são CLIENTES distintos, com credenciais de escopos distintos.
+//
+// REGRESSÃO CORRIGIDA (medida em produção 2026-08-02). A primeira versão usava
+// `r.Route("/v1/dashboard/skills/{skillID}/channels", …)`. No chi, `Route` cria um SUBTREE naquele
+// caminho — e o subtree **sombreia** o `GET /{skillID}/channels` que `MountSkillsDashboard`
+// registrou no roteador pai. A leitura de canais passou a devolver `404 page not found` (texto
+// puro, nem JSON) e a coluna de canais da tela de versões parou de funcionar.
+//
+// `Group` + caminho completo registra a rota SEM criar subtree, então os dois mounts coexistem.
+// O que garante isso agora é `TestSkillsRoutes_promocaoNaoSombreiaALeituraDeCanais`, que monta os
+// DOIS no mesmo roteador — a interação que só existia no `main.go` e que teste nenhum exercitava.
 func MountSkillsPromotion(r chi.Router, h *SkillsPromotionHandler, requireJWT func(http.Handler) http.Handler) {
-	r.Route("/v1/dashboard/skills/{skillID}/channels", func(r chi.Router) {
+	r.Group(func(r chi.Router) {
 		r.Use(requireJWT)
-		r.Put("/{channel}", h.Promote)
+		r.Put("/v1/dashboard/skills/{skillID}/channels/{channel}", h.Promote)
 	})
 }
