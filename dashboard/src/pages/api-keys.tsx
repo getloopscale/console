@@ -90,6 +90,11 @@ export const ACTIVE_SCOPES = [
   { id: 'trust:read', label: 'trust:read', description: 'Read conversations, themes, trends and policy violations' },
   { id: 'trust:write', label: 'trust:write', description: 'Ingest conversations and run inline guardrails' },
   { id: 'trust:delete', label: 'trust:delete', description: 'Delete conversations and custom validators' },
+  // LT-012 / ADR 0009 (opção B). Separado de `trust:read` de propósito: o conteúdo bruto
+  // inclui o trecho que o scanner marcou como segredo, então ler uma violação e ler o
+  // texto que a produziu deixaram de ser a mesma permissão. A descrição diz o que a chave
+  // passa a alcançar, para que conceder deixe de ser um clique sem consequência aparente.
+  { id: 'trust:content', label: 'trust:content', description: 'Read raw conversation text, including content flagged as a secret' },
   // Promptly vertical (theo-promptly, M11 Model B L2). MESMA história do trust logo acima,
   // e a terceira vez que ela se repete: em 2026-08-01 a cadeia estava inteira de pé — borda
   // roteando /v1/promptly/*, ForwardAuth exigindo `promptly:read`, broker cunhando por
