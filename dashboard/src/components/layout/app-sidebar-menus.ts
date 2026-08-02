@@ -88,7 +88,9 @@ export interface MenuDefinition {
  *   1. Add the menu definition here (id, groups, parent='main')
  *   2. Mark the parent item with `drillsInto: '<id>'`
  *   3. Add route patterns in app.tsx so `/<base>/*` resolves
- *   4. (Optional) Extend resolveActiveMenu() if the URL pattern is custom
+ *   4. Extend resolveActiveMenu() — MANDATORY for any capability with its own base
+ *      path. Skip it and the submenu exists in full but NEVER opens: only a typed URL
+ *      reaches it, which is the one path a real user does not have (cost M24).
  */
 export const MENUS: Record<string, MenuDefinition> = {
   main: {
