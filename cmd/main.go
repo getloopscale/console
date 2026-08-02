@@ -961,6 +961,27 @@ func main() {
 		}
 	}).ServeHTTP)
 
+	// /ready — READINESS. Mesma sonda, pergunta diferente: "consigo servir AGORA?". Reprova com
+	// a dependencia fora, para que o trafego seja retirado desta instancia. O /health acima
+	// NUNCA reprova por dependencia: liveness reprovada MATA o processo, e reiniciar nao
+	// conserta um banco fora (LT-038 do theo-trust, LT-040/LT-041 do promptly).
+	r.Get("/ready", routes.NewReadyHandler(healthPinger(db), func() map[string][]string {
+		return map[string][]string{
+			"skills": config.MissingSettings(
+				config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
+				config.Setting{Name: "SKILLS_PLATFORM_ADMIN_KEY", Value: cfg.SkillsPlatformAdminKey.Value()},
+			),
+			"promptly": config.MissingSettings(
+				config.Setting{Name: "PROMPTLY_BASE_URL", Value: cfg.PromptlyBaseURL},
+				config.Setting{Name: "PROMPTLY_PLATFORM_ADMIN_KEY", Value: cfg.PromptlyPlatformAdminKey.Value()},
+			),
+			"trust": config.MissingSettings(
+				config.Setting{Name: "TRUST_BASE_URL", Value: cfg.TrustBaseURL},
+				config.Setting{Name: "TRUST_PLATFORM_ADMIN_KEY", Value: cfg.TrustPlatformAdminKey.Value()},
+			),
+		}
+	}).ServeHTTP)
+
 	// §4.1+4.2: Metrics endpoint (Prometheus text format)
 	r.Get("/metrics", cloudmetrics.Handler())
 

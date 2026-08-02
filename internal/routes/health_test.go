@@ -27,14 +27,60 @@ func probe(t *testing.T, h *HealthHandler) (int, map[string]any) {
 	return rec.Code, body
 }
 
+// O PAR QUE DISCRIMINA (#338, corrigido apos LT-040/LT-041 do promptly).
+//
+// Com o banco fora, as DUAS metades tem de valer ao mesmo tempo:
+//
+//	/ready  -> 503   "nao consigo servir, tire-me do trafego"
+//	/health -> 200   "o processo esta vivo, NAO me mate"
+//
+// Conflacionar as duas foi o defeito da minha primeira versao: eu fiz /health devolver 503. Um
+// livenessProbe apontado para la MATA o container num piscar do Postgres — que e exatamente o
+// LT-038 do theo-trust ("um restart do Postgres deixou de derrubar o servico inteiro"). Trocar
+// "sonda que nunca reprova" por "sonda que derruba o processo por falha de dependencia" e trocar
+// um defeito por outro pior.
+//
+// Um teste so de /ready passaria numa implementacao que reprova AMBOS. Um teste so de /health
+// passaria na que nao reprova NENHUM. E preciso o par.
+func TestProbes_split_liveness_from_readiness_when_the_database_is_down(t *testing.T) {
+	down := stubPinger{err: errors.New("connection refused")}
+
+	if code, body := probe(t, NewHealthHandler(down, nil)); code != http.StatusOK {
+		t.Errorf("/health (liveness) com banco fora: got %d, want 200 — reprovar aqui faz um "+
+			"livenessProbe MATAR o container por falha de DEPENDENCIA, e ele reinicia sem "+
+			"corrigir nada (LT-038). corpo=%v", code, body)
+	}
+
+	code, body := probe(t, NewReadyHandler(down, nil))
+	if code != http.StatusServiceUnavailable {
+		t.Errorf("/ready (readiness) com banco fora: got %d, want 503 — sem isto o trafego "+
+			"continua sendo roteado para uma instancia que nao consegue servir", code)
+	}
+	if body["status"] != "degraded" || body["db"] != "disconnected" {
+		t.Errorf("/ready tem de dizer O QUE degradou: %v", body)
+	}
+}
+
+// Banco saudavel: as duas passam. Sem esta metade, "reprova sempre" sobreviveria.
+func TestProbes_both_pass_when_the_database_serves(t *testing.T) {
+	for name, h := range map[string]*HealthHandler{
+		"/health": NewHealthHandler(stubPinger{}, nil),
+		"/ready":  NewReadyHandler(stubPinger{}, nil),
+	} {
+		if code, _ := probe(t, h); code != http.StatusOK {
+			t.Errorf("%s com banco saudavel: got %d, want 200", name, code)
+		}
+	}
+}
+
 // O NEGATIVO — e ele reprova o comportamento que esta EM PRODUCAO hoje.
 //
 // O handler ja calculava `status: degraded` com o banco fora e nunca escrevia status HTTP; sem
 // WriteHeader o Go devolve 200. O healthcheck do compose usa `wget -qO- .../health`, que so falha
 // em status de erro — entao a sonda ficava VERDE com o servico incapaz de servir. A informacao
 // certa era computada e descartada na ultima linha.
-func TestHealth_returns_503_when_the_database_cannot_serve(t *testing.T) {
-	h := NewHealthHandler(stubPinger{err: errors.New("connection refused")}, nil)
+func TestReady_returns_503_when_the_database_cannot_serve(t *testing.T) {
+	h := NewReadyHandler(stubPinger{err: errors.New("connection refused")}, nil)
 
 	code, body := probe(t, h)
 

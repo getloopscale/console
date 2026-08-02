@@ -199,7 +199,10 @@ services:
     ports:
       - "${E2E_CLOUD_PORT:-13002}:13002"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:13002/health"]
+      # READINESS, nao liveness: `depends_on: service_healthy` e `--wait` perguntam
+      # "ja consegue servir?", que e exatamente o /ready. O /health nunca reprova por
+      # dependencia de proposito (#338).
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:13002/ready"]
       interval: 3s
       timeout: 3s
       retries: 20
