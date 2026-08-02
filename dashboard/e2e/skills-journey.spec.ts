@@ -120,6 +120,9 @@ test.describe('M26 — navegar o registro de skills pelo dashboard', () => {
     await expect(dialog).toContainText('rev_d');
     await expect(dialog).toContainText('rev_a');
     await expect(dialog).toContainText('1.10.0');
+    // A que SAI é identificada por VERSÃO, não só pelo id opaco (achado da validação
+    // independente): `rev_a` é a `1.0.0`, e é isso que o operador reconhece na hora de decidir.
+    await expect(dialog).toContainText('1.0.0');
     // E NÃO afirma contagem de consumidores — o serviço não sabe esse número (DECISÃO 1, opção a).
     await expect(dialog).not.toContainText(/\d+\s*consumidores/i);
 
