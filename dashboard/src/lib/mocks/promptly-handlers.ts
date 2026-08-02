@@ -17,7 +17,13 @@ const promptlyDb: {
     {
       name: 'saudacao',
       latestVersion: 3,
-      labels: [{ label: 'prod', version: 1 }],
+      // DOIS labels de propósito: `prod` sem política (promoção livre) e `staging` com uma que
+      // recusa. Sem o par, a jornada provaria só o caminho feliz — e a mensagem tipada da recusa
+      // poderia estar sendo colapsada em "erro" sem nada acusar.
+      labels: [
+        { label: 'prod', version: 1 },
+        { label: 'staging', version: 2 },
+      ],
       updatedAt: '2026-08-01T10:00:00Z',
     },
     { name: 'despedida', latestVersion: 1, labels: [], updatedAt: '2026-07-30T09:00:00Z' },
@@ -31,10 +37,10 @@ const promptlyDb: {
     despedida: [{ version: 1, content: 'Até logo, {{nome}}.', createdAt: '2026-07-30T09:00:00Z' }],
   },
   // `saudacao/prod` NÃO tem política: a promoção é livre, e a tela precisa dizer isso com todas as
-  // letras. O par que discrimina está em `despedida/prod`, que tem — sem os dois lados, o e2e
-  // provaria só metade.
+  // letras. `saudacao/staging` tem — e é o lado que prova que a recusa do serviço chega inteira.
+  // Sem os dois lados, o e2e provaria metade.
   policies: {
-    'despedida::prod': { datasetId: 'ds-despedidas', minScore: 0.8 },
+    'saudacao::staging': { datasetId: 'ds-saudacoes', minScore: 0.8 },
   },
 };
 
