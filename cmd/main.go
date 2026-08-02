@@ -607,6 +607,8 @@ func main() {
 	// M26 — o BFF de leitura do registro para o dashboard, cliente SEPARADO do ForwardAuth e com
 	// credencial cunhada apenas com `skills:read` (ver `skills_dashboard_wiring.go`).
 	var skillsDashboardHandler *routes.SkillsDashboardHandler
+	// M26 T3.5 — o caminho de MUTACAO, com cliente e credencial PROPRIOS (`skills:publish`).
+	var skillsPromotionHandler *routes.SkillsPromotionHandler
 	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
 	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
 	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
@@ -652,6 +654,14 @@ func main() {
 			WithKeyResolver(newSkillsDashboardKeyResolver(skillsBroker))
 		skillsDashboardHandler = routes.NewSkillsDashboardHandler(skillsDataClient, logger)
 		logger.Info("dashboard skills enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/skills")
+
+		// M26 T3.5 — promocao de canal. Cliente SEPARADO do de leitura, e a separacao e o
+		// mecanismo de menor privilegio: o de leitura carrega so `skills:read` e nao consegue
+		// promover nem que uma rota mutante seja registrada sobre ele por engano.
+		skillsWriteClient := skills.NewDataClient(cfg.SkillsBaseURL, &http.Client{Timeout: 20 * time.Second}).
+			WithKeyResolver(newSkillsPromotionKeyResolver(skillsBroker))
+		skillsPromotionHandler = routes.NewSkillsPromotionHandler(skillsWriteClient, logger)
+		logger.Info("dashboard skills promotion enabled (per-tenant publish broker)", "mount", "/v1/dashboard/skills/{id}/channels/{channel}")
 	}
 
 	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
@@ -1405,6 +1415,12 @@ func main() {
 	// requisição — uma capacidade que parece implantada e não está.
 	if skillsDashboardHandler != nil {
 		routes.MountSkillsDashboard(r, skillsDashboardHandler, requireJWT)
+	}
+	// M26 T3.5 — a promocao e montada a parte, e so quando o broker existe. Uma rota de MUTACAO
+	// sem cunhagem por inquilino nao deve existir: ela responderia 502 a toda tentativa, e o
+	// operador leria indisponibilidade onde o defeito e de configuracao.
+	if skillsPromotionHandler != nil {
+		routes.MountSkillsPromotion(r, skillsPromotionHandler, requireJWT)
 	}
 	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
 	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even

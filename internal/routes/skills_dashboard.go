@@ -17,9 +17,11 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/usetheodev/theo-cloud/internal/skills"
@@ -74,18 +76,43 @@ func (h *SkillsDashboardHandler) proxy(w http.ResponseWriter, r *http.Request, o
 }
 
 func (h *SkillsDashboardHandler) reject(w http.ResponseWriter, r *http.Request, op string, err error) {
+	writeRejection(w, r, h.logger, op, err, false)
+}
+
+// writeRejection e a politica UNICA de erro da capacidade. O `surfaceForbidden` existe porque um
+// `403` significa coisas OPOSTAS nos dois caminhos, e colapsar os dois casos custaria um dos lados:
+//
+//   - **leitura** (`surfaceForbidden=false`): um `403` do registro fala da NOSSA credencial —
+//     o operador nao pediu nada que justifique recusa. Repassa-lo ao navegador o mandaria
+//     investigar a propria sessao enquanto o defeito e de fiacao. Vira 502.
+//   - **promocao** (`surfaceForbidden=true`): um `403` fala da credencial DELE — a chave nao
+//     carrega `skills:publish`. E acionavel, e precisa chegar com o motivo. Virar 502 faria a tela
+//     dizer "tente de novo" sobre algo que nunca vai funcionar com aquela credencial.
+//
+// `401` NUNCA e repassado, nos dois caminhos: ali a credencial nao foi sequer reconhecida, o que e
+// falha de fiacao do plano de controle e nao algo que o operador possa corrigir.
+func writeRejection(w http.ResponseWriter, r *http.Request, logger *slog.Logger, op string, err error, surfaceForbidden bool) {
 	// O detalhe COMPLETO vai sempre para o log, inclusive quando o corpo sai opaco: quem investiga
 	// precisa do que o navegador nao pode receber.
-	h.logger.ErrorContext(r.Context(), "skills dashboard: "+op+" failed",
+	logger.ErrorContext(r.Context(), "skills dashboard: "+op+" failed",
 		"error", err, "path", r.URL.Path)
 
 	w.Header().Set("Content-Type", "application/json")
 
 	ue, ok := skills.AsUpstreamError(err)
-	if ok && ue.IsClientRefusal() && !isControlPlaneAuthFailure(ue.Status) && json.Valid(ue.Body) {
-		w.WriteHeader(ue.Status)
-		_, _ = w.Write(ue.Body)
-		return
+	if ok && ue.IsClientRefusal() && json.Valid(ue.Body) {
+		// A assinatura de `isControlPlaneAuthFailure` fica INTACTA: o BFF do promptly a consome, e
+		// mudá-la para acomodar este caso quebraria código de outra capacidade por conveniência
+		// desta. A exceção do caminho de mutação é aplicada aqui, onde ela pertence.
+		daNossaCredencial := isControlPlaneAuthFailure(ue.Status)
+		if surfaceForbidden && ue.Status == http.StatusForbidden {
+			daNossaCredencial = false
+		}
+		if !daNossaCredencial {
+			w.WriteHeader(ue.Status)
+			_, _ = w.Write(ue.Body)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusBadGateway)
@@ -94,6 +121,8 @@ func (h *SkillsDashboardHandler) reject(w http.ResponseWriter, r *http.Request, 
 
 // isControlPlaneAuthFailure separa as recusas que falam da NOSSA credencial das que falam do que o
 // operador pediu. So estas duas sao do plano de controle; as demais 4xx sao acionaveis por ele.
+//
+// Consumida tambem por `promptly_dashboard.go` — a assinatura e contrato compartilhado.
 func isControlPlaneAuthFailure(status int) bool {
 	return status == http.StatusUnauthorized || status == http.StatusForbidden
 }
@@ -158,5 +187,78 @@ func MountSkillsDashboard(r chi.Router, h *SkillsDashboardHandler, requireJWT fu
 		r.Get("/{skillID}/versions", h.Versions)
 		r.Get("/{skillID}/channels", h.Channels)
 		r.Get("/{skillID}/instructions", h.Instructions)
+	})
+}
+
+// ---- M26 T3.5 — o caminho de MUTAÇÃO: promover canal ------------------------------------
+//
+// Vive no mesmo arquivo porque é a mesma capacidade, mas o handler e a porta são SEPARADOS de
+// propósito: `SkillsDashboardHandler` recebe um cliente cuja credencial carrega apenas
+// `skills:read` e, por construção, não consegue promover. Fundir os dois num handler só
+// devolveria ao caminho de leitura o poder que a separação existe para tirar dele.
+
+// skillsPromoter é a porta de MUTAÇÃO. Um método só — promover é a única escrita deste milestone.
+type skillsPromoter interface {
+	PromoteChannel(ctx context.Context, skillID, channel, revisionID string) (json.RawMessage, error)
+}
+
+// SkillsPromotionHandler serve a promoção de canal.
+type SkillsPromotionHandler struct {
+	client skillsPromoter
+	logger *slog.Logger
+}
+
+// NewSkillsPromotionHandler constrói o handler de mutação.
+func NewSkillsPromotionHandler(c skillsPromoter, logger *slog.Logger) *SkillsPromotionHandler {
+	return &SkillsPromotionHandler{client: c, logger: logger}
+}
+
+// Promote serve PUT /v1/dashboard/skills/{skillID}/channels/{channel}.
+//
+// Valida `revision_id` NA FRONTEIRA. Encaminhar um corpo inválido devolveria o mesmo 400 vindo do
+// upstream — com o custo de uma requisição e de um mint de credencial por erro de cliente, e com o
+// motivo escrito para quem consome a API do registro, não para quem está na tela.
+func (h *SkillsPromotionHandler) Promote(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		RevisionID string `json:"revision_id"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil ||
+		strings.TrimSpace(body.RevisionID) == "" {
+		h.logger.WarnContext(r.Context(), "skills promotion: invalid request body", "path", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"informe a revisão que passará a servir o canal"}`))
+		return
+	}
+
+	channel := chi.URLParam(r, "channel")
+	out, err := h.client.PromoteChannel(r.Context(), skillID(r), channel, strings.TrimSpace(body.RevisionID))
+	if err != nil {
+		// Mesmo tratamento do caminho de leitura, e pela mesma razão: um `403` por escopo
+		// insuficiente precisa chegar DISTINGUÍVEL de indisponibilidade, senão a tela diz
+		// "tente de novo" sobre algo que nunca vai funcionar com aquela credencial.
+		h.reject(w, r, "promote "+channel, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out)
+}
+
+// reject usa a MESMA política do caminho de leitura, com uma diferença declarada: aqui o `403`
+// SOBE. Ver `writeRejection` — no caminho de leitura um `403` fala da nossa credencial; aqui fala
+// da do operador, e é a única coisa que ele pode corrigir.
+func (h *SkillsPromotionHandler) reject(w http.ResponseWriter, r *http.Request, op string, err error) {
+	writeRejection(w, r, h.logger, op, err, true)
+}
+
+// MountSkillsPromotion registra a promoção sob `requireJWT`.
+//
+// Montada separadamente do BFF de leitura, e não como mais um verbo dentro dele: são handlers
+// distintos porque são CLIENTES distintos, com credenciais de escopos distintos.
+func MountSkillsPromotion(r chi.Router, h *SkillsPromotionHandler, requireJWT func(http.Handler) http.Handler) {
+	r.Route("/v1/dashboard/skills/{skillID}/channels", func(r chi.Router) {
+		r.Use(requireJWT)
+		r.Put("/{channel}", h.Promote)
 	})
 }

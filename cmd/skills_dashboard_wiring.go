@@ -43,3 +43,32 @@ func newSkillsDashboardKeyResolver(minter skillsDashMinter) func(ctx context.Con
 		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"skills:read"})
 	}
 }
+
+// newSkillsPromotionKeyResolver devolve o resolver do caminho de MUTAÇÃO (T3.5).
+//
+// Existe separado de `newSkillsDashboardKeyResolver` porque a separação É o mecanismo de segurança,
+// não organização: o cliente de LEITURA recebe uma credencial cunhada apenas com `skills:read` e
+// portanto **não consegue promover**, mesmo que alguém registre por engano uma rota mutante sobre
+// ele. O menor privilégio vira propriedade da chave, e não de uma checagem que se pode esquecer de
+// aplicar numa rota nova.
+//
+// `skills:read` entra junto de `skills:publish` porque a tela de promoção também lê (versões e
+// canais) antes de agir — e uma credencial que só publica obrigaria um terceiro cliente sem
+// ganho algum de isolamento.
+//
+// HONESTIDADE sobre o que este resolver NÃO faz, pelo mesmo motivo já registrado em
+// `newTrustGuardrailsKeyResolver`: `KeyForTenantScoped` cruza o `want` com a configuração ESTÁTICA
+// do broker, e aqui o `want` é um literal. Não há RBAC por usuário neste produto, então **todo
+// usuário autenticado do workspace recebe uma chave capaz de promover**. A separação real é entre
+// os dois CLIENTES (leitura × mutação), não entre usuários — e é isso que a tela mitiga exigindo
+// confirmação com frase digitada.
+func newSkillsPromotionKeyResolver(minter skillsDashMinter) func(ctx context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		u := auth.GetUser(ctx)
+		if u == nil || u.TenantID == "" {
+			return "", fmt.Errorf("skills promotion: no authenticated tenant in context")
+		}
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID,
+			[]string{"skills:read", "skills:publish"})
+	}
+}

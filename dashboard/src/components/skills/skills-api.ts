@@ -1,4 +1,4 @@
-import { cloudFetch } from '@/lib/api';
+import { ApiError, cloudFetch } from '@/lib/api';
 
 /**
  * M26 — o único ponto por onde as telas de skills falam com o BFF.
@@ -32,4 +32,45 @@ export function fetchSkillChannels<T>(id: string): Promise<T | null> {
 /** A instrução resolvida — o texto que um agente de fato carregaria. Fim da jornada de leitura. */
 export function fetchSkillInstructions<T>(id: string): Promise<T | null> {
   return cloudFetch<T>(`${BASE}/${encodeURIComponent(id)}/instructions`, {}, { throwOnError: true });
+}
+
+/**
+ * Promove um canal para outra revisão — a ÚNICA escrita desta capacidade.
+ *
+ * Vai por `PUT` no caminho do canal, com `revision_id` no corpo: a forma medida no contrato do
+ * BFF, que por sua vez espelha a do registro. O BFF usa um cliente com credencial própria
+ * (`skills:publish`); o de leitura não consegue executar isto, e é assim de propósito.
+ */
+export function promoteChannel<T>(skillId: string, channel: string, revisionId: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/${encodeURIComponent(skillId)}/channels/${encodeURIComponent(channel)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ revision_id: revisionId }),
+    },
+    { throwOnError: true },
+  );
+}
+
+/**
+ * A frase que o operador lê quando a promoção é recusada.
+ *
+ * Preferimos SEMPRE o texto do serviço: ele nomeia o motivo ("scope skills:publish required"),
+ * enquanto qualquer paráfrase nossa envelhece. O fallback existe só para quando não veio corpo
+ * tipado — e ele diz o que houve, não "erro".
+ */
+export function promotionRefusal(err: unknown, fallback: string): string {
+  if (!(err instanceof ApiError)) return fallback;
+  const body = err.body;
+  if (body && typeof body === 'object') {
+    const message = (body as { message?: unknown; details?: unknown }).message;
+    if (typeof message === 'string' && message.trim() !== '') return message;
+    const details = (body as { details?: unknown }).details;
+    if (typeof details === 'string' && details.trim() !== '') return details;
+  }
+  // 403 tem texto próprio: é a única recusa que o operador pode agir a respeito, e "tente de
+  // novo" seria conselho errado — a credencial dele não vai mudar sozinha.
+  if (err.status === 403) return 'Sua credencial não tem permissão para promover canais neste workspace.';
+  return err.status === 0 ? 'Não foi possível falar com o servidor.' : fallback;
 }

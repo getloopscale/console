@@ -116,11 +116,18 @@ func TestOK_with_empty_version_degrades_to_unreachable(t *testing.T) {
 	}
 }
 
-func TestOK_with_unknown_version_degrades_to_unreachable(t *testing.T) {
+// D8 continua valendo — o sentinela do alvo NAO e uma versao, entao isto nunca vira
+// `ok`. O que mudou (2026-08-02) e o estado de destino: era `unreachable`, que afirmava
+// que o alvo nao pode ser alcancado quando ele respondeu 200 com corpo bem formado.
+// Agora e `no_provenance`. A distincao completa dos tres casos vive em provenance_test.go.
+func TestOK_with_unknown_version_does_not_claim_unreachable(t *testing.T) {
 	s := OK("theo-rag", "unknown", "", at)
 
-	if s.State() != StateUnreachable {
-		t.Fatalf("State() = %q, want unreachable (D8: the target sentinel is not a version)", s.State())
+	if s.State() != StateNoProvenance {
+		t.Fatalf("State() = %q, want no_provenance (D8: o sentinela nao e versao; mas o alvo RESPONDEU)", s.State())
+	}
+	if s.State() == StateOK {
+		t.Fatal("sentinela nunca pode virar ok")
 	}
 }
 
