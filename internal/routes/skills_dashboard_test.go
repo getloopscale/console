@@ -21,7 +21,7 @@ import (
 // VERIFICAVEL em vez de afirmado. Tambem registra o id pedido, para provar que o handler le o
 // parametro de rota e nao um valor fixo.
 type stubSkillsReader struct {
-	byTenant map[string]string
+	byTenant   map[string]string
 	seenTenant []string
 	seenID     []string
 	err        error
@@ -317,9 +317,9 @@ func (s *limitSpySkillsReader) List(ctx context.Context, limit int, cursor strin
 // ---- M26 T3.5 — o caminho de MUTACAO: promover canal -------------------------------------
 
 type stubSkillsPromoter struct {
-	seenTenant  []string
-	seenArgs    []string
-	err         error
+	seenTenant []string
+	seenArgs   []string
+	err        error
 }
 
 func (s *stubSkillsPromoter) PromoteChannel(ctx context.Context, skillID, channel, revisionID string) (json.RawMessage, error) {
