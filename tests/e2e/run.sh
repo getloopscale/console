@@ -33,6 +33,12 @@ THEMORY_DIR="${THEMORY_DIR:-${ROOT}/../theo-memory}"
 THEMORY_MASTER_KEY="${THEMORY_MASTER_KEY:-e2e-master-key}"
 export THEMORY_MASTER_KEY
 
+# #331 — segredo de assinatura de sessao, sorteado por execucao. O compose o exige (`:?`), entao
+# esquecer de exportar falha ALTO em vez de cair num default previsivel: um default que "funciona"
+# e o que faz o placeholder sobreviver ate producao.
+E2E_SESSION_TOKEN_SECRET="${E2E_SESSION_TOKEN_SECRET:-$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')}"
+export E2E_SESSION_TOKEN_SECRET
+
 # M18 (KEYSTONE) — the sibling theo-rag checkout (pinned source with M11/M12/M13).
 THEORAG_DIR="${THEORAG_DIR:-${ROOT}/../theo-rag}"
 THEORAG_ADMIN_BOOTSTRAP_TOKEN="${THEORAG_ADMIN_BOOTSTRAP_TOKEN:-e2e-bootstrap-token-change-me-min-32-chars}"

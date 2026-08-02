@@ -7,6 +7,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -39,8 +40,11 @@ func prodValidBaseline() Config {
 		DatabaseURL:         "postgres://u:p@db:5432/theo",
 		StripeAPIKey:        Secret("sk_live_x"),
 		StripeWebhookSecret: Secret("whsec_x"),
-		SessionTokenSecret:  Secret("0123456789012345678901234567890123"),
-		ServiceAuthSecret:   Secret("0123456789012345678901234567890123"),
+		// #331: a fixture antiga era "0123456789..." — 10 caracteres distintos, o tipo de valor
+		// que o novo checkSigningSecret recusa com razao. Trocada por algo com a forma de um
+		// segredo de verdade; nenhum teste depende do valor.
+		SessionTokenSecret: Secret("9f3ac81e5b70d24c6ae1f085b3d7920ce46815af"),
+		ServiceAuthSecret:  Secret("0123456789012345678901234567890123"),
 	}
 }
 
@@ -197,7 +201,13 @@ func TestLoad_LensFields(t *testing.T) {
 
 // TestValidateStorage_AllOrNone — M7: a partial storage config must fail fast.
 func TestValidateStorage_AllOrNone(t *testing.T) {
-	base := Config{Environment: "dev"}
+	// #331: o assunto deste teste e a config de storage, nao o segredo de sessao — mas
+	// `Validate()` agora recusa segredo previsivel em qualquer ambiente, entao a baseline
+	// precisa de um valido para medir o que ela se propoe a medir.
+	base := Config{
+		Environment:        "dev",
+		SessionTokenSecret: Secret("9f3ac81e5b70d24c6ae1f085b3d7920ce46815af"),
+	}
 
 	// none set → valid (vertical disabled)
 	if err := base.Validate(); err != nil {
@@ -228,5 +238,113 @@ func TestValidateStorage_AllOrNone(t *testing.T) {
 	shortSecret.StorageShareSecret = Secret("too-short")
 	if err := shortSecret.validateStorage(); err == nil {
 		t.Error("share secret < 32 chars must be rejected")
+	}
+}
+
+// =========================================================================
+// #331 — o segredo que assina a sessao do dashboard nao pode ser um placeholder,
+// em NENHUM ambiente.
+//
+// A cadeia foi verificada no codigo, nao suposta:
+//
+//   cmd/main.go:389  sessIssuer := theojwt.NewSessionTokenIssuer(cfg.SessionTokenSecret...)
+//   cmd/main.go:415  requireJWT := auth.RequireJWT(jwtValidator, sessIssuer)   <- MESMO emissor valida
+//   cmd/main.go:1115 r.Route("/v1/api-keys", ...) { r.Use(requireJWT)
+//   cmd/main.go:1122   r.Post("/", apiKeysHandler.CreateKey)                   <- CUNHA credencial real
+//
+// Logo: quem conhece a chave HMAC forja um token de sessao, atravessa o requireJWT e emite uma
+// chave de API real do tenant. A borda nao barra — o ForwardAuth dela resolve chave de API
+// (APIKeyResolver), nao token de sessao; sao caminhos distintos.
+//
+// O buraco era de ESCOPO, nao de ausencia: `Validate()` so checava comprimento em `prod`, entao
+// um placeholder setado explicitamente num ambiente de dev exposto na internet passava livre.
+// =========================================================================
+
+// devBaseline — um ambiente NAO-prod, que e exatamente onde o buraco estava.
+func devBaseline() Config {
+	return Config{
+		Environment:        "dev",
+		SessionTokenSecret: Secret("f2c1a9e70b4d63815a7e0c2fd94b6a3e18d5027cbf6491ae"),
+		ServiceAuthSecret:  Secret("0123456789012345678901234567890123"),
+	}
+}
+
+// O POSITIVO. Sem ele, uma implementacao que recusa TUDO passaria na metade "recusa" e
+// derrubaria o ambiente inteiro — que e precisamente o risco desta correcao.
+func TestValidate_dev_accepts_a_strong_session_secret(t *testing.T) {
+	if err := devBaseline().Validate(); err != nil {
+		t.Fatalf("um segredo forte tem de SUBIR em dev; Validate() recusou: %v", err)
+	}
+}
+
+func TestValidate_prod_accepts_a_strong_session_secret(t *testing.T) {
+	if err := prodValidBaseline().Validate(); err != nil {
+		t.Fatalf("um segredo forte tem de SUBIR em prod; Validate() recusou: %v", err)
+	}
+}
+
+// O NEGATIVO, com o valor que app-dev de fato roda (a FORMA dele — nao o valor do host).
+func TestValidate_refuses_a_self_describing_placeholder_in_any_environment(t *testing.T) {
+	placeholders := []string{
+		"dev-session-secret-at-least-32-characters-long",
+		"e2e-session-secret-at-least-32-characters-long",
+		"changeme-changeme-changeme-changeme-changeme",
+		"please-replace-this-example-secret-value-now",
+		"dev-fallback-insecure-12345678901234567890123",
+	}
+	for _, env := range []string{"dev", "staging", "prod"} {
+		for _, ph := range placeholders {
+			// prod exige um punhado de URLs; sem elas Validate() falharia ANTES de olhar o
+			// segredo, e o teste mediria a checagem errada.
+			c := devBaseline()
+			if env == "prod" {
+				c = prodValidBaseline()
+			}
+			c.Environment = env
+			c.SessionTokenSecret = Secret(ph)
+			err := c.Validate()
+			if err == nil {
+				t.Errorf("env=%s: Validate() aceitou o placeholder %q. Quem conhece essa chave "+
+					"forja token de sessao e emite chave de API real via POST /v1/api-keys", env, ph)
+				continue
+			}
+			// A mensagem tem de dizer QUAL variavel e POR QUE — senao o operador nao sabe o que trocar.
+			if !strings.Contains(err.Error(), "SESSION_TOKEN_SECRET") {
+				t.Errorf("env=%s: a recusa nao nomeia a variavel: %v", env, err)
+			}
+		}
+	}
+}
+
+// Entropia, nao so o dicionario de placeholders: uma string longa e repetitiva nao casa nenhuma
+// palavra da lista e continua trivial de adivinhar.
+func TestValidate_refuses_a_low_entropy_session_secret(t *testing.T) {
+	c := devBaseline()
+	c.SessionTokenSecret = Secret(strings.Repeat("ab", 24))
+	if err := c.Validate(); err == nil {
+		t.Error("Validate() aceitou um segredo de 48 chars com 2 caracteres distintos — " +
+			"passar no comprimento nao e o mesmo que ser imprevisivel")
+	}
+}
+
+// O comprimento minimo passa a valer FORA de prod tambem: era esse o escopo que faltava.
+func TestValidate_enforces_minimum_length_outside_prod(t *testing.T) {
+	c := devBaseline()
+	c.SessionTokenSecret = Secret("f2c1a9e70b4d6381")
+	if err := c.Validate(); err == nil {
+		t.Error("Validate() aceitou um segredo de 16 chars em dev — o comprimento minimo era " +
+			"checado so em prod, e app-dev esta na internet publica")
+	}
+}
+
+// A guarda do #331 nao pode quebrar o caminho normal de dev: sem SESSION_TOKEN_SECRET no
+// ambiente, `Load()` sorteia 32 bytes (hex = 64 chars, 16 distintos) e o boot TEM de seguir.
+// Sem este teste a correcao derrubaria toda maquina de dev que nao define a variavel — que e o
+// caso comum, e exatamente o modo de falha que o coordenador alertou para app-dev.
+func TestLoad_dev_without_the_env_var_still_boots(t *testing.T) {
+	t.Setenv("THEO_ENV", "dev")
+	c := Load()
+	if err := checkSigningSecret("SESSION_TOKEN_SECRET", c.SessionTokenSecret.Value()); err != nil {
+		t.Fatalf("dev sem a variavel tem de subir; a guarda recusou o segredo sorteado: %v", err)
 	}
 }

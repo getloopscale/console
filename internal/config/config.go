@@ -357,6 +357,21 @@ func (c Config) StorageEnabled() bool { return c.StorageProxyMode() || c.Storage
 
 // Validate checks that required fields are set for production.
 func (c Config) Validate() error {
+	// #331 — vale em TODO ambiente, e o escopo e o ponto.
+	//
+	// A checagem existia, mas so dentro do ramo `prod`. Um placeholder setado explicitamente num
+	// ambiente de dev passava livre — e `app-dev` esta na internet publica. A cadeia (verificada,
+	// nao suposta): este segredo assina o JWT de sessao (cmd/main.go:389), o MESMO emissor o valida
+	// no requireJWT (:415), e o grupo /v1/api-keys usa esse middleware para CUNHAR credencial real
+	// (:1115, :1122). Chave conhecida => token forjado => chave de API real do tenant. O ForwardAuth
+	// da borda nao intercepta: ele resolve chave de API, nao token de sessao.
+	//
+	// Um default que "funciona" e o que faz o placeholder sobreviver ate producao — entao a recusa
+	// e no boot, alto e claro, dizendo qual variavel e por que.
+	if err := checkSigningSecret("SESSION_TOKEN_SECRET", c.SessionTokenSecret.Value()); err != nil {
+		return err
+	}
+
 	if c.Environment == "prod" {
 		if c.HydraPublicURL == "" {
 			return fmt.Errorf("HYDRA_PUBLIC_URL is required in production")
@@ -372,9 +387,6 @@ func (c Config) Validate() error {
 		}
 		if c.StripeWebhookSecret.Value() == "" {
 			return fmt.Errorf("STRIPE_WEBHOOK_SECRET is required in production")
-		}
-		if len(c.SessionTokenSecret.Value()) < 32 {
-			return fmt.Errorf("SESSION_TOKEN_SECRET must be at least 32 characters in production")
 		}
 		if len(c.ServiceAuthSecret.Value()) < 32 {
 			return fmt.Errorf("THEO_SERVICE_AUTH_SECRET must be set (>=32 chars) in production — a per-pod random secret breaks multi-replica auth")
@@ -486,4 +498,54 @@ func generateDevSecret() string {
 		return "dev-fallback-insecure-" + fmt.Sprintf("%d", os.Getpid())
 	}
 	return hex.EncodeToString(b)
+}
+
+// placeholderMarkers — fragmentos que denunciam um valor de exemplo. A lista e deliberadamente
+// curta: ela existe para pegar o valor que ALGUEM ESCREVEU PARA SER TROCADO, nao para adivinhar
+// fraqueza criptografica (disso cuida a entropia abaixo).
+var placeholderMarkers = []string{
+	"change", "changeme", "placeholder", "example", "sample", "dummy",
+	"insecure", "replace", "todo", "xxxx", "your-", "secret-at-least",
+	"at-least-32", "not-a-real", "fake",
+}
+
+// checkSigningSecret recusa um segredo de assinatura previsivel, em qualquer ambiente.
+//
+// Tres criterios, e cada um pega o que os outros deixam passar:
+//   - COMPRIMENTO: forca bruta.
+//   - MARCADOR: o valor anuncia que e de exemplo ("...-at-least-32-characters-long" tem 45 chars
+//     e entropia razoavel — so o dicionario o pega).
+//   - ENTROPIA: "ababab..." nao casa marcador algum e continua trivial de adivinhar.
+//
+// O caminho de dev sem a variavel setada NAO passa por aqui como risco: `devSecretFor` sorteia 32
+// bytes aleatorios, que tem comprimento, nao casam marcador e tem caracteres distintos de sobra.
+// O fallback `dev-fallback-insecure-<pid>` casa "insecure" DE PROPOSITO — se o sorteio falhou, o
+// processo tem de parar, nao seguir com uma chave adivinhavel.
+func checkSigningSecret(name, value string) error {
+	const minLen = 32
+	const minDistinct = 12
+
+	if len(value) < minLen {
+		return fmt.Errorf("%s must be at least %d characters (got %d) — it signs the dashboard "+
+			"session JWT that authorizes API-key minting", name, minLen, len(value))
+	}
+
+	lower := strings.ToLower(value)
+	for _, marker := range placeholderMarkers {
+		if strings.Contains(lower, marker) {
+			return fmt.Errorf("%s looks like a placeholder (contains %q) — generate a random "+
+				"value per environment and inject it as a secret. A known signing key lets anyone "+
+				"forge a session token and mint a real API key", name, marker)
+		}
+	}
+
+	distinct := map[rune]struct{}{}
+	for _, r := range value {
+		distinct[r] = struct{}{}
+	}
+	if len(distinct) < minDistinct {
+		return fmt.Errorf("%s has only %d distinct characters (need >= %d) — length is not "+
+			"unpredictability; generate it randomly", name, len(distinct), minDistinct)
+	}
+	return nil
 }
