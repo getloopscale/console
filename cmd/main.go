@@ -474,6 +474,12 @@ func main() {
 	// promptly broker + "promptly:read"; only registered when PROMPTLY_BASE_URL is
 	// set. The broker translates promptly:* -> prompt:* and mints per-tenant.
 	var promptlyForwardAuthHandler *routes.ForwardAuthHandler
+	// theo-promptly#50: o broker sai do escopo do bloco `if` abaixo para poder servir
+	// TAMBEM o binding MCP montado adiante — exatamente como `ragBroker` ja faz. Um
+	// unico broker para as duas superficies significa UM cache de mint, logo chaves
+	// per-tenant consistentes entre o ForwardAuth do REST e o resolve do gateway; dois
+	// brokers cunhariam credenciais diferentes para o mesmo inquilino.
+	var promptlyBroker *promptly.Broker
 	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
 	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
 	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
@@ -487,7 +493,8 @@ func main() {
 	if cfg.PromptlyBaseURL != "" {
 		promptlyHTTP := &http.Client{Timeout: 10 * time.Second}
 		promptlyAdmin := promptly.NewAdminClient(cfg.PromptlyBaseURL, cfg.PromptlyPlatformAdminKey.Value(), promptlyHTTP)
-		promptlyBroker, pErr := promptly.NewBroker(promptlyAdmin, 1024, time.Hour,
+		var pErr error
+		promptlyBroker, pErr = promptly.NewBroker(promptlyAdmin, 1024, time.Hour,
 			[]string{"prompt:read", "prompt:write"})
 		if pErr != nil {
 			logger.Error("failed to construct promptly credential broker — refusing to start", "error", pErr)
@@ -869,6 +876,23 @@ func main() {
 	// ForwardAuth handler AND this MCP binding (one mint cache — consistent per-tenant keys).
 	if ragBroker != nil {
 		mcpCaps["rag"] = routes.MCPCapabilityBinding{Minter: ragBroker, RequiredScope: "rag:read", ScopeTools: routes.RagScopeTools}
+	}
+
+	// theo-promptly#50 — registra a capability `promptly` no resolve MCP, independente de
+	// memory e rag. O MESMO broker serve o ForwardAuth do REST e este binding (um cache de
+	// mint, chaves per-tenant consistentes).
+	//
+	// `ScopeTools` espelha o registro POR ESCOPO do proprio servidor MCP (theo-promptly#52):
+	// `create_dataset` e a UNICA tool de escrita, e uma chave `promptly:read` nao a alcanca
+	// por nenhum dos dois caminhos — o gateway filtra `tools/list` pelo balde, e o promptly
+	// nem registra a tool. Se os dois discordassem, a mais frouxa viraria o limite real e
+	// ninguem saberia qual delas manda.
+	if promptlyBroker != nil {
+		mcpCaps["promptly"] = routes.MCPCapabilityBinding{
+			Minter:        promptlyBroker,
+			RequiredScope: "promptly:read",
+			ScopeTools:    routes.PromptlyScopeTools,
+		}
 	}
 	// Build the MCP-resolve handler once, if ANY capability is registered (memory and/or
 	// rag). Internal-only (the gateway is the caller); it IS the auth, so no middleware.
