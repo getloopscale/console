@@ -1,74 +1,93 @@
 /**
- * Playwright browser-runtime E2E — the 12 Observability (Theo Lens) screens.
+ * Playwright browser-runtime E2E — as telas de Observability (Theo Lens).
  *
- * Mechanizes the headless half of the dogfood UI sweep: every lens screen renders in a REAL browser
- * (logged-in mock session, `VITE_USE_MOCKS=true`) without a crash/error boundary, reached via the
- * sidebar (client-side routing — the same way a user navigates, not by guessing URLs). This is the
- * enforced counterpart to the theo-lens `/dogfood` skill's enumerated 12-screen manifest, so a render
- * regression on any observability screen fails CI without an agent driving Chrome.
+ * Prova que cada capacidade do lens RENDERIZA num navegador real (sessão mock,
+ * `VITE_USE_MOCKS=true`) sem crash/error boundary, alcançada PELO MENU — roteamento
+ * client-side, do jeito que o usuário navega, nunca digitando a URL.
  *
- * Full data + primary-action e2e (create/run/resolve) needs MSW fixtures for the lens BFF surface
- * (currently absent) — tracked as a follow-up; this spec locks the render + navigation guarantee now.
+ * A LISTA VEM DO REGISTRO, NÃO DE UMA CÓPIA À MÃO.
  *
- * Run: npm run test:e2e  (or `npx playwright test observability-screens`).
+ * Até 2026-08-02 este arquivo mantinha um manifesto literal de 12 telas, copiado do menu.
+ * Ele derivou, e derivou em silêncio: `Guards` foi renomeado para `Monitors` no M136 (com
+ * redirect declarado) e `Webhooks` foi acrescentado — o manifesto não soube de nenhum dos
+ * dois. `LENS_CAPABILITIES` existe desde o M70 exatamente por isso, e a razão registrada lá
+ * é a mesma que se repetiu aqui: *"a auditoria achou Alerts roteado e ausente"*. Manter uma
+ * segunda lista ao lado do registro é reconstruir o defeito que o registro eliminou.
+ *
+ * Derivar do registro NÃO torna a asserção circular: o registro diz o que **deve** existir;
+ * o navegador prova o que **de fato** monta, sob que endereço, com heading visível e sem
+ * error boundary. Nada disso o registro consegue afirmar sozinho.
+ *
+ * NÃO HÁ SLEEP FIXO AQUI, e a razão foi medida. Um probe com `waitForTimeout(700)` seguido de
+ * consulta que não espera reportou a tela de `Monitors` **sem heading nenhum** — e o DOM tinha
+ * o `<h1>` intacto, com a mesma cadeia de ancestrais de uma tela sã. O defeito era do
+ * instrumento. Toda espera abaixo é por CONDIÇÃO (`toBeVisible`), nunca por relógio.
  */
 import { expect, test } from '@playwright/test';
+import { LENS_CAPABILITIES } from '@/components/lens/lens-capabilities';
 
-// The authoritative screen manifest — mirrors the /dogfood skill's UI table. Adding a lens screen
-// without adding it here (and vice-versa) is a coverage gap the screen-count assertion below catches.
-const SCREENS: { nav: RegExp; route: RegExp; heading: RegExp }[] = [
-  { nav: /^Overview$/, route: /\/observability$/, heading: /overview|observability/i },
-  { nav: /^Dashboards$/, route: /\/observability\/dashboards$/, heading: /dashboards/i },
-  { nav: /^Traces$/, route: /\/observability\/traces$/, heading: /traces/i },
-  { nav: /^Sessions$/, route: /\/observability\/sessions$/, heading: /sessions/i },
-  { nav: /^Datasets$/, route: /\/observability\/datasets$/, heading: /datasets/i },
-  { nav: /^Evaluators$/, route: /\/observability\/evaluators$/, heading: /evaluators/i },
-  { nav: /^Guards$/, route: /\/observability\/guards$/, heading: /guards/i },
-  { nav: /^Queues$/, route: /\/observability\/labeling-queue$/, heading: /labeling queue/i },
-  { nav: /^Experiments$/, route: /\/observability\/experiments$/, heading: /experiments/i },
-  { nav: /^Ask$/, route: /\/observability\/ask$/, heading: /ask/i },
-  { nav: /^Agents$/, route: /\/observability\/agents$/, heading: /agents/i },
-  { nav: /^Alerts$/, route: /\/observability\/alerts$/, heading: /alerts/i },
-];
+/**
+ * Telas cujo título diverge do rótulo do menu — MEDIDO, não suposto (2026-08-02).
+ *
+ * Duas divergem hoje, e ambas por uma razão legítima: `Overview` é o item de menu de uma tela
+ * que se intitula pelo produto inteiro, e `Queues` é a abreviação de "Labeling Queue". A tabela
+ * existe para que a divergência seja **declarada** em vez de afrouxar a asserção para todas:
+ * cair num `getByRole('heading')` genérico faria a tela errada passar, que é justamente o que
+ * este teste existe para pegar.
+ */
+const TITULO_DIVERGENTE: Record<string, RegExp> = {
+  Overview: /^(overview|observability)$/i,
+  Queues: /labeling queue/i,
+};
 
-test.describe('Observability — all 12 lens screens render (browser runtime)', () => {
-  test('every screen renders via sidebar navigation, no error boundary', async ({ page }) => {
-    const errors: string[] = [];
-    page.on('pageerror', (e) => errors.push(e.message));
+const tituloDe = (label: string): RegExp =>
+  TITULO_DIVERGENTE[label] ?? new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+test.describe('Observability — as telas do lens renderizam (runtime de navegador)', () => {
+  test('cada tela do registro abre PELO MENU, monta e não estoura error boundary', async ({
+    page,
+  }) => {
+    const erros: string[] = [];
+    page.on('pageerror', (e) => erros.push(e.message));
 
     await page.goto('/observability');
-    // The lens sidebar is present.
+    // O menu do lens está presente antes de qualquer clique.
     await expect(page.getByRole('button', { name: /^Traces$/ })).toBeVisible();
 
-    for (const s of SCREENS) {
-      // Navigate the way a user does — click the sidebar button (client-side routing).
-      if (!s.route.test('/observability')) {
-        await page.getByRole('button', { name: s.nav }).click();
+    for (const cap of LENS_CAPABILITIES) {
+      // `Overview` já é a tela em que se está; as demais alcançam-se CLICANDO.
+      if (cap.path !== '/observability') {
+        await page.getByRole('button', { name: new RegExp(`^${cap.label}$`) }).click();
       }
-      await expect(page).toHaveURL(s.route);
-      // The screen's own heading renders (proves the route resolved + the screen mounted).
-      await expect(page.getByRole('heading', { name: s.heading }).first()).toBeVisible();
-      // No React error boundary / crash text.
+
+      await expect(page).toHaveURL(new RegExp(`${cap.path.replace(/\//g, '\\/')}$`));
+      // O título da própria tela renderiza — prova que a rota resolveu E o componente montou.
+      await expect(page.getByRole('heading', { name: tituloDe(cap.label) }).first()).toBeVisible();
       await expect(page.getByText(/something went wrong|application error/i)).toHaveCount(0);
     }
 
-    expect(errors, `uncaught page errors: ${errors.join('; ')}`).toHaveLength(0);
-  });
-
-  test('screen-count coverage gate — the nav exposes exactly the manifested screens', async ({ page }) => {
-    await page.goto('/observability');
-    // Every manifested nav button is present …
-    for (const s of SCREENS) {
-      await expect(page.getByRole('button', { name: s.nav })).toBeVisible();
-    }
-    // … and the OBSERVE/EVALUATE/IMPROVE nav groups expose no lens screen we do not exercise.
-    // (A new sidebar screen that is not in SCREENS is a coverage drift — add it to the manifest.)
-    const navButtons = await page.getByRole('complementary').getByRole('button').allInnerTexts();
-    const known = new Set(SCREENS.map((s) => s.nav.source.replace(/[$^]/g, '')));
-    const lensExtra = navButtons
-      .map((t) => t.trim())
-      .filter((t) => ['Overview', 'Dashboards', 'Traces', 'Sessions', 'Datasets', 'Evaluators', 'Guards', 'Queues', 'Experiments', 'Ask', 'Agents', 'Alerts'].includes(t))
-      .filter((t) => !known.has(t));
-    expect(lensExtra, `sidebar lens screens missing from the manifest: ${lensExtra.join(', ')}`).toHaveLength(0);
+    expect(erros, `erros não capturados na página: ${erros.join('; ')}`).toHaveLength(0);
   });
 });
+
+/*
+ * POR QUE O SEGUNDO TESTE DESTE ARQUIVO FOI REMOVIDO, e não apenas consertado.
+ *
+ * Ele comparava os botões do menu contra o manifesto literal, para acusar "uma tela nova no
+ * menu que ninguém exercita". Duas razões o aposentam, e a segunda é a que pesa:
+ *
+ * 1. Tautologia. Menu e teste passam a derivar do MESMO registro, então a comparação não pode
+ *    falhar — e um teste que não pode falhar não protege nada.
+ *
+ * 2. Ele NUNCA foi capaz de fazer o que dizia. O filtro de candidatos era uma lista literal com
+ *    os mesmos nomes do manifesto, então uma tela nova era descartada antes da comparação.
+ *    Medido: `Webhooks` entrou no menu e o portão ficou verde e mudo. Ele só detectava remoções
+ *    — exatamente o oposto do que o comentário prometia.
+ *
+ * A garantia que ele QUERIA — nenhuma tela do lens alcançável só digitando o endereço — segue
+ * valendo e é a que custou o M23. Ela mudou de lugar: hoje é estrutural pelo lado do menu (o
+ * menu é derivado do registro), e o que resta descoberto é o inverso — uma rota em `app.tsx`
+ * ausente do registro. Isso pede um portão que leia as rotas declaradas e as confronte com o
+ * registro, com exceções nomeadas para as intencionais (`/observability/guards` é redirect,
+ * `/observability/sessions/:sessionId` é drill-down). É trabalho próprio, não um remendo aqui.
+ */

@@ -35,12 +35,6 @@
 #     O produto está certo; o teste é que nunca estabelece sua premissa. Consertável no teste.
 #   • `project-connect` (1/4) — **premissa de fixture.** O projeto do cenário já está `Connected`,
 #     então o caminho de instalar o app nunca é oferecido. Consertável no teste.
-#   • `j10-environments` (5/7) — **rota re-alocada no M20**, e o próprio `app.tsx` documenta:
-#     `/environments` global virou redirect, a tela vive em `/projects/:name/environments`.
-#     Mecânico: apontar o spec para o destino documentado.
-#   • `observability-screens` (2/2) — **renomeação no M136**: `Guards` virou `Monitors`, com
-#     redirect declarado e teste que o trava. Mecânico. (Verificado que NÃO é rota órfã — a
-#     suspeita foi levantada e refutada por medição, não descartada por intuição.)
 #   • `journeys` (2/8) — **redesenho de produto, e o único que NÃO é mecânico.** `view logs` e
 #     `rollback to here` não existem mais; a tela de deploy hoje oferece Redeploy / Build / Sign /
 #     Release (M15–M19). Reescrever exige DECIDIR qual é a jornada canônica — decisão de produto.
@@ -55,9 +49,20 @@
 # `promptly-journey-live` fica fora por outra razão: aponta para a instância implantada e exige
 # credencial — é trabalho separado. Ele aparece "ok" na suíte por se auto-pular, não por passar.
 #
-# ENTRARAM DEPOIS: `a11y` (2026-08-02) — seus dois casos vermelhos eram defeito DE TESTE, não de
-# produto: asserções posicionais/por substring que casavam o elemento errado, uma delas reprovando
-# um produto correto. `deploy-timeline` (2026-08-02) — ver a correção acima.
+# ENTRARAM DEPOIS (todos em 2026-08-02, com a razão de cada um):
+#
+#   • `a11y` — asserções posicionais/por substring casavam o elemento errado; uma delas reprovava
+#     um produto CORRETO. Defeito de teste.
+#   • `deploy-timeline` — ver a correção acima.
+#   • `observability-screens` — a lista de telas era uma CÓPIA À MÃO do menu e derivou em silêncio
+#     (`Guards`→`Monitors` no M136; `Webhooks` acrescentado). Passou a derivar de
+#     `LENS_CAPABILITIES`, o registro único que existe desde o M70 exatamente para isso. O segundo
+#     teste do arquivo foi REMOVIDO, não consertado: ele prometia acusar tela nova no menu e nunca
+#     conseguiu — filtrava candidatos por uma lista literal com os mesmos nomes do manifesto, então
+#     `Webhooks` entrou e ele ficou verde e mudo.
+#   • `j10-environments` — apontava para `/environments`, retirado no M20 (hoje redirect); a tela
+#     vive em `/projects/:name/environments`. O dublê também era anterior ao M20: sem o campo
+#     `project`, as três entradas caíam no filtro e a tela renderizava vazia com 200 em tudo.
 name: e2e-ui
 
 on:
@@ -112,7 +117,9 @@ jobs:
             e2e/verification.spec.ts \
             e2e/knowledge-base.spec.ts \
             e2e/a11y.spec.ts \
-            e2e/deploy-timeline.spec.ts
+            e2e/deploy-timeline.spec.ts \
+            e2e/observability-screens.spec.ts \
+            e2e/j10-environments.spec.ts
 
       # O relatório só interessa quando algo falha; guardá-lo sempre encheria o storage do repo
       # com artefatos de runs verdes que ninguém abre.
