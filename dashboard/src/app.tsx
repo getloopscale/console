@@ -147,6 +147,27 @@ const TrustGuardrailNewPage = lazy(() =>
 const TrustEnforcementPage = lazy(() =>
   import('@/pages/trust/enforcement').then((m) => ({ default: m.TrustEnforcementPage })),
 );
+// M26 — o registro de skills ganha superfície: acervo → detalhe (com a instrução resolvida) →
+// versões e canais. As rotas só são alcançáveis por clique porque `resolveActiveMenu` reconhece
+// `/skills`; declarar a rota aqui sem aquela linha entrega telas que ninguém encontra.
+const SkillsOverviewPage = lazy(() =>
+  import('@/pages/skills').then((m) => ({ default: m.SkillsOverviewPage })),
+);
+const SkillDetailPage = lazy(() =>
+  import('@/pages/skills/detail').then((m) => ({ default: m.SkillDetailPage })),
+);
+const SkillVersionsPage = lazy(() =>
+  import('@/pages/skills/versions').then((m) => ({ default: m.SkillVersionsPage })),
+);
+// M25 — os prompts ganham superfície: catálogo → detalhe, onde a promoção de um label acontece.
+// As rotas só são alcançáveis por clique porque `resolveActiveMenu` reconhece `/promptly`;
+// declarar a rota aqui sem aquela linha entrega telas que ninguém encontra.
+const PromptlyOverviewPage = lazy(() =>
+  import('@/pages/promptly').then((m) => ({ default: m.PromptlyOverviewPage })),
+);
+const PromptDetailPage = lazy(() =>
+  import('@/pages/promptly/detail').then((m) => ({ default: m.PromptDetailPage })),
+);
 // M44 — lens management dashboard pages; M46 — Overview landing
 const LensOverviewPage = lazy(() =>
   import('@/pages/lens').then((m) => ({ default: m.LensOverviewPage })),
@@ -493,6 +514,11 @@ export default function App() {
                     <Route path="/trust/guardrails" element={<Boundaried path="/trust/guardrails"><TrustGuardrailsPage /></Boundaried>} />
                     <Route path="/trust/guardrails/new" element={<Boundaried path="/trust/guardrails/new"><TrustGuardrailNewPage /></Boundaried>} />
                     <Route path="/trust/enforcement" element={<Boundaried path="/trust/enforcement"><TrustEnforcementPage /></Boundaried>} />
+                    <Route path="/skills" element={<Boundaried path="/skills"><SkillsOverviewPage /></Boundaried>} />
+                    <Route path="/skills/:skillId" element={<Boundaried path="/skills/:skillId"><SkillDetailPage /></Boundaried>} />
+                    <Route path="/skills/:skillId/versions" element={<Boundaried path="/skills/:skillId/versions"><SkillVersionsPage /></Boundaried>} />
+                    <Route path="/promptly" element={<Boundaried path="/promptly"><PromptlyOverviewPage /></Boundaried>} />
+                    <Route path="/promptly/:promptName" element={<Boundaried path="/promptly/:promptName"><PromptDetailPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />

@@ -54,6 +54,8 @@ import {
 import { registerRoute } from './server';
 import { registerSSE } from './sse';
 import { registerTrustHandlers } from './trust-handlers';
+import { registerSkillsHandlers } from './skills-handlers';
+import { registerPromptlyHandlers } from './promptly-handlers';
 
 // ============================================================================
 // In-memory "DB" — mutates per session to simulate CRUD persistence
@@ -725,6 +727,10 @@ export function registerAllMockHandlers(): void {
   registerTenantHandlers();
   registerSystemHandlers();
   registerTrustHandlers();
+  // M26 — sem este registro a jornada do registro de skills não entra no e2e hermético.
+  registerSkillsHandlers();
+  // M25 — idem para a jornada de prompts (catálogo → detalhe → promoção).
+  registerPromptlyHandlers();
 }
 
 /** Test-only: reset the in-memory DB to initial fixture state. */

@@ -87,9 +87,13 @@ export function aggregateState(services: readonly ServiceStatus[] | undefined): 
 export function describeStatus(services: readonly ServiceStatus[]): string {
   const operational = services.filter((s) => s.state === 'ok').length;
   const unreachable = services.filter((s) => s.state === 'unreachable' || s.state === 'timeout').length;
-  const notDeployed = services.filter((s) => s.state === 'not_deployed').length;
-  const unknown = services.length - operational - unreachable - notDeployed;
-  const counted = `System status: ${operational} operational, ${unreachable} unreachable, ${notDeployed} not deployed`;
+  const notConfigured = services.filter((s) => s.state === 'not_deployed').length;
+  const unknown = services.length - operational - unreachable - notConfigured;
+  // "not configured", nao "not deployed": o coletor mede base URL vazia, nao ausencia
+  // de deploy. A imprecisao custa MAIS aqui do que na tabela — este e o unico canal
+  // que o leitor nao consegue conferir olhando (o mesmo argumento que o F-web-1 usou
+  // para tornar as contagens um censo).
+  const counted = `System status: ${operational} operational, ${unreachable} unreachable, ${notConfigured} not configured`;
   return unknown > 0 ? `${counted}, ${unknown} unknown` : counted;
 }
 

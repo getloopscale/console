@@ -1,6 +1,9 @@
 ## [Unreleased]
 
 ### Added
+- **theo-skills UI (M29):** proxy de leitura por inquilino para o registro de skills — chave cunhada por tenant, falha fechado sem credencial (#M29)
+- Roadmap amended: added M25 Operar prompts pelo dashboard (catálogo, revisões, promoção de label) (`/roadmap-feature theo-cloud-promptly-dashboard`)
+- **theo-skills UI (M29):** recusa tipada do registro (`422 INVALID_FRONTMATTER`, `409 CONFLICT`) chega ao operador com o motivo, em vez de virar `502` generico (#M29)
 - A capacidade `promptly` passa a ser resolvível pelo gateway MCP: `mcpCaps["promptly"]` com o broker Model B que já existia e o mapa escopo→tools. Até aqui o gateway não conhecia a capacidade, porque o servidor MCP do theo-promptly era stdio-only e não havia endereço a registrar — o transporte HTTP dele resolveu isso (`usetheoai/theo-promptly#50`). Uma chave `promptly:read` **não alcança nenhuma tool de escrita**: `create_dataset` é a única que escreve, e ela vive sozinha no balde `promptly:write` (#promptly-50)
 - O operador passa a **criar e remover as próprias guardrails pelo dashboard**, em `/trust/guardrails`. O catálogo mostra junto o que é herdado da plataforma e o que foi criado no workspace — e o que é herdado não oferece remoção, porque não pertence a quem opera. Criar exige **testar antes**: a tela só mostra o caminho de salvar depois de um teste da regra exata que será gravada; mudar a regra depois do teste retira o caminho de novo. Recusa do serviço chega com a frase do serviço, que diz qual campo corrigir — nunca "ocorreu um erro". Remover pede a confirmação digitada, porque desliga uma proteção ativa (#roadmap-m24)
 - `/trust/enforcement` mostra o que a proteção de fato barrou — decisão, guardrail, categoria e o trecho já redigido pelo serviço. Fecha o ciclo entre configurar uma regra e ver o efeito dela (#roadmap-m24)
@@ -8,6 +11,8 @@
 
 
 ### Changed
+- **O painel `/status` parou de dizer "not deployed" sobre serviço que ele nunca mediu como ausente** (`usetheodev/theo-workspace#35`). O coletor não observa deploy algum — ele observa que a **base URL do alvo está vazia** (`internal/serviceversions/probe.go`). O rótulo afirmava mais do que a medição sustenta, e o custo foi real: o `theo-traefik-mcp` apareceu como não implantado enquanto roteava MCP normalmente, e quem leu a tela foi depurar deploy em vez de topologia. Agora a tabela mostra **`not configured`** com o motivo ao lado (*"no base URL for this service in this environment"*), o mesmo tratamento que o #345 deu ao `unauthorized` → `not measured`. **O `aria-label` do indicador mudou junto**, e ali a imprecisão custava mais: é o único canal que o leitor não consegue conferir olhando. O token do contrato (`not_deployed`) permanece — nenhum consumidor precisa mudar, e criar um estado novo inventaria uma distinção que o coletor **não consegue** fazer: ele não tem fonte independente sobre o que está implantado. A correção é parar de exagerar o que se mediu, não medir mais.
+
 - As telas de guardrails passaram a usar os componentes do design system em vez de HTML solto: a listagem virou tabela do sistema com etiqueta de origem, o formulário ganhou campos rotulados com o erro **junto do campo** que o causou, e as datas da auditoria aparecem legíveis ("31 de jul., 09:00 (ontem)") no lugar do carimbo ISO. A confirmação de remoção passou a ser o mesmo diálogo de `domains` e `previews` — havia uma segunda coreografia destrutiva escrita à mão (#roadmap-m24)
 
 

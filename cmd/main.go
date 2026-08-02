@@ -474,11 +474,18 @@ func main() {
 	// promptly broker + "promptly:read"; only registered when PROMPTLY_BASE_URL is
 	// set. The broker translates promptly:* -> prompt:* and mints per-tenant.
 	var promptlyForwardAuthHandler *routes.ForwardAuthHandler
+	// M25 — o BFF do catálogo de prompts do dashboard. Nil quando PROMPTLY_BASE_URL está ausente:
+	// sem broker não há cunhagem por inquilino, e sem ela a rota não deve existir.
+	var promptlyDashboardHandler *routes.PromptlyDashboardHandler
 	// theo-promptly#50: o broker sai do escopo do bloco `if` abaixo para poder servir
 	// TAMBEM o binding MCP montado adiante — exatamente como `ragBroker` ja faz. Um
 	// unico broker para as duas superficies significa UM cache de mint, logo chaves
 	// per-tenant consistentes entre o ForwardAuth do REST e o resolve do gateway; dois
 	// brokers cunhariam credenciais diferentes para o mesmo inquilino.
+	//
+	// As duas declaracoes convivem porque resolvem coisas diferentes e ADITIVAS: esta hasteia o
+	// broker para o MCP, aquela guarda o handler do dashboard. O conflito foi de posicao no
+	// arquivo, nao de intencao — descartar qualquer uma das duas removeria uma capacidade.
 	var promptlyBroker *promptly.Broker
 	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
 	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
@@ -512,6 +519,14 @@ func main() {
 			"promptly:read",
 			logger,
 		)
+		// M25 — o BFF do catálogo de prompts. DOIS clientes, com credenciais distintas: o de
+		// leitura recebe uma chave que não consegue promover, e a promoção é o único caminho com
+		// `prompt:write`. A separação é o menor privilégio; ver `promptly_dashboard_wiring.go`.
+		promptlyDataClient := promptly.NewDataClient(cfg.PromptlyBaseURL, promptlyHTTP).
+			WithKeyResolver(newPromptlyDashboardKeyResolver(promptlyBroker))
+		promptlyWriteClient := promptly.NewWriteClient(cfg.PromptlyBaseURL, promptlyHTTP).
+			WithKeyResolver(newPromptlyPromotionKeyResolver(promptlyBroker))
+		promptlyDashboardHandler = routes.NewPromptlyDashboardHandler(promptlyDataClient, promptlyWriteClient, logger)
 		logger.Info("theo-promptly Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
 	}
 
@@ -589,6 +604,9 @@ func main() {
 	// target to be a member of it, so a broker cannot use it to reach an arbitrary
 	// tenant.
 	var skillsForwardAuthHandler *routes.ForwardAuthHandler
+	// M26 — o BFF de leitura do registro para o dashboard, cliente SEPARADO do ForwardAuth e com
+	// credencial cunhada apenas com `skills:read` (ver `skills_dashboard_wiring.go`).
+	var skillsDashboardHandler *routes.SkillsDashboardHandler
 	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
 	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
 	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
@@ -625,6 +643,15 @@ func main() {
 			logger,
 		)
 		logger.Info("theo-skills Model B broker wired", "base_url", cfg.SkillsBaseURL)
+
+		// M26 — o caminho de LEITURA do dashboard. Cliente próprio, com um resolver que cunha
+		// somente `skills:read`: a separação entre este cliente e o do ForwardAuth É o mecanismo
+		// de menor privilégio, não organização de arquivo. `skills:publish` — o escopo que
+		// promove um canal e redireciona seus consumidores sem redeploy — nunca entra aqui.
+		skillsDataClient := skills.NewDataClient(cfg.SkillsBaseURL, &http.Client{Timeout: 15 * time.Second}).
+			WithKeyResolver(newSkillsDashboardKeyResolver(skillsBroker))
+		skillsDashboardHandler = routes.NewSkillsDashboardHandler(skillsDataClient, logger)
+		logger.Info("dashboard skills enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/skills")
 	}
 
 	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
@@ -1367,6 +1394,17 @@ func main() {
 	}
 	if trustGuardrailsHandler != nil {
 		routes.MountTrustGuardrails(r, trustGuardrailsHandler, requireJWT)
+	}
+	// M25 — catálogo de prompts, revisões e promoção de label. Mesmo gate dos demais: montado só
+	// quando o broker existe.
+	if promptlyDashboardHandler != nil {
+		routes.MountPromptlyDashboard(r, promptlyDashboardHandler, requireJWT)
+	}
+	// M26 — registro de skills (leitura). Mesmo gate dos demais: sem broker não há cunhagem por
+	// inquilino, e sem ela a rota não deve existir. Montá-la assim mesmo daria 502 a toda
+	// requisição — uma capacidade que parece implantada e não está.
+	if skillsDashboardHandler != nil {
+		routes.MountSkillsDashboard(r, skillsDashboardHandler, requireJWT)
 	}
 	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
 	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even

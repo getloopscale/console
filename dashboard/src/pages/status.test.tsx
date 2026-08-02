@@ -95,7 +95,7 @@ describe('StatusPage', () => {
     render(<StatusPage />);
 
     const row = await screen.findByTestId('service-row-theo-storage');
-    expect(row).toHaveTextContent(/not deployed/i);
+    expect(row).toHaveTextContent(/not configured/i);
     expect(row).not.toHaveTextContent(/unreachable|error|failed/i);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });

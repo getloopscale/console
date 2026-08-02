@@ -6,6 +6,7 @@ import {
   BookOpen,
   Boxes,
   Brain,
+  FileText,
   FlaskConical,
   FolderKanban,
   FolderTree,
@@ -88,7 +89,9 @@ export interface MenuDefinition {
  *   1. Add the menu definition here (id, groups, parent='main')
  *   2. Mark the parent item with `drillsInto: '<id>'`
  *   3. Add route patterns in app.tsx so `/<base>/*` resolves
- *   4. (Optional) Extend resolveActiveMenu() if the URL pattern is custom
+ *   4. Extend resolveActiveMenu() — MANDATORY for any capability with its own base
+ *      path. Skip it and the submenu exists in full but NEVER opens: only a typed URL
+ *      reaches it, which is the one path a real user does not have (cost M24).
  */
 export const MENUS: Record<string, MenuDefinition> = {
   main: {
@@ -118,6 +121,17 @@ export const MENUS: Record<string, MenuDefinition> = {
           // M23 — a capacidade trust. Sem esta entrada as rotas /trust existem e ninguém as
           // alcança pela navegação: o serviço registrava violações que só apareciam por `curl`.
           { label: 'Trust', path: '/trust', icon: ShieldCheck, drillsInto: 'trust' },
+          // M26 — PEÇA 1 de 3. A capacidade skills. Até aqui o único item chamado "Skills" no
+          // menu inteiro era o de `/memory/skills`, que é do theo-memory: quem procurava o
+          // registro chegava no produto errado, sem erro algum. As outras duas peças são o
+          // objeto `skills:` abaixo e a linha em `resolveActiveMenu` — as três, ou nenhuma.
+          { label: 'Skills', path: '/skills', icon: Boxes, drillsInto: 'skills' },
+          // M25 — PEÇA 1 de 3. A capacidade de prompts. O serviço está no ar desde sempre e a
+          // promessa dele — promover uma revisão entre ambientes sem redeploy — só existia por
+          // `curl`, SDK ou MCP: não havia entrada alguma no menu para quem opera. As outras duas
+          // peças são o objeto `promptly:` abaixo e a linha em `resolveActiveMenu` — as três, ou
+          // nenhuma.
+          { label: 'Prompts', path: '/promptly', icon: FileText, drillsInto: 'promptly' },
         ],
       },
       {
@@ -245,6 +259,36 @@ export const MENUS: Record<string, MenuDefinition> = {
       },
     ],
   },
+  // M26 — PEÇA 2 de 3. O submenu da capacidade skills.
+  //
+  // Um item só, e isso é honesto e não preguiça: as outras duas telas da jornada — o detalhe e
+  // as versões/canais — são POR SKILL, alcançadas a partir da lista. Inventar entradas de menu
+  // para elas exigiria um identificador que o menu não tem, e o item levaria a lugar nenhum.
+  skills: {
+    id: 'skills',
+    title: 'Skills',
+    parent: 'main',
+    groups: [
+      {
+        items: [{ label: 'Overview', path: '/skills', icon: LayoutGrid }],
+      },
+    ],
+  },
+  // M25 — PEÇA 2 de 3. O submenu da capacidade de prompts.
+  //
+  // Um item só, pela mesma razão do `skills:` acima: a outra tela da jornada — o detalhe, onde a
+  // promoção acontece — é POR PROMPT, alcançada a partir da lista. Uma entrada de menu para ela
+  // exigiria um nome que o menu não tem, e levaria a lugar nenhum.
+  promptly: {
+    id: 'promptly',
+    title: 'Prompts',
+    parent: 'main',
+    groups: [
+      {
+        items: [{ label: 'Overview', path: '/promptly', icon: LayoutGrid }],
+      },
+    ],
+  },
   memory: {
     id: 'memory',
     title: 'Memory',
@@ -333,6 +377,14 @@ export function resolveActiveMenu(pathname: string): ResolvedMenu {
   // Guardrails e Enforcement só eram alcançáveis digitando a URL. Declarar o submenu não basta;
   // é aqui que a rota o ativa, e as duas metades vivem a 200 linhas uma da outra.
   if (pathname.startsWith('/trust')) return { id: 'trust' };
+  // M26 — PEÇA 3 de 3, a que ninguém lembra e a que faz o menu ABRIR. Sem esta linha o submenu
+  // `skills` existe inteiro e nunca aparece: as telas ficam alcançáveis só digitando a URL, que
+  // é o único caminho que o usuário real não tem. Foi exatamente esta omissão que custou o M23.
+  if (pathname.startsWith('/skills')) return { id: 'skills' };
+  // M25 — PEÇA 3 de 3, a que ninguém lembra e a que faz o menu ABRIR. Sem esta linha o submenu
+  // `promptly` existe inteiro e nunca aparece: o catálogo e o detalhe ficam alcançáveis só
+  // digitando a URL — o único caminho que o usuário real não tem. Mesma omissão que custou o M23.
+  if (pathname.startsWith('/promptly')) return { id: 'promptly' };
   return { id: 'main' };
 }
 

@@ -48,7 +48,7 @@ describe('SystemStatusIndicator', () => {
     // EC-4: the label lives on the status region INSIDE the link, not on the link.
     const region = within(indicator).getByRole('status');
     expect(region.getAttribute('aria-label')).not.toMatch(/0\.35\.0/);
-    expect(region.getAttribute('aria-label')).toBe('System status: 1 operational, 1 unreachable, 0 not deployed');
+    expect(region.getAttribute('aria-label')).toBe('System status: 1 operational, 1 unreachable, 0 not configured');
   });
 
   it('shows Operational when every probed service is ok and one is merely not_deployed', async () => {
@@ -74,7 +74,7 @@ describe('SystemStatusIndicator', () => {
 
     const region = await screen.findByRole('status');
     await waitFor(() =>
-      expect(region.getAttribute('aria-label')).toBe('System status: 0 operational, 0 unreachable, 2 not deployed'),
+      expect(region.getAttribute('aria-label')).toBe('System status: 0 operational, 0 unreachable, 2 not configured'),
     );
     const indicator = screen.getByTestId('system-status-indicator');
     expect(indicator).not.toHaveTextContent(/operational/i);
@@ -109,7 +109,7 @@ describe('SystemStatusIndicator', () => {
     const region = await screen.findByRole('status');
     await waitFor(() => expect(region.getAttribute('aria-label')).toMatch(/unavailable/i));
     // Three zeros produced by a request that never landed read as a measurement.
-    expect(region.getAttribute('aria-label')).not.toBe('System status: 0 operational, 0 unreachable, 0 not deployed');
+    expect(region.getAttribute('aria-label')).not.toBe('System status: 0 operational, 0 unreachable, 0 not configured');
   });
 
   it('treats a rejected query the same as an unreadable one', async () => {
@@ -159,7 +159,7 @@ describe('SystemStatusIndicator', () => {
 
     const region = await screen.findByRole('status');
     await waitFor(() =>
-      expect(region.getAttribute('aria-label')).toBe('System status: 1 operational, 0 unreachable, 0 not deployed'),
+      expect(region.getAttribute('aria-label')).toBe('System status: 1 operational, 0 unreachable, 0 not configured'),
     );
     expect(region.getAttribute('aria-label')).not.toBe('System status: all systems operational');
   });
