@@ -185,6 +185,32 @@ Historical journey-delivery plans + baselines remain in the engine's
 
 ---
 
+## Sondas: `/health` e `/ready` NÃO são intercambiáveis
+
+Duas rotas, duas perguntas, **consequências opostas**. Fiar a errada reintroduz o defeito que o
+`#339` corrigiu.
+
+| rota | pergunta | reprovada significa | onde fiar |
+|---|---|---|---|
+| `/health` | "o processo está vivo?" | **mata o processo** | `livenessProbe`, autoheal |
+| `/ready` | "consigo atender agora?" | **tira do tráfego** | `readinessProbe`, `depends_on: service_healthy`, `--wait`, roteamento |
+
+`/health` **nunca** reprova por falha de dependência, de propósito: reiniciar não conserta um banco
+fora, e um `livenessProbe` sensível a dependência derruba o serviço a cada oscilação do Postgres
+(LT-038 do theo-trust). O estado do banco vai no **corpo** de ambas — informação para quem
+investiga, não gatilho para matar o processo.
+
+`/ready` devolve **503** quando a dependência não serve. É a que `depends_on: service_healthy` e
+`docker compose --wait` querem.
+
+Ambas **reportam** as integrações desligadas por falta de configuração, e **nenhuma** reprova por
+causa delas: são opcionais por ambiente, e reprovar derrubaria o serviço em toda topologia que não
+as configura. Visibilidade se entrega no corpo, não no status.
+
+> Apontar `livenessProbe` para `/ready` é o erro que este contrato existe para impedir.
+
+---
+
 ## Invariants
 
 - **Imports nothing engine-internal** — `go list -deps ./... | grep usetheodev/theo/` shows
