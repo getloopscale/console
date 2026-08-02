@@ -97,6 +97,35 @@ function registerSkillsRoutes(base: string) {
     Response.json({ channels: skillsDb.channels[params.skillId] ?? [] }),
   );
 
+  // A promoção MUTA o estado do mock, de propósito. Um mock que aceitasse o PUT e devolvesse
+  // sempre a mesma lista de canais deixaria passar exatamente o defeito que importa: a tela não
+  // refletir o que o operador acabou de fazer. A jornada que o e2e prova é
+  // promover → o canal passar a servir a revisão nova.
+  registerRoute('PUT', `${base}/{skillId}/channels/{channel}`, async (req, params) => {
+    const body = (await req.json().catch(() => null)) as { revision_id?: unknown } | null;
+    const revisionId = typeof body?.revision_id === 'string' ? body.revision_id : '';
+    if (revisionId === '') {
+      return Response.json({ code: 'INVALID_REQUEST', message: 'informe a revisão' }, { status: 400 });
+    }
+    const lista = skillsDb.channels[params.skillId] ?? [];
+    const atual = lista.find((c) => c.channel === params.channel);
+    if (atual) {
+      // `previous_revision_id` passa a ser o que saiu — é o dado que a confirmação seguinte usa
+      // para dizer o que deixou de valer.
+      skillsDb.channels[params.skillId] = lista.map((c) =>
+        c.channel === params.channel
+          ? { channel: c.channel, revision_id: revisionId, previous_revision_id: c.revision_id }
+          : c,
+      );
+    } else {
+      skillsDb.channels[params.skillId] = [
+        ...lista,
+        { channel: params.channel, revision_id: revisionId, previous_revision_id: null },
+      ];
+    }
+    return Response.json({ skill_id: params.skillId, channel: params.channel, revision_id: revisionId });
+  });
+
   registerRoute('GET', `${base}/{skillId}/instructions`, async (_req, params) => {
     const found = skillsDb.instructions[params.skillId];
     if (found) return Response.json(found);

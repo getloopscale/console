@@ -39,6 +39,23 @@ const (
 	// StateNotDeployed means the target has no base URL configured, so nothing
 	// was measured. It is a declared absence, not a failure.
 	StateNotDeployed State = "not_deployed"
+	// StateNoProvenance means the target ANSWERED with a well-formed payload that
+	// declares it does not know its own build — the sentinels the contract tells it
+	// to emit (`dev` for version, `unknown` for the rest —
+	// docs/service-version-endpoint.md).
+	//
+	// Separado de StateUnreachable pelo mesmo motivo que o #345 separou o 401: o alvo
+	// respondeu, entao a pilha dele esta DE PE, e chama-lo de inalcancavel e uma
+	// afirmacao falsa sobre um servico saudavel. Separado de StateOK porque um `ok`
+	// cujo unico conteudo e "nao sei minha versao" afirma uma medicao que nao houve —
+	// e o painel existe para mostrar versao.
+	//
+	// Medido: o theo-rag responde `{"version":"dev","git_sha":"unknown",...}` — forma
+	// completa, proveniencia nenhuma. O gateway MCP responde `{"version":
+	// "develop-6d0db8d",...}` — forma parcial, proveniencia real. Colapsar os dois
+	// casos e o que produzia o rotulo mentiroso; a causa de um esta na camada de
+	// deploy e a do outro nao existe.
+	StateNoProvenance State = "no_provenance"
 )
 
 // unknownSentinel is the literal the targets emit when they do not know their
@@ -79,17 +96,20 @@ type ServiceStatus struct {
 // version, so an empty or sentinel version degrades to unreachable rather than
 // producing a successful variant with nothing to show (ADR D8).
 func OK(name, version, builtAt string, at time.Time) ServiceStatus {
-	// Duas causas distintas chegam aqui com a mesma consequencia e razoes DIFERENTES.
-	// O sentinela `unknown` e' o que o contrato manda o alvo emitir quando o deploy nao
-	// injetou proveniencia — payload bem formado, servico honesto, falha da camada de
-	// deploy. Reportar isso como `malformed payload` mandaria depurar o servico certo
-	// pelo motivo errado.
-	if version == unknownSentinel {
-		return Unreachable(name, reasonNoProvenance, at)
-	}
+	// TRES casos, tres saidas. Colapsar quaisquer dois produz um rotulo que manda o
+	// operador procurar no lugar errado.
+	//
+	// (1) sem versao alguma -> o payload nao deu o que consumir: defeito do SERVICO.
 	if version == "" {
 		return Unreachable(name, reasonMalformedPayload, at)
 	}
+	// (2) sentinela declarado -> o alvo respondeu e foi honesto ao dizer que nao sabe
+	//     sua build: defeito da camada de DEPLOY, que nao injetou proveniencia.
+	if isProvenanceSentinel(version) {
+		return NoProvenance(name, reasonNoProvenance, at)
+	}
+	// (3) versao real -> ok, mesmo que a FORMA seja parcial. Campo que este probe nao
+	//     consome (name/git_sha/node) nunca derruba o veredito.
 	return ServiceStatus{
 		name:      name,
 		state:     StateOK,
@@ -104,6 +124,26 @@ func OK(name, version, builtAt string, at time.Time) ServiceStatus {
 // host and port into the browser (R5).
 func Unreachable(name, reason string, at time.Time) ServiceStatus {
 	return ServiceStatus{name: name, state: StateUnreachable, checkedAt: at, reason: reason}
+}
+
+// devSentinel is the OTHER literal the contract declares — the fallback a target
+// emits for `version` when it does not know it (docs/service-version-endpoint.md).
+// `unknownSentinel` covers git_sha/built_at; this one covers version, and missing it
+// is what let theo-rag report `ok` while saying it had no version.
+const devSentinel = "dev"
+
+// isProvenanceSentinel answers whether the target declared, in the contract's own
+// vocabulary, that it does not know its build. It is a CLOSED set on purpose: any
+// heuristic ("looks like a placeholder") would eventually demote a real version.
+func isProvenanceSentinel(version string) bool {
+	return version == unknownSentinel || version == devSentinel
+}
+
+// NoProvenance reports that name answered with a well-formed payload declaring it
+// does not know its own build. The target is UP; what is missing is the provenance
+// the deploy layer should have injected.
+func NoProvenance(name, reason string, at time.Time) ServiceStatus {
+	return ServiceStatus{name: name, state: StateNoProvenance, checkedAt: at, reason: reason}
 }
 
 // Unauthorized reports that name answered but refused the probe (401/403). NAO e degradacao: e

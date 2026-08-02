@@ -165,6 +165,18 @@ function stateCell(s: ServiceStatus) {
           </span>
         </span>
       );
+    // O alvo respondeu bem formado e declarou nao saber a propria build. Nao usa o
+    // visual de falha (a pilha esta de pe) nem o de saude (nao houve medicao de versao);
+    // a razao aparece porque ela diz ONDE procurar — a camada de deploy, nao o servico.
+    case 'no_provenance':
+      return (
+        <span className="flex items-center gap-2">
+          <Badge variant="outline">no provenance</Badge>
+          <span className="text-muted-foreground">
+            service reports no version ({s.reason})
+          </span>
+        </span>
+      );
     // #345 — o alvo RESPONDEU e recusou a sondagem. Nao e degradacao (a pilha esta de pe), entao
     // nao usa o visual de falha; mas tambem nao e saude, entao a razao aparece: e a configuracao
     // que falta, e escondê-la era o que fazia o indicador ficar vermelho sem dizer por que.
