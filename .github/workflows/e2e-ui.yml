@@ -44,7 +44,15 @@
 #   • `journeys` (2/8) — **redesenho de produto, e o único que NÃO é mecânico.** `view logs` e
 #     `rollback to here` não existem mais; a tela de deploy hoje oferece Redeploy / Build / Sign /
 #     Release (M15–M19). Reescrever exige DECIDIR qual é a jornada canônica — decisão de produto.
-#   • `dashboard-m12-fase-a-bundle-grep-migration` (3/22) — ainda não classificado.
+#   • `dashboard-m12-fase-a-bundle-grep-migration` (3/22) — os 19 casos de DOM passam; os 3
+#     vermelhos são **baselines de screenshot desatualizadas por redesenho**. Comparadas as
+#     imagens (não deduzido): a baseline é de **tema claro com o logotipo antigo**, e o produto
+#     hoje renderiza **tema escuro com o logotipo novo** — daí 99% dos pixels diferentes, que é
+#     redesenho, não regressão. Regravar é `--update-snapshots`, MAS não é mecânico por dois
+#     motivos: (a) aceita-se o visual atual como canônico, e isso é decisão de produto; (b)
+#     baseline gravada nesta máquina pode não bater no runner — fontes e rasterização diferem —,
+#     então uma regravação local arrisca um check que passa aqui e falha no CI, que é o pior
+#     resultado possível para um teste de imagem. Regravar **no runner** é o caminho correto.
 #
 # CORREÇÃO DE UMA AFIRMAÇÃO ANTERIOR DESTE CABEÇALHO: ele dizia haver "um caso em `deploy-timeline`".
 # **Falso hoje** — mede 10/10 verde, isolado (3 execuções) e dentro da suíte inteira. Não foi
