@@ -50,7 +50,12 @@ test.describe('TheoCloud dashboard — 6 critical journeys', () => {
   test('journey 4: billing transparency', async ({ page }) => {
     await page.goto('/billing');
     await expect(page.getByRole('heading', { name: /billing/i })).toBeVisible();
-    await expect(page.getByText(/pro/i)).toBeVisible();
+    // A asserção nomeia a OFERTA, não a substring `pro`.
+    //
+    // `getByText(/pro/i)` casava cinco elementos — incluindo os itens de menu `Projects`,
+    // `Prompts` e `Profile`. Num teste de faturamento, isso passaria com a tela inteira quebrada
+    // desde que a barra lateral existisse: a asserção não afirmava nada sobre faturamento.
+    await expect(page.getByRole('button', { name: /upgrade to pro/i })).toBeVisible();
   });
 
   test('journey 5: team management — invite dialog', async ({ page }) => {
@@ -68,7 +73,10 @@ test.describe('TheoCloud dashboard — 6 critical journeys', () => {
 
     await page.getByRole('button', { name: /add secret/i }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByLabel(/key/i)).toBeVisible();
+    // O campo do DIÁLOGO, por papel e nome — não `/key/i`, que casava sete elementos: os valores
+    // mascarados e os botões de rotacionar/remover dos segredos JÁ existentes na lista atrás do
+    // diálogo. O teste passaria sem o diálogo ter campo algum.
+    await expect(page.getByRole('dialog').getByRole('textbox', { name: 'Key' })).toBeVisible();
   });
 });
 

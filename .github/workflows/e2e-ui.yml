@@ -81,7 +81,8 @@ jobs:
             e2e/device-verify.spec.ts \
             e2e/device-success.spec.ts \
             e2e/verification.spec.ts \
-            e2e/knowledge-base.spec.ts
+            e2e/knowledge-base.spec.ts \
+            e2e/a11y.spec.ts
 
       # O relatório só interessa quando algo falha; guardá-lo sempre encheria o storage do repo
       # com artefatos de runs verdes que ninguém abre.
