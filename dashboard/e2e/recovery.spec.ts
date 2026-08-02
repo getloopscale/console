@@ -21,6 +21,28 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('J-04 Recovery — dogfood Cenários B + F (DOM-driven)', () => {
+  /**
+   * A PREMISSA DESTE ARQUIVO É "VISITANTE SEM SESSÃO", e até 2026-08-02 ela nunca foi
+   * estabelecida.
+   *
+   * Os três casos falhavam procurando o campo de e-mail. Não era defeito de produto: com uma
+   * sessão ativa, `/recovery` mostra de propósito *"You're already signed in"* e dois botões, e
+   * essa tela existe por um achado de Red Team (`theo-cloud#54`) — antes havia um desvio
+   * silencioso para `/`, que fazia o "Forgot password?" parecer quebrado. O dublê autentica por
+   * padrão, então o teste pedia o formulário de recuperação a uma tela que, corretamente, não o
+   * oferece.
+   *
+   * A alavanca já existia e é a mesma que o `login.spec.ts` usa: `__THEO_MOCK_LOGGED_OUT`,
+   * plantado por `addInitScript` — que roda ANTES de qualquer script da aplicação, então a
+   * bandeira já está visível na primeira vez que `getSession()` a consulta. Um `page.evaluate`
+   * depois do `goto` chegaria tarde: a verificação de sessão acontece na montagem.
+   */
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
+    });
+  });
+
   // ────────────────────────────────────────────────────────────────────────
   // Cenário B — OIDC educational link autofocus on /login?provider=
   // ────────────────────────────────────────────────────────────────────────
@@ -122,7 +144,18 @@ test.describe('J-04 Recovery — dogfood Cenários B + F (DOM-driven)', () => {
     let secondSubmitBody: Record<string, string> | null = null;
     let submitCount = 0;
 
-    await page.route(/\/self-service\/recovery\?flow=rec-flow-1/, async (route) => {
+    // O ALVO DO POST É A PRÓPRIA URL DA PÁGINA, e isso foi MEDIDO, não deduzido.
+    //
+    // Sob `VITE_USE_MOCKS=true` o flow não vem da rede: a camada de dublê o entrega com
+    // `ui.action = '#mock-submit-recovery'`, um sentinela. `submitFlow` faz `fetch(action)` sem
+    // ramo para mocks, e o navegador resolve um fragmento contra o documento atual — então o
+    // POST sai para `/recovery?flow=rec-flow-1`. O padrão anterior (`/self-service/recovery?…`)
+    // nunca casava, o pedido escapava para o servidor de desenvolvimento, voltava HTML, e o
+    // `resp.json()` estourava. O botão "Retry" aparecia por esse erro, e não pelo erro que o
+    // teste queria simular — então a asserção sobre o corpo media `undefined` para sempre.
+    //
+    // Interceptar o que a aplicação FAZ, não o que o teste gostaria que ela fizesse.
+    await page.route(/\/recovery\?flow=rec-flow-1/, async (route) => {
       if (route.request().method() === 'POST') {
         // Playwright postDataJSON returns parsed JSON if content-type is JSON
         let body: Record<string, string> = {};

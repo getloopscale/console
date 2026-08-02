@@ -30,11 +30,17 @@
 # de 87 casos em 17 arquivos. Os seis, com a CAUSA de cada um — porque a causa decide quem pode
 # consertar:
 #
-#   • `recovery` (3/3) — **premissa de estado não estabelecida.** O teste pressupõe usuário
-#     DESLOGADO; com a sessão dos mocks, `/recovery` oferece "Sign out and continue" e nenhum campo.
-#     O produto está certo; o teste é que nunca estabelece sua premissa. Consertável no teste.
-#   • `project-connect` (1/4) — **premissa de fixture.** O projeto do cenário já está `Connected`,
-#     então o caminho de instalar o app nunca é oferecido. Consertável no teste.
+#   • `project-connect` (1 verde · 1 vermelho · 2 PULADOS) — o arquivo é `mode: 'serial'`, e isso
+#     mudou a leitura: enquanto o Cenário 1 falhava, os outros três eram **pulados, nunca
+#     executados**. Uma contagem que trate "pulado" como "não-falhou" reporta 3 verdes que não
+#     existem — foi o erro da primeira classificação deste cabeçalho, corrigido por medição
+#     (`--reporter=json`, contando `skipped` à parte). O Cenário 1 está consertado e é real: o
+#     projeto do cenário não existia em fixture algum (`demo`), então o guard renderizava "Project
+#     not found" e o botão de instalar era procurado numa tela que nunca foi a de conexão; hoje usa
+#     `acme-ml-pipeline`, o único que o dublê devolve como `connected: false`. O Cenário 2 falha por
+#     outra razão, mais funda: ele intercepta `/engine/api/v1/projects/*/connect` pela REDE, e sob
+#     `VITE_USE_MOCKS=true` essa rota é servida **em processo** pela camada de dublê — o
+#     `page.route` nunca dispara. Os Cenários 2–4 precisam de outra alavanca, não de outro fixture.
 #   • `journeys` (2/8) — **redesenho de produto, e o único que NÃO é mecânico.** `view logs` e
 #     `rollback to here` não existem mais; a tela de deploy hoje oferece Redeploy / Build / Sign /
 #     Release (M15–M19). Reescrever exige DECIDIR qual é a jornada canônica — decisão de produto.
@@ -63,6 +69,12 @@
 #   • `j10-environments` — apontava para `/environments`, retirado no M20 (hoje redirect); a tela
 #     vive em `/projects/:name/environments`. O dublê também era anterior ao M20: sem o campo
 #     `project`, as três entradas caíam no filtro e a tela renderizava vazia com 200 em tudo.
+#   • `recovery` — a premissa "visitante sem sessão" nunca era estabelecida. O produto está certo:
+#     com sessão ativa, `/recovery` mostra de propósito "You're already signed in" (fecho de Red
+#     Team, `theo-cloud#54`). A alavanca `__THEO_MOCK_LOGGED_OUT` já existia e é a mesma do
+#     `login.spec.ts`. Um terceiro caso falhava por outro motivo, também medido: sob mocks o
+#     `ui.action` é o sentinela `#mock-submit-recovery`, que o `fetch` resolve contra o documento
+#     atual — o POST sai para a própria URL da página, não para `/self-service/recovery`.
 name: e2e-ui
 
 on:
@@ -119,7 +131,8 @@ jobs:
             e2e/a11y.spec.ts \
             e2e/deploy-timeline.spec.ts \
             e2e/observability-screens.spec.ts \
-            e2e/j10-environments.spec.ts
+            e2e/j10-environments.spec.ts \
+            e2e/recovery.spec.ts
 
       # O relatório só interessa quando algo falha; guardá-lo sempre encheria o storage do repo
       # com artefatos de runs verdes que ninguém abre.

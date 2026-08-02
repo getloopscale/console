@@ -12,7 +12,19 @@
 
 import { expect, test } from '@playwright/test';
 
-const PROJECT = 'demo';
+/**
+ * O PROJETO PRECISA EXISTIR **E** ESTAR DESCONECTADO — a premissa deste arquivo.
+ *
+ * Era `'demo'`, que não existe em fixture nenhum: o `ProjectGuard` renderizava
+ * *"Project not found"* e o Cenário 1 procurava o botão de instalar numa tela que nunca foi a
+ * de conexão. Os outros três casos não notaram porque **substituem** a chamada de conexão por
+ * um dublê próprio — o único que depende do estado real do fixture é justamente o que falhava.
+ *
+ * `acme-ml-pipeline` é o projeto que `makeProjectConnection` devolve como `{ connected: false }`
+ * (`src/lib/mocks/fixtures.ts`). Ele existe, então o guard deixa a tela montar, e está
+ * desconectado, então a tela oferece instalar. Escolhido por medição, não por parecer plausível.
+ */
+const PROJECT = 'acme-ml-pipeline';
 const CONNECT_PATH = `/projects/${PROJECT}/connect`;
 
 // JWT_COOKIE is a no-op session cookie that keeps useRequireAuth from
