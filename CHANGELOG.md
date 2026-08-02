@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Added
+- Roadmap amended: added M25 Operar prompts pelo dashboard (catálogo, revisões, promoção de label) (`/roadmap-feature theo-cloud-promptly-dashboard`)
 - **theo-skills UI (M29):** recusa tipada do registro (`422 INVALID_FRONTMATTER`, `409 CONFLICT`) chega ao operador com o motivo, em vez de virar `502` generico (#M29)
 - O operador passa a **criar e remover as próprias guardrails pelo dashboard**, em `/trust/guardrails`. O catálogo mostra junto o que é herdado da plataforma e o que foi criado no workspace — e o que é herdado não oferece remoção, porque não pertence a quem opera. Criar exige **testar antes**: a tela só mostra o caminho de salvar depois de um teste da regra exata que será gravada; mudar a regra depois do teste retira o caminho de novo. Recusa do serviço chega com a frase do serviço, que diz qual campo corrigir — nunca "ocorreu um erro". Remover pede a confirmação digitada, porque desliga uma proteção ativa (#roadmap-m24)
 - `/trust/enforcement` mostra o que a proteção de fato barrou — decisão, guardrail, categoria e o trecho já redigido pelo serviço. Fecha o ciclo entre configurar uma regra e ver o efeito dela (#roadmap-m24)

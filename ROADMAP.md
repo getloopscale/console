@@ -778,6 +778,57 @@ milestone reimplementaria a mesma camada.
 | Editar um validator existente (PUT) | O serviço não expõe update — só create/delete. Adicionar o verbo é decisão do `theo-trust` | `theo-trust` |
 | Superfície de temas (`GET /v1/themes`) | Nenhum caso de uso pediu; entra quando houver | não planejado |
 
+### M25 — [ ] Operar prompts pelo dashboard (catálogo, revisões, promoção de label)
+
+> Added 2026-08-02 by `/roadmap-feature` (slug: `theo-cloud-promptly-dashboard`).
+> See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-promptly-dashboard-feature-grill.md`.
+
+**Objetivo:** dar ao operador a superfície mínima para **descobrir** quais prompts existem no seu
+tenant, **inspecionar** as revisões e os labels de ambiente de um deles, e **promover** um label
+para outra revisão — fechando o ciclo entre versionar um prompt e decidir qual versão serve
+produção.
+
+**Gatilho:** `dashboard/src/pages/` tem diretório para `lens`, `memory`, `rag` e `trust`; **não
+tem** para `promptly`. O serviço está no ar (`develop-43215ef`) e a promessa dele é *"promover
+revisões entre ambientes sem redeploy"* — mas o ato de promover só existe por `curl`, SDK ou MCP.
+Quem opera não tem superfície.
+
+**Definition of done:**
+
+- [ ] **Os endpoints que faltam existem no `theo-promptly` antes da tela** — derivados por medição, tela a tela, contra `develop=43215ef`: `GET /prompts` (catálogo) e `GET /prompts/:name/policies/:label` (a política que governa a promoção) respondem **404 hoje**. Verificável: os dois respondem `200` com corpo tipado, e o catálogo é **paginado e sem `content`** (`?limit` 1..500 com `400 invalid_limit` fora da faixa, cursor `?after`, header `Link; rel="next"` — o mesmo contrato que `/revisions` já cumpre).
+- [ ] Rotas BFF `GET /v1/dashboard/promptly/prompts`, `.../prompts/{name}`, `.../prompts/{name}/revisions`, `.../prompts/{name}/labels` e `PUT .../prompts/{name}/labels/{label}`, cada uma exigindo o escopo correspondente — `promptly:read` para ler, `promptly:write` para promover. Verificável: uma chave só de leitura recebe **403** no `PUT`, e o controle negativo é a mesma chave recebendo **200** num `GET`.
+- [ ] **Erro tipado do upstream chega à tela com a mensagem do serviço**, nunca como "erro genérico" — `internal/promptly/upstream_error.go`, espelhando `internal/trust/`. Verificável: uma promoção recusada pela política renderiza o texto do serviço, e não `502`.
+- [ ] Catálogo lista **sem renderizar corpo de prompt** e distingue **falha de leitura de ausência de dados** (`EmptyState` com título distinto — `DESIGN.md § 5`, `§ 6`). Verificável: com o upstream fora, a tela diz que a leitura falhou; com o tenant vazio, diz que não há prompts.
+- [ ] Detalhe pagina revisões **no servidor**, com `limit` pequeno e **explícito** — nunca o default de 100, porque cada item carrega `content` integral. Verificável: a requisição que a tela emite carrega `?limit=`.
+- [ ] **A promoção mostra a política vigente ANTES do ato** e confirma nomeando **qual revisão deixa de servir aquele label** — não "o item será alterado" (`DESIGN.md § 16`). Verificável: promover `prod` de `v4` para `v7` exibe "prod deixa de servir a v4" na confirmação.
+- [ ] Navegação nas **duas metades**: entrada em `Capabilities` com `drillsInto: 'promptly'`, o objeto do submenu, **e a linha em `resolveActiveMenu`**. Verificável: chega-se a cada tela **clicando a partir da raiz**, nunca digitando a URL.
+- [ ] Lógica de projeção e validação **fora do React**, testada sem browser; handlers de mock registrados; a jornada inteira coberta por **um** e2e (catálogo → detalhe → promover), contra a instância implantada.
+
+**Dependências:** M24 `[x]` — reusa o data client, o `upstream_error` e o padrão de tela que ele
+estabeleceu; sem ele este milestone reimplementaria a mesma camada.
+
+**Dependência cross-repo (bloqueante):** os dois endpoints do primeiro DoD vivem no
+`theo-promptly`, logo em outro plano (`umbrella-scope.md`: um `target_project` por plano). A UI
+**não começa** antes deles — uma tela de catálogo sem catálogo é meia tela, e o `DESIGN.md § 0`
+pede pequena e inteira.
+
+**Top risks (new):**
+
+1. **A tela move o ponteiro que serve produção.** Promover troca, sem redeploy, o prompt que agentes em execução resolvem — a promessa do produto é também o perigo dele. Um clique errado não derruba nada: muda comportamento em silêncio, que é pior de diagnosticar. *Mitigação:* a política vigente é exibida **antes** do ato (por isso o `GET` de políticas entra neste milestone, e não fica para depois), e a confirmação nomeia a revisão que deixa de servir o label.
+2. **O catálogo é o primeiro índice que este produto terá.** Um índice sem teto nasce com a dívida que o `#47` custou nas revisões. *Mitigação:* paginado e sem `content` desde o primeiro commit, com a mesma validação de fronteira que `/revisions` já cumpre.
+
+**Não entra neste milestone:**
+
+| Item | Por que fora | Destino |
+|---|---|---|
+| Editor de prompt em tempo real e **diff visual** entre revisões | O `ROADMAP.md` do `theo-promptly` exclui **UI rica/colaborativa** no V1. Este milestone entrega a **UI mínima** que a própria razão daquela exclusão prevê — a exclusão **não é revisada** | fora do V1 |
+| Criar/editar prompt pela tela | Escrita de conteúdo é outra classe de risco (revisões são imutáveis); a promoção já cobre o ato central | milestone futuro |
+| Rollback pela tela | `POST /rollback` exige `label` (M8 do produto) e move um ponteiro — merece a mesma confirmação, depois de a promoção estar provada | milestone futuro |
+| Datasets e evaluation runs | Exigem **dois** índices novos no `theo-promptly` (`GET /evaluations/datasets` e `/runs` — medidos 404); é outro milestone com outra dependência cross-repo | milestone futuro |
+| Auditoria como tela própria | `GET /audit` exige `?resource=` ou `?actor=` (medido `400 missing_filter`) — serve como aba de um detalhe, não como índice | aba, milestone futuro |
+
+---
+
 ---
 
 ## State-of-the-art references
