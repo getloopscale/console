@@ -159,6 +159,15 @@ const SkillDetailPage = lazy(() =>
 const SkillVersionsPage = lazy(() =>
   import('@/pages/skills/versions').then((m) => ({ default: m.SkillVersionsPage })),
 );
+// M25 — os prompts ganham superfície: catálogo → detalhe, onde a promoção de um label acontece.
+// As rotas só são alcançáveis por clique porque `resolveActiveMenu` reconhece `/promptly`;
+// declarar a rota aqui sem aquela linha entrega telas que ninguém encontra.
+const PromptlyOverviewPage = lazy(() =>
+  import('@/pages/promptly').then((m) => ({ default: m.PromptlyOverviewPage })),
+);
+const PromptDetailPage = lazy(() =>
+  import('@/pages/promptly/detail').then((m) => ({ default: m.PromptDetailPage })),
+);
 // M44 — lens management dashboard pages; M46 — Overview landing
 const LensOverviewPage = lazy(() =>
   import('@/pages/lens').then((m) => ({ default: m.LensOverviewPage })),
@@ -508,6 +517,8 @@ export default function App() {
                     <Route path="/skills" element={<Boundaried path="/skills"><SkillsOverviewPage /></Boundaried>} />
                     <Route path="/skills/:skillId" element={<Boundaried path="/skills/:skillId"><SkillDetailPage /></Boundaried>} />
                     <Route path="/skills/:skillId/versions" element={<Boundaried path="/skills/:skillId/versions"><SkillVersionsPage /></Boundaried>} />
+                    <Route path="/promptly" element={<Boundaried path="/promptly"><PromptlyOverviewPage /></Boundaried>} />
+                    <Route path="/promptly/:promptName" element={<Boundaried path="/promptly/:promptName"><PromptDetailPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />

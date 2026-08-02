@@ -6,6 +6,7 @@ import {
   BookOpen,
   Boxes,
   Brain,
+  FileText,
   FlaskConical,
   FolderKanban,
   FolderTree,
@@ -125,6 +126,12 @@ export const MENUS: Record<string, MenuDefinition> = {
           // registro chegava no produto errado, sem erro algum. As outras duas peças são o
           // objeto `skills:` abaixo e a linha em `resolveActiveMenu` — as três, ou nenhuma.
           { label: 'Skills', path: '/skills', icon: Boxes, drillsInto: 'skills' },
+          // M25 — PEÇA 1 de 3. A capacidade de prompts. O serviço está no ar desde sempre e a
+          // promessa dele — promover uma revisão entre ambientes sem redeploy — só existia por
+          // `curl`, SDK ou MCP: não havia entrada alguma no menu para quem opera. As outras duas
+          // peças são o objeto `promptly:` abaixo e a linha em `resolveActiveMenu` — as três, ou
+          // nenhuma.
+          { label: 'Prompts', path: '/promptly', icon: FileText, drillsInto: 'promptly' },
         ],
       },
       {
@@ -267,6 +274,21 @@ export const MENUS: Record<string, MenuDefinition> = {
       },
     ],
   },
+  // M25 — PEÇA 2 de 3. O submenu da capacidade de prompts.
+  //
+  // Um item só, pela mesma razão do `skills:` acima: a outra tela da jornada — o detalhe, onde a
+  // promoção acontece — é POR PROMPT, alcançada a partir da lista. Uma entrada de menu para ela
+  // exigiria um nome que o menu não tem, e levaria a lugar nenhum.
+  promptly: {
+    id: 'promptly',
+    title: 'Prompts',
+    parent: 'main',
+    groups: [
+      {
+        items: [{ label: 'Overview', path: '/promptly', icon: LayoutGrid }],
+      },
+    ],
+  },
   memory: {
     id: 'memory',
     title: 'Memory',
@@ -359,6 +381,10 @@ export function resolveActiveMenu(pathname: string): ResolvedMenu {
   // `skills` existe inteiro e nunca aparece: as telas ficam alcançáveis só digitando a URL, que
   // é o único caminho que o usuário real não tem. Foi exatamente esta omissão que custou o M23.
   if (pathname.startsWith('/skills')) return { id: 'skills' };
+  // M25 — PEÇA 3 de 3, a que ninguém lembra e a que faz o menu ABRIR. Sem esta linha o submenu
+  // `promptly` existe inteiro e nunca aparece: o catálogo e o detalhe ficam alcançáveis só
+  // digitando a URL — o único caminho que o usuário real não tem. Mesma omissão que custou o M23.
+  if (pathname.startsWith('/promptly')) return { id: 'promptly' };
   return { id: 'main' };
 }
 

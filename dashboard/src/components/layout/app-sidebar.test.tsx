@@ -127,6 +127,34 @@ describe('AppSidebar', () => {
     expect(screen.getByText('Overview')).toBeInTheDocument();
   });
 
+  it('M25 — a capacidade Prompts está na raiz e leva ao submenu por CLIQUE', () => {
+    // A peça 1. Sem ela o serviço continua no ar e invisível: promover uma revisão só existia
+    // por `curl`, SDK ou MCP. A asserção é sobre a RAIZ, porque é dali que o usuário parte.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/'] });
+
+    expect(screen.getByRole('button', { name: /^prompts$/i })).toBeInTheDocument();
+  });
+
+  it('M25 — uma rota /promptly abre o submenu promptly, e não a raiz', () => {
+    // A peça 3, a que falha em SILÊNCIO. A asserção é pela AUSÊNCIA dos itens que só a raiz tem:
+    // afirmar 'Overview' passaria COM E SEM a linha de resolução, porque 'Overview' também é item
+    // da raiz — foi esse o guard falso que a sessão vizinha corrigiu neste mesmo arquivo.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/promptly'] });
+
+    expect(screen.queryByText('Domains')).not.toBeInTheDocument();
+    expect(screen.queryByText('Projects')).not.toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+  });
+
+  it('M25 — o submenu promptly continua aberto no detalhe de um prompt', () => {
+    // O detalhe é POR PROMPT. Se a resolução casasse só o caminho exato, abrir um prompt fecharia
+    // o menu que levou até ele — e o operador perderia a navegação exatamente ao usá-la.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/promptly/saudacao'] });
+
+    expect(screen.queryByText('Domains')).not.toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+  });
+
   it('M26 — o submenu skills continua aberto nas rotas de uma skill', () => {
     // O detalhe e as versões são POR SKILL. Se a resolução casasse só o caminho exato, abrir uma
     // skill fecharia o menu que levou até ela — e o operador perderia a navegação ao usá-la.

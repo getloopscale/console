@@ -593,6 +593,9 @@ func main() {
 	// target to be a member of it, so a broker cannot use it to reach an arbitrary
 	// tenant.
 	var skillsForwardAuthHandler *routes.ForwardAuthHandler
+	// M26 — o BFF de leitura do registro para o dashboard, cliente SEPARADO do ForwardAuth e com
+	// credencial cunhada apenas com `skills:read` (ver `skills_dashboard_wiring.go`).
+	var skillsDashboardHandler *routes.SkillsDashboardHandler
 	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
 	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
 	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
@@ -629,6 +632,15 @@ func main() {
 			logger,
 		)
 		logger.Info("theo-skills Model B broker wired", "base_url", cfg.SkillsBaseURL)
+
+		// M26 — o caminho de LEITURA do dashboard. Cliente próprio, com um resolver que cunha
+		// somente `skills:read`: a separação entre este cliente e o do ForwardAuth É o mecanismo
+		// de menor privilégio, não organização de arquivo. `skills:publish` — o escopo que
+		// promove um canal e redireciona seus consumidores sem redeploy — nunca entra aqui.
+		skillsDataClient := skills.NewDataClient(cfg.SkillsBaseURL, &http.Client{Timeout: 15 * time.Second}).
+			WithKeyResolver(newSkillsDashboardKeyResolver(skillsBroker))
+		skillsDashboardHandler = routes.NewSkillsDashboardHandler(skillsDataClient, logger)
+		logger.Info("dashboard skills enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/skills")
 	}
 
 	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
@@ -1359,6 +1371,12 @@ func main() {
 	// quando o broker existe.
 	if promptlyDashboardHandler != nil {
 		routes.MountPromptlyDashboard(r, promptlyDashboardHandler, requireJWT)
+	}
+	// M26 — registro de skills (leitura). Mesmo gate dos demais: sem broker não há cunhagem por
+	// inquilino, e sem ela a rota não deve existir. Montá-la assim mesmo daria 502 a toda
+	// requisição — uma capacidade que parece implantada e não está.
+	if skillsDashboardHandler != nil {
+		routes.MountSkillsDashboard(r, skillsDashboardHandler, requireJWT)
 	}
 	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
 	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even
