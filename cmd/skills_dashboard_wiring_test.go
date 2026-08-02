@@ -95,3 +95,48 @@ func TestSkillsResolverPropagatesMinterFailure(t *testing.T) {
 		t.Errorf("erro = %q; esperado carregar a causa original", err.Error())
 	}
 }
+
+// O caminho de PROMOCAO cunha `skills:publish` — e o de leitura NAO o tem.
+//
+// Este par e a fronteira inteira: sao dois clientes com duas credenciais, e a diferenca entre eles
+// e o que impede o caminho de leitura de promover um canal mesmo que alguem registre por engano uma
+// rota mutante sobre ele. Asserir so um dos dois deixaria passar exatamente a inversao que importa.
+func TestSkillsPromotionResolverMintsPublishAndReadNeverDoes(t *testing.T) {
+	ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-alpha", AccountID: "acc-1"})
+
+	promo := &recordingSkillsMinter{}
+	if _, err := newSkillsPromotionKeyResolver(promo)(ctx); err != nil {
+		t.Fatalf("resolver de promocao: %v", err)
+	}
+	temPublish := false
+	for _, s := range promo.gotScopes {
+		if s == "skills:publish" {
+			temPublish = true
+		}
+	}
+	if !temPublish {
+		t.Errorf("promocao cunhou %v; precisa de skills:publish, senao a tela nao consegue promover", promo.gotScopes)
+	}
+
+	leitura := &recordingSkillsMinter{}
+	if _, err := newSkillsDashboardKeyResolver(leitura)(ctx); err != nil {
+		t.Fatalf("resolver de leitura: %v", err)
+	}
+	for _, s := range leitura.gotScopes {
+		if s == "skills:publish" {
+			t.Fatalf("a credencial de LEITURA carrega skills:publish (%v) — o caminho de leitura passa a poder promover um canal, que e a operacao mais perigosa do produto", leitura.gotScopes)
+		}
+	}
+}
+
+// Fail-closed tambem na mutacao, e ANTES da cunhagem.
+func TestSkillsPromotionResolverFailsClosedWithoutTenant(t *testing.T) {
+	m := &recordingSkillsMinter{}
+
+	if _, err := newSkillsPromotionKeyResolver(m)(context.Background()); err == nil {
+		t.Fatal("esperava erro; sem tenant autenticado nao pode haver chave de promocao")
+	}
+	if m.calls != 0 {
+		t.Errorf("minter chamado %d vez(es); fail-closed e ANTES da cunhagem", m.calls)
+	}
+}

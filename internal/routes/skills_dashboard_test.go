@@ -313,3 +313,124 @@ func (s *limitSpySkillsReader) List(ctx context.Context, limit int, cursor strin
 	*s.limit = limit
 	return s.stubSkillsReader.List(ctx, limit, cursor)
 }
+
+// ---- M26 T3.5 — o caminho de MUTACAO: promover canal -------------------------------------
+
+type stubSkillsPromoter struct {
+	seenTenant  []string
+	seenArgs    []string
+	err         error
+}
+
+func (s *stubSkillsPromoter) PromoteChannel(ctx context.Context, skillID, channel, revisionID string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seenTenant = append(s.seenTenant, skillsTestTenantOf(ctx))
+	s.seenArgs = append(s.seenArgs, skillID+"|"+channel+"|"+revisionID)
+	return json.RawMessage(`{"skill_id":"` + skillID + `","channel":"` + channel + `","revision_id":"` + revisionID + `"}`), nil
+}
+
+func mountPromoteForTest(t *testing.T, p skillsPromoter, tenant string) http.Handler {
+	t.Helper()
+	r := chi.NewRouter()
+	h := NewSkillsPromotionHandler(p, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	MountSkillsPromotion(r, h, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ctx := context.WithValue(req.Context(), skillsTestTenantKey{}, tenant)
+			next.ServeHTTP(w, req.WithContext(ctx))
+		})
+	})
+	return r
+}
+
+func putPromote(t *testing.T, h http.Handler, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+// A promocao chega ao registro com os TRES valores da rota e do corpo, e no tenant do contexto.
+func TestSkillsPromotion_promoveComOsValoresDaRequisicao(t *testing.T) {
+	p := &stubSkillsPromoter{}
+	h := mountPromoteForTest(t, p, "acme")
+
+	rec := putPromote(t, h, "/v1/dashboard/skills/sk_1/channels/stable", `{"revision_id":"rev_nova"}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperava 200, veio %d (%s)", rec.Code, rec.Body.String())
+	}
+	if len(p.seenArgs) != 1 || p.seenArgs[0] != "sk_1|stable|rev_nova" {
+		t.Fatalf("o registro foi chamado com %v", p.seenArgs)
+	}
+	if len(p.seenTenant) != 1 || p.seenTenant[0] != "acme" {
+		t.Fatalf("tenant = %v; esperado o do contexto", p.seenTenant)
+	}
+}
+
+// `revision_id` ausente ou vazio e RECUSADO NA FRONTEIRA, sem chegar ao registro.
+//
+// Sem esta guarda o BFF encaminharia um corpo invalido e devolveria o 400 do upstream — o mesmo
+// resultado aparente, mas gastando uma requisicao e um mint de credencial por erro de cliente.
+func TestSkillsPromotion_revisionIdAusenteERecusadoNaFronteira(t *testing.T) {
+	for _, corpo := range []string{`{}`, `{"revision_id":""}`, `{"revision_id":"   "}`, `nao-e-json`} {
+		p := &stubSkillsPromoter{}
+		h := mountPromoteForTest(t, p, "acme")
+
+		rec := putPromote(t, h, "/v1/dashboard/skills/sk_1/channels/stable", corpo)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("corpo %q: esperava 400, veio %d", corpo, rec.Code)
+		}
+		if len(p.seenArgs) != 0 {
+			t.Errorf("corpo %q: chegou ao registro mesmo invalido: %v", corpo, p.seenArgs)
+		}
+	}
+}
+
+// A RECUSA POR ESCOPO chega a tela como 403 com o codigo do registro.
+//
+// E a metade que importa do par: se ela virasse 502, o operador leria "tente de novo" sobre algo
+// que nunca vai funcionar com aquela credencial.
+func TestSkillsPromotion_recusaPorEscopoChegaComo403(t *testing.T) {
+	p := &stubSkillsPromoter{err: &skills.UpstreamError{
+		Status: http.StatusForbidden,
+		Body:   json.RawMessage(`{"error":"forbidden","details":"scope skills:publish required"}`),
+		Method: http.MethodPut,
+		Path:   "/v1/skills/sk_1/channels/stable",
+	}}
+	h := mountPromoteForTest(t, p, "acme")
+
+	rec := putPromote(t, h, "/v1/dashboard/skills/sk_1/channels/stable", `{"revision_id":"rev_nova"}`)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("esperava 403 preservado, veio %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "skills:publish") {
+		t.Fatalf("o motivo da recusa nao chegou: %s", rec.Body.String())
+	}
+}
+
+// Sem principal, nenhuma MUTACAO acontece — e o registro nao e sequer consultado.
+func TestSkillsPromotion_semPrincipalNaoPromove(t *testing.T) {
+	p := &stubSkillsPromoter{}
+	r := chi.NewRouter()
+	h := NewSkillsPromotionHandler(p, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	MountSkillsPromotion(r, h, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		})
+	})
+
+	rec := putPromote(t, r, "/v1/dashboard/skills/sk_1/channels/stable", `{"revision_id":"rev_nova"}`)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("esperava 401, veio %d", rec.Code)
+	}
+	if len(p.seenArgs) != 0 {
+		t.Fatalf("promoveu sem principal: %v", p.seenArgs)
+	}
+}

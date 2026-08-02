@@ -33,6 +33,14 @@ import { test, expect, type Page } from '@playwright/test';
 async function navegarAteOAcervoPeloMenu(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: /^skills$/i }).click();
+
+  // ESPERA DETERMINÍSTICA entre os dois cliques, e ela não é zelo: `Overview` existe nos DOIS
+  // menus. Sem esperar o submenu abrir, sob carga o clique cai no `Overview` da RAIZ e navega
+  // para `/` — o teste falhava de forma intermitente, verde sozinho e vermelho em paralelo.
+  // `Back to TheoCloud` só existe dentro de um submenu, então é o sinal que distingue os dois
+  // estados. Um `waitForTimeout` aqui esconderia a corrida em vez de eliminá-la.
+  await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+
   await page.getByRole('button', { name: /^overview$/i }).click();
   await expect(page).toHaveURL(/\/skills$/);
 }
@@ -78,8 +86,60 @@ test.describe('M26 — navegar o registro de skills pelo dashboard', () => {
     // O canal aparece na linha da revisão que ele de fato serve — `stable` está em `rev_a`,
     // que é a `1.0.0`, e NÃO na versão mais nova. Uma projeção que casasse "canal com a última
     // versão" passaria num teste de presença e mentiria exatamente aqui.
-    await expect(linhas.filter({ hasText: '1.0.0' })).toContainText('stable');
-    await expect(linhas.filter({ hasText: '1.10.0' })).not.toContainText('stable');
+    //
+    // A asserção casa o EMBLEMA do canal por texto exato, e não a linha inteira: o botão de
+    // promover tem o rótulo "Promover para stable", então `toContainText('stable')` na linha
+    // passaria a casar o botão em vez do emblema — um teste que continuaria verde mesmo se a
+    // coluna de canais parasse de renderizar.
+    await expect(linhas.filter({ hasText: '1.0.0' }).getByText('stable', { exact: true })).toHaveCount(1);
+    await expect(linhas.filter({ hasText: '1.10.0' }).getByText('stable', { exact: true })).toHaveCount(0);
+  });
+
+  test('promover exige confirmação com frase digitada, e o texto diz o que deixa de valer', async ({
+    page,
+  }) => {
+    await navegarAteOAcervoPeloMenu(page);
+    await page.getByRole('link', { name: 'Revisar pull request' }).click();
+    await page.getByRole('link', { name: /ver versões e canais/i }).click();
+
+    // A linha JÁ servida pelo canal não tem botão — ausência, não botão desabilitado. Promover
+    // para onde já se está é um ato sem efeito que ainda assim pediria confirmação, e isso treina
+    // a confirmar sem ler.
+    const linhaServida = page.getByRole('row').filter({ hasText: '1.0.0' });
+    await expect(linhaServida.getByRole('button', { name: /promover/i })).toHaveCount(0);
+
+    // A candidata é a versão que canal nenhum serve.
+    const candidata = page.getByRole('row').filter({ hasText: '1.10.0' });
+    // O nome acessível inclui a versão (`Promover 1.10.0 para stable`) — o rótulo diz QUAL linha
+    // está sendo promovida, que é o ponto de acessibilidade da coluna.
+    await candidata.getByRole('button', { name: /promover 1\.10\.0 para stable/i }).click();
+
+    const dialog = page.getByRole('dialog');
+    // O texto NOMEIA a revisão que sai e a que entra — asserção sobre CONTEÚDO. "algum texto"
+    // passaria com "Tem certeza?", que é exatamente o que este diálogo existe para não ser.
+    await expect(dialog).toContainText('rev_d');
+    await expect(dialog).toContainText('rev_a');
+    await expect(dialog).toContainText('1.10.0');
+    // E NÃO afirma contagem de consumidores — o serviço não sabe esse número (DECISÃO 1, opção a).
+    await expect(dialog).not.toContainText(/\d+\s*consumidores/i);
+
+    // Sem a frase digitada, o botão não confirma. É o gate, não decoração.
+    const confirmar = dialog.getByRole('button', { name: /promover canal/i });
+    await expect(confirmar).toBeDisabled();
+
+    await dialog.getByRole('textbox').fill('stable');
+    await expect(confirmar).toBeEnabled();
+    await confirmar.click();
+
+    // O EFEITO, não o clique: o canal passa a aparecer na linha da versão promovida, e sai da
+    // linha antiga. Asserir "o diálogo fechou" deixaria passar uma promoção que não promoveu.
+    // Texto exato pela mesma razão de cima — o rótulo do botão contém a palavra `stable`.
+    await expect(
+      page.getByRole('row').filter({ hasText: '1.10.0' }).getByText('stable', { exact: true }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole('row').filter({ hasText: '1.0.0' }).getByText('stable', { exact: true }),
+    ).toHaveCount(0);
   });
 
   test('o submenu de skills continua aberto dentro de uma skill', async ({ page }) => {
