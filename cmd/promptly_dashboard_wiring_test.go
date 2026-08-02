@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheodev/theo-cloud/internal/promptly"
 )
 
 type recordingPromptlyMinter struct {
@@ -35,8 +37,11 @@ func TestPromptlyReadResolverMintsReadOnlyScope(t *testing.T) {
 	if _, err := newPromptlyDashboardKeyResolver(m)(ctx); err != nil {
 		t.Fatalf("resolver: %v", err)
 	}
-	if len(m.gotScopes) != 1 || m.gotScopes[0] != "prompt:read" {
-		t.Errorf("escopos cunhados = %v; esperado exatamente [prompt:read]", m.gotScopes)
+	// NAMESPACE DO CLOUD: é o que o broker entende. Este teste asseria `prompt:read` e
+	// por isso TRAVAVA o defeito do #366 — o dublê aceita qualquer coisa, então o teste
+	// passava exatamente com o valor que a produção recusa.
+	if len(m.gotScopes) != 1 || m.gotScopes[0] != "promptly:read" {
+		t.Errorf("escopos pedidos = %v; esperado exatamente [promptly:read]", m.gotScopes)
 	}
 	if m.gotTenant != "tn-alpha" {
 		t.Errorf("tenant = %q; tem de vir do contexto autenticado, nunca de parametro", m.gotTenant)
@@ -54,12 +59,12 @@ func TestPromptlyPromotionResolverMintsWriteScope(t *testing.T) {
 	}
 	temEscrita := false
 	for _, s := range m.gotScopes {
-		if s == "prompt:write" {
+		if s == "promptly:write" {
 			temEscrita = true
 		}
 	}
 	if !temEscrita {
-		t.Errorf("escopos = %v; a promocao precisa de prompt:write", m.gotScopes)
+		t.Errorf("escopos = %v; a promocao precisa de promptly:write", m.gotScopes)
 	}
 }
 
@@ -103,5 +108,65 @@ func TestPromptlyResolverPropagatesMintFailure(t *testing.T) {
 	}
 	if chave != "" {
 		t.Errorf("devolveu credencial %q apesar da falha", chave)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// O teste que faltava: o resolver contra o BROKER REAL, não contra um dublê.
+//
+// Os testes acima usam `recordingPromptlyMinter`, que aceita qualquer `want` e
+// devolve chave. O broker de produção NÃO: ele TRADUZ o namespace (`promptly:X` →
+// `prompt:X`) e DESCARTA o que não vier no namespace do cloud — inclusive um
+// `prompt:*` já traduzido. Pedir no namespace errado produz interseção VAZIA, o
+// mint falha, o data client falha fechado e a tela recebe 502 opaco.
+//
+// Foi exatamente o que aconteceu em produção (`#366`): a leitura do dashboard deu
+// 502 por três horas enquanto o serviço estava de pé — e a suíte passava, porque o
+// dublê era mais permissivo que a produção.
+// ---------------------------------------------------------------------------
+
+type mintSpy struct{ escoposCunhados []string }
+
+func (m *mintSpy) MintKey(_ context.Context, _, _ string, scopes []string) (*promptly.MintResult, error) {
+	m.escoposCunhados = scopes
+	return &promptly.MintResult{Secret: "promptly_live_fake"}, nil
+}
+
+func TestPromptlyResolversFalamONamespaceQueOBrokerEntende(t *testing.T) {
+	for _, caso := range []struct {
+		nome     string
+		novo     func(promptlyDashMinter) func(context.Context) (string, error)
+		esperado []string
+	}{
+		{"leitura", newPromptlyDashboardKeyResolver, []string{"prompt:read"}},
+		{"promocao", newPromptlyPromotionKeyResolver, []string{"prompt:read", "prompt:write"}},
+	} {
+		t.Run(caso.nome, func(t *testing.T) {
+			spy := &mintSpy{}
+			// O broker REAL, com os mesmos escopos do gateway em produção.
+			broker, err := promptly.NewBroker(spy, 8, time.Hour, []string{"prompt:read", "prompt:write"})
+			if err != nil {
+				t.Fatalf("broker: %v", err)
+			}
+			ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-1", AccountID: "acc-1"})
+
+			chave, err := caso.novo(broker)(ctx)
+
+			if err != nil {
+				t.Fatalf("o broker REAL recusou o que o resolver pede: %v", err)
+			}
+			if chave == "" {
+				t.Fatal("credencial vazia")
+			}
+			// E o que chegou ao mint é o namespace do SERVIÇO, depois da tradução.
+			if len(spy.escoposCunhados) != len(caso.esperado) {
+				t.Fatalf("escopos cunhados = %v, quer %v", spy.escoposCunhados, caso.esperado)
+			}
+			for i, e := range caso.esperado {
+				if spy.escoposCunhados[i] != e {
+					t.Errorf("escopo[%d] = %q, quer %q", i, spy.escoposCunhados[i], e)
+				}
+			}
+		})
 	}
 }
