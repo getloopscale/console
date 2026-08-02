@@ -85,3 +85,41 @@ describe('promotionPhrase', () => {
     expect(promotionPhrase('beta')).toBe('beta');
   });
 });
+
+describe('promotionConfirmation — a revisão que SAI também é identificada por versão', () => {
+  it('nomeia a VERSÃO que deixa de servir, não só o id opaco', () => {
+    // Achado da validação independente (2026-08-02): o texto dizia a versão da que ENTRA e só o
+    // id da que SAI. Um id opaco obriga quem está prestes a confirmar a ir procurar o que aquilo
+    // era — no exato momento em que precisa decidir. O diálogo existe para dizer O QUE DEIXA DE
+    // VALER, e meia identificação é meia informação.
+    const t = promotionConfirmation({
+      channel: 'stable',
+      fromRevision: 'rev_antiga',
+      fromVersion: '1.0.0',
+      toRevision: 'rev_nova',
+      version: '1.10.0',
+    });
+
+    expect(t).toContain('1.0.0');
+    expect(t).toContain('rev_antiga');
+    expect(t).toMatch(/1\.0\.0/);
+  });
+
+  it('quando a revisão que sai NÃO tem versão publicada, diz isso — não inventa uma', () => {
+    // Caso real e medido: um canal pode servir uma revisão sem linha em `/versions` (promovida
+    // pelo `latest_revision_id`). Inventar "versão desconhecida" seria fabricar; omitir seria
+    // mentir por ausência. O texto declara a lacuna.
+    const t = promotionConfirmation({
+      channel: 'stable',
+      fromRevision: 'rev_sem_versao',
+      fromVersion: null,
+      toRevision: 'rev_nova',
+      version: '2.0.0',
+    });
+
+    expect(t).toContain('rev_sem_versao');
+    expect(t).toMatch(/sem versão publicada|não versionada/i);
+    expect(t).not.toContain('undefined');
+    expect(t).not.toContain('null');
+  });
+});

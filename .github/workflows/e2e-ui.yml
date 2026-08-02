@@ -1,0 +1,94 @@
+# e2e-ui — as jornadas do DASHBOARD, no navegador, contra mocks.
+#
+# POR QUE ESTE ARQUIVO EXISTE. Até 2026-08-02 **nenhum job de CI executava Playwright neste
+# repositório**. Os specs em `dashboard/e2e/` só rodavam quando alguém lembrava de rodá-los à mão —
+# incluindo o que mata a mutação de `resolveActiveMenu`, guard que existe justamente porque aquela
+# omissão custou um milestone inteiro (M23/M24: quatro telas declaradas e inalcançáveis por clique).
+#
+# O CHECK CHAMADO `e2e` NÃO É ESTE, E A CONFUSÃO DE NOME FOI PARTE DO DEFEITO. Os checks `e2e` e
+# `e2e-edge` (em `e2e-drift.yml` / `Makefile`) exercitam o BACKEND — theo-cloud ↔ TheMemory contra
+# endpoints reais, e o ForwardAuth pela borda Traefik. Ler `e2e → pass` como "a jornada da tela
+# passou" foi um erro real de leitura desta sessão. Daí o nome distinto: `e2e-ui`.
+#
+# O QUE ESTE JOB **NÃO** COBRE — leia antes de concluir qualquer coisa a partir do verde dele:
+#
+#   • Roda contra **mocks** (`VITE_USE_MOCKS=true`, ligado pelo `webServer` do
+#     `playwright.config.ts` sob `CI`). Portanto prova a **jornada da INTERFACE** — que a tela
+#     navega, renderiza conteúdo e reage —, **NÃO** a integração com a borda, o BFF ou os serviços.
+#   • Um verde aqui **não** significa "o sistema funciona". Significa "a tela não regrediu contra o
+#     contrato que os mocks descrevem". A prova contra a instância implantada é outra coisa, é
+#     manual hoje, e depende de credencial.
+#   • Só `chromium`. Os outros três projetos do config (firefox / webkit / mobile-chrome) ficam de
+#     fora por custo; um defeito específico de engine não é pego aqui.
+#
+# ESCOPO DECLARADO, NUNCA SILENCIOSO. O job roda uma LISTA EXPLÍCITA de specs, não `e2e/`. Medido
+# em 2026-08-02: dos 17 specs, **22 casos em 7 arquivos já falhavam** antes deste trabalho
+# (`a11y`, `dashboard-m12-fase-a-bundle-grep-migration`, `j10-environments`, `journeys`,
+# `observability-screens`, `project-connect`, `recovery`) mais um caso em `deploy-timeline`.
+# Incluí-los faria o job **nascer vermelho** — e um check que já chega vermelho é um check que se
+# aprende a ignorar, que é o oposto do que ele existe para fazer. Ficam FORA, declarados aqui, para
+# entrarem um a um conforme forem corrigidos. `promptly-journey-live` também fica fora por outra
+# razão: ele aponta para a instância implantada e exige credencial — é trabalho separado.
+name: e2e-ui
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-ui:
+    name: e2e-ui — jornadas do dashboard (mocks, chromium)
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # `--with-deps` traz as bibliotecas de sistema do runner; sem elas o navegador falha ao
+      # iniciar com um erro de linker que não se parece em nada com "falta dependência".
+      # Só chromium: instalar os três engines multiplicaria o tempo sem cobrir mais jornada.
+      - name: Install Playwright (chromium)
+        run: npx playwright install --with-deps chromium
+
+      # O `webServer` do `playwright.config.ts` sobe o Vite com `VITE_USE_MOCKS=true` porque
+      # `CI` está definido — não há passo de servidor aqui de propósito, para que o config
+      # continue sendo a fonte única de como a suíte é servida.
+      - name: Run journey specs
+        run: |
+          npx playwright test --project=chromium \
+            e2e/skills-journey.spec.ts \
+            e2e/promptly-journey.spec.ts \
+            e2e/guardrails-journey.spec.ts \
+            e2e/login.spec.ts \
+            e2e/device-verify.spec.ts \
+            e2e/device-success.spec.ts \
+            e2e/verification.spec.ts \
+            e2e/knowledge-base.spec.ts
+
+      # O relatório só interessa quando algo falha; guardá-lo sempre encheria o storage do repo
+      # com artefatos de runs verdes que ninguém abre.
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: dashboard/playwright-report/
+          retention-days: 7

@@ -874,8 +874,18 @@ Contrato de design em `dashboard/DESIGN.md`, leia **antes** de desenhar.
       (M21 do `theo-skills`) mas é **por bundle** (`GET /v1/bundles/:bundleId/adoption`) — **não
       há rota que responda "quantos consumidores deste canal"**. Escolher UMA das duas saídas,
       com a decisão declarada no plano:
-      **(a)** o diálogo nomeia o que é verificável hoje — a versão que sai, a que entra, e o
-      bundle afetado — sem afirmar contagem de consumidores; ou
+      **(a)** o diálogo nomeia o que é verificável hoje — a versão que sai e a que entra —
+      sem afirmar contagem de consumidores; ou
+
+      > **Correção de 2026-08-02, medida durante a validação do M26.** Esta linha pedia
+      > também *"o bundle afetado"*, e o pedido era **insatisfazível**: `GET /channels`
+      > devolve `{channel, revision_id, previous_revision_id}` — **sem bundle**. Uma
+      > implementação honesta seria reprovada por não exibir um dado que a leitura não
+      > entrega, e a única forma de "cumprir" a redação anterior seria a tela **inventar**
+      > o número — exatamente a terceira via que este mesmo item proíbe três linhas abaixo.
+      > O defeito estava no critério, não no código. Registrado como 24º padrão do audit
+      > (`.claude/knowledge-base/audits/2026-08-01-live-test-run-coordenada.md`): *a régua
+      > também precisa ser medida contra a realidade*.
       **(b)** a contagem por canal entra no escopo, e então isto deixa de ser só UI: exige rota
       nova no `theo-skills` e vira dependência real deste milestone.
       **Não é aceitável a terceira via** — a tela exibir uma contagem derivada por conta própria

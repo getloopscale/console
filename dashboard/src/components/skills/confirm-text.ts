@@ -30,6 +30,14 @@ export interface PromotionTarget {
   readonly channel: string;
   /** A revisão que o canal serve HOJE. `null` quando o canal ainda não existe. */
   readonly fromRevision: string | null;
+  /**
+   * A versão legível de `fromRevision` — o que o operador reconhece.
+   *
+   * `null` é um estado REAL e medido, não um descuido: um canal pode servir uma revisão sem linha
+   * em `/versions` (promovida pelo `latest_revision_id`). Nesse caso o texto **declara a lacuna**
+   * em vez de inventar um rótulo. Ausente (`undefined`) só quando `fromRevision` também é `null`.
+   */
+  readonly fromVersion?: string | null;
   /** A revisão que passará a ser servida. */
   readonly toRevision: string;
   /** A versão legível correspondente a `toRevision` — o que o operador reconhece. */
@@ -52,8 +60,19 @@ export function promotionConfirmation(t: PromotionTarget): string {
     );
   }
 
+  // A que SAI é identificada como a que ENTRA — por versão, não só por id.
+  //
+  // Achado da validação independente: o texto dizia "versão 1.1.0" na que entra e apenas
+  // `rev_qjaapjby…` na que sai. Um id opaco obriga quem está prestes a confirmar a ir procurar o
+  // que aquilo era, no exato momento da decisão. O diálogo existe para dizer O QUE DEIXA DE VALER,
+  // e meia identificação é meia informação.
+  const sai =
+    t.fromVersion === null || t.fromVersion === undefined
+      ? `a revisão ${t.fromRevision} (sem versão publicada)`
+      : `a versão ${t.fromVersion} (revisão ${t.fromRevision})`;
+
   return (
-    `${entra} Deixa de receber a revisão ${t.fromRevision}, que continua existindo no registro mas ` +
+    `${entra} Deixa de receber ${sai}, que continua existindo no registro mas ` +
     `sai de serviço neste canal. ` +
     // Esta frase é a que impede o texto de mentir por omissão: promover de volta restaura o
     // PONTEIRO, não a leitura. Quem já resolveu o canal já levou o conteúdo novo.

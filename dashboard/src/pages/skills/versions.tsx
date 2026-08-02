@@ -214,6 +214,13 @@ export function SkillVersionsPage() {
             ? promotionConfirmation({
                 channel: CANAL_ALVO,
                 fromRevision: vigente?.revision_id ?? null,
+                // A versão da que SAI vem do dado JÁ CARREGADO (`rows`) — nenhuma requisição
+                // nova. `null` quando a revisão vigente não tem linha em `/versions`, que é um
+                // estado real: o texto declara a lacuna em vez de inventar um rótulo.
+                fromVersion:
+                  vigente === null
+                    ? undefined
+                    : (rows.find((r) => r.revisionId === vigente.revision_id)?.version ?? null),
                 toRevision: pending.revisionId,
                 version: pending.version,
               })

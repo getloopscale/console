@@ -207,3 +207,83 @@ func TestPromptlyDashboard_promocao_com_corpo_invalido_para_antes_do_upstream(t 
 		t.Error("a escrita foi emitida apesar do corpo invalido")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// O PAR DO REPASSE DE ERRO, exercitado com o CLIENTE REAL — não com o dublê.
+//
+// Os testes acima injetam `*promptly.UpstreamError` direto na porta, o que prova o
+// handler e assume o cliente. Aqui a cadeia inteira roda: um upstream HTTP de
+// verdade responde, o `promptly.DataClient` real constrói (ou não) o erro tipado, e
+// o handler decide. É a diferença entre "o handler sabe repassar" e "o repasse
+// funciona ponta a ponta".
+//
+// O 5xx é o lado que não se mede no ar: provocá-lo exigiria derrubar o serviço de
+// prompts, e a instância é compartilhada. Aqui ele é provocável com uma linha.
+// ---------------------------------------------------------------------------
+
+func montarComUpstream(t *testing.T, status int, corpo string) http.Handler {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(corpo))
+	}))
+	t.Cleanup(srv.Close)
+
+	dc := promptly.NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "promptly_live_fake", nil })
+	wc := promptly.NewWriteClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "promptly_live_fake", nil })
+
+	h := NewPromptlyDashboardHandler(dc, wc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	r := chi.NewRouter()
+	MountPromptlyDashboard(r, h, func(next http.Handler) http.Handler { return next })
+	return r
+}
+
+func TestRepasse_4xx_tipado_atravessa_o_cliente_real(t *testing.T) {
+	// A metade JÁ medida no ar (`404 policy_not_found`), aqui com o cliente real.
+	app := montarComUpstream(t, http.StatusNotFound, `{"error":"policy_not_found","name":"p","label":"prod"}`)
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/dashboard/promptly/prompts/p/policies/prod", nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, quer 404 — o erro tipado tem de atravessar", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "policy_not_found") {
+		t.Errorf("codigo tipado nao chegou: %s", rec.Body.String())
+	}
+}
+
+func TestRepasse_5xx_continua_502_opaco_com_cliente_real(t *testing.T) {
+	// O CONTROLE NEGATIVO. Sem ele o repasse vira matcher cego: tudo do upstream
+	// atravessaria, inclusive corpo que fala de host, porta e DNS internos.
+	interno := `{"error":"pq: connection refused to promptly-db.internal:5432 (pool exhausted)"}`
+	app := montarComUpstream(t, http.StatusInternalServerError, interno)
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/dashboard/promptly/prompts?limit=5", nil))
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, quer 502 — 5xx do upstream nao e recusa do cliente", rec.Code)
+	}
+	corpo := rec.Body.String()
+	if !strings.Contains(corpo, "PROMPTLY_UPSTREAM_UNAVAILABLE") {
+		t.Errorf("corpo opaco esperado, veio: %s", corpo)
+	}
+	for _, vazamento := range []string{"5432", "promptly-db", "pool exhausted", "pq:"} {
+		if strings.Contains(corpo, vazamento) {
+			t.Errorf("TOPOLOGIA INTERNA VAZOU para o navegador (%q): %s", vazamento, corpo)
+		}
+	}
+}
+
+func TestRepasse_401_do_upstream_nao_desloga_o_operador_cliente_real(t *testing.T) {
+	// A terceira faixa: a credencial que falhou e a do PLANO DE CONTROLE.
+	app := montarComUpstream(t, http.StatusUnauthorized, `{"error":"unauthorized"}`)
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/dashboard/promptly/prompts?limit=5", nil))
+
+	if rec.Code != http.StatusBadGateway {
+		t.Errorf("status = %d, quer 502 — repassar 401 deslogaria quem esta autenticado", rec.Code)
+	}
+}
