@@ -10,6 +10,8 @@
 
 
 ### Changed
+- **O painel `/status` parou de dizer "not deployed" sobre serviço que ele nunca mediu como ausente** (`usetheodev/theo-workspace#35`). O coletor não observa deploy algum — ele observa que a **base URL do alvo está vazia** (`internal/serviceversions/probe.go`). O rótulo afirmava mais do que a medição sustenta, e o custo foi real: o `theo-traefik-mcp` apareceu como não implantado enquanto roteava MCP normalmente, e quem leu a tela foi depurar deploy em vez de topologia. Agora a tabela mostra **`not configured`** com o motivo ao lado (*"no base URL for this service in this environment"*), o mesmo tratamento que o #345 deu ao `unauthorized` → `not measured`. **O `aria-label` do indicador mudou junto**, e ali a imprecisão custava mais: é o único canal que o leitor não consegue conferir olhando. O token do contrato (`not_deployed`) permanece — nenhum consumidor precisa mudar, e criar um estado novo inventaria uma distinção que o coletor **não consegue** fazer: ele não tem fonte independente sobre o que está implantado. A correção é parar de exagerar o que se mediu, não medir mais.
+
 - As telas de guardrails passaram a usar os componentes do design system em vez de HTML solto: a listagem virou tabela do sistema com etiqueta de origem, o formulário ganhou campos rotulados com o erro **junto do campo** que o causou, e as datas da auditoria aparecem legíveis ("31 de jul., 09:00 (ontem)") no lugar do carimbo ISO. A confirmação de remoção passou a ser o mesmo diálogo de `domains` e `previews` — havia uma segunda coreografia destrutiva escrita à mão (#roadmap-m24)
 
 

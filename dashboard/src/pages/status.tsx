@@ -149,8 +149,22 @@ function stateCell(s: ServiceStatus) {
           </span>
         </span>
       );
+    // O token do contrato continua `not_deployed`, mas o rotulo diz o que foi MEDIDO.
+    // O coletor nao observa deploy algum: ele observa que a base URL do alvo esta
+    // vazia (internal/serviceversions/probe.go). "not deployed" afirmava mais do que
+    // a medicao sustenta, e o custo foi real — o theo-traefik-mcp apareceu assim
+    // enquanto roteava MCP normalmente, e quem leu a tela foi depurar deploy em vez
+    // de topologia. Mesmo tratamento que o #345 deu ao `unauthorized` logo abaixo:
+    // o estado permanece, a frase para de exagerar.
     case 'not_deployed':
-      return <Badge variant="outline">not deployed</Badge>;
+      return (
+        <span className="flex items-center gap-2">
+          <Badge variant="outline">not configured</Badge>
+          <span className="text-muted-foreground">
+            no base URL for this service in this environment
+          </span>
+        </span>
+      );
     // #345 — o alvo RESPONDEU e recusou a sondagem. Nao e degradacao (a pilha esta de pe), entao
     // nao usa o visual de falha; mas tambem nao e saude, entao a razao aparece: e a configuracao
     // que falta, e escondê-la era o que fazia o indicador ficar vermelho sem dizer por que.

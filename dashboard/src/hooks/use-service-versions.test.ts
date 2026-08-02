@@ -49,12 +49,12 @@ describe('aggregateState', () => {
 describe('describeStatus', () => {
   it('counts every state in the accessible label, including not_deployed', () => {
     expect(describeStatus([ok('theo-rag', '0.35.0'), down('theo-lens'), absent('theo-storage')]))
-      .toBe('System status: 1 operational, 1 unreachable, 1 not deployed');
+      .toBe('System status: 1 operational, 1 unreachable, 1 not configured');
   });
 
   it('counts a timeout as unreachable so the label never undercounts a failure', () => {
     expect(describeStatus([late('theo-lens'), absent('theo-storage')]))
-      .toBe('System status: 0 operational, 1 unreachable, 1 not deployed');
+      .toBe('System status: 0 operational, 1 unreachable, 1 not configured');
   });
 
   // F-web-1 — the same alien payload that `aggregateState` turns amber (line 40
@@ -64,7 +64,7 @@ describe('describeStatus', () => {
   it('accounts for a state outside the union, so the dot and the label cannot disagree', () => {
     const alien = { name: 'theo-lens', state: 'quarantined', checked_at: at } as unknown as ServiceStatus;
     expect(describeStatus([ok('theo-rag', '0.35.0'), alien]))
-      .toBe('System status: 1 operational, 0 unreachable, 0 not deployed, 1 unknown');
+      .toBe('System status: 1 operational, 0 unreachable, 0 not configured, 1 unknown');
   });
 
   // The counts are a census, not a sample: whatever the wire sends, they add up.
