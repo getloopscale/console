@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { FileText } from 'lucide-react';
-import { Card, DataTable, EmptyState, PageShell, type DataTableColumn } from '@usetheo/ui';
+import { Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -94,6 +94,13 @@ export function PromptlyOverviewPage() {
             <h2>Catálogo</h2>
           </Card.Title>
           <Card.Description>{rows.length} neste workspace</Card.Description>
+          {/* A saída para a autoria fica no cabeçalho da lista, onde o operador já está olhando.
+              Sem ela o catálogo é um beco: dá para ver o que existe e não para criar nada. */}
+          <div className="pt-2">
+            <Button asChild>
+              <Link to="/promptly/new">Nova revisão</Link>
+            </Button>
+          </div>
         </Card.Header>
 
         <DataTable
@@ -108,7 +115,18 @@ export function PromptlyOverviewPage() {
               description={
                 failed
                   ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que existe no catálogo.'
-                  : 'Crie a primeira revisão pela CLI ou pelo SDK para que ela apareça aqui.'
+                  : 'Crie a primeira revisão aqui mesmo — ela passa a valer no runtime sem redeploy.'
+              }
+              /* A ação NÃO aparece quando a leitura falhou. "Crie o primeiro" sobre uma lista que
+                 não foi lida afirma que o workspace está vazio — e ele pode estar cheio. Vazio e
+                 não-consegui-ler levam a decisões opostas; oferecer a mesma saída para os dois
+                 apaga a diferença que mais importa. */
+              action={
+                failed ? undefined : (
+                  <Button asChild>
+                    <Link to="/promptly/new">Criar o primeiro prompt</Link>
+                  </Button>
+                )
               }
             />
           }
