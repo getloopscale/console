@@ -120,6 +120,32 @@ var validScopes = map[string]bool{
 	"trust:read":   true,
 	"trust:write":  true,
 	"trust:delete": true,
+	// LT-012 / ADR 0009 (opção B) — ler o conteúdo BRUTO da conversa deixou de vir junto
+	// de `trust:read`. `messages.content` guarda o texto original, inclusive o trecho que
+	// o próprio scanner classificou como segredo, e servi-lo a toda credencial de leitura
+	// tornava a ingestão um SEGUNDO lugar onde o segredo existe. Quem precisa do bruto
+	// (auditoria, reprodução de incidente) pede este escopo explicitamente; o dashboard
+	// NÃO o recebe, e é isso que reduz a exposição.
+	"trust:content": true,
+	// Promptly vertical (theo-promptly, M11 Model B L2) — a customer issues a key
+	// carrying promptly:read/write for the /v1/promptly edge.
+	//
+	// TERCEIRA ocorrência do mesmo modo de falha, e a mais cara: medida em 2026-08-01
+	// numa corrida de live-test, a cadeia estava inteira de pé — borda roteando,
+	// `promptlyForwardAuthHandler` ligado em cmd/main.go exigindo `promptly:read`,
+	// broker cunhando por tenant, `/v1/promptly/health` respondendo 401 — e o produto
+	// era INUTILIZÁVEL: toda chamada com chave legítima morria em 403 SCOPE_REQUIRED,
+	// porque o escopo que a borda cobra não existia neste mapa. Cada camada correta
+	// isolada, a capacidade inalcançável, e nada vermelho em lugar nenhum.
+	//
+	// O escopo aqui é o que a BORDA exige (`promptly:*`), não o que o broker cunha
+	// downstream: ele traduz `promptly:* → prompt:*`, e `prompt:read`/`prompt:write`
+	// são credenciais internas — jamais emitíveis pelo cliente.
+	//
+	// `api_keys_edge_scope_parity_test.go` passou a derivar esta exigência do AST de
+	// cmd/main.go em vez de repeti-la à mão, para que o QUARTO vertical não repita isto.
+	"promptly:read":  true,
+	"promptly:write": true,
 	// Skills vertical (theo-skills, M22 Model B) — a customer issues a key carrying
 	// skills:read/write/publish for the /v1/skills edge.
 	//

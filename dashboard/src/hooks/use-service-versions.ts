@@ -16,7 +16,16 @@ export type ServiceStatus =
   | { readonly name: string; readonly state: 'ok'; readonly checked_at: string; readonly version: string; readonly built_at?: string }
   | { readonly name: string; readonly state: 'unreachable'; readonly checked_at: string; readonly reason: string }
   | { readonly name: string; readonly state: 'timeout'; readonly checked_at: string; readonly reason?: string }
-  | { readonly name: string; readonly state: 'not_deployed'; readonly checked_at: string };
+  | { readonly name: string; readonly state: 'not_deployed'; readonly checked_at: string }
+  // #345 — o alvo RESPONDEU e recusou o probe (401/403). Nao e degradacao: e ausencia de
+  // medicao. Separado de `unreachable` porque o servico esta de pe — o que faltou foi
+  // credencial —, e colapsar os dois pintava o indicador de vermelho permanente.
+  | { readonly name: string; readonly state: 'unauthorized'; readonly checked_at: string; readonly reason: string }
+  // O alvo RESPONDEU com payload bem formado declarando que NAO sabe a propria build
+  // (os sentinelas do contrato: `dev` para version, `unknown` para o resto). Nao e
+  // degradacao — o servico esta de pe — e nao e saude — nao houve medicao de versao.
+  // Sem `version` no tipo: uma tela que tentasse exibir versao aqui nao compila.
+  | { readonly name: string; readonly state: 'no_provenance'; readonly checked_at: string; readonly reason: string };
 
 /**
  * The one path the gateway mounts (`internal/routes/service_versions.go`).
@@ -54,8 +63,26 @@ export type AggregateState = 'operational' | 'degraded' | 'unknown';
  */
 export function aggregateState(services: readonly ServiceStatus[] | undefined): AggregateState {
   if (!services || services.length === 0) return 'unknown';
-  if (services.every((s) => s.state === 'not_deployed')) return 'unknown';
-  if (!services.every((s) => s.state === 'ok' || s.state === 'not_deployed')) return 'degraded';
+  // Nada medido como saudavel => `unknown`, nunca verde. `no_provenance` entra junto de
+  // `not_deployed` porque tambem NAO e evidencia de saude: o alvo respondeu, mas o que ele
+  // respondeu foi "nao sei minha versao". Sem esta linha, uma frota inteira sem proveniencia
+  // saia `operational` — verde afirmado sobre zero medicao, que e a mentira que o estado
+  // novo existe para eliminar (pego pelo controle negativo em use-service-versions.test.ts).
+  if (services.every((s) => s.state === 'not_deployed' || s.state === 'no_provenance')) return 'unknown';
+  // `unauthorized` NAO arrasta o ponto para baixo, pelo mesmo motivo de `not_deployed` (ADR D7):
+  // nenhum dos dois e EVIDENCIA de degradacao. Um indicador permanentemente vermelho e um
+  // indicador desligado — o usuario aprende a ignora-lo, e quando algo degradar de verdade
+  // ninguem olha. A visibilidade vem do censo em `describeStatus` (que o conta como `unknown`) e
+  // da pagina /status, nao de pintar tudo de vermelho.
+  // `no_provenance` entra na MESMA allowlist e pelo mesmo argumento: o alvo respondeu,
+  // entao nao ha evidencia de degradacao. E o que preserva a intencao original da linha
+  // self do theo-cloud (internal/routes/self_version_test.go) — um build sem carimbo nao
+  // pode pintar o painel de ambar permanente — agora sem precisar que ela AFIRME uma
+  // versao que nao tem.
+  const measured = (s: ServiceStatus) =>
+    s.state === 'ok' || s.state === 'not_deployed' || s.state === 'unauthorized' ||
+    s.state === 'no_provenance';
+  if (!services.every(measured)) return 'degraded';
   return 'operational';
 }
 
@@ -76,9 +103,14 @@ export function aggregateState(services: readonly ServiceStatus[] | undefined): 
 export function describeStatus(services: readonly ServiceStatus[]): string {
   const operational = services.filter((s) => s.state === 'ok').length;
   const unreachable = services.filter((s) => s.state === 'unreachable' || s.state === 'timeout').length;
-  const notDeployed = services.filter((s) => s.state === 'not_deployed').length;
-  const unknown = services.length - operational - unreachable - notDeployed;
-  const counted = `System status: ${operational} operational, ${unreachable} unreachable, ${notDeployed} not deployed`;
+  const notConfigured = services.filter((s) => s.state === 'not_deployed').length;
+  const noProvenance = services.filter((s) => s.state === 'no_provenance').length;
+  const unknown = services.length - operational - unreachable - notConfigured - noProvenance;
+  // "not configured", nao "not deployed": o coletor mede base URL vazia, nao ausencia
+  // de deploy. A imprecisao custa MAIS aqui do que na tabela — este e o unico canal
+  // que o leitor nao consegue conferir olhando (o mesmo argumento que o F-web-1 usou
+  // para tornar as contagens um censo).
+  const counted = `System status: ${operational} operational, ${unreachable} unreachable, ${notConfigured} not configured, ${noProvenance} without provenance`;
   return unknown > 0 ? `${counted}, ${unknown} unknown` : counted;
 }
 

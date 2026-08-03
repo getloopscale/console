@@ -32,6 +32,9 @@ type LensDataClient interface {
 	Scores(ctx context.Context, timeRange string) (json.RawMessage, error)
 	SpanAttributes(ctx context.Context, key string) (json.RawMessage, error)
 	Cost(ctx context.Context, since string) (json.RawMessage, error)
+	// M141 — consumption grouped by end user. Takes the whole url.Values (never field-by-field):
+	// the BFF forwards the caller's query verbatim instead of deciding which params exist.
+	UsageByUser(ctx context.Context, q url.Values) (json.RawMessage, error)
 	ListDatasets(ctx context.Context) (json.RawMessage, error)
 	GetDataset(ctx context.Context, id string) (json.RawMessage, error)
 	ListEvaluators(ctx context.Context) (json.RawMessage, error)
@@ -248,6 +251,23 @@ func (h *LensDashboardHandler) Cost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, raw)
+}
+
+// UsageByUser serves GET /v1/dashboard/lens/usage-by-user — the caller workspace's consumption
+// grouped by end user (theo-lens GET /v1/analytics/usage-by-user, M140).
+//
+// It goes through h.proxy, NOT through the older shape of Cost above, and the difference is
+// load-bearing: M140 REJECTS an out-of-range `days`/`limit` with a typed 400 instead of clamping in
+// silence, precisely because a silent clamp made callers page through the wrong rows. Cost's shape
+// collapses every upstream failure into a generic 502, which would throw that 400 away and leave
+// the browser with "could not load" and no reason. h.proxy forwards a browser-actionable 4xx
+// verbatim, so the typed error survives end to end.
+//
+// The query is passed WHOLE (r.URL.Query()), never rebuilt param by param — see the interface note.
+func (h *LensDashboardHandler) UsageByUser(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "load usage by user", func() (json.RawMessage, error) {
+		return h.client.UsageByUser(r.Context(), r.URL.Query())
+	})
 }
 
 // --- M44 read+write+delete management surface --------------------------------------------
@@ -582,6 +602,7 @@ func MountLensDashboard(r chi.Router, h *LensDashboardHandler, requireJWT func(h
 		r.Get("/metrics/scores", h.Scores)                  // M90 — score aggregation over time
 		r.Get("/metrics/span-attributes", h.SpanAttributes) // M92 — attribute facet discovery
 		r.Get("/cost", h.Cost)
+		r.Get("/usage-by-user", h.UsageByUser) // M141 — consumption grouped by end user
 		r.Get("/datasets", h.ListDatasets)
 		r.Get("/datasets/{datasetID}", h.GetDataset)
 		r.Get("/evaluators", h.ListEvaluators)

@@ -21,7 +21,7 @@ This skill is **the only phase** of [`cycle-release`](../../rules/cycle-release.
 User invokes `/release [bump-level]` when:
 
 - A `/review {slug}` run emitted `READY_TO_MERGE` recently (audit at `knowledge-base/reviews/{slug}-review-{date}.md`).
-- The working branch is `develop` with commits ahead of `main`.
+- The working branch is `workspace`; `develop` carries the commits ahead of `main` (promoted from `workspace` via PR).
 - `CHANGELOG.md` has content in `[Unreleased]`.
 - `gh` CLI is authenticated.
 
@@ -44,8 +44,8 @@ If derivation is ambiguous, the skill pauses and asks the human ONCE.
 ### Step 1 — Pre-condition validation (refuse if any fails)
 
 ```bash
-# Branch is develop
-[ "$(git branch --show-current)" = "develop" ]
+# Branch is workspace (release prep is authored here, then promoted)
+[ "$(git branch --show-current)" = "workspace" ]
 # Clean tree
 [ -z "$(git status --porcelain)" ]
 # Latest /review verdict is READY_TO_MERGE
@@ -89,12 +89,16 @@ This script:
 2. Leaves a fresh empty `## [Unreleased]` at the top.
 3. Preserves Keep-a-Changelog category ordering (`Added` → `Changed` → `Deprecated` → `Removed` → `Fixed` → `Security`).
 
-### Step 4 — Commit the release prep on develop
+### Step 4 — Commit the release prep on workspace, then promote to develop
 
 ```bash
 git add CHANGELOG.md
 git commit -m "chore(release): ${NEXT_VERSION}"
-git push origin develop
+git push origin workspace
+
+# Promotion (git-safety.md § 1): release prep reaches develop like any other change
+gh pr create --base develop --head workspace --title "chore(release): ${NEXT_VERSION}" --body "Release prep for ${NEXT_VERSION}."
+gh pr merge --merge   # or via the UI; branch protection decides who can
 ```
 
 NO `Co-Authored-By` trailer (per `hooks/validate-command.sh`). NO `--amend`. The commit is plain and signed by user policy.
@@ -147,58 +151,6 @@ gh release create "v${NEXT_VERSION}" \
   --target "$MERGE_SHA"
 ```
 
-### Step 7.4 — Verify + record the published images
-
-The `v*` tag triggers the **`publish`** workflow (`.github/workflows/publish.yml`) on the
-self-hosted runner (see the `theo-data/CI-RUNNER-VM-GUIDE.md` runbook). On a tag, it builds + keyless-
-cosign-signs **BOTH** images — `theo-cloud` and `theo-dashboard` — via the reusable
-`theo/build-publish.yml` (matrix, `sign=true`, + SBOM + SLSA provenance). **The release is not
-artifact-complete until that run is green** — the git tag alone is not the deliverable.
-
-Unlike a repo whose own workflow runs `docker/build-push-action` inline, theo-cloud's image build is a
-**reusable cross-repo call**, so do NOT auto-detect by grepping for `build-push-action` — target the
-`publish` workflow by name.
-
-```bash
-REPO_NWO="usetheodev/theo-cloud"
-echo "== waiting for the publish (image) workflow on tag v${NEXT_VERSION} =="
-# The tag push triggered a `publish` run on the self-hosted runner; find it (headBranch == tag name).
-RID=""
-for _ in $(seq 1 60); do
-  RID=$(gh run list -R "$REPO_NWO" --workflow publish --limit 15 \
-        --json databaseId,headBranch \
-        --jq "[.[] | select(.headBranch==\"v${NEXT_VERSION}\")][0].databaseId" 2>/dev/null)
-  [ -n "$RID" ] && break; sleep 5
-done
-if [ -z "$RID" ]; then
-  echo "WARN image: no publish run found for v${NEXT_VERSION} — is the runner online? (see theo-data/CI-RUNNER-VM-GUIDE.md)"
-  IMAGE_STATUS="unknown"
-else
-  gh run watch "$RID" -R "$REPO_NWO" --exit-status >/dev/null 2>&1 && IMG_OK=1 || IMG_OK=0
-  if [ "$IMG_OK" = 1 ]; then
-    # Both matrix legs publish into the same run; capture every distinct digest (expect 2) +
-    # count the identity-pinned cosign-verify successes (expect 2 on a signed tag build).
-    DIGESTS=$(gh run view "$RID" -R "$REPO_NWO" --log 2>/dev/null \
-      | grep -oE 'sha256:[0-9a-f]{64}' | sort -u | tr '\n' ' ')
-    VERIFIED=$(gh run view "$RID" -R "$REPO_NWO" --log 2>/dev/null \
-      | grep -ci 'cosign claims were validated')
-    IMAGE_STATUS="published (digests: ${DIGESTS}; cosign-verified legs: ${VERIFIED}/2)"
-    echo "OK image: $IMAGE_STATUS — run $RID"
-    [ "$VERIFIED" -lt 2 ] && echo "WARN image: expected 2 signed legs (theo-cloud + theo-dashboard); got ${VERIFIED} — inspect run $RID"
-  else
-    IMAGE_STATUS="FAILED (run $RID)"
-    echo "WARN image: the publish workflow FAILED — the tag/release exist but the images were NOT published/signed."
-    echo "      Backfill: gh workflow run publish -R $REPO_NWO --ref v${NEXT_VERSION}  (after fixing the cause)"
-    echo "      Or re-run: gh run rerun $RID -R $REPO_NWO --failed"
-  fi
-fi
-```
-
-The git tag + GitHub release already exist (that IS the release), so a failed/partial image does NOT
-roll them back. But the skill MUST surface `IMAGE_STATUS` honestly in Step 8's release log — never
-report a clean `RELEASED` while an image silently failed. A failed/unknown image is a **soft gate**:
-record it, WARN with the backfill command, and ask the human.
-
 ### Step 7.5 — Flip ROADMAP.md milestone checkbox (post-merge)
 
 Closes the `cycle-roadmap` super-loop. Runs after the tag + GitHub release are published.
@@ -235,7 +187,7 @@ fi
 1. Locate the literal header `## ${MILESTONE_ID} — [ ] <name>` in `ROADMAP.md`. If not found, emit `WARN roadmap-checkbox: $MILESTONE_ID not found in ROADMAP.md — skipping flip` and exit 0.
 2. If header is already `[x]`, emit `INFO roadmap-checkbox: $MILESTONE_ID already [x] — no-op` and exit 0 (idempotent).
 3. Replace `[ ]` → `[x]` in-place. NEVER use fuzzy matching.
-4. Commit on `develop` (NOT `main`): `chore(roadmap): mark $MILESTONE_ID done (v$NEXT_VERSION)`.
+4. Commit on `workspace` (NOT `develop`, NOT `main`): `chore(roadmap): mark $MILESTONE_ID done (v$NEXT_VERSION)`.
 5. Append to `knowledge-base/roadmap-runs/${MILESTONE_ID}-$(date -I).md`: `status: completed`, `checkbox_flipped_at`, `flip_commit_sha`, link to release log. Create the file if it does not exist.
 
 Per `cycle-release § Single-flip invariant`, at most ONE checkbox flips per release. The script verifies its own diff before committing — if more than one `[ ]` → `[x]` transition would result, it aborts.
@@ -254,7 +206,6 @@ Write `knowledge-base/releases/v${NEXT_VERSION}-release.md`:
 **Merge commit:** {merge-sha}
 **Tag:** v{NEXT_VERSION}
 **GitHub release:** {release-url}
-**Image status:** {IMAGE_STATUS — both image digests + cosign-verified legs (N/2), or `FAILED + backfill cmd`, or `unknown`}
 
 ## Release notes
 
@@ -287,7 +238,6 @@ Next: nothing — release is published. Start a new cycle with /to-plan or /gril
 
 1. **CI not green on develop** — warn but proceed; the human catches it at PR approval.
 2. **Bump-level ambiguous from CHANGELOG** — AskUserQuestion ONCE per release run.
-3. **Image build failed / unknown (Step 7.4)** — the tag + GitHub release stand, but the release is NOT artifact-complete. Record `IMAGE_STATUS` honestly, WARN with the backfill command (`gh workflow run publish --ref v{X}`), and surface to the human. NEVER report a clean `RELEASED` while an image silently failed.
 
 ## Anti-patterns
 
@@ -300,8 +250,6 @@ Next: nothing — release is published. Start a new cycle with /to-plan or /gril
 7. **Fuzzy-matching the milestone for the checkbox flip in Step 7.5.** Plan declares `milestone_id: M3` → flip M3 by literal header match, never M4.
 8. **Flipping multiple checkboxes from one release.** Each release maps to one milestone via plan `milestone_id`.
 9. **Blocking the release if `milestone_id` is missing.** Ad-hoc / hotfix work skips the flip with WARN — never blocks.
-10. **Declaring `RELEASED` without verifying the images (Step 7.4).** The git tag is not the deliverable — the published + signed `theo-cloud` + `theo-dashboard` images are. Wait for the `publish` run, capture both digests + cosign result, record `IMAGE_STATUS`. A failed/absent image hidden behind a clean verdict is a Rule 3 (honesty) violation.
-11. **Building the images locally inside `/release`.** The images are built by the `publish` workflow (reusable `theo/build-publish.yml`) on the self-hosted runner with cosign sign + SBOM/SLSA — `/release` only verifies. A local `docker build` skips every gate.
 
 ## Cycle contract
 

@@ -44,6 +44,12 @@ func (s *stubTrustReader) PolicyViolations(ctx context.Context, _ int) (json.Raw
 func (s *stubTrustReader) Conversation(ctx context.Context, _ string) (json.RawMessage, error) {
 	return s.read(ctx)
 }
+func (s *stubTrustReader) Validators(ctx context.Context) (json.RawMessage, error) {
+	return s.read(ctx)
+}
+func (s *stubTrustReader) EnforcementEvents(ctx context.Context, _ int) (json.RawMessage, error) {
+	return s.read(ctx)
+}
 
 // tenantOf le o tenant que o teste injetou no contexto, emulando o que o resolver Model B faz a
 // partir do JWT.
@@ -154,4 +160,90 @@ func TestErrorBodyDoesNotLeakUpstreamDetail(t *testing.T) {
 	if strings.Contains(rec.Body.String(), "10.42.0.7") {
 		t.Errorf("o corpo de erro vazou topologia interna: %s", rec.Body.String())
 	}
+}
+
+// --- M24: auditoria de enforcement ---------------------------------------------------------
+
+// A tela de auditoria mostra o que o enforcement inline BLOQUEOU. Se ela vazasse linha de outro
+// tenant, exporia o conteudo redigido das conversas de terceiro — a mesma propriedade que o M23
+// trava para violacoes, aqui sobre um dado mais sensivel.
+func TestEnforcementEventsNeverReturnsAnotherTenantsRows(t *testing.T) {
+	reader := &stubTrustReader{byTenant: map[string]string{
+		"tn-alpha": `{"events":[{"id":"e-alpha","category":"credential_leak"}]}`,
+		"tn-beta":  `{"events":[{"id":"e-beta","category":"pii"}]}`,
+	}}
+
+	for _, tc := range []struct{ tenant, want, forbidden string }{
+		{"tn-alpha", "e-alpha", "e-beta"},
+		{"tn-beta", "e-beta", "e-alpha"},
+	} {
+		rec := httptest.NewRecorder()
+		mountForTest(t, reader, tc.tenant).ServeHTTP(rec,
+			httptest.NewRequest(http.MethodGet, "/v1/dashboard/trust/enforcement-events", nil))
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("tenant %s: status = %d, quero 200", tc.tenant, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), tc.want) {
+			t.Errorf("tenant %s: resposta nao traz %q", tc.tenant, tc.want)
+		}
+		if strings.Contains(rec.Body.String(), tc.forbidden) {
+			t.Errorf("tenant %s: VAZOU linha de outro tenant (%q)", tc.tenant, tc.forbidden)
+		}
+	}
+}
+
+// Sem JWT nao ha tenant, e sem tenant nao pode haver leitura: o middleware corta antes do handler.
+func TestEnforcementEventsRequiresAuth(t *testing.T) {
+	reader := &stubTrustReader{byTenant: map[string]string{}}
+	rec := httptest.NewRecorder()
+	mountForTest(t, reader, "").ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/v1/dashboard/trust/enforcement-events", nil))
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, quero 401", rec.Code)
+	}
+	if len(reader.seen) != 0 {
+		t.Errorf("houve %d chamada(s) upstream sem autenticacao; quero zero", len(reader.seen))
+	}
+}
+
+// O `?limit` do usuario e capado no BFF. Sem teto, `?limit=10000000` na barra de enderecos vira
+// consulta cara no plano de dados, disparada por qualquer usuario autenticado.
+func TestEnforcementEventsCapsLimit(t *testing.T) {
+	reader := &stubLimitRecorder{}
+	rec := httptest.NewRecorder()
+	mountForTest(t, reader, "tn-alpha").ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/v1/dashboard/trust/enforcement-events?limit=10000000", nil))
+
+	if reader.gotLimit != maxLimit {
+		t.Errorf("limit repassado = %d, quero o teto %d", reader.gotLimit, maxLimit)
+	}
+}
+
+// Falha do upstream e 502 com corpo tipado — NUNCA 200 com lista vazia. Num painel de seguranca,
+// "nenhum bloqueio" e "nao consegui perguntar" levam a decisoes opostas.
+func TestEnforcementEventsUpstreamFailureIsNotAnEmptyList(t *testing.T) {
+	reader := &stubTrustReader{err: errors.New("upstream indisponivel")}
+	rec := httptest.NewRecorder()
+	mountForTest(t, reader, "tn-alpha").ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/v1/dashboard/trust/enforcement-events", nil))
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, quero 502", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), `"events":[]`) {
+		t.Error("falha de leitura foi renderizada como lista vazia — falso negativo")
+	}
+}
+
+// stubLimitRecorder captura o limit que o handler repassou.
+type stubLimitRecorder struct {
+	stubTrustReader
+	gotLimit int
+}
+
+func (s *stubLimitRecorder) EnforcementEvents(ctx context.Context, limit int) (json.RawMessage, error) {
+	s.gotLimit = limit
+	return json.RawMessage(`{"events":[]}`), nil
 }

@@ -34,6 +34,7 @@ describe('DeleteEnvironmentDialog', () => {
         <DeleteEnvironmentDialog
           open
           onOpenChange={() => undefined}
+          project="web"
           envName="qa"
         />,
       ),
@@ -56,6 +57,7 @@ describe('DeleteEnvironmentDialog', () => {
         <DeleteEnvironmentDialog
           open
           onOpenChange={() => undefined}
+          project="web"
           envName="QA"
         />,
       ),
@@ -73,6 +75,7 @@ describe('DeleteEnvironmentDialog', () => {
         <DeleteEnvironmentDialog
           open
           onOpenChange={() => undefined}
+          project="web"
           envName="qa"
           cascade={{ workloads: 3, secrets: 5, domains: 1 }}
         />,
@@ -90,6 +93,7 @@ describe('DeleteEnvironmentDialog', () => {
         <DeleteEnvironmentDialog
           open
           onOpenChange={() => undefined}
+          project="web"
           envName="qa"
         />,
       ),
@@ -112,6 +116,7 @@ describe('DeleteEnvironmentDialog', () => {
         <DeleteEnvironmentDialog
           open
           onOpenChange={() => undefined}
+          project="web"
           envName="qa"
           onDeleted={onDeleted}
         />,
@@ -124,7 +129,7 @@ describe('DeleteEnvironmentDialog', () => {
 
     await waitFor(() => {
       expect(mockedEngineFetch).toHaveBeenCalledWith(
-        '/api/v1/environments/qa',
+        '/api/v1/environments/qa?project=web',
         expect.objectContaining({ method: 'DELETE' }),
       );
     });
@@ -144,8 +149,8 @@ describe('DeleteEnvironmentDialog', () => {
         <DeleteEnvironmentDialog
           open
           onOpenChange={() => undefined}
-          envName="staging"
           project="web"
+          envName="staging"
           onDeleted={onDeleted}
         />,
       ),
@@ -164,9 +169,16 @@ describe('DeleteEnvironmentDialog', () => {
     expect(onDeleted).toHaveBeenCalled();
   });
 
-  // M2 v1.2 T5.3: undefined/empty `project` preserves the legacy URL
-  // (production legacy entry resolves via project-agnostic lookup).
-  it('test_M2_delete_url_omits_query_when_project_empty', async () => {
+  /**
+   * Substitui `test_M2_delete_url_omits_query_when_project_empty`, que afirmava o OPOSTO: que a
+   * URL saía sem `?project=` quando o projeto vinha vazio — o caminho de retrocompatibilidade
+   * removido no #377.
+   *
+   * A inversão é deliberada. Numa exclusão, o caminho permissivo era o que menos identificava o
+   * alvo: sem projeto, o serviço resolvia por nome e podia apagar o `staging` de OUTRO projeto.
+   * A garantia que vale é esta — a tupla vai SEMPRE na URL.
+   */
+  it('test_delete_sempre_leva_a_tupla_projeto_na_url', async () => {
     mockedEngineFetch.mockResolvedValue({ deleted: 'production' });
 
     render(
@@ -174,6 +186,7 @@ describe('DeleteEnvironmentDialog', () => {
         <DeleteEnvironmentDialog
           open
           onOpenChange={() => undefined}
+          project="web"
           envName="production"
         />,
       ),
@@ -185,12 +198,11 @@ describe('DeleteEnvironmentDialog', () => {
 
     await waitFor(() => {
       expect(mockedEngineFetch).toHaveBeenCalledWith(
-        '/api/v1/environments/production',
+        '/api/v1/environments/production?project=web',
         expect.objectContaining({ method: 'DELETE' }),
       );
     });
-    // Ensure no `?project=` leaked into the URL (legacy path).
     const [url] = mockedEngineFetch.mock.calls[0]!;
-    expect(url).not.toMatch(/\?project=/);
+    expect(url).toMatch(/\?project=web$/);
   });
 });

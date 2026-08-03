@@ -10,9 +10,11 @@ vi.mock('@/lib/auth', () => ({
 
 const mockHasValidToken = vi.fn();
 const mockExchangeSessionToken = vi.fn();
+const mockSessionDefinitivelyExpired = vi.fn();
 vi.mock('@/lib/api', () => ({
   hasValidToken: () => mockHasValidToken(),
   exchangeSessionToken: () => mockExchangeSessionToken(),
+  sessionDefinitivelyExpired: () => mockSessionDefinitivelyExpired(),
 }));
 
 const mockNavigate = vi.fn();
@@ -35,6 +37,7 @@ describe('useRequireAuth — Red Team theo-cloud#50 LCP closure', () => {
     vi.clearAllMocks();
     mockHasValidToken.mockReturnValue(false);
     mockExchangeSessionToken.mockResolvedValue(true);
+    mockSessionDefinitivelyExpired.mockReturnValue(false);
   });
 
   // Red Team theo-cloud#50: the prior behavior awaited TWO sequential
@@ -95,10 +98,38 @@ describe('useRequireAuth — Red Team theo-cloud#50 LCP closure', () => {
       identity: { id: 'u', traits: { email: 'u@x.com' } },
     });
     mockExchangeSessionToken.mockResolvedValue(false);
+    // Cookie velho => o whoami do Kratos nega => o handler responde 401. Este
+    // e o UNICO caso terminal, e o #110 existe justamente por causa dele.
+    mockSessionDefinitivelyExpired.mockReturnValue(true);
     renderHook(() => useRequireAuth(), { wrapper });
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/login', { replace: true });
     });
+  });
+
+  // #324, forma final. O contrato DESTE hook e o booleano: falhou a troca e a
+  // sessao NAO acabou => fica onde esta. Quais status significam "nao acabou"
+  // (429 / 500 / 502 / rejeicao de rede) e contrato do `lib/api.ts`, e a
+  // enumeracao vive la, contra respostas HTTP de verdade — enumerar aqui, com
+  // o booleano mockado, seriam quatro copias do mesmo caminho: teatro, nao
+  // cobertura.
+  it('nao navega para /login quando a troca falha sem a sessao ter acabado', async () => {
+    mockGetSession.mockResolvedValue({
+      active: true,
+      identity: { id: 'u', traits: { email: 'u@x.com' } },
+    });
+    mockExchangeSessionToken.mockResolvedValue(false);
+    mockSessionDefinitivelyExpired.mockReturnValue(false);
+    const { result } = renderHook(() => useRequireAuth(), { wrapper });
+
+    // Espera o shell pintar E a troca diferida resolver — sem isso a assercao
+    // negativa passaria por so ter chegado cedo demais.
+    await waitFor(() => expect(result.current).not.toBeNull());
+    await waitFor(() => expect(mockExchangeSessionToken).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockNavigate).not.toHaveBeenCalledWith('/login', { replace: true });
   });
 });

@@ -686,7 +686,7 @@ consegue provar o que está rodando.
 
 ---
 
-### M23 — [ ] A camada de confiança fica visível no dashboard (leitura)
+### M23 — [x] A camada de confiança fica visível no dashboard (leitura)
 
 > Added 2026-07-31 by `/roadmap-feature` (slug: `theo-cloud-trust-dashboard`).
 > See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-trust-dashboard-feature-grill.md`.
@@ -738,7 +738,7 @@ fechar.
 
 ---
 
-### M24 — [ ] Operar guardrails pelo dashboard (validators + auditoria de enforcement)
+### M24 — [x] Operar guardrails pelo dashboard (validators + auditoria de enforcement)
 
 > Added 2026-07-31 by `/roadmap-feature` (slug: `theo-cloud-trust-dashboard`).
 > See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-trust-dashboard-feature-grill.md`.
@@ -777,6 +777,209 @@ milestone reimplementaria a mesma camada.
 | Portar o `dev/validators-console` como está | É ferramenta de teste manual do `theo-trust`, declarada "never ships"; serve de referência funcional, não de código | referência apenas |
 | Editar um validator existente (PUT) | O serviço não expõe update — só create/delete. Adicionar o verbo é decisão do `theo-trust` | `theo-trust` |
 | Superfície de temas (`GET /v1/themes`) | Nenhum caso de uso pediu; entra quando houver | não planejado |
+
+### M25 — [x] Operar prompts pelo dashboard (catálogo, revisões, promoção de label)
+
+> **Fechado em 2026-08-02 por veredito independente**, com **dois caveats declarados**
+> — não são omissões, são limites conhecidos:
+>
+> 1. **A integração com a borda está coberta por spec que não roda.** O job `e2e-ui`
+>    executa as jornadas contra **mocks** (prova a tela, não a integração). O spec
+>    contra a instância implantada existe e é operado, não automático.
+> 2. **O `200` de `policies/:label` está bloqueado por desenho** (`#373`). Nenhuma
+>    credencial obtenível pelo dashboard cria política: o teto `member` do
+>    `theo-promptly` fecha uma escalada real de privilégio (lavagem de papel via
+>    escopo). As duas saídas — enfraquecer o teto, ou criar o dado direto no banco —
+>    foram **recusadas**: a segunda mediria um estado que o usuário não alcança.
+
+> Added 2026-08-02 by `/roadmap-feature` (slug: `theo-cloud-promptly-dashboard`).
+> See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-promptly-dashboard-feature-grill.md`.
+
+**Objetivo:** dar ao operador a superfície mínima para **descobrir** quais prompts existem no seu
+tenant, **inspecionar** as revisões e os labels de ambiente de um deles, e **promover** um label
+para outra revisão — fechando o ciclo entre versionar um prompt e decidir qual versão serve
+produção.
+
+**Gatilho:** `dashboard/src/pages/` tem diretório para `lens`, `memory`, `rag` e `trust`; **não
+tem** para `promptly`. O serviço está no ar (`develop-43215ef`) e a promessa dele é *"promover
+revisões entre ambientes sem redeploy"* — mas o ato de promover só existe por `curl`, SDK ou MCP.
+Quem opera não tem superfície.
+
+**Definition of done:**
+
+> **Verificado em 2026-08-02 por medição, não por leitura.** O cabeçalho deste milestone estava `[x]` com os **oito** DoD `[ ]` — exatamente a forma que a nota de reconciliação do `theo-promptly/ROADMAP.md` documenta (`b95552e`: cabeçalho marcado, DoDs em branco, e o documento afirmando o que ninguém tinha conferido). Cada item abaixo foi conferido antes de ser marcado; a evidência está na seção § Evidência ao fim do milestone.
+
+- [x] **Os endpoints que faltam existem no `theo-promptly` antes da tela** — derivados por medição, tela a tela, contra `develop=43215ef`: `GET /prompts` (catálogo) e `GET /prompts/:name/policies/:label` (a política que governa a promoção) respondem **404 hoje**. Verificável: os dois respondem `200` com corpo tipado, e o catálogo é **paginado e sem `content`** (`?limit` 1..500 com `400 invalid_limit` fora da faixa, cursor `?after`, header `Link; rel="next"` — o mesmo contrato que `/revisions` já cumpre).
+- [x] Rotas BFF `GET /v1/dashboard/promptly/prompts`, `.../prompts/{name}`, `.../prompts/{name}/revisions`, `.../prompts/{name}/labels` e `PUT .../prompts/{name}/labels/{label}`, cada uma exigindo o escopo correspondente — `promptly:read` para ler, `promptly:write` para promover. Verificável: uma chave só de leitura recebe **403** no `PUT`, e o controle negativo é a mesma chave recebendo **200** num `GET`.
+- [x] **Erro tipado do upstream chega à tela com a mensagem do serviço**, nunca como "erro genérico" — `internal/promptly/upstream_error.go`. Vale para **leitura E escrita**: o cliente de leitura constrói o erro tipado (não `fmt.Errorf`) e a rota de leitura o destipa. Verificável por **dois** casos: uma promoção recusada pela política renderiza o texto do serviço; e um `403` do upstream numa **leitura** renderiza `403` com o corpo do serviço, não `502 "não respondeu"`. **Controle negativo obrigatório:** um `5xx` do upstream continua virando `502` genérico — sem essa metade o repasse vira matcher cego que vaza detalhe interno.
+  > **Copiar o PADRÃO, não o ARQUIVO.** `internal/trust/` é a referência, e mede-se que ela tem este exato defeito no caminho de leitura: `data_client.go:144` colapsa a recusa em `fmt.Errorf` — a alternativa que o docstring de `upstream_error.go:10-14` condena por escrito — e `trust_dashboard.go:55-61` responde `502` incondicional. Filado como `#358`. Portar o arquivo portaria o defeito junto com o padrão.
+- [x] Catálogo lista **sem renderizar corpo de prompt** e distingue **falha de leitura de ausência de dados** (`EmptyState` com título distinto — `DESIGN.md § 5`, `§ 6`). Verificável: com o upstream fora, a tela diz que a leitura falhou; com o tenant vazio, diz que não há prompts.
+- [x] Detalhe pagina revisões **no servidor**, com `limit` pequeno e **explícito** — nunca o default de 100, porque cada item carrega `content` integral. Verificável: a requisição que a tela emite carrega `?limit=`.
+- [x] **A promoção mostra a política vigente ANTES do ato** e confirma nomeando **qual revisão deixa de servir aquele label** — não "o item será alterado" (`DESIGN.md § 16`). Verificável: promover `prod` de `v4` para `v7` exibe "prod deixa de servir a v4" na confirmação.
+- [x] Navegação nas **duas metades**: entrada em `Capabilities` com `drillsInto: 'promptly'`, o objeto do submenu, **e a linha em `resolveActiveMenu`**. Verificável: chega-se a cada tela **clicando a partir da raiz**, nunca digitando a URL.
+- [x] Lógica de projeção e validação **fora do React**, testada sem browser; handlers de mock registrados; a jornada inteira coberta por **um** e2e (catálogo → detalhe → promover), contra a instância implantada.
+
+**Dependências:** M24 `[x]` — reusa o data client, o `upstream_error` e o padrão de tela que ele
+estabeleceu; sem ele este milestone reimplementaria a mesma camada.
+
+**Dependência cross-repo (bloqueante):** os dois endpoints do primeiro DoD vivem no
+`theo-promptly`, logo em outro plano (`umbrella-scope.md`: um `target_project` por plano). A UI
+**não começa** antes deles — uma tela de catálogo sem catálogo é meia tela, e o `DESIGN.md § 0`
+pede pequena e inteira.
+
+**Top risks (new):**
+
+1. **A tela move o ponteiro que serve produção.** Promover troca, sem redeploy, o prompt que agentes em execução resolvem — a promessa do produto é também o perigo dele. Um clique errado não derruba nada: muda comportamento em silêncio, que é pior de diagnosticar. *Mitigação:* a política vigente é exibida **antes** do ato (por isso o `GET` de políticas entra neste milestone, e não fica para depois), e a confirmação nomeia a revisão que deixa de servir o label.
+2. **O catálogo é o primeiro índice que este produto terá.** Um índice sem teto nasce com a dívida que o `#47` custou nas revisões. *Mitigação:* paginado e sem `content` desde o primeiro commit, com a mesma validação de fronteira que `/revisions` já cumpre.
+
+**Não entra neste milestone:**
+
+| Item | Por que fora | Destino |
+|---|---|---|
+| Editor de prompt em tempo real e **diff visual** entre revisões | O `ROADMAP.md` do `theo-promptly` exclui **UI rica/colaborativa** no V1. Este milestone entrega a **UI mínima** que a própria razão daquela exclusão prevê — a exclusão **não é revisada** | fora do V1 |
+| Criar/editar prompt pela tela | Escrita de conteúdo é outra classe de risco (revisões são imutáveis); a promoção já cobre o ato central | milestone futuro |
+| Rollback pela tela | `POST /rollback` exige `label` (M8 do produto) e move um ponteiro — merece a mesma confirmação, depois de a promoção estar provada | milestone futuro |
+| Datasets e evaluation runs | Exigem **dois** índices novos no `theo-promptly` (`GET /evaluations/datasets` e `/runs` — medidos 404); é outro milestone com outra dependência cross-repo | milestone futuro |
+| Auditoria como tela própria | `GET /audit` exige `?resource=` ou `?actor=` (medido `400 missing_filter`) — serve como aba de um detalhe, não como índice | aba, milestone futuro |
+
+---
+
+### M26 — [x] A interface do registro de skills, no padrão do ecossistema
+
+> **Fechado em 2026-08-02 por veredito independente**, 5/5 verificados no ar.
+> A promoção foi exercitada nos **dois** ramos — canal novo e canal que já servia —
+> com o efeito medido por leitura, não pelo status do `PUT`, e o par `403/200`
+> registrado. A letra sobre "quantos consumidores" permanece fora do escopo: o
+> serviço não sabe, e a tela **não inventa**.
+
+> **Movido de `theo-skills/ROADMAP.md` § M29 em 2026-08-02**, preservando o conteúdo. Razão
+> mecânica: `cycle-release` fase `roadmap-checkbox-flip` vira o checkbox no ROADMAP do repo
+> declarado em `target_project`, e o plano `m29-dashboard-ui` declara `target_project: theo-cloud`
+> — hospedado no roadmap do produto, o milestone ficaria `[ ]` para sempre, mesmo entregue.
+> Precedente: o M23 acima (UI do trust) é do `theo-cloud` e está `[x]`. O `theo-skills/ROADMAP.md`
+> guarda ponteiro para cá — a remoção sem rastro foi o que custou cinco semanas de roadmap
+> contraditório no `theo-promptly`. Plano: `../.claude/knowledge-base/plans/m29-dashboard-ui-plan.md`.
+
+**Objective:** Dar ao `theo-skills` a superfície que todo produto do ecossistema já tem — telas
+no `dashboard/`, menu no mesmo padrão, componentes `usetheo-ui` usados como os vizinhos usam.
+Hoje o produto tem 37 rotas HTTP e **nenhuma** superfície de UI.
+
+**Why now (o que mudou):** três fatos medidos em 2026-08-02, não uma preferência de roadmap.
+
+1. O eixo web do gate de live-test ficou **`não-aplicável` por AUSÊNCIA de tela**, não por
+   aprovação — a cobertura não foi conquistada, ela não existe.
+2. A única entrada "Skills" do menu (`dashboard/src/components/layout/app-sidebar-menus.ts:268`)
+   aponta para `/memory/skills`, que é do **theo-memory**. Quem procura skills chega no produto
+   errado, sem erro algum.
+3. Operações destrutivas só existem por API. **Promover canal aponta os consumidores do canal
+   para outro conteúdo** — é a operação mais perigosa do produto justamente por não parecer
+   destrutiva, e hoje acontece sem confirmação nem visibilidade.
+
+**Onde nasce:** aqui, no `dashboard/`, **nunca** no repo do produto. O `theo-skills/CLAUDE.md` é
+explícito, e o `theo-trust` (M23) é a implementação de referência — copie o caminho dele (cliente +
+broker, erro tipado do upstream, rotas do BFF, telas, lógica pura fora do React, mocks, e2e).
+Contrato de design em `dashboard/DESIGN.md`, leia **antes** de desenhar.
+
+**Definition of done:**
+
+- [ ] **A navegação abre PELO MENU, verificada clicando a partir da raiz.** As três peças:
+      entrada em `Capabilities` com `drillsInto: 'skills'`, o objeto `skills:` com as telas, **e
+      a linha em `resolveActiveMenu`**. Chegar na tela digitando a URL **não conta como
+      verificação** — é o único caminho que o usuário real não tem.
+- [ ] Jornada de leitura ponta a ponta: listar skills → abrir detalhe → ver versões e canais →
+      ver a instrução resolvida. Afirmando **conteúdo**, não status HTTP.
+- [ ] Promover canal exige o `ConfirmDialog` canônico com frase digitada, e o texto diz **o que
+      deixa de valer**. **A forma desse texto depende de uma medição feita em 2026-08-02 e
+      registrada aqui para não virar surpresa de implementação:** a telemetria de adoção existe
+      (M21 do `theo-skills`) mas é **por bundle** (`GET /v1/bundles/:bundleId/adoption`) — **não
+      há rota que responda "quantos consumidores deste canal"**. Escolher UMA das duas saídas,
+      com a decisão declarada no plano:
+      **(a)** o diálogo nomeia o que é verificável hoje — a versão que sai e a que entra —
+      sem afirmar contagem de consumidores; ou
+
+      > **Correção de 2026-08-02, medida durante a validação do M26.** Esta linha pedia
+      > também *"o bundle afetado"*, e o pedido era **insatisfazível**: `GET /channels`
+      > devolve `{channel, revision_id, previous_revision_id}` — **sem bundle**. Uma
+      > implementação honesta seria reprovada por não exibir um dado que a leitura não
+      > entrega, e a única forma de "cumprir" a redação anterior seria a tela **inventar**
+      > o número — exatamente a terceira via que este mesmo item proíbe três linhas abaixo.
+      > O defeito estava no critério, não no código. Registrado como 24º padrão do audit
+      > (`.claude/knowledge-base/audits/2026-08-01-live-test-run-coordenada.md`): *a régua
+      > também precisa ser medida contra a realidade*.
+      **(b)** a contagem por canal entra no escopo, e então isto deixa de ser só UI: exige rota
+      nova no `theo-skills` e vira dependência real deste milestone.
+      **Não é aceitável a terceira via** — a tela exibir uma contagem derivada por conta própria
+      a partir de dados de bundle: seria a interface inventando um número que o serviço não
+      afirma, que é literalmente o Risco 1 abaixo.
+- [ ] Lógica de projeção e validação testada **fora do React**; handlers de mock registrados
+      para a jornada entrar no e2e hermético.
+- [ ] **Um** e2e cobre a jornada inteira, não um por tela.
+
+**Dependencies:** nenhuma nova. Os milestones do `theo-skills` que fornecem os dados já estão
+`[x]` — M19 (canais e versionamento), M20 (bundles + tokens delegados), M21 (telemetria de
+adoção), M22 (vertical Model B) e M23 (categoria e execução).
+
+**M7 e M28 do `theo-skills` NÃO são dependências, e a razão é a mesma para os dois:** eles tratam
+de um *agente* carregar skill sem disco; este trata de um *humano* navegar o registro. Amarrá-los
+faria a interface esperar por uma decisão de arquitetura entre dois produtos, que ainda precisa
+de ADR.
+
+**Explicitamente FORA deste milestone:** escrita pela tela (publicar/republicar skill). Escopo
+maior; se justificar, vira milestone próprio.
+
+**Top risks:**
+
+1. **A tela mostrar o que o serviço não manda, e o defeito parecer de interface.** Três casos
+   reais do `theo-trust`: campo que a jornada exige ausente na resposta (o painel de detalhe
+   virou código morto em produção); mensagem de erro escrita para terminal (`"Run: theo login"`
+   para quem está num navegador); o mesmo dado em dois formatos (a coluna ficou vazia
+   exatamente nas linhas que o operador criou). *Mitigação:* ao desenhar cada endpoint,
+   perguntar qual é a **próxima ação** de quem lê aquela lista — e devolver o que a torna
+   possível.
+2. **O menu declarado e inalcançável.** Já custou um milestone inteiro no `theo-trust`: quatro
+   telas declaradas, submenu completo, e o menu nunca abriu porque faltava a linha de resolução.
+   Três rodadas de validação passaram por cima porque validavam pela URL. A DoD mitiga, mas o
+   risco persiste porque **a falha é silenciosa** — as telas funcionam, só não há como chegar
+   nelas clicando.
+
+---
+
+
+**§ Evidência — medida em 2026-08-02, comando a comando**
+
+| DoD | Como foi verificado | Resultado |
+|---|---|---|
+| endpoints no `theo-promptly` | `GET /prompts` e `GET /prompts/:name/policies/:label` contra o serviço | eram `404`; hoje `200`/`404 policy_not_found` tipado (`49fe9f4`, `e80ac74`) |
+| rotas BFF com escopo | `cmd/promptly_dashboard_wiring.go:40,62` | least-privilege **no mint**: o cliente de leitura cunha `["promptly:read"]`, o de escrita `["promptly:read","promptly:write"]`. **Mecanismo diferente do que este DoD descrevia** (middleware por rota): a separação é por cliente, e o caminho de leitura não tem credencial capaz de promover |
+| erro tipado na leitura E escrita | `internal/promptly/data_client.go:144` constrói `&UpstreamError{}`; `internal/routes/promptly_dashboard.go:106` faz `AsUpstreamError` | **o defeito `#358` NÃO foi replicado** — no `internal/trust/` o `getRaw` colapsa a recusa em `fmt.Errorf` e a rota de leitura responde `502` incondicional |
+| catálogo sem corpo, vazio ≠ falha | `dashboard/src/pages/promptly.tsx:85,107` | `title={failed ? 'Sem dados — a leitura falhou' : 'Nenhum prompt neste workspace'}` |
+| `limit` explícito | `dashboard/src/components/promptly/promptly-api.ts:14-15,26` | `fetchCatalog(limit)` e `fetchRevisions(name, limit, after)` — nunca o default |
+| política antes do ato + frase | `dashboard/src/pages/promptly/detail.tsx:43,262` | `ConfirmDialog` nomeando **qual revisão deixa de servir o label**, com número vindo de `/labels` |
+| navegação nas duas metades | `app-sidebar-menus.ts:134` (`drillsInto`), `:282` (submenu), `:387` (`resolveActiveMenu`) | as **três** peças presentes — a terceira é a que ninguém lembra |
+| lógica fora do React + mocks + um e2e | `components/promptly/projections.ts` + `lib/mocks/promptly-handlers.ts` + `e2e/promptly-journey.spec.ts` | **36** testes unitários e **4** e2e verdes (chromium) |
+
+**Gates rodados:** `go test ./internal/promptly/ ./internal/routes/ ./cmd/...` ok · dashboard `vitest` 36/36 · `playwright` 4/4.
+
+**Não verificado, e dito:** o e2e rodou em **chromium apenas** — o binário do firefox não está instalado neste runner. E a jornada **live** (`e2e/promptly-journey-live.spec.ts`) não foi executada contra a instância implantada: *mergeado não é implantado*.
+
+### M27 — [→] A jornada completa de gestão de prompts — **movido para `theo-promptly` § M12**
+
+> **Movido em 2026-08-03, preservando o conteúdo.** Foi criado aqui pelo argumento mecânico de
+> que `cycle-release` vira o checkbox no `ROADMAP.md` do repo declarado em `target_project`, e
+> o **código** da UI nasce no `dashboard/` deste repositório. **O dono decidiu o contrário:** os
+> artefatos de ciclo do `theo-promptly` — roadmap, grill, plano, aceitação — vivem no repositório
+> do produto.
+>
+> A entrada fica aqui, riscada e legível, em vez de sumir: a remoção **sem rastro** foi o que
+> custou cinco semanas de roadmap contraditório no `theo-promptly` (`b95552e`), e um leitor que
+> encontrasse o M27 citado num commit e não achasse nada aqui repetiria a mesma investigação.
+>
+> **Onde ele vive:** `theo-promptly/ROADMAP.md` § M12 · grill em
+> `theo-promptly/.claude/knowledge-base/grills/promptly-journey-feature-grill.md`.
+>
+> **O que NÃO muda:** o código da UI continua nascendo em `theo-cloud/dashboard/`, nunca no repo
+> do produto — o `theo-promptly/CLAUDE.md` é explícito, e o M25 acima é a implementação de
+> referência.
 
 ---
 

@@ -215,12 +215,37 @@ func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, 
 		Timeout:   10 * time.Second, // last-resort ceiling, never the policy (D1)
 		Transport: otelhttp.NewTransport(http.DefaultTransport),
 	}
+	targets := serviceVersionTargets(cfg)
+
+	// theo-workspace#37 — UMA observacao alimenta AS DUAS metricas.
+	//
+	// Deliberadamente um adaptador sobre o hook existente, e nao um segundo caminho de
+	// coleta: dois caminhos divergem, e divergencia entre duas leituras do mesmo fato ja
+	// custou tres diagnosticos errados num unico dia (dois theo-cloud, dois paineis).
+	//
+	// O counter responde "quantas sondagens aconteceram"; o gauge responde "qual e' o
+	// estado AGORA". Sao perguntas diferentes e nenhuma das duas responde a outra.
+	observe := func(service, result, version string) {
+		cloudmetrics.IncServiceVersionProbe(service, result)
+		cloudmetrics.SetServiceVersionInfo(service, result, version)
+	}
+
+	// Semeia TODO alvo declarado antes da primeira coleta. Sem isto, um scrape tomado
+	// entre o start do processo e a primeira coleta nao lista alvo algum, e a ausencia de
+	// serie significaria duas coisas — "nao declarado" e "ainda nao coletado". Essa
+	// ambiguidade e' exatamente o que tornava o counter inutil para responder "qual e' o
+	// estado da frota agora".
+	for _, t := range targets {
+		cloudmetrics.SeedServiceVersionInfo(t.Name)
+	}
+	cloudmetrics.SeedServiceVersionInfo(version.Read().Name)
+
 	collector := serviceversions.NewCollector(serviceversions.Options{
 		Client:     versionHTTP,
-		Targets:    serviceVersionTargets(cfg),
+		Targets:    targets,
 		PerService: 2 * time.Second,
 		Global:     3 * time.Second,
-		OnResult:   cloudmetrics.IncServiceVersionProbe,
+		OnResult:   observe,
 		Logger:     logger,
 	})
 	// M22 — o proprio gateway entra no painel que ele serve.
@@ -238,7 +263,7 @@ func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, 
 	// depois seria invisivel para ele e o censo do Prometheus discordaria do censo do JSON por um.
 	// Por isso o decorator emite a propria observacao.
 	selfAware := routes.NewSelfReportingCollector(
-		collector, version.Read(), time.Now, cloudmetrics.IncServiceVersionProbe,
+		collector, version.Read(), time.Now, observe,
 	)
 	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(selfAware, logger), requireJWT)
 }
@@ -474,10 +499,34 @@ func main() {
 	// promptly broker + "promptly:read"; only registered when PROMPTLY_BASE_URL is
 	// set. The broker translates promptly:* -> prompt:* and mints per-tenant.
 	var promptlyForwardAuthHandler *routes.ForwardAuthHandler
+	// M25 — o BFF do catálogo de prompts do dashboard. Nil quando PROMPTLY_BASE_URL está ausente:
+	// sem broker não há cunhagem por inquilino, e sem ela a rota não deve existir.
+	var promptlyDashboardHandler *routes.PromptlyDashboardHandler
+	// theo-promptly#50: o broker sai do escopo do bloco `if` abaixo para poder servir
+	// TAMBEM o binding MCP montado adiante — exatamente como `ragBroker` ja faz. Um
+	// unico broker para as duas superficies significa UM cache de mint, logo chaves
+	// per-tenant consistentes entre o ForwardAuth do REST e o resolve do gateway; dois
+	// brokers cunhariam credenciais diferentes para o mesmo inquilino.
+	//
+	// As duas declaracoes convivem porque resolvem coisas diferentes e ADITIVAS: esta hasteia o
+	// broker para o MCP, aquela guarda o handler do dashboard. O conflito foi de posicao no
+	// arquivo, nao de intencao — descartar qualquer uma das duas removeria uma capacidade.
+	var promptlyBroker *promptly.Broker
+	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
+	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
+	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
+	// ligue uma coisa a outra. Nomes, nunca valores: varios destes sao credenciais.
+	if missing := config.MissingSettings(
+		config.Setting{Name: "PROMPTLY_BASE_URL", Value: cfg.PromptlyBaseURL},
+	); len(missing) > 0 {
+		logger.Warn("integration disabled — configuration absent",
+			"integration", "promptly", "missing", missing)
+	}
 	if cfg.PromptlyBaseURL != "" {
 		promptlyHTTP := &http.Client{Timeout: 10 * time.Second}
 		promptlyAdmin := promptly.NewAdminClient(cfg.PromptlyBaseURL, cfg.PromptlyPlatformAdminKey.Value(), promptlyHTTP)
-		promptlyBroker, pErr := promptly.NewBroker(promptlyAdmin, 1024, time.Hour,
+		var pErr error
+		promptlyBroker, pErr = promptly.NewBroker(promptlyAdmin, 1024, time.Hour,
 			[]string{"prompt:read", "prompt:write"})
 		if pErr != nil {
 			logger.Error("failed to construct promptly credential broker — refusing to start", "error", pErr)
@@ -495,6 +544,14 @@ func main() {
 			"promptly:read",
 			logger,
 		)
+		// M25 — o BFF do catálogo de prompts. DOIS clientes, com credenciais distintas: o de
+		// leitura recebe uma chave que não consegue promover, e a promoção é o único caminho com
+		// `prompt:write`. A separação é o menor privilégio; ver `promptly_dashboard_wiring.go`.
+		promptlyDataClient := promptly.NewDataClient(cfg.PromptlyBaseURL, promptlyHTTP).
+			WithKeyResolver(newPromptlyDashboardKeyResolver(promptlyBroker))
+		promptlyWriteClient := promptly.NewWriteClient(cfg.PromptlyBaseURL, promptlyHTTP).
+			WithKeyResolver(newPromptlyPromotionKeyResolver(promptlyBroker))
+		promptlyDashboardHandler = routes.NewPromptlyDashboardHandler(promptlyDataClient, promptlyWriteClient, logger)
 		logger.Info("theo-promptly Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
 	}
 
@@ -505,11 +562,26 @@ func main() {
 	// trust:* scopes with the data scopes) and fails CLOSED — no master fallback.
 	var trustForwardAuthHandler *routes.ForwardAuthHandler
 	var trustDashboardHandler *routes.TrustDashboardHandler
+	var trustGuardrailsHandler *routes.TrustGuardrailsHandler
+	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
+	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
+	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
+	// ligue uma coisa a outra. Nomes, nunca valores: varios destes sao credenciais.
+	if missing := config.MissingSettings(
+		config.Setting{Name: "TRUST_BASE_URL", Value: cfg.TrustBaseURL},
+	); len(missing) > 0 {
+		logger.Warn("integration disabled — configuration absent",
+			"integration", "trust", "missing", missing)
+	}
 	if cfg.TrustBaseURL != "" {
 		trustHTTP := &http.Client{Timeout: 10 * time.Second}
 		trustAdmin := trust.NewAdminClient(cfg.TrustBaseURL, cfg.TrustPlatformAdminKey.Value(), trustHTTP)
-		trustBroker, tErr := trust.NewBroker(trustAdmin, 1024, time.Hour,
-			[]string{"trust:read", "trust:write", "trust:delete"})
+		// LT-052 — a lista vem de `trust.CustomerScopes`, fonte ÚNICA compartilhada com o
+		// enum de emissão. Era um literal aqui, e a divergência entre os dois lugares já
+		// produziu quatro falhas silenciosas: escopo no broker e fora do enum deixa a
+		// capacidade inalcançável; escopo no enum e fora do broker faz a borda DESCARTÁ-LO
+		// na travessia, com a API respondendo 200 e cunhando a chave assim mesmo.
+		trustBroker, tErr := trust.NewBroker(trustAdmin, 1024, time.Hour, trust.CustomerScopes)
 		if tErr != nil {
 			logger.Error("failed to construct trust credential broker — refusing to start", "error", tErr)
 			os.Exit(1)
@@ -536,6 +608,14 @@ func main() {
 			WithKeyResolver(newTrustDashboardKeyResolver(trustBroker))
 		trustDashboardHandler = routes.NewTrustDashboardHandler(trustDataClient, logger)
 		logger.Info("dashboard trust enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/trust")
+
+		// M24 — o caminho de MUTACAO recebe um cliente PROPRIO, com resolver proprio. Dois clientes
+		// e nao um porque a credencial e a fronteira: o de leitura carrega so `trust:read` e nao
+		// consegue escrever nem por engano.
+		trustWriteClient := trust.NewDataClient(cfg.TrustBaseURL, &http.Client{Timeout: 20 * time.Second}).
+			WithKeyResolver(newTrustGuardrailsKeyResolver(trustBroker))
+		trustGuardrailsHandler = routes.NewTrustGuardrailsHandler(trustWriteClient, logger)
+		logger.Info("dashboard trust guardrails enabled (per-tenant write broker)", "mount", "/v1/dashboard/trust/guardrails")
 	}
 
 	// M22 (theo-skills Model B): a ForwardAuth handler for the /v1/skills
@@ -549,6 +629,22 @@ func main() {
 	// target to be a member of it, so a broker cannot use it to reach an arbitrary
 	// tenant.
 	var skillsForwardAuthHandler *routes.ForwardAuthHandler
+	// M26 — o BFF de leitura do registro para o dashboard, cliente SEPARADO do ForwardAuth e com
+	// credencial cunhada apenas com `skills:read` (ver `skills_dashboard_wiring.go`).
+	var skillsDashboardHandler *routes.SkillsDashboardHandler
+	// M26 T3.5 — o caminho de MUTACAO, com cliente e credencial PROPRIOS (`skills:publish`).
+	var skillsPromotionHandler *routes.SkillsPromotionHandler
+	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
+	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
+	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
+	// ligue uma coisa a outra. Nomes, nunca valores: varios destes sao credenciais.
+	if missing := config.MissingSettings(
+		config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
+		config.Setting{Name: "SKILLS_PLATFORM_ADMIN_KEY", Value: cfg.SkillsPlatformAdminKey.Value()},
+	); len(missing) > 0 {
+		logger.Warn("integration disabled — configuration absent",
+			"integration", "skills", "missing", missing)
+	}
 	if cfg.SkillsBaseURL != "" && cfg.SkillsPlatformAdminKey.Value() != "" {
 		skillsHTTP := &http.Client{Timeout: 10 * time.Second}
 		skillsAdmin := skills.NewAdminClient(cfg.SkillsBaseURL, cfg.SkillsPlatformAdminKey.Value(), skillsHTTP)
@@ -574,6 +670,23 @@ func main() {
 			logger,
 		)
 		logger.Info("theo-skills Model B broker wired", "base_url", cfg.SkillsBaseURL)
+
+		// M26 — o caminho de LEITURA do dashboard. Cliente próprio, com um resolver que cunha
+		// somente `skills:read`: a separação entre este cliente e o do ForwardAuth É o mecanismo
+		// de menor privilégio, não organização de arquivo. `skills:publish` — o escopo que
+		// promove um canal e redireciona seus consumidores sem redeploy — nunca entra aqui.
+		skillsDataClient := skills.NewDataClient(cfg.SkillsBaseURL, &http.Client{Timeout: 15 * time.Second}).
+			WithKeyResolver(newSkillsDashboardKeyResolver(skillsBroker))
+		skillsDashboardHandler = routes.NewSkillsDashboardHandler(skillsDataClient, logger)
+		logger.Info("dashboard skills enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/skills")
+
+		// M26 T3.5 — promocao de canal. Cliente SEPARADO do de leitura, e a separacao e o
+		// mecanismo de menor privilegio: o de leitura carrega so `skills:read` e nao consegue
+		// promover nem que uma rota mutante seja registrada sobre ele por engano.
+		skillsWriteClient := skills.NewDataClient(cfg.SkillsBaseURL, &http.Client{Timeout: 20 * time.Second}).
+			WithKeyResolver(newSkillsPromotionKeyResolver(skillsBroker))
+		skillsPromotionHandler = routes.NewSkillsPromotionHandler(skillsWriteClient, logger)
+		logger.Info("dashboard skills promotion enabled (per-tenant publish broker)", "mount", "/v1/dashboard/skills/{id}/channels/{channel}")
 	}
 
 	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
@@ -679,6 +792,16 @@ func main() {
 	// once, after both, so it exists whenever ANY capability is configured — the rag MCP
 	// binding is no longer coupled to memory being enabled.
 	mcpCaps := map[string]routes.MCPCapabilityBinding{}
+	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
+	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
+	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
+	// ligue uma coisa a outra. Nomes, nunca valores: varios destes sao credenciais.
+	if missing := config.MissingSettings(
+		config.Setting{Name: "THEMORY_BASE_URL", Value: cfg.ThemoryBaseURL},
+	); len(missing) > 0 {
+		logger.Warn("integration disabled — configuration absent",
+			"integration", "memory", "missing", missing)
+	}
 	if cfg.ThemoryBaseURL != "" {
 		themoryHTTP := &http.Client{
 			Timeout:   30 * time.Second,
@@ -816,6 +939,23 @@ func main() {
 	if ragBroker != nil {
 		mcpCaps["rag"] = routes.MCPCapabilityBinding{Minter: ragBroker, RequiredScope: "rag:read", ScopeTools: routes.RagScopeTools}
 	}
+
+	// theo-promptly#50 — registra a capability `promptly` no resolve MCP, independente de
+	// memory e rag. O MESMO broker serve o ForwardAuth do REST e este binding (um cache de
+	// mint, chaves per-tenant consistentes).
+	//
+	// `ScopeTools` espelha o registro POR ESCOPO do proprio servidor MCP (theo-promptly#52):
+	// `create_dataset` e a UNICA tool de escrita, e uma chave `promptly:read` nao a alcanca
+	// por nenhum dos dois caminhos — o gateway filtra `tools/list` pelo balde, e o promptly
+	// nem registra a tool. Se os dois discordassem, a mais frouxa viraria o limite real e
+	// ninguem saberia qual delas manda.
+	if promptlyBroker != nil {
+		mcpCaps["promptly"] = routes.MCPCapabilityBinding{
+			Minter:        promptlyBroker,
+			RequiredScope: "promptly:read",
+			ScopeTools:    routes.PromptlyScopeTools,
+		}
+	}
 	// Build the MCP-resolve handler once, if ANY capability is registered (memory and/or
 	// rag). Internal-only (the gateway is the caller); it IS the auth, so no middleware.
 	if len(mcpCaps) > 0 {
@@ -884,31 +1024,53 @@ func main() {
 		})
 	})
 
-	// Health check — reports DB connectivity for operational visibility
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		dbStatus := "not_configured"
-		if db != nil {
-			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-			defer cancel()
-			if err := db.PingContext(ctx); err != nil {
-				dbStatus = "disconnected"
-			} else {
-				dbStatus = "connected"
-			}
+	// #338 — a sonda REPROVA quando o servico nao consegue servir.
+	//
+	// O handler anterior ja calculava `degraded` com o banco fora e terminava sem WriteHeader;
+	// sem ele o Go devolve 200, e `wget -qO- .../health` (o healthcheck do compose) so falha em
+	// status de erro. A sonda ficava verde sobre um servico incapaz de servir /v1, /engine e o
+	// ForwardAuth que a borda consulta para autorizar cada produto.
+	//
+	// O corpo passa a nomear integracao desligada, reusando o mesmo config.MissingSettings do
+	// boot (#334). Reportada, NUNCA gatilho de reprovacao: sao opcionais por ambiente, e reprovar
+	// por causa delas derrubaria o container em toda topologia que nao as configura.
+	r.Get("/health", routes.NewHealthHandler(healthPinger(db), func() map[string][]string {
+		return map[string][]string{
+			"skills": config.MissingSettings(
+				config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
+				config.Setting{Name: "SKILLS_PLATFORM_ADMIN_KEY", Value: cfg.SkillsPlatformAdminKey.Value()},
+			),
+			"promptly": config.MissingSettings(
+				config.Setting{Name: "PROMPTLY_BASE_URL", Value: cfg.PromptlyBaseURL},
+				config.Setting{Name: "PROMPTLY_PLATFORM_ADMIN_KEY", Value: cfg.PromptlyPlatformAdminKey.Value()},
+			),
+			"trust": config.MissingSettings(
+				config.Setting{Name: "TRUST_BASE_URL", Value: cfg.TrustBaseURL},
+				config.Setting{Name: "TRUST_PLATFORM_ADMIN_KEY", Value: cfg.TrustPlatformAdminKey.Value()},
+			),
 		}
+	}).ServeHTTP)
 
-		status := "ok"
-		if db != nil && dbStatus != "connected" {
-			status = "degraded"
+	// /ready — READINESS. Mesma sonda, pergunta diferente: "consigo servir AGORA?". Reprova com
+	// a dependencia fora, para que o trafego seja retirado desta instancia. O /health acima
+	// NUNCA reprova por dependencia: liveness reprovada MATA o processo, e reiniciar nao
+	// conserta um banco fora (LT-038 do theo-trust, LT-040/LT-041 do promptly).
+	r.Get("/ready", routes.NewReadyHandler(healthPinger(db), func() map[string][]string {
+		return map[string][]string{
+			"skills": config.MissingSettings(
+				config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
+				config.Setting{Name: "SKILLS_PLATFORM_ADMIN_KEY", Value: cfg.SkillsPlatformAdminKey.Value()},
+			),
+			"promptly": config.MissingSettings(
+				config.Setting{Name: "PROMPTLY_BASE_URL", Value: cfg.PromptlyBaseURL},
+				config.Setting{Name: "PROMPTLY_PLATFORM_ADMIN_KEY", Value: cfg.PromptlyPlatformAdminKey.Value()},
+			),
+			"trust": config.MissingSettings(
+				config.Setting{Name: "TRUST_BASE_URL", Value: cfg.TrustBaseURL},
+				config.Setting{Name: "TRUST_PLATFORM_ADMIN_KEY", Value: cfg.TrustPlatformAdminKey.Value()},
+			),
 		}
-
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"status": status,
-			"db":     dbStatus,
-		})
-	})
+	}).ServeHTTP)
 
 	// §4.1+4.2: Metrics endpoint (Prometheus text format)
 	r.Get("/metrics", cloudmetrics.Handler())
@@ -1264,6 +1426,26 @@ func main() {
 	// sem broker não há cunhagem por tenant, e sem ela a rota não deve existir.
 	if trustDashboardHandler != nil {
 		routes.MountTrustDashboard(r, trustDashboardHandler, requireJWT)
+	}
+	if trustGuardrailsHandler != nil {
+		routes.MountTrustGuardrails(r, trustGuardrailsHandler, requireJWT)
+	}
+	// M25 — catálogo de prompts, revisões e promoção de label. Mesmo gate dos demais: montado só
+	// quando o broker existe.
+	if promptlyDashboardHandler != nil {
+		routes.MountPromptlyDashboard(r, promptlyDashboardHandler, requireJWT)
+	}
+	// M26 — registro de skills (leitura). Mesmo gate dos demais: sem broker não há cunhagem por
+	// inquilino, e sem ela a rota não deve existir. Montá-la assim mesmo daria 502 a toda
+	// requisição — uma capacidade que parece implantada e não está.
+	if skillsDashboardHandler != nil {
+		routes.MountSkillsDashboard(r, skillsDashboardHandler, requireJWT)
+	}
+	// M26 T3.5 — a promocao e montada a parte, e so quando o broker existe. Uma rota de MUTACAO
+	// sem cunhagem por inquilino nao deve existir: ela responderia 502 a toda tentativa, e o
+	// operador leria indisponibilidade onde o defeito e de configuracao.
+	if skillsPromotionHandler != nil {
+		routes.MountSkillsPromotion(r, skillsPromotionHandler, requireJWT)
 	}
 	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
 	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even
@@ -1744,4 +1926,16 @@ func monitorOwnershipVerifier(lensBaseURL string, broker routes.TenantKeyMinter)
 		}
 		return nil
 	}
+}
+
+// healthPinger converte o *sql.DB em routes.Pinger PRESERVANDO o nil.
+//
+// Sem isto, um `db` nil de tipo concreto vira uma interface NAO-nil: o handler tentaria pingar e
+// devolveria 503 num deploy legitimo sem banco. E a armadilha classica de nil tipado em Go, e
+// TestHealth_returns_200_when_no_database_is_configured e o par que a mantem fechada.
+func healthPinger(db *sql.DB) routes.Pinger {
+	if db == nil {
+		return nil
+	}
+	return db
 }

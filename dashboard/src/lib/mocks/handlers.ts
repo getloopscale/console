@@ -52,7 +52,20 @@ import {
   runtimeLogLines,
 } from './fixtures';
 import { registerRoute } from './server';
+
 import { registerSSE } from './sse';
+import { registerTrustHandlers } from './trust-handlers';
+import { registerSkillsHandlers } from './skills-handlers';
+import { registerPromptlyHandlers } from './promptly-handlers';
+
+/**
+ * Cursor da sequência de `/connect` (ver a rota lá embaixo, issue #378).
+ *
+ * Vive no módulo, logo o escopo é a CARGA DA PÁGINA — cada `goto` do teste começa do zero, que
+ * é o que um cenário de polling precisa. Guardá-lo em `window` daria o mesmo escopo com mais
+ * superfície pública; guardá-lo no `db` misturaria estado de teste com estado de domínio.
+ */
+let connectSequenceCursor = 0;
 
 // ============================================================================
 // In-memory "DB" — mutates per session to simulate CRUD persistence
@@ -180,21 +193,57 @@ function registerProjectHandlers() {
   });
 
   // GitHub repo connection
+  //
+  // ALAVANCA DE SEQUÊNCIA — `window.__THEO_MOCK_CONNECT_SEQUENCE` (issue #378).
+  //
+  // Esta rota é servida EM PROCESSO pelo dublê, não pela rede. Consequência que custou caro:
+  // um `page.route('**/projects/*/connect')` no Playwright **nunca dispara** aqui, e os
+  // cenários do e2e que montavam uma sequência de respostas para exercitar a máquina de
+  // estados do polling estavam, na prática, testando a resposta estática do fixture. Como o
+  // arquivo é `mode: 'serial'` e o primeiro cenário falhava por outro motivo, eles ficaram
+  // PULADOS — nunca executados — e ninguém percebeu.
+  //
+  // A alavanca segue o padrão que já existia para sessão (`__THEO_MOCK_LOGGED_OUT`): o teste
+  // planta a sequência com `addInitScript`, e cada GET consome a próxima. Esgotada, a última
+  // se repete — para que o polling continue estável no estado final em vez de voltar ao
+  // começo, que seria um comportamento que servidor nenhum tem.
   registerRoute('GET', '/api/v1/projects/{name}/connect', async (_req, { name }) => {
+    const seq = (window as unknown as { __THEO_MOCK_CONNECT_SEQUENCE?: ProjectConnection[] })
+      .__THEO_MOCK_CONNECT_SEQUENCE;
+    if (Array.isArray(seq) && seq.length > 0) {
+      const i = Math.min(connectSequenceCursor, seq.length - 1);
+      connectSequenceCursor += 1;
+      return Response.json(seq[i]!);
+    }
     const conn: ProjectConnection = makeProjectConnection(name);
     return Response.json(conn);
   });
 
+  // O CORPO CANÔNICO É `{ repo, installation_id, branch, auto_deploy }` — e este dublê exigia
+  // `repo_url`, devolvendo 400 quando ele faltava. Como a tela envia `repo` (o slug
+  // `owner/name`), CONECTAR REPOSITÓRIO FALHAVA SEMPRE em qualquer ambiente mockado: no
+  // desenvolvimento visual e no e2e. Ninguém viu porque o único cenário que exercitava este
+  // POST estava pulado (issue #378) — o defeito e o teste que o pegaria adoeceram juntos.
+  //
+  // `repo_url` era o nome ANTERIOR, declarado legado no próprio tipo. Saiu com o resto (#377).
+  //
+  // O corpo recebido fica em `window.__THEO_MOCK_LAST_CONNECT_POST` para o e2e poder afirmar a
+  // FORMA do pedido: esta rota é servida em processo, então `page.route` não a intercepta e não
+  // há outro jeito de inspecionar o que a tela enviou.
   registerRoute('POST', '/api/v1/projects/{name}/connect', async (req, { name }) => {
     const body = (await req.json()) as {
-      repo_url?: string;
+      repo?: string;
+      installation_id?: number;
       branch?: string;
       auto_deploy?: boolean;
     };
-    if (!body.repo_url) return err('INVALID_INPUT', 'repo_url required', 400);
+    (window as unknown as { __THEO_MOCK_LAST_CONNECT_POST?: unknown }).__THEO_MOCK_LAST_CONNECT_POST =
+      body;
+    if (!body.repo) return err('INVALID_INPUT', 'repo required', 400);
     return Response.json({
       connected: true,
-      repo_url: body.repo_url,
+      repo: body.repo,
+      installation_id: body.installation_id,
       branch: body.branch ?? 'main',
       auto_deploy: body.auto_deploy ?? true,
       project: name,
@@ -723,6 +772,11 @@ export function registerAllMockHandlers(): void {
   registerBillingHandlers();
   registerTenantHandlers();
   registerSystemHandlers();
+  registerTrustHandlers();
+  // M26 — sem este registro a jornada do registro de skills não entra no e2e hermético.
+  registerSkillsHandlers();
+  // M25 — idem para a jornada de prompts (catálogo → detalhe → promoção).
+  registerPromptlyHandlers();
 }
 
 /** Test-only: reset the in-memory DB to initial fixture state. */

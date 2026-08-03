@@ -391,8 +391,10 @@ export function ProjectConnectPage() {
                 </dt>
                 <dd className="mt-1 font-mono text-foreground break-all">
                   {(() => {
-                    const slug = conn.repo ?? conn.repo_url ?? '—';
-                    const href = conn.repo_url ?? (conn.repo ? `https://github.com/${conn.repo}` : undefined);
+                    // `repo` é o slug `owner/name`; a URL se deriva dele. O ramo por
+                    // `repo_url` saiu com o campo legado (#377).
+                    const slug = conn.repo ?? '—';
+                    const href = conn.repo ? `https://github.com/${conn.repo}` : undefined;
                     return href ? (
                       <a
                         href={href}

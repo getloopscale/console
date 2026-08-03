@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSession, type Session } from '@/lib/auth';
-import { exchangeSessionToken, hasValidToken } from '@/lib/api';
+import { exchangeSessionToken, hasValidToken, sessionDefinitivelyExpired } from '@/lib/api';
 
 /** Check Kratos session + exchange for JWT. Redirects to /login if not authenticated. */
 export function useRequireAuth(): Session | null {
@@ -25,7 +25,14 @@ export function useRequireAuth(): Session | null {
       // hangs in "Loading". Closes Red Team theo-cloud#110.
       if (!hasValidToken()) {
         exchangeSessionToken().then((ok) => {
-          if (!ok) navigate('/login', { replace: true });
+          // #324: `!ok` sozinho nao decide. A troca falha por 429, 5xx, 502 ou
+          // rejeicao de rede sem que a sessao Kratos tenha acabado — mandar
+          // para /login nesses casos e falso E realimenta o problema, porque a
+          // navegacao remonta a arvore e refaz a troca. So o 401 (cookie velho,
+          // #110 acima) justifica sair.
+          if (!ok && sessionDefinitivelyExpired()) {
+            navigate('/login', { replace: true });
+          }
         });
       }
       setChecked(true);

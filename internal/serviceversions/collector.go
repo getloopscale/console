@@ -23,7 +23,13 @@ type Options struct {
 	Now        func() time.Time
 	// OnResult observes one probe outcome, once per target, after the fan-out has
 	// joined. It is the runtime-metric pillar of the wiring triad.
-	OnResult func(service, result string)
+	//
+	// `version` is passed ONLY for the ok variant and is "" for every other state.
+	// The narrowing happens HERE, inside the package, instead of via an exported
+	// accessor: ServiceStatus deliberately has no Version() method, because one would
+	// let a caller read a version off a degraded row and reintroduce the exact lie the
+	// union exists to prevent (ADR D3).
+	OnResult func(service, result, version string)
 	Logger   *slog.Logger
 }
 
@@ -35,7 +41,7 @@ type Collector struct {
 	perService time.Duration
 	global     time.Duration
 	now        func() time.Time
-	onResult   func(service, result string)
+	onResult   func(service, result, version string)
 	logger     *slog.Logger
 }
 
@@ -55,7 +61,7 @@ func NewCollector(opts Options) *Collector {
 		c.now = time.Now
 	}
 	if c.onResult == nil {
-		c.onResult = func(string, string) {}
+		c.onResult = func(string, string, string) {}
 	}
 	if c.logger == nil {
 		c.logger = slog.Default()
@@ -173,7 +179,11 @@ join:
 	// Observed after the join, on the caller's goroutine: the counter is never
 	// touched concurrently by this package's own fan-out.
 	for _, s := range out {
-		c.onResult(s.Name(), string(s.State()))
+		version := ""
+		if s.State() == StateOK {
+			version = s.version
+		}
+		c.onResult(s.Name(), string(s.State()), version)
 	}
 	return Report{CollectedAt: collectedAt, Services: out}
 }

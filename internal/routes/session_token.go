@@ -6,6 +6,7 @@ package routes
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -75,6 +76,18 @@ func (h *SessionTokenHandler) Exchange(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
+		// #330: as duas origens de 401 deste handler — esta e a de sessao
+		// inativa abaixo — sao indistinguiveis a partir do log, e exigem
+		// investigacoes opostas: escopo de dominio do cookie de um lado,
+		// estado da sessao do outro. Registramos os NOMES dos cookies
+		// repassados (NUNCA os valores: sao credenciais de sessao) e o status
+		// que o provedor devolveu, para que o proximo diagnostico seja leitura
+		// e nao suposicao.
+		slog.Warn("session exchange rejected by identity provider",
+			"reason", "whoami_non_200",
+			"provider_status", resp.StatusCode,
+			"forwarded_cookie_names", cookieNames(r),
+		)
 		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Not authenticated. Please sign in.")
 		return
 	}
@@ -90,6 +103,14 @@ func (h *SessionTokenHandler) Exchange(w http.ResponseWriter, r *http.Request) {
 		} `json:"identity"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&session); err != nil || !session.Active {
+		// #330: distinta da anterior — aqui o provedor ACEITOU a requisicao e
+		// respondeu que a sessao nao esta ativa (ou o corpo nao decodificou).
+		slog.Warn("session exchange rejected by identity provider",
+			"reason", "session_inactive_or_undecodable",
+			"provider_status", resp.StatusCode,
+			"decode_failed", err != nil,
+			"forwarded_cookie_names", cookieNames(r),
+		)
 		writeError(w, http.StatusUnauthorized, "AUTH_REQUIRED", "Session expired. Please sign in again.")
 		return
 	}
@@ -130,4 +151,17 @@ func (h *SessionTokenHandler) Exchange(w http.ResponseWriter, r *http.Request) {
 		"token_type":   "Bearer",
 		"expires_in":   expiresIn,
 	})
+}
+
+// cookieNames devolve apenas os NOMES dos cookies da requisicao. Existe para
+// que o diagnostico de #330 nao dependa de inspecionar valores: o valor de um
+// cookie de sessao E a credencial, e log e o lugar onde credencial vazada
+// sobrevive mais tempo.
+func cookieNames(r *http.Request) []string {
+	cookies := r.Cookies()
+	names := make([]string, 0, len(cookies))
+	for _, c := range cookies {
+		names = append(names, c.Name)
+	}
+	return names
 }

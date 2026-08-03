@@ -2,7 +2,7 @@
 // Copyright 2025-2026 The Theo Authors
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { engineFetch, exchangeSessionToken, cloudFetch, ApiError } from './api';
+import { engineFetch, exchangeSessionToken, cloudFetch, ApiError, sessionDefinitivelyExpired } from './api';
 
 vi.mock('./config', () => ({ API_URL: 'http://test.local' }));
 
@@ -315,5 +315,133 @@ describe('cloudFetch — 204 No Content is a success (M75)', () => {
     await exchangeSessionToken();
     await expect(cloudFetch('/v1/dashboard/lens/dashboards/abc', { method: 'DELETE' }, { throwOnError: true }))
       .resolves.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LT/#324 — um 429 na troca de sessão NÃO é sessão expirada.
+//
+// O defeito, medido ao vivo em 2026-08-01: `exchangeSessionToken` faz
+// `if (!resp.ok) return false`, colapsando TODO erro num único booleano. Um
+// `429` (cota de 10/min por IP, `internal/routes/session_token.go:29-30`) fica
+// indistinguível de um `401`, e o chamador traduz isso em
+// `redirectToLogin('expired')`. O redirect recarrega a página, zera o dedup de
+// refresh e dispara nova troca — que consome mais da cota já estourada. O
+// estado se auto-perpetua: o usuário fica preso num loop vendo "Session
+// expired" com a sessão VÁLIDA (`/sessions/whoami` respondendo 200).
+//
+// A suíte cobria o caminho de `401` e não o de `429` — por isso passou.
+// ---------------------------------------------------------------------------
+
+describe('troca de sessão sob rate limit (#324)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('um 429 na troca de token não anuncia sessão expirada nem redireciona', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        // O servidor diz "tente de novo em breve", com o instante de reset.
+        return new Response(JSON.stringify({ code: 'RATE_LIMITED' }), {
+          status: 429,
+          headers: { 'Retry-After': '30' },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    await engineFetch('/foo').catch(() => undefined);
+
+    // O sintoma que prende o usuário: o aviso de sessão expirada. Um 429 não
+    // é logout — a sessão do Kratos segue válida.
+    expect(document.body.textContent ?? '').not.toContain('Session expired');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #324, segunda rodada — a primeira correção cobriu UM caminho de três.
+//
+// `api.ts` chama `redirectToLogin('expired')` em três lugares, e só o de
+// `cloudFetch` consultava a flag de rate limit. O caminho que o red team
+// exercitou ao vivo é outro: uma chamada de dados devolve `401`, o
+// `fetchWithAuth` tenta refrescar o token, o refresh bate na cota de 10/min —
+// e redireciona. O loop persistiu com a correção no ar, comprovadamente.
+//
+// O teste anterior exercitava a troca DIRETA de sessão. Uma correção parcial
+// passa nele: é a pergunta que esta corrida ensinou — existe uma implementação
+// errada que passaria neste teste? Passava.
+// ---------------------------------------------------------------------------
+
+describe('rate limit no refresh apos 401 (#324, segunda rodada)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('um 401 seguido de 429 no refresh nao anuncia sessao expirada', async () => {
+    let tokenCalls = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        tokenCalls += 1;
+        // A primeira troca funciona (o usuario esta logado); o REFRESH bate na cota.
+        if (tokenCalls === 1) {
+          return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ code: 'RATE_LIMITED' }), { status: 429 });
+      }
+      // A chamada de dados expira: dispara o caminho de refresh.
+      return new Response(JSON.stringify({ code: 'UNAUTHORIZED' }), { status: 401 });
+    });
+
+    await exchangeSessionToken();
+    await cloudFetch('/foo').catch(() => undefined);
+
+    expect(document.body.textContent ?? '').not.toContain('Session expired');
+  });
+
+  // #324, forma final — a enumeracao vive AQUI porque aqui ela discrimina:
+  // cada caso e uma resposta HTTP diferente de verdade, nao o mesmo booleano
+  // mockado quatro vezes. O handler do servidor
+  // (internal/routes/session_token.go) tem SETE saidas de falha e so o 401
+  // significa que a sessao acabou; as demais dizem "tente de novo". Enumerar o
+  // lado transitorio caso a caso foi o que fez as tres rodadas anteriores
+  // fecharem um caminho e deixarem os outros — este teste fixa o lado TERMINAL,
+  // que tem um membro so, e deixa qualquer status futuro cair no lado seguro.
+  it.each([
+    { status: 429, code: 'RATE_LIMITED', label: 'cota estourada' },
+    { status: 502, code: 'AUTH_SERVICE_UNAVAILABLE', label: 'servico de autenticacao fora' },
+    { status: 500, code: 'INTERNAL_ERROR', label: 'erro interno' },
+    { status: 500, code: 'TENANT_ERROR', label: 'falha de provisionamento' },
+  ])('nao declara sessao encerrada quando a troca falha com $status $code ($label)', async ({ status, code }) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ code }), { status }),
+    );
+
+    const ok = await exchangeSessionToken();
+
+    expect(ok).toBe(false);
+    expect(sessionDefinitivelyExpired()).toBe(false);
+  });
+
+  it('nao declara sessao encerrada quando a rede rejeita (sem resposta)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+
+    const ok = await exchangeSessionToken();
+
+    expect(ok).toBe(false);
+    expect(sessionDefinitivelyExpired()).toBe(false);
+  });
+
+  // O par que impede a inversao de virar "nunca redireciona" — sem ele, uma
+  // implementacao que sempre devolve false passaria em todos os casos acima e
+  // reintroduziria o #110 (cookie Kratos velho prendendo o app em "Loading").
+  it('declara sessao encerrada quando a troca falha com 401 (cookie Kratos velho)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ code: 'AUTH_REQUIRED' }), { status: 401 }),
+    );
+
+    const ok = await exchangeSessionToken();
+
+    expect(ok).toBe(false);
+    expect(sessionDefinitivelyExpired()).toBe(true);
   });
 });

@@ -7,11 +7,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -643,4 +646,125 @@ func TestDataClient_UpstreamStatusError_TypedOnConflict(t *testing.T) {
 	if !strings.Contains(string(ue.Body), "NAME_CONFLICT") {
 		t.Fatalf("body = %q, want it to carry the upstream code", string(ue.Body))
 	}
+}
+
+// --- M141 — usage-by-user (BFF do consumo por end-user) ------------------------------------
+
+// TestDataClient_UsageByUser_ForwardsPathAndQuery — T1.1. The client GETs theo-lens's REAL native
+// path and forwards the WHOLE url.Values verbatim. ADR D2: a field-by-field signature would make
+// the BFF decide which params exist, and would silently drop any param the M140 route gains later
+// — the "divergência silenciosa de contrato" registered as risk R2 of this milestone.
+func TestDataClient_UsageByUser_ForwardsPathAndQuery(t *testing.T) {
+	var gotPath, gotQuery, gotAuth string
+	srv := captureServer(t, &gotPath, &gotQuery, &gotAuth,
+		`{"users":[{"userId":"alice"}],"unpricedSpans":0,"totalUsers":1,"windowDays":7}`)
+	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("theo_live_minted"))
+
+	q := url.Values{"days": {"7"}, "limit": {"50"}, "offset": {"10"}}
+	raw, err := c.UsageByUser(context.Background(), q)
+	if err != nil {
+		t.Fatalf("UsageByUser: %v", err)
+	}
+	if gotPath != "/v1/analytics/usage-by-user" {
+		t.Fatalf("path = %q, want /v1/analytics/usage-by-user (the real theo-lens native path)", gotPath)
+	}
+	if gotAuth != "Bearer theo_live_minted" {
+		t.Fatalf("Authorization = %q, want the per-tenant minted bearer", gotAuth)
+	}
+	parsed := mustParseQuery(t, gotQuery)
+	for k, want := range map[string]string{"days": "7", "limit": "50", "offset": "10"} {
+		if got := parsed.Get(k); got != want {
+			t.Fatalf("upstream %s = %q, want %q (params must reach theo-lens verbatim)", k, got, want)
+		}
+	}
+	if !strings.Contains(string(raw), `"userId":"alice"`) {
+		t.Fatalf("body = %q, want the upstream body passed through verbatim", string(raw))
+	}
+}
+
+// TestDataClient_UsageByUser_ForwardsUnknownParam — the verbatim contract is what protects against
+// R2: a param this BFF has never heard of still reaches theo-lens, so the day M140 gains one, the
+// dashboard is not silently one release behind.
+func TestDataClient_UsageByUser_ForwardsUnknownParam(t *testing.T) {
+	var gotPath, gotQuery, gotAuth string
+	srv := captureServer(t, &gotPath, &gotQuery, &gotAuth, `{}`)
+	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
+
+	if _, err := c.UsageByUser(context.Background(), url.Values{"somethingNew": {"x"}}); err != nil {
+		t.Fatalf("UsageByUser: %v", err)
+	}
+	if got := mustParseQuery(t, gotQuery).Get("somethingNew"); got != "x" {
+		t.Fatalf("unknown param was dropped (query = %q); the proxy must not curate the contract", gotQuery)
+	}
+}
+
+// TestDataClient_UsageByUser_PropagatesUpstreamStatus — the typed 400 the M140 route emits for an
+// out-of-range days/limit MUST survive as an *UpstreamStatusError so the handler can forward it.
+// If this degrades to a plain error, the browser gets a generic 502 and the caller never learns
+// which parameter was wrong — undoing exactly what M140 paid for.
+func TestDataClient_UsageByUser_PropagatesUpstreamStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":"INVALID_QUERY","message":"limit must be at most 500"}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := NewDataClient(srv.URL, &http.Client{Timeout: time.Second}).WithKeyResolver(fixedResolver("k"))
+
+	_, err := c.UsageByUser(context.Background(), url.Values{"limit": {"100000"}})
+	var ue *UpstreamStatusError
+	if !errors.As(err, &ue) {
+		t.Fatalf("err = %v, want *UpstreamStatusError carrying the upstream 400", err)
+	}
+	if ue.Status != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ue.Status)
+	}
+	if !strings.Contains(string(ue.Body), "INVALID_QUERY") {
+		t.Fatalf("body = %q, want theo-lens's own typed code", string(ue.Body))
+	}
+}
+
+// TestDataClient_UsageByUser_ConcurrentCallsShareNoState — a *DataClient is shared across concurrent
+// HTTP requests by construction, so an accidental mutable field here is a real race, not a
+// hypothesis. Run under -race; each goroutine must get back its OWN response.
+func TestDataClient_UsageByUser_ConcurrentCallsShareNoState(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Echo the caller's own offset back, so a swapped body is detectable.
+		_, _ = w.Write([]byte(`{"echo":"` + r.URL.Query().Get("offset") + `"}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := NewDataClient(srv.URL, &http.Client{Timeout: 5 * time.Second}).WithKeyResolver(fixedResolver("k"))
+
+	const n = 50
+	errs := make(chan error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			want := strconv.Itoa(i)
+			raw, err := c.UsageByUser(context.Background(), url.Values{"offset": {want}})
+			if err != nil {
+				errs <- err
+				return
+			}
+			if !strings.Contains(string(raw), `"echo":"`+want+`"`) {
+				errs <- fmt.Errorf("goroutine %d got %q, want its own offset %s — responses crossed", i, string(raw), want)
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("concurrent UsageByUser: %v", err)
+	}
+}
+
+func mustParseQuery(t *testing.T, raw string) url.Values {
+	t.Helper()
+	v, err := url.ParseQuery(raw)
+	if err != nil {
+		t.Fatalf("query %q is not parseable: %v", raw, err)
+	}
+	return v
 }

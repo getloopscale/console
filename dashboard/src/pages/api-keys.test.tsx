@@ -115,11 +115,20 @@ describe('ApiKeysPage', () => {
 
     // The new secret MUST appear in the show-once reveal dialog.
     expect(await screen.findByText(/theo_live_rotatedNEWsecret/)).toBeInTheDocument();
+    // LT-019 (mesma classe do create): o `throwOnError` precisa ser o TERCEIRO argumento
+    // de `cloudFetch`, não um parâmetro do `JSON.stringify` do corpo. A primeira tentativa
+    // de correção o colocou como *replacer* do stringify — sintaticamente válido, ignorado
+    // em runtime, e o `tsc --noEmit` passou LIMPO. Sem esta asserção, uma rotação recusada
+    // voltaria a abrir o diálogo de segredo com `null` e o operador perderia a chave antiga
+    // acreditando ter a nova.
+    const rotateCall = mockCloudFetch.mock.calls.find(
+      (c) => typeof c[0] === 'string' && (c[0] as string).endsWith('/rotate'),
+    );
+    expect(rotateCall, 'a rotação precisa POSTar em /rotate').toBeDefined();
+    expect(
+      (rotateCall?.[2] as { throwOnError?: boolean } | undefined)?.throwOnError,
+    ).toBe(true);
   });
-
-  // =============================================================================
-  // API Key Lineage View plan T7.4 — Lineage button + Sheet timeline
-  // =============================================================================
 
   it('T7.4 — Lineage button per row opens Sheet with timeline + current highlight', async () => {
     mockCloudFetch.mockImplementation((path: string) => {
@@ -196,6 +205,10 @@ describe('ApiKeysPage', () => {
     );
     // Name the key + submit.
     await user.type(screen.getByLabelText(/name/i), 'test');
+    // #348: o diálogo não pré-marca mais escopo algum — o submit fica bloqueado até o usuário
+    // escolher um. Este passo NÃO existia porque `memory:read` vinha marcado de fábrica, que é
+    // exatamente o default que a tela desaconselhava em texto próprio.
+    await user.click(screen.getAllByRole('checkbox')[0]);
     await user.click(screen.getByRole('button', { name: /create key/i }));
 
     // Show-once dialog renders the secret.
@@ -238,5 +251,55 @@ describe('ApiKeysPage', () => {
 
     // rag:admin is NOT customer-issuable (broker-held) — no checkbox for it.
     expect(screen.queryByLabelText('rag:admin')).not.toBeInTheDocument();
+  });
+  // LT-019 da corrida de live-test 2026-08-01. O red team criou uma chave pela UI
+  // real, o backend devolveu 400 UNKNOWN_SCOPE, e o diálogo FECHOU como se a chave
+  // tivesse sido criada — sem mensagem alguma. O operador fica convencido de que tem
+  // uma credencial que não existe, e vai depurar o lugar errado.
+  //
+  // A superfície de erro do diálogo já existia e é correta (Alert "Could not create
+  // key"). O que faltava era alimentá-la: `cloudFetch` resolve para `null` em erro a
+  // menos que receba `{ throwOnError: true }` — descrito como "Opt-in" na doc do
+  // próprio `@/lib/api`. O caminho de LEITURA desta página passa a flag; os de
+  // MUTAÇÃO não passavam, então toda falha virava `onSuccess`.
+  it('LT-019: a criação de chave pede throwOnError — sem isso o 400 vira sucesso silencioso', async () => {
+    mockCloudFetch.mockResolvedValueOnce({ keys: [] });
+    const user = userEvent.setup();
+    render(<ApiKeysPage />);
+
+    await user.click(
+      (await screen.findAllByRole('button', { name: /create api key/i }))[0],
+    );
+    await user.type(screen.getByLabelText(/name/i), 'chave-lt-019');
+    await user.click(screen.getAllByRole('checkbox')[0]); // #348 — escopo agora é escolha explícita
+    mockCloudFetch.mockRejectedValueOnce(new Error('Scope "promptly:read" is not a known scope.'));
+    await user.click(screen.getByRole('button', { name: /^create key$/i }));
+
+    const createCall = mockCloudFetch.mock.calls.find(
+      (c) => c[0] === '/v1/api-keys' && (c[1] as RequestInit | undefined)?.method === 'POST',
+    );
+    expect(createCall, 'a página precisa POSTar em /v1/api-keys').toBeDefined();
+    expect(
+      (createCall?.[2] as { throwOnError?: boolean } | undefined)?.throwOnError,
+      'sem throwOnError o cloudFetch resolve null e o React Query chama onSuccess num 400',
+    ).toBe(true);
+  });
+
+  it('LT-019: falha na criação MANTÉM o diálogo aberto e mostra a causa', async () => {
+    mockCloudFetch.mockResolvedValueOnce({ keys: [] });
+    const user = userEvent.setup();
+    render(<ApiKeysPage />);
+
+    await user.click(
+      (await screen.findAllByRole('button', { name: /create api key/i }))[0],
+    );
+    await user.type(screen.getByLabelText(/name/i), 'chave-lt-019');
+    await user.click(screen.getAllByRole('checkbox')[0]); // #348 — escopo agora é escolha explícita
+    mockCloudFetch.mockRejectedValueOnce(new Error('Scope "promptly:read" is not a known scope.'));
+    await user.click(screen.getByRole('button', { name: /^create key$/i }));
+
+    // O diálogo NÃO pode fechar: fechar é o que faz o operador acreditar que a chave existe.
+    expect(await screen.findByText(/Could not create key/i)).toBeInTheDocument();
+    expect(screen.getByText(/is not a known scope/i)).toBeInTheDocument();
   });
 });

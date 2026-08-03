@@ -2,7 +2,10 @@ import { Badge, Card, PageShell, Skeleton } from '@usetheo/ui';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { useServiceVersions, type ServiceStatus } from '@/hooks/use-service-versions';
+import {
+  useServiceVersions,
+  type ServiceStatus,
+} from '@/hooks/use-service-versions';
 
 /**
  * /status (M21) — the detail behind the sidebar's health indicator: one row per
@@ -24,12 +27,23 @@ export function StatusPage() {
       description="What each platform service reports about itself."
       onTitleChange={setPageTitle}
     >
-      {isPending ? <Skeleton className="h-24 w-full" /> : <Report data={data} />}
+      {isPending ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <Report data={data} />
+      )}
     </PageShell>
   );
 }
 
-function Report({ data }: { data: { collected_at: string; services: readonly ServiceStatus[] } | null | undefined }) {
+function Report({
+  data,
+}: {
+  data:
+    | { collected_at: string; services: readonly ServiceStatus[] }
+    | null
+    | undefined;
+}) {
   // Never an empty list in silence: not knowing is itself the news (the failure
   // mode this milestone exists to remove).
   if (!data) {
@@ -45,11 +59,16 @@ function Report({ data }: { data: { collected_at: string; services: readonly Ser
   return (
     <Card>
       <Card.Body>
-        <p className="text-body-sm text-muted-foreground" data-testid="collected-at">
+        <p
+          className="text-body-sm text-muted-foreground"
+          data-testid="collected-at"
+        >
           Checked at {formatInstant(data.collected_at)}
         </p>
         {data.services.length === 0 ? (
-          <p className="text-body-sm text-muted-foreground">No services configured.</p>
+          <p className="text-body-sm text-muted-foreground">
+            No services configured.
+          </p>
         ) : (
           // `<table>` e nao lista de linhas flex: dado tabular tem elemento nativo
           // (rung 3 da escada), e ele resolve as DUAS coisas de uma vez — o olho
@@ -59,10 +78,18 @@ function Report({ data }: { data: { collected_at: string; services: readonly Ser
             <table className="w-full border-collapse text-label">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
-                  <th scope="col" className="py-2 pr-6 font-normal">Service</th>
-                  <th scope="col" className="py-2 pr-6 font-normal">State</th>
-                  <th scope="col" className="py-2 pr-6 font-normal">Version</th>
-                  <th scope="col" className="py-2 font-normal">Built</th>
+                  <th scope="col" className="py-2 pr-6 font-normal">
+                    Service
+                  </th>
+                  <th scope="col" className="py-2 pr-6 font-normal">
+                    State
+                  </th>
+                  <th scope="col" className="py-2 pr-6 font-normal">
+                    Version
+                  </th>
+                  <th scope="col" className="py-2 font-normal">
+                    Built
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -72,10 +99,16 @@ function Report({ data }: { data: { collected_at: string; services: readonly Ser
                     data-testid={`service-row-${s.name}`}
                     className="border-b border-border/50 last:border-0"
                   >
-                    <td className="py-2.5 pr-6 font-mono text-foreground">{s.name}</td>
+                    <td className="py-2.5 pr-6 font-mono text-foreground">
+                      {s.name}
+                    </td>
                     <td className="py-2.5 pr-6">{stateCell(s)}</td>
-                    <td className="py-2.5 pr-6 font-mono text-muted-foreground">{versionCell(s)}</td>
-                    <td className="py-2.5 text-muted-foreground tabular-nums">{builtCell(s)}</td>
+                    <td className="py-2.5 pr-6 font-mono text-muted-foreground">
+                      {versionCell(s)}
+                    </td>
+                    <td className="py-2.5 text-muted-foreground tabular-nums">
+                      {builtCell(s)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -111,11 +144,51 @@ function stateCell(s: ServiceStatus) {
       return (
         <span className="flex items-center gap-2">
           <Badge variant="warning">timeout</Badge>
-          <span className="text-muted-foreground">{s.reason ?? 'timed out'}</span>
+          <span className="text-muted-foreground">
+            {s.reason ?? 'timed out'}
+          </span>
         </span>
       );
+    // O token do contrato continua `not_deployed`, mas o rotulo diz o que foi MEDIDO.
+    // O coletor nao observa deploy algum: ele observa que a base URL do alvo esta
+    // vazia (internal/serviceversions/probe.go). "not deployed" afirmava mais do que
+    // a medicao sustenta, e o custo foi real — o theo-traefik-mcp apareceu assim
+    // enquanto roteava MCP normalmente, e quem leu a tela foi depurar deploy em vez
+    // de topologia. Mesmo tratamento que o #345 deu ao `unauthorized` logo abaixo:
+    // o estado permanece, a frase para de exagerar.
     case 'not_deployed':
-      return <Badge variant="outline">not deployed</Badge>;
+      return (
+        <span className="flex items-center gap-2">
+          <Badge variant="outline">not configured</Badge>
+          <span className="text-muted-foreground">
+            no base URL for this service in this environment
+          </span>
+        </span>
+      );
+    // O alvo respondeu bem formado e declarou nao saber a propria build. Nao usa o
+    // visual de falha (a pilha esta de pe) nem o de saude (nao houve medicao de versao);
+    // a razao aparece porque ela diz ONDE procurar — a camada de deploy, nao o servico.
+    case 'no_provenance':
+      return (
+        <span className="flex items-center gap-2">
+          <Badge variant="outline">no provenance</Badge>
+          <span className="text-muted-foreground">
+            service reports no version ({s.reason})
+          </span>
+        </span>
+      );
+    // #345 — o alvo RESPONDEU e recusou a sondagem. Nao e degradacao (a pilha esta de pe), entao
+    // nao usa o visual de falha; mas tambem nao e saude, entao a razao aparece: e a configuracao
+    // que falta, e escondê-la era o que fazia o indicador ficar vermelho sem dizer por que.
+    case 'unauthorized':
+      return (
+        <span className="flex items-center gap-2">
+          <Badge variant="outline">not measured</Badge>
+          <span className="text-muted-foreground">
+            probe not authorized ({s.reason})
+          </span>
+        </span>
+      );
     // ADR D11: nao lanca. O parametro `never` mantem a exaustividade de
     // compilacao (remover um `case` acima quebra o `tsc`), e em runtime degrada
     // para o estado literal que chegou. Lancar aqui apagaria a pagina INTEIRA —

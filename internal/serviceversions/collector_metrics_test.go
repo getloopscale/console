@@ -33,7 +33,13 @@ func TestCollect_wired_to_metrics_observes_non_zero_counter(t *testing.T) {
 		},
 		PerService: 150 * time.Millisecond,
 		Global:     2 * time.Second,
-		OnResult:   cloudmetrics.IncServiceVersionProbe, // exactly what cmd/main.go wires
+		// Exatamente o que cmd/main.go liga: UM hook alimentando AS DUAS metricas.
+		// Espelhar o adaptador (e nao so' o counter) e' o que mantem este teste fiel a
+		// raiz de composicao — um teste que liga menos que a producao prova menos.
+		OnResult: func(service, result, version string) {
+			cloudmetrics.IncServiceVersionProbe(service, result)
+			cloudmetrics.SetServiceVersionInfo(service, result, version)
+		},
 	})
 
 	c.Collect(context.Background())

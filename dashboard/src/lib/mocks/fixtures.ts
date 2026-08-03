@@ -190,10 +190,19 @@ export const teamMembersFixture: TeamMember[] = [
 // Environments
 // ============================================================================
 
+// `project` NÃO é decoração: desde o M20 a tela de environments é escopada por projeto
+// (`/projects/:name/environments`) e filtra `(e.project ?? '') === projectName`. Sem este campo,
+// as três entradas eram descartadas pelo filtro e a tela renderizava "No environments yet" —
+// medido em 2026-08-02. O dublê era ANTERIOR ao M20 e nunca acompanhou o produto.
+//
+// Um dublê que não consegue reproduzir a forma real não prova nada sobre o real. Os testes de
+// unidade desta tela não notaram porque montam o componente SEM o parâmetro de rota — com
+// `projectName` vazio, o filtro deixa passar entradas sem projeto, estado que a rota de verdade
+// não produz. Ver o issue sobre o balde `__legacy__` inalcançável.
 export const environmentsFixture: Environment[] = [
-  { name: 'production', status: 'live', projects: 4, protected: true, domain: 'app.acme.com' },
-  { name: 'staging', status: 'building', projects: 3, protected: false, domain: 'staging.acme.com' },
-  { name: 'preview', status: 'live', projects: 5, protected: false, domain: '*.preview.acme.com' },
+  { name: 'production', project: 'acme-web', status: 'live', projects: 4, protected: true, domain: 'app.acme.com' },
+  { name: 'staging', project: 'acme-web', status: 'building', projects: 3, protected: false, domain: 'staging.acme.com' },
+  { name: 'preview', project: 'acme-web', status: 'live', projects: 5, protected: false, domain: '*.preview.acme.com' },
 ];
 
 // ============================================================================
@@ -291,7 +300,7 @@ export function makeProjectConnection(project: string): ProjectConnection {
   }
   return {
     connected: true,
-    repo_url: `https://github.com/acme/${project.replace('acme-', '')}`,
+    repo: `acme/${project.replace('acme-', '')}`,
     branch: 'main',
     auto_deploy: true,
     installation_id: 12345678,

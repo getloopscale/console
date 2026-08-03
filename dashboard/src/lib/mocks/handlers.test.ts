@@ -367,7 +367,8 @@ describe('mocks/handlers — full API coverage', () => {
     const res = await call('GET', '/api/v1/projects/acme-web/connect');
     const body = await res.json();
     expect(body.connected).toBe(true);
-    expect(body.repo_url).toContain('github.com');
+    // O campo canônico é `repo` (slug `owner/name`); `repo_url` era o nome legado e saiu (#377).
+    expect(body.repo).toMatch(/^acme\//);
   });
 
   it('test_project_disconnect_returns_disconnected', async () => {

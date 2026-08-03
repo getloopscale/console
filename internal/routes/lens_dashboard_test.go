@@ -6,6 +6,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -30,6 +31,7 @@ type stubLensDataClient struct {
 	lastScoresRange        string
 	lastFacetKey           string
 	lastWriteBody          string
+	lastUsageQuery         url.Values
 }
 
 func (s *stubLensDataClient) read(body string) (json.RawMessage, error) {
@@ -69,6 +71,10 @@ func (s *stubLensDataClient) SpanAttributes(_ context.Context, key string) (json
 }
 func (s *stubLensDataClient) Cost(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"total_usd":0}`)
+}
+func (s *stubLensDataClient) UsageByUser(_ context.Context, q url.Values) (json.RawMessage, error) {
+	s.lastUsageQuery = q
+	return s.read(`{"users":[{"userId":"alice"}],"unpricedSpans":0,"totalUsers":1,"windowDays":7}`)
 }
 func (s *stubLensDataClient) ListDatasets(context.Context) (json.RawMessage, error) {
 	return s.read(`{"datasets":[]}`)
@@ -237,6 +243,7 @@ func TestLensDashboard_Reads_Authenticated(t *testing.T) {
 		{"scores", (*LensDashboardHandler).Scores, "/v1/dashboard/lens/metrics/scores"},                           // M90
 		{"span-attributes", (*LensDashboardHandler).SpanAttributes, "/v1/dashboard/lens/metrics/span-attributes"}, // M92
 		{"cost", (*LensDashboardHandler).Cost, "/v1/dashboard/lens/cost"},
+		{"usage-by-user", (*LensDashboardHandler).UsageByUser, "/v1/dashboard/lens/usage-by-user"}, // M141
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -268,6 +275,7 @@ func TestLensDashboard_NoTenant_401_FailsClosed(t *testing.T) {
 		{"scores", (*LensDashboardHandler).Scores},                  // M90 — fail-closed like every read
 		{"span-attributes", (*LensDashboardHandler).SpanAttributes}, // M92 — fail-closed like every read
 		{"cost", (*LensDashboardHandler).Cost},
+		{"usage-by-user", (*LensDashboardHandler).UsageByUser}, // M141 — fail-closed like every read
 	}
 	ctxs := []struct {
 		name string
@@ -454,6 +462,33 @@ func mountedLens(t *testing.T) (*chi.Mux, *stubLensDataClient) {
 	h, stub := newLensDashboard()
 	r := chi.NewRouter()
 	MountLensDashboard(r, h, noopJWT)
+	return r, stub
+}
+
+// jwtGateBody is what the middleware stand-in below writes when it short-circuits. It is a marker,
+// not a real error shape: the point is to tell "the middleware ran" apart from "the handler's own
+// authTenant ran", which both answer 401 and are otherwise indistinguishable from the outside.
+const jwtGateBody = `{"code":"JWT_GATE"}`
+
+// mountedLensWithGate mounts the real table behind a middleware that REJECTS instead of passing
+// through. `noopJWT` above cannot prove placement — with a pass-through stand-in, a route mounted
+// OUTSIDE the requireJWT group still answers 401, because the handler's own authTenant catches it.
+// Measured: moving the registration out of the group left the whole suite green.
+//
+// That is fail-closed either way, so it was never a security hole. It was a claim the tests could
+// not back: `EveryMountedGET_IsFailClosed` reads as proving the session gate, and proved only the
+// handler check. This helper closes the gap by making the two outcomes distinguishable.
+func mountedLensWithGate(t *testing.T) (*chi.Mux, *stubLensDataClient) {
+	t.Helper()
+	h, stub := newLensDashboard()
+	r := chi.NewRouter()
+	MountLensDashboard(r, h, func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(jwtGateBody))
+		})
+	})
 	return r, stub
 }
 
@@ -690,5 +725,189 @@ func TestLensDashboard_UpstreamStatus_401_403_5xx_Collapse_To_502(t *testing.T) 
 		if w.Code != http.StatusBadGateway {
 			t.Fatalf("upstream %d must collapse to 502 (no spurious logout / leak), got %d", code, w.Code)
 		}
+	}
+}
+
+// --- M141 — usage-by-user BFF ---------------------------------------------------------------
+
+// TestLensDashboard_UsageByUser_ForwardsQueryVerbatim — DoD-3. The BFF is a thin proxy: the
+// caller's params reach theo-lens unchanged, and a param this BFF never heard of is NOT curated
+// away (risk R2 — the day M140 gains a param, the dashboard must not be a release behind).
+func TestLensDashboard_UsageByUser_ForwardsQueryVerbatim(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet,
+		"/v1/dashboard/lens/usage-by-user?days=7&limit=50&offset=10&somethingNew=x", nil), "t1")
+	w := httptest.NewRecorder()
+	h.UsageByUser(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	// The body reaches the browser verbatim — the BFF is a thin proxy and never re-models the
+	// upstream shape. Asserting only the status would pass on a handler that answered 200 with `{}`.
+	if !strings.Contains(w.Body.String(), `"userId":"alice"`) {
+		t.Fatalf("body = %q, want the upstream body passed through unchanged", w.Body.String())
+	}
+	for k, want := range map[string]string{"days": "7", "limit": "50", "offset": "10", "somethingNew": "x"} {
+		if got := stub.lastUsageQuery.Get(k); got != want {
+			t.Fatalf("upstream %s = %q, want %q — params must be forwarded verbatim", k, got, want)
+		}
+	}
+}
+
+// TestLensDashboard_UsageByUser_ForwardsTypedUpstreamStatus — the proof of ADR D1. M140 answers a
+// typed 400 for an out-of-range limit; this asserts the browser receives THAT 400 with theo-lens's
+// own {code,message}, not a generic 502. Swapping h.proxy for Cost's older shape turns this red —
+// which is the whole point of the test existing.
+func TestLensDashboard_UsageByUser_ForwardsTypedUpstreamStatus(t *testing.T) {
+	// Both browser-actionable statuses this route can realistically see: 400 (a parameter above a
+	// ceiling — M140 rejects rather than clamps) and 429 (rate limited). The plan's failure-scenario
+	// table promises a test for each; parametrising is what makes that promise true here rather than
+	// relying on a sibling route's coverage of the shared helper.
+	for _, tc := range []struct {
+		name   string
+		status int
+		code   string
+	}{
+		{"out-of-range parameter", http.StatusBadRequest, "INVALID_QUERY"},
+		{"rate limited", http.StatusTooManyRequests, "RATE_LIMITED"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, stub := newLensDashboard()
+			stub.err = &thelens.UpstreamStatusError{
+				Status: tc.status,
+				Body:   []byte(`{"code":"` + tc.code + `","message":"upstream said so"}`),
+			}
+			req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/usage-by-user?limit=100000", nil), "t1")
+			w := httptest.NewRecorder()
+			h.UsageByUser(w, req)
+
+			if w.Code != tc.status {
+				t.Fatalf("want the upstream %d forwarded, got %d (%s)", tc.status, w.Code, w.Body.String())
+			}
+			if !strings.Contains(w.Body.String(), tc.code) {
+				t.Fatalf("body = %q, want theo-lens's own typed code so the browser can act on it", w.Body.String())
+			}
+		})
+	}
+}
+
+// TestLensDashboard_UsageByUser_UpstreamAuthCollapsesTo502 — the other half of the policy: a 401/403
+// reflects the BFF↔theo-lens minted-key boundary, NOT the browser's session. Forwarding it would
+// trip the dashboard's session-expiry redirect — a spurious logout on a broker misconfig.
+func TestLensDashboard_UsageByUser_UpstreamAuthCollapsesTo502(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError} {
+		h, stub := newLensDashboard()
+		stub.err = &thelens.UpstreamStatusError{Status: status, Body: []byte(`{"code":"X"}`)}
+		req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/usage-by-user", nil), "t1")
+		w := httptest.NewRecorder()
+		h.UsageByUser(w, req)
+		if w.Code != http.StatusBadGateway {
+			t.Fatalf("upstream %d: want 502 (fail-closed), got %d", status, w.Code)
+		}
+	}
+}
+
+// TestLensDashboard_UsageByUser_TransportErrorIs502 — a connection failure is not a status; it must
+// still fail closed rather than panic or leak the upstream error to the browser.
+func TestLensDashboard_UsageByUser_TransportErrorIs502(t *testing.T) {
+	h, stub := newLensDashboard()
+	stub.err = errors.New("dial tcp: connection refused")
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/usage-by-user", nil), "t1")
+	w := httptest.NewRecorder()
+	h.UsageByUser(w, req)
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("want 502 on transport error, got %d", w.Code)
+	}
+	if strings.Contains(w.Body.String(), "connection refused") {
+		t.Fatalf("body = %q, must not leak the upstream error to the browser", w.Body.String())
+	}
+}
+
+// TestLensDashboard_EveryMountedGET_IsFailClosed — ADR D3. Until now the fail-closed guarantee for
+// reads was a hand-maintained table: mounting a GET and forgetting its row left the suite green
+// with the tenant guard UNPROVEN. The existing chi.Walk test cannot catch that — it skips every
+// non-POST/DELETE route by construction. This walks the REAL mounted router and requires 401 (and
+// zero upstream calls) from every GET, so the guarantee is structural rather than remembered.
+func TestLensDashboard_EveryMountedGET_IsFailClosed(t *testing.T) {
+	r, stub := mountedLens(t)
+	var gets []string
+	_ = chi.Walk(r, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if method == http.MethodGet && strings.HasPrefix(pattern, "/v1/dashboard/lens") {
+			gets = append(gets, pattern)
+		}
+		return nil
+	})
+	// Guard-of-the-guard: an enumeration that enumerates nothing passes vacuously. The mounted read
+	// surface is well past 20 routes; if this trips, the walk stopped seeing the router.
+	if len(gets) < 20 {
+		t.Fatalf("walk found only %d GET routes under /v1/dashboard/lens — the enumeration is not seeing the real router", len(gets))
+	}
+	var sawUsageByUser bool
+	for _, pattern := range gets {
+		if pattern == "/v1/dashboard/lens/usage-by-user" {
+			sawUsageByUser = true
+		}
+		path := strings.NewReplacer(
+			"{traceID}", "tr-1", "{datasetID}", "ds-1", "{evaluatorID}", "ev-1",
+			"{monitorID}", "mo-1", "{itemID}", "it-1", "{runID}", "ru-1", "{sessionID}", "se-1",
+			"{jobID}", "jo-1",
+		).Replace(pattern)
+		t.Run(pattern, func(t *testing.T) {
+			before := stub.calls
+			// no tenantCtx → no JWT user in context
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			if w.Code != http.StatusUnauthorized {
+				t.Fatalf("GET %s without a JWT: want 401, got %d (%s)", path, w.Code, w.Body.String())
+			}
+			if stub.calls != before {
+				t.Fatalf("GET %s without a JWT reached the upstream — fail-closed violated", path)
+			}
+		})
+	}
+	if !sawUsageByUser {
+		t.Fatal("/v1/dashboard/lens/usage-by-user is not mounted — M141 DoD-2 unmet")
+	}
+}
+
+// TestLensDashboard_EveryMountedGET_IsBehindTheSessionMiddleware — the companion the test above
+// cannot be. It re-mounts the same table behind a middleware that REJECTS, so a route registered
+// outside the `requireJWT` group answers with the handler's own message instead of the gate's
+// marker. Without this, "mounted outside the group" and "mounted inside it" are indistinguishable.
+func TestLensDashboard_EveryMountedGET_IsBehindTheSessionMiddleware(t *testing.T) {
+	r, stub := mountedLensWithGate(t)
+	var gets []string
+	_ = chi.Walk(r, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if method == http.MethodGet && strings.HasPrefix(pattern, "/v1/dashboard/lens") {
+			gets = append(gets, pattern)
+		}
+		return nil
+	})
+	if len(gets) < 20 {
+		t.Fatalf("walk found only %d GET routes — the enumeration is not seeing the real router", len(gets))
+	}
+	for _, pattern := range gets {
+		path := strings.NewReplacer(
+			"{traceID}", "tr-1", "{datasetID}", "ds-1", "{evaluatorID}", "ev-1",
+			"{monitorID}", "mo-1", "{itemID}", "it-1", "{runID}", "ru-1", "{sessionID}", "se-1",
+			"{jobID}", "jo-1",
+		).Replace(pattern)
+		t.Run(pattern, func(t *testing.T) {
+			before := stub.calls
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+			if w.Code != http.StatusUnauthorized {
+				t.Fatalf("GET %s: want 401, got %d", path, w.Code)
+			}
+			if !strings.Contains(w.Body.String(), "JWT_GATE") {
+				t.Fatalf("GET %s answered 401 from the HANDLER, not the session middleware (%s) — "+
+					"the route is mounted outside the requireJWT group", path, w.Body.String())
+			}
+			if stub.calls != before {
+				t.Fatalf("GET %s reached the upstream despite the gate", path)
+			}
+		})
 	}
 }

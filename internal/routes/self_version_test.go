@@ -79,10 +79,21 @@ func TestDecoratorDoesNotMutateTheInnerReport(t *testing.T) {
 	}
 }
 
-// D3 coupling — an unstamped local build reports version "dev". If it reported "unknown",
-// serviceversions.normalizeUnknown would map it to empty, OK() would degrade the row to
-// Unreachable, and aggregateState would pin the whole panel at "degraded" forever.
-func TestUnstampedBuildStaysOkNotDegraded(t *testing.T) {
+// D3 coupling, REVISADO em 2026-08-02. A intencao original deste teste — "o painel nao
+// pode ficar permanentemente ambar" — continua valendo e continua protegida; o MECANISMO
+// que a protegia mudou.
+//
+// Antes: `dev` era escolhido justamente por NAO ser sentinela, para escapar do
+// `OK() -> Unreachable` e nao arrastar `aggregateState` para degraded.
+//
+// Agora: `dev` e sentinela declarado (docs/service-version-endpoint.md), e cai em
+// `no_provenance` — um estado que, por desenho, NAO degrada o agregado, exatamente como
+// `unauthorized` (ADR D7). O escape por versao-que-nao-e-sentinela deixou de ser
+// necessario, e era ele que fazia a linha self AFIRMAR uma versao que ela nao tinha.
+//
+// A nao-degradacao e' garantida do lado do dashboard e travada la
+// (dashboard/src/hooks/use-service-versions.test.ts): este teste garante so o estado.
+func TestUnstampedBuildReportsNoProvenanceNotOk(t *testing.T) {
 	inner := &stubCollector{report: serviceversions.Report{CollectedAt: fixedNow}}
 	unstamped := version.Info{Name: "theo-cloud", Version: "dev", GitSHA: "unknown", BuiltAt: "unknown"}
 
@@ -92,9 +103,15 @@ func TestUnstampedBuildStaysOkNotDegraded(t *testing.T) {
 	if len(got.Services) != 1 {
 		t.Fatalf("services = %d, want 1", len(got.Services))
 	}
-	if got.Services[0].State() != serviceversions.StateOK {
-		t.Fatalf("unstamped self-row state = %v, want ok; a permanently amber panel lies exactly "+
-			"as much as a permanently green one", got.Services[0].State())
+	if got.Services[0].State() != serviceversions.StateNoProvenance {
+		t.Fatalf("unstamped self-row state = %v, want no_provenance", got.Services[0].State())
+	}
+	// O guard que substitui o antigo `want ok`: a linha self NAO pode afirmar saude
+	// medida quando ela propria declarou nao saber sua versao. Um painel permanentemente
+	// verde mente tanto quanto um permanentemente ambar — e este era o lado da moeda que
+	// o teste anterior nao cobria.
+	if got.Services[0].State() == serviceversions.StateOK {
+		t.Fatal("build sem carimbo nao pode sair ok: afirmaria uma versao que nao existe")
 	}
 }
 
@@ -105,13 +122,17 @@ func TestSelfRowEmitsItsOwnMetricObservation(t *testing.T) {
 	inner := &stubCollector{report: serviceversions.Report{CollectedAt: fixedNow}}
 
 	NewSelfReportingCollector(inner, stamped(), func() time.Time { return fixedNow },
-		func(service, result string) { seen = append(seen, service+":"+result) }).Collect(context.Background())
+		func(service, result, version string) {
+			seen = append(seen, service+":"+result+":"+version)
+		}).Collect(context.Background())
 
 	if len(seen) != 1 {
 		t.Fatalf("metric observations = %d, want exactly 1", len(seen))
 	}
-	if seen[0] != "theo-cloud:ok" {
-		t.Errorf("observation = %q, want %q", seen[0], "theo-cloud:ok")
+	// A versao acompanha a observacao quando — e SO quando — o estado e' ok. E' o que
+	// permite a metrica info publicar a revisao sem um segundo caminho de coleta.
+	if seen[0] != "theo-cloud:ok:"+stamped().Version {
+		t.Errorf("observation = %q, want %q", seen[0], "theo-cloud:ok:"+stamped().Version)
 	}
 }
 

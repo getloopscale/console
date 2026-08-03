@@ -49,12 +49,12 @@ describe('aggregateState', () => {
 describe('describeStatus', () => {
   it('counts every state in the accessible label, including not_deployed', () => {
     expect(describeStatus([ok('theo-rag', '0.35.0'), down('theo-lens'), absent('theo-storage')]))
-      .toBe('System status: 1 operational, 1 unreachable, 1 not deployed');
+      .toBe('System status: 1 operational, 1 unreachable, 1 not configured, 0 without provenance');
   });
 
   it('counts a timeout as unreachable so the label never undercounts a failure', () => {
     expect(describeStatus([late('theo-lens'), absent('theo-storage')]))
-      .toBe('System status: 0 operational, 1 unreachable, 1 not deployed');
+      .toBe('System status: 0 operational, 1 unreachable, 1 not configured, 0 without provenance');
   });
 
   // F-web-1 — the same alien payload that `aggregateState` turns amber (line 40
@@ -64,7 +64,7 @@ describe('describeStatus', () => {
   it('accounts for a state outside the union, so the dot and the label cannot disagree', () => {
     const alien = { name: 'theo-lens', state: 'quarantined', checked_at: at } as unknown as ServiceStatus;
     expect(describeStatus([ok('theo-rag', '0.35.0'), alien]))
-      .toBe('System status: 1 operational, 0 unreachable, 0 not deployed, 1 unknown');
+      .toBe('System status: 1 operational, 0 unreachable, 0 not configured, 0 without provenance, 1 unknown');
   });
 
   // The counts are a census, not a sample: whatever the wire sends, they add up.
@@ -108,5 +108,68 @@ describe('the client/server path contract', () => {
 
     const mounted = `${group![1]}${leaf![1]}`;
     expect(SERVICE_VERSIONS_PATH).toBe(mounted);
+  });
+});
+
+// #345 — o par que discrimina: 401 no probe NAO pode pintar o indicador de vermelho, e uma
+// dependencia REALMENTE fora ainda tem de pintar. So a primeira metade aceitaria um indicador
+// sempre-verde, que e pior que o sempre-vermelho que o issue relata.
+describe('aggregateState — unauthorized nao e degradacao (#345)', () => {
+  const at = '2026-08-02T12:00:00Z';
+
+  it('nao reporta degraded quando o probe apenas nao foi autorizado', () => {
+    expect(
+      aggregateState([
+        { name: 'theo-lens', state: 'ok', checked_at: at, version: '1.0.0' },
+        { name: 'theo-api', state: 'unauthorized', checked_at: at, reason: 'http 401' },
+      ]),
+    ).toBe('operational');
+  });
+
+  it('AINDA reporta degraded quando uma dependencia real esta fora', () => {
+    expect(
+      aggregateState([
+        { name: 'theo-lens', state: 'ok', checked_at: at, version: '1.0.0' },
+        { name: 'theo-api', state: 'unreachable', checked_at: at, reason: 'http 502' },
+      ]),
+    ).toBe('degraded');
+  });
+
+  it('conta o nao-medido no censo do label, para nao sumir', () => {
+    const label = describeStatus([
+      { name: 'theo-lens', state: 'ok', checked_at: at, version: '1.0.0' },
+      { name: 'theo-api', state: 'unauthorized', checked_at: at, reason: 'http 401' },
+    ]);
+    expect(label).toContain('1 unknown');
+  });
+});
+
+describe('no_provenance', () => {
+  const at = '2026-08-02T15:00:00Z';
+  const noProv = (name: string) =>
+    ({ name, state: 'no_provenance', checked_at: at, reason: 'no provenance reported' }) as const;
+  const ok = (name: string, version: string) =>
+    ({ name, state: 'ok', checked_at: at, version }) as const;
+
+  // O contrato que o lado Go delega a este teste (internal/routes/self_version_test.go):
+  // um build sem carimbo NAO pode pintar o painel de ambar permanente. Antes isso era
+  // garantido fazendo a linha self AFIRMAR `ok` com versao "dev" — verde sobre uma
+  // medicao que nao houve. Agora e garantido aqui, sem a afirmacao falsa.
+  it('does not drag the aggregate down — the target answered', () => {
+    expect(aggregateState([ok('theo-memory', '1.0.0'), noProv('theo-rag')])).toBe('operational');
+  });
+
+  // Controle negativo: nao-degradar NAO e' o mesmo que sustentar o verde sozinho. Sem
+  // isto, `no_provenance` viraria um passe-livre que declara a frota saudavel quando
+  // nenhum alvo reportou versao alguma.
+  it('never claims operational on its own', () => {
+    expect(aggregateState([noProv('theo-rag')])).not.toBe('operational');
+  });
+
+  // O censo do aria-label conta o bucket: um estado invisivel para tecnologia assistiva
+  // e' a mesma mentira relocada para o canal que o leitor nao consegue conferir olhando.
+  it('is counted in the accessible census', () => {
+    expect(describeStatus([ok('theo-memory', '1.0.0'), noProv('theo-rag')]))
+      .toBe('System status: 1 operational, 0 unreachable, 0 not configured, 1 without provenance');
   });
 });

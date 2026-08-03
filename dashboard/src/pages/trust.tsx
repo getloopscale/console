@@ -1,48 +1,50 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { useQueryState, parseAsStringEnum } from 'nuqs';
-import { RefreshCw, ShieldAlert, ShieldCheck, Activity } from 'lucide-react';
-import { Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
+import { ArrowRight, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
+import {
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  EmptyState,
+  PageShell,
+  type DataTableColumn,
+} from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { fetchTrust } from '@/components/trust/trust-api';
 import {
-  totalInWindow,
-  violationCount,
-  peakSeverity,
-  byPolicy,
-  type TrendsPayload,
+  coverageGap,
+  unenforcedCount,
+  type PolicyCoverage,
   type ViolationsPayload,
+  type ValidatorsPayload,
 } from '@/components/trust/trust-series';
 
 /**
- * M23 — `/trust`, a visão geral da camada de confiança.
+ * M23 — `/trust`. A tela abre com uma frase, não com três números.
  *
- * Espelha `/memory` e `/observability`: KPIs no topo e um caminho claro para a lista de violações.
- * Os dados vêm do BFF `/v1/dashboard/trust/*`, que cunha uma chave `trust:read` por tenant — a tela
- * nunca vê credencial.
+ * A pergunta que ela responde é **o que passa sem ser bloqueado**: o plano de observação enxerga
+ * toda conversa ingerida, o inline só bloqueia o que tem guardrail, e a distância entre os dois é
+ * onde o risco mora. "12 violações" não diz se elas continuam passando; "3 políticas passando sem
+ * guardrail" diz, e aponta o que fazer.
  *
- * A regra 5Q-3s do `DESIGN.md` mapeada nesta tela:
- *   Onde estou?            título "Trust" + descrição do que a página responde
- *   O que está havendo?    três KPIs no primeiro screen
- *   Ação principal?        um CTA dominante — "Ver violações"
- *   Existe risco?          o KPI de severidade some quando não há risco e aparece quando há
- *   O que faço agora?      o empty-state distingue "limpo" de "sem dado" e diz o próximo passo
+ * Cada linha descoberta é uma decisão, não um item de lista. O caminho de leitura termina numa
+ * ação — sem isso a tela é um alarme sem interruptor.
  *
- * `throwOnError: true` é deliberado (mesmo motivo de `memory.tsx`): sem ele um erro do backend
- * resolveria para `null` e a tela desenharia zeros fabricados — um painel de segurança relatando
- * "nenhuma violação" durante uma indisponibilidade é pior que uma tela de erro honesta.
+ * A frase de julgamento é o `Card.Title`, e não um `<p>` solto: ela É o título daquele cartão —
+ * o veredito que o resto detalha. As linhas usam `DataTable`, o mesmo componente de `api-keys` e
+ * do catálogo de guardrails, em vez de uma `<ul>` montada à mão.
+ *
+ * 5Q-3s do `DESIGN.md`:
+ *   Onde estou?          título "Trust"
+ *   O que acontece?      a frase de abertura, em uma linha
+ *   Ação principal?      fechar a lacuna da linha de cima (a mais urgente)
+ *   Existe risco?        é exatamente o que a abertura mede
+ *   O que faço agora?    cada linha descoberta carrega seu próprio próximo passo
  */
-
-const RANGES = ['24h', '7d', '30d'] as const;
-type Range = (typeof RANGES)[number];
-
-/** `null` significa "não sei", e a tela diz isso em vez de desenhar um número inventado. */
-function show(n: number | null): string {
-  return n === null ? '—' : String(n);
-}
 
 export function TrustOverviewPage() {
   const { setPageTitle } = usePageMeta();
@@ -50,112 +52,136 @@ export function TrustOverviewPage() {
   useRequireAuth();
   const queryClient = useQueryClient();
 
-  const [range] = useQueryState('range', parseAsStringEnum<Range>([...RANGES]).withDefault('24h'));
-
-  const trendsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/trust/trends', range] as const,
-    queryFn: () =>
-      cloudFetch<TrendsPayload>(`/v1/dashboard/trust/trends?range=${range}`, {}, { throwOnError: true }),
-  });
-
   const violationsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/trust/policy-violations'] as const,
-    queryFn: () =>
-      cloudFetch<ViolationsPayload>(
-        '/v1/dashboard/trust/policy-violations?limit=100',
-        {},
-        { throwOnError: true },
-      ),
+    queryFn: () => fetchTrust<ViolationsPayload>('/policy-violations?limit=200'),
   });
 
-  const isLoading = trendsQuery.isLoading || violationsQuery.isLoading;
-  const failed = Boolean(trendsQuery.error ?? violationsQuery.error);
+  const validatorsQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/trust/validators'] as const,
+    queryFn: () => fetchTrust<ValidatorsPayload>('/validators'),
+  });
 
-  const events = totalInWindow(trendsQuery.data);
-  const violations = violationCount(violationsQuery.data);
-  const peak = peakSeverity(violationsQuery.data);
-  const policies = byPolicy(violationsQuery.data);
+  const isLoading = violationsQuery.isLoading || validatorsQuery.isLoading;
+  const failed = Boolean(violationsQuery.error);
+  // Uma falha ao ler o CATÁLOGO não zera a tela: `coverageGap` conta tudo como descoberto, que é o
+  // lado seguro. Mas o operador precisa saber que a coluna "bloqueado" está cega.
+  const catalogBlind = Boolean(validatorsQuery.error);
+
+  const coverage = coverageGap(violationsQuery.data, validatorsQuery.data);
+  const gaps = unenforcedCount(coverage);
 
   const onRefresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/trust/trends'] });
-    void queryClient.invalidateQueries({
-      queryKey: ['cloud', '/v1/dashboard/trust/policy-violations'],
-    });
+    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/trust/policy-violations'] });
+    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/trust/validators'] });
   };
+
+  const columns: DataTableColumn<PolicyCoverage>[] = [
+    {
+      key: 'policy',
+      label: 'Política',
+      render: (row) => <span className="font-mono font-medium">{row.policy}</span>,
+    },
+    {
+      key: 'observed',
+      label: 'Observada',
+      render: (row) => (
+        <span className="tabular-nums text-muted-foreground">{row.observed}&times;</span>
+      ),
+    },
+    {
+      key: 'enforced',
+      label: 'No caminho inline',
+      align: 'right',
+      // A linha descoberta termina numa AÇÃO, não num rótulo: uma tela que só avisa é um alarme
+      // sem interruptor. A bloqueada termina num Badge, porque não há nada a decidir nela.
+      render: (row) =>
+        row.enforced ? (
+          <Badge variant="outline">
+            <ShieldCheck className="size-3.5" aria-hidden="true" />
+            Bloqueada
+          </Badge>
+        ) : (
+          <Button variant="secondary" size="sm" asChild>
+            <Link to={`/trust/violations?policy=${encodeURIComponent(row.policy)}`}>
+              <ShieldAlert className="size-4" aria-hidden="true" />
+              Revisar e bloquear
+            </Link>
+          </Button>
+        ),
+    },
+  ];
+
+  /** O veredito da tela, em uma frase — já com o julgamento embutido. */
+  const headline = failed
+    ? 'Sem leitura da camada de confiança.'
+    : coverage.length === 0
+      ? 'Nenhuma violação registrada.'
+      : gaps === 0
+        ? 'Toda política observada já está sendo bloqueada.'
+        : `${gaps} ${gaps === 1 ? 'política observada não está sendo bloqueada' : 'políticas observadas não estão sendo bloqueadas'}.`;
 
   return (
     <PageShell
       title="Trust"
-      description="O que a camada de confiança observou nas conversas dos seus agentes."
-      primaryAction={{ label: 'Refresh', icon: RefreshCw, onClick: onRefresh }}
+      description="O que a camada de confiança observou — e o que dela ainda passa sem ser bloqueado."
+      primaryAction={{ label: 'Atualizar', icon: RefreshCw, onClick: onRefresh }}
     >
-      {/* Um erro de backend NUNCA é renderizado como "tudo limpo". */}
       {failed ? (
         <Alert
           intent="destructive"
           title="Não foi possível ler a camada de confiança"
-          description="Os números abaixo não foram carregados — isto NÃO significa ausência de violações. Tente atualizar; se persistir, confira se o serviço trust está no ar na página de status."
+          description="Nada abaixo foi carregado — isto NÃO significa ausência de violações. Confira se o serviço trust está no ar na página de status."
         />
       ) : null}
 
-      {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-3">
-          <MetricCard
-            title="Eventos na janela"
-            value={show(events)}
-            icon={<Activity className="h-4 w-4" aria-hidden="true" />}
-          />
-          <MetricCard
-            title="Violações de política"
-            value={show(violations)}
-            icon={<ShieldAlert className="h-4 w-4" aria-hidden="true" />}
-          />
-          <MetricCard
-            title="Severidade mais alta"
-            value={peak ?? '—'}
-            icon={
-              peak ? (
-                <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              )
-            }
-          />
-        </div>
-      )}
+      {catalogBlind && !failed ? (
+        <Alert
+          intent="warning"
+          title="O catálogo de guardrails não respondeu"
+          description="Toda política aparece como descoberta abaixo, porque não foi possível confirmar o contrário. Algumas podem já estar bloqueadas."
+        />
+      ) : null}
 
       <Card>
-        <h2 className="mb-3 text-sm font-medium">Violações por política</h2>
-        {policies.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {failed
-              ? 'Sem dados — a leitura falhou.'
-              : violations === 0
-                ? 'Nenhuma violação registrada. As guardrails seguem ativas no caminho inline.'
-                : 'Ainda não há conversas ingeridas para este workspace.'}
-          </p>
-        ) : (
-          <ul className="divide-y">
-            {policies.map((p) => (
-              <li key={p.label} className="flex items-center justify-between py-2 text-sm">
-                <span className="font-mono">{p.label}</span>
-                <span className="tabular-nums">{p.value}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+        <Card.Header>
+          {/* A frase de julgamento É o título deste cartão — não um parágrafo solto acima dele.
+              asChild → <h2> porque o PageShell já rende o <h1> (WCAG 1.3.1). */}
+          <Card.Title asChild>
+            <h2>{headline}</h2>
+          </Card.Title>
+          <Card.Description>
+            O plano de observação vê toda conversa; o inline só bloqueia o que tem guardrail. A
+            distância entre os dois é o que esta lista mede.
+          </Card.Description>
+        </Card.Header>
 
-      <Card>
-        <Link to="/trust/violations" className="text-sm font-medium underline">
-          Ver todas as violações →
-        </Link>
+        <DataTable
+          columns={columns}
+          data={coverage}
+          rowKey={(row) => row.policy}
+          loading={isLoading}
+          emptyState={
+            <EmptyState
+              icon={failed ? ShieldAlert : ShieldCheck}
+              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma violação registrada'}
+              description={
+                failed
+                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que passou.'
+                  : 'As guardrails ativas seguem valendo no caminho inline.'
+              }
+            />
+          }
+        />
+
+        <Card.Footer>
+          <Button variant="ghost" asChild>
+            <Link to="/trust/violations">
+              Ver todas as violações
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        </Card.Footer>
       </Card>
     </PageShell>
   );

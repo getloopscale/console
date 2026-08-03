@@ -79,6 +79,31 @@ func (c *DataClient) Conversation(ctx context.Context, id string) (json.RawMessa
 	return c.getRaw(ctx, "/v1/conversations/"+url.PathEscape(id), nil)
 }
 
+// Validators devolve o catalogo mesclado plataforma+tenant (`GET /v1/validators`).
+//
+// M23 o consome em LEITURA para responder a pergunta que a tela existe para responder: quais
+// politicas o sistema OBSERVA sem BLOQUEAR. Sem isso a tela conta violacoes e nao diz o que fazer
+// com elas — um alarme sem interruptor. A gestao (criar/remover) segue em M24, com escopo proprio.
+func (c *DataClient) Validators(ctx context.Context) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/validators", nil)
+}
+
+// EnforcementEvents devolve o log de auditoria do enforcement inline (`GET /v1/enforcement-events`).
+//
+// O corpo e repassado como veio. O upstream ja garante a redacao na origem — conteudo bruto nunca
+// chega aquela tabela — entao redigir de novo aqui criaria uma SEGUNDA fonte de verdade sobre o que
+// e seguro exibir, e duas fontes divergem em silencio.
+//
+// limit <= 0 deixa o default do upstream decidir, como em PolicyViolations: o BFF nao inventa
+// paginacao propria.
+func (c *DataClient) EnforcementEvents(ctx context.Context, limit int) (json.RawMessage, error) {
+	q := url.Values{}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	return c.getRaw(ctx, "/v1/enforcement-events", q)
+}
+
 // getRaw executa a requisicao autenticada por tenant e devolve o corpo do upstream.
 //
 // Ordem deliberada: o resolver e consultado ANTES de qualquer coisa de rede. E o que torna

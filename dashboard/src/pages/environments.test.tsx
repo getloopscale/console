@@ -22,17 +22,35 @@ describe('EnvironmentsPage', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * TODA montagem passa pela ROTA REAL. Montar `<EnvironmentsPage />` solto deixava
+   * `projectName` vazio, e com isso o filtro por projeto aceitava entradas SEM projeto —
+   * um estado que a rota `/projects/:name/environments` não consegue produzir, porque o
+   * React Router não casa `:name` vazio. Cinco testes deste arquivo provavam esse estado
+   * inexistente e passavam; foi o que manteve o balde `__legacy__` vivo em revisão após o
+   * M20 tê-lo tornado inalcançável (issue #377).
+   */
+  function renderAt(path: string) {
+    return render(
+      <Routes>
+        <Route path="/projects/:name/environments" element={<EnvironmentsPage />} />
+      </Routes>,
+      { initialEntries: [path] },
+    );
+  }
+
+
   it('test_environments_renders_table_with_headers', () => {
     mockUseEngineApi.mockReturnValue({
       data: {
         environments: [
-          { name: 'prod', status: 'live', projects: 3, protected: true },
+          { project: 'web', name: 'prod', status: 'live', projects: 3, protected: true },
         ],
       },
       loading: false,
       error: false,
     });
-    render(<EnvironmentsPage />);
+    renderAt('/projects/web/environments');
     // J-10 v1.1 + M2 v1.2 surface: Name, Health, Status, Protected (no
     // Domain column — that was removed before J-10 v1.1 shipped).
     expect(screen.getByText('Name')).toBeInTheDocument();
@@ -46,14 +64,14 @@ describe('EnvironmentsPage', () => {
     mockUseEngineApi.mockReturnValue({
       data: {
         environments: [
-          { name: 'prod', status: 'live', projects: 1, protected: false },
-          { name: 'staging', status: 'failed', projects: 0, protected: false },
+          { project: 'web', name: 'prod', status: 'live', projects: 1, protected: false },
+          { project: 'web', name: 'staging', status: 'failed', projects: 0, protected: false },
         ],
       },
       loading: false,
       error: false,
     });
-    render(<EnvironmentsPage />);
+    renderAt('/projects/web/environments');
     // T-D.2 (P-4): StatusDot label title-cased via statusLabel helper.
     // 'live' → 'Live', 'failed' → 'Failed'.
     expect(screen.getByText('Live')).toBeInTheDocument();
@@ -65,13 +83,13 @@ describe('EnvironmentsPage', () => {
     mockUseEngineApi.mockReturnValue({
       data: {
         environments: [
-          { name: 'pr-1247', status: 'pending_verification', projects: 1, protected: false },
+          { project: 'web', name: 'pr-1247', status: 'pending_verification', projects: 1, protected: false },
         ],
       },
       loading: false,
       error: false,
     });
-    render(<EnvironmentsPage />);
+    renderAt('/projects/web/environments');
     // EC-9: 'pending_verification' should render as 'Pending Verification',
     // NOT 'Pending_verification' (broken cap-only-first behavior).
     expect(screen.getByText('Pending Verification')).toBeInTheDocument();
@@ -84,13 +102,13 @@ describe('EnvironmentsPage', () => {
     mockUseEngineApi.mockReturnValue({
       data: {
         environments: [
-          { name: 'prod', status: 'live', projects: 5, protected: true },
+          { project: 'web', name: 'prod', status: 'live', projects: 5, protected: true },
         ],
       },
       loading: false,
       error: false,
     });
-    render(<EnvironmentsPage />);
+    renderAt('/projects/web/environments');
     // "Protected" appears as table header AND as cell indicator.
     expect(screen.getAllByText('Protected').length).toBeGreaterThanOrEqual(2);
   });
@@ -102,13 +120,13 @@ describe('EnvironmentsPage', () => {
     mockUseEngineApi.mockReturnValue({
       data: {
         environments: [
-          { name: 'staging', status: 'live', projects: 1, protected: false },
+          { project: 'web', name: 'staging', status: 'live', projects: 1, protected: false },
         ],
       },
       loading: false,
       error: false,
     });
-    render(<EnvironmentsPage />);
+    renderAt('/projects/web/environments');
     expect(screen.getByLabelText('Delete staging')).toBeInTheDocument();
   });
 
@@ -117,15 +135,6 @@ describe('EnvironmentsPage', () => {
   // The project is the ROUTE param, not a guess. The page shows only THIS
   // project's environments.
   // ===========================================================================
-
-  function renderAt(path: string) {
-    return render(
-      <Routes>
-        <Route path="/projects/:name/environments" element={<EnvironmentsPage />} />
-      </Routes>,
-      { initialEntries: [path] },
-    );
-  }
 
   it('test_M20_scopes_to_the_route_project_only', () => {
     mockUseEngineApi.mockReturnValue({
@@ -145,6 +154,36 @@ describe('EnvironmentsPage', () => {
     expect(screen.getByText('production')).toBeInTheDocument();
     // …and another project's env is NOT (no cross-project mixing).
     expect(screen.queryByText('qa')).not.toBeInTheDocument();
+  });
+
+  /**
+   * Trava a remoção do legado (issue #377). É um teste de CARACTERIZAÇÃO, não um RED: a
+   * garantia já valia antes da remoção, porque montado pela rota o filtro por projeto já
+   * descartava entradas sem projeto. Ele existe para que ninguém reintroduza o balde — e
+   * porque a única razão de o código morto ter sobrevivido a revisões foi não haver teste
+   * que afirmasse a ausência dele.
+   */
+  it('test_ambiente_sem_projeto_nao_renderiza_e_nao_ha_grupo_legado', () => {
+    mockUseEngineApi.mockReturnValue({
+      data: {
+        environments: [
+          { name: 'production', status: 'active', project: 'web', protected: true },
+          // Entrada no formato anterior ao M20: sem projeto. Não pertence a projeto algum,
+          // logo não pertence a esta tela, que é escopada por projeto.
+          { name: 'orfa', status: 'active', protected: false },
+        ],
+      },
+      loading: false,
+      error: false,
+    });
+    renderAt('/projects/web/environments');
+
+    expect(screen.getByText('production')).toBeInTheDocument();
+    expect(screen.queryByText('orfa')).not.toBeInTheDocument();
+    // E nenhum vestígio do balde: nem o cabeçalho de grupo, nem o rótulo que ele mostrava.
+    expect(screen.queryByTestId('env-group-header-legacy')).not.toBeInTheDocument();
+    expect(screen.queryByText(/no project/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\(legacy\)/i)).not.toBeInTheDocument();
   });
 
   it('test_M20_uses_route_project_not_a_guess', () => {

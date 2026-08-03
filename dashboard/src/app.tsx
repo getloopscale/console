@@ -137,6 +137,43 @@ const TrustOverviewPage = lazy(() =>
 const TrustViolationsPage = lazy(() =>
   import('@/pages/trust/violations').then((m) => ({ default: m.TrustViolationsPage })),
 );
+// M24 — operar guardrails: catálogo, criação com dry-run obrigatório e auditoria do enforcement.
+const TrustGuardrailsPage = lazy(() =>
+  import('@/pages/trust/guardrails').then((m) => ({ default: m.TrustGuardrailsPage })),
+);
+const TrustGuardrailNewPage = lazy(() =>
+  import('@/pages/trust/guardrail-new').then((m) => ({ default: m.TrustGuardrailNewPage })),
+);
+const TrustEnforcementPage = lazy(() =>
+  import('@/pages/trust/enforcement').then((m) => ({ default: m.TrustEnforcementPage })),
+);
+// M26 — o registro de skills ganha superfície: acervo → detalhe (com a instrução resolvida) →
+// versões e canais. As rotas só são alcançáveis por clique porque `resolveActiveMenu` reconhece
+// `/skills`; declarar a rota aqui sem aquela linha entrega telas que ninguém encontra.
+const SkillsOverviewPage = lazy(() =>
+  import('@/pages/skills').then((m) => ({ default: m.SkillsOverviewPage })),
+);
+const SkillDetailPage = lazy(() =>
+  import('@/pages/skills/detail').then((m) => ({ default: m.SkillDetailPage })),
+);
+const SkillVersionsPage = lazy(() =>
+  import('@/pages/skills/versions').then((m) => ({ default: m.SkillVersionsPage })),
+);
+// M25 — os prompts ganham superfície: catálogo → detalhe, onde a promoção de um label acontece.
+// As rotas só são alcançáveis por clique porque `resolveActiveMenu` reconhece `/promptly`;
+// declarar a rota aqui sem aquela linha entrega telas que ninguém encontra.
+const PromptlyOverviewPage = lazy(() =>
+  import('@/pages/promptly').then((m) => ({ default: m.PromptlyOverviewPage })),
+);
+const PromptDetailPage = lazy(() =>
+  import('@/pages/promptly/detail').then((m) => ({ default: m.PromptDetailPage })),
+);
+const PromptlyCreatePage = lazy(() =>
+  import('@/pages/promptly/create').then((m) => ({ default: m.PromptlyCreatePage })),
+);
+const PromptlyDiffPage = lazy(() =>
+  import('@/pages/promptly/diff').then((m) => ({ default: m.PromptlyDiffPage })),
+);
 // M44 — lens management dashboard pages; M46 — Overview landing
 const LensOverviewPage = lazy(() =>
   import('@/pages/lens').then((m) => ({ default: m.LensOverviewPage })),
@@ -228,21 +265,11 @@ const SBOMTab = lazy(() =>
 const AttestationTab = lazy(() =>
   import('@/pages/deployment-tabs/attestation-tab').then((m) => ({ default: m.AttestationTab })),
 );
-// Legacy pages kept as fallback for direct deep links (e.g., emails) —
-// nested routes below take precedence inside the new layout.
-const BuildLogsPage = lazy(() =>
-  import('@/pages/build-logs').then((m) => ({ default: m.BuildLogsPage })),
-);
-const BuildSBOMPage = lazy(() =>
-  import('@/pages/build-sbom').then((m) => ({ default: m.BuildSBOMPage })),
-);
-const BuildAttestationPage = lazy(() =>
-  import('@/pages/build-attestation').then((m) => ({ default: m.BuildAttestationPage })),
-);
-// Suppress "unused" lints while the legacy pages exist as fallback.
-void BuildLogsPage;
-void BuildSBOMPage;
-void BuildAttestationPage;
+// As três páginas autônomas de build (logs / SBOM / attestation) foram REMOVIDAS (#377).
+// O comentário que as acompanhava dizia que ficavam "como fallback para links diretos" — e
+// isso era falso e verificável: elas eram importadas, `void`adas e NÃO estavam roteadas em
+// lugar nenhum, então link direto algum as alcançava. O que existe são as abas aninhadas
+// `logs` / `sbom` / `attestation` sob /projects/:name/deployments/:id, logo abaixo.
 const RuntimeLogsPage = lazy(() =>
   import('@/pages/runtime-logs').then((m) => ({ default: m.RuntimeLogsPage })),
 );
@@ -480,6 +507,19 @@ export default function App() {
                     <Route path="/rag/analytics" element={<Boundaried path="/rag/analytics"><RagAnalyticsPage /></Boundaried>} />
                     <Route path="/trust" element={<Boundaried path="/trust"><TrustOverviewPage /></Boundaried>} />
                     <Route path="/trust/violations" element={<Boundaried path="/trust/violations"><TrustViolationsPage /></Boundaried>} />
+                    <Route path="/trust/guardrails" element={<Boundaried path="/trust/guardrails"><TrustGuardrailsPage /></Boundaried>} />
+                    <Route path="/trust/guardrails/new" element={<Boundaried path="/trust/guardrails/new"><TrustGuardrailNewPage /></Boundaried>} />
+                    <Route path="/trust/enforcement" element={<Boundaried path="/trust/enforcement"><TrustEnforcementPage /></Boundaried>} />
+                    <Route path="/skills" element={<Boundaried path="/skills"><SkillsOverviewPage /></Boundaried>} />
+                    <Route path="/skills/:skillId" element={<Boundaried path="/skills/:skillId"><SkillDetailPage /></Boundaried>} />
+                    <Route path="/skills/:skillId/versions" element={<Boundaried path="/skills/:skillId/versions"><SkillVersionsPage /></Boundaried>} />
+                    <Route path="/promptly" element={<Boundaried path="/promptly"><PromptlyOverviewPage /></Boundaried>} />
+                    {/* `/promptly/new` ANTES do segmento dinâmico. O ranking do roteador já
+                        prefere o estático, mas a ordem explícita é o que impede alguém de ler
+                        "new" como nome de prompt ao mover uma linha daqui. */}
+                    <Route path="/promptly/new" element={<Boundaried path="/promptly/new"><PromptlyCreatePage /></Boundaried>} />
+                    <Route path="/promptly/:promptName" element={<Boundaried path="/promptly/:promptName"><PromptDetailPage /></Boundaried>} />
+                    <Route path="/promptly/:name/diff" element={<Boundaried path="/promptly/:name/diff"><PromptlyDiffPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />

@@ -274,21 +274,60 @@ test.describe('M12 Fase A — visual baseline (screenshot regression)', () => {
   // Visual baseline per plan M12 Fase A DoD "visual baseline". Snapshots captured
   // on first run become the baseline; subsequent runs assert byte-similarity.
   // Skipped by default (opt-in via UPDATE_SNAPSHOTS=1 or --update-snapshots).
+  /*
+   * CADA FOTO É PRECEDIDA DE UMA ÂNCORA, e isso não é zelo.
+   *
+   * Os três tiravam a foto imediatamente depois do `goto`. O `toHaveScreenshot` reexecuta até
+   * duas capturas seguidas baterem entre si, o que esconde a maior parte da corrida — mas não
+   * toda: medido em 2026-08-02, a de billing marcou `flaky` em 2 de 7 execuções, passando só na
+   * repetição. Um teste de imagem que passa na segunda tentativa é um teste que ensina o time a
+   * reexecutar o CI, que é como um vermelho real vira ruído.
+   *
+   * A âncora é um elemento que só existe depois de a tela ter dado seu conteúdo. Espera por
+   * CONDIÇÃO, nunca por relógio.
+   *
+   * As referências foram regravadas em 2026-08-02 na imagem `mcr.microsoft.com/playwright`
+   * casando versão e distribuição do runner (`v1.60.0-noble` ↔ `ubuntu-24.04`), NÃO na máquina
+   * de quem editou: fontes e rasterização diferem entre ambientes, e uma referência gravada no
+   * lugar errado produz um teste que passa localmente e falha no CI.
+   */
+  /*
+   * SÓ RODAM ONDE A REFERÊNCIA FOI GRAVADA, e o pulo é declarado com o motivo.
+   *
+   * Medido em 2026-08-02: as mesmas telas, no mesmo navegador, diferem em 287 e 214 pixels
+   * entre esta imagem e uma máquina de desenvolvimento — acima do limiar de 200. Não é
+   * regressão: é fonte e rasterização do sistema. Sem este pulo, quem roda a suíte localmente
+   * vê dois vermelhos permanentes que não pode consertar, e vermelho permanente é o começo de
+   * "ah, esse sempre falha".
+   *
+   * A alternativa seria afrouxar `maxDiffPixels` até caber nos dois ambientes — o que trocaria
+   * um teste que detecta mudança visual por um que tolera qualquer coisa.
+   */
+  test.skip(
+    !process.env.CI,
+    'referência de imagem gravada no ambiente do CI (playwright:v1.60.0-noble); ' +
+      'fora dele a diferença de fontes reprova uma tela correta',
+  );
+
   test('login page visual baseline', async ({ page }) => {
     await page.addInitScript(() => {
       (window as unknown as { __THEO_MOCK_LOGGED_OUT?: boolean }).__THEO_MOCK_LOGGED_OUT = true;
     });
     await page.goto('/login');
+    await expect(page.getByRole('button', { name: /continue with github/i })).toBeVisible();
     await expect(page).toHaveScreenshot('login-baseline.png', { maxDiffPixels: 200 });
   });
 
   test('projects list visual baseline', async ({ page }) => {
     await page.goto('/projects');
+    // A lista só está assente quando há linha renderizada — não quando o cabeçalho aparece.
+    await expect(page.getByRole('link', { name: /acme-web/i }).first()).toBeVisible();
     await expect(page).toHaveScreenshot('projects-baseline.png', { maxDiffPixels: 200 });
   });
 
   test('billing page visual baseline', async ({ page }) => {
     await page.goto('/billing');
+    await expect(page.getByRole('button', { name: /upgrade to pro/i })).toBeVisible();
     await expect(page).toHaveScreenshot('billing-baseline.png', { maxDiffPixels: 200 });
   });
 });

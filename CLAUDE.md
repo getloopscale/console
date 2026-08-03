@@ -129,8 +129,20 @@ matrix live in the **engine** (`theo/`). See § Durable enforcement.
 6. **Acyclic invariant is sacred** — this repo imports ONLY `theo-contracts`; never an
    engine-internal package (`usetheodev/theo/pkg/*`, `/api/*`, `/internal/*`). Talk to the
    engine over the `/engine/*` HTTP proxy. Enforced by the engine's `acyclic-graph` gate.
-7. **CHANGELOG discipline** — every change lands in `CHANGELOG.md § [Unreleased]` first
-   (Keep a Changelog + SemVer), with a ticket/PR ref.
+7. **CHANGELOG discipline** — every change lands in `[Unreleased]` first (Keep a Changelog +
+   SemVer), with a ticket/PR ref. **No CHANGELOG do UMBRELLA**, não neste repo, e com atribuição
+   no início da linha: `- **theo-cloud:** …`. Contrato: `../.claude/rules/umbrella-scope.md` § 5.
+   A razão é operacional: `/release` filtra `[Unreleased]` pelo projeto-alvo para derivar a
+   versão, e entrada sem atribuição não pode ser liberada porque ninguém sabe de quem é a versão.
+   Uma iteração commita em **dois** repositórios — código aqui, CHANGELOG e artefatos de ciclo no
+   umbrella.
+
+   > **Atenção — conflito conhecido.** O `.claude/hooks/stop-validation.sh` deste repo é
+   > histórico congelado e ainda BLOQUEIA quando o `CHANGELOG.md` **local** não muda junto com
+   > código. Seguir o contrato acima **garante** o bloqueio. Enquanto
+   > `usetheodev/theo-workspace#26` não for resolvido, o encerramento precisa de
+   > `STOP_VALIDATION_WARN_ONLY=1`. **Não** resolva escrevendo no CHANGELOG local: isso cria
+   > duas fontes de verdade que divergem, que é exatamente o que a regra evita.
 8. **Git** — work on `develop`; never commit to `main` (release-only, via PR); never
    `git checkout`/`revert`/`push --force`/`reset --hard`; no `Co-Authored-By` trailers.
 
@@ -173,6 +185,32 @@ Historical journey-delivery plans + baselines remain in the engine's
 
 ---
 
+## Sondas: `/health` e `/ready` NÃO são intercambiáveis
+
+Duas rotas, duas perguntas, **consequências opostas**. Fiar a errada reintroduz o defeito que o
+`#339` corrigiu.
+
+| rota | pergunta | reprovada significa | onde fiar |
+|---|---|---|---|
+| `/health` | "o processo está vivo?" | **mata o processo** | `livenessProbe`, autoheal |
+| `/ready` | "consigo atender agora?" | **tira do tráfego** | `readinessProbe`, `depends_on: service_healthy`, `--wait`, roteamento |
+
+`/health` **nunca** reprova por falha de dependência, de propósito: reiniciar não conserta um banco
+fora, e um `livenessProbe` sensível a dependência derruba o serviço a cada oscilação do Postgres
+(LT-038 do theo-trust). O estado do banco vai no **corpo** de ambas — informação para quem
+investiga, não gatilho para matar o processo.
+
+`/ready` devolve **503** quando a dependência não serve. É a que `depends_on: service_healthy` e
+`docker compose --wait` querem.
+
+Ambas **reportam** as integrações desligadas por falta de configuração, e **nenhuma** reprova por
+causa delas: são opcionais por ambiente, e reprovar derrubaria o serviço em toda topologia que não
+as configura. Visibilidade se entrega no corpo, não no status.
+
+> Apontar `livenessProbe` para `/ready` é o erro que este contrato existe para impedir.
+
+---
+
 ## Invariants
 
 - **Imports nothing engine-internal** — `go list -deps ./... | grep usetheodev/theo/` shows
@@ -194,6 +232,11 @@ These are real, code-grounded lessons for the code that now lives in **this** re
 
 | Mistake | Fix |
 |---|---|
+| Confiar numa guarda que nunca é atingida por teste | A guarda de "escopo vazio" no diálogo de chave existia desde sempre (`selected.size === 0`) — e era **inalcançável**, porque um escopo vinha pré-marcado de fábrica. Ela só passou a provar algo quando o default saiu (#348). **Ao remover um default, pergunte o que ele estava escondendo**; e ao adicionar um, pergunte qual caminho ele torna inatingível. Corolário medido no mesmo issue: três testes existentes passavam **por causa** do default — atualizá-los foi o certo, afrouxar a guarda teria sido o erro. |
+| Rodar `npx prettier --write` num arquivo do dashboard | O repo **não tem `.prettierrc`**, então o default troca aspas simples por duplas — e `src/lib/lens-alert-guard.test.ts` detecta o import por regex **com aspas simples** (`/from\s*'@\/components\/ui\/alert-guard'/`). O arquivo continua importando certo e o check reprova mesmo assim. Use `npx prettier --single-quote` ou `eslint --fix`. Custou um check vermelho no `#346`. O guard casa **estilo** além de origem — hoje inócuo porque o repo padroniza aspas simples, mas é o tipo de acoplamento que surpreende. |
+| Classificar um `401`/`403` de sonda como serviço fora do ar | O alvo **respondeu** — a pilha HTTP está de pé; o que faltou foi credencial em **quem perguntou**. `internal/serviceversions` tem `StateUnauthorized` separado de `StateUnreachable` por isso (#345): colapsar os dois pintava o indicador do dashboard de vermelho em **todas** as telas, permanentemente — e um indicador sempre-vermelho é um indicador **desligado**. O espelho do mesmo erro também já ocorreu aqui: um reconciliador lendo `401` como *"a rota existe"*. Nos dois casos, tratar *"não me deixaram medir"* como uma medição. |
+| Adicionar escopo a `validScopes` sem adicioná-lo ao broker (ou vice-versa) | Aceito na emissão (`POST /v1/api-keys` → 200, chave cunhada) e **descartado na travessia**: a capacidade fica inalcançável por qualquer credencial, sem erro em lugar nenhum, porque cada camada parece correta isolada. Ocorreu **quatro** vezes (rag, storage, promptly, `trust:content`) apesar do aviso em prosa acima da lista — quem adicionou a quarta declarou tê-lo lido. `internal/ci/scope_parity_test.go` agora reprova nos dois sentidos. Ao adicionar um produto cujo namespace de broker difere do namespace do cliente (como `promptly` → `prompt:*`), registre em `brokerNamespace` — senão o teste acusa configuração correta, e teste que grita à toa treina a ignorar vermelho. |
+| Endurecer uma sonda sem perguntar o que acontece **quando ela reprova** | `/health` reprovada **mata** o processo; `/ready` reprovada apenas o **tira do tráfego**. Fiz `/health` devolver 503 no #338 e isso mataria o container num piscar do Postgres — o mesmo defeito do `theo-trust` LT-038. Ver § *Sondas* acima. Ao corrigir qualquer indicador, exija o **par**: com a dependência no ar não pode acusar, com ela fora tem de acusar. Trocar sempre-vermelho por sempre-verde é regressão, não conserto. |
 | `time.Hour.Truncate` bucket on Stripe `Idempotency-Key` | Stripe caches idempotency responses 24h; a 1h bucket returns a STALE checkout/portal URL for the whole wall-clock hour. Use `time.Minute` (absorbs double-click latency; Stripe only charges on payment, so coarser windows add no protection). `internal/billing`. |
 | `WHERE stripe_subscription_id = $X` in a Stripe webhook handler | Stripe does NOT guarantee webhook **delivery order** — `subscription.created` can arrive before `checkout.session.completed` linked the id. Use `WHERE stripe_subscription_id = $X OR stripe_customer_id = $Y` and always SET the subscription id. **Webhook handlers must be idempotent AND order-independent.** `internal/billing`. |
 | Enumeration-by-negation in the dashboard: `planTier !== 'enterprise' && planTier !== 'team'` | Silently covers `pro` and shows the wrong upgrade CTA to a Pro user. **Enumerate positively** (`=== 'free'`, `=== 'pro'`, …); normalize case on lookup (`(plan ?? 'starter').toLowerCase()`). |
@@ -230,7 +273,7 @@ The decomposition guarantees are mechanically enforced from the engine repo:
 [ ] No internal terms in user-facing strings (CR-9)
 [ ] Webhook / billing handlers are idempotent AND order-independent
 [ ] Seam change? contract test updated (serviceauth / themory) + openapi/themory.yaml in sync
-[ ] CHANGELOG.md [Unreleased] updated
+[ ] CHANGELOG do UMBRELLA `[Unreleased]` atualizado, com `- **theo-cloud:**` (nunca o local)
 [ ] Dashboard route change? docs/dashboard-governance.md consulted
 ```
 
