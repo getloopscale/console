@@ -31,18 +31,25 @@ import { test, expect, type Page } from '@playwright/test';
  * Chega ao catálogo CLICANDO a partir da raiz.
  *
  * Duas etapas, porque o menu tem duas: o item `Prompts` em Capabilities entra no submenu
- * (`drillsInto`), e o `Overview` dele abre a tela. Se qualquer uma das três peças do menu faltar,
+ * (`drillsInto`), e o item dele abre a tela. Se qualquer uma das três peças do menu faltar,
  * é aqui que o teste morre — e morre no passo que o usuário de fato daria.
+ *
+ * **O destino é `Catálogo`, não `Overview`, desde o M13.** A lista saiu da raiz — `/promptly`
+ * virou o painel, como em memory/rag/lens — e este helper continuou clicando `Overview`. As
+ * quatro jornadas do M25 passaram a procurar links de prompt numa tela que já não os tem, e
+ * falhavam trinta segundos depois, no timeout, dizendo apenas que um link não apareceu. Mover
+ * uma rota e deixar a jornada apontando para a antiga é como o e2e vira um alarme que ninguém
+ * sabe ler.
  */
 async function navegarAteOCatalogoPeloMenu(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: /^prompts$/i }).click();
-  // Esperar o submenu TROCAR antes de clicar no `Overview` dele. A raiz também tem um item
-  // chamado "Overview": clicar cedo demais acerta o da raiz e a jornada continua em `/`, com a
-  // navegação parecendo funcionar. O sinal de troca é a ausência de um item que só a raiz tem.
+  // Esperar o submenu TROCAR antes de clicar no item dele. A raiz também tem itens de mesmo
+  // nome: clicar cedo demais acerta o da raiz e a jornada continua em `/`, com a navegação
+  // parecendo funcionar. O sinal de troca é a ausência de um item que só a raiz tem.
   await expect(page.getByRole('button', { name: /^projects$/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /^overview$/i }).click();
-  await expect(page).toHaveURL(/\/promptly$/);
+  await page.getByRole('button', { name: /^catálogo$/i }).click();
+  await expect(page).toHaveURL(/\/promptly\/catalogo$/);
 }
 
 test.describe('M25 — operar prompts pelo dashboard', () => {
@@ -62,7 +69,7 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     await expect(page.getByText('nenhum')).toBeVisible();
 
     // ---- DETALHE: alcançado pelo NOME, que é o caminho da lista ---------------------------
-    await page.getByRole('link', { name: 'saudacao' }).click();
+    await page.getByRole('link', { name: 'saudacao', exact: true }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao$/);
 
     // O trecho da revisão — o suficiente para reconhecê-la. O corpo inteiro é editor, e editor
@@ -99,7 +106,7 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     // os números. Sem este caso o e2e provaria só o caminho feliz — e a mensagem tipada poderia
     // estar sendo colapsada em "erro" genérico sem nada acusar.
     await navegarAteOCatalogoPeloMenu(page);
-    await page.getByRole('link', { name: 'saudacao' }).click();
+    await page.getByRole('link', { name: 'saudacao', exact: true }).click();
 
     await page.getByRole('button', { name: /Promover staging para a revisão v3/i }).click();
     const dialogo = page.getByRole('dialog');
@@ -124,7 +131,7 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     // não aparecia. Numa tela de PROMOÇÃO, quem clicasse na "mais nova" reapontaria produção para
     // uma revisão velha — com o diálogo confirmando a errada com convicção.
     await navegarAteOCatalogoPeloMenu(page);
-    await page.getByRole('link', { name: 'longo' }).click();
+    await page.getByRole('link', { name: 'longo', exact: true }).click();
     await expect(page).toHaveURL(/\/promptly\/longo$/);
 
     // A revisão ATUAL está na tela...
@@ -138,7 +145,7 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
   test('o prompt sem label algum diz isso, em vez de oferecer promoção às cegas', async ({ page }) => {
     // A frase MUDA com o dado. Sem label não há revisão que saia, e a tela não finge que há.
     await navegarAteOCatalogoPeloMenu(page);
-    await page.getByRole('link', { name: 'despedida' }).click();
+    await page.getByRole('link', { name: 'despedida', exact: true }).click();
     await expect(page).toHaveURL(/\/promptly\/despedida$/);
 
     await expect(page.getByText(/Nenhum label de ambiente aponta para este prompt/i)).toBeVisible();

@@ -213,12 +213,12 @@ func TestCatalog_reporta_continuacao_quando_o_servico_manda_Link_rel_next(t *tes
 		_, _ = w.Write([]byte(`[{"name":"a"}]`))
 	})
 
-	corpo, prox, err := c.Catalog(context.Background(), 100, "")
+	corpo, cont, err := c.Catalog(context.Background(), 100, "")
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
-	if prox == "" {
+	if !cont.TemMais {
 		t.Error("header Link rel=next presente e temMais=false — o painel exibiria um total falso")
 	}
 	if string(corpo) != `[{"name":"a"}]` {
@@ -234,12 +234,12 @@ func TestCatalog_nao_reporta_continuacao_sem_o_header(t *testing.T) {
 		_, _ = w.Write([]byte(`[{"name":"a"}]`)) // MESMO corpo do teste acima
 	})
 
-	corpo, prox, err := c.Catalog(context.Background(), 100, "")
+	corpo, cont, err := c.Catalog(context.Background(), 100, "")
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
-	if prox != "" {
+	if cont.TemMais {
 		t.Error("sem header Link, temMais deveria ser false")
 	}
 	if string(corpo) != `[{"name":"a"}]` {
@@ -253,12 +253,12 @@ func TestCatalog_ignora_Link_que_nao_e_rel_next(t *testing.T) {
 		_, _ = w.Write([]byte(`[]`))
 	})
 
-	_, prox, err := c.Catalog(context.Background(), 100, "")
+	_, cont, err := c.Catalog(context.Background(), 100, "")
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
-	if prox != "" {
+	if cont.TemMais {
 		t.Error("rel=prev nao e continuacao")
 	}
 }
@@ -272,50 +272,67 @@ func TestCatalog_reconhece_rel_next_sem_aspas(t *testing.T) {
 		_, _ = w.Write([]byte(`[]`))
 	})
 
-	_, prox, err := c.Catalog(context.Background(), 100, "")
+	_, cont, err := c.Catalog(context.Background(), 100, "")
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
-	if prox == "" {
+	if !cont.TemMais {
 		t.Error("rel=next sem aspas e valido pela RFC 5988 e foi lido como ausencia de continuacao")
 	}
 }
 
 // EC-4 — o cursor carrega um NOME DE PROMPT, e nomes nao tem restricao de caractere
-// (`name: z.string().min(1)`, app.ts:206). Controle que documenta a garantia do escape: se algum
-// dia a URL for concatenada crua, este teste reprova.
-func TestCatalog_nao_confunde_nome_de_prompt_com_o_marcador_rel(t *testing.T) {
+// (`name: z.string().min(1)`, app.ts:206).
+//
+// HONESTIDADE SOBRE O QUE ESTE TESTE PROVA (corrigido pos-review, TA-04). A primeira versao
+// passava o payload JA ESCAPADO e afirmava no comentario que reprovaria se a URL fosse
+// concatenada crua — falso, porque o teste escreve o header ele mesmo e nunca exercita o escape.
+// Ele provava apenas que `%3B%20rel%3D%22next%22` nao casa, o que e trivialmente verdadeiro.
+//
+// A versao abaixo assere o que o ancoramento DE FATO garante — que texto solto contendo
+// `rel=next` nao e continuacao — e o limite conhecido fica dito, em vez de fingido:
+//
+// LIMITE MEDIDO. Este parser e um regex, nao um parser RFC-5988. Um `>` CRU dentro do alvo
+// (`</p?after=x>; rel="next">; rel="prev"`) fecha o `<([^>]*)>` cedo e e lido como continuacao.
+// Isso NAO e alcancavel pelos nossos emissores — `app.ts:596` usa `encodeURIComponent`, que emite
+// `%3E` — e um header com `>` cru e malformado pela propria RFC, que exige a URI-Reference
+// percent-encoded. Um parser completo resolveria um caso que nao temos (parsimony rung 1); o que
+// nao se pode e afirmar uma garantia que o codigo nao da.
+func TestCatalog_exige_o_enquadramento_do_link_e_nao_so_o_marcador(t *testing.T) {
 	c, _ := clienteContra(t, func(w http.ResponseWriter, _ *http.Request) {
-		// O nome `x; rel="next"` escapado, dentro de um Link que NAO e de continuacao.
-		w.Header().Set("Link", `</prompts?after=x%3B%20rel%3D%22next%22>; rel="prev"`)
+		// Texto solto com o marcador, SEM o enquadramento `<alvo>;` — o que o ancoramento rejeita.
+		w.Header().Set("Link", `rel=next`)
 		_, _ = w.Write([]byte(`[]`))
 	})
 
-	_, prox, err := c.Catalog(context.Background(), 100, "")
+	_, cont, err := c.Catalog(context.Background(), 100, "")
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
-	if prox != "" {
-		t.Error("um nome de prompt escapado dentro da URL foi confundido com o marcador rel=next")
+	if cont.TemMais {
+		t.Error("texto sem o enquadramento `<alvo>;` foi lido como continuacao — o ancoramento nao esta valendo")
 	}
 }
 
 func TestProximaPaginaQuery_isolada(t *testing.T) {
 	casos := []struct {
-		nome string
-		link string
-		quer string // a QUERY da proxima pagina; "" = ultima pagina
+		nome        string
+		link        string
+		querTemMais bool
+		querQuery   string
 	}{
-		{"ausente", "", ""},
-		{"com aspas", `</p?after=z>; rel="next"`, "after=z"},
-		{"sem aspas", `</p?after=z>; rel=next`, "after=z"},
-		{"aspas simples", `</p?after=z>; rel='next'`, "after=z"},
-		{"prev", `</p?after=z>; rel="prev"`, ""},
-		{"malformado", `<>; rel=`, ""},
-		{"multiplos links numa linha", `</p?a=1>; rel="prev", </p?a=2>; rel="next"`, "a=2"},
-		{"next sem cursor", `</p>; rel="next"`, ""},
+		{"ausente", "", false, ""},
+		{"com aspas", `</p?after=z>; rel="next"`, true, "after=z"},
+		{"sem aspas", `</p?after=z>; rel=next`, true, "after=z"},
+		{"aspas simples", `</p?after=z>; rel='next'`, true, "after=z"},
+		{"prev", `</p?after=z>; rel="prev"`, false, ""},
+		{"malformado", `<>; rel=`, false, ""},
+		{"multiplos links numa linha", `</p?a=1>; rel="prev", </p?a=2>; rel="next"`, true, "a=2"},
+		// TA-05 — o caso que MUDOU de expectativa: ha continuacao, e ela nao e enderecavel.
+		// Antes isto devolvia "" e o painel exibia TOTAIS sobre uma pagina declarada truncada.
+		{"next sem cursor", `</p>; rel="next"`, true, ""},
 	}
 	for _, caso := range casos {
 		t.Run(caso.nome, func(t *testing.T) {
@@ -323,8 +340,12 @@ func TestProximaPaginaQuery_isolada(t *testing.T) {
 			if caso.link != "" {
 				h.Set("Link", caso.link)
 			}
-			if got := proximaPaginaQuery(h); got != caso.quer {
-				t.Errorf("proximaPaginaQuery(%q) = %q, quer %q", caso.link, got, caso.quer)
+			temMais, query := proximaPaginaQuery(h)
+			if temMais != caso.querTemMais {
+				t.Errorf("proximaPaginaQuery(%q) temMais = %v, quer %v", caso.link, temMais, caso.querTemMais)
+			}
+			if query != caso.querQuery {
+				t.Errorf("proximaPaginaQuery(%q) query = %q, quer %q", caso.link, query, caso.querQuery)
 			}
 		})
 	}

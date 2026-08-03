@@ -270,8 +270,15 @@ export function formatTokens(count: number): string {
  */
 export function formatCost(usd: number, fractionDigits?: number): string {
   if (!Number.isFinite(usd) || usd < 0) return EMDASH;
-  if (fractionDigits !== undefined) return `$${usd.toFixed(fractionDigits)}`;
-  return usd < 0.01 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`;
+  // M143 — agrupa milhares. `$4179.48` num número-manchete lê-se como amador, e piora com a ordem
+  // de grandeza: `$1234567.89` é indecifrável sem contar dígitos. As duas pontas que já eram
+  // contrato ficam intactas — sub-centavo não tem milhar a agrupar, e o zero mantém as 4 casas que
+  // dizem "não custou" em vez de arredondar para baixo.
+  const casas = fractionDigits ?? (usd < 0.01 ? 4 : 2);
+  return `$${usd.toLocaleString('en-US', {
+    minimumFractionDigits: casas,
+    maximumFractionDigits: casas,
+  })}`;
 }
 
 /**

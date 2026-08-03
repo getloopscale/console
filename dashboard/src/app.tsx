@@ -165,6 +165,10 @@ const SkillVersionsPage = lazy(() =>
 const PromptlyOverviewPage = lazy(() =>
   import('@/pages/promptly').then((m) => ({ default: m.PromptlyOverviewPage })),
 );
+// M13 — o catálogo saiu da raiz: `/promptly` virou o painel, como em memory/rag/lens.
+const PromptlyCatalogoPage = lazy(() =>
+  import('@/pages/promptly/catalogo').then((m) => ({ default: m.PromptlyCatalogoPage })),
+);
 const PromptDetailPage = lazy(() =>
   import('@/pages/promptly/detail').then((m) => ({ default: m.PromptDetailPage })),
 );
@@ -521,6 +525,9 @@ export default function App() {
                         prefere o estático, mas a ordem explícita é o que impede alguém de ler
                         "new" como nome de prompt ao mover uma linha daqui. */}
                     <Route path="/promptly/new" element={<Boundaried path="/promptly/new"><PromptlyCreatePage /></Boundaried>} />
+                    {/* `/promptly/catalogo` é literal e cai na mesma classe de `/promptly/new`:
+                        precede o segmento dinâmico, senão o roteador o trata como nome de prompt. */}
+                    <Route path="/promptly/catalogo" element={<Boundaried path="/promptly/catalogo"><PromptlyCatalogoPage /></Boundaried>} />
                     <Route path="/promptly/:promptName" element={<Boundaried path="/promptly/:promptName"><PromptDetailPage /></Boundaried>} />
                     <Route path="/promptly/:name/diff" element={<Boundaried path="/promptly/:name/diff"><PromptlyDiffPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />

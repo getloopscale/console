@@ -63,7 +63,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     // (3.261.202 em vez de 15.851.609 — perda de ~79%). Nenhuma asserção olhava esta coluna.
     expect(screen.getByText('15,851,609')).toBeInTheDocument();
     // custo com 2 casas acima de 1¢
-    expect(screen.getByText('$4179.48')).toBeInTheDocument();
+    expect(screen.getByText('$4,179.48')).toBeInTheDocument();
     expect(screen.getByText('$0.03')).toBeInTheDocument();
     // …e 4 casas abaixo de 1¢. O run do agent-builder custou EXATAMENTE zero (modelo sem preço na
     // tabela), e `$0.0000` diz isso; um `$0.00` de duas casas seria indistinguível de um custo
@@ -153,6 +153,119 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
   });
 
   /*
+   * M143 — A FAIXA DE KPIs.
+   *
+   * A tabela do M142 responde "quem consumiu o quê". Quem lidera pergunta "quanto gastamos, com quem
+   * isso se concentra, e estamos sendo eficientes" — e tinha de somar colunas de cabeça.
+   *
+   * O que estes casos protegem NÃO é o layout: é a honestidade de cada número. A resposta do serviço
+   * não traz totais agregados, então somar no cliente cobre a PÁGINA, e o rótulo tem de dizer isso.
+   */
+
+  it('mostra o custo somado e declara que cobre TODOS os usuários do período', async () => {
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+    const kpi = await screen.findByTestId('kpi-custo');
+    // 4179.475464 + 0 + 0 + 0.034032
+    expect(kpi).toHaveTextContent('$4,179.51');
+    expect(kpi.textContent ?? '').toMatch(/todos os 4/i);
+  });
+
+  it('declara escopo PARCIAL quando há mais usuários do que linhas — e nunca diz "total"', async () => {
+    mockCloudFetch.mockResolvedValue({ ...RESPOSTA_REAL, totalUsers: 400 });
+    render(<LensUsageByUserPage />);
+    const kpi = await screen.findByTestId('kpi-custo');
+    // "exibidos", não "total": com 400 usuários o cabeçalho cobre 4, e chamar isso de total é a
+    // mesma classe de mentira que `unpricedSpans` existe para impedir.
+    expect(kpi.textContent ?? '').toMatch(/exibid/i);
+    expect(screen.getByTestId('usage-kpis').textContent ?? '').not.toMatch(/\btotal\b/i);
+  });
+
+  it('mostra quantos usuários consumiram, e esse número é o do serviço', async () => {
+    mockCloudFetch.mockResolvedValue({ ...RESPOSTA_REAL, totalUsers: 400 });
+    render(<LensUsageByUserPage />);
+    // `totalUsers` é exato mesmo paginado — é o único KPI que não depende da página.
+    expect(await screen.findByTestId('kpi-usuarios')).toHaveTextContent('400');
+  });
+
+  it('mostra que a entrada foi servida por cache, derivando das DUAS pontas', async () => {
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+    // 6.405.671.505 de cache contra 3.278.653 de entrada fresca → 99.9%
+    expect(await screen.findByTestId('kpi-cache')).toHaveTextContent('99.9%');
+  });
+
+  it('não afirma percentual de cache quando não houve leitura de cache alguma', async () => {
+    mockCloudFetch.mockResolvedValue({
+      ...RESPOSTA_REAL,
+      users: RESPOSTA_REAL.users.map((u) => ({ ...u, cacheReadTokens: 0 })),
+    });
+    render(<LensUsageByUserPage />);
+    const kpi = await screen.findByTestId('kpi-cache');
+    // "não usou cache" e "não sabemos" são fatos diferentes; um 0% afirma o primeiro sobre o segundo
+    expect(kpi.textContent ?? '').not.toMatch(/0(\.0)?%/);
+  });
+
+  // Não há série temporal na resposta. Uma seta de tendência aqui seria desenhada sobre número
+  // inventado — o defeito exato que o M142 gastou uma campanha de mutação para expulsar.
+  it('não renderiza tendência alguma — não há série que a sustente', async () => {
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+    const kpis = await screen.findByTestId('usage-kpis');
+    expect(kpis.textContent ?? '').not.toMatch(/[+-]\d+(\.\d+)?%/);
+  });
+
+  it('mostra a participação de cada linha no custo, com rótulo acessível', async () => {
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+    const barras = await screen.findAllByTestId('usage-share');
+    expect(barras).toHaveLength(4);
+    // o maior consumidor é 99,999% do custo — a barra tem de dizer isso, não só colorir
+    expect(barras[0].getAttribute('aria-label') ?? '').toMatch(/100(\.0)?%|99\.9/);
+  });
+
+  /*
+   * `0%` para quem custou $0.034032 é a MESMA leitura perigosa que `$0.00` seria: afirma zero sobre
+   * um arredondamento. A tela já paga o preço de 4 casas no custo justamente para não fazer isso —
+   * fazê-lo na coluna ao lado desfaz a conquista.
+   *
+   * E a distinção tem de ser nos DOIS sentidos: a linha `unattributed` custou exatamente zero, e
+   * para ela `0%` é a verdade. Um `<0.1%` universal seria o erro simétrico.
+   */
+  it('distingue participação arredondada para zero de participação REALMENTE zero', async () => {
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+    const barras = await screen.findAllByTestId('usage-share');
+
+    // b08873a43f7f: $0.034032 de $4179.51 = 0,0008% — arredonda para 0%, mas NÃO é zero
+    const minusculo = barras[3].closest('td') ?? barras[3].parentElement!;
+    expect(minusculo.textContent ?? '').toMatch(/<\s*0[.,]1\s*%/);
+
+    // unattributed: custo exatamente zero — aqui 0% é o fato, não um arredondamento
+    const zero = barras[1].closest('td') ?? barras[1].parentElement!;
+    expect(zero.textContent ?? '').not.toMatch(/</);
+  });
+
+  it('não afirma participação quando o custo somado é zero', async () => {
+    mockCloudFetch.mockResolvedValue({
+      ...RESPOSTA_REAL,
+      users: RESPOSTA_REAL.users.map((u) => ({ ...u, costUsd: 0 })),
+    });
+    render(<LensUsageByUserPage />);
+    await screen.findByText('49,373');
+    // sem denominador nenhuma fatia é afirmável — nem 0%, nem NaN%, nem barra cheia
+    expect(screen.queryAllByTestId('usage-share')).toHaveLength(0);
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
+  });
+
+  it('não renderiza KPIs sobre dados que não existem quando o serviço recusa', async () => {
+    mockCloudFetch.mockRejectedValue(new ApiError(400, { code: 'INVALID_QUERY', message: 'days must be at most 365' }));
+    render(<LensUsageByUserPage />);
+    await screen.findByText(/days must be at most 365/i);
+    expect(screen.queryByTestId('usage-kpis')).not.toBeInTheDocument();
+  });
+
+  /*
    * PAGINAÇÃO — quatro mutações sobreviveram aqui, todas pelo mesmo motivo: o fixture tem
    * `totalUsers: 4` e `PAGE_SIZE` é 50, então o paginador NUNCA renderizava em teste algum. O
    * código existia e nunca fora exercitado.
@@ -200,7 +313,9 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
       expect(String(mockCloudFetch.mock.calls.at(-1)?.[0] ?? '')).toMatch(/offset=50/);
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(/janela|window|período|periodo/i), '7');
+    // Radix: clicar no gatilho, depois na opção — `selectOptions` só serve a `<select>` nativo.
+    await userEvent.click(screen.getByRole('combobox', { name: /janela/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /7 dias/i }));
 
     // Sem o reset, a janela nova é consultada a partir do offset 150 de um resultado que pode ser
     // mais curto — e o operador troca o período para ver uma tela vazia sem entender por quê.
@@ -211,6 +326,42 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     });
   });
 
+  /*
+   * #383 — o seletor mentia sobre QUAL consulta foi recusada. Com um `days` fora de `JANELAS`, o
+   * `<select>` não tinha `<option>` correspondente, o DOM caía na PRIMEIRA opção e o controle
+   * exibia "Últimos 7 dias" enquanto o alerta dizia `days must be at most 365` — leitura
+   * impossível, porque 7 É no máximo 365. A tela acertava o erro e errava a pergunta.
+   */
+  it('reflete no seletor a janela que veio da URL, mesmo fora da lista de janelas', async () => {
+    window.history.replaceState(null, '', '/observability/usage-by-user?days=9999');
+    mockCloudFetch.mockRejectedValue(
+      new ApiError(400, { code: 'INVALID_QUERY', message: 'days must be at most 365' }),
+    );
+    render(<LensUsageByUserPage />);
+
+    // Com o `Select` do design system o valor selecionado é o TEXTO do gatilho, não `.value` de um
+    // `<select>` nativo — a asserção muda de forma, a garantia é a mesma.
+    const seletor = await screen.findByRole('combobox', { name: /janela/i });
+    // O rótulo visível nomeia o número de fato pedido, não a primeira opção da lista, para o
+    // alerta ao lado fazer sentido.
+    expect(seletor).toHaveTextContent('9999');
+    // A recusa do serviço continua sendo mostrada verbatim (DoD-5) — o conserto do controle não
+    // pode clampar o valor e engolir a recusa tipada que a M140 pagou para ter.
+    expect(await screen.findByText(/days must be at most 365/i)).toBeInTheDocument();
+  });
+
+  it('não acrescenta a opção personalizada quando a janela é uma das ofertadas', async () => {
+    window.history.replaceState(null, '', '/observability/usage-by-user?days=90');
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+
+    const seletor = await screen.findByRole('combobox', { name: /janela/i });
+    expect(seletor).toHaveTextContent('90');
+    // Abrir a lista é o único jeito de contá-la no Radix — o conteúdo só existe montado.
+    await userEvent.click(seletor);
+    expect(await screen.findAllByRole('option')).toHaveLength(4);
+  });
+
   // Acceptance criterion de T1.2 — sem `days` na queryKey o cache devolve a resposta da janela
   // anterior, e a tela mente sobre o período que está mostrando.
   it('trocar a janela refaz a busca com o novo days na URL', async () => {
@@ -219,7 +370,9 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     await screen.findByText('49,373');
     const chamadasAntes = mockCloudFetch.mock.calls.length;
 
-    await userEvent.selectOptions(screen.getByLabelText(/janela|window|período|periodo/i), '7');
+    // Radix: clicar no gatilho, depois na opção — `selectOptions` só serve a `<select>` nativo.
+    await userEvent.click(screen.getByRole('combobox', { name: /janela/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /7 dias/i }));
 
     await vi.waitFor(() => {
       expect(mockCloudFetch.mock.calls.length).toBeGreaterThan(chamadasAntes);

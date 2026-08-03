@@ -17,6 +17,7 @@ import {
   Key,
   KeyRound,
   LayoutGrid,
+  List,
   Link2,
   ListChecks,
   Lock,
@@ -287,9 +288,16 @@ export const MENUS: Record<string, MenuDefinition> = {
     groups: [
       {
         items: [
+          // M13: a raiz virou o PAINEL, como em memory/rag/lens. Até aqui o rótulo dizia
+          // `Overview` sobre uma tabela — prometia painel e entregava lista.
           { label: 'Overview', path: '/promptly', icon: LayoutGrid },
+          // M13: o catálogo saiu da raiz e ganhou endereço próprio. Sem esta entrada ele só seria
+          // alcançável pelo botão do painel — e um item de menu é o caminho de volta que todo
+          // formulário precisa ter.
+          { label: 'Catálogo', path: '/promptly/catalogo', icon: List },
           // M12: autorar é ação do workspace, não de um prompt — por isso ENTRA no menu, onde
-          // comparar e promover não entram: essas duas são POR PROMPT e se alcançam do detalhe.
+          // comparar e promover não entram: essas duas são POR PROMPT e se alcançam do detalhe
+          // (o catálogo oferece o atalho de comparar em cada linha desde o M13).
           { label: 'Nova revisão', path: '/promptly/new', icon: FilePlus },
           // M12: autorar é ação do workspace, não de um prompt — por isso ENTRA no menu, onde
           // comparar e promover não entram: essas duas são POR PROMPT e se alcançam do detalhe.
@@ -392,7 +400,11 @@ export function resolveActiveMenu(pathname: string): ResolvedMenu {
   // M25 — PEÇA 3 de 3, a que ninguém lembra e a que faz o menu ABRIR. Sem esta linha o submenu
   // `promptly` existe inteiro e nunca aparece: o catálogo e o detalhe ficam alcançáveis só
   // digitando a URL — o único caminho que o usuário real não tem. Mesma omissão que custou o M23.
-  if (pathname.startsWith('/promptly')) return { id: 'promptly' };
+  //
+  // M13 — a comparação respeita a FRONTEIRA do segmento. `startsWith('/promptly')` casava também
+  // `/promptlyfoo`, que ativaria este submenu numa rota de outra capacidade. Não existe rota assim
+  // hoje; a precisão custa dois caracteres e fecha a classe antes que exista uma.
+  if (pathname === '/promptly' || pathname.startsWith('/promptly/')) return { id: 'promptly' };
   return { id: 'main' };
 }
 

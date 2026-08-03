@@ -233,6 +233,25 @@ describe('formatCost (M57 T0.1)', () => {
     expect(formatCost(0.01)).toBe('$0.01');
   });
 
+  // M143 — `$4179.48` num número-manchete de painel lê-se como amador, e a leitura piora com a
+  // ordem de grandeza: `$1234567.89` é praticamente indecifrável sem contar dígitos.
+  it('agrupa milhares', () => {
+    expect(formatCost(4179.51)).toBe('$4,179.51');
+    expect(formatCost(1234567.89)).toBe('$1,234,567.89');
+  });
+
+  // O agrupamento não pode tocar as duas pontas que já eram contrato: abaixo de 1¢ nada tem milhar
+  // a agrupar, e o zero segue com 4 casas para dizer "não custou" em vez de arredondar para baixo.
+  it('não altera valores abaixo de mil nem a precisão de sub-centavo', () => {
+    expect(formatCost(999.99)).toBe('$999.99');
+    expect(formatCost(0)).toBe('$0.0000');
+    expect(formatCost(0.034032)).toBe('$0.03');
+  });
+
+  it('agrupa também quando a precisão é forçada', () => {
+    expect(formatCost(4179.5, 4)).toBe('$4,179.5000');
+  });
+
   it('forces a fixed precision when fractionDigits is given (compare screen)', () => {
     expect(formatCost(0.0123, 4)).toBe('$0.0123');
     expect(formatCost(0.0145, 4)).toBe('$0.0145');

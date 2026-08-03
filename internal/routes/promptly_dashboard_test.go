@@ -19,13 +19,13 @@ import (
 type promptlyFake struct {
 	corpo   json.RawMessage
 	err     error
-	limite  int    // o limite que a rota REPASSOU (o oraculo do teto explicito)
-	proxima string // M13 — a query da proxima pagina que o servico sinaliza por header RFC-5988
-	label   string // o label que a rota repassou na promocao
+	limite  int                  // o limite que a rota REPASSOU (o oraculo do teto explicito)
+	proxima promptly.Continuacao // M13 — o sinal de continuacao que o servico emite por header RFC-5988
+	label   string               // o label que a rota repassou na promocao
 	body    json.RawMessage
 }
 
-func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string) (json.RawMessage, string, error) {
+func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string) (json.RawMessage, promptly.Continuacao, error) {
 	f.limite = limit
 	return f.corpo, f.proxima, f.err
 }
@@ -429,7 +429,7 @@ func TestPromptlyDashboard_conteudo_grande_porem_dentro_do_teto_PASSA(t *testing
 // ---------------------------------------------------------------------------------------------
 
 func TestPromptlyDashboard_catalogo_repassa_Link_rel_next_ao_navegador(t *testing.T) {
-	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"a"}]`), proxima: "after=zebra&limit=2"}
+	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"a"}]`), proxima: promptly.Continuacao{TemMais: true, Query: "after=zebra&limit=2"}}
 
 	rec := chamar(t, f, http.MethodGet, "/v1/dashboard/promptly/prompts?limit=100", "")
 
@@ -444,7 +444,7 @@ func TestPromptlyDashboard_catalogo_repassa_Link_rel_next_ao_navegador(t *testin
 // O PAR QUE DISCRIMINA: mesmo corpo, sem continuacao. Sem este caso, escrever o header
 // incondicionalmente passaria no teste acima.
 func TestPromptlyDashboard_catalogo_nao_inventa_Link_quando_nao_ha_continuacao(t *testing.T) {
-	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"a"}]`), proxima: ""}
+	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"a"}]`), proxima: promptly.Continuacao{}}
 
 	rec := chamar(t, f, http.MethodGet, "/v1/dashboard/promptly/prompts?limit=100", "")
 
@@ -458,7 +458,7 @@ func TestPromptlyDashboard_catalogo_nao_inventa_Link_quando_nao_ha_continuacao(t
 
 // MUST FIX EC-1 — o par que discrimina do ENDERECO, nao do numero.
 func TestPromptlyDashboard_o_Link_publicado_aponta_para_a_rota_do_BFF(t *testing.T) {
-	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"zebra"}]`), proxima: "after=zebra&limit=2"}
+	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"zebra"}]`), proxima: promptly.Continuacao{TemMais: true, Query: "after=zebra&limit=2"}}
 
 	rec := chamar(t, f, http.MethodGet, "/v1/dashboard/promptly/prompts?limit=2&after=alfa", "")
 
@@ -494,5 +494,24 @@ func TestPromptlyDashboard_falha_de_leitura_no_catalogo_nao_publica_Link(t *test
 	}
 	if link := rec.Header().Get("Link"); link != "" {
 		t.Errorf("header publicado numa falha: %q", link)
+	}
+}
+
+// TA-05 — o servico afirma que ha mais e nao diz para onde ir. A tela PRECISA saber, senao exibe
+// totais sobre uma pagina declarada truncada.
+func TestPromptlyDashboard_publica_Link_mesmo_sem_cursor(t *testing.T) {
+	f := &promptlyFake{
+		corpo:   json.RawMessage(`[{"name":"a"}]`),
+		proxima: promptly.Continuacao{TemMais: true},
+	}
+
+	rec := chamar(t, f, http.MethodGet, "/v1/dashboard/promptly/prompts", "")
+
+	link := rec.Header().Get("Link")
+	if !strings.Contains(link, `rel="next"`) {
+		t.Errorf("continuacao sem cursor foi silenciada — a tela exibiria totais: %q", link)
+	}
+	if strings.Contains(link, "?") {
+		t.Errorf("cursor inventado onde o servico nao deu: %q", link)
 	}
 }
