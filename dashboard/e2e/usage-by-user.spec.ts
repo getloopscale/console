@@ -73,9 +73,26 @@ test.describe('M142 — o consumo por end-user alcançado pelo produto', () => {
 
     // (b) …e o dado NÃO some por quebrar. Um `M` sozinho tem comprimento zero: o navegador o
     // reporta como hidden, e o operador não vê nada. Foi o que esta jornada mediu antes do
-    // `pontosComMarcador` (@usetheo/ui 0.33.0) — a asserção (a) já passava e a tela estava vazia.
+    // `markedPoints` (@usetheo/ui 0.34.0) — a asserção (a) já passava e a tela estava vazia.
     // Sem esta segunda asserção, o e2e teria ficado verde sobre um gráfico que não desenha.
     await expect(primeiro.locator('[data-slot="trend-chart-dot"]').first()).toBeVisible();
+
+    // (c) …e alguma linha DESENHA de fato. (a) e (b) juntas ainda ficam verdes sob uma implementação
+    // que nunca emita `L` — todo ponto abrindo subcaminho satisfaz as duas. A segunda série do mock
+    // não tem lacuna, então ela tem de ser um subcaminho contínuo com segmentos.
+    await expect(primeiro.locator('[data-slot="trend-chart-line"]').nth(1)).toHaveAttribute(
+      'd',
+      /^M[^M]*L[^M]*L[^M]*$/,
+    );
+
+    // (d) VALOR vindo do serviço, que é o que o DoD pede — geometria não é valor. A tabela
+    // acessível de cada gráfico traz o número por período. No de TOKENS, `360` é `300 + 60` do dia
+    // 22 do maior consumidor — a soma que distingue "tokens" de "só entrada". No de CUSTO, `$2.50`
+    // do mesmo dia: afirmar nos dois é o que impede os dois gráficos de plotarem a mesma grandeza
+    // sob títulos diferentes, que é o defeito registrado no #178 deste repositório.
+    const celulasDe = (g: typeof primeiro) => g.locator('[data-slot="trend-chart-table"] td');
+    await expect(celulasDe(graficos.nth(1)).filter({ hasText: /^360$/ })).toHaveCount(1);
+    await expect(celulasDe(primeiro).filter({ hasText: /^\$2\.50$/ })).toHaveCount(1);
 
     await expect(page.getByText(/não foi possível carregar/i)).toHaveCount(0);
     expect(erros, `erros não capturados na página: ${erros.join('; ')}`).toHaveLength(0);

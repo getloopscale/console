@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { densificar, type PontoDaSerie } from './usage-series';
+import { densificar, janelaDaSerie, type PontoDaSerie } from './usage-series';
 
 /**
  * M144 — a densificação.
@@ -74,6 +74,25 @@ describe('densificar', () => {
     expect(a[2]?.x).toBe(D20 + 2 * DIA);
   });
 
+  /**
+   * A truncação ao dia era INOBSERVÁVEL pela suíte: todo `periodStart` e todo `inicioMs` dos casos
+   * acima é meia-noite exata, então `Math.floor(t / DIA) * DIA` é um no-op em 100% deles e trocá-lo
+   * por `t` deixa tudo verde. O defeito que ela impede não é cosmético — com `periodStart` fora da
+   * meia-noite e o início derivado dele, as chaves do mapa (meia-noite) nunca casariam com os `x`
+   * gerados, e TODO dia viraria lacuna: o gráfico inteiro vazio, com o dado correto.
+   */
+  it('o dia é a CHAVE, não o instante — periodStart fora da meia-noite ainda casa', () => {
+    const pontos = densificar([ponto('2026-07-20T13:45:00.000Z', 10)], D20 + 13 * 3_600_000, 1, 'inputTokens');
+    expect(pontos[0]?.x).toBe(D20);
+    expect(pontos[0]?.y).toBe(10);
+  });
+
+  it('ponto fora da janela não aparece e não desloca os demais', () => {
+    const fora = ponto('2026-07-19T00:00:00.000Z', 99); // um dia ANTES do início
+    const pontos = densificar([fora, ponto('2026-07-21T00:00:00.000Z', 7)], D20, 3, 'inputTokens');
+    expect(pontos.map((p) => p.y)).toEqual([Number.NaN, 7, Number.NaN]);
+  });
+
   it('projeta o campo pedido — custo e tokens saem da mesma série', () => {
     const s = [ponto('2026-07-20T00:00:00.000Z', 2000)]; // out=500, cacheRead=6000, cacheCreation=4000
     expect(densificar(s, D20, 1, 'inputTokens')[0]?.y).toBe(2000);
@@ -82,5 +101,45 @@ describe('densificar', () => {
     // subnotificaria o gráfico em relação à tabela que está logo acima dele.
     expect(densificar(s, D20, 1, 'tokens')[0]?.y).toBe(2500);
     expect(densificar(s, D20, 1, 'cacheReadTokens')[0]?.y).toBe(6000);
+  });
+});
+
+/**
+ * M144 pós-review — a JANELA.
+ *
+ * `cabeSerie` orça `(days + 1) × linhas` porque uma janela ROLANTE de N dias atravessa N+1 dias de
+ * calendário. O eixo, 150 linhas depois no mesmo arquivo, gerava `days` fatias a partir de
+ * `fim - (days-1)`: o balde mais antigo — dado real, já pago pelo orçamento — caía fora e sumia sem
+ * erro algum. Nenhum teste pegava, porque todos os fixtures usavam 3 baldes.
+ *
+ * E ancorar o fim no maior `periodStart` VISTO tinha um segundo efeito não declarado: se ninguém
+ * consumiu nos últimos dias, o eixo termina no último dia com consumo, e os dias de silêncio — que
+ * são informação de primeira ordem para quem lidera — não aparecem como lacuna; eles não existem.
+ */
+describe('janelaDaSerie', () => {
+  const DIA = 86_400_000;
+  const HOJE = Date.UTC(2026, 6, 22, 15, 30); // 22/jul, 15:30 UTC — de propósito fora da meia-noite
+
+  it('cobre days + 1 fatias — o mesmo que o orçamento paga', () => {
+    const { dias } = janelaDaSerie([Date.UTC(2026, 6, 20)], 30, HOJE);
+    expect(dias).toBe(31);
+  });
+
+  it('termina HOJE, não no último dia com consumo — o silêncio final é visível', () => {
+    // ninguém consome desde o dia 18; hoje é 22. Os quatro dias de silêncio TÊM de estar no eixo.
+    const { inicio, dias } = janelaDaSerie([Date.UTC(2026, 6, 18)], 7, HOJE);
+    expect(inicio + (dias - 1) * DIA).toBe(Date.UTC(2026, 6, 22));
+  });
+
+  it('nunca corta dado: um balde mais novo que o relógio estende a janela', () => {
+    // relógio do navegador atrasado em relação ao serviço — o dado manda, não o relógio.
+    const { inicio, dias } = janelaDaSerie([Date.UTC(2026, 6, 25)], 7, HOJE);
+    expect(inicio + (dias - 1) * DIA).toBe(Date.UTC(2026, 6, 25));
+  });
+
+  it('sem ponto algum a janela ainda existe, ancorada no relógio', () => {
+    const { inicio, dias } = janelaDaSerie([], 7, HOJE);
+    expect(dias).toBe(8);
+    expect(inicio + (dias - 1) * DIA).toBe(Date.UTC(2026, 6, 22));
   });
 });
