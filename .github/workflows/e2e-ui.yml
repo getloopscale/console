@@ -41,15 +41,6 @@
 #     outra razão, mais funda: ele intercepta `/engine/api/v1/projects/*/connect` pela REDE, e sob
 #     `VITE_USE_MOCKS=true` essa rota é servida **em processo** pela camada de dublê — o
 #     `page.route` nunca dispara. Os Cenários 2–4 precisam de outra alavanca, não de outro fixture.
-#   • `journeys` (2/8) — **renomeação, não redesenho.** CORRIJO O QUE ESTE CABEÇALHO AFIRMAVA: eu
-#     havia escrito que `view logs` e `rollback to here` "não existem mais" e que reescrever exigia
-#     uma decisão de produto. **Falso, e o erro tem uma forma reconhecível** — eu li a lista de
-#     botões da tela de deploy que FALHOU e afirmei sobre o produto inteiro. As duas afordâncias
-#     existem: `Logs` é aba (`…/deployments/{id}/logs`) e `Rollback` é botão na tela de deploy
-#     BEM-SUCEDIDO, onde faz sentido — `RollbackDialog` está fiado em `deployment-detail-layout.tsx`.
-#     Olhar um estado e concluir sobre todos é o mesmo erro que este arquivo já registra em outro
-#     lugar. Resta um gap menor e real: a aba `Logs` renderiza os filtros e NENHUMA linha, porque o
-#     dublê não tem entradas de log para aquele build — a asserção de conteúdo não tem lastro.
 #   • `dashboard-m12-fase-a-bundle-grep-migration` (3/22) — os 19 casos de DOM passam; os 3
 #     vermelhos são **baselines de screenshot desatualizadas por redesenho**. Comparadas as
 #     imagens (não deduzido): a baseline é de **tema claro com o logotipo antigo**, e o produto
@@ -83,6 +74,12 @@
 #   • `j10-environments` — apontava para `/environments`, retirado no M20 (hoje redirect); a tela
 #     vive em `/projects/:name/environments`. O dublê também era anterior ao M20: sem o campo
 #     `project`, as três entradas caíam no filtro e a tela renderizava vazia com 200 em tudo.
+#   • `journeys` — RENOMEAÇÃO, não redesenho, e este cabeçalho já afirmou o contrário. `view logs`
+#     virou a aba `Logs`; `rollback to here` virou o botão cujo NOME ACESSÍVEL é `Rollback to this
+#     build`. O `aria-label` sobrepõe o texto visível, então `/^rollback$/i` devolvia ZERO enquanto
+#     a lista de textos internos mostrava "Rollback" — dois instrumentos, duas respostas, e vale a
+#     que o leitor de tela anuncia. Saiu a asserção que exigia a palavra "cloning": o dublê não
+#     serve linha de log alguma, então ela cobrava conteúdo que o cenário nunca produz.
 #   • `recovery` — a premissa "visitante sem sessão" nunca era estabelecida. O produto está certo:
 #     com sessão ativa, `/recovery` mostra de propósito "You're already signed in" (fecho de Red
 #     Team, `theo-cloud#54`). A alavanca `__THEO_MOCK_LOGGED_OUT` já existia e é a mesma do
@@ -146,7 +143,8 @@ jobs:
             e2e/deploy-timeline.spec.ts \
             e2e/observability-screens.spec.ts \
             e2e/j10-environments.spec.ts \
-            e2e/recovery.spec.ts
+            e2e/recovery.spec.ts \
+            e2e/journeys.spec.ts
 
       # O relatório só interessa quando algo falha; guardá-lo sempre encheria o storage do repo
       # com artefatos de runs verdes que ninguém abre.
