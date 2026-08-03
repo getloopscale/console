@@ -59,22 +59,14 @@ describe('catalogRows', () => {
 });
 
 describe('revisionRows', () => {
-  it('projeta versão, data e um TRECHO do conteúdo — nunca o corpo inteiro', () => {
-    // Renderizar o prompt completo numa lista de versões é o que o milestone exclui: a tela é de
-    // inspeção, não editor. O trecho existe para reconhecer a revisão, não para lê-la.
-    const corpo = 'a'.repeat(400);
-    const linhas = revisionRows([{ version: 2, content: corpo, createdAt: '2026-08-01T10:00:00Z' }]);
-
-    expect(linhas[0].version).toBe(2);
-    expect(linhas[0].preview.length).toBeLessThan(corpo.length);
-    expect(linhas[0].preview.endsWith('…')).toBe(true);
-  });
-
-  it('não corta conteúdo curto nem acrescenta reticências', () => {
-    const linhas = revisionRows([{ version: 1, content: 'oi', createdAt: '' }]);
-
-    expect(linhas[0].preview).toBe('oi');
-  });
+  // Os dois casos que viviam aqui — 'projeta um TRECHO' e 'não corta conteúdo curto' — foram
+  // REMOVIDOS junto com o campo `preview`. Eles afirmavam o oposto do que o M12 entregou: que a
+  // lista trunca o corpo. A DoD passou a exigir a revisão INTEIRA, e o BLOCKER 3 do review a
+  // implementou. Manter os testes seria pior que código morto — seria um guard defendendo o
+  // comportamento que o milestone removeu de propósito.
+  //
+  // O que substitui está em `pages/promptly/detail.test.tsx::detail_renders_the_full_content_not_an_excerpt`,
+  // e a asserção lá mira o FIM do corpo — porque uma asserção sobre o começo passaria com trecho.
 
   it('ordena da revisão mais nova para a mais antiga', () => {
     // Quem abre um prompt quer ver o que está valendo agora; a arqueologia vem depois.

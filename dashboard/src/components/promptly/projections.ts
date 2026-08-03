@@ -30,8 +30,6 @@ export interface Revision {
 export interface RevisionRow {
   readonly version: number;
   readonly createdAt: string;
-  /** Um TRECHO do conteúdo, para reconhecer a revisão. A tela é de inspeção, não editor. */
-  readonly preview: string;
   /** O corpo INTEGRAL. O trecho serve para reconhecer a revisão na lista; ler o que o modelo
    *  de fato recebe exige o texto inteiro, e a DoD do M12 pede exatamente isso. */
   readonly content: string;
@@ -49,8 +47,6 @@ export interface PromotionPolicy {
   readonly minScore: number;
 }
 
-/** Quanto do corpo entra no trecho. Curto de propósito: a lista é de versões, não de textos. */
-const PREVIEW_MAX = 120;
 
 function asArray<T>(payload: unknown): T[] {
   return Array.isArray(payload) ? (payload as T[]) : [];
@@ -91,16 +87,12 @@ export function revisionRows(payload: unknown): RevisionRow[] {
     .map((r) => ({
       version: r.version,
       createdAt: r.createdAt,
-      preview: truncar(typeof r.content === 'string' ? r.content : ''),
       content: typeof r.content === 'string' ? r.content : '',
       variables: variaveisDeclaradas(r),
     }))
     .sort((a, b) => b.version - a.version);
 }
 
-function truncar(s: string): string {
-  return s.length <= PREVIEW_MAX ? s : `${s.slice(0, PREVIEW_MAX)}…`;
-}
 
 /**
  * Qual JANELA de revisões pedir ao servidor para obter as MAIS RECENTES (#364).
