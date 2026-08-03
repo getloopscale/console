@@ -163,6 +163,15 @@ func (c *DataClient) Cost(ctx context.Context, since string) (json.RawMessage, e
 	return c.getRaw(ctx, "/v1/analytics/cost", q)
 }
 
+// UsageByUser proxies GET /v1/analytics/usage-by-user (theo-lens M140 — token/cost consumption
+// grouped by END USER). The whole url.Values is forwarded VERBATIM rather than rebuilt field by
+// field (M141 ADR D2): rebuilding would make this BFF the authority on which params exist, so the
+// day the upstream route gains one, the dashboard would silently be a release behind. Same shape as
+// ListLabelingQueue, and deliberately NOT the shape of Cost above, which curates `since`.
+func (c *DataClient) UsageByUser(ctx context.Context, q url.Values) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/analytics/usage-by-user", q)
+}
+
 // pageQuery builds the limit/offset query shared by the list reads.
 func pageQuery(limit, offset int) url.Values {
 	q := url.Values{}
