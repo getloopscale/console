@@ -10,11 +10,20 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { ApiError } from '@/lib/api';
 import {
+  frasePreRollback,
+  resultadoDoRollback,
+  labelsOferecidos,
+  mensagemDeRecusa,
+  type RespostaRollback,
+  type ResultadoRollback,
+} from '@/components/promptly/rollback';
+import {
   fetchLabels,
   fetchPolicy,
   fetchPrompt,
   fetchRevisions,
   promoteLabel,
+  rollbackPrompt,
 } from '@/components/promptly/promptly-api';
 import {
   labelRows,
@@ -109,6 +118,47 @@ export function PromptDetailPage() {
   const revisionsFailed = Boolean(revisions.error);
   const labelsFailed = Boolean(labels.error);
 
+  // ── M12: reverter ──────────────────────────────────────────────────────────────────────
+  // O resultado que a tela afirma vem de `labelsMoved`, NUNCA do status: medido, um prompt sem
+  // label algum devolve 201 tendo movido nada, e ler aquilo como "revertido" daria falsa
+  // segurança exatamente durante um incidente.
+  const [revAlvo, setRevAlvo] = useState<number | null>(null);
+  const [labelRollback, setLabelRollback] = useState<string | null>(null);
+  const [rollbackResultado, setRollbackResultado] = useState<ResultadoRollback | null>(null);
+  const [rollbackErro, setRollbackErro] = useState<string | null>(null);
+  const [labelsParaEscolher, setLabelsParaEscolher] = useState<string[]>([]);
+  // A versão que a recusa referia. Sem guardá-la, escolher o label reabriria o diálogo sobre
+  // `null` — o operador escolheria o ambiente e reverteria para lugar nenhum.
+  const [revAlvoPendente, setRevAlvoPendente] = useState<number | null>(null);
+
+  const rollback = useMutation({
+    mutationFn: (args: { toVersion: number; label: string | null }) =>
+      rollbackPrompt<RespostaRollback>(promptName, args.toVersion, args.label ?? undefined),
+    onSuccess: (resposta) => {
+      setRevAlvo(null);
+      setRollbackErro(null);
+      setLabelsParaEscolher([]);
+      if (resposta) setRollbackResultado(resultadoDoRollback(resposta));
+      void queryClient.invalidateQueries({ queryKey: labelsKey });
+      void queryClient.invalidateQueries({ queryKey: revisionsKey });
+    },
+    onError: (err: unknown) => {
+      setRevAlvoPendente(revAlvo);
+      setRevAlvo(null);
+      setRollbackResultado(null);
+      // A recusa vira ESCOLHA: `400 label_required` traz `availableLabels`, e a tela pergunta
+      // qual em vez de repetir o erro. Um label digitado errado seria respondido como
+      // "prompt não encontrado" — por isso ele nunca é digitado.
+      const oferecidos = labelsOferecidos(err instanceof ApiError ? err : null, ponteiros);
+      if (oferecidos.length > 0 && err instanceof ApiError && err.status === 400) {
+        setLabelsParaEscolher(oferecidos);
+        setRollbackErro(null);
+        return;
+      }
+      setRollbackErro(mensagemDeRecusa(err));
+    },
+  });
+
   const promote = useMutation({
     mutationFn: (args: { label: string; version: number }) =>
       promoteLabel<unknown>(promptName, args.label, args.version),
@@ -142,9 +192,48 @@ export function PromptDetailPage() {
     },
     {
       key: 'preview',
-      // Trecho, não o corpo: esta tela inspeciona versões; editor e diff visual estão fora do V1.
-      label: 'Trecho do conteúdo',
-      render: (row) => <span className="font-mono text-xs text-muted-foreground">{row.preview}</span>,
+      // M12: o corpo INTEIRO, não o trecho. Truncar servia para reconhecer a revisão numa lista;
+      // decidir se ela é a certa exige ler o que o modelo de fato recebe. As variáveis vêm de
+      // `variables`, que o serviço DECLARA — nunca de um regex nosso sobre o texto.
+      label: 'Conteúdo da revisão',
+      render: (row) => (
+        <div className="space-y-1">
+          <pre className="max-w-xl whitespace-pre-wrap font-mono text-xs text-muted-foreground">
+            {row.content || '(vazio)'}
+          </pre>
+          {row.variables.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {row.variables.map((v) => (
+                <Badge key={v} variant="accent" className="font-mono text-[10px]">
+                  {v}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: 'reverter',
+      label: 'Reverter',
+      render: (row) => (
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={`Reverter para a revisão v${row.version}`}
+          onClick={() => {
+            setRollbackErro(null);
+            setRollbackResultado(null);
+            // Um único label ⇒ já se sabe qual move. Vários ⇒ o serviço recusa com a lista, e a
+            // recusa vira a escolha. Zero ⇒ segue sem label, e o resultado dirá que nada mudou.
+            setLabelRollback(ponteiros.length === 1 ? ponteiros[0].label : null);
+            setLabelsParaEscolher([]);
+            setRevAlvo(row.version);
+          }}
+        >
+          Reverter
+        </Button>
+      ),
     },
     {
       key: 'acoes',
@@ -200,6 +289,44 @@ export function PromptDetailPage() {
           Nova revisão deste prompt
         </Link>
       </div>
+
+      {rollbackResultado ? (
+        <Alert
+          intent={rollbackResultado.tom === 'sucesso' ? 'success' : 'warning'}
+          title={rollbackResultado.tom === 'sucesso' ? 'Revertido' : 'Revisão criada — mas nada mudou em produção'}
+          description={rollbackResultado.texto}
+        />
+      ) : null}
+
+      {labelsParaEscolher.length > 0 ? (
+        <Alert
+          intent="destructive"
+          title="Qual ambiente você quer reverter?"
+          description={
+            <span className="flex flex-wrap items-center gap-2">
+              Este prompt serve mais de um ambiente; escolha qual passa a apontar para a revisão nova.
+              {labelsParaEscolher.map((l) => (
+                <Button
+                  key={l}
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setLabelRollback(l);
+                    setLabelsParaEscolher([]);
+                    setRevAlvo(revAlvoPendente);
+                  }}
+                >
+                  {l}
+                </Button>
+              ))}
+            </span>
+          }
+        />
+      ) : null}
+
+      {rollbackErro ? (
+        <Alert intent="destructive" title="A reversão não aconteceu" description={rollbackErro} />
+      ) : null}
 
       {revisionsFailed ? (
         <Alert
@@ -307,6 +434,32 @@ export function PromptDetailPage() {
         onConfirm={() => {
           if (alvo === null || labelAlvo === '') return;
           promote.mutate({ label: labelAlvo, version: alvo });
+        }}
+      />
+
+      {/* M12 — a confirmação de reverter. Nomeia a revisão que será CRIADA: um texto de "volta
+          para a v1" faria o operador esperar o histórico encolher, e ele nunca encolhe. */}
+      <ConfirmDialog
+        open={revAlvo !== null}
+        onOpenChange={(aberto) => !aberto && setRevAlvo(null)}
+        title={`Reverter ${promptName} para a v${revAlvo ?? 0}`}
+        description={
+          <p className="text-sm">
+            {frasePreRollback({
+              nome: promptName,
+              paraVersao: revAlvo ?? 0,
+              ultimaVersao: latestVersion ?? 0,
+              label: labelRollback,
+            })}
+          </p>
+        }
+        confirmLabel="Reverter"
+        cancelLabel="Cancelar"
+        confirmationPhrase={promptName}
+        loading={rollback.isPending}
+        onConfirm={() => {
+          if (revAlvo === null) return;
+          rollback.mutate({ toVersion: revAlvo, label: labelRollback });
         }}
       />
     </PageShell>
