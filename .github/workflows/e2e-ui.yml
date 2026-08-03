@@ -26,21 +26,9 @@
 # check que já chega vermelho é um check que se aprende a ignorar, o oposto do que ele existe para
 # fazer. Ficam FORA, declarados aqui, para entrarem um a um conforme forem corrigidos.
 #
-# ESTADO MEDIDO (`--reporter=json`, suíte inteira, 2026-08-02): **16 casos vermelhos em 6 arquivos**,
-# de 87 casos em 17 arquivos. Os seis, com a CAUSA de cada um — porque a causa decide quem pode
-# consertar:
-#
-#   • `project-connect` (1 verde · 1 vermelho · 2 PULADOS) — o arquivo é `mode: 'serial'`, e isso
-#     mudou a leitura: enquanto o Cenário 1 falhava, os outros três eram **pulados, nunca
-#     executados**. Uma contagem que trate "pulado" como "não-falhou" reporta 3 verdes que não
-#     existem — foi o erro da primeira classificação deste cabeçalho, corrigido por medição
-#     (`--reporter=json`, contando `skipped` à parte). O Cenário 1 está consertado e é real: o
-#     projeto do cenário não existia em fixture algum (`demo`), então o guard renderizava "Project
-#     not found" e o botão de instalar era procurado numa tela que nunca foi a de conexão; hoje usa
-#     `acme-ml-pipeline`, o único que o dublê devolve como `connected: false`. O Cenário 2 falha por
-#     outra razão, mais funda: ele intercepta `/engine/api/v1/projects/*/connect` pela REDE, e sob
-#     `VITE_USE_MOCKS=true` essa rota é servida **em processo** pela camada de dublê — o
-#     `page.route` nunca dispara. Os Cenários 2–4 precisam de outra alavanca, não de outro fixture.
+# ESTADO: **zero casos vermelhos** na suíte. Todos os 6 arquivos que falhavam entraram no job, um
+# a um, com a causa medida e registrada abaixo. Fica FORA apenas `promptly-journey-live`, por
+# apontar para a instância implantada e exigir credencial — trabalho separado, não defeito.
 #
 # CORREÇÃO DE UMA AFIRMAÇÃO ANTERIOR DESTE CABEÇALHO: ele dizia haver "um caso em `deploy-timeline`".
 # **Falso hoje** — mede 10/10 verde, isolado (3 execuções) e dentro da suíte inteira. Não foi
@@ -80,6 +68,20 @@
 #     a lista de textos internos mostrava "Rollback" — dois instrumentos, duas respostas, e vale a
 #     que o leitor de tela anuncia. Saiu a asserção que exigia a palavra "cloning": o dublê não
 #     serve linha de log alguma, então ela cobrava conteúdo que o cenário nunca produz.
+#   • `project-connect` — o arquivo é `mode: 'serial'`, e isso escondeu o resto: enquanto o
+#     Cenário 1 falhava, os outros TRÊS eram pulados, nunca executados. Uma contagem que trate
+#     "pulado" como "não-falhou" reporta verdes que não existem — foi o erro da primeira
+#     classificação deste cabeçalho. O Cenário 1 usava `demo`, projeto sem fixture; hoje usa
+#     `acme-ml-pipeline`, o único `connected: false`. Os Cenários 2–4 interceptavam
+#     `/projects/*/connect` pela REDE, e essa rota é servida EM PROCESSO — `page.route` nunca
+#     disparava. Ganharam a alavanca `__THEO_MOCK_CONNECT_SEQUENCE`, no padrão do
+#     `__THEO_MOCK_LOGGED_OUT` que já existia.
+#
+#     E ao rodarem pela primeira vez acharam um DEFEITO REAL: o dublê exigia `repo_url` e
+#     devolvia 400 sem ele, enquanto a tela envia `repo`. Conectar repositório falhava SEMPRE em
+#     ambiente mockado — desenvolvimento visual e e2e. `repo_url` era o nome anterior, declarado
+#     legado no próprio tipo; saiu junto (#377). O defeito e o teste que o pegaria adoeceram
+#     juntos, que é o argumento inteiro a favor de nunca deixar caso pulado.
 #   • `recovery` — a premissa "visitante sem sessão" nunca era estabelecida. O produto está certo:
 #     com sessão ativa, `/recovery` mostra de propósito "You're already signed in" (fecho de Red
 #     Team, `theo-cloud#54`). A alavanca `__THEO_MOCK_LOGGED_OUT` já existia e é a mesma do
@@ -145,7 +147,8 @@ jobs:
             e2e/j10-environments.spec.ts \
             e2e/recovery.spec.ts \
             e2e/journeys.spec.ts \
-            e2e/dashboard-m12-fase-a-bundle-grep-migration.spec.ts
+            e2e/dashboard-m12-fase-a-bundle-grep-migration.spec.ts \
+            e2e/project-connect.spec.ts
 
       # O relatório só interessa quando algo falha; guardá-lo sempre encheria o storage do repo
       # com artefatos de runs verdes que ninguém abre.

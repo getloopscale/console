@@ -121,20 +121,25 @@ test.describe('J-09 Project Connect — install + picker + connect flow', () => 
   test('Cenário 2 (T1.2): polling flips state to has_installation when GET returns installation_id', async ({
     page,
   }) => {
-    let getCalls = 0;
-    // Sequenced fulfill: first 2 GETs say "not connected, no install",
-    // the 3rd brings the installation_id. Polling fires every 2s; the
-    // FSM should transition within ~6s.
-    await page.route('**/engine/api/v1/projects/*/connect', (route) => {
-      if (route.request().method() !== 'GET') {
-        return route.fulfill({ status: 200, body: JSON.stringify({ ok: true }) });
-      }
-      getCalls++;
-      const body =
-        getCalls < 3
-          ? { connected: false }
-          : { connected: false, installation_id: 777 };
-      return route.fulfill({ status: 200, body: JSON.stringify(body) });
+    // A SEQUÊNCIA VEM DA CAMADA DE DUBLÊ, NÃO DA REDE (issue #378).
+    //
+    // A versão anterior usava `page.route('**/projects/*/connect')`, e ele NUNCA disparava:
+    // sob `VITE_USE_MOCKS=true` essa rota é servida em processo, sem tocar a rede. O cenário
+    // parecia montar três respostas encadeadas e na verdade recebia sempre a estática do
+    // fixture — e como o arquivo é serial e o Cenário 1 falhava antes, este aqui ficou PULADO,
+    // nunca executado, então ninguém viu.
+    //
+    // `addInitScript` planta a sequência antes de qualquer script da aplicação. As duas
+    // primeiras leituras dizem "sem instalação"; a terceira traz o `installation_id`, que é o
+    // que a máquina de estados espera para avançar. Esgotada, a última se repete.
+    await page.addInitScript(() => {
+      (
+        window as unknown as { __THEO_MOCK_CONNECT_SEQUENCE?: unknown[] }
+      ).__THEO_MOCK_CONNECT_SEQUENCE = [
+        { connected: false },
+        { connected: false },
+        { connected: false, installation_id: 777 },
+      ];
     });
     await page.route(
       '**/engine/api/v1/integrations/github/installations/*/repositories',
@@ -160,15 +165,16 @@ test.describe('J-09 Project Connect — install + picker + connect flow', () => 
   test('Cenário 3 (T2.2): repo picker filter narrows the option list', async ({
     page,
   }) => {
-    await page.route('**/engine/api/v1/projects/*/connect', (route) => {
-      if (route.request().method() !== 'GET') {
-        return route.fulfill({ status: 200, body: JSON.stringify({ ok: true }) });
-      }
-      return route.fulfill({
-        status: 200,
-        body: JSON.stringify({ connected: false, installation_id: 555 }),
-      });
+    // Estado inicial: app instalado, sem repositório escolhido. Vem pela ALAVANCA do dublê —
+    // `/connect` é servida em processo e `page.route` não a alcança (issue #378).
+    await page.addInitScript(() => {
+      (
+        window as unknown as { __THEO_MOCK_CONNECT_SEQUENCE?: unknown[] }
+      ).__THEO_MOCK_CONNECT_SEQUENCE = [{ connected: false, installation_id: 555 }];
     });
+    // A listagem de repositórios NÃO está no mapa do dublê, então ela sai pela rede de verdade
+    // e o `page.route` funciona. Os dois mecanismos convivem, e a diferença não é arbitrária:
+    // é o mapa que decide, não o teste.
     await page.route(
       '**/engine/api/v1/integrations/github/installations/*/repositories',
       (route) =>
@@ -204,33 +210,13 @@ test.describe('J-09 Project Connect — install + picker + connect flow', () => 
   test('Cenário 4 (T3.1): connect POST body shape is {repo, installation_id, branch, auto_deploy}', async ({
     page,
   }) => {
-    let postBody: Record<string, unknown> | null = null;
-    await page.route('**/engine/api/v1/projects/*/connect', async (route) => {
-      const req = route.request();
-      if (req.method() === 'GET') {
-        return route.fulfill({
-          status: 200,
-          body: JSON.stringify({ connected: false, installation_id: 42 }),
-        });
-      }
-      if (req.method() === 'POST') {
-        try {
-          postBody = JSON.parse(req.postData() ?? '{}');
-        } catch {
-          postBody = null;
-        }
-        return route.fulfill({
-          status: 200,
-          body: JSON.stringify({
-            connected: true,
-            repo: (postBody as Record<string, unknown> | null)?.repo ?? '',
-            branch: 'main',
-            auto_deploy: true,
-            installation_id: 42,
-          }),
-        });
-      }
-      return route.fulfill({ status: 200, body: '{}' });
+    // Estado inicial pela alavanca; o CORPO DO POST é lido de
+    // `window.__THEO_MOCK_LAST_CONNECT_POST`, que o dublê registra. Não há alternativa:
+    // `/connect` é servida em processo, então `page.route` não vê o pedido (issue #378).
+    await page.addInitScript(() => {
+      (
+        window as unknown as { __THEO_MOCK_CONNECT_SEQUENCE?: unknown[] }
+      ).__THEO_MOCK_CONNECT_SEQUENCE = [{ connected: false, installation_id: 42 }];
     });
     await page.route(
       '**/engine/api/v1/integrations/github/installations/*/repositories',
@@ -252,14 +238,24 @@ test.describe('J-09 Project Connect — install + picker + connect flow', () => 
     // Poll until the POST has been observed -- avoids depending on
     // rendered-state heuristics like "Connected" text which depends on
     // Card.Title rendering + casing.
-    await expect.poll(() => postBody, { timeout: 5_000 }).not.toBeNull();
+    const lerPost = () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __THEO_MOCK_LAST_CONNECT_POST?: Record<string, unknown> })
+            .__THEO_MOCK_LAST_CONNECT_POST ?? null,
+      );
+    await expect.poll(lerPost, { timeout: 5_000 }).not.toBeNull();
+    const postBody = await lerPost();
     expect(postBody).toMatchObject({
       repo: 'owner/api',
       installation_id: 42,
       branch: 'main',
       auto_deploy: true,
     });
-    // Critical: the legacy field MUST NOT be sent.
+    // O campo legado NÃO pode ser enviado — e desde o #377 ele nem existe mais no tipo. A
+    // asserção fica: é ela que trava a remoção, e foi por não haver quem a executasse (este
+    // cenário estava pulado) que o dublê seguiu exigindo `repo_url` e QUEBRANDO a conexão em
+    // todo ambiente mockado, sem ninguém notar.
     expect(postBody).not.toHaveProperty('repo_url');
   });
 });

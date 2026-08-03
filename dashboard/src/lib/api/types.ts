@@ -606,11 +606,10 @@ export interface PromoteResponse {
 
 export interface ProjectConnection {
   connected: boolean;
-  // Plan J-09 T3.1 (2026-06-05) — backend returns `repo` (full_name slug like
-  // "owner/name"), NOT `repo_url`. The repo_url field below is legacy and kept
-  // only for backward compatibility during the migration window.
+  // O serviço devolve `repo` — o slug `owner/name`. O campo `repo_url`, declarado LEGADO
+  // "durante a janela de migração", foi REMOVIDO (issue #377): a janela fechou, e um campo
+  // legado que ninguém escreve é um caminho que o leitor acredita existir.
   repo?: string;
-  repo_url?: string;
   branch?: string;
   auto_deploy?: boolean;
   installation_id?: number;

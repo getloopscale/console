@@ -300,7 +300,7 @@ export function makeProjectConnection(project: string): ProjectConnection {
   }
   return {
     connected: true,
-    repo_url: `https://github.com/acme/${project.replace('acme-', '')}`,
+    repo: `acme/${project.replace('acme-', '')}`,
     branch: 'main',
     auto_deploy: true,
     installation_id: 12345678,

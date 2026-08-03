@@ -43,6 +43,12 @@ async function navegarAteOAcervoPeloMenu(page: Page) {
 
   await page.getByRole('button', { name: /^overview$/i }).click();
   await expect(page).toHaveURL(/\/skills$/);
+
+  // A URL não é o acervo — é só o endereço dele. Sem esperar a PRIMEIRA LINHA renderizar, quem
+  // chama este helper e clica em seguida compete com a carga da lista: medido `flaky` no
+  // ambiente do CI em 2026-08-02, no caso da recusa tipada. Falhava e passava na repetição,
+  // que é o modo de falhar que ensina a reexecutar o CI em vez de olhar.
+  await expect(page.getByRole('link', { name: 'Revisar pull request' })).toBeVisible();
 }
 
 test.describe('M26 — navegar o registro de skills pelo dashboard', () => {
