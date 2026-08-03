@@ -17,6 +17,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -80,6 +81,41 @@ const invalidPromotionBody = `{"code":"INVALID_PROMOTION_BODY","message":"inform
 
 // maxPromotionBody limita o corpo aceito na promocao. O corpo legitimo tem um numero.
 const maxPromotionBody = 4 << 10
+
+// maxPromptBody limita o corpo das ESCRITAS de autoria, que carregam o TEXTO de um prompt.
+//
+// Teto proprio porque a grandeza e outra: 4 KiB dimensionam um corpo com um numero, nao um system
+// prompt. Reusar o teto da promocao aqui cortava um prompt de 5 KiB no meio e o mandava adiante —
+// `io.LimitReader` devolve EOF no teto SEM erro, entao o corte era indetectavel na camada que so
+// repassa, e o produto respondia erro de parse sobre um conteudo que o operador escreveu inteiro.
+const maxPromptBody = 256 << 10
+
+// lerCorpoLimitado le o corpo e DISTINGUE "acabou" de "estourou o teto".
+//
+// Le um byte alem do limite: se ele veio, o corpo era maior. E isso que transforma um truncamento
+// silencioso numa recusa tipada — o produto nunca ve JSON pela metade.
+func lerCorpoLimitado(r *http.Request, teto int) (json.RawMessage, bool, error) {
+	raw, err := io.ReadAll(io.LimitReader(r.Body, int64(teto)+1))
+	if err != nil {
+		return nil, false, err
+	}
+	if len(raw) > teto {
+		return nil, true, nil
+	}
+	return json.RawMessage(raw), false, nil
+}
+
+// corpoGrandeDemais e a recusa tipada — com o teto DENTRO da mensagem, para o operador saber por
+// quanto passou em vez de tentar de novo no escuro.
+func (h *PromptlyDashboardHandler) corpoGrandeDemais(w http.ResponseWriter, r *http.Request, op string) {
+	h.logger.WarnContext(r.Context(), "promptly dashboard: "+op+": corpo acima do teto",
+		"limite_bytes", maxPromptBody, "path", r.URL.Path)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusRequestEntityTooLarge)
+	_, _ = fmt.Fprintf(w,
+		`{"code":"PAYLOAD_TOO_LARGE","message":"o conteúdo excede o limite de %d KiB por revisão"}`,
+		maxPromptBody>>10)
+}
 
 func (h *PromptlyDashboardHandler) proxy(w http.ResponseWriter, r *http.Request, op string, call func() (json.RawMessage, error)) {
 	body, err := call()
@@ -219,13 +255,17 @@ func (h *PromptlyDashboardHandler) Promote(w http.ResponseWriter, r *http.Reques
 // que protege ESTE processo — e a credencial certa. A recusa do produto chega tipada via
 // UpstreamError e e o proprio `reject` que a repassa.
 func (h *PromptlyDashboardHandler) Create(w http.ResponseWriter, r *http.Request) {
-	raw, err := io.ReadAll(io.LimitReader(r.Body, maxPromotionBody))
+	raw, grande, err := lerCorpoLimitado(r, maxPromptBody)
 	if err != nil {
 		h.badRequest(w, r, "create: read body", err)
 		return
 	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "create")
+		return
+	}
 	h.proxy(w, r, "create", func() (json.RawMessage, error) {
-		return h.promoter.CreateRevision(r.Context(), json.RawMessage(raw))
+		return h.promoter.CreateRevision(r.Context(), raw)
 	})
 }
 
@@ -236,13 +276,17 @@ func (h *PromptlyDashboardHandler) Create(w http.ResponseWriter, r *http.Request
 // Um BFF que validasse antes devolveria a propria recusa, sem a lista — e a tela perderia o dado
 // que torna o erro acionavel.
 func (h *PromptlyDashboardHandler) Rollback(w http.ResponseWriter, r *http.Request) {
-	raw, err := io.ReadAll(io.LimitReader(r.Body, maxPromotionBody))
+	raw, grande, err := lerCorpoLimitado(r, maxPromptBody)
 	if err != nil {
 		h.badRequest(w, r, "rollback: read body", err)
 		return
 	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "rollback")
+		return
+	}
 	h.proxy(w, r, "rollback", func() (json.RawMessage, error) {
-		return h.promoter.Rollback(r.Context(), promptName(r), json.RawMessage(raw))
+		return h.promoter.Rollback(r.Context(), promptName(r), raw)
 	})
 }
 

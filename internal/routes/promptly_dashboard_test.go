@@ -375,3 +375,45 @@ func TestPromptlyDashboard_falha_5xx_na_escrita_NAO_vaza_o_corpo_do_servico(t *t
 		t.Errorf("o endereco interno do servico vazou para a tela: %s", rec.Body.String())
 	}
 }
+
+// F-re-1 — o teto que eu reusei sem pensar.
+//
+// `maxPromotionBody` foi dimensionado para o corpo da PROMOCAO, que tem um numero. As rotas de
+// escrita carregam o TEXTO DE UM PROMPT. Um prompt de 5 KB era cortado no meio e seguia opaco
+// para o produto — que recebia JSON malformado e devolvia erro de parse. O operador veria uma
+// recusa incompreensivel sobre um conteudo que ele escreveu inteiro.
+//
+// io.LimitReader devolve EOF no teto SEM erro: e por isso que o corte era indetectavel na camada
+// que so repassa. Ler UM byte alem do teto e o que transforma silencio em recusa tipada.
+func TestPromptlyDashboard_conteudo_acima_do_teto_e_RECUSADO_nao_truncado(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"version":1}`)}
+	gigante := strings.Repeat("A", maxPromptBody)
+	corpo := `{"name":"grande","content":"` + gigante + `"}`
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts", corpo)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, esperado 413 — truncar em silencio manda JSON quebrado ao produto", rec.Code)
+	}
+	// O par que discrimina: o corpo NAO pode ter chegado ao cliente de escrita. Um 413 emitido
+	// DEPOIS de repassar seria pior que nenhum.
+	if len(f.body) != 0 {
+		t.Errorf("o corpo truncado foi repassado assim mesmo: %d bytes", len(f.body))
+	}
+}
+
+func TestPromptlyDashboard_conteudo_grande_porem_dentro_do_teto_PASSA(t *testing.T) {
+	// A metade oposta. Sem ela, um teto de zero passaria no teste acima e quebraria tudo.
+	f := &promptlyFake{corpo: json.RawMessage(`{"version":1}`)}
+	grande := strings.Repeat("A", 32<<10) // 32 KiB de prompt — realista para um system prompt longo
+	corpo := `{"name":"grande","content":"` + grande + `"}`
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts", corpo)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d — um prompt longo e legitimo tem de passar", rec.Code)
+	}
+	if len(f.body) != len(corpo) {
+		t.Errorf("o corpo chegou truncado: %d de %d bytes", len(f.body), len(corpo))
+	}
+}
