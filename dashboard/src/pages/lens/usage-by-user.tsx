@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { parseAsInteger, useQueryState } from 'nuqs';
-import { Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell } from '@usetheo/ui';
+import { Button, Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@usetheo/ui';
+import { Coins, DollarSign, Layers, Users } from 'lucide-react';
+import { resumirConsumo } from '@/lib/usage-summary';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -95,6 +97,10 @@ export function LensUsageByUserPage() {
   const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const lastShown = Math.min(page * PAGE_SIZE, total);
 
+  // M143 — a agregação vive fora do componente, pura e testável por mutação. O que quebrou no M142
+  // não foi a renderização, foi a aritmética sem oráculo.
+  const resumo = resumirConsumo(users, total);
+
   const columns: DataTableColumn<UsageRow>[] = [
     {
       key: 'userId',
@@ -125,6 +131,40 @@ export function LensUsageByUserPage() {
       // numa tela cujo número as pessoas vão tratar como fatura.
       render: (row) => <span className="tabular-nums">{formatCost(row.costUsd)}</span>,
     },
+    {
+      key: 'share',
+      label: 'Participação',
+      /**
+       * Barra + rótulo direto, não donut: `dataviz/choosing-a-form` — magnitude comparada entre
+       * categorias é barra, e mantê-la NA tabela deixa o rótulo (o `userId`) ao lado da magnitude
+       * em vez de duplicar a lista num gráfico à parte. Uma série só ⇒ sem legenda.
+       *
+       * A barra sozinha é cor, e cor sozinha não é acessível — daí o `aria-label` com o número e o
+       * percentual visível ao lado dela.
+       */
+      render: (row) => {
+        const p = resumo.participacoes[users.indexOf(row)];
+        // Sem denominador nenhuma fatia é afirmável — nem 0%, nem NaN%, nem barra vazia enganosa.
+        if (p === null || p === undefined) return <span className="text-muted-foreground">—</span>;
+        // `0%` para quem custou $0.034032 afirma zero sobre um ARREDONDAMENTO — a mesma leitura
+        // perigosa que `$0.00` seria, e que a coluna de custo paga 4 casas para evitar. Mas a
+        // distinção vale nos dois sentidos: quem custou exatamente zero É 0%, e um `<0,1%`
+        // universal seria o erro simétrico.
+        const pct = p > 0 && p < 0.001 ? '<0.1%' : formatNumber(p, 'percent');
+        return (
+          <div className="flex items-center gap-2">
+            <Progress
+              value={p * 100}
+              height="h-1.5"
+              className="w-16"
+              aria-label={`${pct} do custo exibido`}
+              data-testid="usage-share"
+            />
+            <span className="tabular-nums text-xs text-muted-foreground">{pct}</span>
+          </div>
+        );
+      },
+    },
   ];
 
   const doServico = query.isError ? mensagemDoServico(query.error) : null;
@@ -139,12 +179,16 @@ export function LensUsageByUserPage() {
           <label htmlFor="usage-window" className="text-sm text-muted-foreground">
             Janela
           </label>
-          <select
-            id="usage-window"
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+          {/*
+            `Select` do design system, não `<select>` nativo. Esta era a ÚNICA tela do lens com o
+            controle do sistema operacional — as outras cinco (alerts, dashboards, evaluators,
+            traces/filter-bar, playground) já usavam o do design system. Não era preferência
+            estética: era uma inconsistência que eu introduzi, e ela salta aos olhos num painel.
+          */}
+          <Select
             value={String(days)}
-            onChange={(e) => {
-              void setDays(Number(e.target.value));
+            onValueChange={(v) => {
+              void setDays(Number(v));
               setPage(1);
             }}
           >
@@ -158,13 +202,18 @@ export function LensUsageByUserPage() {
               não para ser reescolhida. Clampar o valor seria a alternativa, e joga fora a recusa
               tipada que a M140 pagou para ter.
             */}
-            {JANELAS.includes(days as (typeof JANELAS)[number]) ? null : (
-              <option value={String(days)} disabled>{`Personalizado: ${days} dias`}</option>
-            )}
-            {JANELAS.map((d) => (
-              <option key={d} value={String(d)}>{`Últimos ${d} dias`}</option>
-            ))}
-          </select>
+            <Select.Trigger id="usage-window" className="w-[190px]" aria-label="Janela">
+              <Select.Value />
+            </Select.Trigger>
+            <Select.Content>
+              {JANELAS.includes(days as (typeof JANELAS)[number]) ? null : (
+                <Select.Item value={String(days)} disabled>{`Personalizado: ${days} dias`}</Select.Item>
+              )}
+              {JANELAS.map((d) => (
+                <Select.Item key={d} value={String(d)}>{`Últimos ${d} dias`}</Select.Item>
+              ))}
+            </Select.Content>
+          </Select>
         </div>
 
         {query.isLoading ? (
@@ -190,6 +239,52 @@ export function LensUsageByUserPage() {
           />
         ) : (
           <>
+            {/*
+              A FAIXA DE KPIs (M143). Quatro números, e cada `hint` existe para o número não ser lido
+              como algo que ele não é:
+
+               • Custo e Tokens somam as linhas EXIBIDAS. A resposta do serviço não traz totais
+                 agregados, então com 400 usuários e página de 50 o cabeçalho cobre 50 — e chamar
+                 isso de "total" é a mesma classe de mentira que `unpricedSpans` impede.
+               • Usuários vem de `totalUsers`: é o único exato mesmo paginado.
+               • Cache é razão entre as DUAS pontas (leitura ÷ (leitura + entrada fresca)). O rótulo
+                 descreve o FATO ("da entrada veio do cache"), não o benefício — 99% de cache não é
+                 99% de desconto, e prometer isso seria vender número.
+
+              NENHUM delta: não há série temporal na resposta, e uma seta desenhada sobre número
+              inventado é o defeito que a campanha de mutação do M142 gastou uma tarde para expulsar.
+            */}
+            <div data-testid="usage-kpis" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <MetricCard
+                data-testid="kpi-custo"
+                title="Custo estimado"
+                value={formatCost(resumo.custoUsd)}
+                icon={<DollarSign className="h-4 w-4" />}
+                hint={resumo.completo ? `todos os ${total} usuários do período` : `entre os ${users.length} exibidos`}
+              />
+              <MetricCard
+                data-testid="kpi-tokens"
+                title="Tokens"
+                value={formatNumber(resumo.tokens, 'compact')}
+                icon={<Coins className="h-4 w-4" />}
+                hint="entrada + saída"
+              />
+              <MetricCard
+                data-testid="kpi-usuarios"
+                title="Usuários com consumo"
+                value={formatNumber(total, 'grouped')}
+                icon={<Users className="h-4 w-4" />}
+                hint={`nos últimos ${days} dias`}
+              />
+              <MetricCard
+                data-testid="kpi-cache"
+                title="Entrada servida por cache"
+                value={resumo.cacheRatio === null ? '—' : formatNumber(resumo.cacheRatio, 'percent')}
+                icon={<Layers className="h-4 w-4" />}
+                hint={resumo.cacheRatio === null ? 'sem leitura de cache no período' : 'da entrada veio do cache'}
+              />
+            </div>
+
             {unpriced > 0 ? (
               <Alert intent="warning" title="O custo mostrado é um piso, não o total" data-testid="usage-unpriced-notice">
                 {`${formatNumber(unpriced, 'grouped')} spans têm tokens e nenhum preço na tabela — o custo real é MAIOR que o exibido.`}
