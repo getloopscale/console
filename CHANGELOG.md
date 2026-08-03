@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [0.78.1] - 2026-08-03
+
+### Changed
+
+- **os gráficos passaram para logo acima da tabela** (#m144). Estavam abaixo por decisão de projeto — a ideia era que *"quem consumiu"* fosse a pergunta de abertura e a evolução a segunda —, e a revisão concordou com aquela ordem. Ambos erraram sobre o leitor real: com até 50 linhas na tabela, o gráfico nascia muito abaixo da dobra e podia nunca ser visto. Agora a evolução aparece antes da lista. Um teste trava a ordem no documento, para ela não voltar em silêncio no próximo refactor.
+
 ## [0.78.0] - 2026-08-03
 
 ### Added

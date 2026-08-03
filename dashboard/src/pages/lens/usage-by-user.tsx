@@ -404,20 +404,13 @@ export function LensUsageByUserPage() {
               </Alert>
             ) : null}
 
-            {total > 0 ? (
-              <p data-testid="usage-count" className="mb-1 text-xs text-muted-foreground">
-                {`Mostrando ${firstShown}–${lastShown} de ${total}`}
-              </p>
-            ) : null}
-
-            <Card>
-              <DataTable columns={columns} data={users} rowKey={(row) => row.userId} />
-            </Card>
-
             {/*
-              Os gráficos vêm DEPOIS da tabela, de propósito: quem abre esta tela quer saber quem
-              consumiu — a evolução é a segunda pergunta. Pô-los acima empurraria a resposta
-              principal para baixo da dobra.
+              Os gráficos vêm LOGO ACIMA da tabela, por decisão do owner (2026-08-03).
+              O plano tinha decidido o contrário — a tabela primeiro, porque "quem consumiu" seria a
+              pergunta de abertura e a evolução a segunda —, e o revisor de dataviz concordou com
+              aquela ordem. Ambos estavam errados sobre o leitor real: com até 50 linhas na tabela, o
+              gráfico nascia muito abaixo da dobra e podia nunca ser visto. A ressalva do próprio
+              revisor previa isso.
 
               A linha QUEBRA no dia sem consumo. `densificar` põe `NaN` onde o serviço não devolveu
               ponto, e o `seriesPath` do `@usetheo/ui` emite um novo subcaminho ali — a
@@ -425,7 +418,7 @@ export function LensUsageByUserPage() {
               continuidade que o dado não tem, e zero seria indistinguível de consumo real zero.
             */}
             {comSerie && users.some((u) => u.series !== undefined) ? (
-              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <div className="mb-6 grid gap-4 lg:grid-cols-2">
                 <Card className="p-4" data-testid="usage-chart">
                   <TrendChart
                     title={`Custo por dia — ${escopoDoGrafico}`}
@@ -444,10 +437,20 @@ export function LensUsageByUserPage() {
             ) : !comSerie ? (
               // Gráfico ausente sem explicação é lido como "não há dado". O motivo é o orçamento do
               // serviço, e a tela o diz em vez de sumir em silêncio.
-              <p data-testid="usage-chart-indisponivel" className="mt-6 text-sm text-muted-foreground">
+              <p data-testid="usage-chart-indisponivel" className="mb-6 text-sm text-muted-foreground">
                 {`A evolução diária não é exibida para ${days} dias: o serviço limita a ${MAX_BUCKET_POINTS} pontos, e (${days} + 1) dias × ${PAGE_SIZE} linhas ultrapassam o teto. Escolha 7 ou 30 dias para ver os gráficos.`}
               </p>
             ) : null}
+
+            {total > 0 ? (
+              <p data-testid="usage-count" className="mb-1 text-xs text-muted-foreground">
+                {`Mostrando ${firstShown}–${lastShown} de ${total}`}
+              </p>
+            ) : null}
+
+            <Card>
+              <DataTable columns={columns} data={users} rowKey={(row) => row.userId} />
+            </Card>
 
             {pageCount > 1 ? (
               <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
