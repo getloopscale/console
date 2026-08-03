@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- **o seletor de janela do consumo por usuário dizia "Últimos 7 dias" quando o período pedido não era nenhum dos ofertados.** Abrindo a tela com um período fora da lista — colando um link com `9999`, por exemplo —, o serviço recusava corretamente e a mensagem dele aparecia; o **controle**, porém, caía na primeira opção e exibia 7 dias. Quem lia entendia *"pedi 7 dias e foi recusado"*, e o `days must be at most 365` ao lado virava absurdo, porque 7 **é** no máximo 365: a tela acertava o erro e errava a pergunta. Agora o seletor mostra o período de fato consultado (`Personalizado: 9999 dias`), desabilitado por não ser uma janela ofertada. **A alternativa descartada foi ajustar o valor para a janela válida mais próxima** — ficaria bonito e jogaria fora a recusa tipada que a M140 pagou para produzir: o operador veria um relatório de 365 dias sem nunca saber que pediu outra coisa (#383)
+
 - **o submenu de uma capacidade podia acender na rota de outra.** `resolveActiveMenu` comparava o caminho por prefixo simples, então `/promptlyfoo` ativava o submenu de Prompts. Não havia rota assim, e o arquivo — o mesmo que já custou quatro telas invisíveis no `theo-trust` — não tinha teste algum. Agora tem, e a comparação respeita a fronteira do segmento (#m13)
 
 ## [0.75.0] - 2026-08-03
