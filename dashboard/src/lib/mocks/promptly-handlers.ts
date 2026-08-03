@@ -66,6 +66,19 @@ export function registerPromptlyHandlers() {
   for (const prefix of ['', '/api']) registerPromptlyRoutes(`${prefix}/v1/dashboard/promptly`);
 }
 
+/**
+ * As variáveis declaradas por um conteúdo — mesma regra do serviço: os tokens `{{identificador}}`,
+ * na ordem de primeira aparição, sem repetição. A presença É a declaração.
+ */
+function variaveisDe(content: string): string[] {
+  const vistas = new Set<string>();
+  for (const m of content.matchAll(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)) {
+    const nome = m[1];
+    if (nome !== undefined) vistas.add(nome);
+  }
+  return [...vistas];
+}
+
 function registerPromptlyRoutes(base: string) {
   // O índice: uma linha por nome, SEM `content` — o mesmo contrato do serviço. Devolver o corpo
   // aqui faria o mock ser mais permissivo que a produção, e o e2e passaria numa tela que quebra.
@@ -96,13 +109,50 @@ function registerPromptlyRoutes(base: string) {
     return new Response(JSON.stringify(pagina), { status: 200, headers });
   });
 
-  // O prompt resolvido — a tela o usa para saber qual é a ÚLTIMA revisão antes de pedir a janela.
+  /**
+   * O prompt resolvido — a tela o usa para saber qual é a ÚLTIMA revisão antes de pedir a janela,
+   * e o playground do M14 o usa para saber QUAIS CAMPOS mostrar.
+   *
+   * `variables` é derivado aqui pela mesma regra do serviço (`to-prompt-wire.ts`: os tokens
+   * `{{...}}` do conteúdo, na ordem, sem repetição) porque o mock não o devolvia — e um mock menos
+   * fiel que a produção faz o e2e passar sobre uma tela que renderizaria ZERO campos. É o modo de
+   * falha que o cabeçalho deste arquivo já alertava para o `content` do catálogo.
+   */
   registerRoute('GET', `${base}/prompts/{name}`, async (_req, { name }) => {
     const revs = promptlyDb.revisions[decodeURIComponent(name)];
     if (!revs || revs.length === 0) {
       return Response.json({ error: 'prompt_not_found', name }, { status: 404 });
     }
-    return Response.json(revs[revs.length - 1]);
+    const ultima = revs[revs.length - 1]!;
+    return Response.json({ ...ultima, name: decodeURIComponent(name), variables: variaveisDe(ultima.content) });
+  });
+
+  /**
+   * M14 — o playground. Devolve uma saída determinística que ECOA o conteúdo renderizado, para o
+   * e2e poder distinguir "rodou o que estava na tela" de "rodou outra coisa".
+   *
+   * Recusa a variável vazia com o MESMO código do serviço (`400 missing_variable`): um mock que
+   * sempre aceitasse deixaria a jornada verde sobre a guarda pré-gasto quebrada.
+   */
+  registerRoute('POST', `${base}/prompts/{name}/playground`, async (req) => {
+    const corpo = (await req.json()) as {
+      credential?: string;
+      content?: string;
+      variables?: Record<string, string>;
+    };
+    const content = corpo.content ?? '';
+    const variables = corpo.variables ?? {};
+
+    const faltante = variaveisDe(content).find((v) => (variables[v] ?? '').trim() === '');
+    if (faltante !== undefined) {
+      return Response.json({ error: 'missing_variable', variable: faltante }, { status: 400 });
+    }
+    if ((corpo.credential ?? '').trim() === '') {
+      return Response.json({ error: 'invalid_body' }, { status: 400 });
+    }
+
+    const renderizado = content.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (_m, n: string) => variables[n] ?? '');
+    return Response.json({ text: `[modelo simulado] ${renderizado}`, latencyMs: 42 });
   });
 
   registerRoute('GET', `${base}/prompts/{name}/revisions`, async (req, { name }) => {

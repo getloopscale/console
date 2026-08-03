@@ -50,6 +50,9 @@ type promptlyReader interface {
 	Revisions(ctx context.Context, name string, limit, after int) (json.RawMessage, error)
 	Labels(ctx context.Context, name string) (json.RawMessage, error)
 	Policy(ctx context.Context, name, label string) (json.RawMessage, error)
+	// M14 — o playground. Fica na porta de LEITURA porque nao muta estado nosso; ver o comentario
+	// de `DataClient.Playground` para a razao completa do escopo.
+	Playground(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error)
 }
 
 // promptlyPromoter e o UNICO verbo mutante da capacidade.
@@ -321,6 +324,26 @@ func (h *PromptlyDashboardHandler) Rollback(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// Playground repassa a invocacao (`POST /prompts/:name/playground`).
+//
+// Corpo OPACO, pela mesma razao do Create e do Rollback, mais uma que so vale aqui: o corpo carrega
+// a credencial do MODELO, digitada pelo operador. Ler campos dela para validar seria criar um lugar
+// a mais de onde ela pode escapar para um log.
+func (h *PromptlyDashboardHandler) Playground(w http.ResponseWriter, r *http.Request) {
+	raw, grande, err := lerCorpoLimitado(r, maxPromptBody)
+	if err != nil {
+		h.badRequest(w, r, "playground: read body", err)
+		return
+	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "playground")
+		return
+	}
+	h.proxy(w, r, "playground", func() (json.RawMessage, error) {
+		return h.reader.Playground(r.Context(), promptName(r), raw)
+	})
+}
+
 func (h *PromptlyDashboardHandler) badRequest(w http.ResponseWriter, r *http.Request, op string, err error) {
 	h.logger.WarnContext(r.Context(), "promptly dashboard: "+op, "error", err, "path", r.URL.Path)
 	w.Header().Set("Content-Type", "application/json")
@@ -346,6 +369,7 @@ func MountPromptlyDashboard(r chi.Router, h *PromptlyDashboardHandler, requireJW
 		// cada chamada cria mais uma revisao. Confundi-los com o `PUT` acima faria um retry de
 		// rede virar duas revisoes sem que ninguem percebesse.
 		r.Post("/prompts", h.Create)
+		r.Post("/prompts/{promptName}/playground", h.Playground)
 		r.Post("/prompts/{promptName}/rollback", h.Rollback)
 	})
 }

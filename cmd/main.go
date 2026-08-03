@@ -547,7 +547,13 @@ func main() {
 		// M25 — o BFF do catálogo de prompts. DOIS clientes, com credenciais distintas: o de
 		// leitura recebe uma chave que não consegue promover, e a promoção é o único caminho com
 		// `prompt:write`. A separação é o menor privilégio; ver `promptly_dashboard_wiring.go`.
+		// M14 — a invocacao do playground tem orcamento PROPRIO. Os 10 s do cliente compartilhado
+		// servem uma leitura e nao servem uma geracao de LLM: com eles, o BFF desistia antes de a
+		// recusa tipada existir e o operador via "nao foi possivel falar com o servico" para uma
+		// chave invalida — com a quota dele ja gasta. 120 s cabe sob o WriteTimeout do servidor.
+		promptlyInvocationHTTP := &http.Client{Timeout: 120 * time.Second}
 		promptlyDataClient := promptly.NewDataClient(cfg.PromptlyBaseURL, promptlyHTTP).
+			WithInvocationClient(promptlyInvocationHTTP).
 			WithKeyResolver(newPromptlyDashboardKeyResolver(promptlyBroker))
 		promptlyWriteClient := promptly.NewWriteClient(cfg.PromptlyBaseURL, promptlyHTTP).
 			WithKeyResolver(newPromptlyPromotionKeyResolver(promptlyBroker))

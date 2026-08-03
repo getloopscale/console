@@ -175,6 +175,9 @@ const PromptDetailPage = lazy(() =>
 const PromptlyCreatePage = lazy(() =>
   import('@/pages/promptly/create').then((m) => ({ default: m.PromptlyCreatePage })),
 );
+const PromptlyPlaygroundPage = lazy(() =>
+  import('@/pages/promptly/playground').then((m) => ({ default: m.PromptlyPlaygroundPage })),
+);
 const PromptlyDiffPage = lazy(() =>
   import('@/pages/promptly/diff').then((m) => ({ default: m.PromptlyDiffPage })),
 );
@@ -530,6 +533,7 @@ export default function App() {
                     <Route path="/promptly/catalogo" element={<Boundaried path="/promptly/catalogo"><PromptlyCatalogoPage /></Boundaried>} />
                     <Route path="/promptly/:promptName" element={<Boundaried path="/promptly/:promptName"><PromptDetailPage /></Boundaried>} />
                     <Route path="/promptly/:name/diff" element={<Boundaried path="/promptly/:name/diff"><PromptlyDiffPage /></Boundaried>} />
+                    <Route path="/promptly/:promptName/playground" element={<Boundaried path="/promptly/:promptName/playground"><PromptlyPlaygroundPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />
