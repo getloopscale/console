@@ -166,6 +166,28 @@ describe('PromptlyOverviewPage', () => {
  * mudo e a Coverage Matrix voltaria a afirmar "linkados" sem sustentação.
  */
 describe('PromptlyOverviewPage — cada número leva à lista', () => {
+  it('o KPI de total leva ao catálogo inteiro', async () => {
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+
+    render(<PromptlyOverviewPage />);
+
+    const link = await screen.findByRole('link', { name: /ver todos os prompts no catálogo/i });
+    expect(link).toHaveAttribute('href', '/promptly/catalogo');
+  });
+
+  // Os outros dois KPIs são agregados sem subconjunto correspondente — uma soma e uma contagem de
+  // distintos. Inventar destino para eles seria pior que a ausência, e este teste trava a decisão
+  // para que ela não vire esquecimento.
+  it('os KPIs agregados NÃO fingem ter uma lista correspondente', async () => {
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+
+    render(<PromptlyOverviewPage />);
+
+    await screen.findByTestId('kpi-revisoes');
+    expect(screen.getByTestId('kpi-revisoes').closest('a')).toBeNull();
+    expect(screen.getByTestId('kpi-ambientes').closest('a')).toBeNull();
+  });
+
   it('o KPI de não promovidos leva ao catálogo já recortado', async () => {
     mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 

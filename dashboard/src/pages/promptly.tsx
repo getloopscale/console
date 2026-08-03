@@ -97,12 +97,14 @@ export function PromptlyOverviewPage() {
           ) : null}
 
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <MetricCard
-              title="Prompts"
-              value={resumo.prompts}
-              data-testid="kpi-prompts"
-              icon={<FileText className="h-4 w-4" aria-hidden="true" />}
-            />
+            <Link to="/promptly/catalogo" aria-label="Ver todos os prompts no catálogo">
+              <MetricCard
+                title="Prompts"
+                value={resumo.prompts}
+                data-testid="kpi-prompts"
+                icon={<FileText className="h-4 w-4" aria-hidden="true" />}
+              />
+            </Link>
             {/* O número que traz o operador ao painel — e ele LEVA à lista correspondente, que é
                 o que o DoD-3 pede. Sem o link, o painel diria "2 não promovidos" e deixaria o
                 operador abrir prompt por prompt para descobrir QUAIS. O recorte vive no endereço,
@@ -115,6 +117,11 @@ export function PromptlyOverviewPage() {
                 icon={<Rocket className="h-4 w-4" aria-hidden="true" />}
               />
             </Link>
+            {/* Estes dois NÃO são links, e a razão é que não existe lista correspondente: são
+                agregados (uma soma e uma contagem de distintos), não subconjuntos do catálogo.
+                O DoD-3 diz "cada número leva à lista correspondente" — onde a lista não existe,
+                inventar um destino seria pior que a ausência. Declarado no registro de aceitação
+                em vez de fingido aqui. */}
             <MetricCard
               title="Revisões escritas"
               value={resumo.revisoesPublicadas}
