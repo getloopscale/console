@@ -1,36 +1,42 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { FileText } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } from '@usetheo/ui';
+import { FileText, GitCompare, Layers, Rocket, Server } from 'lucide-react';
+import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchCatalog } from '@/components/promptly/promptly-api';
-import { catalogRows, type CatalogRow } from '@/components/promptly/projections';
+import { fetchCatalogPage } from '@/components/promptly/promptly-api';
+import { catalogRows, resumoCatalogo } from '@/components/promptly/projections';
 
 /**
- * M25 — `/promptly`: o catálogo de prompts do workspace.
+ * M13 — `/promptly`: o painel da capacidade.
  *
- * Até aqui o produto versionava prompts e promovia labels só por API, SDK ou MCP: quem opera não
- * tinha superfície nenhuma. Esta é a primeira, e é uma LISTA — porque a primeira tela de um
- * painel sempre é, e porque `GET /prompts` não existia justamente por isso.
+ * Até aqui esta rota era o catálogo, e o submenu já a rotulava `Overview` — o rótulo prometia
+ * painel e entregava tabela. Nas outras capacidades (memory, rag, lens) a raiz é o painel e a lista
+ * vive um nível abaixo; aqui a lista mudou para `/promptly/catalogo` e o endereço antigo continua
+ * resolvendo. Nada que já circulava passou a dar 404: mudou o que a rota renderiza, não se ela
+ * resolve.
  *
- * A lista traz o que torna possível a PRÓXIMA AÇÃO de quem a lê — o nome que abre o detalhe e os
- * labels de ambiente que o prompt serve. É a lição que o `theo-trust` pagou caro: uma listagem que
- * não devolve o que a jornada seguinte precisa vira painel de só olhar, e o detalhe correspondente
- * vira código morto em produção.
+ * O painel existe para responder uma pergunta que a lista não responde: **"o que eu escrevi e ainda
+ * não está no ar?"**. Sem ela seria enfeite, e um enfeite não justifica uma tela (rung 1 da
+ * parsimony ladder).
  *
- * O corpo do prompt NÃO aparece aqui, e a ausência é decisão: o índice do serviço não o devolve
- * (repeti-lo multiplicaria o custo pela cardinalidade do catálogo) e uma lista de nomes não precisa
- * dele para cumprir sua função.
+ * A HONESTIDADE DOS NÚMEROS É O CONTRATO DESTA TELA, e ela tem duas metades:
+ *
+ *   1. Os três estados (erro / carregando / sucesso) são disjuntos, como em `memory.tsx`. Zeros
+ *      fabricados nunca podem pintar por cima de um outage: "0 não promovidos" durante uma queda
+ *      afirma "não há nada para promover" no exato momento em que a tela não sabe de nada.
+ *   2. Os números vêm de UMA página. Quando o serviço sinaliza continuação, eles são limites
+ *      inferiores — e a tela diz isso. Quando ele NÃO sinaliza, são totais, mesmo numa página
+ *      cheia: marcar de parcial um número correto ensina o operador a desconfiar dele.
  */
 
 /** Explícito de propósito: sem `limit` herdaríamos o teto do servidor sem saber qual é. */
 const PAGE_LIMIT = 100;
 
-const QUERY_KEY = ['cloud', '/v1/dashboard/promptly/prompts'] as const;
+const QUERY_KEY = ['cloud', '/v1/dashboard/promptly/prompts', 'pagina'] as const;
 
 export function PromptlyOverviewPage() {
   const { setPageTitle } = usePageMeta();
@@ -39,99 +45,118 @@ export function PromptlyOverviewPage() {
 
   const query = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => fetchCatalog<unknown>(PAGE_LIMIT),
+    queryFn: () => fetchCatalogPage<unknown>(PAGE_LIMIT),
   });
 
-  const rows = catalogRows(query.data);
-  const failed = Boolean(query.error);
-
-  const columns: DataTableColumn<CatalogRow>[] = [
-    {
-      key: 'name',
-      label: 'Prompt',
-      render: (row) => (
-        // O nome É o caminho para o detalhe. Sem este link a lista seria um beco sem saída, e a
-        // jornada terminaria na primeira tela.
-        <Link
-          to={`/promptly/${encodeURIComponent(row.name)}`}
-          className="font-mono font-medium underline-offset-4 hover:underline"
-        >
-          {row.name}
-        </Link>
-      ),
-    },
-    {
-      key: 'latestVersion',
-      label: 'Última revisão',
-      render: (row) => <span className="font-mono text-xs text-muted-foreground">v{row.latestVersion}</span>,
-    },
-    {
-      // A coluna que responde "isto está servindo produção?" — a pergunta que traz o operador aqui.
-      key: 'labelsResumo',
-      label: 'Ambientes servidos',
-      render: (row) => <span className="text-muted-foreground">{row.labelsResumo}</span>,
-    },
-  ];
+  const resumo = resumoCatalogo(catalogRows(query.data?.data), query.data?.temContinuacao ?? false);
 
   return (
     <PageShell
       title="Prompts"
-      description="Os prompts versionados deste workspace — e qual revisão cada ambiente está servindo."
+      description="Prompts versionados resolvidos em runtime — e o que já foi escrito mas ainda não está servindo ninguém."
     >
-      {failed ? (
+      {query.isError ? (
         <Alert
           intent="destructive"
           title="Não foi possível carregar o catálogo"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há prompts neste workspace."
+          description="Nenhum número é exibido abaixo porque a leitura falhou — isto NÃO significa que não há prompts neste workspace."
         />
       ) : null}
 
-      <Card>
-        <Card.Header>
-          {/* asChild → <h2>: o PageShell já rende o <h1>; pular para o h3 padrão do Card.Title
-              quebraria a hierarquia de cabeçalhos (WCAG 1.3.1). */}
-          <Card.Title asChild>
-            <h2>Catálogo</h2>
-          </Card.Title>
-          <Card.Description>{rows.length} neste workspace</Card.Description>
-          {/* A saída para a autoria fica no cabeçalho da lista, onde o operador já está olhando.
-              Sem ela o catálogo é um beco: dá para ver o que existe e não para criar nada. */}
-          <div className="pt-2">
-            <Button asChild>
-              <Link to="/promptly/new">Nova revisão</Link>
-            </Button>
-          </div>
-        </Card.Header>
+      {/* Carregando: esqueleto, NUNCA `dados ?? zeros`. Incluir a janela de retry aqui é o que
+          garante que zeros fabricados não pintem por cima nem de um outage nem de uma carga lenta. */}
+      {query.isPending ? (
+        <div
+          role="status"
+          aria-label="Carregando os números do catálogo"
+          className="grid grid-cols-2 gap-4 lg:grid-cols-4"
+        >
+          {/* `aria-hidden` nos esqueletos DE PROPÓSITO: cada `Skeleton` traz `role="status"`, e
+              quatro deles dentro de um quinto fariam cinco live regions anunciarem a mesma espera.
+              Uma região rotulada anuncia; os retângulos são decorativos. */}
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} aria-hidden="true" className="h-24 w-full rounded-lg" />
+          ))}
+        </div>
+      ) : null}
 
-        <DataTable
-          columns={columns}
-          data={rows}
-          rowKey={(row) => row.name}
-          loading={query.isLoading}
-          emptyState={
-            <EmptyState
-              icon={FileText}
-              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhum prompt neste workspace'}
-              description={
-                failed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que existe no catálogo.'
-                  : 'Crie a primeira revisão aqui mesmo — ela passa a valer no runtime sem redeploy.'
-              }
-              /* A ação NÃO aparece quando a leitura falhou. "Crie o primeiro" sobre uma lista que
-                 não foi lida afirma que o workspace está vazio — e ele pode estar cheio. Vazio e
-                 não-consegui-ler levam a decisões opostas; oferecer a mesma saída para os dois
-                 apaga a diferença que mais importa. */
-              action={
-                failed ? undefined : (
-                  <Button asChild>
-                    <Link to="/promptly/new">Criar o primeiro prompt</Link>
-                  </Button>
-                )
-              }
+      {query.isSuccess ? (
+        <>
+          {resumo.parcial ? (
+            <Alert
+              intent="warning"
+              title="Os números abaixo são parciais"
+              description={`O serviço indicou que há mais prompts além dos ${String(resumo.prompts)} desta página. Os valores são mínimos, não totais.`}
             />
-          }
-        />
-      </Card>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <MetricCard
+              title="Prompts"
+              value={resumo.prompts}
+              data-testid="kpi-prompts"
+              icon={<FileText className="h-4 w-4" aria-hidden="true" />}
+            />
+            <MetricCard
+              // O número que traz o operador ao painel. Sem ele seria preciso abrir prompt por
+              // prompt para descobrir o que foi escrito e não promovido.
+              title="Não promovidos"
+              value={resumo.naoPromovidos}
+              data-testid="kpi-nao-promovidos"
+              icon={<Rocket className="h-4 w-4" aria-hidden="true" />}
+            />
+            <MetricCard
+              title="Revisões publicadas"
+              value={resumo.revisoesPublicadas}
+              data-testid="kpi-revisoes"
+              icon={<Layers className="h-4 w-4" aria-hidden="true" />}
+            />
+            <MetricCard
+              title="Ambientes"
+              value={resumo.ambientes}
+              data-testid="kpi-ambientes"
+              icon={<Server className="h-4 w-4" aria-hidden="true" />}
+            />
+          </div>
+
+          <Card>
+            <Card.Header>
+              <Card.Title asChild>
+                <h2>O que ainda não está no ar</h2>
+              </Card.Title>
+              <Card.Description>
+                {resumo.naoPromovidos === 0
+                  ? 'Toda última revisão está servindo pelo menos um ambiente.'
+                  : `${String(resumo.naoPromovidos)} ${resumo.naoPromovidos === 1 ? 'prompt tem uma revisão' : 'prompts têm revisões'} que nenhum label serve` +
+                    (resumo.semAmbiente > 0
+                      ? ` — ${String(resumo.semAmbiente)} ${resumo.semAmbiente === 1 ? 'deles nunca foi promovido' : 'deles nunca foram promovidos'}.`
+                      : '.')}
+              </Card.Description>
+            </Card.Header>
+            <Card.Body className="flex flex-wrap gap-2">
+              {resumo.prompts === 0 ? (
+                // Zeros AQUI são a verdade: a leitura aconteceu e não há prompts. O caso de falha
+                // é o ramo `isError` acima, e é por isso que os dois não podem renderizar igual.
+                <Button asChild>
+                  <Link to="/promptly/new">Criar o primeiro prompt</Link>
+                </Button>
+              ) : (
+                <>
+                  <Button asChild>
+                    <Link to="/promptly/catalogo">Ver o catálogo</Link>
+                  </Button>
+                  <Button variant="secondary" asChild>
+                    <Link to="/promptly/new">
+                      <GitCompare className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Nova revisão
+                    </Link>
+                  </Button>
+                </>
+              )}
+            </Card.Body>
+          </Card>
+        </>
+      ) : null}
     </PageShell>
   );
 }

@@ -8,6 +8,7 @@ import {
   promotionConsequence,
   policySummary,
   resumoCatalogo,
+  temProximaPagina,
   type CatalogRow,
 } from './projections';
 
@@ -243,5 +244,35 @@ describe('resumoCatalogo', () => {
     );
     expect(r.naoPromovidos).toBe(0);
     expect(r.ambientes).toBe(2);
+  });
+});
+
+/**
+ * M13 — a leitura do sinal de continuação, no cliente.
+ *
+ * Espelha `proximaPaginaQuery` do BFF (Go) pela mesma razão que ele existe: a RFC 5988 permite o
+ * valor com aspas duplas, simples ou sem aspas, e ler só a grafia que NÓS emitimos produziria um
+ * total falso no dia em que um proxy normalizasse o header.
+ */
+describe('temProximaPagina', () => {
+  it('reconhece o marcador nas três grafias válidas da RFC', () => {
+    expect(temProximaPagina('</v1/x?after=z>; rel="next"')).toBe(true);
+    expect(temProximaPagina("</v1/x?after=z>; rel='next'")).toBe(true);
+    expect(temProximaPagina('</v1/x?after=z>; rel=next')).toBe(true);
+  });
+
+  // O PAR QUE DISCRIMINA: header presente, decisão oposta.
+  it('não confunde outro rel com continuação', () => {
+    expect(temProximaPagina('</v1/x?after=z>; rel="prev"')).toBe(false);
+    expect(temProximaPagina('</v1/x?after=z>; rel="nextpage"')).toBe(false);
+  });
+
+  it('header ausente é ausência de continuação, não erro', () => {
+    expect(temProximaPagina(null)).toBe(false);
+    expect(temProximaPagina('')).toBe(false);
+  });
+
+  it('encontra o marcador quando vários links vêm na mesma linha', () => {
+    expect(temProximaPagina('</v1/x?a=1>; rel="prev", </v1/x?a=2>; rel="next"')).toBe(true);
   });
 });

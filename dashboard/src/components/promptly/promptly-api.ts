@@ -1,4 +1,5 @@
-import { cloudFetch, ApiError } from '@/lib/api';
+import { cloudFetch, cloudFetchRaw, ApiError } from '@/lib/api';
+import { temProximaPagina } from './projections';
 
 /**
  * M25 — o único ponto por onde as telas de prompts falam com o BFF.
@@ -13,6 +14,39 @@ const BASE = '/v1/dashboard/promptly';
 /** O índice do inquilino. `limit` explícito: sem ele herdaríamos o teto do servidor sem saber qual é. */
 export function fetchCatalog<T>(limit: number): Promise<T | null> {
   return cloudFetch<T>(`${BASE}/prompts?limit=${encodeURIComponent(String(limit))}`, {}, { throwOnError: true });
+}
+
+/** Uma página do catálogo mais a informação de que ela pode não ser tudo. */
+export interface CatalogPage<T> {
+  readonly data: T | null;
+  /** O serviço sinalizou próxima página (`Link … rel="next"`). */
+  readonly temContinuacao: boolean;
+}
+
+/**
+ * M13 — o índice E o sinal de continuação, que só o header carrega.
+ *
+ * Existe separado de `fetchCatalog` porque `cloudFetch` parseia o corpo e descarta a resposta: o
+ * header `Link` não sobrevive a ele. Sem esse sinal, qualquer contagem derivada desta página seria
+ * um limite inferior apresentado como total — e é essa a diferença entre um painel e um enfeite.
+ *
+ * A disciplina de `throwOnError` é reproduzida aqui DE PROPÓSITO, e não contornada: este módulo
+ * existe justamente porque um erro que resolve para `null` faz a tela desenhar um catálogo vazio —
+ * "não há prompts" onde o certo era "não consegui perguntar". Usar `cloudFetchRaw` sem reproduzi-la
+ * reintroduziria o defeito que o docstring do módulo descreve.
+ */
+export async function fetchCatalogPage<T>(limit: number): Promise<CatalogPage<T>> {
+  const resp = await cloudFetchRaw(`${BASE}/prompts?limit=${encodeURIComponent(String(limit))}`);
+  if (resp === null) {
+    // Sessão em troca de token: a mesma recusa tipada que `cloudFetch({throwOnError})` emite.
+    throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
+  }
+  if (!resp.ok) {
+    const body: unknown = await resp.json().catch(() => undefined);
+    throw new ApiError(resp.status, body);
+  }
+  const data = (await resp.json()) as T;
+  return { data, temContinuacao: temProximaPagina(resp.headers.get('Link')) };
 }
 
 /**
