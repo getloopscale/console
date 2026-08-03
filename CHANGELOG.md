@@ -1,9 +1,10 @@
 ## [Unreleased]
 
+## [0.75.0] - 2026-08-03
+
 ### Added
 
 - **o consumo por usuário final ganhou tela** (M142). O relatório já existia para quem tinha chave de API e já alcançava o navegador — mas não havia nada desenhado que o mostrasse, e o menu de Observability não tinha entrada alguma para ele. Agora tem: tabela ordenada por quem mais consumiu, com tokens e custo estimado, janela selecionável que **fica no endereço** (colar o link leva a outra pessoa exatamente ao mesmo período, e não a um período diferente com a mesma aparência) e paginação. **Três decisões existem para a tela não mentir.** Quando há spans cujo modelo não está na tabela de preços, a tela **avisa que o custo mostrado é um piso, não o total** — um número silenciosamente baixo lido como o gasto real é o defeito que esse aviso existe para impedir, e ninguém lê documentação enquanto olha uma tabela. O consumo que não pôde ser atribuído a ninguém aparece como uma linha comum, ordenada junto das demais, mas **rotulada** — "não sabemos de quem foi" e "ninguém consumiu" levam a decisões opostas. E quando o serviço recusa a consulta, a tela mostra **a mensagem dele** ("limit must be at most 500"), dizendo qual parâmetro está fora e qual é o limite, em vez de um "ocorreu um erro" que não ensina nada (#m142)
-
 
 ## [0.74.0] - 2026-08-03
 
