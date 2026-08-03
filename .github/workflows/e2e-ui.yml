@@ -142,6 +142,7 @@ jobs:
           npx playwright test --project=chromium \
             e2e/skills-journey.spec.ts \
             e2e/promptly-journey.spec.ts \
+            e2e/promptly-panel-journey.spec.ts \
             e2e/guardrails-journey.spec.ts \
             e2e/login.spec.ts \
             e2e/device-verify.spec.ts \

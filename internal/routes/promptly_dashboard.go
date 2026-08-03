@@ -44,8 +44,8 @@ const promptlyCatalogPath = "/v1/dashboard/promptly/prompts"
 
 // promptlyReader e o subconjunto de leitura que este BFF consome.
 type promptlyReader interface {
-	// Catalog devolve a pagina E a query da proxima ("" na ultima) — ver M13.
-	Catalog(ctx context.Context, limit int, after string) (json.RawMessage, string, error)
+	// Catalog devolve a pagina E se ha proxima — ver M13 e `promptly.Continuacao`.
+	Catalog(ctx context.Context, limit int, after string) (json.RawMessage, promptly.Continuacao, error)
 	Prompt(ctx context.Context, name string) (json.RawMessage, error)
 	Revisions(ctx context.Context, name string, limit, after int) (json.RawMessage, error)
 	Labels(ctx context.Context, name string) (json.RawMessage, error)
@@ -175,19 +175,27 @@ func (h *PromptlyDashboardHandler) Catalog(w http.ResponseWriter, r *http.Reques
 	// O catalogo NAO usa `proxy`: e a unica operacao que precisa publicar um header, e acrescentar
 	// um parametro ao proxy generico penalizaria as outras sete que nao o usam (SRP — o proxy
 	// transporta; a operacao decide o que ela precisa dizer).
-	corpo, proximaQuery, err := h.reader.Catalog(r.Context(), limit, after)
+	corpo, cont, err := h.reader.Catalog(r.Context(), limit, after)
 	if err != nil {
 		h.reject(w, r, "catalog", err)
 		return
 	}
-	if proximaQuery != "" {
+	if cont.TemMais {
 		// EC-1 — o servico monta o Link com o caminho DELE (`</prompts?...>`). Esta capacidade e
 		// servida ao navegador em `/v1/dashboard/promptly/prompts`; repassar verbatim entregaria um
 		// endereco que NAO resolve nesta origem — correto como booleano, mentiroso como URL.
 		//
 		// A QUERY vem do servico e atravessa intacta: o cursor e decisao dele (keyset por nome), e
 		// re-deriva-la aqui duplicaria essa regra no plano de controle.
-		w.Header().Set("Link", `<`+promptlyCatalogPath+`?`+proximaQuery+`>; rel="next"`)
+		//
+		// Publica MESMO SEM cursor. "Ha mais" e "sei o endereco" sao perguntas distintas, e
+		// silenciar a primeira porque a segunda nao tem resposta faria a tela exibir totais sobre
+		// uma pagina que o servico declarou truncada — o falso total que este milestone elimina.
+		alvo := promptlyCatalogPath
+		if cont.Query != "" {
+			alvo += "?" + cont.Query
+		}
+		w.Header().Set("Link", `<`+alvo+`>; rel="next"`)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

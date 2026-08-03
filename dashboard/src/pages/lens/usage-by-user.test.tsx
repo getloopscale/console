@@ -211,6 +211,39 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     });
   });
 
+  /*
+   * #383 — o seletor mentia sobre QUAL consulta foi recusada. Com um `days` fora de `JANELAS`, o
+   * `<select>` não tinha `<option>` correspondente, o DOM caía na PRIMEIRA opção e o controle
+   * exibia "Últimos 7 dias" enquanto o alerta dizia `days must be at most 365` — leitura
+   * impossível, porque 7 É no máximo 365. A tela acertava o erro e errava a pergunta.
+   */
+  it('reflete no seletor a janela que veio da URL, mesmo fora da lista de janelas', async () => {
+    window.history.replaceState(null, '', '/observability/usage-by-user?days=9999');
+    mockCloudFetch.mockRejectedValue(
+      new ApiError(400, { code: 'INVALID_QUERY', message: 'days must be at most 365' }),
+    );
+    render(<LensUsageByUserPage />);
+
+    const seletor = await screen.findByLabelText<HTMLSelectElement>(/janela|window|período|periodo/i);
+    // O valor selecionado é o da URL, não a primeira opção da lista.
+    expect(seletor.value).toBe('9999');
+    // …e o rótulo visível nomeia o número de fato pedido, para o alerta fazer sentido ao lado.
+    expect(seletor.selectedOptions[0]).toHaveTextContent('9999');
+    // A recusa do serviço continua sendo mostrada verbatim (DoD-5) — o conserto do controle não
+    // pode clampar o valor e engolir a recusa tipada que a M140 pagou para ter.
+    expect(await screen.findByText(/days must be at most 365/i)).toBeInTheDocument();
+  });
+
+  it('não acrescenta a opção personalizada quando a janela é uma das ofertadas', async () => {
+    window.history.replaceState(null, '', '/observability/usage-by-user?days=90');
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+
+    const seletor = await screen.findByLabelText<HTMLSelectElement>(/janela|window|período|periodo/i);
+    expect(seletor.value).toBe('90');
+    expect(seletor.options).toHaveLength(4);
+  });
+
   // Acceptance criterion de T1.2 — sem `days` na queryKey o cache devolve a resposta da janela
   // anterior, e a tela mente sobre o período que está mostrando.
   it('trocar a janela refaz a busca com o novo days na URL', async () => {

@@ -5,119 +5,173 @@ vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
 }));
 
-const mockCatalog = vi.fn();
+const mockPage = vi.fn();
 vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
-  return { ...actual, fetchCatalog: (...a: unknown[]) => mockCatalog(...a) };
+  return { ...actual, fetchCatalogPage: (...a: unknown[]) => mockPage(...a) };
 });
 
 import { PromptlyOverviewPage } from './promptly';
 
 /**
- * O catálogo tem dois estados que produzem telas parecidas e significam coisas OPOSTAS:
+ * M13 — `/promptly` deixou de ser a lista e virou o painel.
  *
- *   1. leu e não há prompt algum → pode afirmar ausência ("crie o primeiro");
- *   2. NÃO conseguiu ler        → não pode afirmar nada; o vazio é ignorância.
+ * O que este arquivo trava não é a aparência: é o que a tela tem PERMISSÃO de afirmar.
  *
- * Renderizar o segundo como o primeiro manda o operador criar algo que talvez já exista — e
- * esconde uma queda do serviço atrás de uma tela que parece saudável.
+ *   - Falha de leitura NUNCA vira zeros. "0 não promovidos" durante uma queda diz "não há nada
+ *     para promover" exatamente quando a tela não sabe de nada.
+ *   - Um número só é total quando o serviço disse que a página é a última. Com continuação ele é
+ *     limite inferior, e a tela precisa dizer isso.
+ *   - E o oposto também: um catálogo de EXATAMENTE `limit` prompts sem continuação NÃO é parcial.
+ *     Marcar de parcial um número correto ensina o operador a desconfiar dele.
+ *
+ * Os testes da LISTA vivem agora em `pages/promptly/catalogo.test.tsx` — a tela mudou de endereço
+ * no M13, e os casos foram migrados junto, não descartados.
  */
 
 const CATALOGO = [
-  { name: 'saudacao', latestVersion: 3, labels: [{ label: 'prod', version: 1 }], updatedAt: '2026-08-01T10:00:00Z' },
-  { name: 'despedida', latestVersion: 1, labels: [], updatedAt: '2026-07-30T09:00:00Z' },
+  // escrito e no ar: a última revisão é a que prod serve
+  { name: 'saudacao', latestVersion: 3, labels: [{ label: 'prod', version: 3 }], updatedAt: '2026-08-01T10:00:00Z' },
+  // escrito e NÃO no ar: v2 existe, prod ainda serve v1
+  { name: 'despedida', latestVersion: 2, labels: [{ label: 'prod', version: 1 }], updatedAt: '2026-07-30T09:00:00Z' },
+  // nunca promovido
+  { name: 'rascunho', latestVersion: 1, labels: [], updatedAt: '2026-07-29T09:00:00Z' },
 ];
 
 beforeEach(() => {
-  mockCatalog.mockReset();
+  mockPage.mockReset();
 });
 
 describe('PromptlyOverviewPage', () => {
-  it('lista os prompts do workspace pelo NOME', async () => {
-    mockCatalog.mockResolvedValue(CATALOGO);
+  // O assert é do conteúdo INTEIRO do cartão (rótulo + valor), não substring: `toHaveTextContent('0')`
+  // passaria com 10, 100 ou "0 de 40" — e no teste cuja razão de existir é distinguir zero
+  // verdadeiro de zero fabricado, o assert mais frouxo possível é o errado (TA-08).
+  it('mostra quantos prompts o workspace tem', async () => {
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 
     render(<PromptlyOverviewPage />);
 
-    // O oráculo é o CONTEÚDO — um 200 com corpo vazio passaria num teste de status.
-    expect(await screen.findByText('saudacao')).toBeInTheDocument();
-    expect(screen.getByText('despedida')).toBeInTheDocument();
+    expect(await screen.findByTestId('kpi-prompts')).toHaveTextContent(/^Prompts3$/);
   });
 
-  it('diz para onde cada ambiente aponta, que é a pergunta que traz o operador aqui', async () => {
-    mockCatalog.mockResolvedValue(CATALOGO);
+  it('responde "o que escrevi e não está no ar" — o número que traz o operador ao painel', async () => {
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByText('prod → v1')).toBeInTheDocument();
+    // `despedida` (v2 escrita, prod em v1) e `rascunho` (nunca promovido) = 2.
+    expect(await screen.findByTestId('kpi-nao-promovidos')).toHaveTextContent(/^Não promovidos2$/);
   });
 
-  it('descreve como "nenhum" o prompt que não serve ambiente algum', async () => {
-    // Estado normal do dado, distinto de "não sei": o prompt existe e nenhum label o aponta.
-    mockCatalog.mockResolvedValue(CATALOGO);
+  it('marca os números como parciais quando o serviço sinaliza continuação', async () => {
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: true });
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByText('nenhum')).toBeInTheDocument();
+    expect(await screen.findByText(/parcia/i)).toBeInTheDocument();
   });
 
-  it('pede um limite EXPLÍCITO ao servidor em vez de herdar o teto dele', async () => {
-    mockCatalog.mockResolvedValue([]);
+  // O PAR QUE DISCRIMINA, ponta a ponta: página cheia SEM continuação não é parcial.
+  it('NÃO marca parcial num catálogo cheio sem continuação', async () => {
+    const cheio = Array.from({ length: 100 }, (_, i) => ({
+      name: `p${String(i)}`,
+      latestVersion: 1,
+      labels: [{ label: 'prod', version: 1 }],
+      updatedAt: '2026-08-01T10:00:00Z',
+    }));
+    mockPage.mockResolvedValue({ data: cheio, temContinuacao: false });
 
     render(<PromptlyOverviewPage />);
 
-    await screen.findByText(/Nenhum prompt neste workspace/i);
-    expect(mockCatalog).toHaveBeenCalledWith(expect.any(Number));
-    expect(mockCatalog.mock.calls[0][0]).toBeGreaterThan(0);
+    expect(await screen.findByTestId('kpi-prompts')).toHaveTextContent(/^Prompts100$/);
+    expect(screen.queryByText(/parcia/i)).not.toBeInTheDocument();
   });
 
-  it('quando a leitura FALHA, diz que falhou — e não que o workspace está vazio', async () => {
-    mockCatalog.mockRejectedValue(new Error('upstream down'));
+  it('falha de leitura renderiza o alerta e NÃO zeros', async () => {
+    mockPage.mockRejectedValue(new Error('502'));
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByText(/Não foi possível carregar o catálogo/i)).toBeInTheDocument();
-    // O par que discrimina: a frase de "não há prompts" NÃO pode aparecer numa falha de leitura.
-    expect(screen.queryByText(/Crie a primeira revisão/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/não foi possível carregar/i)).toBeInTheDocument();
+    // Zeros aqui afirmariam "não há nada para promover" durante uma queda.
+    expect(screen.queryByTestId('kpi-nao-promovidos')).not.toBeInTheDocument();
   });
 
-  it('quando leu e não há nada, afirma a ausência com todas as letras', async () => {
-    mockCatalog.mockResolvedValue([]);
+  it('enquanto carrega, anuncia o carregamento a quem usa leitor de tela', () => {
+    mockPage.mockReturnValue(
+      new Promise(() => {
+        /* pendente de propósito */
+      }),
+    );
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByText(/Nenhum prompt neste workspace/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Não foi possível carregar o catálogo/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  // EC-8 — zeros aqui são a VERDADE (leu e não há), ao contrário do caso de falha acima. A
+  // distinção só fica visível com os dois testes lado a lado.
+  it('catálogo vazio mostra zeros E oferece criar', async () => {
+    mockPage.mockResolvedValue({ data: [], temContinuacao: false });
+
+    render(<PromptlyOverviewPage />);
+
+    expect(await screen.findByTestId('kpi-nao-promovidos')).toHaveTextContent(/^Não promovidos0$/);
+    expect(screen.getByRole('link', { name: /criar o primeiro/i })).toBeInTheDocument();
+  });
+
+  // FE-03 — num workspace vazio, `naoPromovidos` também é 0, e a tela afirmava "toda última
+  // revisão está servindo pelo menos um ambiente" sobre revisões que não existem.
+  it('workspace vazio NÃO afirma nada sobre revisões que não existem', async () => {
+    mockPage.mockResolvedValue({ data: [], temContinuacao: false });
+
+    render(<PromptlyOverviewPage />);
+
+    expect(await screen.findByText(/nenhum prompt ainda/i)).toBeInTheDocument();
+    expect(screen.queryByText(/toda última revisão está servindo/i)).not.toBeInTheDocument();
+  });
+
+  // FE-04 — três caminhos de erro e nenhuma saída; o mecanismo já existia e não era usado.
+  it('a falha de leitura oferece tentar novamente', async () => {
+    mockPage.mockRejectedValue(new Error('502'));
+
+    render(<PromptlyOverviewPage />);
+
+    expect(await screen.findByRole('button', { name: /tentar novamente/i })).toBeInTheDocument();
+  });
+
+  // ARCH-08 — o KPI somava TODAS as revisões escritas, inclusive as que o cartão vizinho
+  // classifica como não promovidas. Dois números lado a lado se contradiziam.
+  it('nomeia o KPI pelo que ele de fato conta', async () => {
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+
+    render(<PromptlyOverviewPage />);
+
+    expect(await screen.findByText(/revisões escritas/i)).toBeInTheDocument();
+    expect(screen.queryByText(/revisões publicadas/i)).not.toBeInTheDocument();
+  });
+
+  it('leva ao catálogo em um clique', async () => {
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+
+    render(<PromptlyOverviewPage />);
+
+    const link = await screen.findByRole('link', { name: /ver o catálogo/i });
+    expect(link).toHaveAttribute('href', '/promptly/catalogo');
   });
 });
 
 /**
- * M12 — o par que decide se a tela pode CONVIDAR a criar.
- *
- * Este par vivia no e2e e voltou para cá por medição: os mocks deste repositório interceptam no
- * `fetch` da aplicação, antes da camada de rede, então `page.route` do Playwright nunca vê a
- * chamada — o teste ficaria verde sem exercitar a falha. Um guard que não distingue os dois
- * estados é pior que nenhum, porque ensina a confiar nele.
+ * B2 — a outra metade: o número LEVA à lista. Sem este caso, o painel voltaria a exibir um KPI
+ * mudo e a Coverage Matrix voltaria a afirmar "linkados" sem sustentação.
  */
-describe('M12 — a ação de criar depende de a leitura ter acontecido', () => {
-  it('empty_catalog_offers_the_create_action', async () => {
-    mockCatalog.mockResolvedValue([]);
+describe('PromptlyOverviewPage — cada número leva à lista', () => {
+  it('o KPI de não promovidos leva ao catálogo já recortado', async () => {
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByText(/nenhum prompt neste workspace/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /criar o primeiro/i })).toBeInTheDocument();
-  });
-
-  it('empty_catalog_that_FAILED_offers_no_action', async () => {
-    // A metade que dá valor à primeira. "Crie o primeiro" sobre uma lista que não foi lida
-    // AFIRMA que o workspace está vazio — e ele pode estar cheio. Vazio e não-consegui-ler
-    // levam a decisões opostas.
-    mockCatalog.mockRejectedValue(new Error('upstream'));
-    render(<PromptlyOverviewPage />);
-
-    // Duas frases dizem "a leitura falhou" — o alerta no topo e o estado vazio da tabela —, e
-    // isso é intencional: quem olha a tabela pode não ter lido o alerta. A asserção mira a da
-    // TABELA, que é a que o operador lê no lugar onde esperaria os dados.
-    expect(await screen.findByText(/sem dados — a leitura falhou/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /criar o primeiro/i })).not.toBeInTheDocument();
+    const link = await screen.findByRole('link', { name: /ver os prompts não promovidos/i });
+    expect(link).toHaveAttribute('href', '/promptly/catalogo?recorte=nao-promovidos');
   });
 });
