@@ -64,13 +64,16 @@ func (c *DataClient) WithKeyResolver(r func(ctx context.Context) (string, error)
 // no painel. O `\b` final impede que `rel=nextpage` case.
 var linkNextRE = regexp.MustCompile(`(?i)<([^>]*)>\s*;[^,]*\brel\s*=\s*(?:"next"|'next'|next\b)`)
 
-// proximaPaginaQuery le o sinal de continuacao do header RFC-5988 e devolve a QUERY da proxima
-// pagina ("" quando nao ha).
+// proximaPaginaQuery le o sinal de continuacao do header RFC-5988.
 //
-// Devolve a query, e nao um booleano, porque o BFF precisa PUBLICAR um Link utilizavel e o cursor
-// e uma decisao do servico (keyset por nome). Re-deriva-lo do corpo duplicaria essa regra de
-// negocio no plano de controle, e a copia erraria em silencio no dia em que o servico mudasse a
-// ordenacao. O booleano continua disponivel — e `query != ""`.
+// Devolve DOIS valores porque sao DUAS perguntas, e colapsa-las numa string vazia foi um defeito
+// real: "ha proxima pagina" e "sei o endereco dela" nao sao a mesma coisa. Um
+// `Link: </prompts>; rel="next"` — o servico AFIRMANDO que ha mais, sem cursor — devolvia "" e o
+// painel exibia os numeros como TOTAIS sobre uma pagina que o servico declarou truncada. Era o
+// falso total que este milestone existe para impedir, produzido pelo caminho que deveria impedi-lo.
+//
+// A query vem do servico, e nao e re-derivada do corpo: o cursor e decisao dele (keyset por nome),
+// e a copia erraria em silencio no dia em que a ordenacao mudasse.
 //
 // POR QUE NAO `len(linhas) == limit`: o servico devolve no maximo `limit` linhas (ele pede limit+1
 // internamente e corta), entao um catalogo de EXATAMENTE `limit` prompts satisfaz a heuristica sem
@@ -80,7 +83,7 @@ var linkNextRE = regexp.MustCompile(`(?i)<([^>]*)>\s*;[^,]*\brel\s*=\s*(?:"next"
 // POR QUE NAO uma lib de parse RFC-5988: nos somos quem emite o header e o formato e unico
 // (Regra 9 / parsimony ladder rung 5 — a lib resolveria um caso que nao temos). Se algum dia
 // consumirmos `Link` de terceiro, a lib entra.
-func proximaPaginaQuery(h http.Header) string {
+func proximaPaginaQuery(h http.Header) (temMais bool, query string) {
 	for _, v := range h.Values("Link") {
 		m := linkNextRE.FindStringSubmatch(v)
 		if m == nil {
@@ -89,19 +92,29 @@ func proximaPaginaQuery(h http.Header) string {
 		// O alvo do Link e sempre um caminho DESTE servico; interessa so a query, porque o
 		// caminho publicado ao navegador e o do BFF, nao o do servico (EC-1).
 		if i := strings.IndexByte(m[1], '?'); i >= 0 {
-			return m[1][i+1:]
+			return true, m[1][i+1:]
 		}
-		return "" // ha continuacao mas sem cursor: nao ha proxima pagina enderecavel
+		return true, "" // ha continuacao, e ela nao e enderecavel — mas HA.
 	}
-	return ""
+	return false, ""
+}
+
+// Continuacao responde as duas perguntas que a pagina levanta, separadamente.
+//
+// `TemMais` sem `Query` e um estado real: o servico afirma que ha mais e nao diz para onde ir. A
+// tela precisa marcar parcialidade mesmo assim — tratar isso como "ultima pagina" produziria o
+// total falso que este milestone elimina.
+type Continuacao struct {
+	TemMais bool
+	Query   string
 }
 
 // Catalog devolve a pagina do catalogo do inquilino (`GET /prompts`) — uma linha por nome, sem o
-// conteudo dos prompts — e a QUERY da proxima pagina ("" quando a pagina e a ultima).
+// conteudo dos prompts — e se ha proxima pagina.
 //
 // O segundo retorno existe porque, sem ele, toda contagem derivada desta pagina seria um limite
 // inferior apresentado como total. O sinal chegava ao BFF e morria aqui (M13).
-func (c *DataClient) Catalog(ctx context.Context, limit int, after string) (json.RawMessage, string, error) {
+func (c *DataClient) Catalog(ctx context.Context, limit int, after string) (json.RawMessage, Continuacao, error) {
 	q := url.Values{}
 	if limit > 0 {
 		q.Set("limit", strconv.Itoa(limit))
@@ -111,9 +124,10 @@ func (c *DataClient) Catalog(ctx context.Context, limit int, after string) (json
 	}
 	body, hdr, err := c.getRaw(ctx, "/prompts", q)
 	if err != nil {
-		return nil, "", err
+		return nil, Continuacao{}, err
 	}
-	return body, proximaPaginaQuery(hdr), nil
+	temMais, query := proximaPaginaQuery(hdr)
+	return body, Continuacao{TemMais: temMais, Query: query}, nil
 }
 
 // Prompt resolve um prompt pelo nome (`GET /prompts/:name`) — a ultima revisao.

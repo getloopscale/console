@@ -1,4 +1,4 @@
-import { cloudFetch, cloudFetchRaw, ApiError } from '@/lib/api';
+import { cloudFetch, ApiError } from '@/lib/api';
 import { temProximaPagina } from './projections';
 
 /**
@@ -11,10 +11,16 @@ import { temProximaPagina } from './projections';
  */
 const BASE = '/v1/dashboard/promptly';
 
-/** O índice do inquilino. `limit` explícito: sem ele herdaríamos o teto do servidor sem saber qual é. */
-export function fetchCatalog<T>(limit: number): Promise<T | null> {
-  return cloudFetch<T>(`${BASE}/prompts?limit=${encodeURIComponent(String(limit))}`, {}, { throwOnError: true });
-}
+/**
+ * Explícito de propósito: sem `limit` herdaríamos o teto do servidor sem saber qual é.
+ *
+ * Vive AQUI, junto do fetcher, e não em cada tela. Duas telas do mesmo recurso podem divergir no
+ * limite sem que nada acuse — e o limite é insumo direto da parcialidade.
+ */
+export const CATALOG_PAGE_LIMIT = 100;
+
+/** A chave de cache do catálogo — uma só, porque o recurso é um só. */
+export const CATALOG_QUERY_KEY = ['cloud', '/v1/dashboard/promptly/prompts'] as const;
 
 /** Uma página do catálogo mais a informação de que ela pode não ser tudo. */
 export interface CatalogPage<T> {
@@ -26,27 +32,31 @@ export interface CatalogPage<T> {
 /**
  * M13 — o índice E o sinal de continuação, que só o header carrega.
  *
- * Existe separado de `fetchCatalog` porque `cloudFetch` parseia o corpo e descarta a resposta: o
- * header `Link` não sobrevive a ele. Sem esse sinal, qualquer contagem derivada desta página seria
- * um limite inferior apresentado como total — e é essa a diferença entre um painel e um enfeite.
+ * **Um fetcher só, para um recurso só.** A primeira versão deste milestone acrescentou este ao lado
+ * do `fetchCatalog` antigo e deixou a tela de lista no antigo — que descarta o header. O resultado
+ * foi a lista afirmando um total sobre uma página capada, exatamente o defeito que o painel foi
+ * construído para não cometer. Dois fetchers para o mesmo recurso não são redundância inofensiva:
+ * eles divergem, e a divergência aparece como duas telas dizendo coisas diferentes sobre o mesmo
+ * dado.
  *
- * A disciplina de `throwOnError` é reproduzida aqui DE PROPÓSITO, e não contornada: este módulo
- * existe justamente porque um erro que resolve para `null` faz a tela desenhar um catálogo vazio —
- * "não há prompts" onde o certo era "não consegui perguntar". Usar `cloudFetchRaw` sem reproduzi-la
- * reintroduziria o defeito que o docstring do módulo descreve.
+ * **O sinal chega por `onResponse`, e não por `cloudFetchRaw`, e a diferença é de segurança.**
+ * `cloudFetchRaw` dá acesso à resposta mas NÃO reproduz o refresh-e-retry no 401, o interceptor de
+ * 402 nem o erro tipado de rede — a tela que o usasse quebraria numa expiração de sessão onde a
+ * tela vizinha se recupera sozinha, sobre o mesmo recurso. O callback mantém UM pipeline de auth.
  */
 export async function fetchCatalogPage<T>(limit: number): Promise<CatalogPage<T>> {
-  const resp = await cloudFetchRaw(`${BASE}/prompts?limit=${encodeURIComponent(String(limit))}`);
-  if (resp === null) {
-    // Sessão em troca de token: a mesma recusa tipada que `cloudFetch({throwOnError})` emite.
-    throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
-  }
-  if (!resp.ok) {
-    const body: unknown = await resp.json().catch(() => undefined);
-    throw new ApiError(resp.status, body);
-  }
-  const data = (await resp.json()) as T;
-  return { data, temContinuacao: temProximaPagina(resp.headers.get('Link')) };
+  let temContinuacao = false;
+  const data = await cloudFetch<T>(
+    `${BASE}/prompts?limit=${encodeURIComponent(String(limit))}`,
+    {},
+    {
+      throwOnError: true,
+      onResponse: (resp) => {
+        temContinuacao = temProximaPagina(resp.headers.get('Link'));
+      },
+    },
+  );
+  return { data, temContinuacao };
 }
 
 /**

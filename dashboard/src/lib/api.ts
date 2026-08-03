@@ -45,6 +45,16 @@ export interface CloudFetchConfig {
    * are unaffected; surfaces with `isError`/error-boundary handling pass it.
    */
   readonly throwOnError?: boolean;
+  /**
+   * Chamado com a Response BEM-SUCEDIDA, antes do corpo ser parseado e a resposta descartada.
+   *
+   * Existe porque algumas respostas carregam informação de produto nos HEADERS — o
+   * `Link … rel="next"` do catálogo de prompts é a primeira (M13). Antes disto, ler um header
+   * exigia `cloudFetchRaw`, que NÃO reproduz o refresh-e-retry no 401, o interceptor de 402 nem
+   * o erro tipado de rede: a tela que o usasse quebraria numa expiração de sessão onde a tela
+   * vizinha se recupera. Um callback aqui dá acesso ao header mantendo UM pipeline de auth.
+   */
+  readonly onResponse?: (resp: Response) => void;
 }
 
 // In-memory JWT token (never localStorage — XSS risk)
@@ -232,7 +242,7 @@ export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg
     redirectToLogin('expired');
     return null;
   }
-  return fetchWithAuth<T>(API_BASE, path, token, options, true, cfg.throwOnError === true);
+  return fetchWithAuth<T>(API_BASE, path, token, options, true, cfg.throwOnError === true, cfg.onResponse);
 }
 
 // Alias for backward compatibility during migration
@@ -282,7 +292,7 @@ async function toApiError(resp: Response): Promise<ApiError> {
   return new ApiError(resp.status, body);
 }
 
-async function fetchWithAuth<T>(base: string, path: string, token: string, options: RequestInit = {}, redirectOnAuthFailure = true, throwOnError = false): Promise<T | null> {
+async function fetchWithAuth<T>(base: string, path: string, token: string, options: RequestInit = {}, redirectOnAuthFailure = true, throwOnError = false, onResponse?: (resp: Response) => void): Promise<T | null> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`,
@@ -332,6 +342,7 @@ async function fetchWithAuth<T>(base: string, path: string, token: string, optio
         if (throwOnError) throw await toApiError(retry);
         return null;
       }
+      onResponse?.(retry);
       return await parseOkBody<T>(retry);
     }
     if (!resp.ok) {
@@ -339,6 +350,7 @@ async function fetchWithAuth<T>(base: string, path: string, token: string, optio
       if (throwOnError) throw await toApiError(resp);
       return null;
     }
+    onResponse?.(resp);
     return await parseOkBody<T>(resp);
   } catch (err) {
     // Re-throw our own typed error (don't let the catch-all swallow it back to null).

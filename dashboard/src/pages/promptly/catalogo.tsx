@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, GitCompare, Search } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } from '@usetheo/ui';
@@ -7,8 +7,8 @@ import { Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchCatalog } from '@/components/promptly/promptly-api';
-import { catalogRows, type CatalogRow } from '@/components/promptly/projections';
+import { fetchCatalogPage, CATALOG_PAGE_LIMIT, CATALOG_QUERY_KEY } from '@/components/promptly/promptly-api';
+import { catalogRows, maiorVersaoServida, type CatalogRow } from '@/components/promptly/projections';
 
 /**
  * M13 — `/promptly/catalogo`: a lista dos prompts do workspace.
@@ -26,11 +26,6 @@ import { catalogRows, type CatalogRow } from '@/components/promptly/projections'
  * (repeti-lo multiplicaria o custo pela cardinalidade) e uma lista de nomes não precisa dele.
  */
 
-/** Explícito de propósito: sem `limit` herdaríamos o teto do servidor sem saber qual é. */
-const PAGE_LIMIT = 100;
-
-const QUERY_KEY = ['cloud', '/v1/dashboard/promptly/prompts'] as const;
-
 /**
  * Os três estados em que a tabela aparece vazia — e cada um pede uma saída diferente.
  *
@@ -40,30 +35,66 @@ const QUERY_KEY = ['cloud', '/v1/dashboard/promptly/prompts'] as const;
  */
 type EstadoVazio = 'falha-de-leitura' | 'catalogo-vazio' | 'filtro-sem-resultado';
 
+/**
+ * Os recortes que o painel sabe nomear — e que, sem esta tela, seriam números sem destino.
+ *
+ * O DoD-3 do M13 diz "cada número leva à lista correspondente". A primeira versão renderizou os
+ * KPIs sem link e a Coverage Matrix afirmou "linkados" — a lista correspondente não existia. Ela
+ * existe agora, e o recorte vive no ENDEREÇO: colar o link leva outra pessoa à mesma lista.
+ */
+const RECORTES = {
+  'nao-promovidos': {
+    titulo: 'Não promovidos',
+    descricao: 'Prompts cuja última revisão nenhum label serve — escritos e fora do ar.',
+    casa: (r: CatalogRow) => r.latestVersion > maiorVersaoServida(r.labels),
+  },
+  'sem-ambiente': {
+    titulo: 'Sem ambiente',
+    descricao: 'Prompts que nunca foram promovidos: nenhum label aponta para eles.',
+    casa: (r: CatalogRow) => !Array.isArray(r.labels) || r.labels.length === 0,
+  },
+} as const;
+
+type Recorte = keyof typeof RECORTES;
+
+function recorteValido(v: string | null): v is Recorte {
+  return v !== null && Object.prototype.hasOwnProperty.call(RECORTES, v);
+}
+
 export function PromptlyCatalogoPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Catálogo de prompts'), [setPageTitle]);
   useRequireAuth();
 
   const [termo, setTermo] = useState('');
+  // O recorte vem da URL, não do estado local: é o que torna o link do painel COLÁVEL. Um valor
+  // desconhecido é ignorado (a lista inteira), nunca um erro — um endereço antigo continua abrindo.
+  const [params, setParams] = useSearchParams();
+  const limparRecorte = () => { setParams({}, { replace: true }); };
+  const bruto = params.get('recorte');
+  const recorte = recorteValido(bruto) ? bruto : null;
 
   const query = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => fetchCatalog<unknown>(PAGE_LIMIT),
+    queryKey: CATALOG_QUERY_KEY,
+    queryFn: () => fetchCatalogPage<unknown>(CATALOG_PAGE_LIMIT),
   });
 
-  const rows = catalogRows(query.data);
+  // `useMemo` sobre `query.data`, não sobre um array recriado a cada render — senão o memo do
+  // filtro logo abaixo depende de uma identidade sempre nova e não memoriza nada.
+  const rows = useMemo(() => catalogRows(query.data?.data), [query.data]);
+  const temContinuacao = query.data?.temContinuacao ?? false;
   const failed = Boolean(query.error);
 
   // `includes`, não `RegExp`: um termo com `a(b` é input legítimo de quem digita, e `new
   // RegExp(termo)` lançaria `SyntaxError` no meio da digitação (EC-7).
   const filtradas = useMemo(() => {
     const t = termo.trim().toLowerCase();
-    if (t === '') return rows;
-    return rows.filter((r) => r.name.toLowerCase().includes(t));
-  }, [rows, termo]);
+    const porRecorte = recorte === null ? rows : rows.filter(RECORTES[recorte].casa);
+    if (t === '') return porRecorte;
+    return porRecorte.filter((r) => r.name.toLowerCase().includes(t));
+  }, [rows, termo, recorte]);
 
-  const filtrando = termo.trim() !== '';
+  const filtrando = termo.trim() !== '' || recorte !== null;
   const estadoVazio: EstadoVazio = failed
     ? 'falha-de-leitura'
     : filtrando && rows.length > 0
@@ -127,6 +158,11 @@ export function PromptlyCatalogoPage() {
           intent="destructive"
           title="Não foi possível carregar o catálogo"
           description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há prompts neste workspace."
+          action={
+            <Button variant="secondary" onClick={() => void query.refetch()}>
+              Tentar novamente
+            </Button>
+          }
         />
       ) : null}
 
@@ -135,11 +171,35 @@ export function PromptlyCatalogoPage() {
           {/* asChild → <h2>: o PageShell já rende o <h1>; pular para o h3 padrão do Card.Title
               quebraria a hierarquia de cabeçalhos (WCAG 1.3.1). */}
           <Card.Title asChild>
-            <h2>Catálogo</h2>
+            <h2>{recorte === null ? 'Catálogo' : RECORTES[recorte].titulo}</h2>
           </Card.Title>
+          {/* A contagem só aparece no estado ASSENTADO. Renderizá-la sempre imprimia
+              "0 neste workspace" durante o carregamento e durante a falha — duas linhas abaixo de
+              um alerta que diz o contrário, e a mais numérica das três afirmações era a falsa.
+              E ela só diz "neste workspace" quando o serviço confirmou que esta página é tudo:
+              com continuação, o número é de PÁGINA, e chamá-lo de workspace seria o mesmo limite
+              inferior apresentado como total que este milestone existe para eliminar. */}
           <Card.Description>
-            {filtrando ? `${filtradas.length} de ${rows.length}` : `${rows.length} neste workspace`}
+            {query.isSuccess
+              ? filtrando
+                ? `${filtradas.length} de ${rows.length} carregados`
+                : temContinuacao
+                  ? `${rows.length} carregados — há mais no servidor`
+                  : `${rows.length} neste workspace`
+              : '—'}
           </Card.Description>
+
+          {/* O recorte, quando ativo, é dito com todas as letras E tem saída. Uma lista filtrada
+              que não se anuncia é a mesma classe de mentira que este milestone conserta: o
+              operador conclui ausência a partir de um filtro que ele não sabe que existe. */}
+          {recorte !== null ? (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <p className="text-xs text-muted-foreground">{RECORTES[recorte].descricao}</p>
+              <Button variant="secondary" size="sm" onClick={limparRecorte}>
+                Ver todos
+              </Button>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-2 pt-2">
             <div className="relative">
@@ -175,7 +235,15 @@ export function PromptlyCatalogoPage() {
           data={filtradas}
           rowKey={(row) => row.name}
           loading={query.isLoading}
-          emptyState={<VazioDoCatalogo estado={estadoVazio} termo={termo} onLimpar={() => setTermo('')} />}
+          emptyState={
+          <VazioDoCatalogo
+            estado={estadoVazio}
+            termo={termo}
+            temContinuacao={temContinuacao}
+            onLimpar={() => setTermo('')}
+            onTentarNovamente={() => void query.refetch()}
+          />
+        }
         />
       </Card>
     </PageShell>
@@ -192,18 +260,30 @@ export function PromptlyCatalogoPage() {
 function VazioDoCatalogo({
   estado,
   termo,
+  temContinuacao,
   onLimpar,
+  onTentarNovamente,
 }: {
   estado: EstadoVazio;
   termo: string;
+  temContinuacao: boolean;
   onLimpar: () => void;
+  onTentarNovamente: () => void;
 }) {
   if (estado === 'falha-de-leitura') {
     return (
       <EmptyState
         icon={FileText}
         title="Sem dados — a leitura falhou"
-        description="Tente novamente em instantes. Enquanto isso, não é possível saber o que existe no catálogo."
+        description="Enquanto isso, não é possível saber o que existe no catálogo."
+        /* A saída existe justamente aqui. Era o único dos três estados sem ação, e é o que mais
+           precisa de uma: sem ela, o operador que cai numa falha transitória só pode recarregar a
+           página inteira. */
+        action={
+          <Button variant="secondary" onClick={onTentarNovamente}>
+            Tentar novamente
+          </Button>
+        }
       />
     );
   }
@@ -213,7 +293,11 @@ function VazioDoCatalogo({
       <EmptyState
         icon={Search}
         title={`Nenhum prompt casa com “${termo}”`}
-        description="O workspace tem prompts — nenhum deles casa com este filtro. Limpe o filtro para ver a lista inteira."
+        description={
+          temContinuacao
+            ? 'Nenhum dos prompts CARREGADOS casa com este filtro — e há mais no servidor que esta página não trouxe. O filtro não os alcança.'
+            : 'O workspace tem prompts — nenhum deles casa com este filtro. Limpe o filtro para ver a lista inteira.'
+        }
         action={
           <Button variant="secondary" onClick={onLimpar}>
             Limpar filtro

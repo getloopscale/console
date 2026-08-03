@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, GitCompare, Layers, Rocket, Server } from 'lucide-react';
+import { FilePlus, FileText, Layers, Rocket, Server } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchCatalogPage } from '@/components/promptly/promptly-api';
+import { fetchCatalogPage, CATALOG_PAGE_LIMIT, CATALOG_QUERY_KEY } from '@/components/promptly/promptly-api';
 import { catalogRows, resumoCatalogo } from '@/components/promptly/projections';
 
 /**
@@ -33,19 +33,18 @@ import { catalogRows, resumoCatalogo } from '@/components/promptly/projections';
  *      cheia: marcar de parcial um número correto ensina o operador a desconfiar dele.
  */
 
-/** Explícito de propósito: sem `limit` herdaríamos o teto do servidor sem saber qual é. */
-const PAGE_LIMIT = 100;
-
-const QUERY_KEY = ['cloud', '/v1/dashboard/promptly/prompts', 'pagina'] as const;
-
 export function PromptlyOverviewPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Prompts'), [setPageTitle]);
   useRequireAuth();
 
   const query = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => fetchCatalogPage<unknown>(PAGE_LIMIT),
+    // A MESMA chave da tela de lista: um recurso, uma entrada de cache. A primeira versão usava
+    // `[..., 'pagina']`, que além de duplicar a leitura colidia com a chave do detalhe de um
+    // prompt CHAMADO `pagina` — e nomes não têm restrição de caractere, fato que este mesmo
+    // milestone estabelece duas vezes (EC-4, EC-10).
+    queryKey: CATALOG_QUERY_KEY,
+    queryFn: () => fetchCatalogPage<unknown>(CATALOG_PAGE_LIMIT),
   });
 
   const resumo = resumoCatalogo(catalogRows(query.data?.data), query.data?.temContinuacao ?? false);
@@ -60,6 +59,13 @@ export function PromptlyOverviewPage() {
           intent="destructive"
           title="Não foi possível carregar o catálogo"
           description="Nenhum número é exibido abaixo porque a leitura falhou — isto NÃO significa que não há prompts neste workspace."
+          /* Sem saída, o operador que cai numa falha transitória só pode recarregar a página
+             inteira. O mecanismo já existia em `AlertProps.action` e não estava sendo usado. */
+          action={
+            <Button variant="secondary" onClick={() => void query.refetch()}>
+              Tentar novamente
+            </Button>
+          }
         />
       ) : null}
 
@@ -97,16 +103,20 @@ export function PromptlyOverviewPage() {
               data-testid="kpi-prompts"
               icon={<FileText className="h-4 w-4" aria-hidden="true" />}
             />
+            {/* O número que traz o operador ao painel — e ele LEVA à lista correspondente, que é
+                o que o DoD-3 pede. Sem o link, o painel diria "2 não promovidos" e deixaria o
+                operador abrir prompt por prompt para descobrir QUAIS. O recorte vive no endereço,
+                então o link é colável. */}
+            <Link to="/promptly/catalogo?recorte=nao-promovidos" aria-label="Ver os prompts não promovidos">
+              <MetricCard
+                title="Não promovidos"
+                value={resumo.naoPromovidos}
+                data-testid="kpi-nao-promovidos"
+                icon={<Rocket className="h-4 w-4" aria-hidden="true" />}
+              />
+            </Link>
             <MetricCard
-              // O número que traz o operador ao painel. Sem ele seria preciso abrir prompt por
-              // prompt para descobrir o que foi escrito e não promovido.
-              title="Não promovidos"
-              value={resumo.naoPromovidos}
-              data-testid="kpi-nao-promovidos"
-              icon={<Rocket className="h-4 w-4" aria-hidden="true" />}
-            />
-            <MetricCard
-              title="Revisões publicadas"
+              title="Revisões escritas"
               value={resumo.revisoesPublicadas}
               data-testid="kpi-revisoes"
               icon={<Layers className="h-4 w-4" aria-hidden="true" />}
@@ -122,15 +132,21 @@ export function PromptlyOverviewPage() {
           <Card>
             <Card.Header>
               <Card.Title asChild>
-                <h2>O que ainda não está no ar</h2>
+                <h2>{resumo.prompts === 0 ? 'Nenhum prompt ainda' : 'O que ainda não está no ar'}</h2>
               </Card.Title>
               <Card.Description>
-                {resumo.naoPromovidos === 0
-                  ? 'Toda última revisão está servindo pelo menos um ambiente.'
-                  : `${String(resumo.naoPromovidos)} ${resumo.naoPromovidos === 1 ? 'prompt tem uma revisão' : 'prompts têm revisões'} que nenhum label serve` +
-                    (resumo.semAmbiente > 0
-                      ? ` — ${String(resumo.semAmbiente)} ${resumo.semAmbiente === 1 ? 'deles nunca foi promovido' : 'deles nunca foram promovidos'}.`
-                      : '.')}
+                {/* `prompts === 0` é testado ANTES de `naoPromovidos === 0`, e a ordem É o
+                    conserto: num workspace vazio os dois valem zero, e a frase de promoção
+                    afirmava que "toda última revisão está servindo pelo menos um ambiente" sobre
+                    revisões que não existem — no primeiro contato de quem acabou de chegar. */}
+                {resumo.prompts === 0
+                  ? 'Crie a primeira revisão e ela passa a valer no runtime, sem redeploy.'
+                  : resumo.naoPromovidos === 0
+                    ? 'Toda última revisão está servindo pelo menos um ambiente.'
+                    : `${String(resumo.naoPromovidos)} ${resumo.naoPromovidos === 1 ? 'prompt tem uma revisão' : 'prompts têm revisões'} que nenhum label serve` +
+                      (resumo.semAmbiente > 0
+                        ? ` — ${String(resumo.semAmbiente)} ${resumo.semAmbiente === 1 ? 'deles nunca foi promovido' : 'deles nunca foram promovidos'}.`
+                        : '.')}
               </Card.Description>
             </Card.Header>
             <Card.Body className="flex flex-wrap gap-2">
@@ -147,7 +163,7 @@ export function PromptlyOverviewPage() {
                   </Button>
                   <Button variant="secondary" asChild>
                     <Link to="/promptly/new">
-                      <GitCompare className="mr-2 h-4 w-4" aria-hidden="true" />
+                      <FilePlus className="mr-2 h-4 w-4" aria-hidden="true" />
                       Nova revisão
                     </Link>
                   </Button>

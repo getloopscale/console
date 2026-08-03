@@ -275,4 +275,14 @@ describe('temProximaPagina', () => {
   it('encontra o marcador quando vários links vêm na mesma linha', () => {
     expect(temProximaPagina('</v1/x?a=1>; rel="prev", </v1/x?a=2>; rel="next"')).toBe(true);
   });
+
+  // TA-06 — o regex casava `rel=next` em qualquer lugar da string, inclusive DENTRO da URL de um
+  // link `prev`. O lado TS era mais frouxo que o Go que ele diz espelhar.
+  it('não confunde rel=next DENTRO da URL de um link prev', () => {
+    expect(temProximaPagina('</v1/x?after=a&rel=next>; rel="prev"')).toBe(false);
+  });
+
+  it('exige o enquadramento do link — texto solto não é continuação', () => {
+    expect(temProximaPagina('nada disso; rel=next')).toBe(false);
+  });
 });

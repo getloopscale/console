@@ -43,12 +43,15 @@ beforeEach(() => {
 });
 
 describe('PromptlyOverviewPage', () => {
+  // O assert é do conteúdo INTEIRO do cartão (rótulo + valor), não substring: `toHaveTextContent('0')`
+  // passaria com 10, 100 ou "0 de 40" — e no teste cuja razão de existir é distinguir zero
+  // verdadeiro de zero fabricado, o assert mais frouxo possível é o errado (TA-08).
   it('mostra quantos prompts o workspace tem', async () => {
     mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByTestId('kpi-prompts')).toHaveTextContent('3');
+    expect(await screen.findByTestId('kpi-prompts')).toHaveTextContent(/^Prompts3$/);
   });
 
   it('responde "o que escrevi e não está no ar" — o número que traz o operador ao painel', async () => {
@@ -57,7 +60,7 @@ describe('PromptlyOverviewPage', () => {
     render(<PromptlyOverviewPage />);
 
     // `despedida` (v2 escrita, prod em v1) e `rascunho` (nunca promovido) = 2.
-    expect(await screen.findByTestId('kpi-nao-promovidos')).toHaveTextContent('2');
+    expect(await screen.findByTestId('kpi-nao-promovidos')).toHaveTextContent(/^Não promovidos2$/);
   });
 
   it('marca os números como parciais quando o serviço sinaliza continuação', async () => {
@@ -80,7 +83,7 @@ describe('PromptlyOverviewPage', () => {
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByTestId('kpi-prompts')).toHaveTextContent('100');
+    expect(await screen.findByTestId('kpi-prompts')).toHaveTextContent(/^Prompts100$/);
     expect(screen.queryByText(/parcia/i)).not.toBeInTheDocument();
   });
 
@@ -113,8 +116,39 @@ describe('PromptlyOverviewPage', () => {
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByTestId('kpi-nao-promovidos')).toHaveTextContent('0');
+    expect(await screen.findByTestId('kpi-nao-promovidos')).toHaveTextContent(/^Não promovidos0$/);
     expect(screen.getByRole('link', { name: /criar o primeiro/i })).toBeInTheDocument();
+  });
+
+  // FE-03 — num workspace vazio, `naoPromovidos` também é 0, e a tela afirmava "toda última
+  // revisão está servindo pelo menos um ambiente" sobre revisões que não existem.
+  it('workspace vazio NÃO afirma nada sobre revisões que não existem', async () => {
+    mockPage.mockResolvedValue({ data: [], temContinuacao: false });
+
+    render(<PromptlyOverviewPage />);
+
+    expect(await screen.findByText(/nenhum prompt ainda/i)).toBeInTheDocument();
+    expect(screen.queryByText(/toda última revisão está servindo/i)).not.toBeInTheDocument();
+  });
+
+  // FE-04 — três caminhos de erro e nenhuma saída; o mecanismo já existia e não era usado.
+  it('a falha de leitura oferece tentar novamente', async () => {
+    mockPage.mockRejectedValue(new Error('502'));
+
+    render(<PromptlyOverviewPage />);
+
+    expect(await screen.findByRole('button', { name: /tentar novamente/i })).toBeInTheDocument();
+  });
+
+  // ARCH-08 — o KPI somava TODAS as revisões escritas, inclusive as que o cartão vizinho
+  // classifica como não promovidas. Dois números lado a lado se contradiziam.
+  it('nomeia o KPI pelo que ele de fato conta', async () => {
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+
+    render(<PromptlyOverviewPage />);
+
+    expect(await screen.findByText(/revisões escritas/i)).toBeInTheDocument();
+    expect(screen.queryByText(/revisões publicadas/i)).not.toBeInTheDocument();
   });
 
   it('leva ao catálogo em um clique', async () => {
@@ -124,5 +158,20 @@ describe('PromptlyOverviewPage', () => {
 
     const link = await screen.findByRole('link', { name: /ver o catálogo/i });
     expect(link).toHaveAttribute('href', '/promptly/catalogo');
+  });
+});
+
+/**
+ * B2 — a outra metade: o número LEVA à lista. Sem este caso, o painel voltaria a exibir um KPI
+ * mudo e a Coverage Matrix voltaria a afirmar "linkados" sem sustentação.
+ */
+describe('PromptlyOverviewPage — cada número leva à lista', () => {
+  it('o KPI de não promovidos leva ao catálogo já recortado', async () => {
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+
+    render(<PromptlyOverviewPage />);
+
+    const link = await screen.findByRole('link', { name: /ver os prompts não promovidos/i });
+    expect(link).toHaveAttribute('href', '/promptly/catalogo?recorte=nao-promovidos');
   });
 });
