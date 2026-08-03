@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@/test/render';
+import { fireEvent } from '@testing-library/react';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -56,11 +57,29 @@ describe('M12 — a tela de comparar', () => {
     expect(screen.queryByTestId('promptly-diff')).not.toBeInTheDocument();
   });
 
-  // EC-9 (`diff_between_a_revision_and_its_rollback_copy_is_empty`) — FOLLOWUP REGISTRADO, não
-  // esquecido. A comparação padrão da tela é entre as duas MAIS RECENTES; provar a cópia exige
-  // trocar o select, e o `selectOptions` não estabiliza o estado antes da asserção neste harness.
-  // A INVARIANTE está coberta na função pura (`diff.test.ts::diff_identical_content_has_zero_
-  // changed_blocks`); o que falta é o caminho pela tela. Rastreado no plano § Followups.
+  it('diff_between_a_revision_and_its_rollback_copy_is_empty', async () => {
+    // EC-9. Reverter COPIA o conteúdo, então v1 contra a revisão que a reversão gerou tem de dar
+    // zero blocos. O plano pediu o caminho pela TELA e não só a função pura — como pura, seria
+    // quase um duplicado de `diff_identical_content_has_zero_changed_blocks`.
+    const original = 'Olá {{nome}}, sou o assistente.';
+    mockRevisions.mockResolvedValue([
+      { version: 1, content: original },
+      { version: 2, content: 'texto que foi revertido' },
+      { version: 3, content: original },
+    ]);
+    render(<PromptlyDiffPage />);
+
+    // ESPERAR o padrão da tela renderizar ANTES de mexer no select. A página define a comparação
+    // inicial (as duas mais recentes: v2 × v3, diferentes) num `useEffect`, e trocar o select
+    // antes disso perde a mudança — o efeito ainda vê o outro lado nulo e não completa o par.
+    // Foi essa corrida, e não o mock, que derrubou as tentativas anteriores deste caso.
+    expect(await screen.findByTestId('promptly-diff')).toBeInTheDocument();
+
+    // Agora sim: escolher v1 × v3 é o que prova a cópia, e o select é o caminho do operador.
+    fireEvent.change(screen.getByLabelText('Revisão anterior'), { target: { value: '1' } });
+
+    expect(await screen.findByTestId('promptly-diff-identical')).toBeInTheDocument();
+  });
 
   it('diff_screen_read_failure_is_not_drawn_as_identical', async () => {
     // A ramificação que mais importa, e que nenhuma das outras cobre: falha de leitura e "as
