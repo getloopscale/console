@@ -37,7 +37,7 @@ async function navegarAteOCatalogoPeloMenu(page: Page) {
 }
 
 test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
-  test('a jornada inteira: menu → nova revisão → preview → salvar → comparar', async ({ page }) => {
+  test('a jornada inteira: menu → criar → preview → salvar → comparar → reverter', async ({ page }) => {
     await navegarAteOCatalogoPeloMenu(page);
 
     // ---- A AUTORIA É ALCANÇÁVEL PELO MENU -------------------------------------------------
@@ -83,6 +83,33 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
     const temDiff = await page.getByTestId('promptly-diff').count();
     const temIguais = await page.getByTestId('promptly-diff-identical').count();
     expect(temDiff + temIguais).toBeGreaterThan(0);
+
+    // ---- REVERTER: o verbo que fechava a jornada e faltava no e2e (FU-1) -------------------
+    // Vai no MESMO teste, não num novo: a DoD pede UM e2e da jornada, e um segundo arquivo
+    // provaria os passos isolados em vez da costura entre eles.
+    await page.getByRole('link', { name: /voltar para saudacao/i }).click();
+    await expect(page).toHaveURL(/\/promptly\/saudacao$/);
+
+    await page.getByLabel(/Reverter para a revisão v1/i).first().click();
+
+    // A confirmação nomeia a revisão que será CRIADA. Um texto de "volta para a v1" faria o
+    // operador esperar o histórico encolher, e ele nunca encolhe.
+    await expect(page.getByText(/cria a revisão v\d+/i)).toBeVisible();
+    await expect(page.getByText(/volta para/i)).toHaveCount(0);
+
+    await page.getByRole('textbox').last().fill('saudacao');
+    await page.getByRole('button', { name: /^reverter$/i }).click();
+
+    // Este prompt serve DOIS ambientes, então reverter sem nomear um produz a recusa tipada
+    // `400 label_required` — e a tela tem de transformá-la em ESCOLHA, não repetir o erro.
+    // É o caminho mais rico da jornada, e o que a fixture de propósito produz.
+    await expect(page.getByText(/qual ambiente você quer reverter/i)).toBeVisible();
+
+    // Os labels vêm do que o SERVIÇO devolveu, como botões — nunca um campo de digitação.
+    // Um label digitado errado é respondido como "prompt não encontrado", com o nome de um
+    // prompt que existe; oferecer só o que a API devolveu torna esse engano inalcançável.
+    await expect(page.getByRole('button', { name: 'prod', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'staging', exact: true })).toBeVisible();
   });
 
   // O par "vazio oferece criar / vazio-por-FALHA não oferece" NÃO está aqui, e a ausência é
