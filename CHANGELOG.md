@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.76.0] - 2026-08-03
+
 ### Added
 
 - **o consumo por usuário final virou painel: quanto, com quem se concentra, e o quanto o cache está segurando a conta** (#386). A tela do M142 respondia *"quem consumiu o quê"* e obrigava quem lidera a somar colunas de cabeça. Agora ela abre com quatro números — custo estimado, tokens, usuários com consumo e **quanto da entrada foi servida por cache**, um dado que já chegava na resposta e que ninguém mostrava. A tabela ganhou a coluna de **participação no custo**, com barra, porque a pergunta que muda decisão não é *"quanto gastamos"* e sim *"com quem isso se concentra"*. **Cada número diz o que ele é.** Quando há mais usuários do que cabe na página, o rótulo diz que a soma cobre **os exibidos** — a resposta do serviço não traz totais agregados, e chamar a soma de uma página de "total" seria a mesma armadilha que o aviso de custo-piso existe para impedir. Não há seta de tendência em lugar nenhum: não existe série temporal no dado, e uma seta desenhada sobre número inventado é pior que nenhuma. Quem custou uma fração de centavo aparece como **`<0.1%`** em vez de `0%`, porque zero e arredondamento-para-zero são fatos diferentes — a mesma razão pela qual a coluna de custo mostra `$0.0000`. Junto vieram dois acertos de acabamento: valores em dólar passam a **agrupar milhares** (`$4,179.51`, não `$4179.51`) em todas as telas, e o seletor de janela passou a usar o controle do design system — esta era a única tela do Observability que ainda usava o do sistema operacional.
