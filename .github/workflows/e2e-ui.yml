@@ -41,15 +41,6 @@
 #     outra razão, mais funda: ele intercepta `/engine/api/v1/projects/*/connect` pela REDE, e sob
 #     `VITE_USE_MOCKS=true` essa rota é servida **em processo** pela camada de dublê — o
 #     `page.route` nunca dispara. Os Cenários 2–4 precisam de outra alavanca, não de outro fixture.
-#   • `dashboard-m12-fase-a-bundle-grep-migration` (3/22) — os 19 casos de DOM passam; os 3
-#     vermelhos são **baselines de screenshot desatualizadas por redesenho**. Comparadas as
-#     imagens (não deduzido): a baseline é de **tema claro com o logotipo antigo**, e o produto
-#     hoje renderiza **tema escuro com o logotipo novo** — daí 99% dos pixels diferentes, que é
-#     redesenho, não regressão. Regravar é `--update-snapshots`, MAS não é mecânico por dois
-#     motivos: (a) aceita-se o visual atual como canônico, e isso é decisão de produto; (b)
-#     baseline gravada nesta máquina pode não bater no runner — fontes e rasterização diferem —,
-#     então uma regravação local arrisca um check que passa aqui e falha no CI, que é o pior
-#     resultado possível para um teste de imagem. Regravar **no runner** é o caminho correto.
 #
 # CORREÇÃO DE UMA AFIRMAÇÃO ANTERIOR DESTE CABEÇALHO: ele dizia haver "um caso em `deploy-timeline`".
 # **Falso hoje** — mede 10/10 verde, isolado (3 execuções) e dentro da suíte inteira. Não foi
@@ -74,6 +65,15 @@
 #   • `j10-environments` — apontava para `/environments`, retirado no M20 (hoje redirect); a tela
 #     vive em `/projects/:name/environments`. O dublê também era anterior ao M20: sem o campo
 #     `project`, as três entradas caíam no filtro e a tela renderizava vazia com 200 em tudo.
+#   • `dashboard-m12-fase-a-bundle-grep-migration` — as referências visuais eram de tema CLARO com
+#     o logotipo antigo; o dono decidiu manter o visual atual (escuro, logotipo novo), então foram
+#     REGRAVADAS. Não aqui: na imagem `mcr.microsoft.com/playwright:v1.60.0-noble`, que casa versão
+#     e distribuição do runner. A precaução não era teórica — MEDIDO: as mesmas telas diferem em
+#     287 e 214 pixels entre a imagem e uma máquina de desenvolvimento, acima do limiar de 200.
+#     Gravar no lugar errado teria produzido um check verde aqui e vermelho no CI. Os três casos
+#     ganharam ÂNCORA antes da foto (a de billing marcava `flaky` em 2 de 7 execuções) e PULAM
+#     fora do CI, com motivo declarado, para não deixar vermelho permanente na máquina de quem
+#     desenvolve.
 #   • `journeys` — RENOMEAÇÃO, não redesenho, e este cabeçalho já afirmou o contrário. `view logs`
 #     virou a aba `Logs`; `rollback to here` virou o botão cujo NOME ACESSÍVEL é `Rollback to this
 #     build`. O `aria-label` sobrepõe o texto visível, então `/^rollback$/i` devolvia ZERO enquanto
@@ -144,7 +144,8 @@ jobs:
             e2e/observability-screens.spec.ts \
             e2e/j10-environments.spec.ts \
             e2e/recovery.spec.ts \
-            e2e/journeys.spec.ts
+            e2e/journeys.spec.ts \
+            e2e/dashboard-m12-fase-a-bundle-grep-migration.spec.ts
 
       # O relatório só interessa quando algo falha; guardá-lo sempre encheria o storage do repo
       # com artefatos de runs verdes que ninguém abre.

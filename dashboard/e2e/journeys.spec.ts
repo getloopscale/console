@@ -105,6 +105,14 @@ test.describe('Accessibility smoke — Lighthouse axe-core checks', () => {
 
   test('skip-to-content link is first focusable element', async ({ page }) => {
     await page.goto('/');
+
+    // ESPERA A TELA ASSENTAR ANTES DE TABULAR — medido `flaky` no ambiente do CI (2026-08-02).
+    // `Tab` logo após o `goto` compete com a hidratação: se o React ainda está montando, o
+    // primeiro elemento focável do documento não é o que a tela pronta oferece, e o teste
+    // reprovava um produto correto — passando na repetição, que é o pior modo de falhar,
+    // porque ensina a reexecutar o CI em vez de olhar.
+    await expect(page.locator('h1').first()).toBeVisible();
+
     await page.keyboard.press('Tab');
     const focused = await page.evaluate(() => document.activeElement?.textContent);
     expect(focused).toMatch(/skip to main content/i);
