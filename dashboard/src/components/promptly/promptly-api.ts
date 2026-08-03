@@ -74,3 +74,38 @@ export function promoteLabel<T>(name: string, label: string, version: number): P
     { throwOnError: true },
   );
 }
+
+/**
+ * M12 — cria uma revisão nova (`version = max+1`). Serve tanto prompt novo quanto revisão de um
+ * existente: `POST /prompts` aceita os dois (medido), e um segundo fluxo seria uma tela a mais
+ * sem uma regra a mais.
+ *
+ * O nome é validado ANTES daqui, na tela: `POST` aceita `time/saudacao` (201) mas a leitura só
+ * responde com `%2F`, e há intermediários (mux Go, Traefik) cujo tratamento de barra codificada
+ * eu não medi. A tela é mais estrita que a API de propósito.
+ */
+export function createRevision<T>(name: string, content: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, content }) },
+    { throwOnError: true },
+  );
+}
+
+/**
+ * Reverte: cria revisão nova com o conteúdo de `toVersion` e, se `label` for dado, reponta esse
+ * label para ela.
+ *
+ * `label` é OPCIONAL na API e a diferença é visível ao operador: sem ele, um prompt sem labels
+ * responde `201` com `labelsMoved: []` — revisão criada, produção intacta. Por isso a tela nunca
+ * declara sucesso a partir do status; ela lê `labelsMoved` (ver `rollback.ts`).
+ */
+export function rollbackPrompt<T>(name: string, toVersion: number, label?: string): Promise<T | null> {
+  const corpo: { toVersion: number; label?: string } = { toVersion };
+  if (label) corpo.label = label;
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/rollback`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) },
+    { throwOnError: true },
+  );
+}
