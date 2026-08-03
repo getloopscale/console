@@ -114,6 +114,57 @@ function registerPromptlyRoutes(base: string) {
     return Response.json({ name: decodeURIComponent(name), label: decodeURIComponent(label), ...p });
   });
 
+  // ── M12: as duas ESCRITAS da jornada. Sem elas a tela de autoria e a de reversão não entram
+  // no e2e hermético, e o milestone provaria só a metade que lê.
+  registerRoute('POST', `${base}/prompts`, async (req) => {
+    const body = (await req.json()) as { name?: string; content?: string };
+    const nome = String(body.name ?? '');
+    const conteudo = String(body.content ?? '');
+    const lista = (promptlyDb.revisions[nome] ??= []);
+    const version = lista.length + 1;
+    lista.push({ version, content: conteudo, createdAt: '2026-08-03T12:00:00Z' });
+    const entrada = promptlyDb.catalog.find((c) => c.name === nome);
+    if (entrada) entrada.latestVersion = version;
+    else promptlyDb.catalog.push({ name: nome, latestVersion: version, labels: [], updatedAt: '2026-08-03T12:00:00Z' });
+    return Response.json({ id: `rev-${version}`, name: nome, content: conteudo, version, createdAt: '2026-08-03T12:00:00Z', variables: [] }, { status: 201 });
+  });
+
+  registerRoute('POST', `${base}/prompts/{name}/rollback`, async (req, { name }) => {
+    const nome = decodeURIComponent(name);
+    const body = (await req.json()) as { toVersion?: number; label?: string };
+    const entrada = promptlyDb.catalog.find((c) => c.name === nome);
+    const lista = promptlyDb.revisions[nome] ?? [];
+    const origem = lista.find((r) => r.version === body.toVersion);
+    if (!entrada || !origem) {
+      return Response.json({ error: 'prompt_not_found', name: nome, toVersion: body.toVersion }, { status: 404 });
+    }
+    // A ambiguidade é REAL na API e a jornada precisa dela: um prompt COM labels e sem label
+    // nomeado recusa com 400 e a lista — é o que transforma a recusa em escolha na tela.
+    if (!body.label && entrada.labels.length > 0) {
+      return Response.json(
+        {
+          error: 'label_required',
+          message: `rollback de "${nome}" precisa do label a reverter — existentes: ${entrada.labels.map((l) => l.label).join(', ')}`,
+          availableLabels: entrada.labels.map((l) => l.label),
+        },
+        { status: 400 },
+      );
+    }
+    const version = lista.length + 1;
+    lista.push({ version, content: origem.content, createdAt: '2026-08-03T12:05:00Z' });
+    entrada.latestVersion = version;
+    const movidos: string[] = [];
+    if (body.label) {
+      const ponteiro = entrada.labels.find((l) => l.label === body.label);
+      if (ponteiro) { ponteiro.version = version; movidos.push(body.label); }
+    }
+    // labelsMoved PODE voltar vazio, e é justamente o caso que a tela não pode ler como sucesso.
+    return Response.json(
+      { id: `rev-${version}`, name: nome, content: origem.content, version, createdAt: '2026-08-03T12:05:00Z', variables: [], labelsMoved: movidos, currentLabels: entrada.labels },
+      { status: 201 },
+    );
+  });
+
   registerRoute('PUT', `${base}/prompts/{name}/labels/{label}`, async (req, { name, label }) => {
     const nome = decodeURIComponent(name);
     const lbl = decodeURIComponent(label);

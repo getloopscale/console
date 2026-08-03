@@ -181,9 +181,25 @@ export function PromptDetailPage() {
       description="As revisões deste prompt e o label de ambiente que cada uma serve."
     >
       {/* Caminho de VOLTA explícito: sem ele o detalhe é uma sala sem porta. */}
-      <Link to="/promptly" className="text-sm underline-offset-4 hover:underline">
-        ← Catálogo de prompts
-      </Link>
+      <div className="flex flex-wrap items-center gap-4">
+        <Link to="/promptly" className="text-sm underline-offset-4 hover:underline">
+          ← Catálogo de prompts
+        </Link>
+        {/* M12: as duas ações POR PROMPT ficam aqui, não no menu — uma entrada de menu para elas
+            exigiria um nome que o menu não tem e levaria a lugar nenhum. */}
+        <Link
+          to={`/promptly/${encodeURIComponent(promptName)}/diff`}
+          className="text-sm underline-offset-4 hover:underline"
+        >
+          Comparar revisões
+        </Link>
+        <Link
+          to={`/promptly/new?name=${encodeURIComponent(promptName)}&next=${(latestVersion ?? 0) + 1}`}
+          className="text-sm underline-offset-4 hover:underline"
+        >
+          Nova revisão deste prompt
+        </Link>
+      </div>
 
       {revisionsFailed ? (
         <Alert
