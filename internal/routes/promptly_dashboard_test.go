@@ -42,6 +42,10 @@ func (f *promptlyFake) Labels(context.Context, string) (json.RawMessage, error) 
 func (f *promptlyFake) Policy(context.Context, string, string) (json.RawMessage, error) {
 	return f.corpo, f.err
 }
+func (f *promptlyFake) Playground(_ context.Context, name string, body json.RawMessage) (json.RawMessage, error) {
+	f.label, f.body = name, body
+	return f.corpo, f.err
+}
 func (f *promptlyFake) AssignLabel(_ context.Context, _, label string, body json.RawMessage) (json.RawMessage, error) {
 	f.label, f.body = label, body
 	return f.corpo, f.err
@@ -513,5 +517,121 @@ func TestPromptlyDashboard_publica_Link_mesmo_sem_cursor(t *testing.T) {
 	}
 	if strings.Contains(link, "?") {
 		t.Errorf("cursor inventado onde o servico nao deu: %q", link)
+	}
+}
+
+// --- M14 T2.1 — o playground -------------------------------------------------
+
+// TestPlayground_repassa_a_saida_do_servico prova o caminho feliz ponta a ponta pelo BFF.
+func TestPlayground_repassa_a_saida_do_servico(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"text":"chove muito","latencyMs":42}`)}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/playground",
+		`{"credential":"sk-x","content":"{{topico}}","variables":{"topico":"chuva"}}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	// O oraculo e o CONTEUDO: um 200 vazio passaria num teste de status e falharia na tela.
+	if !strings.Contains(rec.Body.String(), `"chove muito"`) {
+		t.Errorf("a saida do modelo nao chegou ao navegador: %s", rec.Body.String())
+	}
+	// E o corpo tem de ter sido REPASSADO opaco — o BFF nao valida o que o servico valida.
+	if !strings.Contains(string(f.body), `"topico":"chuva"`) {
+		t.Errorf("o corpo nao chegou ao cliente: %s", string(f.body))
+	}
+}
+
+// TestPlayground_422_model_refused_chega_com_o_motivo e a razao de o servico devolver 4xx.
+//
+// Um 502 do servico cairia no ramo opaco do `reject` (5xx nao e IsClientRefusal, por decisao
+// deliberada em upstream_error.go:50-56) e o motivo do provider NUNCA chegaria ao operador — o
+// DoD-5 do M14 falharia por causa da escolha de status, nao por falta de codigo.
+func TestPlayground_422_model_refused_chega_com_o_motivo(t *testing.T) {
+	f := &promptlyFake{err: &promptly.UpstreamError{
+		Status: http.StatusUnprocessableEntity,
+		Body:   json.RawMessage(`{"error":"model_refused","providerStatus":401}`),
+		Method: http.MethodPost,
+		Path:   "/prompts/saudacao/playground",
+	}}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/playground",
+		`{"credential":"sk-ruim","content":"{{t}}","variables":{"t":"x"}}`)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d (o 422 tem de atravessar intacto)", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "model_refused") ||
+		!strings.Contains(rec.Body.String(), "401") {
+		t.Errorf("o motivo do provider nao chegou: %s", rec.Body.String())
+	}
+}
+
+// TestPlayground_5xx_continua_opaco e o controle negativo do teste acima.
+//
+// Se TUDO fosse repassado, o repasse viraria matcher cego: o corpo de um 5xx fala de host, porta e
+// DNS internos, e o operador nao tem o que fazer com isso.
+func TestPlayground_5xx_continua_opaco(t *testing.T) {
+	f := &promptlyFake{err: &promptly.UpstreamError{
+		Status: http.StatusInternalServerError,
+		Body:   json.RawMessage(`{"error":"internal_error","host":"pg-interno-01"}`),
+		Method: http.MethodPost,
+		Path:   "/prompts/saudacao/playground",
+	}}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/playground",
+		`{"credential":"sk-x","content":"{{t}}","variables":{"t":"x"}}`)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d (5xx do servico vira 502 opaco)", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "pg-interno-01") {
+		t.Errorf("topologia interna vazou para o navegador: %s", rec.Body.String())
+	}
+}
+
+// TestPlayground_credencial_do_modelo_nao_aparece_no_log fecha o risco R1 nesta fronteira.
+//
+// A credencial atravessa TRES processos (navegador, BFF, servico). Cada fronteira tem de provar que
+// nao a registra — um comentario nao prova nada, e um logger distraido e uma linha de distancia.
+func TestPlayground_credencial_do_modelo_nao_aparece_no_log(t *testing.T) {
+	const sentinela = "sk-SENTINELA-NAO-VAZAR"
+	var capturado strings.Builder
+	f := &promptlyFake{err: &promptly.UpstreamError{
+		Status: http.StatusUnprocessableEntity,
+		Body:   json.RawMessage(`{"error":"model_refused","providerStatus":401}`),
+		Method: http.MethodPost,
+		Path:   "/prompts/saudacao/playground",
+	}}
+
+	h := NewPromptlyDashboardHandler(f, f, slog.New(slog.NewTextHandler(&capturado, nil)))
+	r := chi.NewRouter()
+	MountPromptlyDashboard(r, h, func(next http.Handler) http.Handler { return next })
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/playground",
+		strings.NewReader(`{"credential":"`+sentinela+`","content":"{{t}}","variables":{"t":"x"}}`))
+	r.ServeHTTP(httptest.NewRecorder(), req)
+
+	// Exercitou o caminho de ERRO de proposito: e nele que o BFF loga o detalhe completo.
+	if capturado.Len() == 0 {
+		t.Fatal("o teste nao exercitou o caminho de log — sem log, a assercao nao discrimina")
+	}
+	if strings.Contains(capturado.String(), sentinela) {
+		t.Errorf("a credencial do modelo foi para o log: %s", capturado.String())
+	}
+}
+
+// TestPlayground_corpo_grande_demais_e_recusado_antes_do_salto reusa o teto que ja existe.
+func TestPlayground_corpo_grande_demais_e_recusado_antes_do_salto(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"text":"ok"}`)}
+	gigante := `{"credential":"sk-x","content":"` + strings.Repeat("a", maxPromptBody+10) + `"}`
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/playground", gigante)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d (corpo acima do teto e recusado aqui, nao adiante)", rec.Code)
+	}
+	if f.body != nil {
+		t.Error("o corpo gigante foi repassado ao servico — a recusa tem de vir ANTES do salto")
 	}
 }

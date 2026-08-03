@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- **o BFF do promptly ganhou a rota do playground, e ela repassa o motivo da recusa em vez de engoli-lo** (theo-promptly M14). `POST /v1/dashboard/promptly/prompts/{nome}/playground` leva a invocação ao serviço com a chave por inquilino e devolve a saída do modelo. O corpo atravessa **opaco** nos dois sentidos, e aqui isso vale mais do que nas outras rotas: ele carrega a credencial do **modelo**, digitada pelo operador — ler campos dela para validar criaria mais um lugar de onde ela pode escapar para um log, e há teste asserindo que nem no caminho de erro ela aparece lá. A rota vive no cliente de **leitura**, não no de escrita: ela não muta estado nosso, e o que gasta dinheiro é a credencial do modelo no corpo, não a chave de inquilino — escalar o escopo não protegeria gasto algum e daria a um leitor a capacidade de escrever. O `422 model_refused` do serviço atravessa **intacto** pelo repasse de 4xx que já existia, então o operador lê "sua chave foi recusada" em vez de um 502 genérico; um 5xx continua opaco, porque ali o corpo fala de host e DNS internos (#m14)
+
 ## [0.76.0] - 2026-08-03
 
 ### Added

@@ -18,6 +18,7 @@
 package promptly
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -130,6 +131,20 @@ func (c *DataClient) Catalog(ctx context.Context, limit int, after string) (json
 	return body, Continuacao{TemMais: temMais, Query: query}, nil
 }
 
+// Playground roda o prompt UMA vez contra o modelo (`POST /prompts/:name/playground`).
+//
+// Vive no cliente de LEITURA, e nao no de escrita, porque a rota nao muta nada do NOSSO estado: ela
+// renderiza o texto que veio no corpo e invoca o modelo. O que gasta dinheiro e a credencial do
+// MODELO, que o operador poe no corpo — nao a chave de inquilino desta chamada. Escalar o escopo
+// para `write` nao protegeria gasto algum e daria a um leitor a capacidade de escrever.
+//
+// O corpo atravessa OPACO: a recusa tipada do servico (`400 missing_variable`, `422 model_refused`
+// com o status do provider) e o que a tela transforma em diagnostico. Um BFF que validasse antes
+// devolveria a propria recusa, sem o motivo do provider.
+func (c *DataClient) Playground(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error) {
+	return c.postRaw(ctx, "/prompts/"+url.PathEscape(name)+"/playground", body)
+}
+
 // Prompt resolve um prompt pelo nome (`GET /prompts/:name`) — a ultima revisao.
 func (c *DataClient) Prompt(ctx context.Context, name string) (json.RawMessage, error) {
 	body, _, err := c.getRaw(ctx, "/prompts/"+url.PathEscape(name), nil)
@@ -175,6 +190,54 @@ func (c *DataClient) Policy(ctx context.Context, name, label string) (json.RawMe
 // getRaw devolve corpo E headers. Os headers viajam porque a resposta do upstream carrega
 // informacao de produto neles (o `Link` de continuacao); descarta-los aqui foi o que fez o sinal
 // morrer antes de qualquer decisao. Chamadores que nao precisam deles usam `_`.
+// postRaw envia um corpo e devolve o do servico, com as mesmas guardas de getRaw.
+//
+// Duplica a forma de `WriteClient.sendRaw` de proposito, por ora: sao duas implementacoes de "POST
+// com Bearer e UpstreamError", o que a regra de 3 tolera. Na terceira, extrair — antes disso, a
+// abstracao custaria mais leitura do que economiza.
+func (c *DataClient) postRaw(ctx context.Context, path string, corpo json.RawMessage) (json.RawMessage, error) {
+	// Fail-closed ANTES de qualquer I/O — mesma razao de getRaw: sem chave de inquilino a
+	// requisicao nao chega a existir, e o operador nao investiga autenticacao por um defeito de
+	// fiacao.
+	if c.keyResolver == nil {
+		return nil, fmt.Errorf("promptly data client: no key resolver wired (misconfiguration)")
+	}
+	bearer, err := c.keyResolver(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("promptly data client: resolve per-tenant key: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(corpo))
+	if err != nil {
+		return nil, fmt.Errorf("promptly data client: build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		// Nem o bearer nem o CORPO entram na mensagem: o corpo carrega a credencial do modelo que
+		// o operador digitou. O caminho entra, e e util.
+		return nil, fmt.Errorf("promptly data client: POST %s: %w", path, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("promptly data client: read %s: %w", path, err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, &UpstreamError{
+			Status: resp.StatusCode,
+			Body:   json.RawMessage(body),
+			Method: http.MethodPost,
+			Path:   path,
+		}
+	}
+	return json.RawMessage(body), nil
+}
+
 func (c *DataClient) getRaw(ctx context.Context, path string, q url.Values) (json.RawMessage, http.Header, error) {
 	// Fail-closed ANTES de qualquer I/O: a requisicao sem credencial de inquilino nao chega a
 	// existir. Devolver o 401 do upstream mandaria o operador investigar autenticacao quando o

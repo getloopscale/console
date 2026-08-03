@@ -350,3 +350,156 @@ func TestProximaPaginaQuery_isolada(t *testing.T) {
 		})
 	}
 }
+
+// --- M14 T2.1 — o playground -------------------------------------------------
+
+func TestPlayground_sem_resolver_nao_emite_requisicao(t *testing.T) {
+	// Mesmo fail-closed do catalogo, e aqui ele vale mais: o corpo carrega a credencial do MODELO,
+	// digitada pelo operador. Uma requisicao que sai sem chave de inquilino leva essa credencial
+	// junto, para um destino que nao a autorizou.
+	saiu := false
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { saiu = true }))
+	defer srv.Close()
+	c := NewDataClient(srv.URL, srv.Client()) // resolver DELIBERADAMENTE ausente
+
+	_, err := c.Playground(context.Background(), "saudacao", json.RawMessage(`{"credential":"sk-x"}`))
+
+	if err == nil {
+		t.Fatal("cliente sem resolver deveria falhar fechado")
+	}
+	if saiu {
+		t.Error("a requisicao saiu — e levou a credencial do modelo com ela")
+	}
+}
+
+func TestPlayground_envia_o_corpo_e_o_bearer_do_inquilino(t *testing.T) {
+	var recebido, bearer, metodo, caminho string
+	c, _ := clienteContra(t, func(w http.ResponseWriter, r *http.Request) {
+		b := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(b)
+		recebido, bearer, metodo, caminho = string(b), r.Header.Get("Authorization"), r.Method, r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"text":"ok"}`))
+	})
+
+	out, err := c.Playground(context.Background(), "saudacao",
+		json.RawMessage(`{"credential":"sk-x","content":"{{t}}"}`))
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if metodo != http.MethodPost || caminho != "/prompts/saudacao/playground" {
+		t.Errorf("chamou %s %s", metodo, caminho)
+	}
+	if !strings.Contains(recebido, `"content":"{{t}}"`) {
+		t.Errorf("o corpo nao atravessou: %q", recebido)
+	}
+	if bearer != "Bearer promptly_live_x" {
+		t.Errorf("bearer = %q", bearer)
+	}
+	if !strings.Contains(string(out), `"ok"`) {
+		t.Errorf("a saida nao voltou: %s", string(out))
+	}
+}
+
+func TestPlayground_nome_com_barra_nao_escapa_do_segmento(t *testing.T) {
+	var caminho string
+	c, _ := clienteContra(t, func(w http.ResponseWriter, r *http.Request) {
+		caminho = r.URL.EscapedPath()
+		_, _ = w.Write([]byte(`{}`))
+	})
+
+	_, _ = c.Playground(context.Background(), "a/b", json.RawMessage(`{}`))
+
+	if strings.Contains(caminho, "a/b/playground") {
+		t.Errorf("o nome escapou do segmento: %s", caminho)
+	}
+}
+
+func TestPlayground_recusa_do_upstream_sai_tipada_com_o_corpo(t *testing.T) {
+	// E o que faz o `422 model_refused` sobreviver ate a tela: sem o tipo, o handler nao teria como
+	// distinguir a recusa acionavel de uma queda do servico.
+	c, _ := clienteContra(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"error":"model_refused","providerStatus":401}`))
+	})
+
+	_, err := c.Playground(context.Background(), "saudacao", json.RawMessage(`{}`))
+
+	ue, ok := AsUpstreamError(err)
+	if !ok {
+		t.Fatalf("erro nao saiu tipado: %v", err)
+	}
+	if ue.Status != http.StatusUnprocessableEntity || !ue.IsClientRefusal() {
+		t.Errorf("status = %d, IsClientRefusal = %v", ue.Status, ue.IsClientRefusal())
+	}
+	if !strings.Contains(string(ue.Body), "model_refused") {
+		t.Errorf("o corpo do servico nao sobreviveu: %s", string(ue.Body))
+	}
+}
+
+func TestPlayground_o_corpo_nunca_entra_na_mensagem_de_erro_de_transporte(t *testing.T) {
+	// O corpo carrega a credencial do modelo. Numa falha de transporte a tentacao e embrulhar tudo
+	// na mensagem — e essa mensagem vai para o log.
+	const sentinela = "sk-SENTINELA-NAO-VAZAR"
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	c := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "promptly_live_x", nil })
+	srv.Close() // derruba o destino ANTES da chamada
+
+	_, err := c.Playground(context.Background(), "saudacao",
+		json.RawMessage(`{"credential":"`+sentinela+`"}`))
+
+	if err == nil {
+		t.Fatal("esperava falha de transporte")
+	}
+	if strings.Contains(err.Error(), sentinela) {
+		t.Errorf("a credencial do modelo entrou na mensagem de erro: %v", err)
+	}
+}
+
+// TestPlayground_concurrent_nao_mistura_tenants — o `DataClient` e composto UMA vez
+// (`cmd/main.go:550`) e servido a todas as requisicoes em goroutines paralelas, compartilhando o
+// keyResolver. Um teste single-thread nunca provaria que dois inquilinos concorrentes nao trocam de
+// chave. Roda sob o race detector: `go test -race ./internal/promptly/...`.
+func TestPlayground_concurrent_nao_mistura_tenants(t *testing.T) {
+	type chave string
+	const k chave = "tenant"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Ecoa o bearer recebido: a resposta carrega o inquilino que a pediu.
+		_, _ = w.Write([]byte(`{"bearer":"` + strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ") + `"}`))
+	}))
+	defer srv.Close()
+
+	c := NewDataClient(srv.URL, srv.Client()).WithKeyResolver(func(ctx context.Context) (string, error) {
+		v, _ := ctx.Value(k).(string)
+		return "key-" + v, nil
+	})
+
+	const n = 50
+	erros := make(chan error, n)
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			tenant := "a"
+			if i%2 == 1 {
+				tenant = "b"
+			}
+			ctx := context.WithValue(context.Background(), k, tenant)
+			out, err := c.Playground(ctx, "saudacao", json.RawMessage(`{}`))
+			if err != nil {
+				erros <- err
+				return
+			}
+			if !strings.Contains(string(out), `"key-`+tenant+`"`) {
+				erros <- errors.New("resposta do inquilino " + tenant + " veio com outra chave: " + string(out))
+				return
+			}
+			erros <- nil
+		}(i)
+	}
+	for i := 0; i < n; i++ {
+		if err := <-erros; err != nil {
+			t.Fatalf("iteracao %d: %v", i, err)
+		}
+	}
+}
