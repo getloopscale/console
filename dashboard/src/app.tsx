@@ -168,6 +168,12 @@ const PromptlyOverviewPage = lazy(() =>
 const PromptDetailPage = lazy(() =>
   import('@/pages/promptly/detail').then((m) => ({ default: m.PromptDetailPage })),
 );
+const PromptlyCreatePage = lazy(() =>
+  import('@/pages/promptly/create').then((m) => ({ default: m.PromptlyCreatePage })),
+);
+const PromptlyDiffPage = lazy(() =>
+  import('@/pages/promptly/diff').then((m) => ({ default: m.PromptlyDiffPage })),
+);
 // M44 — lens management dashboard pages; M46 — Overview landing
 const LensOverviewPage = lazy(() =>
   import('@/pages/lens').then((m) => ({ default: m.LensOverviewPage })),
@@ -508,7 +514,12 @@ export default function App() {
                     <Route path="/skills/:skillId" element={<Boundaried path="/skills/:skillId"><SkillDetailPage /></Boundaried>} />
                     <Route path="/skills/:skillId/versions" element={<Boundaried path="/skills/:skillId/versions"><SkillVersionsPage /></Boundaried>} />
                     <Route path="/promptly" element={<Boundaried path="/promptly"><PromptlyOverviewPage /></Boundaried>} />
+                    {/* `/promptly/new` ANTES do segmento dinâmico. O ranking do roteador já
+                        prefere o estático, mas a ordem explícita é o que impede alguém de ler
+                        "new" como nome de prompt ao mover uma linha daqui. */}
+                    <Route path="/promptly/new" element={<Boundaried path="/promptly/new"><PromptlyCreatePage /></Boundaried>} />
                     <Route path="/promptly/:promptName" element={<Boundaried path="/promptly/:promptName"><PromptDetailPage /></Boundaried>} />
+                    <Route path="/promptly/:name/diff" element={<Boundaried path="/promptly/:name/diff"><PromptlyDiffPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />

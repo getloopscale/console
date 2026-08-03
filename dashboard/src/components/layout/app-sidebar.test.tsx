@@ -127,6 +127,26 @@ describe('AppSidebar', () => {
     expect(screen.getByText('Overview')).toBeInTheDocument();
   });
 
+  it('M12 — a autoria de revisão é alcançável pelo MENU, não só pela URL', () => {
+    // A tela de criar existia e não abria: um item de submenu ausente é indistinguível, para
+    // quem opera, de uma tela que não foi entregue. E o par abaixo é o que dá valor à asserção —
+    // 'Nova revisão' só pertence ao submenu de prompts, então vê-lo prova que o submenu abriu,
+    // e não que a raiz foi renderizada.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/promptly/new'] });
+
+    expect(screen.getByText('Nova revisão')).toBeInTheDocument();
+    expect(screen.queryByText('Domains')).not.toBeInTheDocument();
+  });
+
+  it('M12 — comparar NÃO entra no menu, e a ausência é decisão', () => {
+    // Comparar é POR PROMPT: uma entrada de menu exigiria um nome que o menu não tem e levaria a
+    // lugar nenhum — o mesmo argumento que já mantém a promoção fora. Este teste existe para que
+    // a ausência seja lida como decisão e não como esquecimento, que é o que a torna revisável.
+    render(<AppSidebar session={makeSession()} />, { initialEntries: ['/promptly'] });
+
+    expect(screen.queryByText(/comparar/i)).not.toBeInTheDocument();
+  });
+
   it('M25 — a capacidade Prompts está na raiz e leva ao submenu por CLIQUE', () => {
     // A peça 1. Sem ela o serviço continua no ar e invisível: promover uma revisão só existia
     // por `curl`, SDK ou MCP. A asserção é sobre a RAIZ, porque é dali que o usuário parte.
