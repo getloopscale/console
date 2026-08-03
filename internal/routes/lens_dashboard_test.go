@@ -465,6 +465,33 @@ func mountedLens(t *testing.T) (*chi.Mux, *stubLensDataClient) {
 	return r, stub
 }
 
+// jwtGateBody is what the middleware stand-in below writes when it short-circuits. It is a marker,
+// not a real error shape: the point is to tell "the middleware ran" apart from "the handler's own
+// authTenant ran", which both answer 401 and are otherwise indistinguishable from the outside.
+const jwtGateBody = `{"code":"JWT_GATE"}`
+
+// mountedLensWithGate mounts the real table behind a middleware that REJECTS instead of passing
+// through. `noopJWT` above cannot prove placement — with a pass-through stand-in, a route mounted
+// OUTSIDE the requireJWT group still answers 401, because the handler's own authTenant catches it.
+// Measured: moving the registration out of the group left the whole suite green.
+//
+// That is fail-closed either way, so it was never a security hole. It was a claim the tests could
+// not back: `EveryMountedGET_IsFailClosed` reads as proving the session gate, and proved only the
+// handler check. This helper closes the gap by making the two outcomes distinguishable.
+func mountedLensWithGate(t *testing.T) (*chi.Mux, *stubLensDataClient) {
+	t.Helper()
+	h, stub := newLensDashboard()
+	r := chi.NewRouter()
+	MountLensDashboard(r, h, func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(jwtGateBody))
+		})
+	})
+	return r, stub
+}
+
 // TestLensDashboard_Writes_Authenticated — each write route, with a JWT tenant, proxies to the
 // upstream exactly once and returns the pass-through body.
 func TestLensDashboard_Writes_Authenticated(t *testing.T) {
@@ -716,6 +743,11 @@ func TestLensDashboard_UsageByUser_ForwardsQueryVerbatim(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
 	}
+	// The body reaches the browser verbatim — the BFF is a thin proxy and never re-models the
+	// upstream shape. Asserting only the status would pass on a handler that answered 200 with `{}`.
+	if !strings.Contains(w.Body.String(), `"userId":"alice"`) {
+		t.Fatalf("body = %q, want the upstream body passed through unchanged", w.Body.String())
+	}
 	for k, want := range map[string]string{"days": "7", "limit": "50", "offset": "10", "somethingNew": "x"} {
 		if got := stub.lastUsageQuery.Get(k); got != want {
 			t.Fatalf("upstream %s = %q, want %q — params must be forwarded verbatim", k, got, want)
@@ -728,20 +760,35 @@ func TestLensDashboard_UsageByUser_ForwardsQueryVerbatim(t *testing.T) {
 // own {code,message}, not a generic 502. Swapping h.proxy for Cost's older shape turns this red —
 // which is the whole point of the test existing.
 func TestLensDashboard_UsageByUser_ForwardsTypedUpstreamStatus(t *testing.T) {
-	h, stub := newLensDashboard()
-	stub.err = &thelens.UpstreamStatusError{
-		Status: http.StatusBadRequest,
-		Body:   []byte(`{"code":"INVALID_QUERY","message":"limit must be at most 500"}`),
-	}
-	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/usage-by-user?limit=100000", nil), "t1")
-	w := httptest.NewRecorder()
-	h.UsageByUser(w, req)
+	// Both browser-actionable statuses this route can realistically see: 400 (a parameter above a
+	// ceiling — M140 rejects rather than clamps) and 429 (rate limited). The plan's failure-scenario
+	// table promises a test for each; parametrising is what makes that promise true here rather than
+	// relying on a sibling route's coverage of the shared helper.
+	for _, tc := range []struct {
+		name   string
+		status int
+		code   string
+	}{
+		{"out-of-range parameter", http.StatusBadRequest, "INVALID_QUERY"},
+		{"rate limited", http.StatusTooManyRequests, "RATE_LIMITED"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, stub := newLensDashboard()
+			stub.err = &thelens.UpstreamStatusError{
+				Status: tc.status,
+				Body:   []byte(`{"code":"` + tc.code + `","message":"upstream said so"}`),
+			}
+			req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/usage-by-user?limit=100000", nil), "t1")
+			w := httptest.NewRecorder()
+			h.UsageByUser(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("want the upstream 400 forwarded, got %d (%s)", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "INVALID_QUERY") {
-		t.Fatalf("body = %q, want theo-lens's own typed code so the browser can act on it", w.Body.String())
+			if w.Code != tc.status {
+				t.Fatalf("want the upstream %d forwarded, got %d (%s)", tc.status, w.Code, w.Body.String())
+			}
+			if !strings.Contains(w.Body.String(), tc.code) {
+				t.Fatalf("body = %q, want theo-lens's own typed code so the browser can act on it", w.Body.String())
+			}
+		})
 	}
 }
 
@@ -822,5 +869,45 @@ func TestLensDashboard_EveryMountedGET_IsFailClosed(t *testing.T) {
 	}
 	if !sawUsageByUser {
 		t.Fatal("/v1/dashboard/lens/usage-by-user is not mounted — M141 DoD-2 unmet")
+	}
+}
+
+// TestLensDashboard_EveryMountedGET_IsBehindTheSessionMiddleware — the companion the test above
+// cannot be. It re-mounts the same table behind a middleware that REJECTS, so a route registered
+// outside the `requireJWT` group answers with the handler's own message instead of the gate's
+// marker. Without this, "mounted outside the group" and "mounted inside it" are indistinguishable.
+func TestLensDashboard_EveryMountedGET_IsBehindTheSessionMiddleware(t *testing.T) {
+	r, stub := mountedLensWithGate(t)
+	var gets []string
+	_ = chi.Walk(r, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if method == http.MethodGet && strings.HasPrefix(pattern, "/v1/dashboard/lens") {
+			gets = append(gets, pattern)
+		}
+		return nil
+	})
+	if len(gets) < 20 {
+		t.Fatalf("walk found only %d GET routes — the enumeration is not seeing the real router", len(gets))
+	}
+	for _, pattern := range gets {
+		path := strings.NewReplacer(
+			"{traceID}", "tr-1", "{datasetID}", "ds-1", "{evaluatorID}", "ev-1",
+			"{monitorID}", "mo-1", "{itemID}", "it-1", "{runID}", "ru-1", "{sessionID}", "se-1",
+			"{jobID}", "jo-1",
+		).Replace(pattern)
+		t.Run(pattern, func(t *testing.T) {
+			before := stub.calls
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+			if w.Code != http.StatusUnauthorized {
+				t.Fatalf("GET %s: want 401, got %d", path, w.Code)
+			}
+			if !strings.Contains(w.Body.String(), "JWT_GATE") {
+				t.Fatalf("GET %s answered 401 from the HANDLER, not the session middleware (%s) — "+
+					"the route is mounted outside the requireJWT group", path, w.Body.String())
+			}
+			if stub.calls != before {
+				t.Fatalf("GET %s reached the upstream despite the gate", path)
+			}
+		})
 	}
 }

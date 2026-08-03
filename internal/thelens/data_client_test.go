@@ -671,10 +671,7 @@ func TestDataClient_UsageByUser_ForwardsPathAndQuery(t *testing.T) {
 	if gotAuth != "Bearer theo_live_minted" {
 		t.Fatalf("Authorization = %q, want the per-tenant minted bearer", gotAuth)
 	}
-	parsed, err := url.ParseQuery(gotQuery)
-	if err != nil {
-		t.Fatalf("upstream query %q is not parseable: %v", gotQuery, err)
-	}
+	parsed := mustParseQuery(t, gotQuery)
 	for k, want := range map[string]string{"days": "7", "limit": "50", "offset": "10"} {
 		if got := parsed.Get(k); got != want {
 			t.Fatalf("upstream %s = %q, want %q (params must reach theo-lens verbatim)", k, got, want)
