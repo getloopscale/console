@@ -962,67 +962,24 @@ maior; se justificar, vira milestone próprio.
 
 **Não verificado, e dito:** o e2e rodou em **chromium apenas** — o binário do firefox não está instalado neste runner. E a jornada **live** (`e2e/promptly-journey-live.spec.ts`) não foi executada contra a instância implantada: *mergeado não é implantado*.
 
-### M27 — [ ] A jornada completa de gestão de prompts (autorar, comparar, reverter)
+### M27 — [→] A jornada completa de gestão de prompts — **movido para `theo-promptly` § M12**
 
-> Added 2026-08-03 by `/roadmap-feature` (slug: `theo-cloud-promptly-journey`).
-> See CHANGELOG `[Unreleased] § Added`. Grill: `knowledge-base/grills/theo-cloud-promptly-journey-feature-grill.md`.
-> **Revoga parcialmente** a exclusão "UI rica/colaborativa no V1" do `theo-promptly/ROADMAP.md` — ver § Escopo revisado.
-
-**Objetivo:** fechar o ciclo que o M25 deixou pela metade — **autorar → inspecionar → comparar
-→ promover → reverter** — para que operar prompts pelo dashboard deixe de depender do `curl`.
-
-**Gatilho — medido na tela, não no código.** Percorri as duas telas do M25 no dashboard:
-
-- catálogo: três colunas de texto e links, **zero botões**;
-- detalhe: **um único verbo**, `Promover`; o conteúdo aparece como *"TRECHO"* — não dá nem
-  para ler o prompt inteiro;
-- estado vazio: *"Crie a primeira revisão pela CLI ou pelo SDK"* — um dashboard que manda o
-  usuário sair do dashboard, enquanto a referência (`M23`, trust) oferece o botão que faz.
-
-A justificativa que escrevi no M25 — *"a promoção já cobre o ato central"* — estava errada nos
-próprios termos: promover só é central **se já existirem prompts**. Num workspace novo o ato
-central é criar.
-
-**Escopo revisado (o que muda no `theo-promptly/ROADMAP.md`):** a exclusão *"UI
-rica/colaborativa no V1 (editor em tempo real, diff visual)"* cai **parcialmente** — entram
-**autoria** e **diff visual**; **permanece fora** a edição colaborativa em tempo real
-(multi-cursor, presença), que é o que "colaborativa" nomeia. A edição daquele arquivo é feita
-junto com este milestone, em commit próprio que cita este — mesmo repositório é impossível, e
-o que a regra impede é a exclusão ser contradita **em silêncio** (o `b95552e` custou cinco
-semanas por isso).
-
-**Definition of done:**
-
-- [ ] **Criar revisão pela tela**, com o estado vazio do catálogo **oferecendo a ação** em vez de mandar para a CLI. Verificável: um workspace sem prompts mostra o caminho de criar, e criar leva ao detalhe da revisão recém-criada.
-- [ ] **O formulário previne o engano permanente que ele cria.** Revisão é imutável e não há `DELETE`: o preview do render é exibido **antes** de salvar, com as variáveis que `GET /prompts/:name` **declara** (`variables`) — nunca adivinhadas do texto —, e a tela diz que a revisão é permanente. Verificável: um `{{nome}}` no corpo produz um campo `nome` no preview, e trocar o corpo re-deriva os campos.
-- [ ] **Ler a revisão INTEIRA**, não o trecho, com as variáveis destacadas. Verificável: um prompt maior que a coluna do catálogo é exibido por completo no detalhe.
-- [ ] **Diff entre duas revisões**, com a lógica **fora do React** e testada sem browser. Verificável pelo **par que discrimina**: duas revisões de conteúdo idêntico produzem **zero** blocos alterados (não só "diferentes produzem diferença") — um diff que mostra ruído em espaço/quebra de linha ensina o operador a ignorá-lo.
-- [ ] **Reverter pela tela, dizendo o que reverter FAZ.** Medido: `POST /rollback {toVersion, label}` **cria uma revisão nova** com o conteúdo antigo (`toVersion:1` → devolve `version:3`), e devolve `labelsMoved`/`currentLabels`. A confirmação nomeia isso — *"cria a v3 com o conteúdo da v1 e aponta `prod` para ela"* —, nunca *"volta para a v1"*, que é falso e faria o operador esperar o histórico encolher.
-- [ ] **A recusa tipada do rollback vira escolha, não repetição.** Medido: sem `label`, o serviço responde `400 label_required` com `availableLabels`. A tela usa essa lista para oferecer o label; não repete o erro. Verificável: com dois labels existentes, a tela pergunta qual.
-- [ ] **Erro tipado do upstream chega à tela na leitura E na escrita**, com a mensagem do serviço — nunca genérico. Verificável por dois casos e um controle negativo: uma criação recusada renderiza o texto do serviço; um `403` numa leitura renderiza `403` com o corpo do serviço; e um `5xx` **continua** virando `502` genérico (senão o repasse vira matcher cego que vaza detalhe interno).
-- [ ] **Navegação nas duas metades**, incluindo as telas novas: entrada, submenu **e** a linha em `resolveActiveMenu`. Verificável: chega-se a cada tela **clicando a partir da raiz** — digitar a URL não conta.
-- [ ] **Um** e2e cobre a jornada inteira (criar → ler → comparar → promover → reverter), não um por tela. E ele **não clica em nenhum controle faturável**: derivado por varredura do marcador `ModelInvoker`, a única rota faturável do produto é `POST /evaluations/runs`, que não está nesta jornada.
-
-**Dependências:** M25 `[x]` — este milestone **estende** o catálogo e o detalhe que ele
-entregou; sem eles não há onde pendurar autoria e diff. Nenhuma dependência cross-repo: os
-cinco endpoints necessários foram **medidos existindo** em 2026-08-03 (`POST /prompts` → 201;
-`GET /prompts/:name?version=N` → `content` + `variables`; `POST /rollback` → contrato acima).
-
-**Top risks (new):**
-
-1. **A tela passa a ESCREVER conteúdo, e revisão é imutável.** Até aqui a única escrita era mover um ponteiro, reversível movendo de volta. Criar revisão é **append permanente**: não há `DELETE`, e um erro fica no histórico para sempre. *Mitigação:* preview antes de salvar, com as variáveis que a API declara, e a permanência dita na tela — a saída para um engano é criar outra revisão, não apagar.
-2. **O diff pode afirmar diferença que não existe.** Comparar texto no cliente erra fácil em espaço, quebra de linha e normalização, e um diff ruidoso ensina a ignorá-lo — pior que não ter. *Mitigação:* lógica fora do React, testada sem browser, com o caso de **igualdade exata** no par, não só o de diferença.
-
-**Não entra neste milestone:**
-
-| Item | Por que fora | Destino |
-|---|---|---|
-| Edição **colaborativa em tempo real** (multi-cursor, presença) | É o que "colaborativa" nomeia na exclusão do `theo-promptly`, e ela **permanece** valendo nessa parte | fora do V1 |
-| Apagar revisão | Não existe `DELETE` no produto, e imutabilidade é contrato — a tela não pode oferecer o que o serviço proíbe | não planejado |
-| Datasets e evaluation runs | Exigem dois índices novos no `theo-promptly` (medidos `404`) | milestone futuro |
-| Editar política de promoção pela tela | Há `PUT` e agora `GET`, mas escrever política é outra classe de risco (governa promoção) | milestone futuro |
-
----
+> **Movido em 2026-08-03, preservando o conteúdo.** Foi criado aqui pelo argumento mecânico de
+> que `cycle-release` vira o checkbox no `ROADMAP.md` do repo declarado em `target_project`, e
+> o **código** da UI nasce no `dashboard/` deste repositório. **O dono decidiu o contrário:** os
+> artefatos de ciclo do `theo-promptly` — roadmap, grill, plano, aceitação — vivem no repositório
+> do produto.
+>
+> A entrada fica aqui, riscada e legível, em vez de sumir: a remoção **sem rastro** foi o que
+> custou cinco semanas de roadmap contraditório no `theo-promptly` (`b95552e`), e um leitor que
+> encontrasse o M27 citado num commit e não achasse nada aqui repetiria a mesma investigação.
+>
+> **Onde ele vive:** `theo-promptly/ROADMAP.md` § M12 · grill em
+> `theo-promptly/.claude/knowledge-base/grills/promptly-journey-feature-grill.md`.
+>
+> **O que NÃO muda:** o código da UI continua nascendo em `theo-cloud/dashboard/`, nunca no repo
+> do produto — o `theo-promptly/CLAUDE.md` é explícito, e o M25 acima é a implementação de
+> referência.
 
 ---
 

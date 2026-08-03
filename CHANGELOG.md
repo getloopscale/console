@@ -1,7 +1,9 @@
 ## [Unreleased]
 
+### Changed
+- O milestone da jornada completa de gestão de prompts **saiu deste roadmap** e passou a viver no repositório do produto (`theo-promptly` § M12), junto com o grill. Criado aqui como M27 pelo argumento mecânico do `cycle-release`; a decisão do dono é que os artefatos de ciclo do `theo-promptly` ficam no repo dele. A entrada fica riscada em `ROADMAP.md` § M27 com o ponteiro — sumir sem rastro é o que custou cinco semanas de roadmap contraditório no outro repo. **O código da UI continua nascendo no `dashboard/` daqui**
+
 ### Added
-- Roadmap amended: added M27 A jornada completa de gestão de prompts (autorar, comparar, reverter) (`/roadmap-feature theo-cloud-promptly-journey`)
 - **theo-skills UI (M29):** proxy de leitura por inquilino para o registro de skills — chave cunhada por tenant, falha fechado sem credencial (#M29)
 - Roadmap amended: added M25 Operar prompts pelo dashboard (catálogo, revisões, promoção de label) (`/roadmap-feature theo-cloud-promptly-dashboard`)
 - **theo-skills UI (M29):** recusa tipada do registro (`422 INVALID_FRONTMATTER`, `409 CONFLICT`) chega ao operador com o motivo, em vez de virar `502` generico (#M29)
