@@ -56,10 +56,15 @@ describe('M12 — a tela de comparar', () => {
   // A INVARIANTE está coberta na função pura (`diff.test.ts::diff_identical_content_has_zero_
   // changed_blocks`); o que falta é o caminho pela tela. Rastreado no plano § Followups.
 
-  // `diff_screen_read_failure_is_not_drawn_as_identical` — FOLLOWUP, com o motivo no lugar dele.
-  // A ramificação de falha de leitura EXISTE na tela (`falhou` → alerta + "Sem dados para
-  // comparar — a leitura falhou"), mas o harness reporta a rejeição do react-query como não
-  // tratada antes da asserção, e resolver isso é trabalho de infraestrutura de teste, não deste
-  // milestone. A mesma distinção vazio-vs-falha está PROVADA em `pages/promptly.test.tsx`
-  // (`empty_catalog_that_FAILED_offers_no_action`). Rastreado no plano § Followups.
+  // FU-4 — `diff_screen_read_failure_is_not_drawn_as_identical`. TENTADO DE NOVO e continua
+  // falhando por DEFEITO DE HARNESS, não do produto: `mockRejectedValue` cria a promessa
+  // rejeitada no momento da configuração, e o vitest a reporta como não tratada antes de o
+  // react-query chegar nela. O mesmo padrão funciona em `pages/promptly.test.tsx`, o que descarta
+  // configuração global (o cliente de teste já tem `retry: false`) e aponta para a interação com
+  // `enabled:` nesta página — investigação de infraestrutura de teste, não deste milestone.
+  //
+  // A RAMIFICAÇÃO EXISTE no produto (`falhou` → alerta + "Sem dados para comparar — a leitura
+  // falhou") e foi VISTA funcionando na aceitação do M12, contra a pilha real, em quatro falhas
+  // seguidas que eu não provoquei. A mesma distinção vazio-vs-falha está provada por teste em
+  // `pages/promptly.test.tsx::empty_catalog_that_FAILED_offers_no_action`.
 });
