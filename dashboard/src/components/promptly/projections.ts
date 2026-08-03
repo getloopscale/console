@@ -20,6 +20,67 @@ export interface CatalogRow extends CatalogEntry {
   readonly labelsResumo: string;
 }
 
+/**
+ * M13 — o que o painel afirma sobre o catálogo, e o que ele admite não saber.
+ *
+ * `parcial` é o campo que carrega o milestone. Ele vem do sinal de continuação do serviço
+ * (`Link … rel="next"`), NUNCA do tamanho da página: o serviço devolve no máximo `limit` linhas,
+ * então um catálogo de exatamente `limit` prompts satisfaria `linhas.length >= limit` sem ter
+ * próxima página — e marcar de parcial um número correto ensina o operador a desconfiar dele,
+ * que é pior do que não marcar.
+ */
+export interface ResumoCatalogo {
+  readonly prompts: number;
+  readonly revisoesPublicadas: number;
+  readonly ambientes: number;
+  /** Escritos e não servindo ninguém: `latestVersion` acima da maior versão que algum label aponta. */
+  readonly naoPromovidos: number;
+  /** Nunca promovidos: sem label algum. */
+  readonly semAmbiente: number;
+  /** Os números acima são de UMA página, e há mais páginas — são limites inferiores, não totais. */
+  readonly parcial: boolean;
+}
+
+/** A maior versão que algum label serve; `0` quando nenhum serve (nunca `-Infinity`). */
+function maiorVersaoServida(labels: CatalogEntry['labels'] | undefined): number {
+  if (!Array.isArray(labels) || labels.length === 0) return 0;
+  return labels.reduce((maior, l) => (Number.isFinite(l.version) && l.version > maior ? l.version : maior), 0);
+}
+
+/**
+ * Deriva os números do painel de UMA página de catálogo.
+ *
+ * `temContinuacao` vem do serviço e é o único insumo de `parcial` — ver o docstring de
+ * `ResumoCatalogo`. Campos ausentes numa linha (dado parcial de uma versão anterior da API) não
+ * podem virar `NaN` silencioso: um número errado exibido com a confiança de um certo é pior que a
+ * ausência dele.
+ */
+export function resumoCatalogo(linhas: readonly CatalogRow[], temContinuacao: boolean): ResumoCatalogo {
+  const ambientes = new Set<string>();
+  let revisoesPublicadas = 0;
+  let naoPromovidos = 0;
+  let semAmbiente = 0;
+
+  for (const linha of linhas) {
+    const ultima = Number.isFinite(linha.latestVersion) ? linha.latestVersion : 0;
+    revisoesPublicadas += ultima;
+
+    const labels = Array.isArray(linha.labels) ? linha.labels : [];
+    for (const l of labels) ambientes.add(l.label);
+    if (labels.length === 0) semAmbiente += 1;
+    if (ultima > maiorVersaoServida(labels)) naoPromovidos += 1;
+  }
+
+  return {
+    prompts: linhas.length,
+    revisoesPublicadas,
+    ambientes: ambientes.size,
+    naoPromovidos,
+    semAmbiente,
+    parcial: temContinuacao,
+  };
+}
+
 /** Uma revisão como o serviço a devolve (`/revisions`) — inclui o `content` integral. */
 export interface Revision {
   readonly version: number;

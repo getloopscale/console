@@ -181,6 +181,9 @@ const LensOverviewPage = lazy(() =>
 const LensTracesPage = lazy(() =>
   import('@/pages/lens/traces').then((m) => ({ default: m.LensTracesPage })),
 );
+const LensUsageByUserPage = lazy(() =>
+  import('@/pages/lens/usage-by-user').then((m) => ({ default: m.LensUsageByUserPage })),
+);
 const LensSessionsPage = lazy(() =>
   import('@/pages/lens/sessions').then((m) => ({ default: m.LensSessionsPage })),
 );
@@ -524,6 +527,10 @@ export default function App() {
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />
                     <Route path="/observability/sessions" element={<Boundaried path="/observability/sessions"><LensSessionsPage /></Boundaried>} />
+                    {/* M142 — consumo por end-user. O path é IDÊNTICO ao declarado em LENS_CAPABILITIES;
+                        o e2e derivado do registro navega até aqui pelo menu e fica vermelho se divergir.
+                        Verificado por mutação: removida esta linha, o e2e falha na asserção do heading. */}
+                    <Route path="/observability/usage-by-user" element={<Boundaried path="/observability/usage-by-user"><LensUsageByUserPage /></Boundaried>} />
                     {/* M9 — session detail: aggregate metrics + temporal replay for one session. */}
                     <Route path="/observability/sessions/:sessionId" element={<Boundaried path="/observability/sessions/:sessionId"><LensSessionDetailPage /></Boundaried>} />
                     <Route path="/observability/datasets" element={<Boundaried path="/observability/datasets"><LensDatasetsPage /></Boundaried>} />

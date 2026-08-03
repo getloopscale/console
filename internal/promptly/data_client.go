@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -55,9 +56,52 @@ func (c *DataClient) WithKeyResolver(r func(ctx context.Context) (string, error)
 	return c
 }
 
+// relNextRE casa o marcador de continuacao da RFC 5988 em suas tres grafias validas.
+//
+// A RFC permite o valor com aspas duplas, simples ou SEM aspas. Nos emitimos com duplas
+// (`app.ts:594`), mas um proxy que normalize o header pode reescreve-lo — e uma leitura literal de
+// `rel="next"` devolveria "sem continuacao" sobre um catalogo truncado, produzindo um TOTAL FALSO
+// no painel. O `\b` final impede que `rel=nextpage` case.
+var linkNextRE = regexp.MustCompile(`(?i)<([^>]*)>\s*;[^,]*\brel\s*=\s*(?:"next"|'next'|next\b)`)
+
+// proximaPaginaQuery le o sinal de continuacao do header RFC-5988 e devolve a QUERY da proxima
+// pagina ("" quando nao ha).
+//
+// Devolve a query, e nao um booleano, porque o BFF precisa PUBLICAR um Link utilizavel e o cursor
+// e uma decisao do servico (keyset por nome). Re-deriva-lo do corpo duplicaria essa regra de
+// negocio no plano de controle, e a copia erraria em silencio no dia em que o servico mudasse a
+// ordenacao. O booleano continua disponivel — e `query != ""`.
+//
+// POR QUE NAO `len(linhas) == limit`: o servico devolve no maximo `limit` linhas (ele pede limit+1
+// internamente e corta), entao um catalogo de EXATAMENTE `limit` prompts satisfaz a heuristica sem
+// ter proxima pagina. Marcar esse caso de parcial ensina o operador a desconfiar de um numero
+// correto — pior do que nao marcar. A decisao vem do servico, nunca do tamanho da pagina.
+//
+// POR QUE NAO uma lib de parse RFC-5988: nos somos quem emite o header e o formato e unico
+// (Regra 9 / parsimony ladder rung 5 — a lib resolveria um caso que nao temos). Se algum dia
+// consumirmos `Link` de terceiro, a lib entra.
+func proximaPaginaQuery(h http.Header) string {
+	for _, v := range h.Values("Link") {
+		m := linkNextRE.FindStringSubmatch(v)
+		if m == nil {
+			continue
+		}
+		// O alvo do Link e sempre um caminho DESTE servico; interessa so a query, porque o
+		// caminho publicado ao navegador e o do BFF, nao o do servico (EC-1).
+		if i := strings.IndexByte(m[1], '?'); i >= 0 {
+			return m[1][i+1:]
+		}
+		return "" // ha continuacao mas sem cursor: nao ha proxima pagina enderecavel
+	}
+	return ""
+}
+
 // Catalog devolve a pagina do catalogo do inquilino (`GET /prompts`) — uma linha por nome, sem o
-// conteudo dos prompts.
-func (c *DataClient) Catalog(ctx context.Context, limit int, after string) (json.RawMessage, error) {
+// conteudo dos prompts — e a QUERY da proxima pagina ("" quando a pagina e a ultima).
+//
+// O segundo retorno existe porque, sem ele, toda contagem derivada desta pagina seria um limite
+// inferior apresentado como total. O sinal chegava ao BFF e morria aqui (M13).
+func (c *DataClient) Catalog(ctx context.Context, limit int, after string) (json.RawMessage, string, error) {
 	q := url.Values{}
 	if limit > 0 {
 		q.Set("limit", strconv.Itoa(limit))
@@ -65,12 +109,17 @@ func (c *DataClient) Catalog(ctx context.Context, limit int, after string) (json
 	if after != "" {
 		q.Set("after", after)
 	}
-	return c.getRaw(ctx, "/prompts", q)
+	body, hdr, err := c.getRaw(ctx, "/prompts", q)
+	if err != nil {
+		return nil, "", err
+	}
+	return body, proximaPaginaQuery(hdr), nil
 }
 
 // Prompt resolve um prompt pelo nome (`GET /prompts/:name`) — a ultima revisao.
 func (c *DataClient) Prompt(ctx context.Context, name string) (json.RawMessage, error) {
-	return c.getRaw(ctx, "/prompts/"+url.PathEscape(name), nil)
+	body, _, err := c.getRaw(ctx, "/prompts/"+url.PathEscape(name), nil)
+	return body, err
 }
 
 // Revisions lista as revisoes de um prompt (`GET /prompts/:name/revisions`).
@@ -86,7 +135,8 @@ func (c *DataClient) Revisions(ctx context.Context, name string, limit, after in
 	if after > 0 {
 		q.Set("after", strconv.Itoa(after))
 	}
-	return c.getRaw(ctx, "/prompts/"+url.PathEscape(name)+"/revisions", q)
+	body, _, err := c.getRaw(ctx, "/prompts/"+url.PathEscape(name)+"/revisions", q)
+	return body, err
 }
 
 // Labels lista os labels de ambiente e a revisao que cada um serve (`GET /prompts/:name/labels`).
@@ -94,7 +144,8 @@ func (c *DataClient) Revisions(ctx context.Context, name string, limit, after in
 // E o dado que a confirmacao da promocao consome: para dizer "prod deixa de servir a v4" e preciso
 // saber que hoje `prod` aponta para 4 — e este e o unico lugar que responde isso.
 func (c *DataClient) Labels(ctx context.Context, name string) (json.RawMessage, error) {
-	return c.getRaw(ctx, "/prompts/"+url.PathEscape(name)+"/labels", nil)
+	body, _, err := c.getRaw(ctx, "/prompts/"+url.PathEscape(name)+"/labels", nil)
+	return body, err
 }
 
 // Policy le a politica que GOVERNA a promocao de um label (`GET /prompts/:name/policies/:label`).
@@ -103,19 +154,23 @@ func (c *DataClient) Labels(ctx context.Context, name string) (json.RawMessage, 
 // pela recusa — e `404 policy_not_found` (promocao livre) chega como erro tipado, distinto de
 // "nao consegui ler", que renderiza diferente.
 func (c *DataClient) Policy(ctx context.Context, name, label string) (json.RawMessage, error) {
-	return c.getRaw(ctx, "/prompts/"+url.PathEscape(name)+"/policies/"+url.PathEscape(label), nil)
+	body, _, err := c.getRaw(ctx, "/prompts/"+url.PathEscape(name)+"/policies/"+url.PathEscape(label), nil)
+	return body, err
 }
 
-func (c *DataClient) getRaw(ctx context.Context, path string, q url.Values) (json.RawMessage, error) {
+// getRaw devolve corpo E headers. Os headers viajam porque a resposta do upstream carrega
+// informacao de produto neles (o `Link` de continuacao); descarta-los aqui foi o que fez o sinal
+// morrer antes de qualquer decisao. Chamadores que nao precisam deles usam `_`.
+func (c *DataClient) getRaw(ctx context.Context, path string, q url.Values) (json.RawMessage, http.Header, error) {
 	// Fail-closed ANTES de qualquer I/O: a requisicao sem credencial de inquilino nao chega a
 	// existir. Devolver o 401 do upstream mandaria o operador investigar autenticacao quando o
 	// defeito e de fiacao.
 	if c.keyResolver == nil {
-		return nil, fmt.Errorf("promptly data client: no key resolver wired (misconfiguration)")
+		return nil, nil, fmt.Errorf("promptly data client: no key resolver wired (misconfiguration)")
 	}
 	bearer, err := c.keyResolver(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("promptly data client: resolve per-tenant key: %w", err)
+		return nil, nil, fmt.Errorf("promptly data client: resolve per-tenant key: %w", err)
 	}
 
 	u := c.baseURL + path
@@ -124,7 +179,7 @@ func (c *DataClient) getRaw(ctx context.Context, path string, q url.Values) (jso
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return nil, fmt.Errorf("promptly data client: build request: %w", err)
+		return nil, nil, fmt.Errorf("promptly data client: build request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+bearer)
 	req.Header.Set("Accept", "application/json")
@@ -132,21 +187,21 @@ func (c *DataClient) getRaw(ctx context.Context, path string, q url.Values) (jso
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		// O bearer nunca entra em mensagem nenhuma desta funcao; o caminho sim, e e util.
-		return nil, fmt.Errorf("promptly data client: GET %s: %w", path, err)
+		return nil, nil, fmt.Errorf("promptly data client: GET %s: %w", path, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if err != nil {
-		return nil, fmt.Errorf("promptly data client: read %s: %w", path, err)
+		return nil, nil, fmt.Errorf("promptly data client: read %s: %w", path, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, &UpstreamError{
+		return nil, nil, &UpstreamError{
 			Status: resp.StatusCode,
 			Body:   json.RawMessage(body),
 			Method: http.MethodGet,
 			Path:   path,
 		}
 	}
-	return json.RawMessage(body), nil
+	return json.RawMessage(body), resp.Header, nil
 }

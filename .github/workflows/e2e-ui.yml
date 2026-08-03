@@ -39,6 +39,13 @@
 # `promptly-journey-live` fica fora por outra razão: aponta para a instância implantada e exige
 # credencial — é trabalho separado. Ele aparece "ok" na suíte por se auto-pular, não por passar.
 #
+# `usage-by-user` (M142) ENTROU no mesmo commit que o criou, e a razão é a lição do próprio
+# milestone. `observability-screens` já estava aqui e ficava VERDE sobre a tela mostrando "Não foi
+# possível carregar o consumo" — porque afirma heading, não conteúdo. Deixar o spec que afirma
+# conteúdo fora desta lista reproduziria o defeito num andar acima: o portão existiria no repo e
+# não gatearia nada. Medido verde localmente (chromium) em 5 execuções ao longo da campanha de
+# mutação, inclusive vermelho pelas razões certas nas 4 mutações aplicadas.
+#
 # ENTRARAM DEPOIS (todos em 2026-08-02, com a razão de cada um):
 #
 #   • `a11y` — asserções posicionais/por substring casavam o elemento errado; uma delas reprovava
@@ -144,6 +151,7 @@ jobs:
             e2e/a11y.spec.ts \
             e2e/deploy-timeline.spec.ts \
             e2e/observability-screens.spec.ts \
+            e2e/usage-by-user.spec.ts \
             e2e/j10-environments.spec.ts \
             e2e/recovery.spec.ts \
             e2e/journeys.spec.ts \
