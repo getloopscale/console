@@ -153,3 +153,35 @@ export function rollbackPrompt<T>(name: string, toVersion: number, label?: strin
     { throwOnError: true },
   );
 }
+
+/**
+ * M14 — roda o prompt UMA vez contra o modelo, com a credencial do operador.
+ *
+ * A credencial viaja no corpo e em mais lugar nenhum: não vai para query string
+ * (ficaria no histórico do navegador e no log de acesso), não vai para header
+ * customizado, não é guardada. Ela existe pelo tempo desta chamada.
+ *
+ * `content` também vai no corpo, e não é redundância: a tela edita o texto antes
+ * de salvar, e rodar o que está no banco enquanto o operador edita outro
+ * produziria uma revisão que ninguém testou.
+ *
+ * `throwOnError` como as oito irmãs — a recusa tipada (`422 model_refused` com o
+ * status do provider, `400 missing_variable` com o nome do campo) precisa chegar
+ * como `ApiError` para `classificarFalha` poder lê-la.
+ */
+export function runPlayground<T>(
+  name: string,
+  content: string,
+  variables: Record<string, string>,
+  credential: string,
+): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/playground`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential, content, variables }),
+    },
+    { throwOnError: true },
+  );
+}

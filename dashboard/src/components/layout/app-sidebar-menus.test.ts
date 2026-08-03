@@ -51,3 +51,31 @@ describe('resolveActiveMenu', () => {
     expect(resolveActiveMenu('/promptlyfoo')).not.toEqual({ id: 'promptly' });
   });
 });
+
+/**
+ * M14 — o playground fica DENTRO da capacidade, e o submenu tem de saber disso.
+ *
+ * Não há item de menu para o playground de propósito: ele é sempre de UM prompt,
+ * e um item levaria a uma tela que não sabe de qual. O que precisa continuar
+ * verdadeiro é o realce — entrar no playground não pode "sair" da capacidade aos
+ * olhos de quem navega.
+ */
+describe('resolveActiveMenu — o playground do M14', () => {
+  it('mantem o submenu promptly ativo dentro do playground de um prompt', () => {
+    expect(resolveActiveMenu('/promptly/saudacao/playground')).toEqual({ id: 'promptly' });
+  });
+
+  /**
+   * Restrito ao promptly de propósito: o `memory` TEM um playground de menu, e ele
+   * é legítimo — aquele não é de um recurso específico. A primeira versão desta
+   * asserção varria todos os menus e reprovou por causa dele, o que foi o teste
+   * corrigindo a asserção em vez do código.
+   */
+  it('o submenu promptly nao lista playground — seria um item levando a uma tela sem prompt', () => {
+    const promptly = MENUS.promptly;
+    const itens = (promptly?.groups ?? []).flatMap((g) => g.items ?? []);
+    expect(itens.map((i) => i.path).filter((p) => p?.includes('/playground'))).toEqual([]);
+    // Anti-verde-vazio: se a leitura da estrutura quebrar, o filtro devolveria [] sem discriminar.
+    expect(itens.length).toBeGreaterThanOrEqual(3);
+  });
+});
