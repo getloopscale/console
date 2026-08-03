@@ -420,6 +420,23 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     expect(legendaDe(tokens!)).not.toContain('user-caro');
   });
 
+  /**
+   * Decisão do owner (2026-08-03): o gráfico vem LOGO ACIMA da tabela.
+   *
+   * O plano tinha decidido o contrário e o revisor de dataviz concordou — mas com até 50 linhas na
+   * tabela o gráfico nascia muito abaixo da dobra e podia nunca ser visto. Sem esta asserção a ordem
+   * volta em silêncio no próximo refactor, que é a lição que este milestone pagou várias vezes.
+   */
+  it('o gráfico vem ANTES da tabela no documento', async () => {
+    mockCloudFetch.mockResolvedValue(COM_SERIE);
+    render(<LensUsageByUserPage />);
+    const grafico = (await screen.findAllByTestId('usage-chart'))[0]!;
+    const tabela = screen.getAllByRole('table').find((t) => t.closest('[data-slot="trend-chart"]') === null);
+    expect(tabela).toBeDefined();
+    // DOCUMENT_POSITION_FOLLOWING = a tabela vem DEPOIS do gráfico.
+    expect(grafico.compareDocumentPosition(tabela!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('fora da primeira página o título NÃO diz "maiores" sem qualificar', async () => {
     mockCloudFetch.mockResolvedValue({ ...COM_SERIE, totalUsers: 120 });
     render(<LensUsageByUserPage />);

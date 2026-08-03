@@ -56,8 +56,15 @@ test.describe('M142 — o consumo por end-user alcançado pelo produto', () => {
     // …e a lacuna de preço declarada NA TELA (DoD-3 pelo lado do navegador, não só do jsdom).
     await expect(page.getByTestId('usage-unpriced-notice')).toBeVisible();
 
-    // O balde não-atribuído é linha ordinária, com rótulo (DoD-4).
-    await expect(page.getByText(/não atribuído/i).first()).toBeVisible();
+    // O balde não-atribuído é linha ordinária da TABELA, com rótulo (DoD-4 do M142).
+    // Escopado à tabela de propósito: o gráfico também nomeia a série "Não atribuído", num
+    // `<title>` de SVG que é invisível por definição. Um `.first()` na página inteira passou a casar
+    // com ele quando o gráfico subiu para cima da tabela — a asserção era dependente de ordem, e
+    // afirmar "existe em algum lugar" nunca foi o que este critério pede.
+    await expect(
+      page.locator('table').filter({ hasNot: page.locator('[data-slot="trend-chart"]') })
+        .getByText(/não atribuído/i).first(),
+    ).toBeVisible();
 
     // M144 — o GRÁFICO, e a lacuna nele. DUAS afirmações, porque a primeira sozinha mente.
     const graficos = page.getByTestId('usage-chart');
