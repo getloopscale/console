@@ -55,6 +55,7 @@ import { registerRoute } from './server';
 
 import { registerSSE } from './sse';
 import { registerTrustHandlers } from './trust-handlers';
+import { registerLensHandlers } from './lens-handlers';
 import { registerSkillsHandlers } from './skills-handlers';
 import { registerPromptlyHandlers } from './promptly-handlers';
 
@@ -777,6 +778,9 @@ export function registerAllMockHandlers(): void {
   registerSkillsHandlers();
   // M25 — idem para a jornada de prompts (catálogo → detalhe → promoção).
   registerPromptlyHandlers();
+  // M142 — sem este registro a tela de consumo por end-user sobe VAZIA no e2e, e um portão que
+  // só afirma heading fica verde nela.
+  registerLensHandlers();
 }
 
 /** Test-only: reset the in-memory DB to initial fixture state. */

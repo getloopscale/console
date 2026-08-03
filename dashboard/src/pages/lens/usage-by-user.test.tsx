@@ -39,7 +39,15 @@ const RESPOSTA_REAL = {
 };
 
 describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // A janela vive na URL (`useQueryState`), e o jsdom compartilha `window.location` entre casos
+    // do mesmo arquivo. Sem este reset, um teste que seleciona `days=7` faz o SEGUINTE começar já
+    // em 7 — selecionar 7 vira no-op, nenhuma busca nova acontece e o teste falha por dependência
+    // de ordem, não por defeito. Medido ao acrescentar os casos de paginação; é exatamente o que
+    // `testing.md § 3` proíbe ("nenhum estado mutável compartilhado, nenhuma ordem importa").
+    window.history.replaceState(null, '', '/observability/usage-by-user');
+  });
 
   // DoD-2 — o e2e derivado do registro prova que a tela MONTA (heading, sem error boundary). Uma
   // tabela vazia por erro de mapeamento de campo passaria por ele. Este teste é o que afirma
@@ -50,6 +58,10 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
 
     // contagem de spans, agrupada
     expect(await screen.findByText('49,373')).toBeInTheDocument();
+    // A coluna Tokens soma entrada + saída. Medido por mutação: contar só `inputTokens` deixava
+    // TODOS os testes verdes e subnotificava o maior consumidor em 12,6 milhões de tokens
+    // (3.261.202 em vez de 15.851.609 — perda de ~79%). Nenhuma asserção olhava esta coluna.
+    expect(screen.getByText('15,851,609')).toBeInTheDocument();
     // custo com 2 casas acima de 1¢
     expect(screen.getByText('$4179.48')).toBeInTheDocument();
     expect(screen.getByText('$0.03')).toBeInTheDocument();
@@ -67,8 +79,17 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     render(<LensUsageByUserPage />);
     const aviso = await screen.findByTestId('usage-unpriced-notice');
     expect(aviso).toHaveTextContent('17');
-    // não basta mostrar o número: tem de dizer o que ele significa para o custo
-    expect(aviso.textContent ?? '').toMatch(/maior|menor|incomplet/i);
+
+    // O SENTIDO, não só a presença. A asserção anterior era `/maior|menor|incomplet/i` — uma
+    // alternância que casa com AS DUAS DIREÇÕES. Medido por mutação: trocar "o custo real é MAIOR
+    // que o exibido" por "MENOR" na produção deixava este teste VERDE, e a tela passaria a dizer
+    // ao operador que ele gasta menos do que o número mostrado. Numa tela cujo número as pessoas
+    // tratam como fatura, é a pior inversão possível — e é exatamente o que `unpricedSpans`
+    // existe para impedir.
+    expect(aviso.textContent ?? '').toMatch(/maior que o exibido/i);
+    expect(aviso.textContent ?? '').not.toMatch(/menor que o exibido/i);
+    // …e o título carrega o mesmo sentido, para quem lê só ele.
+    expect(aviso.textContent ?? '').toMatch(/piso, não o total/i);
   });
 
   it('NÃO declara lacuna de preço quando não há spans sem preço', async () => {
@@ -90,6 +111,15 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     expect(linha).toHaveTextContent('11,716');
   });
 
+  // `shortId(userId, 12)` trunca para caber na coluna; o valor INTEIRO só existe no `title`. Sem
+  // ele não há como correlacionar a linha com os próprios logs — e some sem quebrar nada.
+  it('mantém o userId completo acessível, não só o truncado', async () => {
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+    const completo = RESPOSTA_REAL.users[0].userId;
+    expect(await screen.findByTitle(completo)).toBeInTheDocument();
+  });
+
   // DoD-5 — a M140 pagou para recusar com 400 tipado e a M141 para esse 400 atravessar o BFF
   // verbatim. Um "ocorreu um erro" aqui joga as duas conquistas fora no último metro.
   it('mostra a MENSAGEM do serviço quando ele recusa', async () => {
@@ -98,6 +128,10 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     );
     render(<LensUsageByUserPage />);
     expect(await screen.findByText(/limit must be at most 500/i)).toBeInTheDocument();
+    // O TÍTULO também distingue os dois casos. "O serviço recusou a sua consulta" e "o serviço
+    // está indisponível" levam a ações diferentes — corrigir o parâmetro vs esperar e tentar de
+    // novo. Medido por mutação: genericizar só o título deixava a suíte verde.
+    expect(await screen.findByText(/o serviço recusou a consulta/i)).toBeInTheDocument();
   });
 
   it('cai na cópia genérica quando o erro não traz mensagem acionável', async () => {
@@ -116,6 +150,65 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     // a cópia nomeia o pré-requisito (a identidade do end user), como a tela de Agents faz
     expect(await screen.findByText(/user\.id/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /instrument/i })).toBeInTheDocument();
+  });
+
+  /*
+   * PAGINAÇÃO — quatro mutações sobreviveram aqui, todas pelo mesmo motivo: o fixture tem
+   * `totalUsers: 4` e `PAGE_SIZE` é 50, então o paginador NUNCA renderizava em teste algum. O
+   * código existia e nunca fora exercitado.
+   *
+   * Não é detalhe de conforto. O R3 do plano — "tabela grande travando o navegador", risco
+   * escolhido explicitamente — declara como mitigação "paginação limita o DOM". Com `offset`
+   * ignorando a página, ou `pageCount` fixo em 1, a mitigação é ficção: `Próxima` devolveria a
+   * mesma página, ou o paginador nem apareceria.
+   */
+  const MUITOS = {
+    ...RESPOSTA_REAL,
+    totalUsers: 120, // 3 páginas de 50
+  };
+
+  it('pagina de verdade: o paginador aparece e a página seguinte pede o offset seguinte', async () => {
+    mockCloudFetch.mockResolvedValue(MUITOS);
+    render(<LensUsageByUserPage />);
+
+    // `pageCount` derivado de `totalUsers` — fixá-lo em 1 esconde o paginador inteiro.
+    expect(await screen.findByTestId('usage-pager')).toHaveTextContent('Página 1 / 3');
+    // e o contador diz ONDE dentro do total, não só quantos vieram.
+    expect(screen.getByTestId('usage-count')).toHaveTextContent('Mostrando 1–50 de 120');
+
+    const primeiraUrl = String(mockCloudFetch.mock.calls.at(-1)?.[0] ?? '');
+    expect(primeiraUrl).toMatch(/offset=0/);
+    // `limit` acompanha o tamanho da página. Fixá-lo em 500 desalinha os offsets e PULA linhas.
+    // O DELIMITADOR não é zelo: `/limit=50/` casa DENTRO de `limit=500` como substring, e foi
+    // assim que esta mutação sobreviveu à primeira correção — mesma família do aviso invertido,
+    // um padrão frouxo demais para distinguir o certo do errado.
+    expect(primeiraUrl).toMatch(/[?&]limit=50(?:&|$)/);
+
+    await userEvent.click(screen.getByRole('button', { name: /próxima/i }));
+
+    await vi.waitFor(() => {
+      expect(String(mockCloudFetch.mock.calls.at(-1)?.[0] ?? '')).toMatch(/offset=50/);
+    });
+    expect(await screen.findByTestId('usage-pager')).toHaveTextContent('Página 2 / 3');
+  });
+
+  it('trocar a janela volta para a primeira página', async () => {
+    mockCloudFetch.mockResolvedValue(MUITOS);
+    render(<LensUsageByUserPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /próxima/i }));
+    await vi.waitFor(() => {
+      expect(String(mockCloudFetch.mock.calls.at(-1)?.[0] ?? '')).toMatch(/offset=50/);
+    });
+
+    await userEvent.selectOptions(screen.getByLabelText(/janela|window|período|periodo/i), '7');
+
+    // Sem o reset, a janela nova é consultada a partir do offset 150 de um resultado que pode ser
+    // mais curto — e o operador troca o período para ver uma tela vazia sem entender por quê.
+    await vi.waitFor(() => {
+      const url = String(mockCloudFetch.mock.calls.at(-1)?.[0] ?? '');
+      expect(url).toMatch(/days=7/);
+      expect(url).toMatch(/offset=0/);
+    });
   });
 
   // Acceptance criterion de T1.2 — sem `days` na queryKey o cache devolve a resposta da janela
