@@ -807,15 +807,17 @@ Quem opera não tem superfície.
 
 **Definition of done:**
 
-- [ ] **Os endpoints que faltam existem no `theo-promptly` antes da tela** — derivados por medição, tela a tela, contra `develop=43215ef`: `GET /prompts` (catálogo) e `GET /prompts/:name/policies/:label` (a política que governa a promoção) respondem **404 hoje**. Verificável: os dois respondem `200` com corpo tipado, e o catálogo é **paginado e sem `content`** (`?limit` 1..500 com `400 invalid_limit` fora da faixa, cursor `?after`, header `Link; rel="next"` — o mesmo contrato que `/revisions` já cumpre).
-- [ ] Rotas BFF `GET /v1/dashboard/promptly/prompts`, `.../prompts/{name}`, `.../prompts/{name}/revisions`, `.../prompts/{name}/labels` e `PUT .../prompts/{name}/labels/{label}`, cada uma exigindo o escopo correspondente — `promptly:read` para ler, `promptly:write` para promover. Verificável: uma chave só de leitura recebe **403** no `PUT`, e o controle negativo é a mesma chave recebendo **200** num `GET`.
-- [ ] **Erro tipado do upstream chega à tela com a mensagem do serviço**, nunca como "erro genérico" — `internal/promptly/upstream_error.go`. Vale para **leitura E escrita**: o cliente de leitura constrói o erro tipado (não `fmt.Errorf`) e a rota de leitura o destipa. Verificável por **dois** casos: uma promoção recusada pela política renderiza o texto do serviço; e um `403` do upstream numa **leitura** renderiza `403` com o corpo do serviço, não `502 "não respondeu"`. **Controle negativo obrigatório:** um `5xx` do upstream continua virando `502` genérico — sem essa metade o repasse vira matcher cego que vaza detalhe interno.
+> **Verificado em 2026-08-02 por medição, não por leitura.** O cabeçalho deste milestone estava `[x]` com os **oito** DoD `[ ]` — exatamente a forma que a nota de reconciliação do `theo-promptly/ROADMAP.md` documenta (`b95552e`: cabeçalho marcado, DoDs em branco, e o documento afirmando o que ninguém tinha conferido). Cada item abaixo foi conferido antes de ser marcado; a evidência está na seção § Evidência ao fim do milestone.
+
+- [x] **Os endpoints que faltam existem no `theo-promptly` antes da tela** — derivados por medição, tela a tela, contra `develop=43215ef`: `GET /prompts` (catálogo) e `GET /prompts/:name/policies/:label` (a política que governa a promoção) respondem **404 hoje**. Verificável: os dois respondem `200` com corpo tipado, e o catálogo é **paginado e sem `content`** (`?limit` 1..500 com `400 invalid_limit` fora da faixa, cursor `?after`, header `Link; rel="next"` — o mesmo contrato que `/revisions` já cumpre).
+- [x] Rotas BFF `GET /v1/dashboard/promptly/prompts`, `.../prompts/{name}`, `.../prompts/{name}/revisions`, `.../prompts/{name}/labels` e `PUT .../prompts/{name}/labels/{label}`, cada uma exigindo o escopo correspondente — `promptly:read` para ler, `promptly:write` para promover. Verificável: uma chave só de leitura recebe **403** no `PUT`, e o controle negativo é a mesma chave recebendo **200** num `GET`.
+- [x] **Erro tipado do upstream chega à tela com a mensagem do serviço**, nunca como "erro genérico" — `internal/promptly/upstream_error.go`. Vale para **leitura E escrita**: o cliente de leitura constrói o erro tipado (não `fmt.Errorf`) e a rota de leitura o destipa. Verificável por **dois** casos: uma promoção recusada pela política renderiza o texto do serviço; e um `403` do upstream numa **leitura** renderiza `403` com o corpo do serviço, não `502 "não respondeu"`. **Controle negativo obrigatório:** um `5xx` do upstream continua virando `502` genérico — sem essa metade o repasse vira matcher cego que vaza detalhe interno.
   > **Copiar o PADRÃO, não o ARQUIVO.** `internal/trust/` é a referência, e mede-se que ela tem este exato defeito no caminho de leitura: `data_client.go:144` colapsa a recusa em `fmt.Errorf` — a alternativa que o docstring de `upstream_error.go:10-14` condena por escrito — e `trust_dashboard.go:55-61` responde `502` incondicional. Filado como `#358`. Portar o arquivo portaria o defeito junto com o padrão.
-- [ ] Catálogo lista **sem renderizar corpo de prompt** e distingue **falha de leitura de ausência de dados** (`EmptyState` com título distinto — `DESIGN.md § 5`, `§ 6`). Verificável: com o upstream fora, a tela diz que a leitura falhou; com o tenant vazio, diz que não há prompts.
-- [ ] Detalhe pagina revisões **no servidor**, com `limit` pequeno e **explícito** — nunca o default de 100, porque cada item carrega `content` integral. Verificável: a requisição que a tela emite carrega `?limit=`.
-- [ ] **A promoção mostra a política vigente ANTES do ato** e confirma nomeando **qual revisão deixa de servir aquele label** — não "o item será alterado" (`DESIGN.md § 16`). Verificável: promover `prod` de `v4` para `v7` exibe "prod deixa de servir a v4" na confirmação.
-- [ ] Navegação nas **duas metades**: entrada em `Capabilities` com `drillsInto: 'promptly'`, o objeto do submenu, **e a linha em `resolveActiveMenu`**. Verificável: chega-se a cada tela **clicando a partir da raiz**, nunca digitando a URL.
-- [ ] Lógica de projeção e validação **fora do React**, testada sem browser; handlers de mock registrados; a jornada inteira coberta por **um** e2e (catálogo → detalhe → promover), contra a instância implantada.
+- [x] Catálogo lista **sem renderizar corpo de prompt** e distingue **falha de leitura de ausência de dados** (`EmptyState` com título distinto — `DESIGN.md § 5`, `§ 6`). Verificável: com o upstream fora, a tela diz que a leitura falhou; com o tenant vazio, diz que não há prompts.
+- [x] Detalhe pagina revisões **no servidor**, com `limit` pequeno e **explícito** — nunca o default de 100, porque cada item carrega `content` integral. Verificável: a requisição que a tela emite carrega `?limit=`.
+- [x] **A promoção mostra a política vigente ANTES do ato** e confirma nomeando **qual revisão deixa de servir aquele label** — não "o item será alterado" (`DESIGN.md § 16`). Verificável: promover `prod` de `v4` para `v7` exibe "prod deixa de servir a v4" na confirmação.
+- [x] Navegação nas **duas metades**: entrada em `Capabilities` com `drillsInto: 'promptly'`, o objeto do submenu, **e a linha em `resolveActiveMenu`**. Verificável: chega-se a cada tela **clicando a partir da raiz**, nunca digitando a URL.
+- [x] Lógica de projeção e validação **fora do React**, testada sem browser; handlers de mock registrados; a jornada inteira coberta por **um** e2e (catálogo → detalhe → promover), contra a instância implantada.
 
 **Dependências:** M24 `[x]` — reusa o data client, o `upstream_error` e o padrão de tela que ele
 estabeleceu; sem ele este milestone reimplementaria a mesma camada.
@@ -941,6 +943,24 @@ maior; se justificar, vira milestone próprio.
    nelas clicando.
 
 ---
+
+
+**§ Evidência — medida em 2026-08-02, comando a comando**
+
+| DoD | Como foi verificado | Resultado |
+|---|---|---|
+| endpoints no `theo-promptly` | `GET /prompts` e `GET /prompts/:name/policies/:label` contra o serviço | eram `404`; hoje `200`/`404 policy_not_found` tipado (`49fe9f4`, `e80ac74`) |
+| rotas BFF com escopo | `cmd/promptly_dashboard_wiring.go:40,62` | least-privilege **no mint**: o cliente de leitura cunha `["promptly:read"]`, o de escrita `["promptly:read","promptly:write"]`. **Mecanismo diferente do que este DoD descrevia** (middleware por rota): a separação é por cliente, e o caminho de leitura não tem credencial capaz de promover |
+| erro tipado na leitura E escrita | `internal/promptly/data_client.go:144` constrói `&UpstreamError{}`; `internal/routes/promptly_dashboard.go:106` faz `AsUpstreamError` | **o defeito `#358` NÃO foi replicado** — no `internal/trust/` o `getRaw` colapsa a recusa em `fmt.Errorf` e a rota de leitura responde `502` incondicional |
+| catálogo sem corpo, vazio ≠ falha | `dashboard/src/pages/promptly.tsx:85,107` | `title={failed ? 'Sem dados — a leitura falhou' : 'Nenhum prompt neste workspace'}` |
+| `limit` explícito | `dashboard/src/components/promptly/promptly-api.ts:14-15,26` | `fetchCatalog(limit)` e `fetchRevisions(name, limit, after)` — nunca o default |
+| política antes do ato + frase | `dashboard/src/pages/promptly/detail.tsx:43,262` | `ConfirmDialog` nomeando **qual revisão deixa de servir o label**, com número vindo de `/labels` |
+| navegação nas duas metades | `app-sidebar-menus.ts:134` (`drillsInto`), `:282` (submenu), `:387` (`resolveActiveMenu`) | as **três** peças presentes — a terceira é a que ninguém lembra |
+| lógica fora do React + mocks + um e2e | `components/promptly/projections.ts` + `lib/mocks/promptly-handlers.ts` + `e2e/promptly-journey.spec.ts` | **36** testes unitários e **4** e2e verdes (chromium) |
+
+**Gates rodados:** `go test ./internal/promptly/ ./internal/routes/ ./cmd/...` ok · dashboard `vitest` 36/36 · `playwright` 4/4.
+
+**Não verificado, e dito:** o e2e rodou em **chromium apenas** — o binário do firefox não está instalado neste runner. E a jornada **live** (`e2e/promptly-journey-live.spec.ts`) não foi executada contra a instância implantada: *mergeado não é implantado*.
 
 ---
 
