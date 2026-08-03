@@ -69,7 +69,32 @@ export function registerPromptlyHandlers() {
 function registerPromptlyRoutes(base: string) {
   // O índice: uma linha por nome, SEM `content` — o mesmo contrato do serviço. Devolver o corpo
   // aqui faria o mock ser mais permissivo que a produção, e o e2e passaria numa tela que quebra.
-  registerRoute('GET', `${base}/prompts`, async () => Response.json(promptlyDb.catalog));
+  /**
+   * M13 — o catálogo honra `?limit` e SINALIZA continuação como o serviço real.
+   *
+   * O mock devolvia a lista inteira e nenhum header. Sob ele, o painel jamais renderizaria a marca
+   * de parcialidade — e um e2e verde afirmaria uma jornada que o produto real não cumpre. O
+   * cenário de continuação existe aqui para que o caminho seja EXERCITÁVEL, não presumido.
+   *
+   * O `Link` aponta para a rota do BFF (`/v1/dashboard/promptly/prompts`), não para a do serviço:
+   * é o que o handler real faz desde o EC-1, e um mock que publicasse o caminho do serviço
+   * validaria a versão errada do contrato.
+   */
+  registerRoute('GET', `${base}/prompts`, async (req) => {
+    const url = new URL(req.url, 'http://localhost');
+    const bruto = url.searchParams.get('limit');
+    const limit = bruto !== null && Number.isInteger(Number(bruto)) && Number(bruto) > 0 ? Number(bruto) : 100;
+
+    const pagina = promptlyDb.catalog.slice(0, limit);
+    const temMais = promptlyDb.catalog.length > limit;
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (temMais && pagina.length > 0) {
+      const cursor = encodeURIComponent(pagina[pagina.length - 1]!.name);
+      headers.Link = `<${base}/prompts?after=${cursor}&limit=${String(limit)}>; rel="next"`;
+    }
+    return new Response(JSON.stringify(pagina), { status: 200, headers });
+  });
 
   // O prompt resolvido — a tela o usa para saber qual é a ÚLTIMA revisão antes de pedir a janela.
   registerRoute('GET', `${base}/prompts/{name}`, async (_req, { name }) => {

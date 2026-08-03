@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Added
+
+- **o promptly ganhou painel, e ele se recusa a afirmar um total que não conhece** (theo-promptly M13). `/promptly` era uma tabela rotulada `Overview` no menu — o rótulo prometia painel e entregava lista, enquanto memory, rag e lens abrem em painel com a lista um nível abaixo. Agora a raiz responde a pergunta que a lista não responde: **"o que eu escrevi e ainda não está no ar?"**, com dois números derivados do catálogo que a tela já buscava — prompts cuja última revisão nenhum ambiente serve, e prompts nunca promovidos. A lista foi para `/promptly/catalogo`, com busca e o atalho para comparar revisões em cada linha; **nenhum endereço que já circulava deixou de resolver**. **A honestidade dos números é o contrato da tela, e ela custou uma correção no BFF:** o serviço já sinalizava continuação de página por header RFC-5988 e o plano de controle descartava o header, então qualquer contagem teria sido um limite inferior exibido como total — agora o sinal atravessa, e com continuação a tela **diz que os valores são mínimos**. Um catálogo cheio *sem* continuação continua sendo total, porque marcar de parcial um número correto ensina o operador a desconfiar dele. A busca criou um terceiro estado vazio e ele ganhou saída própria: **filtro sem resultado não diz que o workspace está vazio** nem oferece "crie o primeiro prompt" — oferece limpar o filtro (#m13)
+
+### Fixed
+
+- **o submenu de uma capacidade podia acender na rota de outra.** `resolveActiveMenu` comparava o caminho por prefixo simples, então `/promptlyfoo` ativava o submenu de Prompts. Não havia rota assim, e o arquivo — o mesmo que já custou quatro telas invisíveis no `theo-trust` — não tinha teste algum. Agora tem, e a comparação respeita a fronteira do segmento (#m13)
+
 ## [0.75.0] - 2026-08-03
 
 ### Added
