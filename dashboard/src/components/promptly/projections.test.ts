@@ -7,6 +7,8 @@ import {
   labelRows,
   promotionConsequence,
   policySummary,
+  resumoCatalogo,
+  type CatalogRow,
 } from './projections';
 
 /**
@@ -167,5 +169,79 @@ describe('policySummary', () => {
 
     expect(resumo.livre).toBe(true);
     expect(resumo.texto).toMatch(/livre|nenhuma regra/i);
+  });
+});
+
+/**
+ * M13 — o resumo do catálogo, e a honestidade sobre o que ele NÃO sabe.
+ *
+ * O painel derive seus números desta função. O caso que decide o milestone é o controle negativo
+ * de parcialidade: um catálogo de EXATAMENTE `limit` prompts, sem continuação, não pode ser
+ * marcado parcial — é o falso positivo que a heurística `linhas.length >= limit` produziria, e
+ * marcar de parcial um número correto ensina o operador a desconfiar dele.
+ */
+describe('resumoCatalogo', () => {
+  const linha = (over: Partial<CatalogRow> = {}): CatalogRow =>
+    ({ name: 'a', latestVersion: 1, labels: [], updatedAt: '', labelsResumo: 'nenhum', ...over }) as CatalogRow;
+
+  it('conta prompt com revisão nova que nenhum label serve', () => {
+    const r = resumoCatalogo([linha({ latestVersion: 4, labels: [{ label: 'prod', version: 3 }] })], false);
+    expect(r.naoPromovidos).toBe(1);
+  });
+
+  // O PAR QUE DISCRIMINA do KPI: mesma forma, decisão oposta.
+  it('não conta prompt cuja última revisão já serve', () => {
+    const r = resumoCatalogo([linha({ latestVersion: 3, labels: [{ label: 'prod', version: 3 }] })], false);
+    expect(r.naoPromovidos).toBe(0);
+  });
+
+  it('conta prompt sem label algum como sem ambiente E como não promovido', () => {
+    const r = resumoCatalogo([linha({ latestVersion: 1, labels: [] })], false);
+    expect(r.semAmbiente).toBe(1);
+    expect(r.naoPromovidos).toBe(1);
+  });
+
+  it('marca parcial quando o serviço sinaliza continuação', () => {
+    const r = resumoCatalogo([linha(), linha({ name: 'b' })], true);
+    expect(r.parcial).toBe(true);
+  });
+
+  // O CONTROLE NEGATIVO DO MILESTONE — impede `parcial = linhas.length >= PAGE_LIMIT`.
+  it('NÃO marca parcial num catálogo cheio sem continuação', () => {
+    const cheio = Array.from({ length: 100 }, (_, i) => linha({ name: `p${String(i)}` }));
+    const r = resumoCatalogo(cheio, false);
+    expect(r.parcial).toBe(false);
+    expect(r.prompts).toBe(100);
+  });
+
+  it('resumo de catálogo vazio é zerado e não parcial', () => {
+    const r = resumoCatalogo([], false);
+    expect(r.prompts).toBe(0);
+    expect(r.parcial).toBe(false);
+    expect(r.revisoesPublicadas).toBe(0);
+  });
+
+  // EC-5 — dado parcial vira NaN silencioso: Math.max() de lista vazia é -Infinity e somar
+  // undefined dá NaN. Números errados exibidos com a mesma confiança dos certos.
+  it('trata linha sem labels como sem ambiente, sem produzir NaN', () => {
+    const r = resumoCatalogo([{ name: 'a', latestVersion: 1 } as unknown as CatalogRow], false);
+    expect(r.semAmbiente).toBe(1);
+    expect(Number.isFinite(r.revisoesPublicadas)).toBe(true);
+  });
+
+  it('ignora linha sem latestVersion em vez de contar NaN', () => {
+    const r = resumoCatalogo([{ name: 'a', labels: [] } as unknown as CatalogRow], false);
+    expect(Number.isNaN(r.revisoesPublicadas)).toBe(false);
+  });
+
+  // EC-6 — trava a DEFINIÇÃO ("escrita e não serve ninguém") contra a leitura vizinha
+  // ("atrasada em prod"), que é outra métrica e não entra neste milestone.
+  it('não conta como não promovido quando a última revisão serve algum ambiente', () => {
+    const r = resumoCatalogo(
+      [linha({ latestVersion: 3, labels: [{ label: 'prod', version: 2 }, { label: 'staging', version: 3 }] })],
+      false,
+    );
+    expect(r.naoPromovidos).toBe(0);
+    expect(r.ambientes).toBe(2);
   });
 });
