@@ -15,7 +15,7 @@ vi.mock('@/lib/api', async () => {
 // primeira rodada — quatro casos vermelhos por um erro meu de instrumentação, não de produto.
 import { ApiError } from '@/lib/api';
 
-import { LensUsageByUserPage } from './usage-by-user';
+import { cabeSerie, LensUsageByUserPage } from './usage-by-user';
 
 /** A resposta do BFF com os números REAIS medidos no app-dev em 2026-08-03. */
 const RESPOSTA_REAL = {
@@ -40,7 +40,9 @@ const RESPOSTA_REAL = {
 
 describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // `clearAllMocks` limpa CHAMADAS, não a implementação: um caso sem `mockResolvedValue`
+    // herdaria em silêncio o fixture do vizinho. `reset` faz esse caso falhar alto.
+    vi.resetAllMocks();
     // A janela vive na URL (`useQueryState`), e o jsdom compartilha `window.location` entre casos
     // do mesmo arquivo. Sem este reset, um teste que seleciona `days=7` faz o SEGUINTE começar já
     // em 7 — selecionar 7 vira no-op, nenhuma busca nova acontece e o teste falha por dependência
@@ -263,6 +265,217 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     render(<LensUsageByUserPage />);
     await screen.findByText(/days must be at most 365/i);
     expect(screen.queryByTestId('usage-kpis')).not.toBeInTheDocument();
+  });
+
+  /*
+   * M144 — OS DOIS GRÁFICOS.
+   *
+   * A série do M143 vem esparsa: um dia sem consumo não produz ponto. O `seriesPath` do
+   * `@usetheo/ui@0.32.0` quebra a linha onde encontra `y` não-finito, e `densificar` é quem põe o
+   * não-finito lá. O que estes casos protegem é essa cadeia inteira ponta a ponta.
+   */
+  const COM_SERIE = {
+    ...RESPOSTA_REAL,
+    users: [
+      {
+        ...RESPOSTA_REAL.users[0],
+        series: [
+          { periodStart: '2026-07-20T00:00:00.000Z', inputTokens: 100, outputTokens: 40, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 1.5 },
+          // 21 AUSENTE — a lacuna
+          { periodStart: '2026-07-22T00:00:00.000Z', inputTokens: 300, outputTokens: 60, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 2.5 },
+        ],
+      },
+      {
+        ...RESPOSTA_REAL.users[1],
+        series: [
+          { periodStart: '2026-07-20T00:00:00.000Z', inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 0.1 },
+          { periodStart: '2026-07-21T00:00:00.000Z', inputTokens: 20, outputTokens: 6, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 0.2 },
+          { periodStart: '2026-07-22T00:00:00.000Z', inputTokens: 30, outputTokens: 7, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 0.3 },
+        ],
+      },
+    ],
+  };
+
+  it('renderiza DOIS gráficos, com uma linha por usuário', async () => {
+    mockCloudFetch.mockResolvedValue(COM_SERIE);
+    render(<LensUsageByUserPage />);
+    const graficos = await screen.findAllByTestId('usage-chart');
+    expect(graficos).toHaveLength(2);
+    for (const g of graficos) {
+      expect(g.querySelectorAll('[data-slot="trend-chart-line"]')).toHaveLength(2);
+    }
+    // …e plotam COISAS DIFERENTES. Contar dois Cards não distingue dois gráficos de um gráfico
+    // duplicado: medido por mutação, trocar o título do segundo pelo do primeiro passava verde.
+    const titulos = graficos.map((g) => g.querySelector('figcaption')?.textContent ?? '');
+    expect(titulos[0]).toMatch(/custo/i);
+    expect(titulos[1]).toMatch(/tokens/i);
+    expect(titulos[0]).not.toBe(titulos[1]);
+
+    // …e o DADO tem de bater com o título, não só o título. Este repositório já pagou por isso:
+    // o #178 registra o widget "Tokens by model" roteando por `costByModelSeries` e plotando
+    // DÓLARES sob um rótulo de tokens. Comparar títulos não pega isso; comparar o que foi
+    // desenhado, sim.
+    const custo = graficos[0]?.textContent ?? '';
+    const tokens = graficos[1]?.textContent ?? '';
+    expect(custo).toMatch(/\$/); // o eixo de custo formata em dólar
+    expect(tokens).not.toMatch(/\$/); // o de tokens, não
+    // e as geometrias diferem — custo (1.5→2.5) e tokens (140→360) normalizam diferente
+    const dDe = (g: Element) => g.querySelector('[data-slot="trend-chart-line"]')?.getAttribute('d') ?? '';
+    expect(dDe(graficos[0]!)).not.toBe(dDe(graficos[1]!));
+    // …e o VALOR. Sem isto a mutação `serieDe('tokens')` -> `serieDe('inputTokens')` sobrevive:
+    // 300 e 360 desenham geometrias diferentes mas ambas passam nas asserções acima. 360 = 300+60.
+    // …e o VALOR. Sem isto a mutação `serieDe('tokens')` -> `serieDe('inputTokens')` sobrevive: 300
+    // e 360 desenham geometrias diferentes e ambas passam nas asserções acima. 360 = 300 + 60, a
+    // soma que a coluna da tabela mostra. A célula, e não o `textContent`: no texto concatenado da
+    // tabela acessível "360" fica colado nos vizinhos (`193603720`) e casaria por acidente.
+    const celulas = [...graficos[1]!.querySelectorAll('[data-slot="trend-chart-table"] td')].map(
+      (c) => c.textContent,
+    );
+    expect(celulas).toContain('360');
+    expect(celulas).not.toContain('300');
+  });
+
+  // G6 do review interno: com as janelas ofertadas o `+1` do orçamento nunca muda classificação —
+  // a fronteira só difere em 39 × 40 dias, que a UI não oferece. Testada direto.
+  it('cabeSerie respeita o dia extra da janela rolante, na fronteira', () => {
+    // A ponta de BAIXO: `days` vem da URL sem validação, e `?days=0` passava no teto (50 pontos),
+    // pedia bucket, e um piso do serviço derrubaria a tabela junto.
+    expect(cabeSerie(0)).toBe(false);
+    expect(cabeSerie(-1)).toBe(false);
+    expect(cabeSerie(7)).toBe(true);
+    expect(cabeSerie(30)).toBe(true);
+    expect(cabeSerie(39)).toBe(true); // (39+1) × 50 = 2000, inclusive
+    expect(cabeSerie(40)).toBe(false); // (40+1) × 50 = 2050 — sem o `+1` daria 2000 e passaria
+    expect(cabeSerie(90)).toBe(false);
+    expect(cabeSerie(365)).toBe(false);
+  });
+
+  // O CORAÇÃO DO MILESTONE. Ligar por cima afirmaria continuidade que o dado não tem, e desenhar
+  // zero seria indistinguível de consumo real zero — a mentira que o M143 pagou para evitar ao
+  // devolver a série com lacuna em vez de zeros.
+  it('a linha QUEBRA no dia sem consumo — dois subcaminhos, não um contínuo', async () => {
+    mockCloudFetch.mockResolvedValue(COM_SERIE);
+    render(<LensUsageByUserPage />);
+    const grafico = (await screen.findAllByTestId('usage-chart'))[0];
+    const linhas = grafico.querySelectorAll('[data-slot="trend-chart-line"]');
+    const comLacuna = linhas[0]?.getAttribute('d') ?? '';
+    // dois `M` = dois subcaminhos = a linha quebrou
+    expect(comLacuna.split('M')).toHaveLength(3);
+    // e o usuário SEM lacuna segue com um subcaminho só
+    expect((linhas[1]?.getAttribute('d') ?? '').split('M')).toHaveLength(2);
+  });
+
+  const legendaDe = (g: Element): string[] =>
+    [...g.querySelectorAll('[data-slot="trend-chart-legend"] *')]
+      .map((n) => n.textContent ?? '')
+      .filter((t) => t.startsWith('user-'));
+
+  /**
+   * `toBeLessThanOrEqual(4)` — como este caso afirmava — fica verde com ZERO linhas e fica verde
+   * plotando os quatro MENORES sob um título que diz "maiores". É literalmente o modo de falha que
+   * este milestone descobriu no design system (gráfico que não desenha nada). Contagem exata mais
+   * IDENTIDADE: quem foi plotado é a pergunta, não quantos.
+   */
+  it('plota exatamente os QUATRO maiores, e são os maiores mesmo', async () => {
+    // `outputTokens` NÃO é zero, e a saída MUDA a ordem: por entrada+saída o ranking é
+    // 1 (140), 3 (130), 0 (100), 2 (80); contando só a entrada seria 0, 1, 2, 3. Com saída zerada
+    // as duas implementações dão a mesma resposta e a mutação "conta só a entrada" sobrevive — foi
+    // o que aconteceu na primeira versão deste caso, medido.
+    const entrada = [100, 90, 80, 70, 60, 50, 40, 30];
+    const saida = [0, 50, 0, 60, 0, 0, 0, 0];
+    const oito = entrada.map((i, n) => ({
+      ...RESPOSTA_REAL.users[0],
+      userId: `user-${n}`,
+      inputTokens: i,
+      outputTokens: saida[n] as number,
+      costUsd: 1,
+      series: [{ periodStart: '2026-07-20T00:00:00.000Z', inputTokens: i, outputTokens: saida[n] as number, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 1 }],
+    }));
+    mockCloudFetch.mockResolvedValue({ ...RESPOSTA_REAL, users: oito, totalUsers: 8 });
+    render(<LensUsageByUserPage />);
+    const grafico = (await screen.findAllByTestId('usage-chart'))[1]; // o de tokens
+    expect(grafico.querySelectorAll('[data-slot="trend-chart-line"]')).toHaveLength(4);
+    expect(legendaDe(grafico)).toEqual(['user-1', 'user-3', 'user-0', 'user-2']);
+  });
+
+  /**
+   * O BLOCKER do review. A página vem ordenada pelo SERVIÇO por `inputTokens + outputTokens DESC`
+   * (verificado no SQL do theo-lens), e o gráfico de CUSTO herdava essa ordem: um usuário num modelo
+   * caro com poucos tokens ficava atrás de um usuário num modelo barato com muitos, e não aparecia
+   * no gráfico de dólares — sob um título dizendo "maiores".
+   *
+   * `caro` tem os MENOS tokens de todos e o MAIOR custo. Ele tem de estar no gráfico de custo e
+   * fora do de tokens; qualquer implementação que reuse uma ordem só falha aqui.
+   */
+  it('o gráfico de CUSTO rankeia por dólares, não pela ordem de tokens que veio do serviço', async () => {
+    const serie = (i: number, c: number) => [{ periodStart: '2026-07-20T00:00:00.000Z', inputTokens: i, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: c }];
+    const usuarios = [
+      ...Array.from({ length: 4 }, (_, i) => ({ ...RESPOSTA_REAL.users[0], userId: `user-${i}`, inputTokens: 1000 - i, outputTokens: 0, costUsd: 0.01, series: serie(1000 - i, 0.01) })),
+      { ...RESPOSTA_REAL.users[0], userId: 'user-caro', inputTokens: 1, outputTokens: 0, costUsd: 999, series: serie(1, 999) },
+    ];
+    mockCloudFetch.mockResolvedValue({ ...RESPOSTA_REAL, users: usuarios, totalUsers: 5 });
+    render(<LensUsageByUserPage />);
+    const [custo, tokens] = await screen.findAllByTestId('usage-chart');
+    expect(legendaDe(custo!)).toContain('user-caro');
+    expect(legendaDe(tokens!)).not.toContain('user-caro');
+  });
+
+  it('fora da primeira página o título NÃO diz "maiores" sem qualificar', async () => {
+    mockCloudFetch.mockResolvedValue({ ...COM_SERIE, totalUsers: 120 });
+    render(<LensUsageByUserPage />);
+    await screen.findAllByTestId('usage-chart');
+    await userEvent.click(screen.getByRole('button', { name: /próxima/i }));
+    const titulos = (await screen.findAllByTestId('usage-chart')).map((g) => g.textContent ?? '');
+    // "4 maiores" na página 2 seriam os de rank 51-54 — a mesma mentira que a faixa de KPI evita.
+    for (const t of titulos) expect(t).toMatch(/maiores desta página/);
+  });
+
+  it('sem série na resposta, nenhum gráfico é renderizado — E nenhuma explicação falsa', async () => {
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+    await screen.findByText('49,373');
+    expect(screen.queryAllByTestId('usage-chart')).toHaveLength(0);
+    // Sem esta segunda asserção, inverter o ramo mostraria "o serviço limita a 2000 pontos" para
+    // uma janela de 30 dias que cabe folgada — uma explicação FALSA — e o caso seguia verde.
+    expect(screen.queryByTestId('usage-chart-indisponivel')).not.toBeInTheDocument();
+  });
+
+  /*
+   * M144 / DoD-4 — O PEDIDO CONDICIONAL.
+   *
+   * O gráfico REUSA a chamada da tabela (decisão do owner). O orçamento do M143 é
+   * `(days+1) × limit ≤ 2000`, que com 50 linhas corta em 39 dias — então pedir `bucket` em 90 ou
+   * 365 dias devolveria 400 e derrubaria A TABELA JUNTO. É o risco R1 do plano, e estes casos são
+   * o que impede que ele volte.
+   */
+  it('janela pequena PEDE bucket', async () => {
+    window.history.replaceState(null, '', '/observability/usage-by-user?days=30');
+    mockCloudFetch.mockResolvedValue(COM_SERIE);
+    render(<LensUsageByUserPage />);
+    await screen.findByText('49,373');
+    expect(String(mockCloudFetch.mock.calls[0]?.[0] ?? '')).toMatch(/bucket=day/);
+  });
+
+  it('janela grande NÃO pede bucket, e a tela declara por quê', async () => {
+    window.history.replaceState(null, '', '/observability/usage-by-user?days=365');
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+    await screen.findByText('49,373');
+    expect(String(mockCloudFetch.mock.calls[0]?.[0] ?? '')).not.toMatch(/bucket/);
+    // ausência DECLARADA — um gráfico que some sem explicação é lido como "não há dado"
+    const aviso = await screen.findByTestId('usage-chart-indisponivel');
+    expect(aviso.textContent ?? '').toMatch(/365/);
+    expect(aviso.textContent ?? '').toMatch(/2000/);
+  });
+
+  // O caso que prova que reusar a chamada não custou a tabela.
+  it('a TABELA sobrevive à janela grande', async () => {
+    window.history.replaceState(null, '', '/observability/usage-by-user?days=365');
+    mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
+    render(<LensUsageByUserPage />);
+    expect(await screen.findByText('49,373')).toBeInTheDocument();
+    expect(screen.getByText('$4,179.48')).toBeInTheDocument();
+    expect(screen.queryAllByTestId('usage-chart')).toHaveLength(0);
   });
 
   /*

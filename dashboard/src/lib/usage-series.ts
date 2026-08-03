@@ -15,6 +15,34 @@ import type { TrendPoint } from '@usetheo/ui';
  * que a mutação alcança.
  */
 
+const DIA_MS = 86_400_000;
+
+/**
+ * A janela do eixo: onde ela começa e quantas fatias tem.
+ *
+ * Duas correções do review do M144 moram aqui, e as duas eram invisíveis dentro do componente:
+ *
+ * 1. **`dias` é `days + 1`.** Uma janela ROLANTE de N dias atravessa N+1 dias de calendário — o
+ *    serviço recorta por instante (`now - N dias`) e agrupa por `date_trunc('day')`. `cabeSerie` já
+ *    orçava `(days + 1) × linhas`; o eixo gerava `days` fatias, então o balde mais antigo — dado
+ *    real, já pago pelo orçamento — caía fora do mapa e sumia **sem erro algum**.
+ *
+ * 2. **O fim é HOJE, não o último dia com consumo.** Ancorar no maior `periodStart` visto apagava o
+ *    silêncio final: se ninguém consumiu nos últimos quatro dias, o eixo terminava quatro dias atrás
+ *    e "o consumo parou" — informação de primeira ordem — simplesmente não existia no gráfico.
+ *    `Math.max` com o maior ponto garante que um relógio de navegador atrasado nunca corte dado: o
+ *    dado manda sobre o relógio, nunca o contrário.
+ */
+export function janelaDaSerie(
+  diasComPonto: number[],
+  days: number,
+  agoraMs: number,
+): { inicio: number; dias: number } {
+  const aoDia = (t: number): number => Math.floor(t / DIA_MS) * DIA_MS;
+  const fim = Math.max(aoDia(agoraMs), ...diasComPonto.map(aoDia));
+  return { inicio: fim - days * DIA_MS, dias: days + 1 };
+}
+
 /** Um ponto como o serviço o devolve (`usageByUserSeriesPointSchema` do theo-lens). */
 export interface PontoDaSerie {
   periodStart: string;
@@ -27,8 +55,6 @@ export interface PontoDaSerie {
 
 /** Os campos plotáveis. `tokens` é derivado — entrada + saída, como a coluna da tabela. */
 export type CampoPlotavel = keyof Omit<PontoDaSerie, 'periodStart'> | 'tokens';
-
-const DIA_MS = 86_400_000;
 
 const valorDe = (p: PontoDaSerie, campo: CampoPlotavel): number =>
   campo === 'tokens' ? p.inputTokens + p.outputTokens : p[campo];

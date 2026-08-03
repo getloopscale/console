@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { parseAsInteger, useQueryState } from 'nuqs';
 import { Button, Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@usetheo/ui';
 import { Coins, DollarSign, Layers, Users } from 'lucide-react';
+import { TrendChart, type TrendSeries } from '@usetheo/ui';
+import { densificar, janelaDaSerie, type CampoPlotavel, type PontoDaSerie } from '@/lib/usage-series';
 import { resumirConsumo } from '@/lib/usage-summary';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
@@ -34,6 +36,8 @@ import { formatCost, formatNumber, shortId } from '@/lib/format';
 
 interface UsageRow {
   userId: string;
+  /** M144 — presente só quando a chamada pediu `bucket=day`. */
+  series?: PontoDaSerie[];
   spans: number;
   inputTokens: number;
   outputTokens: number;
@@ -51,6 +55,55 @@ interface UsageResult {
 /** Janelas oferecidas. O teto de 365 é o do serviço, que RECUSA acima dele (M140). */
 const JANELAS = [7, 30, 90, 365] as const;
 const PAGE_SIZE = 50;
+
+/**
+ * M144 — o orçamento de pontos do M143: `(days + 1) × limit ≤ 2000`. O `+1` não é margem — uma
+ * janela ROLANTE de N dias atravessa N+1 dias de calendário, medido no review daquele milestone.
+ *
+ * Com `PAGE_SIZE = 50` isso corta em **39 dias**: as janelas de 7 e 30 comportam série, as de 90 e
+ * 365 não. E como o gráfico REUSA a chamada da tabela, pedir `bucket` fora do orçamento faria o 400
+ * derrubar a tabela junto — por isso o pedido é condicional, e a ausência é declarada.
+ */
+const MAX_BUCKET_POINTS = 2000;
+// `days >= 1` não é zelo: `days` vem da URL sem validação (`parseAsInteger`), e `?days=0` ou
+// `?days=-5` passavam no teto (50 e -200 pontos), pediam `bucket`, e um piso do serviço derrubaria
+// a TABELA junto — o risco R1 que este guarda existe justamente para impedir.
+export const cabeSerie = (days: number): boolean =>
+  days >= 1 && (days + 1) * PAGE_SIZE <= MAX_BUCKET_POINTS;
+// Exportada de propósito: com as janelas ofertadas (7/30/90/365) o `+1` NÃO muda classificação
+// alguma — 30 dias dão 1.500 ou 1.550, ambos sob o teto; 365 dão 18.250 ou 18.300, ambos acima. A
+// fronteira só difere em 39 × 40 dias, que a UI não oferece, então a regressão é inalcançável pela
+// tela. Testá-la direto é a mesma lição do `serieOrdenada` no M143: lógica isolada é lógica que a
+// mutação alcança.
+
+/**
+ * Quantas linhas o gráfico plota — QUATRO, e o número saiu de medição, não de gosto.
+ *
+ * Eram cinco. O validador de paleta da `dataviz` reprovou a paleta de cinco nos dois temas, e
+ * reprovou também as seis alternativas que testei: com cinco matizes dentro da faixa de luminosidade
+ * do tema escuro, algum par sempre cai abaixo do piso de separação sob daltonismo (o pior foi
+ * `#a855f7↔#6366f1`, ΔE 0,9 sob protanopia — duas das cinco linhas eram praticamente a mesma).
+ * Quatro passa `--pairs all` em claro E escuro. A própria skill antecipa isto: *cinco linhas podem
+ * não caber, e a saída é cortar séries, não inventar cor.*
+ *
+ * `--pairs all` e não só os pares adjacentes porque num gráfico de linhas que se cruzam **quaisquer**
+ * duas linhas encostam — a lista honesta é todas contra todas.
+ */
+const LINHAS_NO_GRAFICO = 4;
+
+/**
+ * Okabe-Ito, escalonada para a superfície ESCURA — e só para ela, de propósito.
+ *
+ * O dashboard é travado em escuro (`main.tsx`: `defaultMode: 'dark'`, `respectSystemMode: false`,
+ * sem theme picker), então uma segunda paleta para o tema claro seria código para um caso que não
+ * existe. A paleta clara equivalente reprova a faixa de luminosidade do escuro em dois dos quatro
+ * passos — se um dia houver seletor de tema, é aqui que ele entra, e não antes.
+ *
+ * Medido com `validate_palette.js --mode dark --pairs all`: `ALL CHECKS PASS`. A anterior
+ * (`#6366f1 #f59e0b #22c55e #06b6d4 #a855f7`) reprovava: `#22c55e↔#f59e0b` ΔE 5,7 sob protanopia,
+ * abaixo do piso de 6 — nem a cláusula de encoding secundário a salvava.
+ */
+const CORES = ['#0072B2', '#A87200', '#009E73', '#9E5A80'] as const;
 const UNATTRIBUTED = 'unattributed';
 
 /**
@@ -78,13 +131,17 @@ export function LensUsageByUserPage() {
   const [days, setDays] = useQueryState('days', parseAsInteger.withDefault(30));
   const [page, setPage] = useState(1);
 
+  // M144 — `bucket` entra na MESMA chamada da tabela, e só quando o orçamento comporta. Pedi-lo
+  // fora dele devolveria 400 e a tabela morreria junto com o gráfico.
+  const comSerie = cabeSerie(days);
+
   const query = useQuery({
     // `days` e `page` FAZEM parte da chave: sem eles o cache devolve a resposta da janela anterior
     // e a tela mente sobre o período que está mostrando.
-    queryKey: ['cloud', '/v1/dashboard/lens/usage-by-user', days, page] as const,
+    queryKey: ['cloud', '/v1/dashboard/lens/usage-by-user', days, page, comSerie] as const,
     queryFn: () =>
       cloudFetch<UsageResult>(
-        `/v1/dashboard/lens/usage-by-user?days=${days}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`,
+        `/v1/dashboard/lens/usage-by-user?days=${days}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}${comSerie ? '&bucket=day' : ''}`,
         {},
         { throwOnError: true },
       ),
@@ -166,6 +223,62 @@ export function LensUsageByUserPage() {
       },
     },
   ];
+
+  /**
+   * M144 — as séries dos gráficos.
+   *
+   * Corta para os maiores ANTES de densificar: densificar a página inteira produziria 50 × N
+   * pontos que seriam descartados em seguida.
+   *
+   * O corte é reordenado POR GRANDEZA. A ordem que vem do serviço é por tokens
+   * (`inputTokens + outputTokens DESC`), e ela NÃO serve para o gráfico de custo: tokens e dólares
+   * rankeiam diferente assim que há mais de um modelo em jogo.
+   *
+   * A janela vem de `janelaDaSerie` (pura, testável): `days + 1` fatias — o mesmo que o orçamento
+   * de `cabeSerie` paga — terminando HOJE, para que os dias finais sem consumo apareçam como lacuna
+   * em vez de desaparecerem do eixo.
+   */
+  /**
+   * O total da janela na grandeza plotada — o critério de "maiores". Vem da LINHA (agregado que o
+   * serviço já devolve para a janela inteira), não da soma da série: são o mesmo número, e usar o
+   * agregado evita que um recorte de série mude quem entra no gráfico.
+   */
+  /**
+   * O que o título pode honestamente afirmar. O corte sai da PÁGINA, então "maiores" só é verdade na
+   * primeira: na página 2 os quatro primeiros são os de rank 51-54, e um título dizendo "4 maiores"
+   * ali mentiria — a mesma armadilha que a faixa de KPI já evita ao declarar escopo parcial.
+   */
+  const escopoDoGrafico =
+    page === 1 ? `${LINHAS_NO_GRAFICO} maiores` : `${LINHAS_NO_GRAFICO} maiores desta página`;
+
+  const totalDe = (u: UsageRow, campo: CampoPlotavel): number =>
+    campo === 'costUsd' ? u.costUsd : u.inputTokens + u.outputTokens;
+
+  const serieDe = (campo: CampoPlotavel): TrendSeries[] => {
+    // O ranking é POR GRANDEZA PLOTADA. A página vem ordenada pelo serviço por
+    // `inputTokens + outputTokens DESC` — tokens, não custo —, e os quatro primeiros dessa ordem
+    // não são os quatro maiores em dólares: um usuário num modelo caro com poucos tokens fica atrás
+    // de um usuário num modelo barato com muitos, e ficava de fora do gráfico de CUSTO enquanto o
+    // título dizia "maiores". O título afirmava sobre o eixo de dólares uma ordem de tokens.
+    const plotaveis = [...users]
+      .filter((u) => u.series !== undefined)
+      .sort((a, b) => totalDe(b, campo) - totalDe(a, campo))
+      .slice(0, LINHAS_NO_GRAFICO);
+    if (plotaveis.length === 0) return [];
+    const diasComPonto = plotaveis.flatMap((u) => (u.series ?? []).map((p) => Date.parse(p.periodStart)));
+    const { inicio, dias } = janelaDaSerie(diasComPonto, days, Date.now());
+    return plotaveis.map((u, i) => ({
+      name: u.userId === UNATTRIBUTED ? 'Não atribuído' : shortId(u.userId, 12),
+      // A cor segue a POSIÇÃO no recorte, não a entidade: com quatro slots e um conjunto ilimitado
+      // de usuários, cor estável por usuário não é alcançável sem colisão. Quem carrega a identidade
+      // é a LEGENDA, que nomeia cada linha — a cor é pista secundária. O que importa e é garantido:
+      // o mesmo usuário tem a mesma cor nos DOIS gráficos do mesmo render, que é o que permite
+      // cruzar custo e tokens. Trocar a janela troca o recorte e repinta; está registrado como
+      // limitação, não disfarçado de estabilidade.
+      color: CORES[i % CORES.length] as string,
+      points: densificar(u.series ?? [], inicio, dias, campo),
+    }));
+  };
 
   const doServico = query.isError ? mensagemDoServico(query.error) : null;
 
@@ -300,6 +413,41 @@ export function LensUsageByUserPage() {
             <Card>
               <DataTable columns={columns} data={users} rowKey={(row) => row.userId} />
             </Card>
+
+            {/*
+              Os gráficos vêm DEPOIS da tabela, de propósito: quem abre esta tela quer saber quem
+              consumiu — a evolução é a segunda pergunta. Pô-los acima empurraria a resposta
+              principal para baixo da dobra.
+
+              A linha QUEBRA no dia sem consumo. `densificar` põe `NaN` onde o serviço não devolveu
+              ponto, e o `seriesPath` do `@usetheo/ui` emite um novo subcaminho ali — a
+              convenção de toda biblioteca séria, e a única leitura honesta: ligar afirmaria
+              continuidade que o dado não tem, e zero seria indistinguível de consumo real zero.
+            */}
+            {comSerie && users.some((u) => u.series !== undefined) ? (
+              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                <Card className="p-4" data-testid="usage-chart">
+                  <TrendChart
+                    title={`Custo por dia — ${escopoDoGrafico}`}
+                    series={serieDe('costUsd')}
+                    valueFormatter={(v) => formatCost(v)}
+                  />
+                </Card>
+                <Card className="p-4" data-testid="usage-chart">
+                  <TrendChart
+                    title={`Tokens por dia — ${escopoDoGrafico}`}
+                    series={serieDe('tokens')}
+                    valueFormatter={(v) => formatNumber(v, 'compact')}
+                  />
+                </Card>
+              </div>
+            ) : !comSerie ? (
+              // Gráfico ausente sem explicação é lido como "não há dado". O motivo é o orçamento do
+              // serviço, e a tela o diz em vez de sumir em silêncio.
+              <p data-testid="usage-chart-indisponivel" className="mt-6 text-sm text-muted-foreground">
+                {`A evolução diária não é exibida para ${days} dias: o serviço limita a ${MAX_BUCKET_POINTS} pontos, e (${days} + 1) dias × ${PAGE_SIZE} linhas ultrapassam o teto. Escolha 7 ou 30 dias para ver os gráficos.`}
+              </p>
+            ) : null}
 
             {pageCount > 1 ? (
               <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
