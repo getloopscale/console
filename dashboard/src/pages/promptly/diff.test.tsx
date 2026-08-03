@@ -24,7 +24,13 @@ import { PromptlyDiffPage } from './diff';
  * desta página são mutuamente exclusivas, e a que mais importa é a última: uma leitura que falhou
  * não pode ser desenhada como "as revisões são iguais" — são fatos opostos.
  */
-beforeEach(() => mockRevisions.mockReset());
+beforeEach(() => {
+  mockRevisions.mockReset();
+  // O padrão que destrava o caso de falha: um valor RESOLVIDO por default, e só o teste de erro
+  // troca por rejeição. Sem ele, o mock devolve `undefined` entre o reset e o `mockRejectedValue`,
+  // e o vitest reporta a rejeição como não tratada antes de a tela chegar nela.
+  mockRevisions.mockResolvedValue([]);
+});
 
 describe('M12 — a tela de comparar', () => {
   it('diff_screen_compares_the_two_selected_revisions', async () => {
@@ -56,15 +62,15 @@ describe('M12 — a tela de comparar', () => {
   // A INVARIANTE está coberta na função pura (`diff.test.ts::diff_identical_content_has_zero_
   // changed_blocks`); o que falta é o caminho pela tela. Rastreado no plano § Followups.
 
-  // FU-4 — `diff_screen_read_failure_is_not_drawn_as_identical`. TENTADO DE NOVO e continua
-  // falhando por DEFEITO DE HARNESS, não do produto: `mockRejectedValue` cria a promessa
-  // rejeitada no momento da configuração, e o vitest a reporta como não tratada antes de o
-  // react-query chegar nela. O mesmo padrão funciona em `pages/promptly.test.tsx`, o que descarta
-  // configuração global (o cliente de teste já tem `retry: false`) e aponta para a interação com
-  // `enabled:` nesta página — investigação de infraestrutura de teste, não deste milestone.
-  //
-  // A RAMIFICAÇÃO EXISTE no produto (`falhou` → alerta + "Sem dados para comparar — a leitura
-  // falhou") e foi VISTA funcionando na aceitação do M12, contra a pilha real, em quatro falhas
-  // seguidas que eu não provoquei. A mesma distinção vazio-vs-falha está provada por teste em
-  // `pages/promptly.test.tsx::empty_catalog_that_FAILED_offers_no_action`.
+  it('diff_screen_read_failure_is_not_drawn_as_identical', async () => {
+    // A ramificação que mais importa, e que nenhuma das outras cobre: falha de leitura e "as
+    // revisões são iguais" levam a decisões OPOSTAS. Desenhar a primeira como a segunda diria ao
+    // operador que não há o que investigar, durante uma queda do serviço.
+    mockRevisions.mockRejectedValue(new Error('upstream'));
+    render(<PromptlyDiffPage />);
+
+    expect(await screen.findByText(/sem dados para comparar — a leitura falhou/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('promptly-diff-identical')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('promptly-diff')).not.toBeInTheDocument();
+  });
 });

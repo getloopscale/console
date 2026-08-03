@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 import { fireEvent } from '@testing-library/react';
+import { ApiError } from '@/lib/api';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -22,7 +23,12 @@ import { PromptlyCreatePage } from './create';
  *
  * Os dois casos declarados no plano e nunca escritos estão aqui.
  */
-beforeEach(() => mockCreate.mockReset());
+beforeEach(() => {
+  mockCreate.mockReset();
+  // Hipótese 4: `detail.test.tsx` dá um valor RESOLVIDO por padrão e só o caso de erro troca por
+  // rejeição. Sem esse padrão, o mock devolve `undefined` entre o reset e o `mockRejectedValue`.
+  mockCreate.mockResolvedValue({ name: 'x', version: 1 });
+});
 
 describe('M12 — a tela de criar revisão', () => {
   it('create_form_shows_rendered_preview_before_save', async () => {
@@ -44,22 +50,32 @@ describe('M12 — a tela de criar revisão', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  // FU-2b — os dois casos de RECUSA continuam fora, e a TERCEIRA hipótese também caiu.
-  //
-  // Descartadas por experimento, nesta ordem: (1) a interação com `enabled:` do react-query —
-  // negada porque o defeito aparece numa página sem react-query; (2) a biblioteca de query —
-  // negada pelo mesmo motivo; (3) o `async/await` cru no handler — **negada agora**: converti
-  // `create.tsx` para `useMutation`, que é como `detail.tsx` escreve e cujo teste de recusa 5xx
-  // PASSA, e o caso aqui continua vermelho pelo mesmo motivo.
-  //
-  // Então a diferença entre `detail.test.tsx` (passa) e este (falha) NÃO é o mecanismo de escrita.
-  // Sobra o setup do arquivo: `detail.test.tsx` mocka `useParams` e cinco funções de API; este
-  // mocka uma. É onde a próxima tentativa deve começar — e é investigação de infraestrutura de
-  // teste, não deste milestone.
-  //
-  // O comportamento EXISTE e está provado onde o harness coopera: `rollback.test.ts` cobre a
-  // regra de recusa, e a aceitação do M12 VIU 'unbalanced or malformed braces' na tela, contra o
-  // serviço real.
+  it('create_form_renders_the_invalid_template_message', async () => {
+    mockCreate.mockRejectedValue(
+      new ApiError(400, {
+        error: 'invalid_template',
+        message: 'unbalanced or malformed braces — only {{identifier}} is supported',
+      }),
+    );
+    render(<PromptlyCreatePage />);
+    await userEvent.type(await screen.findByLabelText('Nome do prompt'), 'malformado');
+    fireEvent.change(screen.getByLabelText('Texto do prompt'), { target: { value: 'Olá {{ nome' } });
+    await userEvent.click(screen.getByRole('button', { name: /criar revisão/i }));
+    expect(await screen.findByText(/unbalanced or malformed braces/i)).toBeInTheDocument();
+  });
+
+  it('create_form_5xx_does_not_leak_the_upstream_body', async () => {
+    // O controle negativo, sem o qual o repasse acima vira matcher cego.
+    mockCreate.mockRejectedValue(
+      new ApiError(502, { message: 'dial tcp 10.0.0.4:8080: connect: refused' }),
+    );
+    render(<PromptlyCreatePage />);
+    await userEvent.type(await screen.findByLabelText('Nome do prompt'), 'x');
+    fireEvent.change(screen.getByLabelText('Texto do prompt'), { target: { value: 'y' } });
+    await userEvent.click(screen.getByRole('button', { name: /criar revisão/i }));
+    expect(await screen.findByText(/não foi possível/i)).toBeInTheDocument();
+    expect(screen.queryByText(/10\.0\.0\.4/)).not.toBeInTheDocument();
+  });
 
   it('create_form_blocks_submit_while_the_name_is_invalid', async () => {
     render(<PromptlyCreatePage />);
