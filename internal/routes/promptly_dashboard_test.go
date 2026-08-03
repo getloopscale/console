@@ -17,16 +17,17 @@ import (
 // Duble do cliente: cada metodo devolve o que o teste programou. Substitui a porta, nao o HTTP —
 // e por isso que a porta e declarada pelo consumidor (ISP).
 type promptlyFake struct {
-	corpo  json.RawMessage
-	err    error
-	limite int    // o limite que a rota REPASSOU (o oraculo do teto explicito)
-	label  string // o label que a rota repassou na promocao
-	body   json.RawMessage
+	corpo   json.RawMessage
+	err     error
+	limite  int    // o limite que a rota REPASSOU (o oraculo do teto explicito)
+	proxima string // M13 — a query da proxima pagina que o servico sinaliza por header RFC-5988
+	label   string // o label que a rota repassou na promocao
+	body    json.RawMessage
 }
 
-func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string) (json.RawMessage, error) {
+func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string) (json.RawMessage, string, error) {
 	f.limite = limit
-	return f.corpo, f.err
+	return f.corpo, f.proxima, f.err
 }
 func (f *promptlyFake) Prompt(context.Context, string) (json.RawMessage, error) {
 	return f.corpo, f.err
@@ -297,7 +298,6 @@ func TestRepasse_401_do_upstream_nao_desloga_o_operador_cliente_real(t *testing.
 	}
 }
 
-
 // ── M12 — as duas escritas da autoria ───────────────────────────────────────────────────────
 //
 // Existem porque o /review as achou AUSENTES: a tela de criar ja disparava `POST /prompts` e o
@@ -415,5 +415,84 @@ func TestPromptlyDashboard_conteudo_grande_porem_dentro_do_teto_PASSA(t *testing
 	}
 	if len(f.body) != len(corpo) {
 		t.Errorf("o corpo chegou truncado: %d de %d bytes", len(f.body), len(corpo))
+	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// M13 — o sinal de continuacao chega ao navegador, e chega com o ENDERECO certo.
+//
+// MUST FIX EC-1 do /edge-case-plan: o servico monta o Link com o caminho DELE
+// (`</prompts?after=...>`, app.ts:596). Esta capacidade e servida ao navegador em
+// `/v1/dashboard/promptly/prompts`. Repassar verbatim entregaria um endereco que NAO resolve nesta
+// origem — correto como booleano, mentiroso como URL. Publicar endereco quebrado numa resposta e a
+// mesma classe de defeito que este milestone corrige uma camada acima.
+// ---------------------------------------------------------------------------------------------
+
+func TestPromptlyDashboard_catalogo_repassa_Link_rel_next_ao_navegador(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"a"}]`), proxima: "after=zebra&limit=2"}
+
+	rec := chamar(t, f, http.MethodGet, "/v1/dashboard/promptly/prompts?limit=100", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if link := rec.Header().Get("Link"); !strings.Contains(link, `rel="next"`) {
+		t.Errorf("sem sinal de continuacao no header: %q", link)
+	}
+}
+
+// O PAR QUE DISCRIMINA: mesmo corpo, sem continuacao. Sem este caso, escrever o header
+// incondicionalmente passaria no teste acima.
+func TestPromptlyDashboard_catalogo_nao_inventa_Link_quando_nao_ha_continuacao(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"a"}]`), proxima: ""}
+
+	rec := chamar(t, f, http.MethodGet, "/v1/dashboard/promptly/prompts?limit=100", "")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	if link := rec.Header().Get("Link"); link != "" {
+		t.Errorf("header inventado sem continuacao: %q", link)
+	}
+}
+
+// MUST FIX EC-1 — o par que discrimina do ENDERECO, nao do numero.
+func TestPromptlyDashboard_o_Link_publicado_aponta_para_a_rota_do_BFF(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"zebra"}]`), proxima: "after=zebra&limit=2"}
+
+	rec := chamar(t, f, http.MethodGet, "/v1/dashboard/promptly/prompts?limit=2&after=alfa", "")
+
+	link := rec.Header().Get("Link")
+	if !strings.Contains(link, "/v1/dashboard/promptly/prompts") {
+		t.Errorf("o Link nao aponta para a rota do BFF: %q", link)
+	}
+	if strings.Contains(link, "</prompts?") {
+		t.Errorf("o caminho do SERVICO vazou para o navegador — nao resolve nesta origem: %q", link)
+	}
+	// O cursor da proxima pagina e o ULTIMO NOME da pagina atual (keyset por nome), nao o `after`
+	// que veio na requisicao — repassar o de entrada faria a tela pedir a MESMA pagina para sempre.
+	if !strings.Contains(link, "after=zebra") {
+		t.Errorf("o cursor da proxima pagina esta errado: %q", link)
+	}
+	if !strings.Contains(link, "limit=2") {
+		t.Errorf("o limite nao foi preservado: %q", link)
+	}
+}
+
+func TestPromptlyDashboard_falha_de_leitura_no_catalogo_nao_publica_Link(t *testing.T) {
+	f := &promptlyFake{err: &promptly.UpstreamError{
+		Status: http.StatusBadRequest,
+		Body:   json.RawMessage(`{"error":"invalid_limit"}`),
+		Method: http.MethodGet,
+		Path:   "/prompts",
+	}}
+
+	rec := chamar(t, f, http.MethodGet, "/v1/dashboard/promptly/prompts", "")
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("o 4xx tipado deveria ser preservado, veio %d", rec.Code)
+	}
+	if link := rec.Header().Get("Link"); link != "" {
+		t.Errorf("header publicado numa falha: %q", link)
 	}
 }
