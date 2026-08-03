@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { parseAsInteger, useQueryState } from 'nuqs';
 import { Button, Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@usetheo/ui';
 import { Coins, DollarSign, Layers, Users } from 'lucide-react';
+import { TrendChart, type TrendSeries } from '@usetheo/ui';
+import { densificar, type CampoPlotavel, type PontoDaSerie } from '@/lib/usage-series';
 import { resumirConsumo } from '@/lib/usage-summary';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
@@ -34,6 +36,8 @@ import { formatCost, formatNumber, shortId } from '@/lib/format';
 
 interface UsageRow {
   userId: string;
+  /** M144 — presente só quando a chamada pediu `bucket=day`. */
+  series?: PontoDaSerie[];
   spans: number;
   inputTokens: number;
   outputTokens: number;
@@ -51,6 +55,28 @@ interface UsageResult {
 /** Janelas oferecidas. O teto de 365 é o do serviço, que RECUSA acima dele (M140). */
 const JANELAS = [7, 30, 90, 365] as const;
 const PAGE_SIZE = 50;
+
+/**
+ * M144 — o orçamento de pontos do M143: `(days + 1) × limit ≤ 2000`. O `+1` não é margem — uma
+ * janela ROLANTE de N dias atravessa N+1 dias de calendário, medido no review daquele milestone.
+ *
+ * Com `PAGE_SIZE = 50` isso corta em **39 dias**: as janelas de 7 e 30 comportam série, as de 90 e
+ * 365 não. E como o gráfico REUSA a chamada da tabela, pedir `bucket` fora do orçamento faria o 400
+ * derrubar a tabela junto — por isso o pedido é condicional, e a ausência é declarada.
+ */
+const MAX_BUCKET_POINTS = 2000;
+export const cabeSerie = (days: number): boolean => (days + 1) * PAGE_SIZE <= MAX_BUCKET_POINTS;
+// Exportada de propósito: com as janelas ofertadas (7/30/90/365) o `+1` NÃO muda classificação
+// alguma — 30 dias dão 1.500 ou 1.550, ambos sob o teto; 365 dão 18.250 ou 18.300, ambos acima. A
+// fronteira só difere em 39 × 40 dias, que a UI não oferece, então a regressão é inalcançável pela
+// tela. Testá-la direto é a mesma lição do `serieOrdenada` no M143: lógica isolada é lógica que a
+// mutação alcança.
+
+/** Quantas linhas o gráfico plota. Cinquenta é espaguete; a página já vem ordenada por consumo. */
+const LINHAS_NO_GRAFICO = 5;
+
+/** As cores das linhas, em ordem fixa — nunca cicladas por índice de filtro (`dataviz`). */
+const CORES = ['#6366f1', '#f59e0b', '#22c55e', '#06b6d4', '#a855f7'] as const;
 const UNATTRIBUTED = 'unattributed';
 
 /**
@@ -78,13 +104,17 @@ export function LensUsageByUserPage() {
   const [days, setDays] = useQueryState('days', parseAsInteger.withDefault(30));
   const [page, setPage] = useState(1);
 
+  // M144 — `bucket` entra na MESMA chamada da tabela, e só quando o orçamento comporta. Pedi-lo
+  // fora dele devolveria 400 e a tabela morreria junto com o gráfico.
+  const comSerie = cabeSerie(days);
+
   const query = useQuery({
     // `days` e `page` FAZEM parte da chave: sem eles o cache devolve a resposta da janela anterior
     // e a tela mente sobre o período que está mostrando.
-    queryKey: ['cloud', '/v1/dashboard/lens/usage-by-user', days, page] as const,
+    queryKey: ['cloud', '/v1/dashboard/lens/usage-by-user', days, page, comSerie] as const,
     queryFn: () =>
       cloudFetch<UsageResult>(
-        `/v1/dashboard/lens/usage-by-user?days=${days}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`,
+        `/v1/dashboard/lens/usage-by-user?days=${days}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}${comSerie ? '&bucket=day' : ''}`,
         {},
         { throwOnError: true },
       ),
@@ -166,6 +196,32 @@ export function LensUsageByUserPage() {
       },
     },
   ];
+
+  /**
+   * M144 — as séries dos gráficos.
+   *
+   * Corta para os cinco maiores ANTES de densificar: densificar a página inteira produziria 50 × N
+   * pontos que seriam descartados em seguida. A página já vem ordenada por consumo (decisão do
+   * M140), então os cinco primeiros SÃO os cinco maiores.
+   *
+   * O início da janela é derivado do MAIOR `periodStart` visto, não de `Date.now()`: a janela do
+   * serviço é rolante sobre `ingested_at`, e ancorar no relógio do navegador desalinharia o eixo do
+   * dado sempre que os dois discordassem — inclusive por fuso.
+   */
+  const serieDe = (campo: CampoPlotavel): TrendSeries[] => {
+    const plotaveis = users.filter((u) => u.series !== undefined).slice(0, LINHAS_NO_GRAFICO);
+    if (plotaveis.length === 0) return [];
+    const todosOsDias = plotaveis.flatMap((u) => (u.series ?? []).map((p) => Date.parse(p.periodStart)));
+    if (todosOsDias.length === 0) return [];
+    const fim = Math.max(...todosOsDias);
+    const inicio = fim - (days - 1) * 86_400_000;
+    return plotaveis.map((u, i) => ({
+      name: u.userId === UNATTRIBUTED ? 'Não atribuído' : shortId(u.userId, 12),
+      // Cor pela POSIÇÃO na ordem de consumo, fixa — nunca reciclada por filtro (`dataviz`).
+      color: CORES[i % CORES.length] as string,
+      points: densificar(u.series ?? [], inicio, days, campo),
+    }));
+  };
 
   const doServico = query.isError ? mensagemDoServico(query.error) : null;
 
@@ -300,6 +356,41 @@ export function LensUsageByUserPage() {
             <Card>
               <DataTable columns={columns} data={users} rowKey={(row) => row.userId} />
             </Card>
+
+            {/*
+              Os gráficos vêm DEPOIS da tabela, de propósito: quem abre esta tela quer saber quem
+              consumiu — a evolução é a segunda pergunta. Pô-los acima empurraria a resposta
+              principal para baixo da dobra.
+
+              A linha QUEBRA no dia sem consumo. `densificar` põe `NaN` onde o serviço não devolveu
+              ponto, e o `seriesPath` do `@usetheo/ui@0.32.0` emite um novo subcaminho ali — a
+              convenção de toda biblioteca séria, e a única leitura honesta: ligar afirmaria
+              continuidade que o dado não tem, e zero seria indistinguível de consumo real zero.
+            */}
+            {comSerie && users.some((u) => u.series !== undefined) ? (
+              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                <Card className="p-4" data-testid="usage-chart">
+                  <TrendChart
+                    title={`Custo por dia — ${LINHAS_NO_GRAFICO} maiores`}
+                    series={serieDe('costUsd')}
+                    valueFormatter={(v) => formatCost(v)}
+                  />
+                </Card>
+                <Card className="p-4" data-testid="usage-chart">
+                  <TrendChart
+                    title={`Tokens por dia — ${LINHAS_NO_GRAFICO} maiores`}
+                    series={serieDe('tokens')}
+                    valueFormatter={(v) => formatNumber(v, 'compact')}
+                  />
+                </Card>
+              </div>
+            ) : !comSerie ? (
+              // Gráfico ausente sem explicação é lido como "não há dado". O motivo é o orçamento do
+              // serviço, e a tela o diz em vez de sumir em silêncio.
+              <p data-testid="usage-chart-indisponivel" className="mt-6 text-sm text-muted-foreground">
+                {`A evolução diária não é exibida para ${days} dias: o serviço limita a ${MAX_BUCKET_POINTS} pontos, e ${days} dias × ${PAGE_SIZE} linhas ultrapassam o teto. Escolha 7 ou 30 dias para ver os gráficos.`}
+              </p>
+            ) : null}
 
             {pageCount > 1 ? (
               <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
