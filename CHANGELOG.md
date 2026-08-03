@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.77.0] - 2026-08-03
+
 ### Added
 
 - **o promptly ganhou playground: rodar o prompt antes de prometer que ele funciona** (theo-promptly M14). Uma revisão guarda nome, conteúdo, versão e autor — e nada que diga se **funciona**. O M12 entregou autoria e o M13 o painel, e os dois deixavam o operador promover às cegas. Agora, a partir do detalhe de um prompt, `/promptly/{nome}/playground` mostra **um campo por variável que a API declara** (nunca adivinhada do texto), roda o conteúdo **que está na tela** contra o modelo com a chave do operador, e mostra a saída. **O erro fica na área de saída, não num toast que some:** recusa do provedor traz a mensagem tipada dele ("chave inválida", "sem quota"), variável em branco é recusada **antes** de a chamada ser paga e diz que nada foi cobrado, e falha de transporte continua genérica — misturar as três mandaria o operador trocar uma chave que está boa. **A chave não sobrevive à requisição:** campo de senha, sem `localStorage`, sem `sessionStorage`, sem URL, e há teste asserindo isso *depois* de uma execução bem-sucedida. Salvar continua sendo ação explícita e cria `version = max+1` com o texto que foi testado. O aviso de que rodar **consome a quota da sua chave** precede o botão, não o sucede — e a jornada e2e cobre a tela inteira **sem clicar em Rodar**, com um teste lendo o próprio spec para garantir que continue assim (#m14)
