@@ -259,21 +259,11 @@ const SBOMTab = lazy(() =>
 const AttestationTab = lazy(() =>
   import('@/pages/deployment-tabs/attestation-tab').then((m) => ({ default: m.AttestationTab })),
 );
-// Legacy pages kept as fallback for direct deep links (e.g., emails) —
-// nested routes below take precedence inside the new layout.
-const BuildLogsPage = lazy(() =>
-  import('@/pages/build-logs').then((m) => ({ default: m.BuildLogsPage })),
-);
-const BuildSBOMPage = lazy(() =>
-  import('@/pages/build-sbom').then((m) => ({ default: m.BuildSBOMPage })),
-);
-const BuildAttestationPage = lazy(() =>
-  import('@/pages/build-attestation').then((m) => ({ default: m.BuildAttestationPage })),
-);
-// Suppress "unused" lints while the legacy pages exist as fallback.
-void BuildLogsPage;
-void BuildSBOMPage;
-void BuildAttestationPage;
+// As três páginas autônomas de build (logs / SBOM / attestation) foram REMOVIDAS (#377).
+// O comentário que as acompanhava dizia que ficavam "como fallback para links diretos" — e
+// isso era falso e verificável: elas eram importadas, `void`adas e NÃO estavam roteadas em
+// lugar nenhum, então link direto algum as alcançava. O que existe são as abas aninhadas
+// `logs` / `sbom` / `attestation` sob /projects/:name/deployments/:id, logo abaixo.
 const RuntimeLogsPage = lazy(() =>
   import('@/pages/runtime-logs').then((m) => ({ default: m.RuntimeLogsPage })),
 );

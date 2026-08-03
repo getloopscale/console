@@ -103,20 +103,12 @@ describe('pages smoke — modules compile + export named function', () => {
     expect(typeof m.DeploymentDetailLayout).toBe('function');
   });
 
-  it('exports BuildLogsPage (plan v1.0 T1.3 — SSE log viewer)', async () => {
-    const m = await import('./build-logs');
-    expect(typeof m.BuildLogsPage).toBe('function');
-  });
-
-  it('exports BuildSBOMPage (plan v1.0 T1.4 — CycloneDX viewer)', async () => {
-    const m = await import('./build-sbom');
-    expect(typeof m.BuildSBOMPage).toBe('function');
-  });
-
-  it('exports BuildAttestationPage (plan v1.0 T1.5 — cosign envelope viewer)', async () => {
-    const m = await import('./build-attestation');
-    expect(typeof m.BuildAttestationPage).toBe('function');
-  });
+  // As três páginas autônomas de build (logs / SBOM / attestation) foram removidas (#377).
+  // Estes três testes afirmavam que elas EXPORTAVAM uma função — e exportavam mesmo. O que
+  // nenhum deles afirmava é o que importa: que alguém consegue CHEGAR nelas. Não conseguia:
+  // eram importadas em `app.tsx`, `void`adas e sem rota. Um teste de exportação sobre módulo
+  // sem rota é verde permanente que não protege nada. As abas aninhadas que as substituíram
+  // (`logs` / `sbom` / `attestation`) são exercitadas pelo e2e `deploy-timeline`, POR CLIQUE.
 
   it('exports RuntimeLogsPage (plan v1.0 T2.1 — runtime SSE viewer)', async () => {
     const m = await import('./runtime-logs');
