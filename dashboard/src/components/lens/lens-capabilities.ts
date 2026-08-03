@@ -11,6 +11,7 @@ import {
   Network,
   Search,
   ShieldCheck,
+  Users,
   Webhook,
   type LucideIcon,
 } from 'lucide-react';
@@ -39,6 +40,8 @@ export const LENS_CAPABILITIES: LensCapability[] = [
   { group: 'Observe', label: 'Dashboards', path: '/observability/dashboards', icon: LayoutDashboard, description: 'Assemble custom metric boards.' },
   { group: 'Observe', label: 'Traces', path: '/observability/traces', icon: Network, description: 'Explore executions and manage their tags & annotations.' },
   { group: 'Observe', label: 'Sessions', path: '/observability/sessions', icon: ListChecks, description: 'Replay grouped executions.' },
+  // M142 — `Observe`, não `Improve`: a tela OBSERVA consumo, não avalia nem melhora nada.
+  { group: 'Observe', label: 'Usage by user', path: '/observability/usage-by-user', icon: Users, description: 'Token and cost consumption grouped by end user.' },
   { group: 'Evaluate', label: 'Datasets', path: '/observability/datasets', icon: Database, description: 'Curate trace datasets for evaluation.' },
   { group: 'Evaluate', label: 'Evaluators', path: '/observability/evaluators', icon: FlaskConical, description: 'Score traces with rule or LLM-judge evaluators.' },
   { group: 'Evaluate', label: 'Monitors', path: '/observability/monitors', icon: ShieldCheck, description: 'Alert when evaluator scores cross a threshold.' },
