@@ -53,6 +53,26 @@ func (c *WriteClient) AssignLabel(ctx context.Context, name, label string, body 
 	return c.sendRaw(ctx, http.MethodPut, path, body)
 }
 
+// CreateRevision cria uma revisao nova (`POST /prompts`). O corpo vem da tela e segue OPACO ate
+// o produto: validar `name`/`content` aqui duplicaria a regra que o servico ja aplica, e as duas
+// copias divergiriam no dia em que uma mudasse. O que este cliente garante e a CREDENCIAL certa —
+// a chave cunhada por inquilino, com escopo de escrita.
+//
+// Nao ha `url.PathEscape` porque nao ha segmento variavel: o nome viaja no CORPO, nao no caminho.
+func (c *WriteClient) CreateRevision(ctx context.Context, body json.RawMessage) (json.RawMessage, error) {
+	return c.sendRaw(ctx, http.MethodPost, "/prompts", body)
+}
+
+// Rollback cria uma revisao nova com o conteudo de outra e, se o corpo nomear um label, reponta
+// esse label (`POST /prompts/:name/rollback`).
+//
+// `POST` e nao `PUT` porque a operacao NAO e idempotente: cada chamada cria mais uma revisao. Quem
+// ler esta linha esperando o comportamento de AssignLabel precisa ver a diferenca aqui.
+func (c *WriteClient) Rollback(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error) {
+	path := "/prompts/" + url.PathEscape(name) + "/rollback"
+	return c.sendRaw(ctx, http.MethodPost, path, body)
+}
+
 // sendRaw e o irmao mutante de getRaw. Mesma ordem deliberada: resolver ANTES da rede, para que
 // "resolver falhou ⇒ zero requisicao" seja verdadeiro por construcao.
 func (c *WriteClient) sendRaw(ctx context.Context, method, path string, body json.RawMessage) (json.RawMessage, error) {

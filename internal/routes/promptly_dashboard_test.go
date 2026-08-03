@@ -46,6 +46,15 @@ func (f *promptlyFake) AssignLabel(_ context.Context, _, label string, body json
 	return f.corpo, f.err
 }
 
+func (f *promptlyFake) CreateRevision(_ context.Context, body json.RawMessage) (json.RawMessage, error) {
+	f.body = body
+	return f.corpo, f.err
+}
+func (f *promptlyFake) Rollback(_ context.Context, name string, body json.RawMessage) (json.RawMessage, error) {
+	f.label, f.body = name, body
+	return f.corpo, f.err
+}
+
 func montar(f *promptlyFake) http.Handler {
 	h := NewPromptlyDashboardHandler(f, f, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	r := chi.NewRouter()
@@ -285,5 +294,84 @@ func TestRepasse_401_do_upstream_nao_desloga_o_operador_cliente_real(t *testing.
 
 	if rec.Code != http.StatusBadGateway {
 		t.Errorf("status = %d, quer 502 — repassar 401 deslogaria quem esta autenticado", rec.Code)
+	}
+}
+
+
+// ── M12 — as duas escritas da autoria ───────────────────────────────────────────────────────
+//
+// Existem porque o /review as achou AUSENTES: a tela de criar ja disparava `POST /prompts` e o
+// roteador nao conhecia o verbo. O e2e ficava verde porque o mock do navegador respondia 201 —
+// provando o mock, nao o produto. Estes testes olham para o ROTEADOR.
+
+func TestPromptlyDashboard_criar_revisao_repassa_o_corpo_opaco(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"name":"boas-vindas","version":1}`)}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts", `{"name":"boas-vindas","content":"Ola {{nome}}"}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d — a rota POST /prompts precisa existir", rec.Code)
+	}
+	// O corpo segue OPACO ate o produto: validar `name`/`content` aqui duplicaria a regra que o
+	// servico ja aplica, e as duas copias divergiriam.
+	if !strings.Contains(string(f.body), `"content":"Ola {{nome}}"`) {
+		t.Errorf("o corpo nao chegou intacto ao cliente de escrita: %s", string(f.body))
+	}
+	if !strings.Contains(rec.Body.String(), `"boas-vindas"`) {
+		t.Errorf("a resposta do servico nao chegou ao navegador: %s", rec.Body.String())
+	}
+}
+
+func TestPromptlyDashboard_reverter_repassa_o_nome_no_caminho(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"version":3,"labelsMoved":[]}`)}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/rollback", `{"toVersion":1}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d — a rota POST .../rollback precisa existir", rec.Code)
+	}
+	if f.label != "saudacao" {
+		t.Errorf("o nome do prompt nao foi repassado: %q", f.label)
+	}
+	// `labelsMoved: []` PRECISA chegar a tela: e o dado que separa "revertido" de "revisao criada
+	// e nada em producao mudou". Um BFF que o filtrasse recriaria o defeito LT-030.
+	if !strings.Contains(rec.Body.String(), `"labelsMoved":[]`) {
+		t.Errorf("labelsMoved vazio nao chegou ao navegador: %s", rec.Body.String())
+	}
+}
+
+func TestPromptlyDashboard_recusa_do_rollback_chega_com_os_labels_disponiveis(t *testing.T) {
+	// O par que discrimina: sem a lista, a recusa e um beco; com ela, vira escolha.
+	f := &promptlyFake{err: &promptly.UpstreamError{
+		Status: http.StatusBadRequest,
+		Body:   json.RawMessage(`{"error":"label_required","availableLabels":["prod","staging"]}`),
+		Method: http.MethodPost,
+		Path:   "/prompts/saudacao/rollback",
+	}}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/rollback", `{"toVersion":1}`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d — a recusa 4xx do servico tem de ser preservada", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"availableLabels"`) {
+		t.Errorf("a lista de labels nao chegou a tela: %s", rec.Body.String())
+	}
+}
+
+func TestPromptlyDashboard_falha_5xx_na_escrita_NAO_vaza_o_corpo_do_servico(t *testing.T) {
+	// O CONTROLE NEGATIVO. Sem ele o repasse de 4xx vira matcher cego e o endereco interno do
+	// servico chega ao navegador do cliente.
+	f := &promptlyFake{err: &promptly.UpstreamError{
+		Status: http.StatusBadGateway,
+		Body:   json.RawMessage(`{"error":"dial tcp 10.0.0.4:8080: connect: refused"}`),
+		Method: http.MethodPost,
+		Path:   "/prompts",
+	}}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts", `{"name":"x","content":"y"}`)
+
+	if strings.Contains(rec.Body.String(), "10.0.0.4") {
+		t.Errorf("o endereco interno do servico vazou para a tela: %s", rec.Body.String())
 	}
 }
