@@ -60,7 +60,27 @@ export function registerLensHandlers() {
           { status: 400 },
         );
       }
-      return Response.json({ ...USAGE_BY_USER, windowDays: days });
+      // M144 — a série só vem quando pedida, como no serviço real (ADR-3 do M143). O dia 21 está
+      // AUSENTE de propósito no maior consumidor: é a lacuna que o e2e afirma, e sem ela o spec
+      // ficaria verde sobre uma linha contínua.
+      const bucket = new URL(req.url).searchParams.get("bucket");
+      if (bucket !== "day") return Response.json({ ...USAGE_BY_USER, windowDays: days });
+
+      const dia = (n: number) => new Date(Date.UTC(2026, 6, n)).toISOString();
+      const ponto = (n: number, i: number, o: number, c: number) => ({
+        periodStart: dia(n), inputTokens: i, outputTokens: o,
+        cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: c,
+      });
+      return Response.json({
+        ...USAGE_BY_USER,
+        windowDays: days,
+        users: USAGE_BY_USER.users.map((u, idx) => ({
+          ...u,
+          series: idx === 0
+            ? [ponto(20, 100, 40, 1.5), ponto(22, 300, 60, 2.5)] // dia 21 ausente — A LACUNA
+            : [ponto(20, 10, 5, 0.1), ponto(21, 20, 6, 0.2), ponto(22, 30, 7, 0.3)],
+        })),
+      });
     });
   }
 }
