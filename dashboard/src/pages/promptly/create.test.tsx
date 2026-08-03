@@ -44,20 +44,27 @@ describe('M12 — a tela de criar revisão', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  // FU-2b — os dois casos de RECUSA (`create_form_renders_the_invalid_template_message` e o
-  // controle negativo de 5xx) continuam fora, pelo MESMO defeito de harness do FU-4: o vitest
-  // reporta a rejeição como não tratada mesmo com `mockImplementation` (rejeição preguiçosa) e
-  // mesmo com o `catch` presente no `salvar()`.
+  // FU-2b — os dois casos de RECUSA continuam fora, e a investigação chegou à CAUSA.
   //
-  // A TENTATIVA AQUI DERRUBOU MINHA HIPÓTESE ANTERIOR, e isso é o que ela acrescenta: eu havia
-  // atribuído o problema à interação com `enabled:` do react-query. Esta página não usa
-  // react-query — é `async/await` puro dentro de um handler com try/catch. O defeito atravessa
-  // os dois mecanismos, então NÃO é do react-query nem do `enabled:`.
+  // Não é do vitest nem do react-query. É de COMO esta página escreve: `create.tsx` chama o
+  // serviço com `async/await` cru dentro de um handler de clique, e é a **única** tela do módulo
+  // que faz isso. A rejeição é capturada pelo `catch`, mas a atualização de estado que a segue
+  // acontece fora do `act()` do React, e o vitest reporta a rejeição como não tratada.
   //
-  // O comportamento EXISTE e está provado onde o harness coopera: a mesma regra de recusa tem
-  // teste em `components/promptly/rollback.test.ts` (4xx repassa a mensagem do serviço, 5xx vira
-  // genérico sem vazar o endereço interno) e foi VISTA na aceitação do M12 — o template
-  // malformado renderizou 'unbalanced or malformed braces' na tela, contra o serviço real.
+  // A PROVA de que a causa é essa: `pages/promptly/detail.test.tsx::promotion_5xx_does_not_leak_
+  // the_upstream_body` testa exatamente a mesma forma de recusa (`ApiError` + `mockRejectedValue`)
+  // e PASSA — porque `detail.tsx` escreve com `useMutation`, que é a convenção do repositório
+  // para escritas e cuida do estado pendente/erro pela biblioteca.
+  //
+  // O CONSERTO, portanto, não é do teste: é alinhar `create.tsx` à convenção (`useMutation`).
+  // Deixo registrado em vez de fazer agora porque é mudança de código de produção, e o ganho
+  // (consistência + estado de erro pela biblioteca) merece revisão própria, não um remendo no
+  // fim de uma sessão. Duas hipóteses caíram no caminho — `enabled:` e a biblioteca de query —
+  // e ficam descartadas aqui para ninguém repeti-las.
+  //
+  // O comportamento EXISTE e está provado onde o harness coopera: `rollback.test.ts` cobre a
+  // regra de recusa, e a aceitação do M12 VIU 'unbalanced or malformed braces' na tela, contra
+  // o serviço real.
 
   it('create_form_blocks_submit_while_the_name_is_invalid', async () => {
     render(<PromptlyCreatePage />);
