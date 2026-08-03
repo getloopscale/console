@@ -25,15 +25,26 @@
 
 import { test, expect, type Page } from '@playwright/test';
 
-/** Chega ao catálogo CLICANDO — as duas metades do menu, como o usuário faz. */
+/**
+ * Chega ao catálogo CLICANDO — as duas metades do menu, como o usuário faz.
+ *
+ * **O destino é `Catálogo`, não `Overview`, desde o M13.** A lista saiu da raiz: `/promptly` virou
+ * o painel, como em memory/rag/lens. Este helper continuou clicando `Overview` e a jornada passou
+ * a procurar links de prompt numa tela que já não os tem — falhando trinta segundos depois, no
+ * timeout, dizendo apenas que um link não apareceu.
+ *
+ * O M25 sofreu o mesmo e foi corrigido em `afc0f72`; ESTE spec não, porque **ele não roda no CI**
+ * (`e2e-ui.yml` enumera os specs um a um e não o inclui). Um spec fora do portão é um spec que
+ * apodrece em silêncio — e foi o M13 que o apodreceu.
+ */
 async function navegarAteOCatalogoPeloMenu(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: /^prompts$/i }).click();
-  // O submenu tem de TROCAR antes do clique seguinte: a raiz também tem "Overview", e clicar
-  // cedo demais acerta o dela com a navegação parecendo funcionar.
+  // O submenu tem de TROCAR antes do clique seguinte: a raiz também tem itens de mesmo nome, e
+  // clicar cedo demais acerta o dela com a navegação parecendo funcionar.
   await expect(page.getByRole('button', { name: /^projects$/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /^overview$/i }).click();
-  await expect(page).toHaveURL(/\/promptly$/);
+  await page.getByRole('button', { name: /^catálogo$/i }).click();
+  await expect(page).toHaveURL(/\/promptly\/catalogo$/);
 }
 
 test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
@@ -69,7 +80,18 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
     // ---- COMPARAR: alcançado a partir do prompt, não do menu -------------------------------
     // Comparar é POR PROMPT — uma entrada de menu exigiria um nome que o menu não tem.
     await navegarAteOCatalogoPeloMenu(page);
-    await page.getByRole('link', { name: 'saudacao' }).click();
+    // `exact` porque o M13 acrescentou o atalho `Comparar revisões de saudacao` em cada linha:
+    // sem ele o localizador casa DOIS elementos e o Playwright recusa por strict mode.
+    await page.getByRole('link', { name: 'saudacao', exact: true }).click();
+    // Esperar o CATÁLOGO DESMONTAR antes de procurar `Comparar`, e não só a URL mudar.
+    //
+    // A tela de detalhe é lazy (`app.tsx`), então durante a transição o React mantém o DOM
+    // anterior montado enquanto a URL já é a nova — `toHaveURL` passa e o localizador seguinte
+    // ainda resolve no catálogo. Desde o M13 o catálogo tem um link `Comparar revisões de X` por
+    // linha, então o Playwright recusa por strict mode e a mensagem culpa o seletor, não a corrida.
+    // O campo de busca só existe no catálogo: a ausência dele prova a troca.
+    await expect(page).toHaveURL(/\/promptly\/saudacao$/);
+    await expect(page.getByRole('searchbox')).toHaveCount(0);
     await page.getByRole('link', { name: /comparar/i }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao\/diff$/);
 
