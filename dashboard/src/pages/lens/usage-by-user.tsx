@@ -148,6 +148,19 @@ export function LensUsageByUserPage() {
               setPage(1);
             }}
           >
+            {/*
+              Uma janela vinda da URL que não esteja em `JANELAS` PRECISA de uma opção própria.
+              Sem ela o DOM cai na primeira da lista e o controle passa a dizer "Últimos 7 dias"
+              enquanto o serviço recusou 9999 — quem lê entende que 7 dias foi recusado, e a
+              mensagem `days must be at most 365` vira absurdo ao lado disso (#383).
+
+              Desabilitada porque não é uma janela ofertada: serve para EXIBIR a consulta feita,
+              não para ser reescolhida. Clampar o valor seria a alternativa, e joga fora a recusa
+              tipada que a M140 pagou para ter.
+            */}
+            {JANELAS.includes(days as (typeof JANELAS)[number]) ? null : (
+              <option value={String(days)} disabled>{`Personalizado: ${days} dias`}</option>
+            )}
             {JANELAS.map((d) => (
               <option key={d} value={String(d)}>{`Últimos ${d} dias`}</option>
             ))}
