@@ -44,27 +44,22 @@ describe('M12 — a tela de criar revisão', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  // FU-2b — os dois casos de RECUSA continuam fora, e a investigação chegou à CAUSA.
+  // FU-2b — os dois casos de RECUSA continuam fora, e a TERCEIRA hipótese também caiu.
   //
-  // Não é do vitest nem do react-query. É de COMO esta página escreve: `create.tsx` chama o
-  // serviço com `async/await` cru dentro de um handler de clique, e é a **única** tela do módulo
-  // que faz isso. A rejeição é capturada pelo `catch`, mas a atualização de estado que a segue
-  // acontece fora do `act()` do React, e o vitest reporta a rejeição como não tratada.
+  // Descartadas por experimento, nesta ordem: (1) a interação com `enabled:` do react-query —
+  // negada porque o defeito aparece numa página sem react-query; (2) a biblioteca de query —
+  // negada pelo mesmo motivo; (3) o `async/await` cru no handler — **negada agora**: converti
+  // `create.tsx` para `useMutation`, que é como `detail.tsx` escreve e cujo teste de recusa 5xx
+  // PASSA, e o caso aqui continua vermelho pelo mesmo motivo.
   //
-  // A PROVA de que a causa é essa: `pages/promptly/detail.test.tsx::promotion_5xx_does_not_leak_
-  // the_upstream_body` testa exatamente a mesma forma de recusa (`ApiError` + `mockRejectedValue`)
-  // e PASSA — porque `detail.tsx` escreve com `useMutation`, que é a convenção do repositório
-  // para escritas e cuida do estado pendente/erro pela biblioteca.
-  //
-  // O CONSERTO, portanto, não é do teste: é alinhar `create.tsx` à convenção (`useMutation`).
-  // Deixo registrado em vez de fazer agora porque é mudança de código de produção, e o ganho
-  // (consistência + estado de erro pela biblioteca) merece revisão própria, não um remendo no
-  // fim de uma sessão. Duas hipóteses caíram no caminho — `enabled:` e a biblioteca de query —
-  // e ficam descartadas aqui para ninguém repeti-las.
+  // Então a diferença entre `detail.test.tsx` (passa) e este (falha) NÃO é o mecanismo de escrita.
+  // Sobra o setup do arquivo: `detail.test.tsx` mocka `useParams` e cinco funções de API; este
+  // mocka uma. É onde a próxima tentativa deve começar — e é investigação de infraestrutura de
+  // teste, não deste milestone.
   //
   // O comportamento EXISTE e está provado onde o harness coopera: `rollback.test.ts` cobre a
-  // regra de recusa, e a aceitação do M12 VIU 'unbalanced or malformed braces' na tela, contra
-  // o serviço real.
+  // regra de recusa, e a aceitação do M12 VIU 'unbalanced or malformed braces' na tela, contra o
+  // serviço real.
 
   it('create_form_blocks_submit_while_the_name_is_invalid', async () => {
     render(<PromptlyCreatePage />);

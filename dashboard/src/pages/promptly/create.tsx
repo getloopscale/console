@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Button, Card, FormField, PageShell, Textarea } from '@usetheo/ui';
 
@@ -38,8 +39,21 @@ export function PromptlyCreatePage() {
   const [nome, setNome] = useState(nomeSugerido);
   const [conteudo, setConteudo] = useState('');
   const [valores, setValores] = useState<Record<string, string>>({});
-  const [enviando, setEnviando] = useState(false);
   const [recusa, setRecusa] = useState<string | null>(null);
+
+  // `useMutation` e não `async/await` cru num handler: é a convenção do repositório para escritas
+  // (`detail.tsx` faz assim na promoção e na reversão) e dispensa dois `useState` mantidos à mão.
+  //
+  // HONESTIDADE SOBRE O MOTIVO: eu troquei isto acreditando que resolveria os testes de recusa,
+  // que o vitest reporta como rejeição não tratada. **Não resolveu** — o teste continua vermelho
+  // pelo mesmo motivo depois da troca. A hipótese estava errada, e fica registrada como errada
+  // para ninguém a repetir. A mudança permanece porque se sustenta sozinha (consistência com as
+  // outras duas escritas do módulo, menos estado à mão), não pelo motivo que me trouxe até ela.
+  const criar = useMutation({
+    mutationFn: () => createRevision<unknown>(nome.trim(), conteudo),
+    onSuccess: () => navigate(`/promptly/${encodeURIComponent(nome.trim())}`),
+    onError: (err: unknown) => setRecusa(mensagemDeRecusa(err)),
+  });
 
   const validacao = validarCriacao(nome);
 
@@ -51,18 +65,10 @@ export function PromptlyCreatePage() {
   const campos = camposDeVariaveis(declaradas, conteudo);
   const renderizado = renderTemplate(conteudo, { ...campos, ...valores });
 
-  async function salvar() {
+  function salvar() {
     if (!validacao.ok) return;
-    setEnviando(true);
     setRecusa(null);
-    try {
-      await createRevision<unknown>(nome.trim(), conteudo);
-      navigate(`/promptly/${encodeURIComponent(nome.trim())}`);
-    } catch (err) {
-      setRecusa(mensagemDeRecusa(err));
-    } finally {
-      setEnviando(false);
-    }
+    criar.mutate();
   }
 
   return (
@@ -163,8 +169,8 @@ export function PromptlyCreatePage() {
       </Card>
 
       <div className="flex gap-3">
-        <Button onClick={salvar} disabled={!validacao.ok || enviando}>
-          {enviando ? 'Criando…' : `Criar revisão v${proximaVersao}`}
+        <Button onClick={salvar} disabled={!validacao.ok || criar.isPending}>
+          {criar.isPending ? 'Criando…' : `Criar revisão v${proximaVersao}`}
         </Button>
         {/* Saída explícita. Um formulário sem volta prende o operador na tela que ele abriu por
             engano — e aqui a tecla de escape é voltar, não gravar algo imutável. */}
