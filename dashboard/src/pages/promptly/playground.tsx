@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, Card, FormField, PageShell, Skeleton, Textarea } from '@usetheo/ui';
 
@@ -14,6 +14,7 @@ import {
   type CampoVariavel,
   type Falha,
 } from '@/components/promptly/playground';
+import { variaveisDoTexto } from '@/components/promptly/preview';
 
 interface PromptWire {
   readonly name: string;
@@ -55,6 +56,7 @@ export function PromptlyPlaygroundPage() {
 
   const { promptName = '' } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [conteudo, setConteudo] = useState('');
   const [campos, setCampos] = useState<readonly CampoVariavel[]>([]);
@@ -69,22 +71,41 @@ export function PromptlyPlaygroundPage() {
     enabled: promptName !== '',
   });
 
-  // A lista vem de `variables` — declarada pelo serviço, derivada dos tokens
-  // `{{...}}` do conteúdo armazenado. A tela não a recalcula do texto que o
-  // operador está editando: enquanto ele digita `{{to`, uma derivação local
-  // criaria e destruiria campos a cada tecla.
+  /**
+   * De onde vem a lista de campos — e por que ela tem DOIS regimes.
+   *
+   * **Enquanto o conteúdo é o armazenado**, a lista é `variables`, declarada pelo
+   * serviço (DoD-2). É o contrato: nunca adivinhada do texto.
+   *
+   * **Depois que o operador edita**, ela passa a acompanhar o texto editado. Sem
+   * isso o fluxo central do milestone — editar, rodar, salvar — tem um beco sem
+   * saída: acrescentar `{{fonte}}` ao texto deixaria "Rodar" habilitado (o cliente
+   * só valida o que foi declarado), o servidor recusaria com `missing_variable:
+   * fonte`, e **não haveria campo `fonte` na tela para preencher**. Recusa em
+   * laço, sem saída.
+   *
+   * É o mesmo julgamento que a tela de autoria já faz (`create.tsx`): quando o
+   * conteúdo está sendo digitado agora, ele é a única fonte que existe. E reusa a
+   * mesma função — `variaveisDoTexto` — em vez de uma segunda derivação.
+   */
+  const editado = prompt.data != null && conteudo !== prompt.data.content;
   const declaradas = useMemo(
-    () => (prompt.data?.variables ?? []) as readonly string[],
-    [prompt.data],
+    () => (editado ? variaveisDoTexto(conteudo) : ((prompt.data?.variables ?? []) as readonly string[])),
+    [editado, conteudo, prompt.data],
   );
 
-  // Semeia o editor e os campos quando o prompt chega. Depois disso o operador é
-  // o dono do texto — reescrever a cada render apagaria o que ele digitou.
+  // Semeia o editor quando o prompt chega. Depois disso o operador é o dono do
+  // texto — reescrever a cada render apagaria o que ele digitou.
   useEffect(() => {
     if (prompt.data === undefined || prompt.data === null) return;
     setConteudo(prompt.data.content);
-    setCampos((atuais) => camposDeVariaveis(prompt.data?.variables ?? [], atuais));
   }, [prompt.data]);
+
+  // Os campos acompanham a lista vigente, preservando o que já foi digitado para
+  // as variáveis que sobreviveram.
+  useEffect(() => {
+    setCampos((atuais) => camposDeVariaveis(declaradas, atuais));
+  }, [declaradas]);
 
   const rodar = useMutation({
     mutationFn: () =>
@@ -108,7 +129,16 @@ export function PromptlyPlaygroundPage() {
 
   const salvar = useMutation({
     mutationFn: () => createRevision<unknown>(promptName, conteudo),
-    onSuccess: () => navigate(`/promptly/${encodeURIComponent(promptName)}`),
+    onSuccess: () => {
+      // Invalidar ANTES de navegar. Sem isto o detalhe renderiza o cache anterior e a
+      // revisão recém-criada **não aparece** — o DoD-6 promete que "o detalhe passa a
+      // mostrá-la", e navegar sozinho não cumpre isso. O detalhe já faz o mesmo nas
+      // escritas dele (`detail.tsx:142-143`); era esta tela que faltava.
+      void queryClient.invalidateQueries({
+        queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName],
+      });
+      navigate(`/promptly/${encodeURIComponent(promptName)}`);
+    },
     onError: () =>
       setRecusaAoSalvar('Não foi possível criar a revisão. Tente de novo em instantes.'),
   });

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { fireEvent, within } from '@testing-library/react';
+import { fireEvent, waitFor, within } from '@testing-library/react';
 import { render, screen } from '@/test/render';
 import { ApiError } from '@/lib/api';
 
@@ -211,8 +211,9 @@ describe('M14 — o playground', () => {
     fireEvent.change(await screen.findByLabelText('Conteúdo do prompt'), {
       target: { value: 'EDITADO {{topico}}' },
     });
+    // O texto editado declara SÓ `topico` — `artigo` deixou de existir, e o campo
+    // dele some junto (é o regime editado; ver o segundo `describe` abaixo).
     fireEvent.change(screen.getByLabelText('topico'), { target: { value: 'chuva' } });
-    fireEvent.change(screen.getByLabelText('artigo'), { target: { value: 'NYT' } });
     fireEvent.change(screen.getByLabelText('Chave de API do modelo'), {
       target: { value: SENTINELA },
     });
@@ -263,5 +264,124 @@ describe('M14 — o playground', () => {
       'href',
       '/promptly/saudacao',
     );
+  });
+});
+
+/**
+ * M14 pós-review (H3) — o beco sem saída que a revisão encontrou.
+ *
+ * O fluxo central do milestone é editar → rodar → salvar. Enquanto os campos vinham
+ * SÓ de `variables` (a lista do conteúdo armazenado), acrescentar uma variável ao
+ * texto produzia: "Rodar" habilitado (o cliente só validava o declarado), servidor
+ * recusando com `missing_variable`, e **nenhum campo na tela para preencher**.
+ * Recusa em laço, sem saída — e nenhum teste em camada alguma cobria.
+ */
+describe('M14 — os campos acompanham o conteúdo EDITADO', () => {
+  it('acrescentar uma variavel ao texto cria o campo dela', async () => {
+    render(<PromptlyPlaygroundPage />);
+    await screen.findByLabelText('topico');
+
+    fireEvent.change(screen.getByLabelText('Conteúdo do prompt'), {
+      target: { value: 'Sobre {{topico}} citando {{artigo}} e a {{fonte}}' },
+    });
+
+    expect(await screen.findByLabelText('fonte')).toBeInTheDocument();
+  });
+
+  it('remover uma variavel do texto remove o campo dela', async () => {
+    render(<PromptlyPlaygroundPage />);
+    await screen.findByLabelText('artigo');
+
+    fireEvent.change(screen.getByLabelText('Conteúdo do prompt'), {
+      target: { value: 'Só sobre {{topico}}' },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('artigo')).toBeNull();
+    });
+    expect(screen.getByLabelText('topico')).toBeInTheDocument();
+  });
+
+  it('o valor ja digitado sobrevive a edicao que preserva a variavel', async () => {
+    render(<PromptlyPlaygroundPage />);
+    fireEvent.change(await screen.findByLabelText('topico'), { target: { value: 'chuva' } });
+
+    fireEvent.change(screen.getByLabelText('Conteúdo do prompt'), {
+      target: { value: 'Reescrito, mas ainda com {{topico}}' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('topico')).toHaveValue('chuva');
+    });
+  });
+
+  /** O fecho do beco: com o campo novo preenchido, dá para rodar. */
+  it('depois de criar o campo novo e preenche-lo, Rodar habilita', async () => {
+    render(<PromptlyPlaygroundPage />);
+    await screen.findByLabelText('topico');
+
+    fireEvent.change(screen.getByLabelText('Conteúdo do prompt'), {
+      target: { value: 'Sobre {{topico}} e {{fonte}}' },
+    });
+    fireEvent.change(await screen.findByLabelText('fonte'), { target: { value: 'IBGE' } });
+    fireEvent.change(screen.getByLabelText('topico'), { target: { value: 'chuva' } });
+    fireEvent.change(screen.getByLabelText('Chave de API do modelo'), {
+      target: { value: SENTINELA },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Rodar' })).toBeEnabled();
+    });
+  });
+
+  /**
+   * DoD-2 continua verdadeiro no regime que ele descreve: enquanto o conteúdo é o
+   * armazenado, a lista é a que a API declara — não uma derivação local.
+   */
+  it('sem edicao, a lista continua vindo de `variables` e nao do texto', async () => {
+    // O mock declara ['topico','artigo'] para um conteúdo que também tem os dois;
+    // aqui o serviço declara MENOS do que o texto contém, e a tela obedece ao serviço.
+    mockPrompt.mockResolvedValue({
+      name: 'saudacao',
+      content: 'Sobre {{topico}} e {{artigo}}',
+      version: 3,
+      variables: ['topico'],
+    });
+    render(<PromptlyPlaygroundPage />);
+
+    expect(await screen.findByLabelText('topico')).toBeInTheDocument();
+    expect(screen.queryByLabelText('artigo')).toBeNull();
+  });
+});
+
+/**
+ * M14 pós-review (H2) — a fixture da recusa usava um `message` que o serviço nunca
+ * emite. A rota devolve apenas `{error, providerStatus}`, então quem renderiza em
+ * produção é o FALLBACK — e ele não tinha teste, enquanto o caminho testado era
+ * inalcançável.
+ */
+describe('M14 — a recusa do provider como o serviço realmente a emite', () => {
+  it('sem `message`, o fallback nomeia o status do provider', async () => {
+    mockRun.mockRejectedValue(new ApiError(422, { error: 'model_refused', providerStatus: 401 }));
+    render(<PromptlyPlaygroundPage />);
+    await prontoParaRodar();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rodar' }));
+
+    const saida = await screen.findByTestId('playground-saida');
+    expect(within(saida).getByText(/provedor respondeu 401/i)).toBeInTheDocument();
+    // E não deixa o número sumir — o defeito seria "O provedor respondeu  e recusou".
+    expect(within(saida).queryByText(/respondeu\s+e recusou/i)).toBeNull();
+  });
+
+  it('quota estourada chega com 429, distinta da chave invalida', async () => {
+    mockRun.mockRejectedValue(new ApiError(422, { error: 'model_refused', providerStatus: 429 }));
+    render(<PromptlyPlaygroundPage />);
+    await prontoParaRodar();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rodar' }));
+
+    const saida = await screen.findByTestId('playground-saida');
+    expect(within(saida).getByText(/provedor respondeu 429/i)).toBeInTheDocument();
   });
 });

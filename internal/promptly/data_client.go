@@ -36,9 +36,20 @@ const maxBodyBytes = 8 << 20 // 8 MiB
 
 // DataClient e o proxy de leitura por inquilino para o theo-promptly.
 type DataClient struct {
-	baseURL     string
-	httpClient  *http.Client
-	keyResolver func(ctx context.Context) (string, error)
+	baseURL string
+	// httpClient serve as LEITURAS — catalogo, revisoes, labels, politica. Orcamento curto: um
+	// GET que demora dez segundos ja e um defeito.
+	httpClient *http.Client
+	// invocationClient serve o playground, e existe porque os dois casos tem orcamentos
+	// incomparaveis: uma leitura lenta e patologia, uma geracao de LLM que leva vinte segundos e
+	// rotina. Compartilhar o cliente das leituras fazia o BFF DESISTIR antes de a recusa tipada
+	// existir — e o operador via "nao foi possivel falar com o servico" para uma chave invalida,
+	// com a quota dele ja consumida. `http.Client.Timeout` e teto absoluto: um `context` mais
+	// generoso nao o afrouxa, so um cliente proprio resolve.
+	//
+	// Nil = usa `httpClient`, preservando o comportamento de quem nao opta.
+	invocationClient *http.Client
+	keyResolver      func(ctx context.Context) (string, error)
 }
 
 // NewDataClient constroi o cliente. baseURL e a raiz REST do theo-promptly. httpClient nil usa
@@ -48,6 +59,15 @@ func NewDataClient(baseURL string, httpClient *http.Client) *DataClient {
 		httpClient = http.DefaultClient
 	}
 	return &DataClient{baseURL: strings.TrimRight(baseURL, "/"), httpClient: httpClient}
+}
+
+// WithInvocationClient liga o cliente HTTP das INVOCACOES (playground), separado do das leituras.
+//
+// Ver o comentario de `DataClient.invocationClient` para a razao: os dois orcamentos de tempo nao
+// sao comparaveis, e o teto do `http.Client` nao pode ser afrouxado por `context`.
+func (c *DataClient) WithInvocationClient(h *http.Client) *DataClient {
+	c.invocationClient = h
+	return c
 }
 
 // WithKeyResolver liga o resolver de Bearer por inquilino (Model B). Sem ele o cliente nao
@@ -215,7 +235,11 @@ func (c *DataClient) postRaw(ctx context.Context, path string, corpo json.RawMes
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	cliente := c.invocationClient
+	if cliente == nil {
+		cliente = c.httpClient
+	}
+	resp, err := cliente.Do(req)
 	if err != nil {
 		// Nem o bearer nem o CORPO entram na mensagem: o corpo carrega a credencial do modelo que
 		// o operador digitou. O caminho entra, e e util.

@@ -77,9 +77,13 @@ test.describe('M14 — a jornada do playground', () => {
     await expect(page.getByRole('button', { name: 'Rodar' })).toBeEnabled();
 
     // --- 11. DoD-6: salvar cria revisão nova com o texto da tela ---
+    // `saudacao` tem 3 revisões no mock; salvar produz a v4. Asserir a URL e o
+    // heading provaria só que navegou — a metade do bullet que importa é a versão
+    // NOVA aparecendo no detalhe, e ela não era asserida em lugar nenhum (pós-review M4).
     await page.getByRole('button', { name: /Salvar como nova revisão/i }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao$/);
     await expect(page.getByRole('heading', { name: 'saudacao', level: 1 })).toBeVisible();
+    await expect(page.getByText('v4', { exact: false }).first()).toBeVisible();
   });
 
   test('do playground se volta ao prompt por clique, sem o botão do navegador', async ({ page }) => {

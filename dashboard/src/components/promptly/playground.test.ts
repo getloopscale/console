@@ -99,6 +99,7 @@ describe('classificarFalha — DoD-5: o motivo do provider, ou o genérico hones
     ['servico fora', new ApiError(502, { error: 'promptly_unavailable' }), 'transporte'],
     ['bug nosso', new ApiError(500, { error: 'internal_error' }), 'transporte'],
     ['rate limit NOSSO', new ApiError(429, undefined), 'transporte'],
+    ['corpo grande demais', new ApiError(413, undefined), 'validacao'],
     ['sessao expirada', new ApiError(401, undefined), 'sessao'],
   ])('classifica %s como %s', (_nome, erro, tipo) => {
     expect(classificarFalha(erro).tipo).toBe(tipo);
@@ -141,6 +142,14 @@ describe('classificarFalha — DoD-5: o motivo do provider, ou o genérico hones
       new ApiError(422, { error: 'model_refused', providerStatus: 429 }),
     );
     expect(quotaDoProvider).toMatchObject({ tipo: 'provider', providerStatus: 429 });
+  });
+
+  /** M14 pós-review (M2): 413 dizia "não foi possível falar com o serviço". */
+  it('o 413 diz que o prompt e grande demais, nao que a rede caiu', () => {
+    const f = classificarFalha(new ApiError(413, undefined));
+
+    expect(f).toMatchObject({ tipo: 'validacao' });
+    expect((f as { motivo?: string }).motivo).toMatch(/grande demais/i);
   });
 
   it('um erro que nao e ApiError cai em transporte, sem estourar', () => {

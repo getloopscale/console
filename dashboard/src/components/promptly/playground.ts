@@ -104,6 +104,15 @@ export function classificarFalha(erro: unknown): Falha {
     };
   }
 
+  /**
+   * 413 é o teto de corpo do BFF (`lerCorpoLimitado`), e ele NÃO é transporte: o
+   * operador precisa saber que o prompt é grande demais, não que a rede caiu.
+   * Cair no genérico dava um diagnóstico falso para um problema de tamanho.
+   */
+  if (erro.status === 413) {
+    return { tipo: 'validacao', motivo: 'O prompt é grande demais para ser enviado. Reduza o texto e tente de novo.' };
+  }
+
   if (erro.status === 400) {
     if (code === 'missing_variable') {
       const variavel = texto(corpo.variable);

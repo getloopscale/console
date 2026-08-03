@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // errSemTenant e a falha do resolver: nenhum inquilino autenticado no contexto.
@@ -501,5 +502,64 @@ func TestPlayground_concurrent_nao_mistura_tenants(t *testing.T) {
 		if err := <-erros; err != nil {
 			t.Fatalf("iteracao %d: %v", i, err)
 		}
+	}
+}
+
+// TestPlayground_usa_orcamento_de_tempo_proprio_e_nao_o_das_leituras
+//
+// O BLOCKER que a revisao do M14 achou: o `promptlyHTTP` compartilhado tem 10 s
+// (`cmd/main.go`), que serve bem uma leitura de catalogo e NAO serve uma invocacao
+// sincrona de LLM. Uma geracao que leve 14 s — ou um provider sob rate-limit que
+// responda 429 aos 12 — faria o BFF desistir ANTES de a resposta existir: o
+// `422 model_refused` seria montado pelo servico sem ninguem escutando, `postRaw`
+// devolveria erro de TRANSPORTE (nao `*UpstreamError`), `reject` escreveria 502
+// opaco, e a tela diria "nao foi possivel falar com o servico".
+//
+// Ou seja: o DoD-5 falharia exatamente no caso que ele existe para cobrir, com a
+// quota do operador ja consumida.
+//
+// O teste prova a SEPARACAO, nao um numero: o cliente de leitura tem orcamento
+// curto demais para a resposta, o de invocacao tem folga, e so o segundo passa.
+func TestPlayground_usa_orcamento_de_tempo_proprio_e_nao_o_das_leituras(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(80 * time.Millisecond) // acima do teto de leitura, dentro do de invocacao
+		_, _ = w.Write([]byte(`{"text":"demorou mas veio"}`))
+	}))
+	defer srv.Close()
+
+	leitura := &http.Client{Timeout: 20 * time.Millisecond}
+	invocacao := &http.Client{Timeout: 5 * time.Second}
+	c := NewDataClient(srv.URL, leitura).
+		WithInvocationClient(invocacao).
+		WithKeyResolver(func(context.Context) (string, error) { return "promptly_live_x", nil })
+
+	// Controle: o caminho de LEITURA de fato estoura com este orcamento — sem isto
+	// o teste passaria mesmo se os dois clientes fossem o mesmo e generoso.
+	if _, _, err := c.Catalog(context.Background(), 0, ""); err == nil {
+		t.Fatal("o cliente de leitura deveria ter estourado — o teste nao discrimina assim")
+	}
+
+	out, err := c.Playground(context.Background(), "saudacao", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("a invocacao estourou no orcamento de LEITURA: %v", err)
+	}
+	if !strings.Contains(string(out), "demorou mas veio") {
+		t.Errorf("resposta inesperada: %s", string(out))
+	}
+}
+
+// Sem cliente de invocacao configurado, o comportamento e o de antes — nada muda
+// para quem nao opta.
+func TestPlayground_sem_cliente_de_invocacao_usa_o_padrao(t *testing.T) {
+	c, _ := clienteContra(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"text":"ok"}`))
+	})
+
+	out, err := c.Playground(context.Background(), "saudacao", json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !strings.Contains(string(out), "ok") {
+		t.Errorf("resposta = %s", string(out))
 	}
 }

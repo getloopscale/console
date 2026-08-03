@@ -6,7 +6,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
   return { ...actual, cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) };
 });
 
-import { fetchCatalogPage } from './promptly-api';
+import { fetchCatalogPage, runPlayground } from './promptly-api';
 
 /**
  * M13 pós-review (TA-02) — a cola que lê o header não tinha teste em nível ALGUM.
@@ -96,5 +96,78 @@ describe('fetchCatalogPage', () => {
 
     // "não há prompts" e "não consegui perguntar" levam a decisões opostas — o erro precisa subir.
     await expect(fetchCatalogPage<unknown[]>(1)).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+/**
+ * M14 pós-review (H1) — `runPlayground` era o único elo do caminho PAGO sem
+ * oráculo em CI, e o defeito é o mesmo que o pós-review do M13 já corrigira uma
+ * vez neste arquivo.
+ *
+ * Todo teste de tela dubla o módulo inteiro (`vi.mock`), e o e2e deliberadamente
+ * não clica em Rodar — então método, caminho e as chaves do corpo não eram
+ * asseridos em lugar nenhum. Renomear `credential` para `credentials`, ou errar o
+ * caminho, deixaria 2328 testes verdes e só quebraria na aceitação, com chave
+ * real.
+ */
+describe('runPlayground — o contrato de fio da invocação', () => {
+  afterEach(() => {
+    mockCloudFetch.mockReset();
+  });
+
+  it('POSTa no caminho do BFF daquele prompt', async () => {
+    mockCloudFetch.mockResolvedValue({ text: 'ok' });
+
+    await runPlayground('saudacao', '{{t}}', { t: 'x' }, 'sk-x');
+
+    const [path, opts] = mockCloudFetch.mock.calls[0] as [string, RequestInit];
+    expect(path).toBe('/v1/dashboard/promptly/prompts/saudacao/playground');
+    expect(opts.method).toBe('POST');
+  });
+
+  it('o corpo carrega credential, content e variables — os tres nomes que o servico le', async () => {
+    mockCloudFetch.mockResolvedValue({ text: 'ok' });
+
+    await runPlayground('saudacao', 'Escreva sobre {{topico}}', { topico: 'chuva' }, 'sk-SEGREDO');
+
+    const [, opts] = mockCloudFetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(opts.body))).toEqual({
+      credential: 'sk-SEGREDO',
+      content: 'Escreva sobre {{topico}}',
+      variables: { topico: 'chuva' },
+    });
+  });
+
+  /**
+   * `throwOnError` não é detalhe: sem ele `cloudFetch` devolve `null` em vez de
+   * lançar, o `ApiError` nunca chega a `classificarFalha`, e a recusa do provider
+   * vira uma tela em branco — o DoD-5 inteiro depende desta linha.
+   */
+  it('pede throwOnError, senao a recusa tipada nunca chega a classificarFalha', async () => {
+    mockCloudFetch.mockResolvedValue({ text: 'ok' });
+
+    await runPlayground('saudacao', '{{t}}', { t: 'x' }, 'sk-x');
+
+    const [, , cfg] = mockCloudFetch.mock.calls[0] as [string, RequestInit, { throwOnError?: boolean }];
+    expect(cfg.throwOnError).toBe(true);
+  });
+
+  /** A credencial NÃO pode escapar para a query string — histórico e log de acesso a guardariam. */
+  it('a credencial vai no corpo e em lugar nenhum do caminho', async () => {
+    mockCloudFetch.mockResolvedValue({ text: 'ok' });
+
+    await runPlayground('saudacao', '{{t}}', { t: 'x' }, 'sk-SEGREDO');
+
+    const [path] = mockCloudFetch.mock.calls[0] as [string];
+    expect(path).not.toContain('sk-SEGREDO');
+  });
+
+  it('escapa o nome do prompt no caminho', async () => {
+    mockCloudFetch.mockResolvedValue({ text: 'ok' });
+
+    await runPlayground('a b/c', '{{t}}', { t: 'x' }, 'sk-x');
+
+    const [path] = mockCloudFetch.mock.calls[0] as [string];
+    expect(path).toBe('/v1/dashboard/promptly/prompts/a%20b%2Fc/playground');
   });
 });
