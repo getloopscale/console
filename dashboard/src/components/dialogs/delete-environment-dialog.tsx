@@ -24,12 +24,15 @@ interface DeleteEnvironmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   envName: string;
-  // M2 v1.2 T5.3 (2026-06-07): per-(project, env) tuple deletion.
-  // When set, the DELETE URL appends `?project=<slug>` so the backend
-  // filters by the tuple (deleting staging+web does NOT touch
-  // staging+api). When omitted/empty, the call still works against the
-  // production-legacy entry (ADR D2 backward compat).
-  project?: string;
+  // Exclusão pela tupla (projeto, ambiente): a URL do DELETE leva `?project=<slug>` para o
+  // serviço filtrar pela tupla — apagar `staging` de `web` NÃO toca o `staging` de `api`.
+  //
+  // OBRIGATÓRIO desde a remoção do legado (issue #377). Era opcional para atender "chamadores
+  // antigos" que caíam numa busca sem projeto; não existe chamador assim — a tela de
+  // environments é a única e sempre passa o projeto, porque só renderiza linhas cujo projeto
+  // casa o da rota. Opcionalidade sem chamador é um caminho que ninguém exercita e que a
+  // próxima pessoa acredita existir.
+  project: string;
   cascade?: CascadePayload;
   onDeleted?: () => void;
 }
@@ -96,9 +99,7 @@ export function DeleteEnvironmentDialog({
     if (!matches) return;
     setError(null);
     try {
-      // M2 v1.2 T5.3: propagate `project` so the backend filters by the
-      // (name, project) tuple. Legacy callers (project undefined/empty)
-      // get the project-agnostic lookup that resolves production legacy.
+      // Propaga `project` para o serviço filtrar pela tupla (nome, projeto).
       const res = await deleteEnv.mutateAsync({ name: envName, project });
       if (res === null) {
         setError(

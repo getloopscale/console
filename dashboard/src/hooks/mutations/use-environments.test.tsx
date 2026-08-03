@@ -69,12 +69,12 @@ describe('useDeleteEnvironment', () => {
 
     const { result } = renderHook(() => useDeleteEnvironment(), { wrapper });
     await act(async () => {
-      await result.current.mutateAsync('qa-eu#1');
+      await result.current.mutateAsync({ name: 'qa-eu#1', project: 'web' });
     });
 
     // # must be URL-encoded; assert path contains %23 (no raw #).
     const path = mockedEngineFetch.mock.calls[0]?.[0] as string;
-    expect(path).toBe('/api/v1/environments/qa-eu%231');
+    expect(path).toBe('/api/v1/environments/qa-eu%231?project=web');
     expect(path).not.toContain('#');
   });
 
@@ -85,7 +85,7 @@ describe('useDeleteEnvironment', () => {
 
     const { result } = renderHook(() => useDeleteEnvironment(), { wrapper });
     await act(async () => {
-      await result.current.mutateAsync('qa');
+      await result.current.mutateAsync({ name: 'qa', project: 'web' });
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({
@@ -160,7 +160,7 @@ describe('engine query tree invalidation (EC-15)', () => {
 
     const { result } = renderHook(() => useDeleteEnvironment(), { wrapper });
     await act(async () => {
-      await result.current.mutateAsync('qa');
+      await result.current.mutateAsync({ name: 'qa', project: 'web' });
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['engine'] });

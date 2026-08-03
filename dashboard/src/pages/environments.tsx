@@ -14,8 +14,9 @@ import { PreviewRow, type PreviewSlot } from '@/components/environments/preview-
 interface Environment {
   name: string;
   status?: string;
-  // M2 v1.2 T5.2 (2026-06-07): per-(project, env) tuple. Empty/undefined
-  // string = legacy production entry (ADR D2 backward compat).
+  // Tupla (projeto, ambiente). Continua opcional no TIPO porque é o que o serviço declara
+  // hoje na resposta de lista — mas a tela só renderiza entradas cujo projeto casa o da rota
+  // (issue #377), então nada sem projeto chega ao render.
   project?: string;
   projects?: number;
   protected?: boolean;
@@ -26,6 +27,15 @@ interface Environment {
   last_deploy?: string | null;
   last_deploy_sha?: string | null;
 }
+
+/**
+ * Ambiente já recortado pelo projeto da rota — o projeto está presente por construção.
+ *
+ * Existe para que a garantia viva no TIPO e não só num comentário: depois do recorte, nenhum
+ * consumidor precisa tratar "e se não tiver projeto?", porque esse caso não chega. Foi o que
+ * permitiu exigir `project` no diálogo de exclusão ao remover o legado (issue #377).
+ */
+type ScopedEnvironment = Environment & { project: string };
 
 interface EnvsResponse {
   environments: Environment[];
@@ -94,7 +104,9 @@ export function EnvironmentsPage() {
   const { data, loading } = useEngineApi<EnvsResponse>('/api/v1/environments');
   const [searchQuery, setSearchQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Environment | null>(null);
+  // O alvo da exclusão carrega o projeto no TIPO: só linhas já recortadas pelo projeto da rota
+  // chegam aqui, e o diálogo exige o campo (issue #377).
+  const [deleteTarget, setDeleteTarget] = useState<ScopedEnvironment | null>(null);
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [promoteFrom, setPromoteFrom] = useState<string | undefined>(undefined);
 
@@ -105,17 +117,20 @@ export function EnvironmentsPage() {
   // so it now always targets the project the user is looking at.
   const { name: projectName = '' } = useParams<{ name: string }>();
 
-  // Scope the tenant-wide env list to this project (the backend list is
-  // ListEnvironments(tenantID) — cross-project — so we filter client-side).
+  // Recorta a lista do inquilino (a listagem do serviço é por inquilino, cruzando projetos)
+  // para ESTE projeto. O predicado é um TYPE GUARD de propósito: depois dele o projeto está
+  // presente por construção, e o compilador passa a saber disso — é o que permite exigir
+  // `project` no diálogo de exclusão em vez de aceitá-lo opcional "por via das dúvidas".
   const environments = (data?.environments ?? []).filter(
-    (e) => (e.project ?? '') === projectName,
+    (e): e is ScopedEnvironment => e.project === projectName,
   );
 
-  // M2 v1.2 T5.2 (2026-06-07): search matches across both name AND
-  // project so "web" surfaces every env in project=web, "staging"
-  // surfaces every staging env across all projects, and "web/staging"
-  // surfaces the exact tuple. Legacy entries (no project) match only
-  // by name.
+  // A busca casa nome E projeto, e a forma `projeto/nome` casa a tupla exata.
+  //
+  // O ramo "entrada sem projeto casa só pelo nome" SAIU (issue #377): desde o M20 esta tela é
+  // escopada pela rota, e o filtro acima já exige `project === projectName`. Uma entrada sem
+  // projeto nunca chega aqui — o ramo era inalcançável, e código inalcançável que trata um caso
+  // ensina o leitor a acreditar que o caso existe.
   const q = searchQuery.toLowerCase().trim();
   const filtered = environments.filter((e) => {
     if (!q) return true;
@@ -125,26 +140,22 @@ export function EnvironmentsPage() {
       const [qProj, qName] = q.split('/', 2);
       return proj === qProj && name.includes(qName ?? '');
     }
-    return name.includes(q) || (proj !== '' && proj.includes(q));
+    return name.includes(q) || proj.includes(q);
   });
 
-  // M2 v1.2 T5.2: group by project for display. Legacy envs (empty
-  // project) land under a dedicated `__legacy__` bucket rendered first
-  // with a "(legacy)" indicator per ADR D6.
-  const LEGACY_KEY = '__legacy__';
-  const grouped = filtered.reduce<Record<string, Environment[]>>((acc, env) => {
-    const key = env.project && env.project !== '' ? env.project : LEGACY_KEY;
+  // Agrupamento por projeto. Depois do filtro por rota há **sempre exatamente um grupo** — a
+  // estrutura sobrevive porque o cabeçalho de grupo dá o contexto do projeto a quem usa leitor
+  // de tela, não porque haja mais de um. O balde `__legacy__` (ADRs D2/D6), que existia para
+  // entradas sem projeto e era inalcançável desde o M20, foi REMOVIDO por decisão do dono:
+  // sem retrocompatibilidade. Uma entrada sem projeto não pertence a projeto algum, logo não
+  // pertence a esta tela.
+  const grouped = filtered.reduce<Record<string, ScopedEnvironment[]>>((acc, env) => {
+    const key = env.project ?? '';
     if (!acc[key]) acc[key] = [];
     acc[key]!.push(env);
     return acc;
   }, {});
-  // Stable group order: legacy first (familiar production-legacy entry),
-  // then projects alphabetically.
-  const groupKeys = Object.keys(grouped).sort((a, b) => {
-    if (a === LEGACY_KEY) return -1;
-    if (b === LEGACY_KEY) return 1;
-    return a.localeCompare(b);
-  });
+  const groupKeys = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
   // 2026-06-07 per-project model: N preview rows, one per project
   // that has had a preview at any time. Search filters by project_id
@@ -229,38 +240,23 @@ export function EnvironmentsPage() {
                 filteredPreviews.map((slot) => (
                   <PreviewRow key={slot.project_id} slot={slot} />
                 ))}
-              {/* M2 v1.2 T5.2: group envs by project. A group-header row
-                  (full-width) precedes each project's envs so the user
-                  can scan multi-project tenants quickly. Legacy entries
-                  (no project) land under "(legacy)" first. */}
+              {/* Cabeçalho de grupo por projeto — dá a quem usa leitor de tela o contexto do
+                  projeto antes das linhas que o seguem. O ramo "(legacy) — no project" saiu
+                  junto com o balde (issue #377). */}
               {groupKeys.map((key) => {
                 const envs = grouped[key] ?? [];
-                const isLegacy = key === LEGACY_KEY;
-                const groupLabel = isLegacy ? 'production (legacy)' : key;
                 return (
                   <Fragment key={key}>
-                    {/* T4.1 finding 1.4: group header row gets an
-                        explicit aria-label so screen readers announce
-                        the project context for the following rows.
-                        colSpan=5 is still required by the table
-                        layout — a11y hint is additive. */}
                     <Table.Row
-                      data-testid={`env-group-header-${isLegacy ? 'legacy' : key}`}
-                      aria-label={`Project group: ${groupLabel}`}
+                      data-testid={`env-group-header-${key}`}
+                      aria-label={`Project group: ${key}`}
                       role="rowheader"
                     >
                       <Table.Cell colSpan={5} className="bg-muted/30">
                         <span className="text-label uppercase tracking-wide text-muted-foreground">
-                          {isLegacy ? (
-                            <>
-                              <span className="font-semibold text-foreground">{groupLabel}</span>
-                              <span className="ml-2 text-warning">— no project</span>
-                            </>
-                          ) : (
-                            <span className="font-semibold text-foreground">
-                              project / <span className="font-mono">{groupLabel}</span>
-                            </span>
-                          )}
+                          <span className="font-semibold text-foreground">
+                            project / <span className="font-mono">{key}</span>
+                          </span>
                         </span>
                       </Table.Cell>
                     </Table.Row>
@@ -268,14 +264,8 @@ export function EnvironmentsPage() {
                       <Table.Row key={`${key}::${env.name}`}>
                         <Table.Cell>
                           <span className="font-mono text-body-sm text-foreground">
-                            {isLegacy
-                              ? env.name
-                              : (
-                                <>
-                                  <span className="text-muted-foreground">{env.project}/</span>
-                                  {env.name}
-                                </>
-                              )}
+                            <span className="text-muted-foreground">{env.project}/</span>
+                            {env.name}
                           </span>
                         </Table.Cell>
                         <Table.Cell>
@@ -355,9 +345,8 @@ export function EnvironmentsPage() {
           open={deleteTarget !== null}
           onOpenChange={(open) => !open && setDeleteTarget(null)}
           envName={deleteTarget.name}
-          // M2 v1.2 T5.3: propagate project so DELETE filters by tuple.
-          // Empty/undefined project resolves to the production-legacy
-          // lookup (ADR D2 backward compat).
+          // Propaga o projeto para o DELETE filtrar pela tupla. Sempre presente: a linha só
+          // renderiza quando o projeto casa o da rota.
           project={deleteTarget.project}
           // M15 T3: no fabricated cascade counts. `deleteTarget.projects` is a
           // project count, NOT a workload count, and there is no
