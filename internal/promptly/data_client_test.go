@@ -33,7 +33,7 @@ func TestDataClient_sem_resolver_nao_emite_requisicao(t *testing.T) {
 	defer srv.Close()
 	c := NewDataClient(srv.URL, srv.Client()) // resolver DELIBERADAMENTE ausente
 
-	_, err := c.Catalog(context.Background(), 0, "")
+	_, _, err := c.Catalog(context.Background(), 0, "")
 
 	if err == nil {
 		t.Fatal("cliente sem resolver deveria falhar fechado")
@@ -52,7 +52,7 @@ func TestDataClient_resolver_em_erro_nao_emite_requisicao(t *testing.T) {
 			return "", errSemTenant
 		})
 
-	_, err := c.Catalog(context.Background(), 0, "")
+	_, _, err := c.Catalog(context.Background(), 0, "")
 
 	if err == nil {
 		t.Fatal("resolver em erro deveria propagar")
@@ -71,7 +71,7 @@ func TestDataClient_catalogo_encaminha_limite_e_cursor(t *testing.T) {
 		_, _ = w.Write([]byte(`[]`))
 	})
 
-	_, err := c.Catalog(context.Background(), 25, "saudacao")
+	_, _, err := c.Catalog(context.Background(), 25, "saudacao")
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
@@ -150,7 +150,7 @@ func TestDataClient_bearer_nunca_aparece_na_mensagem_de_erro(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":"boom"}`))
 	})
 
-	_, err := c.Catalog(context.Background(), 0, "")
+	_, _, err := c.Catalog(context.Background(), 0, "")
 
 	if err == nil {
 		t.Fatal("5xx deveria falhar")
@@ -168,7 +168,7 @@ func TestDataClient_labels_e_catalogo_batem_nos_caminhos_do_servico(t *testing.T
 		chamar  func(*DataClient) error
 		caminho string
 	}{
-		{"catalogo", func(c *DataClient) error { _, e := c.Catalog(context.Background(), 0, ""); return e }, "/prompts"},
+		{"catalogo", func(c *DataClient) error { _, _, e := c.Catalog(context.Background(), 0, ""); return e }, "/prompts"},
 		{"prompt", func(c *DataClient) error { _, e := c.Prompt(context.Background(), "s"); return e }, "/prompts/s"},
 		{"revisoes", func(c *DataClient) error { _, e := c.Revisions(context.Background(), "s", 5, 0); return e }, "/prompts/s/revisions"},
 		{"labels", func(c *DataClient) error { _, e := c.Labels(context.Background(), "s"); return e }, "/prompts/s/labels"},
@@ -186,6 +186,145 @@ func TestDataClient_labels_e_catalogo_batem_nos_caminhos_do_servico(t *testing.T
 			}
 			if visto != caso.caminho {
 				t.Errorf("caminho = %q, quer %q", visto, caso.caminho)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// M13 — o sinal de continuacao de pagina.
+//
+// O theo-promptly sinaliza proxima pagina por header RFC-5988 (`Link: <...>; rel="next"`, montado
+// em packages/api/src/server/app.ts:594 pedindo limit+1 para nao gastar segunda consulta). Ate
+// aqui este cliente devolvia so o corpo, e o sinal MORRIA nesta funcao — antes de qualquer decisao
+// de produto. Enquanto ele morresse aqui, nenhuma camada acima podia ser honesta: toda contagem
+// exibida no painel seria um limite inferior apresentado como total.
+//
+// A heuristica obvia (`len(linhas) == limit`) NAO serve, e o motivo e um falso positivo exato: o
+// servico devolve no maximo `limit` linhas, entao um catalogo de exatamente `limit` prompts a
+// satisfaz sem ter proxima pagina. Marcar esse caso de parcial ensina o operador a desconfiar de
+// um numero correto — pior que nao marcar.
+// ---------------------------------------------------------------------------------------------
+
+func TestCatalog_reporta_continuacao_quando_o_servico_manda_Link_rel_next(t *testing.T) {
+	c, _ := clienteContra(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `</prompts?after=z&limit=100>; rel="next"`)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"name":"a"}]`))
+	})
+
+	corpo, prox, err := c.Catalog(context.Background(), 100, "")
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if prox == "" {
+		t.Error("header Link rel=next presente e temMais=false — o painel exibiria um total falso")
+	}
+	if string(corpo) != `[{"name":"a"}]` {
+		t.Errorf("corpo alterado: %s", corpo)
+	}
+}
+
+// O PAR QUE DISCRIMINA: mesmo corpo, decisao diferente. Sem este caso, uma implementacao que
+// devolve `true` sempre passaria no teste acima.
+func TestCatalog_nao_reporta_continuacao_sem_o_header(t *testing.T) {
+	c, _ := clienteContra(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"name":"a"}]`)) // MESMO corpo do teste acima
+	})
+
+	corpo, prox, err := c.Catalog(context.Background(), 100, "")
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if prox != "" {
+		t.Error("sem header Link, temMais deveria ser false")
+	}
+	if string(corpo) != `[{"name":"a"}]` {
+		t.Errorf("corpo alterado: %s", corpo)
+	}
+}
+
+func TestCatalog_ignora_Link_que_nao_e_rel_next(t *testing.T) {
+	c, _ := clienteContra(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `</prompts?after=a>; rel="prev"`)
+		_, _ = w.Write([]byte(`[]`))
+	})
+
+	_, prox, err := c.Catalog(context.Background(), 100, "")
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if prox != "" {
+		t.Error("rel=prev nao e continuacao")
+	}
+}
+
+// EC-3 do /edge-case-plan — a RFC 5988 permite o valor SEM aspas. Nos emitimos com, mas um proxy
+// que normalize o header o deixaria sem; uma leitura literal de `rel="next"` devolveria false e
+// produziria um TOTAL FALSO, que e a unica saida que este milestone nao pode gerar.
+func TestCatalog_reconhece_rel_next_sem_aspas(t *testing.T) {
+	c, _ := clienteContra(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `</prompts?after=z>; rel=next`)
+		_, _ = w.Write([]byte(`[]`))
+	})
+
+	_, prox, err := c.Catalog(context.Background(), 100, "")
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if prox == "" {
+		t.Error("rel=next sem aspas e valido pela RFC 5988 e foi lido como ausencia de continuacao")
+	}
+}
+
+// EC-4 — o cursor carrega um NOME DE PROMPT, e nomes nao tem restricao de caractere
+// (`name: z.string().min(1)`, app.ts:206). Controle que documenta a garantia do escape: se algum
+// dia a URL for concatenada crua, este teste reprova.
+func TestCatalog_nao_confunde_nome_de_prompt_com_o_marcador_rel(t *testing.T) {
+	c, _ := clienteContra(t, func(w http.ResponseWriter, _ *http.Request) {
+		// O nome `x; rel="next"` escapado, dentro de um Link que NAO e de continuacao.
+		w.Header().Set("Link", `</prompts?after=x%3B%20rel%3D%22next%22>; rel="prev"`)
+		_, _ = w.Write([]byte(`[]`))
+	})
+
+	_, prox, err := c.Catalog(context.Background(), 100, "")
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if prox != "" {
+		t.Error("um nome de prompt escapado dentro da URL foi confundido com o marcador rel=next")
+	}
+}
+
+func TestProximaPaginaQuery_isolada(t *testing.T) {
+	casos := []struct {
+		nome string
+		link string
+		quer string // a QUERY da proxima pagina; "" = ultima pagina
+	}{
+		{"ausente", "", ""},
+		{"com aspas", `</p?after=z>; rel="next"`, "after=z"},
+		{"sem aspas", `</p?after=z>; rel=next`, "after=z"},
+		{"aspas simples", `</p?after=z>; rel='next'`, "after=z"},
+		{"prev", `</p?after=z>; rel="prev"`, ""},
+		{"malformado", `<>; rel=`, ""},
+		{"multiplos links numa linha", `</p?a=1>; rel="prev", </p?a=2>; rel="next"`, "a=2"},
+		{"next sem cursor", `</p>; rel="next"`, ""},
+	}
+	for _, caso := range casos {
+		t.Run(caso.nome, func(t *testing.T) {
+			h := http.Header{}
+			if caso.link != "" {
+				h.Set("Link", caso.link)
+			}
+			if got := proximaPaginaQuery(h); got != caso.quer {
+				t.Errorf("proximaPaginaQuery(%q) = %q, quer %q", caso.link, got, caso.quer)
 			}
 		})
 	}
