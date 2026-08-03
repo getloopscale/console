@@ -20,23 +20,26 @@ import { queryKeys } from '@/lib/api/query-keys';
  */
 
 /**
- * useDeleteEnvironment — M2 v1.2 T5.3 (2026-06-07).
+ * useDeleteEnvironment — exclusão pela tupla (projeto, ambiente).
  *
- * Accepts both legacy string-only (back-compat for v1.0 callers) and the
- * canonical `{ name, project }` shape post-M2. When `project` is non-empty
- * the DELETE URL appends `?project=<slug>` so the backend filters by
- * (name, project) tuple — removing `staging+web` no longer touches
- * `staging+api`. Empty project preserves the production-legacy lookup
- * (ADR D2).
+ * A URL leva sempre `?project=<slug>` para o serviço filtrar pela tupla: apagar `staging` de
+ * `web` NÃO toca o `staging` de `api`.
+ *
+ * DUAS CAMADAS DE LEGADO SAÍRAM AQUI (issue #377), e nenhuma tinha chamador:
+ *
+ *   1. a forma `string` solta, aceita "para chamadores v1.0";
+ *   2. `project` opcional, cuja ausência caía numa busca sem projeto — a chamada que podia
+ *      apagar o ambiente de OUTRO projeto com o mesmo nome.
+ *
+ * O segundo é o que pesa: uma exclusão é irreversível, e o caminho permissivo era justamente o
+ * que menos identificava o alvo. Deixá-lo vivo "por segurança" invertia o sentido da palavra.
  */
 export function useDeleteEnvironment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: string | { name: string; project?: string }) => {
-      const params = typeof input === 'string' ? { name: input } : input;
-      const url = `/api/v1/environments/${encodeURIComponent(params.name)}`;
-      const query = params.project ? `?project=${encodeURIComponent(params.project)}` : '';
-      return engineFetch(`${url}${query}`, { method: 'DELETE' });
+    mutationFn: ({ name, project }: { name: string; project: string }) => {
+      const url = `/api/v1/environments/${encodeURIComponent(name)}`;
+      return engineFetch(`${url}?project=${encodeURIComponent(project)}`, { method: 'DELETE' });
     },
     onSuccess: () => {
       // Canonical key tree for downstream consumers using queryKeys.environments.

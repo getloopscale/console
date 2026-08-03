@@ -89,3 +89,35 @@ describe('PromptlyOverviewPage', () => {
     expect(screen.queryByText(/Não foi possível carregar o catálogo/i)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * M12 — o par que decide se a tela pode CONVIDAR a criar.
+ *
+ * Este par vivia no e2e e voltou para cá por medição: os mocks deste repositório interceptam no
+ * `fetch` da aplicação, antes da camada de rede, então `page.route` do Playwright nunca vê a
+ * chamada — o teste ficaria verde sem exercitar a falha. Um guard que não distingue os dois
+ * estados é pior que nenhum, porque ensina a confiar nele.
+ */
+describe('M12 — a ação de criar depende de a leitura ter acontecido', () => {
+  it('empty_catalog_offers_the_create_action', async () => {
+    mockCatalog.mockResolvedValue([]);
+    render(<PromptlyOverviewPage />);
+
+    expect(await screen.findByText(/nenhum prompt neste workspace/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /criar o primeiro/i })).toBeInTheDocument();
+  });
+
+  it('empty_catalog_that_FAILED_offers_no_action', async () => {
+    // A metade que dá valor à primeira. "Crie o primeiro" sobre uma lista que não foi lida
+    // AFIRMA que o workspace está vazio — e ele pode estar cheio. Vazio e não-consegui-ler
+    // levam a decisões opostas.
+    mockCatalog.mockRejectedValue(new Error('upstream'));
+    render(<PromptlyOverviewPage />);
+
+    // Duas frases dizem "a leitura falhou" — o alerta no topo e o estado vazio da tabela —, e
+    // isso é intencional: quem olha a tabela pode não ter lido o alerta. A asserção mira a da
+    // TABELA, que é a que o operador lê no lugar onde esperaria os dados.
+    expect(await screen.findByText(/sem dados — a leitura falhou/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /criar o primeiro/i })).not.toBeInTheDocument();
+  });
+});

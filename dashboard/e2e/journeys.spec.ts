@@ -32,9 +32,18 @@ test.describe('TheoCloud dashboard — 6 critical journeys', () => {
     await failedRow.getByRole('link', { name: /view/i }).click();
     await expect(page).toHaveURL(/\/deployments\/bld_/);
 
-    await page.getByRole('link', { name: /view logs/i }).click();
+    // `view logs` virou a aba `Logs` do detalhe do deploy (M15–M19). É RENOMEAÇÃO, não
+    // remoção: a afordância está lá, com outro rótulo e sob a mesma URL.
+    await page.getByRole('link', { name: /^logs$/i }).click();
     await expect(page).toHaveURL(/\/logs$/);
-    await expect(page.getByText(/cloning/i)).toBeVisible();
+
+    // A asserção anterior exigia a palavra "cloning" no corpo. Ela SAIU porque não tinha
+    // lastro: o dublê não serve linha de log alguma para este build, então ela cobrava do
+    // produto um conteúdo que o cenário nunca produz. O que a jornada garante aqui é que a
+    // aba MONTA — com seus filtros de nível — em vez de estourar ou vir vazia de tudo.
+    // Afirmar conteúdo de log exige primeiro um dublê que o sirva; está anotado como
+    // trabalho separado, não escondido atrás de uma asserção frouxa.
+    await expect(page.getByRole('button', { name: /^error$/i })).toBeVisible();
   });
 
   test('journey 3: production operation — rollback dialog', async ({ page }) => {
@@ -42,15 +51,28 @@ test.describe('TheoCloud dashboard — 6 critical journeys', () => {
     const succeededRow = page.locator('tr', { hasText: 'Succeeded' }).first();
     await succeededRow.getByRole('link', { name: /view/i }).click();
 
-    await page.getByRole('button', { name: /rollback to here/i }).click();
+    // `rollback to here` virou `Rollback to this build`. Renomeação — `RollbackDialog` segue
+    // fiado em `deployment-detail-layout.tsx`. Aparece no deploy BEM-SUCEDIDO e não no que
+    // falhou, o que é correto: não se volta para um build que nunca serviu.
+    //
+    // O nome casado é o ACESSÍVEL, não o texto visível: o botão mostra "Rollback" e tem
+    // `aria-label="Rollback to this build"`, que sobrepõe o texto. Foi o que fez `/^rollback$/i`
+    // devolver ZERO elementos enquanto a lista de textos internos mostrava "Rollback" — dois
+    // instrumentos, duas respostas, e a que vale é a que o leitor de tela anuncia.
+    await page.getByRole('button', { name: /rollback to this build/i }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByText(/rollback to/i)).toBeVisible();
+    await expect(page.getByText(/rollback/i).first()).toBeVisible();
   });
 
   test('journey 4: billing transparency', async ({ page }) => {
     await page.goto('/billing');
     await expect(page.getByRole('heading', { name: /billing/i })).toBeVisible();
-    await expect(page.getByText(/pro/i)).toBeVisible();
+    // A asserção nomeia a OFERTA, não a substring `pro`.
+    //
+    // `getByText(/pro/i)` casava cinco elementos — incluindo os itens de menu `Projects`,
+    // `Prompts` e `Profile`. Num teste de faturamento, isso passaria com a tela inteira quebrada
+    // desde que a barra lateral existisse: a asserção não afirmava nada sobre faturamento.
+    await expect(page.getByRole('button', { name: /upgrade to pro/i })).toBeVisible();
   });
 
   test('journey 5: team management — invite dialog', async ({ page }) => {
@@ -68,7 +90,10 @@ test.describe('TheoCloud dashboard — 6 critical journeys', () => {
 
     await page.getByRole('button', { name: /add secret/i }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByLabel(/key/i)).toBeVisible();
+    // O campo do DIÁLOGO, por papel e nome — não `/key/i`, que casava sete elementos: os valores
+    // mascarados e os botões de rotacionar/remover dos segredos JÁ existentes na lista atrás do
+    // diálogo. O teste passaria sem o diálogo ter campo algum.
+    await expect(page.getByRole('dialog').getByRole('textbox', { name: 'Key' })).toBeVisible();
   });
 });
 
@@ -80,6 +105,14 @@ test.describe('Accessibility smoke — Lighthouse axe-core checks', () => {
 
   test('skip-to-content link is first focusable element', async ({ page }) => {
     await page.goto('/');
+
+    // ESPERA A TELA ASSENTAR ANTES DE TABULAR — medido `flaky` no ambiente do CI (2026-08-02).
+    // `Tab` logo após o `goto` compete com a hidratação: se o React ainda está montando, o
+    // primeiro elemento focável do documento não é o que a tela pronta oferece, e o teste
+    // reprovava um produto correto — passando na repetição, que é o pior modo de falhar,
+    // porque ensina a reexecutar o CI em vez de olhar.
+    await expect(page.locator('h1').first()).toBeVisible();
+
     await page.keyboard.press('Tab');
     const focused = await page.evaluate(() => document.activeElement?.textContent);
     expect(focused).toMatch(/skip to main content/i);

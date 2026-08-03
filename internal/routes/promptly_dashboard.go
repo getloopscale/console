@@ -17,6 +17,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -49,6 +50,11 @@ type promptlyReader interface {
 // promptlyPromoter e o UNICO verbo mutante da capacidade.
 type promptlyPromoter interface {
 	AssignLabel(ctx context.Context, name, label string, body json.RawMessage) (json.RawMessage, error)
+	// M12 — as duas escritas da jornada de autoria. Ficam na MESMA porta que a promocao porque
+	// compartilham a propriedade que importa: sao servidas pela credencial de ESCRITA cunhada por
+	// inquilino. Separa-las em outra interface sugeriria outro nivel de privilegio, que nao existe.
+	CreateRevision(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	Rollback(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error)
 }
 
 // PromptlyDashboardHandler serve o catalogo de prompts ao dashboard.
@@ -75,6 +81,41 @@ const invalidPromotionBody = `{"code":"INVALID_PROMOTION_BODY","message":"inform
 
 // maxPromotionBody limita o corpo aceito na promocao. O corpo legitimo tem um numero.
 const maxPromotionBody = 4 << 10
+
+// maxPromptBody limita o corpo das ESCRITAS de autoria, que carregam o TEXTO de um prompt.
+//
+// Teto proprio porque a grandeza e outra: 4 KiB dimensionam um corpo com um numero, nao um system
+// prompt. Reusar o teto da promocao aqui cortava um prompt de 5 KiB no meio e o mandava adiante —
+// `io.LimitReader` devolve EOF no teto SEM erro, entao o corte era indetectavel na camada que so
+// repassa, e o produto respondia erro de parse sobre um conteudo que o operador escreveu inteiro.
+const maxPromptBody = 256 << 10
+
+// lerCorpoLimitado le o corpo e DISTINGUE "acabou" de "estourou o teto".
+//
+// Le um byte alem do limite: se ele veio, o corpo era maior. E isso que transforma um truncamento
+// silencioso numa recusa tipada — o produto nunca ve JSON pela metade.
+func lerCorpoLimitado(r *http.Request, teto int) (json.RawMessage, bool, error) {
+	raw, err := io.ReadAll(io.LimitReader(r.Body, int64(teto)+1))
+	if err != nil {
+		return nil, false, err
+	}
+	if len(raw) > teto {
+		return nil, true, nil
+	}
+	return json.RawMessage(raw), false, nil
+}
+
+// corpoGrandeDemais e a recusa tipada — com o teto DENTRO da mensagem, para o operador saber por
+// quanto passou em vez de tentar de novo no escuro.
+func (h *PromptlyDashboardHandler) corpoGrandeDemais(w http.ResponseWriter, r *http.Request, op string) {
+	h.logger.WarnContext(r.Context(), "promptly dashboard: "+op+": corpo acima do teto",
+		"limite_bytes", maxPromptBody, "path", r.URL.Path)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusRequestEntityTooLarge)
+	_, _ = fmt.Fprintf(w,
+		`{"code":"PAYLOAD_TOO_LARGE","message":"o conteúdo excede o limite de %d KiB por revisão"}`,
+		maxPromptBody>>10)
+}
 
 func (h *PromptlyDashboardHandler) proxy(w http.ResponseWriter, r *http.Request, op string, call func() (json.RawMessage, error)) {
 	body, err := call()
@@ -206,6 +247,49 @@ func (h *PromptlyDashboardHandler) Promote(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// Create repassa a criacao de uma revisao (`POST /prompts`).
+//
+// O corpo NAO e validado aqui, e a ausencia e decisao: `name` e `content` tem regra no produto
+// (nome nao vazio, template balanceado), e uma segunda copia dessa regra no BFF divergiria da
+// primeira no dia em que uma das duas mudasse. O que este handler garante e o teto de tamanho —
+// que protege ESTE processo — e a credencial certa. A recusa do produto chega tipada via
+// UpstreamError e e o proprio `reject` que a repassa.
+func (h *PromptlyDashboardHandler) Create(w http.ResponseWriter, r *http.Request) {
+	raw, grande, err := lerCorpoLimitado(r, maxPromptBody)
+	if err != nil {
+		h.badRequest(w, r, "create: read body", err)
+		return
+	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "create")
+		return
+	}
+	h.proxy(w, r, "create", func() (json.RawMessage, error) {
+		return h.promoter.CreateRevision(r.Context(), raw)
+	})
+}
+
+// Rollback repassa a reversao (`POST /prompts/:name/rollback`).
+//
+// Mesmo raciocinio do Create sobre validacao. E ha uma razao a mais para o corpo seguir opaco: a
+// recusa `400 label_required` carrega `availableLabels`, e e ELA que a tela transforma em escolha.
+// Um BFF que validasse antes devolveria a propria recusa, sem a lista — e a tela perderia o dado
+// que torna o erro acionavel.
+func (h *PromptlyDashboardHandler) Rollback(w http.ResponseWriter, r *http.Request) {
+	raw, grande, err := lerCorpoLimitado(r, maxPromptBody)
+	if err != nil {
+		h.badRequest(w, r, "rollback: read body", err)
+		return
+	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "rollback")
+		return
+	}
+	h.proxy(w, r, "rollback", func() (json.RawMessage, error) {
+		return h.promoter.Rollback(r.Context(), promptName(r), raw)
+	})
+}
+
 func (h *PromptlyDashboardHandler) badRequest(w http.ResponseWriter, r *http.Request, op string, err error) {
 	h.logger.WarnContext(r.Context(), "promptly dashboard: "+op, "error", err, "path", r.URL.Path)
 	w.Header().Set("Content-Type", "application/json")
@@ -227,5 +311,10 @@ func MountPromptlyDashboard(r chi.Router, h *PromptlyDashboardHandler, requireJW
 		r.Get("/prompts/{promptName}/labels", h.Labels)
 		r.Get("/prompts/{promptName}/policies/{label}", h.Policy)
 		r.Put("/prompts/{promptName}/labels/{label}", h.Promote)
+		// M12 — as escritas da autoria. `POST` nos dois porque NENHUM dos dois e idempotente:
+		// cada chamada cria mais uma revisao. Confundi-los com o `PUT` acima faria um retry de
+		// rede virar duas revisoes sem que ninguem percebesse.
+		r.Post("/prompts", h.Create)
+		r.Post("/prompts/{promptName}/rollback", h.Rollback)
 	})
 }

@@ -30,8 +30,11 @@ export interface Revision {
 export interface RevisionRow {
   readonly version: number;
   readonly createdAt: string;
-  /** Um TRECHO do conteúdo, para reconhecer a revisão. A tela é de inspeção, não editor. */
-  readonly preview: string;
+  /** O corpo INTEGRAL. O trecho serve para reconhecer a revisão na lista; ler o que o modelo
+   *  de fato recebe exige o texto inteiro, e a DoD do M12 pede exatamente isso. */
+  readonly content: string;
+  /** As variáveis que o serviço DECLARA nesta revisão — nunca derivadas por regex nosso. */
+  readonly variables: readonly string[];
 }
 
 export interface LabelPointer {
@@ -44,8 +47,6 @@ export interface PromotionPolicy {
   readonly minScore: number;
 }
 
-/** Quanto do corpo entra no trecho. Curto de propósito: a lista é de versões, não de textos. */
-const PREVIEW_MAX = 120;
 
 function asArray<T>(payload: unknown): T[] {
   return Array.isArray(payload) ? (payload as T[]) : [];
@@ -75,19 +76,23 @@ function resumirLabels(labels: CatalogEntry['labels']): string {
  * integral chega (a rota do serviço não oferece recorte — medido) e é truncado AQUI: renderizar o
  * corpo inteiro de cada revisão numa lista é o editor que este milestone exclui.
  */
+/** Lê `variables` do corpo do serviço. Ausente ou malformado ⇒ lista vazia — nunca adivinhado. */
+function variaveisDeclaradas(r: unknown): string[] {
+  const bruto = (r as { variables?: unknown }).variables;
+  return Array.isArray(bruto) ? bruto.filter((v): v is string => typeof v === 'string') : [];
+}
+
 export function revisionRows(payload: unknown): RevisionRow[] {
   return asArray<Revision>(payload)
     .map((r) => ({
       version: r.version,
       createdAt: r.createdAt,
-      preview: truncar(typeof r.content === 'string' ? r.content : ''),
+      content: typeof r.content === 'string' ? r.content : '',
+      variables: variaveisDeclaradas(r),
     }))
     .sort((a, b) => b.version - a.version);
 }
 
-function truncar(s: string): string {
-  return s.length <= PREVIEW_MAX ? s : `${s.slice(0, PREVIEW_MAX)}…`;
-}
 
 /**
  * Qual JANELA de revisões pedir ao servidor para obter as MAIS RECENTES (#364).

@@ -168,6 +168,12 @@ const PromptlyOverviewPage = lazy(() =>
 const PromptDetailPage = lazy(() =>
   import('@/pages/promptly/detail').then((m) => ({ default: m.PromptDetailPage })),
 );
+const PromptlyCreatePage = lazy(() =>
+  import('@/pages/promptly/create').then((m) => ({ default: m.PromptlyCreatePage })),
+);
+const PromptlyDiffPage = lazy(() =>
+  import('@/pages/promptly/diff').then((m) => ({ default: m.PromptlyDiffPage })),
+);
 // M44 — lens management dashboard pages; M46 — Overview landing
 const LensOverviewPage = lazy(() =>
   import('@/pages/lens').then((m) => ({ default: m.LensOverviewPage })),
@@ -259,21 +265,11 @@ const SBOMTab = lazy(() =>
 const AttestationTab = lazy(() =>
   import('@/pages/deployment-tabs/attestation-tab').then((m) => ({ default: m.AttestationTab })),
 );
-// Legacy pages kept as fallback for direct deep links (e.g., emails) —
-// nested routes below take precedence inside the new layout.
-const BuildLogsPage = lazy(() =>
-  import('@/pages/build-logs').then((m) => ({ default: m.BuildLogsPage })),
-);
-const BuildSBOMPage = lazy(() =>
-  import('@/pages/build-sbom').then((m) => ({ default: m.BuildSBOMPage })),
-);
-const BuildAttestationPage = lazy(() =>
-  import('@/pages/build-attestation').then((m) => ({ default: m.BuildAttestationPage })),
-);
-// Suppress "unused" lints while the legacy pages exist as fallback.
-void BuildLogsPage;
-void BuildSBOMPage;
-void BuildAttestationPage;
+// As três páginas autônomas de build (logs / SBOM / attestation) foram REMOVIDAS (#377).
+// O comentário que as acompanhava dizia que ficavam "como fallback para links diretos" — e
+// isso era falso e verificável: elas eram importadas, `void`adas e NÃO estavam roteadas em
+// lugar nenhum, então link direto algum as alcançava. O que existe são as abas aninhadas
+// `logs` / `sbom` / `attestation` sob /projects/:name/deployments/:id, logo abaixo.
 const RuntimeLogsPage = lazy(() =>
   import('@/pages/runtime-logs').then((m) => ({ default: m.RuntimeLogsPage })),
 );
@@ -518,7 +514,12 @@ export default function App() {
                     <Route path="/skills/:skillId" element={<Boundaried path="/skills/:skillId"><SkillDetailPage /></Boundaried>} />
                     <Route path="/skills/:skillId/versions" element={<Boundaried path="/skills/:skillId/versions"><SkillVersionsPage /></Boundaried>} />
                     <Route path="/promptly" element={<Boundaried path="/promptly"><PromptlyOverviewPage /></Boundaried>} />
+                    {/* `/promptly/new` ANTES do segmento dinâmico. O ranking do roteador já
+                        prefere o estático, mas a ordem explícita é o que impede alguém de ler
+                        "new" como nome de prompt ao mover uma linha daqui. */}
+                    <Route path="/promptly/new" element={<Boundaried path="/promptly/new"><PromptlyCreatePage /></Boundaried>} />
                     <Route path="/promptly/:promptName" element={<Boundaried path="/promptly/:promptName"><PromptDetailPage /></Boundaried>} />
+                    <Route path="/promptly/:name/diff" element={<Boundaried path="/promptly/:name/diff"><PromptlyDiffPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />
                     <Route path="/observability/traces" element={<Boundaried path="/observability/traces"><LensTracesPage /></Boundaried>} />
                     <Route path="/observability/compare" element={<Boundaried path="/observability/compare"><LensComparePage /></Boundaried>} />

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
+import { ApiError } from '@/lib/api';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -16,6 +17,7 @@ const mockLabels = vi.fn();
 const mockPolicy = vi.fn();
 const mockPromote = vi.fn();
 const mockPrompt = vi.fn();
+const mockRollback = vi.fn();
 vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
   return {
@@ -25,6 +27,7 @@ vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
     fetchPolicy: (...a: unknown[]) => mockPolicy(...a),
     fetchPrompt: (...a: unknown[]) => mockPrompt(...a),
     promoteLabel: (...a: unknown[]) => mockPromote(...a),
+    rollbackPrompt: (...a: unknown[]) => mockRollback(...a),
   };
 });
 
@@ -50,6 +53,7 @@ beforeEach(() => {
   mockLabels.mockReset();
   mockPolicy.mockReset();
   mockPromote.mockReset();
+  mockRollback.mockReset();
   mockPrompt.mockReset();
   mockRevisions.mockResolvedValue(REVISOES);
   mockLabels.mockResolvedValue(LABELS);
@@ -199,5 +203,116 @@ describe('PromptDetailPage', () => {
 
     expect(await screen.findByText(/Não foi possível carregar os labels/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Promover prod/i })).not.toBeInTheDocument();
+  });
+});
+
+
+/**
+ * M12 — os dois BLOCKERs que o /review encontrou, e a prova de que fecharam.
+ *
+ * Ambos tinham a mesma forma: eu verifiquei a metade que controlava e assumi a outra. A lógica
+ * de reverter tinha nove testes e nenhum botão; o conteúdo integral tinha um bullet na DoD e uma
+ * coluna que truncava. Testes de função não pegam nenhum dos dois — só o que renderiza a tela.
+ */
+describe('M12 — ler a revisão INTEIRA (BLOCKER 3)', () => {
+  it('detail_renders_the_full_content_not_an_excerpt', async () => {
+    const longo = 'A'.repeat(400) + ' FIM-DO-CORPO';
+    mockRevisions.mockResolvedValue([{ version: 1, content: longo, createdAt: '2026-07-28T10:00:00Z', variables: ['nome'] }]);
+    render(<PromptDetailPage />);
+
+    // O par: o fim do corpo só aparece se NADA foi truncado. Asserção sobre o começo passaria
+    // com um trecho — que era exatamente o defeito.
+    expect(await screen.findByText(/FIM-DO-CORPO/)).toBeInTheDocument();
+  });
+
+  it('detail_shows_the_variables_the_service_declares', async () => {
+    mockRevisions.mockResolvedValue([{ version: 1, content: 'Olá {{nome}}', createdAt: '2026-07-28T10:00:00Z', variables: ['nome'] }]);
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText('nome')).toBeInTheDocument();
+  });
+
+  it('detail_shows_no_variables_when_the_service_declares_none', async () => {
+    // A metade que dá valor à anterior: sem `variables` no corpo, a tela não inventa nenhuma —
+    // é a invariante central do M12 ("nunca adivinhadas do texto"), e o texto TEM {{nome}}.
+    mockRevisions.mockResolvedValue([{ version: 1, content: 'Olá {{nome}}', createdAt: '2026-07-28T10:00:00Z' }]);
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/Olá \{\{nome\}\}/)).toBeInTheDocument();
+    expect(screen.queryByText('nome')).not.toBeInTheDocument();
+  });
+});
+
+describe('M12 — reverter pela tela (BLOCKER 2)', () => {
+  it('rollback_dialog_names_the_new_revision_it_creates', async () => {
+    render(<PromptDetailPage />);
+    await userEvent.click(await screen.findByLabelText('Reverter para a revisão v1'));
+
+    // O diálogo nomeia a revisão CRIADA (v4 = última v3 + 1) e não diz "volta para".
+    expect(await screen.findByText(/cria a revisão v4/i)).toBeInTheDocument();
+    expect(screen.queryByText(/volta para/i)).not.toBeInTheDocument();
+  });
+
+  it('rollback_result_comes_from_labelsMoved_not_from_the_status', async () => {
+    // O caso medido contra a API: 201 com labelsMoved vazio. A revisão é criada e NADA em
+    // produção muda. Uma tela que lê "revertido" do status daria falsa segurança num incidente.
+    mockLabels.mockResolvedValue([]);
+    mockRollback.mockResolvedValue({ version: 4, labelsMoved: [], currentLabels: [] });
+    render(<PromptDetailPage />);
+
+    await userEvent.click(await screen.findByLabelText('Reverter para a revisão v1'));
+    await userEvent.type(await screen.findByRole('textbox'), 'saudacao');
+    await userEvent.click(screen.getByRole('button', { name: /^reverter$/i }));
+
+    expect(await screen.findByText(/nenhum label foi movido/i)).toBeInTheDocument();
+    expect(screen.queryByText(/revertido com sucesso/i)).not.toBeInTheDocument();
+  });
+
+  it('rollback_that_moved_a_label_says_so', async () => {
+    // A metade oposta: quando um label DE FATO se moveu, a tela afirma. Sem este caso, uma tela
+    // que sempre dissesse "nada mudou" passaria no teste acima.
+    mockRollback.mockResolvedValue({ version: 4, labelsMoved: ['prod'], currentLabels: [{ label: 'prod', version: 4 }] });
+    render(<PromptDetailPage />);
+
+    await userEvent.click(await screen.findByLabelText('Reverter para a revisão v1'));
+    await userEvent.type(await screen.findByRole('textbox'), 'saudacao');
+    await userEvent.click(screen.getByRole('button', { name: /^reverter$/i }));
+
+    expect(await screen.findByText(/prod passou a apontar/i)).toBeInTheDocument();
+  });
+});
+
+
+describe('M12 — a promoção também não vaza detalhe interno (F-arch-3)', () => {
+  it('promotion_5xx_does_not_leak_the_upstream_body', async () => {
+    // O controle negativo que existia só no caminho novo. A regra de recusa tinha DUAS cópias e
+    // a antiga — a da promoção — não tinha a guarda de 5xx: o corpo de uma falha de
+    // infraestrutura sairia literal na tela do cliente.
+    mockPromote.mockRejectedValue(
+      new ApiError(502, { message: 'dial tcp 10.0.0.4:8080: connect: refused' }),
+    );
+    render(<PromptDetailPage />);
+
+    await userEvent.click(await screen.findByLabelText('Promover prod para a revisão v3'));
+    await userEvent.type(await screen.findByRole('textbox'), 'prod');
+    await userEvent.click(screen.getByRole('button', { name: /^promover$/i }));
+
+    expect(await screen.findByText(/não respondeu/i)).toBeInTheDocument();
+    expect(screen.queryByText(/10\.0\.0\.4/)).not.toBeInTheDocument();
+  });
+
+  it('promotion_4xx_still_renders_the_service_reason', async () => {
+    // A metade que dá valor à anterior: sem ela, um "sempre genérico" passaria acima e o
+    // operador perderia o motivo que consegue atender.
+    mockPromote.mockRejectedValue(
+      new ApiError(409, { message: 'a promoção exige score ≥ 0.8 no dataset qa' }),
+    );
+    render(<PromptDetailPage />);
+
+    await userEvent.click(await screen.findByLabelText('Promover prod para a revisão v3'));
+    await userEvent.type(await screen.findByRole('textbox'), 'prod');
+    await userEvent.click(screen.getByRole('button', { name: /^promover$/i }));
+
+    expect(await screen.findByText(/score ≥ 0.8/)).toBeInTheDocument();
   });
 });

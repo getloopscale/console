@@ -6,6 +6,7 @@ import {
   BookOpen,
   Boxes,
   Brain,
+  FilePlus,
   FileText,
   FlaskConical,
   FolderKanban,
@@ -285,7 +286,14 @@ export const MENUS: Record<string, MenuDefinition> = {
     parent: 'main',
     groups: [
       {
-        items: [{ label: 'Overview', path: '/promptly', icon: LayoutGrid }],
+        items: [
+          { label: 'Overview', path: '/promptly', icon: LayoutGrid },
+          // M12: autorar é ação do workspace, não de um prompt — por isso ENTRA no menu, onde
+          // comparar e promover não entram: essas duas são POR PROMPT e se alcançam do detalhe.
+          { label: 'Nova revisão', path: '/promptly/new', icon: FilePlus },
+          // M12: autorar é ação do workspace, não de um prompt — por isso ENTRA no menu, onde
+          // comparar e promover não entram: essas duas são POR PROMPT e se alcançam do detalhe.
+        ],
       },
     ],
   },

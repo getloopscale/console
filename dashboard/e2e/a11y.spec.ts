@@ -41,7 +41,19 @@ test.describe('Dashboard a11y — DOM + axe (replaces bundle-grep)', () => {
   // not a plain div (screen readers must announce it as a progress indicator).
   test('#81 onboarding: progress is an ARIA progressbar with aria-valuenow', async ({ page }) => {
     await page.goto('/');
-    const bar = page.getByRole('progressbar').first();
+    // Localizado pelo NOME ACESSÍVEL, não por `.first()`.
+    //
+    // `.first()` casava a barra de onboarding enquanto ela era a única da página. Depois o
+    // Overview ganhou medidores de uso ("Projects: 0 / 2"), e o teste passou a asserir
+    // `aria-valuemax === '100'` contra um medidor cujo max é 2 — reprovando um produto CORRETO:
+    // `2` é o valuemax certo de "0 / 2". Um seletor posicional casa o que estiver na frente, não
+    // o que o teste quer dizer. O teste de unidade do componente já localizava pelo nome.
+    // O painel nasce RECOLHIDO; a barra só existe expandido. Expandir é o que o usuário faz —
+    // e é a etapa que faltava: sem ela o teste caía no medidor de uso e nunca chegou a exercitar
+    // a barra que o #81 existe para cobrir.
+    await page.getByRole('button', { name: /get your app live/i }).click();
+
+    const bar = page.getByRole('progressbar', { name: /onboarding progress/i });
     await expect(bar).toBeVisible();
     const now = await bar.getAttribute('aria-valuenow');
     expect(now, 'progressbar exposes aria-valuenow').not.toBeNull();
