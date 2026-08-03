@@ -474,6 +474,12 @@ export function PromptDetailPage() {
  */
 function mensagemDaRecusa(err: unknown): string {
   if (err instanceof ApiError) {
+    // M12: a guarda de 5xx que faltava aqui. `4xx` é decisão de NEGÓCIO e o corpo explica a
+    // razão — repassá-lo é o que evita "erro" sobre uma regra que o operador consegue atender.
+    // `5xx` é falha de INFRAESTRUTURA e o corpo pode carregar host, porta e stack; repassá-lo
+    // vazaria topologia interna para o navegador do cliente. Sem este contraste, o repasse de
+    // 4xx vira matcher cego — foi por isto que a cópia nova nasceu com a guarda e esta, não.
+    if (err.status >= 500) return 'O serviço de prompts não respondeu. Tente novamente em instantes.';
     const body = err.body as { message?: string; error?: string } | undefined;
     if (body?.message) return body.message;
     if (body?.error) return body.error;

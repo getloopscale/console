@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
+import { ApiError } from '@/lib/api';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -278,5 +279,40 @@ describe('M12 — reverter pela tela (BLOCKER 2)', () => {
     await userEvent.click(screen.getByRole('button', { name: /^reverter$/i }));
 
     expect(await screen.findByText(/prod passou a apontar/i)).toBeInTheDocument();
+  });
+});
+
+
+describe('M12 — a promoção também não vaza detalhe interno (F-arch-3)', () => {
+  it('promotion_5xx_does_not_leak_the_upstream_body', async () => {
+    // O controle negativo que existia só no caminho novo. A regra de recusa tinha DUAS cópias e
+    // a antiga — a da promoção — não tinha a guarda de 5xx: o corpo de uma falha de
+    // infraestrutura sairia literal na tela do cliente.
+    mockPromote.mockRejectedValue(
+      new ApiError(502, { message: 'dial tcp 10.0.0.4:8080: connect: refused' }),
+    );
+    render(<PromptDetailPage />);
+
+    await userEvent.click(await screen.findByLabelText('Promover prod para a revisão v3'));
+    await userEvent.type(await screen.findByRole('textbox'), 'prod');
+    await userEvent.click(screen.getByRole('button', { name: /^promover$/i }));
+
+    expect(await screen.findByText(/não respondeu/i)).toBeInTheDocument();
+    expect(screen.queryByText(/10\.0\.0\.4/)).not.toBeInTheDocument();
+  });
+
+  it('promotion_4xx_still_renders_the_service_reason', async () => {
+    // A metade que dá valor à anterior: sem ela, um "sempre genérico" passaria acima e o
+    // operador perderia o motivo que consegue atender.
+    mockPromote.mockRejectedValue(
+      new ApiError(409, { message: 'a promoção exige score ≥ 0.8 no dataset qa' }),
+    );
+    render(<PromptDetailPage />);
+
+    await userEvent.click(await screen.findByLabelText('Promover prod para a revisão v3'));
+    await userEvent.type(await screen.findByRole('textbox'), 'prod');
+    await userEvent.click(screen.getByRole('button', { name: /^promover$/i }));
+
+    expect(await screen.findByText(/score ≥ 0.8/)).toBeInTheDocument();
   });
 });

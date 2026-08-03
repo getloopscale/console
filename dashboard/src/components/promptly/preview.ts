@@ -34,6 +34,24 @@ export function camposDeVariaveis(
 const MARCADOR = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
 
 /**
+ * As variáveis de um texto que AINDA NÃO EXISTE como revisão.
+ *
+ * Esta é a única situação em que derivamos a lista nós mesmos, e ela é estreita de propósito: o
+ * operador está digitando o conteúdo agora, então não há `GET` a consultar. Em toda tela de
+ * LEITURA a lista vem de `variables`, que o serviço declara.
+ *
+ * Mora aqui, e não na tela, porque o regex é o MESMO de `renderTemplate` — em dois lugares eles
+ * divergiriam no dia em que a gramática mudasse, e a divergência seria invisível: o preview
+ * mostraria um campo que a substituição não preenche.
+ *
+ * Deduplicado e na ordem da 1ª aparição — o mesmo contrato que a API cumpre (medido).
+ */
+export function variaveisDoTexto(conteudo: string): string[] {
+  const achadas = conteudo.match(MARCADOR) ?? [];
+  return [...new Set(achadas.map((m) => m.replace(/[{}\s]/g, '')))];
+}
+
+/**
  * Substitui cada marcador pelo valor preenchido; deixa intacto o que estiver vazio.
  *
  * Uma passada só, sobre o texto ORIGINAL: um valor que pareça marcador (`{{b}}`) não dispara

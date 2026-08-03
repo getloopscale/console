@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { camposDeVariaveis, renderTemplate } from './preview';
+import { camposDeVariaveis, renderTemplate, variaveisDoTexto } from './preview';
 
 /**
  * M12 T2 — o preview de render, FORA do React.
@@ -52,5 +52,29 @@ describe('renderTemplate', () => {
     // Valor que parece marcador não pode disparar segunda substituição — seria injeção de
     // template a partir de entrada do operador.
     expect(renderTemplate('{{a}}', { a: '{{b}}', b: 'X' })).toBe('{{b}}');
+  });
+});
+
+describe('variaveisDoTexto — a única derivação nossa, e por isso testada aqui', () => {
+  it('extracted_variables_are_deduped_and_in_first_appearance_order', () => {
+    // O mesmo contrato que a API cumpre (medido). Se divergir, o preview mostraria um campo
+    // que a substituição não preenche.
+    expect(variaveisDoTexto('{{b}} e {{a}} e {{b}} de novo')).toEqual(['b', 'a']);
+  });
+
+  it('extracted_variables_tolerate_inner_spaces_like_the_service_does', () => {
+    expect(variaveisDoTexto('{{ nome }}')).toEqual(['nome']);
+  });
+
+  it('extraction_and_substitution_agree_on_what_a_marker_is', () => {
+    // O par que impede a divergência: tudo que a extração acha, a substituição preenche.
+    const texto = 'Olá {{ nome }}, do {{time}}. {{1invalido}} não conta.';
+    const achadas = variaveisDoTexto(texto);
+    const valores = Object.fromEntries(achadas.map((v) => [v, 'X']));
+    const renderizado = renderTemplate(texto, valores);
+    for (const v of achadas) {
+      expect(renderizado, `${v} continuou como marcador`).not.toContain(`{{${v}}}`);
+    }
+    expect(renderizado).toContain('{{1invalido}}');
   });
 });

@@ -7,7 +7,7 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { createRevision } from '@/components/promptly/promptly-api';
 import { validarCriacao, fraseDePermanencia } from '@/components/promptly/create-form';
-import { camposDeVariaveis, renderTemplate } from '@/components/promptly/preview';
+import { camposDeVariaveis, renderTemplate, variaveisDoTexto } from '@/components/promptly/preview';
 import { mensagemDeRecusa } from '@/components/promptly/rollback';
 
 /**
@@ -46,11 +46,7 @@ export function PromptlyCreatePage() {
   // As variáveis desta tela ainda não têm resposta da API para consultar — o conteúdo está sendo
   // digitado agora. Aqui, e SÓ aqui, elas são extraídas do texto; em toda tela de leitura a
   // lista vem de `variables`, que o serviço declara.
-  const declaradas = useMemo(() => {
-    const achadas = conteudo.match(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g) ?? [];
-    const nomes = achadas.map((m) => m.replace(/[{}\s]/g, ''));
-    return [...new Set(nomes)];
-  }, [conteudo]);
+  const declaradas = useMemo(() => variaveisDoTexto(conteudo), [conteudo]);
 
   const campos = camposDeVariaveis(declaradas, conteudo);
   const renderizado = renderTemplate(conteudo, { ...campos, ...valores });
