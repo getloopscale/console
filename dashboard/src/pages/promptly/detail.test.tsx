@@ -316,3 +316,20 @@ describe('M12 — a promoção também não vaza detalhe interno (F-arch-3)', ()
     expect(await screen.findByText(/score ≥ 0.8/)).toBeInTheDocument();
   });
 });
+
+/**
+ * M14 T4.2 — o caminho até o playground.
+ *
+ * O `theo-promptly/CLAUDE.md` documenta o defeito que custou quatro telas
+ * invisíveis no `theo-trust`: submenu declarado, resolução de menu esquecida, e
+ * três rodadas de validação que passaram por cima porque quem validava digitava a
+ * URL — o único caminho que o usuário real não tem.
+ */
+describe('M14 — a entrada do playground', () => {
+  it('o detalhe do prompt oferece um link para o playground DAQUELE prompt', async () => {
+    render(<PromptDetailPage />);
+
+    const link = await screen.findByRole('link', { name: 'Playground' });
+    expect(link).toHaveAttribute('href', '/promptly/saudacao/playground');
+  });
+});

@@ -276,6 +276,14 @@ export function PromptDetailPage() {
         </Link>
         {/* M12: as duas ações POR PROMPT ficam aqui, não no menu — uma entrada de menu para elas
             exigiria um nome que o menu não tem e levaria a lugar nenhum. */}
+        {/* M14: o playground e alcancado DAQUI, nao do submenu — ele e sempre de UM prompt, e um
+            item de menu levaria a uma tela que nao sabe de qual. */}
+        <Link
+          to={`/promptly/${encodeURIComponent(promptName)}/playground`}
+          className="text-sm underline-offset-4 hover:underline"
+        >
+          Playground
+        </Link>
         <Link
           to={`/promptly/${encodeURIComponent(promptName)}/diff`}
           className="text-sm underline-offset-4 hover:underline"
