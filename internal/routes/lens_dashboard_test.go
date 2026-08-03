@@ -6,6 +6,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -30,6 +31,7 @@ type stubLensDataClient struct {
 	lastScoresRange        string
 	lastFacetKey           string
 	lastWriteBody          string
+	lastUsageQuery         url.Values
 }
 
 func (s *stubLensDataClient) read(body string) (json.RawMessage, error) {
@@ -69,6 +71,10 @@ func (s *stubLensDataClient) SpanAttributes(_ context.Context, key string) (json
 }
 func (s *stubLensDataClient) Cost(context.Context, string) (json.RawMessage, error) {
 	return s.read(`{"total_usd":0}`)
+}
+func (s *stubLensDataClient) UsageByUser(_ context.Context, q url.Values) (json.RawMessage, error) {
+	s.lastUsageQuery = q
+	return s.read(`{"users":[{"userId":"alice"}],"unpricedSpans":0,"totalUsers":1,"windowDays":7}`)
 }
 func (s *stubLensDataClient) ListDatasets(context.Context) (json.RawMessage, error) {
 	return s.read(`{"datasets":[]}`)
@@ -237,6 +243,7 @@ func TestLensDashboard_Reads_Authenticated(t *testing.T) {
 		{"scores", (*LensDashboardHandler).Scores, "/v1/dashboard/lens/metrics/scores"},                           // M90
 		{"span-attributes", (*LensDashboardHandler).SpanAttributes, "/v1/dashboard/lens/metrics/span-attributes"}, // M92
 		{"cost", (*LensDashboardHandler).Cost, "/v1/dashboard/lens/cost"},
+		{"usage-by-user", (*LensDashboardHandler).UsageByUser, "/v1/dashboard/lens/usage-by-user"}, // M141
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -268,6 +275,7 @@ func TestLensDashboard_NoTenant_401_FailsClosed(t *testing.T) {
 		{"scores", (*LensDashboardHandler).Scores},                  // M90 — fail-closed like every read
 		{"span-attributes", (*LensDashboardHandler).SpanAttributes}, // M92 — fail-closed like every read
 		{"cost", (*LensDashboardHandler).Cost},
+		{"usage-by-user", (*LensDashboardHandler).UsageByUser}, // M141 — fail-closed like every read
 	}
 	ctxs := []struct {
 		name string
@@ -690,5 +698,129 @@ func TestLensDashboard_UpstreamStatus_401_403_5xx_Collapse_To_502(t *testing.T) 
 		if w.Code != http.StatusBadGateway {
 			t.Fatalf("upstream %d must collapse to 502 (no spurious logout / leak), got %d", code, w.Code)
 		}
+	}
+}
+
+// --- M141 — usage-by-user BFF ---------------------------------------------------------------
+
+// TestLensDashboard_UsageByUser_ForwardsQueryVerbatim — DoD-3. The BFF is a thin proxy: the
+// caller's params reach theo-lens unchanged, and a param this BFF never heard of is NOT curated
+// away (risk R2 — the day M140 gains a param, the dashboard must not be a release behind).
+func TestLensDashboard_UsageByUser_ForwardsQueryVerbatim(t *testing.T) {
+	h, stub := newLensDashboard()
+	req := tenantCtx(httptest.NewRequest(http.MethodGet,
+		"/v1/dashboard/lens/usage-by-user?days=7&limit=50&offset=10&somethingNew=x", nil), "t1")
+	w := httptest.NewRecorder()
+	h.UsageByUser(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	for k, want := range map[string]string{"days": "7", "limit": "50", "offset": "10", "somethingNew": "x"} {
+		if got := stub.lastUsageQuery.Get(k); got != want {
+			t.Fatalf("upstream %s = %q, want %q — params must be forwarded verbatim", k, got, want)
+		}
+	}
+}
+
+// TestLensDashboard_UsageByUser_ForwardsTypedUpstreamStatus — the proof of ADR D1. M140 answers a
+// typed 400 for an out-of-range limit; this asserts the browser receives THAT 400 with theo-lens's
+// own {code,message}, not a generic 502. Swapping h.proxy for Cost's older shape turns this red —
+// which is the whole point of the test existing.
+func TestLensDashboard_UsageByUser_ForwardsTypedUpstreamStatus(t *testing.T) {
+	h, stub := newLensDashboard()
+	stub.err = &thelens.UpstreamStatusError{
+		Status: http.StatusBadRequest,
+		Body:   []byte(`{"code":"INVALID_QUERY","message":"limit must be at most 500"}`),
+	}
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/usage-by-user?limit=100000", nil), "t1")
+	w := httptest.NewRecorder()
+	h.UsageByUser(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want the upstream 400 forwarded, got %d (%s)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "INVALID_QUERY") {
+		t.Fatalf("body = %q, want theo-lens's own typed code so the browser can act on it", w.Body.String())
+	}
+}
+
+// TestLensDashboard_UsageByUser_UpstreamAuthCollapsesTo502 — the other half of the policy: a 401/403
+// reflects the BFF↔theo-lens minted-key boundary, NOT the browser's session. Forwarding it would
+// trip the dashboard's session-expiry redirect — a spurious logout on a broker misconfig.
+func TestLensDashboard_UsageByUser_UpstreamAuthCollapsesTo502(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError} {
+		h, stub := newLensDashboard()
+		stub.err = &thelens.UpstreamStatusError{Status: status, Body: []byte(`{"code":"X"}`)}
+		req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/usage-by-user", nil), "t1")
+		w := httptest.NewRecorder()
+		h.UsageByUser(w, req)
+		if w.Code != http.StatusBadGateway {
+			t.Fatalf("upstream %d: want 502 (fail-closed), got %d", status, w.Code)
+		}
+	}
+}
+
+// TestLensDashboard_UsageByUser_TransportErrorIs502 — a connection failure is not a status; it must
+// still fail closed rather than panic or leak the upstream error to the browser.
+func TestLensDashboard_UsageByUser_TransportErrorIs502(t *testing.T) {
+	h, stub := newLensDashboard()
+	stub.err = errors.New("dial tcp: connection refused")
+	req := tenantCtx(httptest.NewRequest(http.MethodGet, "/v1/dashboard/lens/usage-by-user", nil), "t1")
+	w := httptest.NewRecorder()
+	h.UsageByUser(w, req)
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("want 502 on transport error, got %d", w.Code)
+	}
+	if strings.Contains(w.Body.String(), "connection refused") {
+		t.Fatalf("body = %q, must not leak the upstream error to the browser", w.Body.String())
+	}
+}
+
+// TestLensDashboard_EveryMountedGET_IsFailClosed — ADR D3. Until now the fail-closed guarantee for
+// reads was a hand-maintained table: mounting a GET and forgetting its row left the suite green
+// with the tenant guard UNPROVEN. The existing chi.Walk test cannot catch that — it skips every
+// non-POST/DELETE route by construction. This walks the REAL mounted router and requires 401 (and
+// zero upstream calls) from every GET, so the guarantee is structural rather than remembered.
+func TestLensDashboard_EveryMountedGET_IsFailClosed(t *testing.T) {
+	r, stub := mountedLens(t)
+	var gets []string
+	_ = chi.Walk(r, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if method == http.MethodGet && strings.HasPrefix(pattern, "/v1/dashboard/lens") {
+			gets = append(gets, pattern)
+		}
+		return nil
+	})
+	// Guard-of-the-guard: an enumeration that enumerates nothing passes vacuously. The mounted read
+	// surface is well past 20 routes; if this trips, the walk stopped seeing the router.
+	if len(gets) < 20 {
+		t.Fatalf("walk found only %d GET routes under /v1/dashboard/lens — the enumeration is not seeing the real router", len(gets))
+	}
+	var sawUsageByUser bool
+	for _, pattern := range gets {
+		if pattern == "/v1/dashboard/lens/usage-by-user" {
+			sawUsageByUser = true
+		}
+		path := strings.NewReplacer(
+			"{traceID}", "tr-1", "{datasetID}", "ds-1", "{evaluatorID}", "ev-1",
+			"{monitorID}", "mo-1", "{itemID}", "it-1", "{runID}", "ru-1", "{sessionID}", "se-1",
+			"{jobID}", "jo-1",
+		).Replace(pattern)
+		t.Run(pattern, func(t *testing.T) {
+			before := stub.calls
+			// no tenantCtx → no JWT user in context
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			if w.Code != http.StatusUnauthorized {
+				t.Fatalf("GET %s without a JWT: want 401, got %d (%s)", path, w.Code, w.Body.String())
+			}
+			if stub.calls != before {
+				t.Fatalf("GET %s without a JWT reached the upstream — fail-closed violated", path)
+			}
+		})
+	}
+	if !sawUsageByUser {
+		t.Fatal("/v1/dashboard/lens/usage-by-user is not mounted — M141 DoD-2 unmet")
 	}
 }
