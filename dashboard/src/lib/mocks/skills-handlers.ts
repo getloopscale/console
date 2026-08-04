@@ -182,7 +182,15 @@ function registerSkillsRoutes(base: string) {
   registerRoute('GET', '/v1/dashboard/operations/{operationId}', async (_req, params) =>
     // Já concluída: o mock não simula latência de ingestão porque o que a jornada precisa provar
     // é que a tela ACOMPANHA e reage ao estado terminal — não quanto tempo demora.
-    Response.json({ operation_id: params.operationId, state: 'succeeded', error: null }),
+    //
+    // `ACTIVE` é o SUCESSO, não "trabalhando" — contrato em theo-skills
+    // `packages/core/src/contract/index.ts:5-15`: os estados de trabalho são
+    // CREATING/UPDATING/DELETING, e os terminais são ACTIVE (succeeded) / FAILED.
+    //
+    // Este mock devolvia `'succeeded'`, um vocabulário que o registro nunca emitiu — e como a
+    // tela comparava com o mesmo nome inventado, o e2e passava enquanto a produção ficava presa
+    // em "Em andamento" sobre uma skill já publicada e já descobrível. MEDIDO no app-dev.
+    Response.json({ operation_id: params.operationId, state: 'ACTIVE', error: null }),
   );
 
   registerRoute('GET', `${base}/:retrieve`, async (req) => {

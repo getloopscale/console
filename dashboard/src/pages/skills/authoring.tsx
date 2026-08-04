@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Badge, Button, Card, Input, PageShell } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
+import { faseDaOperacao } from '@/components/skills/operation-state';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import {
@@ -117,16 +118,21 @@ export function SkillAuthoringPage() {
     queryFn: () => fetchOperation<OperacaoEstado>(operacaoId ?? ''),
     enabled: operacaoId !== null,
     refetchInterval: (q) => {
-      const estado = (q.state.data as OperacaoEstado | undefined)?.state;
+      const fase = faseDaOperacao((q.state.data as OperacaoEstado | undefined)?.state);
       // Para de sondar em estado TERMINAL. Sem isto o polling seguiria para sempre numa aba
-      // esquecida aberta, custando requisição por segundo sem ninguém lendo.
-      return estado === 'succeeded' || estado === 'failed' ? false : 1500;
+      // esquecida aberta, custando requisição por segundo sem ninguém lendo — que foi
+      // exatamente o que aconteceu enquanto a comparação usava um vocabulário inexistente.
+      return fase === 'concluida' || fase === 'falhou' ? false : 1500;
     },
   });
 
+  // A fase vem de uma função PURA e testada, não de comparações inline: enquanto elas viviam
+  // aqui dentro, nenhum teste as alcançava e o vocabulário errado (`'succeeded'`/`'failed'`,
+  // que o registro nunca emite) sobreviveu até ser publicado de verdade no app-dev.
+  const fase = faseDaOperacao(operacao.data?.state);
   const estado = operacao.data?.state;
-  const concluida = estado === 'succeeded';
-  const falhou = estado === 'failed';
+  const concluida = fase === 'concluida';
+  const falhou = fase === 'falhou';
 
   return (
     <PageShell
