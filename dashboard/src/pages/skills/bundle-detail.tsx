@@ -28,9 +28,13 @@ import {
 import {
   fetchBundleAdoption,
   fetchBundleTokens,
+  fetchBundles,
+  fetchSkillChannels,
+  fetchSkills,
   mintBundleToken,
   promotionRefusal,
   revokeBundleToken,
+  setBundleItems,
 } from '@/components/skills/skills-api';
 
 /**
@@ -45,6 +49,13 @@ import {
  */
 
 const JANELA_DIAS = 30;
+/** Explícito: sem `limit` herdaríamos o teto do servidor sem saber qual é. */
+const LIMITE_SKILLS = 100;
+
+interface BundleItem {
+  readonly skill_id: string;
+  readonly channel: string;
+}
 
 export function BundleDetailPage() {
   const { bundleId = '' } = useParams<{ bundleId: string }>();
@@ -60,6 +71,9 @@ export function BundleDetailPage() {
   const [segredo, setSegredo] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [aRevogar, setARevogar] = useState<TokenRow | null>(null);
+  const [skillEscolhida, setSkillEscolhida] = useState('');
+  const [canalEscolhido, setCanalEscolhido] = useState('');
+  const [itens, setItens] = useState<BundleItem[] | null>(null);
 
   const tokensQuery = useQuery({
     queryKey: tokensKey,
@@ -71,6 +85,42 @@ export function BundleDetailPage() {
     queryKey: ['cloud', '/v1/dashboard/bundles', bundleId, 'adoption', JANELA_DIAS] as const,
     queryFn: () => fetchBundleAdoption<AdoptionPayload>(bundleId, JANELA_DIAS),
     enabled: bundleId !== '',
+  });
+
+  // O conteúdo do pacote vem da LISTAGEM de bundles: o detalhe não tem rota própria, e uma
+  // segunda fonte para o mesmo dado divergiria na primeira mudança do contrato.
+  const bundlesQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/bundles'] as const,
+    queryFn: () => fetchBundles<{ bundles?: { bundle_id: string; items?: BundleItem[] }[] }>(),
+  });
+  const itensDoServidor =
+    bundlesQuery.data?.bundles?.find((b) => b.bundle_id === bundleId)?.items ?? [];
+  // `itens` é `null` até o operador mexer: assim a tela mostra o que o servidor tem, e só passa a
+  // mostrar o rascunho local depois de uma edição — sem piscar entre os dois a cada refetch.
+  const itensVisiveis = itens ?? itensDoServidor;
+  const sujo = itens !== null;
+
+  const skillsQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/skills', LIMITE_SKILLS] as const,
+    queryFn: () => fetchSkills<{ skills?: { skill_id: string; name: string }[] }>(LIMITE_SKILLS),
+  });
+
+  const canaisQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/skills', skillEscolhida, 'channels'] as const,
+    queryFn: () => fetchSkillChannels<{ channels?: { channel: string }[] }>(skillEscolhida),
+    // Só busca depois de escolher a skill: buscar os canais de TODAS custaria N requisições para
+    // exibir uma lista que o operador vai usar uma vez.
+    enabled: skillEscolhida !== '',
+  });
+
+  const salvarItens = useMutation({
+    mutationFn: (lista: BundleItem[]) => setBundleItems(bundleId, lista),
+    onSuccess: () => {
+      setErro(null);
+      setItens(null);
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/bundles'] });
+    },
+    onError: (err) => setErro(promotionRefusal(err, 'Não foi possível salvar o conteúdo do pacote.')),
   });
 
   const emitir = useMutation({
@@ -211,6 +261,134 @@ export function BundleDetailPage() {
           description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há tokens emitidos. Não revogue nada com base nesta tela até ela voltar a carregar."
         />
       ) : null}
+
+      <Card>
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Conteúdo do pacote</h2>
+          </Card.Title>
+          <Card.Description>
+            Cada item aponta para um <strong>canal</strong>, não para uma versão fixa: promover o
+            canal reaponta quem já instalou, sem reeditar o pacote. Salvar substitui a lista
+            inteira.
+          </Card.Description>
+        </Card.Header>
+
+        <div className="flex flex-col gap-3 px-6 pb-6">
+          {itensVisiveis.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhuma skill neste pacote. Quem usar um token dele não recebe nada.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {itensVisiveis.map((item) => (
+                <li key={`${item.skill_id}@${item.channel}`} className="flex items-center gap-2 text-sm">
+                  <span className="font-mono text-xs">{item.skill_id}</span>
+                  <Badge variant="outline">{item.channel}</Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setItens(
+                        itensVisiveis.filter(
+                          (i) => !(i.skill_id === item.skill_id && i.channel === item.channel),
+                        ),
+                      )
+                    }
+                  >
+                    Remover
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form
+            className="flex flex-wrap items-end gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (skillEscolhida === '' || canalEscolhido === '') return;
+              // Duplicata é ignorada em silêncio? Não: o mesmo par skill+canal duas vezes não
+              // acrescenta nada e confundiria a leitura da lista.
+              const jaExiste = itensVisiveis.some(
+                (i) => i.skill_id === skillEscolhida && i.channel === canalEscolhido,
+              );
+              if (jaExiste) {
+                setErro('Esta skill já está no pacote neste canal.');
+                return;
+              }
+              setErro(null);
+              setItens([...itensVisiveis, { skill_id: skillEscolhida, channel: canalEscolhido }]);
+              setSkillEscolhida('');
+              setCanalEscolhido('');
+            }}
+          >
+            <label className="flex flex-col gap-1 text-sm">
+              <span>Skill</span>
+              <select
+                aria-label="Skill a adicionar"
+                className="h-9 rounded-md border bg-background px-2 text-sm"
+                value={skillEscolhida}
+                onChange={(e) => {
+                  setSkillEscolhida(e.target.value);
+                  // Trocar de skill invalida o canal escolhido: canais são POR skill, e manter o
+                  // anterior montaria um item que o registro não sabe servir.
+                  setCanalEscolhido('');
+                }}
+              >
+                <option value="">selecione…</option>
+                {(skillsQuery.data?.skills ?? []).map((sk) => (
+                  <option key={sk.skill_id} value={sk.skill_id}>
+                    {sk.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span>Canal</span>
+              <select
+                aria-label="Canal da skill"
+                className="h-9 rounded-md border bg-background px-2 text-sm"
+                value={canalEscolhido}
+                onChange={(e) => setCanalEscolhido(e.target.value)}
+                disabled={skillEscolhida === '' || canaisQuery.isLoading}
+              >
+                <option value="">
+                  {skillEscolhida === ''
+                    ? 'escolha a skill antes'
+                    : canaisQuery.isLoading
+                      ? 'carregando…'
+                      : 'selecione…'}
+                </option>
+                {(canaisQuery.data?.channels ?? []).map((c) => (
+                  <option key={c.channel} value={c.channel}>
+                    {c.channel}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <Button type="submit" variant="secondary" disabled={skillEscolhida === '' || canalEscolhido === ''}>
+              Adicionar ao pacote
+            </Button>
+          </form>
+
+          {/* O botão de salvar só aparece com edição pendente: um botão sempre ativo sugeriria que
+              o que está na tela ainda não foi gravado, mesmo quando já foi. */}
+          {sujo ? (
+            <div className="flex items-center gap-2">
+              <Button onClick={() => salvarItens.mutate(itensVisiveis)} disabled={salvarItens.isPending}>
+                {salvarItens.isPending ? 'Salvando…' : 'Salvar conteúdo'}
+              </Button>
+              <Button variant="ghost" onClick={() => setItens(null)} disabled={salvarItens.isPending}>
+                Descartar alterações
+              </Button>
+              <span className="text-xs text-muted-foreground">Alterações ainda não salvas.</span>
+            </div>
+          ) : null}
+        </div>
+      </Card>
 
       <Card>
         <Card.Header>

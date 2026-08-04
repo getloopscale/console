@@ -269,3 +269,45 @@ test.describe('M35 — distribuição: pacotes, tokens delegados e adoção', ()
     await expect(page).toHaveURL(/\/bundles$/);
   });
 });
+
+test.describe('M35 — o conteúdo do pacote é editável pela tela (AC1)', () => {
+  test('adicionar uma skill a um canal, salvar, e ver a lista refletir', async ({ page }) => {
+    // O critério da DoD é "listar, criar e EDITAR ITENS, sem CLI". Sem esta jornada o pacote
+    // nasce vazio pela tela e só ganha conteúdo por linha de comando — que é a lacuna que o
+    // milestone existe para fechar.
+    await navegarAteOsPacotesPeloMenu(page);
+    await page.getByRole('link', { name: 'Pacote recém-criado' }).click();
+    await expect(page).toHaveURL(/\/bundles\/bdl_vazio$/);
+
+    // Estado vazio DIZ A CONSEQUÊNCIA, não só "vazio": um token de um pacote sem itens não
+    // entrega nada, e o operador precisa saber disso antes de distribuí-lo.
+    await expect(page.getByText(/Quem usar um token dele não recebe nada/i)).toBeVisible();
+
+    await page.getByLabel('Skill a adicionar').selectOption('sk_ordering');
+    // O canal só habilita depois da skill: canais são POR skill, e um par montado antes seria
+    // um item que o registro não sabe servir.
+    await page.getByLabel('Canal da skill').selectOption('stable');
+    await page.getByRole('button', { name: /adicionar ao pacote/i }).click();
+
+    // Alteração pendente é ANUNCIADA — sem isso o operador sai da tela achando que salvou.
+    await expect(page.getByText(/alterações ainda não salvas/i)).toBeVisible();
+
+    await page.getByRole('button', { name: /salvar conteúdo/i }).click();
+    // Depois de salvar o aviso some: é o sinal de que o rascunho virou estado do servidor.
+    await expect(page.getByText(/alterações ainda não salvas/i)).toHaveCount(0);
+    await expect(page.getByText('sk_ordering')).toBeVisible();
+  });
+
+  test('a mesma skill no mesmo canal não entra duas vezes', async ({ page }) => {
+    await navegarAteOsPacotesPeloMenu(page);
+    await page.getByRole('link', { name: 'Skills de atendimento' }).click();
+
+    // `bdl_ativo` já tem sk_ordering@stable. Adicionar de novo não acrescenta nada e confundiria
+    // a leitura da lista — a tela recusa dizendo por quê, em vez de ignorar em silêncio.
+    await page.getByLabel('Skill a adicionar').selectOption('sk_ordering');
+    await page.getByLabel('Canal da skill').selectOption('stable');
+    await page.getByRole('button', { name: /adicionar ao pacote/i }).click();
+
+    await expect(page.getByText(/já está no pacote neste canal/i)).toBeVisible();
+  });
+});

@@ -27,6 +27,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/usetheodev/theo-cloud/internal/skills"
 )
 
 // skillsDistributor é a porta da superfície de distribuição.
@@ -41,6 +43,7 @@ type skillsDistributor interface {
 	MintToken(ctx context.Context, bundleID string, ttlDays int, label string) (json.RawMessage, error)
 	RevokeToken(ctx context.Context, bundleID, tokenID string) (json.RawMessage, error)
 	Adoption(ctx context.Context, bundleID string, days int) (json.RawMessage, error)
+	SetBundleItems(ctx context.Context, bundleID string, items []skills.BundleItem) (json.RawMessage, error)
 }
 
 // SkillsDistributionHandler serve a superfície de distribuição para o dashboard.
@@ -184,6 +187,49 @@ func (h *SkillsDistributionHandler) Adoption(w http.ResponseWriter, r *http.Requ
 	h.escreve(w, out)
 }
 
+// SetItems serve PUT /v1/dashboard/bundles/{bundleID}/items.
+//
+// **Substitui a lista inteira**, seguindo o contrato do registro. "Adicionar sem poder remover"
+// produziria pacotes que só crescem, e um item esquecido lá dentro é acesso que ninguém
+// pretendeu conceder.
+//
+// Valida NA FRONTEIRA: cada item precisa de `skill_id` E `channel`. O canal é o que torna o
+// pacote vivo — promover o canal reaponta todos os consumidores sem reeditar o pacote —, então
+// um item sem ele não é um item, é uma entrada que o registro não sabe servir.
+//
+// Lista VAZIA é aceita: esvaziar o pacote sem apagá-lo é como se revoga o conteúdo dele, e
+// recusar aqui deixaria a tela sem como desfazer o que o operador montou.
+func (h *SkillsDistributionHandler) SetItems(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Items *[]struct {
+			SkillID string `json:"skill_id"`
+			Channel string `json:"channel"`
+		} `json:"items"`
+	}
+	// Ponteiro para distinguir `{"items":[]}` (esvaziar — legítimo) de `{}` (campo ausente —
+	// provavelmente engano de quem chama). Um slice comum colapsaria os dois em `nil`.
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxCorpoDistribuicao)).Decode(&body); err != nil || body.Items == nil {
+		h.invalido(w, r, "informe a lista de itens do pacote (pode ser vazia para esvaziá-lo)")
+		return
+	}
+
+	items := make([]skills.BundleItem, 0, len(*body.Items))
+	for _, it := range *body.Items {
+		if strings.TrimSpace(it.SkillID) == "" || strings.TrimSpace(it.Channel) == "" {
+			h.invalido(w, r, "cada item precisa de uma skill e de um canal")
+			return
+		}
+		items = append(items, skills.BundleItem{SkillID: it.SkillID, Channel: it.Channel})
+	}
+
+	out, err := h.client.SetBundleItems(r.Context(), bundleID(r), items)
+	if err != nil {
+		h.recusa(w, r, "set bundle items", err)
+		return
+	}
+	h.escreve(w, out)
+}
+
 // MountSkillsDistribution registra a superfície de distribuição sob `requireJWT`.
 //
 // `r.Route` é seguro AQUI — e só aqui — porque `/v1/dashboard/bundles` é um recurso próprio: o
@@ -198,5 +244,6 @@ func MountSkillsDistribution(r chi.Router, h *SkillsDistributionHandler, require
 		r.Post("/{bundleID}/tokens", h.MintToken)
 		r.Delete("/{bundleID}/tokens/{tokenID}", h.RevokeToken)
 		r.Get("/{bundleID}/adoption", h.Adoption)
+		r.Put("/{bundleID}/items", h.SetItems)
 	})
 }

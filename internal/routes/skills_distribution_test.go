@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/usetheodev/theo-cloud/internal/skills"
 )
 
 // Reusa o logger silencioso e o stub de leitura já usados por `skills_dashboard_test.go` — o
@@ -58,6 +60,13 @@ func (d *distribuidorFalso) RevokeToken(_ context.Context, b, tk string) (json.R
 }
 func (d *distribuidorFalso) Adoption(_ context.Context, b string, days int) (json.RawMessage, error) {
 	return d.registra("Adoption:" + b)
+}
+func (d *distribuidorFalso) SetBundleItems(_ context.Context, b string, items []skills.BundleItem) (json.RawMessage, error) {
+	nomes := make([]string, 0, len(items))
+	for _, i := range items {
+		nomes = append(nomes, i.SkillID+"@"+i.Channel)
+	}
+	return d.registra("SetBundleItems:" + b + ":" + strings.Join(nomes, ","))
 }
 
 func semJWT(next http.Handler) http.Handler { return next }
@@ -182,5 +191,54 @@ func TestDistribuicao_naoSombreiaAsRotasDeSkills(t *testing.T) {
 	// E a distribuição responde no seu próprio caminho.
 	if w := pede(t, r, http.MethodGet, "/v1/dashboard/bundles", ""); w.Code != http.StatusOK {
 		t.Fatalf("distribuição quebrou: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestDistribuicao_editaOsItensDoPacote(t *testing.T) {
+	d := &distribuidorFalso{}
+	r := montaDistribuicao(t, d)
+
+	w := pede(t, r, http.MethodPut, "/v1/dashboard/bundles/bdl_1/items",
+		`{"items":[{"skill_id":"sk_a","channel":"stable"}]}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d, corpo %s", w.Code, w.Body.String())
+	}
+	if len(d.chamadas) != 1 || d.chamadas[0] != "SetBundleItems:bdl_1:sk_a@stable" {
+		t.Fatalf("chamadas: %v", d.chamadas)
+	}
+}
+
+func TestDistribuicao_esvaziarOPacoteEOperacaoLegitima(t *testing.T) {
+	// Esvaziar é como se revoga o conteúdo de um pacote sem apagá-lo. Recusar aqui deixaria a
+	// tela sem como desfazer o que o operador montou.
+	d := &distribuidorFalso{}
+	w := pede(t, montaDistribuicao(t, d), http.MethodPut, "/v1/dashboard/bundles/bdl_1/items", `{"items":[]}`)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d, corpo %s", w.Code, w.Body.String())
+	}
+	if len(d.chamadas) != 1 || d.chamadas[0] != "SetBundleItems:bdl_1:" {
+		t.Fatalf("chamadas: %v", d.chamadas)
+	}
+}
+
+func TestDistribuicao_itemSemCanalNaoChegaAoUpstream(t *testing.T) {
+	// Um item sem canal não é um item: o canal é o que torna o pacote vivo, e sem ele o registro
+	// não sabe qual revisão servir. Recusar na fronteira poupa a ida e escreve a mensagem para
+	// quem está na tela.
+	d := &distribuidorFalso{}
+	r := montaDistribuicao(t, d)
+
+	for _, corpo := range []string{
+		`{"items":[{"skill_id":"sk_a"}]}`,
+		`{"items":[{"skill_id":"","channel":"stable"}]}`,
+		`{"nao_e_items":[]}`,
+	} {
+		if w := pede(t, r, http.MethodPut, "/v1/dashboard/bundles/bdl_1/items", corpo); w.Code != http.StatusBadRequest {
+			t.Fatalf("corpo %s deveria ser 400, veio %d", corpo, w.Code)
+		}
+	}
+	if len(d.chamadas) != 0 {
+		t.Fatalf("não deveria ter chamado o upstream: %v", d.chamadas)
 	}
 }

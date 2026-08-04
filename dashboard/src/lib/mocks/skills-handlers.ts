@@ -162,8 +162,13 @@ function registerSkillsRoutes(base: string) {
  */
 const distribuicaoDb = {
   bundles: [
-    { bundle_id: 'bdl_ativo', name: 'Skills de atendimento', create_time: '2026-06-01T09:00:00Z' },
-    { bundle_id: 'bdl_vazio', name: 'Pacote recém-criado', create_time: '2026-08-01T09:00:00Z' },
+    {
+      bundle_id: 'bdl_ativo',
+      name: 'Skills de atendimento',
+      create_time: '2026-06-01T09:00:00Z',
+      items: [{ skill_id: 'sk_ordering', channel: 'stable' }],
+    },
+    { bundle_id: 'bdl_vazio', name: 'Pacote recém-criado', create_time: '2026-08-01T09:00:00Z', items: [] },
   ],
   tokens: {
     bdl_ativo: [
@@ -251,7 +256,12 @@ export function registerSkillsDistributionHandlers() {
     if (name === '') {
       return Response.json({ code: 'INVALID_REQUEST', message: 'dê um nome ao pacote' }, { status: 400 });
     }
-    const bundle = { bundle_id: `bdl_${distribuicaoDb.bundles.length + 1}`, name, create_time: '2026-08-04T12:00:00Z' };
+    const bundle = {
+      bundle_id: `bdl_${distribuicaoDb.bundles.length + 1}`,
+      name,
+      create_time: '2026-08-04T12:00:00Z',
+      items: [] as { skill_id: string; channel: string }[],
+    };
     distribuicaoDb.bundles = [...distribuicaoDb.bundles, bundle];
     distribuicaoDb.tokens[bundle.bundle_id] = [];
     distribuicaoDb.adoption[bundle.bundle_id] = { total_installs: 0, adoption: [] };
@@ -297,6 +307,19 @@ export function registerSkillsDistributionHandlers() {
     // isso, senão o operador acha que o token sumiu do histórico.
     alvo.revoked_at = '2026-08-04T12:05:00.000Z';
     return Response.json({ revoked: true });
+  });
+
+  registerRoute('PUT', `${base}/{bundleId}/items`, async (req, params) => {
+    const alvo = distribuicaoDb.bundles.find((b) => b.bundle_id === params.bundleId);
+    if (alvo === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    const body = (await req.json()) as { items?: { skill_id: string; channel: string }[] };
+    if (!Array.isArray(body.items)) {
+      return Response.json({ code: 'INVALID_REQUEST', message: 'items deve ser uma lista' }, { status: 400 });
+    }
+    // SUBSTITUI, não mescla — como o registro. Um mock que mesclasse deixaria a tela verde sobre
+    // um contrato que não existe, e a remoção só falharia contra o serviço real.
+    alvo.items = body.items;
+    return Response.json({ bundle_id: params.bundleId, items: alvo.items });
   });
 
   registerRoute('GET', `${base}/{bundleId}/adoption`, async (_req, params) => {

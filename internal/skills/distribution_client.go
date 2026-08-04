@@ -96,3 +96,32 @@ func (c *DataClient) Adoption(ctx context.Context, bundleID string, days int) (j
 	return c.getRaw(ctx, "/v1/bundles/"+url.PathEscape(bundleID)+"/adoption",
 		url.Values{"days": []string{strconv.Itoa(days)}})
 }
+
+// BundleItem é uma entrada do pacote: qual skill, seguindo qual canal.
+//
+// O canal — e não uma revisão fixa — é o que torna o pacote **vivo**: promover o canal reaponta
+// todos os consumidores do bundle sem que ninguém precise reeditar o pacote.
+type BundleItem struct {
+	SkillID string `json:"skill_id"`
+	Channel string `json:"channel"`
+}
+
+// SetBundleItems define o conteúdo do bundle (`PUT /v1/bundles/:id/items`).
+//
+// **SUBSTITUI a lista inteira**, não faz merge — é o contrato do registro, e a razão está lá:
+// "adicionar" sem poder remover produziria pacotes que só crescem, e um item esquecido lá dentro
+// é acesso que ninguém pretendeu conceder.
+//
+// Lista vazia é uma operação legítima (esvaziar o pacote sem apagá-lo) e viaja como `[]`, nunca
+// omitida nem `null`: o registro exige que `items` seja uma lista, e um `nil` serializado como
+// `null` seria recusado com 400 — deixando a tela sem como desfazer o que montou.
+func (c *DataClient) SetBundleItems(ctx context.Context, bundleID string, items []BundleItem) (json.RawMessage, error) {
+	if items == nil {
+		items = []BundleItem{}
+	}
+	body, err := json.Marshal(map[string]any{"items": items})
+	if err != nil {
+		return nil, fmt.Errorf("skills data client: encode bundle items: %w", err)
+	}
+	return c.sendRaw(ctx, http.MethodPut, "/v1/bundles/"+url.PathEscape(bundleID)+"/items", body)
+}
