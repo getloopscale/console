@@ -21,6 +21,8 @@ const mockRollback = vi.fn();
 const mockUsage = vi.fn();
 const mockSetTags = vi.fn();
 const mockCatalog = vi.fn();
+const mockComments = vi.fn();
+const mockAddComment = vi.fn();
 vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
   return {
@@ -34,6 +36,8 @@ vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
     fetchPromptUsage: (...a: unknown[]) => mockUsage(...a),
     setTags: (...a: unknown[]) => mockSetTags(...a),
     fetchCatalogPage: (...a: unknown[]) => mockCatalog(...a),
+    fetchComments: (...a: unknown[]) => mockComments(...a),
+    addComment: (...a: unknown[]) => mockAddComment(...a),
   };
 });
 
@@ -532,5 +536,80 @@ describe('PromptDetailPage — tags (M16)', () => {
     await userEvent.click(screen.getByRole('button', { name: /marcar/i }));
 
     expect(await screen.findByText(/no maximo 16 tags/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * M18 — a discussão na tela, e quem promove vendo-a ANTES de confirmar.
+ *
+ * O DoD é explícito: *"a tela de promoção mostra se a revisão-alvo tem comentários antes de
+ * confirmar. Discussão que não é lida na hora da decisão não muda decisão nenhuma."*
+ */
+describe('PromptDetailPage — discussão da revisão (M18)', () => {
+  it('a discussao da revisao aparece com autor e data', async () => {
+    mockComments.mockResolvedValue([
+      { id: 'c1', body: 'rejeitada: verbosa demais', author: 'ana', createdAt: '2026-08-04T10:00:00Z' },
+    ]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/rejeitada: verbosa demais/)).toBeInTheDocument();
+    expect(screen.getByText(/ana/)).toBeInTheDocument();
+  });
+
+  it('revisao sem discussao DIZ que nao ha, em vez de ficar em branco', async () => {
+    // Branco lê como "não carregou". A ausência de discussão é um fato sobre a revisão.
+    mockComments.mockResolvedValue([]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/nenhum comentário/i)).toBeInTheDocument();
+  });
+
+  it('comentar pela tela manda o corpo e RELE a discussao', async () => {
+    mockComments.mockResolvedValue([]);
+    mockAddComment.mockResolvedValue({ name: 'saudacao', version: 3 });
+    render(<PromptDetailPage />);
+    await screen.findByText(/nenhum comentário/i);
+
+    await userEvent.type(screen.getByLabelText(/comentar esta revisão/i), 'por que a v3?');
+    await userEvent.click(screen.getByRole('button', { name: /comentar/i }));
+
+    await vi.waitFor(() =>
+      expect(mockAddComment).toHaveBeenCalledWith('saudacao', expect.any(Number), 'por que a v3?'),
+    );
+  });
+
+  it('a recusa TIPADA por segredo chega ao operador com o motivo', async () => {
+    // `secret_in_comment` diz o que fazer; "erro ao salvar" não diz nada. E a mensagem cita o
+    // TIPO de credencial, nunca o trecho — o valor não pode voltar à tela.
+    mockComments.mockResolvedValue([]);
+    mockAddComment.mockRejectedValue(
+      new ApiError(400, {
+        error: 'secret_in_comment',
+        message: 'o comentario parece conter uma chave da plataforma; remova-a antes de enviar',
+      }),
+    );
+    render(<PromptDetailPage />);
+    await screen.findByText(/nenhum comentário/i);
+
+    await userEvent.type(screen.getByLabelText(/comentar esta revisão/i), 'colei algo');
+    await userEvent.click(screen.getByRole('button', { name: /comentar/i }));
+
+    expect(await screen.findByText(/chave da plataforma/i)).toBeInTheDocument();
+  });
+
+  it('QUEM PROMOVE ve que ha discussao antes de confirmar', async () => {
+    // O bullet 4 do DoD. Sem isto o operador confirma sem saber que alguém já discutiu a
+    // revisão que ele está pondo no ar.
+    mockComments.mockResolvedValue([
+      { id: 'c1', body: 'não promova: quebra o tom', author: 'bia', createdAt: '2026-08-04T10:00:00Z' },
+    ]);
+    render(<PromptDetailPage />);
+    await screen.findByText(/não promova: quebra o tom/);
+
+    await userEvent.click(screen.getAllByRole('button', { name: /promover/i })[0]);
+
+    expect(await screen.findByText(/comentário/i)).toBeInTheDocument();
   });
 });

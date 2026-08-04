@@ -285,3 +285,37 @@ export function setTags<T>(name: string, tags: readonly string[]): Promise<T | n
     { throwOnError: true },
   );
 }
+
+/**
+ * M18 — a discussão de UMA revisão, do mais antigo ao mais novo.
+ *
+ * `throwOnError: false` de propósito, ao contrário do `setTags`: a discussão é contexto, e uma
+ * falha ao lê-la não pode impedir o operador de ver a revisão. Mas o `null` que ela devolve
+ * precisa ser DISTINGUIDO de `[]` na tela — "não consegui ler" e "ninguém comentou" levam a
+ * ações opostas, e é a confusão dos dois que o M13 pagou caro para aprender.
+ */
+export function fetchComments<T>(name: string, version: number): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/revisions/${String(version)}/comments`,
+    {},
+  );
+}
+
+/**
+ * M18 — comenta uma revisão.
+ *
+ * `throwOnError` porque a recusa é acionável e específica — `empty_comment`, `comment_too_long`,
+ * `secret_in_comment` com o TIPO de credencial. Engoli-la deixaria a tela como se o comentário
+ * tivesse sido gravado.
+ */
+export function addComment<T>(name: string, version: number, body: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/revisions/${String(version)}/comments`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
+    },
+    { throwOnError: true },
+  );
+}

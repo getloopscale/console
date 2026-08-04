@@ -15,6 +15,9 @@ const promptlyDb: {
   revisions: Record<string, { version: number; content: string; createdAt: string }[]>;
   policies: Record<string, { datasetId: string; minScore: number }>;
   // M15 — o uso observado, por prompt e por revisão.
+  // M18 — a discussão, por "nome\u001fversão". A chave carrega a VERSÃO porque o comentário é
+  // dela: a v8 nasce e o comentário da v7 segue na v7.
+  comentarios: Record<string, { id: string; body: string; author: string | null; createdAt: string }[]>;
   uso: Record<string, { revision: number; resolutions: number; totalTokens: number; costUsd: number | null; p50LatencyMs: number | null }[]>;
 } = {
   catalog: [
@@ -64,6 +67,7 @@ const promptlyDb: {
   // Três formas de propósito, porque a coluna tem três estados e um e2e que só visse o primeiro
   // provaria um terço: v3 com uso e custo · v2 com uso e custo AUSENTE (o provider não reportou)
   // · v1 sem tráfego nenhum, que é diferente de zero.
+  comentarios: {},
   uso: {
     saudacao: [
       { revision: 3, resolutions: 12, totalTokens: 1500, costUsd: 0.0312, p50LatencyMs: 4.2 },
@@ -160,6 +164,30 @@ function registerPromptlyRoutes(base: string) {
       headers.Link = `<${base}/prompts?after=${cursor}&limit=${String(limit)}${extras}>; rel="next"`;
     }
     return new Response(JSON.stringify(pagina), { status: 200, headers });
+  });
+
+  /**
+   * M18 — a discussão de UMA revisão.
+   *
+   * Sem esta rota o mock é MENOS fiel que a produção: a tela chama, a chamada falha, e o e2e passa
+   * a exercitar o estado "não consegui ler a discussão" — que produção não terá. É o mesmo modo de
+   * falha que o cabeçalho deste arquivo já alerta para o `content` do catálogo e as `variables` do
+   * prompt, e que quebrou três jornadas quando o cartão de discussão nasceu.
+   */
+  registerRoute('GET', `${base}/prompts/{name}/revisions/{version}/comments`, async (_req, { name, version }) => {
+    const chave = `${name ?? ''}\u001f${version ?? ''}`;
+    return Response.json(promptlyDb.comentarios[chave] ?? []);
+  });
+
+  registerRoute('POST', `${base}/prompts/{name}/revisions/{version}/comments`, async (req, { name, version }) => {
+    const corpo = (await req.json()) as { body?: string };
+    const texto = (corpo.body ?? '').trim();
+    if (texto === '') return Response.json({ error: 'empty_comment' }, { status: 400 });
+    const chave = `${name ?? ''}\u001f${version ?? ''}`;
+    const lista = promptlyDb.comentarios[chave] ?? [];
+    lista.push({ id: `c-${String(lista.length + 1)}`, body: texto, author: 'operador', createdAt: '2026-08-04T12:00:00Z' });
+    promptlyDb.comentarios[chave] = lista;
+    return Response.json({ name, version }, { status: 201 });
   });
 
   /**

@@ -18,6 +18,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -61,6 +62,27 @@ func (c *WriteClient) AssignLabel(ctx context.Context, name, label string, body 
 // diagnostico, e um BFF que validasse antes devolveria a propria recusa em vez do motivo real.
 func (c *WriteClient) SetTags(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error) {
 	return c.sendRaw(ctx, http.MethodPut, "/prompts/"+url.PathEscape(name)+"/tags", body)
+}
+
+// AddComment comenta UMA revisao (`POST /prompts/:name/revisions/:version/comments`) — M18.
+//
+// O corpo atravessa OPACO, como o das outras escritas: as recusas tipadas do servico
+// (`400 empty_comment`, `400 comment_too_long`, `400 secret_in_comment` com o TIPO de credencial,
+// `404 prompt_not_found`) sao o que a tela transforma em diagnostico. Um BFF que validasse antes
+// devolveria a propria recusa em vez do motivo real.
+func (c *WriteClient) AddComment(ctx context.Context, name string, version int, body json.RawMessage) (json.RawMessage, error) {
+	path := "/prompts/" + url.PathEscape(name) + "/revisions/" + strconv.Itoa(version) + "/comments"
+	return c.sendRaw(ctx, http.MethodPost, path, body)
+}
+
+// ProtectLabel define o papel minimo para mover um label (`PUT /labels/:label/protection`) — M18.
+func (c *WriteClient) ProtectLabel(ctx context.Context, label string, body json.RawMessage) (json.RawMessage, error) {
+	return c.sendRaw(ctx, http.MethodPut, "/labels/"+url.PathEscape(label)+"/protection", body)
+}
+
+// UnprotectLabel remove a protecao — o caminho de emergencia auditado do M18 (ADR-2).
+func (c *WriteClient) UnprotectLabel(ctx context.Context, label string) (json.RawMessage, error) {
+	return c.sendRaw(ctx, http.MethodDelete, "/labels/"+url.PathEscape(label)+"/protection", nil)
 }
 
 // CreateRevision cria uma revisao nova (`POST /prompts`). O corpo vem da tela e segue OPACO ate

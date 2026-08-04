@@ -172,6 +172,22 @@ func (c *DataClient) Catalog(ctx context.Context, limit int, after string, filtr
 	return body, Continuacao{TemMais: temMais, Query: query}, nil
 }
 
+// Comments le a discussao de UMA revisao (`GET /prompts/:name/revisions/:version/comments`) — M18.
+//
+// Quem promove precisa ver a discussao ANTES de confirmar: discussao que nao e lida na hora da
+// decisao nao muda decisao nenhuma.
+func (c *DataClient) Comments(ctx context.Context, name string, version int) (json.RawMessage, error) {
+	path := "/prompts/" + url.PathEscape(name) + "/revisions/" + strconv.Itoa(version) + "/comments"
+	body, _, err := c.getRaw(ctx, path, nil)
+	return body, err
+}
+
+// LabelProtection le o papel exigido por um label; `404` quando ele nao e protegido — M18.
+func (c *DataClient) LabelProtection(ctx context.Context, label string) (json.RawMessage, error) {
+	body, _, err := c.getRaw(ctx, "/labels/"+url.PathEscape(label)+"/protection", nil)
+	return body, err
+}
+
 // Playground roda o prompt UMA vez contra o modelo (`POST /prompts/:name/playground`).
 //
 // Vive no cliente de LEITURA, e nao no de escrita, porque a rota nao muta nada do NOSSO estado: ela

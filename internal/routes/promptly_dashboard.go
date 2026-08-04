@@ -47,6 +47,10 @@ type promptlyReader interface {
 	// Catalog devolve a pagina E se ha proxima — ver M13 e `promptly.Continuacao`.
 	Catalog(ctx context.Context, limit int, after string, filtro promptly.CatalogoFiltro) (json.RawMessage, promptly.Continuacao, error)
 	Prompt(ctx context.Context, name string) (json.RawMessage, error)
+	// M18 — a discussao e a protecao, do lado da LEITURA: quem promove precisa ve-las ANTES de
+	// confirmar. Discussao que nao e lida na hora da decisao nao muda decisao nenhuma.
+	Comments(ctx context.Context, name string, version int) (json.RawMessage, error)
+	LabelProtection(ctx context.Context, label string) (json.RawMessage, error)
 	Revisions(ctx context.Context, name string, limit, after int) (json.RawMessage, error)
 	Labels(ctx context.Context, name string) (json.RawMessage, error)
 	Policy(ctx context.Context, name, label string) (json.RawMessage, error)
@@ -64,6 +68,11 @@ type promptlyPromoter interface {
 	CreateRevision(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
 	// M16 — marcar e ESCRITA, servida pela mesma credencial de inquilino.
 	SetTags(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error)
+	// M18 — a discussao e a protecao. Mesma porta que a promocao porque compartilham a
+	// propriedade que importa: sao servidas pela credencial de ESCRITA cunhada por inquilino.
+	AddComment(ctx context.Context, name string, version int, body json.RawMessage) (json.RawMessage, error)
+	ProtectLabel(ctx context.Context, label string, body json.RawMessage) (json.RawMessage, error)
+	UnprotectLabel(ctx context.Context, label string) (json.RawMessage, error)
 	Rollback(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error)
 }
 
@@ -328,6 +337,81 @@ func (h *PromptlyDashboardHandler) SetTags(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// versaoDaRota le o segmento :version. Um valor invalido e recusado AQUI, antes de sair para o
+// servico: mandar `NaN` adiante produziria uma recusa do upstream sobre um pedido que este proxy
+// sabia estar errado.
+func versaoDaRota(r *http.Request) (int, bool) {
+	n, err := strconv.Atoi(chi.URLParam(r, "version"))
+	if err != nil || n < 1 {
+		return 0, false
+	}
+	return n, true
+}
+
+// AddComment repassa o comentario de uma revisao (M18).
+func (h *PromptlyDashboardHandler) AddComment(w http.ResponseWriter, r *http.Request) {
+	version, ok := versaoDaRota(r)
+	if !ok {
+		h.badRequest(w, r, "add_comment: invalid version", nil)
+		return
+	}
+	raw, grande, err := lerCorpoLimitado(r, maxPromptBody)
+	if err != nil {
+		h.badRequest(w, r, "add_comment: read body", err)
+		return
+	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "add_comment")
+		return
+	}
+	h.proxy(w, r, "add_comment", func() (json.RawMessage, error) {
+		return h.promoter.AddComment(r.Context(), promptName(r), version, raw)
+	})
+}
+
+// Comments le a discussao de uma revisao (M18).
+func (h *PromptlyDashboardHandler) Comments(w http.ResponseWriter, r *http.Request) {
+	version, ok := versaoDaRota(r)
+	if !ok {
+		h.badRequest(w, r, "comments: invalid version", nil)
+		return
+	}
+	h.proxy(w, r, "comments", func() (json.RawMessage, error) {
+		return h.reader.Comments(r.Context(), promptName(r), version)
+	})
+}
+
+// ProtectLabel define o papel minimo do label (M18).
+func (h *PromptlyDashboardHandler) ProtectLabel(w http.ResponseWriter, r *http.Request) {
+	raw, grande, err := lerCorpoLimitado(r, maxPromotionBody)
+	if err != nil {
+		h.badRequest(w, r, "protect_label: read body", err)
+		return
+	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "protect_label")
+		return
+	}
+	h.proxy(w, r, "protect_label", func() (json.RawMessage, error) {
+		return h.promoter.ProtectLabel(r.Context(), chi.URLParam(r, "label"), raw)
+	})
+}
+
+// UnprotectLabel e o caminho de emergencia auditado (M18, ADR-2).
+func (h *PromptlyDashboardHandler) UnprotectLabel(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "unprotect_label", func() (json.RawMessage, error) {
+		return h.promoter.UnprotectLabel(r.Context(), chi.URLParam(r, "label"))
+	})
+}
+
+// LabelProtection le o papel exigido (M18). `404` quando livre — a tela precisa distinguir
+// "promocao livre" de "nao consegui ler".
+func (h *PromptlyDashboardHandler) LabelProtection(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "label_protection", func() (json.RawMessage, error) {
+		return h.reader.LabelProtection(r.Context(), chi.URLParam(r, "label"))
+	})
+}
+
 // Create repassa a criacao de uma revisao (`POST /prompts`).
 //
 // O corpo NAO e validado aqui, e a ausencia e decisao: `name` e `content` tem regra no produto
@@ -471,6 +555,11 @@ func MountPromptlyDashboard(r chi.Router, h *PromptlyDashboardHandler, requireJW
 		// rede virar duas revisoes sem que ninguem percebesse.
 		r.Post("/prompts", h.Create)
 		r.Put("/prompts/{promptName}/tags", h.SetTags)
+		r.Post("/prompts/{promptName}/revisions/{version}/comments", h.AddComment)
+		r.Get("/prompts/{promptName}/revisions/{version}/comments", h.Comments)
+		r.Put("/labels/{label}/protection", h.ProtectLabel)
+		r.Delete("/labels/{label}/protection", h.UnprotectLabel)
+		r.Get("/labels/{label}/protection", h.LabelProtection)
 		r.Post("/prompts/{promptName}/playground", h.Playground)
 		r.Post("/prompts/{promptName}/rollback", h.Rollback)
 	})
