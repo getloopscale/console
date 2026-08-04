@@ -194,6 +194,23 @@ func pageQuery(limit, offset int) url.Values {
 // the verb it needs. Reads reuse getRaw; writes/deletes use doRaw.
 
 // ListDatasets proxies GET /v1/datasets.
+// PromptUsage proxies theo-lens's per-revision prompt-usage aggregate (M15 do theo-promptly).
+//
+// Thin by design, like every read here: the upstream body passes through as json.RawMessage,
+// so the BFF cannot drift from theo-lens's response shape. What IS load-bearing is the path
+// and the per-tenant Bearer — the workspace comes from the JWT-derived tenant via the resolver
+// and NEVER from a caller-supplied param, or the aggregate would cross tenants.
+//
+// A 4xx/5xx upstream surfaces as *UpstreamStatusError, deliberately distinct from an empty
+// aggregate: "could not read" and "nothing to show" are different facts, and a screen that
+// renders zeros over a failed read is worse than one that shows nothing.
+func (c *DataClient) PromptUsage(ctx context.Context, promptName string, windowDays int) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("prompt", promptName)
+	q.Set("windowDays", strconv.Itoa(windowDays))
+	return c.getRaw(ctx, "/v1/analytics/prompt-usage", q)
+}
+
 func (c *DataClient) ListDatasets(ctx context.Context) (json.RawMessage, error) {
 	return c.getRaw(ctx, "/v1/datasets", nil)
 }

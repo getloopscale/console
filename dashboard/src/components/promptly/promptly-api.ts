@@ -67,6 +67,22 @@ export async function fetchCatalogPage<T>(limit: number): Promise<CatalogPage<T>
  * histórico inteiro — por isso o limite é argumento obrigatório aqui, e não um opcional que alguém
  * esquece de passar.
  */
+/**
+ * M15 — o uso observado por revisão, na janela pedida.
+ *
+ * `throwOnError` porque a distinção que importa aqui é entre "não consegui ler" e
+ * "não houve uso": engolir o erro e devolver `null` faria a tela renderizar o
+ * segundo sobre o primeiro, que é o defeito que o DoD-3 do milestone proíbe.
+ */
+export function fetchPromptUsage<T>(name: string, windowDays: number): Promise<T | null> {
+  const q = new URLSearchParams({ windowDays: String(windowDays) });
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/usage?${q}`,
+    {},
+    { throwOnError: true },
+  );
+}
+
 export function fetchRevisions<T>(name: string, limit: number, after = 0): Promise<T | null> {
   const q = new URLSearchParams({ limit: String(limit) });
   // `after` posiciona a janela no FIM do histórico. A rota ordena da revisão mais antiga para a

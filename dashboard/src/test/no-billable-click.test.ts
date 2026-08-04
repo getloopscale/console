@@ -12,6 +12,9 @@ const SPECS_PROMPTLY = [
   'promptly-panel-journey',
   'promptly-authoring-journey',
   'promptly-playground-journey',
+  // M15: a jornada do uso por revisão. Entra aqui no MESMO commit que a cria — o M14
+  // registrou que uma spec fora desta lista quebra sem ninguém perceber.
+  'promptly-uso-journey',
 ];
 
 /**

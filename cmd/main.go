@@ -754,6 +754,16 @@ func main() {
 			WithKeyResolver(newLensDashboardKeyResolver(lensBroker))
 		lensDashboardHandler = routes.NewLensDashboardHandler(lensDataClient, logger)
 		logger.Info("dashboard lens enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/lens")
+		// M15 (theo-promptly) — o uso por revisão de um prompt é telemetria, então mora no lens e
+		// é lido pelo cliente DELE, com a credencial dele. A ligação acontece aqui e não na
+		// composição do promptly (~200 linhas acima) porque o cliente do lens só existe agora.
+		// Sem esta linha a rota /usage sobe recusando para sempre — e todo teste continua verde,
+		// porque nos testes de rota o leitor é injetado à mão. Travado por
+		// `promptly_usage_wiring_test.go`.
+		if promptlyDashboardHandler != nil {
+			promptlyDashboardHandler.WithUsageReader(lensDataClient)
+			logger.Info("promptly usage reader wired from lens client", "mount", "/v1/dashboard/promptly/prompts/{name}/usage")
+		}
 	}
 
 	// M17: the read+write /v1/dashboard/rag BFF (M21). Wired only when the rag broker is
