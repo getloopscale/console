@@ -297,3 +297,100 @@ describe('PromptlyCatalogoPage — recortes vindos do endereço', () => {
     expect(screen.getByText('agentbuilder-base')).toBeInTheDocument();
   });
 });
+
+/**
+ * M13 pós-aceitação — o critério que a própria implementação tornou difícil de verificar.
+ *
+ * A aceitação de 2026-08-03 devolveu `NOT_VALIDATED` com o AC2 `not_exercised`, e a razão está
+ * registrada lá: o DoD exige ver a marca de parcialidade NA TELA; a tela pedia `limit=100` fixo; o
+ * ambiente tem 12 prompts. As duas coisas não podem ser verdadeiras ao mesmo tempo sem encher um
+ * workspace compartilhado — cujas revisões são imutáveis e não têm DELETE — de mais de cem prompts
+ * de teste que ficariam lá para sempre.
+ *
+ * O conserto não é relaxar o critério: é dar à tela o que um acervo real vai exigir de qualquer
+ * forma — pedir uma página menor. Aí a continuação é alcançável com 12 prompts, e o operador ganha
+ * um controle que serve a ele, não ao teste.
+ *
+ * O tamanho vive no ENDEREÇO pela mesma razão que o recorte vive: o link tem de ser colável.
+ */
+describe('PromptlyCatalogoPage — o tamanho de página é escolha, e vive no endereço', () => {
+  it('pede ao servidor o tamanho que o endereço declara', async () => {
+    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: true });
+
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?porPagina=10'] });
+
+    await screen.findByText('saudacao');
+    expect(mockCatalog).toHaveBeenCalledWith(10);
+  });
+
+  it('trocar o tamanho refaz a busca com o novo limite', async () => {
+    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    render(<PromptlyCatalogoPage />);
+    await screen.findByText('saudacao');
+
+    await userEvent.selectOptions(screen.getByLabelText(/prompts por página/i), '10');
+
+    // A chave da consulta tem de carregar o tamanho: sem isso o React Query devolve a página
+    // anterior do cache e a tela mostra 100 itens dizendo que pediu 10.
+    await vi.waitFor(() => expect(mockCatalog).toHaveBeenCalledWith(10));
+  });
+
+  it('com a página menor e continuação, a contagem se declara PARCIAL', async () => {
+    // É este o par que o AC2 pede, e que o ambiente não conseguia produzir antes.
+    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: true });
+
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?porPagina=10'] });
+
+    expect(await screen.findByText(/há mais no servidor/i)).toBeInTheDocument();
+    expect(screen.queryByText(/neste workspace/i)).not.toBeInTheDocument();
+  });
+
+  it('pagina CHEIA sem continuação nao e parcial — o controle negativo do Top-risk 2', async () => {
+    // O falso positivo exato que `rows.length === limit` produziria: dez linhas, página de dez,
+    // e o servidor dizendo que acabou. É o total, e marcá-lo de parcial ensinaria o operador a
+    // desconfiar de um número correto — pior do que não mostrar número algum.
+    //
+    // A página precisa estar CHEIA para o teste valer: com três linhas numa página de dez a
+    // heurística não dispararia nem se existisse, e o teste passaria sem exercitar nada.
+    const dez = Array.from({ length: 10 }, (_, i) => ({
+      name: `prompt-${String(i)}`,
+      latestVersion: 1,
+      labels: [],
+      updatedAt: '2026-08-01T10:00:00Z',
+    }));
+    mockCatalog.mockResolvedValue({ data: dez, temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?porPagina=10'] });
+
+    expect(await screen.findByText(/10 neste workspace/i)).toBeInTheDocument();
+    expect(screen.queryByText(/há mais no servidor/i)).not.toBeInTheDocument();
+  });
+
+  it('tamanho invalido no endereco cai no padrao em vez de virar erro', async () => {
+    // Endereço editado à mão ou link antigo. Mesma regra do recorte desconhecido: ignora e mostra,
+    // nunca um erro — e nunca um `limit=NaN` que o servidor recusaria.
+    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?porPagina=abacaxi'] });
+
+    await screen.findByText('saudacao');
+    expect(mockCatalog.mock.calls[0][0]).toBeGreaterThan(0);
+    expect(Number.isNaN(mockCatalog.mock.calls[0][0])).toBe(false);
+  });
+
+  it('limpar o recorte PRESERVA o tamanho de pagina escolhido', async () => {
+    // O `setParams({})` de hoje apagaria os dois. Perder o tamanho ao clicar "Ver todos" mandaria
+    // a tela buscar 100 sem o operador ter pedido — e a marca de parcialidade sumiria com ele.
+    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: true });
+
+    render(<PromptlyCatalogoPage />, {
+      initialEntries: ['/promptly/catalogo?recorte=nao-promovidos&porPagina=10'],
+    });
+    await screen.findByRole('button', { name: /ver todos/i });
+
+    await userEvent.click(screen.getByRole('button', { name: /ver todos/i }));
+
+    expect(await screen.findByText('agentbuilder-base')).toBeInTheDocument();
+    expect(screen.getByLabelText(/prompts por página/i)).toHaveValue('10');
+  });
+});

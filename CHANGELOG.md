@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- **O catálogo de prompts deixa o operador escolher quantos prompts pedir por vez (M13).** Dez, vinte e cinco, cinquenta ou cem — e a escolha vive no endereço, então o link é colável como já era o do recorte. Um acervo grande precisa disso; e, sem isso, a marca de *"há mais no servidor"* que o M13 construiu era **inalcançável** em qualquer workspace com menos de cem prompts, o que deixou o critério correspondente sem verificação na aceitação de 2026-08-03. O controle serve ao operador; que ele também torne o critério verificável é consequência, não motivo (#m13)
+
 ## [0.82.0] - 2026-08-04
 
 ### Added
