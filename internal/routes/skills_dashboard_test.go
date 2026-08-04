@@ -65,6 +65,14 @@ func (s *stubSkillsReader) ValidateSkill(ctx context.Context, skillMd string) (j
 	return json.RawMessage(`{"ok":true,"name":"x","description":"d","execution":"remote"}`), nil
 }
 
+func (s *stubSkillsReader) Discoverability(_ context.Context, name, description string, hasEmbedding bool) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seenID = append(s.seenID, "discoverability:"+name+":"+strconv.FormatBool(hasEmbedding))
+	return json.RawMessage(`{"discoverable":false,"causes":["description_too_generic"],"hints":["escreva quando usar"],"embedder":"stub/stub"}`), nil
+}
+
 func (s *stubSkillsReader) Retrieve(ctx context.Context, query string, topK int, draft, deprecated bool) (json.RawMessage, error) {
 	if s.err != nil {
 		return nil, s.err

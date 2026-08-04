@@ -589,3 +589,32 @@ test.describe('M33 — catálogo: ver o que existe sem saber o que procurar', ()
     }
   });
 });
+
+test.describe('M34 — descobribilidade diagnosticada no momento da autoria', () => {
+  test('o diagnóstico nomeia a causa ANTES de publicar, e diz qual embedder mediu', async ({ page }) => {
+    // O critério: rodar no momento da autoria. Depois de publicar, corrigir a descrição custa
+    // uma revisão nova; aqui o texto ainda está na mão do autor.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^nova skill$/i }).click();
+
+    // O diagnóstico só aparece depois de validar: sem `name`/`description` lidos do frontmatter
+    // não há o que diagnosticar.
+    await page.getByLabel('Conteúdo da skill').fill('---\nname: Conversor\ndescription: converte\n---\n\n# x');
+    await page.getByRole('button', { name: /validar sem publicar/i }).click();
+    await expect(page.getByRole('heading', { name: /será encontrada/i })).toBeVisible();
+
+    // A tela declara que NÃO executa — a fronteira do Theokit é dita ao usuário, não só ao código.
+    await expect(page.getByText(/não a executa/i)).toBeVisible();
+
+    await page.getByRole('button', { name: /diagnosticar descobribilidade/i }).click();
+
+    // A CAUSA com o que fazer — um recall sem diagnóstico não diz ao autor o que corrigir.
+    await expect(page.getByText(/dificilmente encontrada/i)).toBeVisible();
+    await expect(page.getByText(/não QUANDO usá-la/i)).toBeVisible();
+    // E QUAL EMBEDDER mediu: o número mede o embedder tanto quanto a skill, e sem esse dado
+    // alguém compararia resultados incomparáveis sem perceber.
+    await expect(page.getByText('stub/stub')).toBeVisible();
+  });
+});

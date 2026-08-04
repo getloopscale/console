@@ -132,6 +132,31 @@ function registerSkillsRoutes(base: string) {
     return Response.json({ ok: true, name: nome, description: 'd', execution: 'remote' });
   });
 
+  // M34 — o diagnóstico de descobribilidade, no momento da autoria. NÃO executa a skill: o mock
+  // reproduz a FORMA (causes + hints + embedder) e a regra que importa — descrição curta é a
+  // causa mais comum de uma skill nova não ser achada.
+  registerRoute('POST', `${base}/:discoverability`, async (req) => {
+    const body = (await req.json()) as { description?: string; has_embedding?: boolean };
+    const desc = body.description ?? '';
+    const causes: string[] = [];
+    const hints: string[] = [];
+    if (desc.trim().length < 60) {
+      causes.push('description_too_generic');
+      hints.push('A descrição diz o que a skill é, mas não QUANDO usá-la.');
+    }
+    if (body.has_embedding !== true) {
+      causes.push('no_embedding');
+      hints.push('A revisão vigente não tem vetor: a skill só aparece para quem já sabe o nome.');
+    }
+    return Response.json({
+      discoverable: causes.length === 0,
+      causes,
+      hints,
+      // O embedder viaja SEMPRE: o número mede o embedder tanto quanto a skill.
+      embedder: 'stub/stub',
+    });
+  });
+
   registerRoute('POST', base, async (req) => {
     const body = (await req.json()) as { skill_id?: string; skill_md?: string };
     const id = (body.skill_id ?? '').trim();
@@ -380,6 +405,31 @@ export function registerSkillsDistributionHandlers() {
   const base = '/v1/dashboard/bundles';
 
   registerRoute('GET', base, async () => Response.json({ bundles: distribuicaoDb.bundles }));
+
+  // M34 — o diagnóstico de descobribilidade, no momento da autoria. NÃO executa a skill: o mock
+  // reproduz a FORMA (causes + hints + embedder) e a regra que importa — descrição curta é a
+  // causa mais comum de uma skill nova não ser achada.
+  registerRoute('POST', `${base}/:discoverability`, async (req) => {
+    const body = (await req.json()) as { description?: string; has_embedding?: boolean };
+    const desc = body.description ?? '';
+    const causes: string[] = [];
+    const hints: string[] = [];
+    if (desc.trim().length < 60) {
+      causes.push('description_too_generic');
+      hints.push('A descrição diz o que a skill é, mas não QUANDO usá-la.');
+    }
+    if (body.has_embedding !== true) {
+      causes.push('no_embedding');
+      hints.push('A revisão vigente não tem vetor: a skill só aparece para quem já sabe o nome.');
+    }
+    return Response.json({
+      discoverable: causes.length === 0,
+      causes,
+      hints,
+      // O embedder viaja SEMPRE: o número mede o embedder tanto quanto a skill.
+      embedder: 'stub/stub',
+    });
+  });
 
   registerRoute('POST', base, async (req) => {
     const body = (await req.json()) as { name?: string };

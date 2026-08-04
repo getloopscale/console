@@ -39,6 +39,9 @@ type skillsReader interface {
 	// M31 — validar NÃO escreve, então mora no cliente de leitura: pedir escopo de escrita aqui
 	// obrigaria quem só quer conferir um rascunho a carregar a credencial que publica.
 	ValidateSkill(ctx context.Context, skillMd string) (json.RawMessage, error)
+	// M34 — o diagnóstico de descobribilidade, no MESMO lugar onde `:validate` já responde: antes
+	// de publicar é quando o autor ainda pode corrigir a descrição sem custo.
+	Discoverability(ctx context.Context, name, description string, hasEmbedding bool) (json.RawMessage, error)
 }
 
 // SkillsDashboardHandler serve as leituras do registro de skills para o dashboard.
@@ -249,6 +252,40 @@ func (h *SkillsDashboardHandler) Validate(w http.ResponseWriter, r *http.Request
 	_, _ = w.Write(out)
 }
 
+// Discoverability serve POST /v1/dashboard/skills:discoverability.
+//
+// Roda no momento da AUTORIA — critério do M34. Um diagnóstico que só existisse depois de
+// publicar chegaria quando corrigir já custa uma revisão nova; aqui o autor ainda está com o
+// texto na mão.
+func (h *SkillsDashboardHandler) Discoverability(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name         string `json:"name"`
+		Description  string `json:"description"`
+		HasEmbedding bool   `json:"has_embedding"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil ||
+		strings.TrimSpace(body.Name) == "" || strings.TrimSpace(body.Description) == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"o nome e a descrição da skill são necessários para diagnosticar"}`))
+		return
+	}
+
+	out, err := h.client.Discoverability(
+		r.Context(),
+		strings.TrimSpace(body.Name),
+		strings.TrimSpace(body.Description),
+		body.HasEmbedding,
+	)
+	if err != nil {
+		h.reject(w, r, "discoverability", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out)
+}
+
 // MountSkillsDashboard registra o BFF de leitura sob `requireJWT`.
 //
 // Apenas verbos de leitura. A promocao de canal (o unico ato de escrita do M26) entra por caminho
@@ -268,6 +305,7 @@ func MountSkillsDashboard(r chi.Router, h *SkillsDashboardHandler, requireJWT fu
 		// (`parseSkillId` os rejeita). Travado por teste.
 		r.Get("/:retrieve", h.Retrieve)
 		r.Post("/:validate", h.Validate)
+		r.Post("/:discoverability", h.Discoverability)
 	})
 }
 

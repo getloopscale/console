@@ -79,6 +79,12 @@
 
   Chips de categoria com teto e overflow `+N` — **sem contagem por faceta**: derivada da página carregada, ela afirmaria sobre o acervo um número que só vale para o que está na tela. A ordenação é determinística com desempate por identificador, e o critério é **declarado na tela**: sem sinal de adoção, qualquer ordem padrão é arbitrária, e quem não sabe por que aquela ordem desconfia da lista (#m33)
 
+- **A descobribilidade é diagnosticada no momento da autoria (M34).** *"Será encontrada?"* é uma pergunta diferente de *"é válida?"* — e uma skill válida e inachável é, para quem procura, indistinguível de uma que não existe.
+
+  O diagnóstico roda **antes de publicar**, no mesmo lugar onde o `:validate` já responde: depois de publicar, corrigir a descrição custa uma revisão nova; ali o texto ainda está na mão do autor. Nomeia a **causa** com o que fazer — não um número —, e mostra **qual embedder mediu**, porque o resultado mede o embedder tanto quanto a skill.
+
+  A tela declara que **não executa** a skill: a fronteira *"execução é responsabilidade do Theokit"* é dita ao usuário, não só respeitada no código (#m34)
+
 ### Security
 
 - **A adoção de um bundle exigia apenas `skills:read` para ser lida.** Era a única rota da família sem gate de escopo — `POST /v1/bundles`, `GET /v1/bundles` e as três de token já exigiam `skills:publish`. Um portador do escopo de leitura (o que o dashboard cunha para o cliente de leitura, e o que um agente consumidor carrega) lia a telemetria comercial de quem publica. Mesmo workspace, então não é vazamento entre inquilinos; é privilégio a mais dentro dele, e a assimetria com as irmãs mostra que não foi decisão, foi esquecimento. Corrigido no `theo-skills`; o cliente de distribuição do dashboard já nasce ligado ao resolver de **publicação**, nunca ao de leitura (#m35)
