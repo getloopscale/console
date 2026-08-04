@@ -14,6 +14,8 @@
 
   Dois efeitos colaterais fechados junto: a divergência de caixa (`'failed'` vs `FAILED`) faria uma ingestão **morta** aparecer como "em andamento" indefinidamente, sem erro e sem fim; e o `refetchInterval` — que para em estado terminal — nunca parava, sondando a cada 1,5 s numa aba esquecida. A derivação saiu do JSX para uma função pura testada (`components/skills/operation-state.ts`): enquanto vivia inline, nenhum teste a alcançava.
 
+- **O overflow de categorias do catálogo dizia "+1 categorias".** Concordância no singular. Pequeno, mas só apareceu porque o ramo de overflow foi exercitado de verdade — populando o acervo até passar do teto de 8 categorias — em vez de aceito como coberto por teste unitário (#m33)
+
 - **A coluna "por que apareceu" dizia "origem não informada" em toda busca por palavra.** O registro emite `leg: 'keyword'`; a tela reconhecia `'lexical'` — um nome plausível que o contrato nunca teve (`retrievers/types.ts:79` declara `'vector' | 'keyword'`). Como o rótulo desconhecido cai num fallback honesto em vez de chutar, o defeito não gerava erro: a tela exibia o score e escondia o motivo, que é **metade** do que o M31 promete. Medido no `app-dev` com o servidor respondendo `matched: [{"leg":"keyword","rank":1}]` e a tela exibindo o fallback (#m31)
 
   O mock repetia `'lexical'` pela terceira vez seguida — a forma foi corrigida antes e o vocabulário continuou errado, então o e2e seguiu verde enquanto a produção não dizia o porquê. O teste novo trava o vocabulário contra o contrato real, e a correção foi confirmada por mutação: remover `'keyword'` do reconhecimento reprova 4 testes.
