@@ -61,6 +61,20 @@ function recorteValido(v: string | null): v is Recorte {
   return v !== null && Object.prototype.hasOwnProperty.call(RECORTES, v);
 }
 
+/**
+ * Os tamanhos de página que a tela oferece.
+ *
+ * Uma lista fechada, e não um número livre: um `limit` digitado à mão vira `NaN` ou um valor que o
+ * serviço recusa, e a tela erraria por um endereço editado. `CATALOG_PAGE_LIMIT` é o padrão e por
+ * isso não aparece no endereço — um link sem `?porPagina=` é o mesmo link de sempre.
+ */
+const TAMANHOS_DE_PAGINA = [10, 25, 50, CATALOG_PAGE_LIMIT] as const;
+
+function tamanhoValido(v: string | null): number {
+  const n = Number(v);
+  return TAMANHOS_DE_PAGINA.some((t) => t === n) ? n : CATALOG_PAGE_LIMIT;
+}
+
 export function PromptlyCatalogoPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Catálogo de prompts'), [setPageTitle]);
@@ -70,13 +84,29 @@ export function PromptlyCatalogoPage() {
   // O recorte vem da URL, não do estado local: é o que torna o link do painel COLÁVEL. Um valor
   // desconhecido é ignorado (a lista inteira), nunca um erro — um endereço antigo continua abrindo.
   const [params, setParams] = useSearchParams();
-  const limparRecorte = () => { setParams({}, { replace: true }); };
   const bruto = params.get('recorte');
   const recorte = recorteValido(bruto) ? bruto : null;
+  const porPagina = tamanhoValido(params.get('porPagina'));
+
+  // Preserva o tamanho de página: limpar o recorte é sobre o RECORTE. Apagar os dois faria a tela
+  // voltar a pedir cem sem ninguém ter pedido — e a marca de parcialidade sumiria junto, que é
+  // exatamente o sinal que este milestone existe para não perder.
+  const limparRecorte = () => {
+    setParams(porPagina === CATALOG_PAGE_LIMIT ? {} : { porPagina: String(porPagina) }, { replace: true });
+  };
+  const escolherTamanho = (valor: string) => {
+    const proximo = tamanhoValido(valor);
+    const atual = Object.fromEntries(params);
+    if (proximo === CATALOG_PAGE_LIMIT) delete atual['porPagina'];
+    else atual['porPagina'] = String(proximo);
+    setParams(atual, { replace: true });
+  };
 
   const query = useQuery({
-    queryKey: CATALOG_QUERY_KEY,
-    queryFn: () => fetchCatalogPage<unknown>(CATALOG_PAGE_LIMIT),
+    // O tamanho entra na CHAVE, não só na chamada. Sem ele o React Query serve a página anterior
+    // do cache e a tela mostra cem itens afirmando ter pedido dez.
+    queryKey: [...CATALOG_QUERY_KEY, porPagina],
+    queryFn: () => fetchCatalogPage<unknown>(porPagina),
   });
 
   // `useMemo` sobre `query.data`, não sobre um array recriado a cada render — senão o memo do
@@ -216,6 +246,27 @@ export function PromptlyCatalogoPage() {
                 className="h-9 rounded-md border border-input bg-background pl-8 pr-3 text-sm"
               />
             </div>
+            {/* Quantos prompts pedir por vez.
+
+                Existe porque um acervo grande precisa dele — e porque, sem ele, a marca de
+                parcialidade que este milestone construiu era inalcançável em qualquer ambiente
+                com menos de cem prompts. Foi o que a aceitação de 2026-08-03 registrou ao devolver
+                o AC2 como `not_exercised`: um critério que exigia ver a marca, e uma tela que
+                pedia cem fixo. O controle serve ao operador; que ele também torne o critério
+                verificável é consequência, não motivo. */}
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Prompts por página</span>
+              <select
+                aria-label="Prompts por página"
+                value={String(porPagina)}
+                onChange={(e) => escolherTamanho(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+              >
+                {TAMANHOS_DE_PAGINA.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </label>
             {/* A saída para a autoria fica onde o operador já está olhando. Sem ela o catálogo é
                 um beco: dá para ver o que existe e não para criar nada. */}
             <Button asChild>
