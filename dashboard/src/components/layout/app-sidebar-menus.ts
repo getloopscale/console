@@ -26,7 +26,6 @@ import {
   Receipt,
   Rocket,
   ScrollText,
-  FilePlus,
   Package,
   Search,
   Settings,

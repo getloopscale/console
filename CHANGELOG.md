@@ -63,6 +63,12 @@
 
   A exclusão viaja por um **terceiro cliente**, com credencial própria: `skills:write` apaga, `skills:publish` reaponta consumidores sem redeploy. Uma chave que fizesse as duas coisas transformaria qualquer vazamento no pior caso possível (#m31)
 
+- **Autoria sem publicar às cegas (M31).** O M30 entregou `POST /v1/skills:validate` — valida **sem efeito colateral** e o erro traz `field` e `line` — e ela ficou **sem consumidor**: nada disso alcançava um autor, porque não havia tela de autoria.
+
+  Agora `Skills → Nova skill` fecha a jornada: escrever → validar sem publicar → corrigir com o erro **posicionado** (campo e linha, não "inválido") → publicar **acompanhando a operação**. Publicar exige ter validado antes, e o botão desabilitado diz o motivo em vez de ensinar a regra pelo erro; editar o conteúdo invalida a validação anterior, porque exibir "válido" sobre um texto que mudou afirmaria algo que ninguém verificou.
+
+  O `202` é tratado como **aceito, não pronto**: a tela sonda a operação e para em estado terminal. E o sucesso oferece **testar a descoberta**, não "voltar à lista" — saber se a skill é encontrável é a única coisa que o autor quer saber depois de publicar (#m31)
+
 ### Security
 
 - **A adoção de um bundle exigia apenas `skills:read` para ser lida.** Era a única rota da família sem gate de escopo — `POST /v1/bundles`, `GET /v1/bundles` e as três de token já exigiam `skills:publish`. Um portador do escopo de leitura (o que o dashboard cunha para o cliente de leitura, e o que um agente consumidor carrega) lia a telemetria comercial de quem publica. Mesmo workspace, então não é vazamento entre inquilinos; é privilégio a mais dentro dele, e a assimetria com as irmãs mostra que não foi decisão, foi esquecimento. Corrigido no `theo-skills`; o cliente de distribuição do dashboard já nasce ligado ao resolver de **publicação**, nunca ao de leitura (#m35)

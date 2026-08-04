@@ -36,6 +36,9 @@ type skillsReader interface {
 	Instructions(ctx context.Context, id string) (json.RawMessage, error)
 	// M31 — a descoberta. Leitura pura: `skills:read` basta, e é o que este cliente carrega.
 	Retrieve(ctx context.Context, query string, topK int, includeDraft, includeDeprecated bool) (json.RawMessage, error)
+	// M31 — validar NÃO escreve, então mora no cliente de leitura: pedir escopo de escrita aqui
+	// obrigaria quem só quer conferir um rascunho a carregar a credencial que publica.
+	ValidateSkill(ctx context.Context, skillMd string) (json.RawMessage, error)
 }
 
 // SkillsDashboardHandler serve as leituras do registro de skills para o dashboard.
@@ -214,6 +217,38 @@ func (h *SkillsDashboardHandler) Retrieve(w http.ResponseWriter, r *http.Request
 	_, _ = w.Write(out)
 }
 
+// Validate serve POST /v1/dashboard/skills:validate.
+//
+// **Sem efeito colateral** — é o que permite escrever uma skill na tela sem publicar às cegas. O
+// M30 entregou a rota e ela ficou sem consumidor: o erro traz `field` e `line`, e nada disso
+// alcançava um autor porque não havia tela de autoria.
+//
+// O corpo do erro atravessa INTACTO, com `field` e `line`. Re-modelá-lo aqui perderia justamente
+// a informação que posiciona o problema no texto que o autor está escrevendo.
+func (h *SkillsDashboardHandler) Validate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		SkillMd string `json:"skill_md"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil ||
+		strings.TrimSpace(body.SkillMd) == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"escreva o conteúdo da skill antes de validar"}`))
+		return
+	}
+
+	out, err := h.client.ValidateSkill(r.Context(), body.SkillMd)
+	if err != nil {
+		// Um `4xx` do registro AQUI não é falha de infraestrutura: é o diagnóstico que o autor
+		// pediu. `writeRejection` já preserva o corpo tipado, e é ele que carrega `field`/`line`.
+		h.reject(w, r, "validate skill", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out)
+}
+
 // MountSkillsDashboard registra o BFF de leitura sob `requireJWT`.
 //
 // Apenas verbos de leitura. A promocao de canal (o unico ato de escrita do M26) entra por caminho
@@ -232,6 +267,7 @@ func MountSkillsDashboard(r chi.Router, h *SkillsDashboardHandler, requireJWT fu
 		// literal carrega os dois-pontos que nenhum identificador de skill aceita
 		// (`parseSkillId` os rejeita). Travado por teste.
 		r.Get("/:retrieve", h.Retrieve)
+		r.Post("/:validate", h.Validate)
 	})
 }
 
@@ -377,6 +413,8 @@ func MountSkillsPromotion(r chi.Router, h *SkillsPromotionHandler, requireJWT fu
 // skillsAuthor é a porta de AUTORIA. Um método só — apagar é a única escrita deste milestone.
 type skillsAuthor interface {
 	DeleteSkill(ctx context.Context, skillID string) (json.RawMessage, error)
+	CreateSkill(ctx context.Context, skillID, skillMd string) (json.RawMessage, error)
+	Operation(ctx context.Context, operationID string) (json.RawMessage, error)
 }
 
 // SkillsAuthoringHandler serve a exclusão de skills.
@@ -412,5 +450,48 @@ func MountSkillsAuthoring(r chi.Router, h *SkillsAuthoringHandler, requireJWT fu
 	r.Group(func(r chi.Router) {
 		r.Use(requireJWT)
 		r.Delete("/v1/dashboard/skills/{skillID}", h.Delete)
+		r.Post("/v1/dashboard/skills", h.Create)
+		r.Get("/v1/dashboard/operations/{operationID}", h.Operation)
 	})
+}
+
+// Create serve POST /v1/dashboard/skills.
+//
+// Repassa o **202** do registro, com o identificador da operação. Traduzir para 200 faria a tela
+// anunciar sucesso no aceite — e o autor procuraria a skill num acervo onde ela ainda não está.
+func (h *SkillsAuthoringHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		SkillID string `json:"skill_id"`
+		SkillMd string `json:"skill_md"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil ||
+		strings.TrimSpace(body.SkillID) == "" || strings.TrimSpace(body.SkillMd) == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"informe o identificador e o conteúdo da skill"}`))
+		return
+	}
+
+	out, err := h.client.CreateSkill(r.Context(), strings.TrimSpace(body.SkillID), body.SkillMd)
+	if err != nil {
+		writeRejection(w, r, h.logger, "create skill", err, true)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	// 202: aceito, não pronto. A tela ACOMPANHA a operação.
+	w.WriteHeader(http.StatusAccepted)
+	_, _ = w.Write(out)
+}
+
+// Operation serve GET /v1/dashboard/operations/{operationID} — o que a tela consulta para
+// acompanhar a publicação em vez de fingir que ela terminou no aceite.
+func (h *SkillsAuthoringHandler) Operation(w http.ResponseWriter, r *http.Request) {
+	out, err := h.client.Operation(r.Context(), chi.URLParam(r, "operationID"))
+	if err != nil {
+		writeRejection(w, r, h.logger, "read operation", err, true)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out)
 }

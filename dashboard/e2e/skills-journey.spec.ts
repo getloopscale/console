@@ -466,3 +466,58 @@ test.describe('M31 — o acervo aguenta escala', () => {
     await expect(page.getByText(/carregada\(s\)/i)).toBeVisible();
   });
 });
+
+test.describe('M31 — autoria sem publicar às cegas', () => {
+  test('escrever, validar com erro POSICIONADO, corrigir, publicar acompanhando', async ({ page }) => {
+    // O M30 entregou `POST /v1/skills:validate` — que valida sem efeito colateral e devolve
+    // `field`/`line` — e ela ficou SEM CONSUMIDOR: nada disso alcançava um autor, porque não
+    // havia tela de autoria.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^nova skill$/i }).click();
+    await expect(page).toHaveURL(/\/skills\/nova$/);
+
+    // Publicar exige ter validado antes — é o que impede publicar às cegas, e a tela ensina a
+    // regra sem erro: botão desabilitado com o motivo ao lado.
+    await expect(page.getByText(/valide o conteúdo antes de publicar/i)).toBeVisible();
+
+    // --- conteúdo INVÁLIDO: o diagnóstico precisa POSICIONAR o problema ---
+    await page.getByLabel('Conteúdo da skill').fill('# sem frontmatter');
+    await page.getByRole('button', { name: /validar sem publicar/i }).click();
+    await expect(page.getByText(/frontmatter sem/i)).toBeVisible();
+    // A POSIÇÃO é o que distingue diagnóstico de "inválido": sem ela o autor procura no texto todo.
+    await expect(page.getByText(/campo: name/i)).toBeVisible();
+    await expect(page.getByText(/linha 2/i)).toBeVisible();
+
+    // --- corrigir e validar: nada é publicado ---
+    await page.getByLabel('Conteúdo da skill').fill('---\nname: Skill de teste\n---\n\n# corpo');
+    await page.getByRole('button', { name: /validar sem publicar/i }).click();
+    await expect(page.getByText(/nada foi publicado ainda/i)).toBeVisible();
+
+    // --- publicar, e ACOMPANHAR: 202 é aceito, não pronto ---
+    await page.getByLabel('Identificador da skill').fill('sk-autoria-e2e');
+    await page.getByRole('button', { name: /^publicar$/i }).click();
+    await expect(page.getByRole('heading', { name: /^publicação$/i })).toBeVisible();
+    await expect(page.getByText(/já está no acervo e é descobrível/i)).toBeVisible();
+
+    // O sucesso oferece TESTAR A DESCOBERTA, não "voltar à lista": saber se a skill é encontrável
+    // é a única coisa que o autor quer saber depois de publicar.
+    await expect(page.getByRole('link', { name: /testar a descoberta/i })).toBeVisible();
+  });
+
+  test('editar o conteúdo invalida a validação anterior', async ({ page }) => {
+    // Exibir "válido" sobre um texto que mudou afirmaria algo que ninguém verificou.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^nova skill$/i }).click();
+
+    await page.getByRole('button', { name: /validar sem publicar/i }).click();
+    await expect(page.getByText(/nada foi publicado ainda/i)).toBeVisible();
+
+    await page.getByLabel('Conteúdo da skill').fill('# mudou');
+    await expect(page.getByText(/nada foi publicado ainda/i)).toHaveCount(0);
+    await expect(page.getByText(/valide o conteúdo antes de publicar/i)).toBeVisible();
+  });
+});

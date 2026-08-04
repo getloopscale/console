@@ -57,6 +57,14 @@ func (s *stubSkillsReader) Channels(ctx context.Context, id string) (json.RawMes
 func (s *stubSkillsReader) Instructions(ctx context.Context, id string) (json.RawMessage, error) {
 	return s.read(ctx, id)
 }
+func (s *stubSkillsReader) ValidateSkill(ctx context.Context, skillMd string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seenID = append(s.seenID, "validate:"+strconv.Itoa(len(skillMd)))
+	return json.RawMessage(`{"ok":true,"name":"x","description":"d","execution":"remote"}`), nil
+}
+
 func (s *stubSkillsReader) Retrieve(ctx context.Context, query string, topK int, draft, deprecated bool) (json.RawMessage, error) {
 	if s.err != nil {
 		return nil, s.err
@@ -609,6 +617,22 @@ type stubSkillsAuthor struct {
 	err  error
 }
 
+func (s *stubSkillsAuthor) CreateSkill(_ context.Context, skillID, skillMd string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seen = append(s.seen, "create:"+skillID+":"+strconv.Itoa(len(skillMd)))
+	return json.RawMessage(`{"operation_id":"op_1"}`), nil
+}
+
+func (s *stubSkillsAuthor) Operation(_ context.Context, id string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seen = append(s.seen, "operation:"+id)
+	return json.RawMessage(`{"operation_id":"` + id + `","state":"succeeded"}`), nil
+}
+
 func (s *stubSkillsAuthor) DeleteSkill(_ context.Context, skillID string) (json.RawMessage, error) {
 	if s.err != nil {
 		return nil, s.err
@@ -665,5 +689,75 @@ func TestDelete_naoSombreiaALeituraDeUmaSkill(t *testing.T) {
 	}
 	if got := pedir(http.MethodDelete, "/v1/dashboard/skills/sk_1"); got != http.StatusNoContent {
 		t.Fatalf("a exclusão quebrou: %d", got)
+	}
+}
+
+// M31 — a autoria: validar sem publicar, e publicar ACOMPANHANDO.
+func TestAutoria_validarNaoEscreveEPublicarDevolve202(t *testing.T) {
+	reader := &stubSkillsReader{}
+	author := &stubSkillsAuthor{}
+	semJWTAut := func(next http.Handler) http.Handler { return next }
+
+	r := chi.NewRouter()
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWTAut)
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWTAut)
+
+	pedir := func(metodo, caminho, corpo string) (int, string) {
+		req := httptest.NewRequest(metodo, caminho, strings.NewReader(corpo))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+
+	// Validar NÃO escreve: nenhuma chamada ao cliente de autoria.
+	if code, _ := pedir(http.MethodPost, "/v1/dashboard/skills/:validate", `{"skill_md":"# Skill"}`); code != http.StatusOK {
+		t.Fatalf("validate status %d", code)
+	}
+	if len(author.seen) != 0 {
+		t.Fatalf("validar não pode tocar o caminho de escrita: %v", author.seen)
+	}
+
+	// Publicar devolve 202 — ACEITO, não pronto. Traduzir para 200 faria a tela anunciar sucesso
+	// no aceite, e o autor procuraria a skill num acervo onde ela ainda não está.
+	code, corpo := pedir(http.MethodPost, "/v1/dashboard/skills", `{"skill_id":"sk_novo","skill_md":"# Skill"}`)
+	if code != http.StatusAccepted {
+		t.Fatalf("create deveria ser 202, veio %d: %s", code, corpo)
+	}
+	if !strings.Contains(corpo, "operation_id") {
+		t.Fatalf("o identificador da operação precisa atravessar: %s", corpo)
+	}
+
+	// E a operação é consultável — é o que permite ACOMPANHAR em vez de fingir.
+	if code, _ := pedir(http.MethodGet, "/v1/dashboard/operations/op_1", ""); code != http.StatusOK {
+		t.Fatalf("operation status %d", code)
+	}
+}
+
+func TestAutoria_corpoVazioNaoChegaAoUpstream(t *testing.T) {
+	reader := &stubSkillsReader{}
+	author := &stubSkillsAuthor{}
+	semJWTAut := func(next http.Handler) http.Handler { return next }
+
+	r := chi.NewRouter()
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWTAut)
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWTAut)
+
+	pedir := func(caminho, corpo string) int {
+		req := httptest.NewRequest(http.MethodPost, caminho, strings.NewReader(corpo))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	if got := pedir("/v1/dashboard/skills/:validate", `{"skill_md":"   "}`); got != http.StatusBadRequest {
+		t.Fatalf("validate vazio deveria ser 400, veio %d", got)
+	}
+	if got := pedir("/v1/dashboard/skills", `{"skill_md":"# x"}`); got != http.StatusBadRequest {
+		t.Fatalf("create sem id deveria ser 400, veio %d", got)
+	}
+	if len(author.seen) != 0 {
+		t.Fatalf("não deveria ter chamado o upstream: %v", author.seen)
 	}
 }

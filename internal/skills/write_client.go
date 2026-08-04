@@ -147,3 +147,28 @@ func (c *DataClient) SetLifecycle(ctx context.Context, skillID, lifecycle, reaso
 func (c *DataClient) DeleteSkill(ctx context.Context, skillID string) (json.RawMessage, error) {
 	return c.sendRaw(ctx, http.MethodDelete, "/v1/skills/"+url.PathEscape(skillID), nil)
 }
+
+// CreateSkill publica uma skill (`POST /v1/skills`), assíncrono — responde **202** com o
+// identificador da operação.
+//
+// Assíncrono por desenho do registro: a ingestão gera embeddings, e fazer o autor esperar por
+// isso numa requisição HTTP amarraria a tela ao tempo de um provedor externo. Quem chama precisa
+// **acompanhar a operação**, não fingir que terminou.
+//
+// Exige `skills:write` — viaja pelo cliente de AUTORIA, ao lado de apagar.
+func (c *DataClient) CreateSkill(ctx context.Context, skillID, skillMd string) (json.RawMessage, error) {
+	body, err := json.Marshal(map[string]string{"skill_id": skillID, "skillMd": skillMd})
+	if err != nil {
+		return nil, fmt.Errorf("skills data client: encode create body: %w", err)
+	}
+	return c.sendRaw(ctx, http.MethodPost, "/v1/skills", body)
+}
+
+// Operation lê o estado de uma operação de ingestão (`GET /v1/operations/:id`).
+//
+// É o que permite a tela **acompanhar** a publicação em vez de anunciar sucesso no 202 — que
+// significa "aceito", não "pronto". Anunciar no aceite faria o autor procurar a skill num acervo
+// onde ela ainda não está.
+func (c *DataClient) Operation(ctx context.Context, operationID string) (json.RawMessage, error) {
+	return c.getRaw(ctx, "/v1/operations/"+url.PathEscape(operationID), nil)
+}

@@ -110,6 +110,50 @@ function registerSkillsRoutes(base: string) {
     return Response.json({ skills: fatia, next_page_token: proximo });
   });
 
+  // M31 — AUTORIA. `:validate` NÃO cria nada: um mock que criasse deixaria a tela verde sobre um
+  // contrato que não existe, e o defeito só apareceria contra o serviço real.
+  registerRoute('POST', `${base}/:validate`, async (req) => {
+    const body = (await req.json()) as { skill_md?: string };
+    const md = body.skill_md ?? '';
+    // O diagnóstico POSICIONADO — `field` e `line` — é o que o M30 entregou e nenhuma tela usava.
+    if (!md.includes('name:')) {
+      return Response.json(
+        { error: 'invalid_frontmatter', message: 'frontmatter sem `name`', field: 'name', line: 2 },
+        { status: 422 },
+      );
+    }
+    const nome = /name:\s*(.+)/.exec(md)?.[1]?.trim() ?? 'sem nome';
+    return Response.json({ ok: true, name: nome, description: 'd', execution: 'remote' });
+  });
+
+  registerRoute('POST', base, async (req) => {
+    const body = (await req.json()) as { skill_id?: string; skill_md?: string };
+    const id = (body.skill_id ?? '').trim();
+    if (id === '') return Response.json({ error: 'invalid_input' }, { status: 400 });
+    skillsDb.skills.push({
+      skill_id: id,
+      name: /name:\s*(.+)/.exec(body.skill_md ?? '')?.[1]?.trim() ?? id,
+      description: 'publicada pela tela',
+      state: 'live',
+      latest_revision_id: 'rev_novo',
+      category: 'testing',
+      execution: 'remote',
+      lifecycle: 'active',
+      deprecation_reason: null,
+      superseded_by: null,
+      create_time: '2026-08-04T12:00:00Z',
+      update_time: '2026-08-04T12:00:00Z',
+    } as never);
+    // 202: ACEITO, não pronto — como o registro.
+    return Response.json({ operation_id: `op_${id}` }, { status: 202 });
+  });
+
+  registerRoute('GET', '/v1/dashboard/operations/{operationId}', async (_req, params) =>
+    // Já concluída: o mock não simula latência de ingestão porque o que a jornada precisa provar
+    // é que a tela ACOMPANHA e reage ao estado terminal — não quanto tempo demora.
+    Response.json({ operation_id: params.operationId, state: 'succeeded', error: null }),
+  );
+
   registerRoute('GET', `${base}/:retrieve`, async (req) => {
     const url = new URL(req.url, 'http://x');
     const q = (url.searchParams.get('query') ?? '').toLowerCase();
