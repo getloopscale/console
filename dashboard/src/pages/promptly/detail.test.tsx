@@ -23,6 +23,8 @@ const mockSetTags = vi.fn();
 const mockCatalog = vi.fn();
 const mockComments = vi.fn();
 const mockAddComment = vi.fn();
+const mockResolvido = vi.fn();
+const mockDependentes = vi.fn();
 vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
   return {
@@ -38,6 +40,8 @@ vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
     fetchCatalogPage: (...a: unknown[]) => mockCatalog(...a),
     fetchComments: (...a: unknown[]) => mockComments(...a),
     addComment: (...a: unknown[]) => mockAddComment(...a),
+    fetchPromptResolvido: (...a: unknown[]) => mockResolvido(...a),
+    fetchDependentes: (...a: unknown[]) => mockDependentes(...a),
   };
 });
 
@@ -66,6 +70,10 @@ beforeEach(() => {
   mockRollback.mockReset();
   mockPrompt.mockReset();
   mockUsage.mockReset();
+  mockResolvido.mockReset();
+  mockDependentes.mockReset();
+  mockResolvido.mockResolvedValue({ resolvedContent: 'RESOLVIDO' });
+  mockDependentes.mockResolvedValue([]);
   mockRevisions.mockResolvedValue(REVISOES);
   mockLabels.mockResolvedValue(LABELS);
   mockPrompt.mockResolvedValue({ version: 3 });
@@ -611,5 +619,81 @@ describe('PromptDetailPage — discussão da revisão (M18)', () => {
     await userEvent.click(screen.getAllByRole('button', { name: /promover/i })[0]);
 
     expect(await screen.findByText(/comentário/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * M20 DoD-2 e DoD-4 — o par de textos e a lista de dependentes, na tela.
+ *
+ * O que precisa de proteção aqui não é "o cartão renderiza". São três decisões que erram em
+ * silêncio: pagar a resolução em prompt que não compõe, cair para o texto escrito quando a resolução
+ * falha, e desenhar "ninguém depende de mim" sobre uma leitura que não voltou.
+ */
+describe('M20 — composição na tela', () => {
+  it('prompt_sem_composicao_nao_oferece_o_alternador_nem_paga_a_resolucao', async () => {
+    // O caso comum. Um alternador entre dois textos idênticos é ruído, e a travessia do grafo
+    // custaria em toda abertura de prompt que não referencia nada.
+    mockPrompt.mockResolvedValue({ version: 3, content: 'Olá {{nome}}, sem composição.' });
+
+    render(<PromptDetailPage />);
+    expect(await screen.findByText(/Tags/)).toBeInTheDocument();
+
+    expect(screen.queryByRole('button', { name: /Como foi escrito/ })).not.toBeInTheDocument();
+    expect(mockResolvido).not.toHaveBeenCalled();
+  });
+
+  it('prompt_que_compoe_alterna_entre_o_escrito_e_o_resolvido', async () => {
+    mockPrompt.mockResolvedValue({
+      version: 3,
+      content: 'Antes @@@promptly:name=politica|version=1@@@ depois',
+    });
+    mockResolvido.mockResolvedValue({ resolvedContent: 'Antes SEJA CORDIAL depois' });
+
+    render(<PromptDetailPage />);
+    const botao = await screen.findByRole('button', { name: /Resolvido/ });
+
+    // Começa em "como foi escrito": o marcador é visível, e é isso que torna a composição depurável.
+    expect(screen.getByText(/@@@promptly:name=politica/)).toBeInTheDocument();
+    // E não pagou a resolução ainda — ela só acontece quando o operador PEDE.
+    expect(mockResolvido).not.toHaveBeenCalled();
+
+    await userEvent.click(botao);
+
+    expect(await screen.findByText(/Antes SEJA CORDIAL depois/)).toBeInTheDocument();
+  });
+
+  it('resolucao_que_falha_nao_finge_ser_o_texto_escrito', async () => {
+    // Cair para o escrito mostraria um texto CORRETO sob um rótulo ERRADO: o operador leria
+    // marcadores literais achando ver a composição, e concluiria que ela não funciona.
+    mockPrompt.mockResolvedValue({
+      version: 3,
+      content: 'Antes @@@promptly:name=politica|version=1@@@ depois',
+    });
+    mockResolvido.mockRejectedValue(new ApiError(500, 'falhou'));
+
+    render(<PromptDetailPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /Resolvido/ }));
+
+    expect(await screen.findByText(/Não foi possível resolver a composição/)).toBeInTheDocument();
+  });
+
+  it('lista_quem_referencia_dizendo_a_versao', async () => {
+    mockDependentes.mockResolvedValue([{ name: 'atendimento', version: 4, via: { version: 3, label: null } }]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByRole('link', { name: 'atendimento' })).toBeInTheDocument();
+    expect(screen.getByText('v4')).toBeInTheDocument();
+  });
+
+  it('falha_ao_ler_dependentes_nao_e_desenhada_como_ninguem_depende_de_mim', async () => {
+    // A distinção que muda a decisão: quem lê "ninguém depende" promove tranquilo; quem lê "não
+    // consegui saber", não. Colapsar as duas é o defeito que o CLAUDE.md deste repo nomeia.
+    mockDependentes.mockRejectedValue(new ApiError(500, 'falhou'));
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/Não foi possível ler os dependentes/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nenhum prompt referencia este/)).not.toBeInTheDocument();
   });
 });

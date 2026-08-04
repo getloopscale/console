@@ -47,6 +47,10 @@ type promptlyReader interface {
 	// Catalog devolve a pagina E se ha proxima — ver M13 e `promptly.Continuacao`.
 	Catalog(ctx context.Context, limit int, after string, filtro promptly.CatalogoFiltro) (json.RawMessage, promptly.Continuacao, error)
 	Prompt(ctx context.Context, name string) (json.RawMessage, error)
+	// M20 — os DOIS textos, e quem depende de mim. Separados de `Prompt` de proposito: resolver
+	// atravessa o grafo, e quem so quer o texto escrito nao paga por isso.
+	PromptResolvido(ctx context.Context, name string) (json.RawMessage, error)
+	Dependentes(ctx context.Context, name string) (json.RawMessage, error)
 	// M18 — a discussao e a protecao, do lado da LEITURA: quem promove precisa ve-las ANTES de
 	// confirmar. Discussao que nao e lida na hora da decisao nao muda decisao nenhuma.
 	Comments(ctx context.Context, name string, version int) (json.RawMessage, error)
@@ -291,6 +295,28 @@ func (h *PromptlyDashboardHandler) Catalog(w http.ResponseWriter, r *http.Reques
 func (h *PromptlyDashboardHandler) Prompt(w http.ResponseWriter, r *http.Request) {
 	h.proxy(w, r, "prompt", func() (json.RawMessage, error) {
 		return h.reader.Prompt(r.Context(), promptName(r))
+	})
+}
+
+// PromptResolvido serve GET /v1/dashboard/promptly/prompts/{promptName}/resolved (M20, DoD-2).
+//
+// O caminho e proprio, e nao um `?resolve=true` sobre o detalhe, porque as duas leituras tem custos
+// diferentes e a tela escolhe qual paga. A resposta traz os DOIS textos vindos da MESMA leitura do
+// servico: se viessem de duas, uma escrita entre elas faria a tela exibir um resolvido que nao
+// corresponde ao escrito, e alguem depuraria uma composicao que nunca existiu.
+func (h *PromptlyDashboardHandler) PromptResolvido(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "prompt_resolved", func() (json.RawMessage, error) {
+		return h.reader.PromptResolvido(r.Context(), promptName(r))
+	})
+}
+
+// Dependentes serve GET /v1/dashboard/promptly/prompts/{promptName}/dependents (M20, DoD-4).
+//
+// Lista vazia e um FATO ("ninguem depende de mim"), nao uma falha — quem consome tem de conseguir
+// distinguir isso de "nao consegui ler", que e a distincao que o CLAUDE.md deste repo nomeia.
+func (h *PromptlyDashboardHandler) Dependentes(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "prompt_dependents", func() (json.RawMessage, error) {
+		return h.reader.Dependentes(r.Context(), promptName(r))
 	})
 }
 
@@ -589,6 +615,8 @@ func MountPromptlyDashboard(r chi.Router, h *PromptlyDashboardHandler, requireJW
 		r.Use(requireJWT)
 		r.Get("/prompts", h.Catalog)
 		r.Get("/prompts/{promptName}", h.Prompt)
+		r.Get("/prompts/{promptName}/resolved", h.PromptResolvido)
+		r.Get("/prompts/{promptName}/dependents", h.Dependentes)
 		r.Get("/prompts/{promptName}/revisions", h.Revisions)
 		r.Get("/prompts/{promptName}/labels", h.Labels)
 		// M15 — o uso observado por revisao. GET porque nao muda nada; a janela vem por query.

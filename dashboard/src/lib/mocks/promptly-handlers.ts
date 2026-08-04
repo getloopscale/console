@@ -35,6 +35,12 @@ const promptlyDb: {
       updatedAt: '2026-08-01T10:00:00Z',
     },
     { name: 'despedida', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-07-30T09:00:00Z' },
+    // M20 — a composição. `atendimento` referencia `politica`, e é o par que torna o DoD-2 e o
+    // DoD-4 exercitáveis: sem um prompt que de fato compõe, o alternador de textos nunca aparece e
+    // a lista de dependentes é sempre vazia — dois caminhos que passariam por "verdes" sem nunca
+    // terem sido percorridos.
+    { name: 'politica', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-08-03T09:00:00Z' },
+    { name: 'atendimento', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-08-03T10:00:00Z' },
     // 30 revisões: o único cenário em que o defeito #364 é observável. Com 3 revisões a página
     // contém tudo e a janela errada passa despercebida — foi assim que ele escapou.
     {
@@ -52,6 +58,16 @@ const promptlyDb: {
       { version: 3, content: 'Olá {{nome}}, sou o assistente. Como ajudo?', createdAt: '2026-08-01T10:00:00Z' },
     ],
     despedida: [{ version: 1, content: 'Até logo, {{nome}}.', createdAt: '2026-07-30T09:00:00Z' }],
+    politica: [
+      { version: 1, content: 'Seja sempre cordial e nunca prometa prazo.', createdAt: '2026-08-03T09:00:00Z' },
+    ],
+    atendimento: [
+      {
+        version: 1,
+        content: 'Preâmbulo: @@@promptly:name=politica|version=1@@@\n\nAgora responda a {{pergunta}}.',
+        createdAt: '2026-08-03T10:00:00Z',
+      },
+    ],
     longo: Array.from({ length: 30 }, (_, i) => ({
       version: i + 1,
       content: `revisao numero ${i + 1}`,
@@ -215,6 +231,63 @@ function registerPromptlyRoutes(base: string) {
    * Recusa a variável vazia com o MESMO código do serviço (`400 missing_variable`): um mock que
    * sempre aceitasse deixaria a jornada verde sobre a guarda pré-gasto quebrada.
    */
+  /**
+   * M20 DoD-2 — o texto RESOLVIDO, numa rota própria.
+   *
+   * A resolução é feita aqui do mesmo jeito que o serviço faz — substituindo o marcador pelo
+   * conteúdo da revisão referenciada — e não por um campo fixo na fixture. Um mock que devolvesse
+   * texto pronto passaria mesmo se o serviço parasse de resolver: o e2e ficaria verde sobre a tela
+   * exibindo um texto que o produto real não produz.
+   */
+  registerRoute('GET', `${base}/prompts/{name}/resolved`, async (_req, { name }) => {
+    const alvo = decodeURIComponent(name);
+    const revs = promptlyDb.revisions[alvo];
+    if (!revs || revs.length === 0) {
+      return Response.json({ error: 'prompt_not_found', name: alvo }, { status: 404 });
+    }
+    const ultima = revs[revs.length - 1]!;
+    const resolvido = ultima.content.replace(
+      /(?<!@)@@@promptly:name=([^@\s|]+)\|version=(\d+)@@@/g,
+      (inteiro, nome: string, versao: string) => {
+        const alvoRev = (promptlyDb.revisions[nome] ?? []).find((r) => r.version === Number(versao));
+        return alvoRev?.content ?? inteiro;
+      },
+    );
+    return Response.json({
+      ...ultima,
+      name: alvo,
+      variables: variaveisDe(ultima.content),
+      resolvedContent: resolvido,
+    });
+  });
+
+  /**
+   * M20 DoD-4 — quem me referencia, com o `via`.
+   *
+   * O `via` sai daqui derivado do MARCADOR, não de uma constante: é o mesmo dado que o serviço lê
+   * da tabela de arestas, e derivá-lo mantém as duas pontas incapazes de divergir na fixture.
+   */
+  registerRoute('GET', `${base}/prompts/{name}/dependents`, async (_req, { name }) => {
+    const alvo = decodeURIComponent(name);
+    const out: { name: string; version: number; via: { version: number | null; label: string | null } }[] = [];
+    for (const [nome, revs] of Object.entries(promptlyDb.revisions)) {
+      for (const rev of revs) {
+        for (const m of rev.content.matchAll(/(?<!@)@@@promptly:name=([^@\s|]+)\|(version|label)=([^@\s]+)@@@/g)) {
+          if (m[1] !== alvo) continue;
+          out.push({
+            name: nome,
+            version: rev.version,
+            via: {
+              version: m[2] === 'version' ? Number(m[3]) : null,
+              label: m[2] === 'label' ? (m[3] ?? null) : null,
+            },
+          });
+        }
+      }
+    }
+    return Response.json(out);
+  });
+
   registerRoute('POST', `${base}/prompts/{name}/playground`, async (req) => {
     const corpo = (await req.json()) as {
       credential?: string;
