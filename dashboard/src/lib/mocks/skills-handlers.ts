@@ -102,6 +102,34 @@ function registerSkillsRoutes(base: string) {
     Response.json({ skills: skillsDb.skills, next_page_token: null }),
   );
 
+  // M31 — a descoberta. Registrada ANTES das rotas com `{skillId}` porque `:retrieve` ocupa a
+  // mesma posição no caminho: se a paramétrica casasse primeiro, a busca viraria "ler a skill
+  // chamada `:retrieve`" e a tela receberia o corpo errado sem erro algum.
+  registerRoute('GET', `${base}/:retrieve`, async (req) => {
+    const url = new URL(req.url, 'http://x');
+    const q = (url.searchParams.get('query') ?? '').toLowerCase();
+    const incluirDescontinuadas = url.searchParams.get('include_deprecated') === 'true';
+
+    // Casamento deliberadamente grosseiro — o mock não reimplementa RRF. O que ele precisa
+    // reproduzir é a FORMA (`score` + `matched`) e o comportamento que a DoD cobra: a
+    // descontinuada NÃO aparece sem opt-in.
+    const candidatas = skillsDb.skills
+      .filter((sk) => incluirDescontinuadas || (sk as { lifecycle?: string }).lifecycle !== 'deprecated')
+      .filter((sk) => q === '' || sk.name.toLowerCase().includes(q) || sk.description.toLowerCase().includes(q) || q.split(' ').some((t) => t.length > 3 && sk.description.toLowerCase().includes(t)));
+
+    return Response.json({
+      skills: candidatas.map((sk, i) => ({
+        skill_id: sk.skill_id,
+        name: sk.name,
+        description: sk.description,
+        score: Number((0.9 - i * 0.2).toFixed(3)),
+        // Alterna as pernas de propósito: a tela precisa distinguir as três frases, e um mock
+        // que devolvesse sempre a mesma deixaria duas delas sem cobertura.
+        matched: i === 0 ? ['lexical', 'vector'] : i === 1 ? ['vector'] : ['lexical'],
+      })),
+    });
+  });
+
   registerRoute('GET', `${base}/{skillId}`, async (_req, params) => {
     const skill = skillsDb.skills.find((s) => s.skill_id === params.skillId);
     // 404 cobre inexistente e alheia — indistinguíveis de propósito, como no serviço real:

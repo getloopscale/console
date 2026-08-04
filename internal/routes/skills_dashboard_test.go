@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"strconv"
 	"context"
 	"encoding/json"
 	"errors"
@@ -55,6 +56,13 @@ func (s *stubSkillsReader) Channels(ctx context.Context, id string) (json.RawMes
 }
 func (s *stubSkillsReader) Instructions(ctx context.Context, id string) (json.RawMessage, error) {
 	return s.read(ctx, id)
+}
+func (s *stubSkillsReader) Retrieve(ctx context.Context, query string, topK int, draft, deprecated bool) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seenID = append(s.seenID, "retrieve:"+query+":"+strconv.Itoa(topK)+":"+strconv.FormatBool(draft)+":"+strconv.FormatBool(deprecated))
+	return json.RawMessage(`{"skills":[{"skill_id":"sk_a","score":0.9,"matched":["lexical","vector"]}]}`), nil
 }
 
 type skillsTestTenantKey struct{}
@@ -535,5 +543,62 @@ func TestSetLifecycle_deprecarSemMotivoNaoChegaAoUpstream(t *testing.T) {
 	// Voltar para `active` NÃO exige motivo.
 	if got := pedir(`{"lifecycle":"active"}`); got != http.StatusOK {
 		t.Fatalf("reativar sem motivo deveria ser 200, veio %d", got)
+	}
+}
+
+// M31 — a descoberta pelo BFF, e a colisão que ela poderia causar.
+func TestRetrieve_naoColideComALeituraDeUmaSkill(t *testing.T) {
+	// `:retrieve` e `{skillID}` ocupam a mesma posição no caminho. Se o chi resolvesse pelo
+	// parâmetro, a descoberta viraria "ler a skill chamada `:retrieve`" — que não existe — e a
+	// tela receberia o corpo errado sem erro algum.
+	reader := &stubSkillsReader{}
+	r := chi.NewRouter()
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))),
+		func(next http.Handler) http.Handler { return next })
+
+	pedir := func(caminho string) (int, string) {
+		req := httptest.NewRequest(http.MethodGet, caminho, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+
+	code, corpo := pedir("/v1/dashboard/skills/:retrieve?query=converter+moeda&top_k=3")
+	if code != http.StatusOK {
+		t.Fatalf("retrieve status %d: %s", code, corpo)
+	}
+	// O `matched` é metade do critério da DoD: sem ele a tela mostra um número sem dizer de onde
+	// veio, e some a diferença entre "as palavras batem" e "entendeu".
+	if !strings.Contains(corpo, `"matched"`) || !strings.Contains(corpo, `"score"`) {
+		t.Fatalf("score/matched não atravessaram: %s", corpo)
+	}
+	if len(reader.seenID) == 0 || !strings.HasPrefix(reader.seenID[len(reader.seenID)-1], "retrieve:converter moeda:3:") {
+		t.Fatalf("a consulta não chegou ao cliente: %v", reader.seenID)
+	}
+
+	// E a leitura de uma skill de verdade continua funcionando — a metade que impede a correção
+	// de virar "a rota nova engoliu a vizinha".
+	if code, _ := pedir("/v1/dashboard/skills/sk_real"); code != http.StatusOK {
+		t.Fatalf("leitura de skill quebrou: %d", code)
+	}
+}
+
+func TestRetrieve_consultaVaziaNaoChegaAoUpstream(t *testing.T) {
+	reader := &stubSkillsReader{}
+	r := chi.NewRouter()
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))),
+		func(next http.Handler) http.Handler { return next })
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/dashboard/skills/:retrieve?query=%20%20", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("consulta vazia deveria ser 400, veio %d", w.Code)
+	}
+	for _, visto := range reader.seenID {
+		if strings.HasPrefix(visto, "retrieve:") {
+			t.Fatalf("não deveria ter chamado o upstream: %v", reader.seenID)
+		}
 	}
 }

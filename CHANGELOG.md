@@ -33,6 +33,14 @@
 
   Ausência do campo **não** vira "em uso": um registro mais antigo simplesmente não o devolve, e ausência não é o mesmo que estar ativa (#m32)
 
+- **A descoberta ganha tela (M31).** *"A razão de existir do produto — um agente achar a skill certa por intenção — não tem tela alguma"*: era o achado da auditoria de 2026-08-03, e a API existia desde o M3 sem nada a exercitar fora de `curl`. Agora `Skills → Descoberta` aceita uma pergunta em linguagem natural e mostra o que um agente encontraria.
+
+  Cada resultado traz **o quanto casou e por quê** — as duas informações que a Definition of done exige juntas. A segunda é a que carrega o produto: sem ela o painel exibe um número sem dizer de onde veio, e some a diferença entre *"achou porque as palavras batem"* e *"achou porque entendeu"*. As frases dizem o que a máquina fez, não o nome do módulo que fez; e uma perna que a tela não conhece vira *"origem não informada"*, nunca uma das conhecidas — traduzi-la afirmaria algo falso sobre por que a skill apareceu.
+
+  Os filtros de rascunho e descontinuada existem porque a descoberta os esconde por padrão (M32) — sem eles, ninguém conseguia **verificar na tela** que uma deprecada de fato saiu, que é o comportamento prometido por aquele milestone.
+
+  Score ausente vira `—`, não `0.000`: zero afirma "casou muito mal", e um registro que não devolveu o campo não disse isso (#m31)
+
 ### Security
 
 - **A adoção de um bundle exigia apenas `skills:read` para ser lida.** Era a única rota da família sem gate de escopo — `POST /v1/bundles`, `GET /v1/bundles` e as três de token já exigiam `skills:publish`. Um portador do escopo de leitura (o que o dashboard cunha para o cliente de leitura, e o que um agente consumidor carrega) lia a telemetria comercial de quem publica. Mesmo workspace, então não é vazamento entre inquilinos; é privilégio a mais dentro dele, e a assimetria com as irmãs mostra que não foi decisão, foi esquecimento. Corrigido no `theo-skills`; o cliente de distribuição do dashboard já nasce ligado ao resolver de **publicação**, nunca ao de leitura (#m35)

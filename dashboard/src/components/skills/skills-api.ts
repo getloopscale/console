@@ -194,3 +194,25 @@ export function setSkillLifecycle<T>(
     { throwOnError: true },
   );
 }
+
+/**
+ * A descoberta — a razão de existir do produto, e a última jornada sem tela.
+ *
+ * A resposta traz `score` **e** `matched`. As duas juntas é que tornam a busca observável: sem a
+ * segunda, a tela mostra um número sem dizer de onde veio.
+ *
+ * Os filtros de ciclo de vida existem porque a descoberta esconde rascunhos e descontinuadas por
+ * padrão (M32) — sem poder ligá-los, ninguém consegue verificar na tela que uma deprecada de fato
+ * saiu, que é o comportamento prometido por aquele milestone.
+ */
+export function retrieveSkills<T>(
+  query: string,
+  topK: number,
+  includeDraft: boolean,
+  includeDeprecated: boolean,
+): Promise<T | null> {
+  const params = new URLSearchParams({ query, top_k: String(topK) });
+  if (includeDraft) params.set('include_draft', 'true');
+  if (includeDeprecated) params.set('include_deprecated', 'true');
+  return cloudFetch<T>(`${BASE}/:retrieve?${params.toString()}`, {}, { throwOnError: true });
+}

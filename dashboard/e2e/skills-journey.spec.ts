@@ -352,3 +352,53 @@ test.describe('M32 — ciclo de vida: retirar de circulação sem quebrar quem u
     await expect(page.getByRole('button', { name: /voltar a circular/i })).toBeVisible();
   });
 });
+
+test.describe('M31 — descoberta observável: score E qual perna casou', () => {
+  test('do menu à busca, com o motivo de cada resultado', async ({ page }) => {
+    // A razão de existir do produto — um agente achar a skill certa por intenção — não tinha
+    // tela alguma até este milestone. A auditoria de 2026-08-03 mediu isso navegando por clique.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^descoberta$/i }).click();
+    await expect(page).toHaveURL(/\/skills\/descoberta$/);
+
+    // O submenu continua aberto: `/skills/descoberta` depende da mesma linha de
+    // `resolveActiveMenu` que serve `/skills`.
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+
+    // Estado inicial NÃO é "nada encontrado" — é "ainda não perguntei". A diferença importa:
+    // uma diz que o acervo está vazio, a outra que a busca não aconteceu.
+    await expect(page.getByText(/pergunte algo/i)).toBeVisible();
+
+    // Consulta que casa com uma skill ATIVA: a de moeda está descontinuada e a descoberta a
+    // esconde por padrão — buscá-la aqui exercitaria o filtro, não a exibição do motivo.
+    await page.getByLabel('Consulta em linguagem natural').fill('diff');
+    await page.getByRole('button', { name: /^buscar$/i }).click();
+
+    // O SCORE e a PERNA, juntos — os dois lados do critério da DoD.
+    await expect(page.getByRole('link', { name: 'Revisar pull request' })).toBeVisible();
+    // `columnheader`, não `getByText`: a frase "em ordem de quanto casou" na descrição do card
+    // torna o texto ambíguo, e um seletor ambíguo passa ou falha por acidente.
+    await expect(page.getByRole('columnheader', { name: 'Quanto casou' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Por que apareceu' })).toBeVisible();
+    // Frases que dizem o que a máquina fez, não nomes de módulo.
+    await expect(page.getByText('palavras e intenção')).toBeVisible();
+  });
+
+  test('a descontinuada só aparece com opt-in explícito', async ({ page }) => {
+    // É o comportamento que o M32 promete e que nenhuma tela permitia verificar: a descoberta
+    // esconde deprecadas por padrão. Sem o filtro, o operador teria de confiar na documentação.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^descoberta$/i }).click();
+
+    await page.getByLabel('Consulta em linguagem natural').fill('moeda');
+    await page.getByRole('button', { name: /^buscar$/i }).click();
+    await expect(page.getByText('Converter moeda (v1)')).toHaveCount(0);
+
+    await page.getByLabel('Incluir descontinuadas').check();
+    await expect(page.getByText('Converter moeda (v1)')).toBeVisible();
+  });
+});

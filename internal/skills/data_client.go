@@ -136,3 +136,31 @@ func (c *DataClient) getRaw(ctx context.Context, path string, q url.Values) (jso
 	}
 	return json.RawMessage(body), nil
 }
+
+// Retrieve executa a descoberta híbrida (`GET /v1/skills:retrieve`).
+//
+// É a razão de existir do produto — um agente achar a skill certa por intenção — e era a única
+// jornada sem tela alguma. O que a torna observável são DUAS informações que a resposta carrega e
+// que a interface precisa exibir juntas:
+//
+//   - `score` — o quanto casou;
+//   - `matched` — QUAL perna casou: léxica (FTS) ou vetorial.
+//
+// Sem a segunda, a tela mostra um número sem dizer de onde veio, e some justamente a diferença
+// que o produto vende: "achou porque as palavras batem" versus "achou porque entendeu".
+//
+// Os filtros de ciclo de vida entram porque a descoberta ESCONDE rascunhos e descontinuadas por
+// padrão (M32). Sem poder ligá-los, o operador não consegue verificar na tela que uma skill
+// deprecada de fato saiu da descoberta — que é o comportamento que aquele milestone promete.
+func (c *DataClient) Retrieve(ctx context.Context, query string, topK int, includeDraft, includeDeprecated bool) (json.RawMessage, error) {
+	q := url.Values{"query": []string{query}, "top_k": []string{strconv.Itoa(topK)}}
+	// Só afirma o que o operador marcou: mandar `false` declara uma escolha, e omitir herda o
+	// default do serviço. A diferença importa quando o default mudar.
+	if includeDraft {
+		q.Set("include_draft", "true")
+	}
+	if includeDeprecated {
+		q.Set("include_deprecated", "true")
+	}
+	return c.getRaw(ctx, "/v1/skills:retrieve", q)
+}

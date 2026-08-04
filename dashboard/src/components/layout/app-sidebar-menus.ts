@@ -275,6 +275,9 @@ export const MENUS: Record<string, MenuDefinition> = {
       {
         items: [
           { label: 'Overview', path: '/skills', icon: LayoutGrid },
+          // M31 — a descoberta ENTRA no menu porque é ação do workspace, e porque é a razão de
+          // existir do produto: até aqui a única jornada sem tela alguma.
+          { label: 'Descoberta', path: '/skills/descoberta', icon: Search },
           // M35 — a distribuição ENTRA no menu porque é ação do workspace, não de uma skill: o
           // operador chega nela sem ter escolhido uma skill antes. O detalhe de um pacote NÃO
           // entra, pela mesma razão que o detalhe de uma skill não entra — é POR PACOTE e se

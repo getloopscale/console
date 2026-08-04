@@ -34,6 +34,8 @@ type skillsReader interface {
 	Versions(ctx context.Context, id string) (json.RawMessage, error)
 	Channels(ctx context.Context, id string) (json.RawMessage, error)
 	Instructions(ctx context.Context, id string) (json.RawMessage, error)
+	// M31 — a descoberta. Leitura pura: `skills:read` basta, e é o que este cliente carrega.
+	Retrieve(ctx context.Context, query string, topK int, includeDraft, includeDeprecated bool) (json.RawMessage, error)
 }
 
 // SkillsDashboardHandler serve as leituras do registro de skills para o dashboard.
@@ -173,6 +175,45 @@ func (h *SkillsDashboardHandler) Instructions(w http.ResponseWriter, r *http.Req
 	})
 }
 
+// Retrieve serve GET /v1/dashboard/skills:retrieve.
+//
+// Consulta VAZIA é recusada na fronteira: o serviço a rejeitaria com 400, e a mensagem sairia
+// escrita para quem consome a API. Aqui ela sai para quem está na tela — e a diferença entre
+// "informe o que você quer fazer" e "query is required" é a diferença entre um operador que
+// entende e um que desiste.
+func (h *SkillsDashboardHandler) Retrieve(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.URL.Query().Get("query"))
+	if query == "" {
+		h.logger.WarnContext(r.Context(), "skills retrieve: empty query", "path", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"descreva o que você quer que o agente faça"}`))
+		return
+	}
+
+	// `top_k` inválido cai no padrão em vez de virar 400: é parâmetro de VISUALIZAÇÃO, e recusar
+	// a busca inteira por causa dele trocaria uma lista levemente diferente por uma tela de erro.
+	topK := 10
+	if n, err := strconv.Atoi(r.URL.Query().Get("top_k")); err == nil && n > 0 && n <= 50 {
+		topK = n
+	}
+
+	out, err := h.client.Retrieve(
+		r.Context(),
+		query,
+		topK,
+		r.URL.Query().Get("include_draft") == "true",
+		r.URL.Query().Get("include_deprecated") == "true",
+	)
+	if err != nil {
+		h.reject(w, r, "retrieve", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out)
+}
+
 // MountSkillsDashboard registra o BFF de leitura sob `requireJWT`.
 //
 // Apenas verbos de leitura. A promocao de canal (o unico ato de escrita do M26) entra por caminho
@@ -187,6 +228,10 @@ func MountSkillsDashboard(r chi.Router, h *SkillsDashboardHandler, requireJWT fu
 		r.Get("/{skillID}/versions", h.Versions)
 		r.Get("/{skillID}/channels", h.Channels)
 		r.Get("/{skillID}/instructions", h.Instructions)
+		// `:retrieve` NÃO colide com `/{skillID}`: o chi dá precedência à rota estática, e o
+		// literal carrega os dois-pontos que nenhum identificador de skill aceita
+		// (`parseSkillId` os rejeita). Travado por teste.
+		r.Get("/:retrieve", h.Retrieve)
 	})
 }
 
