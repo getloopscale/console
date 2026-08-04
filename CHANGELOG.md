@@ -22,6 +22,10 @@
 
   Os testes passavam porque a fixture e o mock **repetiam a mesma suposição**. Um mock que confirma a suposição de quem o escreveu não testa integração alguma — é a lição mais cara desta sessão, e a terceira vez que ela aparece (#m31)
 
+- **A tela de autoria acusava o próprio rascunho de não ter vetor.** Enviava `has_embedding: false` fixo para uma skill que ainda não existe, e o serviço respondia `no_embedding` com o conselho *"Republique"* — impossível para algo nunca publicado. Como a causa disparava sempre, ela **encobria** as que o autor podia corrigir ali: descrição genérica e colisão com uma vizinha (theo-skills#144)
+
+  O comentário logo acima da linha já dizia *"um rascunho ainda não publicado NÃO tem vetor — e isso não é defeito dele"*. A correção é honrar o que ele afirmava: omitir o campo, porque a **ausência** é o que distingue "não há revisão" de "revisão sem vetor". A montagem do corpo saiu do cliente HTTP para uma função pura testada — o defeito era o corpo, e montado inline nenhum teste o alcançava. Junto: o mock do `:validate` devolvia `description: 'd'` fixo em vez de ler o frontmatter, o que tornava impossível exercitar o caminho "descrição boa" — todo teste de diagnóstico recebia 1 caractere.
+
 - **A jornada de skills terminava num beco — o defeito que originou o M31, ainda vivo.** `/skills/:id/versions` sem versões tinha **zero** elementos interativos na `<main>`: nenhum botão, nenhum link, nenhuma saída. O estado vazio dizia "publique pela CLI" sem dizer o que digitar, e o detalhe, embora tivesse ações, não voltava a lugar nenhum. Medido no `app-dev` navegando por clique (#m31)
 
   Agora as duas rotas aninhadas têm volta **à origem**, não ao overview: o detalhe volta ao acervo, e versões volta **para a skill** — voltar ao acervo dali obrigaria a procurar de novo a skill que já se tinha em mãos. O estado vazio traz o comando copiável já preenchido com o identificador. Não é um CTA in-app porque a ação não existe in-app (a autoria publica uma skill nova, e esta já existe): um botão que fingisse levar a algum lugar seria pior que o comando exato.
