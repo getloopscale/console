@@ -52,9 +52,9 @@ function chaveDeOrdem(s: string): string {
  * skill. Ausente vira "não informada" — nunca um dos dois valores conhecidos.
  */
 function textoDeVisibilidade(v: string | undefined): string {
-  if (v === undefined || v === '') return 'não informada';
-  if (v === 'private') return 'privada';
-  if (v === 'public') return 'pública';
+  if (v === undefined || v === '') return 'not reported';
+  if (v === 'private') return 'private';
+  if (v === 'public') return 'public';
   return v;
 }
 

@@ -46,9 +46,9 @@ describe('catalogCards', () => {
   });
 
   it('visibilidade ausente vira "não informada", nunca um valor inventado', () => {
-    expect(catalogCards([sk('a')])[0]?.visibilityText).toBe('não informada');
-    expect(catalogCards([sk('a', { visibility: 'private' })])[0]?.visibilityText).toBe('privada');
-    expect(catalogCards([sk('a', { visibility: 'public' })])[0]?.visibilityText).toBe('pública');
+    expect(catalogCards([sk('a')])[0]?.visibilityText).toBe('not reported');
+    expect(catalogCards([sk('a', { visibility: 'private' })])[0]?.visibilityText).toBe('private');
+    expect(catalogCards([sk('a', { visibility: 'public' })])[0]?.visibilityText).toBe('public');
   });
 
   it('uma visibilidade que a tela não conhece atravessa como veio', () => {

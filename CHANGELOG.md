@@ -2,6 +2,12 @@
 
 ### Changed
 
+- **A capacidade de skills passa a falar inglês, como o resto do produto.** `api-keys` e `billing` sempre estiveram em inglês; as oito telas de skills respondiam em português, e o dashboard mudava de idioma conforme a tela que se abria. Traduzidos os textos visíveis das telas, os rótulos de estado (`in use` · `deprecated` · `discoverable` · `no vector`), as frases de confirmação das ações destrutivas, os itens do menu lateral e os `aria-label`. Comentários de código e identificadores internos permanecem: são para quem mantém, não para quem usa.
+
+- **A tela de Distribuição passa a dizer o que ela é.** "Bundles" e "tokens" apareciam sem que nada na interface explicasse para que servem nem como se ligam às skills publicadas — e a peça central do produto, a de que **um item do pacote aponta para um canal**, não tinha representação alguma. Duas frases na própria tela agora respondem as perguntas de quem a abre pela primeira vez: o que é um bundle, para quem ele é, e por que promover um canal atualiza todos os consumidores sem ninguém reeditar nada.
+
+- **O modelo da tela de autoria deixa de reprovar o próprio diagnóstico do produto.** O `SKILL.md` de exemplo trazia uma descrição que dizia o que a skill é, não **quando** usá-la — exatamente o que o diagnóstico de descobribilidade cobra três seções abaixo. O exemplo é o que o autor imita; ensinar o hábito errado na primeira tela é caro.
+
 - **A sessão passou a levar também o e-mail ao serviço de prompts (#430).** O serviço precisa dele para materializar a pessoa, e é dado real que a sessão já tem. Sessão sem e-mail falha, e diz por quê — inventar um gravaria um fato falso do outro lado
 
 - **Uma recusa por papel deixou de ser anunciada como indisponibilidade (#430).** Quando o serviço de prompts recusa dizendo qual papel a ação exige e qual é o seu, a tela passa a mostrar isso. Antes ela dizia *"o serviço não respondeu"* — e a frase não era só vaga, era **falsa**: o serviço tinha respondido, com a razão exata. Mandava investigar disponibilidade num problema de autorização. A regra que a produzia continua valendo para o caso em que foi escrita, quando uma recusa dessas significava credencial de infraestrutura errada; o que mudou é que agora existem dois tipos de recusa, e elas se distinguem pelo que o serviço diz, não pelo código de status

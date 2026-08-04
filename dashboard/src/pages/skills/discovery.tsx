@@ -35,7 +35,7 @@ const TOP_K = 10;
 
 export function SkillsDiscoveryPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Descoberta'), [setPageTitle]);
+  useEffect(() => setPageTitle('Discovery'), [setPageTitle]);
   useRequireAuth();
 
   const [rascunho, setRascunho] = useState('');
@@ -71,12 +71,12 @@ export function SkillsDiscoveryPage() {
     },
     {
       key: 'description',
-      label: 'O que faz',
+      label: 'What it does',
       render: (row) => <span className="text-muted-foreground">{row.description}</span>,
     },
     {
       key: 'score',
-      label: 'Quanto casou',
+      label: 'Match score',
       // `null` vira "—", não "0.000": zero afirma "casou muito mal", e um registro que não
       // devolveu o campo não disse isso.
       render: (row) => (
@@ -85,7 +85,7 @@ export function SkillsDiscoveryPage() {
     },
     {
       key: 'legText',
-      label: 'Por que apareceu',
+      label: 'Why it matched',
       // A METADE que a DoD exige e que nenhuma tela tinha. Em texto, não em cor nem em ícone:
       // "as palavras batem" e "entendeu a intenção" levam o operador a conclusões diferentes
       // sobre a qualidade do acervo.
@@ -95,17 +95,17 @@ export function SkillsDiscoveryPage() {
 
   return (
     <PageShell
-      title="Descoberta"
-      description="Pergunte como um agente perguntaria — e veja o que ele encontraria, com o motivo."
+      title="Discovery"
+      description="Ask the way an agent would — and see what it would find, and why."
     >
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>O que você quer que o agente faça?</h2>
+            <h2>What do you want the agent to do?</h2>
           </Card.Title>
           <Card.Description>
-            Descreva a intenção em linguagem natural. A busca combina duas pernas: as palavras do
-            texto e o significado da frase — e cada resultado diz qual delas casou.
+            Describe the intent in natural language. Search combines two legs: the words in the
+            text and the meaning of the sentence — and each result says which one matched.
           </Card.Description>
         </Card.Header>
 
@@ -120,13 +120,13 @@ export function SkillsDiscoveryPage() {
         >
           <div className="flex gap-2">
             <Input
-              aria-label="Consulta em linguagem natural"
-              placeholder="ex.: converter moeda estrangeira para reais"
+              aria-label="Natural-language query"
+              placeholder="e.g. convert foreign currency to reais"
               value={rascunho}
               onChange={(e) => setRascunho(e.target.value)}
             />
             <Button type="submit" disabled={rascunho.trim() === '' || busca.isFetching}>
-              {busca.isFetching ? 'Buscando…' : 'Buscar'}
+              {busca.isFetching ? 'Searching…' : 'Search'}
             </Button>
           </div>
 
@@ -137,20 +137,20 @@ export function SkillsDiscoveryPage() {
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                aria-label="Incluir rascunhos"
+                aria-label="Include drafts"
                 checked={incluirRascunhos}
                 onChange={(e) => setIncluirRascunhos(e.target.checked)}
               />
-              <span>Incluir rascunhos</span>
+              <span>Include drafts</span>
             </label>
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                aria-label="Incluir descontinuadas"
+                aria-label="Include deprecated"
                 checked={incluirDescontinuadas}
                 onChange={(e) => setIncluirDescontinuadas(e.target.checked)}
               />
-              <span>Incluir descontinuadas</span>
+              <span>Include deprecated</span>
             </label>
           </div>
         </form>
@@ -159,13 +159,13 @@ export function SkillsDiscoveryPage() {
       {falhou ? (
         <Alert
           intent="destructive"
-          title="A busca não pôde ser feita"
-          description={promotionRefusal(busca.error, 'Tente novamente em instantes.')}
+          title="The search could not run"
+          description={promotionRefusal(busca.error, 'Try again in a moment.')}
           // Erro com AÇÃO, não só com texto: `DESIGN.md` §4 — um erro sem saída deixa o operador
           // olhando para uma tela que não muda.
           action={
             <Button variant="secondary" size="sm" onClick={() => void busca.refetch()}>
-              Tentar de novo
+              Try again
             </Button>
           }
         />
@@ -174,12 +174,12 @@ export function SkillsDiscoveryPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Resultados</h2>
+            <h2>Results</h2>
           </Card.Title>
           <Card.Description>
             {consulta === ''
-              ? 'Nenhuma busca feita ainda.'
-              : `${linhas.length} resultado(s) para "${consulta}", em ordem de quanto casou.`}
+              ? 'No search yet.'
+              : `${linhas.length} result(s) for "${consulta}", ordered by how well they matched.`}
           </Card.Description>
         </Card.Header>
 
@@ -193,17 +193,17 @@ export function SkillsDiscoveryPage() {
               icon={Search}
               title={
                 consulta === ''
-                  ? 'Pergunte algo'
+                  ? 'Ask something'
                   : falhou
-                    ? 'Sem dados — a busca falhou'
-                    : 'Nada casou com essa intenção'
+                    ? 'No data — the search failed'
+                    : 'Nothing matched that intent'
               }
               description={
                 consulta === ''
-                  ? 'Descreva acima o que você quer que o agente faça. Você verá o que ele encontraria, com o quanto casou e por quê.'
+                  ? 'Describe above what you want the agent to do. You will see what it would find, how well it matched, and why.'
                   : falhou
-                    ? 'Isto NÃO significa que o acervo está vazio — a leitura não chegou a acontecer.'
-                    : 'Nenhuma skill do acervo casou. Tente outras palavras, ou marque "incluir rascunhos" — a descoberta os esconde por padrão.'
+                    ? 'This does NOT mean the registry is empty — the read never happened.'
+                    : 'No skill in the registry matched. Try other words, or tick "include drafts" — discovery hides them by default.'
               }
             />
           }

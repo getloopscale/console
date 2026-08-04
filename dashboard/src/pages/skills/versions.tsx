@@ -51,7 +51,7 @@ const CANAL_ALVO = 'stable';
 export function SkillVersionsPage() {
   const { skillId = '' } = useParams();
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle(`Skill — versões de ${skillId}`), [setPageTitle, skillId]);
+  useEffect(() => setPageTitle(`Skill — versions of ${skillId}`), [setPageTitle, skillId]);
   useRequireAuth();
 
   const versions = useQuery({
@@ -90,7 +90,7 @@ export function SkillVersionsPage() {
       // A linha permanece como está: o canal NÃO se moveu, e mudar a tela otimisticamente diria
       // que se moveu. Numa operação que redireciona consumidores, esse otimismo é o pior default.
       setPromotionError(
-        promotionRefusal(err, 'O registro recusou a promoção; o canal continua na revisão anterior.'),
+        promotionRefusal(err, 'The registry refused the promotion; the channel still points at the previous revision.'),
       );
     }
   }
@@ -98,17 +98,17 @@ export function SkillVersionsPage() {
   const columns: DataTableColumn<VersionRow>[] = [
     {
       key: 'version',
-      label: 'Versão',
+      label: 'Version',
       render: (row) => <span className="font-mono font-medium">{row.version}</span>,
     },
     {
       key: 'revisionId',
-      label: 'Revisão',
+      label: 'Revision',
       render: (row) => <span className="font-mono text-xs text-muted-foreground">{row.revisionId}</span>,
     },
     {
       key: 'channels',
-      label: 'Servida pelos canais',
+      label: 'Served by channels',
       // Vazio aqui é um estado NORMAL — versão publicada e ainda não promovida. "—" diz isso
       // sem sugerir que a leitura falhou.
       render: (row) =>
@@ -137,13 +137,13 @@ export function SkillVersionsPage() {
           <Button
             variant="ghost"
             size="sm"
-            aria-label={`Promover ${row.version} para ${CANAL_ALVO}`}
+            aria-label={`Promote ${row.version} to ${CANAL_ALVO}`}
             onClick={() => {
               setPromotionError(null);
               setPending(row);
             }}
           >
-            Promover para {CANAL_ALVO}
+            Promote to {CANAL_ALVO}
           </Button>
         ),
     },
@@ -151,8 +151,8 @@ export function SkillVersionsPage() {
 
   return (
     <PageShell
-      title="Versões e canais"
-      description={`As versões publicadas de ${skillId} e qual canal serve cada uma.`}
+      title="Versions and channels"
+      description={`The published versions of ${skillId}, and which channel serves each one.`}
     >
       {/* Volta à ORIGEM — a skill de onde se chegou aqui — e não ao overview. Quem abriu esta
           tela veio do detalhe e quer voltar para lá; mandá-lo ao acervo o obriga a procurar de
@@ -165,34 +165,34 @@ export function SkillVersionsPage() {
         to={`/skills/${encodeURIComponent(skillId)}`}
         className="text-sm text-muted-foreground hover:text-foreground"
       >
-        ← Voltar para {skillId}
+        ← Back to {skillId}
       </Link>
 
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar versões ou canais"
-          description="A tabela abaixo pode estar incompleta porque uma das leituras falhou — isto NÃO significa que a skill não tem versões."
+          title="Could not load versions or channels"
+          description="The table below may be incomplete because one of the reads failed — this does NOT mean the skill has no versions."
         />
       ) : null}
 
       {anomalies.length > 0 ? (
         <Alert
           intent="destructive"
-          title="O registro afirmou duas revisões para o mesmo canal"
+          title="The registry reported two revisions for the same channel"
           description={anomalies
-            .map((a) => `${a.channel}: ${a.revisionIds.join(' e ')}`)
+            .map((a) => `${a.channel}: ${a.revisionIds.join(' and ')}`)
             .join(' · ')
-            .concat(' — um canal aponta para uma revisão só. Não promova nada antes de resolver isto.')}
+            .concat(' — a channel points at exactly one revision. Do not promote anything before resolving this.')}
         />
       ) : null}
 
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Versões publicadas</h2>
+            <h2>Published versions</h2>
           </Card.Title>
-          <Card.Description>{rows.length} versão(ões) no registro</Card.Description>
+          <Card.Description>{rows.length} version(s) in the registry</Card.Description>
         </Card.Header>
 
         <DataTable
@@ -203,11 +203,11 @@ export function SkillVersionsPage() {
           emptyState={
             <EmptyState
               icon={GitBranch}
-              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma versão publicada'}
+              title={failed ? 'No data — the read failed' : 'No version published'}
               description={
                 failed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que está publicado.'
-                  : 'A skill existe no registro, mas nenhuma versão foi publicada — então não há o que promover a um canal. Publicar uma versão nova de uma skill existente é feito pela CLI; o comando abaixo já está preenchido com este identificador.'
+                  ? 'Try again in a moment. Until then, there is no way to know what is published.'
+                  : 'The skill exists in the registry, but no version has been published — so there is nothing to promote to a channel. Publishing a new version of an existing skill is done through the CLI; the command below is already filled in with this identifier.'
               }
               // `action`, não `children`: é o slot que o componente de fato renderiza
               // (`@usetheo/ui` — `EmptyStateProps.action?: ReactNode`). Passar children faz o
@@ -224,7 +224,7 @@ export function SkillVersionsPage() {
               action={
                 failed ? undefined : (
                   <CodeBlock
-                    caption="Publicar a primeira versão desta skill"
+                    caption="Publish the first version of this skill"
                     code={`theo skills publish ${skillId} --file SKILL.md`}
                     terminal
                   />
@@ -241,7 +241,7 @@ export function SkillVersionsPage() {
           if (!o) setPending(null);
         }}
         intent="destructive"
-        title={`Promover ${pending?.version ?? ''} para «${CANAL_ALVO}»`}
+        title={`Promote ${pending?.version ?? ''} to «${CANAL_ALVO}»`}
         // O texto vem da lógica pura (T2.2) e diz O QUE DEIXA DE VALER — nomeando a revisão que
         // sai e a que entra. NÃO afirma quantos consumidores são afetados: esse número não existe
         // na API, e derivá-lo aqui seria a interface inventando um dado que o serviço não afirma.
@@ -265,7 +265,7 @@ export function SkillVersionsPage() {
         // A frase é o NOME DO CANAL. "PROMOVER" seria a mesma digitação em qualquer canal — vira
         // reflexo, e devolve ao gate a força de um botão comum.
         confirmationPhrase={promotionPhrase(CANAL_ALVO)}
-        confirmLabel="Promover canal"
+        confirmLabel="Promote channel"
         onConfirm={confirmPromotion}
       />
 

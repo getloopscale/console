@@ -62,7 +62,7 @@ export function tokenRows(payload: TokensPayload | null | undefined, agora: Date
     tokenId: entry.token_id,
     // "sem rótulo" e não string vazia: uma célula em branco parece dado faltando na tela, e o
     // operador vai procurar o defeito que não existe.
-    labelText: entry.label !== null && entry.label !== undefined && entry.label !== '' ? entry.label : 'sem rótulo',
+    labelText: entry.label !== null && entry.label !== undefined && entry.label !== '' ? entry.label : 'no label',
     status: statusDoToken(entry, agora),
     expiresAt: entry.expires_at,
     revokedAt: entry.revoked_at ?? null,

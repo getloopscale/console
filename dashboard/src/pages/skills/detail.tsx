@@ -93,7 +93,7 @@ export function SkillDetailPage() {
     },
     onError: (err) => {
       setConfirmar(false);
-      setErroCiclo(promotionRefusal(err, 'Não foi possível mudar o ciclo de vida desta skill.'));
+      setErroCiclo(promotionRefusal(err, "Could not change this skill's lifecycle."));
     },
   });
 
@@ -114,14 +114,14 @@ export function SkillDetailPage() {
     },
     onError: (err) => {
       setConfirmarExclusao(false);
-      setErroExclusao(promotionRefusal(err, 'Não foi possível apagar esta skill.'));
+      setErroExclusao(promotionRefusal(err, 'Could not delete this skill.'));
     },
   });
 
   return (
     <PageShell
       title={data?.name ?? skillId}
-      description={data?.description ?? 'Detalhe da skill no registro deste workspace.'}
+      description={data?.description ?? "The skill's detail in this workspace's registry."}
       primaryAction={undefined}
     >
       {/* Volta ao acervo. Sem ela, chegar aqui pelo catálogo ou pela descoberta deixava o
@@ -131,39 +131,39 @@ export function SkillDetailPage() {
           Medido no app-dev em 2026-08-04: nenhuma das duas rotas aninhadas da capacidade tinha
           saída, contra o critério do M31 que pede volta à origem em toda rota aninhada. */}
       <Link to="/skills" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Voltar ao acervo
+        ← Back to the registry
       </Link>
 
       {skill.error ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar esta skill"
-          description="A leitura falhou. Isto NÃO significa que a skill deixou de existir."
+          title="Could not load this skill"
+          description="The read failed. This does NOT mean the skill stopped existing."
         />
       ) : null}
 
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Identificação</h2>
+            <h2>Identification</h2>
           </Card.Title>
         </Card.Header>
         <Card.Body>
           <dl className="grid gap-3 sm:grid-cols-2">
             <div>
-              <dt className="text-sm text-muted-foreground">Identificador</dt>
+              <dt className="text-sm text-muted-foreground">Identifier</dt>
               <dd className="font-mono text-sm">{data?.skill_id ?? '—'}</dd>
             </div>
             <div>
-              <dt className="text-sm text-muted-foreground">Revisão mais recente</dt>
+              <dt className="text-sm text-muted-foreground">Latest revision</dt>
               <dd className="font-mono text-sm">{data?.latest_revision_id ?? '—'}</dd>
             </div>
             <div>
-              <dt className="text-sm text-muted-foreground">Categoria</dt>
+              <dt className="text-sm text-muted-foreground">Category</dt>
               <dd className="text-sm">{data?.category ?? '—'}</dd>
             </div>
             <div>
-              <dt className="text-sm text-muted-foreground">Execução</dt>
+              <dt className="text-sm text-muted-foreground">Execution</dt>
               <dd className="text-sm">
                 {data?.execution ? <Badge variant="outline">{data.execution}</Badge> : '—'}
               </dd>
@@ -174,7 +174,7 @@ export function SkillDetailPage() {
           {/* O caminho para a próxima etapa da jornada — versões e canais. Sem ele o detalhe
               seria terminal, e o operador teria de descobrir a URL sozinho. */}
           <Button asChild>
-            <Link to={`/skills/${encodeURIComponent(skillId)}/versions`}>Ver versões e canais</Link>
+            <Link to={`/skills/${encodeURIComponent(skillId)}/versions`}>View versions and channels</Link>
           </Button>
         </Card.Footer>
       </Card>
@@ -182,18 +182,18 @@ export function SkillDetailPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Instrução resolvida</h2>
+            <h2>Resolved instruction</h2>
           </Card.Title>
           <Card.Description>
-            O texto que um agente carregaria ao resolver esta skill — não uma prévia editorial.
+            The text an agent would load when resolving this skill — not an editorial preview.
           </Card.Description>
         </Card.Header>
         <Card.Body>
           {instructions.error ? (
             <Alert
               intent="warning"
-              title="Esta skill não entrega instrução por carregamento"
-              description="Ela roda na máquina do cliente e traz script; as instruções referenciam arquivos que um agente remoto não tem. Instale-a pela CLI em vez de carregá-la."
+              title="This skill does not deliver instructions by loading"
+              description="It runs on the client machine and ships a script; the instructions reference files a remote agent does not have. Install it through the CLI instead of loading it."
             />
           ) : instructions.isLoading ? (
             <p className="text-sm text-muted-foreground">Carregando…</p>
@@ -212,41 +212,41 @@ export function SkillDetailPage() {
               </pre>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Sem instrução disponível.</p>
+            <p className="text-sm text-muted-foreground">No instruction available.</p>
           )}
         </Card.Body>
       </Card>
       {/* ---- M32 — ciclo de vida (AC5) ------------------------------------------------ */}
       {erroCiclo !== null ? (
-        <Alert intent="destructive" title="A mudança não foi aplicada" description={erroCiclo} />
+        <Alert intent="destructive" title="The change was not applied" description={erroCiclo} />
       ) : null}
 
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Ciclo de vida</h2>
+            <h2>Lifecycle</h2>
           </Card.Title>
           <Card.Description>
-            Descontinuar <strong>não remove</strong> a skill nem quebra quem já a referencia — ela
-            continua sendo carregada por quem a pede pelo identificador. O que muda é a{' '}
-            <strong>descoberta</strong>: ela deixa de aparecer para quem procura sem saber o nome.
+            Deprecating <strong>does not remove</strong> the skill, nor break whoever already references it — it
+            keeps being loaded by anyone asking for it by identifier. What changes is{' '}
+            <strong>discovery</strong>: it stops appearing for people searching without knowing the name.
           </Card.Description>
         </Card.Header>
 
         <div className="flex flex-col gap-3 px-6 pb-6">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Situação atual:</span>
+            <span className="text-muted-foreground">Current state:</span>
             {/* Texto, nunca só cor. E ausente não vira "em uso": um registro mais antigo
                 simplesmente não devolve o campo, e ausência não é o mesmo que estar ativa. */}
             {cicloAtual === undefined ? (
-              <span className="text-muted-foreground">não informada por este registro</span>
+              <span className="text-muted-foreground">not reported by this registry</span>
             ) : (
               <Badge
                 variant={
                   cicloAtual === 'active' ? 'success' : cicloAtual === 'deprecated' ? 'warning' : 'outline'
                 }
               >
-                {cicloAtual === 'active' ? 'em uso' : cicloAtual === 'deprecated' ? 'descontinuada' : 'rascunho'}
+                {cicloAtual === 'active' ? 'in use' : cicloAtual === 'deprecated' ? 'deprecated' : 'draft'}
               </Badge>
             )}
           </div>
@@ -254,7 +254,7 @@ export function SkillDetailPage() {
           {cicloAtual === 'deprecated' ? (
             <div className="flex flex-col gap-1 text-sm">
               {data?.deprecation_reason ? (
-                <span className="text-muted-foreground">Motivo: {data.deprecation_reason}</span>
+                <span className="text-muted-foreground">Reason: {data.deprecation_reason}</span>
               ) : null}
               {data?.superseded_by ? (
                 <Link
@@ -287,10 +287,10 @@ export function SkillDetailPage() {
               }}
             >
               <label className="flex flex-col gap-1 text-sm">
-                <span>Por que está sendo descontinuada?</span>
+                <span>Why is it being deprecated?</span>
                 <Input
-                  aria-label="Motivo da descontinuação"
-                  placeholder="ex.: substituída por uma versão que também lê PDF"
+                  aria-label="Deprecation reason"
+                  placeholder="e.g. superseded by a version that also reads PDF"
                   value={motivo}
                   onChange={(ev) => setMotivo(ev.target.value)}
                 />
@@ -298,14 +298,14 @@ export function SkillDetailPage() {
               <label className="flex flex-col gap-1 text-sm">
                 <span>Sucessora (opcional)</span>
                 <Input
-                  aria-label="Skill sucessora"
-                  placeholder="identificador da skill"
+                  aria-label="Successor skill"
+                  placeholder="skill identifier"
                   value={sucessora}
                   onChange={(ev) => setSucessora(ev.target.value)}
                 />
               </label>
               <Button type="submit" variant="destructive" disabled={motivo.trim() === '' || mudarCiclo.isPending}>
-                Descontinuar
+                Deprecate
               </Button>
             </form>
           )}
@@ -314,18 +314,18 @@ export function SkillDetailPage() {
 
       {/* ---- M31 — DangerZone (DESIGN.md §16) ----------------------------------------- */}
       {erroExclusao !== null ? (
-        <Alert intent="destructive" title="A skill não foi apagada" description={erroExclusao} />
+        <Alert intent="destructive" title="The skill was not deleted" description={erroExclusao} />
       ) : null}
 
       <Card className="border-destructive/40">
         <Card.Header>
           <Card.Title asChild>
-            <h2>Zona de perigo</h2>
+            <h2>Danger zone</h2>
           </Card.Title>
           <Card.Description>
-            Apagar <strong>reserva o identificador</strong>: nenhuma skill futura poderá usar{' '}
-            <code className="font-mono text-xs">{skillId}</code>, e quem a referencia por ele passa
-            a receber erro. <strong>Não há como desfazer.</strong>
+            Deleting <strong>reserves the identifier</strong>: no future skill will be able to use{' '}
+            <code className="font-mono text-xs">{skillId}</code>, and whoever references it by that name
+            starts getting errors. <strong>There is no way to undo this.</strong>
           </Card.Description>
         </Card.Header>
         <div className="flex flex-col gap-2 px-6 pb-6">
@@ -334,13 +334,13 @@ export function SkillDetailPage() {
               quem já usa. Oferecer só depois de apagar seria tarde. */}
           {cicloAtual !== 'deprecated' ? (
             <p className="text-sm text-muted-foreground">
-              Se a intenção é só parar de recomendá-la, <strong>descontinuar</strong> (acima) faz
-              isso sem quebrar quem já a referencia — e pode ser desfeito.
+              If you only want to stop recommending it, <strong>deprecating</strong> (above) does
+              that without breaking whoever already references it — and it can be undone.
             </p>
           ) : null}
           <div>
             <Button variant="destructive" onClick={() => setConfirmarExclusao(true)} disabled={apagar.isPending}>
-              Apagar esta skill
+              Delete this skill
             </Button>
           </div>
         </div>
@@ -351,16 +351,16 @@ export function SkillDetailPage() {
         onOpenChange={(aberto) => {
           if (!aberto) setConfirmarExclusao(false);
         }}
-        title={`Apagar "${data?.name ?? skillId}"?`}
+        title={`Delete "${data?.name ?? skillId}"?`}
         description={
           <>
-            Todo agente que a carrega pelo identificador passa a receber erro na próxima resolução.
-            O identificador <code className="font-mono text-xs">{skillId}</code> fica{' '}
-            <strong>reservado</strong> — nenhuma skill futura poderá usá-lo.{' '}
-            <strong>Esta ação não pode ser desfeita.</strong>
+            Every agent that loads it by identifier starts getting an error on the next resolution.
+            The identifier <code className="font-mono text-xs">{skillId}</code> becomes{' '}
+            <strong>reserved</strong> — no future skill will be able to use it.{' '}
+            <strong>This action cannot be undone.</strong>
           </>
         }
-        confirmLabel="Apagar skill"
+        confirmLabel="Delete skill"
         intent="destructive"
         confirmationPhrase={skillId}
         loading={apagar.isPending}
@@ -372,15 +372,15 @@ export function SkillDetailPage() {
         onOpenChange={(aberto) => {
           if (!aberto) setConfirmar(false);
         }}
-        title={`Descontinuar "${data?.name ?? skillId}"?`}
+        title={`Deprecate "${data?.name ?? skillId}"?`}
         description={
           <>
-            Ela <strong>deixa de aparecer</strong> para quem procura sem saber o nome. Quem já a
-            referencia pelo identificador continua carregando normalmente — nada quebra hoje. O
-            motivo que você escreveu fica visível para quem a encontrar depois.
+            It <strong>stops appearing</strong> for people searching without knowing the name. Whoever
+            already references it by identifier keeps loading it normally — nothing breaks today. The
+            reason you wrote stays visible to whoever finds it later.
           </>
         }
-        confirmLabel="Descontinuar skill"
+        confirmLabel="Deprecate skill"
         intent="destructive"
         // A frase é o identificador: é o que distingue esta skill de outra com nome parecido.
         confirmationPhrase={skillId}

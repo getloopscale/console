@@ -34,7 +34,7 @@ interface SkillsPayload {
 
 export function SkillsCatalogPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Catálogo'), [setPageTitle]);
+  useEffect(() => setPageTitle('Catalog'), [setPageTitle]);
   useRequireAuth();
 
   const [paginas, setPaginas] = useState<SkillLinha[]>([]);
@@ -72,17 +72,17 @@ export function SkillsCatalogPage() {
 
   return (
     <PageShell
-      title="Catálogo"
-      description="O que este workspace tem — para quando você não sabe o nome do que procura."
+      title="Catalog"
+      description="What this workspace has — for when you do not know the name of what you are looking for."
     >
       {falhou ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar o catálogo"
-          description="A grade abaixo está vazia porque a leitura falhou — isto NÃO significa que o acervo está vazio."
+          title="Could not load the catalog"
+          description="The grid below is empty because the read failed — this does NOT mean the registry is empty."
           action={
             <Button variant="secondary" size="sm" onClick={() => void query.refetch()}>
-              Tentar de novo
+              Try again
             </Button>
           }
         />
@@ -91,20 +91,20 @@ export function SkillsCatalogPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Filtrar</h2>
+            <h2>Filter</h2>
           </Card.Title>
           {/* O critério de ordem é DECLARADO na tela. Sem sinal de adoção, qualquer padrão é
               arbitrário — e um usuário que não sabe por que aquela ordem desconfia da lista. */}
           <Card.Description>
-            Ordenado por nome. {acervo.length} carregada(s)
-            {temMais ? ' — há mais no acervo' : ' (acervo completo)'}.
+            Sorted by name. {acervo.length} loaded
+            {temMais ? ' — there are more in the registry' : ' (whole registry)'}.
           </Card.Description>
         </Card.Header>
 
         <div className="flex flex-col gap-3 px-6 pb-6">
           <Input
-            aria-label="Filtrar o catálogo"
-            placeholder="filtrar por nome, descrição ou identificador"
+            aria-label="Filter the catalog"
+            placeholder="filter by name, description or identifier"
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
             className="max-w-sm"
@@ -118,7 +118,7 @@ export function SkillsCatalogPage() {
                 aria-pressed={categoria === null}
                 className="rounded-full border px-3 py-1 text-xs"
               >
-                todas
+                all
               </button>
               {chips.visiveis.map((c) => (
                 <button
@@ -138,7 +138,7 @@ export function SkillsCatalogPage() {
                   conta CATEGORIAS ocultas, não skills. */}
               {chips.excedente > 0 ? (
                 <span className="text-xs text-muted-foreground">
-                  +{chips.excedente} {chips.excedente === 1 ? 'categoria' : 'categorias'}
+                  +{chips.excedente} {chips.excedente === 1 ? 'category' : 'categories'}
                 </span>
               ) : null}
             </div>
@@ -155,17 +155,17 @@ export function SkillsCatalogPage() {
             // não havia nada publicado quando só o filtro dele não casava.
             title={
               falhou
-                ? 'Sem dados — a leitura falhou'
+                ? 'No data — the read failed'
                 : buscando
-                  ? 'Nada casa com este filtro'
-                  : 'Nenhuma skill publicada'
+                  ? 'Nothing matches this filter'
+                  : 'No skill published yet'
             }
             description={
               falhou
-                ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que existe no acervo.'
+                ? 'Try again in a moment. Until then, there is no way to know what the registry holds.'
                 : buscando
-                  ? 'O acervo tem skills — nenhuma delas casa com o que você filtrou. Limpe o filtro para ver tudo.'
-                  : 'Nada foi publicado neste workspace ainda. Crie a primeira skill pela tela de autoria.'
+                  ? 'The registry does have skills — none of them match your filter. Clear it to see everything.'
+                  : 'Nothing has been published in this workspace yet. Create the first skill from the authoring screen.'
             }
             action={
               falhou ? undefined : buscando ? (
@@ -177,11 +177,11 @@ export function SkillsCatalogPage() {
                     setCategoria(null);
                   }}
                 >
-                  Limpar filtro
+                  Clear filter
                 </Button>
               ) : (
                 <Button asChild size="sm">
-                  <Link to="/skills/nova">Criar a primeira skill</Link>
+                  <Link to="/skills/nova">Create the first skill</Link>
                 </Button>
               )
             }
@@ -217,9 +217,9 @@ export function SkillsCatalogPage() {
                     e é a diferença que o produto vende. Sem vetor, a skill só aparece para quem
                     já sabe o nome. */}
                 <Badge variant={c.discoverable ? 'success' : 'warning'}>
-                  {c.discoverable ? 'descobrível' : 'sem vetor'}
+                  {c.discoverable ? 'discoverable' : 'no vector'}
                 </Badge>
-                {c.lifecycle === 'deprecated' ? <Badge variant="warning">descontinuada</Badge> : null}
+                {c.lifecycle === 'deprecated' ? <Badge variant="warning">deprecated</Badge> : null}
               </div>
             </Card>
           ))}
@@ -233,9 +233,9 @@ export function SkillsCatalogPage() {
             disabled={query.isFetching}
             onClick={() => setTokenAtual(proximoToken ?? undefined)}
           >
-            {query.isFetching ? 'Carregando…' : 'Carregar mais'}
+            {query.isFetching ? 'Loading…' : 'Load more'}
           </Button>
-          <span className="text-xs text-muted-foreground">O acervo tem mais do que está nesta tela.</span>
+          <span className="text-xs text-muted-foreground">The registry holds more than what is on this screen.</span>
         </div>
       ) : null}
     </PageShell>

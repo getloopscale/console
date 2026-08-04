@@ -60,7 +60,7 @@ interface BundleItem {
 export function BundleDetailPage() {
   const { bundleId = '' } = useParams<{ bundleId: string }>();
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Pacote'), [setPageTitle]);
+  useEffect(() => setPageTitle('Bundle'), [setPageTitle]);
   useRequireAuth();
 
   const queryClient = useQueryClient();
@@ -120,7 +120,7 @@ export function BundleDetailPage() {
       setItens(null);
       void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/bundles'] });
     },
-    onError: (err) => setErro(promotionRefusal(err, 'Não foi possível salvar o conteúdo do pacote.')),
+    onError: (err) => setErro(promotionRefusal(err, 'Could not save the bundle contents.')),
   });
 
   const emitir = useMutation({
@@ -133,7 +133,7 @@ export function BundleDetailPage() {
       setRotulo('');
       void queryClient.invalidateQueries({ queryKey: tokensKey });
     },
-    onError: (err) => setErro(promotionRefusal(err, 'Não foi possível emitir o token.')),
+    onError: (err) => setErro(promotionRefusal(err, 'Could not issue the token.')),
   });
 
   const revogar = useMutation({
@@ -145,7 +145,7 @@ export function BundleDetailPage() {
     },
     onError: (err) => {
       setARevogar(null);
-      setErro(promotionRefusal(err, 'Não foi possível revogar o token.'));
+      setErro(promotionRefusal(err, 'Could not revoke the token.'));
     },
   });
 
@@ -161,26 +161,26 @@ export function BundleDetailPage() {
   const colunasToken: DataTableColumn<TokenRow>[] = [
     {
       key: 'labelText',
-      label: 'Rótulo',
+      label: 'Label',
       render: (row) => <span className="font-medium">{row.labelText}</span>,
     },
     {
       key: 'tokenId',
-      label: 'Identificador',
+      label: 'Identifier',
       // O identificador É o que torna a revogação possível — e é a única parte do token que a
       // listagem devolve. O valor nunca reaparece.
       render: (row) => <span className="font-mono text-xs text-muted-foreground">{row.tokenId}</span>,
     },
     {
       key: 'status',
-      label: 'Situação',
+      label: 'Status',
       // Texto, nunca só cor (WCAG 1.4.1): as três situações levam a ações diferentes.
       render: (row) => {
         const rotulos: Record<TokenRow['status'], { texto: string; variante: 'success' | 'warning' | 'outline' }> = {
-          active: { texto: 'ativo', variante: 'success' },
-          expired: { texto: 'expirado', variante: 'warning' },
-          revoked: { texto: 'revogado', variante: 'outline' },
-          unknown: { texto: 'situação desconhecida', variante: 'warning' },
+          active: { texto: 'active', variante: 'success' },
+          expired: { texto: 'expired', variante: 'warning' },
+          revoked: { texto: 'revoked', variante: 'outline' },
+          unknown: { texto: 'unknown status', variante: 'warning' },
         };
         const { texto, variante } = rotulos[row.status];
         return <Badge variant={variante}>{texto}</Badge>;
@@ -188,12 +188,12 @@ export function BundleDetailPage() {
     },
     {
       key: 'expiresAt',
-      label: 'Expira em',
+      label: 'Expires',
       render: (row) => {
         const t = Date.parse(row.expiresAt);
         return (
           <span className="text-muted-foreground">
-            {Number.isNaN(t) ? '—' : new Date(t).toLocaleDateString('pt-BR')}
+            {Number.isNaN(t) ? '—' : new Date(t).toLocaleDateString('en-US')}
           </span>
         );
       },
@@ -205,7 +205,7 @@ export function BundleDetailPage() {
         // Um token já revogado não oferece o botão: clicar nele não mudaria nada, e um controle
         // que não faz nada ensina o operador a desconfiar da tela.
         row.status === 'revoked' ? (
-          <span className="text-xs text-muted-foreground">revogado</span>
+          <span className="text-xs text-muted-foreground">revoked</span>
         ) : (
           <Button variant="ghost" size="sm" onClick={() => setARevogar(row)}>
             Revogar
@@ -216,11 +216,11 @@ export function BundleDetailPage() {
 
   const colunasAdocao: DataTableColumn<AdoptionRow>[] = [
     { key: 'skillId', label: 'Skill', render: (row) => <span className="font-mono text-xs">{row.skillId}</span> },
-    { key: 'version', label: 'Versão', render: (row) => <span className="font-mono text-xs">{row.version}</span> },
-    { key: 'installs', label: 'Instalações', render: (row) => <span>{row.installs}</span> },
+    { key: 'version', label: 'Version', render: (row) => <span className="font-mono text-xs">{row.version}</span> },
+    { key: 'installs', label: 'Installs', render: (row) => <span>{row.installs}</span> },
     {
       key: 'share',
-      label: 'Participação',
+      label: 'Share',
       // `null` é exibido como "—", não como 0%: com denominador zero, "0%" afirmaria "ninguém
       // instalou esta skill" quando o verdadeiro é "não dá para calcular proporção".
       render: (row) => (
@@ -233,7 +233,7 @@ export function BundleDetailPage() {
 
   return (
     <PageShell
-      title="Pacote"
+      title="Bundle"
       description={bundleId}
     >
       {/* Caminho de volta explícito. O item de menu leva ao overview da capacidade, não à lista
@@ -242,12 +242,12 @@ export function BundleDetailPage() {
         ← Todos os pacotes
       </Link>
 
-      {erro !== null ? <Alert intent="destructive" title="A operação falhou" description={erro} /> : null}
+      {erro !== null ? <Alert intent="destructive" title="The operation failed" description={erro} /> : null}
 
       {segredo !== null ? (
         <Alert
           intent="warning"
-          title="Guarde este token agora — ele não aparece de novo"
+          title="Save this token now — it will not be shown again"
           description={
             <span className="font-mono text-xs break-all">{segredo}</span>
           }
@@ -257,27 +257,27 @@ export function BundleDetailPage() {
       {tokensFalhou ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar os tokens"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há tokens emitidos. Não revogue nada com base nesta tela até ela voltar a carregar."
+          title="Could not load the tokens"
+          description="The list below is empty because the read failed — this does NOT mean no tokens were issued. Do not revoke anything based on this screen until it loads again."
         />
       ) : null}
 
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Conteúdo do pacote</h2>
+            <h2>Bundle contents</h2>
           </Card.Title>
           <Card.Description>
-            Cada item aponta para um <strong>canal</strong>, não para uma versão fixa: promover o
-            canal reaponta quem já instalou, sem reeditar o pacote. Salvar substitui a lista
-            inteira.
+            Each item points at a <strong>channel</strong>, not at a fixed revision: promoting the
+            channel re-points everyone who already installed it, with nobody editing the bundle.
+            Saving replaces the whole list.
           </Card.Description>
         </Card.Header>
 
         <div className="flex flex-col gap-3 px-6 pb-6">
           {itensVisiveis.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nenhuma skill neste pacote. Quem usar um token dele não recebe nada.
+              No skill in this bundle. A token for it delivers nothing.
             </p>
           ) : (
             <ul className="flex flex-col gap-2">
@@ -314,7 +314,7 @@ export function BundleDetailPage() {
                 (i) => i.skill_id === skillEscolhida && i.channel === canalEscolhido,
               );
               if (jaExiste) {
-                setErro('Esta skill já está no pacote neste canal.');
+                setErro('This skill is already in the bundle on that channel.');
                 return;
               }
               setErro(null);
@@ -326,7 +326,7 @@ export function BundleDetailPage() {
             <label className="flex flex-col gap-1 text-sm">
               <span>Skill</span>
               <select
-                aria-label="Skill a adicionar"
+                aria-label="Skill to add"
                 className="h-9 rounded-md border bg-background px-2 text-sm"
                 value={skillEscolhida}
                 onChange={(e) => {
@@ -336,7 +336,7 @@ export function BundleDetailPage() {
                   setCanalEscolhido('');
                 }}
               >
-                <option value="">selecione…</option>
+                <option value="">select…</option>
                 {(skillsQuery.data?.skills ?? []).map((sk) => (
                   <option key={sk.skill_id} value={sk.skill_id}>
                     {sk.name}
@@ -346,9 +346,9 @@ export function BundleDetailPage() {
             </label>
 
             <label className="flex flex-col gap-1 text-sm">
-              <span>Canal</span>
+              <span>Channel</span>
               <select
-                aria-label="Canal da skill"
+                aria-label="Skill channel"
                 className="h-9 rounded-md border bg-background px-2 text-sm"
                 value={canalEscolhido}
                 onChange={(e) => setCanalEscolhido(e.target.value)}
@@ -379,12 +379,12 @@ export function BundleDetailPage() {
           {sujo ? (
             <div className="flex items-center gap-2">
               <Button onClick={() => salvarItens.mutate(itensVisiveis)} disabled={salvarItens.isPending}>
-                {salvarItens.isPending ? 'Salvando…' : 'Salvar conteúdo'}
+                {salvarItens.isPending ? 'Saving…' : 'Save contents'}
               </Button>
               <Button variant="ghost" onClick={() => setItens(null)} disabled={salvarItens.isPending}>
                 Descartar alterações
               </Button>
-              <span className="text-xs text-muted-foreground">Alterações ainda não salvas.</span>
+              <span className="text-xs text-muted-foreground">Unsaved changes.</span>
             </div>
           ) : null}
         </div>
@@ -393,7 +393,7 @@ export function BundleDetailPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Novo token</h2>
+            <h2>New token</h2>
           </Card.Title>
           <Card.Description>
             Um token delegado dá acesso a este pacote sem expor as credenciais do workspace. O
@@ -410,9 +410,9 @@ export function BundleDetailPage() {
           }}
         >
           <label className="flex flex-col gap-1 text-sm">
-            <span>Validade (dias)</span>
+            <span>Valid for (days)</span>
             <Input
-              aria-label="Validade em dias"
+              aria-label="Validity in days"
               type="number"
               min={1}
               value={ttlDias}
@@ -421,16 +421,16 @@ export function BundleDetailPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span>Rótulo (opcional)</span>
+            <span>Label (optional)</span>
             <Input
-              aria-label="Rótulo do token"
-              placeholder="ex.: pipeline de CI"
+              aria-label="Token label"
+              placeholder="e.g. CI pipeline"
               value={rotulo}
               onChange={(e) => setRotulo(e.target.value)}
             />
           </label>
           <Button type="submit" disabled={emitir.isPending || Number(ttlDias) <= 0}>
-            {emitir.isPending ? 'Emitindo…' : 'Emitir token'}
+            {emitir.isPending ? 'Issuing…' : 'Issue token'}
           </Button>
         </form>
       </Card>
@@ -438,7 +438,7 @@ export function BundleDetailPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Tokens emitidos</h2>
+            <h2>Issued tokens</h2>
           </Card.Title>
           <Card.Description>
             Revogados continuam na lista, com a marca — esconder impediria auditar o que já foi
@@ -453,11 +453,11 @@ export function BundleDetailPage() {
           emptyState={
             <EmptyState
               icon={KeyRound}
-              title={tokensFalhou ? 'Sem dados — a leitura falhou' : 'Nenhum token emitido'}
+              title={tokensFalhou ? 'No data — the read failed' : 'No token issued'}
               description={
                 tokensFalhou
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber quem tem acesso a este pacote.'
-                  : 'Emita um token acima para dar acesso a este pacote sem expor as credenciais do workspace.'
+                  ? 'Try again in a moment. Until then, there is no way to know who has access to this bundle.'
+                  : 'Issue a token above to grant access to this bundle without exposing the workspace credentials.'
               }
             />
           }
@@ -467,23 +467,23 @@ export function BundleDetailPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Adoção nos últimos {JANELA_DIAS} dias</h2>
+            <h2>Adoption over the last {JANELA_DIAS} days</h2>
           </Card.Title>
           {/* O rótulo diz a granularidade REAL, medida em `adoption-store.ts`: skill + versão,
               escopada a este pacote. Chamar de "por pacote" faria a tela mentir — e "instalações
               totais da skill X" não é computável hoje, porque não há agregação entre pacotes. */}
           <Card.Description>
             {typeof totalInstalacoes === 'number'
-              ? `${totalInstalacoes} instalações na janela. A contagem é por skill e versão dentro deste pacote — a mesma skill em outro pacote conta separado.`
-              : 'A contagem é por skill e versão dentro deste pacote — a mesma skill em outro pacote conta separado.'}
+              ? `${totalInstalacoes} installs in this window. The count is per skill and version within THIS bundle — the same skill in another bundle is counted separately.`
+              : 'The count is per skill and version within THIS bundle — the same skill in another bundle is counted separately.'}
           </Card.Description>
         </Card.Header>
         {adocaoFalhou ? (
           <div className="px-6 pb-4">
             <Alert
               intent="destructive"
-              title="Não foi possível carregar a adoção"
-              description="A tabela abaixo está vazia porque a leitura falhou — isto NÃO significa que ninguém instalou."
+              title="Could not load adoption"
+              description="The table below is empty because the read failed — this does NOT mean nobody installed it."
             />
           </div>
         ) : null}
@@ -495,11 +495,11 @@ export function BundleDetailPage() {
           emptyState={
             <EmptyState
               icon={TrendingUp}
-              title={adocaoFalhou ? 'Sem dados — a leitura falhou' : 'Nenhuma instalação na janela'}
+              title={adocaoFalhou ? 'No data — the read failed' : 'No install in this window'}
               description={
                 adocaoFalhou
-                  ? 'Tente novamente em instantes.'
-                  : `Ninguém instalou skills deste pacote nos últimos ${JANELA_DIAS} dias.`
+                  ? 'Try again in a moment.'
+                  : `Nobody installed skills from this bundle in the last ${JANELA_DIAS} days.`
               }
             />
           }
@@ -511,16 +511,16 @@ export function BundleDetailPage() {
         onOpenChange={(open) => {
           if (!open) setARevogar(null);
         }}
-        title={`Revogar o token "${aRevogar?.labelText ?? ''}"?`}
+        title={`Revoke the token "${aRevogar?.labelText ?? ''}"?`}
         description={
           <>
-            Quem estiver usando este token perde o acesso a este pacote imediatamente — pipelines e
-            agentes que dependem dele passam a falhar na próxima instalação. O token continua
-            listado, com a marca de revogado, para auditoria.{' '}
-            <strong>Esta ação não pode ser desfeita.</strong>
+            Whoever is using this token loses access to this bundle immediately — pipelines and
+            agents that depend on it start failing on their next install. The token stays listed,
+            marked as revoked, for auditing.{' '}
+            <strong>This action cannot be undone.</strong>
           </>
         }
-        confirmLabel="Revogar token"
+        confirmLabel="Revoke token"
         intent="destructive"
         // A frase digitada é o identificador: é o que está na tela e o que distingue este token
         // de outro com o mesmo rótulo.

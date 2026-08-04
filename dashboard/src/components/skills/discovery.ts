@@ -69,10 +69,10 @@ export function legLabel(matched: readonly MatchedLeg[] | undefined): string {
   for (const m of matched ?? []) {
     if (m.leg === 'keyword' || m.leg === 'vector') conhecidas.add(m.leg);
   }
-  if (conhecidas.has('keyword') && conhecidas.has('vector')) return 'palavras e intenção';
-  if (conhecidas.has('keyword')) return 'as palavras batem';
-  if (conhecidas.has('vector')) return 'entendeu a intenção';
-  return 'origem não informada';
+  if (conhecidas.has('keyword') && conhecidas.has('vector')) return 'words and intent';
+  if (conhecidas.has('keyword')) return 'the words match';
+  if (conhecidas.has('vector')) return 'understood the intent';
+  return 'origin not reported';
 }
 
 export function discoveryRows(payload: RetrievePayload | null | undefined): DiscoveryRow[] {
