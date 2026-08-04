@@ -200,6 +200,9 @@ func MountSkillsDashboard(r chi.Router, h *SkillsDashboardHandler, requireJWT fu
 // skillsPromoter é a porta de MUTAÇÃO. Um método só — promover é a única escrita deste milestone.
 type skillsPromoter interface {
 	PromoteChannel(ctx context.Context, skillID, channel, revisionID string) (json.RawMessage, error)
+	// M32 — mesma porta porque é a MESMA credencial: o registro gateia as duas por
+	// `skills:publish`. Um segundo handler com a mesma chave não acrescentaria isolamento.
+	SetLifecycle(ctx context.Context, skillID, lifecycle, reason, supersededBy string) (json.RawMessage, error)
 }
 
 // SkillsPromotionHandler serve a promoção de canal.
@@ -252,6 +255,49 @@ func (h *SkillsPromotionHandler) reject(w http.ResponseWriter, r *http.Request, 
 	writeRejection(w, r, h.logger, op, err, true)
 }
 
+// SetLifecycle serve PUT /v1/dashboard/skills/{skillID}/lifecycle.
+//
+// Valida NA FRONTEIRA duas coisas que o registro também valida, e por um motivo além de economizar
+// a ida: a mensagem sai escrita para quem está na TELA, não para quem consome a API.
+//
+//  1. `lifecycle` é obrigatório — sem ele não há o que mudar;
+//  2. depreciar EXIGE motivo. É o único estágio que exige, e a razão é assimétrica: ir para
+//     `active` ou `draft` não tira nada de ninguém; descontinuar tira, e quem descobrir a skill
+//     depois precisa ler por quê.
+func (h *SkillsPromotionHandler) SetLifecycle(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Lifecycle    string `json:"lifecycle"`
+		Reason       string `json:"reason"`
+		SupersededBy string `json:"superseded_by"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil ||
+		strings.TrimSpace(body.Lifecycle) == "" {
+		h.logger.WarnContext(r.Context(), "skills lifecycle: invalid request body", "path", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"informe o estágio do ciclo de vida"}`))
+		return
+	}
+
+	lifecycle := strings.TrimSpace(body.Lifecycle)
+	reason := strings.TrimSpace(body.Reason)
+	if lifecycle == "deprecated" && reason == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"diga por que esta skill está sendo descontinuada — quem a descobrir depois vai ler isto"}`))
+		return
+	}
+
+	out, err := h.client.SetLifecycle(r.Context(), skillID(r), lifecycle, reason, strings.TrimSpace(body.SupersededBy))
+	if err != nil {
+		h.reject(w, r, "set lifecycle", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out)
+}
+
 // MountSkillsPromotion registra a promoção sob `requireJWT`.
 //
 // Montada separadamente do BFF de leitura, e não como mais um verbo dentro dele: são handlers
@@ -270,5 +316,8 @@ func MountSkillsPromotion(r chi.Router, h *SkillsPromotionHandler, requireJWT fu
 	r.Group(func(r chi.Router) {
 		r.Use(requireJWT)
 		r.Put("/v1/dashboard/skills/{skillID}/channels/{channel}", h.Promote)
+		// `Group` + caminho completo, como a promoção e pelo mesmo motivo: um `r.Route` aqui
+		// criaria subtree e sombrearia `GET /{skillID}` do BFF de leitura.
+		r.Put("/v1/dashboard/skills/{skillID}/lifecycle", h.SetLifecycle)
 	})
 }

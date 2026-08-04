@@ -39,6 +39,10 @@ interface SkillSummary {
   readonly name: string;
   readonly description: string;
   readonly state: string;
+  /** M32 — o eixo editorial, independente da habilitação e da exclusão. */
+  readonly lifecycle?: 'active' | 'draft' | 'deprecated';
+  readonly deprecation_reason?: string | null;
+  readonly superseded_by?: string | null;
   readonly latest_revision_id: string | null;
   readonly category?: string;
   readonly execution?: string;
@@ -78,6 +82,41 @@ export function SkillsOverviewPage() {
       key: 'description',
       label: 'O que faz',
       render: (row) => <span className="text-muted-foreground">{row.description}</span>,
+    },
+    {
+      key: 'lifecycle',
+      label: 'Ciclo de vida',
+      // TEXTO, nunca só cor (WCAG 1.4.1): os três estágios levam a decisões diferentes, e uma
+      // deprecada indistinguível de uma ativa é exatamente o defeito que o M32 existe para
+      // impedir. Ausente NÃO vira "active": um registro mais antigo simplesmente não devolve o
+      // campo, e ausência não é o mesmo que estar ativa.
+      render: (row) => {
+        if (row.lifecycle === undefined) return <span className="text-muted-foreground">—</span>;
+        const rotulos = {
+          active: { texto: 'em uso', variante: 'success' as const },
+          draft: { texto: 'rascunho', variante: 'outline' as const },
+          deprecated: { texto: 'descontinuada', variante: 'warning' as const },
+        };
+        const r = rotulos[row.lifecycle];
+        return (
+          <span className="flex flex-col gap-0.5">
+            <Badge variant={r.variante}>{r.texto}</Badge>
+            {/* O MOTIVO viaja junto: sem ele o operador vê "descontinuada" e não sabe o que
+                usar no lugar — que é a pergunta seguinte, sempre. */}
+            {row.lifecycle === 'deprecated' && row.deprecation_reason ? (
+              <span className="text-xs text-muted-foreground">{row.deprecation_reason}</span>
+            ) : null}
+            {row.superseded_by ? (
+              <Link
+                to={`/skills/${encodeURIComponent(row.superseded_by)}`}
+                className="text-xs underline-offset-4 hover:underline"
+              >
+                use {row.superseded_by}
+              </Link>
+            ) : null}
+          </span>
+        );
+      },
     },
     {
       key: 'category',

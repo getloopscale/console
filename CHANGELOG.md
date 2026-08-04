@@ -18,6 +18,12 @@
 
 - **O conteúdo do pacote passa a ser editável pela tela (M35, AC1).** Adicionar e remover skills de um pacote exigia CLI — o pacote nascia vazio pelo dashboard e ficava assim. Cada item aponta para um **canal**, não para uma versão fixa: promover o canal reaponta quem já instalou, sem reeditar o pacote. Salvar **substitui a lista inteira**, seguindo o contrato do registro — "adicionar sem poder remover" produziria pacotes que só crescem, e um item esquecido lá dentro é acesso que ninguém pretendeu conceder. O estado vazio diz a consequência (*"quem usar um token dele não recebe nada"*), não apenas que está vazio; e alteração pendente é anunciada, para ninguém sair da tela achando que salvou (#m35)
 
+- **O ciclo de vida de uma skill ganha tela (M32, AC5).** O acervo passa a mostrar o estágio em **texto** — *em uso* · *rascunho* · *descontinuada* —, nunca só cor: os três levam a decisões diferentes, e uma deprecada indistinguível de uma ativa é o defeito que o milestone existe para impedir. O **motivo** viaja junto na listagem, porque "o que uso no lugar?" é a pergunta seguinte, sempre; e a sucessora, quando existe, é um link.
+
+  Descontinuar exige motivo e passa pelo `ConfirmDialog` canônico com frase digitada. O texto diz **o que muda e o que não muda**: a skill deixa de aparecer para quem procura sem saber o nome, e quem já a referencia pelo identificador continua carregando — nada quebra hoje. Sem essa frase o operador supõe que está apagando.
+
+  Ausência do campo **não** vira "em uso": um registro mais antigo simplesmente não o devolve, e ausência não é o mesmo que estar ativa (#m32)
+
 ### Security
 
 - **A adoção de um bundle exigia apenas `skills:read` para ser lida.** Era a única rota da família sem gate de escopo — `POST /v1/bundles`, `GET /v1/bundles` e as três de token já exigiam `skills:publish`. Um portador do escopo de leitura (o que o dashboard cunha para o cliente de leitura, e o que um agente consumidor carrega) lia a telemetria comercial de quem publica. Mesmo workspace, então não é vazamento entre inquilinos; é privilégio a mais dentro dele, e a assimetria com as irmãs mostra que não foi decisão, foi esquecimento. Corrigido no `theo-skills`; o cliente de distribuição do dashboard já nasce ligado ao resolver de **publicação**, nunca ao de leitura (#m35)

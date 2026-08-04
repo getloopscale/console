@@ -163,3 +163,34 @@ export function setBundleItems<T>(
     { throwOnError: true },
   );
 }
+
+/**
+ * Muda o estágio de ciclo de vida de uma skill — `active` · `draft` · `deprecated`.
+ *
+ * **Depreciar não tira a skill de quem já a referencia**: ela continua resolvível, e o que muda é
+ * a descoberta. É por isso que este ato é menos perigoso que promover um canal — que troca o que
+ * os consumidores carregam, sem redeploy.
+ *
+ * `reason` é obrigatório ao depreciar (o BFF recusa sem ele) e ignorado nos outros estágios: ir
+ * para `active` não tira nada de ninguém. `superseded_by` é sempre opcional.
+ */
+export function setSkillLifecycle<T>(
+  skillId: string,
+  lifecycle: 'active' | 'draft' | 'deprecated',
+  reason: string,
+  supersededBy: string,
+): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/${encodeURIComponent(skillId)}/lifecycle`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lifecycle,
+        ...(reason !== '' ? { reason } : {}),
+        ...(supersededBy !== '' ? { superseded_by: supersededBy } : {}),
+      }),
+    },
+    { throwOnError: true },
+  );
+}

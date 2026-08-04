@@ -1,12 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Badge, Button, Card, PageShell } from '@usetheo/ui';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Badge, Button, Card, Input, PageShell } from '@usetheo/ui';
 
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchSkill, fetchSkillInstructions } from '@/components/skills/skills-api';
+import {
+  fetchSkill,
+  fetchSkillInstructions,
+  promotionRefusal,
+  setSkillLifecycle,
+} from '@/components/skills/skills-api';
 
 /**
  * M26 — `/skills/:skillId`: uma skill, e a instrução que um agente de fato carregaria.
@@ -28,6 +34,10 @@ interface SkillDetail {
   readonly state: string;
   readonly latest_revision_id: string | null;
   readonly category?: string;
+  /** M32 — o eixo editorial. Ausente num registro mais antigo; ausência ≠ `active`. */
+  readonly lifecycle?: 'active' | 'draft' | 'deprecated';
+  readonly deprecation_reason?: string | null;
+  readonly superseded_by?: string | null;
   readonly execution?: string;
   readonly create_time: string;
   readonly update_time: string;
@@ -62,6 +72,31 @@ export function SkillDetailPage() {
   });
 
   const data = skill.data;
+
+  // ---- M32 — o ciclo de vida --------------------------------------------------------------
+  const queryClient = useQueryClient();
+  const [motivo, setMotivo] = useState('');
+  const [sucessora, setSucessora] = useState('');
+  const [confirmar, setConfirmar] = useState(false);
+  const [erroCiclo, setErroCiclo] = useState<string | null>(null);
+
+  const mudarCiclo = useMutation({
+    mutationFn: (v: { lifecycle: 'active' | 'draft' | 'deprecated'; reason: string; supersededBy: string }) =>
+      setSkillLifecycle(skillId, v.lifecycle, v.reason, v.supersededBy),
+    onSuccess: () => {
+      setErroCiclo(null);
+      setConfirmar(false);
+      setMotivo('');
+      setSucessora('');
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/skills'] });
+    },
+    onError: (err) => {
+      setConfirmar(false);
+      setErroCiclo(promotionRefusal(err, 'Não foi possível mudar o ciclo de vida desta skill.'));
+    },
+  });
+
+  const cicloAtual = data?.lifecycle;
 
   return (
     <PageShell
@@ -151,6 +186,124 @@ export function SkillDetailPage() {
           )}
         </Card.Body>
       </Card>
+      {/* ---- M32 — ciclo de vida (AC5) ------------------------------------------------ */}
+      {erroCiclo !== null ? (
+        <Alert intent="destructive" title="A mudança não foi aplicada" description={erroCiclo} />
+      ) : null}
+
+      <Card>
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Ciclo de vida</h2>
+          </Card.Title>
+          <Card.Description>
+            Descontinuar <strong>não remove</strong> a skill nem quebra quem já a referencia — ela
+            continua sendo carregada por quem a pede pelo identificador. O que muda é a{' '}
+            <strong>descoberta</strong>: ela deixa de aparecer para quem procura sem saber o nome.
+          </Card.Description>
+        </Card.Header>
+
+        <div className="flex flex-col gap-3 px-6 pb-6">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Situação atual:</span>
+            {/* Texto, nunca só cor. E ausente não vira "em uso": um registro mais antigo
+                simplesmente não devolve o campo, e ausência não é o mesmo que estar ativa. */}
+            {cicloAtual === undefined ? (
+              <span className="text-muted-foreground">não informada por este registro</span>
+            ) : (
+              <Badge
+                variant={
+                  cicloAtual === 'active' ? 'success' : cicloAtual === 'deprecated' ? 'warning' : 'outline'
+                }
+              >
+                {cicloAtual === 'active' ? 'em uso' : cicloAtual === 'deprecated' ? 'descontinuada' : 'rascunho'}
+              </Badge>
+            )}
+          </div>
+
+          {cicloAtual === 'deprecated' ? (
+            <div className="flex flex-col gap-1 text-sm">
+              {data?.deprecation_reason ? (
+                <span className="text-muted-foreground">Motivo: {data.deprecation_reason}</span>
+              ) : null}
+              {data?.superseded_by ? (
+                <Link
+                  to={`/skills/${encodeURIComponent(data.superseded_by)}`}
+                  className="underline-offset-4 hover:underline"
+                >
+                  Substituída por {data.superseded_by}
+                </Link>
+              ) : null}
+              <div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={mudarCiclo.isPending}
+                  onClick={() => mudarCiclo.mutate({ lifecycle: 'active', reason: '', supersededBy: '' })}
+                >
+                  Voltar a circular
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                // Motivo é exigido AQUI e no BFF. Aqui para o operador não descobrir a regra
+                // pelo erro; lá porque a fronteira não pode confiar na tela.
+                if (motivo.trim() === '') return;
+                setConfirmar(true);
+              }}
+            >
+              <label className="flex flex-col gap-1 text-sm">
+                <span>Por que está sendo descontinuada?</span>
+                <Input
+                  aria-label="Motivo da descontinuação"
+                  placeholder="ex.: substituída por uma versão que também lê PDF"
+                  value={motivo}
+                  onChange={(ev) => setMotivo(ev.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span>Sucessora (opcional)</span>
+                <Input
+                  aria-label="Skill sucessora"
+                  placeholder="identificador da skill"
+                  value={sucessora}
+                  onChange={(ev) => setSucessora(ev.target.value)}
+                />
+              </label>
+              <Button type="submit" variant="destructive" disabled={motivo.trim() === '' || mudarCiclo.isPending}>
+                Descontinuar
+              </Button>
+            </form>
+          )}
+        </div>
+      </Card>
+
+      <ConfirmDialog
+        open={confirmar}
+        onOpenChange={(aberto) => {
+          if (!aberto) setConfirmar(false);
+        }}
+        title={`Descontinuar "${data?.name ?? skillId}"?`}
+        description={
+          <>
+            Ela <strong>deixa de aparecer</strong> para quem procura sem saber o nome. Quem já a
+            referencia pelo identificador continua carregando normalmente — nada quebra hoje. O
+            motivo que você escreveu fica visível para quem a encontrar depois.
+          </>
+        }
+        confirmLabel="Descontinuar skill"
+        intent="destructive"
+        // A frase é o identificador: é o que distingue esta skill de outra com nome parecido.
+        confirmationPhrase={skillId}
+        loading={mudarCiclo.isPending}
+        onConfirm={() =>
+          mudarCiclo.mutate({ lifecycle: 'deprecated', reason: motivo.trim(), supersededBy: sucessora.trim() })
+        }
+      />
     </PageShell>
   );
 }

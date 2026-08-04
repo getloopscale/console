@@ -27,8 +27,25 @@ const skillsDb = {
       latest_revision_id: 'rev_d',
       category: 'engenharia',
       execution: 'remote',
+      lifecycle: 'active',
+      deprecation_reason: null,
+      superseded_by: null,
       create_time: '2026-07-01T10:00:00Z',
       update_time: '2026-08-01T10:00:00Z',
+    },
+    {
+      skill_id: 'sk_velha',
+      name: 'Converter moeda (v1)',
+      description: 'Substituída por uma versão que também lê PDF.',
+      state: 'live',
+      latest_revision_id: 'rev_v1',
+      category: 'finance',
+      execution: 'remote',
+      lifecycle: 'deprecated',
+      deprecation_reason: 'não cobre cotação futura; use a v2',
+      superseded_by: 'sk_ordering',
+      create_time: '2026-05-01T10:00:00Z',
+      update_time: '2026-07-20T10:00:00Z',
     },
     {
       skill_id: 'sk_local',
@@ -38,6 +55,9 @@ const skillsDb = {
       latest_revision_id: 'rev_local_1',
       category: 'operação',
       execution: 'local',
+      lifecycle: 'active',
+      deprecation_reason: null,
+      superseded_by: null,
       create_time: '2026-07-05T10:00:00Z',
       update_time: '2026-07-20T10:00:00Z',
     },
@@ -124,6 +144,25 @@ function registerSkillsRoutes(base: string) {
       ];
     }
     return Response.json({ skill_id: params.skillId, channel: params.channel, revision_id: revisionId });
+  });
+
+  registerRoute('PUT', `${base}/{skillId}/lifecycle`, async (req, params) => {
+    const alvo = skillsDb.skills.find((sk) => sk.skill_id === params.skillId);
+    if (alvo === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    const body = (await req.json()) as { lifecycle?: string; reason?: string; superseded_by?: string };
+    if (typeof body.lifecycle !== 'string' || body.lifecycle === '') {
+      return Response.json({ code: 'INVALID_REQUEST', message: 'informe o estágio' }, { status: 400 });
+    }
+    // Depreciar EXIGE motivo — como o serviço. Um mock permissivo aqui deixaria a tela verde
+    // sobre uma regra que o registro real aplica, e o defeito só apareceria em produção.
+    if (body.lifecycle === 'deprecated' && (body.reason ?? '') === '') {
+      return Response.json({ code: 'INVALID_REQUEST', message: 'motivo obrigatório' }, { status: 400 });
+    }
+    const mutavel = alvo as { lifecycle?: string; deprecation_reason?: string | null; superseded_by?: string | null };
+    mutavel.lifecycle = body.lifecycle;
+    mutavel.deprecation_reason = body.lifecycle === 'deprecated' ? (body.reason ?? null) : null;
+    mutavel.superseded_by = body.superseded_by ?? null;
+    return Response.json({ skill_id: params.skillId, lifecycle: body.lifecycle });
   });
 
   registerRoute('GET', `${base}/{skillId}/instructions`, async (_req, params) => {

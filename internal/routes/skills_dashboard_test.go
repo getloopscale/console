@@ -488,3 +488,52 @@ func TestSkillsRoutes_promocaoNaoSombreiaALeituraDeCanais(t *testing.T) {
 		}
 	}
 }
+
+// M32 — a rota de ciclo de vida no BFF.
+func (s *stubSkillsPromoter) SetLifecycle(_ context.Context, skillID, lifecycle, reason, supersededBy string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seenArgs = append(s.seenArgs, "lifecycle:"+skillID+":"+lifecycle+":"+reason+":"+supersededBy)
+	return json.RawMessage(`{"skill_id":"` + skillID + `","lifecycle":"` + lifecycle + `"}`), nil
+}
+
+func TestSetLifecycle_deprecarSemMotivoNaoChegaAoUpstream(t *testing.T) {
+	// Depreciar EXIGE motivo, e a checagem é na fronteira para a mensagem sair escrita para quem
+	// está na tela. Ir para `active` não exige: não tira nada de ninguém.
+	promoter := &stubSkillsPromoter{}
+	h := NewSkillsPromotionHandler(promoter, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	r := chi.NewRouter()
+	MountSkillsPromotion(r, h, func(next http.Handler) http.Handler { return next })
+
+	pedir := func(corpo string) int {
+		req := httptest.NewRequest(http.MethodPut, "/v1/dashboard/skills/sk_1/lifecycle", strings.NewReader(corpo))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	if got := pedir(`{"lifecycle":"deprecated"}`); got != http.StatusBadRequest {
+		t.Fatalf("deprecar sem motivo deveria ser 400, veio %d", got)
+	}
+	if got := pedir(`{}`); got != http.StatusBadRequest {
+		t.Fatalf("sem lifecycle deveria ser 400, veio %d", got)
+	}
+	if len(promoter.seenArgs) != 0 {
+		t.Fatalf("não deveria ter chamado o upstream: %v", promoter.seenArgs)
+	}
+
+	// Controle: com motivo, passa — sem esta metade um gate que recusasse tudo passaria no teste.
+	if got := pedir(`{"lifecycle":"deprecated","reason":"substituída","superseded_by":"sk_2"}`); got != http.StatusOK {
+		t.Fatalf("deprecar com motivo deveria ser 200, veio %d", got)
+	}
+	if len(promoter.seenArgs) != 1 || promoter.seenArgs[0] != "lifecycle:sk_1:deprecated:substituída:sk_2" {
+		t.Fatalf("chamadas: %v", promoter.seenArgs)
+	}
+
+	// Voltar para `active` NÃO exige motivo.
+	if got := pedir(`{"lifecycle":"active"}`); got != http.StatusOK {
+		t.Fatalf("reativar sem motivo deveria ser 200, veio %d", got)
+	}
+}
