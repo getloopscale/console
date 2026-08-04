@@ -44,6 +44,16 @@ export interface LinhaDeUso {
 }
 
 const SEM_PRECO = 'o provider não reportou custo para este modelo';
+/**
+ * Nenhuma chamada de modelo compartilhou o trace da resolução — o limite declarado no ADR-1.
+ *
+ * MEDIDO NA ACEITAÇÃO, não previsto no plano: o `theo-lens` escreve `traces.cost_usd = 0`
+ * (não `null`) para um trace sem span de LLM. A soma devolvia `0`, e a tela renderizava
+ * "US$ 0.0000" — afirmando um custo MEDIDO onde não houve medição. O operador lê "barato";
+ * a verdade é "não correlacionei". É o mesmo defeito contra o qual a contagem já se protegia,
+ * um campo adiante.
+ */
+const SEM_CORRELACAO = 'nenhuma chamada de modelo compartilhou o trace desta resolução';
 
 /**
  * Projeta o agregado sobre a lista de revisões do prompt.
@@ -73,9 +83,15 @@ export function projetarUso(
       estado: 'com-uso' as const,
       chamadas: linha.resolutions,
       tokens: linha.totalTokens,
+      // `totalTokens === 0` é o discriminante: sem tokens observados no trace, nenhuma
+      // chamada de modelo foi correlacionada, e o `0` do lens não é uma medição de custo.
+      // Com tokens, um zero É medido — um modelo gratuito existe, e o teste-controle prova
+      // que a correção não descarta esse caso.
       ...(linha.costUsd === null
         ? { razaoDoCusto: SEM_PRECO }
-        : { custoUsd: linha.costUsd }),
+        : linha.totalTokens === 0
+          ? { razaoDoCusto: SEM_CORRELACAO }
+          : { custoUsd: linha.costUsd }),
     };
   });
 }

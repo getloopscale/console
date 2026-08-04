@@ -74,6 +74,37 @@ describe('projetarUso — os três estados', () => {
     expect(linhas[0]?.razaoDoCusto).toBeUndefined();
   });
 
+  it('custo ZERO sem tokens NAO e um custo medido — e o defeito que a aceitacao pegou', () => {
+    // Medido no app-dev: o `theo-lens` escreve `traces.cost_usd = 0` para um trace sem
+    // chamada de modelo. A soma devolve 0, e a tela renderizava "US$ 0.0000" — afirmando
+    // um custo medido onde nao houve medicao. O operador le "barato"; a verdade e "nenhuma
+    // chamada de modelo compartilhou o trace desta resolucao" (o limite do ADR-1).
+    const agregado: AgregadoDeUso = {
+      estado: 'lido',
+      rows: [{ revision: 14, resolutions: 1, totalTokens: 0, costUsd: 0 }],
+    };
+
+    const linhas = projetarUso(agregado, [14]);
+
+    expect(linhas[0]?.chamadas).toBe(1);
+    expect(linhas[0]?.custoUsd, 'zero sem tokens virou custo medido').toBeUndefined();
+    expect(linhas[0]?.razaoDoCusto).toMatch(/.+/);
+  });
+
+  it('custo zero COM tokens e um custo medido de verdade — o controle', () => {
+    // Um modelo gratuito existe. Sem este par, a correcao acima poderia descartar
+    // qualquer zero, inclusive um medido.
+    const agregado: AgregadoDeUso = {
+      estado: 'lido',
+      rows: [{ revision: 14, resolutions: 1, totalTokens: 350, costUsd: 0 }],
+    };
+
+    const linhas = projetarUso(agregado, [14]);
+
+    expect(linhas[0]?.custoUsd).toBe(0);
+    expect(linhas[0]?.razaoDoCusto).toBeUndefined();
+  });
+
   it('revisao que o agregado nao conhece nao vira linha fantasma', () => {
     // O agregado só devolve revisões que tiveram tráfego. A lista de revisões é a
     // fonte da ordem e da completude — o agregado só a enriquece.
