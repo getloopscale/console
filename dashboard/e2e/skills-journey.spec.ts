@@ -618,3 +618,48 @@ test.describe('M34 — descobribilidade diagnosticada no momento da autoria', ()
     await expect(page.getByText('stub/stub')).toBeVisible();
   });
 });
+
+test.describe('M31 — nenhuma tela morta: toda rota aninhada tem volta à origem', () => {
+  // MEDIDO no app-dev em 2026-08-04, e este é o defeito que ORIGINOU o milestone:
+  //
+  //   "A jornada termina num beco. Detalhe → 'Ver versões e canais' → 0 versões →
+  //    'publique pela CLI', sem CTA e sem comando copiável. O último passo aponta para
+  //    fora do produto."
+  //
+  // A tela de versões vazia tinha ZERO elementos interativos na `<main>` — nenhum botão,
+  // nenhum link, nenhuma saída. E o detalhe, embora tivesse ações, não voltava a lugar nenhum.
+  //
+  // O critério do M31 é explícito: "toda rota aninhada tem breadcrumb com volta à ORIGEM, não
+  // ao overview". O item de menu leva ao overview; quem chegou pela busca não veio de lá.
+
+  test('o detalhe volta ao acervo', async ({ page }) => {
+    await page.goto('/skills/sk_ordering');
+    const voltar = page.getByRole('link', { name: /voltar ao acervo/i });
+    await expect(voltar).toBeVisible();
+    await voltar.click();
+    await expect(page).toHaveURL(/\/skills$/);
+  });
+
+  test('versões volta para a SKILL, não para o acervo', async ({ page }) => {
+    // A distinção é o critério inteiro: voltar ao acervo daqui obrigaria a procurar de novo a
+    // skill que já se tinha em mãos.
+    await page.goto('/skills/sk_ordering/versions');
+    const voltar = page.getByRole('link', { name: /voltar para sk_ordering/i });
+    await expect(voltar).toBeVisible();
+    await voltar.click();
+    await expect(page).toHaveURL(/\/skills\/sk_ordering$/);
+  });
+
+  test('versões vazio oferece o comando COPIÁVEL, não a frase "use a CLI"', async ({ page }) => {
+    // `sk_local` tem uma versão; `sk_velha` não tem nenhuma no mock — é o estado vazio real.
+    await page.goto('/skills/sk_velha/versions');
+    await expect(page.getByText(/nenhuma versão publicada/i)).toBeVisible();
+
+    // O comando vem PREENCHIDO com o identificador. Nomear a ferramenta sem dizer o que digitar
+    // transfere o trabalho para quem já está travado.
+    await expect(page.getByText(/theo skills publish sk_velha/)).toBeVisible();
+
+    // E a saída continua existindo mesmo no estado vazio — que era exatamente onde faltava.
+    await expect(page.getByRole('link', { name: /voltar para sk_velha/i })).toBeVisible();
+  });
+});

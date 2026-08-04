@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { GitBranch } from 'lucide-react';
 import {
   Badge,
   Button,
   Card,
+  CodeBlock,
   DataTable,
   EmptyState,
   PageShell,
@@ -153,6 +154,20 @@ export function SkillVersionsPage() {
       title="Versões e canais"
       description={`As versões publicadas de ${skillId} e qual canal serve cada uma.`}
     >
+      {/* Volta à ORIGEM — a skill de onde se chegou aqui — e não ao overview. Quem abriu esta
+          tela veio do detalhe e quer voltar para lá; mandá-lo ao acervo o obriga a procurar de
+          novo a skill que já tinha em mãos.
+
+          Medido no app-dev em 2026-08-04: esta rota não tinha saída alguma. Somada ao estado
+          vazio, que mandava usar a CLI, ela era o "beco" que a auditoria de origem do M31
+          descreveu — o último passo da jornada apontando para fora do produto. */}
+      <Link
+        to={`/skills/${encodeURIComponent(skillId)}`}
+        className="text-sm text-muted-foreground hover:text-foreground"
+      >
+        ← Voltar para {skillId}
+      </Link>
+
       {failed ? (
         <Alert
           intent="destructive"
@@ -192,7 +207,28 @@ export function SkillVersionsPage() {
               description={
                 failed
                   ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que está publicado.'
-                  : 'Publique uma versão pela CLI para que ela possa ser promovida a um canal.'
+                  : 'A skill existe no registro, mas nenhuma versão foi publicada — então não há o que promover a um canal. Publicar uma versão nova de uma skill existente é feito pela CLI; o comando abaixo já está preenchido com este identificador.'
+              }
+              // `action`, não `children`: é o slot que o componente de fato renderiza
+              // (`@usetheo/ui` — `EmptyStateProps.action?: ReactNode`). Passar children faz o
+              // conteúdo sumir sem erro algum, e foi o que aconteceu na primeira tentativa.
+              //
+              // O comando vem COPIÁVEL e já preenchido, em vez da frase "publique pela CLI".
+              // A auditoria que originou o M31 registrou os dois problemas: sem CTA e **sem
+              // comando copiável**. Um estado vazio que nomeia a ferramenta sem dizer o que
+              // digitar transfere o trabalho para quem já está travado.
+              //
+              // Não é um CTA in-app porque a ação não existe in-app: a tela de autoria publica
+              // uma skill NOVA, e esta já existe. Um botão que fingisse levar a algum lugar
+              // seria pior que o comando — o honesto é dar o comando exato e a saída.
+              action={
+                failed ? undefined : (
+                  <CodeBlock
+                    caption="Publicar a primeira versão desta skill"
+                    code={`theo skills publish ${skillId} --file SKILL.md`}
+                    terminal
+                  />
+                )
               }
             />
           }
