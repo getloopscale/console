@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.81.0] - 2026-08-04
+
 ### Added
 - **A tela passa a exigir o porquê da revisão, e a mostrar a config com que ela foi testada (M17).** Criar revisão pelo dashboard agora pede uma descrição — obrigatória **aqui** e opcional na API, porque a obrigação é sobre quem **decide**, e um script que cria revisões não pode passar a precisar de texto. Revisões anteriores ao milestone mostram *"sem descrição"*: nunca uma descrição inventada retroativamente, pela mesma razão que o `createdBy` do M7 é `null` no passado. No playground, **a afinação com que se roda é a que fica gravada ao salvar** — mexer na temperatura depois de rodar não vira uma afinação "testada" que ninguém testou. Temperatura vazia significa *"não afinei"*, e nada é gravado, em vez de um default que ninguém escolheu (#m17)
 
