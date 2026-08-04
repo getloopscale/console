@@ -166,6 +166,9 @@ const SkillVersionsPage = lazy(() =>
 const SkillsDiscoveryPage = lazy(() =>
   import('@/pages/skills/discovery').then((m) => ({ default: m.SkillsDiscoveryPage })),
 );
+const SkillAuthoringPage = lazy(() =>
+  import('@/pages/skills/authoring').then((m) => ({ default: m.SkillAuthoringPage })),
+);
 const BundlesPage = lazy(() => import('@/pages/skills/bundles').then((m) => ({ default: m.BundlesPage })));
 const BundleDetailPage = lazy(() =>
   import('@/pages/skills/bundle-detail').then((m) => ({ default: m.BundleDetailPage })),
@@ -531,6 +534,7 @@ export default function App() {
                     <Route path="/trust/guardrails/new" element={<Boundaried path="/trust/guardrails/new"><TrustGuardrailNewPage /></Boundaried>} />
                     <Route path="/trust/enforcement" element={<Boundaried path="/trust/enforcement"><TrustEnforcementPage /></Boundaried>} />
                     <Route path="/skills" element={<Boundaried path="/skills"><SkillsOverviewPage /></Boundaried>} />
+                    <Route path="/skills/nova" element={<Boundaried path="/skills/nova"><SkillAuthoringPage /></Boundaried>} />
                     <Route path="/skills/descoberta" element={<Boundaried path="/skills/descoberta"><SkillsDiscoveryPage /></Boundaried>} />
                     <Route path="/skills/:skillId" element={<Boundaried path="/skills/:skillId"><SkillDetailPage /></Boundaried>} />
                     <Route path="/skills/:skillId/versions" element={<Boundaried path="/skills/:skillId/versions"><SkillVersionsPage /></Boundaried>} />

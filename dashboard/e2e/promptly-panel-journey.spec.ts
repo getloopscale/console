@@ -45,8 +45,13 @@ test.describe('M13 — a jornada do painel de prompts', () => {
     await expect(page.getByRole('heading', { name: /catálogo de prompts/i, level: 1 })).toBeVisible();
     await expect(page.getByText('saudacao')).toBeVisible();
 
-    // --- 3. a busca filtra, e diz que o escopo é o carregado ---
-    await expect(page.getByText(/já carregados nesta página/i)).toBeVisible();
+    // --- 3. a busca filtra NO SERVIDOR, e a tela não se desculpa mais (M16) ---
+    //
+    // Até o M16 esta linha exigia a frase "o filtro roda sobre os prompts já carregados nesta
+    // página". Ela era verdadeira, e por isso estava na tela. Deixou de ser: o termo vai ao
+    // servidor. Manter a exigência seria travar uma desculpa por uma limitação que não existe
+    // mais — pior que não ter guarda nenhuma.
+    await expect(page.getByText(/carregad/i)).toHaveCount(0);
     await page.getByRole('searchbox').fill('saud');
     await expect(page.getByText('saudacao')).toBeVisible();
     await expect(page.getByText('despedida')).toHaveCount(0);

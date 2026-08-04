@@ -241,3 +241,64 @@ export function deleteSkill(skillId: string): Promise<null> {
     { throwOnError: true },
   );
 }
+
+// ---- M31 — AUTORIA ---------------------------------------------------------------------------
+
+/**
+ * Valida um SKILL.md **sem publicar**.
+ *
+ * O M30 entregou `POST /v1/skills:validate` e ela ficou **sem consumidor**: o erro traz `field` e
+ * `line`, e nada disso alcançava um autor porque não havia tela de autoria. É o que permite
+ * escrever sem publicar às cegas.
+ */
+export function validateSkill<T>(skillMd: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/:validate`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ skill_md: skillMd }) },
+    { throwOnError: true },
+  );
+}
+
+/**
+ * Publica uma skill. Responde **202 — aceito, não pronto**.
+ *
+ * A ingestão gera embeddings, e amarrar a tela ao tempo de um provedor externo numa requisição
+ * HTTP faria o autor esperar sem saber por quê. Quem chama precisa acompanhar a operação.
+ */
+export function createSkill<T>(skillId: string, skillMd: string): Promise<T | null> {
+  return cloudFetch<T>(
+    BASE,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skill_id: skillId, skill_md: skillMd }),
+    },
+    { throwOnError: true },
+  );
+}
+
+/** O estado de uma operação de ingestão — o que permite ACOMPANHAR em vez de fingir que terminou. */
+export function fetchOperation<T>(operationId: string): Promise<T | null> {
+  return cloudFetch<T>(`/v1/dashboard/operations/${encodeURIComponent(operationId)}`, {}, { throwOnError: true });
+}
+
+/**
+ * O diagnóstico posicionado que `:validate` devolve — `field` e `line` quando existem.
+ *
+ * Sem isto o autor lê "inválido" e procura o problema no texto inteiro. Com isto, ele vai à linha.
+ */
+export function validationDiagnostic(err: unknown): { message: string; field?: string; line?: number } {
+  if (!(err instanceof ApiError)) return { message: 'Não foi possível validar.' };
+  const body = err.body as { message?: unknown; error?: unknown; field?: unknown; line?: unknown } | undefined;
+  const message =
+    typeof body?.message === 'string' && body.message !== ''
+      ? body.message
+      : typeof body?.error === 'string'
+        ? body.error
+        : 'Conteúdo inválido.';
+  return {
+    message,
+    ...(typeof body?.field === 'string' ? { field: body.field } : {}),
+    ...(typeof body?.line === 'number' ? { line: body.line } : {}),
+  };
+}

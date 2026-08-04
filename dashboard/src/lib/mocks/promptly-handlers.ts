@@ -9,7 +9,9 @@ import { registerRoute } from './server';
  * não refletir o que o operador acabou de fazer.
  */
 const promptlyDb: {
-  catalog: { name: string; latestVersion: number; labels: { label: string; version: number }[]; updatedAt: string }[];
+  // M16 — `tags` no contrato do mock, como o serviço as devolve. Sem elas o e2e não poderia
+  // exercitar nem a coluna nem o filtro por tag.
+  catalog: { name: string; latestVersion: number; labels: { label: string; version: number }[]; tags: string[]; updatedAt: string }[];
   revisions: Record<string, { version: number; content: string; createdAt: string }[]>;
   policies: Record<string, { datasetId: string; minScore: number }>;
   // M15 — o uso observado, por prompt e por revisão.
@@ -19,6 +21,7 @@ const promptlyDb: {
     {
       name: 'saudacao',
       latestVersion: 3,
+      tags: ['suporte', 'onboarding'],
       // DOIS labels de propósito: `prod` sem política (promoção livre) e `staging` com uma que
       // recusa. Sem o par, a jornada provaria só o caminho feliz — e a mensagem tipada da recusa
       // poderia estar sendo colapsada em "erro" sem nada acusar.
@@ -28,12 +31,13 @@ const promptlyDb: {
       ],
       updatedAt: '2026-08-01T10:00:00Z',
     },
-    { name: 'despedida', latestVersion: 1, labels: [], updatedAt: '2026-07-30T09:00:00Z' },
+    { name: 'despedida', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-07-30T09:00:00Z' },
     // 30 revisões: o único cenário em que o defeito #364 é observável. Com 3 revisões a página
     // contém tudo e a janela errada passa despercebida — foi assim que ele escapou.
     {
       name: 'longo',
       latestVersion: 30,
+      tags: [],
       labels: [{ label: 'prod', version: 12 }],
       updatedAt: '2026-08-02T10:00:00Z',
     },
@@ -127,13 +131,33 @@ function registerPromptlyRoutes(base: string) {
     const bruto = url.searchParams.get('limit');
     const limit = bruto !== null && Number.isInteger(Number(bruto)) && Number(bruto) > 0 ? Number(bruto) : 100;
 
-    const pagina = promptlyDb.catalog.slice(0, limit);
-    const temMais = promptlyDb.catalog.length > limit;
+    // M16 — o mock FILTRA, como o serviço. Um mock que ignora `search`/`tag`/`folder` devolveria
+    // a lista inteira para uma busca, e o e2e ficaria verde sobre uma tela que exibe linhas que
+    // não casam com o termo digitado — exatamente o modo de falha que o cabeçalho deste arquivo
+    // já alerta duas vezes (`content` do catálogo, `variables` do prompt).
+    const busca = (url.searchParams.get('search') ?? '').toLowerCase();
+    const tag = url.searchParams.get('tag') ?? '';
+    const pasta = url.searchParams.get('folder') ?? '';
+    const casados = promptlyDb.catalog.filter((p) => {
+      if (busca !== '' && !p.name.toLowerCase().includes(busca)) return false;
+      if (pasta !== '' && !p.name.startsWith(`${pasta}/`)) return false;
+      if (tag !== '' && !(p.tags ?? []).includes(tag)) return false;
+      return true;
+    });
+
+    const pagina = casados.slice(0, limit);
+    const temMais = casados.length > limit;
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (temMais && pagina.length > 0) {
       const cursor = encodeURIComponent(pagina[pagina.length - 1]!.name);
-      headers.Link = `<${base}/prompts?after=${cursor}&limit=${String(limit)}>; rel="next"`;
+      // O filtro viaja no Link, como no serviço: sem isso a página 2 volta ao catálogo inteiro.
+      const extras = [
+        busca !== '' ? `&search=${encodeURIComponent(busca)}` : '',
+        tag !== '' ? `&tag=${encodeURIComponent(tag)}` : '',
+        pasta !== '' ? `&folder=${encodeURIComponent(pasta)}` : '',
+      ].join('');
+      headers.Link = `<${base}/prompts?after=${cursor}&limit=${String(limit)}${extras}>; rel="next"`;
     }
     return new Response(JSON.stringify(pagina), { status: 200, headers });
   });
@@ -244,7 +268,7 @@ function registerPromptlyRoutes(base: string) {
     lista.push({ version, content: conteudo, createdAt: '2026-08-03T12:00:00Z' });
     const entrada = promptlyDb.catalog.find((c) => c.name === nome);
     if (entrada) entrada.latestVersion = version;
-    else promptlyDb.catalog.push({ name: nome, latestVersion: version, labels: [], updatedAt: '2026-08-03T12:00:00Z' });
+    else promptlyDb.catalog.push({ name: nome, latestVersion: version, labels: [], tags: [], updatedAt: '2026-08-03T12:00:00Z' });
     return Response.json({ id: `rev-${version}`, name: nome, content: conteudo, version, createdAt: '2026-08-03T12:00:00Z', variables: [] }, { status: 201 });
   });
 
