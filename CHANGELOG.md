@@ -2,6 +2,11 @@
 
 ### Fixed
 
+- **A tela de descoberta lia campos que a API não devolve.** Encontrado exercitando o `app-dev`, não por teste: o handler responde `results` (não `skills`) e `matched` como `[{leg, rank}]` (não `string[]`). A projeção assumiu a forma do `hybrid-retriever.ts` — o módulo interno — em vez da resposta HTTP, e a tela mostrava **"0 resultados"** com o serviço devolvendo dois.
+
+  Os testes passavam porque a fixture e o mock **repetiam a mesma suposição**. Um mock que confirma a suposição de quem o escreveu não testa integração alguma — é a lição mais cara desta sessão, e a terceira vez que ela aparece (#m31)
+
+
 - **A tela de sessões transbordava para fora da página.** Com onze colunas, a tabela media **1838 px** dentro de um contêiner de **1486 px** — e vazava por cima do resto da página em vez de rolar, desconfigurando a tela. A causa não estava nesta tela: a raiz do `DataTable` do design system era `w-full` e nada mais, com `overflow-x` em `visible`, então **qualquer** consumidor com colunas demais tinha o mesmo problema. Corrigido no componente (`@usetheo/ui` 0.35.1), não aqui — a variante virtualizada já rolava, e era a não-virtualizada que tinha ficado para trás.
 
 ### Changed
