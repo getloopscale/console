@@ -1,0 +1,357 @@
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { KeyRound, TrendingUp } from 'lucide-react';
+import {
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  EmptyState,
+  Input,
+  PageShell,
+  type DataTableColumn,
+} from '@usetheo/ui';
+
+import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
+import { Alert } from '@/components/ui/alert-guard';
+import { usePageMeta } from '@/hooks/use-page-meta';
+import { useRequireAuth } from '@/hooks/use-auth';
+import {
+  adoptionRows,
+  tokenRows,
+  type AdoptionPayload,
+  type AdoptionRow,
+  type TokenRow,
+  type TokensPayload,
+} from '@/components/skills/distribution';
+import {
+  fetchBundleAdoption,
+  fetchBundleTokens,
+  mintBundleToken,
+  promotionRefusal,
+  revokeBundleToken,
+} from '@/components/skills/skills-api';
+
+/**
+ * M35 — `/bundles/:bundleId`: os tokens delegados de um pacote e a adoção dele.
+ *
+ * **A listagem de tokens é o milestone inteiro.** Até ela existir, o registro sabia emitir e
+ * revogar — e não listar. O `DELETE` exigia um identificador que a tela não tinha como descobrir,
+ * então um token emitido pela CLI ou por outro operador era invisível e portanto irrevogável.
+ *
+ * O valor do token aparece UMA vez, na criação. Depois só o identificador — e a tela precisa
+ * dizer isso na hora, senão o operador fecha a caixa e perde a credencial.
+ */
+
+const JANELA_DIAS = 30;
+
+export function BundleDetailPage() {
+  const { bundleId = '' } = useParams<{ bundleId: string }>();
+  const { setPageTitle } = usePageMeta();
+  useEffect(() => setPageTitle('Pacote'), [setPageTitle]);
+  useRequireAuth();
+
+  const queryClient = useQueryClient();
+  const tokensKey = ['cloud', '/v1/dashboard/bundles', bundleId, 'tokens'] as const;
+
+  const [ttlDias, setTtlDias] = useState('30');
+  const [rotulo, setRotulo] = useState('');
+  const [segredo, setSegredo] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [aRevogar, setARevogar] = useState<TokenRow | null>(null);
+
+  const tokensQuery = useQuery({
+    queryKey: tokensKey,
+    queryFn: () => fetchBundleTokens<TokensPayload>(bundleId),
+    enabled: bundleId !== '',
+  });
+
+  const adocaoQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/bundles', bundleId, 'adoption', JANELA_DIAS] as const,
+    queryFn: () => fetchBundleAdoption<AdoptionPayload>(bundleId, JANELA_DIAS),
+    enabled: bundleId !== '',
+  });
+
+  const emitir = useMutation({
+    mutationFn: (v: { ttl: number; label: string }) => mintBundleToken<{ token?: string }>(bundleId, v.ttl, v.label),
+    onSuccess: (data) => {
+      setErro(null);
+      // O valor vive AQUI e só aqui. Guardá-lo em estado é o que permite mostrá-lo uma vez; a
+      // listagem, por desenho do serviço, nunca o devolve de novo.
+      setSegredo(typeof data?.token === 'string' ? data.token : null);
+      setRotulo('');
+      void queryClient.invalidateQueries({ queryKey: tokensKey });
+    },
+    onError: (err) => setErro(promotionRefusal(err, 'Não foi possível emitir o token.')),
+  });
+
+  const revogar = useMutation({
+    mutationFn: (tokenId: string) => revokeBundleToken(bundleId, tokenId),
+    onSuccess: () => {
+      setErro(null);
+      setARevogar(null);
+      void queryClient.invalidateQueries({ queryKey: tokensKey });
+    },
+    onError: (err) => {
+      setARevogar(null);
+      setErro(promotionRefusal(err, 'Não foi possível revogar o token.'));
+    },
+  });
+
+  // `new Date()` avaliado no render: o estado de um token muda com o tempo, e congelá-lo num
+  // `useMemo` sem dependência mostraria "ativo" para algo que expirou enquanto a aba ficou aberta.
+  const tokens = tokenRows(tokensQuery.data, new Date());
+  const adocao = adoptionRows(adocaoQuery.data);
+  const totalInstalacoes = adocaoQuery.data?.total_installs;
+
+  const tokensFalhou = Boolean(tokensQuery.error);
+  const adocaoFalhou = Boolean(adocaoQuery.error);
+
+  const colunasToken: DataTableColumn<TokenRow>[] = [
+    {
+      key: 'labelText',
+      label: 'Rótulo',
+      render: (row) => <span className="font-medium">{row.labelText}</span>,
+    },
+    {
+      key: 'tokenId',
+      label: 'Identificador',
+      // O identificador É o que torna a revogação possível — e é a única parte do token que a
+      // listagem devolve. O valor nunca reaparece.
+      render: (row) => <span className="font-mono text-xs text-muted-foreground">{row.tokenId}</span>,
+    },
+    {
+      key: 'status',
+      label: 'Situação',
+      // Texto, nunca só cor (WCAG 1.4.1): as três situações levam a ações diferentes.
+      render: (row) => {
+        const rotulos: Record<TokenRow['status'], { texto: string; variante: 'success' | 'warning' | 'outline' }> = {
+          active: { texto: 'ativo', variante: 'success' },
+          expired: { texto: 'expirado', variante: 'warning' },
+          revoked: { texto: 'revogado', variante: 'outline' },
+          unknown: { texto: 'situação desconhecida', variante: 'warning' },
+        };
+        const { texto, variante } = rotulos[row.status];
+        return <Badge variant={variante}>{texto}</Badge>;
+      },
+    },
+    {
+      key: 'expiresAt',
+      label: 'Expira em',
+      render: (row) => {
+        const t = Date.parse(row.expiresAt);
+        return (
+          <span className="text-muted-foreground">
+            {Number.isNaN(t) ? '—' : new Date(t).toLocaleDateString('pt-BR')}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'acao',
+      label: '',
+      render: (row) =>
+        // Um token já revogado não oferece o botão: clicar nele não mudaria nada, e um controle
+        // que não faz nada ensina o operador a desconfiar da tela.
+        row.status === 'revoked' ? (
+          <span className="text-xs text-muted-foreground">revogado</span>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={() => setARevogar(row)}>
+            Revogar
+          </Button>
+        ),
+    },
+  ];
+
+  const colunasAdocao: DataTableColumn<AdoptionRow>[] = [
+    { key: 'skillId', label: 'Skill', render: (row) => <span className="font-mono text-xs">{row.skillId}</span> },
+    { key: 'version', label: 'Versão', render: (row) => <span className="font-mono text-xs">{row.version}</span> },
+    { key: 'installs', label: 'Instalações', render: (row) => <span>{row.installs}</span> },
+    {
+      key: 'share',
+      label: 'Participação',
+      // `null` é exibido como "—", não como 0%: com denominador zero, "0%" afirmaria "ninguém
+      // instalou esta skill" quando o verdadeiro é "não dá para calcular proporção".
+      render: (row) => (
+        <span className="text-muted-foreground">
+          {row.share === null ? '—' : `${(row.share * 100).toFixed(1)}%`}
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <PageShell
+      title="Pacote"
+      description={bundleId}
+    >
+      {/* Caminho de volta explícito. O item de menu leva ao overview da capacidade, não à lista
+          de pacotes — sem este link o operador que entrou pelo detalhe não tem saída óbvia. */}
+      <Link to="/bundles" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+        ← Todos os pacotes
+      </Link>
+
+      {erro !== null ? <Alert intent="destructive" title="A operação falhou" description={erro} /> : null}
+
+      {segredo !== null ? (
+        <Alert
+          intent="warning"
+          title="Guarde este token agora — ele não aparece de novo"
+          description={
+            <span className="font-mono text-xs break-all">{segredo}</span>
+          }
+        />
+      ) : null}
+
+      {tokensFalhou ? (
+        <Alert
+          intent="destructive"
+          title="Não foi possível carregar os tokens"
+          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há tokens emitidos. Não revogue nada com base nesta tela até ela voltar a carregar."
+        />
+      ) : null}
+
+      <Card>
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Novo token</h2>
+          </Card.Title>
+          <Card.Description>
+            Um token delegado dá acesso a este pacote sem expor as credenciais do workspace. O
+            valor aparece uma única vez, na criação.
+          </Card.Description>
+        </Card.Header>
+        <form
+          className="flex flex-wrap items-end gap-2 px-6 pb-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const dias = Number(ttlDias);
+            if (!Number.isFinite(dias) || dias <= 0) return;
+            emitir.mutate({ ttl: dias, label: rotulo.trim() });
+          }}
+        >
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Validade (dias)</span>
+            <Input
+              aria-label="Validade em dias"
+              type="number"
+              min={1}
+              value={ttlDias}
+              onChange={(e) => setTtlDias(e.target.value)}
+              className="w-32"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Rótulo (opcional)</span>
+            <Input
+              aria-label="Rótulo do token"
+              placeholder="ex.: pipeline de CI"
+              value={rotulo}
+              onChange={(e) => setRotulo(e.target.value)}
+            />
+          </label>
+          <Button type="submit" disabled={emitir.isPending || Number(ttlDias) <= 0}>
+            {emitir.isPending ? 'Emitindo…' : 'Emitir token'}
+          </Button>
+        </form>
+      </Card>
+
+      <Card>
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Tokens emitidos</h2>
+          </Card.Title>
+          <Card.Description>
+            Revogados continuam na lista, com a marca — esconder impediria auditar o que já foi
+            emitido.
+          </Card.Description>
+        </Card.Header>
+        <DataTable
+          columns={colunasToken}
+          data={tokens}
+          rowKey={(row) => row.tokenId}
+          loading={tokensQuery.isLoading}
+          emptyState={
+            <EmptyState
+              icon={KeyRound}
+              title={tokensFalhou ? 'Sem dados — a leitura falhou' : 'Nenhum token emitido'}
+              description={
+                tokensFalhou
+                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber quem tem acesso a este pacote.'
+                  : 'Emita um token acima para dar acesso a este pacote sem expor as credenciais do workspace.'
+              }
+            />
+          }
+        />
+      </Card>
+
+      <Card>
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Adoção nos últimos {JANELA_DIAS} dias</h2>
+          </Card.Title>
+          {/* O rótulo diz a granularidade REAL, medida em `adoption-store.ts`: skill + versão,
+              escopada a este pacote. Chamar de "por pacote" faria a tela mentir — e "instalações
+              totais da skill X" não é computável hoje, porque não há agregação entre pacotes. */}
+          <Card.Description>
+            {typeof totalInstalacoes === 'number'
+              ? `${totalInstalacoes} instalações na janela. A contagem é por skill e versão dentro deste pacote — a mesma skill em outro pacote conta separado.`
+              : 'A contagem é por skill e versão dentro deste pacote — a mesma skill em outro pacote conta separado.'}
+          </Card.Description>
+        </Card.Header>
+        {adocaoFalhou ? (
+          <div className="px-6 pb-4">
+            <Alert
+              intent="destructive"
+              title="Não foi possível carregar a adoção"
+              description="A tabela abaixo está vazia porque a leitura falhou — isto NÃO significa que ninguém instalou."
+            />
+          </div>
+        ) : null}
+        <DataTable
+          columns={colunasAdocao}
+          data={adocao}
+          rowKey={(row) => `${row.skillId}@${row.version}`}
+          loading={adocaoQuery.isLoading}
+          emptyState={
+            <EmptyState
+              icon={TrendingUp}
+              title={adocaoFalhou ? 'Sem dados — a leitura falhou' : 'Nenhuma instalação na janela'}
+              description={
+                adocaoFalhou
+                  ? 'Tente novamente em instantes.'
+                  : `Ninguém instalou skills deste pacote nos últimos ${JANELA_DIAS} dias.`
+              }
+            />
+          }
+        />
+      </Card>
+
+      <ConfirmDialog
+        open={aRevogar !== null}
+        onOpenChange={(open) => {
+          if (!open) setARevogar(null);
+        }}
+        title={`Revogar o token "${aRevogar?.labelText ?? ''}"?`}
+        description={
+          <>
+            Quem estiver usando este token perde o acesso a este pacote imediatamente — pipelines e
+            agentes que dependem dele passam a falhar na próxima instalação. O token continua
+            listado, com a marca de revogado, para auditoria.{' '}
+            <strong>Esta ação não pode ser desfeita.</strong>
+          </>
+        }
+        confirmLabel="Revogar token"
+        intent="destructive"
+        // A frase digitada é o identificador: é o que está na tela e o que distingue este token
+        // de outro com o mesmo rótulo.
+        confirmationPhrase={aRevogar?.tokenId}
+        loading={revogar.isPending}
+        onConfirm={() => {
+          if (aRevogar !== null) revogar.mutate(aRevogar.tokenId);
+        }}
+      />
+    </PageShell>
+  );
+}
