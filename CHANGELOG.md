@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.82.0] - 2026-08-04
+
 ### Added
 
 - **A distribuição de skills ganha tela (M35).** O M20 entregou pacotes e tokens delegados, o M21 entregou telemetria de adoção, e **os dois fecharam com zero telas** — a capacidade existia só por `curl`. Agora `Skills → Distribuição` lista os pacotes do workspace e, no detalhe de cada um, os tokens e a adoção da janela.
