@@ -3,7 +3,9 @@
 
 // skills-cross-repo-sdk-symmetry (M3) — route-gating proof for the SDK-surface
 // cross-repo flat skills list. cmd/main.go mounts
-//   r.With(auth.RequireScope(db,"memory:read")).Get("/skills/all", memoryHandler.ListSkillsAll)
+//
+//	r.With(auth.RequireScope(db,"memory:read")).Get("/skills/all", memoryHandler.ListSkillsAll)
+//
 // The handler-level tests (memory_handlers_test.go) deliberately bypass the
 // middleware ("RequireScope is plugged in main.go"), so the SDK acceptance
 // criterion "403 without memory:read / 200 with it" was unproven for THIS
@@ -29,6 +31,7 @@ import (
 // passes the BARE authed subject (ignoring any ?subject) and returns the
 // cross-repo rows with per-row repoId.
 func TestMemorySkillsAllRoute_Ok_WithMemoryRead(t *testing.T) {
+	keyIDSkills := chaveDeTeste("skills-all")
 	db, mock := sqlmockSetup(t)
 	h, fake := newMemoryHandler(t)
 	fake.skillsAllResp = &themory.SkillsAllResult{
@@ -41,9 +44,9 @@ func TestMemorySkillsAllRoute_Ok_WithMemoryRead(t *testing.T) {
 	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM theo_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
-			AddRow("apk-skills-all-1", "sub-xyz", "tenant-A", nil, []byte(`["memory:read"]`), nil))
-	mock.ExpectExec("UPDATE theo_api_keys SET last_used_at").
-		WithArgs("apk-skills-all-1").
+			AddRow(keyIDSkills, "sub-xyz", "tenant-A", nil, []byte(`["memory:read"]`), nil))
+	mock.ExpectExec("UPDATE theo_api_keys").
+		WithArgs(keyIDSkills, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	req := httptest.NewRequest("GET", "/v1/memory/skills/all?subject=attacker-supplied&limit=25", nil)
@@ -63,7 +66,11 @@ func TestMemorySkillsAllRoute_Ok_WithMemoryRead(t *testing.T) {
 
 	// Allow the async fire-and-forget last_used_at update to land before asserting.
 	time.Sleep(50 * time.Millisecond)
-	_ = mock.ExpectationsWereMet()
+	// M149/#405: o veredito do mock era DESCARTADO aqui. Com ele descartado, remover o registro de
+	// uso de `lookupAPIKey` não fazia este teste falhar — a expectativa do UPDATE ficava decorativa.
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectativas do mock não cumpridas: %v", err)
+	}
 }
 
 // 403 path: a key WITHOUT memory:read (only memory:write) is rejected by the

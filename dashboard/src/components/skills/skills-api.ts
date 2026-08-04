@@ -74,3 +74,72 @@ export function promotionRefusal(err: unknown, fallback: string): string {
   if (err.status === 403) return 'Sua credencial não tem permissão para promover canais neste workspace.';
   return err.status === 0 ? 'Não foi possível falar com o servidor.' : fallback;
 }
+
+// ---- M35 — a superfície de DISTRIBUIÇÃO ------------------------------------------------------
+//
+// Prefixo próprio: o BFF expõe bundles como recurso IRMÃO de skills (`/v1/dashboard/bundles`), e
+// não filho. Pendurá-los sob `/skills/` faria o roteador do backend tratar `bundles` como um
+// identificador de skill — a mesma classe de defeito que derrubou a leitura de canais em produção.
+const BUNDLES = '/v1/dashboard/bundles';
+
+/** Os bundles do inquilino. */
+export function fetchBundles<T>(): Promise<T | null> {
+  return cloudFetch<T>(BUNDLES, {}, { throwOnError: true });
+}
+
+export function createBundle<T>(name: string): Promise<T | null> {
+  return cloudFetch<T>(
+    BUNDLES,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) },
+    { throwOnError: true },
+  );
+}
+
+/**
+ * Os tokens delegados de um bundle.
+ *
+ * É a leitura que torna a revogação possível: o `DELETE` exige um identificador que, sem esta
+ * lista, o operador não tem como descobrir — um token emitido pela CLI ou por outro operador seria
+ * invisível e portanto irrevogável.
+ *
+ * A resposta traz identidade e ciclo de vida; **nunca o valor nem o hash**.
+ */
+export function fetchBundleTokens<T>(bundleId: string): Promise<T | null> {
+  return cloudFetch<T>(`${BUNDLES}/${encodeURIComponent(bundleId)}/tokens`, {}, { throwOnError: true });
+}
+
+/**
+ * Emite um token delegado. A resposta carrega o valor em claro **uma única vez**.
+ *
+ * Quem chama precisa mostrá-lo ao operador na hora e dizer que não reaparece — a listagem devolve
+ * só o identificador, por desenho.
+ */
+export function mintBundleToken<T>(bundleId: string, ttlDays: number, label: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BUNDLES}/${encodeURIComponent(bundleId)}/tokens`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ttl_days: ttlDays, ...(label !== '' ? { label } : {}) }),
+    },
+    { throwOnError: true },
+  );
+}
+
+/** Revoga um token. Ele CONTINUA listado, com a marca — esconder impediria auditar o que foi emitido. */
+export function revokeBundleToken<T>(bundleId: string, tokenId: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BUNDLES}/${encodeURIComponent(bundleId)}/tokens/${encodeURIComponent(tokenId)}`,
+    { method: 'DELETE' },
+    { throwOnError: true },
+  );
+}
+
+/** A adoção do bundle na janela, com o denominador (`total_installs`) que a proporção exige. */
+export function fetchBundleAdoption<T>(bundleId: string, days: number): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BUNDLES}/${encodeURIComponent(bundleId)}/adoption?days=${encodeURIComponent(String(days))}`,
+    {},
+    { throwOnError: true },
+  );
+}

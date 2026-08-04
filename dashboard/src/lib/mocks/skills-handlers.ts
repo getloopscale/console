@@ -141,3 +141,167 @@ function registerSkillsRoutes(base: string) {
     );
   });
 }
+
+/**
+ * M35 — a superfície de DISTRIBUIÇÃO (bundles, tokens delegados, adoção).
+ *
+ * As formas foram medidas em `packages/api/src/server/handlers/{publishing,distribution}.ts` e no
+ * probe de aceitação da v0.14.0 — não inventadas para o mock passar.
+ *
+ * O acervo é desconfortável de propósito, e cada linha existe por um motivo:
+ *
+ *  - `dtk_expirado` já venceu e NÃO está revogado — a tela precisa distinguir os dois estados,
+ *    porque levam a ações diferentes (renovar × investigar quem cortou).
+ *  - `dtk_revogado` está revogado E dentro do prazo: se a precedência estiver invertida, ele
+ *    aparece como ativo e a tela oferece revogar de novo algo já cortado.
+ *  - `dtk_sem_rotulo` tem `label: null` — a célula precisa dizer "sem rótulo", não ficar em branco.
+ *  - A adoção do `bdl_vazio` tem `total_installs: 0`, que é o caso em que a proporção honesta é
+ *    "—" e não "0%".
+ *  - A adoção do `bdl_ativo` tem soma das linhas MENOR que o total: é o recorte que prova por que
+ *    o denominador não pode ser a soma do que veio.
+ */
+const distribuicaoDb = {
+  bundles: [
+    { bundle_id: 'bdl_ativo', name: 'Skills de atendimento', create_time: '2026-06-01T09:00:00Z' },
+    { bundle_id: 'bdl_vazio', name: 'Pacote recém-criado', create_time: '2026-08-01T09:00:00Z' },
+  ],
+  tokens: {
+    bdl_ativo: [
+      {
+        token_id: 'dtk_ativo',
+        label: 'pipeline de CI',
+        quota_per_window: 600,
+        expires_at: '2099-01-01T00:00:00.000Z',
+        revoked_at: null,
+        create_time: '2026-07-01T09:00:00.000Z',
+      },
+      {
+        token_id: 'dtk_expirado',
+        label: 'piloto de junho',
+        quota_per_window: null,
+        expires_at: '2026-06-30T00:00:00.000Z',
+        revoked_at: null,
+        create_time: '2026-06-01T09:00:00.000Z',
+      },
+      {
+        token_id: 'dtk_revogado',
+        label: 'parceiro desligado',
+        quota_per_window: null,
+        expires_at: '2099-01-01T00:00:00.000Z',
+        revoked_at: '2026-07-20T12:00:00.000Z',
+        create_time: '2026-05-01T09:00:00.000Z',
+      },
+      {
+        token_id: 'dtk_sem_rotulo',
+        label: null,
+        quota_per_window: null,
+        expires_at: '2099-01-01T00:00:00.000Z',
+        revoked_at: null,
+        create_time: '2026-07-25T09:00:00.000Z',
+      },
+    ] as {
+      token_id: string;
+      label: string | null;
+      quota_per_window: number | null;
+      expires_at: string;
+      revoked_at: string | null;
+      create_time: string;
+    }[],
+    bdl_vazio: [] as {
+      token_id: string;
+      label: string | null;
+      quota_per_window: number | null;
+      expires_at: string;
+      revoked_at: string | null;
+      create_time: string;
+    }[],
+  } as Record<
+    string,
+    {
+      token_id: string;
+      label: string | null;
+      quota_per_window: number | null;
+      expires_at: string;
+      revoked_at: string | null;
+      create_time: string;
+    }[]
+  >,
+  adoption: {
+    bdl_ativo: {
+      // Soma das linhas = 9; total da janela = 14. A diferença é o recorte, e é exatamente por
+      // isso que a proporção precisa do total e não da soma.
+      total_installs: 14,
+      adoption: [
+        { skill_id: 'sk_ordering', version: '1.10.0', installs: 6 },
+        { skill_id: 'sk_ordering', version: '1.2.0', installs: 3 },
+      ],
+    },
+    bdl_vazio: { total_installs: 0, adoption: [] },
+  } as Record<string, { total_installs: number; adoption: { skill_id: string; version: string; installs: number }[] }>,
+};
+
+export function registerSkillsDistributionHandlers() {
+  const base = '/v1/dashboard/bundles';
+
+  registerRoute('GET', base, async () => Response.json({ bundles: distribuicaoDb.bundles }));
+
+  registerRoute('POST', base, async (req) => {
+    const body = (await req.json()) as { name?: string };
+    const name = (body.name ?? '').trim();
+    if (name === '') {
+      return Response.json({ code: 'INVALID_REQUEST', message: 'dê um nome ao pacote' }, { status: 400 });
+    }
+    const bundle = { bundle_id: `bdl_${distribuicaoDb.bundles.length + 1}`, name, create_time: '2026-08-04T12:00:00Z' };
+    distribuicaoDb.bundles = [...distribuicaoDb.bundles, bundle];
+    distribuicaoDb.tokens[bundle.bundle_id] = [];
+    distribuicaoDb.adoption[bundle.bundle_id] = { total_installs: 0, adoption: [] };
+    return Response.json(bundle, { status: 201 });
+  });
+
+  registerRoute('GET', `${base}/{bundleId}/tokens`, async (_req, params) => {
+    const tokens = distribuicaoDb.tokens[params.bundleId];
+    // 404 para pacote que não existe — o serviço real não enumera o acervo alheio, e um mock que
+    // devolvesse lista vazia esconderia a diferença entre "não é seu" e "não tem token".
+    if (tokens === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    return Response.json({ bundle_id: params.bundleId, tokens });
+  });
+
+  registerRoute('POST', `${base}/{bundleId}/tokens`, async (req, params) => {
+    const body = (await req.json()) as { ttl_days?: number; label?: string };
+    if (typeof body.ttl_days !== 'number' || body.ttl_days <= 0) {
+      return Response.json({ code: 'INVALID_REQUEST', message: 'informe a validade em dias' }, { status: 400 });
+    }
+    const lista = distribuicaoDb.tokens[params.bundleId];
+    if (lista === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+
+    const token_id = `dtk_novo_${lista.length + 1}`;
+    lista.push({
+      token_id,
+      label: body.label ?? null,
+      quota_per_window: null,
+      expires_at: '2099-01-01T00:00:00.000Z',
+      revoked_at: null,
+      create_time: '2026-08-04T12:00:00.000Z',
+    });
+    // O valor em claro atravessa AQUI e só aqui — como no serviço real. Um mock que o devolvesse
+    // também na listagem faria a tela passar num contrato que não existe.
+    return Response.json({ token_id, token: `dtk_secret_${token_id}` }, { status: 201 });
+  });
+
+  registerRoute('DELETE', `${base}/{bundleId}/tokens/{tokenId}`, async (_req, params) => {
+    const lista = distribuicaoDb.tokens[params.bundleId];
+    if (lista === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    const alvo = lista.find((t) => t.token_id === params.tokenId);
+    if (alvo === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    // Revogar NÃO remove da lista: o registro mantém para auditoria, e a tela precisa refletir
+    // isso, senão o operador acha que o token sumiu do histórico.
+    alvo.revoked_at = '2026-08-04T12:05:00.000Z';
+    return Response.json({ revoked: true });
+  });
+
+  registerRoute('GET', `${base}/{bundleId}/adoption`, async (_req, params) => {
+    const dados = distribuicaoDb.adoption[params.bundleId];
+    if (dados === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    return Response.json(dados);
+  });
+}

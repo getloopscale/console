@@ -640,6 +640,8 @@ func main() {
 	var skillsDashboardHandler *routes.SkillsDashboardHandler
 	// M26 T3.5 — o caminho de MUTACAO, com cliente e credencial PROPRIOS (`skills:publish`).
 	var skillsPromotionHandler *routes.SkillsPromotionHandler
+	// M35 — a superfície de distribuição (bundles, tokens delegados, adoção).
+	var skillsDistributionHandler *routes.SkillsDistributionHandler
 	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
 	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
 	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
@@ -693,6 +695,17 @@ func main() {
 			WithKeyResolver(newSkillsPromotionKeyResolver(skillsBroker))
 		skillsPromotionHandler = routes.NewSkillsPromotionHandler(skillsWriteClient, logger)
 		logger.Info("dashboard skills promotion enabled (per-tenant publish broker)", "mount", "/v1/dashboard/skills/{id}/channels/{channel}")
+
+		// M35 — a distribuição REUSA `skillsWriteClient`, e isso é deliberado: as seis operações
+		// (bundles, tokens, adoção) exigem exatamente a credencial que ele já carrega —
+		// `skills:read` + `skills:publish`. Um terceiro cliente com a MESMA credencial não
+		// acrescentaria isolamento algum; só mais um lugar para a fiação divergir.
+		//
+		// O que continua separado é o que carrega a segurança: o cliente de LEITURA
+		// (`skillsDataClient`) segue sem `skills:publish` e, por construção, não alcança nenhuma
+		// destas rotas — nem que uma delas seja registrada sobre ele por engano.
+		skillsDistributionHandler = routes.NewSkillsDistributionHandler(skillsWriteClient, logger)
+		logger.Info("dashboard skills distribution enabled (per-tenant publish broker)", "mount", "/v1/dashboard/bundles")
 	}
 
 	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
@@ -754,6 +767,16 @@ func main() {
 			WithKeyResolver(newLensDashboardKeyResolver(lensBroker))
 		lensDashboardHandler = routes.NewLensDashboardHandler(lensDataClient, logger)
 		logger.Info("dashboard lens enabled (per-tenant read-only broker)", "mount", "/v1/dashboard/lens")
+		// M15 (theo-promptly) — o uso por revisão de um prompt é telemetria, então mora no lens e
+		// é lido pelo cliente DELE, com a credencial dele. A ligação acontece aqui e não na
+		// composição do promptly (~200 linhas acima) porque o cliente do lens só existe agora.
+		// Sem esta linha a rota /usage sobe recusando para sempre — e todo teste continua verde,
+		// porque nos testes de rota o leitor é injetado à mão. Travado por
+		// `promptly_usage_wiring_test.go`.
+		if promptlyDashboardHandler != nil {
+			promptlyDashboardHandler.WithUsageReader(lensDataClient)
+			logger.Info("promptly usage reader wired from lens client", "mount", "/v1/dashboard/promptly/prompts/{name}/usage")
+		}
 	}
 
 	// M17: the read+write /v1/dashboard/rag BFF (M21). Wired only when the rag broker is
@@ -1452,6 +1475,11 @@ func main() {
 	// operador leria indisponibilidade onde o defeito e de configuracao.
 	if skillsPromotionHandler != nil {
 		routes.MountSkillsPromotion(r, skillsPromotionHandler, requireJWT)
+	}
+	// M35 — mesma condição e mesma razão: sem broker, uma rota de distribuição responderia 502 a
+	// toda tentativa, e o operador leria indisponibilidade onde o defeito é de configuração.
+	if skillsDistributionHandler != nil {
+		routes.MountSkillsDistribution(r, skillsDistributionHandler, requireJWT)
 	}
 	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
 	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even

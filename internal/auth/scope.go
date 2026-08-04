@@ -39,11 +39,10 @@ import (
 //   EC-21 — last_used_at fire-and-forget; lost-on-crash accepted
 
 const (
-	bearerPrefix    = "Bearer "
-	secretPrefixLP  = "theo_live_"
-	tracerInstName  = "theo.auth"
-	spanName        = "auth.scope_check"
-	asyncWriteBudgt = 5 * time.Second
+	bearerPrefix   = "Bearer "
+	secretPrefixLP = "theo_live_"
+	tracerInstName = "theo.auth"
+	spanName       = "auth.scope_check"
 
 	// API Key Rotation plan D3 — emit Sunset + Deprecation headers when a
 	// key's expiry is within this window (RFC 8594 deprecation pattern).
@@ -140,6 +139,11 @@ func lookupAPIKey(ctx context.Context, db *sql.DB, rawAuthHeader string) (*apiKe
 			"key_id", row.keyID, "error", err, "raw_prefix", safePrefix(scopesRaw))
 		return nil, ErrBackendUnavailable
 	}
+
+	// M149 / #405 — o registro de uso mora AQUI, no tronco que RequireScope e ResolveAPIKey
+	// atravessam, para que um terceiro caminho futuro o herde por construção. Antes vivia só no
+	// middleware, e a borda — por onde passa todo produto Model-B — nunca gravava.
+	registrarUsoDaChave(db, row.keyID)
 	return &row, nil
 }
 
@@ -226,19 +230,9 @@ func RequireScope(db *sql.DB, required string) func(http.Handler) http.Handler {
 			}
 			span.SetAttributes(attribute.Bool("scope.granted", true))
 
-			// EC-21: fire-and-forget last_used_at update. The middleware MUST
-			// return immediately; a slow write in the goroutine is invisible to
-			// the caller. Context.Background() (not r.Context()) is intentional —
-			// the request context is canceled when the response writes finish.
-			go func(id string) {
-				bgCtx, cancel := context.WithTimeout(context.Background(), asyncWriteBudgt)
-				defer cancel()
-				if _, err := db.ExecContext(bgCtx,
-					"UPDATE theo_api_keys SET last_used_at = NOW() WHERE id = $1", id,
-				); err != nil {
-					slog.Debug("scope check: async last_used_at update failed", "error", err, "key_id", id)
-				}
-			}(row.keyID)
+			// M149 / #405: o registro de uso saiu daqui para `lookupAPIKey` (o tronco comum),
+			// porque viver só neste middleware deixava o caminho da borda cego. Continua
+			// fire-and-forget e acelerado por janela — ver `last_used.go`.
 
 			// AccountID is NULL-tolerant (M0): same row as ResolveAPIKey, so the
 			// Bearer/`/v1/memory/*` path carries the Account consistently ("" for

@@ -286,3 +286,44 @@ describe('temProximaPagina', () => {
     expect(temProximaPagina('nada disso; rel=next')).toBe(false);
   });
 });
+
+describe('revisionRows — a intenção (M17)', () => {
+  it('a descricao atravessa quando existe', () => {
+    const linhas = revisionRows([
+      { version: 1, content: 'x', createdAt: 'd', changeDescription: 'encurtei o preambulo' },
+    ]);
+
+    expect(linhas[0]?.changeDescription).toBe('encurtei o preambulo');
+  });
+
+  it('revisao ANTERIOR ao milestone projeta null — nunca texto inventado', () => {
+    // A regra que o DoD-1 nomeia: "nunca uma descrição inventada retroativamente,
+    // pela mesma razão que o `createdBy` do M7 é `null` no passado".
+    const linhas = revisionRows([{ version: 1, content: 'x', createdAt: 'd' }]);
+
+    expect(linhas[0]?.changeDescription).toBeNull();
+  });
+
+  it('descricao malformada vira null em vez de derrubar a lista', () => {
+    const linhas = revisionRows([
+      { version: 1, content: 'x', createdAt: 'd', changeDescription: 42 },
+    ]);
+
+    expect(linhas[0]?.changeDescription).toBeNull();
+    expect(linhas[0]?.content).toBe('x');
+  });
+
+  it('a config atravessa, e temperature 0 sobrevive', () => {
+    const linhas = revisionRows([
+      { version: 1, content: 'x', createdAt: 'd', modelConfig: { temperature: 0 } },
+    ]);
+
+    expect(linhas[0]?.modelConfig).toEqual({ temperature: 0 });
+  });
+
+  it('sem config, a linha traz null — nao objeto vazio', () => {
+    const linhas = revisionRows([{ version: 1, content: 'x', createdAt: 'd' }]);
+
+    expect(linhas[0]?.modelConfig).toBeNull();
+  });
+});

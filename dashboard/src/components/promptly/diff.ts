@@ -99,3 +99,59 @@ export function diffLines(anterior: string, novo: string): DiffBlock[] {
 export function saoEquivalentes(blocos: readonly DiffBlock[]): boolean {
   return blocos.every((b) => b.kind === 'same');
 }
+
+/**
+ * M17 DoD-4 — a comparação de CONFIG, ao lado do diff de texto e nunca dentro dele.
+ *
+ * Duas revisões com o mesmo texto e temperaturas diferentes são revisões diferentes, e o
+ * comparador tinha de dizê-lo. `diffLines` continua sendo só de texto: misturar as duas
+ * coisas faria uma mudança de config aparecer como linha alterada, que não é.
+ *
+ * A comparação é **por campo**, não por serialização: `JSON.stringify` acusaria diferença
+ * quando só a ordem das chaves mudasse (EC-6).
+ *
+ * E `temperature: 0` **não** é o mesmo que ausente. Zero é uma afinação escolhida —
+ * determinismo máximo —, e tratá-la como "sem config" apagaria a decisão de quem a tomou.
+ */
+export interface ConfigDeRevisao {
+  readonly temperature?: number;
+  readonly model?: string;
+}
+
+export interface LinhaDeConfig {
+  readonly campo: string;
+  readonly antes: string;
+  readonly depois: string;
+}
+
+export interface DiffDeConfig {
+  readonly mudou: boolean;
+  readonly linhas: readonly LinhaDeConfig[];
+}
+
+/** O que a tela diz quando um dos lados é anterior ao milestone (ADR-1). */
+const ANTERIOR = 'revisão anterior à config';
+
+function mostrar(cfg: ConfigDeRevisao | null | undefined, campo: 'temperature' | 'model'): string {
+  // `!= null` cobre `null` E `undefined`: o primeiro vem do serviço, o segundo de uma
+  // revisão cuja projeção nem chegou a olhar o campo. Os dois significam "não tem", e
+  // tratá-los diferente faria a tela quebrar num dos caminhos.
+  if (cfg == null) return ANTERIOR;
+  const v = cfg[campo];
+  // `undefined` e não falsy: `temperature: 0` tem de sair como "0", não como "—".
+  return v === undefined ? '—' : String(v);
+}
+
+export function diffConfig(
+  antes: ConfigDeRevisao | null | undefined,
+  depois: ConfigDeRevisao | null | undefined,
+): DiffDeConfig {
+  if (antes == null && depois == null) return { mudou: false, linhas: [] };
+
+  const campos = ['temperature', 'model'] as const;
+  const linhas = campos
+    .filter((campo) => mostrar(antes, campo) !== mostrar(depois, campo))
+    .map((campo) => ({ campo, antes: mostrar(antes, campo), depois: mostrar(depois, campo) }));
+
+  return { mudou: linhas.length > 0, linhas };
+}

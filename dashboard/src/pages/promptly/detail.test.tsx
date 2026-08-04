@@ -18,6 +18,7 @@ const mockPolicy = vi.fn();
 const mockPromote = vi.fn();
 const mockPrompt = vi.fn();
 const mockRollback = vi.fn();
+const mockUsage = vi.fn();
 vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
   return {
@@ -28,6 +29,7 @@ vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
     fetchPrompt: (...a: unknown[]) => mockPrompt(...a),
     promoteLabel: (...a: unknown[]) => mockPromote(...a),
     rollbackPrompt: (...a: unknown[]) => mockRollback(...a),
+    fetchPromptUsage: (...a: unknown[]) => mockUsage(...a),
   };
 });
 
@@ -55,11 +57,126 @@ beforeEach(() => {
   mockPromote.mockReset();
   mockRollback.mockReset();
   mockPrompt.mockReset();
+  mockUsage.mockReset();
   mockRevisions.mockResolvedValue(REVISOES);
   mockLabels.mockResolvedValue(LABELS);
   mockPrompt.mockResolvedValue({ version: 3 });
   mockPolicy.mockResolvedValue(null);
   mockPromote.mockResolvedValue({ name: 'saudacao', label: 'prod', version: 3 });
+  mockUsage.mockResolvedValue({
+    promptName: 'saudacao',
+    windowDays: 7,
+    rows: [{ revision: 3, resolutions: 12, totalTokens: 1500, costUsd: 0.031, p50LatencyMs: 4.2 }],
+  });
+});
+
+describe('PromptDetailPage — a intenção da revisão (M17)', () => {
+  it('a descricao aparece na linha da revisao', async () => {
+    mockRevisions.mockResolvedValue([
+      { version: 3, content: 'texto', createdAt: 'd', changeDescription: 'encurtei o preambulo' },
+    ]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/encurtei o preambulo/)).toBeInTheDocument();
+  });
+
+  it('revisao ANTERIOR ao milestone diz "sem descricao" — nunca texto inventado', async () => {
+    mockRevisions.mockResolvedValue([{ version: 3, content: 'texto', createdAt: 'd' }]);
+
+    render(<PromptDetailPage />);
+
+    await screen.findByText('v3');
+    expect(screen.getByText(/sem descrição/i)).toBeInTheDocument();
+  });
+
+  it('a config aparece, e temperature 0 e mostrada como 0', async () => {
+    mockRevisions.mockResolvedValue([
+      { version: 3, content: 'texto', createdAt: 'd', modelConfig: { temperature: 0 } },
+    ]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/temperature 0/i)).toBeInTheDocument();
+  });
+});
+
+describe('PromptDetailPage — uso por revisão (M15)', () => {
+  it('a linha da revisao mostra as chamadas do periodo', async () => {
+    render(<PromptDetailPage />);
+
+    // O oráculo é o NÚMERO na tela, não a chamada à API: um fetch bem-sucedido cujo
+    // resultado ninguém renderiza é exatamente o defeito que o M13 deixou passar.
+    expect(await screen.findByText('12')).toBeInTheDocument();
+  });
+
+  it('a linha mostra os QUATRO numeros que o DoD pede, nao dois', async () => {
+    render(<PromptDetailPage />);
+
+    // chamadas · latência mediana · tokens · custo — o bullet do ROADMAP enumera os quatro.
+    expect(await screen.findByText('12')).toBeInTheDocument();
+    expect(await screen.findByText(/4\.2\s*ms/i)).toBeInTheDocument();
+    expect(await screen.findByText(/1500|1\.500/)).toBeInTheDocument();
+    expect(await screen.findByText(/0\.0310/)).toBeInTheDocument();
+  });
+
+  it('a janela do agregado aparece na tela, nunca implicita', async () => {
+    render(<PromptDetailPage />);
+
+    await screen.findByText('v3');
+    expect(await screen.findByText(/7 dias/i)).toBeInTheDocument();
+  });
+
+  it('leitura que FALHA nao vira zero — diz que nao conseguiu ler (DoD-3)', async () => {
+    // A distinção inteira do milestone: "não consegui ler" ≠ "ninguém usou". Um zero
+    // aqui é uma afirmação que ninguém mediu, e leva o operador à conclusão oposta.
+    mockUsage.mockRejectedValue(new ApiError(502, 'PROMPTLY_USAGE_UNAVAILABLE', 'não consegui ler'));
+
+    render(<PromptDetailPage />);
+
+    await screen.findByText('v3');
+    // Uma mensagem por revisão — a falha é da leitura inteira, não de uma linha.
+    expect((await screen.findAllByText(/não consegui ler o uso/i)).length).toBe(2);
+    // O oráculo que importa: nenhum zero renderizado sobre a falha.
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  it('revisao sem trafego diz "sem chamadas", que e diferente de zero', async () => {
+    mockUsage.mockResolvedValue({ promptName: 'saudacao', windowDays: 7, rows: [] });
+
+    render(<PromptDetailPage />);
+
+    await screen.findByText('v3');
+    expect((await screen.findAllByText(/sem chamadas/i)).length).toBeGreaterThan(0);
+  });
+
+  it('custo ausente fica vazio COM RAZAO, nunca estimado (DoD-4)', async () => {
+    mockUsage.mockResolvedValue({
+      promptName: 'saudacao',
+      windowDays: 7,
+      rows: [{ revision: 3, resolutions: 5, totalTokens: 100, costUsd: null }],
+    });
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText('5')).toBeInTheDocument();
+    expect(await screen.findByText(/não reportou custo/i)).toBeInTheDocument();
+  });
+
+  it('declara a condicao de atribuicao por trace (ADR-1) em vez de deixar inferir', async () => {
+    // O limite honesto: uma app que resolve o prompt fora do trace em que chama o
+    // modelo não correlaciona. Sem dizer isso, o operador lê o vazio como "sem custo".
+    mockUsage.mockResolvedValue({
+      promptName: 'saudacao',
+      windowDays: 7,
+      rows: [{ revision: 3, resolutions: 9, totalTokens: 0, costUsd: null }],
+    });
+
+    render(<PromptDetailPage />);
+
+    await screen.findByText('9');
+    expect(await screen.findByText(/mesmo trace/i)).toBeInTheDocument();
+  });
 });
 
 describe('PromptDetailPage', () => {

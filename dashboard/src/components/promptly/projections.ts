@@ -107,6 +107,9 @@ export interface Revision {
   readonly version: number;
   readonly content: string;
   readonly createdAt: string;
+  /** M17 — aditivos e opcionais no FIO: um serviço anterior ao milestone não os emite. */
+  readonly changeDescription?: unknown;
+  readonly modelConfig?: unknown;
 }
 
 export interface RevisionRow {
@@ -117,6 +120,14 @@ export interface RevisionRow {
   readonly content: string;
   /** As variáveis que o serviço DECLARA nesta revisão — nunca derivadas por regex nosso. */
   readonly variables: readonly string[];
+  /**
+   * M17 — por que esta revisão existe. `null` nas revisões anteriores ao milestone, e a
+   * tela diz "sem descrição": nunca uma descrição inventada retroativamente, pela mesma
+   * razão que o `createdBy` do M7 é `null` no passado.
+   */
+  readonly changeDescription: string | null;
+  /** M17 — a config com que a revisão foi testada. `null`, nunca `{}`. */
+  readonly modelConfig: { readonly temperature?: number; readonly model?: string } | null;
 }
 
 export interface LabelPointer {
@@ -164,6 +175,18 @@ function variaveisDeclaradas(r: unknown): string[] {
   return Array.isArray(bruto) ? bruto.filter((v): v is string => typeof v === 'string') : [];
 }
 
+/** Extrai a config de uma revisão, tolerando forma inválida (vira `null`). */
+function configDaRevisao(r: unknown): { temperature?: number; model?: string } | null {
+  const raw = (r as { modelConfig?: unknown }).modelConfig;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const v = raw as Record<string, unknown>;
+  const cfg: { temperature?: number; model?: string } = {};
+  // `typeof === 'number'` e não truthiness: `temperature: 0` é válida e significativa.
+  if (typeof v['temperature'] === 'number') cfg.temperature = v['temperature'];
+  if (typeof v['model'] === 'string' && v['model'] !== '') cfg.model = v['model'];
+  return Object.keys(cfg).length === 0 ? null : cfg;
+}
+
 export function revisionRows(payload: unknown): RevisionRow[] {
   return asArray<Revision>(payload)
     .map((r) => ({
@@ -171,6 +194,10 @@ export function revisionRows(payload: unknown): RevisionRow[] {
       createdAt: r.createdAt,
       content: typeof r.content === 'string' ? r.content : '',
       variables: variaveisDeclaradas(r),
+      // Defensivo: um campo malformado vindo do serviço vira `null` em vez de derrubar
+      // a lista inteira. O conteúdo da revisão é o valor central desta tela.
+      changeDescription: typeof r.changeDescription === 'string' ? r.changeDescription : null,
+      modelConfig: configDaRevisao(r),
     }))
     .sort((a, b) => b.version - a.version);
 }

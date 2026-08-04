@@ -93,3 +93,72 @@ describe('M12 — a tela de comparar', () => {
     expect(screen.queryByTestId('promptly-diff')).not.toBeInTheDocument();
   });
 });
+
+describe('diff — a config aparece ao lado do texto (M17 DoD-4)', () => {
+  it('mesmo TEXTO e temperaturas diferentes NAO sao anunciadas como identicas', async () => {
+    // O defeito que este teste tranca: o comparador dizia "idênticas" olhando só o texto.
+    // Duas revisões com a mesma redação e afinações diferentes SÃO revisões diferentes.
+    mockRevisions.mockResolvedValue([
+      { version: 1, content: 'mesmo texto', createdAt: 'd', modelConfig: { temperature: 0.2 } },
+      { version: 2, content: 'mesmo texto', createdAt: 'd', modelConfig: { temperature: 0.9 } },
+    ]);
+
+    render(<PromptlyDiffPage />);
+
+    expect(await screen.findByText(/temperature/i)).toBeInTheDocument();
+    expect(screen.getByText(/0\.2/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.9/)).toBeInTheDocument();
+  });
+
+  it('mesmo texto e MESMA config seguem sendo identicas — o controle', async () => {
+    mockRevisions.mockResolvedValue([
+      { version: 1, content: 'mesmo texto', createdAt: 'd', modelConfig: { temperature: 0.2 } },
+      { version: 2, content: 'mesmo texto', createdAt: 'd', modelConfig: { temperature: 0.2 } },
+    ]);
+
+    render(<PromptlyDiffPage />);
+
+    // O `testid` que a própria página expõe — mais robusto que casar a redação.
+    expect(await screen.findByTestId('promptly-diff-identical')).toBeInTheDocument();
+    expect(screen.queryByTestId('promptly-diff-config')).not.toBeInTheDocument();
+  });
+});
+
+describe('diff — o PORQUÊ de cada lado (M17 DoD-1)', () => {
+  // Encontrado na ACEITAÇÃO do M17, contra o app-dev: o DoD-1 enumera que a descrição
+  // "aparece na lista de revisões E no diff". A lista mostrava; o diff não mostrava nada.
+  //
+  // Nenhum teste podia ter pego isso: a `interface Revision` desta tela declara só
+  // `version` e `content`, e `query.data` é `unknown` — `Array.isArray` o alarga para
+  // `any[]`, então o compilador NUNCA veria o campo faltando. A tela é o único oráculo.
+  //
+  // E o lugar importa: a descrição fica JUNTO do seletor de cada lado. O diff responde
+  // "o que mudou"; a descrição responde "por quê" — e as duas perguntas se lêem juntas,
+  // não em telas diferentes.
+  it('mostra a descricao de cada revisao comparada', async () => {
+    mockRevisions.mockResolvedValue([
+      { version: 1, content: 'antes', createdAt: 'd', changeDescription: 'primeira redação' },
+      { version: 2, content: 'depois', createdAt: 'd', changeDescription: 'encurtei o preâmbulo' },
+    ]);
+
+    render(<PromptlyDiffPage />);
+
+    expect(await screen.findByText('primeira redação')).toBeInTheDocument();
+    expect(screen.getByText('encurtei o preâmbulo')).toBeInTheDocument();
+  });
+
+  it('revisao pre-M17 diz "sem descricao" — nunca uma inventada', async () => {
+    // O controle que dá sentido ao anterior: a ausência tem de ser DITA. Um espaço em
+    // branco no lugar da descrição leria como "ninguém escreveu nada agora", quando o
+    // fato é "esta revisão nasceu antes de existir o campo".
+    mockRevisions.mockResolvedValue([
+      { version: 1, content: 'antes', createdAt: 'd' },
+      { version: 2, content: 'depois', createdAt: 'd', changeDescription: 'só a v2 tem' },
+    ]);
+
+    render(<PromptlyDiffPage />);
+
+    expect(await screen.findByText('só a v2 tem')).toBeInTheDocument();
+    expect(screen.getByText(/sem descrição/i)).toBeInTheDocument();
+  });
+});

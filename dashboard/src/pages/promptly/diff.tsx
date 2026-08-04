@@ -7,7 +7,13 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { fetchRevisions } from '@/components/promptly/promptly-api';
-import { diffLines, saoEquivalentes, DIFF_LINE_CEILING } from '@/components/promptly/diff';
+import {
+  diffLines,
+  diffConfig,
+  saoEquivalentes,
+  DIFF_LINE_CEILING,
+  type ConfigDeRevisao,
+} from '@/components/promptly/diff';
 
 /**
  * M12 T5 — `/promptly/:name/diff`: o que mudou entre duas revisões.
@@ -25,6 +31,43 @@ const REVISION_WINDOW = 50;
 interface Revision {
   readonly version: number;
   readonly content: string;
+  /**
+   * M17 — aditivos e opcionais NO FIO: um serviço anterior ao milestone não os emite, e
+   * uma revisão criada antes dele não os tem.
+   *
+   * Declará-los aqui não é zelo de tipagem — é o que faltava. `query.data` é `unknown`, e
+   * `Array.isArray` o alarga para `any[]`: enquanto a interface omitia `modelConfig`, a
+   * tela já o lia sem que o compilador pudesse reclamar. A omissão de `changeDescription`
+   * custou o item "aparece no diff" do DoD-1, encontrado só na aceitação contra o app-dev.
+   */
+  readonly changeDescription?: unknown;
+  readonly modelConfig?: ConfigDeRevisao | null;
+}
+
+/** O porquê de uma revisão, ou `null` quando ela nasceu antes do campo existir. */
+function porqueDe(revisao: Revision | undefined): string | null {
+  return typeof revisao?.changeDescription === 'string' && revisao.changeDescription !== ''
+    ? revisao.changeDescription
+    : null;
+}
+
+/**
+ * O porquê de um dos lados da comparação.
+ *
+ * A ausência é DITA, não deixada em branco: um espaço vazio leria como "ninguém escreveu
+ * nada", quando o fato é "esta revisão nasceu antes de o campo existir". A mesma redação
+ * — e a mesma razão — da lista de revisões em `detail.tsx`.
+ */
+function Porque({ texto }: { readonly texto: string | null }) {
+  return (
+    <span className="mt-1 block max-w-[28rem] text-xs">
+      {texto !== null ? (
+        <span className="text-foreground">{texto}</span>
+      ) : (
+        <span className="italic text-muted-foreground">sem descrição</span>
+      )}
+    </span>
+  );
 }
 
 export function PromptlyDiffPage() {
@@ -62,7 +105,11 @@ export function PromptlyDiffPage() {
   const b = ordenadas.find((r) => r.version === direita);
   const blocos = a && b ? diffLines(a.content, b.content) : [];
   const grande = blocos.length === 1 && blocos[0].kind === 'too-large';
-  const iguais = blocos.length > 0 && !grande && saoEquivalentes(blocos);
+  // M17 DoD-4 — a config entra na decisão de "idênticas". Duas revisões com a mesma
+  // redação e afinações diferentes SÃO revisões diferentes, e anunciá-las como iguais
+  // era a mentira que este milestone corrige.
+  const config = a && b ? diffConfig(a.modelConfig, b.modelConfig) : { mudou: false, linhas: [] };
+  const iguais = blocos.length > 0 && !grande && saoEquivalentes(blocos) && !config.mudou;
 
   const falhou = Boolean(query.error);
 
@@ -104,6 +151,7 @@ export function PromptlyDiffPage() {
                 <option key={r.version} value={r.version}>v{r.version}</option>
               ))}
             </select>
+            <Porque texto={porqueDe(a)} />
           </label>
           <label className="text-sm">
             <span className="mb-1 block text-muted-foreground">Depois</span>
@@ -117,6 +165,7 @@ export function PromptlyDiffPage() {
                 <option key={r.version} value={r.version}>v{r.version}</option>
               ))}
             </select>
+            <Porque texto={porqueDe(b)} />
           </label>
         </div>
       </Card>
@@ -140,6 +189,24 @@ export function PromptlyDiffPage() {
               Comparação inline omitida: {blocos[0].text}. Acima de {DIFF_LINE_CEILING} linhas a
               comparação travaria a aba — abra as revisões lado a lado para inspecionar.
             </p>
+          ) : config.mudou && saoEquivalentes(blocos) ? (
+            // Texto igual, config diferente: dizer só "idênticas" apagaria a diferença
+            // que importa, e mostrar um diff de texto vazio não a explicaria.
+            <div data-testid="promptly-diff-config" className="space-y-2 text-sm">
+              <p className="text-muted-foreground">
+                O texto é o mesmo. O que mudou foi a configuração com que a revisão foi testada:
+              </p>
+              <ul className="space-y-1 font-mono text-xs">
+                {config.linhas.map((l) => (
+                  <li key={l.campo}>
+                    <span className="text-muted-foreground">{l.campo}</span>{' '}
+                    <span className="text-destructive">{l.antes}</span>
+                    {' → '}
+                    <span className="text-foreground">{l.depois}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : iguais ? (
             <p data-testid="promptly-diff-identical" className="text-sm text-muted-foreground">
               As duas revisões têm o mesmo conteúdo. Se uma foi criada por reversão, é exatamente o

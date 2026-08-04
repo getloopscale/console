@@ -12,6 +12,8 @@ const promptlyDb: {
   catalog: { name: string; latestVersion: number; labels: { label: string; version: number }[]; updatedAt: string }[];
   revisions: Record<string, { version: number; content: string; createdAt: string }[]>;
   policies: Record<string, { datasetId: string; minScore: number }>;
+  // M15 — o uso observado, por prompt e por revisão.
+  uso: Record<string, { revision: number; resolutions: number; totalTokens: number; costUsd: number | null; p50LatencyMs: number | null }[]>;
 } = {
   catalog: [
     {
@@ -55,7 +57,34 @@ const promptlyDb: {
   policies: {
     'saudacao::staging': { datasetId: 'ds-saudacoes', minScore: 0.8 },
   },
+  // Três formas de propósito, porque a coluna tem três estados e um e2e que só visse o primeiro
+  // provaria um terço: v3 com uso e custo · v2 com uso e custo AUSENTE (o provider não reportou)
+  // · v1 sem tráfego nenhum, que é diferente de zero.
+  uso: {
+    saudacao: [
+      { revision: 3, resolutions: 12, totalTokens: 1500, costUsd: 0.0312, p50LatencyMs: 4.2 },
+      { revision: 2, resolutions: 4, totalTokens: 0, costUsd: null, p50LatencyMs: 3.1 },
+    ],
+  },
 };
+
+/**
+ * M15 — o interruptor do estado "não consegui ler", que o DoD-3 exige que a tela saiba
+ * distinguir de "ninguém usou".
+ *
+ * Vive em `sessionStorage` e não em `page.route` do Playwright por uma razão medida: estes
+ * mocks são um wrap de `window.fetch`, NÃO rede real (ADR D1 — não é MSW). A interceptação do
+ * Playwright nunca vê a requisição, e um teste escrito com ela passaria por acaso ou falharia
+ * sem explicar. O e2e liga o interruptor com `addInitScript`, antes de qualquer script da
+ * página — sem `goto` extra e sem parâmetro de URL, que a navegação SPA descartaria.
+ */
+function usoIndisponivel(): boolean {
+  try {
+    return globalThis.sessionStorage?.getItem('__mock_uso') === 'indisponivel';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * O prefixo depende de `window.__THEO_CONFIG__.API_URL`, vazio em dev (same-origin) e `/api`
@@ -168,6 +197,21 @@ function registerPromptlyRoutes(base: string) {
     const after = Number(params.get('after') ?? '0');
     const janela = revs.filter((r) => r.version > after);
     return Response.json(janela.slice(0, Math.max(1, limit)));
+  });
+
+  // M15 — o uso observado por revisão. O mock respeita `windowDays` porque a tela DIZ a janela:
+  // um mock que a ignorasse deixaria passar uma tela que mostra "7 dias" sobre outro período.
+  registerRoute('GET', `${base}/prompts/{name}/usage`, async (req, { name }) => {
+    const nome = decodeURIComponent(name);
+    if (usoIndisponivel()) {
+      // O estado que o DoD-3 exige que a tela saiba distinguir de "ninguém usou".
+      return Response.json(
+        { code: 'PROMPTLY_USAGE_UNAVAILABLE', message: 'não consegui ler o uso deste prompt' },
+        { status: 502 },
+      );
+    }
+    const windowDays = Number(new URL(req.url).searchParams.get('windowDays') ?? '7');
+    return Response.json({ promptName: nome, windowDays, rows: promptlyDb.uso[nome] ?? [] });
   });
 
   registerRoute('GET', `${base}/prompts/{name}/labels`, async (_req, { name }) => {
