@@ -41,8 +41,8 @@ describe('promotionConfirmation', () => {
     });
 
     // Qualquer dígito seguido de palavra sobre consumidores seria um número fabricado.
-    expect(t).not.toMatch(/\d+\s*(consumidor|consumidores|agentes?|clientes?)/i);
-    expect(t.toLowerCase()).not.toContain('consumidores serão');
+    expect(t).not.toMatch(/\d+\s*(consumer|consumers|agents?|clients?)/i);
+    expect(t.toLowerCase()).not.toContain('consumers will');
   });
 
   it('diz que o consumidor que JÁ LEU não é desfeito — o dano não é reversível pela tela', () => {
@@ -55,8 +55,8 @@ describe('promotionConfirmation', () => {
       version: '1.10.0',
     });
 
-    expect(t.toLowerCase()).toContain('já');
-    expect(t).toMatch(/não desfaz|não reverte|já leu|já resolveu/i);
+    expect(t.toLowerCase()).toContain('already');
+    expect(t).toMatch(/does not undo|already read|already resolved/i);
   });
 
   it('quando o canal NÃO existe ainda, não inventa uma revisão que sai', () => {
@@ -73,7 +73,7 @@ describe('promotionConfirmation', () => {
     expect(t).toContain('rev_nova');
     expect(t).not.toContain('null');
     expect(t).not.toContain('undefined');
-    expect(t).toMatch(/passa a existir|ainda não serv|nenhuma revisão/i);
+    expect(t).toMatch(/comes into existence|does not serve any revision/i);
   });
 });
 
@@ -118,7 +118,7 @@ describe('promotionConfirmation — a revisão que SAI também é identificada p
     });
 
     expect(t).toContain('rev_sem_versao');
-    expect(t).toMatch(/sem versão publicada|não versionada/i);
+    expect(t).toMatch(/no published version/i);
     expect(t).not.toContain('undefined');
     expect(t).not.toContain('null');
   });

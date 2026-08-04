@@ -14,8 +14,8 @@ describe('legLabel', () => {
   it('traduz as duas pernas para frases que dizem o que aconteceu', () => {
     // Não "keyword"/"vector": esses são nomes de implementação. O operador precisa saber o que a
     // máquina fez, não como o módulo se chama.
-    expect(legLabel([{ leg: 'keyword', rank: 1 }])).toBe('as palavras batem');
-    expect(legLabel([{ leg: 'vector', rank: 1 }])).toBe('entendeu a intenção');
+    expect(legLabel([{ leg: 'keyword', rank: 1 }])).toBe('the words match');
+    expect(legLabel([{ leg: 'vector', rank: 1 }])).toBe('understood the intent');
   });
 
   it('as duas juntas são um caso próprio, não uma lista', () => {
@@ -26,20 +26,20 @@ describe('legLabel', () => {
         { leg: 'keyword', rank: 1 },
         { leg: 'vector', rank: 2 },
       ]),
-    ).toBe('palavras e intenção');
+    ).toBe('words and intent');
     expect(
       legLabel([
         { leg: 'vector', rank: 1 },
         { leg: 'keyword', rank: 2 },
       ]),
-    ).toBe('palavras e intenção');
+    ).toBe('words and intent');
   });
 
   it('nenhuma perna conhecida NÃO vira frase inventada', () => {
     // Um registro mais novo pode devolver uma perna que esta tela não conhece. Traduzi-la para
     // uma das duas conhecidas afirmaria algo falso sobre por que a skill apareceu.
-    expect(legLabel([])).toBe('origem não informada');
-    expect(legLabel([{ leg: 'semantic-v2', rank: 1 }])).toBe('origem não informada');
+    expect(legLabel([])).toBe('origin not reported');
+    expect(legLabel([{ leg: 'semantic-v2', rank: 1 }])).toBe('origin not reported');
   });
 
   it('uma perna conhecida entre desconhecidas ainda é reconhecida', () => {
@@ -48,7 +48,7 @@ describe('legLabel', () => {
         { leg: 'semantic-v2', rank: 1 },
         { leg: 'keyword', rank: 2 },
       ]),
-    ).toBe('as palavras batem');
+    ).toBe('the words match');
   });
 
   it('o vocabulário é o do registro — "lexical" NÃO é uma perna que existe', () => {
@@ -64,7 +64,7 @@ describe('legLabel', () => {
     // Este teste trava o vocabulário: reintroduzir `'lexical'` como perna conhecida não o faz
     // passar, porque nenhuma asserção aqui usa esse nome. O que ele impede é o oposto —
     // REMOVER `'keyword'` do reconhecimento volta a produzir o fallback e reprova.
-    expect(legLabel([{ leg: 'lexical', rank: 1 }])).toBe('origem não informada');
+    expect(legLabel([{ leg: 'lexical', rank: 1 }])).toBe('origin not reported');
   });
 });
 
@@ -105,7 +105,7 @@ describe('discoveryRows', () => {
 
   it('cada linha carrega a frase da perna, não o nome do módulo', () => {
     const [primeira] = discoveryRows(payload);
-    expect(primeira?.legText).toBe('palavras e intenção');
+    expect(primeira?.legText).toBe('words and intent');
   });
 
   it('score ausente vira null, não zero — são frases diferentes', () => {

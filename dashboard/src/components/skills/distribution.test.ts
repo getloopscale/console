@@ -78,7 +78,7 @@ describe('tokenRows', () => {
       },
       AGORA,
     );
-    expect(linha?.labelText).toBe('sem rótulo');
+    expect(linha?.labelText).toBe('no label');
   });
 
   it('uma data ilegível não derruba a linha — o token continua listado e revogável', () => {

@@ -111,12 +111,12 @@ export function SkillsOverviewPage() {
     },
     {
       key: 'description',
-      label: 'O que faz',
+      label: 'What it does',
       render: (row) => <span className="text-muted-foreground">{row.description}</span>,
     },
     {
       key: 'lifecycle',
-      label: 'Ciclo de vida',
+      label: 'Lifecycle',
       // TEXTO, nunca só cor (WCAG 1.4.1): os três estágios levam a decisões diferentes, e uma
       // deprecada indistinguível de uma ativa é exatamente o defeito que o M32 existe para
       // impedir. Ausente NÃO vira "active": um registro mais antigo simplesmente não devolve o
@@ -124,9 +124,9 @@ export function SkillsOverviewPage() {
       render: (row) => {
         if (row.lifecycle === undefined) return <span className="text-muted-foreground">—</span>;
         const rotulos = {
-          active: { texto: 'em uso', variante: 'success' as const },
-          draft: { texto: 'rascunho', variante: 'outline' as const },
-          deprecated: { texto: 'descontinuada', variante: 'warning' as const },
+          active: { texto: 'in use', variante: 'success' as const },
+          draft: { texto: 'draft', variante: 'outline' as const },
+          deprecated: { texto: 'deprecated', variante: 'warning' as const },
         };
         const r = rotulos[row.lifecycle];
         return (
@@ -151,14 +151,14 @@ export function SkillsOverviewPage() {
     },
     {
       key: 'category',
-      label: 'Categoria',
+      label: 'Category',
       // Ausente é um estado normal (o campo é opcional no serviço) — e "—" diz isso sem
       // fingir que houve falha de leitura.
       render: (row) => <span className="text-muted-foreground">{row.category ?? '—'}</span>,
     },
     {
       key: 'execution',
-      label: 'Execução',
+      label: 'Execution',
       // Texto, nunca só cor: `local` traz script e roda na máquina do cliente; `remote` é
       // carregada pelo agente. A distinção muda o que o operador pode fazer com a skill.
       render: (row) =>
@@ -170,7 +170,7 @@ export function SkillsOverviewPage() {
     },
     {
       key: 'latest_revision_id',
-      label: 'Revisão mais recente',
+      label: 'Latest revision',
       render: (row) => (
         <span className="font-mono text-xs text-muted-foreground">{row.latest_revision_id ?? '—'}</span>
       ),
@@ -180,13 +180,13 @@ export function SkillsOverviewPage() {
   return (
     <PageShell
       title="Skills"
-      description="O registro de skills deste workspace — o que um agente pode descobrir e carregar."
+      description="This workspace's skill registry — what an agent can discover and load."
     >
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar o acervo"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há skills publicadas."
+          title="Could not load the registry"
+          description="The list below is empty because the read failed — this does NOT mean there are no published skills."
         />
       ) : null}
 
@@ -195,21 +195,21 @@ export function SkillsOverviewPage() {
           {/* asChild → <h2>: o PageShell já rende o <h1>; pular para o h3 padrão do Card.Title
               quebraria a hierarquia de cabeçalhos (WCAG 1.3.1). */}
           <Card.Title asChild>
-            <h2>Skills publicadas</h2>
+            <h2>Published skills</h2>
           </Card.Title>
           {/* A contagem diz o que É: quantas estão carregadas, e se há mais. Antes dizia "12 no
               acervo" com 300 lá dentro — um número que parecia total e era de uma página. */}
           <Card.Description>
             {filtro.trim() === ''
-              ? `${acervo.length} carregada(s)${temMais ? ' — há mais no acervo' : ' (acervo completo)'}`
-              : `${rows.length} de ${acervo.length} carregada(s) casam com "${filtro}"`}
+              ? `${acervo.length} loaded${temMais ? ' — there are more in the registry' : ' (whole registry)'}`
+              : `${rows.length} of ${acervo.length} loaded match "${filtro}"`}
           </Card.Description>
         </Card.Header>
 
         <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
           <Input
-            aria-label="Filtrar skills carregadas"
-            placeholder="filtrar por nome, descrição ou identificador"
+            aria-label="Filter loaded skills"
+            placeholder="filter by name, description or identifier"
             value={filtro}
             onChange={(e) => setFiltro(e.target.value)}
             className="max-w-sm"
@@ -218,9 +218,9 @@ export function SkillsOverviewPage() {
               varre uma página é pior que filtro nenhum: leva o operador a concluir que a skill
               não existe. Para procurar no acervo todo, a Descoberta busca por intenção. */}
           <span className="text-xs text-muted-foreground">
-            filtra o que está carregado —{' '}
+            filters what is loaded —{' '}
             <Link to="/skills/descoberta" className="underline-offset-4 hover:underline">
-              buscar no acervo inteiro
+              search the whole registry
             </Link>
           </span>
         </div>
@@ -233,10 +233,10 @@ export function SkillsOverviewPage() {
           emptyState={
             <EmptyState
               icon={Boxes}
-              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma skill publicada'}
+              title={failed ? 'No data — the read failed' : 'No skill published yet'}
               description={
                 failed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que existe no registro.'
+                  ? 'Try again in a moment. Until then, there is no way to know what the registry holds.'
                   : 'Publique uma skill pela CLI para que os agentes deste workspace possam descobri-la.'
               }
             />
@@ -250,7 +250,7 @@ export function SkillsOverviewPage() {
               disabled={query.isFetching}
               onClick={() => setTokenAtual(proximoToken ?? undefined)}
             >
-              {query.isFetching ? 'Carregando…' : 'Carregar mais'}
+              {query.isFetching ? 'Loading…' : 'Load more'}
             </Button>
             <span className="text-xs text-muted-foreground">
               O acervo tem mais do que está nesta tela.
