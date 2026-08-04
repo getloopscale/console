@@ -39,11 +39,10 @@ import (
 //   EC-21 — last_used_at fire-and-forget; lost-on-crash accepted
 
 const (
-	bearerPrefix    = "Bearer "
-	secretPrefixLP  = "theo_live_"
-	tracerInstName  = "theo.auth"
-	spanName        = "auth.scope_check"
-	asyncWriteBudgt = 5 * time.Second
+	bearerPrefix   = "Bearer "
+	secretPrefixLP = "theo_live_"
+	tracerInstName = "theo.auth"
+	spanName       = "auth.scope_check"
 
 	// API Key Rotation plan D3 — emit Sunset + Deprecation headers when a
 	// key's expiry is within this window (RFC 8594 deprecation pattern).

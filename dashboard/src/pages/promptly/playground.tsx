@@ -67,7 +67,7 @@ export function PromptlyPlaygroundPage() {
   // M17 — a afinação desta execução, e o porquê da revisão que ela pode virar.
   const [temperatura, setTemperatura] = useState('');
   const [descricao, setDescricao] = useState('');
-  const [configDaUltimaExecucao, setConfigDaUltimaExecucao] = useState<{ temperature: number } | null>(null);
+
 
   const prompt = useQuery({
     queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName],
@@ -114,10 +114,9 @@ export function PromptlyPlaygroundPage() {
   /**
    * M17 ADR-2 — a config com que se invoca é a MESMA que o salvar leva adiante.
    *
-   * O laço fechado é o milestone inteiro: guardar uma afinação que a invocação nunca
-   * usou faria o produto AFIRMAR que a revisão foi testada assim. `temperature`
-   * ausente significa "não afinei" — e aí nada é gravado, em vez de gravar um default
-   * que ninguém escolheu.
+   * O laço fechado é o milestone inteiro: sem ele, a invocação rodaria com o padrão do
+   * ambiente enquanto a revisão guardaria outra coisa. `temperature` ausente significa
+   * "não afinei" — e aí nada é gravado, em vez de gravar um default que ninguém escolheu.
    */
   const configUsada = temperatura === '' ? null : { temperature: Number(temperatura) };
 
@@ -133,10 +132,6 @@ export function PromptlyPlaygroundPage() {
     onSuccess: (out) => {
       setFalha(null);
       setSaida(out);
-      // Congela a config DESTA execução. Salvar depois grava esta, não a que estiver
-      // no campo — mexer na temperatura sem rodar de novo não pode virar afinação
-      // "testada".
-      setConfigDaUltimaExecucao(configUsada);
     },
     onError: (err: unknown) => {
       // A saída anterior é limpa: deixá-la na tela ao lado de um erro sugeriria
@@ -150,9 +145,12 @@ export function PromptlyPlaygroundPage() {
     mutationFn: () =>
       createRevision<unknown>(promptName, conteudo, {
         changeDescription: descricao.trim(),
-        // A config que FOI USADA, não a que está no campo agora: se o operador mexer
-        // na temperatura depois de rodar, salvar gravaria uma afinação não testada.
-        modelConfig: configDaUltimaExecucao,
+        // A config QUE ESTÁ NO CAMPO — a mesma que `rodar` usa. Uma versão anterior
+        // gravava só a de uma execução bem-sucedida; era invariante minha, além do
+        // ADR-2, e fazia a temperatura digitada sumir sem aviso quando o operador
+        // salvava sem rodar. O que o ADR-2 exige é que a config chegue à INVOCAÇÃO,
+        // e isso o adaptador entrega.
+        modelConfig: configUsada,
       }),
     onSuccess: () => {
       // Invalidar ANTES de navegar. Sem isto o detalhe renderiza o cache anterior e a
@@ -275,7 +273,7 @@ export function PromptlyPlaygroundPage() {
               />
             </FormField.Control>
             <FormField.Hint>
-              A afinação com que você RODAR é a que ficará gravada ao salvar. Vazio significa
+              Esta afinação é usada ao rodar E gravada ao salvar. Vazio significa
               &quot;não afinei&quot; — nada é gravado, em vez de um default que ninguém escolheu.
             </FormField.Hint>
           </FormField>

@@ -63,8 +63,8 @@ func TestRequireScope_ValidBearerScopeMatchProceeds(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow("apk-aaaa111122223333", "user-A", "tenant-A", nil, []byte(`["memory:read","memory:write"]`), nil))
 	// The async last_used_at update fires in a goroutine; allow it.
-	mock.ExpectExec("UPDATE theo_api_keys SET last_used_at").
-		WithArgs("apk-aaaa111122223333").
+	mock.ExpectExec("UPDATE theo_api_keys").
+		WithArgs("apk-aaaa111122223333", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	var observed *auth.UserContext
@@ -87,7 +87,11 @@ func TestRequireScope_ValidBearerScopeMatchProceeds(t *testing.T) {
 
 	// Allow the async fire-and-forget update to land before we assert.
 	time.Sleep(50 * time.Millisecond)
-	_ = mock.ExpectationsWereMet()
+	// M149/#405: o veredito do mock era DESCARTADO aqui. Com ele descartado, remover o registro de
+	// uso de `lookupAPIKey` não fazia este teste falhar — a expectativa do UPDATE ficava decorativa.
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectativas do mock não cumpridas: %v", err)
+	}
 }
 
 // T0.6 case 2: missing Authorization header → 401.
@@ -218,8 +222,8 @@ func TestRequireScope_AsyncLastUsedDoesNotBlockHotPath(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow("apk-aaaa111122223333", "u", "t", nil, []byte(`["memory:read"]`), nil))
 	// Simulate a slow async write — the middleware must NOT await this.
-	mock.ExpectExec("UPDATE theo_api_keys SET last_used_at").
-		WithArgs("apk-aaaa111122223333").
+	mock.ExpectExec("UPDATE theo_api_keys").
+		WithArgs("apk-aaaa111122223333", sqlmock.AnyArg()).
 		WillDelayFor(500 * time.Millisecond).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -267,8 +271,8 @@ func runScopeMiddlewareWithExpiry(t *testing.T, expiresAt any) *httptest.Respons
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow("apk-aaaa111122223333", "u", "t", nil, []byte(`["memory:read"]`), expiresAt))
-	mock.ExpectExec("UPDATE theo_api_keys SET last_used_at").
-		WithArgs("apk-aaaa111122223333").
+	mock.ExpectExec("UPDATE theo_api_keys").
+		WithArgs("apk-aaaa111122223333", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	final := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
@@ -337,4 +341,3 @@ func TestRequireScope_SunsetHeaderWhenExpiresAtWithinThreshold(t *testing.T) {
 		t.Errorf("Link header must point at docs, got %q", link)
 	}
 }
-
