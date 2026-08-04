@@ -35,6 +35,15 @@ import (
 // concrete impl is *AdminClient; tests inject a stub).
 type minter interface {
 	MintKey(ctx context.Context, workspaceID, name string, scopes []string) (*MintResult, error)
+
+	// M18 — as duas superfícies que fazem a PESSOA atravessar.
+	//
+	// `MintKey` cunha uma chave do INQUILINO: ela identifica o workspace e mais nada. Foi o
+	// bastante enquanto toda ação exigia no máximo `member` — e deixou de ser no M18, cujo gate
+	// de promoção exige `admin`. Papel acima de `member` só existe com identidade, e identidade
+	// só existe com membership declarada; por isso as duas chamadas andam juntas.
+	DeclareMember(ctx context.Context, workspaceID, userID, role string) error
+	MintKeyForUser(ctx context.Context, workspaceID, name string, scopes []string, userID string) (*MintResult, error)
 }
 
 type cachedSecret struct {
@@ -103,6 +112,55 @@ func (b *Broker) KeyForTenantScoped(ctx context.Context, accountID, tenantID str
 		r, mErr := b.admin.MintKey(ctx, tenantID, "gw-"+tenantID, scopes)
 		if mErr != nil {
 			return nil, mErr // fail-closed: no fallback, no cache write
+		}
+		b.cache.Add(cacheKey, cachedSecret{secret: r.Secret, expiresAt: b.now().Add(b.ttl)})
+		return r.Secret, nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return res.(string), nil
+}
+
+// KeyForUser cunha (e cacheia) a credencial de UM HUMANO dentro do inquilino.
+//
+// Existe porque a aceitação do M18 mediu o custo de não existir: a chave por inquilino não
+// identifica ninguém, papel acima de `member` exige identidade, e o gate de promoção que o
+// milestone entregou não podia ser ligado por credencial alguma. O mesmo buraco fazia todo
+// comentário nascer sem autor.
+//
+// A chave de cache inclui o USUÁRIO, e isso não é detalhe: sem ele dois humanos do mesmo
+// inquilino compartilhariam credencial, e o papel de um valeria para o outro — um defeito de
+// isolamento pior que o corrigido aqui.
+//
+// A declaração de membership vem ANTES do mint porque o serviço recusa vincular chave a quem não
+// é membro (`USER_NOT_MEMBER`), e a recusa é a guarda que impede um chamador de afirmar o próprio
+// rank. Declarar é ato da AUTORIDADE sobre o workspace; o broker fala como plano de controle.
+//
+// Fail-closed em ambos os passos: sem membership ou sem mint não há chave, e o cliente então não
+// emite requisição alguma — em vez de emiti-la com a credencial errada.
+func (b *Broker) KeyForUser(ctx context.Context, accountID, tenantID, userID, role string, want []string) (string, error) {
+	if tenantID == "" {
+		return "", fmt.Errorf("promptly broker: empty tenant id")
+	}
+	if userID == "" {
+		return "", fmt.Errorf("promptly broker: empty user id")
+	}
+	scopes := intersectScopes(translateScopes(want), b.scopes)
+	if len(scopes) == 0 {
+		return "", fmt.Errorf("promptly broker: no grantable scopes for tenant %q", tenantID)
+	}
+	cacheKey := accountID + "\x00" + tenantID + "\x00" + userID + "\x00" + role + "\x00" + strings.Join(scopes, ",")
+	if v, ok := b.cache.Get(cacheKey); ok && b.now().Before(v.expiresAt) {
+		return v.secret, nil
+	}
+	res, err, _ := b.sf.Do(cacheKey, func() (any, error) {
+		if dErr := b.admin.DeclareMember(ctx, tenantID, userID, role); dErr != nil {
+			return nil, dErr
+		}
+		r, mErr := b.admin.MintKeyForUser(ctx, tenantID, "gw-"+tenantID+"-"+userID, scopes, userID)
+		if mErr != nil {
+			return nil, mErr
 		}
 		b.cache.Add(cacheKey, cachedSecret{secret: r.Secret, expiresAt: b.now().Add(b.ttl)})
 		return r.Secret, nil

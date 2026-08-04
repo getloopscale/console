@@ -182,7 +182,8 @@ func (h *PromptlyDashboardHandler) reject(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "application/json")
 
 	ue, ok := promptly.AsUpstreamError(err)
-	if ok && ue.IsClientRefusal() && !isControlPlaneAuthFailure(ue.Status) && json.Valid(ue.Body) {
+	if ok && ue.IsClientRefusal() && json.Valid(ue.Body) &&
+		(!isControlPlaneAuthFailure(ue.Status) || recusaDePapel(ue.Body)) {
 		w.WriteHeader(ue.Status)
 		_, _ = w.Write(ue.Body)
 		return
@@ -190,6 +191,31 @@ func (h *PromptlyDashboardHandler) reject(w http.ResponseWriter, r *http.Request
 
 	w.WriteHeader(http.StatusBadGateway)
 	_, _ = w.Write([]byte(promptlyUnavailable))
+}
+
+// recusaDePapel distingue os DOIS 403 que o promptly pode devolver — e a distinção é a diferença
+// entre um diagnóstico e uma mentira.
+//
+// Até o M18, 403 upstream só podia significar UMA coisa: a credencial do PLANO DE CONTROLE está
+// errada. Repassá-la ao navegador deslogaria alguém perfeitamente autenticado, que investigaria a
+// própria sessão enquanto o defeito é de fiação — por isso `reject` a converte em 502.
+//
+// O M18 criou um 403 de outra natureza: `forbidden_role` é dirigido AO HUMANO e diz o que ele
+// precisa ("required: admin, actual: member"). Medido na aceitação de 2026-08-04: o serviço
+// respondeu com essa razão exata e a tela recebeu "o serviço de prompts não respondeu" — uma
+// afirmação FALSA, que manda investigar disponibilidade num problema de autorização.
+//
+// O que discrimina não é o status (idêntico nos dois) nem a rota (a mesma pode dar os dois): é o
+// CÓDIGO TIPADO no corpo. Por isso a checagem é aqui, sobre o corpo, e `isControlPlaneAuthFailure`
+// — compartilhada com o dashboard de skills — fica intacta.
+func recusaDePapel(corpo []byte) bool {
+	var tipado struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(corpo, &tipado); err != nil {
+		return false
+	}
+	return tipado.Error == "forbidden_role"
 }
 
 func promptName(r *http.Request) string { return chi.URLParam(r, "promptName") }

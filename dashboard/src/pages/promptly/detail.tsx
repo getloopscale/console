@@ -619,7 +619,7 @@ export function PromptDetailPage() {
                   <p className="pt-1 text-xs text-muted-foreground">
                     {/* Autor ausente é DITO: uma credencial sem identidade humana não tem autor,
                         e inventar um apareceria numa auditoria como fato. */}
-                    {c.author ?? 'autor não registrado'} · {c.createdAt}
+                    {c.author ?? 'autor não registrado'}{c.quando === '' ? '' : ` · ${c.quando}`}
                   </p>
                 </li>
               ))}

@@ -14,7 +14,23 @@ type recordingPromptlyMinter struct {
 	calls     int
 	gotScopes []string
 	gotTenant string
+	gotUser   string // M18 — a PESSOA que o resolver de promoção passou
+	gotRole   string
 	err       error
+}
+
+// M18 — o caminho de PROMOÇÃO cunha por pessoa. Registrar `gotUser`/`gotRole` é o que permite
+// afirmar que a identidade atravessou, em vez de afirmar que a chamada aconteceu.
+func (m *recordingPromptlyMinter) KeyForUser(_ context.Context, _, tenantID, userID, role string, want []string) (string, error) {
+	m.calls++
+	m.gotTenant = tenantID
+	m.gotScopes = want
+	m.gotUser = userID
+	m.gotRole = role
+	if m.err != nil {
+		return "", m.err
+	}
+	return "promptly-key-for-" + tenantID + "-" + userID, nil
 }
 
 func (m *recordingPromptlyMinter) KeyForTenantScoped(_ context.Context, _, tenantID string, want []string) (string, error) {
@@ -48,11 +64,48 @@ func TestPromptlyReadResolverMintsReadOnlyScope(t *testing.T) {
 	}
 }
 
+// M18 — a chave de PROMOCAO carrega a pessoa e o papel dela.
+//
+// Sem isto o servico nao encontra membership, todo papel cai no teto `member`, e uma acao que
+// exige `admin` fica inalcancavel: foi assim que o gate do M18 nasceu inarmavel. O par com o teste
+// de fail-closed abaixo e o que torna a afirmacao completa — a identidade atravessa, e a ausencia
+// dela nao vira chave anonima.
+func TestResolverDePromocaoCarregaAPessoaEOPapel(t *testing.T) {
+	m := &recordingPromptlyMinter{}
+	ctx := auth.WithUser(context.Background(), &auth.UserContext{
+		TenantID: "tn-alpha", AccountID: "acc-1", Subject: "u-ana", Role: "admin",
+	})
+
+	if _, err := newPromptlyPromotionKeyResolver(m)(ctx); err != nil {
+		t.Fatalf("resolver: %v", err)
+	}
+	if m.gotUser != "u-ana" {
+		t.Errorf("usuario = %q; a chave precisa identificar a PESSOA, nao so o inquilino", m.gotUser)
+	}
+	if m.gotRole != "admin" {
+		t.Errorf("papel = %q; sem ele o servico nao sabe que rank declarar", m.gotRole)
+	}
+}
+
+// Sessao autenticada sem sujeito NAO vira chave anonima com escopo de escrita. Cair para a chave
+// por inquilino "so para nao quebrar" devolveria, em silencio, o buraco que este slice fecha.
+func TestResolverDePromocaoFalhaFechadoSemSujeito(t *testing.T) {
+	m := &recordingPromptlyMinter{}
+	ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-alpha", AccountID: "acc-1"})
+
+	if _, err := newPromptlyPromotionKeyResolver(m)(ctx); err == nil {
+		t.Fatal("sessao sem sujeito produziu chave; tem de falhar fechado")
+	}
+	if m.calls != 0 {
+		t.Errorf("chamadas ao minter = %d; nenhuma requisicao deve sair sem identidade", m.calls)
+	}
+}
+
 // O caminho de PROMOCAO e o unico que recebe `prompt:write`. O par com o teste acima e o que prova
 // a separacao: mesma fiacao, duas chaves com poderes diferentes.
 func TestPromptlyPromotionResolverMintsWriteScope(t *testing.T) {
 	m := &recordingPromptlyMinter{}
-	ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-alpha", AccountID: "acc-1"})
+	ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-alpha", AccountID: "acc-1", Subject: "u-ana", Role: "admin"})
 
 	if _, err := newPromptlyPromotionKeyResolver(m)(ctx); err != nil {
 		t.Fatalf("resolver: %v", err)
@@ -127,6 +180,14 @@ func TestPromptlyResolverPropagatesMintFailure(t *testing.T) {
 
 type mintSpy struct{ escoposCunhados []string }
 
+// M18 — o espião acompanha a porta; estes dois não são exercitados por este teste, que é sobre a
+// TRADUÇÃO de escopo.
+func (m *mintSpy) DeclareMember(context.Context, string, string, string) error { return nil }
+
+func (m *mintSpy) MintKeyForUser(ctx context.Context, ws, name string, scopes []string, _ string) (*promptly.MintResult, error) {
+	return m.MintKey(ctx, ws, name, scopes)
+}
+
 func (m *mintSpy) MintKey(_ context.Context, _, _ string, scopes []string) (*promptly.MintResult, error) {
 	m.escoposCunhados = scopes
 	return &promptly.MintResult{Secret: "promptly_live_fake"}, nil
@@ -148,7 +209,7 @@ func TestPromptlyResolversFalamONamespaceQueOBrokerEntende(t *testing.T) {
 			if err != nil {
 				t.Fatalf("broker: %v", err)
 			}
-			ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-1", AccountID: "acc-1"})
+			ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-1", AccountID: "acc-1", Subject: "u-ana", Role: "admin"})
 
 			chave, err := caso.novo(broker)(ctx)
 

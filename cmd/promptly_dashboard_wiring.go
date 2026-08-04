@@ -16,6 +16,7 @@ import (
 // promptlyDashMinter é a porta que a fiação consome do broker (ISP): apenas a cunhagem escopada.
 type promptlyDashMinter interface {
 	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, want []string) (string, error)
+	KeyForUser(ctx context.Context, accountID, tenantID, userID, role string, want []string) (string, error)
 }
 
 // newPromptlyDashboardKeyResolver devolve o resolver por requisição do caminho de LEITURA.
@@ -46,19 +47,40 @@ func newPromptlyDashboardKeyResolver(minter promptlyDashMinter) func(ctx context
 // Separado do de leitura porque a separação é o mecanismo de segurança. `prompt:write` só existe
 // nesta chave, e ela só é usada pelo `WriteClient` — que expõe um único verbo.
 //
-// Honestidade sobre o que este resolver NÃO garante: todo usuário autenticado do workspace recebe
-// uma chave com `prompt:write`. Não há RBAC por usuário neste plano de controle
-// (`auth.UserContext` carrega `Role`, não escopos), e o broker cruza o `want` com a configuração
-// ESTÁTICA do gateway, não com o que o chamador possui. A separação real, hoje, é entre os dois
-// CLIENTES — não entre usuários. Quem depende de "só o dono promove" precisa da checagem de papel,
-// que este milestone não entrega.
+// A chave carrega a PESSOA, não só o inquilino — e é isso que faz "só quem tem o papel promove"
+// deixar de ser promessa.
+//
+// Este comentário dizia, com todas as letras, que a checagem de papel não existia: *"todo usuário
+// autenticado do workspace recebe uma chave com `prompt:write` (…) quem depende de 'só o dono
+// promove' precisa da checagem de papel, que este milestone não entrega"*. A aceitação do M18
+// mediu o preço disso — `label.protect` exige `admin`, papel acima de `member` exige identidade, e
+// a chave por inquilino não identifica ninguém: o gate que o milestone entregou não podia ser
+// ligado por credencial alguma, e toda a discussão nascia sem autor.
+//
+// O `auth.UserContext` já tinha as duas peças (`Subject` e `Role`), e o vocabulário de papel do
+// plano de controle é o MESMO do serviço (`owner|admin|member`) — não há tradução, e por isso não
+// há um mapa para divergir.
+//
+// Fail-closed também no Subject: uma sessão sem sujeito não vira chave anônima com escopo de
+// escrita, ela vira erro. Cair para a chave por inquilino "só para não quebrar" devolveria
+// exatamente o buraco que este slice fecha, e em silêncio.
 func newPromptlyPromotionKeyResolver(minter promptlyDashMinter) func(ctx context.Context) (string, error) {
 	return func(ctx context.Context) (string, error) {
 		u := auth.GetUser(ctx)
 		if u == nil || u.TenantID == "" {
 			return "", fmt.Errorf("promptly promotion: no authenticated tenant in context")
 		}
+		if u.Subject == "" {
+			return "", fmt.Errorf("promptly promotion: authenticated session without a subject")
+		}
+		papel := u.Role
+		if papel == "" {
+			// Sem papel declarado, o menor: `member` é o que o teto do serviço já concedia a
+			// qualquer credencial. Assumir `admin` por omissão seria conceder por descuido.
+			papel = "member"
+		}
 		// Idem: namespace do cloud. Ver o comentário no resolver de leitura e o `#366`.
-		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"promptly:read", "promptly:write"})
+		return minter.KeyForUser(ctx, u.AccountID, u.TenantID, u.Subject, papel,
+			[]string{"promptly:read", "promptly:write"})
 	}
 }

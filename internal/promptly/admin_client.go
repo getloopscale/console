@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -83,6 +84,39 @@ func (a *AdminClient) MintKey(ctx context.Context, workspaceID, name string, sco
 		return nil, errors.New("promptly: mint returned an empty secret")
 	}
 	return &out, nil
+}
+
+// MintKeyForUser provisiona uma chave VINCULADA a uma pessoa — M18.
+//
+// A diferença para `MintKey` é um campo, e a consequência é a autoridade: sem `user_id` o serviço
+// não encontra membership, e todo papel cai no teto `member`. Foi assim que o gate de promoção do
+// M18 nasceu inarmável e a discussão nasceu sem autor.
+//
+// Falha fechada pelo mesmo motivo da irmã: sem segredo, sem cache, sem requisição com credencial
+// errada.
+func (a *AdminClient) MintKeyForUser(ctx context.Context, workspaceID, name string, scopes []string, userID string) (*MintResult, error) {
+	reqBody := map[string]any{"name": name, "scopes": scopes, "workspace_id": workspaceID, "user_id": userID}
+	var out MintResult
+	if err := a.do(ctx, http.MethodPost, "/admin/keys", reqBody, &out); err != nil {
+		return nil, err
+	}
+	if out.Secret == "" {
+		return nil, errors.New("promptly: mint returned an empty secret")
+	}
+	return &out, nil
+}
+
+// DeclareMember declara o papel de uma pessoa no workspace — M18.
+//
+// Precede o mint vinculado porque o serviço recusa vincular chave a quem não é membro, e a recusa
+// é a guarda que impede um chamador de afirmar o próprio rank. Quem declara é a autoridade sobre o
+// workspace, e o plano de controle é ela: os inquilinos são dele.
+//
+// Idempotente do outro lado — declarar de novo com papel diferente ATUALIZA, que é o que acontece
+// quando alguém é promovido.
+func (a *AdminClient) DeclareMember(ctx context.Context, workspaceID, userID, role string) error {
+	path := "/admin/workspaces/" + url.PathEscape(workspaceID) + "/members/" + url.PathEscape(userID)
+	return a.do(ctx, http.MethodPut, path, map[string]any{"role": role}, nil)
 }
 
 // do is the admin request lifecycle. The platform credential goes ONLY in the
