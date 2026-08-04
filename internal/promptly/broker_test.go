@@ -27,7 +27,7 @@ type stubMinter struct {
 // M18 — o stub acompanha a porta. Estes dois nunca são chamados pelos testes do caminho por
 // INQUILINO (que é o que este stub exercita); existem porque um dublê que não implementa o
 // contrato inteiro deixa de provar que o contrato inteiro é satisfeito.
-func (s *stubMinter) DeclareMember(context.Context, string, string, string) error { return nil }
+func (s *stubMinter) DeclareMember(context.Context, string, string, string, string) error { return nil }
 
 func (s *stubMinter) MintKeyForUser(ctx context.Context, workspaceID, name string, scopes []string, _ string) (*MintResult, error) {
 	return s.MintKey(ctx, workspaceID, name, scopes)
@@ -258,8 +258,8 @@ func (s *stubIdentidade) MintKeyForUser(_ context.Context, ws, name string, scop
 	return &MintResult{Secret: fmt.Sprintf("promptly_live_%d", s.n)}, nil
 }
 
-func (s *stubIdentidade) DeclareMember(_ context.Context, ws, userID, role string) error {
-	s.membros = append(s.membros, ws+"|"+userID+"|"+role)
+func (s *stubIdentidade) DeclareMember(_ context.Context, ws, userID, role, email string) error {
+	s.membros = append(s.membros, ws+"|"+userID+"|"+role+"|"+email)
 	return nil
 }
 
@@ -273,13 +273,13 @@ func TestChaveDePromocaoCarregaAPessoaEOPapel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := b.KeyForUser(context.Background(), "acc-1", "tn-1", "u-ana", "admin",
+	if _, err := b.KeyForUser(context.Background(), "acc-1", "tn-1", "u-ana", "admin", "ana@exemplo.test",
 		[]string{"promptly:read", "promptly:write"}); err != nil {
 		t.Fatalf("KeyForUser: %v", err)
 	}
 
-	if len(s.membros) != 1 || s.membros[0] != "tn-1|u-ana|admin" {
-		t.Fatalf("membros = %v, quero [tn-1|u-ana|admin] — sem declarar a membership o mint vinculado é recusado", s.membros)
+	if len(s.membros) != 1 || s.membros[0] != "tn-1|u-ana|admin|ana@exemplo.test" {
+		t.Fatalf("membros = %v, quero [tn-1|u-ana|admin|ana@exemplo.test] — sem declarar a membership o mint vinculado é recusado", s.membros)
 	}
 	if len(s.mints) != 1 || s.mints[0] != "tn-1|u-ana" {
 		t.Fatalf("mints = %v, quero [tn-1|u-ana] — a chave precisa nascer VINCULADA à pessoa", s.mints)
@@ -296,11 +296,11 @@ func TestDoisUsuariosDoMesmoTenantNaoCompartilhamChave(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	k1, err := b.KeyForUser(ctx, "acc-1", "tn-1", "u-ana", "admin", []string{"promptly:write"})
+	k1, err := b.KeyForUser(ctx, "acc-1", "tn-1", "u-ana", "admin", "ana@exemplo.test", []string{"promptly:write"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	k2, err := b.KeyForUser(ctx, "acc-1", "tn-1", "u-bia", "member", []string{"promptly:write"})
+	k2, err := b.KeyForUser(ctx, "acc-1", "tn-1", "u-bia", "member", "bia@exemplo.test", []string{"promptly:write"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +309,7 @@ func TestDoisUsuariosDoMesmoTenantNaoCompartilhamChave(t *testing.T) {
 	}
 
 	// E o cache continua sendo cache: o mesmo usuário não remint a cada chamada.
-	if _, err := b.KeyForUser(ctx, "acc-1", "tn-1", "u-ana", "admin", []string{"promptly:write"}); err != nil {
+	if _, err := b.KeyForUser(ctx, "acc-1", "tn-1", "u-ana", "admin", "ana@exemplo.test", []string{"promptly:write"}); err != nil {
 		t.Fatal(err)
 	}
 	if s.n != 2 {

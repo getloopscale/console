@@ -16,12 +16,14 @@ type recordingPromptlyMinter struct {
 	gotTenant string
 	gotUser   string // M18 — a PESSOA que o resolver de promoção passou
 	gotRole   string
+	gotEmail  string
 	err       error
 }
 
 // M18 — o caminho de PROMOÇÃO cunha por pessoa. Registrar `gotUser`/`gotRole` é o que permite
 // afirmar que a identidade atravessou, em vez de afirmar que a chamada aconteceu.
-func (m *recordingPromptlyMinter) KeyForUser(_ context.Context, _, tenantID, userID, role string, want []string) (string, error) {
+func (m *recordingPromptlyMinter) KeyForUser(_ context.Context, _, tenantID, userID, role, email string, want []string) (string, error) {
+	m.gotEmail = email
 	m.calls++
 	m.gotTenant = tenantID
 	m.gotScopes = want
@@ -74,6 +76,7 @@ func TestResolverDePromocaoCarregaAPessoaEOPapel(t *testing.T) {
 	m := &recordingPromptlyMinter{}
 	ctx := auth.WithUser(context.Background(), &auth.UserContext{
 		TenantID: "tn-alpha", AccountID: "acc-1", Subject: "u-ana", Role: "admin",
+		Email: "ana@exemplo.test",
 	})
 
 	if _, err := newPromptlyPromotionKeyResolver(m)(ctx); err != nil {
@@ -84,6 +87,12 @@ func TestResolverDePromocaoCarregaAPessoaEOPapel(t *testing.T) {
 	}
 	if m.gotRole != "admin" {
 		t.Errorf("papel = %q; sem ele o servico nao sabe que rank declarar", m.gotRole)
+	}
+	if m.gotEmail != "ana@exemplo.test" {
+		// O e-mail e obrigatorio do outro lado (`users.email` NOT NULL UNIQUE) e e DADO REAL.
+		// Sintetiza-lo gravaria um fato falso numa tabela que outras coisas leem — e foi
+		// justamente a ausencia dele que devolveu 500 na primeira aceitacao.
+		t.Errorf("email = %q; o servico exige dado real para materializar a pessoa", m.gotEmail)
 	}
 }
 
@@ -105,7 +114,7 @@ func TestResolverDePromocaoFalhaFechadoSemSujeito(t *testing.T) {
 // a separacao: mesma fiacao, duas chaves com poderes diferentes.
 func TestPromptlyPromotionResolverMintsWriteScope(t *testing.T) {
 	m := &recordingPromptlyMinter{}
-	ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-alpha", AccountID: "acc-1", Subject: "u-ana", Role: "admin"})
+	ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-alpha", AccountID: "acc-1", Subject: "u-ana", Role: "admin", Email: "ana@exemplo.test"})
 
 	if _, err := newPromptlyPromotionKeyResolver(m)(ctx); err != nil {
 		t.Fatalf("resolver: %v", err)
@@ -182,7 +191,7 @@ type mintSpy struct{ escoposCunhados []string }
 
 // M18 — o espião acompanha a porta; estes dois não são exercitados por este teste, que é sobre a
 // TRADUÇÃO de escopo.
-func (m *mintSpy) DeclareMember(context.Context, string, string, string) error { return nil }
+func (m *mintSpy) DeclareMember(context.Context, string, string, string, string) error { return nil }
 
 func (m *mintSpy) MintKeyForUser(ctx context.Context, ws, name string, scopes []string, _ string) (*promptly.MintResult, error) {
 	return m.MintKey(ctx, ws, name, scopes)
@@ -209,7 +218,7 @@ func TestPromptlyResolversFalamONamespaceQueOBrokerEntende(t *testing.T) {
 			if err != nil {
 				t.Fatalf("broker: %v", err)
 			}
-			ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-1", AccountID: "acc-1", Subject: "u-ana", Role: "admin"})
+			ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-1", AccountID: "acc-1", Subject: "u-ana", Role: "admin", Email: "ana@exemplo.test"})
 
 			chave, err := caso.novo(broker)(ctx)
 

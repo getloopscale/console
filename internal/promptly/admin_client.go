@@ -114,9 +114,9 @@ func (a *AdminClient) MintKeyForUser(ctx context.Context, workspaceID, name stri
 //
 // Idempotente do outro lado — declarar de novo com papel diferente ATUALIZA, que é o que acontece
 // quando alguém é promovido.
-func (a *AdminClient) DeclareMember(ctx context.Context, workspaceID, userID, role string) error {
+func (a *AdminClient) DeclareMember(ctx context.Context, workspaceID, userID, role, email string) error {
 	path := "/admin/workspaces/" + url.PathEscape(workspaceID) + "/members/" + url.PathEscape(userID)
-	return a.do(ctx, http.MethodPut, path, map[string]any{"role": role}, nil)
+	return a.do(ctx, http.MethodPut, path, map[string]any{"role": role, "email": email}, nil)
 }
 
 // do is the admin request lifecycle. The platform credential goes ONLY in the

@@ -42,7 +42,7 @@ type minter interface {
 	// bastante enquanto toda ação exigia no máximo `member` — e deixou de ser no M18, cujo gate
 	// de promoção exige `admin`. Papel acima de `member` só existe com identidade, e identidade
 	// só existe com membership declarada; por isso as duas chamadas andam juntas.
-	DeclareMember(ctx context.Context, workspaceID, userID, role string) error
+	DeclareMember(ctx context.Context, workspaceID, userID, role, email string) error
 	MintKeyForUser(ctx context.Context, workspaceID, name string, scopes []string, userID string) (*MintResult, error)
 }
 
@@ -139,12 +139,18 @@ func (b *Broker) KeyForTenantScoped(ctx context.Context, accountID, tenantID str
 //
 // Fail-closed em ambos os passos: sem membership ou sem mint não há chave, e o cliente então não
 // emite requisição alguma — em vez de emiti-la com a credencial errada.
-func (b *Broker) KeyForUser(ctx context.Context, accountID, tenantID, userID, role string, want []string) (string, error) {
+func (b *Broker) KeyForUser(ctx context.Context, accountID, tenantID, userID, role, email string, want []string) (string, error) {
 	if tenantID == "" {
 		return "", fmt.Errorf("promptly broker: empty tenant id")
 	}
 	if userID == "" {
 		return "", fmt.Errorf("promptly broker: empty user id")
+	}
+	// O e-mail é obrigatório do outro lado (`users.email` é NOT NULL UNIQUE) e é DADO REAL da
+	// sessão. Sintetizar um aqui gravaria um fato falso numa tabela que outras coisas leem — e a
+	// unicidade transformaria o palpite em colisão. Sem ele, falha fechado.
+	if email == "" {
+		return "", fmt.Errorf("promptly broker: empty user email")
 	}
 	scopes := intersectScopes(translateScopes(want), b.scopes)
 	if len(scopes) == 0 {
@@ -155,7 +161,7 @@ func (b *Broker) KeyForUser(ctx context.Context, accountID, tenantID, userID, ro
 		return v.secret, nil
 	}
 	res, err, _ := b.sf.Do(cacheKey, func() (any, error) {
-		if dErr := b.admin.DeclareMember(ctx, tenantID, userID, role); dErr != nil {
+		if dErr := b.admin.DeclareMember(ctx, tenantID, userID, role, email); dErr != nil {
 			return nil, dErr
 		}
 		r, mErr := b.admin.MintKeyForUser(ctx, tenantID, "gw-"+tenantID+"-"+userID, scopes, userID)
