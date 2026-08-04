@@ -7,7 +7,13 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { fetchRevisions } from '@/components/promptly/promptly-api';
-import { diffLines, diffConfig, saoEquivalentes, DIFF_LINE_CEILING } from '@/components/promptly/diff';
+import {
+  diffLines,
+  diffConfig,
+  saoEquivalentes,
+  DIFF_LINE_CEILING,
+  type ConfigDeRevisao,
+} from '@/components/promptly/diff';
 
 /**
  * M12 T5 — `/promptly/:name/diff`: o que mudou entre duas revisões.
@@ -25,6 +31,43 @@ const REVISION_WINDOW = 50;
 interface Revision {
   readonly version: number;
   readonly content: string;
+  /**
+   * M17 — aditivos e opcionais NO FIO: um serviço anterior ao milestone não os emite, e
+   * uma revisão criada antes dele não os tem.
+   *
+   * Declará-los aqui não é zelo de tipagem — é o que faltava. `query.data` é `unknown`, e
+   * `Array.isArray` o alarga para `any[]`: enquanto a interface omitia `modelConfig`, a
+   * tela já o lia sem que o compilador pudesse reclamar. A omissão de `changeDescription`
+   * custou o item "aparece no diff" do DoD-1, encontrado só na aceitação contra o app-dev.
+   */
+  readonly changeDescription?: unknown;
+  readonly modelConfig?: ConfigDeRevisao | null;
+}
+
+/** O porquê de uma revisão, ou `null` quando ela nasceu antes do campo existir. */
+function porqueDe(revisao: Revision | undefined): string | null {
+  return typeof revisao?.changeDescription === 'string' && revisao.changeDescription !== ''
+    ? revisao.changeDescription
+    : null;
+}
+
+/**
+ * O porquê de um dos lados da comparação.
+ *
+ * A ausência é DITA, não deixada em branco: um espaço vazio leria como "ninguém escreveu
+ * nada", quando o fato é "esta revisão nasceu antes de o campo existir". A mesma redação
+ * — e a mesma razão — da lista de revisões em `detail.tsx`.
+ */
+function Porque({ texto }: { readonly texto: string | null }) {
+  return (
+    <span className="mt-1 block max-w-[28rem] text-xs">
+      {texto !== null ? (
+        <span className="text-foreground">{texto}</span>
+      ) : (
+        <span className="italic text-muted-foreground">sem descrição</span>
+      )}
+    </span>
+  );
 }
 
 export function PromptlyDiffPage() {
@@ -108,6 +151,7 @@ export function PromptlyDiffPage() {
                 <option key={r.version} value={r.version}>v{r.version}</option>
               ))}
             </select>
+            <Porque texto={porqueDe(a)} />
           </label>
           <label className="text-sm">
             <span className="mb-1 block text-muted-foreground">Depois</span>
@@ -121,6 +165,7 @@ export function PromptlyDiffPage() {
                 <option key={r.version} value={r.version}>v{r.version}</option>
               ))}
             </select>
+            <Porque texto={porqueDe(b)} />
           </label>
         </div>
       </Card>
