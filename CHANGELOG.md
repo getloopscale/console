@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **a chave usada pela borda dizia que nunca tinha sido usada** (#405). A coluna "Last used" da tela de API Keys existe para responder *quais credenciais estão vivas* — e respondia o oposto para exatamente as chaves que mais importam. Havia **dois** caminhos de autenticação e só um registrava: o middleware das rotas do próprio theo-cloud gravava, e o `ResolveAPIKey` — sobre o qual o ForwardAuth da borda é montado, e por onde passa **todo** produto de data-plane — não. Medido no app-dev: **9 de 9 chaves** marcando "Never", incluindo uma usada em seis chamadas minutos antes de a tela ser lida. Quem fizesse a limpeza correta (*revogar o que nunca foi usado*) revogaria produção, e uma chave vazada em uso ativo ficava indistinguível de uma esquecida. O registro mudou de lugar: sai do middleware e passa a viver no **tronco que os dois caminhos atravessam**, para que um terceiro caminho futuro o herde por construção — em vez de nascer cego, que foi como este defeito nasceu. A escrita continua fora do caminho de resposta: a borda autentica todo o tráfego de data-plane, e trocar um defeito de observabilidade por um de disponibilidade seria um negócio pior que o original. **E não é uma escrita por requisição:** o acelerador é o próprio banco, com um predicado de janela no `UPDATE`, escolhido sobre um limitador em memória porque este exigiria estado global (ou 58 edições para injetá-lo) e aceleraria **por réplica** — com N réplicas, N escritas por janela mesmo assim. A granularidade passa a ser de um minuto: fino o bastante para *"esta chave está viva?"*, e essa é a pergunta que a coluna responde.
+
 ## [0.81.0] - 2026-08-04
 
 ### Added
