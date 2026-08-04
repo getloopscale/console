@@ -13,10 +13,12 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -54,6 +56,7 @@ func hashOf(s string) string {
 // T0.6 case 1: valid Bearer + matching scope → request proceeds with
 // auth.UserContext populated.
 func TestRequireScope_ValidBearerScopeMatchProceeds(t *testing.T) {
+	keyID := chaveDeTeste("valid-bearer")
 	db, mock := sqlmockSetup(t)
 	mw := auth.RequireScope(db, "memory:read")
 
@@ -61,10 +64,10 @@ func TestRequireScope_ValidBearerScopeMatchProceeds(t *testing.T) {
 	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM theo_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
-			AddRow("apk-aaaa111122223333", "user-A", "tenant-A", nil, []byte(`["memory:read","memory:write"]`), nil))
+			AddRow(keyID, "user-A", "tenant-A", nil, []byte(`["memory:read","memory:write"]`), nil))
 	// The async last_used_at update fires in a goroutine; allow it.
 	mock.ExpectExec("UPDATE theo_api_keys").
-		WithArgs("apk-aaaa111122223333", sqlmock.AnyArg()).
+		WithArgs(keyID, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	var observed *auth.UserContext
@@ -161,7 +164,7 @@ func TestRequireScope_InsufficientScopeReturns403WithMissing(t *testing.T) {
 	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM theo_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
-			AddRow("apk-aaaa111122223333", "u", "t", nil, []byte(`["memory:read"]`), nil)) // missing memory:write
+			AddRow(chaveDeTeste("missing-scope"), "u", "t", nil, []byte(`["memory:read"]`), nil)) // missing memory:write
 
 	final := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatal("downstream handler must not run on scope failure")
@@ -196,7 +199,7 @@ func TestRequireScope_CorruptScopesReturns500NotSilent403(t *testing.T) {
 	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM theo_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
-			AddRow("apk-aaaa111122223333", "u", "t", nil, []byte(`{"not":"an array"}`), nil))
+			AddRow(chaveDeTeste("corrupt-scopes"), "u", "t", nil, []byte(`{"not":"an array"}`), nil))
 
 	req := httptest.NewRequest("GET", "/v1/memory/list", nil)
 	req.Header.Set("Authorization", "Bearer "+secret)
@@ -213,6 +216,7 @@ func TestRequireScope_CorruptScopesReturns500NotSilent403(t *testing.T) {
 // block the response. We inject a long-running UPDATE and assert the
 // response returns in < 50ms, well within budget.
 func TestRequireScope_AsyncLastUsedDoesNotBlockHotPath(t *testing.T) {
+	keyIDHot := chaveDeTeste("hotpath")
 	db, mock := sqlmockSetup(t)
 	mw := auth.RequireScope(db, "memory:read")
 
@@ -220,10 +224,10 @@ func TestRequireScope_AsyncLastUsedDoesNotBlockHotPath(t *testing.T) {
 	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM theo_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
-			AddRow("apk-aaaa111122223333", "u", "t", nil, []byte(`["memory:read"]`), nil))
+			AddRow(keyIDHot, "u", "t", nil, []byte(`["memory:read"]`), nil))
 	// Simulate a slow async write — the middleware must NOT await this.
 	mock.ExpectExec("UPDATE theo_api_keys").
-		WithArgs("apk-aaaa111122223333", sqlmock.AnyArg()).
+		WithArgs(keyIDHot, sqlmock.AnyArg()).
 		WillDelayFor(500 * time.Millisecond).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -244,6 +248,13 @@ func TestRequireScope_AsyncLastUsedDoesNotBlockHotPath(t *testing.T) {
 	start := time.Now()
 	mw(final).ServeHTTP(rec, req)
 	elapsed := time.Since(start)
+	t.Cleanup(func() {
+		// M149/#405: esta assertiva foi APAGADA em vez de armada na rodada anterior — a expectativa
+		// do UPDATE ficava decorativa, e remover o registro da produção não quebrava nada aqui.
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("expectativas do mock não cumpridas: %v", err)
+		}
+	})
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
@@ -252,6 +263,19 @@ func TestRequireScope_AsyncLastUsedDoesNotBlockHotPath(t *testing.T) {
 		t.Errorf("hot path took %s — async last_used_at MUST not block (budget 100ms)", elapsed)
 	}
 	asyncDone.Wait()
+}
+
+// chaveDeTeste devolve um `keyID` único por INVOCAÇÃO.
+//
+// M149/#405: o registro de uso deduplica por chave numa janela de um minuto, e o mapa vive pelo
+// processo. Um id fixo por teste já resolve `-shuffle`, mas não `-count=2`: a segunda execução do
+// MESMO teste seria suprimida, a expectativa do UPDATE não se cumpriria, e o caso viraria vermelho
+// por um motivo que nada tem a ver com o que ele afirma. O contador torna cada autenticação um
+// evento distinto, que é o que ela é de fato.
+var contadorDeChaves atomic.Int64
+
+func chaveDeTeste(prefixo string) string {
+	return fmt.Sprintf("apk-%s-%d", prefixo, contadorDeChaves.Add(1))
 }
 
 // =============================================================================
@@ -263,6 +287,12 @@ func TestRequireScope_AsyncLastUsedDoesNotBlockHotPath(t *testing.T) {
 // returns the response recorder for assertion.
 func runScopeMiddlewareWithExpiry(t *testing.T, expiresAt any) *httptest.ResponseRecorder {
 	t.Helper()
+	// M149/#405: a chave DERIVA do nome do teste. Quatro testes de Sunset compartilham este helper, e
+	// o registro de uso deduplica POR CHAVE numa janela de um minuto: com um id fixo, o primeiro a
+	// rodar enfileira e os outros três são suprimidos, a expectativa do UPDATE não se cumpre e a
+	// suíte passa a depender de ordem. Derivar do nome torna isso impossível por construção — um
+	// teste novo neste helper nasce isolado sem ninguém precisar lembrar.
+	keyID := chaveDeTeste("sunset")
 	db, mock := sqlmockSetup(t)
 	mw := auth.RequireScope(db, "memory:read")
 
@@ -270,9 +300,9 @@ func runScopeMiddlewareWithExpiry(t *testing.T, expiresAt any) *httptest.Respons
 	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM theo_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
-			AddRow("apk-aaaa111122223333", "u", "t", nil, []byte(`["memory:read"]`), expiresAt))
+			AddRow(keyID, "u", "t", nil, []byte(`["memory:read"]`), expiresAt))
 	mock.ExpectExec("UPDATE theo_api_keys").
-		WithArgs("apk-aaaa111122223333", sqlmock.AnyArg()).
+		WithArgs(keyID, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	final := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
@@ -282,6 +312,11 @@ func runScopeMiddlewareWithExpiry(t *testing.T, expiresAt any) *httptest.Respons
 	mw(final).ServeHTTP(rec, req)
 	// Allow the async last_used_at write to drain so its mock is consumed.
 	time.Sleep(20 * time.Millisecond)
+	// M149/#405: a segunda assertiva que tinha sido APAGADA em vez de armada. Sem ela, a expectativa
+	// do UPDATE acima é decorativa nos quatro testes que passam por aqui.
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectativas do mock não cumpridas: %v", err)
+	}
 	return rec
 }
 

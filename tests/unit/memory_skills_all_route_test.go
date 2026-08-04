@@ -31,6 +31,7 @@ import (
 // passes the BARE authed subject (ignoring any ?subject) and returns the
 // cross-repo rows with per-row repoId.
 func TestMemorySkillsAllRoute_Ok_WithMemoryRead(t *testing.T) {
+	keyIDSkills := chaveDeTeste("skills-all")
 	db, mock := sqlmockSetup(t)
 	h, fake := newMemoryHandler(t)
 	fake.skillsAllResp = &themory.SkillsAllResult{
@@ -43,9 +44,9 @@ func TestMemorySkillsAllRoute_Ok_WithMemoryRead(t *testing.T) {
 	mock.ExpectQuery("SELECT id, subject, tenant_id, account_id, scopes, expires_at FROM theo_api_keys").
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
-			AddRow("apk-skills-all-1", "sub-xyz", "tenant-A", nil, []byte(`["memory:read"]`), nil))
+			AddRow(keyIDSkills, "sub-xyz", "tenant-A", nil, []byte(`["memory:read"]`), nil))
 	mock.ExpectExec("UPDATE theo_api_keys").
-		WithArgs("apk-skills-all-1", sqlmock.AnyArg()).
+		WithArgs(keyIDSkills, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	req := httptest.NewRequest("GET", "/v1/memory/skills/all?subject=attacker-supplied&limit=25", nil)
