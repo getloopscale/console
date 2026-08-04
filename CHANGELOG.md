@@ -1,5 +1,19 @@
 ## [Unreleased]
 
+### Added
+
+- **A distribuição de skills ganha tela (M35).** O M20 entregou pacotes e tokens delegados, o M21 entregou telemetria de adoção, e **os dois fecharam com zero telas** — a capacidade existia só por `curl`. Agora `Skills → Distribuição` lista os pacotes do workspace e, no detalhe de cada um, os tokens e a adoção da janela.
+
+  **A listagem de tokens é o milestone inteiro.** Até ela existir, o registro sabia emitir e revogar — e não listar. O `DELETE` exigia um identificador que a tela não tinha como descobrir, então um token emitido pela CLI ou por outro operador era **invisível e portanto irrevogável**. A jornada emitir → listar → revogar agora fecha, e o e2e a percorre por clique a partir da raiz.
+
+  **O valor do token aparece uma única vez**, na criação, com aviso explícito de que não reaparece — a listagem devolve só o identificador, por desenho do serviço. Revogados **continuam na lista**, com a marca: esconder impediria auditar o que já foi emitido.
+
+  **O rótulo da adoção diz a granularidade real**, medida em `adoption-store.ts`: a contagem é por **skill e versão dentro do pacote**, e a mesma skill em outro pacote conta separado. O roadmap pedia que a tela dissesse "por bundle, não por skill" — escrever isso faria a interface mentir. E a proporção usa `total_installs`, o denominador da janela, nunca a soma das linhas exibidas: sob paginação a soma é de um recorte, e a proporção sairia inflada em silêncio. Sem denominador a célula mostra `—`, não `0%` — as duas dizem frases opostas ao operador (#m35)
+
+### Security
+
+- **A adoção de um bundle exigia apenas `skills:read` para ser lida.** Era a única rota da família sem gate de escopo — `POST /v1/bundles`, `GET /v1/bundles` e as três de token já exigiam `skills:publish`. Um portador do escopo de leitura (o que o dashboard cunha para o cliente de leitura, e o que um agente consumidor carrega) lia a telemetria comercial de quem publica. Mesmo workspace, então não é vazamento entre inquilinos; é privilégio a mais dentro dele, e a assimetria com as irmãs mostra que não foi decisão, foi esquecimento. Corrigido no `theo-skills`; o cliente de distribuição do dashboard já nasce ligado ao resolver de **publicação**, nunca ao de leitura (#m35)
+
 ### Fixed
 
 - **A temperatura digitada no playground sumia ao salvar, sem aviso (M17).** A primeira entrega gravava apenas a config de uma **execução bem-sucedida** — invariante que eu acrescentei além do que o ADR-2 e o plano pediam. O efeito na tela: o operador digitava `0.2`, clicava em salvar, e a revisão nascia **sem config alguma**, silenciosamente. O que o ADR-2 de fato exige é que a config chegue à **invocação**, e isso o adaptador já entrega com teste próprio. Salvar passa a gravar o que está no campo — a mesma config que `Rodar` usa. Encontrado ao exercitar a tela contra o `app-dev`, não por teste (#m17)
