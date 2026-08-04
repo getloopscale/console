@@ -70,6 +70,37 @@ beforeEach(() => {
   });
 });
 
+describe('PromptDetailPage — a intenção da revisão (M17)', () => {
+  it('a descricao aparece na linha da revisao', async () => {
+    mockRevisions.mockResolvedValue([
+      { version: 3, content: 'texto', createdAt: 'd', changeDescription: 'encurtei o preambulo' },
+    ]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/encurtei o preambulo/)).toBeInTheDocument();
+  });
+
+  it('revisao ANTERIOR ao milestone diz "sem descricao" — nunca texto inventado', async () => {
+    mockRevisions.mockResolvedValue([{ version: 3, content: 'texto', createdAt: 'd' }]);
+
+    render(<PromptDetailPage />);
+
+    await screen.findByText('v3');
+    expect(screen.getByText(/sem descrição/i)).toBeInTheDocument();
+  });
+
+  it('a config aparece, e temperature 0 e mostrada como 0', async () => {
+    mockRevisions.mockResolvedValue([
+      { version: 3, content: 'texto', createdAt: 'd', modelConfig: { temperature: 0 } },
+    ]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/temperature 0/i)).toBeInTheDocument();
+  });
+});
+
 describe('PromptDetailPage — uso por revisão (M15)', () => {
   it('a linha da revisao mostra as chamadas do periodo', async () => {
     render(<PromptDetailPage />);

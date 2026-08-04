@@ -93,3 +93,33 @@ describe('M12 — a tela de comparar', () => {
     expect(screen.queryByTestId('promptly-diff')).not.toBeInTheDocument();
   });
 });
+
+describe('diff — a config aparece ao lado do texto (M17 DoD-4)', () => {
+  it('mesmo TEXTO e temperaturas diferentes NAO sao anunciadas como identicas', async () => {
+    // O defeito que este teste tranca: o comparador dizia "idênticas" olhando só o texto.
+    // Duas revisões com a mesma redação e afinações diferentes SÃO revisões diferentes.
+    mockRevisions.mockResolvedValue([
+      { version: 1, content: 'mesmo texto', createdAt: 'd', modelConfig: { temperature: 0.2 } },
+      { version: 2, content: 'mesmo texto', createdAt: 'd', modelConfig: { temperature: 0.9 } },
+    ]);
+
+    render(<PromptlyDiffPage />);
+
+    expect(await screen.findByText(/temperature/i)).toBeInTheDocument();
+    expect(screen.getByText(/0\.2/)).toBeInTheDocument();
+    expect(screen.getByText(/0\.9/)).toBeInTheDocument();
+  });
+
+  it('mesmo texto e MESMA config seguem sendo identicas — o controle', async () => {
+    mockRevisions.mockResolvedValue([
+      { version: 1, content: 'mesmo texto', createdAt: 'd', modelConfig: { temperature: 0.2 } },
+      { version: 2, content: 'mesmo texto', createdAt: 'd', modelConfig: { temperature: 0.2 } },
+    ]);
+
+    render(<PromptlyDiffPage />);
+
+    // O `testid` que a própria página expõe — mais robusto que casar a redação.
+    expect(await screen.findByTestId('promptly-diff-identical')).toBeInTheDocument();
+    expect(screen.queryByTestId('promptly-diff-config')).not.toBeInTheDocument();
+  });
+});

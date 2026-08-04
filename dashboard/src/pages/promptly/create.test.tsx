@@ -60,6 +60,11 @@ describe('M12 — a tela de criar revisão', () => {
     render(<PromptlyCreatePage />);
     await userEvent.type(await screen.findByLabelText('Nome do prompt'), 'malformado');
     fireEvent.change(screen.getByLabelText('Texto do prompt'), { target: { value: 'Olá {{ nome' } });
+    // M17 — a descrição passou a ser obrigatória NESTA tela (ADR-3). Sem ela a validação
+    // barra a submissão e este teste mediria a recusa nova em vez do que veio medir.
+    fireEvent.change(screen.getByLabelText('Por que esta revisão existe'), {
+      target: { value: 'motivo do teste' },
+    });
     await userEvent.click(screen.getByRole('button', { name: /criar revisão/i }));
     expect(await screen.findByText(/unbalanced or malformed braces/i)).toBeInTheDocument();
   });
@@ -72,6 +77,11 @@ describe('M12 — a tela de criar revisão', () => {
     render(<PromptlyCreatePage />);
     await userEvent.type(await screen.findByLabelText('Nome do prompt'), 'x');
     fireEvent.change(screen.getByLabelText('Texto do prompt'), { target: { value: 'y' } });
+    // M17 — a descrição passou a ser obrigatória NESTA tela (ADR-3). Sem ela a validação
+    // barra a submissão e este teste mediria a recusa nova em vez do que veio medir.
+    fireEvent.change(screen.getByLabelText('Por que esta revisão existe'), {
+      target: { value: 'motivo do teste' },
+    });
     await userEvent.click(screen.getByRole('button', { name: /criar revisão/i }));
     expect(await screen.findByText(/não foi possível/i)).toBeInTheDocument();
     expect(screen.queryByText(/10\.0\.0\.4/)).not.toBeInTheDocument();

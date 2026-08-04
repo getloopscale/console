@@ -117,11 +117,13 @@ describe('M14 — o playground', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Rodar' }));
     await screen.findByText('chove muito');
 
+    // M17 acrescentou um 5º argumento (a config). `null` aqui é o caso "não afinei".
     expect(mockRun).toHaveBeenCalledWith(
       'saudacao',
       'Escreva sobre {{topico}} citando {{artigo}}',
       { topico: 'chuva', artigo: 'NYT' },
       SENTINELA,
+      null,
     );
   });
 
@@ -202,7 +204,13 @@ describe('M14 — o playground', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Salvar como nova revisão' }));
 
-    expect(mockCreate).toHaveBeenCalledWith('saudacao', 'TEXTO EDITADO {{topico}}');
+    // M17 acrescentou os extras. A descrição vai vazia aqui porque este teste mede o
+    // CONTEÚDO; a obrigatoriedade da descrição é da tela de criação (ADR-3), e o
+    // playground não a impõe — salvar dali é um atalho de quem acabou de testar.
+    expect(mockCreate).toHaveBeenCalledWith('saudacao', 'TEXTO EDITADO {{topico}}', {
+      changeDescription: '',
+      modelConfig: null,
+    });
   });
 
   /** O mesmo texto que foi rodado é o que se salva — o par que dá sentido ao DoD-6. */
@@ -383,5 +391,65 @@ describe('M14 — a recusa do provider como o serviço realmente a emite', () =>
 
     const saida = await screen.findByTestId('playground-saida');
     expect(within(saida).getByText(/provedor respondeu 429/i)).toBeInTheDocument();
+  });
+});
+
+describe('M17 — a config que se testa é a que se salva (ADR-2)', () => {
+  it('a temperatura digitada CHEGA a invocacao', async () => {
+    render(<PromptlyPlaygroundPage />);
+    await prontoParaRodar();
+    fireEvent.change(screen.getByLabelText(/temperatura/i), { target: { value: '0.2' } });
+
+    await userEvent.click(screen.getByRole('button', { name: /rodar/i }));
+
+    await vi.waitFor(() => expect(mockRun).toHaveBeenCalled());
+    const [, , , , config] = mockRun.mock.calls[0] as unknown[];
+    expect(config).toEqual({ temperature: 0.2 });
+  });
+
+  it('temperatura ZERO chega — nao e tratada como ausente', async () => {
+    // `0` é falsy, e o campo é string: `Number('') === 0` também. O discriminante é a
+    // string vazia, nunca a veracidade do número.
+    render(<PromptlyPlaygroundPage />);
+    await prontoParaRodar();
+    fireEvent.change(screen.getByLabelText(/temperatura/i), { target: { value: '0' } });
+
+    await userEvent.click(screen.getByRole('button', { name: /rodar/i }));
+
+    await vi.waitFor(() => expect(mockRun).toHaveBeenCalled());
+    const [, , , , config] = mockRun.mock.calls[0] as unknown[];
+    expect(config).toEqual({ temperature: 0 });
+  });
+
+  it('sem temperatura, NADA e enviado — nao um default que ninguem escolheu', async () => {
+    render(<PromptlyPlaygroundPage />);
+    await prontoParaRodar();
+
+    await userEvent.click(screen.getByRole('button', { name: /rodar/i }));
+
+    await vi.waitFor(() => expect(mockRun).toHaveBeenCalled());
+    const [, , , , config] = mockRun.mock.calls[0] as unknown[];
+    expect(config).toBeNull();
+  });
+
+  it('salvar grava a config da EXECUCAO, nao a que estiver no campo depois', async () => {
+    // O laço do ADR-2 na sua forma mais afiada: mexer na temperatura DEPOIS de rodar
+    // não pode virar uma afinação "testada" que ninguém testou.
+    render(<PromptlyPlaygroundPage />);
+    await prontoParaRodar();
+    fireEvent.change(screen.getByLabelText(/temperatura/i), { target: { value: '0.2' } });
+    await userEvent.click(screen.getByRole('button', { name: /rodar/i }));
+    await screen.findByText(/chove muito/);
+
+    fireEvent.change(screen.getByLabelText(/temperatura/i), { target: { value: '1.9' } });
+    fireEvent.change(screen.getByLabelText(/por que esta revisão/i), {
+      target: { value: 'afinei para extração' },
+    });
+    await userEvent.click(screen.getByRole('button', { name: /salvar como nova revisão/i }));
+
+    await vi.waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    const [, , extras] = mockCreate.mock.calls[0] as unknown[];
+    expect((extras as { modelConfig: unknown }).modelConfig).toEqual({ temperature: 0.2 });
+    expect((extras as { changeDescription: string }).changeDescription).toBe('afinei para extração');
   });
 });

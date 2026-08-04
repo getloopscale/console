@@ -1,6 +1,9 @@
 ## [Unreleased]
 
 ### Added
+- **A tela passa a exigir o porquê da revisão, e a mostrar a config com que ela foi testada (M17).** Criar revisão pelo dashboard agora pede uma descrição — obrigatória **aqui** e opcional na API, porque a obrigação é sobre quem **decide**, e um script que cria revisões não pode passar a precisar de texto. Revisões anteriores ao milestone mostram *"sem descrição"*: nunca uma descrição inventada retroativamente, pela mesma razão que o `createdBy` do M7 é `null` no passado. No playground, **a afinação com que se roda é a que fica gravada ao salvar** — mexer na temperatura depois de rodar não vira uma afinação "testada" que ninguém testou. Temperatura vazia significa *"não afinei"*, e nada é gravado, em vez de um default que ninguém escolheu (#m17)
+
+- **O comparador deixa de anunciar como idênticas duas revisões que diferem na config (M17).** Mesma redação e temperaturas diferentes **são** revisões diferentes, e dizer "o conteúdo é o mesmo" apagava a diferença que importa. A comparação é **por campo**, não por serialização: a ordem das chaves não acusa mudança onde não houve. E `temperature: 0` não é o mesmo que ausente — zero é uma afinação escolhida, determinismo máximo, e tratá-la como "sem config" apagaria a decisão de quem a tomou (#m17)
 
 - **A coluna de uso passa a mostrar os QUATRO números que o milestone pede** — chamadas, **latência mediana**, tokens e custo por revisão. A primeira entrega trazia dois: o plano estreitou o critério ao mapear a Coverage Matrix, e a checagem estrutural não pegou porque ela confere que o bullet tem *uma task*, não que tem *todos os números*. Descoberto na aceitação, ao ler o `ROADMAP.md` em vez do plano. A latência é a da **resolução** — o que o span `prompt.resolve` mede —, não a do trace: o trace inclui a chamada ao modelo, que é ordens de grandeza mais lenta e responderia "quanto demora o agente", não "quanto custa resolver este prompt" (#m15)
 
