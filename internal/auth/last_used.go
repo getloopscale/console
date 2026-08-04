@@ -42,8 +42,24 @@ type pedidoDeRegistro struct {
 }
 
 var (
-	filaDeRegistro   chan pedidoDeRegistro
+	filaDeRegistro    chan pedidoDeRegistro
 	iniciarEscritores sync.Once
+
+	// Deduplicação por chave, ANTES da fila.
+	//
+	// Sem ela, TODA autenticação enfileira — mesmo sabendo que ≥99 % vai casar zero linhas dentro da
+	// janela. Uma revisão mediu a consequência: com o banco degradado a fila drena a ~8 escritas/s,
+	// enche em ~2,8 s sob 100 auth/s, e a partir daí o descarte é **enviesado**. A chave quente
+	// (ingestão OTLP) inunda os 256 slots; a chave fria, que autentica uma vez por hora, tem seu
+	// único pedido descartado — e a chave fria é precisamente a população do #405, a que alguém
+	// olharia para decidir revogar.
+	//
+	// O argumento original contra estado em memória ("exige global mutável") já não se aplica: a
+	// fila introduziu exatamente isso. E o predicado no banco continua sendo a fonte de verdade —
+	// este mapa só poupa round-trips redundantes, nunca causa uma escrita perdida além do que a
+	// janela já permite.
+	muUltimoEnfileiramento sync.Mutex
+	ultimoEnfileiramento   = map[string]time.Time{}
 	// Descartes observáveis: sem contador, a fila cheia é indistinguível de "nunca ninguém usou a
 	// chave" — que é literalmente o defeito (#405) que este arquivo corrige, de volta por outra porta.
 	registrosDescartados atomic.Int64
@@ -88,6 +104,9 @@ func registrarUsoDaChave(db *sql.DB, keyID string) {
 	if db == nil || keyID == "" {
 		return
 	}
+	if recemEnfileirada(keyID) {
+		return
+	}
 	iniciarEscritores.Do(func() {
 		filaDeRegistro = make(chan pedidoDeRegistro, capacidadeDaFila)
 		for i := 0; i < escritoresDeUso; i++ {
@@ -103,6 +122,26 @@ func registrarUsoDaChave(db *sql.DB, keyID string) {
 			slog.Warn("registro de uso descartado: fila cheia", "descartes_totais", n)
 		}
 	}
+}
+
+// recemEnfileirada reporta se esta chave já foi enfileirada dentro da janela — e, quando não,
+// registra o instante. O mapa é limpo por inteiro ao passar do teto: um mapa por chave cresceria
+// sem limite num ambiente com muitas chaves, e o custo de limpar é, no pior caso, algumas escritas
+// redundantes a mais — que o predicado do banco absorve.
+const tetoDoMapaDeDedup = 10_000
+
+func recemEnfileirada(keyID string) bool {
+	agora := time.Now()
+	muUltimoEnfileiramento.Lock()
+	defer muUltimoEnfileiramento.Unlock()
+	if quando, ok := ultimoEnfileiramento[keyID]; ok && agora.Sub(quando) < janelaDeRegistroDeUso {
+		return true
+	}
+	if len(ultimoEnfileiramento) >= tetoDoMapaDeDedup {
+		ultimoEnfileiramento = map[string]time.Time{}
+	}
+	ultimoEnfileiramento[keyID] = agora
+	return false
 }
 
 func escreverRegistros(fila <-chan pedidoDeRegistro) {
@@ -132,17 +171,4 @@ func escreverRegistros(fila <-chan pedidoDeRegistro) {
 			}
 		}
 	}
-}
-
-// drenarRegistrosParaTeste espera a fila esvaziar. Só para teste — a produção nunca precisa saber
-// quando a escrita terminou, que é o ponto de ela ser assíncrona.
-func drenarRegistrosParaTeste(limite time.Duration) bool {
-	fim := time.Now().Add(limite)
-	for time.Now().Before(fim) {
-		if filaDeRegistro == nil || len(filaDeRegistro) == 0 {
-			return true
-		}
-		time.Sleep(2 * time.Millisecond)
-	}
-	return false
 }

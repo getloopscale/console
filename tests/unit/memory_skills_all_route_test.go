@@ -3,7 +3,9 @@
 
 // skills-cross-repo-sdk-symmetry (M3) — route-gating proof for the SDK-surface
 // cross-repo flat skills list. cmd/main.go mounts
-//   r.With(auth.RequireScope(db,"memory:read")).Get("/skills/all", memoryHandler.ListSkillsAll)
+//
+//	r.With(auth.RequireScope(db,"memory:read")).Get("/skills/all", memoryHandler.ListSkillsAll)
+//
 // The handler-level tests (memory_handlers_test.go) deliberately bypass the
 // middleware ("RequireScope is plugged in main.go"), so the SDK acceptance
 // criterion "403 without memory:read / 200 with it" was unproven for THIS
@@ -63,7 +65,11 @@ func TestMemorySkillsAllRoute_Ok_WithMemoryRead(t *testing.T) {
 
 	// Allow the async fire-and-forget last_used_at update to land before asserting.
 	time.Sleep(50 * time.Millisecond)
-	_ = mock.ExpectationsWereMet()
+	// M149/#405: o veredito do mock era DESCARTADO aqui. Com ele descartado, remover o registro de
+	// uso de `lookupAPIKey` não fazia este teste falhar — a expectativa do UPDATE ficava decorativa.
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectativas do mock não cumpridas: %v", err)
+	}
 }
 
 // 403 path: a key WITHOUT memory:read (only memory:write) is rejected by the

@@ -87,7 +87,11 @@ func TestRequireScope_ValidBearerScopeMatchProceeds(t *testing.T) {
 
 	// Allow the async fire-and-forget update to land before we assert.
 	time.Sleep(50 * time.Millisecond)
-	_ = mock.ExpectationsWereMet()
+	// M149/#405: o veredito do mock era DESCARTADO aqui. Com ele descartado, remover o registro de
+	// uso de `lookupAPIKey` não fazia este teste falhar — a expectativa do UPDATE ficava decorativa.
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectativas do mock não cumpridas: %v", err)
+	}
 }
 
 // T0.6 case 2: missing Authorization header → 401.
@@ -337,4 +341,3 @@ func TestRequireScope_SunsetHeaderWhenExpiresAtWithinThreshold(t *testing.T) {
 		t.Errorf("Link header must point at docs, got %q", link)
 	}
 }
-

@@ -432,24 +432,38 @@ describe('M17 — a config que se testa é a que se salva (ADR-2)', () => {
     expect(config).toBeNull();
   });
 
-  it('salvar grava a config da EXECUCAO, nao a que estiver no campo depois', async () => {
-    // O laço do ADR-2 na sua forma mais afiada: mexer na temperatura DEPOIS de rodar
-    // não pode virar uma afinação "testada" que ninguém testou.
+  it('salvar grava a config QUE ESTA NO CAMPO, com ou sem execucao', async () => {
+    // CORRIGIDO na aceitação do M17. A versão anterior gravava apenas a config de uma
+    // EXECUÇÃO bem-sucedida — invariante que eu acrescentei além do ADR-2 e do plano, e
+    // que tornava o DoD-2 insatisfazível sem uma chamada paga ao provider. Pior: o
+    // operador digitava a temperatura, salvava, e ela sumia SEM AVISO.
+    //
+    // O que o ADR-2 de fato exige é que a config chegue à INVOCAÇÃO — e isso o T2.1
+    // entrega, com teste. Gravar o que está no campo é o que o DoD-2 pede, literalmente.
     render(<PromptlyPlaygroundPage />);
-    await prontoParaRodar();
-    fireEvent.change(screen.getByLabelText(/temperatura/i), { target: { value: '0.2' } });
-    await userEvent.click(screen.getByRole('button', { name: /rodar/i }));
-    await screen.findByText(/chove muito/);
-
-    fireEvent.change(screen.getByLabelText(/temperatura/i), { target: { value: '1.9' } });
+    fireEvent.change(await screen.findByLabelText(/temperatura/i), { target: { value: '0.2' } });
     fireEvent.change(screen.getByLabelText(/por que esta revisão/i), {
       target: { value: 'afinei para extração' },
     });
+
     await userEvent.click(screen.getByRole('button', { name: /salvar como nova revisão/i }));
 
     await vi.waitFor(() => expect(mockCreate).toHaveBeenCalled());
     const [, , extras] = mockCreate.mock.calls[0] as unknown[];
     expect((extras as { modelConfig: unknown }).modelConfig).toEqual({ temperature: 0.2 });
     expect((extras as { changeDescription: string }).changeDescription).toBe('afinei para extração');
+  });
+
+  it('sem temperatura digitada, salvar nao grava config — nao um default', async () => {
+    render(<PromptlyPlaygroundPage />);
+    fireEvent.change(await screen.findByLabelText(/por que esta revisão/i), {
+      target: { value: 'so texto' },
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /salvar como nova revisão/i }));
+
+    await vi.waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    const [, , extras] = mockCreate.mock.calls[0] as unknown[];
+    expect((extras as { modelConfig: unknown }).modelConfig).toBeNull();
   });
 });

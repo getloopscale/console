@@ -34,7 +34,14 @@ func bancoDeTeste(t *testing.T) *sql.DB {
 	t.Helper()
 	url := os.Getenv("AUTH_TEST_DATABASE_URL")
 	if url == "" {
-		t.Skip("AUTH_TEST_DATABASE_URL não definida — pulando")
+		// Um `t.Skip` é INDISTINGUÍVEL de um `PASS` no exit code e no log sem `-v`: sem a variável, o
+		// job fica verde em milissegundos e ninguém sabe que o portão não rodou. Uma revisão mediu
+		// exatamente isso. Em CI, `REQUIRE_INTEGRATION=1` torna o skip impossível — a asserção vive
+		// no teste, não no YAML, que é onde ela sobrevive a um refactor de workflow.
+		if os.Getenv("REQUIRE_INTEGRATION") != "" {
+			t.Fatal("REQUIRE_INTEGRATION está setada e AUTH_TEST_DATABASE_URL não — o portão de integração NÃO rodou")
+		}
+		t.Skip("AUTH_TEST_DATABASE_URL não definida — pulando (local)")
 	}
 	db, err := sql.Open("pgx", url)
 	if err != nil {
@@ -57,9 +64,8 @@ func bancoDeTeste(t *testing.T) *sql.DB {
 		t.Fatalf("criar schema: %v", err)
 	}
 	t.Cleanup(func() { _, _ = db.Exec(`DROP SCHEMA IF EXISTS ` + schema + ` CASCADE`) })
-	if _, err := db.Exec(`SET search_path TO ` + schema); err != nil {
-		t.Fatalf("search_path: %v", err)
-	}
+	// Sem `SET search_path`: ele é estado de SESSÃO e não sobrevive à troca de conexão do pool.
+	// Toda consulta abaixo qualifica o schema — o que torna o SET não só redundante como enganoso.
 	if _, err := db.Exec(`CREATE TABLE ` + schema + `.theo_api_keys (
 			id           text PRIMARY KEY,
 			last_used_at timestamptz

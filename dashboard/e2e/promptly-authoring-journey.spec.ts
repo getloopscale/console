@@ -73,6 +73,18 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
     // E o que segue em branco continua marcado: o preview mostra o estado real, não um otimista.
     await expect(page.getByTestId('promptly-preview')).toContainText('{{produto}}');
 
+    // ---- O PORQUÊ É OBRIGATÓRIO (M17) ------------------------------------------------------
+    // Sem descrição o botão fica DESABILITADO — a recusa acontece antes do clique, e não
+    // depois. Provar isso aqui, e não só em teste de unidade, é o que garante que a regra
+    // chega ao usuário: um `validarCriacao` correto ligado a um botão sempre habilitado
+    // ficaria verde na unidade e quebrado na tela.
+    await expect(page.getByRole('button', { name: /criar revisão/i })).toBeDisabled();
+
+    await page.getByLabel('Por que esta revisão existe').fill('primeira versão das boas-vindas');
+
+    // E habilita assim que o porquê existe — o controle que dá sentido à asserção acima.
+    await expect(page.getByRole('button', { name: /criar revisão/i })).toBeEnabled();
+
     // ---- SALVAR LEVA AO DETALHE DO PROMPT CRIADO ------------------------------------------
     await page.getByRole('button', { name: /criar revisão/i }).click();
     await expect(page).toHaveURL(/\/promptly\/boas-vindas$/);
