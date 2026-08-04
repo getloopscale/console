@@ -602,3 +602,68 @@ func TestRetrieve_consultaVaziaNaoChegaAoUpstream(t *testing.T) {
 		}
 	}
 }
+
+// M31 — a exclusão pelo BFF, e a garantia de que ela não engole as vizinhas.
+type stubSkillsAuthor struct {
+	seen []string
+	err  error
+}
+
+func (s *stubSkillsAuthor) DeleteSkill(_ context.Context, skillID string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seen = append(s.seen, skillID)
+	return nil, nil
+}
+
+func TestDelete_apagaEDevolve204SemCorpo(t *testing.T) {
+	author := &stubSkillsAuthor{}
+	r := chi.NewRouter()
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))),
+		func(next http.Handler) http.Handler { return next })
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/dashboard/skills/sk_1", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status %d, corpo %s", w.Code, w.Body.String())
+	}
+	if w.Body.Len() != 0 {
+		t.Fatalf("204 não deve ter corpo: %q", w.Body.String())
+	}
+	if len(author.seen) != 1 || author.seen[0] != "sk_1" {
+		t.Fatalf("chamadas: %v", author.seen)
+	}
+}
+
+func TestDelete_naoSombreiaALeituraDeUmaSkill(t *testing.T) {
+	// Os dois handlers ocupam o MESMO caminho, em verbos diferentes. Um `r.Route` na autoria
+	// criaria subtree e mataria o `GET` — a regressão medida em produção em 2026-08-02, que
+	// nenhum teste pegou porque cada família era testada isolada.
+	reader := &stubSkillsReader{}
+	author := &stubSkillsAuthor{}
+	semJWT := func(next http.Handler) http.Handler { return next }
+
+	r := chi.NewRouter()
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWT)
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWT)
+
+	pedir := func(metodo, caminho string) int {
+		req := httptest.NewRequest(metodo, caminho, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	if got := pedir(http.MethodGet, "/v1/dashboard/skills/sk_1"); got != http.StatusOK {
+		t.Fatalf("a leitura quebrou: %d", got)
+	}
+	if got := pedir(http.MethodGet, "/v1/dashboard/skills/sk_1/channels"); got != http.StatusOK {
+		t.Fatalf("a leitura de canais quebrou: %d", got)
+	}
+	if got := pedir(http.MethodDelete, "/v1/dashboard/skills/sk_1"); got != http.StatusNoContent {
+		t.Fatalf("a exclusão quebrou: %d", got)
+	}
+}

@@ -199,3 +199,65 @@ func TestSetLifecycle_omiteCamposVazios(t *testing.T) {
 		t.Fatalf("campos vazios não deveriam ser enviados: %q", corpo)
 	}
 }
+
+// M31 — a exclusão. A auditoria de 2026-08-03 mediu o absurdo: o acervo tem uma skill que se
+// descreve como "pode ser removida" e não havia como removê-la, embora `DELETE /v1/skills/:id`
+// exista há milestones.
+func TestDeleteSkill_bateNoDeleteDoCaminhoCerto(t *testing.T) {
+	var visto string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		visto = r.Method + " " + r.URL.EscapedPath()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "chave-de-autoria", nil })
+
+	if _, err := cli.DeleteSkill(context.Background(), "sk_1"); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if visto != "DELETE /v1/skills/sk_1" {
+		t.Fatalf("rota errada: %q", visto)
+	}
+}
+
+func TestDeleteSkill_corpoVazioNaoQuebra(t *testing.T) {
+	// O registro responde 204 SEM CORPO. Um cliente que exigisse JSON quebraria no sucesso — o
+	// pior lugar para quebrar, porque o efeito já aconteceu e a tela diria que falhou.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	raw, err := cli.DeleteSkill(context.Background(), "sk_1")
+	if err != nil {
+		t.Fatalf("204 sem corpo não pode virar erro: %v", err)
+	}
+	_ = raw
+}
+
+func TestDeleteSkill_recusaTipadaSobrevive(t *testing.T) {
+	// Um `409` do registro (a skill ainda é referenciada por um bundle, por exemplo) precisa
+	// chegar distinguível: a tela tem de dizer POR QUE não deu, não "tente de novo".
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":"conflict","details":"skill referenciada por 2 bundles"}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	_, err := cli.DeleteSkill(context.Background(), "sk_1")
+	ue, ok := AsUpstreamError(err)
+	if !ok || ue.Status != http.StatusConflict {
+		t.Fatalf("esperava UpstreamError 409 tipado, veio %v", err)
+	}
+	if !strings.Contains(string(ue.Body), "2 bundles") {
+		t.Fatalf("o motivo precisa sobreviver para a tela explicar: %s", ue.Body)
+	}
+}

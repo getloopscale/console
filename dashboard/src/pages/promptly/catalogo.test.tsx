@@ -44,15 +44,23 @@ describe('PromptlyCatalogoPage', () => {
     expect(screen.getByText('agentbuilder-base')).toBeInTheDocument();
   });
 
-  it('filtra por substring do nome', async () => {
+  // M16 — a busca MUDOU DE LADO. Até aqui ela filtrava a página já carregada; agora o termo vai
+  // ao servidor. Do ponto de vista de quem digita o efeito é o mesmo com 14 prompts — e é
+  // exatamente por isso que o oráculo tem de ser a CHAMADA: uma tela que recebesse tudo e
+  // filtrasse em memória passaria numa asserção sobre as linhas visíveis, e mentiria com 500.
+  it('filtra por substring do nome — no servidor', async () => {
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
     render(<PromptlyCatalogoPage />);
     await screen.findByText('saudacao');
 
     await userEvent.type(screen.getByRole('searchbox'), 'agent');
 
-    expect(screen.getByText('agentbuilder-base')).toBeInTheDocument();
-    expect(screen.queryByText('saudacao')).not.toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(mockCatalog).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ search: 'agent' }),
+      ),
+    );
   });
 
   // EC-7 — o extremo VÁLIDO da busca: vazia devolve tudo, não nada.
@@ -70,25 +78,27 @@ describe('PromptlyCatalogoPage', () => {
 
   // EC-7 — o primeiro INVÁLIDO logo após: caractere de regex não pode estourar. Trava o uso de
   // `includes` contra um refactor para `new RegExp(termo)`, que lançaria SyntaxError em input legítimo.
+  // A intenção do EC-7 sobrevive à mudança de lado: `a(b` é input legítimo de quem digita, e não
+  // pode estourar. O que mudou é onde ele é tratado — agora vai ao servidor como texto, e o
+  // adaptador Postgres escapa `%`/`_` pela mesma razão que a tela nunca montou `RegExp`.
   it('busca com caractere de regex não quebra a tela', async () => {
-    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    mockCatalog.mockResolvedValue({ data: [], temContinuacao: false });
     render(<PromptlyCatalogoPage />);
-    await screen.findByText('saudacao');
 
-    await userEvent.type(screen.getByRole('searchbox'), 'a(b');
+    await userEvent.type(await screen.findByRole('searchbox'), 'a(b');
 
-    expect(screen.queryByText('saudacao')).not.toBeInTheDocument();
-    expect(screen.getByText(/nenhum prompt casa/i)).toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(mockCatalog).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ search: 'a(b' }),
+      ),
+    );
   });
 
-  it('diz na tela que o filtro é sobre o que está carregado, não sobre o servidor', async () => {
-    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
-
-    render(<PromptlyCatalogoPage />);
-    await screen.findByText('saudacao');
-
-    expect(screen.getByText(/carregad/i)).toBeInTheDocument();
-  });
+  // REMOVIDO no M16, e a remoção é o ponto. Este teste exigia a frase "o filtro roda sobre os
+  // prompts já carregados nesta página" — verdadeira no M13 e FALSA agora. Mantê-la seria pior
+  // que antes: uma desculpa por uma limitação que deixou de existir. O inverso está travado em
+  // 'a frase "roda sobre os ja carregados" NAO existe mais na tela'.
 
   // ---- os TRÊS estados vazios (MUST FIX EC-2) ----
 
@@ -110,16 +120,21 @@ describe('PromptlyCatalogoPage', () => {
   });
 
   it('filtro sem resultado NÃO diz que o workspace está vazio', async () => {
-    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    // M16 — o dublê passa a se comportar como o SERVIDOR: com termo, devolve o conjunto
+    // filtrado. Um mock que ignora o filtro devolveria linhas para uma busca sem resultado, e o
+    // teste exercitaria um estado que a tela nunca vê.
+    mockCatalog.mockImplementation((_l: number, f: { search?: string }) =>
+      Promise.resolve({ data: f?.search ? [] : CATALOGO, temContinuacao: false }),
+    );
     render(<PromptlyCatalogoPage />);
     await screen.findByText('saudacao');
 
     await userEvent.type(screen.getByRole('searchbox'), 'zzz');
 
     // Nem afirma ausência, nem oferece criar: o que falta é limpar o filtro.
+    expect(await screen.findByRole('button', { name: /limpar/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /criar o primeiro/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/nenhum prompt neste workspace/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /limpar/i })).toBeInTheDocument();
   });
 
   // ---- T4.1 — comparar a um clique ----
@@ -186,7 +201,7 @@ describe('PromptlyCatalogoPage — herdado do M25', () => {
     render(<PromptlyCatalogoPage />);
 
     await screen.findByText(/Nenhum prompt neste workspace/i);
-    expect(mockCatalog).toHaveBeenCalledWith(expect.any(Number));
+    expect(mockCatalog).toHaveBeenCalledWith(expect.any(Number), expect.any(Object));
     expect(mockCatalog.mock.calls[0][0]).toBeGreaterThan(0);
   });
 });
@@ -246,14 +261,19 @@ describe('PromptlyCatalogoPage — a contagem não pode afirmar o que não sabe'
 
   // B1 agravante — com continuação, o filtro não pode afirmar ausência no WORKSPACE: o prompt
   // procurado pode estar na página que esta tela não trouxe.
+  // M16 — o caso continua valendo, e ficou MAIS forte: com a busca no servidor, uma página
+  // filtrada e truncada significa "o servidor achou mais do que coube aqui". Afirmar ausência
+  // sobre isso seria o falso total do M13 por outra porta.
   it('filtro sem resultado com continuação não afirma ausência no workspace', async () => {
-    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: true });
+    mockCatalog.mockImplementation((_l: number, f: { search?: string }) =>
+      Promise.resolve({ data: f?.search ? [] : CATALOGO, temContinuacao: true }),
+    );
     render(<PromptlyCatalogoPage />);
     await screen.findByText('saudacao');
 
     await userEvent.type(screen.getByRole('searchbox'), 'zzz');
 
-    expect(screen.getByText(/há mais no servidor que esta página não trouxe/i)).toBeInTheDocument();
+    expect(await screen.findByText(/há mais no servidor/i)).toBeInTheDocument();
     expect(screen.queryByText(/O workspace tem prompts/i)).not.toBeInTheDocument();
   });
 });
@@ -320,7 +340,7 @@ describe('PromptlyCatalogoPage — o tamanho de página é escolha, e vive no en
     render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?porPagina=10'] });
 
     await screen.findByText('saudacao');
-    expect(mockCatalog).toHaveBeenCalledWith(10);
+    expect(mockCatalog).toHaveBeenCalledWith(10, expect.any(Object));
   });
 
   it('trocar o tamanho refaz a busca com o novo limite', async () => {
@@ -332,7 +352,7 @@ describe('PromptlyCatalogoPage — o tamanho de página é escolha, e vive no en
 
     // A chave da consulta tem de carregar o tamanho: sem isso o React Query devolve a página
     // anterior do cache e a tela mostra 100 itens dizendo que pediu 10.
-    await vi.waitFor(() => expect(mockCatalog).toHaveBeenCalledWith(10));
+    await vi.waitFor(() => expect(mockCatalog).toHaveBeenCalledWith(10, expect.any(Object)));
   });
 
   it('com a página menor e continuação, a contagem se declara PARCIAL', async () => {
@@ -392,5 +412,170 @@ describe('PromptlyCatalogoPage — o tamanho de página é escolha, e vive no en
 
     expect(await screen.findByText('agentbuilder-base')).toBeInTheDocument();
     expect(screen.getByLabelText(/prompts por página/i)).toHaveValue('10');
+  });
+});
+
+/**
+ * M16 — o filtro roda no SERVIDOR, e a tela para de se desculpar.
+ *
+ * O M13 entregou o catálogo com uma frase que precisava ser dita: *"o filtro roda sobre os prompts
+ * já carregados nesta página, não sobre o servidor"*. Essa honestidade era o sintoma — com 500
+ * prompts ela vira uma desculpa por um resultado errado. Agora o termo vai ao servidor, e a frase
+ * deixa de existir porque deixou de ser verdade.
+ */
+describe('PromptlyCatalogoPage — a busca roda no servidor (M16)', () => {
+  it('o termo do endereco vai para o SERVIDOR, nao filtra localmente', async () => {
+    // O oráculo é a CHAMADA: uma tela que recebesse tudo e filtrasse em memória mostraria as
+    // mesmas linhas neste teste. Só a chamada distingue as duas implementações.
+    mockCatalog.mockResolvedValue({ data: [CATALOGO[0]], temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?busca=saudacao'] });
+
+    await screen.findByText('saudacao');
+    expect(mockCatalog).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.objectContaining({ search: 'saudacao' }),
+    );
+  });
+
+  it('a frase "roda sobre os ja carregados" NAO existe mais na tela', async () => {
+    // O DoD pede isto pelo nome: a frase some porque deixou de ser verdade. Mantê-la seria pior
+    // que antes — uma desculpa por uma limitação que não existe mais.
+    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />);
+
+    await screen.findByText('saudacao');
+    expect(screen.queryByText(/já carregados nesta página/i)).not.toBeInTheDocument();
+  });
+
+  it('busca sem resultado diz que o SERVIDOR nao achou, e nao que o workspace esta vazio', async () => {
+    mockCatalog.mockResolvedValue({ data: [], temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?busca=zzz'] });
+
+    expect(await screen.findByText(/nenhum prompt casa/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nenhum prompt neste workspace/i)).not.toBeInTheDocument();
+  });
+
+  it('o termo vive no ENDERECO — o link e colavel', async () => {
+    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    render(<PromptlyCatalogoPage />);
+    await screen.findByText('saudacao');
+
+    await userEvent.type(screen.getByLabelText(/filtrar prompts por nome/i), 'lt033');
+
+    await vi.waitFor(() =>
+      expect(mockCatalog).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ search: 'lt033' }),
+      ),
+    );
+  });
+
+  it('com filtro ativo a contagem NAO diz "neste workspace"', async () => {
+    // O DoD-4 do M16: o número continua honesto. Uma página filtrada não conhece o total do
+    // workspace — dizê-lo seria o limite inferior apresentado como total que o M13 eliminou.
+    mockCatalog.mockResolvedValue({ data: [CATALOGO[0]], temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?busca=saudacao'] });
+
+    await screen.findByText('saudacao');
+    expect(screen.queryByText(/neste workspace/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('PromptlyCatalogoPage — tags (M16)', () => {
+  const COM_TAGS = [
+    { ...CATALOGO[0], tags: ['suporte', 'campanha'] },
+    { ...CATALOGO[1], tags: [] },
+  ];
+
+  it('a tag aparece na linha do catalogo', async () => {
+    mockCatalog.mockResolvedValue({ data: COM_TAGS, temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />);
+
+    expect(await screen.findByText('suporte')).toBeInTheDocument();
+    expect(screen.getByText('campanha')).toBeInTheDocument();
+  });
+
+  it('prompt sem tag nao quebra a linha nem inventa marcacao', async () => {
+    mockCatalog.mockResolvedValue({ data: COM_TAGS, temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />);
+
+    // A linha existe; só não tem tag. Um `undefined` iterado quebraria a tabela inteira.
+    expect(await screen.findByText('despedida')).toBeInTheDocument();
+  });
+
+  it('clicar numa tag filtra por ela, no servidor, e o filtro vive no endereco', async () => {
+    mockCatalog.mockResolvedValue({ data: COM_TAGS, temContinuacao: false });
+    render(<PromptlyCatalogoPage />);
+    await screen.findByText('suporte');
+
+    await userEvent.click(screen.getByRole('button', { name: /filtrar por suporte/i }));
+
+    await vi.waitFor(() =>
+      expect(mockCatalog).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ tag: 'suporte' }),
+      ),
+    );
+  });
+
+  it('o filtro por tag e anunciado e tem saida', async () => {
+    mockCatalog.mockResolvedValue({ data: COM_TAGS, temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?tag=suporte'] });
+
+    await screen.findByText('saudacao');
+    expect(screen.getByRole('button', { name: /ver todos/i })).toBeInTheDocument();
+  });
+});
+
+describe('PromptlyCatalogoPage — pastas (M16)', () => {
+  const EM_PASTAS = [
+    { name: 'suporte/saudacao', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-08-01T10:00:00Z' },
+    { name: 'vendas/saudacao', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-08-01T10:00:00Z' },
+    { name: 'solto', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-08-01T10:00:00Z' },
+  ];
+
+  it('dois prompts com o mesmo nome final em pastas diferentes coexistem e sao distinguiveis', async () => {
+    // O DoD pede isto pelo nome. Como a pasta é prefixo do NOME (ADR-2), eles já são chaves
+    // distintas — a tela tem de mostrar os dois sem fundi-los nem repetir o mesmo link.
+    mockCatalog.mockResolvedValue({ data: EM_PASTAS, temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />);
+
+    expect(await screen.findByText('suporte/saudacao')).toBeInTheDocument();
+    expect(screen.getByText('vendas/saudacao')).toBeInTheDocument();
+  });
+
+  it('a raiz oferece as pastas E os prompts soltos — catalogo plano continua navegavel', async () => {
+    // O controle negativo que o DoD nomeia: quem nunca criou pasta não pode encontrar a raiz
+    // vazia. As pastas são um atalho A MAIS, nunca um nível obrigatório.
+    mockCatalog.mockResolvedValue({ data: EM_PASTAS, temContinuacao: false });
+
+    render(<PromptlyCatalogoPage />);
+
+    expect(await screen.findByText('solto')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /abrir a pasta suporte/i })).toBeInTheDocument();
+  });
+
+  it('entrar numa pasta filtra no servidor e oferece a saida', async () => {
+    mockCatalog.mockResolvedValue({ data: EM_PASTAS, temContinuacao: false });
+    render(<PromptlyCatalogoPage />);
+    await screen.findByText('solto');
+
+    await userEvent.click(screen.getByRole('button', { name: /abrir a pasta suporte/i }));
+
+    await vi.waitFor(() =>
+      expect(mockCatalog).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ folder: 'suporte' }),
+      ),
+    );
+    expect(screen.getByRole('button', { name: /ver todos/i })).toBeInTheDocument();
   });
 });

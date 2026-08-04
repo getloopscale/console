@@ -2,6 +2,15 @@
 
 ### Changed
 
+- **A busca do catálogo de prompts passou a rodar no servidor — e a tela parou de se desculpar (M16).** Até aqui ela filtrava a página já carregada, e dizia isso com todas as letras: *"o filtro roda sobre os prompts já carregados nesta página, não sobre o servidor"*. Com 14 prompts funcionava; com 500 mentiria por omissão — o operador digita um termo, não vê linha alguma, e conclui ausência a partir de um filtro que nunca perguntou ao servidor. **A frase saiu da tela porque deixou de ser verdade**; mantê-la seria pior que antes, uma desculpa por uma limitação que não existe mais. O termo, a tag e a pasta vivem no endereço — o link é colável, como já era o do recorte —, e a digitação só vira busca depois de uma pausa: sem isso, escrever "saudacao" dispararia oito consultas e exigiria oito "voltar" para sair da tela (M16)
+- **Zero linhas com filtro ativo deixou de ser lido como "workspace vazio" (M16).** Enquanto o filtro era local, ter linhas carregadas provava que o workspace não estava vazio — e a tela usava isso para escolher a mensagem. Com o filtro no servidor a mesma condição passa a errar: uma busca sem resultado devolve zero linhas, e a tela diria que **não há prompts** quando há centenas. É o defeito que o M13 fechou, reaberto pela mudança de lado e fechado de novo — desta vez com o teste que o distingue (M16)
+
+### Added
+
+- **Tags e pastas no catálogo de prompts (M16).** Cada tag é um botão: ler a marcação e usá-la para estreitar a lista são a mesma ação na cabeça de quem olha, e separá-las obrigaria a digitar de novo o que já está na tela. As pastas são **derivadas do nome** — `suporte/saudacao` e `vendas/saudacao` coexistem e são separados na navegação — sem coluna nova e sem convenção inventada: o nome já é a chave, e uma segunda fonte de verdade poderia divergir dele em silêncio. Um catálogo plano continua navegável: a pasta é um atalho **a mais**, nunca um nível obrigatório, e quem nunca criou pasta não encontra a raiz vazia (M16)
+
+### Changed
+
 - **O gráfico de scores passou para logo acima da lista de avaliadores.** Com a lista ocupando a primeira dobra, a tendência nascia abaixo dela e podia nunca ser vista — e *"a qualidade está subindo ou caindo?"* é a pergunta de abertura desta tela; *"quais avaliadores existem"* é a segunda. É a mesma correção que o consumo por usuário pagou no M144, pelo mesmo motivo. Um teste trava a ordem no documento, para ela não voltar em silêncio no próximo refactor.
 
 ### Fixed

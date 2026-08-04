@@ -216,3 +216,20 @@ export function retrieveSkills<T>(
   if (includeDeprecated) params.set('include_deprecated', 'true');
   return cloudFetch<T>(`${BASE}/:retrieve?${params.toString()}`, {}, { throwOnError: true });
 }
+
+/**
+ * Apaga uma skill — a operação IRREVERSÍVEL desta capacidade.
+ *
+ * O registro faz soft-delete e **reserva o identificador**: quem já referencia a skill pelo id não
+ * consegue recriá-la com o mesmo nome. É por isso que descontinuar existe (M32) — é o ato
+ * reversível para "não use mais esta", e a tela precisa oferecer os dois com a diferença clara.
+ *
+ * Responde `204 sem corpo`.
+ */
+export function deleteSkill(skillId: string): Promise<null> {
+  return cloudFetch<null>(
+    `${BASE}/${encodeURIComponent(skillId)}`,
+    { method: 'DELETE' },
+    { throwOnError: true },
+  );
+}

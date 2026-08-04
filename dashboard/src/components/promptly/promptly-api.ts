@@ -44,10 +44,32 @@ export interface CatalogPage<T> {
  * 402 nem o erro tipado de rede — a tela que o usasse quebraria numa expiração de sessão onde a
  * tela vizinha se recupera sozinha, sobre o mesmo recurso. O callback mantém UM pipeline de auth.
  */
-export async function fetchCatalogPage<T>(limit: number): Promise<CatalogPage<T>> {
+/**
+ * M16 — como estreitar o catálogo, no SERVIDOR.
+ *
+ * Até o M13 o filtro rodava aqui, sobre a página já carregada, e a tela dizia isso com todas as
+ * letras. Com 14 prompts funciona; com 500 mente por omissão — o operador digita um termo, não vê
+ * linha alguma, e conclui ausência a partir de um filtro que nunca perguntou ao servidor.
+ */
+export interface FiltroDeCatalogo {
+  readonly search?: string;
+  readonly tag?: string;
+  readonly folder?: string;
+}
+
+export async function fetchCatalogPage<T>(
+  limit: number,
+  filtro: FiltroDeCatalogo = {},
+): Promise<CatalogPage<T>> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  // Vazio não vira parâmetro — um campo que o operador limpou não pode significar "buscar pela
+  // string vazia", que não casa com nada e devolveria zero linhas sobre um catálogo cheio.
+  for (const [chave, valor] of Object.entries(filtro)) {
+    if (typeof valor === 'string' && valor.trim() !== '') params.set(chave, valor.trim());
+  }
   let temContinuacao = false;
   const data = await cloudFetch<T>(
-    `${BASE}/prompts?limit=${encodeURIComponent(String(limit))}`,
+    `${BASE}/prompts?${params.toString()}`,
     {},
     {
       throwOnError: true,

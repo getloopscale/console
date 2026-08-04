@@ -23,10 +23,12 @@ type promptlyFake struct {
 	proxima promptly.Continuacao // M13 — o sinal de continuacao que o servico emite por header RFC-5988
 	label   string               // o label que a rota repassou na promocao
 	body    json.RawMessage
+	filtro  promptly.CatalogoFiltro // M16 — o filtro que a rota REPASSOU
 }
 
-func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string) (json.RawMessage, promptly.Continuacao, error) {
+func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string, filtro promptly.CatalogoFiltro) (json.RawMessage, promptly.Continuacao, error) {
 	f.limite = limit
+	f.filtro = filtro
 	return f.corpo, f.proxima, f.err
 }
 func (f *promptlyFake) Prompt(context.Context, string) (json.RawMessage, error) {

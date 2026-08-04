@@ -126,3 +126,24 @@ func (c *DataClient) SetLifecycle(ctx context.Context, skillID, lifecycle, reaso
 	}
 	return c.sendRaw(ctx, http.MethodPut, "/v1/skills/"+url.PathEscape(skillID)+"/lifecycle", body)
 }
+
+// DeleteSkill apaga uma skill (`DELETE /v1/skills/:id`).
+//
+// A auditoria de 2026-08-03 mediu o absurdo que isto fecha: o acervo tem uma skill que **se
+// descreve** como "pode ser removida" e não havia como removê-la pela tela, embora a rota exista
+// há milestones.
+//
+// **Exige `skills:write`, e por isso viaja pelo cliente de AUTORIA**, não pelo de curadoria. Os
+// dois danos são diferentes: promover reaponta consumidores, apagar destrói. Uma chave que faz as
+// duas coisas transforma qualquer vazamento no pior caso possível.
+//
+// O registro faz SOFT-DELETE e **reserva o identificador** — quem já referencia a skill pelo id
+// não consegue recriá-la com o mesmo nome. É por isso que descontinuar existe (M32): é o ato
+// reversível para "não use mais esta", e a tela precisa oferecer os dois com a diferença clara.
+//
+// A resposta é `204 SEM CORPO`. Devolver `json.RawMessage` vazio é correto aqui — exigir JSON
+// quebraria no sucesso, que é o pior lugar para quebrar: o efeito já aconteceu e a tela diria
+// que falhou.
+func (c *DataClient) DeleteSkill(ctx context.Context, skillID string) (json.RawMessage, error) {
+	return c.sendRaw(ctx, http.MethodDelete, "/v1/skills/"+url.PathEscape(skillID), nil)
+}

@@ -137,6 +137,15 @@ function registerSkillsRoutes(base: string) {
     return skill ? Response.json(skill) : Response.json({ code: 'NOT_FOUND' }, { status: 404 });
   });
 
+  registerRoute('DELETE', `${base}/{skillId}`, async (_req, params) => {
+    const i = skillsDb.skills.findIndex((sk) => sk.skill_id === params.skillId);
+    if (i === -1) return new Response(null, { status: 404 });
+    skillsDb.skills.splice(i, 1);
+    // 204 SEM CORPO, como o registro. Um mock que devolvesse JSON aqui deixaria a tela verde
+    // sobre um contrato que não existe.
+    return new Response(null, { status: 204 });
+  });
+
   registerRoute('GET', `${base}/{skillId}/versions`, async (_req, params) =>
     Response.json({ versions: skillsDb.versions[params.skillId] ?? [] }),
   );

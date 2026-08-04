@@ -12,12 +12,22 @@ export interface CatalogEntry {
   readonly name: string;
   readonly latestVersion: number;
   readonly labels: ReadonlyArray<{ label: string; version: number }>;
+  /**
+   * M16 — as tags do prompt. Opcional NO FIO: um serviço anterior ao milestone não as emite, e
+   * a tela tem de abrir contra ele em vez de quebrar.
+   */
+  readonly tags?: unknown;
   readonly updatedAt: string;
 }
 
 export interface CatalogRow extends CatalogEntry {
   /** Os labels na forma que o operador lê — `prod → v4, staging → v8`, ou `nenhum`. */
   readonly labelsResumo: string;
+  /**
+   * M16 — as tags já normalizadas. Sempre um array: a tabela itera sobre isto, e um `undefined`
+   * vindo de um serviço antigo quebraria a linha inteira em vez de mostrá-la sem tag.
+   */
+  readonly tags: readonly string[];
 }
 
 /**
@@ -151,6 +161,9 @@ export function catalogRows(payload: unknown): CatalogRow[] {
     ...e,
     labels: Array.isArray(e.labels) ? e.labels : [],
     labelsResumo: resumirLabels(e.labels),
+    // Só strings entram: um serviço que emitisse `[null]` renderizaria uma tag em branco
+    // clicável, que filtraria por nada e pareceria um defeito da busca.
+    tags: Array.isArray(e.tags) ? e.tags.filter((t): t is string => typeof t === 'string') : [],
   }));
 }
 

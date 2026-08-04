@@ -366,3 +366,51 @@ func MountSkillsPromotion(r chi.Router, h *SkillsPromotionHandler, requireJWT fu
 		r.Put("/v1/dashboard/skills/{skillID}/lifecycle", h.SetLifecycle)
 	})
 }
+
+// ---- M31 — o caminho de AUTORIA: apagar uma skill ---------------------------------------
+//
+// Handler SEPARADO do de curadoria pela mesma razão que aquele é separado do de leitura: é outro
+// CLIENTE, com outra credencial. `skills:write` apaga; `skills:publish` reaponta consumidores.
+// Fundir os dois daria a cada caminho o poder do outro, e uma chave que faz as duas coisas
+// transforma qualquer vazamento no pior caso possível.
+
+// skillsAuthor é a porta de AUTORIA. Um método só — apagar é a única escrita deste milestone.
+type skillsAuthor interface {
+	DeleteSkill(ctx context.Context, skillID string) (json.RawMessage, error)
+}
+
+// SkillsAuthoringHandler serve a exclusão de skills.
+type SkillsAuthoringHandler struct {
+	client skillsAuthor
+	logger *slog.Logger
+}
+
+// NewSkillsAuthoringHandler constrói o handler de autoria.
+func NewSkillsAuthoringHandler(c skillsAuthor, logger *slog.Logger) *SkillsAuthoringHandler {
+	return &SkillsAuthoringHandler{client: c, logger: logger}
+}
+
+// Delete serve DELETE /v1/dashboard/skills/{skillID}.
+//
+// Devolve **204 sem corpo**, espelhando o registro. Inventar um corpo de sucesso obrigaria a tela
+// a interpretá-lo, e um dia os dois divergiriam.
+func (h *SkillsAuthoringHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.client.DeleteSkill(r.Context(), skillID(r)); err != nil {
+		// `403` SOBE, como no caminho de promoção: aqui ele fala da credencial do operador, e é
+		// a única coisa que ele pode corrigir.
+		writeRejection(w, r, h.logger, "delete skill", err, true)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// MountSkillsAuthoring registra a exclusão sob `requireJWT`.
+//
+// `Group` + caminho completo, nunca `r.Route`: um subtree aqui sombrearia o `GET /{skillID}` que
+// `MountSkillsDashboard` registrou — a regressão medida em produção em 2026-08-02.
+func MountSkillsAuthoring(r chi.Router, h *SkillsAuthoringHandler, requireJWT func(http.Handler) http.Handler) {
+	r.Group(func(r chi.Router) {
+		r.Use(requireJWT)
+		r.Delete("/v1/dashboard/skills/{skillID}", h.Delete)
+	})
+}
