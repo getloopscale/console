@@ -521,3 +521,71 @@ test.describe('M31 — autoria sem publicar às cegas', () => {
     await expect(page.getByText(/valide o conteúdo antes de publicar/i)).toBeVisible();
   });
 });
+
+test.describe('M33 — catálogo: ver o que existe sem saber o que procurar', () => {
+  async function irAoCatalogo(page: Page) {
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^catálogo$/i }).click();
+    await expect(page).toHaveURL(/\/skills\/catalogo$/);
+  }
+
+  test('os cards trazem os slots MEDIDOS — e nenhum número que não medimos', async ({ page }) => {
+    await irAoCatalogo(page);
+
+    // Os seis slots da DoD. `descobrível` é o que separa "está no acervo" de "é encontrável por
+    // intenção" — a diferença que o produto vende.
+    await expect(page.getByText('Revisar pull request')).toBeVisible();
+    await expect(page.getByText('pública').first()).toBeVisible();
+    await expect(page.getByText('descobrível').first()).toBeVisible();
+    await expect(page.getByText('sem vetor').first()).toBeVisible();
+
+    // NENHUMA estrela, NENHUM download: números que não medimos não entram, por decisão do
+    // roadmap. Exibi-los seria inventar sinal social.
+    await expect(page.getByText(/★|⭐|downloads/i)).toHaveCount(0);
+
+    // O critério de ordem é DECLARADO — sem sinal de adoção, qualquer padrão é arbitrário, e um
+    // usuário que não sabe por que aquela ordem desconfia da lista.
+    await expect(page.getByText(/ordenado por nome/i)).toBeVisible();
+  });
+
+  test('o TERCEIRO estado vazio existe: filtro sem resultado ≠ acervo vazio', async ({ page }) => {
+    // Antes havia dois estados. "Busca sem resultado" era exibido como "acervo vazio", e o
+    // operador concluía que nada havia sido publicado quando só o filtro dele não casava.
+    await irAoCatalogo(page);
+    await page.getByLabel('Filtrar o catálogo').fill('zzzz-nao-existe');
+
+    await expect(page.getByText(/nada casa com este filtro/i)).toBeVisible();
+    await expect(page.getByText(/o acervo tem skills/i)).toBeVisible();
+    // E a saída é in-app, não uma instrução de CLI.
+    await page.getByRole('button', { name: /limpar filtro/i }).click();
+    await expect(page.getByText('Revisar pull request')).toBeVisible();
+  });
+
+  test('os chips filtram por categoria, sem contagem por faceta', async ({ page }) => {
+    await irAoCatalogo(page);
+
+    await page.getByRole('button', { name: 'finance', exact: true }).click();
+    await expect(page.getByText('Converter moeda (v1)')).toBeVisible();
+    await expect(page.getByText('Revisar pull request')).toHaveCount(0);
+
+    // Sem contagem: derivada da página carregada, ela afirmaria sobre o ACERVO um número que só
+    // vale para o que está na tela.
+    await expect(page.getByRole('button', { name: /finance \(\d+\)/ })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'todas', exact: true }).click();
+    await expect(page.getByText('Revisar pull request')).toBeVisible();
+  });
+
+  test('a grade responde em três larguras — o piso da DoD', async ({ page }) => {
+    await irAoCatalogo(page);
+
+    for (const largura of [375, 768, 1440]) {
+      await page.setViewportSize({ width: largura, height: 900 });
+      // O conteúdo permanece legível e alcançável em todas: o critério é não quebrar, não um
+      // número específico de colunas — que é decisão de CSS, não de comportamento.
+      await expect(page.getByText('Revisar pull request')).toBeVisible();
+    }
+  });
+});

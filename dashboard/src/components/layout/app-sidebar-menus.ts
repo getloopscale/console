@@ -277,6 +277,9 @@ export const MENUS: Record<string, MenuDefinition> = {
           { label: 'Overview', path: '/skills', icon: LayoutGrid },
           // M31 — a descoberta ENTRA no menu porque é ação do workspace, e porque é a razão de
           // existir do produto: até aqui a única jornada sem tela alguma.
+          // M33 — o catálogo, para quem NÃO SABE o que procurar. Vem antes da Descoberta no
+          // menu porque é a porta de quem chega sem uma intenção formada.
+          { label: 'Catálogo', path: '/skills/catalogo', icon: LayoutGrid },
           { label: 'Descoberta', path: '/skills/descoberta', icon: Search },
           // M31 — autorar é ação do WORKSPACE, não de uma skill: o autor chega aqui sem ter
           // escolhido nenhuma. Por isso entra no menu, ao contrário do detalhe.

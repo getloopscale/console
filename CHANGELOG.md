@@ -71,6 +71,14 @@
 
   O `202` é tratado como **aceito, não pronto**: a tela sonda a operação e para em estado terminal. E o sucesso oferece **testar a descoberta**, não "voltar à lista" — saber se a skill é encontrável é a única coisa que o autor quer saber depois de publicar (#m31)
 
+- **O catálogo de descoberta (M33).** A superfície para quem **não sabe o que procurar** — persona que nenhuma jornada anterior cobria. O M31 entrega uma tabela com busca e paginação, que resolve *"não perder skill acima de 100"*; não resolve *"me mostre o que existe"*.
+
+  O **terceiro estado vazio** passa a existir: filtro-sem-resultado é distinto de acervo-vazio e de leitura-falhou. Antes eram dois, e "nada casou com seu filtro" era exibido como "nada publicado" — o operador concluía que o acervo estava vazio quando só o filtro dele não casava.
+
+  Os cards trazem os slots que **medimos** — nome, descrição, categoria, execução, visibilidade e se a revisão tem vetor. Nenhum número que não medimos: sem estrelas, sem downloads. E `descobrível` × `sem vetor` é a distinção que o produto vende: sem vetor, a skill só aparece para quem já sabe o nome.
+
+  Chips de categoria com teto e overflow `+N` — **sem contagem por faceta**: derivada da página carregada, ela afirmaria sobre o acervo um número que só vale para o que está na tela. A ordenação é determinística com desempate por identificador, e o critério é **declarado na tela**: sem sinal de adoção, qualquer ordem padrão é arbitrária, e quem não sabe por que aquela ordem desconfia da lista (#m33)
+
 ### Security
 
 - **A adoção de um bundle exigia apenas `skills:read` para ser lida.** Era a única rota da família sem gate de escopo — `POST /v1/bundles`, `GET /v1/bundles` e as três de token já exigiam `skills:publish`. Um portador do escopo de leitura (o que o dashboard cunha para o cliente de leitura, e o que um agente consumidor carrega) lia a telemetria comercial de quem publica. Mesmo workspace, então não é vazamento entre inquilinos; é privilégio a mais dentro dele, e a assimetria com as irmãs mostra que não foi decisão, foi esquecimento. Corrigido no `theo-skills`; o cliente de distribuição do dashboard já nasce ligado ao resolver de **publicação**, nunca ao de leitura (#m35)
