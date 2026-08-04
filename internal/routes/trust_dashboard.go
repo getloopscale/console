@@ -57,7 +57,7 @@ func (h *TrustDashboardHandler) proxy(w http.ResponseWriter, r *http.Request, op
 			"error", err, "path", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte(`{"code":"TRUST_UPSTREAM_UNAVAILABLE","message":"a camada de confiança não respondeu; nenhum dado foi lido"}`))
+		_, _ = w.Write([]byte(`{"code":"TRUST_UPSTREAM_UNAVAILABLE","message":"the trust layer did not respond; no data was read"}`))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

@@ -3,6 +3,7 @@ import {
   corpoDoDiagnostico,
   type EstadoDaCandidata,
 } from '@/components/skills/discoverability-request';
+import { corpoDaPublicacao } from '@/components/skills/skill-upload';
 
 /**
  * M26 — o único ponto por onde as telas de skills falam com o BFF.
@@ -270,13 +271,28 @@ export function validateSkill<T>(skillMd: string): Promise<T | null> {
  * HTTP faria o autor esperar sem saber por quê. Quem chama precisa acompanhar a operação.
  */
 export function createSkill<T>(skillId: string, skillMd: string): Promise<T | null> {
+  return publishSkill<T>(corpoDaPublicacao(skillId, { tipo: 'markdown', conteudo: skillMd }));
+}
+
+/**
+ * Publica uma skill que é uma ÁRVORE de arquivos — scripts Python/Bash, `assets/`, `reference/`.
+ *
+ * O registro sempre aceitou isso (`zippedFilesystem`, um zip em base64) e a CLI publica assim desde
+ * o M12. Só a tela não tinha o caminho, então quem escrevia uma skill com script precisava de
+ * terminal para publicá-la.
+ *
+ * Função SEPARADA de `createSkill`, e não um parâmetro opcional, porque as duas formas são
+ * excludentes: o BFF recusa markdown e zip no mesmo corpo, já que o registro priorizaria o markdown
+ * e descartaria os scripts em silêncio.
+ */
+export function createSkillFromZip<T>(skillId: string, zipBase64: string): Promise<T | null> {
+  return publishSkill<T>(corpoDaPublicacao(skillId, { tipo: 'zip', base64: zipBase64 }));
+}
+
+function publishSkill<T>(corpo: Record<string, string>): Promise<T | null> {
   return cloudFetch<T>(
     BASE,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ skill_id: skillId, skill_md: skillMd }),
-    },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) },
     { throwOnError: true },
   );
 }

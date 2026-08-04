@@ -59,7 +59,7 @@ func NewSkillsDashboardHandler(c skillsReader, logger *slog.Logger) *SkillsDashb
 //
 // Nao e 200-com-lista-vazia, deliberadamente: "nao ha skills" e "nao consegui perguntar" levam a
 // decisoes opostas, e o segundo disfarcado do primeiro e um falso negativo silencioso.
-const upstreamUnavailable = `{"code":"SKILLS_UPSTREAM_UNAVAILABLE","message":"o registro de skills não respondeu; nenhum dado foi lido"}`
+const upstreamUnavailable = `{"code":"SKILLS_UPSTREAM_UNAVAILABLE","message":"the skills registry did not respond; no data was read"}`
 
 // proxy centraliza a forma da resposta.
 //
@@ -193,7 +193,7 @@ func (h *SkillsDashboardHandler) Retrieve(w http.ResponseWriter, r *http.Request
 		h.logger.WarnContext(r.Context(), "skills retrieve: empty query", "path", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"descreva o que você quer que o agente faça"}`))
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"describe what you want the agent to do"}`))
 		return
 	}
 
@@ -236,7 +236,7 @@ func (h *SkillsDashboardHandler) Validate(w http.ResponseWriter, r *http.Request
 		strings.TrimSpace(body.SkillMd) == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"escreva o conteúdo da skill antes de validar"}`))
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"write the skill content before validating"}`))
 		return
 	}
 
@@ -267,7 +267,7 @@ func (h *SkillsDashboardHandler) Discoverability(w http.ResponseWriter, r *http.
 		strings.TrimSpace(body.Name) == "" || strings.TrimSpace(body.Description) == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"o nome e a descrição da skill são necessários para diagnosticar"}`))
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"the skill name and description are required to run the diagnosis"}`))
 		return
 	}
 
@@ -349,7 +349,7 @@ func (h *SkillsPromotionHandler) Promote(w http.ResponseWriter, r *http.Request)
 		h.logger.WarnContext(r.Context(), "skills promotion: invalid request body", "path", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"informe a revisão que passará a servir o canal"}`))
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"provide the revision that will start serving the channel"}`))
 		return
 	}
 
@@ -394,7 +394,7 @@ func (h *SkillsPromotionHandler) SetLifecycle(w http.ResponseWriter, r *http.Req
 		h.logger.WarnContext(r.Context(), "skills lifecycle: invalid request body", "path", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"informe o estágio do ciclo de vida"}`))
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"provide the lifecycle stage"}`))
 		return
 	}
 
@@ -403,7 +403,7 @@ func (h *SkillsPromotionHandler) SetLifecycle(w http.ResponseWriter, r *http.Req
 	if lifecycle == "deprecated" && reason == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"diga por que esta skill está sendo descontinuada — quem a descobrir depois vai ler isto"}`))
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"say why this skill is being deprecated — whoever finds it later will read this"}`))
 		return
 	}
 
@@ -448,12 +448,28 @@ func MountSkillsPromotion(r chi.Router, h *SkillsPromotionHandler, requireJWT fu
 // Fundir os dois daria a cada caminho o poder do outro, e uma chave que faz as duas coisas
 // transforma qualquer vazamento no pior caso possível.
 
-// skillsAuthor é a porta de AUTORIA. Um método só — apagar é a única escrita deste milestone.
+// skillsAuthor é a porta de AUTORIA — as escritas que exigem `skills:write`.
 type skillsAuthor interface {
 	DeleteSkill(ctx context.Context, skillID string) (json.RawMessage, error)
 	CreateSkill(ctx context.Context, skillID, skillMd string) (json.RawMessage, error)
+	// CreateSkillFromZip publica uma skill que é uma ÁRVORE (scripts, assets), não um markdown.
+	// Método próprio, e não um parâmetro a mais em CreateSkill, porque o registro trata os dois
+	// corpos de forma diferente — e priorizar `skillMd` sobre o zip descarta os scripts em silêncio.
+	CreateSkillFromZip(ctx context.Context, skillID, zipBase64 string) (json.RawMessage, error)
 	Operation(ctx context.Context, operationID string) (json.RawMessage, error)
 }
+
+// maxCorpoAutoria é o teto de leitura do corpo de `POST /v1/dashboard/skills`.
+//
+// Era 1 MiB, dimensionado para um `SKILL.md`. Uma skill com scripts viaja como zip em base64 e
+// passa disso com folga — e o efeito do teto não era uma recusa clara, era o JSON chegar TRUNCADO
+// ao decoder, que devolvia erro de sintaxe. A tela então dizia "informe o identificador e o
+// conteúdo", culpando o autor por um limite nosso que não estava escrito em lugar nenhum.
+//
+// 36 MiB acompanha o `DEFAULT_MAX_BODY_BYTES` do registro (~35 MB). Ficar ABAIXO dele seria
+// recusar aqui o que o serviço aceitaria; ficar acima seria carregar na memória do BFF um corpo
+// que o próximo salto vai recusar de qualquer forma.
+const maxCorpoAutoria = 36 << 20
 
 // SkillsAuthoringHandler serve a exclusão de skills.
 type SkillsAuthoringHandler struct {
@@ -497,20 +513,53 @@ func MountSkillsAuthoring(r chi.Router, h *SkillsAuthoringHandler, requireJWT fu
 //
 // Repassa o **202** do registro, com o identificador da operação. Traduzir para 200 faria a tela
 // anunciar sucesso no aceite — e o autor procuraria a skill num acervo onde ela ainda não está.
+// Aceita DUAS formas de skill, e exatamente uma por requisição:
+//
+//   - `skill_md` — a skill é um markdown só.
+//   - `zipped_filesystem` — a skill é uma árvore de arquivos (scripts Python/Bash, `assets/`),
+//     zipada e em base64. Mesma forma que a CLI usa desde o M12.
+//
+// Mandar as duas é recusado na fronteira. Não é ambiguidade a resolver por precedência: o registro
+// prioriza `skillMd` e descartaria o zip em SILÊNCIO — a skill entraria no acervo sem os scripts,
+// com 202 e sem erro algum. Recusar é fail-fast (Regra 8); aceitar seria mais um verde afirmando
+// um sucesso que não existe.
 func (h *SkillsAuthoringHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		SkillID string `json:"skill_id"`
-		SkillMd string `json:"skill_md"`
+		SkillID          string `json:"skill_id"`
+		SkillMd          string `json:"skill_md"`
+		ZippedFilesystem string `json:"zipped_filesystem"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil ||
-		strings.TrimSpace(body.SkillID) == "" || strings.TrimSpace(body.SkillMd) == "" {
+	recusar := func(mensagem string) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"informe o identificador e o conteúdo da skill"}`))
+		_, _ = w.Write([]byte(`{"code":"INVALID_REQUEST","message":"` + mensagem + `"}`))
+	}
+
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxCorpoAutoria)).Decode(&body); err != nil ||
+		strings.TrimSpace(body.SkillID) == "" {
+		recusar("provide the skill identifier and content")
 		return
 	}
 
-	out, err := h.client.CreateSkill(r.Context(), strings.TrimSpace(body.SkillID), body.SkillMd)
+	temMd := strings.TrimSpace(body.SkillMd) != ""
+	temZip := strings.TrimSpace(body.ZippedFilesystem) != ""
+	switch {
+	case temMd && temZip:
+		// A mensagem nomeia a ESCOLHA. "Invalid request" faria o autor tentar de novo do mesmo jeito.
+		recusar("send the skill as markdown or as a zipped file tree — not both")
+		return
+	case !temMd && !temZip:
+		recusar("provide the skill identifier and content")
+		return
+	}
+
+	var out json.RawMessage
+	var err error
+	if temZip {
+		out, err = h.client.CreateSkillFromZip(r.Context(), strings.TrimSpace(body.SkillID), body.ZippedFilesystem)
+	} else {
+		out, err = h.client.CreateSkill(r.Context(), strings.TrimSpace(body.SkillID), body.SkillMd)
+	}
 	if err != nil {
 		writeRejection(w, r, h.logger, "create skill", err, true)
 		return

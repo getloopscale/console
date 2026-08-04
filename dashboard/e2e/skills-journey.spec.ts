@@ -510,6 +510,48 @@ test.describe('M31 — autoria sem publicar às cegas', () => {
     await expect(page.getByRole('link', { name: /test discovery/i })).toBeVisible();
   });
 
+  test('publicar uma skill COM SCRIPTS — a árvore de arquivos que o textarea não representa', async ({
+    page,
+  }) => {
+    // Uma skill de verdade costuma carregar um script Python, um `assets/`, um `reference/`. O
+    // registro sempre aceitou o zip (a CLI publica assim desde o M12); a TELA só tinha textarea,
+    // então quem escrevia uma skill com script precisava de terminal para publicá-la.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^new skill$/i }).click();
+
+    // O caminho precisa ser DESCOBRÍVEL na própria tela: quem chega ali com uma pasta na mão tem
+    // de ver que existe forma de enviá-la, sem ler documentação.
+    await expect(page.getByRole('heading', { name: /skill with scripts/i })).toBeVisible();
+
+    // Recusa que ENSINA: "arquivo inválido" faria o autor tentar o mesmo arquivo de novo.
+    await page.getByLabel(/skill folder as a \.zip/i).setInputFiles({
+      name: 'SKILL.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('---\nname: x\n---\n'),
+    });
+    await expect(page.getByText(/zip the skill folder/i)).toBeVisible();
+
+    // Um zip de verdade: assinatura PK + conteúdo.
+    await page.getByLabel(/skill folder as a \.zip/i).setInputFiles({
+      name: 'minha-skill.zip',
+      mimeType: 'application/zip',
+      buffer: Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x0a, 0x00, 0x00, 0x00]),
+    });
+    await expect(page.getByText(/publishing.*minha-skill\.zip/i)).toBeVisible();
+    // Honestidade sobre o que NÃO foi feito: `:validate` recebe markdown, não zip. Dizer
+    // "validado" aqui afirmaria uma verificação que ninguém fez.
+    await expect(page.getByText(/a zip is not validated before publishing/i)).toBeVisible();
+
+    // E o gate de "valide antes" NÃO se aplica ao zip — senão o botão ficaria eternamente morto,
+    // já que não há como validar um zip por `:validate`.
+    await page.getByLabel('Skill identifier').fill('sk-com-scripts-e2e');
+    await page.getByRole('button', { name: /^publish$/i }).click();
+    await expect(page.getByRole('heading', { name: /^publishing$/i })).toBeVisible();
+    await expect(page.getByText(/the skill is in the registry and discoverable/i)).toBeVisible();
+  });
+
   test('editar o conteúdo invalida a validação anterior', async ({ page }) => {
     // Exibir "válido" sobre um texto que mudou afirmaria algo que ninguém verificou.
     await page.goto('/');
