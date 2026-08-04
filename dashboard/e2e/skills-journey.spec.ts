@@ -176,3 +176,96 @@ test.describe('M26 — navegar o registro de skills pelo dashboard', () => {
     await expect(page.getByText(/theoskill install|instale-a pela CLI/i)).toBeVisible();
   });
 });
+
+// ---- M35 — a jornada de DISTRIBUIÇÃO ---------------------------------------------------------
+//
+// Cobre: raiz → menu → pacotes → detalhe → emitir token → LISTAR → revogar pelo id que a listagem
+// revelou. A rota do meio é o milestone inteiro: sem ela o `DELETE` exige um identificador que a
+// tela não tem como descobrir, e um token emitido pela CLI é invisível — logo, irrevogável.
+//
+// Também aqui a navegação é POR CLIQUE a partir da raiz. `/bundles` não começa com `/skills`, e
+// por isso depende de uma linha própria em `resolveActiveMenu`: é exatamente a peça que o
+// theo-trust esqueceu, e um `goto('/bundles')` ficaria verde com o menu quebrado.
+
+async function navegarAteOsPacotesPeloMenu(page: Page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: /^skills$/i }).click();
+  await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+
+  await page.getByRole('button', { name: /^distribuição$/i }).click();
+  await expect(page).toHaveURL(/\/bundles$/);
+
+  // Espera a primeira linha, não só a URL: quem clicar em seguida competiria com a carga.
+  await expect(page.getByRole('link', { name: 'Skills de atendimento' })).toBeVisible();
+}
+
+test.describe('M35 — distribuição: pacotes, tokens delegados e adoção', () => {
+  test('do menu ao token revogado pelo identificador que a listagem revelou', async ({ page }) => {
+    await navegarAteOsPacotesPeloMenu(page);
+
+    // ---- O SUBMENU CONTINUA ABERTO em /bundles ------------------------------------------
+    // A asserção que prova a linha de `resolveActiveMenu`. Sem ela o menu volta à raiz e a tela
+    // fica alcançável só digitando o endereço — inalcançável para o usuário real.
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+
+    // ---- DETALHE: alcançado pelo nome, que é o caminho da lista --------------------------
+    await page.getByRole('link', { name: 'Skills de atendimento' }).click();
+    await expect(page).toHaveURL(/\/bundles\/bdl_ativo$/);
+
+    // ---- TOKENS: os quatro estados que a tela precisa distinguir -------------------------
+    // Texto, nunca só cor: as situações levam a ações diferentes (renovar × investigar).
+    await expect(page.getByText('ativo', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('expirado', { exact: true })).toBeVisible();
+    await expect(page.getByText('revogado', { exact: true }).first()).toBeVisible();
+    // Rótulo ausente vira frase, não célula em branco — em branco parece dado faltando.
+    await expect(page.getByText('sem rótulo')).toBeVisible();
+
+    // ---- ADOÇÃO: o denominador da janela, e o rótulo que não mente -----------------------
+    // 14 é o TOTAL da janela; a soma das linhas visíveis é 9. Exibir a soma como denominador
+    // inflaria toda proporção — e o gráfico erraria em silêncio.
+    await expect(page.getByText(/14 instalações na janela/)).toBeVisible();
+    // A granularidade REAL, medida em `adoption-store.ts`: skill + versão, não "por pacote".
+    await expect(page.getByText(/por skill e versão dentro deste pacote/)).toBeVisible();
+    // 6/14 = 42.9%
+    await expect(page.getByText('42.9%')).toBeVisible();
+
+    // ---- EMITIR: o valor aparece UMA vez, e a tela diz isso ------------------------------
+    await page.getByLabel('Rótulo do token').fill('e2e');
+    await page.getByRole('button', { name: /emitir token/i }).click();
+    await expect(page.getByText(/não aparece de novo/i)).toBeVisible();
+    await expect(page.getByText(/dtk_secret_/)).toBeVisible();
+
+    // ---- REVOGAR: usando o identificador que só a LISTAGEM revela ------------------------
+    // O ponto do milestone. A frase digitada é o `token_id` — que o operador só conhece porque
+    // a lista o mostrou.
+    const linha = page.getByRole('row', { name: /pipeline de CI/ });
+    await linha.getByRole('button', { name: /revogar/i }).click();
+    await page.getByRole('textbox', { name: /dtk_ativo|confirm/i }).fill('dtk_ativo');
+    await page.getByRole('button', { name: /revogar token/i }).click();
+
+    // E o revogado CONTINUA listado, com a marca: esconder impediria auditar o que foi emitido.
+    await expect(page.getByRole('row', { name: /pipeline de CI/ })).toBeVisible();
+  });
+
+  test('o pacote sem instalações diz "—" e não "0%" — são frases diferentes', async ({ page }) => {
+    // `0%` afirma "ninguém instalou esta skill". Com denominador zero o honesto é admitir que
+    // não dá para calcular proporção. A tela precisa dizer a segunda.
+    await navegarAteOsPacotesPeloMenu(page);
+    await page.getByRole('link', { name: 'Pacote recém-criado' }).click();
+    await expect(page).toHaveURL(/\/bundles\/bdl_vazio$/);
+
+    await expect(page.getByText(/nenhuma instalação na janela/i)).toBeVisible();
+    await expect(page.getByText(/nenhum token emitido/i)).toBeVisible();
+    // Estado vazio com CTA in-app, não instrução de CLI: o operador está no navegador.
+    await expect(page.getByText(/emita um token acima/i)).toBeVisible();
+  });
+
+  test('há caminho de volta do detalhe para a lista', async ({ page }) => {
+    // Todo detalhe precisa de saída explícita: o item de menu leva ao overview da capacidade,
+    // não à lista de pacotes.
+    await navegarAteOsPacotesPeloMenu(page);
+    await page.getByRole('link', { name: 'Skills de atendimento' }).click();
+    await page.getByRole('link', { name: /todos os pacotes/i }).click();
+    await expect(page).toHaveURL(/\/bundles$/);
+  });
+});

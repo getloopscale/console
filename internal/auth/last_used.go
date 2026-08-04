@@ -125,9 +125,19 @@ func registrarUsoDaChave(db *sql.DB, keyID string) {
 }
 
 // recemEnfileirada reporta se esta chave já foi enfileirada dentro da janela — e, quando não,
-// registra o instante. O mapa é limpo por inteiro ao passar do teto: um mapa por chave cresceria
-// sem limite num ambiente com muitas chaves, e o custo de limpar é, no pior caso, algumas escritas
-// redundantes a mais — que o predicado do banco absorve.
+// registra o instante.
+//
+// Roda no caminho SÍNCRONO da autenticação (`lookupAPIKey` a chama antes de retornar), então o
+// mutex é contenção real: medida em ~120 ns sem concorrência e ~660 ns de mediana com 500
+// autenticações simultâneas, com cauda de milissegundos sob martelo. É uma troca boa contra os 4,1×
+// de latência que a fila sem dedup impunha pelo pool — mas não é grátis, e quem mexer aqui precisa
+// saber que está no caminho de resposta.
+//
+// **O mapa é limpo POR INTEIRO ao passar do teto**, e isso libera até `tetoDoMapaDeDedup` chaves de
+// uma vez — não "algumas". Com o teto em 10.000 e a fila em 256, a rotação pode produzir uma rajada
+// de descartes. É auto-curável (o predicado do banco absorve as redundantes, e os descartes são
+// contados) e exige mais de 10.000 chaves distintas ativas para acontecer; se um dia acontecer, a
+// correção é rotacionar DUAS gerações de mapa em vez de zerar, que remove a rajada com o mesmo teto.
 const tetoDoMapaDeDedup = 10_000
 
 func recemEnfileirada(keyID string) bool {

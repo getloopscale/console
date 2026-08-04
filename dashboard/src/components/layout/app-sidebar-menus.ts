@@ -26,6 +26,7 @@ import {
   Receipt,
   Rocket,
   ScrollText,
+  Package,
   Search,
   Settings,
   Share2,
@@ -272,7 +273,14 @@ export const MENUS: Record<string, MenuDefinition> = {
     parent: 'main',
     groups: [
       {
-        items: [{ label: 'Overview', path: '/skills', icon: LayoutGrid }],
+        items: [
+          { label: 'Overview', path: '/skills', icon: LayoutGrid },
+          // M35 — a distribuição ENTRA no menu porque é ação do workspace, não de uma skill: o
+          // operador chega nela sem ter escolhido uma skill antes. O detalhe de um pacote NÃO
+          // entra, pela mesma razão que o detalhe de uma skill não entra — é POR PACOTE e se
+          // alcança da lista.
+          { label: 'Distribuição', path: '/bundles', icon: Package },
+        ],
       },
     ],
   },
@@ -396,6 +404,11 @@ export function resolveActiveMenu(pathname: string): ResolvedMenu {
   // M26 — PEÇA 3 de 3, a que ninguém lembra e a que faz o menu ABRIR. Sem esta linha o submenu
   // `skills` existe inteiro e nunca aparece: as telas ficam alcançáveis só digitando a URL, que
   // é o único caminho que o usuário real não tem. Foi exatamente esta omissão que custou o M23.
+  // M35 — `/bundles` pertence à capacidade Skills, embora o caminho não comece com `/skills`.
+  // Sem esta linha o submenu não abre ao navegar para a distribuição, e a tela fica alcançável
+  // apenas digitando a URL — que é exatamente o caminho que o usuário real não tem. Foi o defeito
+  // que o theo-trust levou três rodadas de validação para descobrir.
+  if (pathname.startsWith('/bundles')) return { id: 'skills' };
   if (pathname.startsWith('/skills')) return { id: 'skills' };
   // M25 — PEÇA 3 de 3, a que ninguém lembra e a que faz o menu ABRIR. Sem esta linha o submenu
   // `promptly` existe inteiro e nunca aparece: o catálogo e o detalhe ficam alcançáveis só

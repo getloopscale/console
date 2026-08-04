@@ -159,7 +159,14 @@ const SkillDetailPage = lazy(() =>
 const SkillVersionsPage = lazy(() =>
   import('@/pages/skills/versions').then((m) => ({ default: m.SkillVersionsPage })),
 );
-// M25 — os prompts ganham superfície: catálogo → detalhe, onde a promoção de um label acontece.
+
+// M35 — a distribuição: pacotes e, dentro de cada um, os tokens delegados e a adoção. Declarar
+// estas rotas sem a linha correspondente em `resolveActiveMenu` entregaria telas que ninguém
+// encontra pelo menu — o defeito que o theo-trust levou três rodadas para achar.
+const BundlesPage = lazy(() => import('@/pages/skills/bundles').then((m) => ({ default: m.BundlesPage })));
+const BundleDetailPage = lazy(() =>
+  import('@/pages/skills/bundle-detail').then((m) => ({ default: m.BundleDetailPage })),
+);// M25 — os prompts ganham superfície: catálogo → detalhe, onde a promoção de um label acontece.
 // As rotas só são alcançáveis por clique porque `resolveActiveMenu` reconhece `/promptly`;
 // declarar a rota aqui sem aquela linha entrega telas que ninguém encontra.
 const PromptlyOverviewPage = lazy(() =>
@@ -523,6 +530,8 @@ export default function App() {
                     <Route path="/skills" element={<Boundaried path="/skills"><SkillsOverviewPage /></Boundaried>} />
                     <Route path="/skills/:skillId" element={<Boundaried path="/skills/:skillId"><SkillDetailPage /></Boundaried>} />
                     <Route path="/skills/:skillId/versions" element={<Boundaried path="/skills/:skillId/versions"><SkillVersionsPage /></Boundaried>} />
+                    <Route path="/bundles" element={<Boundaried path="/bundles"><BundlesPage /></Boundaried>} />
+                    <Route path="/bundles/:bundleId" element={<Boundaried path="/bundles/:bundleId"><BundleDetailPage /></Boundaried>} />
                     <Route path="/promptly" element={<Boundaried path="/promptly"><PromptlyOverviewPage /></Boundaried>} />
                     {/* `/promptly/new` ANTES do segmento dinâmico. O ranking do roteador já
                         prefere o estático, mas a ordem explícita é o que impede alguém de ler

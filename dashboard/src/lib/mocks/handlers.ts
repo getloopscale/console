@@ -56,7 +56,7 @@ import { registerRoute } from './server';
 import { registerSSE } from './sse';
 import { registerTrustHandlers } from './trust-handlers';
 import { registerLensHandlers } from './lens-handlers';
-import { registerSkillsHandlers } from './skills-handlers';
+import { registerSkillsDistributionHandlers, registerSkillsHandlers } from './skills-handlers';
 import { registerPromptlyHandlers } from './promptly-handlers';
 
 /**
@@ -776,6 +776,7 @@ export function registerAllMockHandlers(): void {
   registerTrustHandlers();
   // M26 — sem este registro a jornada do registro de skills não entra no e2e hermético.
   registerSkillsHandlers();
+  registerSkillsDistributionHandlers();
   // M25 — idem para a jornada de prompts (catálogo → detalhe → promoção).
   registerPromptlyHandlers();
   // M142 — sem este registro a tela de consumo por end-user sobe VAZIA no e2e, e um portão que
