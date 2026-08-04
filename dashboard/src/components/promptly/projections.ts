@@ -305,6 +305,15 @@ export interface ComentarioRow {
   readonly body: string;
   readonly author: string | null;
   readonly createdAt: string;
+  /**
+   * O carimbo COMO SE LÊ. Separado do `createdAt` cru porque os dois têm consumidores
+   * diferentes: ordenar e comparar querem o ISO; a tela quer a frase.
+   *
+   * `''` quando não há data ou ela não parseia — a mesma disciplina do autor ausente: dizer que
+   * não sabe, nunca imprimir "Invalid Date" nem cair para "agora", que apareceria ao leitor como
+   * um fato.
+   */
+  readonly quando: string;
 }
 
 /**
@@ -323,5 +332,26 @@ export function comentarioRows(payload: unknown): ComentarioRow[] {
       body: c.body as string,
       author: typeof c.author === 'string' ? c.author : null,
       createdAt: typeof c.createdAt === 'string' ? c.createdAt : '',
+      quando: quandoLegivel(c.createdAt),
     }));
+}
+
+/**
+ * O ISO vira frase — ou vira nada.
+ *
+ * A aceitação do M18 no app-dev mostrou `autor não registrado · 2026-08-04T17:13:42.848Z`. O
+ * carimbo é o único eixo temporal de quem lê a discussão; se ele exige decodificar um ISO de
+ * cabeça, ele não está sendo lido, está sendo pulado.
+ */
+function quandoLegivel(bruto: unknown): string {
+  if (typeof bruto !== 'string' || bruto === '') return '';
+  const d = new Date(bruto);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }

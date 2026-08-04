@@ -769,3 +769,45 @@ func TestPromptlyProtection_repassa_o_papel(t *testing.T) {
 		t.Errorf("o papel nao atravessou: %s", f.body)
 	}
 }
+
+// A recusa de PAPEL precisa chegar ao navegador — medida na aceitação do M18 (2026-08-04) contra o
+// app-dev, onde o serviço respondeu `403 forbidden_role` e a tela recebeu 502 "o serviço de prompts
+// não respondeu". A frase não era vaga: era FALSA, e mandava investigar disponibilidade quando o
+// problema era autorização.
+//
+// A regra original — 401/403 upstream viram 502 — está CERTA para o que ela foi escrita: ali o 403
+// significava "a credencial do plano de controle está errada", e repassá-lo deslogaria alguém
+// perfeitamente autenticado. O M18 criou um 403 de outra natureza, dirigido ao humano. O que
+// discrimina os dois não é o status; é o CORPO tipado.
+func TestRecusaDePapelChegaAoNavegadorIntacta(t *testing.T) {
+	corpo := `{"error":"forbidden_role","action":"label.protect","required":"admin","actual":"member"}`
+	app := montarComUpstream(t, http.StatusForbidden, corpo)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/dashboard/promptly/labels/production/protection",
+		strings.NewReader(`{"minRole":"admin"}`))
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, quero 403 (a recusa é do humano, não indisponibilidade)", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != corpo {
+		t.Fatalf("corpo = %s\nquero  = %s\n(o código tipado é o que diz ao operador o que fazer)", got, corpo)
+	}
+}
+
+// O CONTROLE que prova que a discriminação é pelo corpo e não pelo status: um 403 sem código
+// tipado continua virando 502. Sem este teste, "repassar todo 403" passaria — e reabriria
+// exatamente o buraco que a regra original fecha.
+func TestForbiddenSemCodigoTipadoContinuaVirando502(t *testing.T) {
+	app := montarComUpstream(t, http.StatusForbidden, `{"error":"unauthorized"}`)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/dashboard/promptly/labels/production/protection",
+		strings.NewReader(`{"minRole":"admin"}`))
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, quero 502 — um 403 por credencial do plano de controle é defeito de fiação, não recusa do usuário", rec.Code)
+	}
+}
