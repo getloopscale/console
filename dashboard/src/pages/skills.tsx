@@ -219,7 +219,7 @@ export function SkillsOverviewPage() {
               não existe. Para procurar no acervo todo, a Descoberta busca por intenção. */}
           <span className="text-xs text-muted-foreground">
             filters what is loaded —{' '}
-            <Link to="/skills/descoberta" className="underline-offset-4 hover:underline">
+            <Link to="/skills/discovery" className="underline-offset-4 hover:underline">
               search the whole registry
             </Link>
           </span>

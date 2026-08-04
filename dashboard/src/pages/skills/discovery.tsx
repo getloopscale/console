@@ -20,7 +20,7 @@ import { discoveryRows, type DiscoveryRow, type RetrievePayload } from '@/compon
 import { promotionRefusal, retrieveSkills } from '@/components/skills/skills-api';
 
 /**
- * M31 — `/skills/descoberta`: a razão de existir do produto, finalmente com tela.
+ * M31 — `/skills/discovery`: a razão de existir do produto, finalmente com tela.
  *
  * A auditoria de 2026-08-03 mediu o buraco: *"a razão de existir do produto — um agente achar a
  * skill certa por intenção — não tem tela alguma"*. A API existia desde o M3; nada a exercitava

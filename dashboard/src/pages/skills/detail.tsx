@@ -296,7 +296,7 @@ export function SkillDetailPage() {
                 />
               </label>
               <label className="flex flex-col gap-1 text-sm">
-                <span>Sucessora (opcional)</span>
+                <span>Successor (optional)</span>
                 <Input
                   aria-label="Successor skill"
                   placeholder="skill identifier"

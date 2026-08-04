@@ -6,6 +6,12 @@
 
 ### Fixed
 
+- **O painel de acompanhamento da publicação deixa de ficar preso na operação anterior.** Depois de publicar uma skill, o botão **Publicar** continuava desabilitado para sempre — publicar uma segunda exigia recarregar a página. Pior: o link *"Ver a skill"* era montado com o identificador que estava **no campo**, não com o que foi publicado. Trocar o identificador para a próxima produzia um link para uma skill **que não existe**, ao lado de um "Concluído" verde referente à operação anterior. Agora trocar o identificador ou o arquivo limpa o acompanhamento — é a declaração de que a próxima publicação é outra. **Medido no app-dev**, publicando duas skills seguidas.
+
+- **As rotas de skills passam a ser em inglês, sem quebrar link já compartilhado.** `/skills/catalogo`, `/skills/nova` e `/skills/descoberta` viraram `/skills/catalog`, `/skills/new` e `/skills/discovery`. A URL é parte do que o usuário vê, e o produto é monolíngue. As três antigas **continuam resolvendo**, por redirect, para que um link salvo nos favoritos ou colado num ticket não vire 404.
+
+- **O rótulo "Sucessora (opcional)" na tela de uma skill passou a inglês.** Escapou da tradução anterior — estava no formulário de descontinuação, que só aparece depois de rolar a tela de detalhe.
+
 - **Markdown e zip no mesmo pedido passam a ser recusados, em vez de aceitos pela metade.** O registro prioriza o markdown quando os dois chegam e **descarta os scripts em silêncio**: a skill entrava no acervo incompleta, com `202` e sem erro algum. A recusa nomeia a escolha ("markdown *ou* árvore zipada — não os dois"), porque "requisição inválida" faria o autor tentar do mesmo jeito.
 
 - **O teto de corpo do cadastro de skills subiu de 1 MiB para 36 MiB.** Foi dimensionado para um markdown; um zip de skill passa disso com folga. E o efeito do teto não era uma recusa clara: o JSON chegava **truncado** ao decodificador, que devolvia erro de sintaxe — e a tela dizia *"informe o identificador e o conteúdo"*, culpando o autor por um limite nosso que não estava escrito em lugar nenhum. O novo valor acompanha o do registro (~35 MB), para não recusar aqui o que o serviço aceitaria nem carregar na memória o que ele recusaria adiante.

@@ -12,7 +12,7 @@ import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/components/ski
 import { fetchSkills } from '@/components/skills/skills-api';
 
 /**
- * M33 — `/skills/catalogo`: ver o que existe sem saber o que procurar.
+ * M33 — `/skills/catalog`: ver o que existe sem saber o que procurar.
  *
  * Atende a persona que nenhuma jornada anterior cobria. O M31 entrega uma **tabela** com busca e
  * paginação, que resolve "não perder skill acima de 100"; não resolve "me mostre o que existe" —
@@ -181,7 +181,7 @@ export function SkillsCatalogPage() {
                 </Button>
               ) : (
                 <Button asChild size="sm">
-                  <Link to="/skills/nova">Create the first skill</Link>
+                  <Link to="/skills/new">Create the first skill</Link>
                 </Button>
               )
             }

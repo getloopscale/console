@@ -361,9 +361,9 @@ test.describe('M31 — descoberta observável: score E qual perna casou', () => 
     await page.getByRole('button', { name: /^skills$/i }).click();
     await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
     await page.getByRole('button', { name: /^discovery$/i }).click();
-    await expect(page).toHaveURL(/\/skills\/descoberta$/);
+    await expect(page).toHaveURL(/\/skills\/discovery$/);
 
-    // O submenu continua aberto: `/skills/descoberta` depende da mesma linha de
+    // O submenu continua aberto: `/skills/discovery` depende da mesma linha de
     // `resolveActiveMenu` que serve `/skills`.
     await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
 
@@ -480,7 +480,7 @@ test.describe('M31 — autoria sem publicar às cegas', () => {
     await page.getByRole('button', { name: /^skills$/i }).click();
     await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
     await page.getByRole('button', { name: /^new skill$/i }).click();
-    await expect(page).toHaveURL(/\/skills\/nova$/);
+    await expect(page).toHaveURL(/\/skills\/new$/);
 
     // Publicar exige ter validado antes — é o que impede publicar às cegas, e a tela ensina a
     // regra sem erro: botão desabilitado com o motivo ao lado.
@@ -552,6 +552,40 @@ test.describe('M31 — autoria sem publicar às cegas', () => {
     await expect(page.getByText(/the skill is in the registry and discoverable/i)).toBeVisible();
   });
 
+  test('trocar o identificador depois de publicar limpa o acompanhamento anterior', async ({
+    page,
+  }) => {
+    // MEDIDO no app-dev em 2026-08-04, publicando duas skills seguidas: depois do primeiro
+    // sucesso o painel "Publishing" FICAVA, o botão seguia desabilitado para sempre, e — o pior —
+    // o link "View the skill" era montado com o identificador do CAMPO, não com o que foi
+    // publicado. Trocar o identificador para publicar a próxima produzia um link para uma skill
+    // que não existe, ao lado de um "Done" verde sobre a operação anterior.
+    //
+    // É a mesma classe de defeito que esta capacidade já pagou várias vezes: um verde afirmando
+    // um sucesso que não é o que está na tela.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^new skill$/i }).click();
+
+    await page.getByRole('button', { name: /validate without publishing/i }).click();
+    await expect(page.getByText(/nothing published yet/i)).toBeVisible();
+    await page.getByLabel('Skill identifier').fill('sk-primeira');
+    await page.getByRole('button', { name: /^publish$/i }).click();
+    await expect(page.getByRole('heading', { name: /^publishing$/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /view the skill/i })).toHaveAttribute(
+      'href',
+      /sk-primeira$/,
+    );
+
+    // Trocar o identificador é declarar que a próxima publicação é OUTRA. O acompanhamento da
+    // anterior não pode sobreviver a isso.
+    await page.getByLabel('Skill identifier').fill('sk-segunda');
+    await expect(page.getByRole('heading', { name: /^publishing$/i })).toHaveCount(0);
+    // E publicar de novo tem de ser possível sem recarregar a página.
+    await expect(page.getByRole('button', { name: /^publish$/i })).toBeEnabled();
+  });
+
   test('editar o conteúdo invalida a validação anterior', async ({ page }) => {
     // Exibir "válido" sobre um texto que mudou afirmaria algo que ninguém verificou.
     await page.goto('/');
@@ -574,7 +608,7 @@ test.describe('M33 — catálogo: ver o que existe sem saber o que procurar', ()
     await page.getByRole('button', { name: /^skills$/i }).click();
     await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
     await page.getByRole('button', { name: /^catalog$/i }).click();
-    await expect(page).toHaveURL(/\/skills\/catalogo$/);
+    await expect(page).toHaveURL(/\/skills\/catalog$/);
   }
 
   test('os cards trazem os slots MEDIDOS — e nenhum número que não medimos', async ({ page }) => {
@@ -779,4 +813,26 @@ test.describe('M35 — a cadeia bundle → skill → canal é navegável', () =>
       page.getByRole('row').filter({ hasText: '1.0.0' }).getByText('stable', { exact: true }),
     ).toHaveCount(1);
   });
+});
+
+test.describe('as URLs antigas em português continuam resolvendo', () => {
+  // A URL é parte do que o usuário vê, e o produto é monolíngue — mas um link já compartilhado,
+  // salvo nos favoritos ou colado num ticket não pode virar 404 porque traduzimos a rota.
+  // O redirect é `replace`, então a URL antiga não fica no histórico do navegador.
+  const redirects = [
+    { antiga: '/skills/catalogo', nova: /\/skills\/catalog$/, titulo: /catalog/i },
+    { antiga: '/skills/nova', nova: /\/skills\/new$/, titulo: /new skill/i },
+    { antiga: '/skills/descoberta', nova: /\/skills\/discovery$/, titulo: /discovery/i },
+  ];
+
+  for (const { antiga, nova, titulo } of redirects) {
+    test(`${antiga} redireciona sem virar 404`, async ({ page }) => {
+      await page.goto(antiga);
+      await expect(page).toHaveURL(nova);
+      // E chega na TELA, não numa rota que resolve para o detalhe de uma skill inexistente —
+      // que é o que `/skills/new` faria se a rota estática não tivesse precedência sobre
+      // `/skills/:skillId`.
+      await expect(page.getByRole('heading', { name: titulo, level: 1 })).toBeVisible();
+    });
+  }
 });
