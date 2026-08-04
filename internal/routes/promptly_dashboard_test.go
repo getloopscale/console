@@ -24,6 +24,7 @@ type promptlyFake struct {
 	label   string               // o label que a rota repassou na promocao
 	body    json.RawMessage
 	filtro  promptly.CatalogoFiltro // M16 — o filtro que a rota REPASSOU
+	chamadas []string               // M20 — QUAIS leituras a rota pediu, em ordem
 }
 
 func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string, filtro promptly.CatalogoFiltro) (json.RawMessage, promptly.Continuacao, error) {
@@ -57,8 +58,24 @@ func (f *promptlyFake) LabelProtection(_ context.Context, label string) (json.Ra
 	return f.corpo, f.err
 }
 func (f *promptlyFake) Prompt(context.Context, string) (json.RawMessage, error) {
+	f.chamadas = append(f.chamadas, "prompt")
 	return f.corpo, f.err
 }
+
+
+// M20 — o duble registra QUAL leitura foi pedida. Sem isso, um handler que chamasse `Prompt` em vez
+// de `PromptResolvido` passaria: os dois devolvem o mesmo corpo do duble, e o teste atestaria a
+// rota sem verificar que ela paga (ou nao paga) a resolucao.
+func (f *promptlyFake) PromptResolvido(context.Context, string) (json.RawMessage, error) {
+	f.chamadas = append(f.chamadas, "resolved")
+	return f.corpo, f.err
+}
+
+func (f *promptlyFake) Dependentes(context.Context, string) (json.RawMessage, error) {
+	f.chamadas = append(f.chamadas, "dependents")
+	return f.corpo, f.err
+}
+
 func (f *promptlyFake) Revisions(_ context.Context, _ string, limit, _ int) (json.RawMessage, error) {
 	f.limite = limit
 	return f.corpo, f.err
@@ -835,5 +852,55 @@ func TestRecusaPorLabelProtegidoChegaAoNavegadorIntacta(t *testing.T) {
 	}
 	if got := strings.TrimSpace(rec.Body.String()); got != corpo {
 		t.Fatalf("corpo = %s\nquero  = %s", got, corpo)
+	}
+}
+
+// M20 DoD-2 e DoD-4 — a tela precisa dos dois textos, e de quem depende de mim.
+//
+// As duas rotas sao passagem, e por isso o oraculo nao pode ser o corpo devolvido: o duble responde
+// o mesmo para todas as leituras, entao um handler que chamasse a leitura ERRADA passaria em silencio.
+// O que se afirma aqui e QUAL leitura foi pedida — e, no caso do detalhe, que ele NAO pede a
+// resolucao, que e a metade de custo do DoD-5.
+func TestPromptResolvidoPedeALeituraQueResolve(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"content":"@@@promptly:name=p|version=1@@@","resolvedContent":"texto"}`)}
+	r := montar(f)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/dashboard/promptly/prompts/saudacao/resolved", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, quero 200; corpo=%s", w.Code, w.Body.String())
+	}
+	if len(f.chamadas) != 1 || f.chamadas[0] != "resolved" {
+		t.Fatalf("chamadas = %v, quero exatamente [resolved]", f.chamadas)
+	}
+}
+
+func TestDetalheNaoPagaAResolucao(t *testing.T) {
+	// O CONTROLE do teste acima. Sem ele, ligar a resolucao no detalhe passaria despercebido — e a
+	// travessia do grafo entraria em toda abertura de prompt, inclusive nos que nao compoem nada.
+	f := &promptlyFake{corpo: json.RawMessage(`{"content":"x"}`)}
+	r := montar(f)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/dashboard/promptly/prompts/saudacao", nil))
+
+	if len(f.chamadas) != 1 || f.chamadas[0] != "prompt" {
+		t.Fatalf("chamadas = %v, quero exatamente [prompt]", f.chamadas)
+	}
+}
+
+func TestDependentesPedeOIndiceDeEntrada(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"saudacao","version":1}]`)}
+	r := montar(f)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/dashboard/promptly/prompts/politica/dependents", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, quero 200; corpo=%s", w.Code, w.Body.String())
+	}
+	if len(f.chamadas) != 1 || f.chamadas[0] != "dependents" {
+		t.Fatalf("chamadas = %v, quero exatamente [dependents]", f.chamadas)
 	}
 }

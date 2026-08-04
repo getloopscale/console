@@ -119,6 +119,37 @@ export function fetchPrompt<T>(name: string): Promise<T | null> {
   return cloudFetch<T>(`${BASE}/prompts/${encodeURIComponent(name)}`, {}, { throwOnError: true });
 }
 
+/**
+ * Os DOIS textos: `content` como foi escrito e `resolvedContent` com as referências substituídas
+ * (M20, DoD-2).
+ *
+ * *"Sem esse par, composição vira mágica que ninguém depura."* É uma leitura SEPARADA de
+ * `fetchPrompt` porque resolver custa — o serviço atravessa o grafo de referências por nível — e
+ * quem só quer o texto escrito não pode pagar essa travessia ao abrir a tela.
+ */
+export function fetchPromptResolvido<T>(name: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/resolved`,
+    {},
+    { throwOnError: true },
+  );
+}
+
+/**
+ * Quem referencia este prompt (M20, DoD-4).
+ *
+ * *"Sem isso, promover a política é alterar quarenta prompts às cegas."* Lista vazia é o FATO
+ * "ninguém depende de mim" — a tela precisa distingui-lo de "não consegui ler", e por isso a
+ * leitura lança em erro em vez de devolver lista vazia.
+ */
+export function fetchDependentes<T>(name: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/dependents`,
+    {},
+    { throwOnError: true },
+  );
+}
+
 /** Para onde cada label de ambiente aponta HOJE — o dado que a confirmação da promoção consome. */
 export function fetchLabels<T>(name: string): Promise<T | null> {
   return cloudFetch<T>(`${BASE}/prompts/${encodeURIComponent(name)}/labels`, {}, { throwOnError: true });

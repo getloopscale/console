@@ -208,6 +208,29 @@ func (c *DataClient) Prompt(ctx context.Context, name string) (json.RawMessage, 
 	return body, err
 }
 
+// PromptResolvido pede o par de textos: `content` como foi escrito e `resolvedContent` com as
+// referencias substituidas (M20, DoD-2).
+//
+// E um metodo SEPARADO, e nao um booleano em `Prompt`, porque resolver custa: o servico atravessa o
+// grafo de referencias por nivel. Quem so quer o texto escrito — o catalogo, o diff, a lista de
+// revisoes — nao pode pagar essa travessia, e um parametro opcional convida a liga-lo por engano no
+// caminho que nao precisa dele.
+func (c *DataClient) PromptResolvido(ctx context.Context, name string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("resolve", "true")
+	body, _, err := c.getRaw(ctx, "/prompts/"+url.PathEscape(name), q)
+	return body, err
+}
+
+// Dependentes lista quem referencia este prompt (M20, DoD-4).
+//
+// *"Sem isso, promover a politica e alterar quarenta prompts as cegas."* A lista vem do indice de
+// entrada do servico; aqui ela so atravessa.
+func (c *DataClient) Dependentes(ctx context.Context, name string) (json.RawMessage, error) {
+	body, _, err := c.getRaw(ctx, "/prompts/"+url.PathEscape(name)+"/dependents", nil)
+	return body, err
+}
+
 // Revisions lista as revisoes de um prompt (`GET /prompts/:name/revisions`).
 //
 // O `limit` e ARGUMENTO OBRIGATORIO do chamador, nao um opcional com default do servico: cada item

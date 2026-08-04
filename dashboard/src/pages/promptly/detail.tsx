@@ -3,6 +3,12 @@ import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { History } from 'lucide-react';
 import { Badge, Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } from '@usetheo/ui';
+import {
+  dependentRows,
+  temComposicao,
+  textoExibido,
+  type ModoDeTexto,
+} from '@/components/promptly/composicao';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
@@ -29,6 +35,8 @@ import {
   setTags,
   fetchComments,
   addComment,
+  fetchPromptResolvido,
+  fetchDependentes,
 } from '@/components/promptly/promptly-api';
 import {
   catalogRows,
@@ -132,10 +140,11 @@ export function PromptDetailPage() {
   // número não há como pedir o FIM dele — e esta é a tela de onde sai a promoção (#364).
   const prompt = useQuery({
     queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName],
-    queryFn: () => fetchPrompt<{ version?: number }>(promptName),
+    queryFn: () => fetchPrompt<{ version?: number; content?: string }>(promptName),
     enabled: promptName !== '',
   });
   const latestVersion = prompt.data?.version ?? null;
+  const promptContent = prompt.data?.content ?? null;
   const janela = revisionsWindow(latestVersion, REVISIONS_LIMIT);
 
   const revisionsKey = [
@@ -175,6 +184,36 @@ export function PromptDetailPage() {
     enabled: promptName !== '',
     retry: false,
   });
+
+  // M20 DoD-2 — os DOIS textos. A resolução é pedida SÓ quando o prompt de fato compõe: um
+  // alternador entre dois textos idênticos é ruído, e a travessia do grafo custaria em toda
+  // abertura de prompt que não referencia nada (a outra metade do DoD-5).
+  const [modoDeTexto, setModoDeTexto] = useState<ModoDeTexto>('escrito');
+  const compoe = temComposicao(promptContent);
+
+  const resolvido = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'resolved'] as const,
+    queryFn: () => fetchPromptResolvido<{ resolvedContent?: string }>(promptName),
+    // A leitura só acontece quando o operador PEDE o texto resolvido. Antes disso, a tela não paga.
+    enabled: promptName !== '' && compoe && modoDeTexto === 'resolvido',
+    retry: false,
+  });
+
+  // M20 DoD-4 — quem depende de mim. Lido sempre: é a informação que muda a decisão de promover, e
+  // saber que ninguém depende é tão útil quanto a lista.
+  const dependentes = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'dependents'] as const,
+    queryFn: () => fetchDependentes<unknown>(promptName),
+    enabled: promptName !== '',
+    retry: false,
+  });
+
+  const texto = textoExibido(modoDeTexto, promptContent, {
+    carregando: resolvido.isLoading,
+    erro: Boolean(resolvido.error),
+    texto: resolvido.data?.resolvedContent ?? null,
+  });
+  const dependentesLinhas = dependentRows(dependentes.data);
 
   const linhas = revisionRows(revisions.data);
   const ponteiros = labelRows(labels.data);
@@ -518,6 +557,114 @@ export function PromptDetailPage() {
       {promoteError ? (
         <Alert intent="destructive" title="A promoção não foi aplicada" description={promoteError} />
       ) : null}
+
+      {/* M20 DoD-2 — os dois textos. Fica ACIMA de tudo porque é o próprio prompt: as tags, a
+          discussão e os ambientes são sobre ELE, e vinham antes dele na tela.
+
+          O par existe porque *"sem ele, composição vira mágica que ninguém depura"*. O alternador
+          só aparece quando o prompt de fato referencia alguém — dois textos idênticos lado a lado
+          seriam ruído, e a leitura resolvida custa a travessia do grafo. */}
+      {compoe ? (
+        <Card>
+          <Card.Header>
+            <Card.Title asChild>
+              <h2>Texto do prompt</h2>
+            </Card.Title>
+            <Card.Description>
+              Este prompt referencia outros. <strong>Como foi escrito</strong> mostra os marcadores;{' '}
+              <strong>resolvido</strong> mostra o texto que o modelo de fato recebe.
+            </Card.Description>
+          </Card.Header>
+          <div className="space-y-3 p-4 pt-0">
+            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Qual texto exibir">
+              <Button
+                variant={modoDeTexto === 'escrito' ? 'primary' : 'secondary'}
+                size="sm"
+                aria-pressed={modoDeTexto === 'escrito'}
+                onClick={() => { setModoDeTexto('escrito'); }}
+              >
+                Como foi escrito
+              </Button>
+              <Button
+                variant={modoDeTexto === 'resolvido' ? 'primary' : 'secondary'}
+                size="sm"
+                aria-pressed={modoDeTexto === 'resolvido'}
+                onClick={() => { setModoDeTexto('resolvido'); }}
+              >
+                Resolvido
+              </Button>
+            </div>
+            {texto.estado === 'falhou' ? (
+              // NUNCA cair para o texto escrito aqui: seria mostrar um texto correto sob um rótulo
+              // errado, e o operador leria marcadores literais achando ver a composição.
+              <Alert
+                intent="destructive"
+                title="Não foi possível resolver a composição"
+                description="O texto resolvido não pôde ser lido. Alterne de volta para ver o texto como foi escrito."
+              />
+            ) : texto.estado === 'carregando' ? (
+              <p className="text-sm text-muted-foreground">Resolvendo as referências…</p>
+            ) : (
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-mono text-xs">
+                {texto.texto || '(vazio)'}
+              </pre>
+            )}
+          </div>
+        </Card>
+      ) : null}
+
+      {/* M20 DoD-4 — quem depende de mim.
+          *"Sem isso, promover a política é alterar quarenta prompts às cegas."* Fica junto do texto
+          porque é a mesma pergunta vista do outro lado: o que eu componho, e quem me compõe. */}
+      <Card>
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Quem referencia este prompt</h2>
+          </Card.Title>
+          <Card.Description>
+            Revisões de outros prompts que compõem este. Promover ou alterar aqui muda o texto que
+            elas produzem.
+          </Card.Description>
+        </Card.Header>
+        <div className="p-4 pt-0">
+          {dependentes.error ? (
+            // Falha de leitura NÃO é "ninguém depende de mim". A distinção é a que muda a decisão:
+            // um operador que lê "ninguém" promove tranquilo; um que lê "não consegui saber", não.
+            <Alert
+              intent="destructive"
+              title="Não foi possível ler os dependentes"
+              description="Esta lista é a que diz quem é afetado por uma promoção. Não trate a ausência dela como ausência de dependentes."
+            />
+          ) : dependentes.isLoading ? (
+            <p className="text-sm text-muted-foreground">Carregando…</p>
+          ) : dependentesLinhas.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhum prompt referencia este. Alterá-lo não muda o texto de mais ninguém.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {dependentesLinhas.map((d) => (
+                <li key={`${d.name}-${String(d.version)}`} className="text-sm">
+                  <Link
+                    to={`/promptly/${encodeURIComponent(d.name)}`}
+                    className="font-medium underline underline-offset-2"
+                  >
+                    {d.name}
+                  </Link>
+                  <span className="ml-2 font-mono text-xs text-muted-foreground">
+                    v{d.version}
+                  </span>
+                  {/* O `via` diz se uma PROMOÇÃO move esta aresta. Sem ele, as duas formas aparecem
+                      idênticas e o operador segue promovendo às cegas, só que com uma lista maior. */}
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    {d.via.label !== null ? `via ${d.via.label} (move na promoção)` : 'por versão (fixa)'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Card>
 
       {/* M16 — as tags do prompt, lidas e ESCRITAS aqui.
           O DoD pede "tags criadas e filtradas na tela" e "a tag aparece no detalhe". A primeira
