@@ -401,7 +401,7 @@ export function BundleDetailPage() {
                 {salvarItens.isPending ? 'Saving…' : 'Save contents'}
               </Button>
               <Button variant="ghost" onClick={() => setItens(null)} disabled={salvarItens.isPending}>
-                Descartar alterações
+                Discard changes
               </Button>
               <span className="text-xs text-muted-foreground">Unsaved changes.</span>
             </div>
@@ -415,8 +415,8 @@ export function BundleDetailPage() {
             <h2>New token</h2>
           </Card.Title>
           <Card.Description>
-            Um token delegado dá acesso a este pacote sem expor as credenciais do workspace. O
-            valor aparece uma única vez, na criação.
+            A delegated token grants access to this bundle without exposing the workspace
+            credentials. The value is shown once, at creation.
           </Card.Description>
         </Card.Header>
         <form
@@ -460,8 +460,8 @@ export function BundleDetailPage() {
             <h2>Issued tokens</h2>
           </Card.Title>
           <Card.Description>
-            Revogados continuam na lista, com a marca — esconder impediria auditar o que já foi
-            emitido.
+            Revoked ones stay on the list, marked — hiding them would make it impossible to audit
+            what was issued.
           </Card.Description>
         </Card.Header>
         <DataTable

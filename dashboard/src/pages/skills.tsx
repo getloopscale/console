@@ -253,7 +253,7 @@ export function SkillsOverviewPage() {
               {query.isFetching ? 'Loading…' : 'Load more'}
             </Button>
             <span className="text-xs text-muted-foreground">
-              O acervo tem mais do que está nesta tela.
+              The registry holds more than what is on this screen.
             </span>
           </div>
         ) : null}

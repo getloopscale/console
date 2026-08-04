@@ -270,7 +270,7 @@ export function SkillVersionsPage() {
       />
 
       {promotionError ? (
-        <Alert intent="destructive" title="O canal NÃO foi promovido" description={promotionError} />
+        <Alert intent="destructive" title="The channel was NOT promoted" description={promotionError} />
       ) : null}
     </PageShell>
   );
