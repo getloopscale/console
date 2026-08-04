@@ -98,13 +98,18 @@ export function registerSkillsHandlers() {
 }
 
 function registerSkillsRoutes(base: string) {
-  registerRoute('GET', base, async () =>
-    Response.json({ skills: skillsDb.skills, next_page_token: null }),
-  );
+  // M31 — paginação REAL. O mock devolve `next_page_token` quando há mais, porque era
+  // exatamente isso que a tela ignorava: o token vinha e o excedente sumia sem erro algum.
+  registerRoute('GET', base, async (req) => {
+    const url = new URL(req.url, 'http://x');
+    const limit = Math.max(1, Number(url.searchParams.get('limit') ?? '100'));
+    const token = url.searchParams.get('page_token');
+    const inicio = token === null ? 0 : Number(token);
+    const fatia = skillsDb.skills.slice(inicio, inicio + limit);
+    const proximo = inicio + limit < skillsDb.skills.length ? String(inicio + limit) : null;
+    return Response.json({ skills: fatia, next_page_token: proximo });
+  });
 
-  // M31 — a descoberta. Registrada ANTES das rotas com `{skillId}` porque `:retrieve` ocupa a
-  // mesma posição no caminho: se a paramétrica casasse primeiro, a busca viraria "ler a skill
-  // chamada `:retrieve`" e a tela receberia o corpo errado sem erro algum.
   registerRoute('GET', `${base}/:retrieve`, async (req) => {
     const url = new URL(req.url, 'http://x');
     const q = (url.searchParams.get('query') ?? '').toLowerCase();

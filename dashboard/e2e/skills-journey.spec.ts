@@ -431,3 +431,38 @@ test.describe('M31 — governança: a skill que dizia "pode ser removida" agora 
     await expect(page.getByRole('link', { name: 'Preparar ambiente local' })).toHaveCount(0);
   });
 });
+
+test.describe('M31 — o acervo aguenta escala', () => {
+  test('o filtro declara seu alcance e oferece a busca no acervo inteiro', async ({ page }) => {
+    // Um filtro que PARECE varrer o acervo inteiro e varre uma página é pior que filtro nenhum:
+    // leva o operador a concluir que a skill não existe. A tela diz o alcance e aponta para a
+    // Descoberta, que busca por intenção no acervo todo.
+    await navegarAteOAcervoPeloMenu(page);
+
+    await expect(page.getByText(/filtra o que está carregado/i)).toBeVisible();
+    await expect(page.getByRole('link', { name: /buscar no acervo inteiro/i })).toBeVisible();
+
+    await page.getByLabel('Filtrar skills carregadas').fill('moeda');
+    await expect(page.getByRole('link', { name: 'Converter moeda (v1)' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Revisar pull request' })).toHaveCount(0);
+
+    // A contagem diz o que É — quantas casam de quantas carregadas —, não um total inventado.
+    await expect(page.getByText(/casam com "moeda"/i)).toBeVisible();
+  });
+
+  test('o filtro ignora acento, porque quem tem pressa não acentua', async ({ page }) => {
+    await navegarAteOAcervoPeloMenu(page);
+    // "substituida" (sem acento) tem de achar "Substituída por uma versão…" — sem isso o filtro
+    // parece quebrado justamente para quem está com pressa.
+    await page.getByLabel('Filtrar skills carregadas').fill('substituida');
+    await expect(page.getByRole('link', { name: 'Converter moeda (v1)' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Revisar pull request' })).toHaveCount(0);
+  });
+
+  test('a contagem NÃO se apresenta como total quando o acervo cabe numa página', async ({ page }) => {
+    // O defeito original: a tela dizia "12 no acervo" com 300 lá dentro. Agora ela distingue
+    // "carregada(s)" de "acervo completo".
+    await navegarAteOAcervoPeloMenu(page);
+    await expect(page.getByText(/carregada\(s\)/i)).toBeVisible();
+  });
+});

@@ -55,6 +55,14 @@
 
   Score ausente vira `—`, não `0.000`: zero afirma "casou muito mal", e um registro que não devolveu o campo não disse isso (#m31)
 
+- **O acervo de skills aguenta escala (M31).** `next_page_token` estava **tipado e não usado**: acima do teto de uma página o excedente sumia **sem erro algum**, e a tela dizia "12 no acervo" com 300 lá dentro. Agora há paginação real (*carregar mais*) e a contagem diz **o que é** — quantas estão carregadas, e se há mais.
+
+  O filtro por nome, descrição ou identificador **declara seu alcance**: filtra o que está carregado, e aponta para a Descoberta quando a busca precisa varrer o acervo inteiro. Um filtro que parece varrer tudo e varre uma página é pior que filtro nenhum — leva o operador a concluir que a skill não existe. Ignora acento, porque quem digita com pressa não acentua (#m31)
+
+- **Governança: apagar uma skill pela tela (M31).** A auditoria mediu o absurdo — o acervo tinha uma skill que **se descreve** como *"pode ser removida"* e não havia como removê-la, embora `DELETE /v1/skills/:id` exista há milestones. A `DangerZone` diz a consequência específica (o identificador fica **reservado**, e quem o referencia passa a receber erro), exige frase digitada, e oferece a alternativa **reversível antes** do botão destrutivo: quem quer só parar de recomendar precisa saber que descontinuar não quebra quem já usa.
+
+  A exclusão viaja por um **terceiro cliente**, com credencial própria: `skills:write` apaga, `skills:publish` reaponta consumidores sem redeploy. Uma chave que fizesse as duas coisas transformaria qualquer vazamento no pior caso possível (#m31)
+
 ### Security
 
 - **A adoção de um bundle exigia apenas `skills:read` para ser lida.** Era a única rota da família sem gate de escopo — `POST /v1/bundles`, `GET /v1/bundles` e as três de token já exigiam `skills:publish`. Um portador do escopo de leitura (o que o dashboard cunha para o cliente de leitura, e o que um agente consumidor carrega) lia a telemetria comercial de quem publica. Mesmo workspace, então não é vazamento entre inquilinos; é privilégio a mais dentro dele, e a assimetria com as irmãs mostra que não foi decisão, foi esquecimento. Corrigido no `theo-skills`; o cliente de distribuição do dashboard já nasce ligado ao resolver de **publicação**, nunca ao de leitura (#m35)

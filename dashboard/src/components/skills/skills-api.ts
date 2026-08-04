@@ -12,9 +12,17 @@ import { ApiError, cloudFetch } from '@/lib/api';
  */
 const BASE = '/v1/dashboard/skills';
 
-/** O acervo do inquilino. `limit` explícito: sem ele herdaríamos o teto do servidor sem saber qual é. */
-export function fetchSkills<T>(limit: number): Promise<T | null> {
-  return cloudFetch<T>(`${BASE}?limit=${encodeURIComponent(String(limit))}`, {}, { throwOnError: true });
+/**
+ * O acervo do inquilino. `limit` explícito: sem ele herdaríamos o teto do servidor sem saber qual é.
+ *
+ * `pageToken` (M31) percorre o acervo além da primeira página. Até este milestone o
+ * `next_page_token` era **tipado e não usado** — acima do teto o excedente sumia sem erro algum,
+ * e a tela dizia "12 no acervo" com 300 lá dentro.
+ */
+export function fetchSkills<T>(limit: number, pageToken?: string): Promise<T | null> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (pageToken !== undefined && pageToken !== '') params.set('page_token', pageToken);
+  return cloudFetch<T>(`${BASE}?${params.toString()}`, {}, { throwOnError: true });
 }
 
 export function fetchSkill<T>(id: string): Promise<T | null> {

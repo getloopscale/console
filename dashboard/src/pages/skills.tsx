@@ -1,12 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Boxes } from 'lucide-react';
 import {
   Badge,
+  Button,
   Card,
   DataTable,
   EmptyState,
+  Input,
   PageShell,
   type DataTableColumn,
 } from '@usetheo/ui';
@@ -15,6 +17,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { fetchSkills } from '@/components/skills/skills-api';
+import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/components/skills/paging';
 
 /**
  * M26 — `/skills`: o acervo de skills do workspace.
@@ -58,12 +61,39 @@ export function SkillsOverviewPage() {
   useEffect(() => setPageTitle('Skills'), [setPageTitle]);
   useRequireAuth();
 
+  // ---- M31 — o acervo que aguenta escala ---------------------------------------------------
+  //
+  // `next_page_token` era TIPADO E NÃO USADO: acima do teto de uma página o excedente sumia sem
+  // erro algum, e a tela dizia "12 no acervo" com 300 lá dentro.
+  //
+  // As páginas já buscadas ficam em estado local em vez de virarem `useInfiniteQuery`: o acervo
+  // é pequeno o bastante para isso (teto de 200 por página no serviço), e trocar a query inteira
+  // pela variante infinita mexeria em cache que outras telas compartilham.
+  const [paginas, setPaginas] = useState<SkillLinha[]>([]);
+  const [tokenAtual, setTokenAtual] = useState<string | undefined>(undefined);
+  const [filtro, setFiltro] = useState('');
+
   const query = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => fetchSkills<SkillsPayload>(PAGE_LIMIT),
+    queryKey: [...QUERY_KEY, tokenAtual ?? 'primeira'] as const,
+    queryFn: () => fetchSkills<SkillsPayload>(PAGE_LIMIT, tokenAtual),
   });
 
-  const rows = Array.isArray(query.data?.skills) ? query.data.skills : [];
+  const pagina = useMemo(
+    () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillLinha[]) : []),
+    [query.data],
+  );
+
+  useEffect(() => {
+    if (pagina.length === 0) return;
+    // Mescla POR IDENTIFICADOR: um refetch entrega a mesma página de novo, e concatenar
+    // cegamente faria a contagem mentir e a `key` do React colidir.
+    setPaginas((atual) => mesclarPaginas(atual, pagina));
+  }, [pagina]);
+
+  const acervo = paginas.length > 0 ? paginas : pagina;
+  const rows = filtrarAcervo(acervo, filtro);
+  const proximoToken = query.data?.next_page_token ?? null;
+  const temMais = typeof proximoToken === 'string' && proximoToken !== '';
   const failed = Boolean(query.error);
 
   const columns: DataTableColumn<SkillSummary>[] = [
@@ -166,8 +196,33 @@ export function SkillsOverviewPage() {
           <Card.Title asChild>
             <h2>Skills publicadas</h2>
           </Card.Title>
-          <Card.Description>{rows.length} no acervo deste workspace</Card.Description>
+          {/* A contagem diz o que É: quantas estão carregadas, e se há mais. Antes dizia "12 no
+              acervo" com 300 lá dentro — um número que parecia total e era de uma página. */}
+          <Card.Description>
+            {filtro.trim() === ''
+              ? `${acervo.length} carregada(s)${temMais ? ' — há mais no acervo' : ' (acervo completo)'}`
+              : `${rows.length} de ${acervo.length} carregada(s) casam com "${filtro}"`}
+          </Card.Description>
         </Card.Header>
+
+        <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
+          <Input
+            aria-label="Filtrar skills carregadas"
+            placeholder="filtrar por nome, descrição ou identificador"
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            className="max-w-sm"
+          />
+          {/* O ALCANCE do filtro é declarado. Um filtro que parece varrer o acervo inteiro e
+              varre uma página é pior que filtro nenhum: leva o operador a concluir que a skill
+              não existe. Para procurar no acervo todo, a Descoberta busca por intenção. */}
+          <span className="text-xs text-muted-foreground">
+            filtra o que está carregado —{' '}
+            <Link to="/skills/descoberta" className="underline-offset-4 hover:underline">
+              buscar no acervo inteiro
+            </Link>
+          </span>
+        </div>
 
         <DataTable
           columns={columns}
@@ -186,6 +241,21 @@ export function SkillsOverviewPage() {
             />
           }
         />
+
+        {temMais ? (
+          <div className="flex items-center gap-2 px-6 pb-6">
+            <Button
+              variant="secondary"
+              disabled={query.isFetching}
+              onClick={() => setTokenAtual(proximoToken ?? undefined)}
+            >
+              {query.isFetching ? 'Carregando…' : 'Carregar mais'}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              O acervo tem mais do que está nesta tela.
+            </span>
+          </div>
+        ) : null}
       </Card>
     </PageShell>
   );
