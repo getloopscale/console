@@ -193,6 +193,25 @@ func (h *PromptlyDashboardHandler) reject(w http.ResponseWriter, r *http.Request
 	_, _ = w.Write([]byte(promptlyUnavailable))
 }
 
+// recusasDeAutoridade são os códigos com que o promptly recusa UMA PESSOA — não uma credencial de
+// infraestrutura.
+//
+// É uma lista explícita, e não uma heurística sobre a forma do corpo, porque a diferença entre as
+// duas classes de 403 decide se o operador vê um diagnóstico ou uma mentira. Errar para o lado
+// permissivo repassaria ao navegador um 403 que significa "a fiação está errada" — e o usuário
+// investigaria a própria sessão. Um código novo entra aqui de propósito, com quem o escreveu
+// sabendo o que está afirmando.
+//
+// `label_protected` entrou depois de `forbidden_role`, e o motivo é registro: a quarta rodada de
+// aceitação do M18 mostrou o gate funcionando (um `member` foi barrado ao promover) e a explicação
+// se perdendo — o serviço dizia "label production exige papel admin; quem tentou tem member" e a
+// tela mostrava "o serviço não respondeu". Conhecer uma recusa da classe e não a irmã dela é o
+// mesmo defeito, uma linha mais tarde.
+var recusasDeAutoridade = map[string]bool{
+	"forbidden_role":  true, // a AÇÃO exige um papel que o autor não tem
+	"label_protected": true, // ESTE label exige um papel que o autor não tem
+}
+
 // recusaDePapel distingue os DOIS 403 que o promptly pode devolver — e a distinção é a diferença
 // entre um diagnóstico e uma mentira.
 //
@@ -215,7 +234,7 @@ func recusaDePapel(corpo []byte) bool {
 	if err := json.Unmarshal(corpo, &tipado); err != nil {
 		return false
 	}
-	return tipado.Error == "forbidden_role"
+	return recusasDeAutoridade[tipado.Error]
 }
 
 func promptName(r *http.Request) string { return chi.URLParam(r, "promptName") }

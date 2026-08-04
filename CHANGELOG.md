@@ -12,6 +12,8 @@
 
 ### Fixed
 
+- **A recusa por label protegido também chega à tela (#430).** Com `production` protegido, um operador sem o papel exigido teve a promoção corretamente barrada — e o serviço explicou em português qual papel a ação pede e qual ele tem. A tela mostrava *"o serviço não respondeu"*. O portão funcionava; a explicação se perdia, e é ela que diz o que fazer — sem ela o operador conclui indisponibilidade e tenta de novo, para sempre. O reconhecimento agora é de uma **classe** de recusa, não de um código único: conhecer uma e não a irmã dela é o mesmo defeito, uma linha depois (#430)
+
 - **O papel de quem promove passou a ser lido da fonte autoritativa (#430).** A primeira versão lia um campo do contexto que só é preenchido por um middleware que as rotas de prompts não montam — chegava vazio **sempre**, e o valor de segurança caía para o menor. O efeito era um teto silencioso: nenhum operador, por mais autoridade que tivesse, alcançava uma ação que exige papel elevado, e nada no sistema dizia por quê. Ler um campo que ninguém preencheu e cair para o menor valor é pior que falhar — a falha aparece, o teto não. Agora o papel vem do cadastro de membros; falha de leitura **falha**, e ausência real de papel continua sendo o menor — as duas coisas deixam de ser a mesma (#430)
 
 - **A tela de descoberta lia campos que a API não devolve.** Encontrado exercitando o `app-dev`, não por teste: o handler responde `results` (não `skills`) e `matched` como `[{leg, rank}]` (não `string[]`). A projeção assumiu a forma do `hybrid-retriever.ts` — o módulo interno — em vez da resposta HTTP, e a tela mostrava **"0 resultados"** com o serviço devolvendo dois.

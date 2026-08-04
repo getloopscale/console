@@ -144,9 +144,16 @@ function registerSkillsRoutes(base: string) {
       causes.push('description_too_generic');
       hints.push('A descrição diz o que a skill é, mas não QUANDO usá-la.');
     }
-    if (body.has_embedding !== true) {
+    // A PRESENÇA do campo distingue os três casos — ausente = rascunho (não há revisão, logo
+    // não há vetor a cobrar); `false` = publicada e sem vetor (achado real). O mock usava
+    // `!== true`, que colapsa ausente e `false` no mesmo caso, e por isso concordava com a tela
+    // sobre um comportamento que a theo-skills#144 mostrou estar errado.
+    if (body.has_embedding === false) {
       causes.push('no_embedding');
       hints.push('A revisão vigente não tem vetor: a skill só aparece para quem já sabe o nome.');
+    }
+    if (body.has_embedding === undefined && causes.length === 0) {
+      hints.push('Nada a corrigir na descrição. A skill ainda não está no acervo — ao publicar, a ingestão gera o vetor.');
     }
     return Response.json({
       discoverable: causes.length === 0,
