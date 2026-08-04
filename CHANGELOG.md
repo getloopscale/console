@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- **o gráfico de consumo por usuário passou a dizer QUE DIA foi cada ponto** (`usetheodev/usetheo-ui#17`). O eixo não tinha rótulo algum e a tabela para leitor de tela numerava — `Point 1, 2, 3`. Num gráfico chamado "Custo por dia", dava para ver que houve um pico e não havia caminho para saber quando. Agora o eixo é datado, a tabela acessível traz a data no lugar do ordinal, e passar o cursor mostra uma linha vertical com a data e o valor de cada série. As datas são formatadas em **UTC**, como o serviço agrupa: formatar no fuso do navegador deslocaria o rótulo em relação ao balde que ele nomeia, e um gráfico que diz "21/07" sobre o balde de 22/07 erra com confiança.
+
 ## [0.78.1] - 2026-08-03
 
 ### Changed

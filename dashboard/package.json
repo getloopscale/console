@@ -84,7 +84,7 @@
     "@tiptap/starter-kit": "^2.27.2",
     "@types/canvas-confetti": "^1.9.0",
     "@uiw/react-codemirror": "^4.25.10",
-    "@usetheo/ui": "^0.34.0",
+    "@usetheo/ui": "^0.35.0",
     "ansi-to-html": "^0.7.2",
     "canvas-confetti": "^1.9.4",
     "cmdk": "^1.1.1",
