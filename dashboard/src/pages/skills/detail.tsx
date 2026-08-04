@@ -124,6 +124,16 @@ export function SkillDetailPage() {
       description={data?.description ?? 'Detalhe da skill no registro deste workspace.'}
       primaryAction={undefined}
     >
+      {/* Volta ao acervo. Sem ela, chegar aqui pelo catálogo ou pela descoberta deixava o
+          operador dependente do botão do navegador — e o item de menu leva ao overview, que
+          não é a origem de quem veio de uma busca.
+
+          Medido no app-dev em 2026-08-04: nenhuma das duas rotas aninhadas da capacidade tinha
+          saída, contra o critério do M31 que pede volta à origem em toda rota aninhada. */}
+      <Link to="/skills" className="text-sm text-muted-foreground hover:text-foreground">
+        ← Voltar ao acervo
+      </Link>
+
       {skill.error ? (
         <Alert
           intent="destructive"
