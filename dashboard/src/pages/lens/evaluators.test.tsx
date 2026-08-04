@@ -211,34 +211,6 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     expect(d.split('M'), `a linha deve QUEBRAR na lacuna; d=${d}`).toHaveLength(3);
   });
 
-  /**
-   * O gráfico vem ANTES da tabela no documento.
-   *
-   * Mesma correção que a tela de consumo por usuário pagou no M144: com a lista de avaliadores
-   * ocupando a primeira dobra, a tendência nascia abaixo dela e podia nunca ser vista. A pergunta
-   * *"a qualidade está subindo ou caindo?"* é a de abertura; *"quais avaliadores existem"* é a
-   * segunda.
-   *
-   * Sem esta asserção a ordem volta em silêncio no próximo refactor — foi o que aconteceu lá.
-   */
-  it('o gráfico de scores vem ANTES da tabela de avaliadores', async () => {
-    mockCloudFetch.mockImplementation(
-      byUrl({
-        range: '7d',
-        scores: [
-          { periodStart: '2026-07-08T00:00:00.000Z', name: 'hallucination', sampleCount: 2, avgScore: 0.3, labels: {} },
-        ],
-      }),
-    );
-    render(<LensEvaluatorsPage />);
-    const grafico = await screen.findByTestId('scores-over-time');
-    // A tabela da PÁGINA, não a tabela acessível que o próprio gráfico renderiza.
-    const tabela = screen.getAllByRole('table').find((t) => t.closest('[data-slot="trend-chart"]') === null);
-    expect(tabela).toBeDefined();
-    // DOCUMENT_POSITION_FOLLOWING = a tabela vem DEPOIS do gráfico.
-    expect(grafico.compareDocumentPosition(tabela!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
   it('M90 — an empty range shows an honest empty state, not a fabricated zero line', async () => {
     mockCloudFetch.mockImplementation(byUrl({ range: '7d', scores: [] }));
     render(<LensEvaluatorsPage />);

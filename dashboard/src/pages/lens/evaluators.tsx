@@ -351,7 +351,6 @@ export function LensEvaluatorsPage() {
             )
           ) : null}
 
-
           {query.isLoading ? (
             <ListSkeleton label="evaluators" />
           ) : query.isError ? (
@@ -432,57 +431,6 @@ export function LensEvaluatorsPage() {
               </Card>
             )}
           </section>
-        </div>
-      </PageShell>
-
-      <AppModal
-        open={createOpen}
-        onClose={closeCreate}
-        size="md"
-        title="New evaluator"
-        description="Score traces with a rule predicate or an LLM judge."
-        footer={
-          <>
-            <Button variant="secondary" onClick={closeCreate}>
-              Cancel
-            </Button>
-            <Button onClick={submitCreate} disabled={!canCreate || create.isPending}>
-              {create.isPending ? 'Creating…' : 'Create evaluator'}
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <Label htmlFor="evaluator-name">Name</Label>
-          <Input
-            id="evaluator-name"
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submitCreate();
-            }}
-            placeholder="evaluator-name"
-          />
-          <Label htmlFor="evaluator-kind">Kind</Label>
-          <Select value={kind} onValueChange={(v) => setKind(v as EvaluatorKind)}>
-            <Select.Trigger id="evaluator-kind" className="w-[220px]" aria-label="Evaluator kind">
-              <Select.Value />
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Item value="rule">Rule (predicate)</Select.Item>
-              <Select.Item value="llm_judge">LLM judge (prompt + model)</Select.Item>
-            </Select.Content>
-          </Select>
-          {kind === 'rule' ? (
-            <>
-              <Label htmlFor="evaluator-predicate">Rule predicate</Label>
-              <Textarea
-                id="evaluator-predicate"
-                value={predicate}
-                onChange={(e) => setPredicate(e.target.value)}
-                placeholder="status:error"
-              />
         </div>
       </PageShell>
 
