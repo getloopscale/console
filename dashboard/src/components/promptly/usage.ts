@@ -24,6 +24,8 @@ export interface LinhaDoAgregado {
   readonly totalTokens: number;
   /** `null` quando o lens não soube precificar o modelo. Nunca estimado. */
   readonly costUsd: number | null;
+  /** Latência MEDIANA da resolução, em ms. `null` quando não há amostra. */
+  readonly p50LatencyMs: number | null;
 }
 
 export type AgregadoDeUso =
@@ -36,6 +38,8 @@ export interface LinhaDeUso {
   /** Ausente — e não `0` — quando não há uso ou não houve leitura. */
   readonly chamadas?: number;
   readonly tokens?: number;
+  /** Latência mediana da resolução, em ms. Ausente quando o agregado não a trouxe. */
+  readonly latenciaP50Ms?: number;
   /** Ausente quando o provider não reportou custo. Ver `razaoDoCusto`. */
   readonly custoUsd?: number;
   readonly razaoDoCusto?: string;
@@ -83,6 +87,7 @@ export function projetarUso(
       estado: 'com-uso' as const,
       chamadas: linha.resolutions,
       tokens: linha.totalTokens,
+      ...(linha.p50LatencyMs === null ? {} : { latenciaP50Ms: linha.p50LatencyMs }),
       // `totalTokens === 0` é o discriminante: sem tokens observados no trace, nenhuma
       // chamada de modelo foi correlacionada, e o `0` do lens não é uma medição de custo.
       // Com tokens, um zero É medido — um modelo gratuito existe, e o teste-controle prova

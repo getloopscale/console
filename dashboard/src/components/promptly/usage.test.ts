@@ -19,12 +19,20 @@ describe('projetarUso — os três estados', () => {
   it('revisao com uso projeta chamadas e custo', () => {
     const agregado: AgregadoDeUso = {
       estado: 'lido',
-      rows: [{ revision: 6, resolutions: 12, totalTokens: 1500, costUsd: 0.031 }],
+      rows: [{ revision: 6, resolutions: 12, totalTokens: 1500, costUsd: 0.031, p50LatencyMs: 4.2 }],
     };
 
     const linhas = projetarUso(agregado, REVISOES);
 
-    expect(linhas[0]).toMatchObject({ revision: 6, estado: 'com-uso', chamadas: 12, custoUsd: 0.031 });
+    // O DoD-2 do ROADMAP pede QUATRO números por revisão, não dois.
+    expect(linhas[0]).toMatchObject({
+      revision: 6,
+      estado: 'com-uso',
+      chamadas: 12,
+      tokens: 1500,
+      custoUsd: 0.031,
+      latenciaP50Ms: 4.2,
+    });
   });
 
   it('revisao SEM uso na janela projeta sem-chamadas, que nao e zero', () => {
@@ -52,7 +60,7 @@ describe('projetarUso — os três estados', () => {
   it('custo ausente fica vazio COM RAZAO, nunca estimado (DoD-4)', () => {
     const agregado: AgregadoDeUso = {
       estado: 'lido',
-      rows: [{ revision: 6, resolutions: 12, totalTokens: 1500, costUsd: null }],
+      rows: [{ revision: 6, resolutions: 12, totalTokens: 1500, costUsd: null, p50LatencyMs: null }],
     };
 
     const linhas = projetarUso(agregado, REVISOES);
@@ -65,7 +73,7 @@ describe('projetarUso — os três estados', () => {
   it('o controle que da sentido ao anterior: custo presente aparece intacto', () => {
     const agregado: AgregadoDeUso = {
       estado: 'lido',
-      rows: [{ revision: 6, resolutions: 1, totalTokens: 10, costUsd: 0.0004 }],
+      rows: [{ revision: 6, resolutions: 1, totalTokens: 10, costUsd: 0.0004, p50LatencyMs: null }],
     };
 
     const linhas = projetarUso(agregado, REVISOES);
@@ -81,7 +89,7 @@ describe('projetarUso — os três estados', () => {
     // chamada de modelo compartilhou o trace desta resolucao" (o limite do ADR-1).
     const agregado: AgregadoDeUso = {
       estado: 'lido',
-      rows: [{ revision: 14, resolutions: 1, totalTokens: 0, costUsd: 0 }],
+      rows: [{ revision: 14, resolutions: 1, totalTokens: 0, costUsd: 0, p50LatencyMs: null }],
     };
 
     const linhas = projetarUso(agregado, [14]);
@@ -96,7 +104,7 @@ describe('projetarUso — os três estados', () => {
     // qualquer zero, inclusive um medido.
     const agregado: AgregadoDeUso = {
       estado: 'lido',
-      rows: [{ revision: 14, resolutions: 1, totalTokens: 350, costUsd: 0 }],
+      rows: [{ revision: 14, resolutions: 1, totalTokens: 350, costUsd: 0, p50LatencyMs: null }],
     };
 
     const linhas = projetarUso(agregado, [14]);
@@ -111,8 +119,8 @@ describe('projetarUso — os três estados', () => {
     const agregado: AgregadoDeUso = {
       estado: 'lido',
       rows: [
-        { revision: 6, resolutions: 3, totalTokens: 10, costUsd: 0.01 },
-        { revision: 99, resolutions: 1000, totalTokens: 1, costUsd: 9.99 },
+        { revision: 6, resolutions: 3, totalTokens: 10, costUsd: 0.01, p50LatencyMs: 1 },
+        { revision: 99, resolutions: 1000, totalTokens: 1, costUsd: 9.99, p50LatencyMs: 2 },
       ],
     };
 

@@ -13,7 +13,7 @@ const promptlyDb: {
   revisions: Record<string, { version: number; content: string; createdAt: string }[]>;
   policies: Record<string, { datasetId: string; minScore: number }>;
   // M15 — o uso observado, por prompt e por revisão.
-  uso: Record<string, { revision: number; resolutions: number; totalTokens: number; costUsd: number | null }[]>;
+  uso: Record<string, { revision: number; resolutions: number; totalTokens: number; costUsd: number | null; p50LatencyMs: number | null }[]>;
 } = {
   catalog: [
     {
@@ -62,8 +62,8 @@ const promptlyDb: {
   // · v1 sem tráfego nenhum, que é diferente de zero.
   uso: {
     saudacao: [
-      { revision: 3, resolutions: 12, totalTokens: 1500, costUsd: 0.0312 },
-      { revision: 2, resolutions: 4, totalTokens: 0, costUsd: null },
+      { revision: 3, resolutions: 12, totalTokens: 1500, costUsd: 0.0312, p50LatencyMs: 4.2 },
+      { revision: 2, resolutions: 4, totalTokens: 0, costUsd: null, p50LatencyMs: 3.1 },
     ],
   },
 };

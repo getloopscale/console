@@ -48,6 +48,8 @@ test.describe('M15 — a jornada do uso por revisão', () => {
     await expect(page.getByText(/uso \(7 dias\)/i)).toBeVisible();
     await expect(page.getByText('12', { exact: true })).toBeVisible();
     await expect(page.getByText(/US\$ 0\.0312/)).toBeVisible();
+    // O DoD-2 do ROADMAP enumera QUATRO números por revisão, não dois.
+    await expect(page.getByText(/4\.2 ms · 1500 tokens/)).toBeVisible();
 
     // --- estado 2: houve uso, custo AUSENTE — vazio com razão, nunca estimado (DoD-4) ---
     await expect(page.getByText('4', { exact: true })).toBeVisible();
