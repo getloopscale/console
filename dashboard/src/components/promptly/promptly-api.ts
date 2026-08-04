@@ -263,3 +263,25 @@ export function runPlayground<T>(
     { throwOnError: true },
   );
 }
+
+/**
+ * M16 — substitui o conjunto INTEIRO de tags de um prompt.
+ *
+ * `PUT` do conjunto, e não somar/remover uma a uma: o operador pensa em *"este prompt é do
+ * suporte e da campanha"*, não numa sequência de deltas. Idempotente por construção.
+ *
+ * `throwOnError` porque a recusa aqui é acionável e específica — `empty_tag`, `too_many_tags`,
+ * `prompt_not_found` —, e engoli-la deixaria a tela mostrando a marcação antiga como se a nova
+ * tivesse sido gravada.
+ */
+export function setTags<T>(name: string, tags: readonly string[]): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/tags`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags }),
+    },
+    { throwOnError: true },
+  );
+}

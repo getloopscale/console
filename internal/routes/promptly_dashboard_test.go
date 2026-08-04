@@ -31,6 +31,10 @@ func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string, filtro pr
 	f.filtro = filtro
 	return f.corpo, f.proxima, f.err
 }
+func (f *promptlyFake) SetTags(_ context.Context, name string, body json.RawMessage) (json.RawMessage, error) {
+	f.label, f.body = name, body
+	return f.corpo, f.err
+}
 func (f *promptlyFake) Prompt(context.Context, string) (json.RawMessage, error) {
 	return f.corpo, f.err
 }
@@ -635,5 +639,60 @@ func TestPlayground_corpo_grande_demais_e_recusado_antes_do_salto(t *testing.T) 
 	}
 	if f.body != nil {
 		t.Error("o corpo gigante foi repassado ao servico — a recusa tem de vir ANTES do salto")
+	}
+}
+
+// M16 — a camada de ROTA. O fake ja gravava o filtro e nenhum teste o lia: um espiao que ninguem
+// consulta e cenario morto, e se a rota lesse `Get("q")` em vez de `Get("search")` todo `go test`
+// passaria. Estes dois casos fecham isso.
+
+func TestPromptlyCatalog_repassa_os_tres_filtros_do_M16(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`[]`)}
+	rec := httptest.NewRecorder()
+	montar(f).ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/v1/dashboard/promptly/prompts?search=saudacao&tag=suporte&folder=vendas", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	esperado := promptly.CatalogoFiltro{Search: "saudacao", Tag: "suporte", Folder: "vendas"}
+	if f.filtro != esperado {
+		t.Errorf("filtro repassado = %+v, want %+v", f.filtro, esperado)
+	}
+}
+
+// Superficie MINIMA: um parametro desconhecido na URL do navegador nao pode virar parametro na
+// chamada ao servico. Um proxy que repassa a query inteira publica, sem querer, toda opcao futura
+// do upstream — e cada uma delas passa a ser contrato nosso sem ninguem ter decidido isso.
+func TestPromptlyCatalog_parametro_desconhecido_nao_atravessa(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`[]`)}
+	rec := httptest.NewRecorder()
+	montar(f).ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/v1/dashboard/promptly/prompts?search=x&orderBy=custo&internalDebug=1", nil))
+
+	if f.filtro.Search != "x" {
+		t.Errorf("o filtro conhecido nao atravessou: %+v", f.filtro)
+	}
+	if f.filtro.Tag != "" || f.filtro.Folder != "" {
+		t.Errorf("parametro desconhecido contaminou o filtro: %+v", f.filtro)
+	}
+}
+
+func TestPromptlySetTags_repassa_o_corpo_OPACO(t *testing.T) {
+	// O corpo atravessa sem remodelar: as recusas tipadas do servico (`empty_tag`,
+	// `too_many_tags`, `prompt_not_found`) sao o que a tela transforma em diagnostico.
+	f := &promptlyFake{corpo: json.RawMessage(`{"name":"saudacao","tags":["suporte"]}`)}
+
+	rec := chamar(t, f, http.MethodPut, "/v1/dashboard/promptly/prompts/saudacao/tags",
+		`{"tags":["suporte","campanha"]}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	if f.label != "saudacao" {
+		t.Errorf("nome repassado = %q", f.label)
+	}
+	if !contains(string(f.body), `"campanha"`) {
+		t.Errorf("o corpo nao atravessou intacto: %s", f.body)
 	}
 }

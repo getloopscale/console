@@ -25,8 +25,11 @@ import {
   fetchRevisions,
   promoteLabel,
   rollbackPrompt,
+  fetchCatalogPage,
+  setTags,
 } from '@/components/promptly/promptly-api';
 import {
+  catalogRows,
   labelRows,
   policySummary,
   promotionConsequence,
@@ -86,6 +89,38 @@ export function PromptDetailPage() {
   const [alvo, setAlvo] = useState<number | null>(null);
   const [labelAlvo, setLabelAlvo] = useState<string>('');
   const [promoteError, setPromoteError] = useState<string | null>(null);
+  // M16 — as tags. O rascunho do campo é local; o conjunto vem do servidor.
+  const [novaTag, setNovaTag] = useState('');
+  const [erroDeTag, setErroDeTag] = useState<string | null>(null);
+
+  /**
+   * As tags do prompt vêm do CATÁLOGO — a projeção que já as carrega, filtrada por este nome.
+   *
+   * Um endpoint dedicado seria trabalho antes da necessidade: o dado já existe a um `search` de
+   * distância, e criar uma segunda rota para lê-lo duplicaria a projeção sem comprar alcance.
+   */
+  const tagsQuery = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'tags'] as const,
+    queryFn: () => fetchCatalogPage<unknown>(1, { search: promptName }),
+    enabled: promptName !== '',
+  });
+  const tags = catalogRows(tagsQuery.data?.data).find((r) => r.name === promptName)?.tags ?? [];
+
+  const marcando = useMutation({
+    mutationFn: (proximo: readonly string[]) => setTags<unknown>(promptName, proximo),
+    onMutate: () => { setErroDeTag(null); },
+    onSuccess: async () => {
+      setNovaTag('');
+      // Reler em vez de otimizar: o serviço normaliza (ordena, deduplica), e pintar a tela com o
+      // que EU mandei mostraria uma ordem que o servidor não tem.
+      await queryClient.invalidateQueries({
+        queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'tags'],
+      });
+    },
+    // A recusa TIPADA chega ao operador: `too_many_tags` e `empty_tag` dizem o que fazer;
+    // "erro ao salvar" não diz nada.
+    onError: (err: unknown) => { setErroDeTag(mensagemDaRecusa(err)); },
+  });
 
   const labelsKey = ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'labels'] as const;
 
@@ -446,6 +481,73 @@ export function PromptDetailPage() {
       {promoteError ? (
         <Alert intent="destructive" title="A promoção não foi aplicada" description={promoteError} />
       ) : null}
+
+      {/* M16 — as tags do prompt, lidas e ESCRITAS aqui.
+          O DoD pede "tags criadas e filtradas na tela" e "a tag aparece no detalhe". A primeira
+          entrega do milestone fez só a leitura no catálogo: o `PUT` existia na API e parava no
+          BFF, e a tela não tinha como marcar nada. Um produto onde só a API sabe marcar não tem
+          a jornada que o milestone promete. */}
+      <Card>
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Tags</h2>
+          </Card.Title>
+          <Card.Description>
+            Como este prompt é encontrado no catálogo. A marcação é do PROMPT, não da revisão —
+            criar a revisão seguinte não a perde.
+          </Card.Description>
+        </Card.Header>
+        <div className="space-y-3 p-4 pt-0">
+          {erroDeTag !== null ? (
+            <Alert intent="destructive" title="A marcação não foi salva" description={erroDeTag} />
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {tags.length === 0 ? (
+              // Dito, nunca em branco: um espaço vazio lê como "não carregou". A ausência é um
+              // fato sobre o prompt — mesma razão do "sem descrição" do M17.
+              <span className="text-sm text-muted-foreground">Nenhuma tag neste prompt.</span>
+            ) : (
+              tags.map((t) => (
+                <span key={t} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
+                  {t}
+                  <button
+                    type="button"
+                    aria-label={`Remover a tag ${t}`}
+                    disabled={marcando.isPending}
+                    onClick={() => { marcando.mutate(tags.filter((x) => x !== t)); }}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={novaTag}
+              onChange={(e) => { setNovaTag(e.target.value); }}
+              aria-label="Nova tag"
+              placeholder="suporte"
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={novaTag.trim() === '' || marcando.isPending}
+              onClick={() => {
+                // O conjunto INTEIRO, nunca só a nova: o contrato do serviço é substituição, e
+                // mandar só a tag nova apagaria as antigas do outro lado.
+                const t = novaTag.trim();
+                marcando.mutate(tags.includes(t) ? tags : [...tags, t]);
+              }}
+            >
+              Marcar
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       <Card>
         <Card.Header>

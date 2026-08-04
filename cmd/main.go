@@ -642,6 +642,9 @@ func main() {
 	var skillsPromotionHandler *routes.SkillsPromotionHandler
 	// M35 — a superfície de distribuição (bundles, tokens delegados, adoção).
 	var skillsDistributionHandler *routes.SkillsDistributionHandler
+	// M31 — o caminho de AUTORIA (apagar). Cliente próprio: `skills:write` destrói, e esse poder
+	// não deve viajar na mesma chave que reaponta consumidores.
+	var skillsAuthoringHandler *routes.SkillsAuthoringHandler
 	// #334: integracao desligada por falta de configuracao deixa de ser silenciosa.
 	// Sem este aviso, a capacidade some da borda e o sintoma aparece tres camadas
 	// adiante (o ForwardAuth recebe 404 e o edge o repassa), sem nada no boot que
@@ -706,6 +709,15 @@ func main() {
 		// destas rotas — nem que uma delas seja registrada sobre ele por engano.
 		skillsDistributionHandler = routes.NewSkillsDistributionHandler(skillsWriteClient, logger)
 		logger.Info("dashboard skills distribution enabled (per-tenant publish broker)", "mount", "/v1/dashboard/bundles")
+
+		// M31 — AUTORIA. Terceiro cliente, terceira credencial, e a separação é o mecanismo de
+		// menor privilégio: `skills:write` apaga, `skills:publish` reaponta consumidores sem
+		// redeploy. Uma chave que fizesse as duas coisas transformaria qualquer vazamento no pior
+		// caso possível.
+		skillsAuthoringClient := skills.NewDataClient(cfg.SkillsBaseURL, &http.Client{Timeout: 20 * time.Second}).
+			WithKeyResolver(newSkillsAuthoringKeyResolver(skillsBroker))
+		skillsAuthoringHandler = routes.NewSkillsAuthoringHandler(skillsAuthoringClient, logger)
+		logger.Info("dashboard skills authoring enabled (per-tenant write broker)", "mount", "DELETE /v1/dashboard/skills/{id}")
 	}
 
 	// M14 (edge-integration): a 3rd ForwardAuth handler for the theo-rag
@@ -1480,6 +1492,10 @@ func main() {
 	// toda tentativa, e o operador leria indisponibilidade onde o defeito é de configuração.
 	if skillsDistributionHandler != nil {
 		routes.MountSkillsDistribution(r, skillsDistributionHandler, requireJWT)
+	}
+	// M31 — mesma condição e mesma razão: sem broker, apagar responderia 502 a toda tentativa.
+	if skillsAuthoringHandler != nil {
+		routes.MountSkillsAuthoring(r, skillsAuthoringHandler, requireJWT)
 	}
 	// M52: lens saved views — a cloud-owned per-tenant preference store (raw Postgres, engine
 	// migration 000053). Gated on the shared DB (not the lens broker), so saved views work even

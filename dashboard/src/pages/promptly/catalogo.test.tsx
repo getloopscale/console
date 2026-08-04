@@ -49,7 +49,16 @@ describe('PromptlyCatalogoPage', () => {
   // exatamente por isso que o oráculo tem de ser a CHAMADA: uma tela que recebesse tudo e
   // filtrasse em memória passaria numa asserção sobre as linhas visíveis, e mentiria com 500.
   it('filtra por substring do nome — no servidor', async () => {
-    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    // O dublê FILTRA, como o servidor faria. Um mock que devolve tudo deixaria a tela exibindo
+    // `saudacao` para uma busca por `agent` sem nada acusar — e as duas metades da asserção
+    // (a chamada E as linhas) são necessárias: só a chamada não prova que a tela usou a
+    // resposta; só as linhas não distinguem servidor de memória.
+    mockCatalog.mockImplementation((_l: number, f: { search?: string }) =>
+      Promise.resolve({
+        data: f?.search ? CATALOGO.filter((r) => r.name.includes(f.search!)) : CATALOGO,
+        temContinuacao: false,
+      }),
+    );
     render(<PromptlyCatalogoPage />);
     await screen.findByText('saudacao');
 
@@ -61,6 +70,29 @@ describe('PromptlyCatalogoPage', () => {
         expect.objectContaining({ search: 'agent' }),
       ),
     );
+    expect(await screen.findByText('agentbuilder-base')).toBeInTheDocument();
+    expect(screen.queryByText('saudacao')).not.toBeInTheDocument();
+  });
+
+  // O teste que sustenta as três dispensas de concorrência das tarefas T3.x: elas dizem
+  // "(none — single-threaded) … coberta pelo teste de que digitar rápido não dispara uma busca
+  // por tecla". Sem ele, a dispensa se apoiava num teste ausente.
+  it('digitar rapido NAO dispara uma busca por tecla', async () => {
+    mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+    render(<PromptlyCatalogoPage />);
+    await screen.findByText('saudacao');
+    const antes = mockCatalog.mock.calls.length;
+
+    await userEvent.type(screen.getByRole('searchbox'), 'saudac');
+
+    await vi.waitFor(() =>
+      expect(mockCatalog).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ search: 'saudac' }),
+      ),
+    );
+    // Seis teclas, UMA busca a mais. Sem o debounce seriam seis — e seis entradas no histórico.
+    expect(mockCatalog.mock.calls.length - antes).toBe(1);
   });
 
   // EC-7 — o extremo VÁLIDO da busca: vazia devolve tudo, não nada.
@@ -446,7 +478,10 @@ describe('PromptlyCatalogoPage — a busca roda no servidor (M16)', () => {
     render(<PromptlyCatalogoPage />);
 
     await screen.findByText('saudacao');
-    expect(screen.queryByText(/já carregados nesta página/i)).not.toBeInTheDocument();
+    // A asserção proíbe a FAMÍLIA, não a frase exata: uma paráfrase da mesma desculpa
+    // ("nenhum dos prompts carregados…") passaria por um `queryByText` literal, e foi assim que
+    // ela sobreviveu à primeira entrega deste milestone.
+    expect(screen.queryByText(/carregad/i)).not.toBeInTheDocument();
   });
 
   it('busca sem resultado diz que o SERVIDOR nao achou, e nao que o workspace esta vazio', async () => {

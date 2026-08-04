@@ -402,3 +402,32 @@ test.describe('M31 — descoberta observável: score E qual perna casou', () => 
     await expect(page.getByText('Converter moeda (v1)')).toBeVisible();
   });
 });
+
+test.describe('M31 — governança: a skill que dizia "pode ser removida" agora pode', () => {
+  test('apagar exige frase digitada e oferece a alternativa reversível antes', async ({ page }) => {
+    // A auditoria de 2026-08-03 mediu o absurdo: o acervo tinha uma skill que se DESCREVE como
+    // "pode ser removida", e não havia como removê-la — embora `DELETE /v1/skills/:id` existisse
+    // há milestones.
+    await navegarAteOAcervoPeloMenu(page);
+    await page.getByRole('link', { name: 'Preparar ambiente local' }).click();
+
+    await expect(page.getByRole('heading', { name: /zona de perigo/i })).toBeVisible();
+
+    // O texto diz a CONSEQUÊNCIA específica — identificador reservado —, não "o item será
+    // removido". É a diferença entre o operador entender o custo e descobri-lo depois.
+    await expect(page.getByText(/reserva o identificador/i)).toBeVisible();
+
+    // E a alternativa reversível aparece ANTES do botão destrutivo: quem quer só "parar de
+    // recomendar" precisa saber que existe um caminho que não quebra quem já usa.
+    await expect(page.getByText(/descontinuar.*sem quebrar quem já a referencia/i)).toBeVisible();
+
+    await page.getByRole('button', { name: /apagar esta skill/i }).click();
+    await page.getByRole('textbox', { name: /type to confirm|sk_local/i }).fill('sk_local');
+    await page.getByRole('button', { name: /^apagar skill$/i }).click();
+
+    // Volta ao acervo — permanecer num detalhe que não existe mais mostraria uma tela de erro
+    // como resultado de uma operação bem-sucedida.
+    await expect(page).toHaveURL(/\/skills$/);
+    await expect(page.getByRole('link', { name: 'Preparar ambiente local' })).toHaveCount(0);
+  });
+});

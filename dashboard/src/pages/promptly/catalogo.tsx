@@ -463,9 +463,14 @@ function VazioDoCatalogo({
         icon={Search}
         title={`Nenhum prompt casa com “${termo}”`}
         description={
+          // M16 — o texto anterior dizia "nenhum dos prompts CARREGADOS casa … o filtro não os
+          // alcança". Era verdade enquanto o filtro rodava aqui; agora ele roda no servidor, e a
+          // frase virou uma desculpa por uma limitação que não existe mais. O que a continuação
+          // significa hoje é outra coisa, e é ela que o operador precisa saber: o servidor achou
+          // MAIS do que coube nesta página.
           temContinuacao
-            ? 'Nenhum dos prompts CARREGADOS casa com este filtro — e há mais no servidor que esta página não trouxe. O filtro não os alcança.'
-            : 'O workspace tem prompts — nenhum deles casa com este filtro. Limpe o filtro para ver a lista inteira.'
+            ? 'O servidor achou mais do que coube nesta página. Refine o termo ou peça uma página maior.'
+            : 'A busca rodou no workspace inteiro, não só nesta página. Limpe o filtro para ver a lista completa.'
         }
         action={
           <Button variant="secondary" onClick={onLimpar}>

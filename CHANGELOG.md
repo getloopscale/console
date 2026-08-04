@@ -11,6 +11,7 @@
 
 ### Added
 
+- **Marcar um prompt com tag passou a ser possível pela tela (M16).** O detalhe do prompt ganhou o cartão de tags: mostra as que existem, aceita novas e remove as que saíram — sempre mandando o **conjunto inteiro**, porque o contrato do serviço é substituição e enviar só a tag nova apagaria as antigas do outro lado. A recusa tipada do serviço chega ao operador com o motivo (*"um prompt aceita no máximo 16 tags"*), não como um "erro ao salvar" que não diz o que fazer. Prompt sem tag **diz** que não tem, em vez de deixar o espaço em branco — branco lê como "não carregou" (M16)
 - **Tags e pastas no catálogo de prompts (M16).** Cada tag é um botão: ler a marcação e usá-la para estreitar a lista são a mesma ação na cabeça de quem olha, e separá-las obrigaria a digitar de novo o que já está na tela. As pastas são **derivadas do nome** — `suporte/saudacao` e `vendas/saudacao` coexistem e são separados na navegação — sem coluna nova e sem convenção inventada: o nome já é a chave, e uma segunda fonte de verdade poderia divergir dele em silêncio. Um catálogo plano continua navegável: a pasta é um atalho **a mais**, nunca um nível obrigatório, e quem nunca criou pasta não encontra a raiz vazia (M16)
 
 ### Changed

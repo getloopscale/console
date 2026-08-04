@@ -62,6 +62,8 @@ type promptlyPromoter interface {
 	// compartilham a propriedade que importa: sao servidas pela credencial de ESCRITA cunhada por
 	// inquilino. Separa-las em outra interface sugeriria outro nivel de privilegio, que nao existe.
 	CreateRevision(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	// M16 — marcar e ESCRITA, servida pela mesma credencial de inquilino.
+	SetTags(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error)
 	Rollback(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error)
 }
 
@@ -307,6 +309,25 @@ func (h *PromptlyDashboardHandler) Promote(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// SetTags repassa a marcacao (`PUT /prompts/:name/tags`) — M16.
+func (h *PromptlyDashboardHandler) SetTags(w http.ResponseWriter, r *http.Request) {
+	raw, grande, err := lerCorpoLimitado(r, maxPromotionBody)
+	if err != nil {
+		h.badRequest(w, r, "set_tags: read body", err)
+		return
+	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "set_tags")
+		return
+	}
+	// O corpo atravessa OPACO: as recusas tipadas do servico (`empty_tag`, `too_many_tags`,
+	// `prompt_not_found`) sao o que a tela transforma em diagnostico. Validar aqui duplicaria a
+	// regra, e as duas copias divergiriam no dia em que uma mudasse.
+	h.proxy(w, r, "set_tags", func() (json.RawMessage, error) {
+		return h.promoter.SetTags(r.Context(), promptName(r), raw)
+	})
+}
+
 // Create repassa a criacao de uma revisao (`POST /prompts`).
 //
 // O corpo NAO e validado aqui, e a ausencia e decisao: `name` e `content` tem regra no produto
@@ -449,6 +470,7 @@ func MountPromptlyDashboard(r chi.Router, h *PromptlyDashboardHandler, requireJW
 		// cada chamada cria mais uma revisao. Confundi-los com o `PUT` acima faria um retry de
 		// rede virar duas revisoes sem que ninguem percebesse.
 		r.Post("/prompts", h.Create)
+		r.Put("/prompts/{promptName}/tags", h.SetTags)
 		r.Post("/prompts/{promptName}/playground", h.Playground)
 		r.Post("/prompts/{promptName}/rollback", h.Rollback)
 	})

@@ -72,3 +72,38 @@ func newSkillsPromotionKeyResolver(minter skillsDashMinter) func(ctx context.Con
 			[]string{"skills:read", "skills:publish"})
 	}
 }
+
+// newSkillsAuthoringKeyResolver devolve o resolver do caminho de AUTORIA (M31).
+//
+// Terceiro cliente, terceira credencial — e a separação É o mecanismo de menor privilégio, não
+// organização de arquivo. Os três poderes desta capacidade causam danos diferentes:
+//
+//	skills:read     leitura do acervo
+//	skills:publish  promove canal e deprecia — REDIRECIONA consumidores sem redeploy
+//	skills:write    cria, edita e APAGA skills
+//
+// Fundir os dois últimos daria ao caminho de curadoria o poder de destruir, e ao de autoria o
+// poder de reapontar quem já consome. Uma chave que faz as duas coisas transforma qualquer
+// vazamento no pior caso possível.
+//
+// `skills:read` entra junto porque a tela de autoria também LÊ antes de agir — confirmar o que
+// será apagado é parte do ato. Uma credencial que só escreve obrigaria um quarto cliente sem
+// ganho algum de isolamento.
+//
+// HONESTIDADE sobre o que este resolver NÃO faz, como os irmãos: `KeyForTenantScoped` cruza o
+// `want` com a configuração ESTÁTICA do broker, e aqui o `want` é um literal. Não há RBAC por
+// usuário neste produto, então **todo usuário autenticado do workspace recebe uma chave capaz de
+// apagar**. A separação real é entre os CLIENTES, não entre usuários — e é isso que a tela mitiga
+// exigindo confirmação com frase digitada, sob o `DESIGN.md` §16.
+//
+// É também a razão pela qual a VISIBILIDADE ficou fora da tela: lá a regra é sobre o papel de
+// quem age, e ela não sobrevive a uma credencial igual para todos. Ver ADR 0004 do theo-skills.
+func newSkillsAuthoringKeyResolver(minter skillsDashMinter) func(ctx context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		u := auth.GetUser(ctx)
+		if u == nil || u.TenantID == "" {
+			return "", fmt.Errorf("skills authoring: no authenticated tenant in context")
+		}
+		return minter.KeyForTenantScoped(ctx, u.AccountID, u.TenantID, []string{"skills:read", "skills:write"})
+	}
+}
