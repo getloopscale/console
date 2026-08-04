@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.79.0] - 2026-08-03
+
 ### Fixed
 
 - **a tela de avaliadores desenhava a linha por cima do período sem amostra** (#395). O código dizia a coisa certa e fazia a errada: o comentário da função — e o do teste ao lado — afirmavam *"a gap, never a fabricated 0"*, e a implementação **omitia a entrada** em vez de marcá-la como ausente. As duas coisas parecem iguais e não são: o gráfico só quebra a linha onde encontra um valor não-finito, e uma entrada que não existe ele nunca vê. O resultado era uma linha reta atravessando um período em que ninguém mediu nada — afirmando continuidade que o dado não tem, na tela cujo propósito é julgar qualidade. Agora toda série cobre o eixo inteiro, com lacuna explícita onde não houve amostra. **Não é zero**: uma média sobre zero amostras é indefinida, e essa é a mesma distinção que os KPIs desta tela já aplicavam — contagem aceita zero honesto, taxa não.
