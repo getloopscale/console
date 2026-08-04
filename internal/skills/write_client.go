@@ -96,3 +96,33 @@ func (c *DataClient) sendRaw(ctx context.Context, method, path string, body json
 	}
 	return json.RawMessage(raw), nil
 }
+
+// SetLifecycle muda o estágio de ciclo de vida de uma skill (`PUT /v1/skills/:id/lifecycle`).
+//
+// Vive no mesmo cliente da promoção porque exige a MESMA credencial: o registro passou a gatear
+// esta rota por `skills:publish` (ADR `0003-lifecycle-gate-por-escopo` do theo-skills), pelo mesmo
+// eixo da promoção — depreciar é curadoria do acervo, não administração do workspace.
+//
+// **Depreciar NÃO tira a skill de quem já a referencia**: ela continua resolvível, e o que muda é
+// a descoberta. É por isso que este ato é menos perigoso que promover um canal, que troca o que os
+// consumidores carregam sem redeploy.
+//
+// Forma MEDIDA em `packages/api/src/server/handlers/lifecycle.ts`, não inferida dos nomes: o campo
+// do motivo é `reason` (não `deprecation_reason`, que é como ele aparece na LEITURA), e
+// `superseded_by` é opcional.
+func (c *DataClient) SetLifecycle(ctx context.Context, skillID, lifecycle, reason, supersededBy string) (json.RawMessage, error) {
+	payload := map[string]string{"lifecycle": lifecycle}
+	// Vazios são OMITIDOS, não enviados em branco: `superseded_by: ""` gravaria uma sucessora
+	// vazia em vez de nenhuma, e a tela exibiria um link para lugar nenhum.
+	if reason != "" {
+		payload["reason"] = reason
+	}
+	if supersededBy != "" {
+		payload["superseded_by"] = supersededBy
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("skills data client: encode lifecycle body: %w", err)
+	}
+	return c.sendRaw(ctx, http.MethodPut, "/v1/skills/"+url.PathEscape(skillID)+"/lifecycle", body)
+}

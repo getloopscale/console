@@ -138,3 +138,64 @@ func TestPromoteChannel_semResolverNaoEmiteRequisicao(t *testing.T) {
 		t.Fatal("a requisicao de MUTACAO saiu sem credencial de inquilino")
 	}
 }
+
+// M32 — depreciar uma skill. Mesmo cliente do caminho de promoção, e por isso mesmo motivo: a
+// credencial dele carrega `skills:publish`, que é o escopo que o registro exige nas DUAS rotas.
+func TestSetLifecycle_bateNaRotaComOMotivo(t *testing.T) {
+	var corpo string
+	var visto string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		visto = r.Method + " " + r.URL.EscapedPath()
+		b := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(b)
+		corpo = string(b)
+		_, _ = w.Write([]byte(`{"skill_id":"sk_1","lifecycle":"deprecated"}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "chave-de-publicacao", nil })
+
+	if _, err := cli.SetLifecycle(context.Background(), "sk_1", "deprecated", "substituída pela v2", "sk_2"); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if visto != "PUT /v1/skills/sk_1/lifecycle" {
+		t.Fatalf("rota errada: %q", visto)
+	}
+
+	var enviado map[string]string
+	if err := json.Unmarshal([]byte(corpo), &enviado); err != nil {
+		t.Fatalf("corpo não é JSON: %q", corpo)
+	}
+	// `reason` é o nome do campo NO CONTRATO — medido em `handlers/lifecycle.ts`, não inferido do
+	// nome do conceito. Mandar `deprecation_reason` faria o registro recusar com 400.
+	if enviado["lifecycle"] != "deprecated" || enviado["reason"] != "substituída pela v2" {
+		t.Fatalf("lifecycle/reason não chegaram na forma do contrato: %v", enviado)
+	}
+	if enviado["superseded_by"] != "sk_2" {
+		t.Fatalf("a sucessora não atravessou: %v", enviado)
+	}
+}
+
+func TestSetLifecycle_omiteCamposVazios(t *testing.T) {
+	// Sucessora é OPCIONAL. Mandar `""` gravaria uma sucessora vazia em vez de nenhuma, e a tela
+	// exibiria um link para lugar nenhum.
+	var corpo string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(b)
+		corpo = string(b)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	if _, err := cli.SetLifecycle(context.Background(), "sk_1", "active", "", ""); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if strings.Contains(corpo, "superseded_by") || strings.Contains(corpo, "reason") {
+		t.Fatalf("campos vazios não deveriam ser enviados: %q", corpo)
+	}
+}

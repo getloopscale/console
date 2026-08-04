@@ -311,3 +311,44 @@ test.describe('M35 — o conteúdo do pacote é editável pela tela (AC1)', () =
     await expect(page.getByText(/já está no pacote neste canal/i)).toBeVisible();
   });
 });
+
+test.describe('M32 — ciclo de vida: retirar de circulação sem quebrar quem usa (AC5)', () => {
+  test('o acervo distingue descontinuada de em uso, em TEXTO, e diz o motivo', async ({ page }) => {
+    // O critério da DoD é "a tela diz o que deixa de valer, com o estado em texto (nunca só cor)".
+    // Uma deprecada indistinguível de uma ativa é exatamente o defeito que o M32 existe para
+    // impedir — e cor sozinha não sobrevive a daltonismo nem a impressão.
+    await navegarAteOAcervoPeloMenu(page);
+
+    await expect(page.getByText('descontinuada')).toBeVisible();
+    await expect(page.getByText('em uso').first()).toBeVisible();
+    // O MOTIVO viaja junto: sem ele o operador lê "descontinuada" e não sabe o que usar no lugar,
+    // que é a pergunta seguinte, sempre.
+    await expect(page.getByText(/não cobre cotação futura/)).toBeVisible();
+  });
+
+  test('descontinuar exige motivo e confirmação com frase digitada', async ({ page }) => {
+    await navegarAteOAcervoPeloMenu(page);
+    await page.getByRole('link', { name: 'Revisar pull request' }).click();
+    await expect(page).toHaveURL(/\/skills\/sk_ordering$/);
+
+    // O texto diz o que MUDA e o que NÃO muda: quem já referencia continua carregando. Sem essa
+    // frase o operador supõe que está apagando a skill.
+    await expect(page.getByText(/deixa de aparecer para quem procura/i)).toBeVisible();
+    await expect(page.getByText(/continua sendo carregada por quem a pede/i)).toBeVisible();
+
+    // Sem motivo o botão não habilita — o operador não descobre a regra pelo erro.
+    const botao = page.getByRole('button', { name: /^descontinuar$/i });
+    await expect(botao).toBeDisabled();
+
+    await page.getByLabel('Motivo da descontinuação').fill('substituída pela v2');
+    await expect(botao).toBeEnabled();
+    await botao.click();
+
+    // Ação destrutiva sob o ConfirmDialog canônico, com frase digitada.
+    await page.getByRole('textbox', { name: /type to confirm|sk_ordering/i }).fill('sk_ordering');
+    await page.getByRole('button', { name: /descontinuar skill/i }).click();
+
+    // E a situação reflete: `descontinuada`, com o caminho de volta a circular.
+    await expect(page.getByRole('button', { name: /voltar a circular/i })).toBeVisible();
+  });
+});

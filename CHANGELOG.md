@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+### Changed
+
+- **O gráfico de scores passou para logo acima da lista de avaliadores.** Com a lista ocupando a primeira dobra, a tendência nascia abaixo dela e podia nunca ser vista — e *"a qualidade está subindo ou caindo?"* é a pergunta de abertura desta tela; *"quais avaliadores existem"* é a segunda. É a mesma correção que o consumo por usuário pagou no M144, pelo mesmo motivo. Um teste trava a ordem no documento, para ela não voltar em silêncio no próximo refactor.
+
+### Fixed
+
+- **A tela de avaliadores não compilava.** Um bloco de 51 linhas — cópia exata do modal de criação, terminada num `</PageShell>` órfão — tinha sido varrido por engano para dentro de um commit sobre o acervo de skills, que não toca esta tela. O `tsc` acusava fragmento JSX sem fechamento desde então, e o `dashboard` do CI reprovaria na promoção (o `npm run build` já é `tsc -b`). Removido; o duplicado era idêntico ao original em 48 das 49 linhas.
+
+
 ### Added
 
 - **O catálogo de prompts deixa o operador escolher quantos prompts pedir por vez (M13).** Dez, vinte e cinco, cinquenta ou cem — e a escolha vive no endereço, então o link é colável como já era o do recorte. Um acervo grande precisa disso; e, sem isso, a marca de *"há mais no servidor"* que o M13 construiu era **inalcançável** em qualquer workspace com menos de cem prompts, o que deixou o critério correspondente sem verificação na aceitação de 2026-08-03. O controle serve ao operador; que ele também torne o critério verificável é consequência, não motivo (#m13)
@@ -17,6 +26,12 @@
   **O rótulo da adoção diz a granularidade real**, medida em `adoption-store.ts`: a contagem é por **skill e versão dentro do pacote**, e a mesma skill em outro pacote conta separado. O roadmap pedia que a tela dissesse "por bundle, não por skill" — escrever isso faria a interface mentir. E a proporção usa `total_installs`, o denominador da janela, nunca a soma das linhas exibidas: sob paginação a soma é de um recorte, e a proporção sairia inflada em silêncio. Sem denominador a célula mostra `—`, não `0%` — as duas dizem frases opostas ao operador (#m35)
 
 - **O conteúdo do pacote passa a ser editável pela tela (M35, AC1).** Adicionar e remover skills de um pacote exigia CLI — o pacote nascia vazio pelo dashboard e ficava assim. Cada item aponta para um **canal**, não para uma versão fixa: promover o canal reaponta quem já instalou, sem reeditar o pacote. Salvar **substitui a lista inteira**, seguindo o contrato do registro — "adicionar sem poder remover" produziria pacotes que só crescem, e um item esquecido lá dentro é acesso que ninguém pretendeu conceder. O estado vazio diz a consequência (*"quem usar um token dele não recebe nada"*), não apenas que está vazio; e alteração pendente é anunciada, para ninguém sair da tela achando que salvou (#m35)
+
+- **O ciclo de vida de uma skill ganha tela (M32, AC5).** O acervo passa a mostrar o estágio em **texto** — *em uso* · *rascunho* · *descontinuada* —, nunca só cor: os três levam a decisões diferentes, e uma deprecada indistinguível de uma ativa é o defeito que o milestone existe para impedir. O **motivo** viaja junto na listagem, porque "o que uso no lugar?" é a pergunta seguinte, sempre; e a sucessora, quando existe, é um link.
+
+  Descontinuar exige motivo e passa pelo `ConfirmDialog` canônico com frase digitada. O texto diz **o que muda e o que não muda**: a skill deixa de aparecer para quem procura sem saber o nome, e quem já a referencia pelo identificador continua carregando — nada quebra hoje. Sem essa frase o operador supõe que está apagando.
+
+  Ausência do campo **não** vira "em uso": um registro mais antigo simplesmente não o devolve, e ausência não é o mesmo que estar ativa (#m32)
 
 ### Security
 
