@@ -293,3 +293,35 @@ export function policySummary(policy: PromotionPolicy | null | undefined): Polic
     texto: `A promoção exige avaliação no dataset ${policy.datasetId} com score mínimo de ${policy.minScore}.`,
   };
 }
+
+/**
+ * M18 — um comentário como a tela o lê.
+ *
+ * `author` anulável, e a tela DIZ a ausência: uma credencial sem identidade humana não tem autor,
+ * e inventar um apareceria numa auditoria como fato — mesma razão do `createdBy` do M7.
+ */
+export interface ComentarioRow {
+  readonly id: string;
+  readonly body: string;
+  readonly author: string | null;
+  readonly createdAt: string;
+}
+
+/**
+ * Projeta a discussão de uma revisão.
+ *
+ * `null` (falha de leitura) e `[]` (ninguém comentou) chegam aqui como coisas diferentes e saem
+ * como a MESMA lista vazia — de propósito: quem distingue os dois é a tela, olhando o `error` da
+ * consulta. Esta função não pode inventar a distinção, e fingir que pode é o que faria a tela
+ * confiar num sinal que não existe.
+ */
+export function comentarioRows(payload: unknown): ComentarioRow[] {
+  return asArray<{ id?: unknown; body?: unknown; author?: unknown; createdAt?: unknown }>(payload)
+    .filter((c) => typeof c.id === 'string' && typeof c.body === 'string')
+    .map((c) => ({
+      id: c.id as string,
+      body: c.body as string,
+      author: typeof c.author === 'string' ? c.author : null,
+      createdAt: typeof c.createdAt === 'string' ? c.createdAt : '',
+    }));
+}

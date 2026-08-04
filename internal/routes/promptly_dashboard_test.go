@@ -35,6 +35,27 @@ func (f *promptlyFake) SetTags(_ context.Context, name string, body json.RawMess
 	f.label, f.body = name, body
 	return f.corpo, f.err
 }
+func (f *promptlyFake) AddComment(_ context.Context, name string, version int, body json.RawMessage) (json.RawMessage, error) {
+	f.label, f.body = name, body
+	f.limite = version
+	return f.corpo, f.err
+}
+func (f *promptlyFake) ProtectLabel(_ context.Context, label string, body json.RawMessage) (json.RawMessage, error) {
+	f.label, f.body = label, body
+	return f.corpo, f.err
+}
+func (f *promptlyFake) UnprotectLabel(_ context.Context, label string) (json.RawMessage, error) {
+	f.label = label
+	return f.corpo, f.err
+}
+func (f *promptlyFake) Comments(_ context.Context, name string, version int) (json.RawMessage, error) {
+	f.label, f.limite = name, version
+	return f.corpo, f.err
+}
+func (f *promptlyFake) LabelProtection(_ context.Context, label string) (json.RawMessage, error) {
+	f.label = label
+	return f.corpo, f.err
+}
 func (f *promptlyFake) Prompt(context.Context, string) (json.RawMessage, error) {
 	return f.corpo, f.err
 }
@@ -694,5 +715,57 @@ func TestPromptlySetTags_repassa_o_corpo_OPACO(t *testing.T) {
 	}
 	if !contains(string(f.body), `"campanha"`) {
 		t.Errorf("o corpo nao atravessou intacto: %s", f.body)
+	}
+}
+
+// M18 — a proteção do label e a discussão da revisão atravessam o BFF.
+//
+// A licao do M13 vale aqui inteira: este proxy DESCARTAVA o header Link, e sem esse sinal a tela
+// mentia. O que consertou nao foi atencao, foi teste. As rotas novas entram sob a mesma disciplina.
+
+func TestPromptlyComments_repassa_o_corpo_e_o_alvo(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"name":"saudacao","version":3}`)}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/revisions/3/comments",
+		`{"body":"rejeitada: verbosa demais"}`)
+
+	if rec.Code != http.StatusOK && rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	if !contains(string(f.body), "verbosa demais") {
+		t.Errorf("o corpo do comentario nao atravessou: %s", f.body)
+	}
+}
+
+// A recusa TIPADA do servico e o que a tela transforma em diagnostico. Um BFF que a substituisse
+// por uma mensagem propria devolveria "erro ao salvar" — que nao diz o que fazer.
+func TestPromptlyComments_a_recusa_tipada_do_servico_atravessa(t *testing.T) {
+	f := &promptlyFake{err: &promptly.UpstreamError{
+		Status: http.StatusBadRequest,
+		Body:   []byte(`{"error":"secret_in_comment","kind":"chave da plataforma"}`),
+	}}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/revisions/3/comments",
+		`{"body":"colei uma chave"}`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d; a recusa tipada virou outra coisa: %s", rec.Code, rec.Body.String())
+	}
+	if !contains(rec.Body.String(), "secret_in_comment") {
+		t.Errorf("o motivo nao chegou ao navegador: %s", rec.Body.String())
+	}
+}
+
+func TestPromptlyProtection_repassa_o_papel(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"label":"production","minRole":"admin"}`)}
+
+	rec := chamar(t, f, http.MethodPut, "/v1/dashboard/promptly/labels/production/protection",
+		`{"minRole":"admin"}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	if !contains(string(f.body), `"admin"`) {
+		t.Errorf("o papel nao atravessou: %s", f.body)
 	}
 }
