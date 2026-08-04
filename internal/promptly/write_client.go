@@ -53,6 +53,16 @@ func (c *WriteClient) AssignLabel(ctx context.Context, name, label string, body 
 	return c.sendRaw(ctx, http.MethodPut, path, body)
 }
 
+// SetTags substitui o conjunto INTEIRO de tags de um prompt (`PUT /prompts/:name/tags`).
+//
+// `PUT` porque a operacao e idempotente: marcar duas vezes com o mesmo conjunto e o mesmo estado.
+// O corpo atravessa OPACO, como o das outras escritas — as recusas tipadas do servico
+// (`400 empty_tag`, `400 too_many_tags`, `404 prompt_not_found`) sao o que a tela transforma em
+// diagnostico, e um BFF que validasse antes devolveria a propria recusa em vez do motivo real.
+func (c *WriteClient) SetTags(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error) {
+	return c.sendRaw(ctx, http.MethodPut, "/prompts/"+url.PathEscape(name)+"/tags", body)
+}
+
 // CreateRevision cria uma revisao nova (`POST /prompts`). O corpo vem da tela e segue OPACO ate
 // o produto: validar `name`/`content` aqui duplicaria a regra que o servico ja aplica, e as duas
 // copias divergiriam no dia em que uma mudasse. O que este cliente garante e a CREDENCIAL certa —

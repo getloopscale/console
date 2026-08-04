@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, GitCompare, Search } from 'lucide-react';
@@ -70,6 +70,14 @@ function recorteValido(v: string | null): v is Recorte {
  */
 const TAMANHOS_DE_PAGINA = [10, 25, 50, CATALOG_PAGE_LIMIT] as const;
 
+/**
+ * A pausa antes de a busca virar navegação.
+ *
+ * Sem ela cada tecla vira um endereço no histórico e uma consulta ao servidor: quem digita
+ * "saudacao" dispara oito buscas e precisa de oito "voltar" para sair da tela.
+ */
+const DEBOUNCE_MS = 300;
+
 function tamanhoValido(v: string | null): number {
   const n = Number(v);
   return TAMANHOS_DE_PAGINA.some((t) => t === n) ? n : CATALOG_PAGE_LIMIT;
@@ -80,13 +88,44 @@ export function PromptlyCatalogoPage() {
   useEffect(() => setPageTitle('Catálogo de prompts'), [setPageTitle]);
   useRequireAuth();
 
-  const [termo, setTermo] = useState('');
   // O recorte vem da URL, não do estado local: é o que torna o link do painel COLÁVEL. Um valor
   // desconhecido é ignorado (a lista inteira), nunca um erro — um endereço antigo continua abrindo.
   const [params, setParams] = useSearchParams();
   const bruto = params.get('recorte');
   const recorte = recorteValido(bruto) ? bruto : null;
   const porPagina = tamanhoValido(params.get('porPagina'));
+
+  // M16 — os três filtros de SERVIDOR vivem no endereço, pela mesma razão do recorte: o link é
+  // colável. Antes deste milestone o termo era estado local e o filtro rodava sobre a página já
+  // carregada — a tela dizia isso com todas as letras, e essa honestidade era o sintoma.
+  const busca = params.get('busca') ?? '';
+  const tag = params.get('tag') ?? '';
+  const pasta = params.get('pasta') ?? '';
+
+  // O que o campo mostra ENQUANTO se digita. O endereço só recebe o termo depois da pausa: uma
+  // navegação por tecla encheria o histórico e dispararia uma busca por caractere.
+  const [rascunho, setRascunho] = useState(busca);
+  useEffect(() => { setRascunho(busca); }, [busca]);
+
+  const trocarParam = useCallback(
+    (mudancas: Record<string, string>) => {
+      setParams((atuais) => {
+        const proximos = new URLSearchParams(atuais);
+        for (const [chave, valor] of Object.entries(mudancas)) {
+          if (valor === '') proximos.delete(chave);
+          else proximos.set(chave, valor);
+        }
+        return proximos;
+      }, { replace: true });
+    },
+    [setParams],
+  );
+
+  useEffect(() => {
+    if (rascunho === busca) return;
+    const t = setTimeout(() => { trocarParam({ busca: rascunho.trim() }); }, DEBOUNCE_MS);
+    return () => { clearTimeout(t); };
+  }, [rascunho, busca, trocarParam]);
 
   // Preserva o tamanho de página: limpar o recorte é sobre o RECORTE. Apagar os dois faria a tela
   // voltar a pedir cem sem ninguém ter pedido — e a marca de parcialidade sumiria junto, que é
@@ -103,10 +142,10 @@ export function PromptlyCatalogoPage() {
   };
 
   const query = useQuery({
-    // O tamanho entra na CHAVE, não só na chamada. Sem ele o React Query serve a página anterior
-    // do cache e a tela mostra cem itens afirmando ter pedido dez.
-    queryKey: [...CATALOG_QUERY_KEY, porPagina],
-    queryFn: () => fetchCatalogPage<unknown>(porPagina),
+    // Tamanho E filtros entram na CHAVE, não só na chamada. Sem isso o React Query serve a página
+    // anterior do cache e a tela mostra o catálogo inteiro afirmando ter buscado um termo.
+    queryKey: [...CATALOG_QUERY_KEY, porPagina, busca, tag, pasta],
+    queryFn: () => fetchCatalogPage<unknown>(porPagina, { search: busca, tag, folder: pasta }),
   });
 
   // `useMemo` sobre `query.data`, não sobre um array recriado a cada render — senão o memo do
@@ -115,19 +154,45 @@ export function PromptlyCatalogoPage() {
   const temContinuacao = query.data?.temContinuacao ?? false;
   const failed = Boolean(query.error);
 
-  // `includes`, não `RegExp`: um termo com `a(b` é input legítimo de quem digita, e `new
-  // RegExp(termo)` lançaria `SyntaxError` no meio da digitação (EC-7).
-  const filtradas = useMemo(() => {
-    const t = termo.trim().toLowerCase();
-    const porRecorte = recorte === null ? rows : rows.filter(RECORTES[recorte].casa);
-    if (t === '') return porRecorte;
-    return porRecorte.filter((r) => r.name.toLowerCase().includes(t));
-  }, [rows, termo, recorte]);
+  // M16 — a busca, a tag e a pasta são do SERVIDOR; só o recorte segue local.
+  //
+  // O recorte fica aqui de propósito: ele é derivado do que a linha já carrega (`latestVersion` vs
+  // a maior versão apontada por um label), e mandá-lo ao servidor exigiria um endpoint que não
+  // existe — trabalho antes da necessidade. A honestidade que isso pede está na contagem, não numa
+  // desculpa: com recorte ativo a tela não afirma total algum.
+  const filtradas = useMemo(
+    () => (recorte === null ? rows : rows.filter(RECORTES[recorte].casa)),
+    [rows, recorte],
+  );
 
-  const filtrando = termo.trim() !== '' || recorte !== null;
+  /**
+   * M16 — as pastas visíveis nesta página, derivadas dos nomes (ADR-2).
+   *
+   * Derivar da página, e não de um endpoint: a pasta É prefixo do nome, então a lista sai de graça
+   * do dado que a tela já tem. Um endpoint de pastas seria uma segunda fonte de verdade que pode
+   * divergir do nome — e a primeira divergência é silenciosa.
+   */
+  const pastas = useMemo(() => {
+    const vistas = new Set<string>();
+    for (const r of rows) {
+      const i = r.name.indexOf('/');
+      if (i > 0) vistas.add(r.name.slice(0, i));
+    }
+    return [...vistas].sort();
+  }, [rows]);
+
+  const filtrando = busca !== '' || tag !== '' || pasta !== '' || recorte !== null;
+  // M16 — com o filtro NO SERVIDOR, zero linhas com filtro ativo significa "o filtro não achou",
+  // não "o workspace está vazio".
+  //
+  // A condição antiga era `filtrando && rows.length > 0`, e era correta enquanto o filtro rodava
+  // localmente: ter linhas carregadas provava que o workspace não estava vazio. Agora o servidor
+  // devolve zero linhas para uma busca sem resultado, e a condição antiga cairia em
+  // `catalogo-vazio` — afirmando ausência no workspace a partir de um filtro. É exatamente o
+  // defeito que o M13 fechou, reaberto pela mudança de lado.
   const estadoVazio: EstadoVazio = failed
     ? 'falha-de-leitura'
-    : filtrando && rows.length > 0
+    : filtrando
       ? 'filtro-sem-resultado'
       : 'catalogo-vazio';
 
@@ -155,6 +220,32 @@ export function PromptlyCatalogoPage() {
       key: 'labelsResumo',
       label: 'Ambientes servidos',
       render: (row) => <span className="text-muted-foreground">{row.labelsResumo}</span>,
+    },
+    {
+      // M16 — as tags do prompt. Cada uma é um BOTÃO: ler a marcação e usá-la para estreitar o
+      // catálogo são a mesma ação na cabeça de quem olha, e separá-las obrigaria a digitar de
+      // novo o que já está na tela.
+      key: 'tags',
+      label: 'Tags',
+      render: (row) =>
+        row.tags.length === 0 ? (
+          // Traço, e não vazio: uma célula em branco lê como "não carregou".
+          <span className="text-xs text-muted-foreground">—</span>
+        ) : (
+          <span className="flex flex-wrap gap-1">
+            {row.tags.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => { trocarParam({ tag: t }); }}
+                aria-label={`Filtrar por ${t}`}
+                className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
+              >
+                {t}
+              </button>
+            ))}
+          </span>
+        ),
     },
     {
       key: 'comparar',
@@ -212,7 +303,12 @@ export function PromptlyCatalogoPage() {
           <Card.Description>
             {query.isSuccess
               ? filtrando
-                ? `${filtradas.length} de ${rows.length} carregados`
+                // M16 — sob filtro, a tela NÃO conhece o total do workspace: o servidor devolveu
+                // uma página do conjunto filtrado. Dizer "neste workspace" aqui seria o limite
+                // inferior apresentado como total que o M13 existe para eliminar.
+                ? temContinuacao
+                  ? `${filtradas.length} nesta página — há mais no servidor`
+                  : `${filtradas.length} no filtro`
                 : temContinuacao
                   ? `${rows.length} carregados — há mais no servidor`
                   : `${rows.length} neste workspace`
@@ -222,9 +318,17 @@ export function PromptlyCatalogoPage() {
           {/* O recorte, quando ativo, é dito com todas as letras E tem saída. Uma lista filtrada
               que não se anuncia é a mesma classe de mentira que este milestone conserta: o
               operador conclui ausência a partir de um filtro que ele não sabe que existe. */}
-          {recorte !== null ? (
+          {filtrando ? (
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <p className="text-xs text-muted-foreground">{RECORTES[recorte].descricao}</p>
+              <p className="text-xs text-muted-foreground">
+                {recorte !== null
+                  ? RECORTES[recorte].descricao
+                  : tag !== ''
+                    ? `Só os prompts marcados com “${tag}”.`
+                    : pasta !== ''
+                      ? `Só os prompts da pasta “${pasta}/”.`
+                      : `Busca no servidor por “${busca}”.`}
+              </p>
               <Button variant="secondary" size="sm" onClick={limparRecorte}>
                 Ver todos
               </Button>
@@ -239,9 +343,9 @@ export function PromptlyCatalogoPage() {
               />
               <input
                 type="search"
-                value={termo}
-                onChange={(e) => setTermo(e.target.value)}
-                placeholder="Filtrar por nome"
+                value={rascunho}
+                onChange={(e) => { setRascunho(e.target.value); }}
+                placeholder="Buscar por nome"
                 aria-label="Filtrar prompts por nome"
                 className="h-9 rounded-md border border-input bg-background pl-8 pr-3 text-sm"
               />
@@ -274,11 +378,25 @@ export function PromptlyCatalogoPage() {
             </Button>
           </div>
 
-          {/* O escopo do filtro, dito na tela. Ele roda sobre o que ESTÁ CARREGADO — quem não
-              souber disso conclui ausência a partir de um filtro que nunca consultou o servidor. */}
-          <p className="pt-2 text-xs text-muted-foreground">
-            O filtro roda sobre os prompts já carregados nesta página, não sobre o servidor.
-          </p>
+          {/* M16 — as pastas desta página, como atalho. Um catálogo plano continua navegável: os
+              prompts soltos seguem na tabela abaixo, e a pasta é um caminho A MAIS, nunca um nível
+              obrigatório. Quem nunca criou pasta não encontra a raiz vazia. */}
+          {pasta === '' && pastas.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <span className="text-xs text-muted-foreground">Pastas:</span>
+              {pastas.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => { trocarParam({ pasta: f }); }}
+                  aria-label={`Abrir a pasta ${f}`}
+                  className="rounded-md border px-2 py-1 font-mono text-xs hover:bg-muted"
+                >
+                  {f}/
+                </button>
+              ))}
+            </div>
+          ) : null}
         </Card.Header>
 
         <DataTable
@@ -289,9 +407,9 @@ export function PromptlyCatalogoPage() {
           emptyState={
           <VazioDoCatalogo
             estado={estadoVazio}
-            termo={termo}
+            termo={busca}
             temContinuacao={temContinuacao}
-            onLimpar={() => setTermo('')}
+            onLimpar={limparRecorte}
             onTentarNovamente={() => void query.refetch()}
           />
         }
@@ -345,9 +463,14 @@ function VazioDoCatalogo({
         icon={Search}
         title={`Nenhum prompt casa com “${termo}”`}
         description={
+          // M16 — o texto anterior dizia "nenhum dos prompts CARREGADOS casa … o filtro não os
+          // alcança". Era verdade enquanto o filtro rodava aqui; agora ele roda no servidor, e a
+          // frase virou uma desculpa por uma limitação que não existe mais. O que a continuação
+          // significa hoje é outra coisa, e é ela que o operador precisa saber: o servidor achou
+          // MAIS do que coube nesta página.
           temContinuacao
-            ? 'Nenhum dos prompts CARREGADOS casa com este filtro — e há mais no servidor que esta página não trouxe. O filtro não os alcança.'
-            : 'O workspace tem prompts — nenhum deles casa com este filtro. Limpe o filtro para ver a lista inteira.'
+            ? 'O servidor achou mais do que coube nesta página. Refine o termo ou peça uma página maior.'
+            : 'A busca rodou no workspace inteiro, não só nesta página. Limpe o filtro para ver a lista completa.'
         }
         action={
           <Button variant="secondary" onClick={onLimpar}>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, Input, PageShell } from '@usetheo/ui';
 
@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import {
+  deleteSkill,
   fetchSkill,
   fetchSkillInstructions,
   promotionRefusal,
@@ -97,6 +98,25 @@ export function SkillDetailPage() {
   });
 
   const cicloAtual = data?.lifecycle;
+
+  // ---- M31 — a exclusão -------------------------------------------------------------------
+  const navigate = useNavigate();
+  const [confirmarExclusao, setConfirmarExclusao] = useState(false);
+  const [erroExclusao, setErroExclusao] = useState<string | null>(null);
+
+  const apagar = useMutation({
+    mutationFn: () => deleteSkill(skillId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/skills'] });
+      // Volta ao acervo: permanecer num detalhe que não existe mais mostraria uma tela de erro
+      // como resultado de uma operação bem-sucedida.
+      void navigate('/skills');
+    },
+    onError: (err) => {
+      setConfirmarExclusao(false);
+      setErroExclusao(promotionRefusal(err, 'Não foi possível apagar esta skill.'));
+    },
+  });
 
   return (
     <PageShell
@@ -281,6 +301,61 @@ export function SkillDetailPage() {
           )}
         </div>
       </Card>
+
+      {/* ---- M31 — DangerZone (DESIGN.md §16) ----------------------------------------- */}
+      {erroExclusao !== null ? (
+        <Alert intent="destructive" title="A skill não foi apagada" description={erroExclusao} />
+      ) : null}
+
+      <Card className="border-destructive/40">
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Zona de perigo</h2>
+          </Card.Title>
+          <Card.Description>
+            Apagar <strong>reserva o identificador</strong>: nenhuma skill futura poderá usar{' '}
+            <code className="font-mono text-xs">{skillId}</code>, e quem a referencia por ele passa
+            a receber erro. <strong>Não há como desfazer.</strong>
+          </Card.Description>
+        </Card.Header>
+        <div className="flex flex-col gap-2 px-6 pb-6">
+          {/* A alternativa REVERSÍVEL vem antes do botão destrutivo, não depois: quem chegou aqui
+              querendo "tirar de circulação" precisa saber que existe um caminho que não quebra
+              quem já usa. Oferecer só depois de apagar seria tarde. */}
+          {cicloAtual !== 'deprecated' ? (
+            <p className="text-sm text-muted-foreground">
+              Se a intenção é só parar de recomendá-la, <strong>descontinuar</strong> (acima) faz
+              isso sem quebrar quem já a referencia — e pode ser desfeito.
+            </p>
+          ) : null}
+          <div>
+            <Button variant="destructive" onClick={() => setConfirmarExclusao(true)} disabled={apagar.isPending}>
+              Apagar esta skill
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      <ConfirmDialog
+        open={confirmarExclusao}
+        onOpenChange={(aberto) => {
+          if (!aberto) setConfirmarExclusao(false);
+        }}
+        title={`Apagar "${data?.name ?? skillId}"?`}
+        description={
+          <>
+            Todo agente que a carrega pelo identificador passa a receber erro na próxima resolução.
+            O identificador <code className="font-mono text-xs">{skillId}</code> fica{' '}
+            <strong>reservado</strong> — nenhuma skill futura poderá usá-lo.{' '}
+            <strong>Esta ação não pode ser desfeita.</strong>
+          </>
+        }
+        confirmLabel="Apagar skill"
+        intent="destructive"
+        confirmationPhrase={skillId}
+        loading={apagar.isPending}
+        onConfirm={() => apagar.mutate()}
+      />
 
       <ConfirmDialog
         open={confirmar}

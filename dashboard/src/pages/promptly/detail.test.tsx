@@ -19,6 +19,8 @@ const mockPromote = vi.fn();
 const mockPrompt = vi.fn();
 const mockRollback = vi.fn();
 const mockUsage = vi.fn();
+const mockSetTags = vi.fn();
+const mockCatalog = vi.fn();
 vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
   return {
@@ -30,6 +32,8 @@ vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
     promoteLabel: (...a: unknown[]) => mockPromote(...a),
     rollbackPrompt: (...a: unknown[]) => mockRollback(...a),
     fetchPromptUsage: (...a: unknown[]) => mockUsage(...a),
+    setTags: (...a: unknown[]) => mockSetTags(...a),
+    fetchCatalogPage: (...a: unknown[]) => mockCatalog(...a),
   };
 });
 
@@ -448,5 +452,85 @@ describe('M14 — a entrada do playground', () => {
 
     const link = await screen.findByRole('link', { name: 'Playground' });
     expect(link).toHaveAttribute('href', '/promptly/saudacao/playground');
+  });
+});
+
+/**
+ * M16 — as tags no DETALHE, e a marcação pela tela.
+ *
+ * O DoD do milestone pede as duas coisas pelo nome: *"tags criadas e filtradas na tela"* e *"a tag
+ * aparece na linha do catálogo E no detalhe"*. A primeira entrega fez só a leitura no catálogo — o
+ * `PUT /prompts/:name/tags` existia na API e parava no BFF, e a tela não tinha como marcar nada.
+ * Um produto onde só a API sabe marcar não tem a jornada que o milestone promete.
+ */
+describe('PromptDetailPage — tags (M16)', () => {
+  function comCatalogo(tags: readonly string[]): void {
+    // As tags do prompt vêm do catálogo, que já é a projeção que as carrega. Um endpoint novo
+    // seria trabalho antes da necessidade — o dado já está a um `search` de distância.
+    mockCatalog.mockResolvedValue({
+      data: [{ name: 'saudacao', latestVersion: 3, labels: [], tags, updatedAt: 'd' }],
+      temContinuacao: false,
+    });
+  }
+
+  it('a tag do prompt aparece no detalhe', async () => {
+    comCatalogo(['suporte', 'campanha']);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText('suporte')).toBeInTheDocument();
+    expect(screen.getByText('campanha')).toBeInTheDocument();
+  });
+
+  it('prompt sem tag DIZ que não tem, em vez de deixar o espaço em branco', async () => {
+    // Um espaço vazio lê como "não carregou". A ausência é um fato sobre o prompt e tem de ser
+    // dita — mesma razão do "sem descrição" do M17 e do "nenhum" dos labels.
+    comCatalogo([]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/nenhuma tag/i)).toBeInTheDocument();
+  });
+
+  it('marcar uma tag pela tela chama o servico com o conjunto INTEIRO', async () => {
+    // O contrato é substituição, não delta: mandar só a tag nova apagaria as antigas no servidor.
+    comCatalogo(['suporte']);
+    mockSetTags.mockResolvedValue({ name: 'saudacao', tags: ['campanha', 'suporte'] });
+    render(<PromptDetailPage />);
+    await screen.findByText('suporte');
+
+    await userEvent.type(screen.getByLabelText(/nova tag/i), 'campanha');
+    await userEvent.click(screen.getByRole('button', { name: /marcar/i }));
+
+    await vi.waitFor(() =>
+      expect(mockSetTags).toHaveBeenCalledWith('saudacao', ['suporte', 'campanha']),
+    );
+  });
+
+  it('remover uma tag manda o conjunto SEM ela, e nao um delete', async () => {
+    comCatalogo(['suporte', 'campanha']);
+    mockSetTags.mockResolvedValue({ name: 'saudacao', tags: ['suporte'] });
+    render(<PromptDetailPage />);
+    await screen.findByText('campanha');
+
+    await userEvent.click(screen.getByRole('button', { name: /remover a tag campanha/i }));
+
+    await vi.waitFor(() => expect(mockSetTags).toHaveBeenCalledWith('saudacao', ['suporte']));
+  });
+
+  it('a recusa TIPADA do servico chega ao operador, nao um erro generico', async () => {
+    // `too_many_tags` e `empty_tag` dizem o que fazer; "erro ao salvar" não diz nada. É a mesma
+    // lição que o CLAUDE.md deste repositório registra sobre mensagem escrita para o terminal.
+    comCatalogo(['suporte']);
+    mockSetTags.mockRejectedValue(
+      new ApiError(400, { error: 'too_many_tags', message: 'um prompt aceita no maximo 16 tags' }),
+    );
+    render(<PromptDetailPage />);
+    await screen.findByText('suporte');
+
+    await userEvent.type(screen.getByLabelText(/nova tag/i), 'demais');
+    await userEvent.click(screen.getByRole('button', { name: /marcar/i }));
+
+    expect(await screen.findByText(/no maximo 16 tags/i)).toBeInTheDocument();
   });
 });

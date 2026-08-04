@@ -1,5 +1,19 @@
 ## [Unreleased]
 
+### Fixed
+
+- **A tela de sessões transbordava para fora da página.** Com onze colunas, a tabela media **1838 px** dentro de um contêiner de **1486 px** — e vazava por cima do resto da página em vez de rolar, desconfigurando a tela. A causa não estava nesta tela: a raiz do `DataTable` do design system era `w-full` e nada mais, com `overflow-x` em `visible`, então **qualquer** consumidor com colunas demais tinha o mesmo problema. Corrigido no componente (`@usetheo/ui` 0.35.1), não aqui — a variante virtualizada já rolava, e era a não-virtualizada que tinha ficado para trás.
+
+### Changed
+
+- **A busca do catálogo de prompts passou a rodar no servidor — e a tela parou de se desculpar (M16).** Até aqui ela filtrava a página já carregada, e dizia isso com todas as letras: *"o filtro roda sobre os prompts já carregados nesta página, não sobre o servidor"*. Com 14 prompts funcionava; com 500 mentiria por omissão — o operador digita um termo, não vê linha alguma, e conclui ausência a partir de um filtro que nunca perguntou ao servidor. **A frase saiu da tela porque deixou de ser verdade**; mantê-la seria pior que antes, uma desculpa por uma limitação que não existe mais. O termo, a tag e a pasta vivem no endereço — o link é colável, como já era o do recorte —, e a digitação só vira busca depois de uma pausa: sem isso, escrever "saudacao" dispararia oito consultas e exigiria oito "voltar" para sair da tela (M16)
+- **Zero linhas com filtro ativo deixou de ser lido como "workspace vazio" (M16).** Enquanto o filtro era local, ter linhas carregadas provava que o workspace não estava vazio — e a tela usava isso para escolher a mensagem. Com o filtro no servidor a mesma condição passa a errar: uma busca sem resultado devolve zero linhas, e a tela diria que **não há prompts** quando há centenas. É o defeito que o M13 fechou, reaberto pela mudança de lado e fechado de novo — desta vez com o teste que o distingue (M16)
+
+### Added
+
+- **Marcar um prompt com tag passou a ser possível pela tela (M16).** O detalhe do prompt ganhou o cartão de tags: mostra as que existem, aceita novas e remove as que saíram — sempre mandando o **conjunto inteiro**, porque o contrato do serviço é substituição e enviar só a tag nova apagaria as antigas do outro lado. A recusa tipada do serviço chega ao operador com o motivo (*"um prompt aceita no máximo 16 tags"*), não como um "erro ao salvar" que não diz o que fazer. Prompt sem tag **diz** que não tem, em vez de deixar o espaço em branco — branco lê como "não carregou" (M16)
+- **Tags e pastas no catálogo de prompts (M16).** Cada tag é um botão: ler a marcação e usá-la para estreitar a lista são a mesma ação na cabeça de quem olha, e separá-las obrigaria a digitar de novo o que já está na tela. As pastas são **derivadas do nome** — `suporte/saudacao` e `vendas/saudacao` coexistem e são separados na navegação — sem coluna nova e sem convenção inventada: o nome já é a chave, e uma segunda fonte de verdade poderia divergir dele em silêncio. Um catálogo plano continua navegável: a pasta é um atalho **a mais**, nunca um nível obrigatório, e quem nunca criou pasta não encontra a raiz vazia (M16)
+
 ### Changed
 
 - **O gráfico de scores passou para logo acima da lista de avaliadores.** Com a lista ocupando a primeira dobra, a tendência nascia abaixo dela e podia nunca ser vista — e *"a qualidade está subindo ou caindo?"* é a pergunta de abertura desta tela; *"quais avaliadores existem"* é a segunda. É a mesma correção que o consumo por usuário pagou no M144, pelo mesmo motivo. Um teste trava a ordem no documento, para ela não voltar em silêncio no próximo refactor.
@@ -32,6 +46,38 @@
   Descontinuar exige motivo e passa pelo `ConfirmDialog` canônico com frase digitada. O texto diz **o que muda e o que não muda**: a skill deixa de aparecer para quem procura sem saber o nome, e quem já a referencia pelo identificador continua carregando — nada quebra hoje. Sem essa frase o operador supõe que está apagando.
 
   Ausência do campo **não** vira "em uso": um registro mais antigo simplesmente não o devolve, e ausência não é o mesmo que estar ativa (#m32)
+
+- **A descoberta ganha tela (M31).** *"A razão de existir do produto — um agente achar a skill certa por intenção — não tem tela alguma"*: era o achado da auditoria de 2026-08-03, e a API existia desde o M3 sem nada a exercitar fora de `curl`. Agora `Skills → Descoberta` aceita uma pergunta em linguagem natural e mostra o que um agente encontraria.
+
+  Cada resultado traz **o quanto casou e por quê** — as duas informações que a Definition of done exige juntas. A segunda é a que carrega o produto: sem ela o painel exibe um número sem dizer de onde veio, e some a diferença entre *"achou porque as palavras batem"* e *"achou porque entendeu"*. As frases dizem o que a máquina fez, não o nome do módulo que fez; e uma perna que a tela não conhece vira *"origem não informada"*, nunca uma das conhecidas — traduzi-la afirmaria algo falso sobre por que a skill apareceu.
+
+  Os filtros de rascunho e descontinuada existem porque a descoberta os esconde por padrão (M32) — sem eles, ninguém conseguia **verificar na tela** que uma deprecada de fato saiu, que é o comportamento prometido por aquele milestone.
+
+  Score ausente vira `—`, não `0.000`: zero afirma "casou muito mal", e um registro que não devolveu o campo não disse isso (#m31)
+
+- **O acervo de skills aguenta escala (M31).** `next_page_token` estava **tipado e não usado**: acima do teto de uma página o excedente sumia **sem erro algum**, e a tela dizia "12 no acervo" com 300 lá dentro. Agora há paginação real (*carregar mais*) e a contagem diz **o que é** — quantas estão carregadas, e se há mais.
+
+  A **primeira** página substitui o acervo carregado; as seguintes acumulam. Sem essa distinção, apagar uma skill a deixava na tela: o refetch mesclava, e **mesclar nunca remove**. Encontrado pelo CI, não pelo teste local.
+
+  O filtro por nome, descrição ou identificador **declara seu alcance**: filtra o que está carregado, e aponta para a Descoberta quando a busca precisa varrer o acervo inteiro. Um filtro que parece varrer tudo e varre uma página é pior que filtro nenhum — leva o operador a concluir que a skill não existe. Ignora acento, porque quem digita com pressa não acentua (#m31)
+
+- **Governança: apagar uma skill pela tela (M31).** A auditoria mediu o absurdo — o acervo tinha uma skill que **se descreve** como *"pode ser removida"* e não havia como removê-la, embora `DELETE /v1/skills/:id` exista há milestones. A `DangerZone` diz a consequência específica (o identificador fica **reservado**, e quem o referencia passa a receber erro), exige frase digitada, e oferece a alternativa **reversível antes** do botão destrutivo: quem quer só parar de recomendar precisa saber que descontinuar não quebra quem já usa.
+
+  A exclusão viaja por um **terceiro cliente**, com credencial própria: `skills:write` apaga, `skills:publish` reaponta consumidores sem redeploy. Uma chave que fizesse as duas coisas transformaria qualquer vazamento no pior caso possível (#m31)
+
+- **Autoria sem publicar às cegas (M31).** O M30 entregou `POST /v1/skills:validate` — valida **sem efeito colateral** e o erro traz `field` e `line` — e ela ficou **sem consumidor**: nada disso alcançava um autor, porque não havia tela de autoria.
+
+  Agora `Skills → Nova skill` fecha a jornada: escrever → validar sem publicar → corrigir com o erro **posicionado** (campo e linha, não "inválido") → publicar **acompanhando a operação**. Publicar exige ter validado antes, e o botão desabilitado diz o motivo em vez de ensinar a regra pelo erro; editar o conteúdo invalida a validação anterior, porque exibir "válido" sobre um texto que mudou afirmaria algo que ninguém verificou.
+
+  O `202` é tratado como **aceito, não pronto**: a tela sonda a operação e para em estado terminal. E o sucesso oferece **testar a descoberta**, não "voltar à lista" — saber se a skill é encontrável é a única coisa que o autor quer saber depois de publicar (#m31)
+
+- **O catálogo de descoberta (M33).** A superfície para quem **não sabe o que procurar** — persona que nenhuma jornada anterior cobria. O M31 entrega uma tabela com busca e paginação, que resolve *"não perder skill acima de 100"*; não resolve *"me mostre o que existe"*.
+
+  O **terceiro estado vazio** passa a existir: filtro-sem-resultado é distinto de acervo-vazio e de leitura-falhou. Antes eram dois, e "nada casou com seu filtro" era exibido como "nada publicado" — o operador concluía que o acervo estava vazio quando só o filtro dele não casava.
+
+  Os cards trazem os slots que **medimos** — nome, descrição, categoria, execução, visibilidade e se a revisão tem vetor. Nenhum número que não medimos: sem estrelas, sem downloads. E `descobrível` × `sem vetor` é a distinção que o produto vende: sem vetor, a skill só aparece para quem já sabe o nome.
+
+  Chips de categoria com teto e overflow `+N` — **sem contagem por faceta**: derivada da página carregada, ela afirmaria sobre o acervo um número que só vale para o que está na tela. A ordenação é determinística com desempate por identificador, e o critério é **declarado na tela**: sem sinal de adoção, qualquer ordem padrão é arbitrária, e quem não sabe por que aquela ordem desconfia da lista (#m33)
 
 ### Security
 

@@ -352,3 +352,240 @@ test.describe('M32 — ciclo de vida: retirar de circulação sem quebrar quem u
     await expect(page.getByRole('button', { name: /voltar a circular/i })).toBeVisible();
   });
 });
+
+test.describe('M31 — descoberta observável: score E qual perna casou', () => {
+  test('do menu à busca, com o motivo de cada resultado', async ({ page }) => {
+    // A razão de existir do produto — um agente achar a skill certa por intenção — não tinha
+    // tela alguma até este milestone. A auditoria de 2026-08-03 mediu isso navegando por clique.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^descoberta$/i }).click();
+    await expect(page).toHaveURL(/\/skills\/descoberta$/);
+
+    // O submenu continua aberto: `/skills/descoberta` depende da mesma linha de
+    // `resolveActiveMenu` que serve `/skills`.
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+
+    // Estado inicial NÃO é "nada encontrado" — é "ainda não perguntei". A diferença importa:
+    // uma diz que o acervo está vazio, a outra que a busca não aconteceu.
+    await expect(page.getByText(/pergunte algo/i)).toBeVisible();
+
+    // Consulta que casa com uma skill ATIVA: a de moeda está descontinuada e a descoberta a
+    // esconde por padrão — buscá-la aqui exercitaria o filtro, não a exibição do motivo.
+    await page.getByLabel('Consulta em linguagem natural').fill('diff');
+    await page.getByRole('button', { name: /^buscar$/i }).click();
+
+    // O SCORE e a PERNA, juntos — os dois lados do critério da DoD.
+    await expect(page.getByRole('link', { name: 'Revisar pull request' })).toBeVisible();
+    // `columnheader`, não `getByText`: a frase "em ordem de quanto casou" na descrição do card
+    // torna o texto ambíguo, e um seletor ambíguo passa ou falha por acidente.
+    await expect(page.getByRole('columnheader', { name: 'Quanto casou' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Por que apareceu' })).toBeVisible();
+    // Frases que dizem o que a máquina fez, não nomes de módulo.
+    await expect(page.getByText('palavras e intenção')).toBeVisible();
+  });
+
+  test('a descontinuada só aparece com opt-in explícito', async ({ page }) => {
+    // É o comportamento que o M32 promete e que nenhuma tela permitia verificar: a descoberta
+    // esconde deprecadas por padrão. Sem o filtro, o operador teria de confiar na documentação.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^descoberta$/i }).click();
+
+    await page.getByLabel('Consulta em linguagem natural').fill('moeda');
+    await page.getByRole('button', { name: /^buscar$/i }).click();
+    await expect(page.getByText('Converter moeda (v1)')).toHaveCount(0);
+
+    await page.getByLabel('Incluir descontinuadas').check();
+    await expect(page.getByText('Converter moeda (v1)')).toBeVisible();
+  });
+});
+
+test.describe('M31 — governança: a skill que dizia "pode ser removida" agora pode', () => {
+  test('apagar exige frase digitada e oferece a alternativa reversível antes', async ({ page }) => {
+    // A auditoria de 2026-08-03 mediu o absurdo: o acervo tinha uma skill que se DESCREVE como
+    // "pode ser removida", e não havia como removê-la — embora `DELETE /v1/skills/:id` existisse
+    // há milestones.
+    await navegarAteOAcervoPeloMenu(page);
+    await page.getByRole('link', { name: 'Preparar ambiente local' }).click();
+
+    await expect(page.getByRole('heading', { name: /zona de perigo/i })).toBeVisible();
+
+    // O texto diz a CONSEQUÊNCIA específica — identificador reservado —, não "o item será
+    // removido". É a diferença entre o operador entender o custo e descobri-lo depois.
+    await expect(page.getByText(/reserva o identificador/i)).toBeVisible();
+
+    // E a alternativa reversível aparece ANTES do botão destrutivo: quem quer só "parar de
+    // recomendar" precisa saber que existe um caminho que não quebra quem já usa.
+    await expect(page.getByText(/descontinuar.*sem quebrar quem já a referencia/i)).toBeVisible();
+
+    await page.getByRole('button', { name: /apagar esta skill/i }).click();
+    await page.getByRole('textbox', { name: /type to confirm|sk_local/i }).fill('sk_local');
+    await page.getByRole('button', { name: /^apagar skill$/i }).click();
+
+    // Volta ao acervo — permanecer num detalhe que não existe mais mostraria uma tela de erro
+    // como resultado de uma operação bem-sucedida.
+    await expect(page).toHaveURL(/\/skills$/);
+    await expect(page.getByRole('link', { name: 'Preparar ambiente local' })).toHaveCount(0);
+  });
+});
+
+test.describe('M31 — o acervo aguenta escala', () => {
+  test('o filtro declara seu alcance e oferece a busca no acervo inteiro', async ({ page }) => {
+    // Um filtro que PARECE varrer o acervo inteiro e varre uma página é pior que filtro nenhum:
+    // leva o operador a concluir que a skill não existe. A tela diz o alcance e aponta para a
+    // Descoberta, que busca por intenção no acervo todo.
+    await navegarAteOAcervoPeloMenu(page);
+
+    await expect(page.getByText(/filtra o que está carregado/i)).toBeVisible();
+    await expect(page.getByRole('link', { name: /buscar no acervo inteiro/i })).toBeVisible();
+
+    await page.getByLabel('Filtrar skills carregadas').fill('moeda');
+    await expect(page.getByRole('link', { name: 'Converter moeda (v1)' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Revisar pull request' })).toHaveCount(0);
+
+    // A contagem diz o que É — quantas casam de quantas carregadas —, não um total inventado.
+    await expect(page.getByText(/casam com "moeda"/i)).toBeVisible();
+  });
+
+  test('o filtro ignora acento, porque quem tem pressa não acentua', async ({ page }) => {
+    await navegarAteOAcervoPeloMenu(page);
+    // "substituida" (sem acento) tem de achar "Substituída por uma versão…" — sem isso o filtro
+    // parece quebrado justamente para quem está com pressa.
+    await page.getByLabel('Filtrar skills carregadas').fill('substituida');
+    await expect(page.getByRole('link', { name: 'Converter moeda (v1)' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Revisar pull request' })).toHaveCount(0);
+  });
+
+  test('a contagem NÃO se apresenta como total quando o acervo cabe numa página', async ({ page }) => {
+    // O defeito original: a tela dizia "12 no acervo" com 300 lá dentro. Agora ela distingue
+    // "carregada(s)" de "acervo completo".
+    await navegarAteOAcervoPeloMenu(page);
+    await expect(page.getByText(/carregada\(s\)/i)).toBeVisible();
+  });
+});
+
+test.describe('M31 — autoria sem publicar às cegas', () => {
+  test('escrever, validar com erro POSICIONADO, corrigir, publicar acompanhando', async ({ page }) => {
+    // O M30 entregou `POST /v1/skills:validate` — que valida sem efeito colateral e devolve
+    // `field`/`line` — e ela ficou SEM CONSUMIDOR: nada disso alcançava um autor, porque não
+    // havia tela de autoria.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^nova skill$/i }).click();
+    await expect(page).toHaveURL(/\/skills\/nova$/);
+
+    // Publicar exige ter validado antes — é o que impede publicar às cegas, e a tela ensina a
+    // regra sem erro: botão desabilitado com o motivo ao lado.
+    await expect(page.getByText(/valide o conteúdo antes de publicar/i)).toBeVisible();
+
+    // --- conteúdo INVÁLIDO: o diagnóstico precisa POSICIONAR o problema ---
+    await page.getByLabel('Conteúdo da skill').fill('# sem frontmatter');
+    await page.getByRole('button', { name: /validar sem publicar/i }).click();
+    await expect(page.getByText(/frontmatter sem/i)).toBeVisible();
+    // A POSIÇÃO é o que distingue diagnóstico de "inválido": sem ela o autor procura no texto todo.
+    await expect(page.getByText(/campo: name/i)).toBeVisible();
+    await expect(page.getByText(/linha 2/i)).toBeVisible();
+
+    // --- corrigir e validar: nada é publicado ---
+    await page.getByLabel('Conteúdo da skill').fill('---\nname: Skill de teste\n---\n\n# corpo');
+    await page.getByRole('button', { name: /validar sem publicar/i }).click();
+    await expect(page.getByText(/nada foi publicado ainda/i)).toBeVisible();
+
+    // --- publicar, e ACOMPANHAR: 202 é aceito, não pronto ---
+    await page.getByLabel('Identificador da skill').fill('sk-autoria-e2e');
+    await page.getByRole('button', { name: /^publicar$/i }).click();
+    await expect(page.getByRole('heading', { name: /^publicação$/i })).toBeVisible();
+    await expect(page.getByText(/já está no acervo e é descobrível/i)).toBeVisible();
+
+    // O sucesso oferece TESTAR A DESCOBERTA, não "voltar à lista": saber se a skill é encontrável
+    // é a única coisa que o autor quer saber depois de publicar.
+    await expect(page.getByRole('link', { name: /testar a descoberta/i })).toBeVisible();
+  });
+
+  test('editar o conteúdo invalida a validação anterior', async ({ page }) => {
+    // Exibir "válido" sobre um texto que mudou afirmaria algo que ninguém verificou.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^nova skill$/i }).click();
+
+    await page.getByRole('button', { name: /validar sem publicar/i }).click();
+    await expect(page.getByText(/nada foi publicado ainda/i)).toBeVisible();
+
+    await page.getByLabel('Conteúdo da skill').fill('# mudou');
+    await expect(page.getByText(/nada foi publicado ainda/i)).toHaveCount(0);
+    await expect(page.getByText(/valide o conteúdo antes de publicar/i)).toBeVisible();
+  });
+});
+
+test.describe('M33 — catálogo: ver o que existe sem saber o que procurar', () => {
+  async function irAoCatalogo(page: Page) {
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^catálogo$/i }).click();
+    await expect(page).toHaveURL(/\/skills\/catalogo$/);
+  }
+
+  test('os cards trazem os slots MEDIDOS — e nenhum número que não medimos', async ({ page }) => {
+    await irAoCatalogo(page);
+
+    // Os seis slots da DoD. `descobrível` é o que separa "está no acervo" de "é encontrável por
+    // intenção" — a diferença que o produto vende.
+    await expect(page.getByText('Revisar pull request')).toBeVisible();
+    await expect(page.getByText('pública').first()).toBeVisible();
+    await expect(page.getByText('descobrível').first()).toBeVisible();
+    await expect(page.getByText('sem vetor').first()).toBeVisible();
+
+    // NENHUMA estrela, NENHUM download: números que não medimos não entram, por decisão do
+    // roadmap. Exibi-los seria inventar sinal social.
+    await expect(page.getByText(/★|⭐|downloads/i)).toHaveCount(0);
+
+    // O critério de ordem é DECLARADO — sem sinal de adoção, qualquer padrão é arbitrário, e um
+    // usuário que não sabe por que aquela ordem desconfia da lista.
+    await expect(page.getByText(/ordenado por nome/i)).toBeVisible();
+  });
+
+  test('o TERCEIRO estado vazio existe: filtro sem resultado ≠ acervo vazio', async ({ page }) => {
+    // Antes havia dois estados. "Busca sem resultado" era exibido como "acervo vazio", e o
+    // operador concluía que nada havia sido publicado quando só o filtro dele não casava.
+    await irAoCatalogo(page);
+    await page.getByLabel('Filtrar o catálogo').fill('zzzz-nao-existe');
+
+    await expect(page.getByText(/nada casa com este filtro/i)).toBeVisible();
+    await expect(page.getByText(/o acervo tem skills/i)).toBeVisible();
+    // E a saída é in-app, não uma instrução de CLI.
+    await page.getByRole('button', { name: /limpar filtro/i }).click();
+    await expect(page.getByText('Revisar pull request')).toBeVisible();
+  });
+
+  test('os chips filtram por categoria, sem contagem por faceta', async ({ page }) => {
+    await irAoCatalogo(page);
+
+    await page.getByRole('button', { name: 'finance', exact: true }).click();
+    await expect(page.getByText('Converter moeda (v1)')).toBeVisible();
+    await expect(page.getByText('Revisar pull request')).toHaveCount(0);
+
+    // Sem contagem: derivada da página carregada, ela afirmaria sobre o ACERVO um número que só
+    // vale para o que está na tela.
+    await expect(page.getByRole('button', { name: /finance \(\d+\)/ })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'todas', exact: true }).click();
+    await expect(page.getByText('Revisar pull request')).toBeVisible();
+  });
+
+  test('a grade responde em três larguras — o piso da DoD', async ({ page }) => {
+    await irAoCatalogo(page);
+
+    for (const largura of [375, 768, 1440]) {
+      await page.setViewportSize({ width: largura, height: 900 });
+      // O conteúdo permanece legível e alcançável em todas: o critério é não quebrar, não um
+      // número específico de colunas — que é decisão de CSS, não de comportamento.
+      await expect(page.getByText('Revisar pull request')).toBeVisible();
+    }
+  });
+});

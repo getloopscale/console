@@ -30,6 +30,8 @@ const skillsDb = {
       lifecycle: 'active',
       deprecation_reason: null,
       superseded_by: null,
+      visibility: 'public',
+      embedded: true,
       create_time: '2026-07-01T10:00:00Z',
       update_time: '2026-08-01T10:00:00Z',
     },
@@ -44,6 +46,8 @@ const skillsDb = {
       lifecycle: 'deprecated',
       deprecation_reason: 'não cobre cotação futura; use a v2',
       superseded_by: 'sk_ordering',
+      visibility: 'private',
+      embedded: true,
       create_time: '2026-05-01T10:00:00Z',
       update_time: '2026-07-20T10:00:00Z',
     },
@@ -58,6 +62,8 @@ const skillsDb = {
       lifecycle: 'active',
       deprecation_reason: null,
       superseded_by: null,
+      visibility: 'private',
+      embedded: false,
       create_time: '2026-07-05T10:00:00Z',
       update_time: '2026-07-20T10:00:00Z',
     },
@@ -98,15 +104,101 @@ export function registerSkillsHandlers() {
 }
 
 function registerSkillsRoutes(base: string) {
-  registerRoute('GET', base, async () =>
-    Response.json({ skills: skillsDb.skills, next_page_token: null }),
+  // M31 — paginação REAL. O mock devolve `next_page_token` quando há mais, porque era
+  // exatamente isso que a tela ignorava: o token vinha e o excedente sumia sem erro algum.
+  registerRoute('GET', base, async (req) => {
+    const url = new URL(req.url, 'http://x');
+    const limit = Math.max(1, Number(url.searchParams.get('limit') ?? '100'));
+    const token = url.searchParams.get('page_token');
+    const inicio = token === null ? 0 : Number(token);
+    const fatia = skillsDb.skills.slice(inicio, inicio + limit);
+    const proximo = inicio + limit < skillsDb.skills.length ? String(inicio + limit) : null;
+    return Response.json({ skills: fatia, next_page_token: proximo });
+  });
+
+  // M31 — AUTORIA. `:validate` NÃO cria nada: um mock que criasse deixaria a tela verde sobre um
+  // contrato que não existe, e o defeito só apareceria contra o serviço real.
+  registerRoute('POST', `${base}/:validate`, async (req) => {
+    const body = (await req.json()) as { skill_md?: string };
+    const md = body.skill_md ?? '';
+    // O diagnóstico POSICIONADO — `field` e `line` — é o que o M30 entregou e nenhuma tela usava.
+    if (!md.includes('name:')) {
+      return Response.json(
+        { error: 'invalid_frontmatter', message: 'frontmatter sem `name`', field: 'name', line: 2 },
+        { status: 422 },
+      );
+    }
+    const nome = /name:\s*(.+)/.exec(md)?.[1]?.trim() ?? 'sem nome';
+    return Response.json({ ok: true, name: nome, description: 'd', execution: 'remote' });
+  });
+
+  registerRoute('POST', base, async (req) => {
+    const body = (await req.json()) as { skill_id?: string; skill_md?: string };
+    const id = (body.skill_id ?? '').trim();
+    if (id === '') return Response.json({ error: 'invalid_input' }, { status: 400 });
+    skillsDb.skills.push({
+      skill_id: id,
+      name: /name:\s*(.+)/.exec(body.skill_md ?? '')?.[1]?.trim() ?? id,
+      description: 'publicada pela tela',
+      state: 'live',
+      latest_revision_id: 'rev_novo',
+      category: 'testing',
+      execution: 'remote',
+      lifecycle: 'active',
+      deprecation_reason: null,
+      superseded_by: null,
+      create_time: '2026-08-04T12:00:00Z',
+      update_time: '2026-08-04T12:00:00Z',
+    } as never);
+    // 202: ACEITO, não pronto — como o registro.
+    return Response.json({ operation_id: `op_${id}` }, { status: 202 });
+  });
+
+  registerRoute('GET', '/v1/dashboard/operations/{operationId}', async (_req, params) =>
+    // Já concluída: o mock não simula latência de ingestão porque o que a jornada precisa provar
+    // é que a tela ACOMPANHA e reage ao estado terminal — não quanto tempo demora.
+    Response.json({ operation_id: params.operationId, state: 'succeeded', error: null }),
   );
+
+  registerRoute('GET', `${base}/:retrieve`, async (req) => {
+    const url = new URL(req.url, 'http://x');
+    const q = (url.searchParams.get('query') ?? '').toLowerCase();
+    const incluirDescontinuadas = url.searchParams.get('include_deprecated') === 'true';
+
+    // Casamento deliberadamente grosseiro — o mock não reimplementa RRF. O que ele precisa
+    // reproduzir é a FORMA (`score` + `matched`) e o comportamento que a DoD cobra: a
+    // descontinuada NÃO aparece sem opt-in.
+    const candidatas = skillsDb.skills
+      .filter((sk) => incluirDescontinuadas || (sk as { lifecycle?: string }).lifecycle !== 'deprecated')
+      .filter((sk) => q === '' || sk.name.toLowerCase().includes(q) || sk.description.toLowerCase().includes(q) || q.split(' ').some((t) => t.length > 3 && sk.description.toLowerCase().includes(t)));
+
+    return Response.json({
+      skills: candidatas.map((sk, i) => ({
+        skill_id: sk.skill_id,
+        name: sk.name,
+        description: sk.description,
+        score: Number((0.9 - i * 0.2).toFixed(3)),
+        // Alterna as pernas de propósito: a tela precisa distinguir as três frases, e um mock
+        // que devolvesse sempre a mesma deixaria duas delas sem cobertura.
+        matched: i === 0 ? ['lexical', 'vector'] : i === 1 ? ['vector'] : ['lexical'],
+      })),
+    });
+  });
 
   registerRoute('GET', `${base}/{skillId}`, async (_req, params) => {
     const skill = skillsDb.skills.find((s) => s.skill_id === params.skillId);
     // 404 cobre inexistente e alheia — indistinguíveis de propósito, como no serviço real:
     // um 403 confirmaria a existência de uma skill cujo nome é adivinhável.
     return skill ? Response.json(skill) : Response.json({ code: 'NOT_FOUND' }, { status: 404 });
+  });
+
+  registerRoute('DELETE', `${base}/{skillId}`, async (_req, params) => {
+    const i = skillsDb.skills.findIndex((sk) => sk.skill_id === params.skillId);
+    if (i === -1) return new Response(null, { status: 404 });
+    skillsDb.skills.splice(i, 1);
+    // 204 SEM CORPO, como o registro. Um mock que devolvesse JSON aqui deixaria a tela verde
+    // sobre um contrato que não existe.
+    return new Response(null, { status: 204 });
   });
 
   registerRoute('GET', `${base}/{skillId}/versions`, async (_req, params) =>

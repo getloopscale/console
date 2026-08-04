@@ -213,3 +213,60 @@ func TestDataClient_respostaAtravessaSemRemodelagem(t *testing.T) {
 		t.Errorf("a resposta foi re-modelada no caminho:\n quero %s\n tenho %s", original, raw)
 	}
 }
+
+// M31 — a descoberta: a razão de existir do produto, e a única jornada sem tela.
+func TestRetrieve_levaAConsultaEOsFiltrosNaQuery(t *testing.T) {
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"skills":[{"skill_id":"sk_a","score":0.87,"matched":["lexical"]}]}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	raw, err := cli.Retrieve(context.Background(), "converter moeda", 5, true, true)
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	// A consulta precisa chegar ESCAPADA: um espaço cru quebraria a URL, e um `&` na intenção do
+	// operador viraria outro parâmetro.
+	if !strings.Contains(query, "query=converter+moeda") && !strings.Contains(query, "query=converter%20moeda") {
+		t.Fatalf("a consulta não atravessou escapada: %q", query)
+	}
+	if !strings.Contains(query, "top_k=5") {
+		t.Fatalf("top_k não atravessou: %q", query)
+	}
+	// Os filtros de ciclo de vida são o que torna a tela capaz de mostrar o que a descoberta
+	// ESCONDE por padrão — sem eles o operador não consegue verificar que uma deprecada sumiu.
+	if !strings.Contains(query, "include_draft=true") || !strings.Contains(query, "include_deprecated=true") {
+		t.Fatalf("os filtros de ciclo de vida não atravessaram: %q", query)
+	}
+	// `score` e `matched` atravessam intactos: são as DUAS informações que a DoD exige na tela, e
+	// re-tipá-las aqui criaria um segundo schema para divergir do registro.
+	if !strings.Contains(string(raw), `"score":0.87`) || !strings.Contains(string(raw), `"matched":["lexical"]`) {
+		t.Fatalf("score/matched não atravessaram: %s", raw)
+	}
+}
+
+func TestRetrieve_semFiltrosNaoOsEnvia(t *testing.T) {
+	// Mandar `include_deprecated=false` é diferente de não mandar: o primeiro afirma uma escolha,
+	// o segundo herda o default do serviço. A tela só deve afirmar o que o operador marcou.
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"skills":[]}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	if _, err := cli.Retrieve(context.Background(), "algo", 3, false, false); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if strings.Contains(query, "include_draft") || strings.Contains(query, "include_deprecated") {
+		t.Fatalf("filtros não marcados não deveriam ser enviados: %q", query)
+	}
+}

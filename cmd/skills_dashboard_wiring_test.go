@@ -140,3 +140,58 @@ func TestSkillsPromotionResolverFailsClosedWithoutTenant(t *testing.T) {
 		t.Errorf("minter chamado %d vez(es); fail-closed e ANTES da cunhagem", m.calls)
 	}
 }
+
+// M31 — o resolver de AUTORIA (T-governança).
+//
+// Terceiro cliente, terceira credencial, e a separação é o mecanismo — não organização de
+// arquivo. `skills:write` apaga e edita skills; `skills:publish` promove canais e deprecia.
+// Fundir os dois daria ao caminho de curadoria o poder de destruir, e ao de autoria o poder de
+// redirecionar consumidores. São danos diferentes e não devem viajar na mesma chave.
+func TestSkillsAuthoringResolverMintsWriteAndNeverPublish(t *testing.T) {
+	minter := &recordingSkillsMinter{}
+	resolver := newSkillsAuthoringKeyResolver(minter)
+
+	ctx := auth.WithUser(context.Background(), &auth.UserContext{AccountID: "acct_1", TenantID: "tn_1"})
+	if _, err := resolver(ctx); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+
+	if minter.calls != 1 {
+		t.Fatalf("esperava um mint, veio %d", minter.calls)
+	}
+	got := minter.gotScopes
+	temRead, temWrite, temPublish := false, false, false
+	for _, s := range got {
+		switch s {
+		case "skills:read":
+			temRead = true
+		case "skills:write":
+			temWrite = true
+		case "skills:publish":
+			temPublish = true
+		}
+	}
+	if !temWrite {
+		t.Fatalf("autoria precisa de skills:write: %v", got)
+	}
+	// `read` entra junto porque a tela de autoria também LÊ antes de agir — e uma credencial que
+	// só escreve obrigaria um quarto cliente sem ganho algum de isolamento.
+	if !temRead {
+		t.Fatalf("autoria precisa de skills:read para ler antes de agir: %v", got)
+	}
+	// A metade que impede a fusão silenciosa: promover canal reaponta consumidores sem redeploy,
+	// e esse poder NÃO deve viajar na chave que apaga.
+	if temPublish {
+		t.Fatalf("autoria NÃO deve carregar skills:publish: %v", got)
+	}
+}
+
+func TestSkillsAuthoringResolverFailsClosedWithoutTenant(t *testing.T) {
+	minter := &recordingSkillsMinter{}
+	if _, err := newSkillsAuthoringKeyResolver(minter)(context.Background()); err == nil {
+		t.Fatal("sem tenant autenticado o resolver deve falhar ANTES de cunhar")
+	}
+	if minter.calls != 0 {
+		t.Fatalf("não deveria ter cunhado: %d", minter.calls)
+	}
+}
