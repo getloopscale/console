@@ -170,11 +170,33 @@ function registerSkillsRoutes(base: string) {
   });
 
   registerRoute('POST', base, async (req) => {
-    const body = (await req.json()) as { skill_id?: string; skill_md?: string };
+    const body = (await req.json()) as {
+      skill_id?: string;
+      skill_md?: string;
+      zipped_filesystem?: string;
+    };
     const id = (body.skill_id ?? '').trim();
     if (id === '') return Response.json({ error: 'invalid_input' }, { status: 400 });
+    // Markdown e zip são EXCLUDENTES, e o mock recusa o par pela mesma razão que o BFF: o registro
+    // priorizaria `skillMd` e descartaria os scripts em silêncio. Um mock permissivo aqui deixaria
+    // o e2e verde sobre um corpo que a produção recusa — a assimetria que este ciclo já pagou caro
+    // três vezes.
+    const temMd = (body.skill_md ?? '').trim() !== '';
+    const temZip = (body.zipped_filesystem ?? '').trim() !== '';
+    if (temMd && temZip) {
+      return Response.json(
+        {
+          code: 'INVALID_REQUEST',
+          message: 'send the skill as markdown or as a zipped file tree — not both',
+        },
+        { status: 400 },
+      );
+    }
+    if (!temMd && !temZip) return Response.json({ error: 'invalid_input' }, { status: 400 });
     skillsDb.skills.push({
       skill_id: id,
+      // Um zip não tem frontmatter legível daqui — o nome cai no identificador, como o registro faz
+      // até a ingestão abrir o arquivo.
       name: /name:\s*(.+)/.exec(body.skill_md ?? '')?.[1]?.trim() ?? id,
       description: 'published from the screen',
       state: 'live',

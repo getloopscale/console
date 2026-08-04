@@ -5,10 +5,12 @@ import { Badge, Button, Card, Input, PageShell } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { faseDaOperacao } from '@/components/skills/operation-state';
+import { avaliarArquivo, paraBase64 } from '@/components/skills/skill-upload';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import {
   createSkill,
+  createSkillFromZip,
   diagnoseDiscoverability,
   fetchOperation,
   promotionRefusal,
@@ -100,6 +102,14 @@ export function SkillAuthoringPage() {
   // mão do autor.
   const [achabilidade, setAchabilidade] = useState<Diagnostico | null>(null);
 
+  // A skill como ÁRVORE de arquivos — o caso que o textarea não representa.
+  //
+  // Uma skill com script (Python, Bash) ou `assets/` não cabe num markdown só. O registro sempre
+  // aceitou o zip; a tela é que não tinha o caminho, e por isso publicar uma skill com script
+  // exigia terminal.
+  const [zip, setZip] = useState<{ readonly nome: string; readonly base64: string } | null>(null);
+  const [erroArquivo, setErroArquivo] = useState<string | null>(null);
+
   const diagnosticar = useMutation({
     mutationFn: () =>
       diagnoseDiscoverability<Diagnostico>(
@@ -121,7 +131,13 @@ export function SkillAuthoringPage() {
   });
 
   const publicar = useMutation({
-    mutationFn: () => createSkill<{ operation_id?: string }>(skillId.trim(), conteudo),
+    // Zip e markdown são EXCLUDENTES. O registro prioriza `skillMd` quando os dois chegam, e
+    // descartaria os scripts em silêncio — a skill entraria no acervo incompleta, com 202 e sem
+    // erro algum. O BFF recusa esse par; aqui a tela escolhe uma fonte só.
+    mutationFn: () =>
+      zip !== null
+        ? createSkillFromZip<{ operation_id?: string }>(skillId.trim(), zip.base64)
+        : createSkill<{ operation_id?: string }>(skillId.trim(), conteudo),
     onSuccess: (data) => {
       setErroPublicacao(null);
       setOperacaoId(typeof data?.operation_id === 'string' ? data.operation_id : null);
@@ -288,6 +304,70 @@ export function SkillAuthoringPage() {
         </Card>
       ) : null}
 
+      {/* A skill como ÁRVORE de arquivos.
+
+          Uma skill de verdade costuma carregar mais que um markdown: um script Python que ela
+          executa, um `assets/`, um `reference/`. O registro sempre aceitou isso — a CLI publica
+          um zip desde o M12 — mas a TELA só tinha textarea, então quem escrevia uma skill com
+          script precisava de terminal para publicá-la. A assimetria era da superfície, não do
+          contrato. */}
+      <Card>
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Skill with scripts</h2>
+          </Card.Title>
+          <Card.Description>
+            If the skill is a folder — <code className="font-mono text-xs">SKILL.md</code> plus
+            Python/Bash scripts, assets, references — zip that folder and upload it here instead of
+            pasting the content above.
+          </Card.Description>
+        </Card.Header>
+        <div className="flex flex-col gap-3 px-6 pb-6">
+          <input
+            type="file"
+            accept=".zip,application/zip"
+            aria-label="Skill folder as a .zip"
+            className="text-sm file:mr-3 file:rounded-md file:border file:bg-muted file:px-3 file:py-1.5 file:text-sm"
+            onChange={(e) => {
+              const arquivo = e.target.files?.[0] ?? null;
+              // Sem arquivo é LIMPAR, não erro: o autor desistiu do zip e volta ao markdown.
+              if (arquivo === null) {
+                setZip(null);
+                setErroArquivo(null);
+                return;
+              }
+              const veredito = avaliarArquivo(arquivo);
+              if (!veredito.aceito) {
+                setZip(null);
+                setErroArquivo(veredito.motivo);
+                return;
+              }
+              void arquivo.arrayBuffer().then((buffer) => {
+                setZip({ nome: veredito.nome, base64: paraBase64(buffer) });
+                setErroArquivo(null);
+              });
+            }}
+          />
+          {erroArquivo !== null ? (
+            <Alert intent="destructive" title="This file cannot be uploaded" description={erroArquivo} />
+          ) : null}
+          {zip !== null ? (
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <p>
+                Publishing <strong>{zip.nome}</strong> — the content typed above will be ignored.
+              </p>
+              {/* Honestidade sobre o que NÃO acontece: `:validate` recebe markdown, não zip. Dizer
+                  "validado" aqui seria afirmar uma verificação que ninguém fez. O registro valida
+                  na ingestão, e a falha aparece no acompanhamento logo abaixo. */}
+              <p className="mt-1 text-xs text-muted-foreground">
+                A zip is not validated before publishing — the registry checks its structure during
+                ingestion, and any problem shows up in the operation below.
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </Card>
+
       <Card>
         <Card.Header>
           <Card.Title asChild>
@@ -312,11 +392,11 @@ export function SkillAuthoringPage() {
               critério. O botão desabilitado com o motivo ao lado ensina a regra sem erro. */}
           <Button
             onClick={() => publicar.mutate()}
-            disabled={skillId.trim() === '' || validada === null || publicar.isPending || operacaoId !== null}
+            disabled={skillId.trim() === '' || (zip === null && validada === null) || publicar.isPending || operacaoId !== null}
           >
             {publicar.isPending ? 'Sending…' : 'Publish'}
           </Button>
-          {validada === null ? (
+          {zip === null && validada === null ? (
             <span className="text-xs text-muted-foreground">Validate the content before publishing.</span>
           ) : null}
         </div>

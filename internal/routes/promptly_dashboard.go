@@ -111,10 +111,10 @@ func NewPromptlyDashboardHandler(r promptlyReader, p promptlyPromoter, logger *s
 // Nao e 200-com-lista-vazia, deliberadamente: "este inquilino nao tem prompts" e "nao consegui
 // perguntar" levam a decisoes opostas, e o segundo disfarcado do primeiro e um falso negativo
 // silencioso — a tela diria "crie seu primeiro prompt" durante uma queda do servico.
-const promptlyUnavailable = `{"code":"PROMPTLY_UPSTREAM_UNAVAILABLE","message":"o serviço de prompts não respondeu; nenhum dado foi lido"}`
+const promptlyUnavailable = `{"code":"PROMPTLY_UPSTREAM_UNAVAILABLE","message":"the prompts service did not respond; no data was read"}`
 
 // invalidPromotionBody e a recusa na FRONTEIRA: promover exige dizer PARA QUAL revisao.
-const invalidPromotionBody = `{"code":"INVALID_PROMOTION_BODY","message":"informe a revisão de destino da promoção"}`
+const invalidPromotionBody = `{"code":"INVALID_PROMOTION_BODY","message":"provide the target revision for the promotion"}`
 
 // maxPromotionBody limita o corpo aceito na promocao. O corpo legitimo tem um numero.
 const maxPromotionBody = 4 << 10
@@ -150,7 +150,7 @@ func (h *PromptlyDashboardHandler) corpoGrandeDemais(w http.ResponseWriter, r *h
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusRequestEntityTooLarge)
 	_, _ = fmt.Fprintf(w,
-		`{"code":"PAYLOAD_TOO_LARGE","message":"o conteúdo excede o limite de %d KiB por revisão"}`,
+		`{"code":"PAYLOAD_TOO_LARGE","message":"the content exceeds the limit of %d KiB per revision"}`,
 		maxPromptBody>>10)
 }
 
@@ -539,7 +539,7 @@ const (
 // usageUnavailable e o corpo da falha de LEITURA do uso. Nao e um agregado vazio,
 // deliberadamente: "nao consegui ler" e "ninguem usou este prompt" levam a decisoes
 // opostas, e o segundo disfarcado do primeiro faz a tela afirmar um fato que ninguem mediu.
-const usageUnavailable = `{"code":"PROMPTLY_USAGE_UNAVAILABLE","message":"não consegui ler o uso deste prompt; nenhum número foi lido"}`
+const usageUnavailable = `{"code":"PROMPTLY_USAGE_UNAVAILABLE","message":"could not read this prompt's usage; no number was read"}`
 
 // usageNotConfigured e a recusa quando o operador nao ligou o theo-lens.
 const usageNotConfigured = `{"code":"PROMPTLY_USAGE_NOT_CONFIGURED","message":"a leitura de uso exige o theo-lens configurado neste ambiente"}`

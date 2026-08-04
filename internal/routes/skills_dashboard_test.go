@@ -633,6 +633,14 @@ func (s *stubSkillsAuthor) CreateSkill(_ context.Context, skillID, skillMd strin
 	return json.RawMessage(`{"operation_id":"op_1"}`), nil
 }
 
+func (s *stubSkillsAuthor) CreateSkillFromZip(_ context.Context, skillID, zipBase64 string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seen = append(s.seen, "createzip:"+skillID+":"+strconv.Itoa(len(zipBase64)))
+	return json.RawMessage(`{"operation_id":"op_zip"}`), nil
+}
+
 func (s *stubSkillsAuthor) Operation(_ context.Context, id string) (json.RawMessage, error) {
 	if s.err != nil {
 		return nil, s.err
@@ -767,5 +775,82 @@ func TestAutoria_corpoVazioNaoChegaAoUpstream(t *testing.T) {
 	}
 	if len(author.seen) != 0 {
 		t.Fatalf("não deveria ter chamado o upstream: %v", author.seen)
+	}
+}
+
+
+// Upload de skill com scripts — uma skill que carrega Python/Bash é uma ARVORE, nao um markdown.
+//
+// O registro sempre aceitou `zippedFilesystem` (a CLI publica assim desde o M12). O BFF nao: ele
+// so decodificava `skill_md` e lia no maximo 1 MiB do corpo. Pela TELA, publicar uma skill com
+// script era impossivel — e nada dizia isso ao autor, porque o campo simplesmente nao existia.
+func TestCreate_aceitaZipEEncaminhaComoArvore(t *testing.T) {
+	author := &stubSkillsAuthor{}
+	semJWT := func(next http.Handler) http.Handler { return next }
+	r := chi.NewRouter()
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWT)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/skills",
+		strings.NewReader(`{"skill_id":"sk_com_script","zipped_filesystem":"UEsDBBQAAAA="}`))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("upload de zip deveria ser aceito (202), veio %d: %s", w.Code, w.Body.String())
+	}
+	// A rota do ZIP e OUTRA no cliente: `CreateSkill` mandaria `skillMd`, que o registro prioriza,
+	// e os scripts seriam descartados em silencio.
+	if len(author.seen) != 1 || !strings.HasPrefix(author.seen[0], "createzip:") {
+		t.Fatalf("o zip precisa viajar por CreateSkillFromZip, nao por CreateSkill: %v", author.seen)
+	}
+}
+
+func TestCreate_zipGrandeNaoEDecapitadoPeloTetoDeCorpo(t *testing.T) {
+	// O teto era 1 MiB. Um zip de skill com dependencias passa disso com folga, e o registro aceita
+	// ate ~35 MB (`DEFAULT_MAX_BODY_BYTES`). Com o teto antigo o JSON chegava TRUNCADO ao decoder,
+	// que devolvia erro de sintaxe — e a tela dizia "informe o identificador e o conteudo", culpando
+	// o autor por um limite que era nosso e nao estava escrito em lugar nenhum.
+	author := &stubSkillsAuthor{}
+	semJWT := func(next http.Handler) http.Handler { return next }
+	r := chi.NewRouter()
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWT)
+
+	grande := strings.Repeat("A", 3<<20) // 3 MiB de base64 — acima do teto antigo, abaixo do registro
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/skills",
+		strings.NewReader(`{"skill_id":"sk_grande","zipped_filesystem":"`+grande+`"}`))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("zip de 3 MiB deveria passar, veio %d: %s", w.Code, w.Body.String())
+	}
+	if len(author.seen) != 1 || !strings.Contains(author.seen[0], strconv.Itoa(len(grande))) {
+		t.Fatalf("o zip precisa chegar INTEIRO ao cliente: %v", author.seen)
+	}
+}
+
+func TestCreate_zipEMarkdownJuntosERecusado(t *testing.T) {
+	// Mandar os dois nao e ambiguidade a resolver por precedencia: e um pedido cuja intencao nao da
+	// para saber. O registro prioriza `skillMd` e descartaria o zip em SILENCIO — a skill entraria
+	// no acervo sem os scripts, com 202 e sem erro. Recusar na fronteira e fail-fast (Regra 8).
+	author := &stubSkillsAuthor{}
+	semJWT := func(next http.Handler) http.Handler { return next }
+	r := chi.NewRouter()
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWT)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/skills",
+		strings.NewReader(`{"skill_id":"sk_x","skill_md":"# a","zipped_filesystem":"UEsDBBQ="}`))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("os dois juntos precisam ser recusados, veio %d", w.Code)
+	}
+	if len(author.seen) != 0 {
+		t.Fatalf("nada deveria ter chegado ao upstream: %v", author.seen)
+	}
+	// E a recusa precisa DIZER o que fazer — senao o autor tenta de novo do mesmo jeito.
+	if !strings.Contains(w.Body.String(), "not both") {
+		t.Fatalf("a mensagem precisa nomear a escolha: %s", w.Body.String())
 	}
 }

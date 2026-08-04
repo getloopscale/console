@@ -1,5 +1,17 @@
 ## [Unreleased]
 
+### Added
+
+- **Publicar uma skill COM SCRIPTS pela tela.** Uma skill de verdade costuma ser uma pasta — o `SKILL.md`, um script Python que ela executa, um `assets/`, um `reference/` — e o formulário só tinha um campo de texto. O registro **sempre** aceitou a árvore inteira (um zip em base64) e a CLI publica assim desde o M12; a assimetria era da superfície, não do contrato: quem escrevia uma skill com script precisava de terminal. Agora a tela recebe o `.zip` da pasta. A recusa ensina em vez de julgar — enviar um `SKILL.md` solto responde *"zipe a pasta da skill"*, e um arquivo acima do teto diz **qual é o número** em vez de "arquivo inválido". A tela também declara o que **não** faz: um zip não é validado antes de publicar (o `:validate` recebe markdown), o registro confere a estrutura na ingestão, e uma falha aparece no acompanhamento da operação — dizer "validado" ali afirmaria uma verificação que ninguém fez.
+
+### Fixed
+
+- **Markdown e zip no mesmo pedido passam a ser recusados, em vez de aceitos pela metade.** O registro prioriza o markdown quando os dois chegam e **descarta os scripts em silêncio**: a skill entrava no acervo incompleta, com `202` e sem erro algum. A recusa nomeia a escolha ("markdown *ou* árvore zipada — não os dois"), porque "requisição inválida" faria o autor tentar do mesmo jeito.
+
+- **O teto de corpo do cadastro de skills subiu de 1 MiB para 36 MiB.** Foi dimensionado para um markdown; um zip de skill passa disso com folga. E o efeito do teto não era uma recusa clara: o JSON chegava **truncado** ao decodificador, que devolvia erro de sintaxe — e a tela dizia *"informe o identificador e o conteúdo"*, culpando o autor por um limite nosso que não estava escrito em lugar nenhum. O novo valor acompanha o do registro (~35 MB), para não recusar aqui o que o serviço aceitaria nem carregar na memória o que ele recusaria adiante.
+
+- **As mensagens de recusa das capacidades de skills, prompts e confiança passaram a sair em inglês.** Treze frases que chegam ao usuário quando uma ação é recusada continuavam em português depois da tradução das telas — a varredura anterior cobriu o que a interface renderiza dela mesma e **nunca olhou o Go**. O usuário via a tela em inglês e o motivo da recusa em português.
+
 ### Changed
 
 - **A capacidade de skills passa a falar inglês, como o resto do produto.** `api-keys` e `billing` sempre estiveram em inglês; as oito telas de skills respondiam em português, e o dashboard mudava de idioma conforme a tela que se abria. Traduzidos os textos visíveis das telas, os rótulos de estado (`in use` · `deprecated` · `discoverable` · `no vector`), as frases de confirmação das ações destrutivas, os itens do menu lateral e os `aria-label`. Comentários de código e identificadores internos permanecem: são para quem mantém, não para quem usa.

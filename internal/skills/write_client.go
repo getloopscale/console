@@ -164,6 +164,25 @@ func (c *DataClient) CreateSkill(ctx context.Context, skillID, skillMd string) (
 	return c.sendRaw(ctx, http.MethodPost, "/v1/skills", body)
 }
 
+// CreateSkillFromZip publica uma skill que é uma ÁRVORE de arquivos, não um único markdown.
+//
+// Uma skill com script (Python, Bash, um `assets/`) não cabe em `skillMd`. O registro sempre
+// aceitou isso — `POST /v1/skills` recebe `zippedFilesystem`, um zip em base64, e a CLI publica
+// por esse caminho desde o M12. O que faltava era a TELA: o BFF só sabia mandar `skillMd`, então
+// publicar uma skill com script exigia terminal. A assimetria era da superfície, não do contrato.
+//
+// `skillMd` NÃO acompanha o zip. O registro o prioriza quando presente, e mandar os dois faria o
+// zip ser descartado **em silêncio** — a skill entraria no acervo sem os scripts, com 202 e sem
+// erro algum. É exatamente a classe de falha que este ciclo vem perseguindo: um verde afirmando
+// um sucesso que não existe.
+func (c *DataClient) CreateSkillFromZip(ctx context.Context, skillID, zipBase64 string) (json.RawMessage, error) {
+	body, err := json.Marshal(map[string]string{"skill_id": skillID, "zippedFilesystem": zipBase64})
+	if err != nil {
+		return nil, fmt.Errorf("skills data client: encode create-from-zip body: %w", err)
+	}
+	return c.sendRaw(ctx, http.MethodPost, "/v1/skills", body)
+}
+
 // Operation lê o estado de uma operação de ingestão (`GET /v1/operations/:id`).
 //
 // É o que permite a tela **acompanhar** a publicação em vez de anunciar sucesso no 202 — que

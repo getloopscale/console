@@ -261,3 +261,36 @@ func TestDeleteSkill_recusaTipadaSobrevive(t *testing.T) {
 		t.Fatalf("o motivo precisa sobreviver para a tela explicar: %s", ue.Body)
 	}
 }
+
+func TestCreateSkillFromZip_enviaZippedFilesystem(t *testing.T) {
+	// Uma skill com scripts (Python, Bash) nao cabe num unico SKILL.md: ela e uma ARVORE de
+	// arquivos. O registro ja aceita isso desde sempre — `POST /v1/skills` recebe
+	// `zippedFilesystem`, um zip em base64, e guarda o resultado em `payload bytea`. A CLI usa
+	// esse caminho ha meses (`packages/cli/src/commands/publish.ts`).
+	//
+	// O que faltava era o BFF: ele so sabia mandar `skillMd`, entao pela TELA era impossivel
+	// publicar uma skill com script. A assimetria era da superficie, nao do contrato.
+	var corpo map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&corpo)
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"operation_id":"op_1"}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	if _, err := cli.CreateSkillFromZip(context.Background(), "minha-skill", "UEsDBBQ="); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if corpo["zippedFilesystem"] != "UEsDBBQ=" {
+		t.Fatalf("o zip precisa viajar como `zippedFilesystem`, que e o nome que o registro le: %v", corpo)
+	}
+	// `skillMd` NAO pode ir junto: o registro prioriza ele quando presente
+	// (`handlers/skills.ts:286-289`), e mandar os dois faria o zip ser silenciosamente ignorado —
+	// a skill entraria no acervo SEM os scripts, sem erro algum.
+	if _, presente := corpo["skillMd"]; presente {
+		t.Fatalf("`skillMd` nao deve acompanhar o zip — o registro o prioriza e descartaria os scripts: %v", corpo)
+	}
+}
