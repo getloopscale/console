@@ -137,7 +137,9 @@ export function SkillsCatalogPage() {
                   afirmaria sobre o acervo um número que só vale para o que está na tela. O `+N`
                   conta CATEGORIAS ocultas, não skills. */}
               {chips.excedente > 0 ? (
-                <span className="text-xs text-muted-foreground">+{chips.excedente} categorias</span>
+                <span className="text-xs text-muted-foreground">
+                  +{chips.excedente} {chips.excedente === 1 ? 'categoria' : 'categorias'}
+                </span>
               ) : null}
             </div>
           ) : null}
