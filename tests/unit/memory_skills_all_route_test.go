@@ -42,8 +42,8 @@ func TestMemorySkillsAllRoute_Ok_WithMemoryRead(t *testing.T) {
 		WithArgs(hashOf(secret)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "subject", "tenant_id", "account_id", "scopes", "expires_at"}).
 			AddRow("apk-skills-all-1", "sub-xyz", "tenant-A", nil, []byte(`["memory:read"]`), nil))
-	mock.ExpectExec("UPDATE theo_api_keys SET last_used_at").
-		WithArgs("apk-skills-all-1").
+	mock.ExpectExec("UPDATE theo_api_keys").
+		WithArgs("apk-skills-all-1", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	req := httptest.NewRequest("GET", "/v1/memory/skills/all?subject=attacker-supplied&limit=25", nil)
