@@ -16,7 +16,7 @@ import (
 // promptlyDashMinter é a porta que a fiação consome do broker (ISP): apenas a cunhagem escopada.
 type promptlyDashMinter interface {
 	KeyForTenantScoped(ctx context.Context, accountID, tenantID string, want []string) (string, error)
-	KeyForUser(ctx context.Context, accountID, tenantID, userID, role string, want []string) (string, error)
+	KeyForUser(ctx context.Context, accountID, tenantID, userID, role, email string, want []string) (string, error)
 }
 
 // newPromptlyDashboardKeyResolver devolve o resolver por requisição do caminho de LEITURA.
@@ -80,7 +80,13 @@ func newPromptlyPromotionKeyResolver(minter promptlyDashMinter) func(ctx context
 			papel = "member"
 		}
 		// Idem: namespace do cloud. Ver o comentário no resolver de leitura e o `#366`.
-		return minter.KeyForUser(ctx, u.AccountID, u.TenantID, u.Subject, papel,
+		if u.Email == "" {
+			// Fail-closed pelo mesmo motivo do sujeito: o serviço exige o e-mail para materializar
+			// a pessoa, e inventá-lo gravaria um fato falso. Sessão sem e-mail é sessão que não
+			// identifica ninguém.
+			return "", fmt.Errorf("promptly promotion: authenticated session without an email")
+		}
+		return minter.KeyForUser(ctx, u.AccountID, u.TenantID, u.Subject, papel, u.Email,
 			[]string{"promptly:read", "promptly:write"})
 	}
 }
