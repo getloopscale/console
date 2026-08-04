@@ -21,6 +21,7 @@ import {
   fetchLabels,
   fetchPolicy,
   fetchPrompt,
+  fetchPromptUsage,
   fetchRevisions,
   promoteLabel,
   rollbackPrompt,
@@ -35,6 +36,7 @@ import {
   type PromotionPolicy,
   type RevisionRow,
 } from '@/components/promptly/projections';
+import { projetarUso, type AgregadoDeUso, type LinhaDeUso } from '@/components/promptly/usage';
 
 /**
  * M25 — `/promptly/:promptName`: as revisões de um prompt e a promoção de um label.
@@ -59,6 +61,18 @@ import {
 
 /** Pequeno e EXPLÍCITO — ver o comentário acima. Nunca o default do serviço. */
 const REVISIONS_LIMIT = 10;
+
+// M15 — a janela do agregado de uso. Curta por padrão e DITA na tela (ver a coluna "Uso"):
+// implícita, o operador atribuiria o número ao período errado.
+const USAGE_WINDOW_DAYS = 7;
+
+/** A linha crua do agregado, como o BFF a repassa do `theo-lens`. */
+interface LinhaDoAgregadoBruta {
+  readonly revision: number;
+  readonly resolutions: number;
+  readonly totalTokens: number;
+  readonly costUsd: number | null;
+}
 
 export function PromptDetailPage() {
   const { promptName = '' } = useParams();
@@ -113,9 +127,26 @@ export function PromptDetailPage() {
     retry: false,
   });
 
+  // M15 — o uso observado por revisão. Janela CURTA por padrão e DITA na tela: um agregado
+  // "desde sempre" varre a tabela de spans do ecossistema inteiro, e uma janela implícita faz
+  // o operador atribuir o número ao período errado.
+  const uso = useQuery({
+    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'usage', USAGE_WINDOW_DAYS],
+    queryFn: () => fetchPromptUsage<{ rows: LinhaDoAgregadoBruta[] }>(promptName, USAGE_WINDOW_DAYS),
+    enabled: promptName !== '',
+    retry: false,
+  });
+
   const linhas = revisionRows(revisions.data);
   const ponteiros = labelRows(labels.data);
   const revisionsFailed = Boolean(revisions.error);
+  // Três estados, nunca colapsados — a projeção é quem decide, e ela é testada fora do React.
+  const agregado: AgregadoDeUso = uso.error
+    ? { estado: 'nao-lido', razao: 'não consegui ler o uso deste prompt' }
+    : { estado: 'lido', rows: uso.data?.rows ?? [] };
+  const usoPorRevisao = new Map<number, LinhaDeUso>(
+    projetarUso(agregado, linhas.map((l) => l.version)).map((l) => [l.revision, l]),
+  );
   const labelsFailed = Boolean(labels.error);
 
   // ── M12: reverter ──────────────────────────────────────────────────────────────────────
@@ -212,6 +243,39 @@ export function PromptDetailPage() {
           ) : null}
         </div>
       ),
+    },
+    {
+      key: 'uso',
+      label: `Uso (${String(USAGE_WINDOW_DAYS)} dias)`,
+      render: (row) => {
+        const u = usoPorRevisao.get(row.version);
+        if (u === undefined || u.estado === 'nao-lido') {
+          // Nunca um zero: um zero aqui afirmaria um fato que ninguém mediu.
+          return (
+            <span className="text-xs text-destructive">
+              {u?.razao ?? 'não consegui ler o uso deste prompt'}
+            </span>
+          );
+        }
+        if (u.estado === 'sem-chamadas') {
+          return <span className="text-xs text-muted-foreground">sem chamadas no período</span>;
+        }
+        return (
+          <div className="space-y-0.5">
+            <div className="font-mono text-xs">{u.chamadas}</div>
+            {u.custoUsd !== undefined ? (
+              <div className="font-mono text-[10px] text-muted-foreground">
+                US$ {u.custoUsd.toFixed(4)}
+              </div>
+            ) : (
+              <div className="text-[10px] text-muted-foreground">
+                {u.razaoDoCusto} — o custo só é atribuído quando a resolução e a chamada ao
+                modelo acontecem no mesmo trace
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'reverter',
