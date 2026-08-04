@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **a tela de avaliadores desenhava a linha por cima do período sem amostra** (#395). O código dizia a coisa certa e fazia a errada: o comentário da função — e o do teste ao lado — afirmavam *"a gap, never a fabricated 0"*, e a implementação **omitia a entrada** em vez de marcá-la como ausente. As duas coisas parecem iguais e não são: o gráfico só quebra a linha onde encontra um valor não-finito, e uma entrada que não existe ele nunca vê. O resultado era uma linha reta atravessando um período em que ninguém mediu nada — afirmando continuidade que o dado não tem, na tela cujo propósito é julgar qualidade. Agora toda série cobre o eixo inteiro, com lacuna explícita onde não houve amostra. **Não é zero**: uma média sobre zero amostras é indefinida, e essa é a mesma distinção que os KPIs desta tela já aplicavam — contagem aceita zero honesto, taxa não.
+
 ### Added
 
 - **o gráfico de consumo por usuário passou a dizer QUE DIA foi cada ponto** (`usetheodev/usetheo-ui#17`). O eixo não tinha rótulo algum e a tabela para leitor de tela numerava — `Point 1, 2, 3`. Num gráfico chamado "Custo por dia", dava para ver que houve um pico e não havia caminho para saber quando. Agora o eixo é datado, a tabela acessível traz a data no lugar do ordinal, e passar o cursor mostra uma linha vertical com a data e o valor de cada série. As datas são formatadas em **UTC**, como o serviço agrupa: formatar no fuso do navegador deslocaria o rótulo em relação ao balde que ele nomeia, e um gráfico que diz "21/07" sobre o balde de 22/07 erra com confiança.
