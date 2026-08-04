@@ -84,11 +84,12 @@ export function SkillsOverviewPage() {
   );
 
   useEffect(() => {
-    if (pagina.length === 0) return;
-    // Mescla POR IDENTIFICADOR: um refetch entrega a mesma página de novo, e concatenar
-    // cegamente faria a contagem mentir e a `key` do React colidir.
-    setPaginas((atual) => mesclarPaginas(atual, pagina));
-  }, [pagina]);
+    // A primeira página SUBSTITUI o acervo; as seguintes acumulam. Sem essa distinção, apagar
+    // uma skill deixava a apagada na tela — o refetch mesclava, e mesclar nunca remove.
+    const primeira = tokenAtual === undefined;
+    if (pagina.length === 0 && !primeira) return;
+    setPaginas((atual) => mesclarPaginas(atual, pagina, { primeira }));
+  }, [pagina, tokenAtual]);
 
   const acervo = paginas.length > 0 ? paginas : pagina;
   const rows = filtrarAcervo(acervo, filtro);

@@ -82,3 +82,33 @@ describe('filtrarAcervo', () => {
     expect(filtrarAcervo(acervo, 'inexistente')).toEqual([]);
   });
 });
+
+describe('mesclarPaginas — a PRIMEIRA página substitui', () => {
+  it('recarregar a primeira página REMOVE o que sumiu do servidor', () => {
+    // Defeito medido no CI em 2026-08-04: depois de apagar uma skill, o refetch da primeira
+    // página mesclava no acervo acumulado e a apagada CONTINUAVA na tela. Mesclar nunca remove.
+    //
+    // A primeira página é o começo da lista: recarregá-la significa "o acervo mudou". Páginas
+    // SEGUINTES acumulam; a primeira substitui.
+    const antes = [linha('a'), linha('b'), linha('c')];
+    const depoisDeApagarB = [linha('a'), linha('c')];
+
+    expect(mesclarPaginas(antes, depoisDeApagarB, { primeira: true }).map((s) => s.skill_id)).toEqual([
+      'a',
+      'c',
+    ]);
+  });
+
+  it('páginas SEGUINTES continuam acumulando — senão a paginação não pagina', () => {
+    const primeira = [linha('a'), linha('b')];
+    expect(mesclarPaginas(primeira, [linha('c')], { primeira: false }).map((s) => s.skill_id)).toEqual([
+      'a',
+      'b',
+      'c',
+    ]);
+  });
+
+  it('sem a opção, o comportamento é acumular — o padrão de quem chama "carregar mais"', () => {
+    expect(mesclarPaginas([linha('a')], [linha('b')]).map((s) => s.skill_id)).toEqual(['a', 'b']);
+  });
+});

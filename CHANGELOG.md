@@ -57,6 +57,8 @@
 
 - **O acervo de skills aguenta escala (M31).** `next_page_token` estava **tipado e não usado**: acima do teto de uma página o excedente sumia **sem erro algum**, e a tela dizia "12 no acervo" com 300 lá dentro. Agora há paginação real (*carregar mais*) e a contagem diz **o que é** — quantas estão carregadas, e se há mais.
 
+  A **primeira** página substitui o acervo carregado; as seguintes acumulam. Sem essa distinção, apagar uma skill a deixava na tela: o refetch mesclava, e **mesclar nunca remove**. Encontrado pelo CI, não pelo teste local.
+
   O filtro por nome, descrição ou identificador **declara seu alcance**: filtra o que está carregado, e aponta para a Descoberta quando a busca precisa varrer o acervo inteiro. Um filtro que parece varrer tudo e varre uma página é pior que filtro nenhum — leva o operador a concluir que a skill não existe. Ignora acento, porque quem digita com pressa não acentua (#m31)
 
 - **Governança: apagar uma skill pela tela (M31).** A auditoria mediu o absurdo — o acervo tinha uma skill que **se descreve** como *"pode ser removida"* e não havia como removê-la, embora `DELETE /v1/skills/:id` exista há milestones. A `DangerZone` diz a consequência específica (o identificador fica **reservado**, e quem o referencia passa a receber erro), exige frase digitada, e oferece a alternativa **reversível antes** do botão destrutivo: quem quer só parar de recomendar precisa saber que descontinuar não quebra quem já usa.

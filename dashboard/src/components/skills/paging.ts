@@ -33,7 +33,20 @@ export interface SkillLinha {
  * A versão mais RECENTE vence — entre uma página e outra a skill pode ter sido editada, e manter
  * a antiga exibiria dado velho ao lado de dado novo sem nada indicando qual é qual.
  */
-export function mesclarPaginas(atual: readonly SkillLinha[], nova: readonly SkillLinha[]): SkillLinha[] {
+export function mesclarPaginas(
+  atual: readonly SkillLinha[],
+  nova: readonly SkillLinha[],
+  opts: { readonly primeira?: boolean } = {},
+): SkillLinha[] {
+  // A PRIMEIRA página SUBSTITUI, não mescla — e isto não é detalhe.
+  //
+  // Medido no CI em 2026-08-04: depois de apagar uma skill, o refetch da primeira página era
+  // mesclado no acervo acumulado e a apagada **continuava na tela**. Mesclar nunca remove.
+  //
+  // A primeira página é o começo da lista: recarregá-la significa "o acervo mudou". Páginas
+  // SEGUINTES acumulam, que é o que faz "carregar mais" funcionar.
+  if (opts.primeira === true) return [...nova];
+
   if (nova.length === 0) return [...atual];
 
   const porId = new Map<string, SkillLinha>();
