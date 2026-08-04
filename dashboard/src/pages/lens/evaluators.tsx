@@ -351,31 +351,6 @@ export function LensEvaluatorsPage() {
             )
           ) : null}
 
-          {query.isLoading ? (
-            <ListSkeleton label="evaluators" />
-          ) : query.isError ? (
-            <Alert intent="warning" title="Could not load evaluators">
-              The lens service is unavailable. Try again shortly.
-            </Alert>
-          ) : evaluators.length === 0 ? (
-            <EmptyState
-              title="No evaluators yet"
-              description="Create your first evaluator to score traces."
-              action={
-                <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
-                  Create your first evaluator
-                </Button>
-              }
-            />
-          ) : (
-            <Card>
-              <DataTable columns={columns} data={evaluators} rowKey={(row) => row.id} />
-            </Card>
-          )}
-
-          {rename.isError ? (
-            <Alert intent="warning" title="Could not rename the evaluator" description={writeErrorMessage(rename.error)} data-testid="rename-error" />
-          ) : null}
 
           {/* M90 — score over time: is eval quality trending up or down? One mean-line per numeric
               evaluator over the selected range. Categorical-only evaluators are not plotted on a mean
@@ -431,6 +406,33 @@ export function LensEvaluatorsPage() {
               </Card>
             )}
           </section>
+
+          {query.isLoading ? (
+            <ListSkeleton label="evaluators" />
+          ) : query.isError ? (
+            <Alert intent="warning" title="Could not load evaluators">
+              The lens service is unavailable. Try again shortly.
+            </Alert>
+          ) : evaluators.length === 0 ? (
+            <EmptyState
+              title="No evaluators yet"
+              description="Create your first evaluator to score traces."
+              action={
+                <Button variant="secondary" size="sm" onClick={() => setCreateOpen(true)}>
+                  Create your first evaluator
+                </Button>
+              }
+            />
+          ) : (
+            <Card>
+              <DataTable columns={columns} data={evaluators} rowKey={(row) => row.id} />
+            </Card>
+          )}
+
+          {rename.isError ? (
+            <Alert intent="warning" title="Could not rename the evaluator" description={writeErrorMessage(rename.error)} data-testid="rename-error" />
+          ) : null}
+
         </div>
       </PageShell>
 

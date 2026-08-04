@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+### Changed
+
+- **O gráfico de scores passou para logo acima da lista de avaliadores.** Com a lista ocupando a primeira dobra, a tendência nascia abaixo dela e podia nunca ser vista — e *"a qualidade está subindo ou caindo?"* é a pergunta de abertura desta tela; *"quais avaliadores existem"* é a segunda. É a mesma correção que o consumo por usuário pagou no M144, pelo mesmo motivo. Um teste trava a ordem no documento, para ela não voltar em silêncio no próximo refactor.
+
+### Fixed
+
+- **A tela de avaliadores não compilava.** Um bloco de 51 linhas — cópia exata do modal de criação, terminada num `</PageShell>` órfão — tinha sido varrido por engano para dentro de um commit sobre o acervo de skills, que não toca esta tela. O `tsc` acusava fragmento JSX sem fechamento desde então, e o `dashboard` do CI reprovaria na promoção (o `npm run build` já é `tsc -b`). Removido; o duplicado era idêntico ao original em 48 das 49 linhas.
+
+
 ### Added
 
 - **O catálogo de prompts deixa o operador escolher quantos prompts pedir por vez (M13).** Dez, vinte e cinco, cinquenta ou cem — e a escolha vive no endereço, então o link é colável como já era o do recorte. Um acervo grande precisa disso; e, sem isso, a marca de *"há mais no servidor"* que o M13 construiu era **inalcançável** em qualquer workspace com menos de cem prompts, o que deixou o critério correspondente sem verificação na aceitação de 2026-08-03. O controle serve ao operador; que ele também torne o critério verificável é consequência, não motivo (#m13)
