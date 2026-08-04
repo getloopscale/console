@@ -316,3 +316,65 @@ func TestDoisUsuariosDoMesmoTenantNaoCompartilhamChave(t *testing.T) {
 		t.Fatalf("mints = %d, quero 2 — a terceira chamada repete u-ana e deve sair do cache", s.n)
 	}
 }
+
+// A autoridade de uma chave não é a que o broker declarou ao cunhá-la — é a que a membership
+// disser no MOMENTO DO USO. E a membership é global por (workspace, usuário): declarar de novo com
+// outro papel sobrescreve a anterior.
+//
+// A sequência que isto reproduz foi medida ao vivo na quarta rodada de aceitação do M18:
+//
+//	papel=owner   → cunha K1, cacheada
+//	papel=member  → miss → cunha K2 E DECLARA member  (a membership global vira member)
+//	papel=owner   → HIT em K1 … que agora resolve como member
+//
+// O efeito é pior que um cache velho: é um cache que devolve uma chave cuja autoridade foi
+// rebaixada pelas costas. Um operador promovido de volta a admin continuaria barrado, sem nada
+// no sistema explicando por quê — e, na direção oposta, um rebaixamento só valeria depois que
+// alguma outra chamada acidentalmente re-declarasse.
+func TestPapelQueVoltaAoOriginalERedeclarado(t *testing.T) {
+	s := &stubIdentidade{}
+	b, err := NewBroker(s, 8, time.Minute, []string{"prompt:read", "prompt:write"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	esc := []string{"promptly:write"}
+
+	if _, err := b.KeyForUser(ctx, "acc", "tn", "u", "owner", "u@x.test", esc); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.KeyForUser(ctx, "acc", "tn", "u", "member", "u@x.test", esc); err != nil {
+		t.Fatal(err)
+	}
+	// A volta: cache HIT na entrada de `owner`.
+	if _, err := b.KeyForUser(ctx, "acc", "tn", "u", "owner", "u@x.test", esc); err != nil {
+		t.Fatal(err)
+	}
+
+	ultima := s.membros[len(s.membros)-1]
+	if ultima != "tn|u|owner|u@x.test" {
+		t.Fatalf("última declaração = %q, quero owner — sem re-declarar, a chave cacheada segue com a autoridade que a declaração ANTERIOR deixou no lugar", ultima)
+	}
+}
+
+// O contrapeso: re-declarar não pode virar uma chamada por requisição. Quando nada mudou, nada é
+// declarado de novo — senão o custo do gate cresce com o tráfego, e um gate caro é um gate que
+// alguém desliga.
+func TestPapelInalteradoNaoRedeclara(t *testing.T) {
+	s := &stubIdentidade{}
+	b, err := NewBroker(s, 8, time.Minute, []string{"prompt:read", "prompt:write"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	esc := []string{"promptly:write"}
+
+	for i := 0; i < 3; i++ {
+		if _, err := b.KeyForUser(ctx, "acc", "tn", "u", "owner", "u@x.test", esc); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(s.membros) != 1 {
+		t.Fatalf("declarações = %d, quero 1 — o papel não mudou", len(s.membros))
+	}
+}

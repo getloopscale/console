@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -61,6 +62,12 @@ type Broker struct {
 	scopes []string
 	// now is the clock (injectable for deterministic TTL tests). Defaults to time.Now.
 	now func() time.Time
+
+	// declarados guarda o ÚLTIMO papel declarado por (workspace, usuário) — ver
+	// `declararSeMudou`. Protegido por `mu` porque o broker serve requisições concorrentes, e
+	// duas com papéis diferentes para o mesmo usuário escreveriam aqui ao mesmo tempo.
+	mu         sync.Mutex
+	declarados map[string]string
 }
 
 // NewBroker constructs a broker. size bounds the LRU; ttl is the cache freshness
@@ -80,7 +87,8 @@ func NewBroker(admin minter, size int, ttl time.Duration, scopes []string) (*Bro
 	if err != nil {
 		return nil, fmt.Errorf("promptly broker: lru.New: %w", err)
 	}
-	return &Broker{admin: admin, cache: cache, ttl: ttl, scopes: scopes, now: time.Now}, nil
+	return &Broker{admin: admin, cache: cache, ttl: ttl, scopes: scopes, now: time.Now,
+		declarados: map[string]string{}}, nil
 }
 
 // KeyForTenantScoped mints/loads a per-tenant key carrying ONLY the LEAST-
@@ -122,6 +130,32 @@ func (b *Broker) KeyForTenantScoped(ctx context.Context, accountID, tenantID str
 	return res.(string), nil
 }
 
+// declararSeMudou mantém a membership do serviço igual ao papel corrente — e só fala com a rede
+// quando ela de fato mudou.
+//
+// O par de restrições é o que torna isto delicado: a autoridade de uma chave é lida da membership
+// NO MOMENTO DO USO, e a membership é única por (workspace, usuário). Logo, declarar um papel para
+// servir uma requisição altera a autoridade de TODA chave daquele usuário — inclusive as
+// cacheadas. Re-declarar a cada requisição resolveria e custaria uma chamada por requisição; um
+// gate caro é um gate que alguém acaba desligando. Lembrar o último papel declarado dá as duas
+// coisas: correção quando muda, silêncio quando não muda.
+func (b *Broker) declararSeMudou(ctx context.Context, tenantID, userID, role, email string) error {
+	chave := tenantID + "\x00" + userID
+	b.mu.Lock()
+	atual, visto := b.declarados[chave]
+	b.mu.Unlock()
+	if visto && atual == role {
+		return nil
+	}
+	if err := b.admin.DeclareMember(ctx, tenantID, userID, role, email); err != nil {
+		return err
+	}
+	b.mu.Lock()
+	b.declarados[chave] = role
+	b.mu.Unlock()
+	return nil
+}
+
 // KeyForUser cunha (e cacheia) a credencial de UM HUMANO dentro do inquilino.
 //
 // Existe porque a aceitação do M18 mediu o custo de não existir: a chave por inquilino não
@@ -158,10 +192,18 @@ func (b *Broker) KeyForUser(ctx context.Context, accountID, tenantID, userID, ro
 	}
 	cacheKey := accountID + "\x00" + tenantID + "\x00" + userID + "\x00" + role + "\x00" + strings.Join(scopes, ",")
 	if v, ok := b.cache.Get(cacheKey); ok && b.now().Before(v.expiresAt) {
+		// A chave está cacheada, mas a AUTORIDADE dela não vive nela — vive na membership, que é
+		// global por (workspace, usuário) e pode ter sido sobrescrita por outra entrada de cache
+		// deste mesmo usuário com outro papel. Sem esta re-declaração, um cache hit devolve uma
+		// chave rebaixada pelas costas. Medido ao vivo: owner → member → owner devolvia a chave de
+		// owner resolvendo como member.
+		if dErr := b.declararSeMudou(ctx, tenantID, userID, role, email); dErr != nil {
+			return "", dErr
+		}
 		return v.secret, nil
 	}
 	res, err, _ := b.sf.Do(cacheKey, func() (any, error) {
-		if dErr := b.admin.DeclareMember(ctx, tenantID, userID, role, email); dErr != nil {
+		if dErr := b.declararSeMudou(ctx, tenantID, userID, role, email); dErr != nil {
 			return nil, dErr
 		}
 		r, mErr := b.admin.MintKeyForUser(ctx, tenantID, "gw-"+tenantID+"-"+userID, scopes, userID)
