@@ -3,7 +3,7 @@
  * `MetricTrendChart` series. Deterministic + unit-tested (no DOM). The by-model pivot collapses
  * high-cardinality models into an "Others" series (opik convergence) so the line count stays legible.
  */
-import type { PercentileBucket, TrendPoint, TrendSeries } from '@usetheo/ui';
+import type {PercentileBucket, TrendSeries} from '@usetheo/ui';
 
 export interface TrafficBucket {
   periodStart: string;
@@ -158,15 +158,26 @@ export function scoresToSeries(buckets: ScoreBucket[], topN = 6): TrendSeries[] 
   const names = [...volByName.entries()].sort((a, b) => b[1] - a[1]).slice(0, topN).map(([n]) => n);
   const nameSet = new Set(names);
 
-  const pointsByName = new Map<string, TrendPoint[]>();
-  for (const n of names) pointsByName.set(n, []);
+  // Um mapa por avaliador, e depois o eixo INTEIRO — não só os períodos em que ele pontuou.
+  //
+  // A versão anterior fazia `push` só onde havia balde, e o resultado era uma série mais CURTA com
+  // `x` que saltava. O `seriesPath` do `@usetheo/ui` quebra a linha onde encontra um `y`
+  // não-finito, e uma entrada ausente ele nunca vê — então a linha era desenhada por cima do
+  // período sem amostra, afirmando continuidade que o dado não tem. O docstring desta função
+  // sempre disse o contrário ("a gap, never a fabricated 0"), e o teste ao lado codificava a
+  // omissão. `usetheoai/theo-cloud#395`.
+  //
+  // `NaN` e não `0`: uma média sobre zero amostras é **indefinida**, não zero. É a distinção que o
+  // próprio produto já aplica nos KPIs — contagem aceita zero honesto, taxa não (`widgets.ts`).
+  const porNome = new Map<string, Map<number, number>>();
+  for (const n of names) porNome.set(n, new Map());
   for (const b of numeric) {
     if (!nameSet.has(b.name)) continue;
-    pointsByName.get(b.name)!.push({ x: idx.get(b.periodStart)!, y: b.avgScore! });
+    porNome.get(b.name)!.set(idx.get(b.periodStart)!, b.avgScore!);
   }
   return names.map((n, i) => ({
     name: n,
     color: PALETTE[i % PALETTE.length],
-    points: pointsByName.get(n)!.slice().sort((a, b) => a.x - b.x),
+    points: periods.map((_, x) => ({ x, y: porNome.get(n)!.get(x) ?? Number.NaN })),
   }));
 }
