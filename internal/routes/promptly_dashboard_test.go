@@ -811,3 +811,29 @@ func TestForbiddenSemCodigoTipadoContinuaVirando502(t *testing.T) {
 		t.Fatalf("status = %d, quero 502 — um 403 por credencial do plano de controle é defeito de fiação, não recusa do usuário", rec.Code)
 	}
 }
+
+// A recusa por LABEL PROTEGIDO é a mesma classe da recusa por papel, e por um tempo eu só conhecia
+// uma delas.
+//
+// Medido na quarta rodada de aceitação do M18: com `production` protegido, um `member` teve a
+// promoção corretamente barrada, e o serviço explicou em português — "label production exige papel
+// admin; quem tentou tem member". A tela mostrou "o serviço de prompts não respondeu".
+//
+// O gate funcionou; a explicação se perdeu. E é a explicação que diz ao operador o que fazer —
+// sem ela, ele conclui indisponibilidade e tenta de novo, para sempre.
+func TestRecusaPorLabelProtegidoChegaAoNavegadorIntacta(t *testing.T) {
+	corpo := `{"error":"label_protected","message":"label production exige papel admin; quem tentou tem member","label":"production","required":"admin","actual":"member"}`
+	app := montarComUpstream(t, http.StatusForbidden, corpo)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/dashboard/promptly/prompts/p/labels/production",
+		strings.NewReader(`{"version":7}`))
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, quero 403 — o gate barrou de propósito, isto não é indisponibilidade", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != corpo {
+		t.Fatalf("corpo = %s\nquero  = %s", got, corpo)
+	}
+}

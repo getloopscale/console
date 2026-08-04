@@ -94,9 +94,16 @@ export function SkillAuthoringPage() {
       diagnoseDiscoverability<Diagnostico>(
         validada?.name ?? '',
         validada?.description ?? '',
-        // Um rascunho ainda não publicado NÃO tem vetor — e isso não é defeito dele. Declarar
-        // `true` aqui esconderia a causa mais comum de uma skill nova não ser achada.
-        false,
+        // Um rascunho ainda não publicado NÃO tem vetor — e isso não é defeito dele.
+        //
+        // O comentário acima já estava aqui, e a linha abaixo dele dizia `false`, que faz o
+        // serviço acusar exatamente disso. `no_embedding` disparava sempre e ENCOBRIA as causas
+        // que o autor pode corrigir agora: descrição genérica e colisão com uma vizinha
+        // (theo-skills#144).
+        //
+        // `{ publicada: false }` omite o campo, e a ausência é o que diz ao serviço que a
+        // pergunta é "minha descrição está boa?", não "por que não me acham?".
+        { publicada: false },
       ),
     onSuccess: (d) => setAchabilidade(d),
     onError: () => setAchabilidade(null),

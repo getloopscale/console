@@ -1,4 +1,8 @@
 import { ApiError, cloudFetch } from '@/lib/api';
+import {
+  corpoDoDiagnostico,
+  type EstadoDaCandidata,
+} from '@/components/skills/discoverability-request';
 
 /**
  * M26 — o único ponto por onde as telas de skills falam com o BFF.
@@ -313,14 +317,17 @@ export function validationDiagnostic(err: unknown): { message: string; field?: s
 export function diagnoseDiscoverability<T>(
   name: string,
   description: string,
-  hasEmbedding: boolean,
+  estado: EstadoDaCandidata,
 ): Promise<T | null> {
   return cloudFetch<T>(
     `${BASE}/:discoverability`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, has_embedding: hasEmbedding }),
+      // O corpo é montado por uma função PURA e testada: o defeito da theo-skills#144 era
+      // exatamente ele — `has_embedding: false` fixo para um rascunho — e, montado inline aqui,
+      // nenhum teste o alcançava.
+      body: JSON.stringify(corpoDoDiagnostico(name, description, estado)),
     },
     { throwOnError: true },
   );

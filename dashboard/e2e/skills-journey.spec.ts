@@ -617,6 +617,38 @@ test.describe('M34 — descobribilidade diagnosticada no momento da autoria', ()
     // alguém compararia resultados incomparáveis sem perceber.
     await expect(page.getByText('stub/stub')).toBeVisible();
   });
+
+  test('um rascunho NÃO é acusado de não ter vetor — theo-skills#144', async ({ page }) => {
+    // MEDIDO no app-dev em 2026-08-04: a tela mandava `has_embedding: false` fixo, e como a skill
+    // ainda não existe o serviço respondia `no_embedding` com o conselho "Republique para gerar o
+    // vetor" — impossível para algo nunca publicado.
+    //
+    // O dano não era o conselho inútil: a causa disparava SEMPRE e dominava o veredito, encobrindo
+    // as que o autor podia corrigir ali mesmo. Ele perguntava "minha descrição está boa?" e a tela
+    // respondia sobre outra coisa.
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^nova skill$/i }).click();
+
+    // Descrição LONGA de propósito: acima do piso, para que a única causa candidata a aparecer
+    // fosse a falta de vetor. Com descrição curta o teste passaria por acidente.
+    const descricao =
+      'Le o contrato em PDF e destaca as clausulas de rescisao, multa e foro que divergem do padrao da empresa, para revisao juridica.';
+    await page
+      .getByLabel('Conteúdo da skill')
+      .fill(`---\nname: revisar-contrato\ndescription: ${descricao}\n---\n\n# corpo`);
+    await page.getByRole('button', { name: /validar sem publicar/i }).click();
+    await page.getByRole('button', { name: /diagnosticar descobribilidade/i }).click();
+
+    // O que NÃO pode aparecer: a acusação e o conselho impossível.
+    await expect(page.getByText(/não tem vetor/i)).toHaveCount(0);
+    await expect(page.getByText(/republique/i)).toHaveCount(0);
+
+    // E o que deve: a ressalva honesta de que ela ainda não está no acervo. Calar sobre isso
+    // deixaria o autor achando que já está resolvido.
+    await expect(page.getByText(/ainda não está no acervo/i)).toBeVisible();
+  });
 });
 
 test.describe('M31 — nenhuma tela morta: toda rota aninhada tem volta à origem', () => {
