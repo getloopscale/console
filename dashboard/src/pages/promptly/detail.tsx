@@ -72,6 +72,7 @@ interface LinhaDoAgregadoBruta {
   readonly resolutions: number;
   readonly totalTokens: number;
   readonly costUsd: number | null;
+  readonly p50LatencyMs: number | null;
 }
 
 export function PromptDetailPage() {
@@ -263,6 +264,10 @@ export function PromptDetailPage() {
         return (
           <div className="space-y-0.5">
             <div className="font-mono text-xs">{u.chamadas}</div>
+            <div className="font-mono text-[10px] text-muted-foreground">
+              {u.latenciaP50Ms !== undefined ? `${u.latenciaP50Ms.toFixed(1)} ms` : 'latência não medida'}
+              {u.tokens !== undefined ? ` · ${String(u.tokens)} tokens` : null}
+            </div>
             {u.custoUsd !== undefined ? (
               <div className="font-mono text-[10px] text-muted-foreground">
                 US$ {u.custoUsd.toFixed(4)}

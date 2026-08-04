@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- **A coluna de uso passa a mostrar os QUATRO números que o milestone pede** — chamadas, **latência mediana**, tokens e custo por revisão. A primeira entrega trazia dois: o plano estreitou o critério ao mapear a Coverage Matrix, e a checagem estrutural não pegou porque ela confere que o bullet tem *uma task*, não que tem *todos os números*. Descoberto na aceitação, ao ler o `ROADMAP.md` em vez do plano. A latência é a da **resolução** — o que o span `prompt.resolve` mede —, não a do trace: o trace inclui a chamada ao modelo, que é ordens de grandeza mais lenta e responderia "quanto demora o agente", não "quanto custa resolver este prompt" (#m15)
+
 ### Fixed
 
 - **A coluna de uso afirmava `US$ 0,0000` para uma resolução cujo custo nunca foi medido.** Encontrado na aceitação contra o `app-dev`, não em teste: o `theo-lens` grava `traces.cost_usd = 0` — e não `null` — para um trace sem chamada de modelo. A soma devolvia `0`, e a tela renderizava um custo **medido** onde não houve medição. O operador lê "esta revisão é barata"; a verdade é "nenhuma chamada de modelo compartilhou o trace desta resolução", que é o limite declarado no ADR-1 do milestone. É exatamente o defeito contra o qual a **contagem** já se protegia — um zero afirmado sobre a ausência de dado — reaparecendo um campo adiante, no **custo**. O discriminante é `totalTokens === 0`: sem tokens observados no trace, nenhuma chamada foi correlacionada. Com tokens, um zero **é** medido (modelos gratuitos existem), e há um teste-controle para que a correção não descarte esse caso (#m15)

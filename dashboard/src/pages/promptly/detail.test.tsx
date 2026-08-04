@@ -66,7 +66,7 @@ beforeEach(() => {
   mockUsage.mockResolvedValue({
     promptName: 'saudacao',
     windowDays: 7,
-    rows: [{ revision: 3, resolutions: 12, totalTokens: 1500, costUsd: 0.031 }],
+    rows: [{ revision: 3, resolutions: 12, totalTokens: 1500, costUsd: 0.031, p50LatencyMs: 4.2 }],
   });
 });
 
@@ -77,6 +77,16 @@ describe('PromptDetailPage — uso por revisão (M15)', () => {
     // O oráculo é o NÚMERO na tela, não a chamada à API: um fetch bem-sucedido cujo
     // resultado ninguém renderiza é exatamente o defeito que o M13 deixou passar.
     expect(await screen.findByText('12')).toBeInTheDocument();
+  });
+
+  it('a linha mostra os QUATRO numeros que o DoD pede, nao dois', async () => {
+    render(<PromptDetailPage />);
+
+    // chamadas · latência mediana · tokens · custo — o bullet do ROADMAP enumera os quatro.
+    expect(await screen.findByText('12')).toBeInTheDocument();
+    expect(await screen.findByText(/4\.2\s*ms/i)).toBeInTheDocument();
+    expect(await screen.findByText(/1500|1\.500/)).toBeInTheDocument();
+    expect(await screen.findByText(/0\.0310/)).toBeInTheDocument();
   });
 
   it('a janela do agregado aparece na tela, nunca implicita', async () => {
