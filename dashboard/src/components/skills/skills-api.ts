@@ -143,3 +143,23 @@ export function fetchBundleAdoption<T>(bundleId: string, days: number): Promise<
     { throwOnError: true },
   );
 }
+
+/**
+ * Define o conteúdo do pacote — **substitui a lista inteira**, não mescla.
+ *
+ * É o contrato do registro, e a razão está lá: "adicionar" sem poder remover produziria pacotes
+ * que só crescem, e um item esquecido lá dentro é acesso que ninguém pretendeu conceder.
+ *
+ * Cada item aponta para um CANAL, não para uma revisão fixa — é o que torna o pacote vivo:
+ * promover o canal reaponta todos os consumidores sem que ninguém reedite o pacote.
+ */
+export function setBundleItems<T>(
+  bundleId: string,
+  items: readonly { skill_id: string; channel: string }[],
+): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BUNDLES}/${encodeURIComponent(bundleId)}/items`,
+    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) },
+    { throwOnError: true },
+  );
+}
