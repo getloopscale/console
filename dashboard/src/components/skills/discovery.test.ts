@@ -14,34 +14,62 @@ describe('legLabel', () => {
   it('traduz as duas pernas para frases que dizem o que aconteceu', () => {
     // Não "lexical"/"vector": esses são nomes de implementação. O operador precisa saber o que a
     // máquina fez, não como o módulo se chama.
-    expect(legLabel(['lexical'])).toBe('as palavras batem');
-    expect(legLabel(['vector'])).toBe('entendeu a intenção');
+    expect(legLabel([{ leg: 'lexical', rank: 1 }])).toBe('as palavras batem');
+    expect(legLabel([{ leg: 'vector', rank: 1 }])).toBe('entendeu a intenção');
   });
 
   it('as duas juntas são um caso próprio, não uma lista', () => {
     // Casar nas duas pernas é o sinal MAIS forte que o sistema produz — dizer "as palavras batem,
     // entendeu a intenção" enterraria isso numa enumeração.
-    expect(legLabel(['lexical', 'vector'])).toBe('palavras e intenção');
-    expect(legLabel(['vector', 'lexical'])).toBe('palavras e intenção');
+    expect(
+      legLabel([
+        { leg: 'lexical', rank: 1 },
+        { leg: 'vector', rank: 2 },
+      ]),
+    ).toBe('palavras e intenção');
+    expect(
+      legLabel([
+        { leg: 'vector', rank: 1 },
+        { leg: 'lexical', rank: 2 },
+      ]),
+    ).toBe('palavras e intenção');
   });
 
   it('nenhuma perna conhecida NÃO vira frase inventada', () => {
     // Um registro mais novo pode devolver uma perna que esta tela não conhece. Traduzi-la para
     // uma das duas conhecidas afirmaria algo falso sobre por que a skill apareceu.
     expect(legLabel([])).toBe('origem não informada');
-    expect(legLabel(['semantic-v2'])).toBe('origem não informada');
+    expect(legLabel([{ leg: 'semantic-v2', rank: 1 }])).toBe('origem não informada');
   });
 
   it('uma perna conhecida entre desconhecidas ainda é reconhecida', () => {
-    expect(legLabel(['semantic-v2', 'lexical'])).toBe('as palavras batem');
+    expect(
+      legLabel([
+        { leg: 'semantic-v2', rank: 1 },
+        { leg: 'lexical', rank: 2 },
+      ]),
+    ).toBe('as palavras batem');
   });
 });
 
 describe('discoveryRows', () => {
+  // A forma foi MEDIDA no app-dev em 2026-08-04, não inferida do domínio: o handler devolve
+  // `results` (não `skills`) e `matched` como `[{leg, rank}]` (não `string[]`). A primeira versão
+  // desta projeção assumiu a forma do `hybrid-retriever.ts` e lia campos que não existem — a tela
+  // mostrava "0 resultados" com o serviço devolvendo dois.
   const payload: RetrievePayload = {
-    skills: [
-      { skill_id: 'sk_b', name: 'B', description: 'd', score: 0.4, matched: ['lexical'] },
-      { skill_id: 'sk_a', name: 'A', description: 'd', score: 0.9, matched: ['lexical', 'vector'] },
+    results: [
+      { skill_id: 'sk_b', name: 'B', description: 'd', score: 0.4, matched: [{ leg: 'lexical', rank: 1 }] },
+      {
+        skill_id: 'sk_a',
+        name: 'A',
+        description: 'd',
+        score: 0.9,
+        matched: [
+          { leg: 'lexical', rank: 1 },
+          { leg: 'vector', rank: 2 },
+        ],
+      },
     ],
   };
 
@@ -51,9 +79,9 @@ describe('discoveryRows', () => {
 
   it('empate desempata por identificador, para a ordem não dançar entre buscas', () => {
     const rows = discoveryRows({
-      skills: [
-        { skill_id: 'sk_z', name: 'Z', description: '', score: 0.5, matched: ['vector'] },
-        { skill_id: 'sk_a', name: 'A', description: '', score: 0.5, matched: ['vector'] },
+      results: [
+        { skill_id: 'sk_z', name: 'Z', description: '', score: 0.5, matched: [{ leg: 'vector', rank: 1 }] },
+        { skill_id: 'sk_a', name: 'A', description: '', score: 0.5, matched: [{ leg: 'vector', rank: 1 }] },
       ],
     });
     expect(rows.map((r) => r.skillId)).toEqual(['sk_a', 'sk_z']);
@@ -68,7 +96,7 @@ describe('discoveryRows', () => {
     // `0` afirma "casou muito mal". `null` admite "o registro não informou". Um registro mais
     // antigo pode não devolver score, e inventar zero classificaria a skill como péssima.
     const [linha] = discoveryRows({
-      skills: [{ skill_id: 'sk_a', name: 'A', description: '', matched: ['lexical'] } as never],
+      results: [{ skill_id: 'sk_a', name: 'A', description: '', matched: [{ leg: 'lexical', rank: 1 }] } as never],
     });
     expect(linha?.score).toBeNull();
   });

@@ -132,6 +132,31 @@ function registerSkillsRoutes(base: string) {
     return Response.json({ ok: true, name: nome, description: 'd', execution: 'remote' });
   });
 
+  // M34 — o diagnóstico de descobribilidade, no momento da autoria. NÃO executa a skill: o mock
+  // reproduz a FORMA (causes + hints + embedder) e a regra que importa — descrição curta é a
+  // causa mais comum de uma skill nova não ser achada.
+  registerRoute('POST', `${base}/:discoverability`, async (req) => {
+    const body = (await req.json()) as { description?: string; has_embedding?: boolean };
+    const desc = body.description ?? '';
+    const causes: string[] = [];
+    const hints: string[] = [];
+    if (desc.trim().length < 60) {
+      causes.push('description_too_generic');
+      hints.push('A descrição diz o que a skill é, mas não QUANDO usá-la.');
+    }
+    if (body.has_embedding !== true) {
+      causes.push('no_embedding');
+      hints.push('A revisão vigente não tem vetor: a skill só aparece para quem já sabe o nome.');
+    }
+    return Response.json({
+      discoverable: causes.length === 0,
+      causes,
+      hints,
+      // O embedder viaja SEMPRE: o número mede o embedder tanto quanto a skill.
+      embedder: 'stub/stub',
+    });
+  });
+
   registerRoute('POST', base, async (req) => {
     const body = (await req.json()) as { skill_id?: string; skill_md?: string };
     const id = (body.skill_id ?? '').trim();
@@ -172,15 +197,27 @@ function registerSkillsRoutes(base: string) {
       .filter((sk) => incluirDescontinuadas || (sk as { lifecycle?: string }).lifecycle !== 'deprecated')
       .filter((sk) => q === '' || sk.name.toLowerCase().includes(q) || sk.description.toLowerCase().includes(q) || q.split(' ').some((t) => t.length > 3 && sk.description.toLowerCase().includes(t)));
 
+    // A forma foi MEDIDA no app-dev: `results` (não `skills`) e `matched` como `[{leg, rank}]`.
+    // A primeira versão deste mock repetia a suposição da tela — e por isso o e2e passava com a
+    // projeção lendo campos que o serviço real não devolve. Um mock que confirma a suposição de
+    // quem o escreveu não testa integração alguma.
     return Response.json({
-      skills: candidatas.map((sk, i) => ({
+      results: candidatas.map((sk, i) => ({
         skill_id: sk.skill_id,
         name: sk.name,
         description: sk.description,
         score: Number((0.9 - i * 0.2).toFixed(3)),
         // Alterna as pernas de propósito: a tela precisa distinguir as três frases, e um mock
         // que devolvesse sempre a mesma deixaria duas delas sem cobertura.
-        matched: i === 0 ? ['lexical', 'vector'] : i === 1 ? ['vector'] : ['lexical'],
+        matched:
+          i === 0
+            ? [
+                { leg: 'lexical', rank: 1 },
+                { leg: 'vector', rank: 2 },
+              ]
+            : i === 1
+              ? [{ leg: 'vector', rank: 1 }]
+              : [{ leg: 'lexical', rank: 1 }],
       })),
     });
   });
@@ -380,6 +417,31 @@ export function registerSkillsDistributionHandlers() {
   const base = '/v1/dashboard/bundles';
 
   registerRoute('GET', base, async () => Response.json({ bundles: distribuicaoDb.bundles }));
+
+  // M34 — o diagnóstico de descobribilidade, no momento da autoria. NÃO executa a skill: o mock
+  // reproduz a FORMA (causes + hints + embedder) e a regra que importa — descrição curta é a
+  // causa mais comum de uma skill nova não ser achada.
+  registerRoute('POST', `${base}/:discoverability`, async (req) => {
+    const body = (await req.json()) as { description?: string; has_embedding?: boolean };
+    const desc = body.description ?? '';
+    const causes: string[] = [];
+    const hints: string[] = [];
+    if (desc.trim().length < 60) {
+      causes.push('description_too_generic');
+      hints.push('A descrição diz o que a skill é, mas não QUANDO usá-la.');
+    }
+    if (body.has_embedding !== true) {
+      causes.push('no_embedding');
+      hints.push('A revisão vigente não tem vetor: a skill só aparece para quem já sabe o nome.');
+    }
+    return Response.json({
+      discoverable: causes.length === 0,
+      causes,
+      hints,
+      // O embedder viaja SEMPRE: o número mede o embedder tanto quanto a skill.
+      embedder: 'stub/stub',
+    });
+  });
 
   registerRoute('POST', base, async (req) => {
     const body = (await req.json()) as { name?: string };

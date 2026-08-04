@@ -180,3 +180,22 @@ func (c *DataClient) ValidateSkill(ctx context.Context, skillMd string) (json.Ra
 	}
 	return c.sendRaw(ctx, http.MethodPost, "/v1/skills:validate", body)
 }
+
+// Discoverability diagnostica se uma skill seria ACHADA (`POST /v1/skills:discoverability`, M34).
+//
+// Distinto de `ValidateSkill`: aquela responde "é válida?" — sintaxe e frontmatter. Esta responde
+// "é achável?", e compara a candidata com o **acervo real** do workspace.
+//
+// **Nada aqui executa a skill.** Leitura e diagnóstico; a fronteira "execução é do Theokit"
+// permanece intacta.
+func (c *DataClient) Discoverability(ctx context.Context, name, description string, hasEmbedding bool) (json.RawMessage, error) {
+	body, err := json.Marshal(map[string]any{
+		"name":          name,
+		"description":   description,
+		"has_embedding": hasEmbedding,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("skills data client: encode discoverability body: %w", err)
+	}
+	return c.sendRaw(ctx, http.MethodPost, "/v1/skills:discoverability", body)
+}

@@ -8,6 +8,7 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import {
   createSkill,
+  diagnoseDiscoverability,
   fetchOperation,
   promotionRefusal,
   validateSkill,
@@ -43,6 +44,13 @@ interface ValidacaoOk {
   readonly execution?: string;
 }
 
+interface Diagnostico {
+  readonly discoverable: boolean;
+  readonly causes: string[];
+  readonly hints: string[];
+  readonly embedder: string;
+}
+
 interface OperacaoEstado {
   readonly operation_id: string;
   readonly state?: string;
@@ -73,6 +81,24 @@ export function SkillAuthoringPage() {
       // no texto inteiro.
       setDiagnostico(validationDiagnostic(err));
     },
+  });
+
+  // M34 — o diagnóstico roda ANTES de publicar, no mesmo lugar onde `:validate` já responde.
+  // Depois de publicar, corrigir a descrição custa uma revisão nova; aqui o texto ainda está na
+  // mão do autor.
+  const [achabilidade, setAchabilidade] = useState<Diagnostico | null>(null);
+
+  const diagnosticar = useMutation({
+    mutationFn: () =>
+      diagnoseDiscoverability<Diagnostico>(
+        validada?.name ?? '',
+        validada?.description ?? '',
+        // Um rascunho ainda não publicado NÃO tem vetor — e isso não é defeito dele. Declarar
+        // `true` aqui esconderia a causa mais comum de uma skill nova não ser achada.
+        false,
+      ),
+    onSuccess: (d) => setAchabilidade(d),
+    onError: () => setAchabilidade(null),
   });
 
   const publicar = useMutation({
@@ -177,6 +203,9 @@ export function SkillAuthoringPage() {
               // afirmaria algo que ninguém verificou.
               setValidada(null);
               setDiagnostico(null);
+              // O diagnóstico de achabilidade também morre: ele foi feito sobre o texto anterior,
+              // e exibi-lo ao lado de um texto novo afirmaria algo que ninguém mediu.
+              setAchabilidade(null);
             }}
           />
           <div className="flex flex-wrap items-center gap-2">
@@ -189,6 +218,51 @@ export function SkillAuthoringPage() {
           </div>
         </div>
       </Card>
+
+      {validada !== null && operacaoId === null ? (
+        <Card>
+          <Card.Header>
+            <Card.Title asChild>
+              <h2>Será encontrada?</h2>
+            </Card.Title>
+            <Card.Description>
+              Válida não é o mesmo que achável. Este diagnóstico compara a skill com o acervo — e{' '}
+              <strong>não a executa</strong>.
+            </Card.Description>
+          </Card.Header>
+          <div className="flex flex-col gap-3 px-6 pb-6">
+            <div>
+              <Button
+                variant="secondary"
+                onClick={() => diagnosticar.mutate()}
+                disabled={diagnosticar.isPending}
+              >
+                {diagnosticar.isPending ? 'Diagnosticando…' : 'Diagnosticar descobribilidade'}
+              </Button>
+            </div>
+
+            {achabilidade !== null ? (
+              <div className="flex flex-col gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Badge variant={achabilidade.discoverable ? 'success' : 'warning'}>
+                    {achabilidade.discoverable ? 'seria encontrada' : 'dificilmente encontrada'}
+                  </Badge>
+                  {/* O EMBEDDER viaja no resultado: o número mede o embedder tanto quanto a
+                      skill, e sem esse dado alguém compara resultados incomparáveis. */}
+                  <span className="font-mono text-xs text-muted-foreground">{achabilidade.embedder}</span>
+                </div>
+                {/* As CAUSAS com o que fazer — um diagnóstico sem próximo passo é um número
+                    com nome bonito. */}
+                {achabilidade.hints.map((h) => (
+                  <p key={h} className="text-muted-foreground">
+                    {h}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
 
       <Card>
         <Card.Header>

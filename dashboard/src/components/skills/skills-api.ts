@@ -302,3 +302,26 @@ export function validationDiagnostic(err: unknown): { message: string; field?: s
     ...(typeof body?.line === 'number' ? { line: body.line } : {}),
   };
 }
+
+/**
+ * M34 — diagnostica se a skill seria **achada**, sem publicá-la e sem executá-la.
+ *
+ * Distinto de `validateSkill`: aquela responde "é válida?"; esta, "é achável?". A segunda compara
+ * a candidata com o acervo real, e é a que responde a promessa do produto — uma skill válida e
+ * inachável é, para quem procura, indistinguível de uma que não existe.
+ */
+export function diagnoseDiscoverability<T>(
+  name: string,
+  description: string,
+  hasEmbedding: boolean,
+): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/:discoverability`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, has_embedding: hasEmbedding }),
+    },
+    { throwOnError: true },
+  );
+}

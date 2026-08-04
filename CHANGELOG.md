@@ -1,6 +1,15 @@
 ## [Unreleased]
 
+### Changed
+
+- **As colunas largas da tela de sessões ganharam teto em caracteres.** `User` fica em **10** e as duas de mensagem em **30** — antes o identificador aparecia inteiro e as mensagens tinham teto de 352 px, o que esticava a tabela e empurrava as colunas numéricas para longe. O teto é em `ch`, que mapeia direto para caracteres (em fonte mono, `10ch` são exatamente dez), e **o texto inteiro continua no documento**: cortar a string resolveria a largura e tiraria o conteúdo de onde o leitor de tela e a busca da página o alcançam. O `title` mostra o valor completo ao passar o cursor — complementa a acessibilidade, nunca a substitui.
+
 ### Fixed
+
+- **A tela de descoberta lia campos que a API não devolve.** Encontrado exercitando o `app-dev`, não por teste: o handler responde `results` (não `skills`) e `matched` como `[{leg, rank}]` (não `string[]`). A projeção assumiu a forma do `hybrid-retriever.ts` — o módulo interno — em vez da resposta HTTP, e a tela mostrava **"0 resultados"** com o serviço devolvendo dois.
+
+  Os testes passavam porque a fixture e o mock **repetiam a mesma suposição**. Um mock que confirma a suposição de quem o escreveu não testa integração alguma — é a lição mais cara desta sessão, e a terceira vez que ela aparece (#m31)
+
 
 - **A tela de sessões transbordava para fora da página.** Com onze colunas, a tabela media **1838 px** dentro de um contêiner de **1486 px** — e vazava por cima do resto da página em vez de rolar, desconfigurando a tela. A causa não estava nesta tela: a raiz do `DataTable` do design system era `w-full` e nada mais, com `overflow-x` em `visible`, então **qualquer** consumidor com colunas demais tinha o mesmo problema. Corrigido no componente (`@usetheo/ui` 0.35.1), não aqui — a variante virtualizada já rolava, e era a não-virtualizada que tinha ficado para trás.
 
@@ -78,6 +87,12 @@
   Os cards trazem os slots que **medimos** — nome, descrição, categoria, execução, visibilidade e se a revisão tem vetor. Nenhum número que não medimos: sem estrelas, sem downloads. E `descobrível` × `sem vetor` é a distinção que o produto vende: sem vetor, a skill só aparece para quem já sabe o nome.
 
   Chips de categoria com teto e overflow `+N` — **sem contagem por faceta**: derivada da página carregada, ela afirmaria sobre o acervo um número que só vale para o que está na tela. A ordenação é determinística com desempate por identificador, e o critério é **declarado na tela**: sem sinal de adoção, qualquer ordem padrão é arbitrária, e quem não sabe por que aquela ordem desconfia da lista (#m33)
+
+- **A descobribilidade é diagnosticada no momento da autoria (M34).** *"Será encontrada?"* é uma pergunta diferente de *"é válida?"* — e uma skill válida e inachável é, para quem procura, indistinguível de uma que não existe.
+
+  O diagnóstico roda **antes de publicar**, no mesmo lugar onde o `:validate` já responde: depois de publicar, corrigir a descrição custa uma revisão nova; ali o texto ainda está na mão do autor. Nomeia a **causa** com o que fazer — não um número —, e mostra **qual embedder mediu**, porque o resultado mede o embedder tanto quanto a skill.
+
+  A tela declara que **não executa** a skill: a fronteira *"execução é responsabilidade do Theokit"* é dita ao usuário, não só respeitada no código (#m34)
 
 ### Security
 

@@ -10,16 +10,30 @@
 /** As pernas que a busca híbrida do registro reporta hoje (`hybrid-retriever.ts`). */
 type KnownLeg = 'lexical' | 'vector';
 
+/**
+ * Uma perna casada, na forma que o HANDLER devolve — `{leg, rank}`, não uma string.
+ *
+ * MEDIDO no app-dev em 2026-08-04. A primeira versão desta projeção assumiu a forma do
+ * `hybrid-retriever.ts` (que devolve `matched: string[]` internamente) e lia campos que não
+ * existem na resposta HTTP: a tela mostrava "0 resultados" com o serviço devolvendo dois, e os
+ * testes passavam porque a fixture repetia a suposição.
+ */
+export interface MatchedLeg {
+  readonly leg: string;
+  readonly rank?: number;
+}
+
 export interface RetrievedSkill {
   readonly skill_id: string;
   readonly name: string;
   readonly description: string;
   readonly score?: number;
-  readonly matched?: readonly string[];
+  readonly matched?: readonly MatchedLeg[];
 }
 
 export interface RetrievePayload {
-  readonly skills?: readonly RetrievedSkill[];
+  /** `results`, não `skills` — a chave que o handler de fato usa. */
+  readonly results?: readonly RetrievedSkill[];
 }
 
 export interface DiscoveryRow {
@@ -42,10 +56,10 @@ export interface DiscoveryRow {
  * Uma perna desconhecida (um registro mais novo pode inventar outra) **não** é traduzida para uma
  * das conhecidas: isso afirmaria algo falso sobre por que a skill apareceu.
  */
-export function legLabel(matched: readonly string[] | undefined): string {
+export function legLabel(matched: readonly MatchedLeg[] | undefined): string {
   const conhecidas = new Set<KnownLeg>();
   for (const m of matched ?? []) {
-    if (m === 'lexical' || m === 'vector') conhecidas.add(m);
+    if (m.leg === 'lexical' || m.leg === 'vector') conhecidas.add(m.leg);
   }
   if (conhecidas.has('lexical') && conhecidas.has('vector')) return 'palavras e intenção';
   if (conhecidas.has('lexical')) return 'as palavras batem';
@@ -54,7 +68,7 @@ export function legLabel(matched: readonly string[] | undefined): string {
 }
 
 export function discoveryRows(payload: RetrievePayload | null | undefined): DiscoveryRow[] {
-  const skills = payload?.skills;
+  const skills = payload?.results;
   if (!Array.isArray(skills)) return [];
 
   return skills
