@@ -2,6 +2,10 @@
 
 ### Changed
 
+- **Uma recusa por papel deixou de ser anunciada como indisponibilidade (#430).** Quando o serviço de prompts recusa dizendo qual papel a ação exige e qual é o seu, a tela passa a mostrar isso. Antes ela dizia *"o serviço não respondeu"* — e a frase não era só vaga, era **falsa**: o serviço tinha respondido, com a razão exata. Mandava investigar disponibilidade num problema de autorização. A regra que a produzia continua valendo para o caso em que foi escrita, quando uma recusa dessas significava credencial de infraestrutura errada; o que mudou é que agora existem dois tipos de recusa, e elas se distinguem pelo que o serviço diz, não pelo código de status
+- **A credencial que a tela usa passou a identificar a pessoa, não só o cliente (#430).** Sem isso não havia como o serviço saber o papel de quem age — e uma ação que exige papel elevado ficava fora de alcance para todo mundo. Duas pessoas do mesmo cliente também deixam de compartilhar credencial: compartilhar faria o papel de uma valer para a outra. Sessão sem identidade **não** vira credencial anônima com poder de escrita; falha, e diz por quê
+- **A data de um comentário passou a ser legível (#430).** Saía no formato técnico cru. É o único eixo temporal de quem lê a discussão: se exige decifrar de cabeça, é pulado. Sem data válida o campo fica **vazio** — nunca uma data inventada, pela mesma razão que o autor ausente é dito e não suposto
+
 - **As colunas largas da tela de sessões ganharam teto em caracteres.** `User` fica em **10** e as duas de mensagem em **30** — antes o identificador aparecia inteiro e as mensagens tinham teto de 352 px, o que esticava a tabela e empurrava as colunas numéricas para longe. O teto é em `ch`, que mapeia direto para caracteres (em fonte mono, `10ch` são exatamente dez), e **o texto inteiro continua no documento**: cortar a string resolveria a largura e tiraria o conteúdo de onde o leitor de tela e a busca da página o alcançam. O `title` mostra o valor completo ao passar o cursor — complementa a acessibilidade, nunca a substitui.
 
 ### Fixed
