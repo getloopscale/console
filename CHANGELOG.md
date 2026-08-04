@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **As colunas largas da tela de sessões ganharam teto em caracteres.** `User` fica em **10** e as duas de mensagem em **30** — antes o identificador aparecia inteiro e as mensagens tinham teto de 352 px, o que esticava a tabela e empurrava as colunas numéricas para longe. O teto é em `ch`, que mapeia direto para caracteres (em fonte mono, `10ch` são exatamente dez), e **o texto inteiro continua no documento**: cortar a string resolveria a largura e tiraria o conteúdo de onde o leitor de tela e a busca da página o alcançam. O `title` mostra o valor completo ao passar o cursor — complementa a acessibilidade, nunca a substitui.
+
 ### Fixed
 
 - **A tela de descoberta lia campos que a API não devolve.** Encontrado exercitando o `app-dev`, não por teste: o handler responde `results` (não `skills`) e `matched` como `[{leg, rank}]` (não `string[]`). A projeção assumiu a forma do `hybrid-retriever.ts` — o módulo interno — em vez da resposta HTTP, e a tela mostrava **"0 resultados"** com o serviço devolvendo dois.
