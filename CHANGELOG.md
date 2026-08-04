@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **A tela de sessões transbordava para fora da página.** Com onze colunas, a tabela media **1838 px** dentro de um contêiner de **1486 px** — e vazava por cima do resto da página em vez de rolar, desconfigurando a tela. A causa não estava nesta tela: a raiz do `DataTable` do design system era `w-full` e nada mais, com `overflow-x` em `visible`, então **qualquer** consumidor com colunas demais tinha o mesmo problema. Corrigido no componente (`@usetheo/ui` 0.35.1), não aqui — a variante virtualizada já rolava, e era a não-virtualizada que tinha ficado para trás.
+
 ### Changed
 
 - **A busca do catálogo de prompts passou a rodar no servidor — e a tela parou de se desculpar (M16).** Até aqui ela filtrava a página já carregada, e dizia isso com todas as letras: *"o filtro roda sobre os prompts já carregados nesta página, não sobre o servidor"*. Com 14 prompts funcionava; com 500 mentiria por omissão — o operador digita um termo, não vê linha alguma, e conclui ausência a partir de um filtro que nunca perguntou ao servidor. **A frase saiu da tela porque deixou de ser verdade**; mantê-la seria pior que antes, uma desculpa por uma limitação que não existe mais. O termo, a tag e a pasta vivem no endereço — o link é colável, como já era o do recorte —, e a digitação só vira busca depois de uma pausa: sem isso, escrever "saudacao" dispararia oito consultas e exigiria oito "voltar" para sair da tela (M16)
