@@ -261,7 +261,7 @@ export function SkillDetailPage() {
                   to={`/skills/${encodeURIComponent(data.superseded_by)}`}
                   className="underline-offset-4 hover:underline"
                 >
-                  Substituída por {data.superseded_by}
+                  Superseded by {data.superseded_by}
                 </Link>
               ) : null}
               <div>

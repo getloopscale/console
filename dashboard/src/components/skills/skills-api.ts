@@ -83,8 +83,8 @@ export function promotionRefusal(err: unknown, fallback: string): string {
   }
   // 403 tem texto próprio: é a única recusa que o operador pode agir a respeito, e "tente de
   // novo" seria conselho errado — a credencial dele não vai mudar sozinha.
-  if (err.status === 403) return 'Sua credencial não tem permissão para promover canais neste workspace.';
-  return err.status === 0 ? 'Não foi possível falar com o servidor.' : fallback;
+  if (err.status === 403) return 'Your credential is not allowed to promote channels in this workspace.';
+  return err.status === 0 ? 'Could not reach the server.' : fallback;
 }
 
 // ---- M35 — a superfície de DISTRIBUIÇÃO ------------------------------------------------------
@@ -292,14 +292,14 @@ export function fetchOperation<T>(operationId: string): Promise<T | null> {
  * Sem isto o autor lê "inválido" e procura o problema no texto inteiro. Com isto, ele vai à linha.
  */
 export function validationDiagnostic(err: unknown): { message: string; field?: string; line?: number } {
-  if (!(err instanceof ApiError)) return { message: 'Não foi possível validar.' };
+  if (!(err instanceof ApiError)) return { message: 'Could not validate.' };
   const body = err.body as { message?: unknown; error?: unknown; field?: unknown; line?: unknown } | undefined;
   const message =
     typeof body?.message === 'string' && body.message !== ''
       ? body.message
       : typeof body?.error === 'string'
         ? body.error
-        : 'Conteúdo inválido.';
+        : 'Invalid content.';
   return {
     message,
     ...(typeof body?.field === 'string' ? { field: body.field } : {}),

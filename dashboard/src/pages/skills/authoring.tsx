@@ -295,7 +295,7 @@ export function SkillAuthoringPage() {
           </Card.Title>
           <Card.Description>
             The identifier is permanent and shows up in logs and errors. Publishing is asynchronous: the
-            ingestão gera os vetores que tornam a skill descobrível.
+            ingestion generates the vectors that make the skill discoverable.
           </Card.Description>
         </Card.Header>
         <div className="flex flex-wrap items-end gap-2 px-6 pb-6">

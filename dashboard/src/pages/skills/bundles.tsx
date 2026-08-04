@@ -64,7 +64,7 @@ export function BundlesPage() {
     },
     // A mensagem do serviço é preferida à nossa: ela nomeia o motivo (falta de escopo, nome em
     // uso), enquanto qualquer paráfrase nossa envelhece na primeira mudança do backend.
-    onError: (err) => setErroCriacao(promotionRefusal(err, 'Não foi possível criar o pacote.')),
+    onError: (err) => setErroCriacao(promotionRefusal(err, 'Could not create the bundle.')),
   });
 
   const rows = Array.isArray(query.data?.bundles) ? query.data.bundles : [];
@@ -95,7 +95,7 @@ export function BundlesPage() {
       label: 'Created',
       render: (row) => (
         <span className="text-muted-foreground">
-          {row.create_time ? new Date(row.create_time).toLocaleDateString('pt-BR') : '—'}
+          {row.create_time ? new Date(row.create_time).toLocaleDateString('en-US') : '—'}
         </span>
       ),
     },
@@ -148,8 +148,8 @@ export function BundlesPage() {
             <h2>New bundle</h2>
           </Card.Title>
           <Card.Description>
-            O nome é como o pacote aparece para quem instala. Depois de criado, emita um token no
-            detalhe dele para dar acesso.
+            The name is how the bundle appears to whoever installs it. Once created, issue a token
+            in its detail page to grant access.
           </Card.Description>
         </Card.Header>
         <form
@@ -162,7 +162,7 @@ export function BundlesPage() {
           }}
         >
           <Input
-            aria-label="Nome do pacote"
+            aria-label="Bundle name"
             placeholder="e.g. support skills"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
@@ -180,7 +180,7 @@ export function BundlesPage() {
           <Card.Title asChild>
             <h2>Bundles</h2>
           </Card.Title>
-          <Card.Description>{rows.length} neste workspace</Card.Description>
+          <Card.Description>{rows.length} in this workspace</Card.Description>
         </Card.Header>
 
         <DataTable
