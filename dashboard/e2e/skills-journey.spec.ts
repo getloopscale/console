@@ -699,3 +699,42 @@ test.describe('M31 — nenhuma tela morta: toda rota aninhada tem volta à orige
     await expect(page.getByRole('link', { name: /back to sk_velha/i })).toBeVisible();
   });
 });
+
+test.describe('M35 — a cadeia bundle → skill → canal é navegável', () => {
+  // O conceito central do produto: um item do pacote aponta para um CANAL, não para uma revisão
+  // fixa — e é isso que faz o pacote ficar vivo quando se promove uma versão nova.
+  //
+  // Na tela, os dois eram TEXTO MORTO: o operador via `sk_ordering` e `stable` e não tinha como
+  // chegar na skill nem descobrir qual revisão aquele canal serve hoje. Ver o conteúdo de um
+  // pacote sem poder responder "o que meus clientes estão recebendo?" é olhar sem enxergar.
+  //
+  // É a mesma lição que o theo-trust pagou caro e que o CLAUDE.md deste repositório registra:
+  // uma listagem que não devolve o caminho da próxima ação vira um painel só de olhar.
+
+  async function irAoPacoteComItens(page: Page) {
+    await page.goto('/');
+    await page.getByRole('button', { name: /^skills$/i }).click();
+    await expect(page.getByRole('button', { name: /back to theocloud/i })).toBeVisible();
+    await page.getByRole('button', { name: /^distribution$/i }).click();
+    await page.getByRole('link', { name: 'Support skills' }).click();
+  }
+
+  test('o identificador do item leva à skill', async ({ page }) => {
+    await irAoPacoteComItens(page);
+    await page.getByRole('link', { name: 'sk_ordering', exact: true }).first().click();
+    await expect(page).toHaveURL(/\/skills\/sk_ordering$/);
+    await expect(page.getByRole('heading', { name: /review pull request/i })).toBeVisible();
+  });
+
+  test('o canal do item leva às versões — onde se vê QUAL revisão ele serve', async ({ page }) => {
+    // A pergunta que o operador tem ao olhar o pacote é "o que meus clientes recebem hoje?".
+    // Ela só se responde na tela de versões, e o canal é o caminho natural até lá.
+    await irAoPacoteComItens(page);
+    await page.getByRole('link', { name: /see which revision stable serves/i }).first().click();
+    await expect(page).toHaveURL(/\/skills\/sk_ordering\/versions$/);
+    // E lá está a resposta: o emblema do canal na linha da revisão que ele de fato serve.
+    await expect(
+      page.getByRole('row').filter({ hasText: '1.0.0' }).getByText('stable', { exact: true }),
+    ).toHaveCount(1);
+  });
+});

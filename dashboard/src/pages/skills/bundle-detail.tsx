@@ -283,8 +283,27 @@ export function BundleDetailPage() {
             <ul className="flex flex-col gap-2">
               {itensVisiveis.map((item) => (
                 <li key={`${item.skill_id}@${item.channel}`} className="flex items-center gap-2 text-sm">
-                  <span className="font-mono text-xs">{item.skill_id}</span>
-                  <Badge variant="outline">{item.channel}</Badge>
+                  {/* A CADEIA bundle → skill → canal, navegável.
+
+                      Os dois eram texto morto: o operador via `sk_x` e `stable` e não tinha como
+                      chegar na skill nem descobrir QUAL revisão aquele canal serve hoje — que é a
+                      única pergunta que importa quando se olha o conteúdo de um pacote.
+
+                      É a lição que o `CLAUDE.md` deste repositório registra sobre o theo-trust:
+                      uma lista que não devolve o caminho da próxima ação vira um painel só de
+                      olhar, e a tela de destino vira código morto em produção. */}
+                  <Link
+                    to={`/skills/${encodeURIComponent(item.skill_id)}`}
+                    className="font-mono text-xs underline-offset-4 hover:underline"
+                  >
+                    {item.skill_id}
+                  </Link>
+                  <Link
+                    to={`/skills/${encodeURIComponent(item.skill_id)}/versions`}
+                    aria-label={`See which revision ${item.channel} serves for ${item.skill_id}`}
+                  >
+                    <Badge variant="outline">{item.channel}</Badge>
+                  </Link>
                   <Button
                     variant="ghost"
                     size="sm"
