@@ -60,7 +60,10 @@ func (c *DataClient) WithKeyResolver(r func(ctx context.Context) (string, error)
 func (c *DataClient) List(ctx context.Context, limit int, cursor string) (json.RawMessage, error) {
 	q := url.Values{}
 	if limit > 0 {
-		q.Set("limit", strconv.Itoa(limit))
+		// `page_size`, nao `limit`: e o nome que o registro le (`handlers/skills.ts:320`).
+		// Enviar o nome errado nao produz erro — a query e simplesmente ignorada, o registro
+		// aplica seu default de 50, e o pedido da tela some em silencio. Medido no app-dev.
+		q.Set("page_size", strconv.Itoa(limit))
 	}
 	if cursor != "" {
 		q.Set("page_token", cursor)
