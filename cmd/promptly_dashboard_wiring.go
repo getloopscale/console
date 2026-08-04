@@ -19,6 +19,17 @@ type promptlyDashMinter interface {
 	KeyForUser(ctx context.Context, accountID, tenantID, userID, role, email string, want []string) (string, error)
 }
 
+// promptlyRoleResolver é a fonte AUTORITATIVA do papel — `tenant_members`, nunca o token.
+//
+// Existe porque a primeira versão deste resolver lia `auth.UserContext.Role`, e esse campo só é
+// carimbado pelo middleware `RequireRole`, que as rotas do promptly NÃO montam. O campo chegava
+// vazio sempre; o fallback o rebaixava a `member`; e o efeito era um teto silencioso — nenhum
+// operador alcançava uma ação que exige `admin`, e nada no sistema dizia por quê. Medido ao vivo
+// na terceira rodada de aceitação do M18.
+type promptlyRoleResolver interface {
+	GetRole(ctx context.Context, userID string) (string, error)
+}
+
 // newPromptlyDashboardKeyResolver devolve o resolver por requisição do caminho de LEITURA.
 //
 // Lê o inquilino do contexto derivado do JWT — NUNCA de parâmetro de requisição, que o usuário
@@ -64,7 +75,7 @@ func newPromptlyDashboardKeyResolver(minter promptlyDashMinter) func(ctx context
 // Fail-closed também no Subject: uma sessão sem sujeito não vira chave anônima com escopo de
 // escrita, ela vira erro. Cair para a chave por inquilino "só para não quebrar" devolveria
 // exatamente o buraco que este slice fecha, e em silêncio.
-func newPromptlyPromotionKeyResolver(minter promptlyDashMinter) func(ctx context.Context) (string, error) {
+func newPromptlyPromotionKeyResolver(minter promptlyDashMinter, papeis promptlyRoleResolver) func(ctx context.Context) (string, error) {
 	return func(ctx context.Context) (string, error) {
 		u := auth.GetUser(ctx)
 		if u == nil || u.TenantID == "" {
@@ -73,10 +84,16 @@ func newPromptlyPromotionKeyResolver(minter promptlyDashMinter) func(ctx context
 		if u.Subject == "" {
 			return "", fmt.Errorf("promptly promotion: authenticated session without a subject")
 		}
-		papel := u.Role
+		// A FONTE, não o token nem um campo que ninguém preencheu.
+		papel, pErr := papeis.GetRole(ctx, u.Subject)
+		if pErr != nil {
+			// Fail-closed: não saber o papel é diferente de saber que ele é o menor. Cair para
+			// `member` aqui converteria uma falha de leitura em concessão silenciosa.
+			return "", fmt.Errorf("promptly promotion: resolve role: %w", pErr)
+		}
 		if papel == "" {
-			// Sem papel declarado, o menor: `member` é o que o teto do serviço já concedia a
-			// qualquer credencial. Assumir `admin` por omissão seria conceder por descuido.
+			// Ausência REAL: quem não tem papel declarado tem o menor. Distinto do caso acima —
+			// um é ausência, o outro é cegueira.
 			papel = "member"
 		}
 		// Idem: namespace do cloud. Ver o comentário no resolver de leitura e o `#366`.

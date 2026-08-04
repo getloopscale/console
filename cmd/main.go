@@ -556,7 +556,7 @@ func main() {
 			WithInvocationClient(promptlyInvocationHTTP).
 			WithKeyResolver(newPromptlyDashboardKeyResolver(promptlyBroker))
 		promptlyWriteClient := promptly.NewWriteClient(cfg.PromptlyBaseURL, promptlyHTTP).
-			WithKeyResolver(newPromptlyPromotionKeyResolver(promptlyBroker))
+			WithKeyResolver(newPromptlyPromotionKeyResolver(promptlyBroker, tenantProvisioner))
 		promptlyDashboardHandler = routes.NewPromptlyDashboardHandler(promptlyDataClient, promptlyWriteClient, logger)
 		logger.Info("theo-promptly Model B broker wired (L2)", "base_url", cfg.PromptlyBaseURL)
 	}

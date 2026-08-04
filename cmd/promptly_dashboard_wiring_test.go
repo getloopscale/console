@@ -79,7 +79,7 @@ func TestResolverDePromocaoCarregaAPessoaEOPapel(t *testing.T) {
 		Email: "ana@exemplo.test",
 	})
 
-	if _, err := newPromptlyPromotionKeyResolver(m)(ctx); err != nil {
+	if _, err := newPromptlyPromotionKeyResolver(m, &resolvedorDePapel{papel: "admin"})(ctx); err != nil {
 		t.Fatalf("resolver: %v", err)
 	}
 	if m.gotUser != "u-ana" {
@@ -102,7 +102,7 @@ func TestResolverDePromocaoFalhaFechadoSemSujeito(t *testing.T) {
 	m := &recordingPromptlyMinter{}
 	ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-alpha", AccountID: "acc-1"})
 
-	if _, err := newPromptlyPromotionKeyResolver(m)(ctx); err == nil {
+	if _, err := newPromptlyPromotionKeyResolver(m, &resolvedorDePapel{papel: "admin"})(ctx); err == nil {
 		t.Fatal("sessao sem sujeito produziu chave; tem de falhar fechado")
 	}
 	if m.calls != 0 {
@@ -116,7 +116,7 @@ func TestPromptlyPromotionResolverMintsWriteScope(t *testing.T) {
 	m := &recordingPromptlyMinter{}
 	ctx := auth.WithUser(context.Background(), &auth.UserContext{TenantID: "tn-alpha", AccountID: "acc-1", Subject: "u-ana", Role: "admin", Email: "ana@exemplo.test"})
 
-	if _, err := newPromptlyPromotionKeyResolver(m)(ctx); err != nil {
+	if _, err := newPromptlyPromotionKeyResolver(m, &resolvedorDePapel{papel: "admin"})(ctx); err != nil {
 		t.Fatalf("resolver: %v", err)
 	}
 	temEscrita := false
@@ -135,7 +135,9 @@ func TestPromptlyPromotionResolverMintsWriteScope(t *testing.T) {
 func TestPromptlyResolversFailClosedWithoutAuthenticatedTenant(t *testing.T) {
 	resolvers := map[string]func(promptlyDashMinter) func(context.Context) (string, error){
 		"leitura":  newPromptlyDashboardKeyResolver,
-		"promocao": newPromptlyPromotionKeyResolver,
+		"promocao": func(m promptlyDashMinter) func(context.Context) (string, error) {
+			return newPromptlyPromotionKeyResolver(m, &resolvedorDePapel{papel: "admin"})
+		},
 	}
 	contextos := map[string]context.Context{
 		"sem usuario no contexto": context.Background(),
@@ -209,7 +211,9 @@ func TestPromptlyResolversFalamONamespaceQueOBrokerEntende(t *testing.T) {
 		esperado []string
 	}{
 		{"leitura", newPromptlyDashboardKeyResolver, []string{"prompt:read"}},
-		{"promocao", newPromptlyPromotionKeyResolver, []string{"prompt:read", "prompt:write"}},
+		{"promocao", func(m promptlyDashMinter) func(context.Context) (string, error) {
+			return newPromptlyPromotionKeyResolver(m, &resolvedorDePapel{papel: "admin"})
+		}, []string{"prompt:read", "prompt:write"}},
 	} {
 		t.Run(caso.nome, func(t *testing.T) {
 			spy := &mintSpy{}
@@ -238,5 +242,62 @@ func TestPromptlyResolversFalamONamespaceQueOBrokerEntende(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// resolvedorDePapel é a fonte AUTORITATIVA — `tenant_members`, não o token.
+type resolvedorDePapel struct {
+	papel    string
+	err      error
+	pedidoDe string
+}
+
+func (r *resolvedorDePapel) GetRole(_ context.Context, userID string) (string, error) {
+	r.pedidoDe = userID
+	return r.papel, r.err
+}
+
+// O papel tem de vir da FONTE, não de um campo que ninguém preencheu.
+//
+// A rodada 3 da aceitação do M18 pegou isto no ar: o resolver lia `UserContext.Role`, que só é
+// carimbado pelo middleware `RequireRole` — e as rotas do promptly montam apenas `requireJWT`. O
+// campo chegava vazio SEMPRE, o fallback o rebaixava a `member`, e o efeito era um teto
+// silencioso: nenhum operador, por mais autoridade que tivesse, alcançava uma ação que exige
+// `admin`. Ler um campo que ninguém preencheu e cair para o menor valor é pior que falhar — falha
+// aparece, teto silencioso não.
+func TestPapelVemDaFonteAutoritativaNaoDoCampoNaoPreenchido(t *testing.T) {
+	m := &recordingPromptlyMinter{}
+	fonte := &resolvedorDePapel{papel: "owner"}
+	ctx := auth.WithUser(context.Background(), &auth.UserContext{
+		TenantID: "tn-alpha", AccountID: "acc-1", Subject: "u-ana", Email: "ana@exemplo.test",
+		// Role deliberadamente VAZIO: é o estado real nas rotas do promptly.
+	})
+
+	if _, err := newPromptlyPromotionKeyResolver(m, fonte)(ctx); err != nil {
+		t.Fatalf("resolver: %v", err)
+	}
+	if fonte.pedidoDe != "u-ana" {
+		t.Errorf("consultou %q; o papel é do SUJEITO autenticado", fonte.pedidoDe)
+	}
+	if m.gotRole != "owner" {
+		t.Errorf("papel = %q, quero owner — veio do campo vazio em vez da fonte", m.gotRole)
+	}
+}
+
+// Sem membership a fonte devolve "" — e aí `member` é o valor CERTO, não um fallback por descuido:
+// quem não tem papel declarado tem o menor. A distinção com o teste acima é o ponto: um é ausência
+// real, o outro era cegueira.
+func TestSemPapelDeclaradoUsaOMenor(t *testing.T) {
+	m := &recordingPromptlyMinter{}
+	fonte := &resolvedorDePapel{papel: ""}
+	ctx := auth.WithUser(context.Background(), &auth.UserContext{
+		TenantID: "tn-alpha", AccountID: "acc-1", Subject: "u-sem", Email: "sem@exemplo.test",
+	})
+
+	if _, err := newPromptlyPromotionKeyResolver(m, fonte)(ctx); err != nil {
+		t.Fatalf("resolver: %v", err)
+	}
+	if m.gotRole != "member" {
+		t.Errorf("papel = %q, quero member — sem papel declarado, o menor", m.gotRole)
 	}
 }
