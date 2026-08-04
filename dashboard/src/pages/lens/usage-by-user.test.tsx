@@ -447,6 +447,36 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     for (const t of titulos) expect(t).toMatch(/maiores desta página/);
   });
 
+  /**
+   * M146 — a tela CONSOME o eixo datado. Sem isto o `xFormatter` existe no design system e ninguém
+   * o usa: o gráfico continua com o pico sem data, que é literalmente a queixa da issue #17.
+   *
+   * Esta é a única tela do produto cujo `x` é epoch-ms — as outras cinco fábricas de série passam
+   * índice de balde —, então é a única que pode datar o eixo hoje.
+   */
+  it('a tabela acessível do gráfico mostra a DATA, não o ordinal', async () => {
+    mockCloudFetch.mockResolvedValue(COM_SERIE);
+    render(<LensUsageByUserPage />);
+    const grafico = (await screen.findAllByTestId('usage-chart'))[0]!;
+    const primeira = grafico.querySelector('[data-slot="trend-chart-table"] tbody td');
+    // `1` seria o ordinal — o defeito. Uma data curta casa `\d{2}/\d{2}`.
+    expect(primeira?.textContent ?? '').toMatch(/\d{2}\/\d{2}/);
+  });
+
+  it('o cabeçalho da coluna do gráfico diz Dia, não Point', async () => {
+    mockCloudFetch.mockResolvedValue(COM_SERIE);
+    render(<LensUsageByUserPage />);
+    const grafico = (await screen.findAllByTestId('usage-chart'))[0]!;
+    expect(grafico.querySelector('[data-slot="trend-chart-table"] thead th')?.textContent).toBe('Dia');
+  });
+
+  it('o eixo X ganha rótulos visíveis no gráfico', async () => {
+    mockCloudFetch.mockResolvedValue(COM_SERIE);
+    render(<LensUsageByUserPage />);
+    const grafico = (await screen.findAllByTestId('usage-chart'))[0]!;
+    expect(grafico.querySelectorAll('[data-slot="trend-chart-xtick"]').length).toBeGreaterThan(0);
+  });
+
   it('sem série na resposta, nenhum gráfico é renderizado — E nenhuma explicação falsa', async () => {
     mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
     render(<LensUsageByUserPage />);

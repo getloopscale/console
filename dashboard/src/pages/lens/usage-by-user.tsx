@@ -107,6 +107,17 @@ const CORES = ['#0072B2', '#A87200', '#009E73', '#9E5A80'] as const;
 const UNATTRIBUTED = 'unattributed';
 
 /**
+ * Como o eixo X do gráfico é lido. Esta é a única tela do produto cujo `x` é epoch-ms — as outras
+ * cinco fábricas de série passam índice de balde —, então é a única que pode datar o eixo hoje.
+ *
+ * `UTC` de propósito: o serviço agrupa por `date_trunc('day', ingested_at)` em UTC, e formatar no
+ * fuso do navegador deslocaria o rótulo em relação ao balde que ele nomeia. Um gráfico que diz
+ * "21/07" sobre o balde de 22/07 é pior que um sem data — erra com confiança.
+ */
+const diaDoEixo = (x: number): string =>
+  new Date(x).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
+
+/**
  * A mensagem do serviço quando ela existe; genérica só como último recurso.
  *
  * O padrão vem de `pages/billing.tsx`, e a razão registrada lá vale igual aqui: usar a cópia
@@ -424,6 +435,8 @@ export function LensUsageByUserPage() {
                     title={`Custo por dia — ${escopoDoGrafico}`}
                     series={serieDe('costUsd')}
                     valueFormatter={(v) => formatCost(v)}
+                    xFormatter={diaDoEixo}
+                    xLabel="Dia"
                   />
                 </Card>
                 <Card className="p-4" data-testid="usage-chart">
@@ -431,6 +444,8 @@ export function LensUsageByUserPage() {
                     title={`Tokens por dia — ${escopoDoGrafico}`}
                     series={serieDe('tokens')}
                     valueFormatter={(v) => formatNumber(v, 'compact')}
+                    xFormatter={diaDoEixo}
+                    xLabel="Dia"
                   />
                 </Card>
               </div>

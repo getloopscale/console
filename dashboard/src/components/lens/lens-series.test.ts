@@ -23,8 +23,18 @@ describe('scoresToSeries (M90 — score over time)', () => {
       { x: 0, y: 0.3 },
       { x: 1, y: 0.8 },
     ]);
-    // relevance only present in the first period → one point at x=0 (a gap, NOT a fabricated 0)
-    expect(byName['relevance']!.points).toEqual([{ x: 0, y: 0.9 }]);
+    // `relevance` só tem amostra no primeiro período. O comentário desta linha SEMPRE disse "a
+    // gap, NOT a fabricated 0" — e a asserção antiga (`[{ x: 0, y: 0.9 }]`, um ponto só) codificava
+    // OMISSÃO, não lacuna. As duas coisas parecem iguais e não são: o `seriesPath` só quebra a
+    // linha onde encontra um `y` não-finito, e uma entrada ausente ele nunca vê. O resultado era a
+    // linha desenhada por cima do período sem amostra — afirmando continuidade que o dado não tem.
+    //
+    // A crença falsa estava registrada por escrito, ao lado de uma asserção que a contradizia. Foi
+    // assim que o defeito sobreviveu dentro do verde (`usetheoai/theo-cloud#395`).
+    expect(byName['relevance']!.points).toHaveLength(2);
+    expect(byName['relevance']!.points[0]).toEqual({ x: 0, y: 0.9 });
+    expect(byName['relevance']!.points[1]?.x).toBe(1);
+    expect(Number.isFinite(byName['relevance']!.points[1]?.y)).toBe(false);
   });
 
   it('drops a categorical-only evaluator (no avgScore) from the mean chart', () => {
@@ -152,5 +162,45 @@ describe('lens-series mappers (M51) — continued', () => {
 
   it('tokensByModelSeries: empty input → no series', () => {
     expect(tokensByModelSeries([])).toEqual([]);
+  });
+});
+
+/**
+ * M147 — a convenção de lacuna, travada como INVARIANTE e não caso a caso.
+ *
+ * O produto expressava lacuna de três formas: `NaN` (usage-by-user, M144), omissão de entrada
+ * (`scoresToSeries`) e zero fabricado no eixo (`byModelSeries`). O `seriesPath` só entende a
+ * primeira, então as outras duas desenhavam por cima do buraco.
+ *
+ * Este teste existe no lugar de uma constante compartilhada. Uma constante não pega o próximo
+ * autor; um teste que falha, sim — e a convenção que precisa ser preservada é de uma palavra
+ * (`NaN` é o token de lacuna), imposta pelo contrato do `seriesPath`, que já é o ponto único de
+ * verdade.
+ */
+describe('a convenção de lacuna (M147)', () => {
+  it('scoresToSeries: período sem amostra vira slot NÃO-FINITO, nunca entrada ausente', () => {
+    const buckets = [
+      { periodStart: '2026-07-20T00:00:00Z', name: 'a', sampleCount: 5, avgScore: 0.5, labels: {} },
+      { periodStart: '2026-07-21T00:00:00Z', name: 'b', sampleCount: 5, avgScore: 0.7, labels: {} },
+      { periodStart: '2026-07-22T00:00:00Z', name: 'a', sampleCount: 5, avgScore: 0.9, labels: {} },
+    ];
+    const [serieA] = scoresToSeries(buckets).filter((s) => s.name === 'a');
+    // três períodos no eixo, e `a` não pontuou no do meio
+    expect(serieA?.points).toHaveLength(3);
+    expect(Number.isFinite(serieA?.points[1]?.y)).toBe(false);
+    // …e NÃO é zero: uma média sobre zero amostras é indefinida, não zero.
+    expect(serieA?.points[1]?.y).not.toBe(0);
+  });
+
+  it('toda série de scoresToSeries cobre o eixo inteiro — comprimentos iguais', () => {
+    // Séries de comprimentos diferentes é o sintoma da omissão: o `x` salta e o eixo encolhe.
+    const buckets = [
+      { periodStart: '2026-07-20T00:00:00Z', name: 'a', sampleCount: 5, avgScore: 0.5, labels: {} },
+      { periodStart: '2026-07-21T00:00:00Z', name: 'b', sampleCount: 5, avgScore: 0.7, labels: {} },
+      { periodStart: '2026-07-22T00:00:00Z', name: 'c', sampleCount: 5, avgScore: 0.9, labels: {} },
+    ];
+    const tamanhos = new Set(scoresToSeries(buckets).map((s) => s.points.length));
+    expect(tamanhos.size).toBe(1);
+    expect([...tamanhos][0]).toBe(3);
   });
 });

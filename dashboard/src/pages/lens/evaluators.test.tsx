@@ -176,6 +176,41 @@ describe('LensEvaluatorsPage (/observability/evaluators)', () => {
     expect(within(section).queryByText(/no evaluations yet/i)).not.toBeInTheDocument();
   });
 
+  /**
+   * M147 — a cadeia INTEIRA: fábrica → seriesPath → SVG.
+   *
+   * Os testes desta tela afirmavam presença do gráfico, estado vazio, truncamento e erro. Nenhum
+   * olhava o `d` do path. A tela de `usage-by-user` tem essa asserção desde o M144
+   * (`comLacuna.split('M')).toHaveLength(3)`); esta não tinha — e a diferença entre as duas telas
+   * não era de biblioteca nem de dado, era que uma foi testada no nível do traço e a outra só no
+   * nível da presença. Foi assim que a linha ficou sendo desenhada por cima do período sem amostra
+   * durante todo esse tempo (`usetheoai/theo-cloud#395`).
+   */
+  it('M147 — a linha QUEBRA no período sem amostra, na tela', async () => {
+    mockCloudFetch.mockImplementation(
+      byUrl({
+        range: '7d',
+        scores: [
+          // `relevance` pontua no primeiro e no terceiro período; NÃO no segundo.
+          { periodStart: '2026-07-08T00:00:00.000Z', name: 'relevance', sampleCount: 2, avgScore: 0.4, labels: {} },
+          { periodStart: '2026-07-08T01:00:00.000Z', name: 'outro', sampleCount: 2, avgScore: 0.6, labels: {} },
+          { periodStart: '2026-07-08T02:00:00.000Z', name: 'relevance', sampleCount: 2, avgScore: 0.9, labels: {} },
+        ],
+      }),
+    );
+    const { container } = render(<LensEvaluatorsPage />);
+    const section = await screen.findByTestId('scores-over-time');
+    // Esperar o GRÁFICO, não só a seção: a seção aparece antes de a série resolver, e consultar ali
+    // devolve zero linhas por corrida, não por defeito.
+    await within(section).findByLabelText(/scores over time trend/i);
+    const linhas = [...container.querySelectorAll('[data-slot="trend-chart-line"]')];
+    const relevance = linhas.find((l) => l.getAttribute('data-series') === 'relevance');
+    expect(relevance).toBeDefined();
+    const d = relevance?.getAttribute('d') ?? '';
+    // DOIS subcaminhos = a linha quebrou. Um só seria a linha contínua por cima do buraco.
+    expect(d.split('M'), `a linha deve QUEBRAR na lacuna; d=${d}`).toHaveLength(3);
+  });
+
   it('M90 — an empty range shows an honest empty state, not a fabricated zero line', async () => {
     mockCloudFetch.mockImplementation(byUrl({ range: '7d', scores: [] }));
     render(<LensEvaluatorsPage />);
