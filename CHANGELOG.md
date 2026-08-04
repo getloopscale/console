@@ -12,6 +12,8 @@
 
 ### Fixed
 
+- **O papel de quem promove passou a ser lido da fonte autoritativa (#430).** A primeira versão lia um campo do contexto que só é preenchido por um middleware que as rotas de prompts não montam — chegava vazio **sempre**, e o valor de segurança caía para o menor. O efeito era um teto silencioso: nenhum operador, por mais autoridade que tivesse, alcançava uma ação que exige papel elevado, e nada no sistema dizia por quê. Ler um campo que ninguém preencheu e cair para o menor valor é pior que falhar — a falha aparece, o teto não. Agora o papel vem do cadastro de membros; falha de leitura **falha**, e ausência real de papel continua sendo o menor — as duas coisas deixam de ser a mesma (#430)
+
 - **A tela de descoberta lia campos que a API não devolve.** Encontrado exercitando o `app-dev`, não por teste: o handler responde `results` (não `skills`) e `matched` como `[{leg, rank}]` (não `string[]`). A projeção assumiu a forma do `hybrid-retriever.ts` — o módulo interno — em vez da resposta HTTP, e a tela mostrava **"0 resultados"** com o serviço devolvendo dois.
 
   Os testes passavam porque a fixture e o mock **repetiam a mesma suposição**. Um mock que confirma a suposição de quem o escreveu não testa integração alguma — é a lição mais cara desta sessão, e a terceira vez que ela aparece (#m31)
