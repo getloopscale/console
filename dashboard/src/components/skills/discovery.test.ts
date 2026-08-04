@@ -12,9 +12,9 @@ import { discoveryRows, legLabel, type RetrievePayload } from './discovery';
 
 describe('legLabel', () => {
   it('traduz as duas pernas para frases que dizem o que aconteceu', () => {
-    // Não "lexical"/"vector": esses são nomes de implementação. O operador precisa saber o que a
+    // Não "keyword"/"vector": esses são nomes de implementação. O operador precisa saber o que a
     // máquina fez, não como o módulo se chama.
-    expect(legLabel([{ leg: 'lexical', rank: 1 }])).toBe('as palavras batem');
+    expect(legLabel([{ leg: 'keyword', rank: 1 }])).toBe('as palavras batem');
     expect(legLabel([{ leg: 'vector', rank: 1 }])).toBe('entendeu a intenção');
   });
 
@@ -23,14 +23,14 @@ describe('legLabel', () => {
     // entendeu a intenção" enterraria isso numa enumeração.
     expect(
       legLabel([
-        { leg: 'lexical', rank: 1 },
+        { leg: 'keyword', rank: 1 },
         { leg: 'vector', rank: 2 },
       ]),
     ).toBe('palavras e intenção');
     expect(
       legLabel([
         { leg: 'vector', rank: 1 },
-        { leg: 'lexical', rank: 2 },
+        { leg: 'keyword', rank: 2 },
       ]),
     ).toBe('palavras e intenção');
   });
@@ -46,9 +46,25 @@ describe('legLabel', () => {
     expect(
       legLabel([
         { leg: 'semantic-v2', rank: 1 },
-        { leg: 'lexical', rank: 2 },
+        { leg: 'keyword', rank: 2 },
       ]),
     ).toBe('as palavras batem');
+  });
+
+  it('o vocabulário é o do registro — "lexical" NÃO é uma perna que existe', () => {
+    // MEDIDO no app-dev em 2026-08-04, com o servidor respondendo
+    // `matched: [{"leg":"keyword","rank":1}]` e a tela exibindo "ORIGEM NÃO INFORMADA".
+    //
+    // O contrato é `leg: 'vector' | 'keyword'` (theo-skills
+    // `packages/core/src/domain/retrievers/types.ts:79`). A primeira versão desta projeção
+    // inventou `'lexical'` — um nome plausível que o registro nunca emitiu — e por isso TODO
+    // resultado casado por palavra caía no fallback. O score aparecia; o porquê, não. Metade do
+    // critério que o M31 existe para cumprir.
+    //
+    // Este teste trava o vocabulário: reintroduzir `'lexical'` como perna conhecida não o faz
+    // passar, porque nenhuma asserção aqui usa esse nome. O que ele impede é o oposto —
+    // REMOVER `'keyword'` do reconhecimento volta a produzir o fallback e reprova.
+    expect(legLabel([{ leg: 'lexical', rank: 1 }])).toBe('origem não informada');
   });
 });
 
@@ -59,14 +75,14 @@ describe('discoveryRows', () => {
   // mostrava "0 resultados" com o serviço devolvendo dois.
   const payload: RetrievePayload = {
     results: [
-      { skill_id: 'sk_b', name: 'B', description: 'd', score: 0.4, matched: [{ leg: 'lexical', rank: 1 }] },
+      { skill_id: 'sk_b', name: 'B', description: 'd', score: 0.4, matched: [{ leg: 'keyword', rank: 1 }] },
       {
         skill_id: 'sk_a',
         name: 'A',
         description: 'd',
         score: 0.9,
         matched: [
-          { leg: 'lexical', rank: 1 },
+          { leg: 'keyword', rank: 1 },
           { leg: 'vector', rank: 2 },
         ],
       },
@@ -96,7 +112,7 @@ describe('discoveryRows', () => {
     // `0` afirma "casou muito mal". `null` admite "o registro não informou". Um registro mais
     // antigo pode não devolver score, e inventar zero classificaria a skill como péssima.
     const [linha] = discoveryRows({
-      results: [{ skill_id: 'sk_a', name: 'A', description: '', matched: [{ leg: 'lexical', rank: 1 }] } as never],
+      results: [{ skill_id: 'sk_a', name: 'A', description: '', matched: [{ leg: 'keyword', rank: 1 }] } as never],
     });
     expect(linha?.score).toBeNull();
   });

@@ -7,8 +7,16 @@
  * vende.
  */
 
-/** As pernas que a busca híbrida do registro reporta hoje (`hybrid-retriever.ts`). */
-type KnownLeg = 'lexical' | 'vector';
+/**
+ * As pernas que o registro de fato emite.
+ *
+ * O vocabulário é `'vector' | 'keyword'` — declarado em `theo-skills`
+ * `packages/core/src/domain/retrievers/types.ts:79` e MEDIDO na resposta do app-dev em
+ * 2026-08-04. Não é `'lexical'`: esse nome nunca existiu no contrato, e enquanto esta projeção o
+ * usou, todo resultado casado por palavra caiu no fallback "origem não informada" — a tela
+ * mostrava o score e escondia o motivo, que é a metade do critério que o M31 existe para cumprir.
+ */
+type KnownLeg = 'keyword' | 'vector';
 
 /**
  * Uma perna casada, na forma que o HANDLER devolve — `{leg, rank}`, não uma string.
@@ -49,7 +57,7 @@ export interface DiscoveryRow {
 /**
  * Traduz as pernas casadas para uma frase que diz **o que aconteceu**.
  *
- * Não devolve "lexical"/"vector": esses são nomes de implementação, e o operador precisa saber o
+ * Não devolve "keyword"/"vector": esses são nomes de implementação, e o operador precisa saber o
  * que a máquina fez. As duas juntas são um caso PRÓPRIO, não uma enumeração — casar nas duas é o
  * sinal mais forte que o sistema produz, e listá-las lado a lado enterraria isso.
  *
@@ -59,10 +67,10 @@ export interface DiscoveryRow {
 export function legLabel(matched: readonly MatchedLeg[] | undefined): string {
   const conhecidas = new Set<KnownLeg>();
   for (const m of matched ?? []) {
-    if (m.leg === 'lexical' || m.leg === 'vector') conhecidas.add(m.leg);
+    if (m.leg === 'keyword' || m.leg === 'vector') conhecidas.add(m.leg);
   }
-  if (conhecidas.has('lexical') && conhecidas.has('vector')) return 'palavras e intenção';
-  if (conhecidas.has('lexical')) return 'as palavras batem';
+  if (conhecidas.has('keyword') && conhecidas.has('vector')) return 'palavras e intenção';
+  if (conhecidas.has('keyword')) return 'as palavras batem';
   if (conhecidas.has('vector')) return 'entendeu a intenção';
   return 'origem não informada';
 }

@@ -197,10 +197,16 @@ function registerSkillsRoutes(base: string) {
       .filter((sk) => incluirDescontinuadas || (sk as { lifecycle?: string }).lifecycle !== 'deprecated')
       .filter((sk) => q === '' || sk.name.toLowerCase().includes(q) || sk.description.toLowerCase().includes(q) || q.split(' ').some((t) => t.length > 3 && sk.description.toLowerCase().includes(t)));
 
-    // A forma foi MEDIDA no app-dev: `results` (não `skills`) e `matched` como `[{leg, rank}]`.
-    // A primeira versão deste mock repetia a suposição da tela — e por isso o e2e passava com a
-    // projeção lendo campos que o serviço real não devolve. Um mock que confirma a suposição de
-    // quem o escreveu não testa integração alguma.
+    // A forma E o vocabulário foram MEDIDOS no app-dev: `results` (não `skills`), `matched` como
+    // `[{leg, rank}]` (não `string[]`), e `leg ∈ {'vector','keyword'}` — nunca `'lexical'`, que é
+    // um nome que o registro jamais emitiu (contrato em theo-skills
+    // `packages/core/src/domain/retrievers/types.ts:79`).
+    //
+    // Este mock errou as três coisas em sequência, e cada erro passou verde porque ele repetia a
+    // suposição da tela. Um mock que confirma a suposição de quem o escreveu não testa integração
+    // alguma — ele a simula. A forma foi corrigida primeiro e o vocabulário continuou errado: o
+    // e2e seguiu verde enquanto a produção exibia "ORIGEM NÃO INFORMADA" em todo resultado
+    // casado por palavra.
     return Response.json({
       results: candidatas.map((sk, i) => ({
         skill_id: sk.skill_id,
@@ -212,12 +218,12 @@ function registerSkillsRoutes(base: string) {
         matched:
           i === 0
             ? [
-                { leg: 'lexical', rank: 1 },
+                { leg: 'keyword', rank: 1 },
                 { leg: 'vector', rank: 2 },
               ]
             : i === 1
               ? [{ leg: 'vector', rank: 1 }]
-              : [{ leg: 'lexical', rank: 1 }],
+              : [{ leg: 'keyword', rank: 1 }],
       })),
     });
   });
