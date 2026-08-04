@@ -233,6 +233,28 @@ export function PromptDetailPage() {
           <pre className="max-w-xl whitespace-pre-wrap font-mono text-xs text-muted-foreground">
             {row.content || '(vazio)'}
           </pre>
+          {/* M17 — o porquê da revisão. "sem descrição" e não vazio: as revisões
+              anteriores ao milestone não têm, e inventar uma retroativamente
+              apareceria numa auditoria como fato. */}
+          <div className="text-xs">
+            {row.changeDescription !== null ? (
+              <span className="text-foreground">{row.changeDescription}</span>
+            ) : (
+              <span className="italic text-muted-foreground">sem descrição</span>
+            )}
+            {row.modelConfig !== null ? (
+              <span className="ml-2 font-mono text-[10px] text-muted-foreground">
+                {[
+                  row.modelConfig.temperature !== undefined
+                    ? `temperature ${String(row.modelConfig.temperature)}`
+                    : null,
+                  row.modelConfig.model ?? null,
+                ]
+                  .filter((x) => x !== null)
+                  .join(' · ')}
+              </span>
+            ) : null}
+          </div>
           {row.variables.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {row.variables.map((v) => (

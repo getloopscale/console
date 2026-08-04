@@ -64,6 +64,10 @@ export function PromptlyPlaygroundPage() {
   const [saida, setSaida] = useState<SaidaModelo | null>(null);
   const [falha, setFalha] = useState<Falha | null>(null);
   const [recusaAoSalvar, setRecusaAoSalvar] = useState<string | null>(null);
+  // M17 — a afinação desta execução, e o porquê da revisão que ela pode virar.
+  const [temperatura, setTemperatura] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [configDaUltimaExecucao, setConfigDaUltimaExecucao] = useState<{ temperature: number } | null>(null);
 
   const prompt = useQuery({
     queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName],
@@ -107,6 +111,16 @@ export function PromptlyPlaygroundPage() {
     setCampos((atuais) => camposDeVariaveis(declaradas, atuais));
   }, [declaradas]);
 
+  /**
+   * M17 ADR-2 — a config com que se invoca é a MESMA que o salvar leva adiante.
+   *
+   * O laço fechado é o milestone inteiro: guardar uma afinação que a invocação nunca
+   * usou faria o produto AFIRMAR que a revisão foi testada assim. `temperature`
+   * ausente significa "não afinei" — e aí nada é gravado, em vez de gravar um default
+   * que ninguém escolheu.
+   */
+  const configUsada = temperatura === '' ? null : { temperature: Number(temperatura) };
+
   const rodar = useMutation({
     mutationFn: () =>
       runPlayground<SaidaModelo>(
@@ -114,10 +128,15 @@ export function PromptlyPlaygroundPage() {
         conteudo,
         Object.fromEntries(campos.map((c) => [c.nome, c.valor])),
         credencial,
+        configUsada,
       ),
     onSuccess: (out) => {
       setFalha(null);
       setSaida(out);
+      // Congela a config DESTA execução. Salvar depois grava esta, não a que estiver
+      // no campo — mexer na temperatura sem rodar de novo não pode virar afinação
+      // "testada".
+      setConfigDaUltimaExecucao(configUsada);
     },
     onError: (err: unknown) => {
       // A saída anterior é limpa: deixá-la na tela ao lado de um erro sugeriria
@@ -128,7 +147,13 @@ export function PromptlyPlaygroundPage() {
   });
 
   const salvar = useMutation({
-    mutationFn: () => createRevision<unknown>(promptName, conteudo),
+    mutationFn: () =>
+      createRevision<unknown>(promptName, conteudo, {
+        changeDescription: descricao.trim(),
+        // A config que FOI USADA, não a que está no campo agora: se o operador mexer
+        // na temperatura depois de rodar, salvar gravaria uma afinação não testada.
+        modelConfig: configDaUltimaExecucao,
+      }),
     onSuccess: () => {
       // Invalidar ANTES de navegar. Sem isto o detalhe renderiza o cache anterior e a
       // revisão recém-criada **não aparece** — o DoD-6 promete que "o detalhe passa a
@@ -233,6 +258,41 @@ export function PromptlyPlaygroundPage() {
               ) : null}
             </FormField>
           ))}
+
+          <FormField id="playground-temperatura">
+            <FormField.Label>Temperatura</FormField.Label>
+            <FormField.Control>
+              <input
+                aria-label="Temperatura"
+                type="number"
+                min={0}
+                max={2}
+                step={0.1}
+                className="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
+                value={temperatura}
+                onChange={(e) => setTemperatura(e.target.value)}
+                placeholder="deixe vazio para não afinar"
+              />
+            </FormField.Control>
+            <FormField.Hint>
+              A afinação com que você RODAR é a que ficará gravada ao salvar. Vazio significa
+              &quot;não afinei&quot; — nada é gravado, em vez de um default que ninguém escolheu.
+            </FormField.Hint>
+          </FormField>
+
+          <FormField id="playground-descricao">
+            <FormField.Label>Por que esta revisão existe</FormField.Label>
+            <FormField.Control>
+              <input
+                aria-label="Por que esta revisão existe"
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
+                maxLength={500}
+                placeholder="afinei para extração"
+              />
+            </FormField.Control>
+          </FormField>
 
           <FormField id="playground-credencial">
             <FormField.Label>Chave de API do modelo</FormField.Label>

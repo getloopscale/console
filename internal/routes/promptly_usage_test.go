@@ -125,3 +125,35 @@ func TestPromptlyUsage_sem_leitor_de_uso_a_rota_recusa_em_vez_de_entrar_em_panic
 		t.Error("a recusa não diz nada — é o silêncio que custou três rodadas no M14")
 	}
 }
+
+// M17 — o BFF repassa os campos da intenção SEM remodelar.
+//
+// Medido no EC-5 do edge-case review: `CreateRevision` recebe `json.RawMessage` e a envia
+// crua, então os campos novos já atravessam. Este teste existe para que continue assim: um
+// refactor que passasse a decodificar o corpo num struct descartaria em silêncio todo campo
+// que o struct não declara, e a descrição da revisão sumiria sem nenhum teste ficar vermelho.
+func TestPromptlyCreate_repassa_os_campos_do_M17_sem_remodelar(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"version":4}`)}
+
+	corpo := `{"name":"saudacao","content":"oi","changeDescription":"encurtei o preambulo","modelConfig":{"temperature":0}}`
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts", corpo)
+
+	if rec.Code != http.StatusOK && rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	visto := string(f.body)
+	for _, campo := range []string{`"changeDescription":"encurtei o preambulo"`, `"temperature":0`} {
+		if !contains(visto, campo) {
+			t.Errorf("o campo %s nao atravessou o BFF: %s", campo, visto)
+		}
+	}
+}
+
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}

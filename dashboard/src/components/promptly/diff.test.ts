@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { diffLines, DIFF_LINE_CEILING } from './diff';
+import { diffLines, diffConfig, DIFF_LINE_CEILING } from './diff';
 
 /**
  * M12 T1 — o diff entre duas revisões.
@@ -78,5 +78,53 @@ describe('diffLines — teto de tamanho (EC-3)', () => {
     const noLimite = Array.from({ length: DIFF_LINE_CEILING }, (_, i) => `l${i}`).join('\n');
     const blocos = diffLines(noLimite, noLimite);
     expect(blocos.every((b) => b.kind === 'same')).toBe(true);
+  });
+});
+
+describe('diffConfig — a config muda, não só o texto (M17 DoD-4)', () => {
+  it('mesmo texto e temperaturas DIFERENTES sao diferentes', () => {
+    // O bullet do ROADMAP, literal: "duas revisões com o mesmo texto e temperaturas
+    // diferentes aparecem como diferentes no comparador".
+    const d = diffConfig({ temperature: 0.2 }, { temperature: 0.9 });
+
+    expect(d.mudou).toBe(true);
+    expect(d.linhas).toHaveLength(1);
+    expect(d.linhas[0]).toMatchObject({ campo: 'temperature', antes: '0.2', depois: '0.9' });
+  });
+
+  it('mesma config NAO e diferenca — o controle que da sentido ao caso acima', () => {
+    const d = diffConfig({ temperature: 0.2, model: 'gpt-4o' }, { temperature: 0.2, model: 'gpt-4o' });
+
+    expect(d.mudou).toBe(false);
+    expect(d.linhas).toHaveLength(0);
+  });
+
+  it('mesmas chaves em ORDEM diferente nao e diferenca', () => {
+    // EC-6: a comparação é por campo, não por serialização — senão a ordem das chaves
+    // acusaria mudança onde não houve.
+    const d = diffConfig({ temperature: 0.2, model: 'a' }, { model: 'a', temperature: 0.2 });
+
+    expect(d.mudou).toBe(false);
+  });
+
+  it('uma revisao COM config e outra sem: a ausencia e dita, nao mostrada como vazio', () => {
+    const d = diffConfig(null, { temperature: 0.5 });
+
+    expect(d.mudou).toBe(true);
+    expect(d.linhas[0]?.antes).toMatch(/anterior à config/i);
+  });
+
+  it('as DUAS sem config nao e diferenca', () => {
+    expect(diffConfig(null, null).mudou).toBe(false);
+  });
+
+  it('temperature 0 vs ausente E diferenca — 0 nao e o mesmo que nao ter', () => {
+    const d = diffConfig({ temperature: 0 }, null);
+
+    expect(d.mudou).toBe(true);
+  });
+
+  it('temperature 0 vs 0 nao e diferenca', () => {
+    expect(diffConfig({ temperature: 0 }, { temperature: 0 }).mudou).toBe(false);
   });
 });

@@ -144,10 +144,39 @@ export function promoteLabel<T>(name: string, label: string, version: number): P
  * responde com `%2F`, e há intermediários (mux Go, Traefik) cujo tratamento de barra codificada
  * eu não medi. A tela é mais estrita que a API de propósito.
  */
-export function createRevision<T>(name: string, content: string): Promise<T | null> {
+/** M17 — a config com que a revisão foi TESTADA. Opcional: nem toda escrita vem do playground. */
+export interface ConfigDeModelo {
+  readonly temperature?: number;
+  readonly model?: string;
+}
+
+/**
+ * Cria uma revisão.
+ *
+ * M17: `changeDescription` e `modelConfig` são opcionais AQUI porque a API os aceita
+ * ausentes (ADR-3) — a obrigação da descrição é do formulário, não deste transporte.
+ * O playground passa a config **que usou na invocação**, fechando o laço entre testar
+ * e salvar.
+ */
+export function createRevision<T>(
+  name: string,
+  content: string,
+  extras?: { changeDescription?: string; modelConfig?: ConfigDeModelo | null },
+): Promise<T | null> {
   return cloudFetch<T>(
     `${BASE}/prompts`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, content }) },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        content,
+        ...(extras?.changeDescription !== undefined
+          ? { changeDescription: extras.changeDescription }
+          : {}),
+        ...(extras?.modelConfig != null ? { modelConfig: extras.modelConfig } : {}),
+      }),
+    },
     { throwOnError: true },
   );
 }
@@ -190,13 +219,24 @@ export function runPlayground<T>(
   content: string,
   variables: Record<string, string>,
   credential: string,
+  /**
+   * M17 ADR-2 — a config com que INVOCAR. É a mesma que o salvar levará adiante:
+   * sem esse laço, o produto afirmaria que a revisão foi testada com uma config que
+   * nunca chegou ao provider.
+   */
+  modelConfig?: ConfigDeModelo | null,
 ): Promise<T | null> {
   return cloudFetch<T>(
     `${BASE}/prompts/${encodeURIComponent(name)}/playground`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credential, content, variables }),
+      body: JSON.stringify({
+        credential,
+        content,
+        variables,
+        ...(modelConfig != null ? { modelConfig } : {}),
+      }),
     },
     { throwOnError: true },
   );

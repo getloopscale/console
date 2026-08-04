@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { createRevision } from '@/components/promptly/promptly-api';
-import { validarCriacao, fraseDePermanencia } from '@/components/promptly/create-form';
+import { DESCRICAO_MAX, validarCriacao, fraseDePermanencia } from '@/components/promptly/create-form';
 import { camposDeVariaveis, renderTemplate, variaveisDoTexto } from '@/components/promptly/preview';
 import { mensagemDeRecusa } from '@/components/promptly/rollback';
 
@@ -40,6 +40,8 @@ export function PromptlyCreatePage() {
   const [conteudo, setConteudo] = useState('');
   const [valores, setValores] = useState<Record<string, string>>({});
   const [recusa, setRecusa] = useState<string | null>(null);
+  // M17 — o porquê desta revisão. Obrigatório NESTA tela (ADR-3): quem decide está aqui.
+  const [descricao, setDescricao] = useState('');
 
   // `useMutation` e não `async/await` cru num handler: é a convenção do repositório para escritas
   // (`detail.tsx` faz assim na promoção e na reversão) e dispensa dois `useState` mantidos à mão.
@@ -50,12 +52,12 @@ export function PromptlyCreatePage() {
   // para ninguém a repetir. A mudança permanece porque se sustenta sozinha (consistência com as
   // outras duas escritas do módulo, menos estado à mão), não pelo motivo que me trouxe até ela.
   const criar = useMutation({
-    mutationFn: () => createRevision<unknown>(nome.trim(), conteudo),
+    mutationFn: () => createRevision<unknown>(nome.trim(), conteudo, { changeDescription: descricao.trim() }),
     onSuccess: () => navigate(`/promptly/${encodeURIComponent(nome.trim())}`),
     onError: (err: unknown) => setRecusa(mensagemDeRecusa(err)),
   });
 
-  const validacao = validarCriacao(nome);
+  const validacao = validarCriacao({ nome, descricao });
 
   // As variáveis desta tela ainda não têm resposta da API para consultar — o conteúdo está sendo
   // digitado agora. Aqui, e SÓ aqui, elas são extraídas do texto; em toda tela de leitura a
@@ -103,8 +105,29 @@ export function PromptlyCreatePage() {
                 placeholder="onboarding.welcome"
               />
             </FormField.Control>
-            {nome !== '' && !validacao.ok ? (
+            {nome !== '' && validacao.erroNome !== null ? (
               <FormField.Error>{validacao.erroNome}</FormField.Error>
+            ) : null}
+          </FormField>
+
+          <FormField id="promptly-descricao">
+            <FormField.Label>Por que esta revisão existe</FormField.Label>
+            <FormField.Control>
+              <input
+                aria-label="Por que esta revisão existe"
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
+                maxLength={DESCRICAO_MAX}
+                placeholder="encurtei o preâmbulo para reduzir tokens"
+              />
+            </FormField.Control>
+            {/* O teto é dito ANTES de o operador estourar, não depois de a submissão falhar. */}
+            <FormField.Hint>
+              {`${String(descricao.trim().length)}/${String(DESCRICAO_MAX)} — o diff mostra o que mudou; isto explica por quê.`}
+            </FormField.Hint>
+            {descricao !== '' && validacao.erroDescricao !== null ? (
+              <FormField.Error>{validacao.erroDescricao}</FormField.Error>
             ) : null}
           </FormField>
 

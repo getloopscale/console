@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { fetchRevisions } from '@/components/promptly/promptly-api';
-import { diffLines, saoEquivalentes, DIFF_LINE_CEILING } from '@/components/promptly/diff';
+import { diffLines, diffConfig, saoEquivalentes, DIFF_LINE_CEILING } from '@/components/promptly/diff';
 
 /**
  * M12 T5 — `/promptly/:name/diff`: o que mudou entre duas revisões.
@@ -62,7 +62,11 @@ export function PromptlyDiffPage() {
   const b = ordenadas.find((r) => r.version === direita);
   const blocos = a && b ? diffLines(a.content, b.content) : [];
   const grande = blocos.length === 1 && blocos[0].kind === 'too-large';
-  const iguais = blocos.length > 0 && !grande && saoEquivalentes(blocos);
+  // M17 DoD-4 — a config entra na decisão de "idênticas". Duas revisões com a mesma
+  // redação e afinações diferentes SÃO revisões diferentes, e anunciá-las como iguais
+  // era a mentira que este milestone corrige.
+  const config = a && b ? diffConfig(a.modelConfig, b.modelConfig) : { mudou: false, linhas: [] };
+  const iguais = blocos.length > 0 && !grande && saoEquivalentes(blocos) && !config.mudou;
 
   const falhou = Boolean(query.error);
 
@@ -140,6 +144,24 @@ export function PromptlyDiffPage() {
               Comparação inline omitida: {blocos[0].text}. Acima de {DIFF_LINE_CEILING} linhas a
               comparação travaria a aba — abra as revisões lado a lado para inspecionar.
             </p>
+          ) : config.mudou && saoEquivalentes(blocos) ? (
+            // Texto igual, config diferente: dizer só "idênticas" apagaria a diferença
+            // que importa, e mostrar um diff de texto vazio não a explicaria.
+            <div data-testid="promptly-diff-config" className="space-y-2 text-sm">
+              <p className="text-muted-foreground">
+                O texto é o mesmo. O que mudou foi a configuração com que a revisão foi testada:
+              </p>
+              <ul className="space-y-1 font-mono text-xs">
+                {config.linhas.map((l) => (
+                  <li key={l.campo}>
+                    <span className="text-muted-foreground">{l.campo}</span>{' '}
+                    <span className="text-destructive">{l.antes}</span>
+                    {' → '}
+                    <span className="text-foreground">{l.depois}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : iguais ? (
             <p data-testid="promptly-diff-identical" className="text-sm text-muted-foreground">
               As duas revisões têm o mesmo conteúdo. Se uma foi criada por reversão, é exatamente o
