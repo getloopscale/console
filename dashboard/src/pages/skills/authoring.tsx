@@ -19,7 +19,7 @@ import {
 } from '@/components/skills/skills-api';
 
 /**
- * M31 — `/skills/nova`: escrever uma skill sem publicar às cegas.
+ * M31 — `/skills/new`: escrever uma skill sem publicar às cegas.
  *
  * O M30 entregou a API da autoria e ela ficou **sem consumidor**: `POST /v1/skills:validate` valida
  * sem efeito colateral e o erro traz `field` e `line` — e nada disso alcançava um autor, porque não
@@ -345,6 +345,9 @@ export function SkillAuthoringPage() {
               void arquivo.arrayBuffer().then((buffer) => {
                 setZip({ nome: veredito.nome, base64: paraBase64(buffer) });
                 setErroArquivo(null);
+                // Outro arquivo é outra publicação — mesmo motivo do identificador acima.
+                setOperacaoId(null);
+                setErroPublicacao(null);
               });
             }}
           />
@@ -385,7 +388,18 @@ export function SkillAuthoringPage() {
               aria-label="Skill identifier"
               placeholder="e.g. convert-currency"
               value={skillId}
-              onChange={(e) => setSkillId(e.target.value)}
+              onChange={(e) => {
+                setSkillId(e.target.value);
+                // Trocar o identificador declara que a PRÓXIMA publicação é outra. Deixar o
+                // acompanhamento anterior na tela mostrava um "Done" verde sobre uma operação que
+                // não é a que o campo agora descreve — e o link "View the skill", montado com o
+                // identificador do campo, apontava para uma skill inexistente. MEDIDO no app-dev.
+                //
+                // Limpar também é o que devolve o botão: enquanto houvesse operação registrada,
+                // publicar uma segunda skill exigia recarregar a página.
+                setOperacaoId(null);
+                setErroPublicacao(null);
+              }}
             />
           </label>
           {/* Publicar exige ter VALIDADO antes: é o que impede publicar às cegas, que é o nome do
@@ -428,7 +442,7 @@ export function SkillAuthoringPage() {
                 {/* O sucesso oferece TESTAR A DESCOBERTA, não "voltar à lista": saber se a skill é
                     encontrável é a única coisa que o autor quer saber depois de publicar. */}
                 <Button asChild size="sm">
-                  <Link to="/skills/descoberta">Test discovery</Link>
+                  <Link to="/skills/discovery">Test discovery</Link>
                 </Button>
                 <Button asChild variant="secondary" size="sm">
                   <Link to={`/skills/${encodeURIComponent(skillId.trim())}`}>View the skill</Link>
