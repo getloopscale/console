@@ -65,11 +65,29 @@ type promptlyPromoter interface {
 	Rollback(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error)
 }
 
+// promptlyUsageReader e a porta do uso observado por revisao (M15).
+//
+// Separada das outras duas de proposito: este dado vem do `theo-lens`, nao do
+// `theo-promptly`, e e servido por outra credencial. Junta-las numa porta so
+// sugeriria um nivel de privilegio unico que nao existe (ISP).
+type promptlyUsageReader interface {
+	PromptUsage(ctx context.Context, promptName string, windowDays int) (json.RawMessage, error)
+}
+
 // PromptlyDashboardHandler serve o catalogo de prompts ao dashboard.
 type PromptlyDashboardHandler struct {
 	reader   promptlyReader
 	promoter promptlyPromoter
+	usage    promptlyUsageReader
 	logger   *slog.Logger
+}
+
+// WithUsageReader liga a leitura de uso (M15). OPCIONAL por desenho: um operador que
+// nao tenha o `theo-lens` configurado continua com toda a capacidade de autoria. Sem
+// ele, a rota de uso RECUSA com razao legivel em vez de entrar em panico.
+func (h *PromptlyDashboardHandler) WithUsageReader(u promptlyUsageReader) *PromptlyDashboardHandler {
+	h.usage = u
+	return h
 }
 
 // NewPromptlyDashboardHandler constroi o handler com os dois clientes separados.
@@ -344,6 +362,58 @@ func (h *PromptlyDashboardHandler) Playground(w http.ResponseWriter, r *http.Req
 	})
 }
 
+// responderJSON escreve um corpo JSON literal com o status dado.
+func responderJSON(w http.ResponseWriter, status int, corpo string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(corpo))
+}
+
+// usageWindowDefault e o teto da janela do agregado de uso.
+//
+// O default e curto de proposito: um agregado "desde sempre" varre a tabela de spans do
+// ecossistema inteiro, e a tela DIZ qual janela esta mostrando em vez de deixar implicita.
+const (
+	usageWindowDefault = 7
+	usageWindowCeiling = 90
+)
+
+// usageUnavailable e o corpo da falha de LEITURA do uso. Nao e um agregado vazio,
+// deliberadamente: "nao consegui ler" e "ninguem usou este prompt" levam a decisoes
+// opostas, e o segundo disfarcado do primeiro faz a tela afirmar um fato que ninguem mediu.
+const usageUnavailable = `{"code":"PROMPTLY_USAGE_UNAVAILABLE","message":"não consegui ler o uso deste prompt; nenhum número foi lido"}`
+
+// usageNotConfigured e a recusa quando o operador nao ligou o theo-lens.
+const usageNotConfigured = `{"code":"PROMPTLY_USAGE_NOT_CONFIGURED","message":"a leitura de uso exige o theo-lens configurado neste ambiente"}`
+
+// Usage serve GET /v1/dashboard/promptly/prompts/{promptName}/usage — quantas resolucoes e a
+// que custo, POR REVISAO, na janela pedida.
+func (h *PromptlyDashboardHandler) Usage(w http.ResponseWriter, r *http.Request) {
+	if h.usage == nil {
+		h.logger.WarnContext(r.Context(), "promptly_usage_not_configured")
+		responderJSON(w, http.StatusServiceUnavailable, usageNotConfigured)
+		return
+	}
+	janela := usageWindowDefault
+	if raw := r.URL.Query().Get("windowDays"); raw != "" {
+		// Fail-fast: trocar em silencio faria o chamador atribuir o resultado a uma janela
+		// diferente da que pediu — e a tela mostra a janela, entao ela mentiria junto.
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > usageWindowCeiling {
+			h.badRequest(w, r, "usage", fmt.Errorf("windowDays fora de 1..%d", usageWindowCeiling))
+			return
+		}
+		janela = n
+	}
+	corpo, err := h.usage.PromptUsage(r.Context(), promptName(r), janela)
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "promptly_usage_failed", "erro", err.Error())
+		responderJSON(w, http.StatusBadGateway, usageUnavailable)
+		return
+	}
+	responderJSON(w, http.StatusOK, string(corpo))
+}
+
 func (h *PromptlyDashboardHandler) badRequest(w http.ResponseWriter, r *http.Request, op string, err error) {
 	h.logger.WarnContext(r.Context(), "promptly dashboard: "+op, "error", err, "path", r.URL.Path)
 	w.Header().Set("Content-Type", "application/json")
@@ -363,6 +433,8 @@ func MountPromptlyDashboard(r chi.Router, h *PromptlyDashboardHandler, requireJW
 		r.Get("/prompts/{promptName}", h.Prompt)
 		r.Get("/prompts/{promptName}/revisions", h.Revisions)
 		r.Get("/prompts/{promptName}/labels", h.Labels)
+		// M15 — o uso observado por revisao. GET porque nao muda nada; a janela vem por query.
+		r.Get("/prompts/{promptName}/usage", h.Usage)
 		r.Get("/prompts/{promptName}/policies/{label}", h.Policy)
 		r.Put("/prompts/{promptName}/labels/{label}", h.Promote)
 		// M12 — as escritas da autoria. `POST` nos dois porque NENHUM dos dois e idempotente:

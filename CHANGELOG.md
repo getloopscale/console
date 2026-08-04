@@ -8,6 +8,8 @@
 
 ### Added
 
+- **`GET /v1/dashboard/promptly/prompts/{name}/usage` — o uso por revisão chega ao navegador (M15).** Proxy fino para o agregado novo do `theo-lens`, escopado pelo inquilino do JWT e servido pela credencial **do lens**, não pela do promptly: é telemetria, e o menor privilégio está na chave. A porta é uma interface própria de um método, separada das outras duas do handler — juntá-las sugeriria um nível de privilégio único que não existe. Indisponibilidade vira `502` com corpo próprio (`PROMPTLY_USAGE_UNAVAILABLE`), **distinguível de agregado vazio**: "não consegui ler" e "ninguém usou este prompt" levam a decisões opostas, e o segundo disfarçado do primeiro faz a tela afirmar um fato que ninguém mediu. Janela fora de 1..90 é **recusada** com `400`, nunca trocada em silêncio — a tela mostra a janela, então um default silencioso a faria mentir junto. Sem `theo-lens` configurado a rota recusa com razão legível em vez de derrubar a tela (#m15)
+
 - **o gráfico de consumo por usuário passou a dizer QUE DIA foi cada ponto** (`usetheodev/usetheo-ui#17`). O eixo não tinha rótulo algum e a tabela para leitor de tela numerava — `Point 1, 2, 3`. Num gráfico chamado "Custo por dia", dava para ver que houve um pico e não havia caminho para saber quando. Agora o eixo é datado, a tabela acessível traz a data no lugar do ordinal, e passar o cursor mostra uma linha vertical com a data e o valor de cada série. As datas são formatadas em **UTC**, como o serviço agrupa: formatar no fuso do navegador deslocaria o rótulo em relação ao balde que ele nomeia, e um gráfico que diz "21/07" sobre o balde de 22/07 erra com confiança.
 
 ## [0.78.1] - 2026-08-03
