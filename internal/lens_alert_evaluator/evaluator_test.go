@@ -23,7 +23,7 @@ func newEval(t *testing.T) (*Evaluator, sqlmock.Sqlmock, *sql.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := New(db, nil, nil, nil)
+	e := New(db, nil, nil, nil, nil)
 	e.now = func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }
 	return e, mock, db
 }
@@ -131,8 +131,8 @@ func TestTick_FetchErrorSkipsTenant(t *testing.T) {
 	mock.ExpectQuery("SELECT id, tenant_id, metric, comparator").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "tenant_id", "metric", "comparator", "threshold", "window_seconds", "webhook_id", "status",
-			"last_triggered_at", "renotify_interval_seconds", "monitor_id",
-		}).AddRow("lar-1", "tn-1", "error_rate", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, nil))
+			"last_triggered_at", "renotify_interval_seconds", "monitor_id", "prompt_name",
+		}).AddRow("lar-1", "tn-1", "error_rate", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, nil, nil))
 	// NO UPDATE / INSERT expected — the fetch error skips the tenant.
 
 	if err := e.Tick(context.Background()); err != nil {
@@ -248,8 +248,8 @@ func TestTick_GuardFetchError_SkipsRule(t *testing.T) {
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold", "window_seconds",
-			"webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"}).
-			AddRow("lar-g5", "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, "g-1"))
+			"webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id", "prompt_name"}).
+			AddRow("lar-g5", "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, "g-1", nil))
 
 	if err := e.Tick(context.Background()); err != nil {
 		t.Fatal(err)
@@ -307,8 +307,8 @@ func TestFetchErrorDoesNotStampLastEvaluated(t *testing.T) {
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold", "window_seconds",
-			"webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"}).
-			AddRow("lar-s", "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, "g-1"))
+			"webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id", "prompt_name"}).
+			AddRow("lar-s", "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, "g-1", nil))
 	// NO UPDATE expected at all — sqlmock fails on any unexpected statement.
 
 	if err := e.Tick(context.Background()); err != nil {
@@ -376,10 +376,10 @@ func TestTick_GuardBulkheadStopsAfterBudget(t *testing.T) {
 		return MonitorBreachWindow{}, errors.New("hung")
 	}
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
-		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"})
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id", "prompt_name"})
 	for i := 0; i < 10; i++ {
 		rows.AddRow(fmt.Sprintf("lar-%d", i), "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil,
-			fmt.Sprintf("g-%d", i)) // distinct guards, so the per-guard cache cannot mask the budget
+			fmt.Sprintf("g-%d", i), nil) // distinct guards, so the per-guard cache cannot mask the budget
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(rows)
 
@@ -401,9 +401,9 @@ func TestTick_GuardResultIsCachedPerGuardAndWindow(t *testing.T) {
 		return MonitorBreachWindow{HasData: true, EvaluatedCount: 10, BreachCount: 0}, nil
 	}
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
-		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"})
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id", "prompt_name"})
 	for i := 0; i < 3; i++ {
-		rows.AddRow(fmt.Sprintf("lar-c%d", i), "tn-1", "monitor_breach", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, "g-same")
+		rows.AddRow(fmt.Sprintf("lar-c%d", i), "tn-1", "monitor_breach", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, "g-same", nil)
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(rows)
 	for i := 0; i < 3; i++ {
@@ -420,8 +420,8 @@ func TestTick_GuardResultIsCachedPerGuardAndWindow(t *testing.T) {
 
 func monitorRuleRow(ruleID, monitorID string) *sqlmock.Rows {
 	return sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
-		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"}).
-		AddRow(ruleID, "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, monitorID)
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id", "prompt_name"}).
+		AddRow(ruleID, "tn-1", "monitor_breach", "gt", 0.0, 3600, "wwh-1", "OK", nil, nil, monitorID, nil)
 }
 
 // The fence must not WEDGE a fresh rule. A rule evaluated for the first time has status='OK',
@@ -509,10 +509,10 @@ func TestTick_BulkheadStreakResetsOnSuccess(t *testing.T) {
 		return MonitorBreachWindow{}, errors.New("hung")
 	}
 	rows := sqlmock.NewRows([]string{"id", "tenant_id", "metric", "comparator", "threshold",
-		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id"})
+		"window_seconds", "webhook_id", "status", "last_triggered_at", "renotify_interval_seconds", "monitor_id", "prompt_name"})
 	// fail, fail, SUCCESS, fail, fail, fail  → without the reset the 6th is never attempted.
 	for i, g := range []string{"g-a", "g-b", "g-ok", "g-c", "g-d", "g-e"} {
-		rows.AddRow(fmt.Sprintf("lar-b%d", i), "tn-1", "monitor_breach", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, g)
+		rows.AddRow(fmt.Sprintf("lar-b%d", i), "tn-1", "monitor_breach", "gt", 5.0, 3600, "wwh-1", "OK", nil, nil, g, nil)
 	}
 	mock.ExpectQuery("SELECT id, tenant_id, metric").WillReturnRows(rows)
 	mock.ExpectExec("UPDATE lens_alert_rules SET status").WillReturnResult(sqlmock.NewResult(0, 1))
