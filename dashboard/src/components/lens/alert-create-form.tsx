@@ -37,7 +37,13 @@ export interface AlertCreateFormProps {
   /** O uso medido AGORA do prompt digitado — `undefined` enquanto não há prompt alvo. */
   /** Problemas a EXIBIR — só os campos já tocados. A validação em si vive em `alert-draft.ts`. */
   readonly problems?: Partial<Record<AlertField, string>>;
-  readonly usoAtual?: { readonly carregando: boolean; readonly erro: boolean; readonly resolucoes?: number };
+  readonly usoAtual?: {
+    readonly carregando: boolean;
+    readonly erro: boolean;
+    readonly resolucoes?: number;
+    /** A janela que o número cobre — dita, nunca implícita: sem ela o operador o atribui ao período errado. */
+    readonly janelaDias: number;
+  };
 }
 
 export function AlertCreateForm(p: AlertCreateFormProps) {
@@ -128,7 +134,7 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
                           ? 'Não foi possível ler o uso atual deste prompt.'
                           : p.usoAtual.carregando
                             ? 'Lendo o uso atual…'
-                            : `Hoje: ${p.usoAtual.resolucoes} resoluções nas últimas 24 h.`}
+                            : `Hoje: ${p.usoAtual.resolucoes} resoluções nos últimos ${p.usoAtual.janelaDias === 1 ? '1 dia' : `${p.usoAtual.janelaDias} dias`}.`}
                       </p>
                     ) : null}
       </div>

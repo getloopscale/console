@@ -380,3 +380,33 @@ describe('LensAlertsPage — M22, o formulário ensina em vez de ralhar', () => 
     expect(await screen.findByText(/Diga qual prompt/i)).toBeInTheDocument();
   });
 });
+
+describe('LensAlertsPage — M22 DoD-4, "ainda não avaliado" ≠ "sem dados"', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('uma regra recém-criada diz que AINDA NÃO foi avaliada', async () => {
+    // O avaliador roda a cada 60 s. Sem esta distinção o operador cria a regra, não vê nada
+    // acontecer, conclui que falhou e cria a segunda — passando a ter duas regras sobre a mesma
+    // coisa. É a regra do M13/M15 aplicada ao ciclo de vida da própria regra.
+    mockRoutes({
+      rules: [
+        { id: 'lar-nova', name: 'uso da saudação', metric: 'prompt_resolutions', prompt_name: 'saudacao', comparator: 'gt', threshold: 3, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null },
+      ],
+    });
+    render(<LensAlertsPage />);
+    expect(await screen.findByText('uso da saudação')).toBeInTheDocument();
+    expect(screen.getByText(/not evaluated yet|ainda não avaliad/i)).toBeInTheDocument();
+  });
+
+  it('uma regra JÁ avaliada mostra quando foi — não o mesmo texto', async () => {
+    // O contra-exemplo: sem ele, um componente que sempre dissesse "ainda não avaliado" passaria.
+    mockRoutes({
+      rules: [
+        { id: 'lar-velha', name: 'erro geral', metric: 'error_rate', comparator: 'gt', threshold: 5, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: '2026-08-05T06:40:00Z', last_triggered_at: null },
+      ],
+    });
+    render(<LensAlertsPage />);
+    expect(await screen.findByText('erro geral')).toBeInTheDocument();
+    expect(screen.queryByText(/not evaluated yet|ainda não avaliad/i)).not.toBeInTheDocument();
+  });
+});

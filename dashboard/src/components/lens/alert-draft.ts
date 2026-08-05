@@ -75,7 +75,7 @@ function alertProblemsByField(d: AlertDraft): Partial<Record<AlertField, string>
   } else if (!exigeNomeDePrompt(d.metric) && temNome) {
     // Aqui o backend simplesmente ignora o campo, e o próximo leitor da regra não sabe dizer se o
     // escopo valia. Recusar é o que mantém a regra legível depois.
-    out.promptName = 'Esta métrica é do workspace inteiro — ela não observa um prompt.';
+    out.promptName = 'Diga qual prompt este alerta observa.';
   }
 
   return out;

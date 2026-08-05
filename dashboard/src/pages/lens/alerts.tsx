@@ -145,6 +145,11 @@ const COMPARATORS = [
   { value: 'lt', label: '<' },
   { value: 'lte', label: '≤' },
 ] as const;
+// A janela do valor medido, DECLARADA UMA VEZ. Ela viaja na consulta e no texto: mantê-la em dois
+// lugares faz o texto mentir no primeiro dia em que alguém mudar a consulta — e o operador
+// atribuiria o número a um período diferente do que ele cobre.
+const JANELA_DO_VALOR_MEDIDO_DIAS = 1;
+
 const WINDOWS = [
   { value: '3600', label: 'Last hour' },
   { value: '86400', label: 'Last 24h' },
@@ -264,7 +269,7 @@ export function LensAlertsPage() {
     retry: false,
     queryFn: () =>
       cloudFetch<{ rows?: { resolutions?: number }[] }>(
-        `/v1/dashboard/promptly/prompts/${encodeURIComponent(promptAlvo)}/usage?windowDays=1`,
+        `/v1/dashboard/promptly/prompts/${encodeURIComponent(promptAlvo)}/usage?windowDays=${JANELA_DO_VALOR_MEDIDO_DIAS}`,
         {},
         { throwOnError: true },
       ),
@@ -302,6 +307,22 @@ export function LensAlertsPage() {
           {r.enabled ? 'On' : 'Off'}
         </Button>
       ),
+    },
+    {
+      // M22 DoD-4 — "ainda não avaliado" NÃO é "sem dados".
+      //
+      // O avaliador roda a cada 60 s. Uma regra recém-criada mostrada como um travessão faz o
+      // operador concluir que falhou e criar a segunda, passando a ter duas regras sobre a mesma
+      // coisa. É a regra do M13/M15 aplicada ao ciclo de vida da própria regra: uma leitura que
+      // ainda não aconteceu é um fato diferente de uma leitura que não achou nada.
+      key: 'last_evaluated_at',
+      label: 'Last evaluated',
+      render: (r) =>
+        r.last_evaluated_at === null ? (
+          <span className="text-xs italic text-muted-foreground">Not evaluated yet</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">{r.last_evaluated_at}</span>
+        ),
     },
     {
       key: 'last_triggered_at',
@@ -388,7 +409,12 @@ export function LensAlertsPage() {
                   onSubmit={() => create.mutate(toCreateBody(draft))}
                   usoAtual={
                     promptAlvo !== ''
-                      ? { carregando: usoAtual.isLoading, erro: usoAtual.isError, resolucoes: resolucoesAgora }
+                      ? {
+                          carregando: usoAtual.isLoading,
+                          erro: usoAtual.isError,
+                          resolucoes: resolucoesAgora,
+                          janelaDias: JANELA_DO_VALOR_MEDIDO_DIAS,
+                        }
                       : undefined
                   }
                 />
