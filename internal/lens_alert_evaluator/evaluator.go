@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/usetheodev/theo-cloud/internal/metrics"
 	"time"
 )
@@ -52,6 +53,12 @@ type MonitorBreachWindow struct {
 // SeriesFetcher: the evaluator core stays unit-testable without the broker.
 type MonitorBreachFetcher func(ctx context.Context, tenantID, monitorID string, windowSeconds int) (MonitorBreachWindow, error)
 
+// PromptUsageFetcher fetches one prompt's windowed usage aggregate (theo-promptly M21 DoD-5).
+// Injected for exactly the reason MonitorBreachFetcher is: the workspace series returns one float
+// per window and cannot answer a per-PROMPT question, so the answer comes from a different upstream
+// call — a third fetcher, not a new metric case reading the wrong aggregate.
+type PromptUsageFetcher func(ctx context.Context, tenantID, promptName string, windowSeconds int) (json.RawMessage, error)
+
 // Evaluator is the background alert-rule evaluator (theo-lens M53). It ticks periodically, fetches each
 // tenant's observability series, evaluates each rule via the pure state machine, and on a fire enqueues a
 // workspace_webhook_deliveries row for the existing J-16 worker to dispatch. It NEVER dispatches HTTP
@@ -60,6 +67,7 @@ type Evaluator struct {
 	db           *sql.DB
 	fetch        SeriesFetcher
 	fetchMonitor MonitorBreachFetcher
+	fetchPrompt  PromptUsageFetcher
 	logger       *slog.Logger
 	now          func() time.Time
 	interval     time.Duration
@@ -82,16 +90,21 @@ const monitorFetchTimeout = 5 * time.Second
 // across ticks. 500 rules against a hung lens is ~42min with only a per-call timeout; ~15s with this.
 const monitorFailureBudget = 3
 
-// New constructs the evaluator. Both fetchers are REQUIRED positional arguments, deliberately: an
+// New constructs the evaluator. ALL fetchers are REQUIRED positional arguments, deliberately: an
 // optional guard fetcher is how the feature shipped nil in production once already, making every
 // guard-backed rule permanently dead while reading "armed" on the customer's screen. A compile
 // error is a better gate than a runtime warning.
-func New(db *sql.DB, fetch SeriesFetcher, fetchMonitor MonitorBreachFetcher, logger *slog.Logger) *Evaluator {
+//
+// The prompt fetcher was added to THIS signature rather than to a second constructor for the same
+// reason. A `NewWithPrompt` alongside `New` would reintroduce exactly the failure it is meant to
+// prevent: the old call site keeps compiling, prompt rules silently never evaluate, and the screen
+// again shows an armed rule that can never fire.
+func New(db *sql.DB, fetch SeriesFetcher, fetchMonitor MonitorBreachFetcher, fetchPrompt PromptUsageFetcher, logger *slog.Logger) *Evaluator {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Evaluator{db: db, fetch: fetch, fetchMonitor: fetchMonitor, logger: logger,
-		now: time.Now, interval: 60 * time.Second}
+	return &Evaluator{db: db, fetch: fetch, fetchMonitor: fetchMonitor, fetchPrompt: fetchPrompt,
+		logger: logger, now: time.Now, interval: 60 * time.Second}
 }
 
 // alertRule is the subset of lens_alert_rules the evaluator reads.
@@ -107,12 +120,20 @@ type alertRule struct {
 	lastTriggered sql.NullTime
 	renotify      sql.NullInt64
 	monitorID     sql.NullString
+	promptName    sql.NullString
 }
 
 // monitorKey caches one carrier answer per (tenant, guard, window) within a tick.
 type monitorKey struct {
 	tenant string
 	guard  string
+	window int
+}
+
+// promptKey caches one prompt-usage answer per (tenant, prompt, window) within a tick.
+type promptKey struct {
+	tenant string
+	prompt string
 	window int
 }
 
@@ -132,16 +153,59 @@ func (e *Evaluator) Run(ctx context.Context) {
 	}
 }
 
+// colunaAusente is SQLSTATE 42703 (undefined_column) — the ONE error that means "this deployment is
+// ahead of the database", as opposed to any other reason a query can fail.
+const colunaAusente = "42703"
+
+const colunasDeRegra = `id, tenant_id, metric, comparator, threshold, window_seconds, webhook_id, status,
+		       last_triggered_at, renotify_interval_seconds, monitor_id`
+
+// queryRules reads the enabled rules, degrading gracefully when this deployment is AHEAD of the
+// database — that is, when the image carrying the prompt-scoped path shipped before the engine
+// migration that adds `prompt_name` landed.
+//
+// Nothing in the platform orders those two deploys: the engine migrates through one pipeline and
+// theo-cloud publishes to `develop` through another. Without this, arriving first makes the SELECT
+// fail with 42703 and Tick return BEFORE evaluating a single row — every alert rule in the fleet
+// stops being evaluated, including every rule that has nothing to do with prompts.
+//
+// That failure is indistinguishable from calm on the customer's screen: the rules stay `enabled`,
+// the status stays `OK`, and nobody is told anything. Making a fleet-wide alerting outage depend on
+// an operator getting two deploys in the right order is not a risk worth taking for one column.
+//
+// The detection is by SQLSTATE, never by message text — the same discipline `internal/auth/tenant.go`
+// already applies to 23505. A connection failure must NOT be retried with the legacy projection: it
+// would double the query against a database that is already unwell, and hide the real error behind
+// a second, different one.
+func (e *Evaluator) queryRules(ctx context.Context) (*sql.Rows, bool, error) {
+	rows, err := e.db.QueryContext(ctx, `SELECT `+colunasDeRegra+`, prompt_name
+		FROM lens_alert_rules
+		WHERE enabled
+		ORDER BY tenant_id`)
+	if err == nil {
+		return rows, true, nil
+	}
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != colunaAusente {
+		return nil, false, err
+	}
+	// Loud, because it is a real misconfiguration that MUST be fixed — but not fatal, because the
+	// rules that predate the column are still perfectly evaluable.
+	e.logger.Error("lens alert evaluator: database is behind this deployment — prompt-scoped rules "+
+		"cannot be evaluated until the engine migration adding lens_alert_rules.prompt_name lands. "+
+		"Every other rule continues to be evaluated.", "sqlstate", pgErr.Code)
+	rows, err = e.db.QueryContext(ctx, `SELECT `+colunasDeRegra+`
+		FROM lens_alert_rules
+		WHERE enabled
+		ORDER BY tenant_id`)
+	return rows, false, err
+}
+
 // Tick runs one evaluation pass: for each tenant with enabled rules, fetch the series once per distinct
 // window and evaluate each rule. A per-tenant fetch error is logged + skipped (fail-closed: no data → no
 // spurious fire), never aborting the whole tick.
 func (e *Evaluator) Tick(ctx context.Context) error {
-	rows, err := e.db.QueryContext(ctx, `
-		SELECT id, tenant_id, metric, comparator, threshold, window_seconds, webhook_id, status,
-		       last_triggered_at, renotify_interval_seconds, monitor_id
-		FROM lens_alert_rules
-		WHERE enabled
-		ORDER BY tenant_id`)
+	rows, comPrompt, err := e.queryRules(ctx)
 	if err != nil {
 		return err
 	}
@@ -161,10 +225,19 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 	monitorCache := map[guardKeyT]MonitorBreachWindow{}
 	monitorFailures := 0
 
+	// The prompt path caches by (tenant, prompt, window) for the same reason the other two cache:
+	// N rules over one prompt must issue ONE upstream call, not N.
+	promptCache := map[promptKey]json.RawMessage{}
+	promptFailed := map[promptKey]bool{}
+
 	for rows.Next() {
 		var r alertRule
-		if err := rows.Scan(&r.id, &r.tenantID, &r.metric, &r.comparator, &r.threshold, &r.windowSeconds,
-			&r.webhookID, &r.status, &r.lastTriggered, &r.renotify, &r.monitorID); err != nil {
+		alvos := []any{&r.id, &r.tenantID, &r.metric, &r.comparator, &r.threshold, &r.windowSeconds,
+			&r.webhookID, &r.status, &r.lastTriggered, &r.renotify, &r.monitorID}
+		if comPrompt {
+			alvos = append(alvos, &r.promptName)
+		}
+		if err := rows.Scan(alvos...); err != nil {
 			e.logger.Warn("lens alert evaluator: scan failed", "error", err)
 			continue
 		}
@@ -245,6 +318,47 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 			}
 			continue
 		}
+		// M21 (theo-promptly): a prompt-scoped rule reads the per-prompt aggregate, not the
+		// workspace series — same reasoning as the guard branch above. The series is one float per
+		// window and knows nothing about a prompt; letting the rule fall through to it would fire
+		// (or not) on a number unrelated to the prompt the customer picked, with that prompt's name
+		// displayed beside it.
+		if isPromptScoped(r.metric) {
+			// Unreachable once migration 000060's pairing CHECK is applied — belt-and-braces, so a
+			// reader does not infer the database permits a prompt rule without a prompt.
+			if e.fetchPrompt == nil || !r.promptName.Valid {
+				metrics.IncLensAlertEvaluation("unwired")
+				e.logger.Error("lens alert evaluator: prompt rule cannot be evaluated — no fetcher or no prompt name",
+					"rule", r.id)
+				continue
+			}
+			pk := promptKey{r.tenantID, r.promptName.String, r.windowSeconds}
+			if promptFailed[pk] {
+				continue
+			}
+			raw, cached := promptCache[pk]
+			if !cached {
+				fctx, cancel := context.WithTimeout(ctx, monitorFetchTimeout)
+				var ferr error
+				raw, ferr = e.fetchPrompt(fctx, r.tenantID, r.promptName.String, r.windowSeconds)
+				cancel()
+				if ferr != nil {
+					// Fail-closed, and deliberately NOT stamping last_evaluated_at: the freeze IS
+					// the durable outage signal, and refreshing it would erase the only evidence
+					// that evaluation stopped.
+					metrics.IncLensAlertEvaluation("fetch_error")
+					e.logger.Warn("lens alert evaluator: prompt usage fetch failed — skipping rule",
+						"rule", r.id, "prompt", r.promptName.String, "error", ferr)
+					promptFailed[pk] = true
+					continue
+				}
+				promptCache[pk] = raw
+			}
+			if perr := e.processPromptRule(ctx, r, raw); perr != nil {
+				e.logger.Warn("lens alert evaluator: process prompt rule failed", "rule", r.id, "error", perr)
+			}
+			continue
+		}
 		k := key{r.tenantID, r.windowSeconds}
 		if failed[k] {
 			continue
@@ -298,6 +412,25 @@ func (e *Evaluator) processGuardRule(ctx context.Context, r alertRule, w Monitor
 		return e.recordEvaluation(ctx, r)
 	}
 	return e.decide(ctx, r, float64(w.BreachCount))
+}
+
+// processPromptRule is the prompt-scoped twin of processRule (M21). It resolves the number from the
+// per-prompt aggregate and hands it to the SAME decision path — the state machine, the atomic
+// transition and the delivery enqueue are reused verbatim, exactly as the guard path does.
+//
+// Note the asymmetry with processRule, which is deliberate and documented at metricFromPromptUsage:
+// here an EMPTY aggregate is a measurement of zero, not absence. Read failure never reaches this
+// function disguised as empty — it surfaced as an error at the fetch above.
+func (e *Evaluator) processPromptRule(ctx context.Context, r alertRule, raw json.RawMessage) error {
+	value, ok := metricFromPromptUsage(raw, r.metric)
+	if !ok {
+		// Unparseable body or unknown metric — never a measurement. The evaluation is still
+		// recorded: "we looked and could not read it" and "we stopped looking" are different facts.
+		metrics.IncLensAlertEvaluation("no_data")
+		return e.recordEvaluation(ctx, r)
+	}
+	metrics.IncLensAlertEvaluation("ok")
+	return e.decide(ctx, r, value)
 }
 
 // recordEvaluation stamps last_evaluated_at without touching status, for a window that held no

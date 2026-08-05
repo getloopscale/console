@@ -58,7 +58,23 @@ var lensAlertRuleIDPattern = regexp.MustCompile(`^lar-[0-9a-f]{16}$`)
 
 // Closed enums (mirrored by the DB CHECK constraints).
 var validAlertMetrics = map[string]bool{"error_rate": true, "cost": true, "p95_latency": true,
-	MetricMonitorBreach: true}
+	MetricMonitorBreach: true, MetricPromptResolutions: true}
+
+// MetricPromptResolutions is the STORED metric value of a prompt-scoped rule (migration 000060).
+// theo-promptly M21 DoD-5: the rule watches ONE prompt's usage, not the workspace aggregate.
+const MetricPromptResolutions = "prompt_resolutions"
+
+// promptPairingRejected reports whether the (metric, promptName) pair is one of the two states the
+// database CHECK makes unrepresentable — extracted so the rule that decides the 400 is testable
+// without a database, a session and a webhook.
+//
+// Both states fail SILENTLY if allowed through: a prompt rule with no prompt is skipped by the
+// evaluator forever (an armed rule that can never fire), and a prompt name on a workspace metric is
+// simply ignored (the next reader cannot tell whether the scope applied).
+func promptPairingRejected(metric, promptName string) bool {
+	named := strings.TrimSpace(promptName) != ""
+	return (metric == MetricPromptResolutions) != named
+}
 
 // MetricMonitorBreach is the STORED metric value of a monitor-backed rule (migration 000059).
 const MetricMonitorBreach = "monitor_breach"
@@ -239,6 +255,8 @@ func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		// Deprecated (M136): accepted for one release so a client written against the
 		// previous shape is not broken by the rename. monitor_id wins when both are sent.
 		GuardID string `json:"guard_id"`
+		// M21 (theo-promptly): the prompt a prompt-scoped rule watches.
+		PromptName string `json:"prompt_name"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "Invalid JSON body.")
@@ -251,7 +269,21 @@ func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	if !validAlertMetrics[req.Metric] {
 		writeError(w, http.StatusBadRequest, "INVALID_METRIC",
-			"metric must be error_rate | cost | p95_latency | monitor_breach.")
+			"metric must be error_rate | cost | p95_latency | monitor_breach | prompt_resolutions.")
+		return
+	}
+	// M21 — the prompt pairing. Same shape and same reason as the monitor pairing below: the DB
+	// CHECK (migration 000060) enforces it, and this is the friendly half so the caller gets a
+	// typed message instead of a constraint violation.
+	promptName := strings.TrimSpace(req.PromptName)
+	if promptPairingRejected(req.Metric, promptName) {
+		if req.Metric == MetricPromptResolutions {
+			writeError(w, http.StatusBadRequest, "INVALID_PROMPT",
+				"A prompt_name is required for a "+MetricPromptResolutions+" rule.")
+		} else {
+			writeError(w, http.StatusBadRequest, "INVALID_PROMPT",
+				"prompt_name is only valid on a "+MetricPromptResolutions+" rule.")
+		}
 		return
 	}
 	// M135 — the guard pairing. The DB CHECK enforces it too (migration 000058); this is the
@@ -327,10 +359,10 @@ func (h *LensAlertRulesHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	id := lensAlertRuleIDPrefix + randomHex16()
 	const q = `INSERT INTO lens_alert_rules
-		(id, subject, tenant_id, name, metric, comparator, threshold, window_seconds, webhook_id, renotify_interval_seconds, monitor_id)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULLIF($11,''))`
+		(id, subject, tenant_id, name, metric, comparator, threshold, window_seconds, webhook_id, renotify_interval_seconds, monitor_id, prompt_name)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULLIF($11,''),NULLIF($12,''))`
 	if _, err := h.db.ExecContext(r.Context(), q,
-		id, user.Subject, user.TenantID, name, req.Metric, req.Comparator, req.Threshold, req.WindowSeconds, req.WebhookID, req.Renotify, monitorID); err != nil {
+		id, user.Subject, user.TenantID, name, req.Metric, req.Comparator, req.Threshold, req.WindowSeconds, req.WebhookID, req.Renotify, monitorID, promptName); err != nil {
 		h.logger.Warn("lens alert rules create: insert failed", "error", err, "id", id)
 		writeError(w, http.StatusInternalServerError, "INTERNAL", "Could not create rule. Try again.")
 		return

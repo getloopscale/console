@@ -1847,7 +1847,26 @@ func main() {
 			}
 			return w, nil
 		}
-		go lens_alert_evaluator.New(db, fetch, fetchMonitor, logger).Run(schedulerCtx)
+		// M21 (theo-promptly): prompt-scoped rules read the per-PROMPT usage aggregate. Same
+		// Model-B credential shape as the two above — a key minted for THIS tenant, scoped to
+		// observability:read, never a JWT and never a platform key.
+		//
+		// A window in SECONDS reaches theo-lens as whole DAYS, and the rounding is UP on purpose:
+		// truncating a 3600s window to 0 days would ask for an empty window, and every rule would
+		// then be evaluated against nothing — silently, since an empty aggregate is a legitimate
+		// measurement on this path.
+		fetchPromptUsage := func(ctx context.Context, tenantID, promptName string, windowSeconds int) (json.RawMessage, error) {
+			dc := thelens.NewDataClient(cfg.LensBaseURL, &http.Client{Timeout: 10 * time.Second}).
+				WithKeyResolver(func(ctx context.Context) (string, error) {
+					return lensBroker.KeyForTenantScoped(ctx, "", tenantID, []string{"observability:read"})
+				})
+			days := (windowSeconds + 86399) / 86400
+			if days < 1 {
+				days = 1
+			}
+			return dc.PromptUsage(ctx, promptName, days)
+		}
+		go lens_alert_evaluator.New(db, fetch, fetchMonitor, fetchPromptUsage, logger).Run(schedulerCtx)
 		logger.Info("lens alert evaluator started")
 	}
 
