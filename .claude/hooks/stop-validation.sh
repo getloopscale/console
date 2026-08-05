@@ -132,23 +132,24 @@ if [ -n "$SRC_CHANGED" ]; then
 fi
 
 # ----------------------------------------------------------------------------
-# 2. CHANGELOG discipline (HARD GATE — Inquebrável Rule 6 + cycle-review BLOCKER)
+# 2. CHANGELOG discipline — GATE REMOVIDO NESTE REPOSITORIO (theo-workspace#26)
 # ----------------------------------------------------------------------------
-if [ -f "CHANGELOG.md" ]; then
-  CODE_CHANGED=$(echo "$ALL_FILES" \
-    | grep -E '\.(go|py|ts|tsx|js|jsx|rs|java|kt|rb|cs)$' \
-    | grep -vE '(_test|\.test|\.spec)\.[a-z]+$' \
-    | grep -vE '(^|/)(node_modules|vendor|dist|build|target|\.venv|__pycache__)/' \
-    || true)
-  if [ -n "$CODE_CHANGED" ] && ! echo "$ALL_FILES" | grep -qE '^CHANGELOG\.md$'; then
-    msg="CHANGELOG.md not updated despite production source changes (Inquebrável Rule 6; cycle-review BLOCKER). Add an entry to [Unreleased] before stopping. Override with STOP_VALIDATION_WARN_ONLY=1 only when the change is a bulk reorg with the rationale documented separately."
-    if [ "$WARN_ONLY" = "1" ]; then
-      WARNINGS+=("$msg")
-    else
-      BLOCKERS+=("$msg")
-    fi
-  fi
-fi
+# O CHANGELOG deste ecossistema e UNICO e vive no UMBRELLA, com atribuicao por
+# projeto (`- **{projeto}:** …`), conforme `rules/umbrella-scope.md` § 5 e
+# `.claude/coordination/PROTOCOL.md` § 5. NUNCA no CHANGELOG do repo do produto.
+#
+# Este gate exigia `^CHANGELOG\.md$` no diff DESTE repo. Como o hook roda com o
+# cwd aqui e nao tem como enxergar o CHANGELOG do umbrella, SEGUIR O CONTRATO
+# GARANTIA O BLOQUEIO: toda entrega feita conforme o protocolo parava a sessao, e
+# o unico caminho era bypass — que ensina a ignorar o gate inteiro, inclusive o
+# de segredos logo abaixo.
+#
+# O gate nao foi enfraquecido, foi MOVIDO para onde ele consegue medir: o
+# `stop-validation.sh` do umbrella passou a varrer o codigo dos projetos IRMAOS e
+# a exigir a entrada ATRIBUIDA sob `[Unreleased]`. Ver o commit 031ce02 la.
+#
+# Os demais gates deste arquivo (TDD, segredos, honestidade de release) seguem
+# valendo — eles medem o que esta ao alcance deste repositorio.
 
 # ----------------------------------------------------------------------------
 # 2b. Secret leak (HARD GATE — cycle-review BLOCKER)
