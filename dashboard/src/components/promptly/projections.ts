@@ -12,12 +12,22 @@ export interface CatalogEntry {
   readonly name: string;
   readonly latestVersion: number;
   readonly labels: ReadonlyArray<{ label: string; version: number }>;
+  /**
+   * M16 — as tags do prompt. Opcional NO FIO: um serviço anterior ao milestone não as emite, e
+   * a tela tem de abrir contra ele em vez de quebrar.
+   */
+  readonly tags?: unknown;
   readonly updatedAt: string;
 }
 
 export interface CatalogRow extends CatalogEntry {
   /** Os labels na forma que o operador lê — `prod → v4, staging → v8`, ou `nenhum`. */
   readonly labelsResumo: string;
+  /**
+   * M16 — as tags já normalizadas. Sempre um array: a tabela itera sobre isto, e um `undefined`
+   * vindo de um serviço antigo quebraria a linha inteira em vez de mostrá-la sem tag.
+   */
+  readonly tags: readonly string[];
 }
 
 /**
@@ -151,6 +161,9 @@ export function catalogRows(payload: unknown): CatalogRow[] {
     ...e,
     labels: Array.isArray(e.labels) ? e.labels : [],
     labelsResumo: resumirLabels(e.labels),
+    // Só strings entram: um serviço que emitisse `[null]` renderizaria uma tag em branco
+    // clicável, que filtraria por nada e pareceria um defeito da busca.
+    tags: Array.isArray(e.tags) ? e.tags.filter((t): t is string => typeof t === 'string') : [],
   }));
 }
 
@@ -279,4 +292,66 @@ export function policySummary(policy: PromotionPolicy | null | undefined): Polic
     livre: false,
     texto: `A promoção exige avaliação no dataset ${policy.datasetId} com score mínimo de ${policy.minScore}.`,
   };
+}
+
+/**
+ * M18 — um comentário como a tela o lê.
+ *
+ * `author` anulável, e a tela DIZ a ausência: uma credencial sem identidade humana não tem autor,
+ * e inventar um apareceria numa auditoria como fato — mesma razão do `createdBy` do M7.
+ */
+export interface ComentarioRow {
+  readonly id: string;
+  readonly body: string;
+  readonly author: string | null;
+  readonly createdAt: string;
+  /**
+   * O carimbo COMO SE LÊ. Separado do `createdAt` cru porque os dois têm consumidores
+   * diferentes: ordenar e comparar querem o ISO; a tela quer a frase.
+   *
+   * `''` quando não há data ou ela não parseia — a mesma disciplina do autor ausente: dizer que
+   * não sabe, nunca imprimir "Invalid Date" nem cair para "agora", que apareceria ao leitor como
+   * um fato.
+   */
+  readonly quando: string;
+}
+
+/**
+ * Projeta a discussão de uma revisão.
+ *
+ * `null` (falha de leitura) e `[]` (ninguém comentou) chegam aqui como coisas diferentes e saem
+ * como a MESMA lista vazia — de propósito: quem distingue os dois é a tela, olhando o `error` da
+ * consulta. Esta função não pode inventar a distinção, e fingir que pode é o que faria a tela
+ * confiar num sinal que não existe.
+ */
+export function comentarioRows(payload: unknown): ComentarioRow[] {
+  return asArray<{ id?: unknown; body?: unknown; author?: unknown; createdAt?: unknown }>(payload)
+    .filter((c) => typeof c.id === 'string' && typeof c.body === 'string')
+    .map((c) => ({
+      id: c.id as string,
+      body: c.body as string,
+      author: typeof c.author === 'string' ? c.author : null,
+      createdAt: typeof c.createdAt === 'string' ? c.createdAt : '',
+      quando: quandoLegivel(c.createdAt),
+    }));
+}
+
+/**
+ * O ISO vira frase — ou vira nada.
+ *
+ * A aceitação do M18 no app-dev mostrou `autor não registrado · 2026-08-04T17:13:42.848Z`. O
+ * carimbo é o único eixo temporal de quem lê a discussão; se ele exige decodificar um ISO de
+ * cabeça, ele não está sendo lido, está sendo pulado.
+ */
+function quandoLegivel(bruto: unknown): string {
+  if (typeof bruto !== 'string' || bruto === '') return '';
+  const d = new Date(bruto);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }

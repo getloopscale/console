@@ -19,6 +19,12 @@ const mockPromote = vi.fn();
 const mockPrompt = vi.fn();
 const mockRollback = vi.fn();
 const mockUsage = vi.fn();
+const mockSetTags = vi.fn();
+const mockCatalog = vi.fn();
+const mockComments = vi.fn();
+const mockAddComment = vi.fn();
+const mockResolvido = vi.fn();
+const mockDependentes = vi.fn();
 vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
   return {
@@ -30,6 +36,12 @@ vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
     promoteLabel: (...a: unknown[]) => mockPromote(...a),
     rollbackPrompt: (...a: unknown[]) => mockRollback(...a),
     fetchPromptUsage: (...a: unknown[]) => mockUsage(...a),
+    setTags: (...a: unknown[]) => mockSetTags(...a),
+    fetchCatalogPage: (...a: unknown[]) => mockCatalog(...a),
+    fetchComments: (...a: unknown[]) => mockComments(...a),
+    addComment: (...a: unknown[]) => mockAddComment(...a),
+    fetchPromptResolvido: (...a: unknown[]) => mockResolvido(...a),
+    fetchDependentes: (...a: unknown[]) => mockDependentes(...a),
   };
 });
 
@@ -58,9 +70,22 @@ beforeEach(() => {
   mockRollback.mockReset();
   mockPrompt.mockReset();
   mockUsage.mockReset();
+  mockResolvido.mockReset();
+  mockDependentes.mockReset();
+  mockResolvido.mockResolvedValue({ resolvedContent: 'RESOLVIDO' });
+  mockDependentes.mockResolvedValue([]);
   mockRevisions.mockResolvedValue(REVISOES);
   mockLabels.mockResolvedValue(LABELS);
-  mockPrompt.mockResolvedValue({ version: 3 });
+  // A API real sempre devolve `content`, `variables` e `modelConfig` nesta leitura. O dublê
+  // devolvia só a versão, e a aba de consumo — que precisa do conteúdo para saber se o prompt
+  // compõe — ficava em "Carregando…" para sempre. Um dublê mais pobre que a produção não exercita
+  // o caminho; ele o esconde.
+  mockPrompt.mockResolvedValue({
+    version: 3,
+    content: 'Olá {{nome}}, sou o assistente.',
+    modelConfig: null,
+    variables: ['nome'],
+  });
   mockPolicy.mockResolvedValue(null);
   mockPromote.mockResolvedValue({ name: 'saudacao', label: 'prod', version: 3 });
   mockUsage.mockResolvedValue({
@@ -209,7 +234,16 @@ describe('PromptDetailPage', () => {
   it('num prompt que cabe na página, NÃO usa cursor — senão cortaria linhas que cabiam', async () => {
     // O par que discrimina: um cursor incondicional esconderia o começo do histórico de prompts
     // pequenos, que é justamente onde ele cabe inteiro.
-    mockPrompt.mockResolvedValue({ version: 3 });
+    // A API real sempre devolve `content`, `variables` e `modelConfig` nesta leitura. O dublê
+  // devolvia só a versão, e a aba de consumo — que precisa do conteúdo para saber se o prompt
+  // compõe — ficava em "Carregando…" para sempre. Um dublê mais pobre que a produção não exercita
+  // o caminho; ele o esconde.
+  mockPrompt.mockResolvedValue({
+    version: 3,
+    content: 'Olá {{nome}}, sou o assistente.',
+    modelConfig: null,
+    variables: ['nome'],
+  });
 
     render(<PromptDetailPage />);
 
@@ -240,7 +274,7 @@ describe('PromptDetailPage', () => {
     const user = userEvent.setup();
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a revisão v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
 
     expect(await screen.findByText(/deixa de servir a v1/i)).toBeInTheDocument();
     expect(screen.getByText(/passa a servir a v3/i)).toBeInTheDocument();
@@ -252,7 +286,7 @@ describe('PromptDetailPage', () => {
     const user = userEvent.setup();
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a revisão v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
 
     expect(await screen.findByText(/promoção é livre/i)).toBeInTheDocument();
   });
@@ -262,7 +296,7 @@ describe('PromptDetailPage', () => {
     mockPolicy.mockResolvedValue({ datasetId: 'ds-1', minScore: 0.8 });
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a revisão v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
 
     expect(await screen.findByText(/score mínimo de 0\.8/i)).toBeInTheDocument();
   });
@@ -280,7 +314,7 @@ describe('PromptDetailPage', () => {
     );
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a revisão v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
     await user.type(await screen.findByRole('textbox'), 'prod');
     await user.click(screen.getByRole('button', { name: /^Promover$/i }));
 
@@ -293,7 +327,7 @@ describe('PromptDetailPage', () => {
     const user = userEvent.setup();
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a revisão v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
     expect(mockPromote).not.toHaveBeenCalled();
 
     await user.type(await screen.findByRole('textbox'), 'prod');
@@ -448,5 +482,357 @@ describe('M14 — a entrada do playground', () => {
 
     const link = await screen.findByRole('link', { name: 'Playground' });
     expect(link).toHaveAttribute('href', '/promptly/saudacao/playground');
+  });
+});
+
+/**
+ * M16 — as tags no DETALHE, e a marcação pela tela.
+ *
+ * O DoD do milestone pede as duas coisas pelo nome: *"tags criadas e filtradas na tela"* e *"a tag
+ * aparece na linha do catálogo E no detalhe"*. A primeira entrega fez só a leitura no catálogo — o
+ * `PUT /prompts/:name/tags` existia na API e parava no BFF, e a tela não tinha como marcar nada.
+ * Um produto onde só a API sabe marcar não tem a jornada que o milestone promete.
+ */
+describe('PromptDetailPage — tags (M16)', () => {
+  function comCatalogo(tags: readonly string[]): void {
+    // As tags do prompt vêm do catálogo, que já é a projeção que as carrega. Um endpoint novo
+    // seria trabalho antes da necessidade — o dado já está a um `search` de distância.
+    mockCatalog.mockResolvedValue({
+      data: [{ name: 'saudacao', latestVersion: 3, labels: [], tags, updatedAt: 'd' }],
+      temContinuacao: false,
+    });
+  }
+
+  it('a tag do prompt aparece no detalhe', async () => {
+    comCatalogo(['suporte', 'campanha']);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText('suporte')).toBeInTheDocument();
+    expect(screen.getByText('campanha')).toBeInTheDocument();
+  });
+
+  it('prompt sem tag DIZ que não tem, em vez de deixar o espaço em branco', async () => {
+    // Um espaço vazio lê como "não carregou". A ausência é um fato sobre o prompt e tem de ser
+    // dita — mesma razão do "sem descrição" do M17 e do "nenhum" dos labels.
+    comCatalogo([]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/nenhuma tag/i)).toBeInTheDocument();
+  });
+
+  it('marcar uma tag pela tela chama o servico com o conjunto INTEIRO', async () => {
+    // O contrato é substituição, não delta: mandar só a tag nova apagaria as antigas no servidor.
+    comCatalogo(['suporte']);
+    mockSetTags.mockResolvedValue({ name: 'saudacao', tags: ['campanha', 'suporte'] });
+    render(<PromptDetailPage />);
+    await screen.findByText('suporte');
+
+    await userEvent.type(screen.getByLabelText(/nova tag/i), 'campanha');
+    await userEvent.click(screen.getByRole('button', { name: /marcar/i }));
+
+    await vi.waitFor(() =>
+      expect(mockSetTags).toHaveBeenCalledWith('saudacao', ['suporte', 'campanha']),
+    );
+  });
+
+  it('remover uma tag manda o conjunto SEM ela, e nao um delete', async () => {
+    comCatalogo(['suporte', 'campanha']);
+    mockSetTags.mockResolvedValue({ name: 'saudacao', tags: ['suporte'] });
+    render(<PromptDetailPage />);
+    await screen.findByText('campanha');
+
+    await userEvent.click(screen.getByRole('button', { name: /remover a tag campanha/i }));
+
+    await vi.waitFor(() => expect(mockSetTags).toHaveBeenCalledWith('saudacao', ['suporte']));
+  });
+
+  it('a recusa TIPADA do servico chega ao operador, nao um erro generico', async () => {
+    // `too_many_tags` e `empty_tag` dizem o que fazer; "erro ao salvar" não diz nada. É a mesma
+    // lição que o CLAUDE.md deste repositório registra sobre mensagem escrita para o terminal.
+    comCatalogo(['suporte']);
+    mockSetTags.mockRejectedValue(
+      new ApiError(400, { error: 'too_many_tags', message: 'um prompt aceita no maximo 16 tags' }),
+    );
+    render(<PromptDetailPage />);
+    await screen.findByText('suporte');
+
+    await userEvent.type(screen.getByLabelText(/nova tag/i), 'demais');
+    await userEvent.click(screen.getByRole('button', { name: /marcar/i }));
+
+    expect(await screen.findByText(/no maximo 16 tags/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * M18 — a discussão na tela, e quem promove vendo-a ANTES de confirmar.
+ *
+ * O DoD é explícito: *"a tela de promoção mostra se a revisão-alvo tem comentários antes de
+ * confirmar. Discussão que não é lida na hora da decisão não muda decisão nenhuma."*
+ */
+describe('PromptDetailPage — discussão da revisão (M18)', () => {
+  it('a discussao da revisao aparece com autor e data', async () => {
+    mockComments.mockResolvedValue([
+      { id: 'c1', body: 'rejeitada: verbosa demais', author: 'ana', createdAt: '2026-08-04T10:00:00Z' },
+    ]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/rejeitada: verbosa demais/)).toBeInTheDocument();
+    expect(screen.getByText(/ana/)).toBeInTheDocument();
+  });
+
+  it('revisao sem discussao DIZ que nao ha, em vez de ficar em branco', async () => {
+    // Branco lê como "não carregou". A ausência de discussão é um fato sobre a revisão.
+    mockComments.mockResolvedValue([]);
+
+    render(<PromptDetailPage />);
+
+    expect(await screen.findByText(/nenhum comentário/i)).toBeInTheDocument();
+  });
+
+  it('comentar pela tela manda o corpo e RELE a discussao', async () => {
+    mockComments.mockResolvedValue([]);
+    mockAddComment.mockResolvedValue({ name: 'saudacao', version: 3 });
+    render(<PromptDetailPage />);
+    await screen.findByText(/nenhum comentário/i);
+
+    await userEvent.type(screen.getByLabelText(/comentar esta revisão/i), 'por que a v3?');
+    await userEvent.click(screen.getByRole('button', { name: /comentar/i }));
+
+    await vi.waitFor(() =>
+      expect(mockAddComment).toHaveBeenCalledWith('saudacao', expect.any(Number), 'por que a v3?'),
+    );
+  });
+
+  it('a recusa TIPADA por segredo chega ao operador com o motivo', async () => {
+    // `secret_in_comment` diz o que fazer; "erro ao salvar" não diz nada. E a mensagem cita o
+    // TIPO de credencial, nunca o trecho — o valor não pode voltar à tela.
+    mockComments.mockResolvedValue([]);
+    mockAddComment.mockRejectedValue(
+      new ApiError(400, {
+        error: 'secret_in_comment',
+        message: 'o comentario parece conter uma chave da plataforma; remova-a antes de enviar',
+      }),
+    );
+    render(<PromptDetailPage />);
+    await screen.findByText(/nenhum comentário/i);
+
+    await userEvent.type(screen.getByLabelText(/comentar esta revisão/i), 'colei algo');
+    await userEvent.click(screen.getByRole('button', { name: /comentar/i }));
+
+    expect(await screen.findByText(/chave da plataforma/i)).toBeInTheDocument();
+  });
+
+  it('QUEM PROMOVE ve que ha discussao antes de confirmar', async () => {
+    // O bullet 4 do DoD. Sem isto o operador confirma sem saber que alguém já discutiu a
+    // revisão que ele está pondo no ar.
+    mockComments.mockResolvedValue([
+      { id: 'c1', body: 'não promova: quebra o tom', author: 'bia', createdAt: '2026-08-04T10:00:00Z' },
+    ]);
+    render(<PromptDetailPage />);
+    await screen.findByText(/não promova: quebra o tom/);
+
+    await userEvent.click(screen.getAllByRole('button', { name: /promover/i })[0]);
+
+    expect(await screen.findByText(/comentário/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * M20 DoD-2 e DoD-4 — o par de textos e a lista de dependentes, na tela.
+ *
+ * O que precisa de proteção aqui não é "o cartão renderiza". São três decisões que erram em
+ * silêncio: pagar a resolução em prompt que não compõe, cair para o texto escrito quando a resolução
+ * falha, e desenhar "ninguém depende de mim" sobre uma leitura que não voltou.
+ */
+describe('M20 — composição na tela', () => {
+  it('prompt_sem_composicao_nao_oferece_o_alternador_nem_paga_a_resolucao', async () => {
+    // O caso comum. Um alternador entre dois textos idênticos é ruído, e a travessia do grafo
+    // custaria em toda abertura de prompt que não referencia nada.
+    mockPrompt.mockResolvedValue({ version: 3, content: 'Olá {{nome}}, sem composição.' });
+
+    render(<PromptDetailPage />);
+    expect(await screen.findByText(/Tags/)).toBeInTheDocument();
+
+    expect(screen.queryByRole('button', { name: /Como foi escrito/ })).not.toBeInTheDocument();
+    expect(mockResolvido).not.toHaveBeenCalled();
+  });
+
+  it('prompt_que_compoe_alterna_entre_o_escrito_e_o_resolvido', async () => {
+    mockPrompt.mockResolvedValue({
+      version: 3,
+      content: 'Antes @@@promptly:name=politica|version=1@@@ depois',
+    });
+    mockResolvido.mockResolvedValue({ resolvedContent: 'Antes SEJA CORDIAL depois' });
+
+    render(<PromptDetailPage />);
+    const botao = await screen.findByRole('button', { name: /Resolvido/ });
+
+    // Começa em "como foi escrito": o marcador é visível, e é isso que torna a composição depurável.
+    expect(screen.getByText(/@@@promptly:name=politica/)).toBeInTheDocument();
+    // E não pagou a resolução ainda — ela só acontece quando o operador PEDE.
+    expect(mockResolvido).not.toHaveBeenCalled();
+
+    await userEvent.click(botao);
+
+    expect(await screen.findByText(/Antes SEJA CORDIAL depois/)).toBeInTheDocument();
+  });
+
+  it('resolucao_que_falha_nao_finge_ser_o_texto_escrito', async () => {
+    // Cair para o escrito mostraria um texto CORRETO sob um rótulo ERRADO: o operador leria
+    // marcadores literais achando ver a composição, e concluiria que ela não funciona.
+    mockPrompt.mockResolvedValue({
+      version: 3,
+      content: 'Antes @@@promptly:name=politica|version=1@@@ depois',
+    });
+    mockResolvido.mockRejectedValue(new ApiError(500, 'falhou'));
+
+    render(<PromptDetailPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /Resolvido/ }));
+
+    expect(await screen.findByText(/Não foi possível resolver a composição/)).toBeInTheDocument();
+  });
+
+  it('lista_quem_referencia_dizendo_a_versao', async () => {
+    // M21 — a lista de dependentes migrou para a aba de PRODUÇÃO: "quem quebra se eu mexer aqui"
+    // é uma pergunta sobre o uso, não sobre o texto. O teste passa a entrar pela rota da aba, que
+    // é o caminho do usuário; renderizar a raiz e procurar o cartão testaria a tela errada.
+    mockDependentes.mockResolvedValue([{ name: 'atendimento', version: 4, via: { version: 3, label: null } }]);
+
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/producao'] });
+
+    expect(await screen.findByRole('link', { name: 'atendimento' })).toBeInTheDocument();
+    expect(screen.getByText('v4')).toBeInTheDocument();
+  });
+
+  it('falha_ao_ler_dependentes_nao_e_desenhada_como_ninguem_depende_de_mim', async () => {
+    // A distinção que muda a decisão: quem lê "ninguém depende" promove tranquilo; quem lê "não
+    // consegui saber", não. Colapsar as duas é o defeito que o CLAUDE.md deste repo nomeia.
+    mockDependentes.mockRejectedValue(new ApiError(500, 'falhou'));
+
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/producao'] });
+
+    expect(await screen.findByText(/Não foi possível ler os dependentes/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nenhum prompt referencia este/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * M21 DoD-1 e DoD-3 — as quatro abas na tela, e a ação que não sai dela.
+ *
+ * O que precisa de proteção aqui não é "a aba renderiza". São três coisas que erram em silêncio: o
+ * endereço que já circulava deixar de resolver, a aba ativa não refletir a rota, e a promoção
+ * sumir quando o operador troca de aba — que é o mesmo que "sair da tela", só que sem navegar.
+ */
+describe('M21 — as quatro abas', () => {
+  it('o endereço que já circulava resolve, e abre a aba de conteúdo', async () => {
+    // DoD-1, a metade que quebra. Links para `/promptly/:name` existem no catálogo, no diff e na
+    // lista de dependentes do M20 — trocar uma tela melhor por três caminhos mortos seria pior que
+    // não ter abas.
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao'] });
+
+    expect(await screen.findByRole('heading', { name: 'Revisões' })).toBeInTheDocument();
+    const aba = screen.getByRole('link', { name: 'Conteúdo' });
+    expect(aba).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('cada rota marca a SUA aba, e só ela', async () => {
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumo'] });
+
+    expect(await screen.findByRole('link', { name: 'Como consumir' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    // O controle: as outras três não podem estar marcadas ao mesmo tempo.
+    for (const rotulo of ['Conteúdo', 'Config', 'Uso em produção']) {
+      expect(screen.getByRole('link', { name: rotulo })).not.toHaveAttribute('aria-current');
+    }
+  });
+
+  it('a aba de conteúdo NÃO mostra o que pertence às outras', async () => {
+    // Sem esta asserção, um recorte que renderizasse tudo em toda aba passaria nos testes acima —
+    // e a tela continuaria sendo o scroll único, só que com uma barra decorativa em cima.
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao'] });
+    await screen.findByRole('heading', { name: 'Revisões' });
+
+    expect(screen.queryByRole('heading', { name: 'Como consumir' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Uso por revisão' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Afinação/ })).not.toBeInTheDocument();
+  });
+
+  it('DoD-3 — a AÇÃO de promover existe em todas as abas, não só o cartão', async () => {
+    // O `/review` mediu que a versão anterior deste teste passava com ZERO botões: ela verificava
+    // os cabeçalhos `Ambientes` e `Tags`, ambos presentes, enquanto a promoção inteira vivia na
+    // tabela de revisões — que está na aba de conteúdo. Um teste que afirma uma jornada e verifica
+    // um título é pior que teste nenhum: ele dá cobertura de mentira ao CHANGELOG.
+    //
+    // O oráculo agora é o BOTÃO, e a asserção é repetida por rota.
+    for (const rota of [
+      '/promptly/saudacao',
+      '/promptly/saudacao/config',
+      '/promptly/saudacao/producao',
+      '/promptly/saudacao/consumo',
+    ]) {
+      const { unmount } = render(<PromptDetailPage />, { initialEntries: [rota] });
+      expect(await screen.findByRole('heading', { name: 'Ambientes' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Tags' })).toBeInTheDocument();
+      // `prod → v1` com a última em v3: a ação de promover para v3 tem de estar à mão.
+      expect(
+        await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/ }),
+      ).toBeInTheDocument();
+      // E etiquetar também — o campo de tag é o oráculo do outro metade do DoD-3.
+      expect(screen.getByRole('textbox', { name: 'Nova tag' })).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('a promoção pelo cartão de Ambientes abre a confirmação com a revisão certa', async () => {
+    // Sem isto, um botão que não abrisse nada passaria no teste acima.
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumo'] });
+    await userEvent.click(
+      await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/ }),
+    );
+
+    // A confirmação nomeia a revisão que DEIXA de servir — a garantia herdada do M12/M18. A
+    // asserção é escopada ao DIÁLOGO: `v1` aparece em vários lugares da tela, e afirmar sobre a
+    // página inteira daria um verde vindo do cartão de ambientes, com o diálogo fechado.
+    const dialogo = await screen.findByRole('dialog');
+    expect(dialogo).toHaveTextContent(/v1/);
+    expect(dialogo).toHaveTextContent(/prod/);
+  });
+
+  it('o ambiente que JÁ serve a última revisão não oferece promoção', async () => {
+    // O CONTROLE. Sem ele, um botão que aparecesse sempre passaria nos dois testes acima — e
+    // ofereceria promover para a revisão que o ambiente já serve, que é um ato sem efeito.
+    mockLabels.mockResolvedValue([{ label: 'prod', version: 3 }]);
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/producao'] });
+
+    expect(await screen.findByRole('heading', { name: 'Ambientes' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Promover prod para a última revisão/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('a aba de consumo entrega os três trechos, apontando para ESTE prompt', async () => {
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumo'] });
+
+    expect(await screen.findByRole('heading', { name: 'Como consumir' })).toBeInTheDocument();
+    for (const rotulo of ['SDK (TypeScript)', 'REST (curl)', 'MCP']) {
+      expect(screen.getByRole('heading', { name: rotulo })).toBeInTheDocument();
+    }
+    // O nome do prompt aparece nos trechos — é o que separa "código de exemplo" de "código que roda".
+    expect(screen.getAllByText(/saudacao/).length).toBeGreaterThan(0);
+  });
+
+  it('a aba de config declara a ausência em vez de ficar em branco', async () => {
+    // Uma área vazia lê-se como "não carregou". A ausência de afinação é um FATO sobre a revisão —
+    // as anteriores ao M17 não têm, e inventar uma retroativamente apareceria como escolha de alguém.
+    mockPrompt.mockResolvedValue({ version: 3, content: 'sem config', modelConfig: null, variables: [] });
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/config'] });
+
+    expect(await screen.findByText(/não declara afinação/)).toBeInTheDocument();
+    expect(screen.getByText(/Nenhuma variável/)).toBeInTheDocument();
   });
 });

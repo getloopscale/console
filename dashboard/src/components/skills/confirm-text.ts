@@ -51,11 +51,11 @@ export interface PromotionTarget {
  * Inventar um "sai da revisão X" ali afirmaria um estado anterior que nunca existiu.
  */
 export function promotionConfirmation(t: PromotionTarget): string {
-  const entra = `Quem resolver «${t.channel}» passa a receber a revisão ${t.toRevision} (versão ${t.version}).`;
+  const entra = `Whoever resolves «${t.channel}» starts receiving revision ${t.toRevision} (version ${t.version}).`;
 
   if (t.fromRevision === null) {
     return (
-      `O canal «${t.channel}» ainda não serve nenhuma revisão — ele passa a existir com esta promoção. ` +
+      `Channel «${t.channel}» does not serve any revision yet — it comes into existence with this promotion. ` +
       entra
     );
   }
@@ -68,15 +68,15 @@ export function promotionConfirmation(t: PromotionTarget): string {
   // e meia identificação é meia informação.
   const sai =
     t.fromVersion === null || t.fromVersion === undefined
-      ? `a revisão ${t.fromRevision} (sem versão publicada)`
-      : `a versão ${t.fromVersion} (revisão ${t.fromRevision})`;
+      ? `revision ${t.fromRevision} (no published version)`
+      : `version ${t.fromVersion} (revision ${t.fromRevision})`;
 
   return (
-    `${entra} Deixa de receber ${sai}, que continua existindo no registro mas ` +
-    `sai de serviço neste canal. ` +
+    `${entra} It stops receiving ${sai}, which keeps existing in the registry but ` +
+    `goes out of service on this channel. ` +
     // Esta frase é a que impede o texto de mentir por omissão: promover de volta restaura o
     // PONTEIRO, não a leitura. Quem já resolveu o canal já levou o conteúdo novo.
-    `Promover de volta não desfaz o efeito: quem já resolveu «${t.channel}» depois desta mudança já leu a revisão nova.`
+    `Promoting back does not undo the effect: whoever already resolved «${t.channel}» after this change has already read the new revision.`
   );
 }
 

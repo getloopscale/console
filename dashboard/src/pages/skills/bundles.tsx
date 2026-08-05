@@ -43,7 +43,7 @@ const QUERY_KEY = ['cloud', '/v1/dashboard/bundles'] as const;
 
 export function BundlesPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Distribuição'), [setPageTitle]);
+  useEffect(() => setPageTitle('Distribution'), [setPageTitle]);
   useRequireAuth();
 
   const queryClient = useQueryClient();
@@ -64,7 +64,7 @@ export function BundlesPage() {
     },
     // A mensagem do serviço é preferida à nossa: ela nomeia o motivo (falta de escopo, nome em
     // uso), enquanto qualquer paráfrase nossa envelhece na primeira mudança do backend.
-    onError: (err) => setErroCriacao(promotionRefusal(err, 'Não foi possível criar o pacote.')),
+    onError: (err) => setErroCriacao(promotionRefusal(err, 'Could not create the bundle.')),
   });
 
   const rows = Array.isArray(query.data?.bundles) ? query.data.bundles : [];
@@ -73,7 +73,7 @@ export function BundlesPage() {
   const columns: DataTableColumn<BundleSummary>[] = [
     {
       key: 'name',
-      label: 'Pacote',
+      label: 'Bundle',
       render: (row) => (
         // O nome É o caminho para o detalhe, onde tokens e adoção vivem. Sem este link a tela
         // seria um beco sem saída e a jornada morreria aqui.
@@ -87,15 +87,15 @@ export function BundlesPage() {
     },
     {
       key: 'bundle_id',
-      label: 'Identificador',
+      label: 'Identifier',
       render: (row) => <span className="font-mono text-xs text-muted-foreground">{row.bundle_id}</span>,
     },
     {
       key: 'create_time',
-      label: 'Criado em',
+      label: 'Created',
       render: (row) => (
         <span className="text-muted-foreground">
-          {row.create_time ? new Date(row.create_time).toLocaleDateString('pt-BR') : '—'}
+          {row.create_time ? new Date(row.create_time).toLocaleDateString('en-US') : '—'}
         </span>
       ),
     },
@@ -103,29 +103,53 @@ export function BundlesPage() {
 
   return (
     <PageShell
-      title="Distribuição"
-      description="Os pacotes que este workspace distribui — e as credenciais que dão acesso a eles."
+      title="Distribution"
+      description="Hand a set of skills to someone outside this workspace — without giving them an account here."
     >
+      {/* O QUE É a distribuição, dito na própria tela.
+
+          Sem isto, "Distribuição" é um item de menu que não se explica: o operador vê pacotes e
+          tokens e não descobre para que servem nem como se ligam às skills que ele publicou. O
+          conceito central do produto — o item aponta para um CANAL, e é isso que mantém o pacote
+          vivo — não tinha representação alguma na interface.
+
+          Três frases, na ordem das perguntas que alguém faz ao abrir a tela pela primeira vez:
+          o que é, para quem, e por que não quebra quando eu publico uma versão nova. */}
+      <Card>
+        <Card.Body>
+          <p className="text-sm text-muted-foreground">
+            A <strong>bundle</strong> is a set of skills you deliver to someone{' '}
+            <strong>outside</strong> this workspace — a client, a partner. They get a{' '}
+            <strong>delegated token</strong> instead of an account, and fetch the bundle with it.
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Each item points at a <strong>channel</strong>, not at a fixed revision. So when you
+            promote a channel to a new version, every consumer receives it on their next install —
+            nobody edits the bundle, and nothing on their side breaks.
+          </p>
+        </Card.Body>
+      </Card>
+
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar os pacotes"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há pacotes distribuídos."
+          title="Could not load the bundles"
+          description="The list below is empty because the read failed — this does NOT mean nothing is being distributed."
         />
       ) : null}
 
       {erroCriacao !== null ? (
-        <Alert intent="destructive" title="O pacote não foi criado" description={erroCriacao} />
+        <Alert intent="destructive" title="The bundle was not created" description={erroCriacao} />
       ) : null}
 
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Novo pacote</h2>
+            <h2>New bundle</h2>
           </Card.Title>
           <Card.Description>
-            O nome é como o pacote aparece para quem instala. Depois de criado, emita um token no
-            detalhe dele para dar acesso.
+            The name is how the bundle appears to whoever installs it. Once created, issue a token
+            in its detail page to grant access.
           </Card.Description>
         </Card.Header>
         <form
@@ -138,15 +162,15 @@ export function BundlesPage() {
           }}
         >
           <Input
-            aria-label="Nome do pacote"
-            placeholder="ex.: skills de atendimento"
+            aria-label="Bundle name"
+            placeholder="e.g. support skills"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
           />
           {/* Desabilitado enquanto vazio: o backend recusaria, e deixar clicável ensinaria o
               operador a descobrir a regra pelo erro. */}
           <Button type="submit" disabled={nome.trim() === '' || criar.isPending}>
-            {criar.isPending ? 'Criando…' : 'Criar pacote'}
+            {criar.isPending ? 'Creating…' : 'Create bundle'}
           </Button>
         </form>
       </Card>
@@ -154,9 +178,9 @@ export function BundlesPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Pacotes</h2>
+            <h2>Bundles</h2>
           </Card.Title>
-          <Card.Description>{rows.length} neste workspace</Card.Description>
+          <Card.Description>{rows.length} in this workspace</Card.Description>
         </Card.Header>
 
         <DataTable
@@ -169,11 +193,11 @@ export function BundlesPage() {
               icon={Package}
               // Falha de leitura e ausência de dados NÃO são o mesmo estado, e a diferença é a
               // que importa: uma pede nova tentativa, a outra pede uma ação.
-              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhum pacote criado'}
+              title={failed ? 'No data — the read failed' : 'No bundle created yet'}
               description={
                 failed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que este workspace distribui.'
-                  : 'Crie um pacote acima para agrupar skills e distribuí-las com um token delegado.'
+                  ? 'Try again in a moment. Until then, there is no way to know what this workspace distributes.'
+                  : 'Create a bundle above to group skills and hand them out with a delegated token.'
               }
             />
           }

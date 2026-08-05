@@ -213,3 +213,113 @@ func TestDataClient_respostaAtravessaSemRemodelagem(t *testing.T) {
 		t.Errorf("a resposta foi re-modelada no caminho:\n quero %s\n tenho %s", original, raw)
 	}
 }
+
+// M31 — a descoberta: a razão de existir do produto, e a única jornada sem tela.
+func TestRetrieve_levaAConsultaEOsFiltrosNaQuery(t *testing.T) {
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"skills":[{"skill_id":"sk_a","score":0.87,"matched":["lexical"]}]}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	raw, err := cli.Retrieve(context.Background(), "converter moeda", 5, true, true)
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	// A consulta precisa chegar ESCAPADA: um espaço cru quebraria a URL, e um `&` na intenção do
+	// operador viraria outro parâmetro.
+	if !strings.Contains(query, "query=converter+moeda") && !strings.Contains(query, "query=converter%20moeda") {
+		t.Fatalf("a consulta não atravessou escapada: %q", query)
+	}
+	if !strings.Contains(query, "top_k=5") {
+		t.Fatalf("top_k não atravessou: %q", query)
+	}
+	// Os filtros de ciclo de vida são o que torna a tela capaz de mostrar o que a descoberta
+	// ESCONDE por padrão — sem eles o operador não consegue verificar que uma deprecada sumiu.
+	if !strings.Contains(query, "include_draft=true") || !strings.Contains(query, "include_deprecated=true") {
+		t.Fatalf("os filtros de ciclo de vida não atravessaram: %q", query)
+	}
+	// `score` e `matched` atravessam intactos: são as DUAS informações que a DoD exige na tela, e
+	// re-tipá-las aqui criaria um segundo schema para divergir do registro.
+	if !strings.Contains(string(raw), `"score":0.87`) || !strings.Contains(string(raw), `"matched":["lexical"]`) {
+		t.Fatalf("score/matched não atravessaram: %s", raw)
+	}
+}
+
+func TestRetrieve_semFiltrosNaoOsEnvia(t *testing.T) {
+	// Mandar `include_deprecated=false` é diferente de não mandar: o primeiro afirma uma escolha,
+	// o segundo herda o default do serviço. A tela só deve afirmar o que o operador marcou.
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"skills":[]}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	if _, err := cli.Retrieve(context.Background(), "algo", 3, false, false); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if strings.Contains(query, "include_draft") || strings.Contains(query, "include_deprecated") {
+		t.Fatalf("filtros não marcados não deveriam ser enviados: %q", query)
+	}
+}
+
+func TestList_pedeOTamanhoDePaginaComONomeQueORegistroLE(t *testing.T) {
+	// MEDIDO no app-dev em 2026-08-04: `GET /v1/dashboard/skills?limit=3` devolveu as 10 skills
+	// do acervo e NENHUM `next_page_token`.
+	//
+	// O registro le `page_size` (`handlers/skills.ts:320`); este cliente enviava `limit`. Como
+	// nomes divergentes nao produzem erro — a query so e ignorada —, o pedido da tela sumia em
+	// silencio e o registro aplicava seu proprio default de 50.
+	//
+	// Consequencia pratica: a tela pede 100 e recebe 50, entao gasta o dobro de idas ao servidor
+	// para varrer o mesmo acervo. Pior que o custo e o diagnostico: o handler do BFF aplica um
+	// `maxLimit` que sugere governar o tamanho da pagina, e ele nao governava coisa alguma.
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"skills":[],"next_page_token":null}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	if _, err := cli.List(context.Background(), 3, ""); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if !strings.Contains(query, "page_size=3") {
+		t.Fatalf("o tamanho de pagina precisa viajar como `page_size`, que e o nome que o registro le: %q", query)
+	}
+	if strings.Contains(query, "limit=") {
+		t.Fatalf("`limit` nao existe no contrato do registro — enviar o nome errado e ser ignorado em silencio: %q", query)
+	}
+}
+
+func TestList_semTamanhoNaoInventaUm(t *testing.T) {
+	// Nao enviar e diferente de enviar o default: o primeiro deixa o registro escolher, o segundo
+	// congela aqui um numero que so o registro deveria conhecer.
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"skills":[]}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	if _, err := cli.List(context.Background(), 0, ""); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if strings.Contains(query, "page_size") {
+		t.Fatalf("sem tamanho pedido, nada deveria viajar: %q", query)
+	}
+}

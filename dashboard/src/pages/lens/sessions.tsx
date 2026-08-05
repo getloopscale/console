@@ -82,7 +82,7 @@ export function LensSessionsPage() {
       label: 'First message',
       render: (row) =>
         row.firstMessagePreview ? (
-          <span className="block max-w-[22rem] truncate text-sm text-muted-foreground" title={row.firstMessagePreview}>
+          <span className="block max-w-[30ch] truncate text-sm text-muted-foreground" title={row.firstMessagePreview}>
             {row.firstMessagePreview}
           </span>
         ) : (
@@ -96,7 +96,7 @@ export function LensSessionsPage() {
       label: 'Last message',
       render: (row) =>
         row.lastMessagePreview ? (
-          <span className="block max-w-[22rem] truncate text-sm text-muted-foreground" title={row.lastMessagePreview}>
+          <span className="block max-w-[30ch] truncate text-sm text-muted-foreground" title={row.lastMessagePreview}>
             {row.lastMessagePreview}
           </span>
         ) : (
@@ -129,7 +129,11 @@ export function LensSessionsPage() {
       label: 'User',
       render: (row) =>
         row.userId ? (
-          <span className="font-mono text-xs" title={row.userId}>
+          // Teto em CARACTERES (`ch`), não corte de string: em fonte mono `10ch` são exatamente dez,
+          // e o identificador inteiro continua no DOM — onde o leitor de tela e a busca da página o
+          // alcançam. `title` mostra o valor completo ao passar o cursor, mas não é anunciado de
+          // forma confiável, então ele complementa a acessibilidade, nunca a substitui.
+          <span className="block max-w-[10ch] truncate font-mono text-xs" title={row.userId}>
             {row.userId}
           </span>
         ) : (

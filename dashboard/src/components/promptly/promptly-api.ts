@@ -44,10 +44,32 @@ export interface CatalogPage<T> {
  * 402 nem o erro tipado de rede — a tela que o usasse quebraria numa expiração de sessão onde a
  * tela vizinha se recupera sozinha, sobre o mesmo recurso. O callback mantém UM pipeline de auth.
  */
-export async function fetchCatalogPage<T>(limit: number): Promise<CatalogPage<T>> {
+/**
+ * M16 — como estreitar o catálogo, no SERVIDOR.
+ *
+ * Até o M13 o filtro rodava aqui, sobre a página já carregada, e a tela dizia isso com todas as
+ * letras. Com 14 prompts funciona; com 500 mente por omissão — o operador digita um termo, não vê
+ * linha alguma, e conclui ausência a partir de um filtro que nunca perguntou ao servidor.
+ */
+export interface FiltroDeCatalogo {
+  readonly search?: string;
+  readonly tag?: string;
+  readonly folder?: string;
+}
+
+export async function fetchCatalogPage<T>(
+  limit: number,
+  filtro: FiltroDeCatalogo = {},
+): Promise<CatalogPage<T>> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  // Vazio não vira parâmetro — um campo que o operador limpou não pode significar "buscar pela
+  // string vazia", que não casa com nada e devolveria zero linhas sobre um catálogo cheio.
+  for (const [chave, valor] of Object.entries(filtro)) {
+    if (typeof valor === 'string' && valor.trim() !== '') params.set(chave, valor.trim());
+  }
   let temContinuacao = false;
   const data = await cloudFetch<T>(
-    `${BASE}/prompts?limit=${encodeURIComponent(String(limit))}`,
+    `${BASE}/prompts?${params.toString()}`,
     {},
     {
       throwOnError: true,
@@ -95,6 +117,37 @@ export function fetchRevisions<T>(name: string, limit: number, after = 0): Promi
 /** O prompt resolvido — usado para saber qual é a ÚLTIMA revisão antes de pedir a janela. */
 export function fetchPrompt<T>(name: string): Promise<T | null> {
   return cloudFetch<T>(`${BASE}/prompts/${encodeURIComponent(name)}`, {}, { throwOnError: true });
+}
+
+/**
+ * Os DOIS textos: `content` como foi escrito e `resolvedContent` com as referências substituídas
+ * (M20, DoD-2).
+ *
+ * *"Sem esse par, composição vira mágica que ninguém depura."* É uma leitura SEPARADA de
+ * `fetchPrompt` porque resolver custa — o serviço atravessa o grafo de referências por nível — e
+ * quem só quer o texto escrito não pode pagar essa travessia ao abrir a tela.
+ */
+export function fetchPromptResolvido<T>(name: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/resolved`,
+    {},
+    { throwOnError: true },
+  );
+}
+
+/**
+ * Quem referencia este prompt (M20, DoD-4).
+ *
+ * *"Sem isso, promover a política é alterar quarenta prompts às cegas."* Lista vazia é o FATO
+ * "ninguém depende de mim" — a tela precisa distingui-lo de "não consegui ler", e por isso a
+ * leitura lança em erro em vez de devolver lista vazia.
+ */
+export function fetchDependentes<T>(name: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/dependents`,
+    {},
+    { throwOnError: true },
+  );
 }
 
 /** Para onde cada label de ambiente aponta HOJE — o dado que a confirmação da promoção consome. */
@@ -237,6 +290,62 @@ export function runPlayground<T>(
         variables,
         ...(modelConfig != null ? { modelConfig } : {}),
       }),
+    },
+    { throwOnError: true },
+  );
+}
+
+/**
+ * M16 — substitui o conjunto INTEIRO de tags de um prompt.
+ *
+ * `PUT` do conjunto, e não somar/remover uma a uma: o operador pensa em *"este prompt é do
+ * suporte e da campanha"*, não numa sequência de deltas. Idempotente por construção.
+ *
+ * `throwOnError` porque a recusa aqui é acionável e específica — `empty_tag`, `too_many_tags`,
+ * `prompt_not_found` —, e engoli-la deixaria a tela mostrando a marcação antiga como se a nova
+ * tivesse sido gravada.
+ */
+export function setTags<T>(name: string, tags: readonly string[]): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/tags`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags }),
+    },
+    { throwOnError: true },
+  );
+}
+
+/**
+ * M18 — a discussão de UMA revisão, do mais antigo ao mais novo.
+ *
+ * `throwOnError: false` de propósito, ao contrário do `setTags`: a discussão é contexto, e uma
+ * falha ao lê-la não pode impedir o operador de ver a revisão. Mas o `null` que ela devolve
+ * precisa ser DISTINGUIDO de `[]` na tela — "não consegui ler" e "ninguém comentou" levam a
+ * ações opostas, e é a confusão dos dois que o M13 pagou caro para aprender.
+ */
+export function fetchComments<T>(name: string, version: number): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/revisions/${String(version)}/comments`,
+    {},
+  );
+}
+
+/**
+ * M18 — comenta uma revisão.
+ *
+ * `throwOnError` porque a recusa é acionável e específica — `empty_comment`, `comment_too_long`,
+ * `secret_in_comment` com o TIPO de credencial. Engoli-la deixaria a tela como se o comentário
+ * tivesse sido gravado.
+ */
+export function addComment<T>(name: string, version: number, body: string): Promise<T | null> {
+  return cloudFetch<T>(
+    `${BASE}/prompts/${encodeURIComponent(name)}/revisions/${String(version)}/comments`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
     },
     { throwOnError: true },
   );

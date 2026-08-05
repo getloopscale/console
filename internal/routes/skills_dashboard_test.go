@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"strconv"
 	"context"
 	"encoding/json"
 	"errors"
@@ -55,6 +56,29 @@ func (s *stubSkillsReader) Channels(ctx context.Context, id string) (json.RawMes
 }
 func (s *stubSkillsReader) Instructions(ctx context.Context, id string) (json.RawMessage, error) {
 	return s.read(ctx, id)
+}
+func (s *stubSkillsReader) ValidateSkill(ctx context.Context, skillMd string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seenID = append(s.seenID, "validate:"+strconv.Itoa(len(skillMd)))
+	return json.RawMessage(`{"ok":true,"name":"x","description":"d","execution":"remote"}`), nil
+}
+
+func (s *stubSkillsReader) Discoverability(_ context.Context, name, description string, hasEmbedding bool) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seenID = append(s.seenID, "discoverability:"+name+":"+strconv.FormatBool(hasEmbedding))
+	return json.RawMessage(`{"discoverable":false,"causes":["description_too_generic"],"hints":["escreva quando usar"],"embedder":"stub/stub"}`), nil
+}
+
+func (s *stubSkillsReader) Retrieve(ctx context.Context, query string, topK int, draft, deprecated bool) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seenID = append(s.seenID, "retrieve:"+query+":"+strconv.Itoa(topK)+":"+strconv.FormatBool(draft)+":"+strconv.FormatBool(deprecated))
+	return json.RawMessage(`{"skills":[{"skill_id":"sk_a","score":0.9,"matched":["lexical","vector"]}]}`), nil
 }
 
 type skillsTestTenantKey struct{}
@@ -486,5 +510,347 @@ func TestSkillsRoutes_promocaoNaoSombreiaALeituraDeCanais(t *testing.T) {
 		if rec := getSkills(t, r, p); rec.Code != http.StatusOK {
 			t.Errorf("%s devolveu %d — regressao colateral", p, rec.Code)
 		}
+	}
+}
+
+// M32 — a rota de ciclo de vida no BFF.
+func (s *stubSkillsPromoter) SetLifecycle(_ context.Context, skillID, lifecycle, reason, supersededBy string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seenArgs = append(s.seenArgs, "lifecycle:"+skillID+":"+lifecycle+":"+reason+":"+supersededBy)
+	return json.RawMessage(`{"skill_id":"` + skillID + `","lifecycle":"` + lifecycle + `"}`), nil
+}
+
+func TestSetLifecycle_deprecarSemMotivoNaoChegaAoUpstream(t *testing.T) {
+	// Depreciar EXIGE motivo, e a checagem é na fronteira para a mensagem sair escrita para quem
+	// está na tela. Ir para `active` não exige: não tira nada de ninguém.
+	promoter := &stubSkillsPromoter{}
+	h := NewSkillsPromotionHandler(promoter, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	r := chi.NewRouter()
+	MountSkillsPromotion(r, h, func(next http.Handler) http.Handler { return next })
+
+	pedir := func(corpo string) int {
+		req := httptest.NewRequest(http.MethodPut, "/v1/dashboard/skills/sk_1/lifecycle", strings.NewReader(corpo))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	if got := pedir(`{"lifecycle":"deprecated"}`); got != http.StatusBadRequest {
+		t.Fatalf("deprecar sem motivo deveria ser 400, veio %d", got)
+	}
+	if got := pedir(`{}`); got != http.StatusBadRequest {
+		t.Fatalf("sem lifecycle deveria ser 400, veio %d", got)
+	}
+	if len(promoter.seenArgs) != 0 {
+		t.Fatalf("não deveria ter chamado o upstream: %v", promoter.seenArgs)
+	}
+
+	// Controle: com motivo, passa — sem esta metade um gate que recusasse tudo passaria no teste.
+	if got := pedir(`{"lifecycle":"deprecated","reason":"substituída","superseded_by":"sk_2"}`); got != http.StatusOK {
+		t.Fatalf("deprecar com motivo deveria ser 200, veio %d", got)
+	}
+	if len(promoter.seenArgs) != 1 || promoter.seenArgs[0] != "lifecycle:sk_1:deprecated:substituída:sk_2" {
+		t.Fatalf("chamadas: %v", promoter.seenArgs)
+	}
+
+	// Voltar para `active` NÃO exige motivo.
+	if got := pedir(`{"lifecycle":"active"}`); got != http.StatusOK {
+		t.Fatalf("reativar sem motivo deveria ser 200, veio %d", got)
+	}
+}
+
+// M31 — a descoberta pelo BFF, e a colisão que ela poderia causar.
+func TestRetrieve_naoColideComALeituraDeUmaSkill(t *testing.T) {
+	// `:retrieve` e `{skillID}` ocupam a mesma posição no caminho. Se o chi resolvesse pelo
+	// parâmetro, a descoberta viraria "ler a skill chamada `:retrieve`" — que não existe — e a
+	// tela receberia o corpo errado sem erro algum.
+	reader := &stubSkillsReader{}
+	r := chi.NewRouter()
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))),
+		func(next http.Handler) http.Handler { return next })
+
+	pedir := func(caminho string) (int, string) {
+		req := httptest.NewRequest(http.MethodGet, caminho, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+
+	code, corpo := pedir("/v1/dashboard/skills/:retrieve?query=converter+moeda&top_k=3")
+	if code != http.StatusOK {
+		t.Fatalf("retrieve status %d: %s", code, corpo)
+	}
+	// O `matched` é metade do critério da DoD: sem ele a tela mostra um número sem dizer de onde
+	// veio, e some a diferença entre "as palavras batem" e "entendeu".
+	if !strings.Contains(corpo, `"matched"`) || !strings.Contains(corpo, `"score"`) {
+		t.Fatalf("score/matched não atravessaram: %s", corpo)
+	}
+	if len(reader.seenID) == 0 || !strings.HasPrefix(reader.seenID[len(reader.seenID)-1], "retrieve:converter moeda:3:") {
+		t.Fatalf("a consulta não chegou ao cliente: %v", reader.seenID)
+	}
+
+	// E a leitura de uma skill de verdade continua funcionando — a metade que impede a correção
+	// de virar "a rota nova engoliu a vizinha".
+	if code, _ := pedir("/v1/dashboard/skills/sk_real"); code != http.StatusOK {
+		t.Fatalf("leitura de skill quebrou: %d", code)
+	}
+}
+
+func TestRetrieve_consultaVaziaNaoChegaAoUpstream(t *testing.T) {
+	reader := &stubSkillsReader{}
+	r := chi.NewRouter()
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))),
+		func(next http.Handler) http.Handler { return next })
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/dashboard/skills/:retrieve?query=%20%20", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("consulta vazia deveria ser 400, veio %d", w.Code)
+	}
+	for _, visto := range reader.seenID {
+		if strings.HasPrefix(visto, "retrieve:") {
+			t.Fatalf("não deveria ter chamado o upstream: %v", reader.seenID)
+		}
+	}
+}
+
+// M31 — a exclusão pelo BFF, e a garantia de que ela não engole as vizinhas.
+type stubSkillsAuthor struct {
+	seen []string
+	err  error
+}
+
+func (s *stubSkillsAuthor) CreateSkill(_ context.Context, skillID, skillMd string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seen = append(s.seen, "create:"+skillID+":"+strconv.Itoa(len(skillMd)))
+	return json.RawMessage(`{"operation_id":"op_1"}`), nil
+}
+
+func (s *stubSkillsAuthor) CreateSkillFromZip(_ context.Context, skillID, zipBase64 string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seen = append(s.seen, "createzip:"+skillID+":"+strconv.Itoa(len(zipBase64)))
+	return json.RawMessage(`{"operation_id":"op_zip"}`), nil
+}
+
+func (s *stubSkillsAuthor) Operation(_ context.Context, id string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seen = append(s.seen, "operation:"+id)
+	return json.RawMessage(`{"operation_id":"` + id + `","state":"succeeded"}`), nil
+}
+
+func (s *stubSkillsAuthor) DeleteSkill(_ context.Context, skillID string) (json.RawMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.seen = append(s.seen, skillID)
+	return nil, nil
+}
+
+func TestDelete_apagaEDevolve204SemCorpo(t *testing.T) {
+	author := &stubSkillsAuthor{}
+	r := chi.NewRouter()
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))),
+		func(next http.Handler) http.Handler { return next })
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/dashboard/skills/sk_1", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status %d, corpo %s", w.Code, w.Body.String())
+	}
+	if w.Body.Len() != 0 {
+		t.Fatalf("204 não deve ter corpo: %q", w.Body.String())
+	}
+	if len(author.seen) != 1 || author.seen[0] != "sk_1" {
+		t.Fatalf("chamadas: %v", author.seen)
+	}
+}
+
+func TestDelete_naoSombreiaALeituraDeUmaSkill(t *testing.T) {
+	// Os dois handlers ocupam o MESMO caminho, em verbos diferentes. Um `r.Route` na autoria
+	// criaria subtree e mataria o `GET` — a regressão medida em produção em 2026-08-02, que
+	// nenhum teste pegou porque cada família era testada isolada.
+	reader := &stubSkillsReader{}
+	author := &stubSkillsAuthor{}
+	semJWT := func(next http.Handler) http.Handler { return next }
+
+	r := chi.NewRouter()
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWT)
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWT)
+
+	pedir := func(metodo, caminho string) int {
+		req := httptest.NewRequest(metodo, caminho, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	if got := pedir(http.MethodGet, "/v1/dashboard/skills/sk_1"); got != http.StatusOK {
+		t.Fatalf("a leitura quebrou: %d", got)
+	}
+	if got := pedir(http.MethodGet, "/v1/dashboard/skills/sk_1/channels"); got != http.StatusOK {
+		t.Fatalf("a leitura de canais quebrou: %d", got)
+	}
+	if got := pedir(http.MethodDelete, "/v1/dashboard/skills/sk_1"); got != http.StatusNoContent {
+		t.Fatalf("a exclusão quebrou: %d", got)
+	}
+}
+
+// M31 — a autoria: validar sem publicar, e publicar ACOMPANHANDO.
+func TestAutoria_validarNaoEscreveEPublicarDevolve202(t *testing.T) {
+	reader := &stubSkillsReader{}
+	author := &stubSkillsAuthor{}
+	semJWTAut := func(next http.Handler) http.Handler { return next }
+
+	r := chi.NewRouter()
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWTAut)
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWTAut)
+
+	pedir := func(metodo, caminho, corpo string) (int, string) {
+		req := httptest.NewRequest(metodo, caminho, strings.NewReader(corpo))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+
+	// Validar NÃO escreve: nenhuma chamada ao cliente de autoria.
+	if code, _ := pedir(http.MethodPost, "/v1/dashboard/skills/:validate", `{"skill_md":"# Skill"}`); code != http.StatusOK {
+		t.Fatalf("validate status %d", code)
+	}
+	if len(author.seen) != 0 {
+		t.Fatalf("validar não pode tocar o caminho de escrita: %v", author.seen)
+	}
+
+	// Publicar devolve 202 — ACEITO, não pronto. Traduzir para 200 faria a tela anunciar sucesso
+	// no aceite, e o autor procuraria a skill num acervo onde ela ainda não está.
+	code, corpo := pedir(http.MethodPost, "/v1/dashboard/skills", `{"skill_id":"sk_novo","skill_md":"# Skill"}`)
+	if code != http.StatusAccepted {
+		t.Fatalf("create deveria ser 202, veio %d: %s", code, corpo)
+	}
+	if !strings.Contains(corpo, "operation_id") {
+		t.Fatalf("o identificador da operação precisa atravessar: %s", corpo)
+	}
+
+	// E a operação é consultável — é o que permite ACOMPANHAR em vez de fingir.
+	if code, _ := pedir(http.MethodGet, "/v1/dashboard/operations/op_1", ""); code != http.StatusOK {
+		t.Fatalf("operation status %d", code)
+	}
+}
+
+func TestAutoria_corpoVazioNaoChegaAoUpstream(t *testing.T) {
+	reader := &stubSkillsReader{}
+	author := &stubSkillsAuthor{}
+	semJWTAut := func(next http.Handler) http.Handler { return next }
+
+	r := chi.NewRouter()
+	MountSkillsDashboard(r, NewSkillsDashboardHandler(reader, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWTAut)
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWTAut)
+
+	pedir := func(caminho, corpo string) int {
+		req := httptest.NewRequest(http.MethodPost, caminho, strings.NewReader(corpo))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	if got := pedir("/v1/dashboard/skills/:validate", `{"skill_md":"   "}`); got != http.StatusBadRequest {
+		t.Fatalf("validate vazio deveria ser 400, veio %d", got)
+	}
+	if got := pedir("/v1/dashboard/skills", `{"skill_md":"# x"}`); got != http.StatusBadRequest {
+		t.Fatalf("create sem id deveria ser 400, veio %d", got)
+	}
+	if len(author.seen) != 0 {
+		t.Fatalf("não deveria ter chamado o upstream: %v", author.seen)
+	}
+}
+
+
+// Upload de skill com scripts — uma skill que carrega Python/Bash é uma ARVORE, nao um markdown.
+//
+// O registro sempre aceitou `zippedFilesystem` (a CLI publica assim desde o M12). O BFF nao: ele
+// so decodificava `skill_md` e lia no maximo 1 MiB do corpo. Pela TELA, publicar uma skill com
+// script era impossivel — e nada dizia isso ao autor, porque o campo simplesmente nao existia.
+func TestCreate_aceitaZipEEncaminhaComoArvore(t *testing.T) {
+	author := &stubSkillsAuthor{}
+	semJWT := func(next http.Handler) http.Handler { return next }
+	r := chi.NewRouter()
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWT)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/skills",
+		strings.NewReader(`{"skill_id":"sk_com_script","zipped_filesystem":"UEsDBBQAAAA="}`))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("upload de zip deveria ser aceito (202), veio %d: %s", w.Code, w.Body.String())
+	}
+	// A rota do ZIP e OUTRA no cliente: `CreateSkill` mandaria `skillMd`, que o registro prioriza,
+	// e os scripts seriam descartados em silencio.
+	if len(author.seen) != 1 || !strings.HasPrefix(author.seen[0], "createzip:") {
+		t.Fatalf("o zip precisa viajar por CreateSkillFromZip, nao por CreateSkill: %v", author.seen)
+	}
+}
+
+func TestCreate_zipGrandeNaoEDecapitadoPeloTetoDeCorpo(t *testing.T) {
+	// O teto era 1 MiB. Um zip de skill com dependencias passa disso com folga, e o registro aceita
+	// ate ~35 MB (`DEFAULT_MAX_BODY_BYTES`). Com o teto antigo o JSON chegava TRUNCADO ao decoder,
+	// que devolvia erro de sintaxe — e a tela dizia "informe o identificador e o conteudo", culpando
+	// o autor por um limite que era nosso e nao estava escrito em lugar nenhum.
+	author := &stubSkillsAuthor{}
+	semJWT := func(next http.Handler) http.Handler { return next }
+	r := chi.NewRouter()
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWT)
+
+	grande := strings.Repeat("A", 3<<20) // 3 MiB de base64 — acima do teto antigo, abaixo do registro
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/skills",
+		strings.NewReader(`{"skill_id":"sk_grande","zipped_filesystem":"`+grande+`"}`))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("zip de 3 MiB deveria passar, veio %d: %s", w.Code, w.Body.String())
+	}
+	if len(author.seen) != 1 || !strings.Contains(author.seen[0], strconv.Itoa(len(grande))) {
+		t.Fatalf("o zip precisa chegar INTEIRO ao cliente: %v", author.seen)
+	}
+}
+
+func TestCreate_zipEMarkdownJuntosERecusado(t *testing.T) {
+	// Mandar os dois nao e ambiguidade a resolver por precedencia: e um pedido cuja intencao nao da
+	// para saber. O registro prioriza `skillMd` e descartaria o zip em SILENCIO — a skill entraria
+	// no acervo sem os scripts, com 202 e sem erro. Recusar na fronteira e fail-fast (Regra 8).
+	author := &stubSkillsAuthor{}
+	semJWT := func(next http.Handler) http.Handler { return next }
+	r := chi.NewRouter()
+	MountSkillsAuthoring(r, NewSkillsAuthoringHandler(author, slog.New(slog.NewTextHandler(io.Discard, nil))), semJWT)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/dashboard/skills",
+		strings.NewReader(`{"skill_id":"sk_x","skill_md":"# a","zipped_filesystem":"UEsDBBQ="}`))
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("os dois juntos precisam ser recusados, veio %d", w.Code)
+	}
+	if len(author.seen) != 0 {
+		t.Fatalf("nada deveria ter chegado ao upstream: %v", author.seen)
+	}
+	// E a recusa precisa DIZER o que fazer — senao o autor tenta de novo do mesmo jeito.
+	if !strings.Contains(w.Body.String(), "not both") {
+		t.Fatalf("a mensagem precisa nomear a escolha: %s", w.Body.String())
 	}
 }

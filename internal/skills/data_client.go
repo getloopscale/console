@@ -60,7 +60,10 @@ func (c *DataClient) WithKeyResolver(r func(ctx context.Context) (string, error)
 func (c *DataClient) List(ctx context.Context, limit int, cursor string) (json.RawMessage, error) {
 	q := url.Values{}
 	if limit > 0 {
-		q.Set("limit", strconv.Itoa(limit))
+		// `page_size`, nao `limit`: e o nome que o registro le (`handlers/skills.ts:320`).
+		// Enviar o nome errado nao produz erro — a query e simplesmente ignorada, o registro
+		// aplica seu default de 50, e o pedido da tela some em silencio. Medido no app-dev.
+		q.Set("page_size", strconv.Itoa(limit))
 	}
 	if cursor != "" {
 		q.Set("page_token", cursor)
@@ -135,4 +138,67 @@ func (c *DataClient) getRaw(ctx context.Context, path string, q url.Values) (jso
 		}
 	}
 	return json.RawMessage(body), nil
+}
+
+// Retrieve executa a descoberta híbrida (`GET /v1/skills:retrieve`).
+//
+// É a razão de existir do produto — um agente achar a skill certa por intenção — e era a única
+// jornada sem tela alguma. O que a torna observável são DUAS informações que a resposta carrega e
+// que a interface precisa exibir juntas:
+//
+//   - `score` — o quanto casou;
+//   - `matched` — QUAL perna casou: léxica (FTS) ou vetorial.
+//
+// Sem a segunda, a tela mostra um número sem dizer de onde veio, e some justamente a diferença
+// que o produto vende: "achou porque as palavras batem" versus "achou porque entendeu".
+//
+// Os filtros de ciclo de vida entram porque a descoberta ESCONDE rascunhos e descontinuadas por
+// padrão (M32). Sem poder ligá-los, o operador não consegue verificar na tela que uma skill
+// deprecada de fato saiu da descoberta — que é o comportamento que aquele milestone promete.
+func (c *DataClient) Retrieve(ctx context.Context, query string, topK int, includeDraft, includeDeprecated bool) (json.RawMessage, error) {
+	q := url.Values{"query": []string{query}, "top_k": []string{strconv.Itoa(topK)}}
+	// Só afirma o que o operador marcou: mandar `false` declara uma escolha, e omitir herda o
+	// default do serviço. A diferença importa quando o default mudar.
+	if includeDraft {
+		q.Set("include_draft", "true")
+	}
+	if includeDeprecated {
+		q.Set("include_deprecated", "true")
+	}
+	return c.getRaw(ctx, "/v1/skills:retrieve", q)
+}
+
+// ValidateSkill valida um SKILL.md **sem efeito colateral** (`POST /v1/skills:validate`).
+//
+// É o que torna a autoria possível sem publicar às cegas: o M30 entregou esta rota e ela ficou
+// **sem consumidor** — o erro traz `field` e `line`, e nada disso alcançava um autor porque não
+// havia tela de autoria.
+//
+// Exige apenas `skills:read`: validar não escreve nada, e pedir escopo de escrita aqui obrigaria
+// quem só quer conferir um rascunho a carregar a credencial que publica.
+func (c *DataClient) ValidateSkill(ctx context.Context, skillMd string) (json.RawMessage, error) {
+	body, err := json.Marshal(map[string]string{"skillMd": skillMd})
+	if err != nil {
+		return nil, fmt.Errorf("skills data client: encode validate body: %w", err)
+	}
+	return c.sendRaw(ctx, http.MethodPost, "/v1/skills:validate", body)
+}
+
+// Discoverability diagnostica se uma skill seria ACHADA (`POST /v1/skills:discoverability`, M34).
+//
+// Distinto de `ValidateSkill`: aquela responde "é válida?" — sintaxe e frontmatter. Esta responde
+// "é achável?", e compara a candidata com o **acervo real** do workspace.
+//
+// **Nada aqui executa a skill.** Leitura e diagnóstico; a fronteira "execução é do Theokit"
+// permanece intacta.
+func (c *DataClient) Discoverability(ctx context.Context, name, description string, hasEmbedding bool) (json.RawMessage, error) {
+	body, err := json.Marshal(map[string]any{
+		"name":          name,
+		"description":   description,
+		"has_embedding": hasEmbedding,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("skills data client: encode discoverability body: %w", err)
+	}
+	return c.sendRaw(ctx, http.MethodPost, "/v1/skills:discoverability", body)
 }

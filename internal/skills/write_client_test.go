@@ -138,3 +138,159 @@ func TestPromoteChannel_semResolverNaoEmiteRequisicao(t *testing.T) {
 		t.Fatal("a requisicao de MUTACAO saiu sem credencial de inquilino")
 	}
 }
+
+// M32 — depreciar uma skill. Mesmo cliente do caminho de promoção, e por isso mesmo motivo: a
+// credencial dele carrega `skills:publish`, que é o escopo que o registro exige nas DUAS rotas.
+func TestSetLifecycle_bateNaRotaComOMotivo(t *testing.T) {
+	var corpo string
+	var visto string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		visto = r.Method + " " + r.URL.EscapedPath()
+		b := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(b)
+		corpo = string(b)
+		_, _ = w.Write([]byte(`{"skill_id":"sk_1","lifecycle":"deprecated"}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "chave-de-publicacao", nil })
+
+	if _, err := cli.SetLifecycle(context.Background(), "sk_1", "deprecated", "substituída pela v2", "sk_2"); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if visto != "PUT /v1/skills/sk_1/lifecycle" {
+		t.Fatalf("rota errada: %q", visto)
+	}
+
+	var enviado map[string]string
+	if err := json.Unmarshal([]byte(corpo), &enviado); err != nil {
+		t.Fatalf("corpo não é JSON: %q", corpo)
+	}
+	// `reason` é o nome do campo NO CONTRATO — medido em `handlers/lifecycle.ts`, não inferido do
+	// nome do conceito. Mandar `deprecation_reason` faria o registro recusar com 400.
+	if enviado["lifecycle"] != "deprecated" || enviado["reason"] != "substituída pela v2" {
+		t.Fatalf("lifecycle/reason não chegaram na forma do contrato: %v", enviado)
+	}
+	if enviado["superseded_by"] != "sk_2" {
+		t.Fatalf("a sucessora não atravessou: %v", enviado)
+	}
+}
+
+func TestSetLifecycle_omiteCamposVazios(t *testing.T) {
+	// Sucessora é OPCIONAL. Mandar `""` gravaria uma sucessora vazia em vez de nenhuma, e a tela
+	// exibiria um link para lugar nenhum.
+	var corpo string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(b)
+		corpo = string(b)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	if _, err := cli.SetLifecycle(context.Background(), "sk_1", "active", "", ""); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if strings.Contains(corpo, "superseded_by") || strings.Contains(corpo, "reason") {
+		t.Fatalf("campos vazios não deveriam ser enviados: %q", corpo)
+	}
+}
+
+// M31 — a exclusão. A auditoria de 2026-08-03 mediu o absurdo: o acervo tem uma skill que se
+// descreve como "pode ser removida" e não havia como removê-la, embora `DELETE /v1/skills/:id`
+// exista há milestones.
+func TestDeleteSkill_bateNoDeleteDoCaminhoCerto(t *testing.T) {
+	var visto string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		visto = r.Method + " " + r.URL.EscapedPath()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "chave-de-autoria", nil })
+
+	if _, err := cli.DeleteSkill(context.Background(), "sk_1"); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if visto != "DELETE /v1/skills/sk_1" {
+		t.Fatalf("rota errada: %q", visto)
+	}
+}
+
+func TestDeleteSkill_corpoVazioNaoQuebra(t *testing.T) {
+	// O registro responde 204 SEM CORPO. Um cliente que exigisse JSON quebraria no sucesso — o
+	// pior lugar para quebrar, porque o efeito já aconteceu e a tela diria que falhou.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	raw, err := cli.DeleteSkill(context.Background(), "sk_1")
+	if err != nil {
+		t.Fatalf("204 sem corpo não pode virar erro: %v", err)
+	}
+	_ = raw
+}
+
+func TestDeleteSkill_recusaTipadaSobrevive(t *testing.T) {
+	// Um `409` do registro (a skill ainda é referenciada por um bundle, por exemplo) precisa
+	// chegar distinguível: a tela tem de dizer POR QUE não deu, não "tente de novo".
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":"conflict","details":"skill referenciada por 2 bundles"}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	_, err := cli.DeleteSkill(context.Background(), "sk_1")
+	ue, ok := AsUpstreamError(err)
+	if !ok || ue.Status != http.StatusConflict {
+		t.Fatalf("esperava UpstreamError 409 tipado, veio %v", err)
+	}
+	if !strings.Contains(string(ue.Body), "2 bundles") {
+		t.Fatalf("o motivo precisa sobreviver para a tela explicar: %s", ue.Body)
+	}
+}
+
+func TestCreateSkillFromZip_enviaZippedFilesystem(t *testing.T) {
+	// Uma skill com scripts (Python, Bash) nao cabe num unico SKILL.md: ela e uma ARVORE de
+	// arquivos. O registro ja aceita isso desde sempre — `POST /v1/skills` recebe
+	// `zippedFilesystem`, um zip em base64, e guarda o resultado em `payload bytea`. A CLI usa
+	// esse caminho ha meses (`packages/cli/src/commands/publish.ts`).
+	//
+	// O que faltava era o BFF: ele so sabia mandar `skillMd`, entao pela TELA era impossivel
+	// publicar uma skill com script. A assimetria era da superficie, nao do contrato.
+	var corpo map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&corpo)
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"operation_id":"op_1"}`))
+	}))
+	defer srv.Close()
+
+	cli := NewDataClient(srv.URL, srv.Client()).
+		WithKeyResolver(func(context.Context) (string, error) { return "k", nil })
+
+	if _, err := cli.CreateSkillFromZip(context.Background(), "minha-skill", "UEsDBBQ="); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if corpo["zippedFilesystem"] != "UEsDBBQ=" {
+		t.Fatalf("o zip precisa viajar como `zippedFilesystem`, que e o nome que o registro le: %v", corpo)
+	}
+	// `skillMd` NAO pode ir junto: o registro prioriza ele quando presente
+	// (`handlers/skills.ts:286-289`), e mandar os dois faria o zip ser silenciosamente ignorado —
+	// a skill entraria no acervo SEM os scripts, sem erro algum.
+	if _, presente := corpo["skillMd"]; presente {
+		t.Fatalf("`skillMd` nao deve acompanhar o zip — o registro o prioriza e descartaria os scripts: %v", corpo)
+	}
+}

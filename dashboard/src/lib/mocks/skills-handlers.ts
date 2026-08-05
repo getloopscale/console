@@ -21,23 +21,49 @@ const skillsDb = {
   skills: [
     {
       skill_id: 'sk_ordering',
-      name: 'Revisar pull request',
-      description: 'Lê o diff e aponta riscos antes do merge.',
+      name: 'Review pull request',
+      description: 'Reads the diff and flags risks before the merge.',
       state: 'live',
       latest_revision_id: 'rev_d',
-      category: 'engenharia',
+      category: 'engineering',
       execution: 'remote',
+      lifecycle: 'active',
+      deprecation_reason: null,
+      superseded_by: null,
+      visibility: 'public',
+      embedded: true,
       create_time: '2026-07-01T10:00:00Z',
       update_time: '2026-08-01T10:00:00Z',
     },
     {
+      skill_id: 'sk_velha',
+      name: 'Convert currency (v1)',
+      description: 'Superseded by a version that also reads PDF.',
+      state: 'live',
+      latest_revision_id: 'rev_v1',
+      category: 'finance',
+      execution: 'remote',
+      lifecycle: 'deprecated',
+      deprecation_reason: 'does not cover forward rates; use v2',
+      superseded_by: 'sk_ordering',
+      visibility: 'private',
+      embedded: true,
+      create_time: '2026-05-01T10:00:00Z',
+      update_time: '2026-07-20T10:00:00Z',
+    },
+    {
       skill_id: 'sk_local',
-      name: 'Preparar ambiente local',
-      description: 'Traz script e roda na máquina do cliente.',
+      name: 'Prepare local environment',
+      description: 'Ships a script and runs on the client machine.',
       state: 'live',
       latest_revision_id: 'rev_local_1',
-      category: 'operação',
+      category: 'operations',
       execution: 'local',
+      lifecycle: 'active',
+      deprecation_reason: null,
+      superseded_by: null,
+      visibility: 'private',
+      embedded: false,
       create_time: '2026-07-05T10:00:00Z',
       update_time: '2026-07-20T10:00:00Z',
     },
@@ -60,7 +86,7 @@ const skillsDb = {
     sk_ordering: {
       skill_id: 'sk_ordering',
       instructions:
-        '# Revisar pull request\n\nLeia o diff inteiro antes de comentar. Aponte o risco, não o estilo.',
+        '# Review pull request\n\nRead the whole diff before commenting. Point at the risk, not the style.',
       execution: 'remote',
       origin: 'own' as const,
     },
@@ -78,15 +104,186 @@ export function registerSkillsHandlers() {
 }
 
 function registerSkillsRoutes(base: string) {
-  registerRoute('GET', base, async () =>
-    Response.json({ skills: skillsDb.skills, next_page_token: null }),
+  // M31 — paginação REAL. O mock devolve `next_page_token` quando há mais, porque era
+  // exatamente isso que a tela ignorava: o token vinha e o excedente sumia sem erro algum.
+  registerRoute('GET', base, async (req) => {
+    const url = new URL(req.url, 'http://x');
+    const limit = Math.max(1, Number(url.searchParams.get('limit') ?? '100'));
+    const token = url.searchParams.get('page_token');
+    const inicio = token === null ? 0 : Number(token);
+    const fatia = skillsDb.skills.slice(inicio, inicio + limit);
+    const proximo = inicio + limit < skillsDb.skills.length ? String(inicio + limit) : null;
+    return Response.json({ skills: fatia, next_page_token: proximo });
+  });
+
+  // M31 — AUTORIA. `:validate` NÃO cria nada: um mock que criasse deixaria a tela verde sobre um
+  // contrato que não existe, e o defeito só apareceria contra o serviço real.
+  registerRoute('POST', `${base}/:validate`, async (req) => {
+    const body = (await req.json()) as { skill_md?: string };
+    const md = body.skill_md ?? '';
+    // O diagnóstico POSICIONADO — `field` e `line` — é o que o M30 entregou e nenhuma tela usava.
+    if (!md.includes('name:')) {
+      return Response.json(
+        { error: 'invalid_frontmatter', message: 'frontmatter without `name`', field: 'name', line: 2 },
+        { status: 422 },
+      );
+    }
+    const nome = /name:\s*(.+)/.exec(md)?.[1]?.trim() ?? 'unnamed';
+    // A `description` sai do frontmatter, como o `name`. Devolver um `'d'` fixo — que era o que
+    // este mock fazia — tornava impossível exercitar o caminho "descrição boa": o diagnóstico do
+    // M34 recebia 1 caractere e acusava descrição genérica em TODO teste, inclusive nos que
+    // deveriam provar o contrário.
+    const desc = /description:\s*(.+)/.exec(md)?.[1]?.trim() ?? '';
+    return Response.json({ ok: true, name: nome, description: desc, execution: 'remote' });
+  });
+
+  // M34 — o diagnóstico de descobribilidade, no momento da autoria. NÃO executa a skill: o mock
+  // reproduz a FORMA (causes + hints + embedder) e a regra que importa — descrição curta é a
+  // causa mais comum de uma skill nova não ser achada.
+  registerRoute('POST', `${base}/:discoverability`, async (req) => {
+    const body = (await req.json()) as { description?: string; has_embedding?: boolean };
+    const desc = body.description ?? '';
+    const causes: string[] = [];
+    const hints: string[] = [];
+    if (desc.trim().length < 60) {
+      causes.push('description_too_generic');
+      hints.push('The description says what the skill is, but not WHEN to use it.');
+    }
+    // A PRESENÇA do campo distingue os três casos — ausente = rascunho (não há revisão, logo
+    // não há vetor a cobrar); `false` = publicada e sem vetor (achado real). O mock usava
+    // `!== true`, que colapsa ausente e `false` no mesmo caso, e por isso concordava com a tela
+    // sobre um comportamento que a theo-skills#144 mostrou estar errado.
+    if (body.has_embedding === false) {
+      causes.push('no_embedding');
+      hints.push('The current revision has no vector: the skill only shows up for whoever already knows its name.');
+    }
+    if (body.has_embedding === undefined && causes.length === 0) {
+      hints.push('Nothing to fix in the description. The skill is not in the registry yet — once published, ingestion generates the vector.');
+    }
+    return Response.json({
+      discoverable: causes.length === 0,
+      causes,
+      hints,
+      // O embedder viaja SEMPRE: o número mede o embedder tanto quanto a skill.
+      embedder: 'stub/stub',
+    });
+  });
+
+  registerRoute('POST', base, async (req) => {
+    const body = (await req.json()) as {
+      skill_id?: string;
+      skill_md?: string;
+      zipped_filesystem?: string;
+    };
+    const id = (body.skill_id ?? '').trim();
+    if (id === '') return Response.json({ error: 'invalid_input' }, { status: 400 });
+    // Markdown e zip são EXCLUDENTES, e o mock recusa o par pela mesma razão que o BFF: o registro
+    // priorizaria `skillMd` e descartaria os scripts em silêncio. Um mock permissivo aqui deixaria
+    // o e2e verde sobre um corpo que a produção recusa — a assimetria que este ciclo já pagou caro
+    // três vezes.
+    const temMd = (body.skill_md ?? '').trim() !== '';
+    const temZip = (body.zipped_filesystem ?? '').trim() !== '';
+    if (temMd && temZip) {
+      return Response.json(
+        {
+          code: 'INVALID_REQUEST',
+          message: 'send the skill as markdown or as a zipped file tree — not both',
+        },
+        { status: 400 },
+      );
+    }
+    if (!temMd && !temZip) return Response.json({ error: 'invalid_input' }, { status: 400 });
+    skillsDb.skills.push({
+      skill_id: id,
+      // Um zip não tem frontmatter legível daqui — o nome cai no identificador, como o registro faz
+      // até a ingestão abrir o arquivo.
+      name: /name:\s*(.+)/.exec(body.skill_md ?? '')?.[1]?.trim() ?? id,
+      description: 'published from the screen',
+      state: 'live',
+      latest_revision_id: 'rev_novo',
+      category: 'testing',
+      execution: 'remote',
+      lifecycle: 'active',
+      deprecation_reason: null,
+      superseded_by: null,
+      create_time: '2026-08-04T12:00:00Z',
+      update_time: '2026-08-04T12:00:00Z',
+    } as never);
+    // 202: ACEITO, não pronto — como o registro.
+    return Response.json({ operation_id: `op_${id}` }, { status: 202 });
+  });
+
+  registerRoute('GET', '/v1/dashboard/operations/{operationId}', async (_req, params) =>
+    // Já concluída: o mock não simula latência de ingestão porque o que a jornada precisa provar
+    // é que a tela ACOMPANHA e reage ao estado terminal — não quanto tempo demora.
+    //
+    // `ACTIVE` é o SUCESSO, não "trabalhando" — contrato em theo-skills
+    // `packages/core/src/contract/index.ts:5-15`: os estados de trabalho são
+    // CREATING/UPDATING/DELETING, e os terminais são ACTIVE (succeeded) / FAILED.
+    //
+    // Este mock devolvia `'succeeded'`, um vocabulário que o registro nunca emitiu — e como a
+    // tela comparava com o mesmo nome inventado, o e2e passava enquanto a produção ficava presa
+    // em "Em andamento" sobre uma skill já publicada e já descobrível. MEDIDO no app-dev.
+    Response.json({ operation_id: params.operationId, state: 'ACTIVE', error: null }),
   );
+
+  registerRoute('GET', `${base}/:retrieve`, async (req) => {
+    const url = new URL(req.url, 'http://x');
+    const q = (url.searchParams.get('query') ?? '').toLowerCase();
+    const incluirDescontinuadas = url.searchParams.get('include_deprecated') === 'true';
+
+    // Casamento deliberadamente grosseiro — o mock não reimplementa RRF. O que ele precisa
+    // reproduzir é a FORMA (`score` + `matched`) e o comportamento que a DoD cobra: a
+    // descontinuada NÃO aparece sem opt-in.
+    const candidatas = skillsDb.skills
+      .filter((sk) => incluirDescontinuadas || (sk as { lifecycle?: string }).lifecycle !== 'deprecated')
+      .filter((sk) => q === '' || sk.name.toLowerCase().includes(q) || sk.description.toLowerCase().includes(q) || q.split(' ').some((t) => t.length > 3 && sk.description.toLowerCase().includes(t)));
+
+    // A forma E o vocabulário foram MEDIDOS no app-dev: `results` (não `skills`), `matched` como
+    // `[{leg, rank}]` (não `string[]`), e `leg ∈ {'vector','keyword'}` — nunca `'lexical'`, que é
+    // um nome que o registro jamais emitiu (contrato em theo-skills
+    // `packages/core/src/domain/retrievers/types.ts:79`).
+    //
+    // Este mock errou as três coisas em sequência, e cada erro passou verde porque ele repetia a
+    // suposição da tela. Um mock que confirma a suposição de quem o escreveu não testa integração
+    // alguma — ele a simula. A forma foi corrigida primeiro e o vocabulário continuou errado: o
+    // e2e seguiu verde enquanto a produção exibia "ORIGEM NÃO INFORMADA" em todo resultado
+    // casado por palavra.
+    return Response.json({
+      results: candidatas.map((sk, i) => ({
+        skill_id: sk.skill_id,
+        name: sk.name,
+        description: sk.description,
+        score: Number((0.9 - i * 0.2).toFixed(3)),
+        // Alterna as pernas de propósito: a tela precisa distinguir as três frases, e um mock
+        // que devolvesse sempre a mesma deixaria duas delas sem cobertura.
+        matched:
+          i === 0
+            ? [
+                { leg: 'keyword', rank: 1 },
+                { leg: 'vector', rank: 2 },
+              ]
+            : i === 1
+              ? [{ leg: 'vector', rank: 1 }]
+              : [{ leg: 'keyword', rank: 1 }],
+      })),
+    });
+  });
 
   registerRoute('GET', `${base}/{skillId}`, async (_req, params) => {
     const skill = skillsDb.skills.find((s) => s.skill_id === params.skillId);
     // 404 cobre inexistente e alheia — indistinguíveis de propósito, como no serviço real:
     // um 403 confirmaria a existência de uma skill cujo nome é adivinhável.
     return skill ? Response.json(skill) : Response.json({ code: 'NOT_FOUND' }, { status: 404 });
+  });
+
+  registerRoute('DELETE', `${base}/{skillId}`, async (_req, params) => {
+    const i = skillsDb.skills.findIndex((sk) => sk.skill_id === params.skillId);
+    if (i === -1) return new Response(null, { status: 404 });
+    skillsDb.skills.splice(i, 1);
+    // 204 SEM CORPO, como o registro. Um mock que devolvesse JSON aqui deixaria a tela verde
+    // sobre um contrato que não existe.
+    return new Response(null, { status: 204 });
   });
 
   registerRoute('GET', `${base}/{skillId}/versions`, async (_req, params) =>
@@ -105,7 +302,7 @@ function registerSkillsRoutes(base: string) {
     const body = (await req.json().catch(() => null)) as { revision_id?: unknown } | null;
     const revisionId = typeof body?.revision_id === 'string' ? body.revision_id : '';
     if (revisionId === '') {
-      return Response.json({ code: 'INVALID_REQUEST', message: 'informe a revisão' }, { status: 400 });
+      return Response.json({ code: 'INVALID_REQUEST', message: 'provide the revision' }, { status: 400 });
     }
     const lista = skillsDb.channels[params.skillId] ?? [];
     const atual = lista.find((c) => c.channel === params.channel);
@@ -126,6 +323,25 @@ function registerSkillsRoutes(base: string) {
     return Response.json({ skill_id: params.skillId, channel: params.channel, revision_id: revisionId });
   });
 
+  registerRoute('PUT', `${base}/{skillId}/lifecycle`, async (req, params) => {
+    const alvo = skillsDb.skills.find((sk) => sk.skill_id === params.skillId);
+    if (alvo === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    const body = (await req.json()) as { lifecycle?: string; reason?: string; superseded_by?: string };
+    if (typeof body.lifecycle !== 'string' || body.lifecycle === '') {
+      return Response.json({ code: 'INVALID_REQUEST', message: 'provide the stage' }, { status: 400 });
+    }
+    // Depreciar EXIGE motivo — como o serviço. Um mock permissivo aqui deixaria a tela verde
+    // sobre uma regra que o registro real aplica, e o defeito só apareceria em produção.
+    if (body.lifecycle === 'deprecated' && (body.reason ?? '') === '') {
+      return Response.json({ code: 'INVALID_REQUEST', message: 'reason is required' }, { status: 400 });
+    }
+    const mutavel = alvo as { lifecycle?: string; deprecation_reason?: string | null; superseded_by?: string | null };
+    mutavel.lifecycle = body.lifecycle;
+    mutavel.deprecation_reason = body.lifecycle === 'deprecated' ? (body.reason ?? null) : null;
+    mutavel.superseded_by = body.superseded_by ?? null;
+    return Response.json({ skill_id: params.skillId, lifecycle: body.lifecycle });
+  });
+
   registerRoute('GET', `${base}/{skillId}/instructions`, async (_req, params) => {
     const found = skillsDb.instructions[params.skillId];
     if (found) return Response.json(found);
@@ -135,7 +351,7 @@ function registerSkillsRoutes(base: string) {
     return Response.json(
       {
         code: 'execution_is_local',
-        message: 'skill traz script e roda na máquina do cliente; use `theoskill install`',
+        message: 'skill ships a script and runs on the client machine; use `theoskill install`',
       },
       { status: 422 },
     );
@@ -162,8 +378,13 @@ function registerSkillsRoutes(base: string) {
  */
 const distribuicaoDb = {
   bundles: [
-    { bundle_id: 'bdl_ativo', name: 'Skills de atendimento', create_time: '2026-06-01T09:00:00Z' },
-    { bundle_id: 'bdl_vazio', name: 'Pacote recém-criado', create_time: '2026-08-01T09:00:00Z' },
+    {
+      bundle_id: 'bdl_ativo',
+      name: 'Support skills',
+      create_time: '2026-06-01T09:00:00Z',
+      items: [{ skill_id: 'sk_ordering', channel: 'stable' }],
+    },
+    { bundle_id: 'bdl_vazio', name: 'Newly created bundle', create_time: '2026-08-01T09:00:00Z', items: [] },
   ],
   tokens: {
     bdl_ativo: [
@@ -249,9 +470,14 @@ export function registerSkillsDistributionHandlers() {
     const body = (await req.json()) as { name?: string };
     const name = (body.name ?? '').trim();
     if (name === '') {
-      return Response.json({ code: 'INVALID_REQUEST', message: 'dê um nome ao pacote' }, { status: 400 });
+      return Response.json({ code: 'INVALID_REQUEST', message: 'give the bundle a name' }, { status: 400 });
     }
-    const bundle = { bundle_id: `bdl_${distribuicaoDb.bundles.length + 1}`, name, create_time: '2026-08-04T12:00:00Z' };
+    const bundle = {
+      bundle_id: `bdl_${distribuicaoDb.bundles.length + 1}`,
+      name,
+      create_time: '2026-08-04T12:00:00Z',
+      items: [] as { skill_id: string; channel: string }[],
+    };
     distribuicaoDb.bundles = [...distribuicaoDb.bundles, bundle];
     distribuicaoDb.tokens[bundle.bundle_id] = [];
     distribuicaoDb.adoption[bundle.bundle_id] = { total_installs: 0, adoption: [] };
@@ -269,7 +495,7 @@ export function registerSkillsDistributionHandlers() {
   registerRoute('POST', `${base}/{bundleId}/tokens`, async (req, params) => {
     const body = (await req.json()) as { ttl_days?: number; label?: string };
     if (typeof body.ttl_days !== 'number' || body.ttl_days <= 0) {
-      return Response.json({ code: 'INVALID_REQUEST', message: 'informe a validade em dias' }, { status: 400 });
+      return Response.json({ code: 'INVALID_REQUEST', message: 'provide the validity in days' }, { status: 400 });
     }
     const lista = distribuicaoDb.tokens[params.bundleId];
     if (lista === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
@@ -297,6 +523,19 @@ export function registerSkillsDistributionHandlers() {
     // isso, senão o operador acha que o token sumiu do histórico.
     alvo.revoked_at = '2026-08-04T12:05:00.000Z';
     return Response.json({ revoked: true });
+  });
+
+  registerRoute('PUT', `${base}/{bundleId}/items`, async (req, params) => {
+    const alvo = distribuicaoDb.bundles.find((b) => b.bundle_id === params.bundleId);
+    if (alvo === undefined) return Response.json({ error: 'not_found' }, { status: 404 });
+    const body = (await req.json()) as { items?: { skill_id: string; channel: string }[] };
+    if (!Array.isArray(body.items)) {
+      return Response.json({ code: 'INVALID_REQUEST', message: 'items must be a list' }, { status: 400 });
+    }
+    // SUBSTITUI, não mescla — como o registro. Um mock que mesclasse deixaria a tela verde sobre
+    // um contrato que não existe, e a remoção só falharia contra o serviço real.
+    alvo.items = body.items;
+    return Response.json({ bundle_id: params.bundleId, items: alvo.items });
   });
 
   registerRoute('GET', `${base}/{bundleId}/adoption`, async (_req, params) => {

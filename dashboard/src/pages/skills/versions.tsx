@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { GitBranch } from 'lucide-react';
 import {
   Badge,
   Button,
   Card,
+  CodeBlock,
   DataTable,
   EmptyState,
   PageShell,
@@ -50,7 +51,7 @@ const CANAL_ALVO = 'stable';
 export function SkillVersionsPage() {
   const { skillId = '' } = useParams();
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle(`Skill — versões de ${skillId}`), [setPageTitle, skillId]);
+  useEffect(() => setPageTitle(`Skill — versions of ${skillId}`), [setPageTitle, skillId]);
   useRequireAuth();
 
   const versions = useQuery({
@@ -89,7 +90,7 @@ export function SkillVersionsPage() {
       // A linha permanece como está: o canal NÃO se moveu, e mudar a tela otimisticamente diria
       // que se moveu. Numa operação que redireciona consumidores, esse otimismo é o pior default.
       setPromotionError(
-        promotionRefusal(err, 'O registro recusou a promoção; o canal continua na revisão anterior.'),
+        promotionRefusal(err, 'The registry refused the promotion; the channel still points at the previous revision.'),
       );
     }
   }
@@ -97,17 +98,17 @@ export function SkillVersionsPage() {
   const columns: DataTableColumn<VersionRow>[] = [
     {
       key: 'version',
-      label: 'Versão',
+      label: 'Version',
       render: (row) => <span className="font-mono font-medium">{row.version}</span>,
     },
     {
       key: 'revisionId',
-      label: 'Revisão',
+      label: 'Revision',
       render: (row) => <span className="font-mono text-xs text-muted-foreground">{row.revisionId}</span>,
     },
     {
       key: 'channels',
-      label: 'Servida pelos canais',
+      label: 'Served by channels',
       // Vazio aqui é um estado NORMAL — versão publicada e ainda não promovida. "—" diz isso
       // sem sugerir que a leitura falhou.
       render: (row) =>
@@ -136,13 +137,13 @@ export function SkillVersionsPage() {
           <Button
             variant="ghost"
             size="sm"
-            aria-label={`Promover ${row.version} para ${CANAL_ALVO}`}
+            aria-label={`Promote ${row.version} to ${CANAL_ALVO}`}
             onClick={() => {
               setPromotionError(null);
               setPending(row);
             }}
           >
-            Promover para {CANAL_ALVO}
+            Promote to {CANAL_ALVO}
           </Button>
         ),
     },
@@ -150,34 +151,48 @@ export function SkillVersionsPage() {
 
   return (
     <PageShell
-      title="Versões e canais"
-      description={`As versões publicadas de ${skillId} e qual canal serve cada uma.`}
+      title="Versions and channels"
+      description={`The published versions of ${skillId}, and which channel serves each one.`}
     >
+      {/* Volta à ORIGEM — a skill de onde se chegou aqui — e não ao overview. Quem abriu esta
+          tela veio do detalhe e quer voltar para lá; mandá-lo ao acervo o obriga a procurar de
+          novo a skill que já tinha em mãos.
+
+          Medido no app-dev em 2026-08-04: esta rota não tinha saída alguma. Somada ao estado
+          vazio, que mandava usar a CLI, ela era o "beco" que a auditoria de origem do M31
+          descreveu — o último passo da jornada apontando para fora do produto. */}
+      <Link
+        to={`/skills/${encodeURIComponent(skillId)}`}
+        className="text-sm text-muted-foreground hover:text-foreground"
+      >
+        ← Back to {skillId}
+      </Link>
+
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar versões ou canais"
-          description="A tabela abaixo pode estar incompleta porque uma das leituras falhou — isto NÃO significa que a skill não tem versões."
+          title="Could not load versions or channels"
+          description="The table below may be incomplete because one of the reads failed — this does NOT mean the skill has no versions."
         />
       ) : null}
 
       {anomalies.length > 0 ? (
         <Alert
           intent="destructive"
-          title="O registro afirmou duas revisões para o mesmo canal"
+          title="The registry reported two revisions for the same channel"
           description={anomalies
-            .map((a) => `${a.channel}: ${a.revisionIds.join(' e ')}`)
+            .map((a) => `${a.channel}: ${a.revisionIds.join(' and ')}`)
             .join(' · ')
-            .concat(' — um canal aponta para uma revisão só. Não promova nada antes de resolver isto.')}
+            .concat(' — a channel points at exactly one revision. Do not promote anything before resolving this.')}
         />
       ) : null}
 
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Versões publicadas</h2>
+            <h2>Published versions</h2>
           </Card.Title>
-          <Card.Description>{rows.length} versão(ões) no registro</Card.Description>
+          <Card.Description>{rows.length} version(s) in the registry</Card.Description>
         </Card.Header>
 
         <DataTable
@@ -188,11 +203,32 @@ export function SkillVersionsPage() {
           emptyState={
             <EmptyState
               icon={GitBranch}
-              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma versão publicada'}
+              title={failed ? 'No data — the read failed' : 'No version published'}
               description={
                 failed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que está publicado.'
-                  : 'Publique uma versão pela CLI para que ela possa ser promovida a um canal.'
+                  ? 'Try again in a moment. Until then, there is no way to know what is published.'
+                  : 'The skill exists in the registry, but no version has been published — so there is nothing to promote to a channel. Publishing a new version of an existing skill is done through the CLI; the command below is already filled in with this identifier.'
+              }
+              // `action`, não `children`: é o slot que o componente de fato renderiza
+              // (`@usetheo/ui` — `EmptyStateProps.action?: ReactNode`). Passar children faz o
+              // conteúdo sumir sem erro algum, e foi o que aconteceu na primeira tentativa.
+              //
+              // O comando vem COPIÁVEL e já preenchido, em vez da frase "publique pela CLI".
+              // A auditoria que originou o M31 registrou os dois problemas: sem CTA e **sem
+              // comando copiável**. Um estado vazio que nomeia a ferramenta sem dizer o que
+              // digitar transfere o trabalho para quem já está travado.
+              //
+              // Não é um CTA in-app porque a ação não existe in-app: a tela de autoria publica
+              // uma skill NOVA, e esta já existe. Um botão que fingisse levar a algum lugar
+              // seria pior que o comando — o honesto é dar o comando exato e a saída.
+              action={
+                failed ? undefined : (
+                  <CodeBlock
+                    caption="Publish the first version of this skill"
+                    code={`theo skills publish ${skillId} --file SKILL.md`}
+                    terminal
+                  />
+                )
               }
             />
           }
@@ -205,7 +241,7 @@ export function SkillVersionsPage() {
           if (!o) setPending(null);
         }}
         intent="destructive"
-        title={`Promover ${pending?.version ?? ''} para «${CANAL_ALVO}»`}
+        title={`Promote ${pending?.version ?? ''} to «${CANAL_ALVO}»`}
         // O texto vem da lógica pura (T2.2) e diz O QUE DEIXA DE VALER — nomeando a revisão que
         // sai e a que entra. NÃO afirma quantos consumidores são afetados: esse número não existe
         // na API, e derivá-lo aqui seria a interface inventando um dado que o serviço não afirma.
@@ -229,12 +265,12 @@ export function SkillVersionsPage() {
         // A frase é o NOME DO CANAL. "PROMOVER" seria a mesma digitação em qualquer canal — vira
         // reflexo, e devolve ao gate a força de um botão comum.
         confirmationPhrase={promotionPhrase(CANAL_ALVO)}
-        confirmLabel="Promover canal"
+        confirmLabel="Promote channel"
         onConfirm={confirmPromotion}
       />
 
       {promotionError ? (
-        <Alert intent="destructive" title="O canal NÃO foi promovido" description={promotionError} />
+        <Alert intent="destructive" title="The channel was NOT promoted" description={promotionError} />
       ) : null}
     </PageShell>
   );

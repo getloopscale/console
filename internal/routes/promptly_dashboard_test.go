@@ -23,15 +23,59 @@ type promptlyFake struct {
 	proxima promptly.Continuacao // M13 — o sinal de continuacao que o servico emite por header RFC-5988
 	label   string               // o label que a rota repassou na promocao
 	body    json.RawMessage
+	filtro  promptly.CatalogoFiltro // M16 — o filtro que a rota REPASSOU
+	chamadas []string               // M20 — QUAIS leituras a rota pediu, em ordem
 }
 
-func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string) (json.RawMessage, promptly.Continuacao, error) {
+func (f *promptlyFake) Catalog(_ context.Context, limit int, _ string, filtro promptly.CatalogoFiltro) (json.RawMessage, promptly.Continuacao, error) {
 	f.limite = limit
+	f.filtro = filtro
 	return f.corpo, f.proxima, f.err
 }
-func (f *promptlyFake) Prompt(context.Context, string) (json.RawMessage, error) {
+func (f *promptlyFake) SetTags(_ context.Context, name string, body json.RawMessage) (json.RawMessage, error) {
+	f.label, f.body = name, body
 	return f.corpo, f.err
 }
+func (f *promptlyFake) AddComment(_ context.Context, name string, version int, body json.RawMessage) (json.RawMessage, error) {
+	f.label, f.body = name, body
+	f.limite = version
+	return f.corpo, f.err
+}
+func (f *promptlyFake) ProtectLabel(_ context.Context, label string, body json.RawMessage) (json.RawMessage, error) {
+	f.label, f.body = label, body
+	return f.corpo, f.err
+}
+func (f *promptlyFake) UnprotectLabel(_ context.Context, label string) (json.RawMessage, error) {
+	f.label = label
+	return f.corpo, f.err
+}
+func (f *promptlyFake) Comments(_ context.Context, name string, version int) (json.RawMessage, error) {
+	f.label, f.limite = name, version
+	return f.corpo, f.err
+}
+func (f *promptlyFake) LabelProtection(_ context.Context, label string) (json.RawMessage, error) {
+	f.label = label
+	return f.corpo, f.err
+}
+func (f *promptlyFake) Prompt(context.Context, string) (json.RawMessage, error) {
+	f.chamadas = append(f.chamadas, "prompt")
+	return f.corpo, f.err
+}
+
+
+// M20 — o duble registra QUAL leitura foi pedida. Sem isso, um handler que chamasse `Prompt` em vez
+// de `PromptResolvido` passaria: os dois devolvem o mesmo corpo do duble, e o teste atestaria a
+// rota sem verificar que ela paga (ou nao paga) a resolucao.
+func (f *promptlyFake) PromptResolvido(context.Context, string) (json.RawMessage, error) {
+	f.chamadas = append(f.chamadas, "resolved")
+	return f.corpo, f.err
+}
+
+func (f *promptlyFake) Dependentes(context.Context, string) (json.RawMessage, error) {
+	f.chamadas = append(f.chamadas, "dependents")
+	return f.corpo, f.err
+}
+
 func (f *promptlyFake) Revisions(_ context.Context, _ string, limit, _ int) (json.RawMessage, error) {
 	f.limite = limit
 	return f.corpo, f.err
@@ -633,5 +677,230 @@ func TestPlayground_corpo_grande_demais_e_recusado_antes_do_salto(t *testing.T) 
 	}
 	if f.body != nil {
 		t.Error("o corpo gigante foi repassado ao servico — a recusa tem de vir ANTES do salto")
+	}
+}
+
+// M16 — a camada de ROTA. O fake ja gravava o filtro e nenhum teste o lia: um espiao que ninguem
+// consulta e cenario morto, e se a rota lesse `Get("q")` em vez de `Get("search")` todo `go test`
+// passaria. Estes dois casos fecham isso.
+
+func TestPromptlyCatalog_repassa_os_tres_filtros_do_M16(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`[]`)}
+	rec := httptest.NewRecorder()
+	montar(f).ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/v1/dashboard/promptly/prompts?search=saudacao&tag=suporte&folder=vendas", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	esperado := promptly.CatalogoFiltro{Search: "saudacao", Tag: "suporte", Folder: "vendas"}
+	if f.filtro != esperado {
+		t.Errorf("filtro repassado = %+v, want %+v", f.filtro, esperado)
+	}
+}
+
+// Superficie MINIMA: um parametro desconhecido na URL do navegador nao pode virar parametro na
+// chamada ao servico. Um proxy que repassa a query inteira publica, sem querer, toda opcao futura
+// do upstream — e cada uma delas passa a ser contrato nosso sem ninguem ter decidido isso.
+func TestPromptlyCatalog_parametro_desconhecido_nao_atravessa(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`[]`)}
+	rec := httptest.NewRecorder()
+	montar(f).ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/v1/dashboard/promptly/prompts?search=x&orderBy=custo&internalDebug=1", nil))
+
+	if f.filtro.Search != "x" {
+		t.Errorf("o filtro conhecido nao atravessou: %+v", f.filtro)
+	}
+	if f.filtro.Tag != "" || f.filtro.Folder != "" {
+		t.Errorf("parametro desconhecido contaminou o filtro: %+v", f.filtro)
+	}
+}
+
+func TestPromptlySetTags_repassa_o_corpo_OPACO(t *testing.T) {
+	// O corpo atravessa sem remodelar: as recusas tipadas do servico (`empty_tag`,
+	// `too_many_tags`, `prompt_not_found`) sao o que a tela transforma em diagnostico.
+	f := &promptlyFake{corpo: json.RawMessage(`{"name":"saudacao","tags":["suporte"]}`)}
+
+	rec := chamar(t, f, http.MethodPut, "/v1/dashboard/promptly/prompts/saudacao/tags",
+		`{"tags":["suporte","campanha"]}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	if f.label != "saudacao" {
+		t.Errorf("nome repassado = %q", f.label)
+	}
+	if !contains(string(f.body), `"campanha"`) {
+		t.Errorf("o corpo nao atravessou intacto: %s", f.body)
+	}
+}
+
+// M18 — a proteção do label e a discussão da revisão atravessam o BFF.
+//
+// A licao do M13 vale aqui inteira: este proxy DESCARTAVA o header Link, e sem esse sinal a tela
+// mentia. O que consertou nao foi atencao, foi teste. As rotas novas entram sob a mesma disciplina.
+
+func TestPromptlyComments_repassa_o_corpo_e_o_alvo(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"name":"saudacao","version":3}`)}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/revisions/3/comments",
+		`{"body":"rejeitada: verbosa demais"}`)
+
+	if rec.Code != http.StatusOK && rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	if !contains(string(f.body), "verbosa demais") {
+		t.Errorf("o corpo do comentario nao atravessou: %s", f.body)
+	}
+}
+
+// A recusa TIPADA do servico e o que a tela transforma em diagnostico. Um BFF que a substituisse
+// por uma mensagem propria devolveria "erro ao salvar" — que nao diz o que fazer.
+func TestPromptlyComments_a_recusa_tipada_do_servico_atravessa(t *testing.T) {
+	f := &promptlyFake{err: &promptly.UpstreamError{
+		Status: http.StatusBadRequest,
+		Body:   []byte(`{"error":"secret_in_comment","kind":"chave da plataforma"}`),
+	}}
+
+	rec := chamar(t, f, http.MethodPost, "/v1/dashboard/promptly/prompts/saudacao/revisions/3/comments",
+		`{"body":"colei uma chave"}`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d; a recusa tipada virou outra coisa: %s", rec.Code, rec.Body.String())
+	}
+	if !contains(rec.Body.String(), "secret_in_comment") {
+		t.Errorf("o motivo nao chegou ao navegador: %s", rec.Body.String())
+	}
+}
+
+func TestPromptlyProtection_repassa_o_papel(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"label":"production","minRole":"admin"}`)}
+
+	rec := chamar(t, f, http.MethodPut, "/v1/dashboard/promptly/labels/production/protection",
+		`{"minRole":"admin"}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	if !contains(string(f.body), `"admin"`) {
+		t.Errorf("o papel nao atravessou: %s", f.body)
+	}
+}
+
+// A recusa de PAPEL precisa chegar ao navegador — medida na aceitação do M18 (2026-08-04) contra o
+// app-dev, onde o serviço respondeu `403 forbidden_role` e a tela recebeu 502 "o serviço de prompts
+// não respondeu". A frase não era vaga: era FALSA, e mandava investigar disponibilidade quando o
+// problema era autorização.
+//
+// A regra original — 401/403 upstream viram 502 — está CERTA para o que ela foi escrita: ali o 403
+// significava "a credencial do plano de controle está errada", e repassá-lo deslogaria alguém
+// perfeitamente autenticado. O M18 criou um 403 de outra natureza, dirigido ao humano. O que
+// discrimina os dois não é o status; é o CORPO tipado.
+func TestRecusaDePapelChegaAoNavegadorIntacta(t *testing.T) {
+	corpo := `{"error":"forbidden_role","action":"label.protect","required":"admin","actual":"member"}`
+	app := montarComUpstream(t, http.StatusForbidden, corpo)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/dashboard/promptly/labels/production/protection",
+		strings.NewReader(`{"minRole":"admin"}`))
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, quero 403 (a recusa é do humano, não indisponibilidade)", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != corpo {
+		t.Fatalf("corpo = %s\nquero  = %s\n(o código tipado é o que diz ao operador o que fazer)", got, corpo)
+	}
+}
+
+// O CONTROLE que prova que a discriminação é pelo corpo e não pelo status: um 403 sem código
+// tipado continua virando 502. Sem este teste, "repassar todo 403" passaria — e reabriria
+// exatamente o buraco que a regra original fecha.
+func TestForbiddenSemCodigoTipadoContinuaVirando502(t *testing.T) {
+	app := montarComUpstream(t, http.StatusForbidden, `{"error":"unauthorized"}`)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/dashboard/promptly/labels/production/protection",
+		strings.NewReader(`{"minRole":"admin"}`))
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, quero 502 — um 403 por credencial do plano de controle é defeito de fiação, não recusa do usuário", rec.Code)
+	}
+}
+
+// A recusa por LABEL PROTEGIDO é a mesma classe da recusa por papel, e por um tempo eu só conhecia
+// uma delas.
+//
+// Medido na quarta rodada de aceitação do M18: com `production` protegido, um `member` teve a
+// promoção corretamente barrada, e o serviço explicou em português — "label production exige papel
+// admin; quem tentou tem member". A tela mostrou "o serviço de prompts não respondeu".
+//
+// O gate funcionou; a explicação se perdeu. E é a explicação que diz ao operador o que fazer —
+// sem ela, ele conclui indisponibilidade e tenta de novo, para sempre.
+func TestRecusaPorLabelProtegidoChegaAoNavegadorIntacta(t *testing.T) {
+	corpo := `{"error":"label_protected","message":"label production exige papel admin; quem tentou tem member","label":"production","required":"admin","actual":"member"}`
+	app := montarComUpstream(t, http.StatusForbidden, corpo)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/dashboard/promptly/prompts/p/labels/production",
+		strings.NewReader(`{"version":7}`))
+	rec := httptest.NewRecorder()
+	app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, quero 403 — o gate barrou de propósito, isto não é indisponibilidade", rec.Code)
+	}
+	if got := strings.TrimSpace(rec.Body.String()); got != corpo {
+		t.Fatalf("corpo = %s\nquero  = %s", got, corpo)
+	}
+}
+
+// M20 DoD-2 e DoD-4 — a tela precisa dos dois textos, e de quem depende de mim.
+//
+// As duas rotas sao passagem, e por isso o oraculo nao pode ser o corpo devolvido: o duble responde
+// o mesmo para todas as leituras, entao um handler que chamasse a leitura ERRADA passaria em silencio.
+// O que se afirma aqui e QUAL leitura foi pedida — e, no caso do detalhe, que ele NAO pede a
+// resolucao, que e a metade de custo do DoD-5.
+func TestPromptResolvidoPedeALeituraQueResolve(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`{"content":"@@@promptly:name=p|version=1@@@","resolvedContent":"texto"}`)}
+	r := montar(f)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/dashboard/promptly/prompts/saudacao/resolved", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, quero 200; corpo=%s", w.Code, w.Body.String())
+	}
+	if len(f.chamadas) != 1 || f.chamadas[0] != "resolved" {
+		t.Fatalf("chamadas = %v, quero exatamente [resolved]", f.chamadas)
+	}
+}
+
+func TestDetalheNaoPagaAResolucao(t *testing.T) {
+	// O CONTROLE do teste acima. Sem ele, ligar a resolucao no detalhe passaria despercebido — e a
+	// travessia do grafo entraria em toda abertura de prompt, inclusive nos que nao compoem nada.
+	f := &promptlyFake{corpo: json.RawMessage(`{"content":"x"}`)}
+	r := montar(f)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/dashboard/promptly/prompts/saudacao", nil))
+
+	if len(f.chamadas) != 1 || f.chamadas[0] != "prompt" {
+		t.Fatalf("chamadas = %v, quero exatamente [prompt]", f.chamadas)
+	}
+}
+
+func TestDependentesPedeOIndiceDeEntrada(t *testing.T) {
+	f := &promptlyFake{corpo: json.RawMessage(`[{"name":"saudacao","version":1}]`)}
+	r := montar(f)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v1/dashboard/promptly/prompts/politica/dependents", nil))
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, quero 200; corpo=%s", w.Code, w.Body.String())
+	}
+	if len(f.chamadas) != 1 || f.chamadas[0] != "dependents" {
+		t.Fatalf("chamadas = %v, quero exatamente [dependents]", f.chamadas)
 	}
 }

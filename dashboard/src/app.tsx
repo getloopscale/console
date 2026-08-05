@@ -163,6 +163,15 @@ const SkillVersionsPage = lazy(() =>
 // M35 — a distribuição: pacotes e, dentro de cada um, os tokens delegados e a adoção. Declarar
 // estas rotas sem a linha correspondente em `resolveActiveMenu` entregaria telas que ninguém
 // encontra pelo menu — o defeito que o theo-trust levou três rodadas para achar.
+const SkillsDiscoveryPage = lazy(() =>
+  import('@/pages/skills/discovery').then((m) => ({ default: m.SkillsDiscoveryPage })),
+);
+const SkillsCatalogPage = lazy(() =>
+  import('@/pages/skills/catalog').then((m) => ({ default: m.SkillsCatalogPage })),
+);
+const SkillAuthoringPage = lazy(() =>
+  import('@/pages/skills/authoring').then((m) => ({ default: m.SkillAuthoringPage })),
+);
 const BundlesPage = lazy(() => import('@/pages/skills/bundles').then((m) => ({ default: m.BundlesPage })));
 const BundleDetailPage = lazy(() =>
   import('@/pages/skills/bundle-detail').then((m) => ({ default: m.BundleDetailPage })),
@@ -528,6 +537,16 @@ export default function App() {
                     <Route path="/trust/guardrails/new" element={<Boundaried path="/trust/guardrails/new"><TrustGuardrailNewPage /></Boundaried>} />
                     <Route path="/trust/enforcement" element={<Boundaried path="/trust/enforcement"><TrustEnforcementPage /></Boundaried>} />
                     <Route path="/skills" element={<Boundaried path="/skills"><SkillsOverviewPage /></Boundaried>} />
+                    <Route path="/skills/catalog" element={<Boundaried path="/skills/catalog"><SkillsCatalogPage /></Boundaried>} />
+                    <Route path="/skills/new" element={<Boundaried path="/skills/new"><SkillAuthoringPage /></Boundaried>} />
+                    <Route path="/skills/discovery" element={<Boundaried path="/skills/discovery"><SkillsDiscoveryPage /></Boundaried>} />
+                    {/* As rotas antigas em português seguem RESOLVENDO, por redirect.
+                        A URL é parte do que o usuário vê, e o produto é monolíngue — mas um link
+                        já compartilhado ou salvo não pode virar 404 por causa disso. O redirect é
+                        `replace` para não empilhar a URL antiga no histórico do navegador. */}
+                    <Route path="/skills/catalogo" element={<Navigate to="/skills/catalog" replace />} />
+                    <Route path="/skills/nova" element={<Navigate to="/skills/new" replace />} />
+                    <Route path="/skills/descoberta" element={<Navigate to="/skills/discovery" replace />} />
                     <Route path="/skills/:skillId" element={<Boundaried path="/skills/:skillId"><SkillDetailPage /></Boundaried>} />
                     <Route path="/skills/:skillId/versions" element={<Boundaried path="/skills/:skillId/versions"><SkillVersionsPage /></Boundaried>} />
                     <Route path="/bundles" element={<Boundaried path="/bundles"><BundlesPage /></Boundaried>} />
@@ -541,6 +560,14 @@ export default function App() {
                         precede o segmento dinâmico, senão o roteador o trata como nome de prompt. */}
                     <Route path="/promptly/catalogo" element={<Boundaried path="/promptly/catalogo"><PromptlyCatalogoPage /></Boundaried>} />
                     <Route path="/promptly/:promptName" element={<Boundaried path="/promptly/:promptName"><PromptDetailPage /></Boundaried>} />
+                    {/* M21 DoD-1 — as três abas que não são a índice. A índice É
+                        `/promptly/:promptName` acima, e é o endereço que já circulava: links para
+                        ele existem no catálogo, no diff e na lista de dependentes do M20. As
+                        quatro montam o MESMO componente, que decide o recorte pela rota — o
+                        estado da aba fica no endereço, e não em memória. */}
+                    <Route path="/promptly/:promptName/config" element={<Boundaried path="/promptly/:promptName/config"><PromptDetailPage /></Boundaried>} />
+                    <Route path="/promptly/:promptName/producao" element={<Boundaried path="/promptly/:promptName/producao"><PromptDetailPage /></Boundaried>} />
+                    <Route path="/promptly/:promptName/consumo" element={<Boundaried path="/promptly/:promptName/consumo"><PromptDetailPage /></Boundaried>} />
                     <Route path="/promptly/:name/diff" element={<Boundaried path="/promptly/:name/diff"><PromptlyDiffPage /></Boundaried>} />
                     <Route path="/promptly/:promptName/playground" element={<Boundaried path="/promptly/:promptName/playground"><PromptlyPlaygroundPage /></Boundaried>} />
                     <Route path="/observability" element={<Boundaried path="/observability"><LensOverviewPage /></Boundaried>} />

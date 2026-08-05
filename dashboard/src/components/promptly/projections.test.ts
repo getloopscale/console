@@ -10,6 +10,7 @@ import {
   resumoCatalogo,
   temProximaPagina,
   type CatalogRow,
+  comentarioRows,
 } from './projections';
 
 /**
@@ -325,5 +326,28 @@ describe('revisionRows — a intenção (M17)', () => {
     const linhas = revisionRows([{ version: 1, content: 'x', createdAt: 'd' }]);
 
     expect(linhas[0]?.modelConfig).toBeNull();
+  });
+});
+
+describe('M18 — a data do comentário é lida por gente', () => {
+  it('formata_a_data_em_vez_de_repassar_iso_cru', () => {
+    // A aceitação do M18 no app-dev mostrou "autor não registrado · 2026-08-04T17:13:42.848Z".
+    // O carimbo é o único eixo temporal que quem lê a discussão tem: se ele exige decodificar um
+    // ISO de cabeça, ele não está sendo lido — está sendo pulado.
+    const [linha] = comentarioRows([
+      { id: 'c1', body: 'ok', author: 'ana', createdAt: '2026-08-04T17:13:42.848Z' },
+    ]);
+    expect(linha?.quando).toBeTruthy();
+    expect(linha?.quando).not.toContain('T');
+    expect(linha?.quando).not.toContain('Z');
+  });
+
+  it('data_ausente_ou_invalida_nao_vira_texto_falso', () => {
+    // O CONTROLE: sem data, a projeção não inventa "agora" nem imprime "Invalid Date". Diz que
+    // não sabe — a mesma disciplina do autor ausente.
+    const [semData] = comentarioRows([{ id: 'c1', body: 'ok', author: null }]);
+    expect(semData?.quando).toBe('');
+    const [lixo] = comentarioRows([{ id: 'c2', body: 'ok', createdAt: 'nao-e-data' }]);
+    expect(lixo?.quando).toBe('');
   });
 });

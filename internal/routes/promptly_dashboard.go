@@ -45,8 +45,16 @@ const promptlyCatalogPath = "/v1/dashboard/promptly/prompts"
 // promptlyReader e o subconjunto de leitura que este BFF consome.
 type promptlyReader interface {
 	// Catalog devolve a pagina E se ha proxima — ver M13 e `promptly.Continuacao`.
-	Catalog(ctx context.Context, limit int, after string) (json.RawMessage, promptly.Continuacao, error)
+	Catalog(ctx context.Context, limit int, after string, filtro promptly.CatalogoFiltro) (json.RawMessage, promptly.Continuacao, error)
 	Prompt(ctx context.Context, name string) (json.RawMessage, error)
+	// M20 — os DOIS textos, e quem depende de mim. Separados de `Prompt` de proposito: resolver
+	// atravessa o grafo, e quem so quer o texto escrito nao paga por isso.
+	PromptResolvido(ctx context.Context, name string) (json.RawMessage, error)
+	Dependentes(ctx context.Context, name string) (json.RawMessage, error)
+	// M18 — a discussao e a protecao, do lado da LEITURA: quem promove precisa ve-las ANTES de
+	// confirmar. Discussao que nao e lida na hora da decisao nao muda decisao nenhuma.
+	Comments(ctx context.Context, name string, version int) (json.RawMessage, error)
+	LabelProtection(ctx context.Context, label string) (json.RawMessage, error)
 	Revisions(ctx context.Context, name string, limit, after int) (json.RawMessage, error)
 	Labels(ctx context.Context, name string) (json.RawMessage, error)
 	Policy(ctx context.Context, name, label string) (json.RawMessage, error)
@@ -62,6 +70,13 @@ type promptlyPromoter interface {
 	// compartilham a propriedade que importa: sao servidas pela credencial de ESCRITA cunhada por
 	// inquilino. Separa-las em outra interface sugeriria outro nivel de privilegio, que nao existe.
 	CreateRevision(ctx context.Context, body json.RawMessage) (json.RawMessage, error)
+	// M16 — marcar e ESCRITA, servida pela mesma credencial de inquilino.
+	SetTags(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error)
+	// M18 — a discussao e a protecao. Mesma porta que a promocao porque compartilham a
+	// propriedade que importa: sao servidas pela credencial de ESCRITA cunhada por inquilino.
+	AddComment(ctx context.Context, name string, version int, body json.RawMessage) (json.RawMessage, error)
+	ProtectLabel(ctx context.Context, label string, body json.RawMessage) (json.RawMessage, error)
+	UnprotectLabel(ctx context.Context, label string) (json.RawMessage, error)
 	Rollback(ctx context.Context, name string, body json.RawMessage) (json.RawMessage, error)
 }
 
@@ -100,10 +115,10 @@ func NewPromptlyDashboardHandler(r promptlyReader, p promptlyPromoter, logger *s
 // Nao e 200-com-lista-vazia, deliberadamente: "este inquilino nao tem prompts" e "nao consegui
 // perguntar" levam a decisoes opostas, e o segundo disfarcado do primeiro e um falso negativo
 // silencioso — a tela diria "crie seu primeiro prompt" durante uma queda do servico.
-const promptlyUnavailable = `{"code":"PROMPTLY_UPSTREAM_UNAVAILABLE","message":"o serviço de prompts não respondeu; nenhum dado foi lido"}`
+const promptlyUnavailable = `{"code":"PROMPTLY_UPSTREAM_UNAVAILABLE","message":"the prompts service did not respond; no data was read"}`
 
 // invalidPromotionBody e a recusa na FRONTEIRA: promover exige dizer PARA QUAL revisao.
-const invalidPromotionBody = `{"code":"INVALID_PROMOTION_BODY","message":"informe a revisão de destino da promoção"}`
+const invalidPromotionBody = `{"code":"INVALID_PROMOTION_BODY","message":"provide the target revision for the promotion"}`
 
 // maxPromotionBody limita o corpo aceito na promocao. O corpo legitimo tem um numero.
 const maxPromotionBody = 4 << 10
@@ -139,7 +154,7 @@ func (h *PromptlyDashboardHandler) corpoGrandeDemais(w http.ResponseWriter, r *h
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusRequestEntityTooLarge)
 	_, _ = fmt.Fprintf(w,
-		`{"code":"PAYLOAD_TOO_LARGE","message":"o conteúdo excede o limite de %d KiB por revisão"}`,
+		`{"code":"PAYLOAD_TOO_LARGE","message":"the content exceeds the limit of %d KiB per revision"}`,
 		maxPromptBody>>10)
 }
 
@@ -171,7 +186,8 @@ func (h *PromptlyDashboardHandler) reject(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "application/json")
 
 	ue, ok := promptly.AsUpstreamError(err)
-	if ok && ue.IsClientRefusal() && !isControlPlaneAuthFailure(ue.Status) && json.Valid(ue.Body) {
+	if ok && ue.IsClientRefusal() && json.Valid(ue.Body) &&
+		(!isControlPlaneAuthFailure(ue.Status) || recusaDePapel(ue.Body)) {
 		w.WriteHeader(ue.Status)
 		_, _ = w.Write(ue.Body)
 		return
@@ -179,6 +195,50 @@ func (h *PromptlyDashboardHandler) reject(w http.ResponseWriter, r *http.Request
 
 	w.WriteHeader(http.StatusBadGateway)
 	_, _ = w.Write([]byte(promptlyUnavailable))
+}
+
+// recusasDeAutoridade são os códigos com que o promptly recusa UMA PESSOA — não uma credencial de
+// infraestrutura.
+//
+// É uma lista explícita, e não uma heurística sobre a forma do corpo, porque a diferença entre as
+// duas classes de 403 decide se o operador vê um diagnóstico ou uma mentira. Errar para o lado
+// permissivo repassaria ao navegador um 403 que significa "a fiação está errada" — e o usuário
+// investigaria a própria sessão. Um código novo entra aqui de propósito, com quem o escreveu
+// sabendo o que está afirmando.
+//
+// `label_protected` entrou depois de `forbidden_role`, e o motivo é registro: a quarta rodada de
+// aceitação do M18 mostrou o gate funcionando (um `member` foi barrado ao promover) e a explicação
+// se perdendo — o serviço dizia "label production exige papel admin; quem tentou tem member" e a
+// tela mostrava "o serviço não respondeu". Conhecer uma recusa da classe e não a irmã dela é o
+// mesmo defeito, uma linha mais tarde.
+var recusasDeAutoridade = map[string]bool{
+	"forbidden_role":  true, // a AÇÃO exige um papel que o autor não tem
+	"label_protected": true, // ESTE label exige um papel que o autor não tem
+}
+
+// recusaDePapel distingue os DOIS 403 que o promptly pode devolver — e a distinção é a diferença
+// entre um diagnóstico e uma mentira.
+//
+// Até o M18, 403 upstream só podia significar UMA coisa: a credencial do PLANO DE CONTROLE está
+// errada. Repassá-la ao navegador deslogaria alguém perfeitamente autenticado, que investigaria a
+// própria sessão enquanto o defeito é de fiação — por isso `reject` a converte em 502.
+//
+// O M18 criou um 403 de outra natureza: `forbidden_role` é dirigido AO HUMANO e diz o que ele
+// precisa ("required: admin, actual: member"). Medido na aceitação de 2026-08-04: o serviço
+// respondeu com essa razão exata e a tela recebeu "o serviço de prompts não respondeu" — uma
+// afirmação FALSA, que manda investigar disponibilidade num problema de autorização.
+//
+// O que discrimina não é o status (idêntico nos dois) nem a rota (a mesma pode dar os dois): é o
+// CÓDIGO TIPADO no corpo. Por isso a checagem é aqui, sobre o corpo, e `isControlPlaneAuthFailure`
+// — compartilhada com o dashboard de skills — fica intacta.
+func recusaDePapel(corpo []byte) bool {
+	var tipado struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(corpo, &tipado); err != nil {
+		return false
+	}
+	return recusasDeAutoridade[tipado.Error]
 }
 
 func promptName(r *http.Request) string { return chi.URLParam(r, "promptName") }
@@ -192,11 +252,19 @@ func (h *PromptlyDashboardHandler) Catalog(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	after := r.URL.Query().Get("after")
+	// M16 — os filtros. Superficie MINIMA de proposito: so estes tres atravessam, e um parametro
+	// desconhecido na URL do navegador nao vira parametro na chamada ao servico. Um proxy que
+	// repassa a query inteira publica, sem querer, toda opcao futura do upstream.
+	filtro := promptly.CatalogoFiltro{
+		Search: r.URL.Query().Get("search"),
+		Tag:    r.URL.Query().Get("tag"),
+		Folder: r.URL.Query().Get("folder"),
+	}
 
 	// O catalogo NAO usa `proxy`: e a unica operacao que precisa publicar um header, e acrescentar
 	// um parametro ao proxy generico penalizaria as outras sete que nao o usam (SRP — o proxy
 	// transporta; a operacao decide o que ela precisa dizer).
-	corpo, cont, err := h.reader.Catalog(r.Context(), limit, after)
+	corpo, cont, err := h.reader.Catalog(r.Context(), limit, after, filtro)
 	if err != nil {
 		h.reject(w, r, "catalog", err)
 		return
@@ -227,6 +295,28 @@ func (h *PromptlyDashboardHandler) Catalog(w http.ResponseWriter, r *http.Reques
 func (h *PromptlyDashboardHandler) Prompt(w http.ResponseWriter, r *http.Request) {
 	h.proxy(w, r, "prompt", func() (json.RawMessage, error) {
 		return h.reader.Prompt(r.Context(), promptName(r))
+	})
+}
+
+// PromptResolvido serve GET /v1/dashboard/promptly/prompts/{promptName}/resolved (M20, DoD-2).
+//
+// O caminho e proprio, e nao um `?resolve=true` sobre o detalhe, porque as duas leituras tem custos
+// diferentes e a tela escolhe qual paga. A resposta traz os DOIS textos vindos da MESMA leitura do
+// servico: se viessem de duas, uma escrita entre elas faria a tela exibir um resolvido que nao
+// corresponde ao escrito, e alguem depuraria uma composicao que nunca existiu.
+func (h *PromptlyDashboardHandler) PromptResolvido(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "prompt_resolved", func() (json.RawMessage, error) {
+		return h.reader.PromptResolvido(r.Context(), promptName(r))
+	})
+}
+
+// Dependentes serve GET /v1/dashboard/promptly/prompts/{promptName}/dependents (M20, DoD-4).
+//
+// Lista vazia e um FATO ("ninguem depende de mim"), nao uma falha — quem consome tem de conseguir
+// distinguir isso de "nao consegui ler", que e a distincao que o CLAUDE.md deste repo nomeia.
+func (h *PromptlyDashboardHandler) Dependentes(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "prompt_dependents", func() (json.RawMessage, error) {
+		return h.reader.Dependentes(r.Context(), promptName(r))
 	})
 }
 
@@ -296,6 +386,100 @@ func (h *PromptlyDashboardHandler) Promote(w http.ResponseWriter, r *http.Reques
 	corpo, _ := json.Marshal(parsed)
 	h.proxy(w, r, "promote", func() (json.RawMessage, error) {
 		return h.promoter.AssignLabel(r.Context(), promptName(r), label, corpo)
+	})
+}
+
+// SetTags repassa a marcacao (`PUT /prompts/:name/tags`) — M16.
+func (h *PromptlyDashboardHandler) SetTags(w http.ResponseWriter, r *http.Request) {
+	raw, grande, err := lerCorpoLimitado(r, maxPromotionBody)
+	if err != nil {
+		h.badRequest(w, r, "set_tags: read body", err)
+		return
+	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "set_tags")
+		return
+	}
+	// O corpo atravessa OPACO: as recusas tipadas do servico (`empty_tag`, `too_many_tags`,
+	// `prompt_not_found`) sao o que a tela transforma em diagnostico. Validar aqui duplicaria a
+	// regra, e as duas copias divergiriam no dia em que uma mudasse.
+	h.proxy(w, r, "set_tags", func() (json.RawMessage, error) {
+		return h.promoter.SetTags(r.Context(), promptName(r), raw)
+	})
+}
+
+// versaoDaRota le o segmento :version. Um valor invalido e recusado AQUI, antes de sair para o
+// servico: mandar `NaN` adiante produziria uma recusa do upstream sobre um pedido que este proxy
+// sabia estar errado.
+func versaoDaRota(r *http.Request) (int, bool) {
+	n, err := strconv.Atoi(chi.URLParam(r, "version"))
+	if err != nil || n < 1 {
+		return 0, false
+	}
+	return n, true
+}
+
+// AddComment repassa o comentario de uma revisao (M18).
+func (h *PromptlyDashboardHandler) AddComment(w http.ResponseWriter, r *http.Request) {
+	version, ok := versaoDaRota(r)
+	if !ok {
+		h.badRequest(w, r, "add_comment: invalid version", nil)
+		return
+	}
+	raw, grande, err := lerCorpoLimitado(r, maxPromptBody)
+	if err != nil {
+		h.badRequest(w, r, "add_comment: read body", err)
+		return
+	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "add_comment")
+		return
+	}
+	h.proxy(w, r, "add_comment", func() (json.RawMessage, error) {
+		return h.promoter.AddComment(r.Context(), promptName(r), version, raw)
+	})
+}
+
+// Comments le a discussao de uma revisao (M18).
+func (h *PromptlyDashboardHandler) Comments(w http.ResponseWriter, r *http.Request) {
+	version, ok := versaoDaRota(r)
+	if !ok {
+		h.badRequest(w, r, "comments: invalid version", nil)
+		return
+	}
+	h.proxy(w, r, "comments", func() (json.RawMessage, error) {
+		return h.reader.Comments(r.Context(), promptName(r), version)
+	})
+}
+
+// ProtectLabel define o papel minimo do label (M18).
+func (h *PromptlyDashboardHandler) ProtectLabel(w http.ResponseWriter, r *http.Request) {
+	raw, grande, err := lerCorpoLimitado(r, maxPromotionBody)
+	if err != nil {
+		h.badRequest(w, r, "protect_label: read body", err)
+		return
+	}
+	if grande {
+		h.corpoGrandeDemais(w, r, "protect_label")
+		return
+	}
+	h.proxy(w, r, "protect_label", func() (json.RawMessage, error) {
+		return h.promoter.ProtectLabel(r.Context(), chi.URLParam(r, "label"), raw)
+	})
+}
+
+// UnprotectLabel e o caminho de emergencia auditado (M18, ADR-2).
+func (h *PromptlyDashboardHandler) UnprotectLabel(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "unprotect_label", func() (json.RawMessage, error) {
+		return h.promoter.UnprotectLabel(r.Context(), chi.URLParam(r, "label"))
+	})
+}
+
+// LabelProtection le o papel exigido (M18). `404` quando livre — a tela precisa distinguir
+// "promocao livre" de "nao consegui ler".
+func (h *PromptlyDashboardHandler) LabelProtection(w http.ResponseWriter, r *http.Request) {
+	h.proxy(w, r, "label_protection", func() (json.RawMessage, error) {
+		return h.reader.LabelProtection(r.Context(), chi.URLParam(r, "label"))
 	})
 }
 
@@ -381,7 +565,7 @@ const (
 // usageUnavailable e o corpo da falha de LEITURA do uso. Nao e um agregado vazio,
 // deliberadamente: "nao consegui ler" e "ninguem usou este prompt" levam a decisoes
 // opostas, e o segundo disfarcado do primeiro faz a tela afirmar um fato que ninguem mediu.
-const usageUnavailable = `{"code":"PROMPTLY_USAGE_UNAVAILABLE","message":"não consegui ler o uso deste prompt; nenhum número foi lido"}`
+const usageUnavailable = `{"code":"PROMPTLY_USAGE_UNAVAILABLE","message":"could not read this prompt's usage; no number was read"}`
 
 // usageNotConfigured e a recusa quando o operador nao ligou o theo-lens.
 const usageNotConfigured = `{"code":"PROMPTLY_USAGE_NOT_CONFIGURED","message":"a leitura de uso exige o theo-lens configurado neste ambiente"}`
@@ -431,6 +615,8 @@ func MountPromptlyDashboard(r chi.Router, h *PromptlyDashboardHandler, requireJW
 		r.Use(requireJWT)
 		r.Get("/prompts", h.Catalog)
 		r.Get("/prompts/{promptName}", h.Prompt)
+		r.Get("/prompts/{promptName}/resolved", h.PromptResolvido)
+		r.Get("/prompts/{promptName}/dependents", h.Dependentes)
 		r.Get("/prompts/{promptName}/revisions", h.Revisions)
 		r.Get("/prompts/{promptName}/labels", h.Labels)
 		// M15 — o uso observado por revisao. GET porque nao muda nada; a janela vem por query.
@@ -441,6 +627,12 @@ func MountPromptlyDashboard(r chi.Router, h *PromptlyDashboardHandler, requireJW
 		// cada chamada cria mais uma revisao. Confundi-los com o `PUT` acima faria um retry de
 		// rede virar duas revisoes sem que ninguem percebesse.
 		r.Post("/prompts", h.Create)
+		r.Put("/prompts/{promptName}/tags", h.SetTags)
+		r.Post("/prompts/{promptName}/revisions/{version}/comments", h.AddComment)
+		r.Get("/prompts/{promptName}/revisions/{version}/comments", h.Comments)
+		r.Put("/labels/{label}/protection", h.ProtectLabel)
+		r.Delete("/labels/{label}/protection", h.UnprotectLabel)
+		r.Get("/labels/{label}/protection", h.LabelProtection)
 		r.Post("/prompts/{promptName}/playground", h.Playground)
 		r.Post("/prompts/{promptName}/rollback", h.Rollback)
 	})

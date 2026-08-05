@@ -135,7 +135,21 @@ type Continuacao struct {
 //
 // O segundo retorno existe porque, sem ele, toda contagem derivada desta pagina seria um limite
 // inferior apresentado como total. O sinal chegava ao BFF e morria aqui (M13).
-func (c *DataClient) Catalog(ctx context.Context, limit int, after string) (json.RawMessage, Continuacao, error) {
+// CatalogoFiltro estreita o catalogo NO SERVICO (M16).
+//
+// Existe porque ate o M13 o filtro rodava na tela, sobre a pagina ja carregada — e a propria tela
+// dizia isso. Com 14 prompts funciona; com 500 mente por omissao: o operador digita um termo, nao
+// ve linha alguma, e conclui ausencia a partir de um filtro que nunca perguntou ao servidor.
+//
+// Struct em vez de tres parametros soltos: `Catalog(ctx, limit, after, search, tag, folder)` e uma
+// assinatura em que trocar dois argumentos de lugar compila e mente. O campo nomeado nao.
+type CatalogoFiltro struct {
+	Search string // substring do nome
+	Tag    string // exatamente esta tag
+	Folder string // pasta, como segmento inteiro
+}
+
+func (c *DataClient) Catalog(ctx context.Context, limit int, after string, filtro CatalogoFiltro) (json.RawMessage, Continuacao, error) {
 	q := url.Values{}
 	if limit > 0 {
 		q.Set("limit", strconv.Itoa(limit))
@@ -143,12 +157,35 @@ func (c *DataClient) Catalog(ctx context.Context, limit int, after string) (json
 	if after != "" {
 		q.Set("after", after)
 	}
+	// Vazio NAO vira parametro: mandar `search=` obrigaria o servico a saber que vazio e ausente
+	// significam o mesmo, espalhando a regra por duas camadas em vez de mante-la numa.
+	for chave, valor := range map[string]string{"search": filtro.Search, "tag": filtro.Tag, "folder": filtro.Folder} {
+		if valor != "" {
+			q.Set(chave, valor)
+		}
+	}
 	body, hdr, err := c.getRaw(ctx, "/prompts", q)
 	if err != nil {
 		return nil, Continuacao{}, err
 	}
 	temMais, query := proximaPaginaQuery(hdr)
 	return body, Continuacao{TemMais: temMais, Query: query}, nil
+}
+
+// Comments le a discussao de UMA revisao (`GET /prompts/:name/revisions/:version/comments`) — M18.
+//
+// Quem promove precisa ver a discussao ANTES de confirmar: discussao que nao e lida na hora da
+// decisao nao muda decisao nenhuma.
+func (c *DataClient) Comments(ctx context.Context, name string, version int) (json.RawMessage, error) {
+	path := "/prompts/" + url.PathEscape(name) + "/revisions/" + strconv.Itoa(version) + "/comments"
+	body, _, err := c.getRaw(ctx, path, nil)
+	return body, err
+}
+
+// LabelProtection le o papel exigido por um label; `404` quando ele nao e protegido — M18.
+func (c *DataClient) LabelProtection(ctx context.Context, label string) (json.RawMessage, error) {
+	body, _, err := c.getRaw(ctx, "/labels/"+url.PathEscape(label)+"/protection", nil)
+	return body, err
 }
 
 // Playground roda o prompt UMA vez contra o modelo (`POST /prompts/:name/playground`).
@@ -168,6 +205,29 @@ func (c *DataClient) Playground(ctx context.Context, name string, body json.RawM
 // Prompt resolve um prompt pelo nome (`GET /prompts/:name`) — a ultima revisao.
 func (c *DataClient) Prompt(ctx context.Context, name string) (json.RawMessage, error) {
 	body, _, err := c.getRaw(ctx, "/prompts/"+url.PathEscape(name), nil)
+	return body, err
+}
+
+// PromptResolvido pede o par de textos: `content` como foi escrito e `resolvedContent` com as
+// referencias substituidas (M20, DoD-2).
+//
+// E um metodo SEPARADO, e nao um booleano em `Prompt`, porque resolver custa: o servico atravessa o
+// grafo de referencias por nivel. Quem so quer o texto escrito — o catalogo, o diff, a lista de
+// revisoes — nao pode pagar essa travessia, e um parametro opcional convida a liga-lo por engano no
+// caminho que nao precisa dele.
+func (c *DataClient) PromptResolvido(ctx context.Context, name string) (json.RawMessage, error) {
+	q := url.Values{}
+	q.Set("resolve", "true")
+	body, _, err := c.getRaw(ctx, "/prompts/"+url.PathEscape(name), q)
+	return body, err
+}
+
+// Dependentes lista quem referencia este prompt (M20, DoD-4).
+//
+// *"Sem isso, promover a politica e alterar quarenta prompts as cegas."* A lista vem do indice de
+// entrada do servico; aqui ela so atravessa.
+func (c *DataClient) Dependentes(ctx context.Context, name string) (json.RawMessage, error) {
+	body, _, err := c.getRaw(ctx, "/prompts/"+url.PathEscape(name)+"/dependents", nil)
 	return body, err
 }
 

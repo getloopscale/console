@@ -9,16 +9,22 @@ import { registerRoute } from './server';
  * não refletir o que o operador acabou de fazer.
  */
 const promptlyDb: {
-  catalog: { name: string; latestVersion: number; labels: { label: string; version: number }[]; updatedAt: string }[];
+  // M16 — `tags` no contrato do mock, como o serviço as devolve. Sem elas o e2e não poderia
+  // exercitar nem a coluna nem o filtro por tag.
+  catalog: { name: string; latestVersion: number; labels: { label: string; version: number }[]; tags: string[]; updatedAt: string }[];
   revisions: Record<string, { version: number; content: string; createdAt: string }[]>;
   policies: Record<string, { datasetId: string; minScore: number }>;
   // M15 — o uso observado, por prompt e por revisão.
+  // M18 — a discussão, por "nome\u001fversão". A chave carrega a VERSÃO porque o comentário é
+  // dela: a v8 nasce e o comentário da v7 segue na v7.
+  comentarios: Record<string, { id: string; body: string; author: string | null; createdAt: string }[]>;
   uso: Record<string, { revision: number; resolutions: number; totalTokens: number; costUsd: number | null; p50LatencyMs: number | null }[]>;
 } = {
   catalog: [
     {
       name: 'saudacao',
       latestVersion: 3,
+      tags: ['suporte', 'onboarding'],
       // DOIS labels de propósito: `prod` sem política (promoção livre) e `staging` com uma que
       // recusa. Sem o par, a jornada provaria só o caminho feliz — e a mensagem tipada da recusa
       // poderia estar sendo colapsada em "erro" sem nada acusar.
@@ -28,12 +34,19 @@ const promptlyDb: {
       ],
       updatedAt: '2026-08-01T10:00:00Z',
     },
-    { name: 'despedida', latestVersion: 1, labels: [], updatedAt: '2026-07-30T09:00:00Z' },
+    { name: 'despedida', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-07-30T09:00:00Z' },
+    // M20 — a composição. `atendimento` referencia `politica`, e é o par que torna o DoD-2 e o
+    // DoD-4 exercitáveis: sem um prompt que de fato compõe, o alternador de textos nunca aparece e
+    // a lista de dependentes é sempre vazia — dois caminhos que passariam por "verdes" sem nunca
+    // terem sido percorridos.
+    { name: 'politica', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-08-03T09:00:00Z' },
+    { name: 'atendimento', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-08-03T10:00:00Z' },
     // 30 revisões: o único cenário em que o defeito #364 é observável. Com 3 revisões a página
     // contém tudo e a janela errada passa despercebida — foi assim que ele escapou.
     {
       name: 'longo',
       latestVersion: 30,
+      tags: [],
       labels: [{ label: 'prod', version: 12 }],
       updatedAt: '2026-08-02T10:00:00Z',
     },
@@ -45,6 +58,16 @@ const promptlyDb: {
       { version: 3, content: 'Olá {{nome}}, sou o assistente. Como ajudo?', createdAt: '2026-08-01T10:00:00Z' },
     ],
     despedida: [{ version: 1, content: 'Até logo, {{nome}}.', createdAt: '2026-07-30T09:00:00Z' }],
+    politica: [
+      { version: 1, content: 'Seja sempre cordial e nunca prometa prazo.', createdAt: '2026-08-03T09:00:00Z' },
+    ],
+    atendimento: [
+      {
+        version: 1,
+        content: 'Preâmbulo: @@@promptly:name=politica|version=1@@@\n\nAgora responda a {{pergunta}}.',
+        createdAt: '2026-08-03T10:00:00Z',
+      },
+    ],
     longo: Array.from({ length: 30 }, (_, i) => ({
       version: i + 1,
       content: `revisao numero ${i + 1}`,
@@ -60,6 +83,7 @@ const promptlyDb: {
   // Três formas de propósito, porque a coluna tem três estados e um e2e que só visse o primeiro
   // provaria um terço: v3 com uso e custo · v2 com uso e custo AUSENTE (o provider não reportou)
   // · v1 sem tráfego nenhum, que é diferente de zero.
+  comentarios: {},
   uso: {
     saudacao: [
       { revision: 3, resolutions: 12, totalTokens: 1500, costUsd: 0.0312, p50LatencyMs: 4.2 },
@@ -127,15 +151,59 @@ function registerPromptlyRoutes(base: string) {
     const bruto = url.searchParams.get('limit');
     const limit = bruto !== null && Number.isInteger(Number(bruto)) && Number(bruto) > 0 ? Number(bruto) : 100;
 
-    const pagina = promptlyDb.catalog.slice(0, limit);
-    const temMais = promptlyDb.catalog.length > limit;
+    // M16 — o mock FILTRA, como o serviço. Um mock que ignora `search`/`tag`/`folder` devolveria
+    // a lista inteira para uma busca, e o e2e ficaria verde sobre uma tela que exibe linhas que
+    // não casam com o termo digitado — exatamente o modo de falha que o cabeçalho deste arquivo
+    // já alerta duas vezes (`content` do catálogo, `variables` do prompt).
+    const busca = (url.searchParams.get('search') ?? '').toLowerCase();
+    const tag = url.searchParams.get('tag') ?? '';
+    const pasta = url.searchParams.get('folder') ?? '';
+    const casados = promptlyDb.catalog.filter((p) => {
+      if (busca !== '' && !p.name.toLowerCase().includes(busca)) return false;
+      if (pasta !== '' && !p.name.startsWith(`${pasta}/`)) return false;
+      if (tag !== '' && !(p.tags ?? []).includes(tag)) return false;
+      return true;
+    });
+
+    const pagina = casados.slice(0, limit);
+    const temMais = casados.length > limit;
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (temMais && pagina.length > 0) {
       const cursor = encodeURIComponent(pagina[pagina.length - 1]!.name);
-      headers.Link = `<${base}/prompts?after=${cursor}&limit=${String(limit)}>; rel="next"`;
+      // O filtro viaja no Link, como no serviço: sem isso a página 2 volta ao catálogo inteiro.
+      const extras = [
+        busca !== '' ? `&search=${encodeURIComponent(busca)}` : '',
+        tag !== '' ? `&tag=${encodeURIComponent(tag)}` : '',
+        pasta !== '' ? `&folder=${encodeURIComponent(pasta)}` : '',
+      ].join('');
+      headers.Link = `<${base}/prompts?after=${cursor}&limit=${String(limit)}${extras}>; rel="next"`;
     }
     return new Response(JSON.stringify(pagina), { status: 200, headers });
+  });
+
+  /**
+   * M18 — a discussão de UMA revisão.
+   *
+   * Sem esta rota o mock é MENOS fiel que a produção: a tela chama, a chamada falha, e o e2e passa
+   * a exercitar o estado "não consegui ler a discussão" — que produção não terá. É o mesmo modo de
+   * falha que o cabeçalho deste arquivo já alerta para o `content` do catálogo e as `variables` do
+   * prompt, e que quebrou três jornadas quando o cartão de discussão nasceu.
+   */
+  registerRoute('GET', `${base}/prompts/{name}/revisions/{version}/comments`, async (_req, { name, version }) => {
+    const chave = `${name ?? ''}\u001f${version ?? ''}`;
+    return Response.json(promptlyDb.comentarios[chave] ?? []);
+  });
+
+  registerRoute('POST', `${base}/prompts/{name}/revisions/{version}/comments`, async (req, { name, version }) => {
+    const corpo = (await req.json()) as { body?: string };
+    const texto = (corpo.body ?? '').trim();
+    if (texto === '') return Response.json({ error: 'empty_comment' }, { status: 400 });
+    const chave = `${name ?? ''}\u001f${version ?? ''}`;
+    const lista = promptlyDb.comentarios[chave] ?? [];
+    lista.push({ id: `c-${String(lista.length + 1)}`, body: texto, author: 'operador', createdAt: '2026-08-04T12:00:00Z' });
+    promptlyDb.comentarios[chave] = lista;
+    return Response.json({ name, version }, { status: 201 });
   });
 
   /**
@@ -163,6 +231,63 @@ function registerPromptlyRoutes(base: string) {
    * Recusa a variável vazia com o MESMO código do serviço (`400 missing_variable`): um mock que
    * sempre aceitasse deixaria a jornada verde sobre a guarda pré-gasto quebrada.
    */
+  /**
+   * M20 DoD-2 — o texto RESOLVIDO, numa rota própria.
+   *
+   * A resolução é feita aqui do mesmo jeito que o serviço faz — substituindo o marcador pelo
+   * conteúdo da revisão referenciada — e não por um campo fixo na fixture. Um mock que devolvesse
+   * texto pronto passaria mesmo se o serviço parasse de resolver: o e2e ficaria verde sobre a tela
+   * exibindo um texto que o produto real não produz.
+   */
+  registerRoute('GET', `${base}/prompts/{name}/resolved`, async (_req, { name }) => {
+    const alvo = decodeURIComponent(name);
+    const revs = promptlyDb.revisions[alvo];
+    if (!revs || revs.length === 0) {
+      return Response.json({ error: 'prompt_not_found', name: alvo }, { status: 404 });
+    }
+    const ultima = revs[revs.length - 1]!;
+    const resolvido = ultima.content.replace(
+      /(?<!@)@@@promptly:name=([^@\s|]+)\|version=(\d+)@@@/g,
+      (inteiro, nome: string, versao: string) => {
+        const alvoRev = (promptlyDb.revisions[nome] ?? []).find((r) => r.version === Number(versao));
+        return alvoRev?.content ?? inteiro;
+      },
+    );
+    return Response.json({
+      ...ultima,
+      name: alvo,
+      variables: variaveisDe(ultima.content),
+      resolvedContent: resolvido,
+    });
+  });
+
+  /**
+   * M20 DoD-4 — quem me referencia, com o `via`.
+   *
+   * O `via` sai daqui derivado do MARCADOR, não de uma constante: é o mesmo dado que o serviço lê
+   * da tabela de arestas, e derivá-lo mantém as duas pontas incapazes de divergir na fixture.
+   */
+  registerRoute('GET', `${base}/prompts/{name}/dependents`, async (_req, { name }) => {
+    const alvo = decodeURIComponent(name);
+    const out: { name: string; version: number; via: { version: number | null; label: string | null } }[] = [];
+    for (const [nome, revs] of Object.entries(promptlyDb.revisions)) {
+      for (const rev of revs) {
+        for (const m of rev.content.matchAll(/(?<!@)@@@promptly:name=([^@\s|]+)\|(version|label)=([^@\s]+)@@@/g)) {
+          if (m[1] !== alvo) continue;
+          out.push({
+            name: nome,
+            version: rev.version,
+            via: {
+              version: m[2] === 'version' ? Number(m[3]) : null,
+              label: m[2] === 'label' ? (m[3] ?? null) : null,
+            },
+          });
+        }
+      }
+    }
+    return Response.json(out);
+  });
+
   registerRoute('POST', `${base}/prompts/{name}/playground`, async (req) => {
     const corpo = (await req.json()) as {
       credential?: string;
@@ -244,7 +369,7 @@ function registerPromptlyRoutes(base: string) {
     lista.push({ version, content: conteudo, createdAt: '2026-08-03T12:00:00Z' });
     const entrada = promptlyDb.catalog.find((c) => c.name === nome);
     if (entrada) entrada.latestVersion = version;
-    else promptlyDb.catalog.push({ name: nome, latestVersion: version, labels: [], updatedAt: '2026-08-03T12:00:00Z' });
+    else promptlyDb.catalog.push({ name: nome, latestVersion: version, labels: [], tags: [], updatedAt: '2026-08-03T12:00:00Z' });
     return Response.json({ id: `rev-${version}`, name: nome, content: conteudo, version, createdAt: '2026-08-03T12:00:00Z', variables: [] }, { status: 201 });
   });
 

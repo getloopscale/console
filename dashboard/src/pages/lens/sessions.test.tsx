@@ -84,6 +84,45 @@ describe('LensSessionsPage (/observability/sessions)', () => {
     expect(screen.getByText('u-8668')).toBeInTheDocument(); // best-effort user id
   });
 
+  /**
+   * As colunas largas ganham teto de largura em CARACTERES, e o texto inteiro fica no DOM.
+   *
+   * Com onze colunas, `User` e as duas de mensagem esticavam a tabela e empurravam as colunas
+   * numéricas para fora da área visível. O teto em `ch` mapeia direto para caracteres — em fonte
+   * mono, `10ch` são exatamente dez.
+   *
+   * A asserção de que o texto **continua no documento** é o ponto: cortar a string resolveria a
+   * largura e tiraria o conteúdo do DOM, onde leitor de tela e a busca da página o alcançam. O
+   * `title` não substitui isso — ele não é anunciado de forma confiável.
+   */
+  it('as colunas largas truncam por largura, sem tirar o texto do documento', async () => {
+    const mensagemLonga = 'refactor the auth module and then migrate every consumer to the new token shape';
+    mockCloudFetch.mockResolvedValue({
+      sessions: [{
+        sessionId: 'sess-trunc',
+        traceCount: 1,
+        userId: 'usuario-muito-comprido-de-verdade',
+        firstMessagePreview: mensagemLonga,
+        lastMessagePreview: mensagemLonga,
+      }],
+      total: 1,
+    });
+    render(<LensSessionsPage />);
+
+    // O texto INTEIRO está no documento — truncagem é visual, não perda de conteúdo.
+    const usuario = await screen.findByText('usuario-muito-comprido-de-verdade');
+    expect(usuario.className).toContain('max-w-[10ch]');
+    expect(usuario.className).toContain('truncate');
+
+    const mensagens = screen.getAllByText(mensagemLonga);
+    expect(mensagens).toHaveLength(2); // First message e Last message
+    for (const m of mensagens) {
+      expect(m.className).toContain('max-w-[30ch]');
+      expect(m.className).toContain('truncate');
+      expect(m.getAttribute('title')).toBe(mensagemLonga); // o valor completo ao passar o cursor
+    }
+  });
+
   it('M131 — absent last-message/duration/user-id render em-dash (never fabricated)', async () => {
     mockCloudFetch.mockResolvedValue({ sessions: [{ sessionId: 'sess-bare', traceCount: 1 }], total: 1 });
     render(<LensSessionsPage />);

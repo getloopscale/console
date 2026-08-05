@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -35,6 +36,15 @@ import (
 // concrete impl is *AdminClient; tests inject a stub).
 type minter interface {
 	MintKey(ctx context.Context, workspaceID, name string, scopes []string) (*MintResult, error)
+
+	// M18 — as duas superfícies que fazem a PESSOA atravessar.
+	//
+	// `MintKey` cunha uma chave do INQUILINO: ela identifica o workspace e mais nada. Foi o
+	// bastante enquanto toda ação exigia no máximo `member` — e deixou de ser no M18, cujo gate
+	// de promoção exige `admin`. Papel acima de `member` só existe com identidade, e identidade
+	// só existe com membership declarada; por isso as duas chamadas andam juntas.
+	DeclareMember(ctx context.Context, workspaceID, userID, role, email string) error
+	MintKeyForUser(ctx context.Context, workspaceID, name string, scopes []string, userID string) (*MintResult, error)
 }
 
 type cachedSecret struct {
@@ -52,6 +62,12 @@ type Broker struct {
 	scopes []string
 	// now is the clock (injectable for deterministic TTL tests). Defaults to time.Now.
 	now func() time.Time
+
+	// declarados guarda o ÚLTIMO papel declarado por (workspace, usuário) — ver
+	// `declararSeMudou`. Protegido por `mu` porque o broker serve requisições concorrentes, e
+	// duas com papéis diferentes para o mesmo usuário escreveriam aqui ao mesmo tempo.
+	mu         sync.Mutex
+	declarados map[string]string
 }
 
 // NewBroker constructs a broker. size bounds the LRU; ttl is the cache freshness
@@ -71,7 +87,8 @@ func NewBroker(admin minter, size int, ttl time.Duration, scopes []string) (*Bro
 	if err != nil {
 		return nil, fmt.Errorf("promptly broker: lru.New: %w", err)
 	}
-	return &Broker{admin: admin, cache: cache, ttl: ttl, scopes: scopes, now: time.Now}, nil
+	return &Broker{admin: admin, cache: cache, ttl: ttl, scopes: scopes, now: time.Now,
+		declarados: map[string]string{}}, nil
 }
 
 // KeyForTenantScoped mints/loads a per-tenant key carrying ONLY the LEAST-
@@ -103,6 +120,95 @@ func (b *Broker) KeyForTenantScoped(ctx context.Context, accountID, tenantID str
 		r, mErr := b.admin.MintKey(ctx, tenantID, "gw-"+tenantID, scopes)
 		if mErr != nil {
 			return nil, mErr // fail-closed: no fallback, no cache write
+		}
+		b.cache.Add(cacheKey, cachedSecret{secret: r.Secret, expiresAt: b.now().Add(b.ttl)})
+		return r.Secret, nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return res.(string), nil
+}
+
+// declararSeMudou mantém a membership do serviço igual ao papel corrente — e só fala com a rede
+// quando ela de fato mudou.
+//
+// O par de restrições é o que torna isto delicado: a autoridade de uma chave é lida da membership
+// NO MOMENTO DO USO, e a membership é única por (workspace, usuário). Logo, declarar um papel para
+// servir uma requisição altera a autoridade de TODA chave daquele usuário — inclusive as
+// cacheadas. Re-declarar a cada requisição resolveria e custaria uma chamada por requisição; um
+// gate caro é um gate que alguém acaba desligando. Lembrar o último papel declarado dá as duas
+// coisas: correção quando muda, silêncio quando não muda.
+func (b *Broker) declararSeMudou(ctx context.Context, tenantID, userID, role, email string) error {
+	chave := tenantID + "\x00" + userID
+	b.mu.Lock()
+	atual, visto := b.declarados[chave]
+	b.mu.Unlock()
+	if visto && atual == role {
+		return nil
+	}
+	if err := b.admin.DeclareMember(ctx, tenantID, userID, role, email); err != nil {
+		return err
+	}
+	b.mu.Lock()
+	b.declarados[chave] = role
+	b.mu.Unlock()
+	return nil
+}
+
+// KeyForUser cunha (e cacheia) a credencial de UM HUMANO dentro do inquilino.
+//
+// Existe porque a aceitação do M18 mediu o custo de não existir: a chave por inquilino não
+// identifica ninguém, papel acima de `member` exige identidade, e o gate de promoção que o
+// milestone entregou não podia ser ligado por credencial alguma. O mesmo buraco fazia todo
+// comentário nascer sem autor.
+//
+// A chave de cache inclui o USUÁRIO, e isso não é detalhe: sem ele dois humanos do mesmo
+// inquilino compartilhariam credencial, e o papel de um valeria para o outro — um defeito de
+// isolamento pior que o corrigido aqui.
+//
+// A declaração de membership vem ANTES do mint porque o serviço recusa vincular chave a quem não
+// é membro (`USER_NOT_MEMBER`), e a recusa é a guarda que impede um chamador de afirmar o próprio
+// rank. Declarar é ato da AUTORIDADE sobre o workspace; o broker fala como plano de controle.
+//
+// Fail-closed em ambos os passos: sem membership ou sem mint não há chave, e o cliente então não
+// emite requisição alguma — em vez de emiti-la com a credencial errada.
+func (b *Broker) KeyForUser(ctx context.Context, accountID, tenantID, userID, role, email string, want []string) (string, error) {
+	if tenantID == "" {
+		return "", fmt.Errorf("promptly broker: empty tenant id")
+	}
+	if userID == "" {
+		return "", fmt.Errorf("promptly broker: empty user id")
+	}
+	// O e-mail é obrigatório do outro lado (`users.email` é NOT NULL UNIQUE) e é DADO REAL da
+	// sessão. Sintetizar um aqui gravaria um fato falso numa tabela que outras coisas leem — e a
+	// unicidade transformaria o palpite em colisão. Sem ele, falha fechado.
+	if email == "" {
+		return "", fmt.Errorf("promptly broker: empty user email")
+	}
+	scopes := intersectScopes(translateScopes(want), b.scopes)
+	if len(scopes) == 0 {
+		return "", fmt.Errorf("promptly broker: no grantable scopes for tenant %q", tenantID)
+	}
+	cacheKey := accountID + "\x00" + tenantID + "\x00" + userID + "\x00" + role + "\x00" + strings.Join(scopes, ",")
+	if v, ok := b.cache.Get(cacheKey); ok && b.now().Before(v.expiresAt) {
+		// A chave está cacheada, mas a AUTORIDADE dela não vive nela — vive na membership, que é
+		// global por (workspace, usuário) e pode ter sido sobrescrita por outra entrada de cache
+		// deste mesmo usuário com outro papel. Sem esta re-declaração, um cache hit devolve uma
+		// chave rebaixada pelas costas. Medido ao vivo: owner → member → owner devolvia a chave de
+		// owner resolvendo como member.
+		if dErr := b.declararSeMudou(ctx, tenantID, userID, role, email); dErr != nil {
+			return "", dErr
+		}
+		return v.secret, nil
+	}
+	res, err, _ := b.sf.Do(cacheKey, func() (any, error) {
+		if dErr := b.declararSeMudou(ctx, tenantID, userID, role, email); dErr != nil {
+			return nil, dErr
+		}
+		r, mErr := b.admin.MintKeyForUser(ctx, tenantID, "gw-"+tenantID+"-"+userID, scopes, userID)
+		if mErr != nil {
+			return nil, mErr
 		}
 		b.cache.Add(cacheKey, cachedSecret{secret: r.Secret, expiresAt: b.now().Add(b.ttl)})
 		return r.Secret, nil

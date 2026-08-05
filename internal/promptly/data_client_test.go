@@ -34,7 +34,7 @@ func TestDataClient_sem_resolver_nao_emite_requisicao(t *testing.T) {
 	defer srv.Close()
 	c := NewDataClient(srv.URL, srv.Client()) // resolver DELIBERADAMENTE ausente
 
-	_, _, err := c.Catalog(context.Background(), 0, "")
+	_, _, err := c.Catalog(context.Background(), 0, "", CatalogoFiltro{})
 
 	if err == nil {
 		t.Fatal("cliente sem resolver deveria falhar fechado")
@@ -53,7 +53,7 @@ func TestDataClient_resolver_em_erro_nao_emite_requisicao(t *testing.T) {
 			return "", errSemTenant
 		})
 
-	_, _, err := c.Catalog(context.Background(), 0, "")
+	_, _, err := c.Catalog(context.Background(), 0, "", CatalogoFiltro{})
 
 	if err == nil {
 		t.Fatal("resolver em erro deveria propagar")
@@ -72,7 +72,7 @@ func TestDataClient_catalogo_encaminha_limite_e_cursor(t *testing.T) {
 		_, _ = w.Write([]byte(`[]`))
 	})
 
-	_, _, err := c.Catalog(context.Background(), 25, "saudacao")
+	_, _, err := c.Catalog(context.Background(), 25, "saudacao", CatalogoFiltro{})
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
@@ -151,7 +151,7 @@ func TestDataClient_bearer_nunca_aparece_na_mensagem_de_erro(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":"boom"}`))
 	})
 
-	_, _, err := c.Catalog(context.Background(), 0, "")
+	_, _, err := c.Catalog(context.Background(), 0, "", CatalogoFiltro{})
 
 	if err == nil {
 		t.Fatal("5xx deveria falhar")
@@ -169,7 +169,7 @@ func TestDataClient_labels_e_catalogo_batem_nos_caminhos_do_servico(t *testing.T
 		chamar  func(*DataClient) error
 		caminho string
 	}{
-		{"catalogo", func(c *DataClient) error { _, _, e := c.Catalog(context.Background(), 0, ""); return e }, "/prompts"},
+		{"catalogo", func(c *DataClient) error { _, _, e := c.Catalog(context.Background(), 0, "", CatalogoFiltro{}); return e }, "/prompts"},
 		{"prompt", func(c *DataClient) error { _, e := c.Prompt(context.Background(), "s"); return e }, "/prompts/s"},
 		{"revisoes", func(c *DataClient) error { _, e := c.Revisions(context.Background(), "s", 5, 0); return e }, "/prompts/s/revisions"},
 		{"labels", func(c *DataClient) error { _, e := c.Labels(context.Background(), "s"); return e }, "/prompts/s/labels"},
@@ -214,7 +214,7 @@ func TestCatalog_reporta_continuacao_quando_o_servico_manda_Link_rel_next(t *tes
 		_, _ = w.Write([]byte(`[{"name":"a"}]`))
 	})
 
-	corpo, cont, err := c.Catalog(context.Background(), 100, "")
+	corpo, cont, err := c.Catalog(context.Background(), 100, "", CatalogoFiltro{})
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
@@ -235,7 +235,7 @@ func TestCatalog_nao_reporta_continuacao_sem_o_header(t *testing.T) {
 		_, _ = w.Write([]byte(`[{"name":"a"}]`)) // MESMO corpo do teste acima
 	})
 
-	corpo, cont, err := c.Catalog(context.Background(), 100, "")
+	corpo, cont, err := c.Catalog(context.Background(), 100, "", CatalogoFiltro{})
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
@@ -254,7 +254,7 @@ func TestCatalog_ignora_Link_que_nao_e_rel_next(t *testing.T) {
 		_, _ = w.Write([]byte(`[]`))
 	})
 
-	_, cont, err := c.Catalog(context.Background(), 100, "")
+	_, cont, err := c.Catalog(context.Background(), 100, "", CatalogoFiltro{})
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
@@ -273,7 +273,7 @@ func TestCatalog_reconhece_rel_next_sem_aspas(t *testing.T) {
 		_, _ = w.Write([]byte(`[]`))
 	})
 
-	_, cont, err := c.Catalog(context.Background(), 100, "")
+	_, cont, err := c.Catalog(context.Background(), 100, "", CatalogoFiltro{})
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
@@ -307,7 +307,7 @@ func TestCatalog_exige_o_enquadramento_do_link_e_nao_so_o_marcador(t *testing.T)
 		_, _ = w.Write([]byte(`[]`))
 	})
 
-	_, cont, err := c.Catalog(context.Background(), 100, "")
+	_, cont, err := c.Catalog(context.Background(), 100, "", CatalogoFiltro{})
 
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
@@ -535,7 +535,7 @@ func TestPlayground_usa_orcamento_de_tempo_proprio_e_nao_o_das_leituras(t *testi
 
 	// Controle: o caminho de LEITURA de fato estoura com este orcamento — sem isto
 	// o teste passaria mesmo se os dois clientes fossem o mesmo e generoso.
-	if _, _, err := c.Catalog(context.Background(), 0, ""); err == nil {
+	if _, _, err := c.Catalog(context.Background(), 0, "", CatalogoFiltro{}); err == nil {
 		t.Fatal("o cliente de leitura deveria ter estourado — o teste nao discrimina assim")
 	}
 
@@ -561,5 +561,78 @@ func TestPlayground_sem_cliente_de_invocacao_usa_o_padrao(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "ok") {
 		t.Errorf("resposta = %s", string(out))
+	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// M16 — os filtros atravessam o BFF, e o Link filtrado tambem.
+//
+// A licao do M13 foi cara e vale repetir: este proxy DESCARTAVA o header `Link`, e sem esse sinal
+// qualquer contagem na tela virava limite inferior apresentado como total. O que consertou nao foi
+// atencao, foi teste. Os filtros entram sob a mesma disciplina.
+// ---------------------------------------------------------------------------------------------
+
+func TestCatalog_repassa_search_tag_e_folder_ao_servico(t *testing.T) {
+	var visto string
+	c, _ := clienteContra(t, func(w http.ResponseWriter, r *http.Request) {
+		visto = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	})
+
+	_, _, err := c.Catalog(context.Background(), 10, "", CatalogoFiltro{
+		Search: "saudacao", Tag: "suporte", Folder: "vendas",
+	})
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	for _, esperado := range []string{"search=saudacao", "tag=suporte", "folder=vendas"} {
+		if !strings.Contains(visto, esperado) {
+			t.Errorf("filtro %q nao atravessou: %s", esperado, visto)
+		}
+	}
+}
+
+// O par que discrimina: filtro VAZIO nao vira parametro. Mandar `search=` ao servico e diferente
+// de nao mandar nada — e o servico teria de saber que os dois significam o mesmo, o que espalha a
+// regra por duas camadas em vez de mante-la numa.
+func TestCatalog_filtro_vazio_nao_vira_parametro(t *testing.T) {
+	var visto string
+	c, _ := clienteContra(t, func(w http.ResponseWriter, r *http.Request) {
+		visto = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	})
+
+	_, _, _ = c.Catalog(context.Background(), 10, "", CatalogoFiltro{})
+
+	for _, proibido := range []string{"search=", "tag=", "folder="} {
+		if strings.Contains(visto, proibido) {
+			t.Errorf("filtro vazio virou parametro %q: %s", proibido, visto)
+		}
+	}
+}
+
+// O Link de uma pagina FILTRADA carrega o filtro. Sem isto a pagina 2 volta ao catalogo inteiro e
+// quem pagina uma busca recebe linhas que nao casam com o termo — pior que nao paginar, porque
+// parece funcionar.
+func TestCatalog_o_Link_de_uma_pagina_filtrada_preserva_o_filtro(t *testing.T) {
+	c, _ := clienteContra(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `</prompts?after=z&limit=10&search=alvo>; rel="next"`)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"name":"alvo-1"}]`))
+	})
+
+	_, cont, err := c.Catalog(context.Background(), 10, "", CatalogoFiltro{Search: "alvo"})
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if !cont.TemMais {
+		t.Fatal("continuacao perdida numa pagina filtrada")
+	}
+	if !strings.Contains(cont.Query, "search=alvo") {
+		t.Errorf("o filtro sumiu da query da proxima pagina: %q", cont.Query)
 	}
 }

@@ -223,3 +223,57 @@ func TestDistribuicao_semResolverNaoEmiteRequisicao(t *testing.T) {
 		t.Fatalf("emitiu requisição sem credencial: %v", *vistos)
 	}
 }
+
+func TestSetBundleItems_substituiAListaInteira(t *testing.T) {
+	// O registro SUBSTITUI, não mescla — e o cliente precisa refletir isso, porque "adicionar sem
+	// poder remover" produz pacotes que só crescem, e um item esquecido lá dentro é acesso que
+	// ninguém pretendeu conceder.
+	var corpo string
+	srv, vistos := novoServidorDeDistribuicao(t, func(w http.ResponseWriter, r *http.Request) {
+		b := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(b)
+		corpo = string(b)
+		_, _ = w.Write([]byte(`{"bundle_id":"bdl_1","items":[]}`))
+	})
+
+	itens := []BundleItem{{SkillID: "sk_a", Channel: "stable"}, {SkillID: "sk_b", Channel: "beta"}}
+	if _, err := clienteDeDistribuicao(srv).SetBundleItems(context.Background(), "bdl_1", itens); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if got := (*vistos)[0]; got != "PUT /v1/bundles/bdl_1/items" {
+		t.Fatalf("rota errada: %q", got)
+	}
+
+	var enviado struct {
+		Items []struct {
+			SkillID string `json:"skill_id"`
+			Channel string `json:"channel"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(corpo), &enviado); err != nil {
+		t.Fatalf("corpo não é JSON: %q", corpo)
+	}
+	if len(enviado.Items) != 2 || enviado.Items[0].SkillID != "sk_a" || enviado.Items[1].Channel != "beta" {
+		t.Fatalf("os itens não chegaram na forma do contrato: %q", corpo)
+	}
+}
+
+func TestSetBundleItems_listaVaziaEsvaziaOPacote(t *testing.T) {
+	// Esvaziar é uma operação LEGÍTIMA — é como se revoga o conteúdo de um pacote sem apagá-lo.
+	// Um cliente que omitisse `items` ao receber lista vazia faria o registro recusar com 400, e
+	// a tela ficaria sem como desfazer o que montou.
+	var corpo string
+	srv, _ := novoServidorDeDistribuicao(t, func(w http.ResponseWriter, r *http.Request) {
+		b := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(b)
+		corpo = string(b)
+		_, _ = w.Write([]byte(`{"bundle_id":"bdl_1","items":[]}`))
+	})
+
+	if _, err := clienteDeDistribuicao(srv).SetBundleItems(context.Background(), "bdl_1", nil); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if !strings.Contains(corpo, `"items":[]`) {
+		t.Fatalf("lista vazia precisa viajar como `[]`, não omitida nem `null`: %q", corpo)
+	}
+}
