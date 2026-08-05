@@ -8,9 +8,7 @@ import {
   DataTable,
   type DataTableColumn,
   EmptyState,
-  Input,
   PageShell,
-  Select,
   type Severity,
   SeverityBadge,
   Skeleton,
@@ -18,6 +16,14 @@ import {
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { AlertCreateForm } from '@/components/lens/alert-create-form';
+import {
+  EMPTY_ALERT_DRAFT,
+  METRICA_DE_PROMPT,
+  alertProblems,
+  exigeNomeDePrompt,
+  toCreateBody,
+} from '@/components/lens/alert-draft';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -127,6 +133,9 @@ const METRICS = [
   { value: 'error_rate', label: 'Error rate (%)' },
   { value: 'cost', label: 'Cost (USD)' },
   { value: 'p95_latency', label: 'Latency p95 (ms)' },
+  // M22 — a metrica escopada a UM prompt. As tres acima medem o workspace inteiro, e "o erro
+  // subiu" nao diz QUAL prompt piorou. Ver `usetheoai/theo-cloud#459`.
+  { value: METRICA_DE_PROMPT, label: 'Prompt resolutions' },
 ] as const;
 const COMPARATORS = [
   { value: 'gt', label: '>' },
@@ -153,6 +162,9 @@ export function LensAlertsPage() {
   const [threshold, setThreshold] = useState('');
   const [windowSeconds, setWindowSeconds] = useState<string>('3600');
   const [webhookId, setWebhookId] = useState('');
+  // M22 — so significa algo na metrica de prompt; `toCreateBody` o omite nas demais, porque o
+  // CHECK de pareamento do banco vale nos DOIS sentidos.
+  const [promptName, setPromptName] = useState('');
   const [pendingDelete, setPendingDelete] = useState<AlertRule | null>(null);
   const [openHistory, setOpenHistory] = useState<AlertRule | null>(null); // M84 — expanded rule's history
 
@@ -175,6 +187,7 @@ export function LensAlertsPage() {
       setName('');
       setThreshold('');
       setWebhookId('');
+      setPromptName('');
       invalidate();
     },
   });
@@ -220,7 +233,37 @@ export function LensAlertsPage() {
   const writeError = create.isError ? 'create' : toggle.isError ? 'toggle' : remove.isError ? 'delete' : null;
 
   const availableWebhooks = webhooks.data?.webhooks ?? [];
-  const canCreate = name.trim() !== '' && threshold.trim() !== '' && webhookId !== '' && !create.isPending;
+  // M22 — a validacao passou a vir do rascunho puro, que e quem conhece o PAREAMENTO
+  // metrica<->prompt. Deixa-la aqui em linha faria a tela permitir montar um estado que o banco
+  // torna irrepresentavel, e a recusa chegaria como erro de servidor em vez de orientacao.
+  const draft = {
+    ...EMPTY_ALERT_DRAFT,
+    name,
+    metric,
+    promptName,
+    comparator,
+    threshold,
+    windowSeconds,
+    webhookId,
+  };
+  const canCreate = alertProblems(draft).length === 0 && !create.isPending;
+
+  // O valor MEDIDO agora, ao lado do campo de limiar. Risco #2 do milestone: um limite escolhido
+  // as cegas e o alerta mal calibrado, e alerta que dispara sem motivo ensina o time a ignorar o
+  // canal. Le o MESMO agregado que a aba de producao do prompt mostra.
+  const promptAlvo = exigeNomeDePrompt(metric) ? promptName.trim() : '';
+  const usoAtual = useQuery({
+    queryKey: ['cloud', 'promptly-usage', promptAlvo] as const,
+    enabled: promptAlvo !== '',
+    retry: false,
+    queryFn: () =>
+      cloudFetch<{ rows?: { resolutions?: number }[] }>(
+        `/v1/dashboard/promptly/prompts/${encodeURIComponent(promptAlvo)}/usage?windowDays=1`,
+        {},
+        { throwOnError: true },
+      ),
+  });
+  const resolucoesAgora = usoAtual.data?.rows?.reduce((t, r) => t + (r.resolutions ?? 0), 0);
 
   const columns: DataTableColumn<AlertRule>[] = [
     { key: 'name', label: 'Name', render: (r) => <span className="font-medium">{r.name}</span> },
@@ -312,105 +355,33 @@ export function LensAlertsPage() {
                   , then create a rule here.
                 </Alert>
               ) : (
-                <form
-                  className="flex flex-wrap items-end gap-3"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!canCreate) return;
-                    create.mutate({
-                      name: name.trim(),
-                      metric,
-                      comparator,
-                      threshold: Number(threshold),
-                      window_seconds: Number(windowSeconds),
-                      webhook_id: webhookId,
-                    });
-                  }}
-                >
-                  <div className="min-w-[160px] flex-1">
-                    <label htmlFor="rule-name" className="mb-1 block text-xs font-medium text-muted-foreground">
-                      Name
-                    </label>
-                    <Input id="rule-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="High error rate" aria-label="Rule name" />
-                  </div>
-                  <div>
-                    <span className="mb-1 block text-xs font-medium text-muted-foreground">Metric</span>
-                    <Select value={metric} onValueChange={setMetric}>
-                      <Select.Trigger className="w-[160px]" aria-label="Metric">
-                        <Select.Value />
-                      </Select.Trigger>
-                      <Select.Content>
-                        {METRICS.map((m) => (
-                          <Select.Item key={m.value} value={m.value}>
-                            {m.label}
-                          </Select.Item>
-                        ))}
-                      </Select.Content>
-                    </Select>
-                  </div>
-                  <div>
-                    <span className="mb-1 block text-xs font-medium text-muted-foreground">When</span>
-                    <Select value={comparator} onValueChange={setComparator}>
-                      <Select.Trigger className="w-[80px]" aria-label="Comparator">
-                        <Select.Value />
-                      </Select.Trigger>
-                      <Select.Content>
-                        {COMPARATORS.map((c) => (
-                          <Select.Item key={c.value} value={c.value}>
-                            {c.label}
-                          </Select.Item>
-                        ))}
-                      </Select.Content>
-                    </Select>
-                  </div>
-                  <div>
-                    <label htmlFor="rule-threshold" className="mb-1 block text-xs font-medium text-muted-foreground">
-                      Threshold
-                    </label>
-                    <Input
-                      id="rule-threshold"
-                      type="number"
-                      className="w-[110px]"
-                      value={threshold}
-                      onChange={(e) => setThreshold(e.target.value)}
-                      placeholder="5"
-                      aria-label="Threshold"
-                    />
-                  </div>
-                  <div>
-                    <span className="mb-1 block text-xs font-medium text-muted-foreground">Over</span>
-                    <Select value={windowSeconds} onValueChange={setWindowSeconds}>
-                      <Select.Trigger className="w-[140px]" aria-label="Window">
-                        <Select.Value />
-                      </Select.Trigger>
-                      <Select.Content>
-                        {WINDOWS.map((wnd) => (
-                          <Select.Item key={wnd.value} value={wnd.value}>
-                            {wnd.label}
-                          </Select.Item>
-                        ))}
-                      </Select.Content>
-                    </Select>
-                  </div>
-                  <div>
-                    <span className="mb-1 block text-xs font-medium text-muted-foreground">Notify</span>
-                    <Select value={webhookId || undefined} onValueChange={setWebhookId}>
-                      <Select.Trigger className="w-[200px]" aria-label="Notify webhook">
-                        <Select.Value placeholder="Select a webhook" />
-                      </Select.Trigger>
-                      <Select.Content>
-                        {availableWebhooks.map((wh) => (
-                          <Select.Item key={wh.id} value={wh.id}>
-                            {wh.label ?? wh.url ?? wh.id}
-                          </Select.Item>
-                        ))}
-                      </Select.Content>
-                    </Select>
-                  </div>
-                  <Button type="submit" disabled={!canCreate}>
-                    Create rule
-                  </Button>
-                </form>
+                <AlertCreateForm
+                  name={name}
+                  onName={setName}
+                  metric={metric}
+                  onMetric={setMetric}
+                  promptName={promptName}
+                  onPromptName={setPromptName}
+                  comparator={comparator}
+                  onComparator={setComparator}
+                  threshold={threshold}
+                  onThreshold={setThreshold}
+                  windowSeconds={windowSeconds}
+                  onWindowSeconds={setWindowSeconds}
+                  webhookId={webhookId}
+                  onWebhookId={setWebhookId}
+                  webhooks={availableWebhooks}
+                  metrics={METRICS}
+                  comparators={COMPARATORS}
+                  windows={WINDOWS}
+                  canCreate={canCreate}
+                  onSubmit={() => create.mutate(toCreateBody(draft))}
+                  usoAtual={
+                    promptAlvo !== ''
+                      ? { carregando: usoAtual.isLoading, erro: usoAtual.isError, resolucoes: resolucoesAgora }
+                      : undefined
+                  }
+                />
               )}
             </Card.Body>
           </Card>

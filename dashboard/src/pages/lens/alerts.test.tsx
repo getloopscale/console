@@ -213,3 +213,138 @@ describe('LensAlertsPage (M53)', () => {
     expect(calls('DELETE')[0][0]).toContain('/alert-rules/lar-9');
   });
 });
+
+// ── M22 — a métrica escopada a um prompt ────────────────────────────────────────────────────────
+//
+// A `v0.83.0` liberou `prompt_resolutions` no backend, e o `Select` desta tela era fechado sobre
+// três opções: a capacidade existia e era inalcançável sem `curl` (`usetheoai/theo-cloud#459`).
+//
+// A tela é COMPARTILHADA — é o risco #1 do milestone. Metade destes testes é regressão: alargar
+// não pode estreitar o que já servia.
+
+const USAGE = (nome: string) => `/v1/dashboard/promptly/prompts/${nome}/usage?windowDays=1`;
+
+describe('LensAlertsPage — M22, a métrica de prompt', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('oferece a métrica de prompt no seletor', async () => {
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />);
+    await screen.findByRole('combobox', { name: /Metric/i });
+    await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
+    expect(await screen.findByRole('option', { name: /prompt/i })).toBeInTheDocument();
+  });
+
+  it('as TRÊS métricas de workspace seguem oferecidas — regressão', async () => {
+    // O risco #1 registrado: a tela é compartilhada, e a quarta métrica não pode custar as outras.
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />);
+    await screen.findByRole('combobox', { name: /Metric/i });
+    await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
+    for (const rotulo of [/error rate/i, /cost/i, /latency/i]) {
+      expect(await screen.findByRole('option', { name: rotulo })).toBeInTheDocument();
+    }
+  });
+
+  it('o campo de prompt aparece SÓ com a métrica de prompt', async () => {
+    // O par inválido é irrepresentável no banco; um formulário que permite montá-lo só empurra a
+    // recusa para depois do clique.
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />);
+    await screen.findByRole('combobox', { name: /Metric/i });
+    expect(screen.queryByLabelText(/Prompt/i)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
+    expect(await screen.findByLabelText(/Prompt/i)).toBeInTheDocument();
+  });
+
+  it('não deixa criar a regra de prompt sem o nome do prompt', async () => {
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />);
+    await screen.findByRole('combobox', { name: /Metric/i });
+    await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
+
+    await userEvent.type(screen.getByLabelText(/Rule name/i), 'uso da saudação');
+    await userEvent.type(screen.getByLabelText(/Threshold/i), '3');
+    await userEvent.click(screen.getByRole('combobox', { name: /Notify webhook/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prod hook/i }));
+
+    expect(screen.getByRole('button', { name: /create rule/i })).toBeDisabled();
+  });
+
+  it('cria a regra de prompt com prompt_name no corpo', async () => {
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />);
+    await screen.findByRole('combobox', { name: /Metric/i });
+    await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
+
+    await userEvent.type(screen.getByLabelText(/Rule name/i), 'uso da saudação');
+    await userEvent.type(screen.getByLabelText(/Prompt/i), 'saudacao');
+    await userEvent.type(screen.getByLabelText(/Threshold/i), '3');
+    await userEvent.click(screen.getByRole('combobox', { name: /Notify webhook/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prod hook/i }));
+    await userEvent.click(screen.getByRole('button', { name: /create rule/i }));
+
+    await waitFor(() => expect(calls('POST').length).toBe(1));
+    const corpo = JSON.parse((calls('POST')[0][1] as { body: string }).body);
+    expect(corpo.metric).toBe('prompt_resolutions');
+    expect(corpo.prompt_name).toBe('saudacao');
+  });
+
+  it('NÃO envia prompt_name numa métrica de workspace — regressão', async () => {
+    // O CHECK de pareamento vale nos dois sentidos: mandar o campo aqui faz o backend recusar.
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />);
+    await screen.findByLabelText(/Rule name/i);
+    await userEvent.type(screen.getByLabelText(/Rule name/i), 'erro geral');
+    await userEvent.type(screen.getByLabelText(/Threshold/i), '5');
+    await userEvent.click(screen.getByRole('combobox', { name: /Notify webhook/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prod hook/i }));
+    await userEvent.click(screen.getByRole('button', { name: /create rule/i }));
+
+    await waitFor(() => expect(calls('POST').length).toBe(1));
+    const corpo = JSON.parse((calls('POST')[0][1] as { body: string }).body);
+    expect(corpo.metric).toBe('error_rate');
+    expect(corpo).not.toHaveProperty('prompt_name');
+  });
+
+  it('mostra o valor MEDIDO agora ao lado do limiar', async () => {
+    // Risco #2: um limite escolhido às cegas é o alerta mal calibrado que o M21 nomeia. A tela
+    // lê o mesmo agregado que a aba de produção mostra.
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (url === USAGE('saudacao')) return Promise.resolve({ rows: [{ revision: 6, resolutions: 42 }] });
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByRole('combobox', { name: /Metric/i });
+    await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
+    await userEvent.type(screen.getByLabelText(/Prompt/i), 'saudacao');
+
+    expect(await screen.findByText(/42/)).toBeInTheDocument();
+  });
+
+  it('falha ao ler o valor medido NÃO vira zero', async () => {
+    // A regra do M13/M15: falha de leitura nunca é renderizada como ausência de dado — e um `0`
+    // fabricado ao lado do campo de limiar convidaria ao limite errado.
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (url === USAGE('saudacao')) return Promise.reject(new Error('lens fora do ar'));
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByRole('combobox', { name: /Metric/i });
+    await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
+    await userEvent.type(screen.getByLabelText(/Prompt/i), 'saudacao');
+
+    expect(await screen.findByText(/não foi possível|could not read/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
+  });
+});
