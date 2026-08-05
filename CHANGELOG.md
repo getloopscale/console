@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.83.1] - 2026-08-05
+
 ### Fixed
 
 - **Uma mudança de formato no serviço de métricas deixou de virar um alerta falso** (#455, presente em `0.83.0`). O monitor de um prompt lê um agregado de outro serviço, e quando esse agregado vinha num formato que o monitor não sabia ler, ele era interpretado como **"zero uso"** em vez de **"não consegui ler"**. Zero uso é violação para quem configurou *"avise se este prompt parar de ser usado"* — então uma evolução de formato lá dentro dispararia exatamente as regras que existem para detectar que algo parou. Eram elas as primeiras a mentir. Havia um caso pior, e mais silencioso: com parte do agregado legível e parte não, o número saía **errado** em vez de vazio — plausível o bastante para ninguém questionar. Agora um agregado que o monitor não reconhece é tratado como leitura falha, e a regra é pulada com registro. **Um período genuinamente sem uso continua sendo zero medido** — é a diferença entre *"ninguém usou"* e *"não consegui saber"*, e ela é o motivo de a regra de queda existir. Campo novo no agregado continua sendo lido normalmente: recusar evolução compatível pararia o alerta a cada release do outro lado.
