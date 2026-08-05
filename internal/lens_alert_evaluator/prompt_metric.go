@@ -26,10 +26,16 @@ func isPromptScoped(metric string) bool {
 // O agregado é **por revisão sobre a janela inteira** — não há dimensão de tempo, e portanto não há
 // série a bucketizar. Um monitor sobre ele compara um valor de janela com um limiar, que é
 // exatamente o que a máquina anti-tempestade existente já sabe fazer.
+// Os PONTEIROS são o contrato, não estilo. `json.Unmarshal` não falha quando uma chave está
+// ausente — ele deixa o zero-value —, então um campo renomeado lá em cima chegaria aqui como
+// `0` indistinguível de um zero medido. Ponteiro nil distingue **ausente** de **zero**, que é a
+// única distinção que importa nesta função.
 type promptUsage struct {
-	Rows []struct {
-		Resolutions float64 `json:"resolutions"`
-	} `json:"rows"`
+	Rows *[]promptUsageRow `json:"rows"`
+}
+
+type promptUsageRow struct {
+	Resolutions *float64 `json:"resolutions"`
 }
 
 // metricFromPromptUsage extrai o valor da métrica sobre a janela, mais se houve MEDIÇÃO.
@@ -44,8 +50,23 @@ type promptUsage struct {
 // "avise se este prompt parar de ser usado": ela seria pulada exatamente na condição que existe
 // para detectar. É o theo-cloud#247 pelo avesso.
 //
-// O que continua NÃO sendo medição: corpo ilegível e métrica desconhecida. Ambos devolveriam um
-// zero fabricado que dispararia toda regra `lt` do workspace.
+// O que NÃO é medição, e por quê — as três formas devolveriam um zero fabricado, e zero com
+// comparador `lt` é violação:
+//
+//   - corpo ilegível;
+//   - métrica desconhecida;
+//   - **contrato quebrado** — a chave `rows` ausente, ou uma linha sem `resolutions`.
+//
+// A terceira é a que quase escapou, e é a mais perigosa das três: `json.Unmarshal` de um objeto
+// VÁLIDO com a chave faltando não falha, e um campo renomeado no theo-lens — a forma que toda
+// mudança de schema tem — dispararia todas as regras "avise se este prompt parar de ser usado".
+// Justamente as regras que existem para detectar que algo PAROU seriam as primeiras a mentir.
+//
+// Pior ainda no nível da linha: com uma linha íntegra ao lado de uma derivada, o total sai
+// **errado** em vez de zero — um número plausível que ninguém questiona.
+//
+// Exigir presença NÃO é exigir exclusividade: campo novo no agregado é evolução legítima e
+// frequente do upstream, e recusá-la transformaria cada release do theo-lens numa parada de alerta.
 func metricFromPromptUsage(body []byte, metric string) (float64, bool) {
 	if metric != MetricPromptResolutions {
 		return 0, false
@@ -54,12 +75,25 @@ func metricFromPromptUsage(body []byte, metric string) (float64, bool) {
 	if err := json.Unmarshal(body, &u); err != nil {
 		return 0, false
 	}
+	// A chave AUSENTE não é uma lista vazia. `rows: []` diz "ninguém resolveu este prompt" — uma
+	// medição. Nenhum `rows` diz "isto não é o agregado que eu sei ler", e devolver zero aí
+	// dispararia toda regra `lt` do workspace por causa de uma mudança de schema lá em cima.
+	if u.Rows == nil {
+		return 0, false
+	}
 	// Soma sobre as revisões: a pergunta do DoD é sobre o PROMPT. Escolher uma revisão exigiria uma
 	// regra arbitrária sobre qual, e erraria durante uma promoção — quando o tráfego está dividido
 	// entre duas e é justamente quando alguém quer ser avisado.
+	//
+	// Uma linha SEM o campo que se soma é o mesmo defeito uma camada abaixo, e o mais insidioso dos
+	// dois: com uma linha íntegra ao lado de uma derivada, o total sai **errado** em vez de zero —
+	// um número plausível que ninguém questiona.
 	var total float64
-	for _, r := range u.Rows {
-		total += r.Resolutions
+	for _, r := range *u.Rows {
+		if r.Resolutions == nil {
+			return 0, false
+		}
+		total += *r.Resolutions
 	}
 	return total, true
 }
