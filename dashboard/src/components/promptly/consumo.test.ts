@@ -147,19 +147,23 @@ describe('gerarTrechoDeConsumo — o trecho traz o prompt já preenchido', () =>
     expect(gerarTrechoDeConsumo('rest', COM_AMBIENTE)).not.toContain('resolve=true');
   });
 
-  it('o trecho do SDK AVISA quando o prompt compõe, porque o SDK ainda não resolve', () => {
-    // `usetheoai/theo-promptly#84`: `getPrompt` monta a URL sem `resolve`. Entregar o trecho sem a
-    // ressalva daria um exemplo que roda e produz lixo — e o consumidor não teria como saber.
-    // Um aviso honesto vale mais que um trecho bonito que mente.
+  it('o trecho do SDK PEDE resolução quando o prompt compõe', () => {
+    // `usetheoai/theo-promptly#84`, fechado na v0.17.1. Até então o SDK não tinha como pedir, e
+    // este trecho carregava uma ressalva apontando o REST — um aviso honesto valia mais que um
+    // trecho bonito que mente. Agora ele pede, e o aviso não é mais necessário.
     const sdk = gerarTrechoDeConsumo('sdk', QUE_COMPOE);
-    expect(sdk).toMatch(/ATENÇÃO/);
-    expect(sdk).toContain('@@@promptly:');
-    // E aponta o caminho que FUNCIONA hoje, em vez de só reclamar.
-    expect(sdk).toMatch(/REST/);
+    expect(sdk).toContain('resolve: true');
+    // E LÊ o campo certo: `content` traz o marcador; `resolvedContent`, o texto composto.
+    expect(sdk).toContain('prompt.resolvedContent');
+    // A ressalva sumiu junto com a razão dela.
+    expect(sdk).not.toMatch(/ATENÇÃO/);
   });
 
-  it('sem composição, o trecho do SDK não carrega ressalva alguma', () => {
-    expect(gerarTrechoDeConsumo('sdk', COM_AMBIENTE)).not.toMatch(/ATENÇÃO/);
+  it('sem composição, o trecho do SDK não paga a travessia nem lê campo que não virá', () => {
+    // O CONTROLE, e a mesma decisão de custo do DoD-5 do M20.
+    const sdk = gerarTrechoDeConsumo('sdk', COM_AMBIENTE);
+    expect(sdk).not.toContain('resolve: true');
+    expect(sdk).toContain('console.log(prompt.content);');
   });
 
   it('os trechos dizem QUAL credencial — a da plataforma, e onde obtê-la', () => {
