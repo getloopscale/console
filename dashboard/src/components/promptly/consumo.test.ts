@@ -14,19 +14,26 @@ import { gerarTrechoDeConsumo, INTERFACES, type Alvo } from './consumo';
  * quebrasse sem nenhum teste falhar.
  *
  * **A forma vem do contrato real, lido no código, não de memória:** `@usetheo/promptly-sdk`,
- * `new PromptlyClient({ baseUrl, apiKey })`, `getPrompt(name, { label | version, variables })`, e a
+ * `new PromptlyClient({ baseUrl, apiKey })`, `getPrompt(name, { label | version, vars })`, e a
  * ferramenta MCP chama-se `get_prompt`.
+ *
+ * **`vars`, não `variables`** — a distinção custou um BLOCKER de review. `variables` existe no
+ * contrato, mas é campo do RESULTADO (`Prompt.variables: string[]`); a opção de entrada é `vars`
+ * (`packages/sdk/src/index.ts:158`). O teste que existia travava o nome ERRADO no lugar: ele
+ * afirmava `not.toContain('variables')` para o caso sem variáveis, e com isso cimentava o engano.
  */
 const COM_AMBIENTE: Alvo = {
   nome: 'atendimento',
   compoe: false,
   ultimaVersao: 7,
   label: 'production',
+  ambienteEProducao: true,
   variaveis: ['pergunta'],
   baseUrl: 'https://app-dev.usetheo.dev/v1/promptly',
 };
 
-const SEM_AMBIENTE: Alvo = { ...COM_AMBIENTE, label: null };
+const SEM_AMBIENTE: Alvo = { ...COM_AMBIENTE, label: null, ambienteEProducao: true };
+const SO_STAGING: Alvo = { ...COM_AMBIENTE, label: 'staging', ambienteEProducao: false };
 const QUE_COMPOE: Alvo = { ...COM_AMBIENTE, compoe: true };
 
 describe('gerarTrechoDeConsumo — o trecho traz o prompt já preenchido', () => {
@@ -65,14 +72,35 @@ describe('gerarTrechoDeConsumo — o trecho traz o prompt já preenchido', () =>
     expect(sdk).toContain('pergunta');
   });
 
-  it('prompt sem variável alguma não gera um objeto de variáveis vazio', () => {
-    // Um `variables: {}` pendurado no exemplo é ruído que o leitor tenta interpretar.
+  it('a opção de valores chama-se `vars` — o nome do CONTRATO, não o do resultado', () => {
+    // O BLOCKER. Em TypeScript, `variables` nem compila (`TS2353: … does not exist in type
+    // GetPromptOptions`). Em JavaScript compila e entrega o TEMPLATE CRU ao modelo, em silêncio —
+    // o pior dos dois desfechos, e exatamente o que este módulo diz querer evitar.
+    const sdk = gerarTrechoDeConsumo('sdk', COM_AMBIENTE);
+    expect(sdk).toContain('vars: {');
+    expect(sdk).not.toContain('variables: {');
+  });
+
+  it('prompt sem variável alguma não gera um objeto de valores vazio', () => {
+    // Um `vars: {}` pendurado no exemplo é ruído que o leitor tenta interpretar.
     const semVars = gerarTrechoDeConsumo('sdk', { ...COM_AMBIENTE, variaveis: [] });
-    expect(semVars).not.toContain('variables');
+    expect(semVars).not.toContain('vars: {');
   });
 
   it('a ferramenta MCP é a real — `get_prompt`, não um nome inventado', () => {
     expect(gerarTrechoDeConsumo('mcp', COM_AMBIENTE)).toContain('get_prompt');
+  });
+
+  it('o bloco MCP traz as DUAS metades: apontar o cliente e chamar a ferramenta', () => {
+    // O `/review` mediu que o bloco anterior não era JSON (tinha `//`), não era a requisição
+    // JSON-RPC que o MCP fala, e não dizia como apontar um cliente para o servidor. Não havia o
+    // que executar — e a aba prometia "código que roda".
+    const mcp = gerarTrechoDeConsumo('mcp', COM_AMBIENTE);
+    expect(mcp).toContain('mcpServers'); // como apontar o cliente
+    expect(mcp).toContain('tools/call'); // o método JSON-RPC de verdade
+    expect(mcp).toContain('"jsonrpc": "2.0"');
+    // E a URL do servidor sai do alvo, como nas outras interfaces.
+    expect(mcp).toContain(COM_AMBIENTE.baseUrl);
   });
 
   it('o pacote do SDK é o publicado, e o import é o que existe', () => {
@@ -143,6 +171,14 @@ describe('gerarTrechoDeConsumo — o trecho traz o prompt já preenchido', () =>
       expect(t).toMatch(/API Tokens/);
       expect(t).toContain('promptly:read');
     }
+  });
+
+  it('um prompt que serve só staging é marcado como NÃO-produção', () => {
+    // O gerador continua publicando o ambiente — publicar versão fixa seria pior. O que a marcação
+    // muda é a TELA poder dizer que não é produção; sem ela, o operador cola `staging` num serviço
+    // e supõe o contrário. Medido pelo `/review`.
+    expect(SO_STAGING.ambienteEProducao).toBe(false);
+    expect(gerarTrechoDeConsumo('sdk', SO_STAGING)).toContain("label: 'staging'");
   });
 
   it('a URL base vem do alvo, nunca fixa no gerador', () => {

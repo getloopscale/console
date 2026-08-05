@@ -3,9 +3,14 @@
 //
 // M21 — a jornada das QUATRO ABAS, ponta a ponta pela tela.
 //
-// Cobre: menu → catálogo → prompt → cada aba por clique → o trecho de consumo → promover a partir
-// de uma aba que não é a de ambientes. É o DoD-1 (as quatro perguntas, e nenhum endereço perdido),
-// o DoD-2 (código que roda) e o DoD-3 (promover sem sair da tela).
+// Cobre: menu → catálogo → prompt → cada aba por clique → COPIAR o trecho de consumo → promover a
+// partir de uma aba que não é a de ambientes, e ver a confirmação abrir sem trocar de rota. É o
+// DoD-1 (as quatro perguntas, e nenhum endereço perdido), o DoD-2 (o trecho é copiável e aponta
+// para este prompt) e o DoD-3 (a AÇÃO de promover, não só o cartão).
+//
+// O `/review` classificou a versão anterior como falso-verde em dois pontos: ela dizia cobrir a
+// promoção e só verificava cabeçalhos, e dizia cobrir o consumo e só verificava um `<pre>`. Um
+// título de teste que promete mais do que a asserção entrega é pior que ausência de teste.
 //
 // A navegação é sempre por CLIQUE, a partir da raiz. Validar digitando o endereço usa o único
 // caminho que o usuário real não tem — foi assim que quatro telas do `theo-trust` ficaram
@@ -76,11 +81,31 @@ test.describe('M21 — as quatro perguntas do detalhe', () => {
       'page',
     );
 
+    // ---- DoD-2: o botão de copiar existe e COPIA ------------------------------------------
+    // A versão anterior deste spec verificava só o `<pre>`, e o `/review` classificou isso como
+    // falso-verde: o DoD diz "copiar o trecho e executá-lo", e um bloco visível sem botão que
+    // funcione não cumpre a primeira metade.
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.getByRole('button', { name: /Copiar o trecho REST/ }).click();
+    await expect(page.getByRole('button', { name: /Copiar o trecho REST/ })).toHaveText('Copiado');
+    const copiado = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copiado).toContain('curl');
+    expect(copiado).toContain('saudacao');
+
     // ---- DoD-3: promover a partir de uma aba que NÃO é a de ambientes ---------------------
-    // A ação está no corpo do layout, fora das abas. Se estivesse numa aba, "sem sair da tela"
-    // seria falso em três dos quatro estados — sem ninguém navegar.
+    // A AÇÃO, não só o cartão. O `/review` mediu que a versão anterior deste bloco verificava dois
+    // cabeçalhos e passava com ZERO botões de promoção — a ação inteira vivia na aba de conteúdo,
+    // e três lugares (comentário, teste e CHANGELOG) afirmavam o contrário.
     await expect(page.getByRole('heading', { name: 'Ambientes' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Tags' })).toBeVisible();
+    const promover = page.getByRole('button', { name: /^Promover prod para a última revisão/ });
+    await expect(promover).toBeVisible();
+
+    // E ela ABRE a confirmação, sem sair da aba de consumo.
+    await promover.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page).toHaveURL(/\/promptly\/saudacao\/consumo$/);
+    await page.keyboard.press('Escape');
 
     // ---- E o caminho de volta existe ------------------------------------------------------
     await page.getByRole('link', { name: 'Conteúdo' }).click();

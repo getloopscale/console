@@ -20,13 +20,20 @@ export interface InterfaceDeConsumo {
   readonly id: 'sdk' | 'rest' | 'mcp';
   readonly rotulo: string;
   /** A linguagem do bloco, para o realce e para o rótulo de cópia. */
-  readonly linguagem: 'typescript' | 'bash' | 'json';
+  /**
+   * A linguagem do bloco.
+   *
+   * `text` para o MCP não é preguiça: aquele bloco carrega DUAS coisas (a configuração do cliente e
+   * a chamada), então não é um documento JSON analisável. Declará-lo `json` seria a mesma mentira
+   * que o `/review` pegou — um rótulo que promete uma forma que o conteúdo não tem.
+   */
+  readonly linguagem: 'typescript' | 'bash' | 'json' | 'text';
 }
 
 export const INTERFACES: readonly InterfaceDeConsumo[] = [
   { id: 'sdk', rotulo: 'SDK (TypeScript)', linguagem: 'typescript' },
   { id: 'rest', rotulo: 'REST (curl)', linguagem: 'bash' },
-  { id: 'mcp', rotulo: 'MCP', linguagem: 'json' },
+  { id: 'mcp', rotulo: 'MCP', linguagem: 'text' },
 ];
 
 /** O prompt para o qual o trecho é gerado. */
@@ -48,6 +55,14 @@ export interface Alvo {
    * distinção decide o trecho: com ambiente, ele usa o ponteiro móvel; sem, usa a versão.
    */
   readonly label: string | null;
+  /**
+   * O ambiente escolhido É produção?
+   *
+   * `false` quando o prompt só serve `staging`, `canary` ou similar. A aba se chama "Como consumir"
+   * e o público é quem vai colar o trecho num serviço — publicar `staging` sem dizer que não é
+   * produção é deixar o operador supor o contrário. Medido pelo `/review`.
+   */
+  readonly ambienteEProducao: boolean;
   readonly variaveis: readonly string[];
   readonly baseUrl: string;
 }
@@ -72,11 +87,20 @@ function enderecoRest(alvo: Alvo): string {
     : `version=${String(alvo.ultimaVersao)}`;
 }
 
-/** O exemplo de variáveis — omitido quando o prompt não declara nenhuma (ruído que se interpreta). */
+/**
+ * O exemplo de valores — omitido quando o prompt não declara variável alguma.
+ *
+ * A opção chama-se **`vars`**, e a distinção custou um BLOCKER de review: `variables` existe no
+ * contrato do SDK, mas é campo do RESULTADO (`Prompt.variables: string[]`, a lista de nomes que o
+ * template declara), não das opções. Eu li o símbolo errado e gerei um trecho que, em TypeScript,
+ * nem compila — e em JavaScript compila e **entrega o template cru ao modelo**, em silêncio.
+ *
+ * Fonte: `packages/sdk/src/index.ts:158` (`readonly vars?: Record<string, string>`).
+ */
 function variaveisSdk(alvo: Alvo): string {
   if (alvo.variaveis.length === 0) return '';
   const pares = alvo.variaveis.map((v) => `    ${v}: '…',`).join('\n');
-  return `,\n  variables: {\n${pares}\n  }`;
+  return `,\n  vars: {\n${pares}\n  }`;
 }
 
 function gerarSdk(alvo: Alvo): string {
@@ -121,14 +145,39 @@ curl -sS '${caminho}' \\
 }
 
 function gerarMcp(alvo: Alvo): string {
+  // O `/review` mediu que o bloco anterior se declarava `json` e NÃO era JSON (tinha `//`), nem era
+  // a requisição JSON-RPC que o MCP fala, nem a configuração que aponta um cliente para o servidor.
+  // Não havia o que executar — e a aba prometia "código que roda".
+  //
+  // Agora são as duas metades que faltavam, e o bloco é `text` porque contém as duas: a
+  // configuração do cliente (JSON puro) e a chamada. Declarar `json` sobre um bloco que não é
+  // analisável seria a mesma mentira de antes, com outra roupa.
   const args =
     alvo.label !== null
       ? `"name": "${alvo.nome}", "label": "${alvo.label}"`
       : `"name": "${alvo.nome}", "version": ${String(alvo.ultimaVersao)}`;
-  return `// Ferramenta \`get_prompt\` do servidor MCP do theo-promptly.
+  return `1) Aponte seu cliente MCP para o servidor — chave da plataforma (theo_live_…),
+   de Settings → API Tokens, com escopo promptly:read:
+
 {
-  "tool": "get_prompt",
-  "arguments": { ${args} }
+  "mcpServers": {
+    "theo-promptly": {
+      "url": "${alvo.baseUrl}/mcp",
+      "headers": { "Authorization": "Bearer \${THEO_API_KEY}" }
+    }
+  }
+}
+
+2) Chame a ferramenta \`get_prompt\`:
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "get_prompt",
+    "arguments": { ${args} }
+  }
 }`;
 }
 

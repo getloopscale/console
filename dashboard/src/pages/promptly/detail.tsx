@@ -91,6 +91,31 @@ const USAGE_WINDOW_DAYS = 7;
  * de produção para desenvolvimento, e ele só descobriria em produção. `/v1/promptly` é o caminho
  * que o Caddy roteia para o serviço — o mesmo por onde o SDK entra.
  */
+/**
+ * Os nomes que significam "produção" aqui.
+ *
+ * Um conjunto, e não um `===`, porque os dois convivem no catálogo real deste ambiente — há prompts
+ * servindo `production` e outros servindo `prod`.
+ */
+const AMBIENTES_DE_PRODUCAO = new Set(['production', 'prod']);
+
+/**
+ * Qual ambiente o trecho de consumo publica.
+ *
+ * Produção vence; na ausência dela, o primeiro declarado. O `/review` mediu que o fallback é
+ * DETERMINÍSTICO (o repositório ordena por label) mas **arbitrário**: um prompt com `canary` e
+ * `staging` publica `canary` porque C vem antes de S. A escolha em si é defensável — publicar
+ * versão fixa seria pior —, e o que faltava era a tela DIZER que não é produção. Ver
+ * `ambienteEProducao`.
+ */
+function ambienteDoTrecho(
+  ponteiros: readonly { readonly label: string; readonly version: number }[],
+): string | null {
+  return (
+    ponteiros.find((p) => AMBIENTES_DE_PRODUCAO.has(p.label))?.label ?? ponteiros[0]?.label ?? null
+  );
+}
+
 const BASE_DE_CONSUMO =
   typeof window === 'undefined' ? '/v1/promptly' : `${window.location.origin}/v1/promptly`;
 
@@ -542,6 +567,7 @@ export function PromptDetailPage() {
           ação sumiria em três dos quatro estados. */}
       {abaAtiva === 'config' ? (
         <ConfigTab
+          ilegivel={Boolean(prompt.error)}
           versao={latestVersion}
           modelConfig={prompt.data?.modelConfig ?? null}
           variaveis={prompt.data?.variables ?? []}
@@ -561,19 +587,21 @@ export function PromptDetailPage() {
       {abaAtiva === 'consumo' ? (
         <ConsumoTab
           ambientesIlegiveis={Boolean(labels.error)}
+          promptIlegivel={Boolean(prompt.error)}
           alvo={
-            promptContent === null
+            // `latestVersion === null` é ausência de dado, não "versão 1". Cair para `1` fabricaria
+            // um número que PODE existir e ser a revisão errada — num trecho feito para ser copiado.
+            promptContent === null || latestVersion === null
               ? null
               : {
                   nome: promptName,
                   compoe,
-                  ultimaVersao: latestVersion ?? 1,
-                  // O ambiente de PRODUÇÃO vence, e na ausência dele o primeiro declarado: é o que
-                  // um consumidor quer apontar. Sem nenhum, o trecho cai para a versão.
-                  label:
-                    ponteiros.find((p) => p.label === 'production' || p.label === 'prod')?.label ??
-                    ponteiros[0]?.label ??
-                    null,
+                  ultimaVersao: latestVersion,
+                  label: ambienteDoTrecho(ponteiros),
+                  ambienteEProducao:
+                    ambienteDoTrecho(ponteiros) === null
+                      ? true // sem ambiente, o trecho usa versão e não afirma nada sobre produção
+                      : AMBIENTES_DE_PRODUCAO.has(ambienteDoTrecho(ponteiros) as string),
                   variaveis: prompt.data?.variables ?? [],
                   baseUrl: BASE_DE_CONSUMO,
                 }
@@ -717,9 +745,13 @@ export function PromptDetailPage() {
           <Card.Title asChild>
             <h2>Ambientes</h2>
           </Card.Title>
-          <Card.Description>Qual revisão cada label serve neste momento</Card.Description>
+          <Card.Description>
+            Qual revisão cada label serve neste momento — e a promoção para a{' '}
+            <strong>última</strong> revisão, que é o ato comum. Para promover uma revisão anterior,
+            a tabela em <em>Conteúdo</em> tem uma ação por linha.
+          </Card.Description>
         </Card.Header>
-        <div className="flex flex-wrap gap-2 p-4 pt-0">
+        <div className="flex flex-wrap items-center gap-2 p-4 pt-0">
           {ponteiros.length === 0 ? (
             <span className="text-sm text-muted-foreground">
               {labelsFailed
@@ -728,8 +760,35 @@ export function PromptDetailPage() {
             </span>
           ) : (
             ponteiros.map((p: LabelPointer) => (
-              // Texto, nunca só cor: o par label→revisão é o dado que a promoção altera.
-              <Badge key={p.label} variant="outline">{`${p.label} → v${p.version}`}</Badge>
+              <span key={p.label} className="inline-flex items-center gap-1">
+                {/* Texto, nunca só cor: o par label→revisão é o dado que a promoção altera. */}
+                <Badge variant="outline">{`${p.label} → v${p.version}`}</Badge>
+                {/* M21 DoD-3 — a AÇÃO, e não só a leitura.
+                    O `/review` mediu que este cartão ficava fora das abas mas era somente leitura:
+                    a promoção inteira vivia na tabela de revisões, que está na aba de conteúdo. O
+                    teste que dizia cobrir o DoD-3 só verificava dois cabeçalhos, e passava com ZERO
+                    botões — e o CHANGELOG afirmava publicamente o que a tela não fazia.
+                    Promover a ÚLTIMA revisão é o ato comum; promover uma anterior continua na
+                    tabela, e a descrição diz isso em vez de deixar o operador procurar. */}
+                {latestVersion !== null && p.version !== latestVersion ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    // O rótulo diz "para a ÚLTIMA revisão", e não só o número: existem duas formas de promover
+                    // na tela (esta e a da tabela por linha), e um rótulo idêntico as tornaria
+                    // indistinguíveis para leitor de tela e para teste. A diferença não é cosmética —
+                    // esta promove a última; aquela, a linha que o operador escolheu.
+                    aria-label={`Promover ${p.label} para a última revisão, v${String(latestVersion)}`}
+                    onClick={() => {
+                      setPromoteError(null);
+                      setLabelAlvo(p.label);
+                      setAlvo(latestVersion);
+                    }}
+                  >
+                    → v{latestVersion}
+                  </Button>
+                ) : null}
+              </span>
             ))
           )}
         </div>

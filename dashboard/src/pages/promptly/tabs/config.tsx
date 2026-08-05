@@ -1,4 +1,5 @@
 import { Card } from '@usetheo/ui';
+import { Alert } from '@/components/ui/alert-guard';
 
 /** A afinação declarada numa revisão (M17). */
 export interface ModelConfigLido {
@@ -8,6 +9,14 @@ export interface ModelConfigLido {
 }
 
 export interface ConfigTabProps {
+  /**
+   * A leitura do prompt FALHOU?
+   *
+   * O `/review` mediu o defeito: com HTTP 500, esta aba dizia *"esta revisão não declara afinação"*
+   * e *"nenhuma variável"* — duas afirmações sobre um dado que nunca chegou. Um operador que lê
+   * "nenhuma variável" chama o prompt sem variáveis e recebe o template cru.
+   */
+  readonly ilegivel: boolean;
   readonly versao: number | null;
   readonly modelConfig: ModelConfigLido | null;
   readonly variaveis: readonly string[];
@@ -24,7 +33,17 @@ export interface ConfigTabProps {
  * mudar de prompt para prompt, e o operador aprenderia que "às vezes tem config". Uma aba honesta e
  * curta é melhor que uma navegação que varia.
  */
-export function ConfigTab({ versao, modelConfig, variaveis }: ConfigTabProps) {
+export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTabProps) {
+  if (ilegivel) {
+    return (
+      <Alert
+        intent="destructive"
+        title="Não foi possível ler esta revisão"
+        description="A afinação e as variáveis exigidas vêm da mesma leitura, e ela falhou. Não trate isto como 'esta revisão não declara nada' — são fatos diferentes."
+      />
+    );
+  }
+
   const temConfig =
     modelConfig !== null &&
     (modelConfig.model !== undefined ||

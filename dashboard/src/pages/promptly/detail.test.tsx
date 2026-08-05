@@ -274,7 +274,7 @@ describe('PromptDetailPage', () => {
     const user = userEvent.setup();
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a revisão v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
 
     expect(await screen.findByText(/deixa de servir a v1/i)).toBeInTheDocument();
     expect(screen.getByText(/passa a servir a v3/i)).toBeInTheDocument();
@@ -286,7 +286,7 @@ describe('PromptDetailPage', () => {
     const user = userEvent.setup();
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a revisão v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
 
     expect(await screen.findByText(/promoção é livre/i)).toBeInTheDocument();
   });
@@ -296,7 +296,7 @@ describe('PromptDetailPage', () => {
     mockPolicy.mockResolvedValue({ datasetId: 'ds-1', minScore: 0.8 });
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a revisão v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
 
     expect(await screen.findByText(/score mínimo de 0\.8/i)).toBeInTheDocument();
   });
@@ -314,7 +314,7 @@ describe('PromptDetailPage', () => {
     );
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a revisão v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
     await user.type(await screen.findByRole('textbox'), 'prod');
     await user.click(screen.getByRole('button', { name: /^Promover$/i }));
 
@@ -327,7 +327,7 @@ describe('PromptDetailPage', () => {
     const user = userEvent.setup();
     render(<PromptDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Promover prod para a revisão v3/i }));
+    await user.click(await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/i }));
     expect(mockPromote).not.toHaveBeenCalled();
 
     await user.type(await screen.findByRole('textbox'), 'prod');
@@ -762,9 +762,13 @@ describe('M21 — as quatro abas', () => {
     expect(screen.queryByRole('heading', { name: /Afinação/ })).not.toBeInTheDocument();
   });
 
-  it('DoD-3 — promover e etiquetar continuam à mão em TODAS as abas', async () => {
-    // "Sem sair da tela" é falso se a ação some ao trocar de aba. A asserção é repetida por rota, e
-    // não uma vez: um cartão que só existisse na aba índice passaria numa verificação única.
+  it('DoD-3 — a AÇÃO de promover existe em todas as abas, não só o cartão', async () => {
+    // O `/review` mediu que a versão anterior deste teste passava com ZERO botões: ela verificava
+    // os cabeçalhos `Ambientes` e `Tags`, ambos presentes, enquanto a promoção inteira vivia na
+    // tabela de revisões — que está na aba de conteúdo. Um teste que afirma uma jornada e verifica
+    // um título é pior que teste nenhum: ele dá cobertura de mentira ao CHANGELOG.
+    //
+    // O oráculo agora é o BOTÃO, e a asserção é repetida por rota.
     for (const rota of [
       '/promptly/saudacao',
       '/promptly/saudacao/config',
@@ -774,8 +778,41 @@ describe('M21 — as quatro abas', () => {
       const { unmount } = render(<PromptDetailPage />, { initialEntries: [rota] });
       expect(await screen.findByRole('heading', { name: 'Ambientes' })).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Tags' })).toBeInTheDocument();
+      // `prod → v1` com a última em v3: a ação de promover para v3 tem de estar à mão.
+      expect(
+        await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/ }),
+      ).toBeInTheDocument();
+      // E etiquetar também — o campo de tag é o oráculo do outro metade do DoD-3.
+      expect(screen.getByRole('textbox', { name: 'Nova tag' })).toBeInTheDocument();
       unmount();
     }
+  });
+
+  it('a promoção pelo cartão de Ambientes abre a confirmação com a revisão certa', async () => {
+    // Sem isto, um botão que não abrisse nada passaria no teste acima.
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumo'] });
+    await userEvent.click(
+      await screen.findByRole('button', { name: /Promover prod para a última revisão, v3/ }),
+    );
+
+    // A confirmação nomeia a revisão que DEIXA de servir — a garantia herdada do M12/M18. A
+    // asserção é escopada ao DIÁLOGO: `v1` aparece em vários lugares da tela, e afirmar sobre a
+    // página inteira daria um verde vindo do cartão de ambientes, com o diálogo fechado.
+    const dialogo = await screen.findByRole('dialog');
+    expect(dialogo).toHaveTextContent(/v1/);
+    expect(dialogo).toHaveTextContent(/prod/);
+  });
+
+  it('o ambiente que JÁ serve a última revisão não oferece promoção', async () => {
+    // O CONTROLE. Sem ele, um botão que aparecesse sempre passaria nos dois testes acima — e
+    // ofereceria promover para a revisão que o ambiente já serve, que é um ato sem efeito.
+    mockLabels.mockResolvedValue([{ label: 'prod', version: 3 }]);
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/producao'] });
+
+    expect(await screen.findByRole('heading', { name: 'Ambientes' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Promover prod para a última revisão/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('a aba de consumo entrega os três trechos, apontando para ESTE prompt', async () => {

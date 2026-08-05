@@ -22,10 +22,35 @@ export interface ConsumoTabProps {
   readonly alvo: Alvo | null;
   /** Falhou ao ler os ambientes? Então NÃO dá para dizer qual o trecho deve usar. */
   readonly ambientesIlegiveis: boolean;
+  /**
+   * Falhou ao ler o prompt? Então não há trecho — e "Carregando…" mentiria para sempre.
+   *
+   * Medido pelo `/review`: com HTTP 500 a aba ficava em "Carregando…" permanente, porque o alvo era
+   * `null` e o componente não distinguia "ainda não chegou" de "não vai chegar".
+   */
+  readonly promptIlegivel: boolean;
 }
 
-export function ConsumoTab({ alvo, ambientesIlegiveis }: ConsumoTabProps) {
+export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: ConsumoTabProps) {
   const [copiada, setCopiada] = useState<InterfaceDeConsumo['id'] | null>(null);
+
+  if (promptIlegivel) {
+    return (
+      <Card>
+        <Card.Header>
+          <Card.Title asChild>
+            <h2>Como consumir</h2>
+          </Card.Title>
+        </Card.Header>
+        <div className="p-4 pt-0">
+          <p className="text-sm text-muted-foreground">
+            Não foi possível ler este prompt, e sem ele não há trecho para gerar. Recarregue — um
+            trecho montado sobre dado ausente apontaria para o lugar errado.
+          </p>
+        </div>
+      </Card>
+    );
+  }
 
   if (ambientesIlegiveis) {
     // Sem saber quais ambientes este prompt serve, o gerador cairia para a versão — e entregaria
@@ -66,6 +91,15 @@ export function ConsumoTab({ alvo, ambientesIlegiveis }: ConsumoTabProps) {
                 {' '}
                 pelo ambiente <code className="font-mono text-xs">{alvo.label}</code> — ele acompanha
                 a promoção, sem você republicar nada.
+                {!alvo.ambienteEProducao ? (
+                  // A aba se chama "Como consumir" e o público é quem vai colar isto num serviço.
+                  // Publicar `staging` sem dizer que não é produção é deixar supor o contrário.
+                  <strong>
+                    {' '}
+                    Atenção: este prompt não serve produção — o trecho aponta para{' '}
+                    <code className="font-mono text-xs">{alvo.label}</code>.
+                  </strong>
+                ) : null}
               </>
             ) : (
               <>
@@ -95,6 +129,11 @@ export function ConsumoTab({ alvo, ambientesIlegiveis }: ConsumoTabProps) {
                         .writeText(trecho)
                         .then(() => {
                           setCopiada(iface.id);
+                          // Volta a "Copiar": sem isto o rótulo fica preso, e o operador não
+                          // distingue "copiei agora" de "copiei há dez minutos".
+                          setTimeout(() => {
+                            setCopiada((atual) => (atual === iface.id ? null : atual));
+                          }, 2000);
                         })
                         .catch(() => {
                           setCopiada(null);
