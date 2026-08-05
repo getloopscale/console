@@ -94,6 +94,63 @@ export function registerLensHandlers() {
         ],
       }),
     );
+    // M23 — as resoluções de UM prompt, no explorador que já existe.
+    //
+    // O handler HONRA o `span_query`. Um mock que devolvesse a mesma lista com e sem filtro faria
+    // a jornada passar sem provar nada: o defeito que ela existe para pegar é justamente o destino
+    // que IGNORA o parâmetro — foi o BLOCKER do M22, onde o produtor escrevia `?prompt=` e o
+    // consumidor nunca lia, com todos os testes de unidade verdes.
+    //
+    // Os números vêm da corrida real no `app-dev` (2026-08-05): durações de 1 a 17 ms, sem modelo,
+    // sem tokens e sem custo — resolver um prompt não chama modelo. É o que torna as três colunas
+    // escondidas pelo link uma decisão medida, e não estética.
+    registerRoute('GET', `${prefix}/v1/dashboard/lens/traces`, async (req) => {
+      const sp = new URL(req.url).searchParams;
+      const casa = /^attr:prompt\.id=(.+)$/.exec(sp.get('span_query') ?? '');
+      const resolucao = (id: string, ms: number) => ({
+        traceId: id,
+        name: 'prompt.resolve',
+        status: 'OK',
+        statusCode: 'OK',
+        durationMs: ms,
+        startTimeUnixNano: '1785000000000000000',
+      });
+      if (casa) {
+        // O VALOR importa, não só a presença do filtro. A primeira versão capturava o nome no
+        // grupo 1 e NUNCA o usava: qualquer `prompt.id` devolvia as mesmas três linhas, e a
+        // metade "e de nenhum outro" do DoD ficava provada só no endereço. Um mock que aceita
+        // qualquer valor não discrimina — ele concorda.
+        //
+        // `despedida` tem uso na aba mas NENHUMA resolução aqui, de propósito: é o contraste que
+        // a jornada percorre para provar que o destino filtra de verdade.
+        if (casa[1] !== 'saudacao') {
+          return Response.json({ traces: [], total: 0, limit: 50, offset: 0 });
+        }
+        const traces = [
+          resolucao('b8596693b566091c223ddc5e200e556e', 6),
+          resolucao('5a75856a2739f58e6960cc28a08949dd', 15),
+          resolucao('9bd90e39fb31648c9507e7ebdc62a564', 11),
+        ];
+        return Response.json({ traces, total: traces.length, limit: 50, offset: 0 });
+      }
+      // `session-detail.tsx` chama esta MESMA rota com `session_id` e nunca com `span_query`.
+      // Alimentá-la com a lista genérica seria mentir com aparência de dado — o caso que este
+      // arquivo já nomeia 30 linhas acima, a propósito da regressão de webhooks do M22.
+      if (sp.get('session_id') !== null) {
+        return Response.json({ traces: [], total: 0, limit: 50, offset: 0 });
+      }
+      // Sem filtro: a lista do workspace, que inclui o que NÃO é resolução de prompt.
+      return Response.json({
+        traces: [
+          { traceId: 'aaaa1111bbbb2222cccc3333dddd4444', name: 'chat.completion', status: 'OK', statusCode: 'OK', model: 'claude-opus-5', durationMs: 1840, totalTokens: 512, costUsd: 0.0123 },
+          resolucao('b8596693b566091c223ddc5e200e556e', 6),
+        ],
+        total: 2, limit: 50, offset: 0,
+      });
+    });
+    registerRoute('GET', `${prefix}/v1/dashboard/lens/metrics/span-attributes`, async () =>
+      Response.json({ mode: 'keys', keys: [{ key: 'prompt.id', count: 9 }] }),
+    );
     registerRoute('GET', `${prefix}/v1/dashboard/lens/usage-by-user`, async (req) => {
       const days = Number(new URL(req.url).searchParams.get('days') ?? 30);
       // O teto de 365 é o do serviço, que RECUSA acima dele com 400 tipado (M140) e o BFF
