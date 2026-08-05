@@ -104,18 +104,20 @@ function variaveisSdk(alvo: Alvo): string {
 }
 
 function gerarSdk(alvo: Alvo): string {
-  // A ressalva é OBRIGATÓRIA quando o prompt compõe: o SDK ainda não pede resolução, então o
-  // `content` vem com o marcador literal. Omiti-la entregaria um trecho que roda e produz lixo —
-  // e o consumidor não teria como saber. Ver `usetheoai/theo-promptly#84`.
-  const ressalva = alvo.compoe
-    ? `
-// ATENÇÃO — este prompt referencia outros, e o SDK ainda não resolve a composição:
-// \`prompt.content\` virá com os marcadores \`@@@promptly:…@@@\` literais.
-// Enquanto o SDK não expõe a resolução, use o trecho REST desta aba, que já a pede.
-`
-    : '';
+  // `resolve: true` SÓ quando o prompt compõe (`usetheoai/theo-promptly#84`, fechado).
+  //
+  // Até a v0.17.1 o SDK não tinha como pedir resolução, e este trecho carregava uma RESSALVA
+  // apontando o REST. Agora ele pede — e `prompt.resolvedContent` traz o texto composto, enquanto
+  // `content` mantém o marcador visível, que é o que torna a composição depurável.
+  //
+  // Só quando compõe, porque resolver custa a travessia do grafo: quem não referencia ninguém não
+  // deve pagá-la (a mesma decisão de custo do DoD-5 do M20).
+  const resolucao = alvo.compoe ? ',\n  resolve: true' : '';
+  const leitura = alvo.compoe
+    ? 'console.log(prompt.resolvedContent ?? prompt.content);'
+    : 'console.log(prompt.content);';
   return `import { PromptlyClient } from '@usetheo/promptly-sdk';
-${ressalva}
+
 const promptly = new PromptlyClient({
   baseUrl: '${alvo.baseUrl}',
   // Chave da PLATAFORMA (\`theo_live_…\`), criada em Settings → API Tokens com o escopo
@@ -124,10 +126,10 @@ const promptly = new PromptlyClient({
 });
 
 const prompt = await promptly.getPrompt('${alvo.nome}', {
-  ${enderecoSdk(alvo)}${variaveisSdk(alvo)}
+  ${enderecoSdk(alvo)}${resolucao}${variaveisSdk(alvo)}
 });
 
-console.log(prompt.content);`;
+${leitura}`;
 }
 
 function gerarRest(alvo: Alvo): string {

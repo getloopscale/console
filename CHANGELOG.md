@@ -2,6 +2,8 @@
 
 ### Added
 ### Added
+- **O trecho de consumo do SDK passou a pedir a composição resolvida.** Enquanto o SDK não tinha como pedi-la, o trecho carregava um **aviso** dizendo que o texto viria com os marcadores crus e apontando o caminho REST — um aviso honesto vale mais que um trecho bonito que mente. O SDK ganhou a opção, o aviso saiu junto com a razão dele, e o trecho agora lê o campo certo. Só em prompts que de fato referenciam outros: resolver custa, e quem não compõe não paga
+
 - **A tela de um prompt passou a responder QUATRO perguntas, e uma delas entrega código que roda (`theo-promptly` M21).** Era um scroll único: o operador rolava por três respostas que não pediu para chegar na que pediu. Agora são abas — *o que ele diz*, *com que afinação roda*, *quem o usou e o que uma mudança afeta*, e **como eu o chamo do meu código**. Essa última é a de maior alcance e a mais barata: até hoje quem queria consumir um prompt saía da tela e ia ler o README do SDK. O trecho já vem apontando para **este** prompt, pelo ambiente que ele serve — e não pela versão, porque congelar é o oposto do que a promoção existe para dar. **Nenhum endereço que já circulava deixou de resolver:** a aba de conteúdo É o endereço de sempre, e a aba vive na URL, então o link é compartilhável, o botão voltar volta uma aba e recarregar não perde o lugar. Promover para a última revisão e etiquetar continuam à mão em **todas** as abas — numa delas só, a ação sumiria em três dos quatro estados, e "sem sair da tela" seria falso sem ninguém navegar. Promover uma revisão **anterior** continua na tabela de revisões, e a tela diz isso em vez de deixar o operador procurar
 
 
