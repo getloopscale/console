@@ -49,7 +49,7 @@ test.describe('M23 — do número na aba até as resoluções que o produziram',
     await page.getByRole('link', { name: 'Uso em produção' }).click();
 
     // ---- O caminho existe, e diz ao operador o que vai encontrar -----------------------
-    const caminho = page.getByRole('link', { name: /resolu/i });
+    const caminho = page.getByRole('link', { name: /execuç/i });
     await expect(caminho).toBeVisible();
 
     await caminho.click();
@@ -64,10 +64,41 @@ test.describe('M23 — do número na aba até as resoluções que o produziram',
     // O chip de filtro nomeia o atributo — prova de que o destino leu e aplicou.
     await expect(page.getByText(/PROMPT\.ID=SAUDACAO/i)).toBeVisible();
 
-    // E a listagem mostra resoluções, e nada que não seja resolução. O mock devolve uma lista
-    // DIFERENTE sem filtro (com um `chat.completion`); se o destino ignorasse o parâmetro, essa
-    // linha apareceria e a asserção seguinte cairia.
-    await expect(page.getByText('prompt.resolve').first()).toBeVisible();
+    // E a listagem mostra AS TRÊS resoluções, e nada que não seja resolução. `toHaveCount(3)` e
+    // não `.first()`: com `.first()` uma lista filtrada que perdesse duas linhas seguia verde.
+    await expect(page.getByText('prompt.resolve')).toHaveCount(3);
     await expect(page.getByText('chat.completion')).toHaveCount(0);
+
+    // ---- E o ramo SEM filtro do fixture, que nada no repositório executava -------------
+    //
+    // A força da asserção acima repousa inteiramente em o mock devolver uma lista DIFERENTE sem
+    // filtro. Enquanto ninguém exercitava esse ramo, o `chat.completion` era código morto do
+    // ponto de vista da suíte: um handler que devolvesse resoluções SEMPRE passaria igual, e a
+    // jornada anunciaria um poder discriminante que não tinha.
+    //
+    // De brinde, isto prova que o destino refaz a busca ao limpar o filtro — o risco R2 do plano,
+    // que não tinha cobertura alguma.
+    await page.getByRole('button', { name: 'Remove attribute filter' }).click();
+    await expect(page.getByText('chat.completion')).toBeVisible();
+  });
+
+  test('o destino filtra pelo prompt CERTO — um segundo prompt não vê as resoluções do primeiro', async ({
+    page,
+  }) => {
+    // Sem este contraste, a asserção da primeira jornada era satisfeita por um destino que
+    // ignorasse o valor do filtro por completo. Medido: mutar o handler para devolver as mesmas
+    // três resoluções a qualquer `prompt.id` deixava aquela jornada VERDE. Um teste que passa com
+    // e sem a discriminação não prova a discriminação.
+    //
+    // `despedida` tem uso na aba (logo o caminho é oferecido) e nenhuma resolução no explorador.
+    await navegarAteOCatalogoPeloMenu(page);
+    await page.getByRole('link', { name: 'despedida', exact: true }).click();
+    await page.getByRole('link', { name: 'Uso em produção' }).click();
+    await page.getByRole('link', { name: /execuç/i }).click();
+
+    await expect(page).toHaveURL(/span_query=attr%3Aprompt\.id%3Ddespedida/);
+    await expect(page.getByText(/PROMPT\.ID=DESPEDIDA/i)).toBeVisible();
+    // Nenhuma resolução — e, principalmente, NENHUMA das de `saudacao`.
+    await expect(page.getByText('prompt.resolve')).toHaveCount(0);
   });
 });

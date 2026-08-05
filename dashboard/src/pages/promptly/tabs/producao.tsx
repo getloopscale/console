@@ -12,7 +12,9 @@ export interface ProducaoTabProps {
   readonly dependentes: readonly Dependente[];
   readonly dependentesIlegiveis: boolean;
   readonly dependentesCarregando: boolean;
-  /** M22 — o nome do prompt, para o caminho até o monitor dele. */
+  /** O nome do prompt. Alimenta DOIS caminhos: o monitor (M22) e os traces (M23).
+   *  Pode chegar vazio — `detail.tsx` declara `const { promptName = '' }`; os dois caminhos
+   *  lidam com isso sem derrubar a aba. */
   readonly promptName: string;
 }
 
@@ -32,6 +34,13 @@ export function ProducaoTab({
   dependentesCarregando,
   promptName,
 }: ProducaoTabProps) {
+  // M23 — `null` quando não há prompt; o helper não lança (ver traces-link.ts).
+  const linkDosTraces = linkParaTracesDoPrompt(promptName);
+  // M23 — houve chamada MEDIDA? `com-uso` é o único estado que autoriza falar em "cada uma delas".
+  // `sem-chamadas` e `nao-lido` são fatos diferentes entre si e ambos diferentes de "houve uso" —
+  // a distinção que este arquivo defende em dois outros lugares.
+  const houveChamada = linhas.some((l) => l.estado === 'com-uso');
+
   return (
     <div className="space-y-4">
       <Card>
@@ -102,29 +111,49 @@ export function ProducaoTab({
         </div>
       </Card>
 
-      {/* Os dois caminhos que partem do número acima. Um olha para trás — o que aconteceu nessas
-          chamadas (M23); o outro para frente — avise-me quando mudar (M22). Ficam juntos porque
-          respondem à mesma reação: o operador viu um número e quer agir sobre ele. */}
+      {/* Os dois caminhos que partem do número acima. Um olha para trás — o que aconteceu (M23);
+          o outro para frente — avise-me quando mudar (M22). Ficam juntos porque respondem à mesma
+          reação: o operador viu um número e quer agir sobre ele. */}
       <div className="flex flex-col gap-1 text-sm text-muted-foreground">
         {/* M23 — os spans de resolução já existiam, já indexados por prompt no `theo-lens`, e a
-            única forma de chegar neles era digitar a URL. O endereço vem do helper e nunca de um
-            template aqui: um nome com `&` ou `#` levaria aos traces de OUTRO prompt, sem erro. */}
-        <p>
-          Quer ver o que aconteceu nessas chamadas?{' '}
-          <Link
-            to={linkParaTracesDoPrompt(promptName)}
-            className="font-medium text-primary underline underline-offset-2"
-          >
-            Ver as resoluções deste prompt →
-          </Link>
-        </p>
+            única forma de chegar neles era digitar a URL.
+
+            DUAS guardas, e nenhuma é zelo:
+
+            (a) `linkDosTraces === null` quando não há nome. O helper devolve `null` em vez de
+                lançar — um `throw` avaliado aqui, no render, faria o ErrorBoundary trocar a tela
+                de detalhe inteira por "This page crashed", com um Retry que estoura de novo.
+
+            (b) `houveChamada` — sem isto o convite dizia "o que aconteceu NESSAS chamadas" logo
+                abaixo de "Nenhuma revisão para reportar", ou de "não foi possível ler o uso".
+                O pronome apontava para um número que não estava lá. Este arquivo já defende essa
+                distinção duas vezes (o `nao-lido` da tabela, o Alert dos dependentes); o convite
+                a apagava. Com leitura falha o caminho some — oferecer "veja as chamadas" quando
+                não se sabe se houve chamada é afirmar o que não se mediu. */}
+        {linkDosTraces !== null && houveChamada ? (
+          <p>
+            Quer ver cada uma delas?{' '}
+            <Link
+              to={linkDosTraces}
+              aria-label={`Ver as execuções de ${promptName} nos traces`}
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              Ver as execuções deste prompt nos traces →
+            </Link>
+          </p>
+        ) : null}
         {/* M22 DoD-3 — o caminho até o monitor. O número acima é o que um limite governaria, e o
-            operador que o está olhando não tinha como saber que existe uma tela de alerta. */}
-        <p>
+            operador que o está olhando não tinha como saber que existe uma tela de alerta.
+
+            Peso visual menor que o link acima: ler é reversível e não cria estado; definir um
+            monitor cria estado persistente no workspace. `DESIGN.md § 4` — ações secundárias não
+            competem com a primária. */}
+        <p className="text-xs">
           Quer ser avisado quando este número mudar?{' '}
           <Link
             to={`/observability/alerts?prompt=${encodeURIComponent(promptName)}`}
-            className="font-medium text-primary underline underline-offset-2"
+            aria-label={`Definir um monitor para ${promptName}`}
+            className="underline underline-offset-2"
           >
             Definir um monitor para este prompt →
           </Link>

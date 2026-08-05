@@ -36,13 +36,19 @@ export const COLUNAS_DE_RESOLUCAO: ColumnState = {
 /**
  * Endereço do explorador do `theo-lens`, filtrado nas resoluções de UM prompt.
  *
- * @throws se `promptName` for vazio — um link para "prompt nenhum" leva o operador à lista do
- * workspace inteiro achando que é deste prompt, que é pior que não oferecer o link.
+ * Devolve `null` quando não há prompt — e essa é a correção de um defeito que a primeira versão
+ * introduziu. Ela **lançava**, e o único chamador a invoca dentro do JSX: um `throw` durante o
+ * render não é "falhe alto para quem sabe tratar", é o `ErrorBoundary` substituindo a tela de
+ * detalhe inteira, com um botão *Retry* que re-renderiza o mesmo estado e estoura de novo.
+ *
+ * O nome ausente também não é excepcional: `detail.tsx` declara `const { promptName = '' }` e
+ * guarda nove queries com `promptName !== ''` — é um estado **conhecido** do produto, e
+ * `error-handling.md § 2` é explícito: *"Never use exceptions for control flow"*.
+ *
+ * `null` obriga o chamador a decidir o que mostrar, que é onde a decisão pertence.
  */
-export function linkParaTracesDoPrompt(promptName: string): string {
-  if (promptName.trim() === '') {
-    throw new Error('promptName: um link para as resoluções precisa saber de qual prompt.');
-  }
+export function linkParaTracesDoPrompt(promptName: string): string | null {
+  if (promptName.trim() === '') return null;
   const params = new URLSearchParams({
     // A DSL separa chave/valor no PRIMEIRO `=` (`theo-lens` span-query), então o nome pode conter
     // `=` sem ambiguidade. `URLSearchParams` cuida do escape de `&` e `#` na serialização — o que

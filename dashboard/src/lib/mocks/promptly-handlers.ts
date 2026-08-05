@@ -89,6 +89,12 @@ const promptlyDb: {
       { revision: 3, resolutions: 12, totalTokens: 1500, costUsd: 0.0312, p50LatencyMs: 4.2 },
       { revision: 2, resolutions: 4, totalTokens: 0, costUsd: null, p50LatencyMs: 3.1 },
     ],
+    // M23 — um SEGUNDO prompt com uso, e é isso que torna a jornada capaz de discriminar.
+    // Ele tem uso na aba e nenhuma resolução no explorador: se o destino ignorasse o filtro,
+    // as três resoluções de `saudacao` apareceriam aqui e o teste cairia.
+    despedida: [
+      { revision: 1, resolutions: 2, totalTokens: 40, costUsd: null, p50LatencyMs: 1.8 },
+    ],
   },
 };
 
