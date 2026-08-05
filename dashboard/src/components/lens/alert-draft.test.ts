@@ -41,7 +41,9 @@ describe('alertProblems', () => {
       threshold: '3',
       webhookId: 'wh-1',
     });
-    expect(problemas.join(' ')).toMatch(/prompt/i);
+    // A mensagem ESPECÍFICA, não "alguma que cite prompt": as duas do ramo contêm a palavra, e um
+    // `toMatch(/prompt/i)` sobrevive a trocar uma pela outra — mutante medido pelo `/review`.
+    expect(problemas.join(' ')).toMatch(/Diga qual prompt/i);
   });
 
   it('acusa nome de prompt numa métrica de workspace', () => {
@@ -55,7 +57,7 @@ describe('alertProblems', () => {
       threshold: '5',
       webhookId: 'wh-1',
     });
-    expect(problemas.join(' ')).toMatch(/prompt/i);
+    expect(problemas.join(' ')).toMatch(/workspace inteiro/i);
   });
 
   it('não acusa o par válido', () => {
@@ -93,7 +95,41 @@ describe('alertProblems', () => {
       threshold: '3',
       webhookId: 'wh-1',
     });
-    expect(problemas.join(' ')).toMatch(/prompt/i);
+    expect(problemas.join(' ')).toMatch(/Diga qual prompt/i);
+  });
+
+  // F2 do `/review` — a regra do limiar não tinha fronteira nem caso negativo. Dois mutantes
+  // sobreviviam por construção, e o segundo cria uma regra que dispara no primeiro tick.
+  it('aceita limiar ZERO — é a fronteira legítima de `gt 0`', () => {
+    expect(
+      alertProblems({ ...EMPTY_ALERT_DRAFT, name: 'x', metric: 'error_rate', threshold: '0', webhookId: 'wh-1' }),
+    ).toEqual([]);
+  });
+
+  it('recusa limiar vazio — `Number("")` é 0 e finito, e passaria', () => {
+    // Sem esta guarda a regra nasce com limiar 0 e dispara no primeiro tick: exatamente o "alerta
+    // que dispara sem motivo" que o risco #2 do milestone nomeia.
+    const problemas = alertProblems({
+      ...EMPTY_ALERT_DRAFT, name: 'x', metric: 'error_rate', threshold: '', webhookId: 'wh-1',
+    });
+    expect(problemas.join(' ')).toMatch(/limite/i);
+  });
+
+  it('recusa limiar que não é número', () => {
+    for (const t of ['abc', '   ', 'NaN']) {
+      const problemas = alertProblems({
+        ...EMPTY_ALERT_DRAFT, name: 'x', metric: 'error_rate', threshold: t, webhookId: 'wh-1',
+      });
+      expect(problemas.join(' ')).toMatch(/limite/i);
+    }
+  });
+
+  it('aceita limiar negativo — decisão explícita, não descuido', () => {
+    // Nada no domínio proíbe: `lt -1` é inútil mas não é inválido, e o serviço aceita. Registrar
+    // aqui impede que alguém "conserte" isso sem perceber que está mudando o contrato.
+    expect(
+      alertProblems({ ...EMPTY_ALERT_DRAFT, name: 'x', metric: 'error_rate', threshold: '-1', webhookId: 'wh-1' }),
+    ).toEqual([]);
   });
 });
 

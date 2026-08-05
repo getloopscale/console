@@ -22,12 +22,25 @@ describe('ProducaoTab — o caminho até o monitor (M22)', () => {
     expect(screen.getByRole('link', { name: /monitor/i })).toBeInTheDocument();
   });
 
-  it('o caminho carrega o NOME do prompt — não é um link genérico para a lista', () => {
-    // Sem o nome, o operador chega numa tela vazia e precisa digitá-lo de novo — que é a fricção
-    // que este DoD existe para remover.
+  it('o caminho aponta para o DESTINO exato, não só contém o nome', () => {
+    // `toContain('saudacao')` tolerava `/observability/alertz?prompt=saudacao` — um 404 entregue
+    // ao operador com o teste verde. O destino é parte do contrato, não detalhe.
     render(<ProducaoTab {...BASE} promptName="saudacao" />);
-    const href = screen.getByRole('link', { name: /monitor/i }).getAttribute('href') ?? '';
-    expect(href).toContain('saudacao');
+    expect(screen.getByRole('link', { name: /monitor/i })).toHaveAttribute(
+      'href',
+      '/observability/alerts?prompt=saudacao',
+    );
+  });
+
+  it('codifica um nome que precisa de encoding', () => {
+    // O serviço aceita `z.string().min(1)` — sem restrição de caractere. Um nome com `&` injetaria
+    // um segundo parâmetro e um com `#` truncaria a query: o operador cairia no formulário com o
+    // prompt ERRADO, sem erro nenhum. `encodeURIComponent` existia e nunca era exercitado.
+    render(<ProducaoTab {...BASE} promptName="time/greeting&x#y" />);
+    expect(screen.getByRole('link', { name: /monitor/i })).toHaveAttribute(
+      'href',
+      `/observability/alerts?prompt=${encodeURIComponent('time/greeting&x#y')}`,
+    );
   });
 
   it('segue mostrando o que já mostrava — regressão', () => {

@@ -11,32 +11,23 @@
 
 import { Button, Input, Select } from '@usetheo/ui';
 import { exigeNomeDePrompt } from '@/components/lens/alert-draft';
+import type { AlertDraft } from '@/components/lens/alert-draft';
 import type { AlertField } from '@/components/lens/alert-draft';
 
 export interface AlertCreateFormProps {
-  readonly name: string;
-  readonly onName: (v: string) => void;
-  readonly metric: string;
-  readonly onMetric: (v: string) => void;
-  readonly promptName: string;
-  readonly onPromptName: (v: string) => void;
-  readonly comparator: string;
-  readonly onComparator: (v: string) => void;
-  readonly threshold: string;
-  readonly onThreshold: (v: string) => void;
-  readonly windowSeconds: string;
-  readonly onWindowSeconds: (v: string) => void;
-  readonly webhookId: string;
-  readonly onWebhookId: (v: string) => void;
+  /** O rascunho inteiro. Espelhar campo a campo duplicaria um tipo que já existe. */
+  readonly draft: AlertDraft;
+  /** Um ponto de mudança para todos os campos — é o que faz `touched` cair de graça na página. */
+  readonly onChange: (campo: keyof AlertDraft, valor: string) => void;
   readonly webhooks: readonly { id: string; label?: string; url?: string }[];
   readonly metrics: readonly { value: string; label: string }[];
   readonly comparators: readonly { value: string; label: string }[];
   readonly windows: readonly { value: string; label: string }[];
   readonly canCreate: boolean;
   readonly onSubmit: () => void;
-  /** O uso medido AGORA do prompt digitado — `undefined` enquanto não há prompt alvo. */
   /** Problemas a EXIBIR — só os campos já tocados. A validação em si vive em `alert-draft.ts`. */
   readonly problems?: Partial<Record<AlertField, string>>;
+  /** O uso medido AGORA do prompt digitado — ausente enquanto não há prompt alvo. */
   readonly usoAtual?: {
     readonly carregando: boolean;
     readonly erro: boolean;
@@ -60,11 +51,19 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
         <label htmlFor="rule-name" className="mb-1 block text-xs font-medium text-muted-foreground">
           Name
         </label>
-        <Input id="rule-name" value={p.name} onChange={(e) => p.onName(e.target.value)} placeholder="High error rate" aria-label="Rule name" />
+        <Input
+          id="rule-name"
+          value={p.draft.name}
+          onChange={(e) => p.onChange('name', e.target.value)}
+          placeholder="High error rate"
+          aria-label="Rule name"
+          aria-invalid={p.problems?.name ? true : undefined}
+        />
+        {p.problems?.name ? <p className="mt-1 text-xs text-destructive">{p.problems.name}</p> : null}
       </div>
       <div>
         <span className="mb-1 block text-xs font-medium text-muted-foreground">Metric</span>
-        <Select value={p.metric} onValueChange={p.onMetric}>
+        <Select value={p.draft.metric} onValueChange={(v) => p.onChange('metric', v)}>
           <Select.Trigger className="w-[160px]" aria-label="Metric">
             <Select.Value />
           </Select.Trigger>
@@ -77,15 +76,15 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
           </Select.Content>
         </Select>
       </div>
-      {exigeNomeDePrompt(p.metric) ? (
+      {exigeNomeDePrompt(p.draft.metric) ? (
         <div className="min-w-[160px]">
           <label htmlFor="rule-prompt" className="mb-1 block text-xs font-medium text-muted-foreground">
             Prompt
           </label>
           <Input
             id="rule-prompt"
-            value={p.promptName}
-            onChange={(e) => p.onPromptName(e.target.value)}
+            value={p.draft.promptName}
+            onChange={(e) => p.onChange('promptName', e.target.value)}
             placeholder="saudacao"
             aria-label="Prompt"
             aria-invalid={p.problems?.promptName ? true : undefined}
@@ -99,7 +98,7 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
       ) : null}
       <div>
         <span className="mb-1 block text-xs font-medium text-muted-foreground">When</span>
-        <Select value={p.comparator} onValueChange={p.onComparator}>
+        <Select value={p.draft.comparator} onValueChange={(v) => p.onChange('comparator', v)}>
           <Select.Trigger className="w-[80px]" aria-label="Comparator">
             <Select.Value />
           </Select.Trigger>
@@ -120,11 +119,15 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
           id="rule-threshold"
           type="number"
           className="w-[110px]"
-          value={p.threshold}
-          onChange={(e) => p.onThreshold(e.target.value)}
+          value={p.draft.threshold}
+          onChange={(e) => p.onChange('threshold', e.target.value)}
           placeholder="5"
           aria-label="Threshold"
+          aria-invalid={p.problems?.threshold ? true : undefined}
         />
+        {p.problems?.threshold ? (
+          <p className="mt-1 text-xs text-destructive">{p.problems.threshold}</p>
+        ) : null}
         {/* O valor MEDIDO agora — risco #2 do M22. Um limite escolhido as cegas e o
             alerta mal calibrado, e alerta que dispara sem motivo ensina o time a
             ignorar o canal. Falha de leitura NAO vira zero: sao fatos diferentes. */}
@@ -134,13 +137,17 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
                           ? 'Não foi possível ler o uso atual deste prompt.'
                           : p.usoAtual.carregando
                             ? 'Lendo o uso atual…'
-                            : `Hoje: ${p.usoAtual.resolucoes} resoluções nos últimos ${p.usoAtual.janelaDias === 1 ? '1 dia' : `${p.usoAtual.janelaDias} dias`}.`}
+                            : // Sem "Hoje": o prefixo mentia sobre o período em toda janela maior
+                              // que um dia, e o número é justamente a base do limiar.
+                              `${p.usoAtual.resolucoes} resoluções ${
+                                p.usoAtual.janelaDias === 1 ? 'nas últimas 24 h' : `nos últimos ${p.usoAtual.janelaDias} dias`
+                              } — a mesma janela desta regra.`}
                       </p>
                     ) : null}
       </div>
       <div>
         <span className="mb-1 block text-xs font-medium text-muted-foreground">Over</span>
-        <Select value={p.windowSeconds} onValueChange={p.onWindowSeconds}>
+        <Select value={p.draft.windowSeconds} onValueChange={(v) => p.onChange('windowSeconds', v)}>
           <Select.Trigger className="w-[140px]" aria-label="Window">
             <Select.Value />
           </Select.Trigger>
@@ -155,7 +162,7 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
       </div>
       <div>
         <span className="mb-1 block text-xs font-medium text-muted-foreground">Notify</span>
-        <Select value={p.webhookId || undefined} onValueChange={p.onWebhookId}>
+        <Select value={p.draft.webhookId || undefined} onValueChange={(v) => p.onChange('webhookId', v)}>
           <Select.Trigger className="w-[200px]" aria-label="Notify webhook">
             <Select.Value placeholder="Select a webhook" />
           </Select.Trigger>

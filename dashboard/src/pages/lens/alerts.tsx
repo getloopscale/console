@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { History, Trash2 } from 'lucide-react';
 import {
   Button,
@@ -17,7 +17,7 @@ import {
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { AlertCreateForm } from '@/components/lens/alert-create-form';
-import type { AlertField } from '@/components/lens/alert-draft';
+import type { AlertDraft, AlertField } from '@/components/lens/alert-draft';
 import {
   EMPTY_ALERT_DRAFT,
   METRICA_DE_PROMPT,
@@ -30,7 +30,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { ApiError, cloudFetch } from '@/lib/api';
 
 /**
  * M53 — /observability/alerts. Threshold alert rules on observability metrics. A rule
@@ -145,10 +145,20 @@ const COMPARATORS = [
   { value: 'lt', label: '<' },
   { value: 'lte', label: '≤' },
 ] as const;
-// A janela do valor medido, DECLARADA UMA VEZ. Ela viaja na consulta e no texto: mantê-la em dois
-// lugares faz o texto mentir no primeiro dia em que alguém mudar a consulta — e o operador
-// atribuiria o número a um período diferente do que ele cobre.
-const JANELA_DO_VALOR_MEDIDO_DIAS = 1;
+/**
+ * Segundos → dias INTEIROS, arredondando para cima.
+ *
+ * É a MESMA conta do avaliador (`cmd/main.go`: `(windowSeconds + 86399) / 86400`), e a igualdade
+ * é o ponto. O agregado de prompt só é endereçável em dias; se a tela consultasse uma janela e a
+ * regra medisse outra, o operador dimensionaria o limiar por um número e a regra violaria por
+ * outro — reintroduzindo o alerta mal calibrado que esta tela existe para evitar.
+ *
+ * "Last hour" (3600 s) vira 1 dia, e é por isso que a tela DIZ a janela consultada em vez de
+ * repetir o rótulo escolhido: o sistema mede 24 h, e esconder isso seria mentir sobre o período.
+ */
+function janelaEmDias(windowSeconds: number): number {
+  return Math.max(1, Math.ceil(windowSeconds / 86400));
+}
 
 const WINDOWS = [
   { value: '3600', label: 'Last hour' },
@@ -163,15 +173,24 @@ export function LensAlertsPage() {
   useRequireAuth();
   const queryClient = useQueryClient();
 
+  // M22 DoD-3 — o CONSUMIDOR do deep-link que `promptly/tabs/producao.tsx` produz.
+  //
+  // Escrever `?prompt=<nome>` do outro lado e não lê-lo aqui faz o operador cair num formulário
+  // vazio, em `error_rate`, com o campo Prompt nem renderizado — exatamente a fricção que o DoD
+  // existe para remover. Um contrato de deep-link com produtor e sem consumidor não é um caminho:
+  // é um link que finge levar a algum lugar.
+  const [searchParams] = useSearchParams();
+  const promptDoLink = searchParams.get('prompt')?.trim() ?? '';
+
   const [name, setName] = useState('');
-  const [metric, setMetric] = useState<string>('error_rate');
+  const [metric, setMetric] = useState<string>(promptDoLink !== '' ? METRICA_DE_PROMPT : 'error_rate');
   const [comparator, setComparator] = useState<string>('gt');
   const [threshold, setThreshold] = useState('');
   const [windowSeconds, setWindowSeconds] = useState<string>('3600');
   const [webhookId, setWebhookId] = useState('');
   // M22 — so significa algo na metrica de prompt; `toCreateBody` o omite nas demais, porque o
   // CHECK de pareamento do banco vale nos DOIS sentidos.
-  const [promptName, setPromptName] = useState('');
+  const [promptName, setPromptName] = useState(promptDoLink);
   // Campos que o operador já tocou. Governa só a EXIBIÇÃO do problema — `alertProblems` continua
   // sendo quem libera o submit. Sem isto a tela abre acusando campos que ninguém viu ainda.
   const [touched, setTouched] = useState<ReadonlySet<AlertField>>(new Set());
@@ -242,6 +261,16 @@ export function LensAlertsPage() {
   // M72 — a write-action must not fail silently. Surface the first failing mutation's error.
   const writeError = create.isError ? 'create' : toggle.isError ? 'toggle' : remove.isError ? 'delete' : null;
 
+  // A mensagem TIPADA do serviço, quando existe. O backend recusa com texto acionável
+  // (`INVALID_PROMPT` diz exatamente o que falta); colapsar tudo num verbo e renderizar "check
+  // your access" anuncia um 400 de VALIDAÇÃO como problema de PERMISSÃO — e manda o operador
+  // investigar o lado errado. O genérico continua sendo o fallback, para o 500 sem corpo.
+  const razaoDoServico = ((create.error ?? toggle.error ?? remove.error) as ApiError | null)?.body;
+  const mensagemDoServico =
+    razaoDoServico && typeof razaoDoServico === 'object' && 'message' in razaoDoServico
+      ? String((razaoDoServico as { message: unknown }).message)
+      : null;
+
   const availableWebhooks = webhooks.data?.webhooks ?? [];
   // M22 — a validacao passou a vir do rascunho puro, que e quem conhece o PAREAMENTO
   // metrica<->prompt. Deixa-la aqui em linha faria a tela permitir montar um estado que o banco
@@ -259,22 +288,56 @@ export function LensAlertsPage() {
   const canCreate = alertProblems(draft).length === 0 && !create.isPending;
   const problemasVisiveis = visibleAlertProblems(draft, touched);
 
+  /**
+   * Um ponto de mudança para todo campo do formulário.
+   *
+   * Espelhar sete pares `value`/`onX` duplicava um tipo que já existe (`AlertDraft`) e espalhava a
+   * marcação de `touched` por sete lugares — três dos quais eu havia esquecido, deixando o botão
+   * desabilitar sem dizer por quê em `name`, `threshold` e `webhookId`.
+   */
+  function aoMudarCampo(campo: keyof AlertDraft, valor: string) {
+    const setters: Record<keyof AlertDraft, (v: string) => void> = {
+      name: setName,
+      metric: setMetric,
+      promptName: setPromptName,
+      comparator: setComparator,
+      threshold: setThreshold,
+      windowSeconds: setWindowSeconds,
+      webhookId: setWebhookId,
+    };
+    setters[campo](valor);
+    // Só os campos que o módulo puro modela como problema entram em `touched` — os demais não
+    // têm mensagem a exibir, e marcá-los seria estado sem consumidor.
+    if (campo === 'name' || campo === 'promptName' || campo === 'threshold' || campo === 'webhookId') {
+      setTouched((t) => new Set(t).add(campo));
+    }
+  }
+
   // O valor MEDIDO agora, ao lado do campo de limiar. Risco #2 do milestone: um limite escolhido
   // as cegas e o alerta mal calibrado, e alerta que dispara sem motivo ensina o time a ignorar o
   // canal. Le o MESMO agregado que a aba de producao do prompt mostra.
   const promptAlvo = exigeNomeDePrompt(metric) ? promptName.trim() : '';
+  const janelaDoValorMedido = janelaEmDias(Number(windowSeconds));
   const usoAtual = useQuery({
-    queryKey: ['cloud', 'promptly-usage', promptAlvo] as const,
+    queryKey: ['cloud', 'promptly-usage', promptAlvo, janelaDoValorMedido] as const,
     enabled: promptAlvo !== '',
     retry: false,
     queryFn: () =>
-      cloudFetch<{ rows?: { resolutions?: number }[] }>(
-        `/v1/dashboard/promptly/prompts/${encodeURIComponent(promptAlvo)}/usage?windowDays=${JANELA_DO_VALOR_MEDIDO_DIAS}`,
+      cloudFetch<{ rows?: { resolutions?: number }[] } | null>(
+        `/v1/dashboard/promptly/prompts/${encodeURIComponent(promptAlvo)}/usage?windowDays=${janelaDoValorMedido}`,
         {},
         { throwOnError: true },
       ),
   });
-  const resolucoesAgora = usoAtual.data?.rows?.reduce((t, r) => t + (r.resolutions ?? 0), 0);
+  // Ausente NÃO é zero. Um 200 cujo corpo não traz `rows`, ou uma linha sem `resolutions`, é
+  // contrato quebrado — e devolver um número aqui imprimiria "Hoje: undefined resoluções", ou pior,
+  // um total plausível calculado sobre linhas incompletas. É o mesmo motivo pelo qual o avaliador
+  // Go usa ponteiros (`prompt_metric.go`): a distinção entre ausente e zero é a única que importa.
+  const linhas = usoAtual.data?.rows;
+  const resolucoesAgora =
+    linhas === undefined || linhas.some((r) => typeof r.resolutions !== 'number')
+      ? undefined
+      : linhas.reduce((t, r) => t + (r.resolutions as number), 0);
 
   const columns: DataTableColumn<AlertRule>[] = [
     { key: 'name', label: 'Name', render: (r) => <span className="font-medium">{r.name}</span> },
@@ -364,7 +427,10 @@ export function LensAlertsPage() {
             <Alert
               intent="destructive"
               title={`Could not ${writeError} the alert rule`}
-              description="The change was not saved — try again, or check your access to this workspace."
+              description={
+                mensagemDoServico ??
+                'The change was not saved — try again, or check your access to this workspace.'
+              }
               data-testid="alerts-write-error"
             />
           ) : null}
@@ -383,24 +449,9 @@ export function LensAlertsPage() {
                 </Alert>
               ) : (
                 <AlertCreateForm
-                  name={name}
-                  onName={setName}
-                  metric={metric}
-                  onMetric={setMetric}
-                  promptName={promptName}
-                  onPromptName={(v) => {
-                    setPromptName(v);
-                    setTouched((t) => new Set(t).add('promptName'));
-                  }}
+                  draft={draft}
+                  onChange={aoMudarCampo}
                   problems={problemasVisiveis}
-                  comparator={comparator}
-                  onComparator={setComparator}
-                  threshold={threshold}
-                  onThreshold={setThreshold}
-                  windowSeconds={windowSeconds}
-                  onWindowSeconds={setWindowSeconds}
-                  webhookId={webhookId}
-                  onWebhookId={setWebhookId}
                   webhooks={availableWebhooks}
                   metrics={METRICS}
                   comparators={COMPARATORS}
@@ -411,9 +462,10 @@ export function LensAlertsPage() {
                     promptAlvo !== ''
                       ? {
                           carregando: usoAtual.isLoading,
-                          erro: usoAtual.isError,
+                          // Contrato quebrado é leitura falha, não medição — mesmo com 200.
+                          erro: usoAtual.isError || (!usoAtual.isLoading && resolucoesAgora === undefined),
                           resolucoes: resolucoesAgora,
-                          janelaDias: JANELA_DO_VALOR_MEDIDO_DIAS,
+                          janelaDias: janelaDoValorMedido,
                         }
                       : undefined
                   }

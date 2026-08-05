@@ -5,8 +5,14 @@ import { render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+// `ApiError` é re-exportado do módulo REAL: sem isto o `new ApiError(...)` do teste construiria
+// `undefined` e o erro que chega à tela seria um TypeError — não a recusa tipada que se quer provar.
+vi.mock('@/lib/api', async (original) => ({
+  ...(await original<typeof import('@/lib/api')>()),
+  cloudFetch: (...a: unknown[]) => mockCloudFetch(...a),
+}));
 
+import { ApiError } from '@/lib/api';
 import { LensAlertsPage, alertSeverity } from './alerts';
 
 describe('alertSeverity (honest status → Severity)', () => {
@@ -408,5 +414,146 @@ describe('LensAlertsPage — M22 DoD-4, "ainda não avaliado" ≠ "sem dados"', 
     render(<LensAlertsPage />);
     expect(await screen.findByText('erro geral')).toBeInTheDocument();
     expect(screen.queryByText(/not evaluated yet|ainda não avaliad/i)).not.toBeInTheDocument();
+    // E o valor APARECE — sem isto, uma coluna que renderizasse string vazia passaria.
+    expect(screen.getByText('2026-08-05T06:40:00Z')).toBeInTheDocument();
+  });
+});
+
+describe('LensAlertsPage — M22 DoD-3, o deep-link tem CONSUMIDOR', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('chegando com ?prompt=, o formulário já vem preenchido e na métrica certa', async () => {
+    // O produtor do link vive em `promptly/tabs/producao.tsx`. Escrever o parâmetro e não lê-lo
+    // aqui faz o operador cair num formulário vazio, em `error_rate`, com o campo Prompt nem
+    // renderizado — que é exatamente a fricção que o DoD existe para remover.
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />, { initialEntries: ['/observability/alerts?prompt=saudacao'] });
+
+    expect(await screen.findByLabelText(/^Prompt$/i)).toHaveValue('saudacao');
+  });
+
+  it('sem o parâmetro, nada muda — regressão', async () => {
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />);
+    await screen.findByRole('combobox', { name: /Metric/i });
+    expect(screen.queryByLabelText(/^Prompt$/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('LensAlertsPage — M22, o valor medido cobre a janela DA REGRA', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('pede o uso na MESMA janela que a regra vai medir', async () => {
+    // O defeito que este teste impede é o pior possível para esta feature: o operador escolhe
+    // "Last 7 days", lê um número de 24 h, e dimensiona o limiar por ele. A regra então mede ~7×
+    // mais tráfego e viola no primeiro tick — reintroduzindo exatamente o alerta mal calibrado
+    // que esta tela existe para evitar.
+    //
+    // O avaliador converte segundos em dias INTEIROS arredondando para cima
+    // (`cmd/main.go`: (windowSeconds + 86399) / 86400). A consulta tem de usar a mesma conta.
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />, { initialEntries: ['/observability/alerts?prompt=saudacao'] });
+    await screen.findByLabelText(/^Prompt$/i);
+
+    await userEvent.click(screen.getByRole('combobox', { name: /Window/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /7 days/i }));
+
+    await waitFor(() => {
+      const pedidos = mockCloudFetch.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.includes('/usage?'));
+      expect(pedidos.at(-1)).toContain('windowDays=7');
+    });
+  });
+
+  it('o texto declara a janela que foi de fato consultada', async () => {
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === RULES) return Promise.resolve({ alert_rules: [] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (url.includes('/usage?')) return Promise.resolve({ rows: [{ revision: 6, resolutions: 42 }] });
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />, { initialEntries: ['/observability/alerts?prompt=saudacao'] });
+    await screen.findByLabelText(/^Prompt$/i);
+    await userEvent.click(screen.getByRole('combobox', { name: /Window/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /7 days/i }));
+
+    // Nunca "24 h" quando a janela é de 7 dias — um texto que mente sobre o período faz o
+    // operador atribuir o número ao intervalo errado, que é o defeito por outro caminho.
+    const texto = await screen.findByTestId('valor-medido');
+    expect(texto).toHaveTextContent(/7 dias/i);
+    // E não diz "Hoje" sobre uma janela de sete dias — o prefixo era o texto mentindo por outro
+    // caminho, e o teste anterior o tolerava.
+    expect(texto).not.toHaveTextContent(/hoje/i);
+  });
+});
+
+describe('LensAlertsPage — M22, a recusa do serviço chega à tela', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('mostra a MENSAGEM do serviço, não "verifique seu acesso"', async () => {
+    // O backend recusa com texto acionável — INVALID_PROMPT diz exatamente o que falta. A tela
+    // colapsava tudo num verbo e renderizava "check your access to this workspace": um 400 de
+    // validação anunciado como problema de PERMISSÃO manda o operador investigar o lado errado.
+    // É o defeito que o CLAUDE.md deste ecossistema nomeia — "mensagem tipada do serviço chega à
+    // tela; o texto genérico é só o fallback".
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (url.includes('/usage?')) return Promise.resolve({ rows: [] });
+      if (url === RULES && init?.method === 'POST') {
+        return Promise.reject(
+          new ApiError(400, { error: 'INVALID_PROMPT', message: 'A prompt_name is required for a prompt_resolutions rule.' }),
+        );
+      }
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />, { initialEntries: ['/observability/alerts?prompt=saudacao'] });
+    await screen.findByLabelText(/^Prompt$/i);
+    await userEvent.type(screen.getByLabelText(/Rule name/i), 'uso');
+    await userEvent.type(screen.getByLabelText(/Threshold/i), '3');
+    await userEvent.click(screen.getByRole('combobox', { name: /Notify webhook/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prod hook/i }));
+    await userEvent.click(screen.getByRole('button', { name: /create rule/i }));
+
+    expect(await screen.findByText(/A prompt_name is required/i)).toBeInTheDocument();
+    expect(screen.queryByText(/check your access/i)).not.toBeInTheDocument();
+  });
+
+  it('sem mensagem tipada, o texto genérico volta a ser o fallback', async () => {
+    // O contra-exemplo: um 500 sem corpo não tem o que dizer, e aí o genérico é honesto.
+    mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
+      if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (url === RULES && init?.method === 'POST') return Promise.reject(new ApiError(500));
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />);
+    await screen.findByLabelText(/Rule name/i);
+    await userEvent.type(screen.getByLabelText(/Rule name/i), 'erro');
+    await userEvent.type(screen.getByLabelText(/Threshold/i), '5');
+    await userEvent.click(screen.getByRole('combobox', { name: /Notify webhook/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prod hook/i }));
+    await userEvent.click(screen.getByRole('button', { name: /create rule/i }));
+
+    expect(await screen.findByText(/check your access/i)).toBeInTheDocument();
+  });
+
+  it('resposta 200 SEM a chave rows não vira número — é leitura falha', async () => {
+    // O contrato quebrado do agregado. `rows` ausente devolve `undefined` no reduce, e o template
+    // interpolava literalmente "Hoje: undefined resoluções". É o mesmo defeito que o avaliador Go
+    // corrigiu com ponteiros (`prompt_metric.go`): ausente e zero são fatos diferentes, e um
+    // número plausível que ninguém questiona é pior que um erro declarado.
+    mockCloudFetch.mockImplementation((url: string) => {
+      if (url === RULES) return Promise.resolve({ alert_rules: [] });
+      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (url.includes('/usage?')) return Promise.resolve({}); // 200, sem `rows`
+      return Promise.resolve({});
+    });
+    render(<LensAlertsPage />, { initialEntries: ['/observability/alerts?prompt=saudacao'] });
+    await screen.findByLabelText(/^Prompt$/i);
+
+    expect(await screen.findByText(/não foi possível ler/i)).toBeInTheDocument();
+    expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument();
   });
 });
