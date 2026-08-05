@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/usetheodev/theo-cloud/internal/metrics"
 	"time"
 )
@@ -152,16 +153,59 @@ func (e *Evaluator) Run(ctx context.Context) {
 	}
 }
 
+// colunaAusente is SQLSTATE 42703 (undefined_column) — the ONE error that means "this deployment is
+// ahead of the database", as opposed to any other reason a query can fail.
+const colunaAusente = "42703"
+
+const colunasDeRegra = `id, tenant_id, metric, comparator, threshold, window_seconds, webhook_id, status,
+		       last_triggered_at, renotify_interval_seconds, monitor_id`
+
+// queryRules reads the enabled rules, degrading gracefully when this deployment is AHEAD of the
+// database — that is, when the image carrying the prompt-scoped path shipped before the engine
+// migration that adds `prompt_name` landed.
+//
+// Nothing in the platform orders those two deploys: the engine migrates through one pipeline and
+// theo-cloud publishes to `develop` through another. Without this, arriving first makes the SELECT
+// fail with 42703 and Tick return BEFORE evaluating a single row — every alert rule in the fleet
+// stops being evaluated, including every rule that has nothing to do with prompts.
+//
+// That failure is indistinguishable from calm on the customer's screen: the rules stay `enabled`,
+// the status stays `OK`, and nobody is told anything. Making a fleet-wide alerting outage depend on
+// an operator getting two deploys in the right order is not a risk worth taking for one column.
+//
+// The detection is by SQLSTATE, never by message text — the same discipline `internal/auth/tenant.go`
+// already applies to 23505. A connection failure must NOT be retried with the legacy projection: it
+// would double the query against a database that is already unwell, and hide the real error behind
+// a second, different one.
+func (e *Evaluator) queryRules(ctx context.Context) (*sql.Rows, bool, error) {
+	rows, err := e.db.QueryContext(ctx, `SELECT `+colunasDeRegra+`, prompt_name
+		FROM lens_alert_rules
+		WHERE enabled
+		ORDER BY tenant_id`)
+	if err == nil {
+		return rows, true, nil
+	}
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != colunaAusente {
+		return nil, false, err
+	}
+	// Loud, because it is a real misconfiguration that MUST be fixed — but not fatal, because the
+	// rules that predate the column are still perfectly evaluable.
+	e.logger.Error("lens alert evaluator: database is behind this deployment — prompt-scoped rules "+
+		"cannot be evaluated until the engine migration adding lens_alert_rules.prompt_name lands. "+
+		"Every other rule continues to be evaluated.", "sqlstate", pgErr.Code)
+	rows, err = e.db.QueryContext(ctx, `SELECT `+colunasDeRegra+`
+		FROM lens_alert_rules
+		WHERE enabled
+		ORDER BY tenant_id`)
+	return rows, false, err
+}
+
 // Tick runs one evaluation pass: for each tenant with enabled rules, fetch the series once per distinct
 // window and evaluate each rule. A per-tenant fetch error is logged + skipped (fail-closed: no data → no
 // spurious fire), never aborting the whole tick.
 func (e *Evaluator) Tick(ctx context.Context) error {
-	rows, err := e.db.QueryContext(ctx, `
-		SELECT id, tenant_id, metric, comparator, threshold, window_seconds, webhook_id, status,
-		       last_triggered_at, renotify_interval_seconds, monitor_id, prompt_name
-		FROM lens_alert_rules
-		WHERE enabled
-		ORDER BY tenant_id`)
+	rows, comPrompt, err := e.queryRules(ctx)
 	if err != nil {
 		return err
 	}
@@ -188,8 +232,12 @@ func (e *Evaluator) Tick(ctx context.Context) error {
 
 	for rows.Next() {
 		var r alertRule
-		if err := rows.Scan(&r.id, &r.tenantID, &r.metric, &r.comparator, &r.threshold, &r.windowSeconds,
-			&r.webhookID, &r.status, &r.lastTriggered, &r.renotify, &r.monitorID, &r.promptName); err != nil {
+		alvos := []any{&r.id, &r.tenantID, &r.metric, &r.comparator, &r.threshold, &r.windowSeconds,
+			&r.webhookID, &r.status, &r.lastTriggered, &r.renotify, &r.monitorID}
+		if comPrompt {
+			alvos = append(alvos, &r.promptName)
+		}
+		if err := rows.Scan(alvos...); err != nil {
 			e.logger.Warn("lens alert evaluator: scan failed", "error", err)
 			continue
 		}
