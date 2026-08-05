@@ -74,8 +74,25 @@ export function registerLensHandlers() {
       regrasDeAlerta.push(regra);
       return Response.json(regra);
     });
+    // A forma COMPLETA do contrato (`pages/settings/webhooks.tsx` — `interface Webhook`), não só
+    // o que a tela de alertas lê.
+    //
+    // Esta rota é compartilhada com a tela de configurações, que renderiza `url` e `events`. A
+    // primeira versão devolvia só `{id, label}` e quebrava aquela tela — regressão que só o e2e
+    // de observabilidade pegou, porque nenhum teste meu passava por lá. Um mock que serve um
+    // consumidor e quebra outro é pior que mock nenhum: ele mente com aparência de dado.
     registerRoute('GET', `${prefix}/v1/settings/webhooks/list`, async () =>
-      Response.json({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] }),
+      Response.json({
+        webhooks: [
+          {
+            id: 'wwh-1',
+            url: 'https://example.invalid/hooks/prod',
+            label: 'prod hook',
+            events: ['alert.threshold_breached'],
+            created_at: '2026-08-01T00:00:00Z',
+          },
+        ],
+      }),
     );
     registerRoute('GET', `${prefix}/v1/dashboard/lens/usage-by-user`, async (req) => {
       const days = Number(new URL(req.url).searchParams.get('days') ?? 30);
