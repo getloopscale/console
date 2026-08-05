@@ -19,3 +19,13 @@
 # kotlin
 # ruby
 # csharp
+
+# Habilitado 2026-08-05 (M22). Este arquivo tinha 21 linhas e ZERO entradas
+# habilitadas, então `/code-quality` neste repositório auditava NADA — com
+# `go.mod` na raiz e um dashboard TypeScript completo em `dashboard/`.
+#
+# Um PASS sobre zero linguagens é indistinguível de um PASS sobre árvore limpa,
+# e é exatamente o defeito que o golden rule do umbrella nomeia. Ver
+# usetheoai/theo-cloud#447 — este é o mesmo problema, localizado com precisão.
+go | go.mod | ENABLED | O serviço. go.mod está na raiz deste repositório.
+typescript | dashboard/package.json | ENABLED | O dashboard — toda tela do ecossistema nasce aqui.

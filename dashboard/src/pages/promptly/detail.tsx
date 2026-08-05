@@ -576,6 +576,7 @@ export function PromptDetailPage() {
 
       {abaAtiva === 'producao' ? (
         <ProducaoTab
+          promptName={promptName}
           janelaDias={USAGE_WINDOW_DAYS}
           linhas={[...usoPorRevisao.values()]}
           dependentes={dependentesLinhas}
