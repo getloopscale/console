@@ -3,7 +3,6 @@ import {
   EMPTY_ALERT_DRAFT,
   METRICA_DE_PROMPT,
   alertProblems,
-  alertProblemsByField,
   exigeNomeDePrompt,
   toCreateBody,
   visibleAlertProblems,
@@ -120,10 +119,13 @@ describe('visibleAlertProblems', () => {
   });
 });
 
-describe('alertProblemsByField', () => {
-  it('associa o problema ao campo que o causa', () => {
+describe('a chave do problema é o campo', () => {
+  it('associa o problema ao campo que o causa, pelo contrato público', () => {
+    // Provado por `visibleAlertProblems` em vez de pelo helper interno: a chave que o formulário
+    // usa para posicionar a mensagem é a mesma, e testar pelo público mantém o módulo livre de
+    // export que ninguém consome.
     const d = { ...EMPTY_ALERT_DRAFT, metric: METRICA_DE_PROMPT, name: 'x', threshold: '3', webhookId: 'wh-1' };
-    expect(alertProblemsByField(d)).toHaveProperty('promptName');
+    expect(visibleAlertProblems(d, new Set(['promptName']))).toHaveProperty('promptName');
   });
 });
 

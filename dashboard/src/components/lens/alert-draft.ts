@@ -48,8 +48,14 @@ export function exigeNomeDePrompt(metric: string): boolean {
   return metric === METRICA_DE_PROMPT;
 }
 
-/** Problema por campo. A chave é o campo que o operador precisa corrigir, não a regra violada. */
-export function alertProblemsByField(d: AlertDraft): Partial<Record<AlertField, string>> {
+/**
+ * Problema por campo. A chave é o campo que o operador precisa corrigir, não a regra violada.
+ *
+ * NÃO exportado: nada fora deste módulo o consome, e um export sem consumidor é superfície que
+ * alguém vai acabar usando por engano. O comportamento é provado pelo contrato público —
+ * `alertProblems` (a lista) e `visibleAlertProblems` (a projeção por campo tocado).
+ */
+function alertProblemsByField(d: AlertDraft): Partial<Record<AlertField, string>> {
   const out: Partial<Record<AlertField, string>> = {};
 
   if (d.name.trim() === '') out.name = 'Dê um nome ao alerta.';

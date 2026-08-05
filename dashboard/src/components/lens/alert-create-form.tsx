@@ -11,6 +11,7 @@
 
 import { Button, Input, Select } from '@usetheo/ui';
 import { exigeNomeDePrompt } from '@/components/lens/alert-draft';
+import type { AlertField } from '@/components/lens/alert-draft';
 
 export interface AlertCreateFormProps {
   readonly name: string;
@@ -34,6 +35,8 @@ export interface AlertCreateFormProps {
   readonly canCreate: boolean;
   readonly onSubmit: () => void;
   /** O uso medido AGORA do prompt digitado — `undefined` enquanto não há prompt alvo. */
+  /** Problemas a EXIBIR — só os campos já tocados. A validação em si vive em `alert-draft.ts`. */
+  readonly problems?: Partial<Record<AlertField, string>>;
   readonly usoAtual?: { readonly carregando: boolean; readonly erro: boolean; readonly resolucoes?: number };
 }
 
@@ -79,7 +82,13 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
             onChange={(e) => p.onPromptName(e.target.value)}
             placeholder="saudacao"
             aria-label="Prompt"
+            aria-invalid={p.problems?.promptName ? true : undefined}
           />
+          {/* Um botão desabilitado sem explicação viola `DESIGN.md § 6` (erros como diagnóstico):
+              o operador vê que não pode criar e não descobre o que falta. */}
+          {p.problems?.promptName ? (
+            <p className="mt-1 text-xs text-destructive">{p.problems.promptName}</p>
+          ) : null}
         </div>
       ) : null}
       <div>

@@ -348,3 +348,35 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
     expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
   });
 });
+
+describe('LensAlertsPage — M22, o formulário ensina em vez de ralhar', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('não acusa o campo de prompt antes de o operador tocá-lo', async () => {
+    // O formulário abre vazio porque esse é o estado inicial legítimo, não um engano dele.
+    // Acusar antes do primeiro toque transforma a tela de partida numa tela de erro.
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />);
+    await screen.findByRole('combobox', { name: /Metric/i });
+    await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
+
+    expect(screen.queryByText(/Diga qual prompt/i)).not.toBeInTheDocument();
+  });
+
+  it('DIZ por que não dá para criar, depois de tocar o campo', async () => {
+    // Um botão desabilitado sem explicação viola `DESIGN.md § 6` (erros como diagnóstico): o
+    // operador vê que não pode criar e não descobre o que falta.
+    mockRoutes({ rules: [] });
+    render(<LensAlertsPage />);
+    await screen.findByRole('combobox', { name: /Metric/i });
+    await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
+
+    const campo = await screen.findByLabelText(/^Prompt$/i);
+    await userEvent.type(campo, 'x');
+    await userEvent.clear(campo); // tocado, e agora vazio
+
+    expect(await screen.findByText(/Diga qual prompt/i)).toBeInTheDocument();
+  });
+});

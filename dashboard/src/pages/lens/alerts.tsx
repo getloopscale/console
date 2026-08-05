@@ -17,10 +17,12 @@ import {
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { AlertCreateForm } from '@/components/lens/alert-create-form';
+import type { AlertField } from '@/components/lens/alert-draft';
 import {
   EMPTY_ALERT_DRAFT,
   METRICA_DE_PROMPT,
   alertProblems,
+  visibleAlertProblems,
   exigeNomeDePrompt,
   toCreateBody,
 } from '@/components/lens/alert-draft';
@@ -165,6 +167,9 @@ export function LensAlertsPage() {
   // M22 — so significa algo na metrica de prompt; `toCreateBody` o omite nas demais, porque o
   // CHECK de pareamento do banco vale nos DOIS sentidos.
   const [promptName, setPromptName] = useState('');
+  // Campos que o operador já tocou. Governa só a EXIBIÇÃO do problema — `alertProblems` continua
+  // sendo quem libera o submit. Sem isto a tela abre acusando campos que ninguém viu ainda.
+  const [touched, setTouched] = useState<ReadonlySet<AlertField>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<AlertRule | null>(null);
   const [openHistory, setOpenHistory] = useState<AlertRule | null>(null); // M84 — expanded rule's history
 
@@ -247,6 +252,7 @@ export function LensAlertsPage() {
     webhookId,
   };
   const canCreate = alertProblems(draft).length === 0 && !create.isPending;
+  const problemasVisiveis = visibleAlertProblems(draft, touched);
 
   // O valor MEDIDO agora, ao lado do campo de limiar. Risco #2 do milestone: um limite escolhido
   // as cegas e o alerta mal calibrado, e alerta que dispara sem motivo ensina o time a ignorar o
@@ -361,7 +367,11 @@ export function LensAlertsPage() {
                   metric={metric}
                   onMetric={setMetric}
                   promptName={promptName}
-                  onPromptName={setPromptName}
+                  onPromptName={(v) => {
+                    setPromptName(v);
+                    setTouched((t) => new Set(t).add('promptName'));
+                  }}
+                  problems={problemasVisiveis}
                   comparator={comparator}
                   onComparator={setComparator}
                   threshold={threshold}
