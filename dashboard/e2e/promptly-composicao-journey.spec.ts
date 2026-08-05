@@ -63,6 +63,9 @@ test.describe('M20 — composição pelo dashboard', () => {
     await expect(painel).toContainText('@@@promptly:name=politica');
 
     // ---- DoD-4: quem me referencia, do outro lado ----------------------------------------
+    // M21 — a lista migrou para a aba de PRODUÇÃO: "quem quebra se eu mexer aqui" é pergunta sobre
+    // o uso, não sobre o texto. A jornada segue o caminho do usuário e CLICA na aba.
+    await page.getByRole('link', { name: 'Uso em produção' }).click();
     // Este prompt não é referenciado por ninguém — e a tela DIZ isso, em vez de deixar vazio.
     // Espaço em branco lê-se como "não carregou", que é outro estado.
     await expect(page.getByText(/Nenhum prompt referencia este/)).toBeVisible();
@@ -73,6 +76,7 @@ test.describe('M20 — composição pelo dashboard', () => {
     await expect(page).toHaveURL(/\/promptly\/politica$/);
 
     // Aqui a lista tem conteúdo — e é a informação que muda a decisão de promover.
+    await page.getByRole('link', { name: 'Uso em produção' }).click();
     await expect(page.getByRole('heading', { name: 'Quem referencia este prompt' })).toBeVisible();
     const dependente = page.getByRole('link', { name: 'atendimento', exact: true });
     await expect(dependente).toBeVisible();
