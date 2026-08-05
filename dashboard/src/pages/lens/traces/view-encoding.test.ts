@@ -15,7 +15,7 @@ import {
  */
 
 const custom: ColumnState = {
-  visibility: { latency: false, tokens: true, cost: false, evals: true },
+  visibility: { model: false, latency: false, tokens: true, cost: false, evals: true },
   density: 'compact',
 };
 
@@ -23,6 +23,14 @@ describe('M59 view-encoding', () => {
   it('round-trips: decodeColumns(encodeColumns(s)) deep-equals s', () => {
     expect(decodeColumns(encodeColumns(custom))).toEqual(custom);
     expect(decodeColumns(encodeColumns(DEFAULT_COLUMN_STATE))).toEqual(DEFAULT_COLUMN_STATE);
+  });
+
+  it('um token v1 ANTIGO, sem a chave `model`, decodifica com model visível — sem quebrar', () => {
+    // M23 acrescentou `model` ao conjunto ocultável. Toda visão salva antes disso carrega um token
+    // sem essa chave. O merge sobre `DEFAULT_COLUMN_STATE` é o que impede aquelas visões de mudarem
+    // de comportamento — e sem este teste, nada trava esse mecanismo.
+    const antigo = `v1:${btoa(JSON.stringify({ visibility: { latency: true, tokens: true, cost: true, evals: true }, density: 'comfortable' }))}`;
+    expect(decodeColumns(antigo).visibility.model).toBe(true);
   });
 
   it('produces a version-prefixed token', () => {

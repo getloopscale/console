@@ -24,12 +24,13 @@ const ATRIBUTO_DO_PROMPT = 'prompt.id';
  * modelo nem avalia. Um destino que os exibe faz quem chegou concluir que a leitura falhou.
  * `latency` fica: a duração da resolução é informação real (medido: 1–17 ms).
  *
- * `model` NÃO pode ser escondida — não está em `TOGGLEABLE_COLUMNS`, e a tela só oculta colunas
- * desse conjunto. Ampliá-lo seria mudar a tela do `theo-lens`, que tem roadmap próprio. Passar de
- * quatro colunas vazias para uma é a melhora que cabe aqui.
+ * `model` também some, desde o M23. A primeira versão a deixava visível e vazia, sob a justificativa
+ * de que ampliar `TOGGLEABLE_COLUMNS` "seria mudar a tela do `theo-lens`, que tem roadmap próprio".
+ * **A premissa era falsa** — `view-encoding.ts` vive neste mesmo dashboard; o `theo-lens` é o
+ * serviço, e toda tela do ecossistema nasce aqui. A `/acceptance` pegou.
  */
 export const COLUNAS_DE_RESOLUCAO: ColumnState = {
-  visibility: { latency: true, tokens: false, cost: false, evals: false },
+  visibility: { model: false, latency: true, tokens: false, cost: false, evals: false },
   density: 'comfortable',
 };
 

@@ -65,7 +65,7 @@ describe('linkParaTracesDoPrompt — as colunas (T1.2)', () => {
     // fica — é informação real (medido no app-dev: 1–17 ms).
     const url = linkDe('saudacao');
     expect(decodeColumns(url.searchParams.get('cols'))).toEqual({
-      visibility: { latency: true, tokens: false, cost: false, evals: false },
+      visibility: { model: false, latency: true, tokens: false, cost: false, evals: false },
       density: 'comfortable',
     });
   });

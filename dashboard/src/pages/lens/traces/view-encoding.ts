@@ -7,8 +7,19 @@
  * Pure + total. `btoa`/`atob` are the browser primitives (present in jsdom too — no dependency).
  */
 
-/** The hideable spine columns (the always-on identity columns are never in this set). */
-export const TOGGLEABLE_COLUMNS = ['latency', 'tokens', 'cost', 'evals'] as const;
+/**
+ * The hideable spine columns (the always-on identity columns are never in this set).
+ *
+ * `model` entrou no M23. Ela é vazia em toda linha `prompt.resolve` — resolver um prompt não chama
+ * modelo — e o caminho que a aba do prompt oferece leva exatamente a essa listagem. Uma coluna
+ * vazia numa tela para a qual o produto ENVIA o operador é a leitura que faz alguém concluir que
+ * algo falhou.
+ *
+ * Acrescentar é retrocompatível por construção: `decodeColumns` faz merge sobre
+ * `DEFAULT_COLUMN_STATE`, então um token `v1` antigo (sem a chave) decodifica com `model: true` e
+ * nenhuma visão salva muda de comportamento.
+ */
+export const TOGGLEABLE_COLUMNS = ['model', 'latency', 'tokens', 'cost', 'evals'] as const;
 export type ToggleableColumn = (typeof TOGGLEABLE_COLUMNS)[number];
 
 export interface ColumnState {
@@ -17,7 +28,7 @@ export interface ColumnState {
 }
 
 export const DEFAULT_COLUMN_STATE: ColumnState = {
-  visibility: { latency: true, tokens: true, cost: true, evals: true },
+  visibility: { model: true, latency: true, tokens: true, cost: true, evals: true },
   density: 'comfortable',
 };
 
