@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@/test/render';
 import { ProducaoTab } from './producao';
+import { linkParaTracesDoPrompt } from '../traces-link';
 
 // M22 DoD-3 — o prompt tem caminho até o seu monitor.
 //
@@ -49,5 +50,43 @@ describe('ProducaoTab — o caminho até o monitor (M22)', () => {
     render(<ProducaoTab {...BASE} promptName="saudacao" />);
     expect(screen.getByRole('heading', { name: /Uso por revisão/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Quem referencia este prompt/i })).toBeInTheDocument();
+  });
+});
+
+// M23 — o caminho até as resoluções individuais.
+//
+// A aba levantava metade de uma pergunta: o M22 respondeu "quer ser avisado quando este número
+// mudar?". A outra metade — "o que aconteceu nessas resoluções?" — não tinha resposta, e os traces
+// já existiam, indexados, a um filtro de distância.
+
+describe('ProducaoTab — o caminho até as resoluções (M23)', () => {
+  it('oferece um caminho até as resoluções deste prompt', () => {
+    render(<ProducaoTab {...BASE} promptName="saudacao" />);
+    expect(screen.getByRole('link', { name: /resolu/i })).toBeInTheDocument();
+  });
+
+  it('o caminho aponta para o DESTINO exato, construído pelo helper', () => {
+    // Comparação da string INTEIRA. `toContain('saudacao')` toleraria `/observability/tracez?…` —
+    // um 404 entregue ao operador com o teste verde, que foi o defeito do M22.
+    render(<ProducaoTab {...BASE} promptName="saudacao" />);
+    expect(screen.getByRole('link', { name: /resolu/i })).toHaveAttribute(
+      'href',
+      linkParaTracesDoPrompt('saudacao'),
+    );
+  });
+
+  it('um nome hostil chega íntegro ao destino', () => {
+    render(<ProducaoTab {...BASE} promptName="time/greeting&x#y" />);
+    const href = screen.getByRole('link', { name: /resolu/i }).getAttribute('href') ?? '';
+    expect(new URL(href, 'https://x').searchParams.get('span_query')).toBe(
+      'attr:prompt.id=time/greeting&x#y',
+    );
+  });
+
+  it('a aba segue respondendo o que já respondia — regressão', () => {
+    render(<ProducaoTab {...BASE} promptName="saudacao" />);
+    expect(screen.getByRole('heading', { name: /Uso por revisão/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Quem referencia este prompt/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /monitor/i })).toBeInTheDocument();
   });
 });

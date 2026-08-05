@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { linkParaTracesDoPrompt } from '../traces-link';
 import { Card } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import type { LinhaDeUso } from '@/components/promptly/usage';
@@ -101,18 +102,34 @@ export function ProducaoTab({
         </div>
       </Card>
 
-      {/* M22 DoD-3 — o caminho até o monitor. O número acima é o que um limite governaria, e o
-          operador que o está olhando não tinha como saber que existe uma tela de alerta. O nome
-          do prompt viaja no endereço: sem ele o operador chega numa tela vazia e digita de novo. */}
-      <p className="text-sm text-muted-foreground">
-        Quer ser avisado quando este número mudar?{' '}
-        <Link
-          to={`/observability/alerts?prompt=${encodeURIComponent(promptName)}`}
-          className="font-medium text-primary underline underline-offset-2"
-        >
-          Definir um monitor para este prompt →
-        </Link>
-      </p>
+      {/* Os dois caminhos que partem do número acima. Um olha para trás — o que aconteceu nessas
+          chamadas (M23); o outro para frente — avise-me quando mudar (M22). Ficam juntos porque
+          respondem à mesma reação: o operador viu um número e quer agir sobre ele. */}
+      <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+        {/* M23 — os spans de resolução já existiam, já indexados por prompt no `theo-lens`, e a
+            única forma de chegar neles era digitar a URL. O endereço vem do helper e nunca de um
+            template aqui: um nome com `&` ou `#` levaria aos traces de OUTRO prompt, sem erro. */}
+        <p>
+          Quer ver o que aconteceu nessas chamadas?{' '}
+          <Link
+            to={linkParaTracesDoPrompt(promptName)}
+            className="font-medium text-primary underline underline-offset-2"
+          >
+            Ver as resoluções deste prompt →
+          </Link>
+        </p>
+        {/* M22 DoD-3 — o caminho até o monitor. O número acima é o que um limite governaria, e o
+            operador que o está olhando não tinha como saber que existe uma tela de alerta. */}
+        <p>
+          Quer ser avisado quando este número mudar?{' '}
+          <Link
+            to={`/observability/alerts?prompt=${encodeURIComponent(promptName)}`}
+            className="font-medium text-primary underline underline-offset-2"
+          >
+            Definir um monitor para este prompt →
+          </Link>
+        </p>
+      </div>
 
       <Card>
         <Card.Header>
