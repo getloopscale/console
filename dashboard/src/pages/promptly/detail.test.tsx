@@ -76,7 +76,16 @@ beforeEach(() => {
   mockDependentes.mockResolvedValue([]);
   mockRevisions.mockResolvedValue(REVISOES);
   mockLabels.mockResolvedValue(LABELS);
-  mockPrompt.mockResolvedValue({ version: 3 });
+  // A API real sempre devolve `content`, `variables` e `modelConfig` nesta leitura. O dublê
+  // devolvia só a versão, e a aba de consumo — que precisa do conteúdo para saber se o prompt
+  // compõe — ficava em "Carregando…" para sempre. Um dublê mais pobre que a produção não exercita
+  // o caminho; ele o esconde.
+  mockPrompt.mockResolvedValue({
+    version: 3,
+    content: 'Olá {{nome}}, sou o assistente.',
+    modelConfig: null,
+    variables: ['nome'],
+  });
   mockPolicy.mockResolvedValue(null);
   mockPromote.mockResolvedValue({ name: 'saudacao', label: 'prod', version: 3 });
   mockUsage.mockResolvedValue({
@@ -225,7 +234,16 @@ describe('PromptDetailPage', () => {
   it('num prompt que cabe na página, NÃO usa cursor — senão cortaria linhas que cabiam', async () => {
     // O par que discrimina: um cursor incondicional esconderia o começo do histórico de prompts
     // pequenos, que é justamente onde ele cabe inteiro.
-    mockPrompt.mockResolvedValue({ version: 3 });
+    // A API real sempre devolve `content`, `variables` e `modelConfig` nesta leitura. O dublê
+  // devolvia só a versão, e a aba de consumo — que precisa do conteúdo para saber se o prompt
+  // compõe — ficava em "Carregando…" para sempre. Um dublê mais pobre que a produção não exercita
+  // o caminho; ele o esconde.
+  mockPrompt.mockResolvedValue({
+    version: 3,
+    content: 'Olá {{nome}}, sou o assistente.',
+    modelConfig: null,
+    variables: ['nome'],
+  });
 
     render(<PromptDetailPage />);
 
@@ -678,9 +696,12 @@ describe('M20 — composição na tela', () => {
   });
 
   it('lista_quem_referencia_dizendo_a_versao', async () => {
+    // M21 — a lista de dependentes migrou para a aba de PRODUÇÃO: "quem quebra se eu mexer aqui"
+    // é uma pergunta sobre o uso, não sobre o texto. O teste passa a entrar pela rota da aba, que
+    // é o caminho do usuário; renderizar a raiz e procurar o cartão testaria a tela errada.
     mockDependentes.mockResolvedValue([{ name: 'atendimento', version: 4, via: { version: 3, label: null } }]);
 
-    render(<PromptDetailPage />);
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/producao'] });
 
     expect(await screen.findByRole('link', { name: 'atendimento' })).toBeInTheDocument();
     expect(screen.getByText('v4')).toBeInTheDocument();
@@ -691,9 +712,90 @@ describe('M20 — composição na tela', () => {
     // consegui saber", não. Colapsar as duas é o defeito que o CLAUDE.md deste repo nomeia.
     mockDependentes.mockRejectedValue(new ApiError(500, 'falhou'));
 
-    render(<PromptDetailPage />);
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/producao'] });
 
     expect(await screen.findByText(/Não foi possível ler os dependentes/)).toBeInTheDocument();
     expect(screen.queryByText(/Nenhum prompt referencia este/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * M21 DoD-1 e DoD-3 — as quatro abas na tela, e a ação que não sai dela.
+ *
+ * O que precisa de proteção aqui não é "a aba renderiza". São três coisas que erram em silêncio: o
+ * endereço que já circulava deixar de resolver, a aba ativa não refletir a rota, e a promoção
+ * sumir quando o operador troca de aba — que é o mesmo que "sair da tela", só que sem navegar.
+ */
+describe('M21 — as quatro abas', () => {
+  it('o endereço que já circulava resolve, e abre a aba de conteúdo', async () => {
+    // DoD-1, a metade que quebra. Links para `/promptly/:name` existem no catálogo, no diff e na
+    // lista de dependentes do M20 — trocar uma tela melhor por três caminhos mortos seria pior que
+    // não ter abas.
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao'] });
+
+    expect(await screen.findByRole('heading', { name: 'Revisões' })).toBeInTheDocument();
+    const aba = screen.getByRole('link', { name: 'Conteúdo' });
+    expect(aba).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('cada rota marca a SUA aba, e só ela', async () => {
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumo'] });
+
+    expect(await screen.findByRole('link', { name: 'Como consumir' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    // O controle: as outras três não podem estar marcadas ao mesmo tempo.
+    for (const rotulo of ['Conteúdo', 'Config', 'Uso em produção']) {
+      expect(screen.getByRole('link', { name: rotulo })).not.toHaveAttribute('aria-current');
+    }
+  });
+
+  it('a aba de conteúdo NÃO mostra o que pertence às outras', async () => {
+    // Sem esta asserção, um recorte que renderizasse tudo em toda aba passaria nos testes acima —
+    // e a tela continuaria sendo o scroll único, só que com uma barra decorativa em cima.
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao'] });
+    await screen.findByRole('heading', { name: 'Revisões' });
+
+    expect(screen.queryByRole('heading', { name: 'Como consumir' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Uso por revisão' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Afinação/ })).not.toBeInTheDocument();
+  });
+
+  it('DoD-3 — promover e etiquetar continuam à mão em TODAS as abas', async () => {
+    // "Sem sair da tela" é falso se a ação some ao trocar de aba. A asserção é repetida por rota, e
+    // não uma vez: um cartão que só existisse na aba índice passaria numa verificação única.
+    for (const rota of [
+      '/promptly/saudacao',
+      '/promptly/saudacao/config',
+      '/promptly/saudacao/producao',
+      '/promptly/saudacao/consumo',
+    ]) {
+      const { unmount } = render(<PromptDetailPage />, { initialEntries: [rota] });
+      expect(await screen.findByRole('heading', { name: 'Ambientes' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Tags' })).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('a aba de consumo entrega os três trechos, apontando para ESTE prompt', async () => {
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/consumo'] });
+
+    expect(await screen.findByRole('heading', { name: 'Como consumir' })).toBeInTheDocument();
+    for (const rotulo of ['SDK (TypeScript)', 'REST (curl)', 'MCP']) {
+      expect(screen.getByRole('heading', { name: rotulo })).toBeInTheDocument();
+    }
+    // O nome do prompt aparece nos trechos — é o que separa "código de exemplo" de "código que roda".
+    expect(screen.getAllByText(/saudacao/).length).toBeGreaterThan(0);
+  });
+
+  it('a aba de config declara a ausência em vez de ficar em branco', async () => {
+    // Uma área vazia lê-se como "não carregou". A ausência de afinação é um FATO sobre a revisão —
+    // as anteriores ao M17 não têm, e inventar uma retroativamente apareceria como escolha de alguém.
+    mockPrompt.mockResolvedValue({ version: 3, content: 'sem config', modelConfig: null, variables: [] });
+    render(<PromptDetailPage />, { initialEntries: ['/promptly/saudacao/config'] });
+
+    expect(await screen.findByText(/não declara afinação/)).toBeInTheDocument();
+    expect(screen.getByText(/Nenhuma variável/)).toBeInTheDocument();
   });
 });
