@@ -47,8 +47,36 @@ const USAGE_BY_USER = {
  * do gateway. Registrar os dois é o que o `trust-handlers.ts` faz, pela razão registrada lá: sem
  * isso o mock funciona numa configuração e silenciosamente não na outra.
  */
+/** As regras criadas na sessão — escopo de CARGA DA PÁGINA, como o cursor de `/connect`. */
+const regrasDeAlerta: Record<string, unknown>[] = [];
+
 export function registerLensHandlers() {
   for (const prefix of ['', '/api']) {
+    // M22 — as regras de alerta, para a jornada do monitor de prompt rodar hermética.
+    //
+    // O laço sobre ['', '/api'] NÃO é decorativo: a tela chama por um prefixo e o e2e pelo outro,
+    // e registrar só um faz a jornada falhar com 404 num caminho que funciona no navegador.
+    registerRoute('GET', `${prefix}/v1/dashboard/lens/alert-rules`, async () =>
+      Response.json({ alert_rules: regrasDeAlerta }),
+    );
+    registerRoute('POST', `${prefix}/v1/dashboard/lens/alert-rules`, async (req) => {
+      const corpo = (await req.json()) as Record<string, unknown>;
+      const regra = {
+        id: `lar-${regrasDeAlerta.length + 1}`,
+        enabled: true,
+        status: 'OK',
+        // `null` é "ainda não avaliado" — distinto de "sem dados". É o quarto DoD do M22, e a
+        // distinção que impede o operador de concluir que a regra falhou e criar a segunda.
+        last_evaluated_at: null,
+        last_triggered_at: null,
+        ...corpo,
+      };
+      regrasDeAlerta.push(regra);
+      return Response.json(regra);
+    });
+    registerRoute('GET', `${prefix}/v1/settings/webhooks/list`, async () =>
+      Response.json({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] }),
+    );
     registerRoute('GET', `${prefix}/v1/dashboard/lens/usage-by-user`, async (req) => {
       const days = Number(new URL(req.url).searchParams.get('days') ?? 30);
       // O teto de 365 é o do serviço, que RECUSA acima dele com 400 tipado (M140) e o BFF

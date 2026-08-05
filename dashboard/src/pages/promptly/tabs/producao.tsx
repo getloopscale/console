@@ -11,6 +11,8 @@ export interface ProducaoTabProps {
   readonly dependentes: readonly Dependente[];
   readonly dependentesIlegiveis: boolean;
   readonly dependentesCarregando: boolean;
+  /** M22 — o nome do prompt, para o caminho até o monitor dele. */
+  readonly promptName: string;
 }
 
 /**
@@ -27,6 +29,7 @@ export function ProducaoTab({
   dependentes,
   dependentesIlegiveis,
   dependentesCarregando,
+  promptName,
 }: ProducaoTabProps) {
   return (
     <div className="space-y-4">
@@ -97,6 +100,19 @@ export function ProducaoTab({
           )}
         </div>
       </Card>
+
+      {/* M22 DoD-3 — o caminho até o monitor. O número acima é o que um limite governaria, e o
+          operador que o está olhando não tinha como saber que existe uma tela de alerta. O nome
+          do prompt viaja no endereço: sem ele o operador chega numa tela vazia e digita de novo. */}
+      <p className="text-sm text-muted-foreground">
+        Quer ser avisado quando este número mudar?{' '}
+        <Link
+          to={`/observability/alerts?prompt=${encodeURIComponent(promptName)}`}
+          className="font-medium text-primary underline underline-offset-2"
+        >
+          Definir um monitor para este prompt →
+        </Link>
+      </p>
 
       <Card>
         <Card.Header>

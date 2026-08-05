@@ -148,6 +148,7 @@ jobs:
             e2e/promptly-uso-journey.spec.ts \
             e2e/promptly-composicao-journey.spec.ts \
             e2e/promptly-abas-journey.spec.ts \
+            e2e/promptly-alerta-journey.spec.ts \
             e2e/guardrails-journey.spec.ts \
             e2e/login.spec.ts \
             e2e/device-verify.spec.ts \
