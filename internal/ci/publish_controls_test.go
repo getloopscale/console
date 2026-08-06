@@ -31,6 +31,23 @@ func readWF(t *testing.T, name string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Clean(filepath.Join("../../.github/workflows", name)))
 	if err != nil {
+		// `build-publish.yml` era uma COPIA vendorizada deste repo. Ela existia porque
+		// `usetheodev/theo` era privado e de outro dono, e sumiu quando o `theo` migrou
+		// para `usetheoai` e a referencia voltou ao reusable upstream.
+		//
+		// Os controles que dependem do CORPO dela (identidade cosign, provenance,
+		// build-args nos dois builds, trivyignore) passaram a pertencer a
+		// `usetheoai/theo` e sao testados LA. Afirma-los daqui seria testar outro
+		// repositorio — e um Fatal aqui reportaria como defeito deste repo algo que
+		// ele nao controla mais.
+		//
+		// O acoplamento que ESTE repo ainda deve guardar — que a referencia e a copia
+		// nunca coexistem nem faltam as duas — segue coberto por
+		// publish_workflow_test.go, que roda independentemente deste helper.
+		if os.IsNotExist(err) && name == "build-publish.yml" {
+			t.Skipf("%s nao existe neste repo: o reusable e upstream (usetheoai/theo) "+
+				"e seus controles internos sao testados la", name)
+		}
 		t.Fatalf("reading %s: %v", name, err)
 	}
 	return string(b)
