@@ -62,8 +62,24 @@ export interface UseSSEStreamResult<T = unknown> {
   clear: () => void;
 }
 
-// 3 consecutive errors without an open => assume token expired.
+// 3 erros consecutivos sem um open => assume token expirado.
+//
+// Este limiar so vale para o caminho de RECONEXAO NATIVA do browser, em que o
+// EventSource fica em CONNECTING e tenta sozinho. Ver B-014 abaixo: quando o
+// browser FECHA a conexao (readyState CLOSED), esperar tres erros e esperar por
+// algo que nunca vem.
 const TOKEN_REFRESH_THRESHOLD = 3;
+
+/** Teto do backoff exponencial da reabertura manual. */
+const MAX_REOPEN_DELAY_MS = 30_000;
+
+/**
+ * `EventSource.CLOSED`. Declarado como literal em vez de lido da estatica porque
+ * nem todo ambiente a expoe — jsdom e mocks de teste frequentemente implementam
+ * `readyState` sem as constantes de classe, e a comparacao viraria
+ * `2 === undefined`, ou seja, silenciosamente falsa. O valor e fixado pela spec.
+ */
+const EVENTSOURCE_CLOSED = 2;
 
 export function useSSEStream<T = unknown>(
   path: string | null,
@@ -108,6 +124,8 @@ export function useSSEStream<T = unknown>(
     let cancelled = false;
     let es: EventSource | null = null;
     let failureCount = 0;
+    let reopenAttempts = 0;
+    let reopenTimer: ReturnType<typeof setTimeout> | null = null;
 
     const push = (id: string, type: string, raw: string) => {
       let data: T;
@@ -158,6 +176,8 @@ export function useSSEStream<T = unknown>(
       es.onopen = () => {
         if (cancelled) return;
         failureCount = 0;
+        // Conexao boa: zera o backoff para que a proxima falha recomece curta.
+        reopenAttempts = 0;
         setConnected(true);
         setError(false);
       };
@@ -181,18 +201,39 @@ export function useSSEStream<T = unknown>(
         setError(true);
         setConnected(false);
         failureCount += 1;
-        if (failureCount >= TOKEN_REFRESH_THRESHOLD) {
-          // EC-3: token likely expired. Clear cached JWT so the next
-          // ensureSSEToken() forces a fresh exchange. The browser will
-          // auto-reconnect, but with a stale URL — close + reopen
-          // explicitly so the URL gets the new token.
-          clearToken();
-          es?.close();
-          failureCount = 0;
-          if (!cancelled) {
-            void open();
-          }
-        }
+
+        // B-014 — o limiar de 3 nunca disparava no caso que mais importa.
+        //
+        // Num erro HTTP nao-2xx (401 de token expirado, tipicamente) o browser
+        // FECHA o EventSource: readyState vai para CLOSED e ele NAO tenta
+        // reconectar. `onerror` roda uma unica vez, `failureCount` para em 1, e
+        // a recuperacao de token — que existe exatamente para esse cenario —
+        // nunca acontecia. O stream ficava morto em silencio ate a navegacao
+        // seguinte.
+        //
+        // CLOSED e terminal: recupera de imediato. O contador de 3 continua
+        // valendo para CONNECTING, em que o browser ja esta retentando sozinho e
+        // reabrir na primeira falha so brigaria com ele.
+        const fechadoPeloBrowser = es?.readyState === EVENTSOURCE_CLOSED;
+        if (!fechadoPeloBrowser && failureCount < TOKEN_REFRESH_THRESHOLD) return;
+
+        // EC-3: token provavelmente expirado. Limpa o JWT em cache para que o
+        // proximo ensureSSEToken() force uma troca nova, e reabre explicitamente
+        // — a reconexao nativa do browser reusaria a URL com o token velho.
+        clearToken();
+        es?.close();
+
+        // Backoff exponencial com jitter: sem ele, um 401 persistente (sessao de
+        // fato encerrada) vira um laco de reabertura contra o servidor.
+        const tentativa = reopenAttempts;
+        reopenAttempts += 1;
+        const base = Math.min(1000 * 2 ** tentativa, MAX_REOPEN_DELAY_MS);
+        const delay = base / 2 + Math.random() * (base / 2);
+
+        failureCount = 0;
+        reopenTimer = setTimeout(() => {
+          if (!cancelled) void open();
+        }, delay);
       };
     };
 
@@ -200,6 +241,7 @@ export function useSSEStream<T = unknown>(
 
     return () => {
       cancelled = true;
+      if (reopenTimer) clearTimeout(reopenTimer);
       es?.close();
       setConnected(false);
     };

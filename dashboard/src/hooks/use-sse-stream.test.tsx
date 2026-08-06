@@ -24,6 +24,10 @@ interface MockListenerMap {
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
+  // Espelha a API real: a spec define CONNECTING=0, OPEN=1, CLOSED=2.
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSED = 2;
 
   url: string;
   listeners: MockListenerMap = {};
@@ -62,6 +66,20 @@ class MockEventSource {
   }
 
   triggerError() {
+    this.onerror?.({});
+  }
+
+  /**
+   * B-014 — erro que FECHA a conexao, como o browser faz num HTTP nao-2xx
+   * (401 de token expirado). readyState vai para CLOSED e nao ha reconexao
+   * nativa: `onerror` roda UMA vez.
+   *
+   * O mock nao tinha esse caso — todo erro deixava readyState em CONNECTING —
+   * e e exatamente por isso que o defeito passou pela suite: o teste do limiar
+   * de 3 simulava um cenario que, no 401, nunca acontece.
+   */
+  triggerFatalError() {
+    this.readyState = 2;
     this.onerror?.({});
   }
 
@@ -173,8 +191,48 @@ describe('useSSEStream', () => {
     });
 
     await waitFor(() => expect(clearToken).toHaveBeenCalledTimes(1));
-    // After token refresh, a new EventSource is opened.
-    await waitFor(() => expect(MockEventSource.instances.length).toBe(2));
+    // B-014 — a reabertura agora passa por backoff exponencial com jitter, entao
+    // a nova conexao nao e sincrona com o terceiro erro.
+    await waitFor(
+      () => expect(MockEventSource.instances.length).toBe(2),
+      { timeout: 4000 },
+    );
+  });
+
+  it('test_um_unico_erro_FATAL_dispara_recuperacao_de_token_B014', async () => {
+    renderHook(() => useSSEStream('/api/v1/test', { eventTypes: ['x'] }));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+    const es = MockEventSource.instances[0];
+
+    // Um 401: o browser fecha a conexao e nao retenta. Antes de B-014, o
+    // failureCount parava em 1, o limiar de 3 nunca era atingido, e o stream
+    // ficava morto em silencio ate a proxima navegacao.
+    act(() => {
+      es.triggerFatalError();
+    });
+
+    await waitFor(() => expect(clearToken).toHaveBeenCalledTimes(1));
+    await waitFor(
+      () => expect(MockEventSource.instances.length).toBe(2),
+      { timeout: 4000 },
+    );
+  });
+
+  it('test_erro_NAO_fatal_isolado_nao_reabre_deixa_o_browser_retentar_B014', async () => {
+    renderHook(() => useSSEStream('/api/v1/test', { eventTypes: ['x'] }));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+    const es = MockEventSource.instances[0];
+
+    // readyState segue CONNECTING: o browser ja esta retentando sozinho, e
+    // reabrir na primeira falha so brigaria com ele. O limiar de 3 existe para
+    // este caminho — e este teste e o que impede B-014 de virar "reabre sempre".
+    act(() => {
+      es.triggerError();
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(clearToken).not.toHaveBeenCalled();
+    expect(MockEventSource.instances.length).toBe(1);
   });
 
   it('test_lastEventID_propagates_to_reconnect_url_EC9', async () => {
