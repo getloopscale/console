@@ -932,7 +932,7 @@ dod:
   - Criar src/hooks/use-debounced-value.ts (a implementacao ja existe duplicada em traces.tsx:157 e episodes.tsx:55) e usa-la em memory/skills.tsx; ou trocar por useQueryState do nuqs com limitUrlUpdates/throttle, que ja e dependencia
   - existe teste que prova o teto/dedup em `src/pages/memory/skills.tsx` sob carga sintetica
 
-## B-051 — /project-status mantem um EventSource aberto cujo resultado e descartado — assinatura SSE sem consumidor   [ ]
+## B-051 — /project-status mantem um EventSource aberto cujo resultado e descartado — assinatura SSE sem consumidor   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -943,7 +943,8 @@ category: state_synchronization_issue
 evidence: src/pages/project-status.tsx:77 — project-status.tsx:77 `useStatusStream(name, status?.environment ?? "production");` — sem destructuring, retorno ignorado; :206 `const signals = {...}` montado do REST; :29-30 comentario diz "T1.3 backend SSE handler not yet shipped — hook returns connected=false". src/hooks/use-status-stream.ts:144 documenta "T1.3.b: backend wire-up complete" e :194 `const es = new EventSource(url, {...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#16
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 4b81a36
 dod:
   - Decidir uma das duas: (a) consumir de verdade — `const { signals: live, connected } = useStatusStream(...)` e mesclar sobre o snapshot REST em project-status.tsx:206, ou (b) remover a chamada ate a UI existir
   - `src/pages/project-status.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
