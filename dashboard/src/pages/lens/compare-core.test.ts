@@ -6,7 +6,7 @@ import {
   isErrorStatus,
   type TraceCostSummary,
 } from './compare-core';
-import type { TraceSpanNode } from './trace-detail';
+import type { TraceSpanNode } from './trace-detail/helpers';
 
 // Helpers to build span nodes tersely.
 function span(

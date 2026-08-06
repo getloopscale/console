@@ -11,7 +11,7 @@ import { MetadataCard } from './metadata-card';
  * matching Skeleton (D-H2 risk-2 mitigation).
  */
 const LensTraceDetail = lazy(() =>
-  import('../trace-detail').then((m) => ({ default: m.LensTraceDetail })),
+  import('../trace-detail/index').then((m) => ({ default: m.LensTraceDetail })),
 );
 
 /**
