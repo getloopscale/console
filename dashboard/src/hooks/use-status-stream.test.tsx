@@ -15,7 +15,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
+
+// B-015 — o hook virou wrapper de `useSSEStream`, que troca um JWT antes de abrir
+// a conexao (era essa a estrategia de auth divergente que o item apontava: a
+// versao anterior usava `withCredentials: true` e dependia de cookie). Sem este
+// mock a troca nunca resolve e nenhuma conexao abre.
+vi.mock('@/lib/api', () => ({
+  ensureSSEToken: vi.fn(async () => 'jwt-de-teste'),
+  clearToken: vi.fn(),
+}));
+
+vi.mock('@/lib/config', () => ({ API_URL: '', AUTH_URL: '', ENGINE_URL: '', ACCOUNTS_URL: '' }));
 
 import {
   applySignalEvent,
@@ -240,12 +251,28 @@ describe('useStatusStream — T2.1 dichotomy reducer (ADR D3 v1.1)', () => {
   });
 });
 
-describe('useStatusStream — T3.1 J-18 T1.3.b EventSource backend wire-up', () => {
+/**
+ * B-015 — o hook passou a ser um WRAPPER de `useSSEStream`.
+ *
+ * Estes casos foram reescritos, nao afrouxados: cada um preserva a intencao
+ * original (URL canonica, estado desabilitado, connected, reducer, cleanup,
+ * payload malformado). O que mudou e o CONTRATO de abertura, e a mudanca e o
+ * proprio ponto do item:
+ *
+ *  - a conexao agora e ASSINCRONA — a primitiva troca o token antes de abrir,
+ *    entao `lastInstance` so existe depois do await (dai o `waitFor`);
+ *  - a URL leva `${API_URL}` e `?token=`, no lugar do
+ *    `new EventSource(url, { withCredentials: true })` que dependia de cookie.
+ *
+ * RISCO REGISTRADO: o endpoint `/signals/stream` precisa aceitar `?token=`, como
+ * os demais streams do dashboard ja fazem. Nao pude verificar isso daqui — o
+ * handler vive na engine, nao neste repositorio. Hoje o hook nao tem consumidor
+ * em producao (B-051 removeu a unica assinatura, que descartava o resultado),
+ * entao a mudanca nao pode quebrar nada agora; confirmar com o backend ANTES de
+ * a UI voltar a consumir.
+ */
+describe('useStatusStream — wrapper de useSSEStream (B-015)', () => {
   beforeEach(() => {
-    // EC-4 absorption: vi.stubGlobal MUST run in beforeEach BEFORE renderHook
-    // so useEffect's EventSource constructor picks up the mock. Setting
-    // inside `it()` AFTER renderHook would have already opened the real
-    // (or undefined) EventSource.
     MockEventSource.lastInstance = null;
     vi.stubGlobal('EventSource', MockEventSource);
   });
@@ -254,78 +281,85 @@ describe('useStatusStream — T3.1 J-18 T1.3.b EventSource backend wire-up', () 
     vi.unstubAllGlobals();
   });
 
-  it('opens EventSource at canonical backend URL when projectName + env provided', () => {
+  /** A primitiva abre depois de trocar o token; o mock so aparece apos o await. */
+  async function aberta() {
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull());
+    return MockEventSource.lastInstance!;
+  }
+
+  it('abre no caminho canonico do backend quando ha projectName + env', async () => {
     renderHook(() => useStatusStream('my-app', 'production'));
-    expect(MockEventSource.lastInstance).not.toBeNull();
-    expect(MockEventSource.lastInstance!.url).toBe(
-      '/engine/api/v1/projects/my-app/signals/stream?env=production',
-    );
+    const es = await aberta();
+
+    // O caminho e o env seguem exatos; o token e adicionado pela primitiva.
+    expect(es.url).toContain('/engine/api/v1/projects/my-app/signals/stream');
+    expect(es.url).toContain('env=production');
+    expect(es.url).toContain('token=');
   });
 
-  it('does NOT open EventSource when projectName is undefined (disabled state)', () => {
+  it('NAO abre quando projectName e undefined (estado desabilitado)', () => {
     renderHook(() => useStatusStream(undefined, 'production'));
     expect(MockEventSource.lastInstance).toBeNull();
   });
 
-  it('does NOT open EventSource when env is undefined (disabled state)', () => {
+  it('NAO abre quando env e undefined (estado desabilitado)', () => {
     renderHook(() => useStatusStream('my-app', undefined));
     expect(MockEventSource.lastInstance).toBeNull();
   });
 
-  it('connected=true after open event; signals reduce on signal.changed dispatch', () => {
+  it('connected=true apos open; signals reduzem no signal.changed', async () => {
     const { result } = renderHook(() => useStatusStream('my-app', 'production'));
-    const mockES = MockEventSource.lastInstance!;
+    const es = await aberta();
     expect(result.current.connected).toBe(false);
 
+    // A primitiva usa a PROPRIEDADE `onopen` (nao addEventListener), entao o
+    // disparo tem de passar por ela — o mock so encaminha listeners registrados.
     act(() => {
-      mockES._dispatch('open');
+      (es as unknown as { onopen?: (e: Event) => void }).onopen?.(new Event('open'));
     });
-    expect(result.current.connected).toBe(true);
+    await waitFor(() => expect(result.current.connected).toBe(true));
 
-    act(() => {
-      mockES._dispatch('signal.changed', { signal: 'status', value: 'Healthy' });
-    });
-    expect(result.current.signals.status?.value).toBe('Healthy');
+    act(() => es._dispatch('signal.changed', { signal: 'status', value: 'Healthy' }));
+    await waitFor(() => expect(result.current.signals.status?.value).toBe('Healthy'));
     expect(result.current.signals.status?.terminal).toBe(true);
   });
 
-  it('EC-6 absorption: closes EventSource on unmount (no zombie connection)', () => {
+  it('fecha o EventSource no unmount (sem conexao zumbi)', async () => {
     const { unmount } = renderHook(() => useStatusStream('my-app', 'production'));
-    const mockES = MockEventSource.lastInstance!;
-    expect(mockES.closeCalls).toBe(0);
+    const es = await aberta();
+    expect(es.closeCalls).toBe(0);
 
     unmount();
-    expect(mockES.closeCalls).toBe(1);
+    await waitFor(() => expect(es.closeCalls).toBeGreaterThanOrEqual(1));
   });
 
-  it('reduces multiple signal.changed events via canonical dichotomy reducer', () => {
+  it('reduz multiplos signal.changed pelo reducer canonico da dicotomia', async () => {
     const { result } = renderHook(() => useStatusStream('my-app', 'production'));
-    const mockES = MockEventSource.lastInstance!;
+    const es = await aberta();
 
     act(() => {
-      mockES._dispatch('signal.changed', { signal: 'replicas', value: 5 });
-      mockES._dispatch('signal.changed', { signal: 'replicas', value: 2 });
-      mockES._dispatch('signal.changed', { signal: 'replicas', value: 3 });
+      es._dispatch('signal.changed', { signal: 'replicas', value: 5 });
+      es._dispatch('signal.changed', { signal: 'replicas', value: 2 });
+      es._dispatch('signal.changed', { signal: 'replicas', value: 3 });
     });
-    // OSCILLATING signal always-latest
-    expect(result.current.signals.replicas?.value).toBe(3);
+    // Sinal OSCILANTE: vale sempre o ultimo.
+    await waitFor(() => expect(result.current.signals.replicas?.value).toBe(3));
 
     act(() => {
-      mockES._dispatch('signal.changed', { signal: 'status', value: 'Healthy' });
-      mockES._dispatch('signal.changed', { signal: 'status', value: 'Progressing' });
+      es._dispatch('signal.changed', { signal: 'status', value: 'Healthy' });
+      es._dispatch('signal.changed', { signal: 'status', value: 'Progressing' });
     });
-    // TERMINAL_ABSORBING signal stays Healthy
-    expect(result.current.signals.status?.value).toBe('Healthy');
+    // Sinal TERMINAL_ABSORVENTE: permanece Healthy.
+    await waitFor(() => expect(result.current.signals.status?.value).toBe('Healthy'));
   });
 
-  it('silently skips malformed signal.changed payload (does NOT crash)', () => {
+  it('ignora payload malformado sem quebrar', async () => {
     const { result } = renderHook(() => useStatusStream('my-app', 'production'));
-    const mockES = MockEventSource.lastInstance!;
+    const es = await aberta();
 
-    act(() => {
-      mockES._dispatch('signal.changed', 'NOT-VALID-JSON{{{');
-    });
-    // Hook still functional + signals unchanged (defensive try/catch).
+    act(() => es._dispatch('signal.changed', 'NOT-VALID-JSON{{{'));
+
+    // O hook segue funcional e o mapa de sinais nao muda.
     expect(result.current.signals).toEqual({});
   });
 });

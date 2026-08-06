@@ -19,7 +19,9 @@
  * ADR D3 amended dichotomy, edge-case absorption EC-4.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { useSSEStream, type SSEStreamEvent } from '@/hooks/use-sse-stream';
 
 /** The 8 canonical signal names for J-18 SignalGrid. */
 export type SignalName =
@@ -167,7 +169,6 @@ export function useStatusStream(
   injectedEvents?: SignalEvent[],
 ): UseStatusStreamResult {
   const [signals, setSignals] = useState<SignalsMap>({});
-  const [connected, setConnected] = useState<boolean>(false);
 
   // Apply injected events (test seam + reducer-only hermetic tests).
   // Backend SSE consumers below push through the same reducer path.
@@ -176,54 +177,42 @@ export function useStatusStream(
     setSignals((prev) => injectedEvents.reduce(applySignalEvent, prev));
   }, [injectedEvents]);
 
-  // T1.3.b backend EventSource wire — opens when projectName AND env present.
-  useEffect(() => {
-    if (!projectName || !env) {
-      // Safe-degraded: no project/env → no subscription
-      setConnected(false);
-      return;
+  // B-015 — este bloco era um EventSource CRU, aberto e gerenciado a mao.
+  //
+  // Havia duas implementacoes de ciclo de vida de EventSource no repo, e elas
+  // divergiam justamente onde mais importa: `useSSEStream` faz refresh de token,
+  // reconexao com backoff e cap FIFO; esta abria `new EventSource(url, {
+  // withCredentials: true })` e tratava `error` como "desconectado", sem
+  // nenhuma tentativa de recuperacao. Uma expiracao de token deixava a assinatura
+  // morta em silencio ate a proxima navegacao.
+  //
+  // Agora e um wrapper da primitiva. O reducer `applySignalEvent` — que e puro e
+  // ja era testado isoladamente — segue sendo o dono da transicao de estado; o
+  // que mudou e quem cuida da conexao.
+  const path =
+    projectName && env
+      ? `/engine/api/v1/projects/${encodeURIComponent(projectName)}/signals/stream?env=${encodeURIComponent(env)}`
+      : null;
+
+  // O estado e aplicado por EVENTO, e nao derivado do buffer da primitiva, de
+  // proposito: o buffer tem cap FIFO, e um sinal que caisse por antiguidade
+  // sumiria do mapa mesmo continuando valido. `signals` e um acumulado, nao uma
+  // janela.
+  const handleSignal = useCallback((event: SSEStreamEvent<SignalEvent>) => {
+    const payload = event.data;
+    if (payload && payload.signal) {
+      setSignals((prev) => applySignalEvent(prev, payload));
     }
-    // Avoid double-open in environments where EventSource isn't available
-    // (e.g., jsdom without polyfill) — fail-soft to keep tests deterministic.
-    if (typeof EventSource === 'undefined') {
-      setConnected(false);
-      return;
-    }
+  }, []);
 
-    const url = `/engine/api/v1/projects/${encodeURIComponent(projectName)}/signals/stream?env=${encodeURIComponent(env)}`;
-    const es = new EventSource(url, { withCredentials: true });
+  const stream = useSSEStream<SignalEvent>(path, {
+    // O backend emite `event: signal.changed` nomeado — `onmessage` sozinho
+    // descartaria (feedback_eventsource_named_events_vs_onmessage).
+    eventTypes: ['signal.changed'],
+    onEvent: handleSignal,
+  });
 
-    const handleOpen = () => setConnected(true);
-    const handleError = () => setConnected(false);
-    const handleSignal = (rawEvent: MessageEvent) => {
-      try {
-        const payload = JSON.parse(rawEvent.data) as SignalEvent;
-        if (payload && payload.signal) {
-          setSignals((prev) => applySignalEvent(prev, payload));
-        }
-      } catch {
-        // Malformed event payload — silently skip. Backend emits canonical
-        // JSON per T2.1; corruption here would be wire-level which the
-        // browser's SSE parser already rejects upstream.
-      }
-    };
-
-    es.addEventListener('open', handleOpen);
-    es.addEventListener('error', handleError);
-    // EC absorption per memory feedback_eventsource_named_events_vs_onmessage:
-    // backend emits `event: signal.changed` named events; addEventListener
-    // is the canonical listener. onmessage alone would silently drop.
-    es.addEventListener('signal.changed', handleSignal as EventListener);
-
-    // EC-6 absorption: cleanup on unmount closes EventSource so dev
-    // hot-reload doesn't accumulate zombie connections.
-    return () => {
-      es.removeEventListener('open', handleOpen);
-      es.removeEventListener('error', handleError);
-      es.removeEventListener('signal.changed', handleSignal as EventListener);
-      es.close();
-    };
-  }, [projectName, env]);
+  const connected = stream.connected;
 
   // Memoize so consumers re-render only on actual state change.
   return useMemo(
