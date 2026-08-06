@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo} from 'react';
 import { Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge, Button, Input } from '@usetheo/ui';
 import type { LogLine, LogLevel } from '@/lib/api/types';
@@ -58,6 +58,52 @@ const LEVELS: { value: 'all' | LogLevel; label: string }[] = [
  * than virtual scrolling (acceptable up to ~5000 lines; for larger streams
  * we'd need react-virtual — deferred).
  */
+/**
+ * Uma linha do log.
+ *
+ * B-025 — extraida e MEMOIZADA porque `parseAnsi` corre por linha no render, e
+ * antes disso o `.map` inteiro re-executava a cada tecla na busca ou troca de
+ * severidade. Com ate 5.000 linhas em memoria (o teto de B-016), digitar no
+ * filtro re-parseava ANSI de todas elas a cada caractere.
+ *
+ * `React.memo` e explicito, e nao deixado para o React Compiler: o compiler
+ * memoiza dentro do escopo de um componente, e o custo aqui estava num `.map`
+ * do componente PAI — cada iteracao recriava o no e re-chamava `parseAnsi`.
+ * Dar a linha o seu proprio componente e o que cria o ponto de memoizacao.
+ *
+ * Isto NAO e virtualizacao: o DOM continua com um no por linha, e B-025 segue
+ * aberto para isso. E a metade barata e sem risco da remediacao — a outra
+ * metade muda o permalink por hash e o auto-scroll, que nao tem e2e cobrindo.
+ */
+const LogLineRow = memo(function LogLineRow({ line, index }: { line: LogLine; index: number }) {
+  return (
+    <div
+      data-line-index={index}
+      onClick={() => {
+        // J-19 T2.1 (R5): permalink — clicking a line sets the URL hash
+        // so a line is shareable/deep-linkable.
+        window.location.hash = `#L${String(index)}`;
+      }}
+      className="flex items-start gap-3 border-b border-border/30 px-4 py-1.5 cursor-pointer"
+    >
+      <span className="shrink-0 tabular-nums text-muted-foreground">
+        {line.ts.slice(11, 19)}
+      </span>
+      <Badge variant={LEVEL_BADGE[line.level]} className="shrink-0 text-label uppercase">
+        {line.level}
+      </Badge>
+      {line.source && (
+        <Badge variant="outline" className="shrink-0 text-label">
+          {line.source}
+        </Badge>
+      )}
+      <span className={`flex-1 break-all ${LEVEL_COLOR[line.level]}`}>
+        {parseAnsi(line.msg)}
+      </span>
+    </div>
+  );
+});
+
 export function LogViewer({
   lines,
   connected,
@@ -235,34 +281,7 @@ export function LogViewer({
           )
         ) : (
           filtered.map((line, i) => (
-            <div
-              key={`${line.ts}-${i}`}
-              data-line-index={i}
-              onClick={() => {
-                // J-19 T2.1 (R5): permalink — clicking a line sets the URL hash
-                // so a line is shareable/deep-linkable.
-                window.location.hash = `#L${String(i)}`;
-              }}
-              className="flex items-start gap-3 border-b border-border/30 px-4 py-1.5 cursor-pointer"
-            >
-              <span className="shrink-0 tabular-nums text-muted-foreground">
-                {line.ts.slice(11, 19)}
-              </span>
-              <Badge
-                variant={LEVEL_BADGE[line.level]}
-                className="shrink-0 text-label uppercase"
-              >
-                {line.level}
-              </Badge>
-              {line.source && (
-                <Badge variant="outline" className="shrink-0 text-label">
-                  {line.source}
-                </Badge>
-              )}
-              <span className={`flex-1 break-all ${LEVEL_COLOR[line.level]}`}>
-                {parseAnsi(line.msg)}
-              </span>
-            </div>
+            <LogLineRow key={`${line.ts}-${i}`} line={line} index={i} />
           ))
         )}
       </div>
