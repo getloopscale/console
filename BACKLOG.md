@@ -1518,7 +1518,7 @@ dod:
   - Delete the four symbols and run npx tsc --noEmit
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/lib/auth.ts`
 
-## B-085 — Vendorizar as camadas de tokens CSS do @usetheo/ui dentro de src/vendor/ em vez de fazer downgrade do pacote   [ ]
+## B-085 — Vendorizar as camadas de tokens CSS do @usetheo/ui dentro de src/vendor/ em vez de fazer downgrade do pacote   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1529,12 +1529,13 @@ category: complexity_vs_simplicity
 evidence: src/vendor/usetheo-ui/README.md:1 — src/vendor/usetheo-ui/README.md — secoes 'Why they are here' (com a alternativa rejeitada e o motivo), tabela de proveniencia por arquivo, e 'Maintenance' com criterio de saida. src/index.css:31-37 replica o motivo inline e importa os tres arquivos. Deriva medida: README fala de @usetheo/ui@0.22; package.json fixa ^0.35.1; node_modules/@usetheo/ui@0.35.1 exporta './preset' (JS), nao...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#6
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 671c175
 dod:
   - Manter a decisao — esta correta e bem fundamentada
   - mudanca verificavel em `src/vendor/usetheo-ui/README.md` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-086 — Camada local src/components/ui/ com 3 wrappers sobre a biblioteca de design   [ ]
+## B-086 — Camada local src/components/ui/ com 3 wrappers sobre a biblioteca de design   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1545,7 +1546,8 @@ category: complexity_vs_simplicity
 evidence: src/components/ui/alert-guard.tsx:3 — src/components/ui/ contem exatamente 5 arquivos (3 fontes + 2 testes): alert-guard.tsx, app-modal.tsx, dialog.tsx. alert-guard.tsx:3-8 docblock com o numero do issue upstream e o sintoma. eslint.config.js:85-101 ban de no-restricted-imports sobre o simbolo Alert com mensagem acionavel; eslint.config.js:104-107 override para o guard. 97 arquivos importam de @/components/ui/.
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#7
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 671c175
 dod:
   - Nenhuma acao
   - mudanca verificavel em `src/components/ui/alert-guard.tsx` com `npx tsc --noEmit` + `npm test` verdes
