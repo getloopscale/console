@@ -1542,7 +1542,7 @@ dod:
   - Nenhuma acao
   - mudanca verificavel em `src/components/ui/alert-guard.tsx` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-087 — Manter a camada de mocks (MSW-like, 2847 LOC) dentro de src/ em vez de num pacote separado, contida por import dinamico + gate de CI   [ ]
+## B-087 — Manter a camada de mocks (MSW-like, 2847 LOC) dentro de src/ em vez de num pacote separado, contida por import dinamico + gate de CI   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1553,7 +1553,8 @@ category: complexity_vs_simplicity
 evidence: src/main.tsx:26 — src/main.tsx:26-40 docblock do gate + import() dinamico duplo. src/lib/mocks/index.ts:1-9 barrel com o contrato ('All gated by VITE_USE_MOCKS=true. Production builds tree-shake everything.'). package.json:19 script tree-shake-check com grep no dist e mensagem de falha citando T7.1/EC-10. Fase 2 mediu 0 bytes de mocks no bundle de producao.
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#9
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 4723b6a
 dod:
   - Nenhuma mudanca estrutural
   - mudanca verificavel em `src/main.tsx` com `npx tsc --noEmit` + `npm test` verdes
