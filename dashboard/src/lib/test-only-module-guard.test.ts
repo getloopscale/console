@@ -40,7 +40,6 @@ const ALLOWLIST = new Set([
   // (wire vs apagar) registrada no item; safe-redirect.ts em especial e um guard
   // de open-redirect que ninguem chama, o que e uma lacuna de seguranca latente.
   'pages/lens/compare-core.ts',
-  'lib/clipboard.ts',
   'lib/auth/safe-redirect.ts',
   'lib/format-ts.ts',
   'lib/format-build-error-patterns.ts',
