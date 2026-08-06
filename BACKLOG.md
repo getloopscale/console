@@ -620,6 +620,7 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-030, B-069, B-076
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+partial_progress: 5a4263b — SEGURANCA: safe-redirect.ts LIGADO. device-verify.tsx navegava para window.location.href com URL vinda direto da resposta do servidor, sem checagem (OWASP A01). O guard existia, testado, com zero chamadores. Fail-closed aplicado + teste que prova a rejeicao de host hostil. recovery.tsx verificado e NAO alterado: extrai o flow= por regex, nao navega.
 partial_progress: b3463f6 — clipboard.ts LIGADO aos dois call sites que copiavam com navigator.clipboard cru (live-url-hero, promptly/consumo). Era defeito real: sem contexto seguro o objeto e undefined e o operador via "Copy failed" com o fallback disponivel. Saiu da allowlist do guard. RESTAM: balde wire (safe-redirect.ts — guard de open-redirect sem chamador, lacuna de seguranca latente; compare-core.ts) e balde apagar (9 componentes, pende dono de produto).
 partial_progress: o guard encontrou OITO modulos alem dos listados no achado, incluindo table-skeleton.tsx que nao constava. Todos na allowlist com o item; a triagem wire-vs-apagar segue pendente
 dod:
