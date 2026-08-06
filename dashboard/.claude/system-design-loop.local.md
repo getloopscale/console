@@ -1,10 +1,10 @@
 ---
-active: true
+active: false
 target: /home/paulo/Projetos/theo/theo-platform/theo-cloud/dashboard
 scope: organizacao de pastas, fronteiras de modulos e componentizacao do frontend
   React/Vite
-current_phase: 2
-phase_name: boundaries
+current_phase: 6
+phase_name: report
 phase_iteration: 2
 global_iteration: 2
 max_global_iterations: 80
@@ -15,15 +15,15 @@ db_path: /home/paulo/Projetos/theo/theo-platform/theo-cloud/dashboard/system-des
 mode: full
 severity_threshold: medium
 modules_total: 22
-boundary_findings_total: 0
-data_flows_total: 0
-state_findings_total: 0
-scaling_findings_total: 0
-deletion_findings_total: 0
-tradeoff_decisions_total: 0
-system_design_findings_total: 0
+boundary_findings_total: 19
+data_flows_total: 15
+state_findings_total: 19
+scaling_findings_total: 10
+deletion_findings_total: 24
+tradeoff_decisions_total: 19
+system_design_findings_total: 15
 findings_critical: 0
-findings_high: 0
+findings_high: 31
 ---
 
 # Staff-Level System Design Audit
