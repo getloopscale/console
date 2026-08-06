@@ -22,49 +22,39 @@
   },
   "size-limit": [
     {
-      "name": "01 — react-vendor (React 19 runtime)",
+      "name": "01 — react-vendor (React 19 runtime) [eager]",
       "path": "dist/assets/react-vendor-*.js",
       "limit": "55 KB"
     },
     {
-      "name": "02 — @usetheo/ui (design system, post-0.10 per-component dist)",
-      "path": "dist/assets/theo-ui-*.js",
-      "limit": "18 KB"
-    },
-    {
-      "name": "03 — radix (transitive via @usetheo/ui)",
-      "path": "dist/assets/radix-*.js",
-      "limit": "26 KB"
-    },
-    {
-      "name": "04 — vendor (misc transitive deps)",
-      "path": "dist/assets/vendor-*.js",
-      "limit": "25 KB"
-    },
-    {
-      "name": "05 — router (react-router-dom)",
+      "name": "02 — router (react-router-dom) [eager]",
       "path": "dist/assets/router-*.js",
       "limit": "15 KB"
     },
     {
-      "name": "06 — lucide (icon set)",
-      "path": "dist/assets/lucide-*.js",
-      "limit": "5 KB"
-    },
-    {
-      "name": "07 — app entry (index)",
+      "name": "03 — app entry (index) [eager]",
       "path": "dist/assets/index-*.js",
-      "limit": "12 KB"
+      "limit": "25 KB"
     },
     {
-      "name": "08 — per-route chunk hard cap (worst-case)",
+      "name": "04 — vendor (todo node_modules nao-React) [eager] — ver B-021/B-073",
+      "path": "dist/assets/vendor-*.js",
+      "limit": "400 KB"
+    },
+    {
+      "name": "05 — per-route chunk (worst-case, lazy)",
       "path": "dist/assets/register-*.js",
       "limit": "10 KB"
     },
     {
-      "name": "TOTAL initial JS — HARD GATE (Sprint 2 CommandPalette cmdk bump, brotli)",
-      "path": "dist/assets/*.js",
-      "limit": "225 KB"
+      "name": "TOTAL EAGER — HARD GATE (os 4 chunks com modulepreload no index.html, brotli)",
+      "path": [
+        "dist/assets/index-*.js",
+        "dist/assets/react-vendor-*.js",
+        "dist/assets/router-*.js",
+        "dist/assets/vendor-*.js"
+      ],
+      "limit": "490 kB"
     }
   ],
   "dependencies": {

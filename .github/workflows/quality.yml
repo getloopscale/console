@@ -163,6 +163,20 @@ jobs:
       # silencio ate alguem auditar de novo.
       #
       # Reusa o dist/ do passo Build acima — nao rebuilda.
+      # B-022/B-035 — o orcamento de bundle existia e nao valia nada: tres das nove
+      # entradas apontavam para chunks que o manual-chunks.ts nao emite mais
+      # (theo-ui, radix, lucide), e o glob do TOTAL era `dist/assets/*.js`, que
+      # somava os 129 chunks — inclusive os lazy que o usuario nunca baixa no
+      # primeiro paint. Um gate que passa por apontar para arquivo inexistente e
+      # pior que gate nenhum: produz um verde que nao significa nada.
+      #
+      # Reancorado nos chunks reais e no conjunto EAGER (os 4 com modulepreload
+      # em dist/index.html), com os limites nos valores MEDIDOS. Isso trava a
+      # divida onde ela esta hoje; derruba-la e o trabalho de B-021/B-073, que
+      # devem tirar ~200 kB do vendor.
+      - name: Bundle budget (size-limit)
+        run: npx size-limit
+
       - name: Tree-shake check (mocks fora do bundle de producao)
         run: |
           if grep -q 'lib/mocks' dist/assets/*.js; then
