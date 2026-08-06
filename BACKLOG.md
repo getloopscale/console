@@ -663,7 +663,7 @@ dod:
   - Escolher um dos dois: (a) promover o orcamento a regra executavel — ESLint 'max-lines' com o valor 500 e um override list para os arquivos legados — e apagar as citacoes ao documento fantasma; ou (b) declarar o orcamento morto e remover as citacoes
   - mudanca verificavel em `src/pages/lens/trace-detail.tsx` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-034 — Valor do token --primary definido em DOIS lugares, cada um com docblock afirmando ser o que vale em runtime, com valores diferentes   [ ]
+## B-034 — Valor do token --primary definido em DOIS lugares, cada um com docblock afirmando ser o que vale em runtime, com valores diferentes   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -675,7 +675,8 @@ evidence: src/index.css:140 — src/main.tsx:88-96 comentario 'o index.css NAO t
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#5
 overlaps: B-007, B-071
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: cf7a55e — MEDIDO no app buildado: oklch(0.57 0.13 302) vence (TheoUIProvider aplica no elemento). O docblock do index.css que se dizia "the block the app actually uses" era FALSO. CSS alinhado ao vencedor em vez de apagado (ele e o fallback pre-hidratacao). RESIDUO: fixar o valor COMPUTADO exige Playwright — o teste atual so prova que as duas fontes declaram o mesmo.
 dod:
   - Medir uma vez com getComputedStyle no app buildado, apagar o perdedor, e fixar o vencedor num teste de regressao (jsdom nao resolve cascade de @import; use um teste Playwright que le getComputedStyle(document.body).getPropertyValue('--primary'))
   - mudanca verificavel em `src/index.css` com `npx tsc --noEmit` + `npm test` verdes
