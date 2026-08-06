@@ -1653,6 +1653,63 @@ residencia — destravam toda a faixa [A]), **B-013/B-014/B-015** (fetch cru
 pulando o pipeline de auth; recuperacao de token no SSE), **B-021/B-073** (~200
 KB brotli fora do caminho eager, com o mecanismo ja provado no proprio arquivo).
 
+---
+
+## Encaminhamento dos itens grandes para `/to-plan` (2026-08-06)
+
+Os 20 itens da faixa [A] nao sao executaveis direto: `HOW-TO-USE.md` prescreve
+`PLAN → IMPLEMENT`, e cada um deles move dezenas de arquivos ou centenas de call
+sites. Executa-los sem plano seria pular a fase que existe exatamente para eles.
+
+Eles nao sao 20 trabalhos independentes — sao **cinco**, e a ordem entre eles tem
+consequencia. Este agrupamento e o produto da execucao desta sessao: cada plano
+abaixo ja tem escopo, dependencia e criterio de pronto derivados do que foi
+medido ao fechar os 46 itens menores.
+
+### P1 — Eixo de organizacao (destrava os outros quatro)
+**Itens:** B-002, B-004, B-006, B-008, B-041, B-052
+**Depende de:** aceite do ADR-0001 (decisao humana, nao tecnica)
+**Por que primeiro:** mover arquivos antes de escrever a regra de residencia e
+como a arvore atual foi produzida. Os tres gates criados nesta sessao
+(`no-restricted-imports` de direcao, `max-lines`, guard de modulo test-only) ja
+protegem a migracao — a primeira regressao falha no PR, o que nao era verdade
+ha uma sessao.
+**Pronto quando:** `src/features/<dominio>/` existe com `index.ts` por feature,
+`src/hooks` cai de 44 para ~6 e `src/lib` de ~39 para ~10.
+
+### P2 — Camada de acesso a dados
+**Itens:** B-011, B-012, B-019, B-036, B-048, B-053
+**Depende de:** P1 (as features precisam existir para receber `api/` e `hooks/`)
+**Medido:** 102 das 126 `useQuery` moram em paginas; 130 das 208 query keys sao
+tuplas ad-hoc copiadas a mao.
+**Aviso derivado desta sessao:** quatro bugs de invalidacao foram corrigidos um a
+um (B-017, B-018, B-060, B-059). Todos tinham a MESMA causa — a lista lida numa
+arvore de chave e as mutations invalidando outra. Este plano deve fechar a
+classe, nao os quatro casos.
+
+### P3 — Decomposicao de paginas
+**Itens:** B-003, B-009, B-046
+**Depende de:** P1 (as paginas vao mudar de lugar antes de mudar de tamanho)
+**Medido:** 18 arquivos acima de 500 LOC, ja travados na allowlist de
+`max-lines` com o tamanho atual. A lista so encolhe.
+**Padrao validado:** `pages/lens/trace-detail/` — helpers puro + subcomponentes +
+`index.tsx` como composition root.
+
+### P4 — Propriedade de conexao e estado
+**Itens:** B-001, B-020, B-025, B-047, B-067
+**Nao depende de P1**
+**Por que sao um plano so:** todos respondem a mesma pergunta — quem e dono do
+que. Do stream SSE (B-020), do playground (B-001), do scroll (B-025), do estado
+de conexao (B-047), da camada de mock (B-067). Nenhum e bug; sao decisoes de
+composicao, e cada um exige cobertura de teste que hoje nao existe. Escrever essa
+cobertura E o trabalho.
+
+### P5 — Higiene de deprecacao
+**Itens:** B-029, B-031, B-063, B-068
+**Nao depende dos outros**
+**Ja mecanizado:** o guard de modulo test-only trava a classe de B-031 com 13
+casos na allowlist; a triagem wire-vs-apagar de cada um permanece.
+
 ## Rollback
 
 Um item registrado por engano e marcado `status: killed` com `kill_reason` — nunca
