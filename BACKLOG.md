@@ -295,7 +295,7 @@ dod:
   - Extrair um modulo de data-access por feature no padrao ja emergente em src/components/promptly/promptly-api.ts, src/components/trust/trust-api.ts e src/components/skills/skills-api.ts, movido para src/features/<feature>/api/ + src/features/<feature>/hooks/
   - `src/pages/lens/traces.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-013 — Promote-to-production e rollback fazem fetch cru, pulando o pipeline de auth/erro do cloudFetch   [ ]
+## B-013 — Promote-to-production e rollback fazem fetch cru, pulando o pipeline de auth/erro do cloudFetch   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -306,7 +306,8 @@ category: state_synchronization_issue
 evidence: src/components/dialogs/promote-to-production-dialog.tsx:113 — promote-to-production-dialog.tsx:113 usa `await fetch(`${API_URL}/engine/api/v1/projects/.../promote`, {headers:{Authorization: `Bearer ${token}`}})` com token vindo de ensureSSEToken(); mesmo padrao em src/components/dialogs/rollback-dialog.tsx:93. cloudFetch (src/lib/api.ts:226) faz refresh-e-retry no 401 (linha 314) e maybeEmitPaymentRequired no 402 (linha 381) — nada disso roda nestes dois...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#3
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 702fc1d
 dod:
   - Trocar por cloudFetch(path,{method:POST,body},{throwOnError:true}) de src/lib/api.ts:226 e mover a chamada para src/hooks/mutations/use-promote.ts e use-rollback.ts (src/hooks/mutations/ ja existe com 7 mutations)
   - `src/components/dialogs/promote-to-production-dialog.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
