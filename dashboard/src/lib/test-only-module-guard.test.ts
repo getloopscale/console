@@ -34,7 +34,6 @@ const SRC = resolve(__dirname, '..');
  */
 const ALLOWLIST = new Set([
   // B-030 — hooks de comportamento visivel, aguardando decisao de wire-ou-apagar.
-  'hooks/use-domain-status-polling.ts',
   'hooks/use-first-deploy-trigger.ts',
   // B-031 — doze modulos sem importador nao-teste. Triagem em dois baldes
   // (wire vs apagar) registrada no item; safe-redirect.ts em especial e um guard

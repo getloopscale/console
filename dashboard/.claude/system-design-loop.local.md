@@ -1,12 +1,12 @@
 ---
-active: false
+active: true
 target: /home/paulo/Projetos/theo/theo-platform/theo-cloud/dashboard
 scope: organizacao de pastas, fronteiras de modulos e componentizacao do frontend
   React/Vite
 current_phase: 6
 phase_name: report
-phase_iteration: 2
-global_iteration: 2
+phase_iteration: 1
+global_iteration: 3
 max_global_iterations: 80
 completion_promise: SYSTEM DESIGN AUDIT COMPLETE
 started_at: '2026-08-06T14:22:09Z'
