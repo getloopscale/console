@@ -1274,7 +1274,7 @@ dod:
   - Introduce one minimal build-time flag module (a typed record read from import.meta.env, no SaaS dependency needed at this scale) with a mandatory sunset date per flag, and route new partially-built features through it instead of merging them unwired
   - o marcador/mecanismo existe em `src/app.tsx` e ha regra de lint ou gate de CI que falha na ausencia dele
 
-## B-070 — Fronteiras arquiteturais entre camadas/features nao sao enforced por ferramenta — a unica regra executavel de import bane um simbolo   [ ]
+## B-070 — Fronteiras arquiteturais entre camadas/features nao sao enforced por ferramenta — a unica regra executavel de import bane um simbolo   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1286,7 +1286,8 @@ evidence: eslint.config.js:89 — eslint.config.js:89-101 — unica entrada de n
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#3
 overlaps: B-002, B-004, B-008, B-032
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 41b64bc (a regra achou uma violacao real na primeira execucao — components/lens/ask-thread.tsx importava de pages/ — que a medicao da auditoria dava como ZERO. Markdown movido para components/common/)
 dod:
   - Depois de escrever o ADR do achado #1, codificar a regra de residencia em import/no-restricted-paths (ja disponivel via eslint-plugin-import) — mesmo que comece permissiva (ex.: 'lib/ nao pode importar de pages/ nem de components/')
   - mudanca verificavel em `eslint.config.js` com `npx tsc --noEmit` + `npm test` verdes
