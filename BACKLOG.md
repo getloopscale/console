@@ -243,7 +243,7 @@ dod:
   - Generalizar o gate que ja existe: trocar login-loc-budget.test.ts por uma regra de eslint (max-lines com max 500 para src/**/*.tsx) com uma allowlist explicita dos 32 arquivos atuais, e proibir que a allowlist cresca. Isso trava a divida e nao exige refactor de tudo de uma vez
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/promptly/detail.tsx` e passa depois da mudanca
 
-## B-010 — Nao existe contrato escrito de fronteira de modulo para o dashboard, e o codigo cita um que nao esta no repositorio   [ ]
+## B-010 — Nao existe contrato escrito de fronteira de modulo para o dashboard, e o codigo cita um que nao esta no repositorio   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -255,7 +255,8 @@ evidence: src/pages/lens/trace-detail.tsx:5 — src/pages/lens/trace-detail.tsx:
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#16
 overlaps: B-033, B-078
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 9314954
 dod:
   - Escrever dashboard/docs/architecture.md curto (uma pagina) fixando cinco decisoes que hoje sao ambiguas, e so entao migrar codigo: (1) o eixo de organizacao (feature-first sob src/features/, com src/components e src/hooks reservados ao que e cross-feature); (2) o criterio objetivo de quando um...
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/lens/trace-detail.tsx` e passa depois da mudanca
@@ -626,6 +627,7 @@ overlaps: B-002, B-004, B-008, B-070
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+partial_progress: 9314954 — ADR-0001 (eixo + regra de residencia) escrito e versionado em dashboard/docs/adr/. NAO fechado: o ADR esta em status proposed. Declara-lo accepted e decisao do time, nao de quem escreveu o rascunho.
 dod:
   - Escrever um ADR curto que declare o eixo de organizacao e a regra de residencia ('um hook com um unico consumidor mora com a feature; lib/ so aceita modulo com >=2 features consumidoras'), e entao migrar incrementalmente para package-by-feature comecando por lens e deploy — as duas com maior...
   - mudanca verificavel em `src` com `npx tsc --noEmit` + `npm test` verdes
@@ -644,6 +646,7 @@ overlaps: B-010, B-078
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+partial_progress: 9314954 — ADR-0002 (orcamento de LoC) escrito e versionado; as citacoes no codigo agora resolvem. NAO fechado: o ADR esta em status proposed. Declara-lo accepted e decisao do time, nao de quem escreveu o rascunho.
 dod:
   - Escolher um dos dois: (a) promover o orcamento a regra executavel — ESLint 'max-lines' com o valor 500 e um override list para os arquivos legados — e apagar as citacoes ao documento fantasma; ou (b) declarar o orcamento morto e remover as citacoes
   - mudanca verificavel em `src/pages/lens/trace-detail.tsx` com `npx tsc --noEmit` + `npm test` verdes
@@ -1392,7 +1395,7 @@ dod:
   - Escrever meia pagina classificando os dados em duas ou tres classes (operacional volatil: builds, deploys, status de dominio; configuracao estavel: settings, team, billing) e fixar staleTime/refetch por classe no queryClient, com override explicito por excecao
   - mudanca verificavel em `src/lib/query-client.ts` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-078 — Registro de decisoes arquiteturais feito em docblocks de codigo citando planos/ADRs que foram removidos do versionamento, com o diretorio de...   [ ]
+## B-078 — Registro de decisoes arquiteturais feito em docblocks de codigo citando planos/ADRs que foram removidos do versionamento, com o diretorio de...   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1405,7 +1408,8 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-010, B-033
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 9314954
 dod:
   - Escrever no repositorio, como arquivos, apenas os ADRs que continuam vinculantes — os candidatos ja estao identificados nesta fase: eixo de organizacao de codigo, orcamento de LoC, split @usetheo/ui vs @theokit/ui, justificativa do service worker, politica do React Compiler, obrigatoriedade da...
   - mudanca verificavel em `.claude/knowledge-base/adrs` com `npx tsc --noEmit` + `npm test` verdes
