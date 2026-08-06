@@ -843,7 +843,7 @@ dod:
   - Padronizar na semantica A, que e a de 15 dos 16 casos e a mais legivel: X.tsx e o root, X/ sao as partes, e ninguem dentro de X/ importa X
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/lens/traces.tsx` e passa depois da mudanca
 
-## B-045 — Padrao snapshot-REST + delta-SSE reimplementado a mao em logs-tab com useState, em vez do hook que ja resolve   [ ]
+## B-045 — Padrao snapshot-REST + delta-SSE reimplementado a mao em logs-tab com useState, em vez do hook que ja resolve   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -854,7 +854,8 @@ category: state_synchronization_issue
 evidence: src/pages/deployment-tabs/logs-tab.tsx:128 — logs-tab.tsx:128-136 declara paused/historical/historicalLoading/historicalError/refreshing; :152-177 fetch manual; :211-227 handleRefresh duplica o mesmo fetch; :190 merge. Compare com src/hooks/use-deployments-list-stream.ts:82-193 que encapsula snapshot+delta+refetch atras de uma interface.
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#7
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 98a292f (fechou tambem um escape do proprio B-016 — o Refresh manual escrevia o snapshot sem cap — e corrigiu um guard de click-storm que lia state em vez de ref)
 dod:
   - Extrair src/hooks/use-build-logs.ts (snapshot REST + useLogStream + merge + refetch), espelhando a assinatura de src/hooks/use-deployments-list-stream.ts:54
   - `src/pages/deployment-tabs/logs-tab.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
