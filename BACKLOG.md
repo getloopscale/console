@@ -79,6 +79,13 @@ abrir PR: sao cross-validacoes que se confirmam, nao trabalho independente.
 
 Proximo id livre: **B-088**.
 
+**O que `[x]` e `status: shipped` significam aqui.** O contrato canonico reserva
+`shipped` para o que passou por `/release` — tag semver em `main`. Este registro usa o
+par `[x]` + `status: shipped` + `resolved_in: <sha>` para dizer algo mais fraco e
+verificavel: **a mudanca esta implementada, validada e commitada em `workspace`**. A
+promocao para `main` acontece em release agregado, nao por item. Um item marcado aqui
+carrega sempre o sha que o fecha — sem ele, a marca nao vale nada.
+
 Ordenados por severidade (high → medium → low → info) e, dentro dela, pela dimensao da
 auditoria. `severity` traz o `severity_source` entre parenteses: `consensus` (concordancia
 ampla da industria), `default` (limiar publicado adotado) ou `heuristic` (regra de bolso
@@ -151,7 +158,7 @@ dod:
   - Mover os 33 hooks feature-private para dentro da respectiva feature (src/features/scale/hooks/use-scale-cost.ts etc.) na mesma migracao do achado de package-by-layer
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/hooks/use-scale-cost.ts` e passa depois da mudanca
 
-## B-005 — Dois componentes AddSecretSheet com o mesmo nome em pastas concorrentes; o legado tem contrato de backend comprovadamente errado e continua...   [ ]
+## B-005 — Dois componentes AddSecretSheet com o mesmo nome em pastas concorrentes; o legado tem contrato de backend comprovadamente errado e continua...   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -163,7 +170,8 @@ evidence: src/components/sheets/add-secret-sheet.tsx:22 — src/components/sheet
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#9
 overlaps: B-026
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - Deletar src/components/sheets/add-secret-sheet.tsx agora — nao ha importador e a versao canonica ja esta em producao
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/components/sheets/add-secret-sheet.tsx` e passa depois da mudanca
@@ -498,7 +506,7 @@ dod:
   - Virtualizar a lista em src/components/logs/log-viewer.tsx:237
   - o request emitido por `src/components/logs/log-viewer.tsx` carrega teto explicito (limit/offset) — verificavel no painel Network ou por teste sobre o handler MSW
 
-## B-026 — Duplicate AddSecretSheet: legacy orphan with known backend schema mismatch still in tree   [ ]
+## B-026 — Duplicate AddSecretSheet: legacy orphan with known backend schema mismatch still in tree   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -510,12 +518,13 @@ evidence: src/components/sheets/add-secret-sheet.tsx:22 — src/components/sheet
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#1
 overlaps: B-005
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - git rm src/components/sheets/add-secret-sheet.tsx; verify with npx tsc --noEmit && npm test
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/components/sheets/add-secret-sheet.tsx`
 
-## B-027 — Orphan directory src/components/scaling/ shadows the live src/components/scale/   [ ]
+## B-027 — Orphan directory src/components/scaling/ shadows the live src/components/scale/   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -527,12 +536,13 @@ evidence: src/components/scaling/scale-dialog.tsx:36 — src/components/scaling/
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#2
 overlaps: B-040
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - Delete the whole src/components/scaling/ directory (git rm on its single file, then the empty dir)
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/components/scaling/scale-dialog.tsx`
 
-## B-028 — PreviewsPage declared deleted in three files but still in the tree, with its private hook   [ ]
+## B-028 — PreviewsPage declared deleted in three files but still in the tree, with its private hook   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -543,7 +553,8 @@ category: dead_feature_path
 evidence: src/pages/previews.tsx:51 — Three separate source files assert this page was removed: src/app.tsx:308 (PreviewsPage deleted per plan 2026-06-08-dashboard-screens-review-fixes), src/pages/pages.smoke.test.ts:128 (PreviewsPage smoke test deleted per plan), src/test/e2e-journeys.test.tsx:64 (use-previews mock removed per plan). The route was replaced by a PreviewsRedirect stub at src/app.tsx:313. Yet src/pages/previews.tsx...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#3
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - git rm src/pages/previews.tsx src/hooks/use-previews.ts
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/pages/previews.tsx`
@@ -735,7 +746,7 @@ dod:
   - Mover o tipo Session para src/lib/api/types.ts (que ja existe e ja e a ACL de tipos do backend) e importa-lo de la tanto em auth.ts quanto em dev-mocks.ts — quebra o ciclo sem tocar em runtime
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/lib/auth.ts` e passa depois da mudanca
 
-## B-040 — Dois diretorios para o mesmo conceito: src/components/scale/ e src/components/scaling/ (o segundo esta morto)   [ ]
+## B-040 — Dois diretorios para o mesmo conceito: src/components/scale/ e src/components/scaling/ (o segundo esta morto)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -747,7 +758,8 @@ evidence: src/components/scaling/scale-dialog.tsx:36 — src/components/scale/ -
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#8
 overlaps: B-027
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - Deletar src/components/scaling/ inteiro (o componente e orfao e ScaleConfirmDialog em components/scale/ ja cobre o caso de dialogo de escala)
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/components/scaling/scale-dialog.tsx` e passa depois da mudanca
@@ -1080,7 +1092,7 @@ dod:
   - Either wire invite-member-sheet.tsx to useInviteMember (which would make the plural-path regression test meaningful) or delete the hook plus its three test cases
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/hooks/mutations/use-team.ts`
 
-## B-061 — CodeMirror editor stack (4 production packages) shipped but never imported   [ ]
+## B-061 — CodeMirror editor stack (4 production packages) shipped but never imported   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1091,7 +1103,8 @@ category: zombie_dependency
 evidence: package.json:71 — @codemirror/lang-json (line 71), @codemirror/state (72), @codemirror/view (73) and @uiw/react-codemirror (86) are declared in dependencies (production, not devDependencies). Two independent methods agree they are dead: (a) npx knip reports all four under unused dependencies; (b) grep -rl across src/, e2e/, .storybook/ and every root config file returns 0 files for each of the four package...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#8
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - npm uninstall @codemirror/lang-json @codemirror/state @codemirror/view @uiw/react-codemirror, then npm run build && npm run test:e2e
   - a entrada correspondente saiu de `package.json` e `npm run build` + `npm run lint` passam
@@ -1129,7 +1142,7 @@ dod:
   - Adopt @deprecated JSDoc on every compat shim with a sunset condition in the tag body, e.g
   - o marcador/mecanismo existe em `src/pages/projects.tsx` e ha regra de lint ou gate de CI que falha na ausencia dele
 
-## B-064 — package.json declares packageManager pnpm while the repo tracks package-lock.json and gitignores pnpm-lock.yaml   [ ]
+## B-064 — package.json declares packageManager pnpm while the repo tracks package-lock.json and gitignores pnpm-lock.yaml   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1141,12 +1154,13 @@ evidence: package.json:141 — package.json:141 sets packageManager to pnpm@11.1
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#15
 overlaps: B-072
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - Pick one and make everything agree
   - a entrada correspondente saiu de `package.json` e `npm run build` + `npm run lint` passam
 
-## B-065 — Permanently-false branch in register.tsx renders a Check your email card that no user can reach   [ ]
+## B-065 — Permanently-false branch in register.tsx renders a Check your email card that no user can reach   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1157,12 +1171,13 @@ category: dead_feature_path
 evidence: src/pages/register.tsx:266 — src/pages/register.tsx:98 declares const [registered, _setRegistered] = useState(false) with an eslint-disable for the unused setter, and the comment above it (lines 92-96) states plainly: the registered intermediate UI block is unreachable ... setter no longer fires. grep confirms _setRegistered is never called anywhere in the file - the state is initialised false and can never change. Yet...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#17
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - Delete the registered state at line 98 and its eslint-disable at line 97, plus the entire if (registered) block at lines 266-300, then drop the now-unused Mail import if nothing else uses it
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/pages/register.tsx`
 
-## B-066 — ActionBar component (79 LOC) is kept alive only by its own test and a barrel re-export   [ ]
+## B-066 — ActionBar component (79 LOC) is kept alive only by its own test and a barrel re-export   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1173,7 +1188,8 @@ category: dead_feature_path
 evidence: src/components/layout/action-bar.tsx:1 — npx knip flags src/components/layout/index.ts:2 ActionBar as an unused export. Verified by hand: the only import of ActionBar anywhere is src/components/layout/action-bar.test.tsx:5, which imports it from ./action-bar directly. No page, no component and no story consumes it, and the four files that import the layout barrel pull only DashboardLayout (src/app.tsx:12) or ContentGrid...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#18
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - Delete src/components/layout/action-bar.tsx and src/components/layout/action-bar.test.tsx, and drop line 2 of src/components/layout/index.ts
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/components/layout/action-bar.tsx`
@@ -1264,7 +1280,7 @@ dod:
   - Escrever um ADR de 10 linhas que registre o split (qual pacote e dono do tema, qual e dono dos componentes, e o que fazer quando um bump de um quebra o outro) e atualizar DESIGN.md secao 3 — hoje ela nomeia uma versao e um pacote que nao correspondem ao que o app carrega
   - mudanca verificavel em `src/main.tsx` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-072 — Gerenciador de pacotes: npm na pratica, pnpm declarado no campo packageManager   [ ]
+## B-072 — Gerenciador de pacotes: npm na pratica, pnpm declarado no campo packageManager   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1276,7 +1292,8 @@ evidence: package.json:141 — package.json:141 '"packageManager": "pnpm@11.1.0+
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#8
 overlaps: B-064
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - Trocar package.json:141 para 'npm@<versao>' ou remover o campo
   - mudanca verificavel em `package.json` com `npx tsc --noEmit` + `npm test` verdes
@@ -1401,7 +1418,7 @@ dod:
   - Drop VIRTUALIZE_THRESHOLD, ChatMessage and FlatNode from the re-export list (lines 24, 26, 27) and correct the docblock claim at line 13
   - o marcador/mecanismo existe em `src/pages/lens/trace-detail.tsx` e ha regra de lint ou gate de CI que falha na ausencia dele
 
-## B-080 — Three unused devDependencies: autoprefixer, eslint-plugin-react-compiler, @storybook/blocks   [ ]
+## B-080 — Three unused devDependencies: autoprefixer, eslint-plugin-react-compiler, @storybook/blocks   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1412,12 +1429,13 @@ category: zombie_dependency
 evidence: package.json:123 — All three are flagged by npx knip and confirmed by grep. (1) autoprefixer (package.json:123, added 2026-04-01, 127 days): postcss.config.js declares only the @tailwindcss/postcss plugin, and Tailwind v4 (tailwindcss ^4.3.0) performs prefixing internally - autoprefixer is never loaded. (2) eslint-plugin-react-compiler (package.json:125): grep for react-compiler in eslint.config.js returns...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#10
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - npm uninstall autoprefixer eslint-plugin-react-compiler @storybook/blocks; then npm run lint && npm run storybook:build to confirm
   - a entrada correspondente saiu de `package.json` e `npm run build` + `npm run lint` passam
 
-## B-081 — Dead compatibility alias: export { cloudFetch as apiFetch } has zero consumers   [ ]
+## B-081 — Dead compatibility alias: export { cloudFetch as apiFetch } has zero consumers   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1428,7 +1446,8 @@ category: dead_feature_path
 evidence: src/lib/api.ts:249 — src/lib/api.ts:249 declares export { cloudFetch as apiFetch }. grep -rn for the word apiFetch across src/ and e2e/, excluding that declaration line itself, returns zero hits - no import, no dynamic import, no test, no story. The alias is an unmarked backward-compatibility shim whose last caller is gone; it widens the public surface of the most-imported module in the codebase (151 importers)...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#12
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - Delete line 249 of src/lib/api.ts and run npx tsc --noEmit
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/lib/api.ts`
@@ -1449,7 +1468,7 @@ dod:
   - Attach a tracking issue id and a review date to each of the six placeholder call sites (a one-line comment above each <Route> is enough)
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/app.tsx`
 
-## B-083 — .dockerignore misses playwright-report/, test-results/ and tsconfig.tsbuildinfo, which COPY . . pulls into the build context   [ ]
+## B-083 — .dockerignore misses playwright-report/, test-results/ and tsconfig.tsbuildinfo, which COPY . . pulls into the build context   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1460,12 +1479,13 @@ category: zombie_dependency
 evidence: .dockerignore:1 — Dockerfile:6 is a blanket COPY . . into the builder stage. .dockerignore excludes node_modules, dist, coverage, .env*, *.md, *.log and .DS_Store, but not playwright-report/ (524 KB), test-results/ (8 KB) or tsconfig.tsbuildinfo (28 KB) - all three are present on disk right now and all three are build outputs. VERIFIED NOT a git problem: git ls-files reports 0 tracked files for dist,...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#16
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - Add playwright-report, test-results, *.tsbuildinfo and pnpm-lock.yaml to .dockerignore
   - a entrada correspondente saiu de `.dockerignore` e `npm run build` + `npm run lint` passam
 
-## B-084 — Four dead exported symbols confirmed by knip and by grep (the definition is the only reference)   [ ]
+## B-084 — Four dead exported symbols confirmed by knip and by grep (the definition is the only reference)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1476,7 +1496,8 @@ category: dead_feature_path
 evidence: src/lib/auth.ts:129 — For each symbol below, grep -rn across src/ and e2e/ returns exactly one hit - the export statement itself - and npx knip independently lists all four under unused exports. (1) startRegistration, src/lib/auth.ts:129 - src/pages/register.tsx does not use it; that page submits through its own form.submit() path. (2) getInputNodes, src/lib/kratos.ts:76 - the other nine exports of kratos.ts...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#19
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 106c10e
 dod:
   - Delete the four symbols and run npx tsc --noEmit
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/lib/auth.ts`
