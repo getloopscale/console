@@ -2,7 +2,7 @@
 type: Architecture
 title: theo-cloud as the MCP Model B broker
 description: How theo-cloud authorizes MCP traffic by validating a consumer credential and minting a least-privilege per-tenant downstream key.
-resource: https://github.com/usetheodev/theo-cloud/blob/main/internal/routes/mcp_resolve.go
+resource: https://github.com/usetheoai/theo-cloud/blob/main/internal/routes/mcp_resolve.go
 tags: [mcp, authorization, broker, tenancy, gateway]
 generated: { by: claude-opus-5/okf-export, at: 2026-08-05 }
 status: stable

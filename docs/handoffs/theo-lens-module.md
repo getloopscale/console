@@ -12,6 +12,11 @@ sources:
     last_modified: 2026-07-02
 ---
 
+> **Layout note (2026-08).** The `theo-data` monorepo no longer exists. Read every
+> `theo-data/<x>` path below as the standalone sibling repo `theo-platform/<x>`
+> (e.g. `theo-data/theo-lens` → `theo-platform/theo-lens`).
+
+
 # Theo Lens — cloud module (pointer)
 
 This repo gets a **Lens** module mirroring the **Memory** vertical slice, talking HTTP-only to the

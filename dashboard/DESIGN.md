@@ -5,7 +5,7 @@
 > Per `theo-ui` skill convention: presence of `DESIGN.md` at project root makes it the locked system — pre-flight scan reads this first and respects every clause.
 
 **Version:** 1.0 · **Locked:** 2026-05-25 · **Owner:** Paulo (sponsor) + Staff Dashboard Engineering
-**Related:** [audit](.claude/knowledge-base/audits/2026-05-25/dashboard-faang-review.md) · [plan](.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-plan.md) · [architecture](.claude/knowledge-base/architecture/dashboard/)
+**Related:** `audit` *(removido do versionamento)* · `plan` *(removido do versionamento)* · `architecture` *(removido do versionamento)*
 
 ---
 
