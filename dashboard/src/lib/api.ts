@@ -71,19 +71,42 @@ let refreshPromise: Promise<boolean> | null = null; // Dedup concurrent refreshe
 type AuthMessage = { type: 'logged-out' };
 
 let authChannel: BroadcastChannel | null = null;
-try {
-  authChannel = new BroadcastChannel('theo-auth');
-  authChannel.onmessage = (event: MessageEvent<AuthMessage>) => {
-    const msg = event.data;
-    if (msg.type === 'logged-out') {
-      // Another tab logged out — clear this tab's token and redirect.
-      accessToken = null;
-      tokenExpiresAt = 0;
-      redirectToLogin('expired');
-    }
-  };
-} catch {
-  // BroadcastChannel not available (e.g., some workers) — graceful degradation
+
+/**
+ * Abre o canal de coordenacao entre abas. Chamado UMA vez no boot (main.tsx).
+ *
+ * B-042 — antes o canal era aberto como efeito colateral de IMPORT deste modulo.
+ * api.ts tem 151 importadores, entao qualquer um deles — incluindo um teste que
+ * so queria `formatBytes` — abria um BroadcastChannel real e registrava um
+ * handler que redireciona a pagina. Efeito colateral de import tambem nao tem
+ * teardown: nada podia fechar o canal, o que forcava os testes a depender de
+ * vi.resetModules para isolamento.
+ *
+ * Agora o ciclo de vida e explicito e a funcao devolve o seu proprio dispose.
+ * Idempotente de proposito: chamar duas vezes nao abre dois canais.
+ */
+export function installAuthChannel(): () => void {
+  if (authChannel) return () => {};
+  try {
+    const ch = new BroadcastChannel('theo-auth');
+    ch.onmessage = (event: MessageEvent<AuthMessage>) => {
+      const msg = event.data;
+      if (msg.type === 'logged-out') {
+        // Another tab logged out — clear this tab's token and redirect.
+        accessToken = null;
+        tokenExpiresAt = 0;
+        redirectToLogin('expired');
+      }
+    };
+    authChannel = ch;
+    return () => {
+      ch.close();
+      if (authChannel === ch) authChannel = null;
+    };
+  } catch {
+    // BroadcastChannel not available (e.g., some workers) — graceful degradation
+    return () => {};
+  }
 }
 
 // #324: status HTTP da ULTIMA troca de token (null = rejeicao de rede, sem

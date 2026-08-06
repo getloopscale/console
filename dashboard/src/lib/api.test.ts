@@ -23,6 +23,11 @@ beforeAll(() => {
 describe('dashboard auth cross-tab coordination', () => {
   it('never broadcasts the JWT over BroadcastChannel (find_sec_004)', async () => {
     const api = await import('./api');
+    // B-042 — o canal deixou de ser aberto como efeito colateral de import e
+    // passou a ter ciclo de vida explicito, entao o teste instala antes de
+    // exercitar o logout. A asserção de seguranca abaixo e a mesma: nenhum
+    // segredo pode transitar pelo canal.
+    const disposeChannel = api.installAuthChannel();
     posted.length = 0;
 
     api.logout(); // the only path that broadcasts
@@ -36,6 +41,7 @@ describe('dashboard auth cross-tab coordination', () => {
     }
     // Logout coordination (carries no secret) is still present.
     expect(posted.some((m) => (m as { type?: string }).type === 'logged-out')).toBe(true);
+    disposeChannel();
   });
 });
 
