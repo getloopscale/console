@@ -5,3 +5,7 @@ coverage
 *.md
 *.log
 .DS_Store
+playwright-report
+test-results
+*.tsbuildinfo
+pnpm-lock.yaml

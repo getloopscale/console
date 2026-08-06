@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Github, Loader2, Mail, Zap } from 'lucide-react';
+import { Github, Loader2, Zap } from 'lucide-react';
 import { Button, Card, Input } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { GoogleBrandIcon } from '@/components/google-brand-icon';
@@ -89,13 +89,6 @@ export function RegisterPage() {
   const [email, setEmail] = useState<string>(() => readPersistedRegisterForm()?.email ?? '');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  // `registered` was set by the deprecated XHR submit path which received
-  // data.session inline. The new form.submit() path navigates immediately
-  // on success, so the "registered" intermediate UI block is unreachable.
-  // Kept the state read for backward-compat with the success card render
-  // (line ~138); setter no longer fires.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [registered, _setRegistered] = useState(false);
 
   // T1.3 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — client-side validation errors
   // surfaced from app-controlled (NOT native browser) validation pipeline.
@@ -259,33 +252,6 @@ export function RegisterPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="size-6 text-primary animate-spin" aria-label="Loading" />
-      </div>
-    );
-  }
-
-  if (registered) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <Card className="w-full max-w-sm">
-          <Card.Body className="p-8 text-center space-y-4">
-            <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 mx-auto">
-              <Mail className="size-6 text-primary" aria-hidden="true" />
-            </div>
-            <div className="space-y-1">
-              <h1 className="font-display text-title-sm font-semibold text-foreground">
-                Check your email
-              </h1>
-              <p className="text-body-sm text-muted-foreground">
-                We sent a verification code to{' '}
-                <span className="text-foreground font-medium">{email}</span>.
-              </p>
-              <p className="text-label text-muted-foreground">
-                Redirecting to dashboard...
-              </p>
-            </div>
-            <Loader2 className="size-4 text-primary animate-spin mx-auto" aria-hidden="true" />
-          </Card.Body>
-        </Card>
       </div>
     );
   }

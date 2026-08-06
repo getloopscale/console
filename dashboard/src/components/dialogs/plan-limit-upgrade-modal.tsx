@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Crown, Loader2 } from 'lucide-react';
+import { Crown } from 'lucide-react';
 import {
   Button,
 } from '@usetheo/ui';
@@ -88,6 +88,3 @@ export function PlanLimitUpgradeModal() {
     </Dialog>
   );
 }
-
-// Loader2 re-exported for callers that wrap this modal.
-export { Loader2 };

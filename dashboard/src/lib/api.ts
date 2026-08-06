@@ -245,9 +245,6 @@ export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg
   return fetchWithAuth<T>(API_BASE, path, token, options, true, cfg.throwOnError === true, cfg.onResponse);
 }
 
-// Alias for backward compatibility during migration
-export { cloudFetch as apiFetch };
-
 // Engine API calls proxied through cloud service.
 export async function engineFetch<T>(path: string, options: RequestInit = {}, cfg: CloudFetchConfig = {}): Promise<T | null> {
   return cloudFetch<T>(`/engine${path}`, options, cfg);

@@ -125,11 +125,6 @@ export function startLogin(): void {
   window.location.href = `${KRATOS_URL}/self-service/login/browser`;
 }
 
-/** Start registration flow. */
-export function startRegistration(): void {
-  window.location.href = `${KRATOS_URL}/self-service/registration/browser`;
-}
-
 /** Get verification URL — redirects to Kratos verification flow. */
 export function getVerificationURL(): string {
   return `${KRATOS_URL}/self-service/verification/browser`;

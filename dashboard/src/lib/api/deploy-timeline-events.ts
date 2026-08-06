@@ -82,16 +82,3 @@ export const TIMELINE_EVENT_TYPES: string[] = (() => {
   return out;
 })();
 
-/** Terminal event types — stream consumer closes after observing one. */
-export const TERMINAL_TIMELINE_EVENT_TYPES: ReadonlySet<string> = new Set([
-  'deploy_timeline.live.completed',
-  'deploy_timeline.build.failed',
-  'deploy_timeline.sign.failed',
-  'deploy_timeline.release.failed',
-  'deploy_timeline.deploy.failed',
-  'deploy_timeline.live.failed',
-  'deploy_timeline.build.canceled',
-  'deploy_timeline.sign.canceled',
-  'deploy_timeline.release.canceled',
-  'deploy_timeline.deploy.canceled',
-]);
