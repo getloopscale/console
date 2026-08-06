@@ -514,6 +514,7 @@ evidence: src/components/logs/log-viewer.tsx:237 — MEDIDO por leitura do camin
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · scaling#6
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+partial_progress: 2ab5f5c — metade 2 da remediacao feita (LogLineRow memoizado; parseAnsi deixa de re-executar em todas as linhas a cada tecla do filtro). RESIDUO: a virtualizacao em si. Ela troca a estrutura do viewer e muda o permalink por hash (#L{i} depende do indice renderizado) e o auto-scroll — dois comportamentos sem e2e cobrindo. Fechar exige essa cobertura antes.
 dod:
   - Virtualizar a lista em src/components/logs/log-viewer.tsx:237
   - o request emitido por `src/components/logs/log-viewer.tsx` carrega teto explicito (limit/offset) — verificavel no painel Network ou por teste sobre o handler MSW
