@@ -344,7 +344,7 @@ dod:
   - Reescrever src/hooks/use-status-stream.ts:180-226 como wrapper de useSSEStream({eventTypes:["signal.changed"], maxEvents:...}) preservando o reducer puro applySignalEvent (que ja e testavel isoladamente e deve ficar em src/hooks/use-status-stream.reducer.ts)
   - `src/hooks/use-status-stream.ts` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-016 — Snapshot historico de logs (Loki REST) entra sem cap e anula o FIFO de 5000 linhas do stream   [ ]
+## B-016 — Snapshot historico de logs (Loki REST) entra sem cap e anula o FIFO de 5000 linhas do stream   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -355,7 +355,8 @@ category: unbounded_collection
 evidence: src/pages/deployment-tabs/logs-tab.tsx:163 — logs-tab.tsx:163 setHistorical((data.entries ?? []).map(toLogLine)) sem slice/cap; logs-tab.tsx:191 [...historical, ...stream.lines] reconstroi o array inteiro a cada evento SSE; src/components/logs/log-viewer.tsx:58 comenta acceptable up to ~5000 lines / for larger streams we would need react-virtual - deferred, e log-viewer.tsx:236 faz filtered.map(...) direto. @tanstack/react-virtual JA e...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#6
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: ed05370 (residuo: a virtualizacao do LogViewer — B-025 — segue aberta; o cap reduz o pior caso mas nao dispensa virtualizar 5000 linhas)
 dod:
   - Cortar o snapshot no mesmo cap do stream (entries.slice(-5000)) em src/pages/deployment-tabs/logs-tab.tsx:163
   - existe teste que prova o teto/dedup em `src/pages/deployment-tabs/logs-tab.tsx` sob carga sintetica
