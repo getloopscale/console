@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useToast } from '@usetheo/ui';
 
 import { cloudFetch } from '@/lib/api';
-import type { StorageFile } from './workspace';
+import type { StorageFile } from './workspace/helpers';
 
 /**
  * Selection + bulk-delete model for the Workspace folder-browser. A selection key

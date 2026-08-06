@@ -757,3 +757,42 @@ export interface Invoice {
   period_end: string;
   hosted_invoice_url: string;
 }
+
+// ---------------------------------------------------------------------------
+// Sessao Kratos.
+//
+// Estes tres tipos moravam em `src/lib/auth.ts`. Foram movidos para ca porque
+// `dev-mocks.ts` precisa do `Session` e `auth.ts` precisa das funcoes de
+// `dev-mocks` — o import de tipo de volta fechava o ciclo
+// `api.ts -> dev-mocks.ts -> auth.ts` que o madge reportava (B-039).
+//
+// Este modulo e a ACL de tipos do backend e nao importa nada, entao e o unico
+// destino que nao pode reintroduzir o ciclo. `auth.ts` re-exporta os tres, de
+// modo que `@/lib/auth` continua sendo a superficie publica para os ~10
+// consumidores existentes.
+// ---------------------------------------------------------------------------
+
+export interface VerifiableAddress {
+  value: string;
+  verified: boolean;
+  via: string;
+}
+
+export interface AuthenticationMethod {
+  method: string;
+  provider?: string;
+  completed_at?: string;
+}
+
+export interface Session {
+  active: boolean;
+  identity: {
+    id: string;
+    traits: {
+      email: string;
+      name?: string;
+    };
+    verifiable_addresses?: VerifiableAddress[];
+  };
+  authentication_methods?: AuthenticationMethod[];
+}

@@ -3,7 +3,7 @@ import { Sparkles } from 'lucide-react';
 
 import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/format';
 import { isSpanError } from '@/lib/span-status';
-import { nsToIso } from '../traces';
+import { nsToIso } from './helpers';
 
 /**
  * One traces-list row as the read API returns it. Declares the fields the list item carries today —

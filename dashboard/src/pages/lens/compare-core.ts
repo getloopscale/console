@@ -9,7 +9,7 @@
  *  - `traceMetrics`  — per-trace roll-up (duration from root, tokens/cost from the M5 cost summary,
  *                      error from any error span) for the delta table.
  */
-import { durationMs, type TraceSpanNode } from './trace-detail';
+import { durationMs, type TraceSpanNode } from './trace-detail/helpers';
 import { hasRecordedTokens } from '../../lib/trace-layout';
 import { isSpanError } from '../../lib/span-status';
 

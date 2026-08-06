@@ -16,7 +16,7 @@
 // is set, and Vite's dead-code-elimination drops the import in prod builds
 // because the env var is statically resolvable at build time).
 
-import type { Session } from './auth';
+import type { Session } from './api/types';
 
 /** Single source of truth for "is the dev mock layer active?". */
 export function mocksEnabled(): boolean {

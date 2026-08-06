@@ -18,30 +18,12 @@ import { API_URL, AUTH_URL } from './config';
 import { mocksEnabled, getMockSession } from './dev-mocks';
 const KRATOS_URL = AUTH_URL || API_URL;
 
-export interface VerifiableAddress {
-  value: string;
-  verified: boolean;
-  via: string;
-}
-
-export interface AuthenticationMethod {
-  method: string;
-  provider?: string;
-  completed_at?: string;
-}
-
-export interface Session {
-  active: boolean;
-  identity: {
-    id: string;
-    traits: {
-      email: string;
-      name?: string;
-    };
-    verifiable_addresses?: VerifiableAddress[];
-  };
-  authentication_methods?: AuthenticationMethod[];
-}
+// Os tipos de sessao moram em ./api/types (a ACL de tipos do backend, que nao
+// importa nada) para que dev-mocks.ts possa consumir `Session` sem importar
+// deste modulo — era esse import de volta que fechava o ciclo (B-039).
+// O re-export mantem `@/lib/auth` como superficie publica dos consumidores.
+export type { VerifiableAddress, AuthenticationMethod, Session } from './api/types';
+import type { Session } from './api/types';
 
 // OIDC providers whose email verification we trust (MEET-037 security mandate).
 const TRUSTED_OIDC_PROVIDERS = ['github', 'google'];
