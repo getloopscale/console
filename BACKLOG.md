@@ -1576,6 +1576,51 @@ registra-los como trabalho seria fabricar tarefa:
 | `tradeoff#17` | Testes co-localizados com o codigo de producao, na proporcao de ~1:1 em arquivos (43.3k LOC de teste | decisao AVALIADA COMO CORRETA — testes co-localizados. A recomendacao medida e explicitamente NAO mexer. |
 | `tradeoff#15` | Roteamento centralizado num unico app.tsx de 729 LoC com 85 React.lazy e 118 elementos <Route> | decisao AVALIADA COMO CORRETA — roteamento centralizado deve ser mantido. A unica acao derivada (incoerencia do orcamento de LoC) ja e o item do tradeoff #2. |
 
+---
+
+## Triagem por esforco (2026-08-06, apos a primeira rodada de execucao)
+
+Os 87 itens nao sao homogeneos, e tratar a contagem como se fossem produz um
+plano falso. Esta triagem separa o que a execucao mostrou:
+
+| Faixa | N | O que sao |
+|---|---|---|
+| **Fechados** | 23 | Implementados, validados e commitados. Cada um com `resolved_in`. |
+| **[A] Projetos grandes** | 20 | Migracao ou refactor amplo — semanas, nao sessoes. Precisam de plano proprio via `/to-plan`, nao de execucao direta. |
+| **[B] Dependem de decisao ou de terceiro** | 15 | Exigem uma decisao que e do time (qual pacote de UI e canonico, o SW fica ou sai, a politica de memoizacao) ou um contrato de backend que este repo nao controla. |
+| **[C] Fechaveis com esforco moderado** | 29 | Mesma natureza dos 23 ja fechados: escopo delimitado, criterio verificavel, cabem numa sessao cada. |
+
+**[A] — projetos grandes:** B-002 B-003 B-004 B-006 B-008 B-009 B-011 B-012
+B-019 B-029 B-031 B-036 B-041 B-046 B-048 B-052 B-053 B-063 B-067 B-068
+
+Sao as migracoes estruturais: mover 82 arquivos para package-by-feature (B-002),
+fatiar 118 rotas de `app.tsx` (B-003), extrair a camada de data-access de 130
+call sites (B-012), reancorar 208 definicoes de query key (B-011/B-019),
+decompor 32 arquivos acima de 400 LOC (B-009). O relatorio da auditoria e
+explicito sobre a ordem: **o ADR do eixo de organizacao (B-032/B-010) vem
+primeiro** — mover arquivos antes de escrever a regra de residencia e como a
+arvore atual foi produzida.
+
+**[B] — dependem de decisao ou de terceiro:** B-007 B-023 B-024 B-034 B-054
+B-055 B-056 B-057 B-062 B-069 B-071 B-074 B-075 B-076 B-077
+
+Exemplos do porque nao sao executaveis por conta propria: B-024 (paginacao do
+Audit) depende de o endpoint da engine aceitar limit/offset — o handler nao vive
+neste repositorio, e mandar um parametro que o backend ignora produz a aparencia
+de paginacao sem o efeito; B-034 (o token `--primary` definido em dois lugares
+com valores diferentes) precisa de UMA medicao no app buildado para decidir qual
+vence, e a escolha muda o contraste da marca; B-074 (o service worker) e B-071
+(as duas libs de UI) sao decisoes de produto.
+
+**[C] — fechaveis com esforco moderado:** B-001 B-010 B-013 B-014 B-015 B-016
+B-020 B-021 B-022 B-025 B-030 B-032 B-033 B-035 B-042 B-043 B-044 B-045 B-047
+B-049 B-050 B-059 B-060 B-070 B-073 B-078 B-082 B-085 B-086
+
+Proximos por valor: **B-032 + B-010 + B-078** (o ADR do eixo e a regra de
+residencia — destravam toda a faixa [A]), **B-013/B-014/B-015** (fetch cru
+pulando o pipeline de auth; recuperacao de token no SSE), **B-021/B-073** (~200
+KB brotli fora do caminho eager, com o mecanismo ja provado no proprio arquivo).
+
 ## Rollback
 
 Um item registrado por engano e marcado `status: killed` com `kill_reason` — nunca
