@@ -106,6 +106,70 @@ export default [
     files: ['src/components/ui/alert-guard.tsx'],
     rules: { 'no-restricted-imports': 'off' },
   },
+
+  // ---------------------------------------------------------------------------
+  // B-070 — direcao de dependencia entre camadas, VERIFICADA.
+  //
+  // O `docs/architecture.md` declara a direcao (pages -> components/hooks/lib, e
+  // nada abaixo importa de pages). Ate aqui isso era intencao: a unica regra de
+  // import executavel do repo banha um simbolo de terceiro, e nem madge nem
+  // dependency-cruiser sao devDependencies — existem so como binarios globais na
+  // maquina do dev e nunca rodaram em CI. Uma fronteira sem verificacao e uma
+  // preferencia, nao uma fronteira.
+  //
+  // A auditoria mediu que a direcao ja e respeitada em 100% das 1.084 arestas
+  // internas: ZERO arestas sobem de components/hooks/lib para pages. Entao esta
+  // regra nao pede refactor nenhum — ela impede a PRIMEIRA regressao, que e
+  // exatamente quando o custo de reverter ainda e baixo.
+  //
+  // Usa o `no-restricted-imports` nativo de proposito. A remediacao do achado
+  // sugeria `import/no-restricted-paths`, mas `eslint-plugin-import` NAO esta
+  // instalado neste projeto — adicionar plugin + resolver de TypeScript para uma
+  // regra que o ESLint ja expressa seria pagar dependencia por nada.
+  //
+  // Escopo deliberadamente MINIMO: so a direcao vertical, que e medidamente
+  // limpa hoje. A regra de residencia por feature (ADR-0001) depende do eixo
+  // `src/features/` que ainda nao existe; codifica-la agora proibiria imports
+  // que nao tem para onde ir.
+  // ---------------------------------------------------------------------------
+  {
+    files: ['src/lib/**/*.{ts,tsx}', 'src/hooks/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'],
+    ignores: ['src/**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/pages/*', '@/pages/**', '../pages/*', '../../pages/*'],
+              message:
+                'Camada inferior nao importa de pages/ (docs/architecture.md). Uma pagina que exporta dominio para o que esta abaixo dela fecha um ciclo — foi a causa dos quatro ciclos de import fechados em B-001/B-037/B-038/B-039. Mova o dominio para um modulo folha e faca a pagina IMPORTAR o que ela exportava.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // src/lib e src/hooks tambem nao dependem de componentes: a direcao e
+    // components -> hooks -> lib, nunca o contrario.
+    files: ['src/lib/**/*.{ts,tsx}'],
+    ignores: ['src/**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/pages/*', '@/pages/**', '@/components/*', '@/components/**'],
+              message:
+                'src/lib e a camada mais baixa: nao importa de pages/ nem de components/ (docs/architecture.md).',
+            },
+          ],
+        },
+      ],
+    },
+  },
   {
     files: ['src/**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
     languageOptions: {
