@@ -328,7 +328,7 @@ dod:
   - Em src/hooks/use-sse-stream.ts:179, tratar `es.readyState === EventSource.CLOSED` como sinal terminal e refazer o token+reconexao imediatamente (threshold 1 nesse caso), mantendo o contador de 3 apenas para o caminho de reconexao nativa
   - `src/hooks/use-sse-stream.ts` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-015 — use-status-stream abre EventSource cru com estrategia de auth divergente da primitiva useSSEStream   [ ]
+## B-015 — use-status-stream abre EventSource cru com estrategia de auth divergente da primitiva useSSEStream   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -339,7 +339,9 @@ category: state_synchronization_issue
 evidence: src/hooks/use-status-stream.ts:194 — use-status-stream.ts:193-194 `const url = `/engine/api/v1/projects/.../signals/stream?env=...`; const es = new EventSource(url, { withCredentials: true });` — sem token. Compare com src/hooks/use-sse-stream.ts:146-156 que monta `${API_URL}${path}?token=${encodeURIComponent(token)}` apos ensureSSEToken(). Os outros 3 consumidores (use-log-stream, use-deployment-stream,...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#5
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 4c52dc1
+risco_aberto: a primitiva autentica por ?token= na URL; a versao anterior usava cookie (withCredentials). Confirmar com o BACKEND que /signals/stream aceita token na query antes de a UI voltar a consumir o hook. Seguro hoje porque B-051 removeu o unico consumidor.
 dod:
   - Reescrever src/hooks/use-status-stream.ts:180-226 como wrapper de useSSEStream({eventTypes:["signal.changed"], maxEvents:...}) preservando o reducer puro applySignalEvent (que ja e testavel isoladamente e deve ficar em src/hooks/use-status-stream.reducer.ts)
   - `src/hooks/use-status-stream.ts` deixa de conter a logica apontada e ha teste cobrindo o novo dono
