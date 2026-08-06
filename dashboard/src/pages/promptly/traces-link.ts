@@ -1,4 +1,5 @@
-import { type ColumnState, encodeColumns } from '../lens/traces/view-encoding';
+import { type ColumnState } from '../lens/traces/view-encoding';
+import { buildTracesUrl, spanAttrQuery } from '../lens/traces/build-url';
 
 /**
  * M23 — o caminho da aba de um prompt até as resoluções individuais dele.
@@ -12,7 +13,9 @@ import { type ColumnState, encodeColumns } from '../lens/traces/view-encoding';
  * nome) e porque permite testá-la fora do React.
  */
 
-const ROTA_DO_EXPLORADOR = '/observability/traces';
+// B-043 — a rota e a gramatica da DSL saíram daqui: sao do lens, e agora vem de
+// `buildTracesUrl`/`spanAttrQuery`. Este modulo mantem apenas o que e decisao do
+// PROMPTLY: qual atributo filtrar e com quais colunas chegar.
 
 /** A chave do atributo que o `theo-promptly` carimba no span — leva o NOME do prompt, não um id. */
 const ATRIBUTO_DO_PROMPT = 'prompt.id';
@@ -50,12 +53,11 @@ export const COLUNAS_DE_RESOLUCAO: ColumnState = {
  */
 export function linkParaTracesDoPrompt(promptName: string): string | null {
   if (promptName.trim() === '') return null;
-  const params = new URLSearchParams({
-    // A DSL separa chave/valor no PRIMEIRO `=` (`theo-lens` span-query), então o nome pode conter
-    // `=` sem ambiguidade. `URLSearchParams` cuida do escape de `&` e `#` na serialização — o que
-    // impede um nome hostil de virar um segundo parâmetro ou de truncar a query.
-    span_query: `attr:${ATRIBUTO_DO_PROMPT}=${promptName}`,
-    cols: encodeColumns(COLUNAS_DE_RESOLUCAO),
+  // O escape e a forma do predicado sao responsabilidade do lens (B-043): um nome
+  // hostil nao vira um segundo parametro nem trunca a query, e se a DSL mudar,
+  // muda num lugar so.
+  return buildTracesUrl({
+    spanQuery: spanAttrQuery(ATRIBUTO_DO_PROMPT, promptName),
+    columns: COLUNAS_DE_RESOLUCAO,
   });
-  return `${ROTA_DO_EXPLORADOR}?${params.toString()}`;
 }
