@@ -48,6 +48,37 @@ describe('DeviceVerifyPage', () => {
     expect(submit.disabled).toBe(false);
   });
 
+  it('test_NAO_segue_redirect_para_host_fora_da_allowlist_B031', async () => {
+    // B-031 — este era um open-redirect: `redirect_to` vinha da resposta do
+    // servidor e ia direto para window.location.href, sem checagem. O guard
+    // isSafeRedirectUrl existia no repo, testado, e sem NENHUM chamador.
+    //
+    // Um servico de auth mal configurado, ou uma resposta injetada, levava o
+    // usuario para fora com a confianca de estar num fluxo de login.
+    setSearch('?device_challenge=chal-123&user_code=ABCD1234');
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({ redirect_to: 'https://evil.example.com/phish' }),
+    });
+    const hrefAntes = 'http://localhost/';
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, search: '?device_challenge=chal-123&user_code=ABCD1234', href: hrefAntes },
+      writable: true,
+    });
+
+    render(<DeviceVerifyPage />);
+    fireEvent.change(screen.getByTestId('device-verify-user-code'), {
+      target: { value: 'ABCD1234' },
+    });
+    fireEvent.click(screen.getByTestId('device-verify-submit'));
+
+    // Fail-closed: erro visivel ao usuario, e a navegacao NAO acontece.
+    await waitFor(() => {
+      expect(screen.getByText(/unexpected redirect target/i)).toBeInTheDocument();
+    });
+    expect(window.location.href).toBe(hrefAntes);
+  });
+
   it('test_submit_posts_to_accept_endpoint_and_follows_redirect', async () => {
     setSearch('?device_challenge=chal-123&user_code=ABCD1234');
     fetchSpy.mockResolvedValue({

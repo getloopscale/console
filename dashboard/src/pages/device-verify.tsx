@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, Button } from '@usetheo/ui';
+import { isSafeRedirectUrl } from '@/lib/auth/safe-redirect';
 
 // Plan J-05 amendment 2026-06-05 (LIVE debug iter 3) — Hydra v2.6 requires
 // the operator to host the device-verify UI: when the browser opens
@@ -55,6 +56,26 @@ export function DeviceVerifyPage() {
         setError(
           body.message ??
             'Could not authorize this device. Double-check the code or run `theo login --device-flow` again.',
+        );
+        setSubmitting(false);
+        return;
+      }
+      // B-031 — valida o destino ANTES de navegar (OWASP A01).
+      //
+      // Este era um open-redirect: a URL vinha de uma resposta do servidor e ia
+      // direto para `window.location.href`, sem checagem. O guard que fecha
+      // exatamente esta classe — `isSafeRedirectUrl` — existia no repo,
+      // documentado como "defense-in-depth para redirect_browser_to", testado, e
+      // sem NENHUM chamador. Um guard de seguranca nao chamado e pior que
+      // ausente: da a impressao de que a protecao existe.
+      //
+      // Fail-closed de proposito. Se o destino nao estiver na allowlist, o
+      // usuario ve um erro em vez de ser levado para fora — o caminho legitimo
+      // (auth-dev/auth.usetheo.dev, os hosts do fluxo OAuth) esta coberto.
+      if (!isSafeRedirectUrl(body.redirect_to)) {
+        setError(
+          'The authentication service returned an unexpected redirect target. ' +
+            'For your safety we did not follow it — run `theo login --device-flow` again.',
         );
         setSubmitting(false);
         return;
