@@ -15,8 +15,10 @@ import {
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
-import { useEngineApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
+import { useQuery } from '@tanstack/react-query';
+import { engineFetch } from '@/lib/api';
+import { queryKeys } from '@/lib/api/query-keys';
 import { useDeleteDomain, useVerifyDomain } from '@/hooks/mutations/use-domains';
 import { formatDate } from '@/lib/format';
 import { NSInstructionsCard } from '@/components/domains/ns-instructions-card';
@@ -134,7 +136,25 @@ export function DomainsPage() {
   useRequireAuth();
   useSetPageTitle('Domains');
 
-  const { data, loading } = useEngineApi<DomainsResponse>('/api/v1/domains');
+  // B-017 — a lista precisa morar na MESMA hierarquia que as mutations invalidam.
+  // Antes ela usava useEngineApi, cuja chave e ['engine', '/api/v1/domains'],
+  // enquanto useDeleteDomain/useVerifyDomain invalidavam ['domains']: dois
+  // namespaces disjuntos, entao verificar ou remover um dominio NUNCA atualizava
+  // a tabela — o usuario via o estado velho ate recarregar a pagina.
+  //
+  // `throwOnError: true` e deliberado, e NAO e o escape hatch `silent-null-ok`.
+  // O useEngineApi que estava aqui antes tolerava um null resolvido porque SEU
+  // consumidor trata `data === null` como erro — mas esta pagina nunca leu a flag
+  // `error` que ele devolvia. Na pratica, uma falha de rede renderizava a tabela
+  // VAZIA, que o operador le como "voce nao tem nenhum dominio" quando a verdade
+  // e "nao consegui perguntar" — exatamente a classe que silent-null-guard fecha
+  // (#274). Com throwOnError a falha sobe para o RouteBoundary da rota.
+  const domainsQuery = useQuery({
+    queryKey: queryKeys.domains.list(),
+    queryFn: () => engineFetch<DomainsResponse>('/api/v1/domains', {}, { throwOnError: true }),
+  });
+  const data = domainsQuery.data ?? null;
+  const loading = domainsQuery.isLoading;
   const domains = data?.domains ?? [];
   const [verifying, setVerifying] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
