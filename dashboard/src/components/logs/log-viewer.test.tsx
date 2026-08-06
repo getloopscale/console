@@ -308,10 +308,20 @@ describe('LogViewer permalink (J-19 T2.1 — R5 SHOULD)', () => {
  * faixa, ausente) e a escrita do hash no clique. Faltava o caminho FELIZ — o que
  * de fato acontece quando o link e valido — e o auto-scroll inteiro.
  *
- * Estes testes descrevem o comportamento OBSERVAVEL, nao a implementacao: nenhum
- * deles sabe que existe um `.map` ou um `scrollRef`. Uma lista virtualizada que
- * preserve o contrato passa neles sem alteracao; uma que quebre o permalink ou o
- * auto-scroll falha, que e exatamente o sinal que faltava.
+ * ## O que estes testes garantem, e onde eles sao acoplados
+ *
+ * Tres dos cinco sao agnosticos de implementacao — falam de `scrollTop`, que e
+ * o estado observavel do container, e passariam sem alteracao numa lista
+ * virtualizada.
+ *
+ * Os DOIS do permalink espiam `scrollIntoView`, e isso e acoplamento assumido,
+ * nao descuido: em jsdom nao ha layout, entao "a linha ficou visivel" nao e
+ * observavel de outro jeito. A consequencia pratica precisa estar escrita aqui:
+ * uma implementacao virtualizada usaria `virtualizer.scrollToIndex` e estes dois
+ * casos PRECISARAO ser adaptados. A PROPRIEDADE a preservar continua a mesma —
+ * seguir `#L<n>` leva a linha n ao centro da vista, e o auto-scroll para de
+ * arrastar o leitor — e e ela que a adaptacao deve manter. Trocar o alvo do
+ * espiao e legitimo; afrouxar a asserção para "nao lanca" nao e.
  */
 describe('LogViewer — contrato de scroll (B-025, rede para a virtualizacao)', () => {
   const linhas: LogLine[] = Array.from({ length: 6 }, (_, i) => ({
