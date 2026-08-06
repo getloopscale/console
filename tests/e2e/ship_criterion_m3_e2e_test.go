@@ -37,7 +37,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	theojwt "github.com/usetheodev/theo-contracts/jwt"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // assertNotNullViolation fails unless err is a Postgres not_null_violation

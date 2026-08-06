@@ -15,10 +15,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/config"
-	"github.com/usetheodev/theo-cloud/internal/rag"
-	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/config"
+	"github.com/usetheoai/theo-cloud/internal/rag"
+	"github.com/usetheoai/theo-cloud/internal/routes"
 )
 
 func quietLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }

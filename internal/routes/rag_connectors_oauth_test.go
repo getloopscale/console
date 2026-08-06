@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // authed sets a Bearer-JWT tenant on the request context — used by ListOAuthProviders (a Bearer API

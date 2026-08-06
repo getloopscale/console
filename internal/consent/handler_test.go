@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // Red Team theo-cloud#117 closure — friendly "login link expired" page

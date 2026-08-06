@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/serviceversions"
-	"github.com/usetheodev/theo-cloud/internal/version"
+	"github.com/usetheoai/theo-cloud/internal/serviceversions"
+	"github.com/usetheoai/theo-cloud/internal/version"
 )
 
 type stubCollector struct {

@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 func TestIdentityMigratorNilDB(t *testing.T) {

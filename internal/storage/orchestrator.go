@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/storage/share"
+	"github.com/usetheoai/theo-cloud/internal/storage/share"
 )
 
 // TierResolver resolves a tenant's plan tier (e.g. "pro") — implemented over the

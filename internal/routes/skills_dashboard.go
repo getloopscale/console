@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheodev/theo-cloud/internal/skills"
+	"github.com/usetheoai/theo-cloud/internal/skills"
 )
 
 // skillsReader e o subconjunto de `*skills.DataClient` que este BFF consome.

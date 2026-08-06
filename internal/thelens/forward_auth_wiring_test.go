@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/routes"
-	"github.com/usetheodev/theo-cloud/internal/thelens"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/usetheoai/theo-cloud/internal/thelens"
 )
 
 // M38 — the theo-lens ForwardAuth WIRING: the generic ForwardAuthHandler (reused,

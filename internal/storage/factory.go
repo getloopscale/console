@@ -9,7 +9,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/storage/s3x"
+	"github.com/usetheoai/theo-cloud/internal/storage/s3x"
 )
 
 // BackendConfig is the subset of the service config the storage factory needs

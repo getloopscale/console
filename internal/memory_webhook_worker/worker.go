@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/safehttp"
+	"github.com/usetheoai/theo-cloud/internal/safehttp"
 )
 
 // Defaults — overridable via Config when constructing Worker.

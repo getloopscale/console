@@ -15,7 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/usetheodev/theo-cloud/internal/account"
+	"github.com/usetheoai/theo-cloud/internal/account"
 )
 
 // TenantProvisioner automatically creates a tenant for new users on first signup.

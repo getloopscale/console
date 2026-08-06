@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	cloudmetrics "github.com/usetheodev/theo-cloud/internal/metrics"
+	cloudmetrics "github.com/usetheoai/theo-cloud/internal/metrics"
 )
 
 // GitHubIntegrationsHandler implements the dashboard install handshake:

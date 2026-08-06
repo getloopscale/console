@@ -1,4 +1,4 @@
-module github.com/usetheodev/theo-cloud
+module github.com/usetheoai/theo-cloud
 
 go 1.26.1
 

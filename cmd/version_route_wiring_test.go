@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/version"
+	"github.com/usetheoai/theo-cloud/internal/version"
 )
 
 // M22 T5.3 — GET /v1/version must be registered, and registered OUTSIDE any auth middleware.

@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/routes"
-	"github.com/usetheodev/theo-cloud/internal/themory"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/routes"
+	"github.com/usetheoai/theo-cloud/internal/themory"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )

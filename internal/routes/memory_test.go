@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/themory"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/themory"
 )
 
 // recallStubClient embeds the TheMemoryClient interface (only Recall is exercised)

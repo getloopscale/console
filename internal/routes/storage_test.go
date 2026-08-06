@@ -16,10 +16,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/metrics"
-	"github.com/usetheodev/theo-cloud/internal/storage"
-	"github.com/usetheodev/theo-cloud/internal/storage/share"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/metrics"
+	"github.com/usetheoai/theo-cloud/internal/storage"
+	"github.com/usetheoai/theo-cloud/internal/storage/share"
 )
 
 // stubStorageService lets us drive each handler branch deterministically.

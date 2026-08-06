@@ -52,7 +52,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // Client talks to TheMemory's REST API. Construct via NewClient.

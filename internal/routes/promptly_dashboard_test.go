@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheodev/theo-cloud/internal/promptly"
+	"github.com/usetheoai/theo-cloud/internal/promptly"
 )
 
 // Duble do cliente: cada metodo devolve o que o teste programou. Substitui a porta, nao o HTTP —

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/serviceversions"
+	"github.com/usetheoai/theo-cloud/internal/serviceversions"
 )
 
 // O CORACAO DO theo-workspace#37. O estado da frota so virava real quando um humano

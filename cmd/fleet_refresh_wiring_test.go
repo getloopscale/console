@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheodev/theo-cloud/internal/config"
+	"github.com/usetheoai/theo-cloud/internal/config"
 )
 
 // Pilar (b) da triade de wiring para theo-workspace#37.

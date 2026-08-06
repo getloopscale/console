@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // M0 J-02 T1.2 — GET /v1/auth/me carries the tenant provisioning snapshot the

@@ -12,8 +12,8 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheodev/theo-cloud/internal/billing"
-	"github.com/usetheodev/theo-cloud/internal/metering"
+	"github.com/usetheoai/theo-cloud/internal/billing"
+	"github.com/usetheoai/theo-cloud/internal/metering"
 )
 
 // T4.2 — the reporter claims pending rows with FOR UPDATE SKIP LOCKED inside a

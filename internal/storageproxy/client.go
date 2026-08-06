@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/storage"
-	"github.com/usetheodev/theo-cloud/internal/storage/share"
+	"github.com/usetheoai/theo-cloud/internal/storage"
+	"github.com/usetheoai/theo-cloud/internal/storage/share"
 )
 
 const (

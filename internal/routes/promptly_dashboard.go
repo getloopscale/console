@@ -24,7 +24,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheodev/theo-cloud/internal/promptly"
+	"github.com/usetheoai/theo-cloud/internal/promptly"
 )
 
 // revisionsPageCeiling e o teto que ESTA rota impoe a listagem de revisoes.

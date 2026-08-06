@@ -15,7 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/trust"
+	"github.com/usetheoai/theo-cloud/internal/trust"
 )
 
 // trustWriter e o subconjunto mutante que este handler consome.
