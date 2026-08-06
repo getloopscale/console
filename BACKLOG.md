@@ -791,7 +791,7 @@ dod:
   - Mover os 8 modulos de lens para features/lens/lib/ (ou pages/lens/lib/ se a migracao por feature ainda nao comecou) — sao domain logic, nao utilidade
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/lib/trace-layout.ts` e passa depois da mudanca
 
-## B-042 — src/lib/api.ts guarda o estado de sessao em 6 variaveis mutaveis de modulo e abre um BroadcastChannel como efeito colateral de import, para...   [ ]
+## B-042 — src/lib/api.ts guarda o estado de sessao em 6 variaveis mutaveis de modulo e abre um BroadcastChannel como efeito colateral de import, para...   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -802,7 +802,8 @@ category: shared_mutable_state
 evidence: src/lib/api.ts:61 — src/lib/api.ts:61 let accessToken: string | null = null; src/lib/api.ts:62 let tokenExpiresAt = 0; src/lib/api.ts:63 let refreshPromise: Promise<boolean> | null = null; src/lib/api.ts:73 let authChannel: BroadcastChannel | null = null; src/lib/api.ts:74-86 try { authChannel = new BroadcastChannel('theo-auth'); authChannel.onmessage = ... redirectToLogin('expired'); } <- efeito colateral no...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#14
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 2e9cd47 (o singleton em memoria foi MANTIDO de proposito — o token precisa ser legivel fora da arvore React; faltava ciclo de vida, nao inversao de dependencia)
 dod:
   - Mover a criacao do BroadcastChannel para uma funcao installAuthChannel() chamada explicitamente em main.tsx, junto do resto do bootstrap — o import passa a ser puro e o teardown fica possivel (a funcao retorna um dispose)
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/lib/api.ts` e passa depois da mudanca
