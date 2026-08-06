@@ -450,7 +450,7 @@ dod:
   - Em src/build/manual-chunks.ts, parar de mapear todo node_modules para vendor
   - o tamanho brotli do conjunto eager e re-medido com `ANALYZE=true npm run bundle:analyze` e registrado antes/depois
 
-## B-022 — O orcamento de bundle (size-limit) esta desatualizado: 3 das 9 entradas apontam para chunks que nao existem mais e o HARD GATE total esta...   [ ]
+## B-022 — O orcamento de bundle (size-limit) esta desatualizado: 3 das 9 entradas apontam para chunks que nao existem mais e o HARD GATE total esta...   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -462,7 +462,8 @@ evidence: package.json:43 — MEDIDO: ls dist/assets | grep para cada glob decla
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · scaling#2
 overlaps: B-035
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 724bd26 (limites ancorados no MEDIDO — travam a divida onde ela esta; derruba-la e B-021/B-073)
 dod:
   - Alinhar as entradas do package.json aos chunks que src/build/manual-chunks.ts realmente emite: remover 02/03/06 (theo-ui, radix, lucide) ou reintroduzir esses chunks
   - o tamanho brotli do conjunto eager e re-medido com `ANALYZE=true npm run bundle:analyze` e registrado antes/depois
@@ -674,7 +675,7 @@ dod:
   - Medir uma vez com getComputedStyle no app buildado, apagar o perdedor, e fixar o vencedor num teste de regressao (jsdom nao resolve cascade de @import; use um teste Playwright que le getComputedStyle(document.body).getPropertyValue('--primary'))
   - mudanca verificavel em `src/index.css` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-035 — Orcamento de bundle enforced por size-limit com HARD GATE de 225KB brotli — configurado contra chunks que nao existem mais   [ ]
+## B-035 — Orcamento de bundle enforced por size-limit com HARD GATE de 225KB brotli — configurado contra chunks que nao existem mais   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -686,7 +687,8 @@ evidence: package.json:22 — package.json:26-40 entradas 02/03/06 apontam para 
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#11
 overlaps: B-022
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 724bd26 (limites ancorados no MEDIDO — travam a divida onde ela esta; derruba-la e B-021/B-073)
 dod:
   - Reescrever as entradas para os chunks que existem hoje (react-vendor, router, vendor, index) e reancorar o TOTAL no valor medido com um plano de reducao — ou apagar o size-limit
   - mudanca verificavel em `package.json` com `npx tsc --noEmit` + `npm test` verdes
