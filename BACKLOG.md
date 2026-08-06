@@ -603,6 +603,7 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-031, B-069, B-076
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+partial_progress: 861476b — useDomainStatusPolling LIGADO via DomainStatusWatcher: a tabela passa a atualizar quando o DNS propaga, em vez de exigir reload manual. So funciona porque B-018 unificou a hierarquia de chave. RESTA useFirstDeployTrigger (confetti no primeiro deploy) — feature completa nunca ligada; wire muda a UX sem pedido, apagar destroi trabalho. Chamada de produto.
 partial_progress: mecanismo entregue: src/lib/test-only-module-guard.test.ts impede a PROXIMA instancia. Os dois hooks seguem na allowlist — a decisao de wire-ou-apagar e de produto (useFirstDeployTrigger dispara confetti no primeiro deploy)
 dod:
   - Per hook, decide and act - do not leave them
