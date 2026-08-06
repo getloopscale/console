@@ -1088,7 +1088,7 @@ dod:
   - Either wire create-environment-sheet.tsx to useCreateEnvironment (preferred - the hook already handles cache invalidation the raw fetch does not), or delete the hook and its test
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/hooks/mutations/use-environments.ts`
 
-## B-060 — useInviteMember is test-only: production sheet bypasses it with a raw fetch   [ ]
+## B-060 — useInviteMember is test-only: production sheet bypasses it with a raw fetch   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1100,7 +1100,8 @@ evidence: src/hooks/mutations/use-team.ts:6 — useInviteMember (src/hooks/mutat
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#6
 overlaps: B-017, B-058, B-059
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 80b0f38
 blocked_by: descoberta em bab4883 — team.tsx:43 le a lista com useEngineApi('/api/v1/teams/members'), chave ['engine', ...], enquanto useInviteMember invalida ['team']. Sao arvores disjuntas: ligar o sheet ao hook produziria um convite que CONTINUA nao atualizando a tabela, com aparencia de corrigido. Requer primeiro dar ao recurso team a hierarquia unica que domains recebeu em B-017 (queryKeys.team.{all,list}) — mesmo padrao, outro recurso.
 dod:
   - Either wire invite-member-sheet.tsx to useInviteMember (which would make the plural-path regression test meaningful) or delete the hook plus its three test cases
