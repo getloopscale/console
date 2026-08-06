@@ -482,6 +482,7 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-062
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+correcao_ao_achado_2026-08-06: a remediacao dizia "trocar <SpanTree> pelo SpanTreeVirtual que @usetheo/ui JA EXPORTA". VERIFICADO no pacote instalado: ele NAO exporta. O arquivo dist/components/composites/span-tree/span-tree-virtual.d.ts existe, mas o dist/index.d.ts expoe apenas SpanTree, SpanTreeProps, SpanTreeRenderCtx, SpanTreeRow, SpanTreeRowProps e SpanTrees — e o campo `exports` do package.json so permite os subpaths "." e "./preset", entao nem por caminho profundo da. O caminho descrito na remediacao NAO EXISTE. As opcoes reais sao: (a) pedir o export ao upstream (@usetheo/ui) e so entao trocar; (b) virtualizar aqui com @tanstack/react-virtual, que seria o primeiro uso proprio no repo — e a decisao que B-062 pede. Registrado para que a proxima pessoa nao gaste o tempo que eu gastei descobrindo isso.
 dod:
   - Trocar src/pages/lens/trace-detail/index.tsx:157 de <SpanTree> para o SpanTreeVirtual que @usetheo/ui ja exporta, acionando-o quando flattenVisible (linha 79) passar de VIRTUALIZE_THRESHOLD — a virtualizacao ja esta implementada e testada no design system, nao precisa ser escrita aqui
   - o request emitido por `src/pages/lens/trace-detail/helpers.ts` carrega teto explicito (limit/offset) — verificavel no painel Network ou por teste sobre o handler MSW
@@ -1157,6 +1158,7 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-023
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+analise_2026-08-06: a decisao ficou mais simples com o fato apurado em B-023 — o SpanTreeVirtual do design system NAO e importavel (nao consta do index.d.ts nem do campo exports). Logo nao existe a opcao "usar a virtualizacao pronta e remover a dep": ou o upstream exporta, ou virtualizar aqui significa o PRIMEIRO uso proprio de @tanstack/react-virtual no repo. A escolha (a) manter a dep e implementar, ou (b) remover a dep, apagar VIRTUALIZE_THRESHOLD e corrigir os tres comentarios que afirmam uma virtualizacao inexistente — segue sendo de produto, mas agora com o custo real de cada lado visivel.
 dod:
   - Decide explicitly, do not just uninstall: either (a) the large-trace virtualization is still required - implement it and keep the dep; or (b) it is not - npm uninstall @tanstack/react-virtual, delete VIRTUALIZE_THRESHOLD from helpers.ts:48, and correct the three comments
   - a entrada correspondente saiu de `package.json` e `npm run build` + `npm run lint` passam
