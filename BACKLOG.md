@@ -1175,6 +1175,7 @@ evidence: src/pages/projects.tsx:174 — grep for @deprecated, DEPRECATED and LE
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#14
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+partial_progress: 626eed9 — os dois campos legados de Project (`apps`, `environment`) ganharam @deprecated com CONDICAO de sunset. environment_count/production_env_count NAO foram marcados: respondem perguntas diferentes, marcar seria inventar divida. CORRECAO AO ACHADO: "enable eslint no-deprecated" nao e possivel — a regra exige type-aware linting e o eslint.config.js declara parserOptions SEM project/projectService. Habilitar muda o custo do lint no repo inteiro e e decisao propria. O TS Language Server ja risca o simbolo no editor, que e onde a decisao de usar acontece.
 dod:
   - Adopt @deprecated JSDoc on every compat shim with a sunset condition in the tag body, e.g
   - o marcador/mecanismo existe em `src/pages/projects.tsx` e ha regra de lint ou gate de CI que falha na ausencia dele
