@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/usetheoai/theo-cloud/internal/auth"
-	theojwt "github.com/usetheodev/theo-contracts/jwt"
+	theojwt "github.com/usetheoai/theo-contracts/jwt"
 )
 
 const (

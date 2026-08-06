@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 
-	theojwt "github.com/usetheodev/theo-contracts/jwt"
+	theojwt "github.com/usetheoai/theo-contracts/jwt"
 
 	"github.com/usetheoai/theo-cloud/internal/auth"
 	"github.com/usetheoai/theo-cloud/internal/billing"

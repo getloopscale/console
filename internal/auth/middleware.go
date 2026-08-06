@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	theojwt "github.com/usetheodev/theo-contracts/jwt"
+	theojwt "github.com/usetheoai/theo-contracts/jwt"
 )
 
 // UserContext holds authenticated user info, set by the auth middleware.

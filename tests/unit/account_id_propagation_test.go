@@ -19,7 +19,7 @@ import (
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	theojwt "github.com/usetheodev/theo-contracts/jwt"
+	theojwt "github.com/usetheoai/theo-contracts/jwt"
 
 	"github.com/usetheoai/theo-cloud/internal/auth"
 	"github.com/usetheoai/theo-cloud/internal/routes"

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	theojwt "github.com/usetheodev/theo-contracts/jwt"
+	theojwt "github.com/usetheoai/theo-contracts/jwt"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/usetheoai/theo-cloud/internal/auth"

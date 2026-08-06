@@ -35,7 +35,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	theojwt "github.com/usetheodev/theo-contracts/jwt"
+	theojwt "github.com/usetheoai/theo-contracts/jwt"
 
 	"github.com/usetheoai/theo-cloud/internal/auth"
 )
