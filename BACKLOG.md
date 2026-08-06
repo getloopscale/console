@@ -91,7 +91,7 @@ auditoria. `severity` traz o `severity_source` entre parenteses: `consensus` (co
 ampla da industria), `default` (limiar publicado adotado) ou `heuristic` (regra de bolso
 declarada como tal).
 
-## B-001 — 5 ciclos de import em pages/lens causados por shims de re-export homonimos (arquivo.tsx + pasta/)   [ ]
+## B-001 — 5 ciclos de import em pages/lens causados por shims de re-export homonimos (arquivo.tsx + pasta/)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -103,7 +103,8 @@ evidence: src/pages/lens/playground.tsx:6 — madge --circular src -> 8 ciclos, 
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#1
 overlaps: B-044, B-079
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: abc391f — 7 dos 8 ciclos eliminados (todos com a mesma causa: pagina exportando dominio para os filhos). O 8o NAO e divida: a unica aresta que o fecha e um React.lazy(() => import(...)), fronteira de code-splitting deliberada. Sem ciclo de init em runtime; o madge nao distingue dinamico de estatico. Nota no peek-sheet impede a "correcao" errada, que reintroduziria risco de init E desfaria parte dos 180 kB de B-021.
 partial_progress: 9ef2466 — 5 dos 6 ciclos da familia lens fechados (filhos passaram a importar trace-detail/helpers em vez do shim pai). RESIDUO: span-detail renderiza a pagina irma LensPlayground; fechar exige inverter via render-prop, mudanca de comportamento sem teste que cubra a interacao playground/peek-sheet
 dod:
   - Regra de lint (import/no-internal-modules ou dependency-cruiser rule): nenhum arquivo dentro de X/ pode importar de X (o shim pai). Filhos importam leafs: playground.tsx:6 vira import { asChat } from './trace-detail/helpers'; baseline-column.tsx:5 vira from '../trace-detail/helpers';...
