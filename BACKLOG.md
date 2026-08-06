@@ -1471,7 +1471,7 @@ dod:
   - Delete line 249 of src/lib/api.ts and run npx tsc --noEmit
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/lib/api.ts`
 
-## B-082 — Six nav-reachable routes render a placeholder with no tracking issue or sunset date   [ ]
+## B-082 — Six nav-reachable routes render a placeholder with no tracking issue or sunset date   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1482,7 +1482,8 @@ category: dead_feature_path
 evidence: src/app.tsx:604 — Six of the 118 <Route> declarations in src/app.tsx resolve to SubPagePlaceholder: /settings/members (line 604), /settings/notifications (651), /settings/danger (664), /profile/security (678), /profile/sessions (691), /profile/danger (704). All six are advertised in the sidebar - src/components/layout/app-sidebar-menus.ts lines 172, 181, 186, 200, 201, 206 - so a user can click into each and...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#13
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: b645e01 (eram SETE rotas, nao seis — /profile/danger faltava no achado)
 dod:
   - Attach a tracking issue id and a review date to each of the six placeholder call sites (a one-line comment above each <Route> is enough)
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/app.tsx`
