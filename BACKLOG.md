@@ -898,6 +898,7 @@ evidence: src/pages/project-connect.tsx:170 — project-connect.tsx:68 `const [c
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#9
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+analise_2026-08-06: reavaliado duas vezes e mantido FORA do escopo de sessao. O polling nao e um setInterval isolado: `fetchConn` (project-connect.tsx:101) faz setConn + setLoading imperativos, e `conn` alimenta uma FSM (`state`) que decide a UI inteira do arquivo — 696 LOC, 16 useState. Migrar para useQuery+refetchInterval significa inverter quem e dono de `conn`, e junto vem replicar tres comportamentos que hoje sao explicitos: o teto de 5 min (POLL_TIMEOUT_MS) com mensagem de erro propria, o refetch por visibilitychange com debounce de 500ms (que refetchOnWindowFocus cobre so em parte), e a parada em transicao de estado. Os testes existentes cobrem o observavel, nao os caminhos de timeout — entao o refactor seria feito sem rede. Recomendacao: /to-plan proprio, junto de B-009 (decomposicao de project-connect.tsx, que ja esta na allowlist de max-lines com 696 LOC).
 dod:
   - Migrar para useQuery com refetchInterval derivado do dado, seguindo src/hooks/use-provisioning-status.ts:52; extrair src/hooks/use-project-connection.ts e src/hooks/use-billing-activation.ts
   - `src/pages/project-connect.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
