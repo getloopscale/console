@@ -1350,6 +1350,7 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+conflito_com: B-080 (fechado em 106c10e) — CONTRADICAO REAL entre dois achados da mesma auditoria. deletion#10 mediu que eslint-plugin-react-compiler nao e referenciado em eslint.config.js e mandou REMOVER a dependencia; tradeoff#13 mandou ADICIONA-LA ao eslint.config.js justamente por ser o mecanismo que torna visivel quando o React Compiler desiste de um componente. Ambos os achados estao corretos sobre o estado — a dep estava instalada e nao usada. O que eles discordam e sobre o DESTINO. A onda 1 executou a remocao (o caminho reversivel: reinstalar e uma linha). Quem pegar B-075 decide primeiro a politica de memoizacao e, SE decidir pelo plugin, reinstala a dep na mesma PR que o wira no eslint.config.js — nao antes.
 dod:
   - Adicionar eslint-plugin-react-compiler ao eslint.config.js — ele e o mecanismo que transforma 'o compiler desistiu deste componente' em sinal visivel, e sem ele a adocao e cega
   - mudanca verificavel em `vite.config.ts` com `npx tsc --noEmit` + `npm test` verdes
@@ -1437,6 +1438,7 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: shipped
 resolved_in: 106c10e
+conflito_com: B-075 (aberto) — a remocao de eslint-plugin-react-compiler executada aqui e o OPOSTO do que B-075 pede. Registrado nos dois lados de proposito: um item fechado que contradiz um item aberto, sem nota, e como uma decisao vira folclore. Reverter custa uma linha.
 dod:
   - npm uninstall autoprefixer eslint-plugin-react-compiler @storybook/blocks; then npm run lint && npm run storybook:build to confirm
   - a entrada correspondente saiu de `package.json` e `npm run build` + `npm run lint` passam
