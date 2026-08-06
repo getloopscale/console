@@ -14,8 +14,12 @@
 // isn't set (dev / same-origin). Production with split domains (Kratos at
 // accounts.theo.dev vs API at api.theo.dev) requires AUTH_URL set explicitly
 // via /__config.js — without this fallback the auth flow breaks silently.
-import { API_URL, AUTH_URL } from './config';
-import { mocksEnabled, getMockSession } from './dev-mocks';
+import { API_URL, AUTH_URL, mocksEnabled } from './config';
+// B-049 — `mocksEnabled` agora vem de ./config (e configuracao, nao fixture).
+// `getMockSession` continua vindo de ./dev-mocks: transforma-lo em injecao no
+// boot (main.tsx) e o passo 2 da remediacao e fica registrado no item, porque
+// muda o ciclo de vida da sessao e merece o seu proprio teste.
+import { getMockSession } from './dev-mocks';
 const KRATOS_URL = AUTH_URL || API_URL;
 
 // Os tipos de sessao moram em ./api/types (a ACL de tipos do backend, que nao

@@ -10,8 +10,8 @@
 
 // MEET-040: Single origin. Dashboard served at cloud.{domain} — all API calls are relative.
 // Runtime config via /__config.js (empty in prod = same-origin, set per-env in container).
-import { API_URL } from './config';
-import { mocksEnabled } from './dev-mocks';
+import { API_URL, mocksEnabled } from './config';
+
 const API_BASE = API_URL;
 
 export function getApiBase() { return API_BASE; }

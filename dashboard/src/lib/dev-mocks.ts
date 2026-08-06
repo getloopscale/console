@@ -18,10 +18,11 @@
 
 import type { Session } from './api/types';
 
-/** Single source of truth for "is the dev mock layer active?". */
-export function mocksEnabled(): boolean {
-  return import.meta.env.VITE_USE_MOCKS === 'true';
-}
+// B-049 — `mocksEnabled` mora em ./config para que api.ts e auth.ts (producao)
+// nao precisem importar deste modulo de fixtures. Re-exportado aqui porque os
+// consumidores internos e o harness de e2e ja o pegavam por este caminho.
+export { mocksEnabled } from './config';
+import { mocksEnabled } from './config';
 
 /**
  * Logged-out mock mode — when `VITE_USE_MOCKS=true` AND EITHER the build-time
