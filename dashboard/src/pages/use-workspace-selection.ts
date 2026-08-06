@@ -9,8 +9,9 @@ import type { StorageFile } from './workspace/helpers';
  * Selection + bulk-delete model for the Workspace folder-browser. A selection key
  * that ends in "/" is a FOLDER (a prefix); any other key is a FILE path. This lets
  * the bulk delete build `{paths, prefixes}` straight from the selected keys (D2).
- * Extracted from workspace.tsx to keep that file under the LoC budget and to give
- * selection + its mutation a single owner (SRP).
+ * Extracted from workspace.tsx to keep that file under the LoC budget
+ * (docs/adr/0002-orcamento-de-loc-por-arquivo.md) and to give selection + its
+ * mutation a single owner (SRP).
  */
 export interface BulkRequest {
   paths: string[];

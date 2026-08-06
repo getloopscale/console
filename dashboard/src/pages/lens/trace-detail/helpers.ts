@@ -2,12 +2,13 @@
  * Pure, total layout/parse helpers for the trace-detail view (M58 D1 extraction).
  *
  * These moved out of `src/pages/lens/trace-detail.tsx` (now a re-export shim) so the view module
- * dir stays under the 500-LoC budget and the math stays unit-testable in isolation. Every function
+ * dir stays under the 500-LoC budget (docs/adr/0002-orcamento-de-loc-por-arquivo.md) and the
+ * math stays unit-testable in isolation. Every function
  * here is pure and total — it never throws and never does I/O. The public helper surface
  * (`TraceSpanNode`, `durationMs`, `prettyValue`, `asChat`, `computeTraceBounds`, `computeBarLayout`,
- * `flattenVisible`, `VIRTUALIZE_THRESHOLD`) is re-exported from `./index` and from the shim, so the
- * existing imports in `trace-detail.test.tsx`, `compare.tsx`, `compare-core.ts`, and `playground.tsx`
- * keep resolving with zero churn.
+ * `flattenVisible`) e re-exportada pelo shim `../trace-detail.tsx`. NOTA: `playground.tsx`,
+ * `compare.tsx` e `compare-core.ts` passaram a importar DESTE modulo diretamente (B-001) — era o
+ * import via shim que fechava os ciclos da familia lens.
  *
  * M58 T1.1 — `TraceSpanNode`, `computeTraceBounds`, and `computeBarLayout` now live in the pure
  * leaf module `@/lib/trace-layout` (with the new axis / row-pack / ∑-cost math). They are re-exported
