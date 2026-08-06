@@ -375,7 +375,7 @@ dod:
   - Deletar o engineFetch dos sheets e consumir useAddDomain / useCreateEnvironment / useInviteMember (src/hooks/mutations/), alinhando o payload com o do sheet (que e o que o backend aceita hoje)
   - existe teste que falha hoje e passa depois, provando que `invalidateQueries` alcanca a chave afetada a partir de `src/components/sheets/add-domain-sheet.tsx`
 
-## B-018 — Recurso domains tem dois namespaces de query key independentes — invalidar um nunca alcanca o outro   [ ]
+## B-018 — Recurso domains tem dois namespaces de query key independentes — invalidar um nunca alcanca o outro   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -386,7 +386,8 @@ category: cache_invalidation_risk
 evidence: src/hooks/use-domain-status-polling.ts:55 — use-domain-status-polling.ts:55 `queryKey: ["engine", `/api/v1/domains/${domainName}`] as const`; src/hooks/mutations/use-domains.ts:4 `const DOMAINS_KEY = ["domains"] as const` usado nos onSuccess das linhas 15, 27 e 40. src/lib/api/query-keys.ts nao tem entrada domains.
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#11
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: af6532c
 dod:
   - Adicionar `domains: { all, list(filters), detail(name) }` em src/lib/api/query-keys.ts e trocar as duas chaves literais por ela, para que invalidate(["domains"]) alcance lista e detalhe
   - existe teste que falha hoje e passa depois, provando que `invalidateQueries` alcanca a chave afetada a partir de `src/hooks/use-domain-status-polling.ts`
@@ -1405,7 +1406,7 @@ dod:
   - Escrever no repositorio, como arquivos, apenas os ADRs que continuam vinculantes — os candidatos ja estao identificados nesta fase: eixo de organizacao de codigo, orcamento de LoC, split @usetheo/ui vs @theokit/ui, justificativa do service worker, politica do React Compiler, obrigatoriedade da...
   - mudanca verificavel em `.claude/knowledge-base/adrs` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-079 — trace-detail re-export shim is a migration artifact with no @deprecated marker, no sunset, and 3 provably unused re-exports   [ ]
+## B-079 — trace-detail re-export shim is a migration artifact with no @deprecated marker, no sunset, and 3 provably unused re-exports   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1417,7 +1418,8 @@ evidence: src/pages/lens/trace-detail.tsx:15 — src/pages/lens/trace-detail.tsx
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#7
 overlaps: B-001, B-044
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: af6532c
 dod:
   - Drop VIRTUALIZE_THRESHOLD, ChatMessage and FlatNode from the re-export list (lines 24, 26, 27) and correct the docblock claim at line 13
   - o marcador/mecanismo existe em `src/pages/lens/trace-detail.tsx` e ha regra de lint ou gate de CI que falha na ausencia dele
