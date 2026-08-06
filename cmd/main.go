@@ -210,7 +210,25 @@ func serviceVersionTargets(cfg config.Config) []serviceversions.Target {
 // these targets live, so every probe would fail and the UI would read the security
 // guard as "the service is down". otelhttp keeps the most diagnostic call in the
 // system visible in theo-lens.
-func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, requireJWT func(http.Handler) http.Handler) {
+// fleetRefreshInterval — de quanto em quanto tempo a frota e' re-sondada SEM humano
+// (theo-workspace#37).
+//
+// 60s e' o compromisso declarado no ADR 0010: sondar a frota com teto global de 3s
+// custa, no pior caso, 3s a cada minuto, e um scrape de 15s ve dado com no maximo 60s
+// de idade — resolucao suficiente para "a frota esta' servindo a revisao publicada?",
+// que e' a pergunta, e nao para deteccao sub-minuto, que nao e'.
+//
+// Envelope, nao gosto: mais curto multiplica o fan-out sem responder nada novo (o
+// deploy que se quer observar leva minutos); mais longo faz a metrica atrasar em
+// relacao ao painel, e duas leituras do mesmo fato discordando e' o defeito que o #37
+// existe para fechar.
+const fleetRefreshInterval = 60 * time.Second
+
+// DEVOLVE o coletor DECORADO para que o refresher periodico use exatamente o mesmo
+// caminho que o painel — inclusive a linha do proprio gateway, que so o decorator
+// acrescenta. Um refresher ligado ao coletor cru publicaria uma frota com um alvo a
+// menos que o JSON, e o censo do Prometheus discordaria do censo do painel por um.
+func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, requireJWT func(http.Handler) http.Handler) serviceversions.Collectable {
 	versionHTTP := &http.Client{
 		Timeout:   10 * time.Second, // last-resort ceiling, never the policy (D1)
 		Transport: otelhttp.NewTransport(http.DefaultTransport),
@@ -266,6 +284,7 @@ func mountServiceVersions(r chi.Router, cfg config.Config, logger *slog.Logger, 
 		collector, version.Read(), time.Now, observe,
 	)
 	routes.MountServiceVersions(r, routes.NewServiceVersionsHandler(selfAware, logger), requireJWT)
+	return selfAware
 }
 
 // mountRagDashboard registers the /v1/dashboard/rag BFF route group. M17 shipped it
@@ -1515,7 +1534,7 @@ func main() {
 	}
 	// M21: the sidebar's status dot stops being a JSX literal and starts deriving
 	// from a real probe of each data-plane service's /v1/version.
-	mountServiceVersions(r, cfg, logger, requireJWT)
+	fleetCollector := mountServiceVersions(r, cfg, logger, requireJWT)
 
 	// Memory Webhook Delivery plan T5.5: the dispatcher worker is started
 	// below alongside the metering scheduler, sharing the schedulerCtx for
@@ -1784,6 +1803,23 @@ func main() {
 
 	// Start metering scheduler (background goroutines)
 	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
+
+	// theo-workspace#37 — a frota passa a ser sondada SEM humano autenticado.
+	//
+	// Ate aqui `Collect` so era disparado pelo handler de
+	// `/v1/dashboard/status/versions`, que exige Bearer. Logo a metrica de frota —
+	// servida sem auth em `/metrics` justamente para ser lida por programa — so
+	// refletia a realidade depois que alguem abria o painel, e voltava a
+	// `not_collected` a cada restart. Nenhum guard, nenhum alerta e nenhum
+	// reconciliador conseguia perguntar "qual e' o estado da frota AGORA".
+	//
+	// Compartilha o `schedulerCtx` com os demais workers: um refresher que sobrevive
+	// ao SIGTERM segura o shutdown e sonda uma frota que ninguem mais observa.
+	//
+	// SEM guarda `db != nil` — de proposito, ao contrario dos workers abaixo. Esta
+	// coleta nao toca o banco, e um deploy sem Postgres e' exatamente quando saber o
+	// estado da frota importa mais.
+	go serviceversions.Refresh(schedulerCtx, fleetCollector, fleetRefreshInterval)
 	if db != nil && stripeClient != nil {
 		reporter := metering.NewReporter(db, stripeClient, logger)
 		reconciler := metering.NewReconciler(db, logger)
