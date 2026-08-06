@@ -1,3 +1,18 @@
+---
+type: Architecture
+title: theo-cloud as the MCP Model B broker
+description: How theo-cloud authorizes MCP traffic by validating a consumer credential and minting a least-privilege per-tenant downstream key.
+resource: https://github.com/usetheodev/theo-cloud/blob/main/internal/routes/mcp_resolve.go
+tags: [mcp, authorization, broker, tenancy, gateway]
+generated: { by: claude-opus-5/okf-export, at: 2026-08-05 }
+status: stable
+sources:
+  - id: repo-history
+    resource: docs/mcp-model-b-broker.md
+    title: MCP Model B broker, at its pre-bundle path in this repository
+    last_modified: 2026-06-30
+---
+
 # theo-cloud as the MCP Model B broker
 
 theo-cloud is the **Model B authorization broker** for MCP traffic fronted by the
@@ -47,3 +62,6 @@ together; see `../../theo-workspace/README.md` § Integrated MCP path and
 
 - Gateway broker resolver: `theo-traefik-mcp` `internal/auth` (`BrokerResolver`) — calls this endpoint.
 - Edge wiring + runbook: `theo-workspace/dev/traefik/dynamic.yml`, `theo-traefik-mcp/docs/local-compose.md`.
+
+- Scoped-key model this broker mints against:
+  [`governance/dashboard`](/governance/dashboard.md) invariant 4 (unified `theo_live_*` key with scopes).

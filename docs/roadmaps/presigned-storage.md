@@ -1,3 +1,17 @@
+---
+type: Roadmap
+title: Presigned upload/download
+description: Moving the storage data plane off the BFF proxy onto presigned SigV4 URLs, so the bytes travel client-to-S3 and the BFF keeps only auth, quota and metadata.
+tags: [storage, presigned, sigv4, s3, performance, roadmap]
+generated: { by: claude-opus-5/okf-export, at: 2026-08-05 }
+status: stable
+sources:
+  - id: repo-history
+    resource: docs/presigned-storage-roadmap.md
+    title: Presigned upload/download roadmap, at its pre-bundle path in this repository
+    last_modified: 2026-07-18
+---
+
 # Presigned upload/download — architecture roadmap
 
 Status: in progress (2026-07-18). Owner: platform. Repo: `theo-cloud` (BFF) + `dashboard`.
@@ -104,3 +118,9 @@ appears in the list. **Zero `PUT` to the BFF `/objects` proxy path** — the byt
 BFF. Screenshot: `.claude/knowledge-base/audits/presign-live-upload-app-dev-2026-07-18.png`. The
 signature+Host+edge+MinIO chain is independently confirmed by the s3x round-trip integration test
 run against the public host (mint PUT → upload → mint GET → read back, PASS).
+
+## Related
+
+- [`products/storage`](/products/storage.md) is the customer-facing surface this roadmap changes. ADR-P4
+  keeps that surface backward compatible: the proxy `PUT`/`GET` endpoints documented there stay, and
+  presign is additive.

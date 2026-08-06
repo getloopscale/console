@@ -1,3 +1,17 @@
+---
+type: Runbook
+title: M0 — Authentication & Onboarding — LIVE validation
+description: The operator and sponsor procedure that closes the one non-autonomous gate on M0, a side-by-side browser walkthrough of sign-up, email verify and first login on dev-public.
+tags: [runbook, m0, authentication, onboarding, live-validation, operator]
+generated: { by: claude-opus-5/okf-export, at: 2026-08-05 }
+status: stable
+sources:
+  - id: repo-history
+    resource: docs/operations/m0-live-validation-runbook.md
+    title: M0 LIVE validation runbook, at its pre-bundle path in this repository
+    last_modified: 2026-07-03
+---
+
 # M0 — Authentication & Onboarding — LIVE Validation Runbook
 
 **Purpose.** M0's DoD objective is *"sign-up → email verify → first login funcionando **LIVE no dev-public**."* The engineering for the five journeys is complete and hermetically verified (unit + component + browser-e2e + Go tests, all green, reviewed). This runbook is the **operator + sponsor** procedure that closes the one remaining, non-autonomous gate: the LIVE validation on `dev-public` per the INQUEBRÁVEL `cleanroom-up-live-test-mandate` (`theo/.claude/rules/cleanroom-up-live-test-mandate.md`).
@@ -55,3 +69,10 @@ On M0 close → **M1 — Project Lifecycle** (`ROADMAP.md`, depends on M0).
 - INQUEBRÁVEL mandate: `theo/.claude/rules/cleanroom-up-live-test-mandate.md`
 - Steady-state baseline rule: `theo/.claude/rules/steady-state-baseline.md`
 - M0 plans: `theo/.claude/knowledge-base/plans/2026-06-16-m0-j01-login-polish-plan.md` (+ j02/j03)
+
+- Journey plans and dashboard invariants behind J-01 to J-05:
+  [`governance/dashboard`](/governance/dashboard.md).
+
+> **An agent cannot execute this runbook.** It requires a real Cleanroom on `dev-public` and a sponsor
+> present side by side. It is recorded here so an agent can read what the gate is and why it is open,
+> never so an agent can claim to have passed it.

@@ -114,5 +114,5 @@ All PASS (proven this session).
 2. `theo-cloud/.claude/knowledge-base/plans/tenant-blob-storage-plan.md` (v1.1, SHIPPABLE 95.6 — the master plan; ADRs D1-D5).
 3. `theo/.claude/knowledge-base/discoveries/blueprints/tenant-blob-storage-blueprint.md` (SHIPPABLE 100.0 — architecture, 4 ADRs).
 4. `theo-cloud/.claude/knowledge-base/reviews/tenant-blob-storage-edge-cases-2026-07-14.md` (EC-1/EC-2 security).
-5. `theo-cloud/docs/storage.md` (the 6-op reference — API/CLI/SDK).
+5. `theo-cloud/docs/products/storage.md` (the 6-op reference — API/CLI/SDK).
 6. `theo-cloud/ROADMAP.md § M7` (DoD + engineering-status note).

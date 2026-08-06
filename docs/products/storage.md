@@ -1,3 +1,18 @@
+---
+type: Product Surface
+title: Storage
+description: File storage for a customer app, reachable three ways over one `/v1/storage/*` surface — the API, the CLI and the TypeScript SDK.
+resource: https://api.usetheo.dev/v1/storage
+tags: [storage, api, cli, sdk, product, share-link]
+generated: { by: claude-opus-5/okf-export, at: 2026-08-05 }
+status: stable
+sources:
+  - id: repo-history
+    resource: docs/storage.md
+    title: Storage reference, at its pre-bundle path in this repository
+    last_modified: 2026-07-14
+---
+
 # Storage — file storage for your app
 
 Theo storage lets your app store and serve files without running its own file
@@ -86,3 +101,9 @@ const { url } = await storage.share('avatars/user1.png', 3600);
 See `sdk/storage-ts/README.md` for the full error table.
 
 > A Python SDK is planned but not yet available (named deferral, 2026-07-14).
+
+## Related
+
+- [`roadmaps/presigned-storage`](/roadmaps/presigned-storage.md) changes how the bytes of these six
+  operations travel: upload and download move off the BFF proxy onto presigned URLs. The operation
+  table above describes the proxy path, which stays supported for small files and non-browser clients.

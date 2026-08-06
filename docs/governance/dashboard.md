@@ -1,3 +1,17 @@
+---
+type: Governance Mandate
+title: Dashboard Governance
+description: The locked mandates, architectural invariants and sponsor priority chain that any change to the TheoCloud dashboard must respect.
+tags: [dashboard, governance, mandate, journeys, invariants]
+generated: { by: claude-opus-5/okf-export, at: 2026-08-05 }
+status: stable
+sources:
+  - id: repo-history
+    resource: docs/dashboard-governance.md
+    title: Dashboard Governance, at its pre-bundle path in this repository
+    last_modified: 2026-06-16
+---
+
 # Dashboard Governance (migrated from the engine at M5)
 
 > **Provenance:** These mandates were authored in `theo/CLAUDE.md` (the engine
@@ -22,9 +36,9 @@
 
 **Source of truth (DO NOT re-derive these decisions ad-hoc — every PR cites the doc that locks them):**
 
-- **ROADMAP (single source of truth for chain + cadence + per-plan scope/DoD/time-window)**: [`.claude/knowledge-base/plans/2026-06-06-dashboard-memory-section-roadmap.md`](.claude/knowledge-base/plans/2026-06-06-dashboard-memory-section-roadmap.md)
-- **Strategic decisions** (8 A1-A8): [`.claude/knowledge-base/architecture/dashboard/memory-section-prior-art-2026-06-06.md`](.claude/knowledge-base/architecture/dashboard/memory-section-prior-art-2026-06-06.md)
-- **Plan 0 (first in chain — Platform API Keys with scopes)**: [`.claude/knowledge-base/plans/2026-06-06-platform-api-keys-with-scopes-plan.md`](.claude/knowledge-base/plans/2026-06-06-platform-api-keys-with-scopes-plan.md)
+- **ROADMAP (single source of truth for chain + cadence + per-plan scope/DoD/time-window)**: `.claude/knowledge-base/plans/2026-06-06-dashboard-memory-section-roadmap.md`
+- **Strategic decisions** (8 A1-A8): `.claude/knowledge-base/architecture/dashboard/memory-section-prior-art-2026-06-06.md`
+- **Plan 0 (first in chain — Platform API Keys with scopes)**: `.claude/knowledge-base/plans/2026-06-06-platform-api-keys-with-scopes-plan.md`
 
 **Inviolable architectural invariants (any commit violating these must be reverted OR re-classified via new ADR with project-owner sign-off):**
 
@@ -64,7 +78,7 @@ See the ROADMAP doc § "Chain at a glance" for the visual chain. Summary:
 
 **Source of truth (DO NOT re-derive decisions ad-hoc — every PR cites the plan that locks them):**
 
-- **ROADMAP (sequência P0/P1/P2 + dependency graph + lessons-learned J-17):** [`docs/handoff/2026-06-05-dashboard-vercel-like-integration-roadmap.md`](docs/handoff/2026-06-05-dashboard-vercel-like-integration-roadmap.md) § 8
+- **ROADMAP (sequência P0/P1/P2 + dependency graph + lessons-learned J-17):** `docs/handoff/2026-06-05-dashboard-vercel-like-integration-roadmap.md` § 8
 - **20 planos individuais** em `.claude/knowledge-base/plans/2026-06-06-dashboard-journey-j{NN}-{slug}-plan.md`:
 
 | Prioridade | Journey | Esforço | Plano |
@@ -212,3 +226,18 @@ Each invocation drives ralph-loop halt-loop with promise `PLAN_J<NN>_COMPLETE` g
 |---------|-----|
 | `/verification` page renders PinInput directly on flow load | Browser-mode `/self-service/verification/browser` creates an EMPTY flow; Kratos enqueues a courier message ONLY after a POST submitting the `email` field. Without an auto-POST the page sits showing PinInput for a code that was never sent. Use `ensureCodeRequested(flowId)` on mount: GET `/sessions/whoami` → POST `{method:'code', email}` to `flow.ui.action`. Idempotent: re-POST on flow with code-input node is no-op. Same pattern for recovery if the email-prompt screen is skipped. See `cloud/dashboard/src/pages/verification.tsx` + commit `3c81f5eb`. |
 | `result.plan !== baselinePlan` polling on `/billing?success=true` | Fails silently when baseline already equals target (e.g., Pro user reactivating after cancel). Stripe `subscription.id` is unique per checkout — poll on `subscription_id` transition (any signup or re-purchase produces a diff regardless of plan name). Defensive `||` keeps the plan diff as fallback. Backend must expose `subscription_id` on `/v1/billing`. See `cloud/dashboard/src/pages/billing.tsx` + commit `252ba8a2`. |
+
+## Related
+
+- [`meetings/MEET-2026-07-03-004`](/meetings/MEET-2026-07-03-004.md) ratifies the
+  `GET /v1/billing/invoices` contract for **J-13 Billing**, one of the P0 journeys listed above; its
+  conditions are binding on any PR implementing that journey.
+- [`operations/m0-live-validation-runbook`](/operations/m0-live-validation-runbook.md) is the operator
+  procedure that closes **J-01 through J-05**, the login/register/verification journeys in the P1 set.
+- [`roadmaps/knowledge-base-ux-redesign`](/roadmaps/knowledge-base-ux-redesign.md) proposes a redesign of
+  a dashboard module, so it inherits every invariant on this page.
+- [`releases/v0.3.0`](/releases/v0.3.0-release.md) shipped the dashboard Skills-tab curation surface.
+- [`handoffs/theo-lens-module`](/handoffs/theo-lens-module.md) mirrors the Memory vertical slice whose
+  invariants are locked above.
+- [`architecture/mcp-broker`](/architecture/mcp-broker.md) mints the per-tenant keys behind the
+  `theo_live_*` scoped-key model that invariant 4 locks.

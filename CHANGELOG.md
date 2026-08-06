@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Changed
+
+- **A documentação de `theo-cloud` virou conhecimento que um agente consegue percorrer, e não nove arquivos soltos.** Os nove documentos de `docs/` passaram a ser conceitos no **Open Knowledge Format** (OKF v0.2, a especificação aberta do Google Cloud): cada um declara o que é (`Governance Mandate`, `Runbook`, `Roadmap`, `Meeting Record`…), de onde veio e quando foi escrito, e agora existe um índice na raiz e um por pasta para se chegar a qualquer um por navegação em vez de busca por nome de arquivo. **Nenhuma linha do conteúdo mudou** — só se acrescentou cabeçalho, índices e os elos entre documentos; a conversão é verificável comparando cada corpo com o git. Seis arquivos ganharam pasta que diz a sua natureza (`governance/`, `products/`, `architecture/`, `roadmaps/`, `handoffs/`), todos via `git mv`, então o histórico segue o arquivo. O ganho concreto é o elo: quem lê o runbook do M0 chega às invariantes do dashboard que ele fecha, e quem lê a superfície de Storage chega ao roadmap que está mudando o caminho dos bytes por baixo dela — antes essas relações existiam só na cabeça de quem já conhecia o repositório. **Quem apontava para os caminhos antigos foi corrigido junto** (`CLAUDE.md` e o handoff de M7 Storage); as citações no histórico já lançado deste changelog ficaram como estavam, porque registram o que era verdade na época.
+- **Quatro links da governança do dashboard deixaram de fingir que levam a algum lugar.** Eles apontavam para planos em `.claude/knowledge-base/` e para um `docs/handoff/` que ficaram no repositório da engine na migração do M5 — nenhum dos quatro existe aqui, e um link morto se lê como navegável até alguém tentar. O texto visível já era o próprio caminho entre crases, então virar referência de prosa não tirou uma palavra do que se lê; tirou só a promessa falsa de que um agente percorrendo o documento chegaria lá.
+
 ## [0.83.1] - 2026-08-05
 
 ### Fixed

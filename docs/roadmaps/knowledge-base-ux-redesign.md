@@ -1,3 +1,17 @@
+---
+type: Roadmap
+title: Knowledge Base — UX redesign
+description: Turning the eight loosely-related Knowledge Base pages into one coherent workspace with a Notion-style OKF editor, retiring the right-side slide-over pattern.
+tags: [dashboard, knowledge-base, rag, editor, okf, ux, roadmap]
+generated: { by: claude-opus-5/okf-export, at: 2026-08-05 }
+status: draft
+sources:
+  - id: repo-history
+    resource: docs/knowledge-base-ux-redesign-roadmap.md
+    title: Knowledge Base UX redesign roadmap, at its pre-bundle path in this repository
+    last_modified: 2026-07-17
+---
+
 # Knowledge Base — UX Redesign Roadmap
 
 > Complete UX redesign of the dashboard **Knowledge Base** module (the `/rag/*` pages).
@@ -223,3 +237,14 @@ Per milestone, in order of the dependency graph (KB0 ∥ KB1 first):
 - Modal vs Separate Page decision tree (Smashing) — https://www.smashingmagazine.com/2026/03/modal-separate-page-ux-decision-tree/
 - Modal UX best practices (LogRocket) — https://blog.logrocket.com/ux-design/modal-ux-best-practices/
 - Slideouts, Modals, Overlays (Adobe Commerce) — https://developer.adobe.com/commerce/admin-developer/pattern-library/containers/slideouts-modals-overlays
+
+## Related
+
+- [`governance/dashboard`](/governance/dashboard.md) governs every page this roadmap touches; its
+  invariants (DESIGN.md compliance, danger-zone choreography, product-language-only copy) bind each
+  milestone below.
+
+> **Note on this bundle.** The wiki pages this roadmap describes already carry OKF frontmatter and are
+> grouped by OKF `path` (`buildOkfIndex`, the `okf-grouping-demo` collection). The documents in this
+> `docs/` bundle now use the same format, so the editor described in KB3 and this repository's own
+> documentation share one contract rather than two.

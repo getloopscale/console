@@ -32,7 +32,7 @@ This repo has **no `.claude/` of its own** — the Cycle 6+1 pipeline (DISCOVER 
 IMPLEMENT → CODE-QUALITY → REVIEW → RELEASE → ANALYSIS), its skills, and its rule files
 live in the **umbrella workspace** one level up (`../.claude/`). When you drive a feature
 through the cycle, do it from the umbrella so the skills and `rules/` resolve. This file +
-`docs/dashboard-governance.md` are the **repo-local** contract a contributor (human or
+`docs/governance/dashboard.md` are the **repo-local** contract a contributor (human or
 Claude) needs to build, test, and reason about `theo-cloud` on its own.
 
 The **Unbreakable Principles** (`~/.claude/CLAUDE.md`) always apply: 95% confidence gate,
@@ -176,7 +176,7 @@ Browser ─► dashboard (React SPA, @theo/dashboard)
 
 The dashboard's **active mandates** — the Memory Section invariants, the dashboard-journey
 plans, the sponsor priority chain, and the dashboard-specific common mistakes — live in
-[`docs/dashboard-governance.md`](docs/dashboard-governance.md). They were migrated here from
+[`docs/governance/dashboard.md`](docs/governance/dashboard.md). They were migrated here from
 the engine's `theo/CLAUDE.md` at **M5** (the dashboard code lives in this repo, so its
 governance does too). **Read it before editing any `dashboard/src/pages/` route.**
 
@@ -274,7 +274,7 @@ The decomposition guarantees are mechanically enforced from the engine repo:
 [ ] Webhook / billing handlers are idempotent AND order-independent
 [ ] Seam change? contract test updated (serviceauth / themory) + openapi/themory.yaml in sync
 [ ] CHANGELOG do UMBRELLA `[Unreleased]` atualizado, com `- **theo-cloud:**` (nunca o local)
-[ ] Dashboard route change? docs/dashboard-governance.md consulted
+[ ] Dashboard route change? docs/governance/dashboard.md consulted
 ```
 
 ---

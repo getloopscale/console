@@ -1,3 +1,17 @@
+---
+type: Handoff
+title: Theo Lens — cloud module
+description: Pointer to the canonical two-repo handoff for the Lens module, which mirrors the Memory vertical slice and talks HTTP-only to the theo-lens service.
+tags: [lens, handoff, workstream, memory-mirror]
+generated: { by: claude-opus-5/okf-export, at: 2026-08-05 }
+status: stable
+sources:
+  - id: repo-history
+    resource: docs/theo-lens-module-handoff.md
+    title: Theo Lens cloud module pointer, at its pre-bundle path in this repository
+    last_modified: 2026-07-02
+---
+
 # Theo Lens — cloud module (pointer)
 
 This repo gets a **Lens** module mirroring the **Memory** vertical slice, talking HTTP-only to the
@@ -27,3 +41,6 @@ canonical handoff § 1.
 ## Design assets already in-repo
 `dashboard/docs/theo-lens/` — Violet Forge `@theokit/ui` bundle + the **TraceList** template
 (the v1 dashboard target).
+
+- Vertical slice this module mirrors, and the governance it inherits:
+  [`governance/dashboard`](/governance/dashboard.md) (Memory Section invariants and dashboard scope).
