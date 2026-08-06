@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button, Input, Label, Select, Sheet } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { engineFetch } from '@/lib/api';
+import { useInviteMember } from '@/hooks/mutations/use-team';
 import type { TeamMember, TeamRole } from '@/lib/api/types';
 
 interface InviteMemberSheetProps {
@@ -18,6 +18,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * Sheet preserves team list context while operator fills the invite form.
  */
 export function InviteMemberSheet({ open, onOpenChange, onInvited }: InviteMemberSheetProps) {
+  const inviteMember = useInviteMember();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<TeamRole>('member');
   const [submitting, setSubmitting] = useState(false);
@@ -32,10 +33,9 @@ export function InviteMemberSheet({ open, onOpenChange, onInvited }: InviteMembe
     }
     setSubmitting(true);
     try {
-      const res = await engineFetch<TeamMember>('/api/v1/teams/members', {
-        method: 'POST',
-        body: JSON.stringify({ email, role }),
-      });
+      // B-060 — passa pelo hook de mutation em vez do engineFetch cru. O POST era
+      // identico; faltava o onSuccess que invalida a lista.
+      const res = await inviteMember.mutateAsync({ email, role });
       if (res === null) {
         setError("Couldn't send invite. Try again in a moment.");
         return;

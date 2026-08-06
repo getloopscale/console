@@ -67,6 +67,15 @@ export const queryKeys = {
       ['domains', 'list', filters ?? {}] as const,
     detail: (name: string | undefined) => ['domains', 'detail', name] as const,
   },
+  // B-060 — mesmo defeito de domains (B-017/B-018): as mutations invalidavam
+  // ['team'] enquanto team.tsx lia a lista com useEngineApi, cuja chave e
+  // ['engine', '/api/v1/teams/members']. Arvores disjuntas, entao convidar ou
+  // remover um membro nunca atualizava a tabela.
+  team: {
+    all: ['team'] as const,
+    list: (filters?: Record<string, unknown>) =>
+      ['team', 'list', filters ?? {}] as const,
+  },
   scale: {
     all: ['scale'] as const,
     detail: (project: string, env: string) =>

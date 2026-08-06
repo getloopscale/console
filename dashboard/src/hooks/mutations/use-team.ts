@@ -1,13 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { engineFetch } from '@/lib/api';
+import { queryKeys } from '@/lib/api/query-keys';
+import type { TeamMember } from '@/lib/api/types';
 
-const TEAM_KEY = ['team'] as const;
+const TEAM_KEY = queryKeys.team.all;
 
 export function useInviteMember() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { email: string; role: string }) =>
-      engineFetch('/api/v1/teams/members', {
+      engineFetch<TeamMember>('/api/v1/teams/members', {
         method: 'POST',
         body: JSON.stringify(input),
       }),
