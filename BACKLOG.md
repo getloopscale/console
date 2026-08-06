@@ -834,7 +834,7 @@ dod:
   - O lens deve exportar o construtor do link, nao os tijolos
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/promptly/traces-link.ts` e passa depois da mudanca
 
-## B-044 — O padrao arquivo+pasta homonimos aparece 16 vezes com DUAS semanticas opostas e apenas 1 index.ts em todo o conjunto   [ ]
+## B-044 — O padrao arquivo+pasta homonimos aparece 16 vezes com DUAS semanticas opostas e apenas 1 index.ts em todo o conjunto   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -846,7 +846,8 @@ evidence: src/pages/lens/traces.tsx:20 — 16 pares X.(ts|tsx) + X/ em src/: pag
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#19
 overlaps: B-001, B-079
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 534d197 (o caso divergente — trace-detail — foi eliminado apagando o shim; os 15 restantes ja seguiam a semantica A. O ciclo remanescente NAO era do shim: encurtou de 5 para 4 nos e persiste, ver B-001)
 dod:
   - Padronizar na semantica A, que e a de 15 dos 16 casos e a mais legivel: X.tsx e o root, X/ sao as partes, e ninguem dentro de X/ importa X
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/lens/traces.tsx` e passa depois da mudanca
