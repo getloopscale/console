@@ -5,7 +5,6 @@ import { Button, EmptyState, PageShell } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjectStatus } from '@/hooks/use-project-status';
-import { useStatusStream } from '@/hooks/use-status-stream';
 import { useKpiMetric } from '@/hooks/use-kpi-metric';
 import type { SignalName } from '@/hooks/use-status-stream';
 import { KPIStripStatus } from '@/components/project/kpi-strip-status';
@@ -26,10 +25,10 @@ import { RefreshButton } from '@/components/common/refresh-button';
  * Navigation away from this page clears the sheet (EC-9 absorption — useEffect
  * cleanup on route change is implicit via component unmount).
  *
- * SSE realtime: useStatusStream is wired but T1.3 backend SSE handler not yet
- * shipped — hook returns connected=false; values come from REST snapshot via
- * useProjectStatus until T1.3 production wiring lands. Plan v1.1 § Failure
- * scenarios row pg_notify writer absent — UI shows static snapshot + Refresh.
+ * SSE realtime: NAO assinado por esta pagina (B-051). O hook useStatusStream
+ * existe e e testado, mas assinar sem consumir o retorno abria um EventSource
+ * por carregamento para descartar todo evento. Os valores vem do snapshot REST
+ * via useProjectStatus; a assinatura volta junto com a UI que a consome.
  */
 const VALID_SIGNALS: ReadonlySet<string> = new Set([
   'status',
@@ -72,9 +71,24 @@ export function ProjectStatusPage() {
 
   const { status, loading, error } = useProjectStatus(name);
 
-  // T2.1 SSE consumer scaffold — T1.3 backend not wired yet, returns empty signals.
-  // When T1.3 ships, this powers realtime SignalGrid updates.
-  useStatusStream(name, status?.environment ?? 'production');
+  // B-051 — a chamada a useStatusStream foi REMOVIDA daqui, nao comentada.
+  //
+  // Ela existia como scaffold de consumidor, mas o retorno era descartado por
+  // completo: nenhuma parte desta pagina lia `signals` ou `connected`. O efeito
+  // liquido era abrir um EventSource por carregamento — consumindo uma das ~6
+  // conexoes que o browser concede por dominio e mantendo um stream no servidor —
+  // para jogar fora todo evento recebido. Pior: como o segundo argumento caia para
+  // 'production' antes de `status` carregar, a conexao era aberta com o ambiente
+  // errado e REABERTA quando o snapshot chegava.
+  //
+  // O hook continua existindo e testado (src/hooks/use-status-stream.ts). Quando a
+  // SignalGrid consumir realtime, reintroduza a chamada JA lendo o retorno e
+  // apenas com `status?.environment` definido:
+  //
+  //   const { signals, connected } = useStatusStream(name, status?.environment);
+  //
+  // Assinar um stream para descartar o resultado nao e um scaffold — e custo sem
+  // contrapartida, invisivel justamente porque nada quebra.
 
   // J-18 — current KPI values from the metrics_proxy (last point of a 1h range).
   // Called unconditionally at the top (rules of hooks); the env resolves to
