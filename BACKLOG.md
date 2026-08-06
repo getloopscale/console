@@ -923,7 +923,7 @@ dod:
   - Mover mocksEnabled() para src/lib/config.ts (onde API_URL ja mora) e fazer dev-mocks.ts e mocks/server.ts importarem de la
   - `src/lib/api.ts` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-050 — Busca-enquanto-digita sem debounce em /memory/skills: um GET por tecla, e o debounce das outras telas e copiado a mao com constantes divergentes   [ ]
+## B-050 — Busca-enquanto-digita sem debounce em /memory/skills: um GET por tecla, e o debounce das outras telas e copiado a mao com constantes divergentes   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -934,7 +934,8 @@ category: missing_backpressure
 evidence: src/pages/memory/skills.tsx:193 — skills.tsx:193 `onChange={(e) => updateParam("q", e.target.value)}` -> :68-78 setSearchParams imediato -> :81 `queryKey: ["cloud", "/v1/dashboard/memory/skills/all", { q, offset }]`. Debounces ad-hoc: src/pages/lens/traces.tsx:157-163 (useState espelho + setTimeout 300ms) e src/pages/memory/episodes.tsx:55-61 (setTimeout 350ms). Nenhum queryFn do repo repassa o signal do TanStack Query para o...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#15
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 173f268 (residuo: traces.tsx nao migrado — debounce via setter do nuqs, migrar mudaria o contrato de URL)
 dod:
   - Criar src/hooks/use-debounced-value.ts (a implementacao ja existe duplicada em traces.tsx:157 e episodes.tsx:55) e usa-la em memory/skills.tsx; ou trocar por useQueryState do nuqs com limitUrlUpdates/throttle, que ja e dependencia
   - existe teste que prova o teto/dedup em `src/pages/memory/skills.tsx` sob carga sintetica
