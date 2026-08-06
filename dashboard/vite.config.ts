@@ -240,6 +240,15 @@ export default defineConfig(({ mode }) => ({
         // react-force-graph-2d + d3 family still lands in the app-wide `vendor` chunk;
         // true route-isolation needs dedicated work (non-blocking perf hygiene).
         manualChunks,
+        // B-022 — o entry ganha nome PROPRIO (`app-*`) em vez do `index-*` padrao.
+        //
+        // O motivo e concreto: 15 chunks lazy tambem se chamam `index-*` (todo
+        // modulo `.../index.tsx` vira um), entao o glob `dist/assets/index-*.js`
+        // do orcamento de bundle somava o entry MAIS quatorze chunks que o
+        // usuario nunca baixa no primeiro paint. A entrada chamada "app entry"
+        // media 69 kB quando o entry tem 23. Um nome distinto e o que torna o
+        // glob capaz de dizer a verdade.
+        entryFileNames: 'assets/app-[hash].js',
       },
     },
   },

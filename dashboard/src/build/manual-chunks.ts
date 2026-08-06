@@ -25,6 +25,42 @@
  */
 const FORCE_GRAPH_RE = /node_modules\/(react-force-graph|force-graph|d3-|d3\/)/;
 
+/**
+ * B-021/B-073 — familias PESADAS consumidas por UMA rota lazy cada.
+ *
+ * Elas caiam no `vendor` pela regra final (`node_modules/` → 'vendor'), e o
+ * `vendor` tem `<link rel=modulepreload>` no index.html: todo visitante baixava
+ * o editor TipTap, o pipeline de markdown e o realce de sintaxe no primeiro
+ * paint, incluindo quem so abre a lista de deployments. Medido antes desta
+ * mudanca: vendor = 397.11 kB brotli, ~53% dele destas tres familias.
+ *
+ * O mecanismo aqui e o MESMO ja provado para force-graph acima — devolver
+ * `undefined` e deixar o Rollup manter cada familia no chunk dinamico do seu
+ * consumidor, que ja e `React.lazy`. Nao e um chunk dedicado: um chunk eager
+ * dedicado reintroduziria a fronteira circular que a nota F-fe-1 documenta.
+ *
+ * Criterio para entrar nesta lista: a familia so e alcancada por rota lazy. Por
+ * isso `cmdk` NAO entra — o CommandPalette vive no layout e e eager.
+ */
+const LAZY_ONLY_RE = new RegExp(
+  'node_modules/(' +
+    [
+      // Editor: TipTap + ProseMirror + markdown-it (pages/promptly/*)
+      '@tiptap', 'prosemirror-', 'tiptap-markdown', 'markdown-it', 'linkifyit', 'mdurl',
+      'orderedmap', 'rope-sequence', 'w3c-keyname',
+      // Pipeline de markdown (react-markdown em detalhes/wiki)
+      'react-markdown', 'remark-', 'rehype-', 'micromark', 'mdast-', 'hast-', 'unist-',
+      'unified', 'vfile', 'bail', 'trough', 'property-information', 'space-separated-tokens',
+      'comma-separated-tokens', 'character-entities', 'decode-named-character-reference',
+      'trim-lines', 'zwitch', 'longest-streak', 'ccount', 'markdown-table', 'devlop',
+      'is-plain-obj', 'html-void-elements', 'stringify-entities',
+      // Realce de sintaxe (blocos de codigo em paginas de detalhe)
+      'react-syntax-highlighter', 'refractor', 'lowlight', 'highlight.js', 'prismjs',
+      'hastscript', 'parse-entities', 'fault',
+    ].join('|') +
+    ')',
+);
+
 export function manualChunks(id: string): string | undefined {
   // NOTE (F-fe-1): @usetheo/ui / @radix-ui / lucide are NOT given dedicated chunks.
   // @usetheo/ui re-exports Radix + utility deps that ALSO live in `vendor`, forming
@@ -35,6 +71,9 @@ export function manualChunks(id: string): string | undefined {
   // Force-graph/d3 family: keep OUT of every eager vendor chunk (F-fe-1 TDZ). Let
   // it ride the lazy `graph` chunk via Rollup's default dynamic-import splitting.
   if (FORCE_GRAPH_RE.test(id)) return undefined;
+  // B-021/B-073 — mesma tecnica, outro motivo: nao e TDZ, e peso. Cada familia
+  // desce para o chunk dinamico do consumidor lazy em vez de pesar no preload.
+  if (LAZY_ONLY_RE.test(id)) return undefined;
   if (
     id.includes('node_modules/react/') ||
     id.includes('node_modules/react-dom/') ||

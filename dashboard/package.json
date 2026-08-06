@@ -32,14 +32,14 @@
       "limit": "15 KB"
     },
     {
-      "name": "03 — app entry (index) [eager]",
-      "path": "dist/assets/index-*.js",
-      "limit": "25 KB"
+      "name": "03 — app entry [eager]",
+      "path": "dist/assets/app-*.js",
+      "limit": "25 kB"
     },
     {
-      "name": "04 — vendor (todo node_modules nao-React) [eager] — ver B-021/B-073",
+      "name": "04 — vendor (node_modules eager, pos B-021/B-073)",
       "path": "dist/assets/vendor-*.js",
-      "limit": "400 KB"
+      "limit": "230 kB"
     },
     {
       "name": "05 — per-route chunk (worst-case, lazy)",
@@ -49,12 +49,12 @@
     {
       "name": "TOTAL EAGER — HARD GATE (os 4 chunks com modulepreload no index.html, brotli)",
       "path": [
-        "dist/assets/index-*.js",
+        "dist/assets/app-*.js",
         "dist/assets/react-vendor-*.js",
         "dist/assets/router-*.js",
         "dist/assets/vendor-*.js"
       ],
-      "limit": "490 kB"
+      "limit": "320 kB"
     }
   ],
   "dependencies": {
