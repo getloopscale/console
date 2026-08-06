@@ -13,7 +13,7 @@ const SRC = resolve(__dirname, '..');
  * um modulo escrito, testado, verde no CI — e nunca ligado a nada. O teste passa
  * e reporta cobertura, o que e verdadeiro e irrelevante. `useDomainStatusPolling`
  * e `useFirstDeployTrigger` (B-030) sao hooks de comportamento visivel ao
- * usuario nessa situacao; `compare-core.ts` e outros onze modulos (B-031) somam
+ * usuario nessa situacao; doze modulos de B-031 somavam
  * 935 LOC de producao mais 844 de teste sem um consumidor real.
  *
  * O custo nao e o codigo morto em si: e que a suite verde afirma cobertura sobre
@@ -39,7 +39,6 @@ const ALLOWLIST = new Set([
   // B-031 — doze modulos sem importador nao-teste. Triagem em dois baldes
   // (wire vs apagar) registrada no item; safe-redirect.ts em especial e um guard
   // de open-redirect que ninguem chama, o que e uma lacuna de seguranca latente.
-  'pages/lens/compare-core.ts',
   'lib/format-ts.ts',
   'lib/format-build-error-patterns.ts',
   // B-031 (continuacao) — componentes de UI escritos, testados e nunca renderizados

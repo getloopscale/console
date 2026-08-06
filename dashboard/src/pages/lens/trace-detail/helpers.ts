@@ -7,7 +7,7 @@
  * here is pure and total — it never throws and never does I/O. The public helper surface
  * (`TraceSpanNode`, `durationMs`, `prettyValue`, `asChat`, `computeTraceBounds`, `computeBarLayout`,
  * `flattenVisible`) e re-exportada pelo shim `../trace-detail.tsx`. NOTA: `playground.tsx`,
- * `compare.tsx` e `compare-core.ts` passaram a importar DESTE modulo diretamente (B-001) — era o
+ * `compare.tsx` passou a importar DESTE modulo diretamente (B-001) — era o
  * import via shim que fechava os ciclos da familia lens.
  *
  * M58 T1.1 — `TraceSpanNode`, `computeTraceBounds`, and `computeBarLayout` now live in the pure
