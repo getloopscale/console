@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { engineFetch } from '@/lib/api';
+import { queryKeys } from '@/lib/api/query-keys';
 
-const DOMAINS_KEY = ['domains'] as const;
+const DOMAINS_KEY = queryKeys.domains.all;
 
 export function useAddDomain() {
   const queryClient = useQueryClient();
