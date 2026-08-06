@@ -170,6 +170,60 @@ export default [
       ],
     },
   },
+  // ---------------------------------------------------------------------------
+  // B-033 — o orcamento de 500 LoC vira regra EXECUTAVEL.
+  //
+  // Ate aqui ele era citado por tres modulos como se fosse contrato e definido em
+  // lugar nenhum: o `architecture.md` que eles referenciavam nao existia (B-010
+  // criou), e nao havia verificacao. Uma regra citada, nao localizavel e nao
+  // executavel e o pior dos tres estados — cara de cumprir, impossivel de
+  // auditar, indistinguivel de folclore.
+  //
+  // Esta regra NAO pede refactor: ela trava a divida onde esta. Os 18 arquivos
+  // que hoje excedem estao listados com o seu tamanho atual, entao a divida e
+  // visivel no diff em vez de invisivel no disco. A lista NAO deve crescer; ela
+  // encolhe conforme os arquivos sao decompostos (ADR-0002).
+  //
+  // O caso mais gritante que a lista expoe e `src/app.tsx`: ele estourava o
+  // orcamento enquanto o `trace-detail.tsx` era refatorado inteiro por exceder o
+  // mesmo limite. Ou a regra vale para a raiz tambem, ou nao vale para ninguem —
+  // e agora ela vale, com a excecao registrada em vez de tacita.
+  //
+  // Testes ficam de fora: um arquivo de teste longo e frequentemente o formato
+  // certo (muitos casos pequenos), e o repo tem 43k LOC de teste cuja convencao
+  // co-localizada a auditoria recomendou explicitamente NAO mexer.
+  // ---------------------------------------------------------------------------
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/**/*.test.{ts,tsx}',
+      'src/test/**/*.{ts,tsx}',
+      // Divida registrada (B-033). Cada linha sai daqui quando o arquivo for
+      // decomposto; nenhuma linha nova entra sem ADR.
+      'src/pages/api-keys.tsx', // 954 LOC
+      'src/pages/promptly/detail.tsx', // 915 LOC
+      'src/lib/api/types.ts', // 798 LOC
+      'src/lib/mocks/handlers.ts', // 797 LOC
+      'src/app.tsx', // 757 LOC
+      'src/pages/recovery.tsx', // 711 LOC
+      'src/pages/deployments.tsx', // 704 LOC
+      'src/pages/project-connect.tsx', // 696 LOC
+      'src/components/deploy/deploy-timeline-hero.tsx', // 677 LOC
+      'src/pages/memory/graph.tsx', // 664 LOC
+      'src/pages/lens/evaluators.tsx', // 585 LOC
+      'src/pages/memory/webhooks.tsx', // 560 LOC
+      'src/pages/skills/bundle-detail.tsx', // 554 LOC
+      'src/lib/mocks/skills-handlers.ts', // 546 LOC
+      'src/pages/billing.tsx', // 539 LOC
+      'src/pages/settings/webhooks.tsx', // 533 LOC
+      'src/pages/lens/alerts.tsx', // 522 LOC
+      'src/pages/projects.tsx', // 513 LOC
+    ],
+    rules: {
+      'max-lines': ['error', { max: 500, skipBlankLines: false, skipComments: false }],
+    },
+  },
+
   {
     files: ['src/**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
     languageOptions: {
