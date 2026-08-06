@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card } from '@usetheo/ui';
-import { useLogStream } from '@/hooks/use-log-stream';
+import { useLogStream, capLogLines } from '@/hooks/use-log-stream';
 import { useDeployment } from '@/hooks/use-deployment';
 import { LogViewer } from '@/components/logs/log-viewer';
 import { engineFetch } from '@/lib/api';
@@ -160,7 +160,12 @@ export function LogsTab() {
         if (!data) {
           setHistorical([]);
         } else {
-          setHistorical((data.entries ?? []).map(toLogLine));
+          // B-016 — o snapshot entrava SEM teto, anulando o FIFO de 5000 do stream
+          // antes do primeiro evento chegar: um build com centenas de milhares de
+          // linhas ia inteiro para a memoria e para o DOM. Mantemos as ULTIMAS
+          // linhas (slice negativo) porque em log o fim e o que interessa — e o
+          // que o FIFO do stream ja preservava.
+          setHistorical(capLogLines((data.entries ?? []).map(toLogLine)));
         }
         setHistoricalLoading(false);
       })
