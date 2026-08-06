@@ -808,7 +808,7 @@ dod:
   - Mover a criacao do BroadcastChannel para uma funcao installAuthChannel() chamada explicitamente em main.tsx, junto do resto do bootstrap — o import passa a ser puro e o teardown fica possivel (a funcao retorna um dispose)
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/lib/api.ts` e passa depois da mudanca
 
-## B-043 — promptly importa 3 niveis fundo no interior do lens e replica a DSL de URL do lens sem contrato compartilhado   [ ]
+## B-043 — promptly importa 3 niveis fundo no interior do lens e replica a DSL de URL do lens sem contrato compartilhado   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -819,7 +819,8 @@ category: cross_boundary_import
 evidence: src/pages/promptly/traces-link.ts:1 — src/pages/promptly/traces-link.ts:1 import { type ColumnState, encodeColumns } from '../lens/traces/view-encoding'; src/pages/promptly/traces-link.ts const ROTA_DO_EXPLORADOR = '/observability/traces'; // rota do lens duplicada src/pages/promptly/traces-link.ts span_query: `attr:${ATRIBUTO_DO_PROMPT}=${promptName}` // DSL do lens reimplementada por interpolacao...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#18
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 86c4b47
 dod:
   - O lens deve exportar o construtor do link, nao os tijolos
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/promptly/traces-link.ts` e passa depois da mudanca
