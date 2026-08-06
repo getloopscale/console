@@ -312,7 +312,7 @@ dod:
   - Trocar por cloudFetch(path,{method:POST,body},{throwOnError:true}) de src/lib/api.ts:226 e mover a chamada para src/hooks/mutations/use-promote.ts e use-rollback.ts (src/hooks/mutations/ ja existe com 7 mutations)
   - `src/components/dialogs/promote-to-production-dialog.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-014 — Recuperacao de token no SSE exige 3 erros consecutivos, mas um 401 fecha o EventSource no primeiro   [ ]
+## B-014 — Recuperacao de token no SSE exige 3 erros consecutivos, mas um 401 fecha o EventSource no primeiro   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -323,7 +323,8 @@ category: state_synchronization_issue
 evidence: src/hooks/use-sse-stream.ts:184 — use-sse-stream.ts:66 `const TOKEN_REFRESH_THRESHOLD = 3`; :179-196 `es.onerror = () => { failureCount += 1; if (failureCount >= TOKEN_REFRESH_THRESHOLD) { clearToken(); es?.close(); void open(); } }`. O teste nao pega porque o MockEventSource de use-sse-stream.test.tsx:65 expoe triggerError() sem nunca setar readyState=2, entao o teste consegue emitir 3 erros seguidos que o browser real nunca...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#4
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: d395601 (o MockEventSource nunca setava readyState=2 — era por isso que a suite nao pegava; ganhou triggerFatalError e as constantes da spec)
 dod:
   - Em src/hooks/use-sse-stream.ts:179, tratar `es.readyState === EventSource.CLOSED` como sinal terminal e refazer o token+reconexao imediatamente (threshold 1 nesse caso), mantendo o contador de 3 apenas para o caminho de reconexao nativa
   - `src/hooks/use-sse-stream.ts` deixa de conter a logica apontada e ha teste cobrindo o novo dono
