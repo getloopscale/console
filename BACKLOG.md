@@ -904,7 +904,7 @@ dod:
   - Um hook por recurso compartilhado — src/features/rag/hooks/use-collections.ts, src/features/lens/hooks/use-datasets.ts, use-trace.ts — com o queryKey vindo da factory da feature
   - `src/pages/rag/collections.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-049 — O client HTTP de producao importa estaticamente o modulo de fixtures de dev (src/lib/api.ts -> dev-mocks.ts)   [ ]
+## B-049 — O client HTTP de producao importa estaticamente o modulo de fixtures de dev (src/lib/api.ts -> dev-mocks.ts)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -916,7 +916,8 @@ evidence: src/lib/api.ts:14 — src/lib/api.ts:14 `import { mocksEnabled } from 
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#14
 overlaps: B-039, B-067
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: ed98fa5 (residuo: getMockSession segue como import em auth.ts; vira-lo injecao no boot muda o ciclo de vida da sessao e pede teste proprio)
 dod:
   - Mover mocksEnabled() para src/lib/config.ts (onde API_URL ja mora) e fazer dev-mocks.ts e mocks/server.ts importarem de la
   - `src/lib/api.ts` deixa de conter a logica apontada e ha teste cobrindo o novo dono
