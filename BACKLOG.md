@@ -433,7 +433,7 @@ dod:
   - Ou (a) BuildTimelineLive passa a receber os steps por prop do hero em vez de reabrir o stream, ou (b) introduzir um registry de EventSource por URL em src/hooks/use-sse-stream.ts (Map<url, {es, refCount, buffer}>) para que N assinantes da mesma URL compartilhem uma conexao — o equivalente do que...
   - existe teste que prova o teto/dedup em `src/hooks/use-deploy-timeline-with-steps.ts` sob carga sintetica
 
-## B-021 — Chunk vendor eager de 1.59 MB (397 KB brotli) — manualChunks joga TODO node_modules nao-React num unico chunk modulepreload   [ ]
+## B-021 — Chunk vendor eager de 1.59 MB (397 KB brotli) — manualChunks joga TODO node_modules nao-React num unico chunk modulepreload   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -445,7 +445,8 @@ evidence: src/build/manual-chunks.ts:45 — MEDIDO em build limpo (npm run build
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · scaling#1
 overlaps: B-073
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 6447651 (medido: eager 485.21 -> 306.38 kB brotli, -179.90 kB; app verificada montando em Chrome headless, nao so build verde)
 dod:
   - Em src/build/manual-chunks.ts, parar de mapear todo node_modules para vendor
   - o tamanho brotli do conjunto eager e re-medido com `ANALYZE=true npm run bundle:analyze` e registrado antes/depois
@@ -1325,7 +1326,7 @@ dod:
   - Trocar package.json:141 para 'npm@<versao>' ou remover o campo
   - mudanca verificavel em `package.json` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-073 — Chunking manual do bundle: as familias @usetheo/ui, Radix, lucide e todo o resto de node_modules colapsadas num unico chunk 'vendor' eager   [ ]
+## B-073 — Chunking manual do bundle: as familias @usetheo/ui, Radix, lucide e todo o resto de node_modules colapsadas num unico chunk 'vendor' eager   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1337,7 +1338,8 @@ evidence: src/build/manual-chunks.ts:8 — src/build/manual-chunks.ts:8-13 ADR D
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#10
 overlaps: B-021
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 6447651 (medido: eager 485.21 -> 306.38 kB brotli, -179.90 kB; app verificada montando em Chrome headless, nao so build verde)
 dod:
   - O ciclo de init impede chunk dedicado para as familias de UI, mas NAO impede tratar TipTap, markdown e syntax-highlight como a familia force-graph ja e tratada: devolver undefined para elas em manual-chunks.ts e deixar o Rollup coloca-las no chunk dinamico do consumidor
   - mudanca verificavel em `src/build/manual-chunks.ts` com `npx tsc --noEmit` + `npm test` verdes
