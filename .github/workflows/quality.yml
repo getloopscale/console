@@ -153,6 +153,24 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # B-087 — este gate existia como script npm desde que a camada de mocks foi
+      # contida em src/, e NUNCA rodou em CI. Ele faz grep no dist/ recem-buildado
+      # para provar que `src/lib/mocks` foi tree-shaken do bundle de producao — o
+      # invariante que justifica manter 3.9k LOC de mock dentro de src/ em vez de
+      # num pacote separado. A auditoria confirmou que a contencao FUNCIONA hoje
+      # (0 bytes de mock no dist), mas um invariante que ninguem executa e
+      # documentacao, nao gate: qualquer import estatico futuro o quebraria em
+      # silencio ate alguem auditar de novo.
+      #
+      # Reusa o dist/ do passo Build acima — nao rebuilda.
+      - name: Tree-shake check (mocks fora do bundle de producao)
+        run: |
+          if grep -q 'lib/mocks' dist/assets/*.js; then
+            echo "FAIL: chunk de mocks vazou para o bundle de producao"
+            exit 1
+          fi
+          echo "PASS: mocks tree-shaken do bundle de producao"
+
       # theo-cloud#276 — the dashboard suite (247 files / 1925 tests) had NEVER run in CI. No workflow
       # invoked vitest at all; the job name was honest about doing only build+lint, and nobody wired
       # the rest. The cost was measured, not feared: SIX tests were red in `develop` and had been for
