@@ -358,7 +358,7 @@ dod:
   - Cortar o snapshot no mesmo cap do stream (entries.slice(-5000)) em src/pages/deployment-tabs/logs-tab.tsx:163
   - existe teste que prova o teto/dedup em `src/pages/deployment-tabs/logs-tab.tsx` sob carga sintetica
 
-## B-017 — O caminho de CREATE de 3 recursos vive no componente de sheet e nao invalida cache; o hook de mutation correspondente esta orfao   [ ]
+## B-017 — O caminho de CREATE de 3 recursos vive no componente de sheet e nao invalida cache; o hook de mutation correspondente esta orfao   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -370,7 +370,8 @@ evidence: src/components/sheets/add-domain-sheet.tsx:54 — Consumidores non-tes
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#10
 overlaps: B-058, B-059, B-060
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 78b0f6e
 dod:
   - Deletar o engineFetch dos sheets e consumir useAddDomain / useCreateEnvironment / useInviteMember (src/hooks/mutations/), alinhando o payload com o do sheet (que e o que o backend aceita hoje)
   - existe teste que falha hoje e passa depois, provando que `invalidateQueries` alcanca a chave afetada a partir de `src/components/sheets/add-domain-sheet.tsx`
@@ -1047,7 +1048,7 @@ dod:
   - Mandar um teto no request de src/pages/memory/graph.tsx:548, no mesmo formato que src/pages/rag/graphrag.tsx ja usa (limit, e level quando o backend suportar), preferindo os nos de maior grau — que e exatamente o criterio que topLabelIds (linha 270-281) ja implementa no cliente e que ficaria...
   - o request emitido por `src/pages/memory/graph.tsx` carrega teto explicito (limit/offset) — verificavel no painel Network ou por teste sobre o handler MSW
 
-## B-058 — useAddDomain has zero references anywhere - not even a test   [ ]
+## B-058 — useAddDomain has zero references anywhere - not even a test   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1059,7 +1060,8 @@ evidence: src/hooks/mutations/use-domains.ts:6 — grep for useAddDomain across 
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#4
 overlaps: B-017, B-059, B-060
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 78b0f6e
 dod:
   - Delete the useAddDomain function (lines 6-18) from src/hooks/mutations/use-domains.ts, keeping useDeleteDomain and useVerifyDomain
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/hooks/mutations/use-domains.ts`
