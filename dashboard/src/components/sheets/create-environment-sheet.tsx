@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { Button, Checkbox, Input, Label, Select } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
-import { engineFetch } from '@/lib/api';
+import { useCreateEnvironment } from '@/hooks/mutations/use-environments';
 import { useEngineApi } from '@/hooks/use-api';
 import type { Environment, Project } from '@/lib/api/types';
 
@@ -42,6 +42,7 @@ const NAME_PATTERN = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/;
  * gate prevents that round-trip.
  */
 export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onCreated }: CreateEnvironmentSheetProps) {
+  const createEnvironment = useCreateEnvironment();
   const projectLocked = !!defaultProject;
   const [name, setName] = useState('');
   const [project, setProject] = useState('');
@@ -84,10 +85,11 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
     }
     setSubmitting(true);
     try {
-      const res = await engineFetch<Environment>('/api/v1/environments', {
-        method: 'POST',
-        body: JSON.stringify({ name, project, protected: isProtected }),
-      });
+      // B-059 — passa pelo hook de mutation em vez do engineFetch cru. O POST era
+      // identico; o que faltava era o onSuccess que invalida as DUAS arvores de
+      // chave (queryKeys.environments e o legado ['engine', ...] que as paginas
+      // ainda leem). Sem ele, criar um environment nao atualizava a tabela.
+      const res = await createEnvironment.mutateAsync({ name, project, protected: isProtected });
       if (res === null) {
         setError("Couldn't create environment. Try again in a moment.");
         return;
