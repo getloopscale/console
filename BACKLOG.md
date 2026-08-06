@@ -601,6 +601,7 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-031, B-069, B-076
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+partial_progress: mecanismo entregue: src/lib/test-only-module-guard.test.ts impede a PROXIMA instancia. Os dois hooks seguem na allowlist — a decisao de wire-ou-apagar e de produto (useFirstDeployTrigger dispara confetti no primeiro deploy)
 dod:
   - Per hook, decide and act - do not leave them
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/hooks/use-domain-status-polling.ts`
@@ -618,6 +619,7 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-030, B-069, B-076
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+partial_progress: o guard encontrou OITO modulos alem dos listados no achado, incluindo table-skeleton.tsx que nao constava. Todos na allowlist com o item; a triagem wire-vs-apagar segue pendente
 dod:
   - Triage in two buckets rather than deleting blindly
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/pages/lens/compare-core.ts`
