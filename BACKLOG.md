@@ -641,7 +641,7 @@ dod:
   - Escrever um ADR curto que declare o eixo de organizacao e a regra de residencia ('um hook com um unico consumidor mora com a feature; lib/ so aceita modulo com >=2 features consumidoras'), e entao migrar incrementalmente para package-by-feature comecando por lens e deploy — as duas com maior...
   - mudanca verificavel em `src` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-033 — Adotar um orcamento de 500 LoC por modulo como regra de arquitetura, citando um documento 'architecture.md' que nao existe neste repositorio   [ ]
+## B-033 — Adotar um orcamento de 500 LoC por modulo como regra de arquitetura, citando um documento 'architecture.md' que nao existe neste repositorio   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -654,7 +654,8 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-010, B-078
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 83d1130 (opcao (a): max-lines executavel + allowlist dos 18 arquivos com o tamanho atual; regra verificada com sonda de 521 linhas. ADR-0002 segue em proposed — o que foi feito e o mecanismo, nao o aceite)
 partial_progress: 9314954 — ADR-0002 (orcamento de LoC) escrito e versionado; as citacoes no codigo agora resolvem. NAO fechado: o ADR esta em status proposed. Declara-lo accepted e decisao do time, nao de quem escreveu o rascunho.
 dod:
   - Escolher um dos dois: (a) promover o orcamento a regra executavel — ESLint 'max-lines' com o valor 500 e um override list para os arquivos legados — e apagar as citacoes ao documento fantasma; ou (b) declarar o orcamento morto e remover as citacoes
