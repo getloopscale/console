@@ -71,10 +71,25 @@ export interface App {
 
 export interface Project {
   name: string;
+  /**
+   * @deprecated B-063 — forma legada. O backend passou a emitir `apps_count` e
+   * `latest_framework` via LATERAL join (T2.1), e as duas paginas que liam
+   * `apps` ja usam os campos novos com este array apenas como fallback
+   * (`projects.tsx:89-90`). Sunset: remover quando a engine confirmar que
+   * nenhuma resposta em producao ainda traz `apps[]` — a confirmacao e do
+   * backend, nao deste repo.
+   */
   apps?: App[];
   last_deploy?: string | null;     // ISO timestamp; null if never deployed
   last_deploy_status?: ProjectStatus;
-  environment?: string;            // legacy singular (pre-M2); kept for backward compat
+  /**
+   * @deprecated B-063 — singular legado, anterior ao M2. Substituido pela
+   * familia `*_env_count`. Sobrevive como ultimo elo da cadeia de fallback de
+   * quatro niveis em `projects.tsx:174` e `project-detail.tsx:182`. Sunset:
+   * remover junto com o ultimo `?? (p.environment ? 1 : 0)`, o que exige
+   * confirmar com a engine que `active_env_count` chega sempre.
+   */
+  environment?: string;
   // T2.1 + ADR D2 (plan 2026-06-08-dashboard-screens-review-fixes):
   // per-project total env count, derived server-side via LEFT JOIN
   // LATERAL on environment_targets. The dashboard /projects table
