@@ -104,6 +104,7 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-044, B-079
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: triaged
+partial_progress: 9ef2466 — 5 dos 6 ciclos da familia lens fechados (filhos passaram a importar trace-detail/helpers em vez do shim pai). RESIDUO: span-detail renderiza a pagina irma LensPlayground; fechar exige inverter via render-prop, mudanca de comportamento sem teste que cubra a interacao playground/peek-sheet
 dod:
   - Regra de lint (import/no-internal-modules ou dependency-cruiser rule): nenhum arquivo dentro de X/ pode importar de X (o shim pai). Filhos importam leafs: playground.tsx:6 vira import { asChat } from './trace-detail/helpers'; baseline-column.tsx:5 vira from '../trace-detail/helpers';...
   - `npx madge --extensions ts,tsx --ts-config tsconfig.json --circular src` nao lista mais o ciclo que passa por `src/pages/lens/playground.tsx`
@@ -697,7 +698,7 @@ dod:
   - Nao criar uma camada nova — tornar obrigatoria a que ja existe
   - mudanca verificavel em `src/lib/api/query-keys.ts` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-037 — Ciclo runtime pages/lens/traces/columns.tsx <-> pages/lens/traces.tsx   [ ]
+## B-037 — Ciclo runtime pages/lens/traces/columns.tsx <-> pages/lens/traces.tsx   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -708,12 +709,13 @@ category: circular_dependency
 evidence: src/pages/lens/traces/columns.tsx:6 — src/pages/lens/traces/columns.tsx:6 import { nsToIso } from '../traces'; src/pages/lens/traces.tsx:20 import { tracesColumns, type Trace } from './traces/columns';
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#2
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 9ef2466
 dod:
   - Extrair nsToIso (e demais helpers puros de traces.tsx) para src/pages/lens/traces/helpers.ts — mesmo padrao ja usado com sucesso em trace-detail/helpers.ts
   - `npx madge --extensions ts,tsx --ts-config tsconfig.json --circular src` nao lista mais o ciclo que passa por `src/pages/lens/traces/columns.tsx`
 
-## B-038 — Ciclo runtime pages/workspace.tsx <-> pages/workspace-preview-sheet.tsx (pagina exporta dominio)   [ ]
+## B-038 — Ciclo runtime pages/workspace.tsx <-> pages/workspace-preview-sheet.tsx (pagina exporta dominio)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -724,12 +726,13 @@ category: circular_dependency
 evidence: src/pages/workspace-preview-sheet.tsx:4 — src/pages/workspace.tsx:22 import { useWorkspaceSelection } from './use-workspace-selection'; src/pages/workspace.tsx:23 import { WorkspacePreviewSheet } from './workspace-preview-sheet'; src/pages/workspace-preview-sheet.tsx:4 import { formatBytes, previewKind, type StorageFile } from './workspace'; // VALOR -> ciclo runtime src/pages/use-workspace-selection.ts:6 import type { StorageFile }...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#3
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 9ef2466
 dod:
   - Criar src/features/workspace/ (ou src/pages/workspace/) com: types.ts (StorageFile), helpers.ts (formatBytes, previewKind), use-workspace-selection.ts, preview-sheet.tsx e index.tsx (a rota)
   - `npx madge --extensions ts,tsx --ts-config tsconfig.json --circular src` nao lista mais o ciclo que passa por `src/pages/workspace-preview-sheet.tsx`
 
-## B-039 — lib/auth.ts e lib/api.ts (producao) dependem de lib/dev-mocks.ts (camada de mock), formando ciclo auth<->dev-mocks   [ ]
+## B-039 — lib/auth.ts e lib/api.ts (producao) dependem de lib/dev-mocks.ts (camada de mock), formando ciclo auth<->dev-mocks   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -741,7 +744,8 @@ evidence: src/lib/auth.ts:18 — src/lib/auth.ts:18 import { mocksEnabled, getMo
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#4
 overlaps: B-049, B-067
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: 9ef2466
 dod:
   - Mover o tipo Session para src/lib/api/types.ts (que ja existe e ja e a ACL de tipos do backend) e importa-lo de la tanto em auth.ts quanto em dev-mocks.ts — quebra o ciclo sem tocar em runtime
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/lib/auth.ts` e passa depois da mudanca
