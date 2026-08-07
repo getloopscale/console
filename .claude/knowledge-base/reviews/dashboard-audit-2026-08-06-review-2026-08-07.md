@@ -51,7 +51,7 @@ Cada HIGH acima do teto de 2 é um item registrado, não uma menção em prosa:
 
 | Item | O quê |
 |---|---|
-| `B-092` | CI não baixa `theo-contracts`: `GOPRIVATE`/`insteadOf` ficaram em `usetheodev/`. Nenhum run exercitou o rename |
+| ~~`B-092`~~ | ~~CI não baixa `theo-contracts`~~ — **fechado** em `cc58595`, verificado pelo run 31149955062 (job `go` PASS em `48f8a5f`). Era o único followup com hipótese testável de imediato, e a hipótese estava certa |
 | `B-093` | `upstream-debt.test.ts` casa substring do config em vez de resolver a regra — apagar o ban inteiro mantém o teste verde |
 | `B-094` | O escape hatch `silent-null-ok` virou carimbo: 10 de 13 usos repetem uma justificativa que nenhum consumidor sustenta (`use-onboarding-state.ts:104` reporta falha de backend como "não logado") |
 | `B-095` | `test-only-module-guard` não distingue `import type`; `use-status-stream.ts` (250 LoC, abre `EventSource`) tem só importadores de tipo |
