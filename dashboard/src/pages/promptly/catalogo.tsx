@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { FileText, GitCompare, Search } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchCatalogPage, CATALOG_PAGE_LIMIT, CATALOG_QUERY_KEY } from '@/pages/promptly/components/promptly-api';
+import { CATALOG_PAGE_LIMIT } from '@/hooks/promptly/promptly-api';
 import { catalogRows, maiorVersaoServida, type CatalogRow } from '@/pages/promptly/components/projections';
+import { usePromptlyCatalog } from '@/hooks/promptly/use-promptly';
 
 /**
  * M13 — `/promptly/catalogo`: a lista dos prompts do workspace.
@@ -141,12 +141,7 @@ export function PromptlyCatalogoPage() {
     setParams(atual, { replace: true });
   };
 
-  const query = useQuery({
-    // Tamanho E filtros entram na CHAVE, não só na chamada. Sem isso o React Query serve a página
-    // anterior do cache e a tela mostra o catálogo inteiro afirmando ter buscado um termo.
-    queryKey: [...CATALOG_QUERY_KEY, porPagina, busca, tag, pasta],
-    queryFn: () => fetchCatalogPage<unknown>(porPagina, { search: busca, tag, folder: pasta }),
-  });
+  const query = usePromptlyCatalog<unknown>({ search: busca, tag, folder: pasta }, porPagina);
 
   // `useMemo` sobre `query.data`, não sobre um array recriado a cada render — senão o memo do
   // filtro logo abaixo depende de uma identidade sempre nova e não memoriza nada.
@@ -403,7 +398,7 @@ export function PromptlyCatalogoPage() {
           columns={columns}
           data={filtradas}
           rowKey={(row) => row.name}
-          loading={query.isLoading}
+          loading={query.loading}
           emptyState={
           <VazioDoCatalogo
             estado={estadoVazio}

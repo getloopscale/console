@@ -6,8 +6,8 @@ vi.mock('@/hooks/use-auth', () => ({
 }));
 
 const mockPage = vi.fn();
-vi.mock('@/pages/promptly/components/promptly-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/pages/promptly/components/promptly-api')>();
+vi.mock('@/hooks/promptly/promptly-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/promptly/promptly-api')>();
   return { ...actual, fetchCatalogPage: (...a: unknown[]) => mockPage(...a) };
 });
 

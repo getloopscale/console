@@ -1,3 +1,9 @@
+import { temProximaPagina } from '@/hooks/promptly/link-header';
+
+// Re-export: B-052 desceu a DECLARACAO para junto do transporte — ler o header
+// `Link rel="next"` e assunto de quem faz o request, nao de quem projeta a
+// tela. O caminho de import das paginas continua valendo.
+export { temProximaPagina };
 /**
  * M25 — a lógica de projeção das telas de prompts, FORA do React.
  *
@@ -51,26 +57,7 @@ export interface ResumoCatalogo {
   readonly parcial: boolean;
 }
 
-/**
- * O marcador de continuação da RFC 5988, nas três grafias que ela permite.
- *
- * Espelha `linkNextRE` do BFF (Go) pela mesma razão que ele existe: nós emitimos com aspas duplas,
- * mas um proxy que normalize o header o deixaria sem — e ler só a nossa grafia devolveria "sem
- * continuação" sobre um catálogo truncado, ou seja, um TOTAL FALSO no painel. O `\b` impede que
- * `rel=nextpage` case.
- */
-const REL_NEXT = /<[^>]*>\s*;[^,]*\brel\s*=\s*("next"|'next'|next\b)/i;
 
-/**
- * Lê do header `Link` se há próxima página.
- *
- * Header ausente é **ausência de continuação**, nunca erro: se um proxy o removesse, o painel
- * mostraria os números sem a marca de parcialidade — subnotificando. A direção oposta (marcar
- * parcial sem saber) seria pior, porque ensina a desconfiar de um número correto.
- */
-export function temProximaPagina(linkHeader: string | null | undefined): boolean {
-  return Boolean(linkHeader) && REL_NEXT.test(linkHeader as string);
-}
 
 /** A maior versão que algum label serve; `0` quando nenhum serve (nunca `-Infinity`). */
 export function maiorVersaoServida(labels: CatalogEntry['labels'] | undefined): number {

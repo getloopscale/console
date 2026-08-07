@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { FilePlus, FileText, Layers, Rocket, Server } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchCatalogPage, CATALOG_PAGE_LIMIT, CATALOG_QUERY_KEY } from '@/pages/promptly/components/promptly-api';
+import { CATALOG_PAGE_LIMIT } from '@/hooks/promptly/promptly-api';
 import { catalogRows, resumoCatalogo } from '@/pages/promptly/components/projections';
+import { usePromptlyCatalog } from '@/hooks/promptly/use-promptly';
 
 /**
  * M13 — `/promptly`: o painel da capacidade.
@@ -38,14 +38,9 @@ export function PromptlyOverviewPage() {
   useEffect(() => setPageTitle('Prompts'), [setPageTitle]);
   useRequireAuth();
 
-  const query = useQuery({
-    // A MESMA chave da tela de lista: um recurso, uma entrada de cache. A primeira versão usava
-    // `[..., 'pagina']`, que além de duplicar a leitura colidia com a chave do detalhe de um
-    // prompt CHAMADO `pagina` — e nomes não têm restrição de caractere, fato que este mesmo
-    // milestone estabelece duas vezes (EC-4, EC-10).
-    queryKey: CATALOG_QUERY_KEY,
-    queryFn: () => fetchCatalogPage<unknown>(CATALOG_PAGE_LIMIT),
-  });
+// B-052 — Q2 do plano: a forma da chave MUDA ao entrar na factory, entao ha
+  // um refetch unico no primeiro carregamento apos o deploy. Esta no CHANGELOG.
+  const query = usePromptlyCatalog<unknown>({}, CATALOG_PAGE_LIMIT);
 
   const resumo = resumoCatalogo(catalogRows(query.data?.data), query.data?.temContinuacao ?? false);
 
@@ -54,7 +49,7 @@ export function PromptlyOverviewPage() {
       title="Prompts"
       description="Prompts versionados resolvidos em runtime — e o que já foi escrito mas ainda não está servindo ninguém."
     >
-      {query.isError ? (
+      {query.error ? (
         <Alert
           intent="destructive"
           title="Não foi possível carregar o catálogo"

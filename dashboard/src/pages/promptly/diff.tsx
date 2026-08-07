@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Card, PageShell } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchRevisions } from '@/pages/promptly/components/promptly-api';
+import { usePromptRevisions } from '@/hooks/promptly/use-promptly';
 import {
   diffLines,
   diffConfig,
@@ -77,11 +76,7 @@ export function PromptlyDiffPage() {
   useRequireAuth();
 
   const [params] = useSearchParams();
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', name, 'revisions', 'diff'],
-    queryFn: () => fetchRevisions<Revision[]>(name, REVISION_WINDOW),
-    enabled: name !== '',
-  });
+  const query = usePromptRevisions<Revision[]>(name, REVISION_WINDOW);
 
   const revisoes = useMemo(() => (Array.isArray(query.data) ? query.data : []), [query.data]);
   const ordenadas = useMemo(

@@ -1,5 +1,5 @@
 import { cloudFetch, ApiError } from '@/lib/http/api';
-import { temProximaPagina } from './projections';
+import { temProximaPagina } from '@/hooks/promptly/link-header';
 
 /**
  * M25 — o único ponto por onde as telas de prompts falam com o BFF.

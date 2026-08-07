@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button, Card, FormField, PageShell, Skeleton, Textarea } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { createRevision, fetchPrompt, runPlayground } from '@/pages/promptly/components/promptly-api';
+import { createRevision, runPlayground } from '@/hooks/promptly/promptly-api';
 import {
   camposDeVariaveis,
   classificarFalha,
@@ -15,6 +15,7 @@ import {
   type Falha,
 } from '@/pages/promptly/components/playground';
 import { variaveisDoTexto } from '@/pages/promptly/components/preview';
+import { usePrompt, useInvalidatePrompt } from '@/hooks/promptly/use-promptly';
 
 interface PromptWire {
   readonly name: string;
@@ -56,7 +57,7 @@ export function PromptlyPlaygroundPage() {
 
   const { promptName = '' } = useParams();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const invalidarPrompt = useInvalidatePrompt();
 
   const [conteudo, setConteudo] = useState('');
   const [campos, setCampos] = useState<readonly CampoVariavel[]>([]);
@@ -69,11 +70,10 @@ export function PromptlyPlaygroundPage() {
   const [descricao, setDescricao] = useState('');
 
 
-  const prompt = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName],
-    queryFn: () => fetchPrompt<PromptWire>(promptName),
-    enabled: promptName !== '',
-  });
+  // B-052 — chave da factory, a mesma que `detail.tsx` usa para o mesmo prompt.
+  // Antes eram duas tuplas escritas a mao que por sorte coincidiam; agora e
+  // contrato.
+  const prompt = usePrompt<PromptWire>(promptName);
 
   /**
    * De onde vem a lista de campos — e por que ela tem DOIS regimes.
@@ -157,9 +157,11 @@ export function PromptlyPlaygroundPage() {
       // revisão recém-criada **não aparece** — o DoD-6 promete que "o detalhe passa a
       // mostrá-la", e navegar sozinho não cumpre isso. O detalhe já faz o mesmo nas
       // escritas dele (`detail.tsx:142-143`); era esta tela que faltava.
-      void queryClient.invalidateQueries({
-        queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName],
-      });
+      // B-052 — invalida o PROMPT pela hierarquia. A chave literal que estava
+      // aqui deixou de ser lida no instante em que `detail.tsx` migrou: navegar
+      // para o detalhe mostraria o cache anterior, e a revisao recem-criada NAO
+      // apareceria — que e exatamente o que o DoD-6 promete que nao acontece.
+      invalidarPrompt(promptName);
       navigate(`/promptly/${encodeURIComponent(promptName)}`);
     },
     onError: () =>
@@ -188,7 +190,7 @@ export function PromptlyPlaygroundPage() {
         </Link>
       </div>
 
-      {prompt.isError ? (
+      {prompt.error ? (
         <Alert
           intent="destructive"
           title="Não foi possível carregar este prompt"

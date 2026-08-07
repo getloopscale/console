@@ -107,7 +107,7 @@ const DOMINIOS_COM_API_PARCIAL = ['trust', 'skills', 'promptly'];
  * O que o trabalho de fato move é isto: quantas páginas consomem um `*-api.ts`
  * e ainda montam o `useQuery` à mão. Zerar é o que significa "a camada existe".
  */
-const TETO_PAGINAS_COM_QUERY_MANUAL = 5;
+const TETO_PAGINAS_COM_QUERY_MANUAL = 0;
 
 export function paginasComQueryManual(): string[] {
   const fora: string[] = [];

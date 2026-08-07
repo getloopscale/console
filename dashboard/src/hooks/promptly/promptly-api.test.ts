@@ -6,7 +6,7 @@ vi.mock('@/lib/http/api', async (importOriginal) => {
   return { ...actual, cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) };
 });
 
-import { fetchCatalogPage, runPlayground } from './promptly-api';
+import { fetchCatalogPage, runPlayground } from '@/hooks/promptly/promptly-api';
 
 /**
  * M13 pós-review (TA-02) — a cola que lê o header não tinha teste em nível ALGUM.

@@ -120,6 +120,29 @@ export const queryKeys = {
     adoption: (bundleId: string | undefined, dias: number) =>
       ['bundles', bundleId, 'adoption', dias] as const,
   },
+  // B-052 — promptly era o unico dos tres com UMA chave declarada
+  // (`CATALOG_QUERY_KEY`, promptly-api.ts:23) e o resto escrito a mao nas telas.
+  // Mover a declarada para ca MUDA a forma da chave, entao ha um refetch unico
+  // no deploy — declarado no CHANGELOG, porque uma tela que recarrega sozinha
+  // sem explicacao e um susto que ninguem consegue diagnosticar depois.
+  promptly: {
+    all: ['promptly'] as const,
+    catalog: (filtros?: Record<string, unknown>) =>
+      ['promptly', 'catalog', filtros ?? {}] as const,
+    prompt: (name: string | undefined) => ['promptly', 'prompt', name] as const,
+    resolved: (name: string | undefined) => ['promptly', 'prompt', name, 'resolved'] as const,
+    dependents: (name: string | undefined) => ['promptly', 'prompt', name, 'dependents'] as const,
+    labels: (name: string | undefined) => ['promptly', 'prompt', name, 'labels'] as const,
+    revisions: (name: string | undefined, limit: number, after = 0) =>
+      ['promptly', 'prompt', name, 'revisions', limit, after] as const,
+    diff: (name: string | undefined) => ['promptly', 'prompt', name, 'diff'] as const,
+    policy: (name: string | undefined, label: string | undefined) =>
+      ['promptly', 'prompt', name, 'policy', label] as const,
+    usage: (name: string | undefined, dias: number) =>
+      ['promptly', 'prompt', name, 'usage', dias] as const,
+    comments: (name: string | undefined, version: number) =>
+      ['promptly', 'prompt', name, 'comments', version] as const,
+  },
   scale: {
     all: ['scale'] as const,
     detail: (project: string, env: string) =>

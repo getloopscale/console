@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { History } from 'lucide-react';
 import { Badge, Button, Card, DataTable, EmptyState, PageShell } from '@usetheo/ui';
 import {
@@ -29,20 +29,11 @@ import {
   type ResultadoRollback,
 } from '@/pages/promptly/components/rollback';
 import {
-  fetchLabels,
-  fetchPolicy,
-  fetchPrompt,
-  fetchPromptUsage,
-  fetchRevisions,
   promoteLabel,
   rollbackPrompt,
-  fetchCatalogPage,
   setTags,
-  fetchComments,
   addComment,
-  fetchPromptResolvido,
-  fetchDependentes,
-} from '@/pages/promptly/components/promptly-api';
+} from '@/hooks/promptly/promptly-api';
 import {
   catalogRows,
   comentarioRows,
@@ -55,6 +46,18 @@ import {
   type PromotionPolicy,
 } from '@/pages/promptly/components/projections';
 import { projetarUso, type AgregadoDeUso, type LinhaDeUso } from '@/pages/promptly/components/usage';
+import {
+  useInvalidatePrompt,
+  usePrompt,
+  usePromptlyCatalog,
+  usePromptRevisions,
+  usePromptLabels,
+  usePromptPolicy,
+  usePromptUsage,
+  usePromptResolvido,
+  usePromptDependentes,
+  usePromptComments,
+} from '@/hooks/promptly/use-promptly';
 
 /**
  * M25 — `/promptly/:promptName`: as revisões de um prompt e a promoção de um label.
@@ -133,7 +136,7 @@ export function PromptDetailPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle(`Prompt — ${promptName}`), [setPageTitle, promptName]);
   useRequireAuth();
-  const queryClient = useQueryClient();
+  const invalidarPrompt = useInvalidatePrompt();
 
   /** A revisão escolhida para promoção; `null` = nenhum diálogo aberto. */
   const [alvo, setAlvo] = useState<number | null>(null);
@@ -149,11 +152,15 @@ export function PromptDetailPage() {
    * Um endpoint dedicado seria trabalho antes da necessidade: o dado já existe a um `search` de
    * distância, e criar uma segunda rota para lê-lo duplicaria a projeção sem comprar alcance.
    */
-  const tagsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'tags'] as const,
-    queryFn: () => fetchCatalogPage<unknown>(1, { search: promptName }),
-    enabled: promptName !== '',
-  });
+// B-052 — chaves da factory. As onze leituras desta tela escreviam a tupla a
+  // mao, e tres delas caiam sob o prefixo da CATALOG_QUERY_KEY por acidente.
+  //
+  // Esta e uma BUSCA NO CATALOGO, nao um recurso "tags": ela chama
+  // `fetchCatalogPage(1, {search})` e le as tags da linha. A chave antiga dizia
+  // `...promptName, 'tags'`, prometendo um recurso que nao existe — e uma chave
+  // que descreve errado o que guarda e a forma mais barata de invalidar o alvo
+  // errado depois.
+  const tagsQuery = usePromptlyCatalog<unknown>({ search: promptName }, 1);
   const tags = catalogRows(tagsQuery.data?.data).find((r) => r.name === promptName)?.tags ?? [];
 
   const marcando = useMutation({
@@ -163,74 +170,53 @@ export function PromptDetailPage() {
       setNovaTag('');
       // Reler em vez de otimizar: o serviço normaliza (ordena, deduplica), e pintar a tela com o
       // que EU mandei mostraria uma ordem que o servidor não tem.
-      await queryClient.invalidateQueries({
-        queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'tags'],
-      });
+      // B-052 — invalida o PROMPT inteiro. As chaves literais listadas aqui
+      // deixaram de existir quando as leituras migraram; a hierarquia
+      // `['promptly','prompt',name,...]` alcanca todas elas de uma vez, sem
+      // tocar no catalogo nem nos outros prompts.
+      invalidarPrompt(promptName);
     },
     // A recusa TIPADA chega ao operador: `too_many_tags` e `empty_tag` dizem o que fazer;
     // "erro ao salvar" não diz nada.
     onError: (err: unknown) => { setErroDeTag(mensagemDaRecusa(err)); },
   });
 
-  const labelsKey = ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'labels'] as const;
-
-  // Qual é a ÚLTIMA revisão? A pergunta parece supérflua e não é: a rota de revisões ordena da
-  // mais ANTIGA para a mais nova, então sem cursor a página traz o começo do histórico. Sem este
-  // número não há como pedir o FIM dele — e esta é a tela de onde sai a promoção (#364).
-  const prompt = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName],
-    queryFn: () =>
-      fetchPrompt<{
-        version?: number;
-        content?: string;
-        // M21 — a aba de config lê a afinação declarada (M17) e o contrato de entrada. Ambos já
-        // vinham nesta resposta e eram descartados pela tipagem estreita.
-        modelConfig?: { model?: string; temperature?: number; maxTokens?: number } | null;
-        variables?: string[];
-      }>(promptName),
-    enabled: promptName !== '',
-  });
+  // B-052 — o prompt em si. `latestVersion`/`promptContent`/`janela` derivam
+  // daqui, e o regex que removeu as chaves literais levou estas tres linhas
+  // junto — restauradas.
+  const prompt = usePrompt<{
+    version?: number;
+    content?: string;
+    // M21 — a aba de config lê a afinação declarada (M17) e o contrato de
+    // entrada. Ambos já vinham nesta resposta e eram descartados pela tipagem
+    // estreita.
+    modelConfig?: { model?: string; temperature?: number; maxTokens?: number } | null;
+    variables?: string[];
+  }>(promptName);
   const latestVersion = prompt.data?.version ?? null;
   const promptContent = prompt.data?.content ?? null;
   const janela = revisionsWindow(latestVersion, REVISIONS_LIMIT);
 
-  const revisionsKey = [
-    'cloud', '/v1/dashboard/promptly/prompts', promptName, 'revisions', janela.after,
-  ] as const;
+  const revisions = usePromptRevisions<unknown>(
+    promptName,
+    REVISIONS_LIMIT,
+    janela.after,
+    // Só depois de saber a última versão: pedir antes traria a janela errada e a
+    // tela piscaria do histórico velho para o novo, com o operador podendo
+    // clicar no intervalo.
+    !prompt.loading,
+  );
 
-  const revisions = useQuery({
-    queryKey: revisionsKey,
-    queryFn: () => fetchRevisions<unknown>(promptName, REVISIONS_LIMIT, janela.after),
-    // Só depois de saber a última versão: pedir antes traria a janela errada e a tela piscaria
-    // do histórico velho para o novo, com o operador podendo clicar no intervalo.
-    enabled: promptName !== '' && !prompt.isLoading,
-  });
-
-  const labels = useQuery({
-    queryKey: labelsKey,
-    queryFn: () => fetchLabels<unknown>(promptName),
-    enabled: promptName !== '',
-  });
+  const labels = usePromptLabels<unknown>(promptName);
 
   // A política é lida por LABEL, e só quando há um diálogo aberto: perguntá-la para todos os
   // labels ao abrir a tela gastaria requisições que ninguém pediu.
-  const policy = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'policies', labelAlvo],
-    queryFn: () => fetchPolicy<PromotionPolicy>(promptName, labelAlvo),
-    enabled: promptName !== '' && labelAlvo !== '',
-    // Ausência de política responde 404 por CONTRATO, não por falha; repetir não muda a resposta.
-    retry: false,
-  });
+  const policy = usePromptPolicy<PromotionPolicy>(promptName, labelAlvo);
 
   // M15 — o uso observado por revisão. Janela CURTA por padrão e DITA na tela: um agregado
   // "desde sempre" varre a tabela de spans do ecossistema inteiro, e uma janela implícita faz
   // o operador atribuir o número ao período errado.
-  const uso = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'usage', USAGE_WINDOW_DAYS],
-    queryFn: () => fetchPromptUsage<{ rows: LinhaDoAgregadoBruta[] }>(promptName, USAGE_WINDOW_DAYS),
-    enabled: promptName !== '',
-    retry: false,
-  });
+  const uso = usePromptUsage<{ rows: LinhaDoAgregadoBruta[] }>(promptName, USAGE_WINDOW_DAYS);
 
   // M20 DoD-2 — os DOIS textos. A resolução é pedida SÓ quando o prompt de fato compõe: um
   // alternador entre dois textos idênticos é ruído, e a travessia do grafo custaria em toda
@@ -238,25 +224,19 @@ export function PromptDetailPage() {
   const [modoDeTexto, setModoDeTexto] = useState<ModoDeTexto>('escrito');
   const compoe = temComposicao(promptContent);
 
-  const resolvido = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'resolved'] as const,
-    queryFn: () => fetchPromptResolvido<{ resolvedContent?: string }>(promptName),
-    // A leitura só acontece quando o operador PEDE o texto resolvido. Antes disso, a tela não paga.
-    enabled: promptName !== '' && compoe && modoDeTexto === 'resolvido',
-    retry: false,
-  });
+  const resolvido = usePromptResolvido<{ resolvedContent?: string }>(
+    promptName,
+    // A leitura só acontece quando o operador PEDE o texto resolvido. Antes
+    // disso, a tela não paga a travessia do grafo.
+    compoe && modoDeTexto === 'resolvido',
+  );
 
   // M20 DoD-4 — quem depende de mim. Lido sempre: é a informação que muda a decisão de promover, e
   // saber que ninguém depende é tão útil quanto a lista.
-  const dependentes = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/promptly/prompts', promptName, 'dependents'] as const,
-    queryFn: () => fetchDependentes<unknown>(promptName),
-    enabled: promptName !== '',
-    retry: false,
-  });
+  const dependentes = usePromptDependentes<unknown>(promptName);
 
   const texto = textoExibido(modoDeTexto, promptContent, {
-    carregando: resolvido.isLoading,
+    carregando: resolvido.loading,
     erro: Boolean(resolvido.error),
     texto: resolvido.data?.resolvedContent ?? null,
   });
@@ -289,14 +269,7 @@ export function PromptDetailPage() {
   const [novoComentario, setNovoComentario] = useState('');
   const [erroDeComentario, setErroDeComentario] = useState<string | null>(null);
 
-  const comentariosKey = [
-    'cloud', '/v1/dashboard/promptly/prompts', promptName, 'comments', revisaoDiscutida,
-  ] as const;
-  const comentariosQuery = useQuery({
-    queryKey: comentariosKey,
-    queryFn: () => fetchComments<unknown>(promptName, revisaoDiscutida ?? 0),
-    enabled: promptName !== '' && revisaoDiscutida !== null,
-  });
+  const comentariosQuery = usePromptComments<unknown>(promptName, revisaoDiscutida ?? 0);
   // `null` e `[]` NÃO são a mesma coisa: o primeiro é "não consegui ler", o segundo é "ninguém
   // comentou". Levam a ações opostas, e colapsá-los é o defeito que o M13 pagou caro.
   const comentarios = comentarioRows(comentariosQuery.data);
@@ -307,7 +280,7 @@ export function PromptDetailPage() {
     onMutate: () => { setErroDeComentario(null); },
     onSuccess: async () => {
       setNovoComentario('');
-      await queryClient.invalidateQueries({ queryKey: comentariosKey });
+      invalidarPrompt(promptName);
     },
     // A recusa TIPADA chega inteira: `secret_in_comment` cita o TIPO de credencial e diz o que
     // fazer. "Erro ao salvar" não diz nada.
@@ -335,8 +308,7 @@ export function PromptDetailPage() {
       setRollbackErro(null);
       setLabelsParaEscolher([]);
       if (resposta) setRollbackResultado(resultadoDoRollback(resposta));
-      void queryClient.invalidateQueries({ queryKey: labelsKey });
-      void queryClient.invalidateQueries({ queryKey: revisionsKey });
+      invalidarPrompt(promptName);
     },
     onError: (err: unknown) => {
       setRevAlvoPendente(revAlvo);
@@ -362,7 +334,7 @@ export function PromptDetailPage() {
       setPromoteError(null);
       setAlvo(null);
       setLabelAlvo('');
-      void queryClient.invalidateQueries({ queryKey: labelsKey });
+      invalidarPrompt(promptName);
     },
     onError: (err: unknown) => {
       // A mensagem TIPADA do serviço chega à tela; o texto genérico é só o fallback. Uma recusa
@@ -581,7 +553,7 @@ export function PromptDetailPage() {
           linhas={[...usoPorRevisao.values()]}
           dependentes={dependentesLinhas}
           dependentesIlegiveis={Boolean(dependentes.error)}
-          dependentesCarregando={dependentes.isLoading}
+          dependentesCarregando={dependentes.loading}
         />
       ) : null}
 
@@ -813,7 +785,7 @@ export function PromptDetailPage() {
           columns={columns}
           data={linhas}
           rowKey={(row) => String(row.version)}
-          loading={revisions.isLoading}
+          loading={revisions.loading}
           emptyState={
             <EmptyState
               icon={History}
