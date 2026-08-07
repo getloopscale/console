@@ -438,3 +438,36 @@ describe('LogViewer — contrato de scroll (B-025, rede para a virtualizacao)', 
     expect(scroller!.scrollTop).toBe(42);
   });
 });
+
+describe('B-025 — o custo de pintar as linhas fora da tela', () => {
+  it('cada linha declara content-visibility E um tamanho intrinseco', () => {
+    render(
+      <LogViewer
+        lines={[
+          { ts: '2026-08-07T10:00:00Z', level: 'info', msg: 'primeira' },
+          { ts: '2026-08-07T10:00:01Z', level: 'info', msg: 'segunda' },
+        ]}
+        connected
+        error={null}
+        paused={false}
+        onTogglePause={() => {}}
+        onClear={() => {}}
+        onRefresh={() => {}}
+      />,
+    );
+    const linha = screen.getByText('primeira').closest('[data-line-index]');
+    expect(linha).not.toBeNull();
+    const style = (linha as HTMLElement).style;
+
+    // O jsdom nao IMPLEMENTA content-visibility — nao pula nada, e nao ha o que
+    // medir. O que este teste protege e a DECLARACAO: alguem que remova a
+    // propriedade num refactor devolve o paint de 5000 linhas em silencio, e
+    // nenhum outro teste notaria.
+    expect(style.getPropertyValue('content-visibility')).toBe('auto');
+
+    // O par e obrigatorio. Sem tamanho intrinseco o navegador assume altura zero
+    // para o que pulou: a barra de rolagem mente e o scroll pula. Assertar so o
+    // content-visibility deixaria passar exatamente a metade que quebra a tela.
+    expect(style.getPropertyValue('contain-intrinsic-size')).not.toBe('');
+  });
+});

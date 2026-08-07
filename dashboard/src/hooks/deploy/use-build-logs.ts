@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useLogStream, capLogLines } from '@/hooks/deploy/use-log-stream';
+import { useLogStream, capLogLines, MAX_LOG_LINES } from '@/hooks/deploy/use-log-stream';
 import { useDeployment } from '@/hooks/deploy/use-deployment';
 import { engineFetch } from '@/lib/http/api';
 import { normalizeBuildStatus } from '@/lib/api/types';
@@ -150,6 +150,15 @@ export function useBuildLogs(buildId: string, paused: boolean): UseBuildLogsResu
    * Unico ponto que escreve o snapshot — e por isso o unico lugar onde o teto
    * precisa ser lembrado (B-016). Antes eram dois, e o segundo esqueceu.
    */
+  /**
+   * B-016 aplicou o teto FIFO ao snapshot; B-025 acrescentou o teto no REQUEST.
+   *
+   * Os dois precisam existir e nao sao redundantes. `capLogLines` protege a
+   * MEMORIA e o DOM: e a ultima linha de defesa, e vale mesmo que o servidor
+   * ignore o parametro. O `?limit=` protege a REDE: sem ele, um build de 200 mil
+   * linhas baixava 200 mil e o cliente descartava 195 mil — trabalho de download
+   * feito para ser jogado fora, no navegador de quem tem o build mais longo.
+   */
   const aplicarSnapshot = useCallback((data: BackendLogsResponse | null) => {
     setHistorical(capLogLines((data?.entries ?? []).map(toLogLine)));
   }, []);
@@ -166,7 +175,9 @@ export function useBuildLogs(buildId: string, paused: boolean): UseBuildLogsResu
     let cancelled = false;
     setHistoricalLoading(true);
     setHistoricalError(null);
-    engineFetch<BackendLogsResponse>(`/api/v1/builds/${encodeURIComponent(buildId)}/logs`)
+    engineFetch<BackendLogsResponse>(
+      `/api/v1/builds/${encodeURIComponent(buildId)}/logs?limit=${MAX_LOG_LINES}`,
+    )
       .then((data) => {
         if (cancelled) return;
         aplicarSnapshot(data);
@@ -204,7 +215,7 @@ export function useBuildLogs(buildId: string, paused: boolean): UseBuildLogsResu
     setHistoricalError(null);
     try {
       const data = await engineFetch<BackendLogsResponse>(
-        `/api/v1/builds/${encodeURIComponent(buildId)}/logs`,
+        `/api/v1/builds/${encodeURIComponent(buildId)}/logs?limit=${MAX_LOG_LINES}`,
       );
       aplicarSnapshot(data);
     } catch (err: unknown) {

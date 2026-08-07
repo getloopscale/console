@@ -71,10 +71,44 @@ const LEVELS: { value: 'all' | LogLevel; label: string }[] = [
  * do componente PAI — cada iteracao recriava o no e re-chamava `parseAnsi`.
  * Dar a linha o seu proprio componente e o que cria o ponto de memoizacao.
  *
- * Isto NAO e virtualizacao: o DOM continua com um no por linha, e B-025 segue
- * aberto para isso. E a metade barata e sem risco da remediacao — a outra
- * metade muda o permalink por hash e o auto-scroll, que nao tem e2e cobrindo.
+ * Isto NAO e virtualizacao — ver LINHA_FORA_DA_TELA abaixo para o que faz o
+ * papel dela sem remover nos do DOM.
  */
+
+/**
+ * B-025 — o custo de 5000 linhas nao e ter 5000 nos, e LAYOUT E PINTAR 5000 nos.
+ *
+ * ## Por que nao virtualizacao
+ *
+ * A escada da parcimonia respondeu antes da biblioteca. `@tanstack/react-virtual`
+ * NAO esta instalado (verificado no package.json), entao a rota obvia comecava
+ * adicionando dependencia. E o obstaculo medido na tentativa anterior era real:
+ * `useVirtualizer` decide o que renderizar pelo `clientHeight` do container, o
+ * jsdom nao faz layout, o range sai vazio e 14 asserções deste arquivo caem
+ * juntas — o conserto exigiria stubbar layout GLOBALMENTE, mudando o que os 306
+ * arquivos de teste exercitam por causa de um componente.
+ *
+ * `content-visibility: auto` e um recurso nativo da plataforma (degrau 3) que
+ * resolve o mesmo problema e e melhor em tres eixos:
+ *
+ * - **Zero dependencia, zero JS.** O navegador pula layout e paint do que esta
+ *   fora da viewport. Nao ha medicao, entao nao ha o bloqueio de jsdom: no teste
+ *   a propriedade simplesmente nao faz nada, e as 14 asserções continuam validas.
+ * - **Acessibilidade.** A virtualizacao REMOVE nos: o Ctrl+F do navegador nao
+ *   acha a linha, selecionar tudo nao a copia, e o leitor de tela nao a percorre.
+ *   Num visualizador de log isso e perda de funcao, nao detalhe. Aqui os nos
+ *   ficam.
+ * - **Degrada sozinho.** Onde nao houver suporte, pinta tudo — o comportamento
+ *   de hoje. Nenhum caminho fica pior que o atual.
+ *
+ * `contain-intrinsic-size` e obrigatorio junto: sem ele o navegador assume altura
+ * zero para o que pulou, a barra de rolagem mente e o scroll pula. `auto 28px` diz
+ * "estime 28px ate medir de verdade, depois lembre o valor real".
+ */
+const LINHA_FORA_DA_TELA = Object.freeze({
+  contentVisibility: 'auto',
+  containIntrinsicSize: 'auto 28px',
+}) as React.CSSProperties;
 const LogLineRow = memo(function LogLineRow({ line, index }: { line: LogLine; index: number }) {
   return (
     <div
@@ -85,6 +119,7 @@ const LogLineRow = memo(function LogLineRow({ line, index }: { line: LogLine; in
         window.location.hash = `#L${String(index)}`;
       }}
       className="flex items-start gap-3 border-b border-border/30 px-4 py-1.5 cursor-pointer"
+      style={LINHA_FORA_DA_TELA}
     >
       <span className="shrink-0 tabular-nums text-muted-foreground">
         {line.ts.slice(11, 19)}

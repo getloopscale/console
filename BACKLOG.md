@@ -679,7 +679,7 @@ Verificado por sonda: sem `limit` ou sem `throwOnError`, os testes ficam
 vermelhos.
 class_guard: dashboard/src/lib/request-ceiling.test.ts — quantifica a CLASSE (B-024/B-054/B-057 eram o mesmo formato tres vezes). Varreu 20 leituras sem teto alem das tres: 13 ganharam LIST_SAFETY_CEILING (rede de protecao, nao paginacao), 4 que crescem de verdade (faturas, traces do histograma, sessoes do seletor, objetos do storage) ganharam teto + AVISO na tela, e 3 agregacoes ficaram justificadas por nao serem colecoes.
 
-## B-025 — LogViewer materializa uma linha de DOM por linha de log, sem virtualizacao, e o teto de 5000 que ele assume nao existe no caminho real   [ ]
+## B-025 — LogViewer materializa uma linha de DOM por linha de log, sem virtualizacao, e o teto de 5000 que ele assume nao existe no caminho real   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -690,7 +690,9 @@ category: missing_pagination
 evidence: src/components/logs/log-viewer.tsx:237 — MEDIDO por leitura do caminho completo: log-viewer.tsx:109 filtra sem cortar; :237 mapeia o resultado inteiro para DOM; nao ha useVirtualizer nem windowing em nenhum ponto do arquivo. use-log-stream.ts:40 define maxLines=5000 e :43 o repassa como maxEvents ao FIFO de use-sse-stream.ts:123. logs-tab.tsx:156 faz engineFetch(/api/v1/builds/{id}/logs) sem parametro de limite e :191 concatena esse...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · scaling#6
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: duas metades. (1) O request historico (use-build-logs.ts) passou a mandar ?limit=MAX_LOG_LINES nos dois caminhos (carga inicial e refresh) — o teto do CLIENTE ja existia desde B-016, entao a premissa "o teto de 5000 nao existe no caminho real" estava velha; o que faltava era o teto da REDE: um build de 200 mil linhas baixava 200 mil e o cliente descartava 195 mil. (2) Cada linha declara content-visibility:auto + contain-intrinsic-size.
+deviation: o DoD pedia "virtualizar a lista". NAO virtualizei, e a escada da parcimonia respondeu antes da biblioteca: @tanstack/react-virtual NAO esta instalado, e o bloqueio medido em 2026-08-06 era real (useVirtualizer le clientHeight, jsdom nao faz layout, 14 asserções caem juntas, e o conserto pedia stub de layout GLOBAL por causa de um componente). content-visibility e nativo (degrau 3), resolve o mesmo custo — layout e paint do que esta fora da viewport — e e melhor em acessibilidade: a virtualizacao REMOVE nos, entao Ctrl+F nao acha a linha, selecionar-tudo nao a copia e o leitor de tela nao a percorre. Num visualizador de log isso e perda de funcao. Degrada sozinho onde nao houver suporte: pinta tudo, que e o comportamento de hoje. Um teste falha se alguem remover a propriedade — inclusive se remover so o contain-intrinsic-size, cuja ausencia faz a barra de rolagem mentir.
 bloqueio_tecnico_2026-08-06: tentei implementar a virtualizacao apos escrever a rede e parei num obstaculo que so aparece ao tentar. `useVirtualizer` decide quais itens renderizar pelo `clientHeight` do container — e o jsdom NAO FAZ LAYOUT, entao clientHeight e 0 e o range sai vazio: nenhuma linha no DOM. O src/test/setup.ts tem polyfill de ResizeObserver (que o react-virtual usa) mas nao stubba clientHeight nem getBoundingClientRect. Consequencia medida: 14 asserções do log-viewer.test.tsx dependem de a linha estar no DOM e quebrariam juntas. ESCOPO REAL DA VIRTUALIZACAO, portanto: (1) stub de layout no setup de teste — mudanca de INFRAESTRUTURA que afeta a suite inteira, nao so este componente; (2) adaptar os 2 casos de permalink de scrollIntoView para scrollToIndex; (3) a virtualizacao em si. O item (1) e o que o tira de sessao e o coloca em /to-plan: stubbar layout global muda o que TODOS os 306 arquivos de teste exercitam, e essa decisao nao pertence a este item.
 partial_progress: c84537c — CONTRATO DE SCROLL ESCRITO (5 casos: permalink valido, alvo correto, auto-scroll ancorado, rolar-para-cima desliga, permalink desliga). Poder de deteccao verificado injetando 2 quebras: 4 dos 5 falharam; nenhum dos 15 testes ORIGINAIS pegou qualquer uma. A virtualizacao deixou de ser salto no escuro — quem a fizer tem rede.
 partial_progress: 2ab5f5c — metade 2 da remediacao feita (LogLineRow memoizado; parseAnsi deixa de re-executar em todas as linhas a cada tecla do filtro). RESIDUO: a virtualizacao em si. Ela troca a estrutura do viewer e muda o permalink por hash (#L{i} depende do indice renderizado) e o auto-scroll — dois comportamentos sem e2e cobrindo. Fechar exige essa cobertura antes.
@@ -1277,7 +1279,7 @@ dod:
   - Remover a regra NetworkFirst de /api/v1/ do runtimeCaching em vite.config.ts:162 e deixar o TanStack Query como unica camada de cache de dados de servidor — ele ja tem invalidacao por queryKey, que o SW nao tem
   - a decisao fica escrita e a configuracao em `vite.config.ts` reflete o que foi decidido
 
-## B-056 — A conversa da sessao dispara ate 50 GETs paralelos de arvore de spans — um por turno — por falta de endpoint em lote   [ ]
+## B-056 — A conversa da sessao dispara ate 50 GETs paralelos de arvore de spans — um por turno — por falta de endpoint em lote   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1288,7 +1290,9 @@ category: n_plus_one_query
 evidence: src/pages/lens/session-detail/session-conversation.tsx:87 — MEDIDO por leitura: linha 26 CONVERSATION_TURN_CAP = 50; linha 84 const capped = ordered.slice(0, CONVERSATION_TURN_CAP); linha 87-92 useQueries({ queries: capped.map((t) => ({ queryKey: [cloud, /v1/dashboard/lens/traces, t.traceId, tree], queryFn: () => cloudFetch(/v1/dashboard/lens/traces/${t.traceId}) })) }). Uma query por elemento de capped, sem endpoint agregador. O mesmo endpoint...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · scaling#8
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: session-conversation.tsx busca por JANELA (CONVERSATION_TURNS_PER_PAGE=10) em vez dos 50 turnos no mount, com "show more" por pagina ate o cap. O useQueries opera sobre a janela e nao sobre `capped` com `enabled: false` — um slot desabilitado ainda faria o hook crescer com a colecao, que e o que o item media. Dois testes novos: a janela inicial dispara 10 GETs de arvore (nao 50), e o "show more" para no cap em vez de ultrapassa-lo.
+deviation: o DoD pedia um read em lote no BFF (`?ids=`). ADIADO, com razao medida: internal/routes/lens_dashboard.go:370 proxia GetTrace(ctx, id) um a um para o theo-lens, que nao expoe leitura em lote — um `?ids=` trocaria 50 requests do browser por 1 (ganho real em conexoes e resolucao de tenant) mas manteria os 50 upstream e continuaria baixando as 50 arvores, inclusive as que ninguem le. Corrige a contagem, nao o volume. A busca sob demanda corrige os dois eixos sem depender de outro dominio; quando o lote existir, os dois se somam.
 dod:
   - Introduzir um read em lote no BFF (por exemplo GET /v1/dashboard/lens/traces?ids=a,b,c ou um /v1/dashboard/lens/sessions/{id}/conversation que ja devolva os turnos com suas arvores) e trocar o useQueries de session-conversation.tsx:87 por um unico useQuery
   - o numero de requests disparados por `src/pages/lens/session-detail/session-conversation.tsx` deixa de crescer com o tamanho da colecao — medido no Network antes e depois
