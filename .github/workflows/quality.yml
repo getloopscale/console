@@ -215,10 +215,19 @@ jobs:
         # de reintroduzi-la — o que diz algo sobre revisar o proprio gate com o
         # mesmo rigor com que se revisa o codigo que ele guarda.
         #
-        # Agora procura um SENTINELA: um literal de string exportado e consumido
-        # por `installAllMocks()` (src/lib/mocks/index.ts). Literal sobrevive a
-        # minificacao; caminho de modulo nao. E ele e consumido de proposito —
-        # um const so atribuido seria descartado pelo minificador.
+        # Agora procura um SENTINELA: um literal de string em `src/lib/mocks/fixtures.ts`,
+        # o modulo mais profundo da cadeia `index -> handlers -> fixtures`. Literal
+        # sobrevive a minificacao; caminho de modulo nao. Ele e consumido por um
+        # efeito colateral de modulo, de proposito — um const so exportado seria
+        # descartado pelo minificador e o gate voltaria a ser tautologia por um
+        # caminho novo.
+        #
+        # POR QUE no modulo mais profundo e nao no barrel: com o sentinela em
+        # `index.ts`, o gate provava que o BARREL entrou no bundle, nao que nenhum
+        # mock entrou — um `import { projects } from './lib/mocks/fixtures'`
+        # arrastaria 376 linhas de dados sem acionar nada. Verificado por sonda nos
+        # quatro estados: build normal PASS; import do barrel, de fixtures e de
+        # handlers, os tres FAIL.
         run: |
           if grep -q '__theo_mocks_present_in_bundle__' dist/assets/*.js; then
             echo "FAIL: chunk de mocks vazou para o bundle de producao"
