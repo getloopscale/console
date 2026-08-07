@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "B-001 — skipAsyncImports faz o madge responder a pergunta CERTA.",
+    "Sem ele, o madge conta `React.lazy(() => import('...'))` como aresta e reporta",
+    "um ciclo em pages/lens que NAO existe em runtime: o import dinamico resolve",
+    "depois que os dois modulos ja inicializaram, entao nao ha TDZ.",
+    "A pergunta que importa e 'ha ciclo de INICIALIZACAO?', nao 'ha laco no grafo?'.",
+    "O laco daquele caso e uma fronteira de code-splitting deliberada (peek-sheet",
+    "carrega trace-detail sob demanda) e desfaze-lo reintroduziria risco de init E",
+    "devolveria ao bundle parte dos 180 kB que B-021 tirou dele.",
+    "",
+    "O que isto NAO faz: esconder um acoplamento mutuo entre paginas. Ele segue la,",
+    "e o guard src/lib/parent-barrel-import.test.ts cobre a forma que causou 7 dos 8",
+    "ciclos originais. Esta flag responde por inicializacao, nao por desenho."
+  ],
+  "detectiveOptions": {
+    "es6": {
+      "skipAsyncImports": true
+    },
+    "ts": {
+      "skipAsyncImports": true
+    },
+    "tsx": {
+      "skipAsyncImports": true
+    }
+  }
+}

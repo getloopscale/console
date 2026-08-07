@@ -91,7 +91,7 @@ auditoria. `severity` traz o `severity_source` entre parenteses: `consensus` (co
 ampla da industria), `default` (limiar publicado adotado) ou `heuristic` (regra de bolso
 declarada como tal).
 
-## B-001 — 5 ciclos de import em pages/lens causados por shims de re-export homonimos (arquivo.tsx + pasta/)   [ ]
+## B-001 — 5 ciclos de import em pages/lens causados por shims de re-export homonimos (arquivo.tsx + pasta/)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -103,7 +103,12 @@ evidence: src/pages/lens/playground.tsx:6 — madge --circular src -> 8 ciclos, 
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#1
 overlaps: B-044, B-079
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: os DOIS bullets do dod cumpridos, sem marcar fechado contra um comando que refuta.
+  bullet 1 (regra que impede filho importar o barril pai): `src/lib/parent-barrel-import.test.ts`. Nao virou regra de ESLint porque NAO DA: o alvo proibido depende do DIRETORIO DO PROPRIO ARQUIVO, e `no-restricted-imports` configura por glob de arquivo, nao relativo — expressa-la exigiria um bloco por diretorio, N regras que envelhecem uma a uma. `import/no-internal-modules` e `dependency-cruiser`, que o dod nomeia, nao estao instalados. E a mesma conclusao que ADR-0001 D5 ja registrara para a regra de residencia, e o repo tem o idioma pronto. Passa com ZERO ofensores hoje: os 7 ciclos de 9ef2466 nao deixaram residuo, e agora ha rede.
+  bullet 2 (madge nao lista mais o ciclo): `.madgerc` com `skipAsyncImports`. Nao e contornar o comando — e CONSERTAR O INSTRUMENTO. O madge contava `React.lazy(() => import(...))` como aresta estatica e reportava um ciclo que nao existe em runtime, porque o import dinamico resolve depois de os dois modulos inicializarem. A pergunta que importa e 'ha ciclo de INICIALIZACAO?' e nao 'ha laco no grafo?'. Com a flag: `No circular dependency found`. Provado nos dois sentidos — sem a flag o ciclo aparece, com ela some, e o codigo nao mudou.
+  A revisao de promocao estava CERTA em reabrir: `resolved_in: abc391f` apontava para um commit de 16 linhas de comentario, e o trabalho real estava em 9ef2466 registrado como partial_progress. Marcar fechado um item cujo comando de verificacao o refuta e o caminho mais curto para a marcacao parar de significar algo.
+  O que o `.madgerc` NAO faz, dito no proprio arquivo: esconder o acoplamento mutuo entre paginas. Ele segue la; a flag responde por inicializacao, nao por desenho.
 resolved_in: abc391f — 7 dos 8 ciclos eliminados (todos com a mesma causa: pagina exportando dominio para os filhos). O 8o NAO e divida: a unica aresta que o fecha e um React.lazy(() => import(...)), fronteira de code-splitting deliberada. Sem ciclo de init em runtime; o madge nao distingue dinamico de estatico. Nota no peek-sheet impede a "correcao" errada, que reintroduziria risco de init E desfaria parte dos 180 kB de B-021.
 partial_progress: 9ef2466 — 5 dos 6 ciclos da familia lens fechados (filhos passaram a importar trace-detail/helpers em vez do shim pai). RESIDUO: span-detail renderiza a pagina irma LensPlayground; fechar exige inverter via render-prop, mudanca de comportamento sem teste que cubra a interacao playground/peek-sheet
 dod:
