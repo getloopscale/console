@@ -1840,6 +1840,40 @@ nota_sobre_as_saidas: EventSource nao suporta headers customizados — e essa a 
 
 relacionado: B-015 (revertido por causa deste achado — a unificacao na primitiva teria levado o quinto stream para o mesmo caminho)
 
+PROGRESSO PARCIAL em 2026-08-07 — o item SEGUE ABERTO.
+
+FEITO (o terceiro bullet do dod): a decisao esta registrada em
+`dashboard/docs/adr/0009-autenticacao-dos-streams-sse.md`, com tres medicoes que
+restringem as opcoes e que foram feitas contra o codigo, nao presumidas:
+
+  - o middleware da API cloud aceita `Authorization: Bearer` OU `?token=`, e NAO
+    le cookie (internal/auth/middleware.go:143). Isso elimina a saida (a) sem
+    mudanca de backend — e aceitar cookie numa API hoje imune a CSRF por usar
+    Bearer trocaria uma exposicao por outra.
+  - `use-status-stream` autentica por cookie porque fala com OUTRO servico
+    (`/engine/api/v1/...`), nao com a API cloud.
+  - a primitiva JA reimplementa reconexao (backoff exponencial com teto de 30s e
+    jitter). A objecao classica a saida (c) — "perde a reconexao nativa" — NAO se
+    sustenta; o unico recurso herdado do EventSource nativo e o resume por
+    Last-Event-ID, e esse e um cabecalho que o cliente pode enviar sozinho.
+
+A decisao proposta e a saida (c): SSE sobre fetch + ReadableStream.
+
+FEITO (contencao): `src/hooks/sse-token-in-url.test.ts` falha se um stream NOVO
+puser credencial na URL. Verificado por sonda. A allowlist tem UM arquivo — a
+primitiva — e o segundo teste do arquivo impede que ela cresca.
+
+Isto importa porque foi exatamente assim que o padrao chegou ao quinto stream:
+B-015 unificou use-status-stream na primitiva por um ganho real de resiliencia e
+trocou cookie por token-na-URL sem que ninguem percebesse na hora. Aquele foi
+revertido; o proximo, sem este teste, tambem nao seria percebido.
+
+NAO FEITO (os dois primeiros bullets do dod): o JWT CONTINUA na URL dos quatro
+streams. A correcao e uma reescrita de risco concentrado numa primitiva de 264
+linhas com quatro consumidores, tocando streaming, reconexao e autenticacao ao
+mesmo tempo. Nao e trabalho de varredura — precisa de plano, teste de reconexao
+com resume, e revisao propria.
+
 ## B-089 — A virtualizacao da arvore de spans foi planejada e nunca construida   [ ]
 
 domain: frontend-dashboard
