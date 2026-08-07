@@ -1,250 +1,82 @@
-/**
- * use-status-stream — SSE consumer for J-18 SignalGrid realtime updates.
- *
- * T2.1 of plan 2026-06-06-dashboard-journey-j18-status-runtime-health v1.1.
- *
- * Wraps useSSEStream<SignalEvent> for `/engine/api/v1/projects/{name}/signals/stream`
- * (backend T1.3, when wired). Applies ADR D3 v1.1 dichotomy reducer:
- *
- *   TERMINAL_ABSORBING = {status, alerts_active}
- *     Once a signal reaches a terminal state, subsequent events for that
- *     signal are absorbed (NO regression). Pattern from J-17 build phases.
- *
- *   OSCILLATING = {replicas, uptime_24h, p95_latency, error_rate, rps,
- *                  last_deploy_time}
- *     Always-latest. Replicas naturally fluctuate (scaling); freezing them
- *     via terminal-absorbing would render stale values forever.
- *
- * Reference: memory `feedback_drift_3layer_canonical_pattern` + plan v1.1
- * ADR D3 amended dichotomy, edge-case absorption EC-4.
- */
+import { useMemo, useRef, useState } from 'react';
+import { useSSEStream } from '@/hooks/deploy/use-sse-stream';
+import {
+  applySignalEvent,
+  type SignalEvent,
+  type SignalsMap,
+} from '@/hooks/projects/use-status-stream.reducer';
 
-import { useEffect, useMemo, useState } from 'react';
-
-/** The 8 canonical signal names for J-18 SignalGrid. */
-export type SignalName =
-  | 'status'
-  | 'alerts_active'
-  | 'replicas'
-  | 'uptime_24h'
-  | 'p95_latency'
-  | 'error_rate'
-  | 'rps'
-  | 'last_deploy_time';
-
-/** Per-signal categorization for the dichotomy reducer. Locked in v1.1 ADR D3. */
-export const TERMINAL_ABSORBING_SIGNALS: ReadonlySet<SignalName> = new Set([
-  'status',
-  'alerts_active',
-] as const);
-
-export const OSCILLATING_SIGNALS: ReadonlySet<SignalName> = new Set([
-  'replicas',
-  'uptime_24h',
-  'p95_latency',
-  'error_rate',
-  'rps',
-  'last_deploy_time',
-] as const);
+export * from '@/hooks/projects/use-status-stream.reducer';
 
 /**
- * Terminal absorption rules — when a TERMINAL_ABSORBING signal reaches one of
- * these values, subsequent events for the same signal are ignored.
+ * use-status-stream — os sinais de runtime de um projeto, por SSE.
  *
- * 'status' is terminal when 'Healthy' (Vercel-style: success absorbs).
- * 'alerts_active' is terminal when count drops to 0 (alerts cleared absorbs).
- */
-export function isTerminalValue(signal: SignalName, value: unknown): boolean {
-  if (signal === 'status') {
-    return value === 'Healthy';
-  }
-  if (signal === 'alerts_active') {
-    return value === 0;
-  }
-  return false;
-}
-
-/** Signal event delivered over SSE from backend T1.3 handler. */
-export interface SignalEvent {
-  signal: SignalName;
-  value: unknown;
-  /** Optional ISO timestamp; UI may render last-changed indicator. */
-  ts?: string;
-}
-
-/** Per-signal state in the reducer accumulator. */
-export interface SignalState {
-  value: unknown;
-  /** Set to true once a terminal value is observed (TERMINAL_ABSORBING signals only). */
-  terminal: boolean;
-  ts?: string;
-}
-
-/** Map signal name to current state. */
-export type SignalsMap = Partial<Record<SignalName, SignalState>>;
-
-/**
- * applySignalEvent — pure reducer step. Applies dichotomy policy.
+ * ## B-015, e por que ele levou dois turnos
  *
- * - TERMINAL_ABSORBING + terminal already reached → IGNORE (absorbs).
- * - TERMINAL_ABSORBING + not terminal yet → adopt value; mark terminal if
- *   the new value is itself terminal.
- * - OSCILLATING → always-latest (no terminal-absorbing).
- * - Unknown signal name → adopt as OSCILLATING (defensive default).
+ * Este hook abria um `EventSource` cru com `withCredentials: true`, enquanto os
+ * outros quatro consumidores de SSE passavam pela primitiva `useSSEStream`.
+ * Divergência real: sem refresh de token, sem backoff, sem o conserto do B-014.
+ *
+ * A primeira migração foi **revertida** (4c52dc1) e a reversão estava certa: a
+ * primitiva autenticava com `?token=<jwt>` na URL, e unificar teria levado o
+ * quinto stream para a exposição de credencial que o B-088 documentou. O ganho
+ * de resiliência não pagava o custo.
+ *
+ * O B-088 removeu a razão: a primitiva agora fala por `fetch` e manda o token em
+ * `Authorization`. A migração acontece sem o preço.
+ *
+ * ## O que a reversão escondeu
+ *
+ * `withCredentials: true` autentica por COOKIE — e o middleware da API cloud
+ * **não lê cookie** (`internal/auth/middleware.go:143`, medido no ADR-0009).
+ * Este hook não estava apenas divergente: ele daria 401 no instante em que
+ * alguém o religasse. B-051 removeu o único consumidor em `project-status.tsx`,
+ * e é só por isso que o defeito nunca apareceu.
+ *
+ * Então a migração não é arrumação: é o que faz o hook funcionar quando a
+ * assinatura voltar — e `project-status.tsx:88` documenta a linha exata de como
+ * religá-la.
+ *
+ * ## O reducer não mora aqui
+ *
+ * A dicotomia terminal-vs-oscilante é regra de produto e vive em
+ * `use-status-stream.reducer.ts`. Ela sobreviveu intacta a uma migração e a uma
+ * reversão; separá-la é o que permite testá-la sem montar um hook.
  */
-export function applySignalEvent(state: SignalsMap, event: SignalEvent): SignalsMap {
-  const current = state[event.signal];
-
-  if (TERMINAL_ABSORBING_SIGNALS.has(event.signal)) {
-    // Defense: already-terminal state absorbs subsequent events.
-    if (current?.terminal) {
-      return state;
-    }
-    return {
-      ...state,
-      [event.signal]: {
-        value: event.value,
-        terminal: isTerminalValue(event.signal, event.value),
-        ts: event.ts,
-      },
-    };
-  }
-
-  // OSCILLATING (or unknown): always-latest.
-  return {
-    ...state,
-    [event.signal]: {
-      value: event.value,
-      terminal: false,
-      ts: event.ts,
-    },
-  };
-}
 
 export interface UseStatusStreamResult {
-  /** Map signal_name → current state. */
   signals: SignalsMap;
-  /** True when SSE connection is open. */
   connected: boolean;
 }
 
-/**
- * useStatusStream — public hook.
- *
- * Strategy: hook EXPOSES the reducer policy + state but does NOT yet wire to
- * the backend SSE handler (T1.3 deferred to next iteration). Callers can feed
- * events manually via injection — useful for hermetic tests AND for future
- * wiring when T1.3 SSE backend ships.
- *
- * When T1.3 lands, this hook will wrap useSSEStream<SignalEvent> with
- * pathname `/engine/api/v1/projects/${name}/signals/stream?env=${env}` and
- * reduce via applySignalEvent on each received event.
- */
-/**
- * useStatusStream — public hook (T1.3.b: backend wire-up complete).
- *
- * Opens a browser-native EventSource to the backend SSE endpoint at
- * `/engine/api/v1/projects/${name}/signals/stream?env=${env}` (per T2.1 of
- * plan 2026-06-15-j18-t1.3.b-sse-pg-notify-backend v1.1) when projectName
- * AND env are provided. Falls back to safe-degraded (connected=false,
- * empty signals) when either is missing.
- *
- * EC absorptions:
- *  - EC-4 (vi.stubGlobal beforeEach): vitest tests stub EventSource via
- *    beforeEach BEFORE renderHook so useEffect picks up the mock
- *  - EC-6 (cleanup on unmount): useEffect cleanup calls es.close() to
- *    prevent memory leak + zombie connection in dev hot-reload
- *  - feedback_eventsource_named_events_vs_onmessage_2026_06_13: uses
- *    `addEventListener('signal.changed', handler)` — NOT onmessage alone
- *    which would silently drop named events
- *
- * `injectedEvents` seam preserved for hermetic tests of the dichotomy
- * reducer without needing EventSource mock.
- */
 export function useStatusStream(
-  projectName: string | undefined,
-  env: string | undefined,
-  injectedEvents?: SignalEvent[],
+  projectName: string | null | undefined,
+  env: string | null | undefined,
 ): UseStatusStreamResult {
   const [signals, setSignals] = useState<SignalsMap>({});
-  const [connected, setConnected] = useState<boolean>(false);
+  // O reducer é acumulativo e o `onEvent` da primitiva não recebe o estado
+  // anterior. O ref é o que permite reduzir sem re-assinar o stream a cada
+  // evento — uma dependência em `signals` recriaria o callback e, com ele, a
+  // conexão, a cada sinal recebido.
+  const signalsRef = useRef<SignalsMap>({});
 
-  // Apply injected events (test seam + reducer-only hermetic tests).
-  // Backend SSE consumers below push through the same reducer path.
-  useEffect(() => {
-    if (!injectedEvents || injectedEvents.length === 0) return;
-    setSignals((prev) => injectedEvents.reduce(applySignalEvent, prev));
-  }, [injectedEvents]);
+  const path =
+    projectName && env
+      ? `/engine/api/v1/projects/${encodeURIComponent(projectName)}/signals/stream?env=${encodeURIComponent(env)}`
+      : null;
 
-  // T1.3.b backend EventSource wire — opens when projectName AND env present.
-  useEffect(() => {
-    if (!projectName || !env) {
-      // Safe-degraded: no project/env → no subscription
-      setConnected(false);
-      return;
-    }
-    // Avoid double-open in environments where EventSource isn't available
-    // (e.g., jsdom without polyfill) — fail-soft to keep tests deterministic.
-    if (typeof EventSource === 'undefined') {
-      setConnected(false);
-      return;
-    }
+  const { connected } = useSSEStream<SignalEvent>(path, {
+    // O backend emite `event: signal.changed` NOMEADO. `onmessage` sozinho
+    // descartaria tudo em silêncio — absorção registrada em
+    // `feedback_eventsource_named_events_vs_onmessage`.
+    eventTypes: ['signal.changed'],
+    onEvent: (evento) => {
+      const payload = evento.data;
+      if (!payload?.signal) return;
+      signalsRef.current = applySignalEvent(signalsRef.current, payload);
+      setSignals(signalsRef.current);
+    },
+  });
 
-    const url = `/engine/api/v1/projects/${encodeURIComponent(projectName)}/signals/stream?env=${encodeURIComponent(env)}`;
-    // SEGURANCA (B-088) — `withCredentials: true` autentica por COOKIE, e nao
-    // por `?token=<jwt>` na URL como a primitiva `useSSEStream` faz.
-    //
-    // B-015 unificou este hook na primitiva, o que trouxe refresh de token e
-    // reconexao com backoff — e, sem que eu tivesse percebido na hora, TROCOU a
-    // autenticacao de cookie por JWT em query string. Revertido: o ganho de
-    // resiliencia nao paga o custo de expor o token de sessao.
-    //
-    // O JWT que `ensureSSEToken()` devolve NAO e efemero nem escopado ao stream:
-    // e o MESMO bearer que autentica toda a API. Numa query string ele chega a
-    // access logs de nginx/Caddy/Cloudflare, ao historico do navegador, ao header
-    // Referer e a qualquer proxy no caminho.
-    //
-    // NAO migre este hook para useSSEStream sem que B-088 esteja resolvido.
-    const es = new EventSource(url, { withCredentials: true });
-
-    const handleOpen = () => setConnected(true);
-    const handleError = () => setConnected(false);
-    const handleSignal = (rawEvent: MessageEvent) => {
-      try {
-        const payload = JSON.parse(rawEvent.data) as SignalEvent;
-        if (payload && payload.signal) {
-          setSignals((prev) => applySignalEvent(prev, payload));
-        }
-      } catch {
-        // Malformed event payload — silently skip. Backend emits canonical
-        // JSON per T2.1; corruption here would be wire-level which the
-        // browser's SSE parser already rejects upstream.
-      }
-    };
-
-    es.addEventListener('open', handleOpen);
-    es.addEventListener('error', handleError);
-    // EC absorption per memory feedback_eventsource_named_events_vs_onmessage:
-    // backend emits `event: signal.changed` named events; addEventListener
-    // is the canonical listener. onmessage alone would silently drop.
-    es.addEventListener('signal.changed', handleSignal as EventListener);
-
-    // EC-6 absorption: cleanup on unmount closes EventSource so dev
-    // hot-reload doesn't accumulate zombie connections.
-    return () => {
-      es.removeEventListener('open', handleOpen);
-      es.removeEventListener('error', handleError);
-      es.removeEventListener('signal.changed', handleSignal as EventListener);
-      es.close();
-    };
-  }, [projectName, env]);
-
-  // Memoize so consumers re-render only on actual state change.
-  return useMemo(
-    () => ({
-      signals,
-      connected,
-    }),
-    [signals, connected],
-  );
+  return useMemo(() => ({ signals, connected }), [signals, connected]);
 }

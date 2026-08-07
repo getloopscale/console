@@ -448,7 +448,7 @@ dod:
   - Em src/hooks/use-sse-stream.ts:179, tratar `es.readyState === EventSource.CLOSED` como sinal terminal e refazer o token+reconexao imediatamente (threshold 1 nesse caso), mantendo o contador de 3 apenas para o caminho de reconexao nativa
   - `src/hooks/use-sse-stream.ts` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-015 — use-status-stream abre EventSource cru com estrategia de auth divergente da primitiva useSSEStream   [ ]
+## B-015 — use-status-stream abre EventSource cru com estrategia de auth divergente da primitiva useSSEStream   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -459,7 +459,8 @@ category: state_synchronization_issue
 evidence: src/hooks/use-status-stream.ts:194 — use-status-stream.ts:193-194 `const url = `/engine/api/v1/projects/.../signals/stream?env=...`; const es = new EventSource(url, { withCredentials: true });` — sem token. Compare com src/hooks/use-sse-stream.ts:146-156 que monta `${API_URL}${path}?token=${encodeURIComponent(token)}` apos ensureSSEToken(). Os outros 3 consumidores (use-log-stream, use-deployment-stream,...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#5
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: desbloqueado por B-088 e migrado. O hook virou wrapper de useSSEStream e o reducer puro saiu para use-status-stream.reducer.ts, como o dod pedia — as duas coisas mudam por razoes diferentes: a dicotomia terminal-vs-oscilante e regra de PRODUTO, o hook e transporte, e enquanto conviviam testar a regra exigia montar um hook e mockar um EventSource. O risco_aberto registrado ('confirmar se /signals/stream aceita token na query') DEIXOU DE EXISTIR: nao ha mais token na query. E a migracao revelou o que a reversao escondia — `withCredentials: true` autentica por COOKIE e o middleware da API cloud NAO le cookie (internal/auth/middleware.go:143, medido no ADR-0009). O hook nao estava so divergente: ele daria 401 no instante em que alguem o religasse. B-051 removeu o unico consumidor, e e so por isso que o defeito nunca apareceu. Migrar nao foi arrumacao — foi o que faz o hook funcionar quando a assinatura voltar (project-status.tsx:88 documenta a linha de como religa-la). Um teste novo prova a troca de auth. Tres defeitos de TESTE apareceram no caminho e foram consertados: o arquivo nao mockava ensureSSEToken (a primitiva pedia sessao real e nunca conectava), seis asserções liam a instancia SINCRONO numa primitiva que resolve o token antes de abrir — corrida que passava isolada e falhava na suite, a forma mais cara de flakiness — e o fake so despachava pelos listeners de addEventListener, enquanto um EventSource real dispara TAMBEM pela propriedade `on*`, que e o que a primitiva usa para `open`.
 REVERTIDO em 2026-08-06: a unificacao na primitiva trocava auth por COOKIE por JWT em QUERY STRING. Ganho de refresh/reconexao nao paga expor o token de sessao (ver B-088). O hook voltou ao EventSource com withCredentials. Reabrir so depois de B-088.
 resolved_in_revertido: 4c52dc1
 risco_aberto: a primitiva autentica por ?token= na URL; a versao anterior usava cookie (withCredentials). Confirmar com o BACKEND que /signals/stream aceita token na query antes de a UI voltar a consumir o hook. Seguro hoje porque B-051 removeu o unico consumidor.

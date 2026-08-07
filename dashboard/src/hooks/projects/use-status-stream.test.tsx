@@ -15,7 +15,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
+import { __setTransporte } from '@/hooks/deploy/shared-event-source';
 
 import {
   applySignalEvent,
@@ -27,6 +28,15 @@ import {
   type SignalName,
   type SignalsMap,
 } from './use-status-stream';
+// B-015 — o hook passou a usar a primitiva, e a primitiva RESOLVE um token antes
+// de abrir. Sem este mock ela pede a sessao real, recebe null e nunca conecta —
+// os casos abaixo ficariam esperando uma conexao que nao vem. Os outros cinco
+// arquivos de teste de SSE ja tinham exatamente este mock.
+vi.mock('@/lib/http/api', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/http/api')>('@/lib/http/api');
+  return { ...actual, ensureSSEToken: vi.fn(async () => 'jwt-de-teste'), clearToken: vi.fn() };
+});
+
 
 /**
  * MockEventSource — minimal EventSource impl used by T3.1 tests.
@@ -36,10 +46,15 @@ class MockEventSource {
   public url: string;
   public readyState = 0;
   public closeCalls = 0;
+  onopen: ((e: MessageEvent) => void) | null = null;
+  onmessage: ((e: MessageEvent) => void) | null = null;
+  onerror: ((e: MessageEvent) => void) | null = null;
   private listeners = new Map<string, Set<EventListener>>();
   public static lastInstance: MockEventSource | null = null;
 
-  constructor(url: string) {
+  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+    this.opcoes = opcoes;
     this.url = url;
     MockEventSource.lastInstance = this;
   }
@@ -65,6 +80,13 @@ class MockEventSource {
     const ev = new MessageEvent(type, {
       data: typeof data === 'string' ? data : JSON.stringify(data ?? {}),
     });
+    // Um EventSource real dispara pelos DOIS caminhos: a propriedade `on*` e os
+    // listeners registrados. O fake so percorria os listeners, o que bastava
+    // enquanto o hook usava `addEventListener('open')` — a primitiva usa
+    // `es.onopen`, e sem esta linha o `connected` nunca virava true.
+    if (type === 'open') this.onopen?.(ev);
+    if (type === 'error') this.onerror?.(ev);
+    if (type === 'message') this.onmessage?.(ev);
     this.listeners.get(type)?.forEach((l) => l(ev));
   }
 }
@@ -247,19 +269,43 @@ describe('useStatusStream — T3.1 J-18 T1.3.b EventSource backend wire-up', () 
     // inside `it()` AFTER renderHook would have already opened the real
     // (or undefined) EventSource.
     MockEventSource.lastInstance = null;
-    vi.stubGlobal('EventSource', MockEventSource);
+    // B-015/B-088 — o hook deixou de abrir um EventSource cru e passou a usar a
+    // primitiva, cujo transporte fala por `fetch` (o JWT foi para o header).
+    // O fake vale igual: a superficie e a mesma. Muda so onde e instalado.
+    __setTransporte((url, opcoes) => new MockEventSource(url, opcoes) as unknown as EventSource);
   });
 
   afterEach(() => {
+    __setTransporte(null);
     vi.unstubAllGlobals();
   });
 
-  it('opens EventSource at canonical backend URL when projectName + env provided', () => {
+  it('opens EventSource at canonical backend URL when projectName + env provided', async () => {
     renderHook(() => useStatusStream('my-app', 'production'));
-    expect(MockEventSource.lastInstance).not.toBeNull();
+    // A primitiva RESOLVE o token antes de abrir (ela sempre fez isso; o hook e
+    // que abria sincrono). Assertar sem esperar era uma corrida: passava isolado
+    // e falhava na suite inteira, que e a forma mais cara de flakiness.
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull());
     expect(MockEventSource.lastInstance!.url).toBe(
       '/engine/api/v1/projects/my-app/signals/stream?env=production',
     );
+  });
+
+  it('B-015 — autentica pela PRIMITIVA (token em header), nao por cookie', async () => {
+    renderHook(() => useStatusStream('my-app', 'production'));
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull());
+    const inst = MockEventSource.lastInstance!;
+
+    // O hook abria `new EventSource(url, { withCredentials: true })` — cookie.
+    // O middleware da API cloud NAO le cookie (internal/auth/middleware.go:143,
+    // medido no ADR-0009), entao ele nao estava so divergente dos outros quatro
+    // streams: daria 401 no instante em que alguem o religasse. B-051 removeu o
+    // unico consumidor, e e so por isso que o defeito nunca apareceu.
+    //
+    // `opcoes` existir prova que a construcao passou pelo transporte da
+    // primitiva. `withCredentials` nao existir prova que o caminho antigo saiu.
+    expect(inst.opcoes).toBeDefined();
+    expect((inst as unknown as { withCredentials?: boolean }).withCredentials).toBeUndefined();
   });
 
   it('does NOT open EventSource when projectName is undefined (disabled state)', () => {
@@ -272,15 +318,18 @@ describe('useStatusStream — T3.1 J-18 T1.3.b EventSource backend wire-up', () 
     expect(MockEventSource.lastInstance).toBeNull();
   });
 
-  it('connected=true after open event; signals reduce on signal.changed dispatch', () => {
+  it('connected=true after open event; signals reduce on signal.changed dispatch', async () => {
     const { result } = renderHook(() => useStatusStream('my-app', 'production'));
+    // A primitiva resolve o token ANTES de abrir; ler a instancia sincrono era
+    // uma corrida que passava isolada e falhava na suite.
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull());
     const mockES = MockEventSource.lastInstance!;
     expect(result.current.connected).toBe(false);
 
     act(() => {
       mockES._dispatch('open');
     });
-    expect(result.current.connected).toBe(true);
+    await waitFor(() => expect(result.current.connected).toBe(true));
 
     act(() => {
       mockES._dispatch('signal.changed', { signal: 'status', value: 'Healthy' });
@@ -289,8 +338,11 @@ describe('useStatusStream — T3.1 J-18 T1.3.b EventSource backend wire-up', () 
     expect(result.current.signals.status?.terminal).toBe(true);
   });
 
-  it('EC-6 absorption: closes EventSource on unmount (no zombie connection)', () => {
+  it('EC-6 absorption: closes EventSource on unmount (no zombie connection)', async () => {
     const { unmount } = renderHook(() => useStatusStream('my-app', 'production'));
+    // A primitiva resolve o token ANTES de abrir; ler a instancia sincrono era
+    // uma corrida que passava isolada e falhava na suite.
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull());
     const mockES = MockEventSource.lastInstance!;
     expect(mockES.closeCalls).toBe(0);
 
@@ -298,8 +350,11 @@ describe('useStatusStream — T3.1 J-18 T1.3.b EventSource backend wire-up', () 
     expect(mockES.closeCalls).toBe(1);
   });
 
-  it('reduces multiple signal.changed events via canonical dichotomy reducer', () => {
+  it('reduces multiple signal.changed events via canonical dichotomy reducer', async () => {
     const { result } = renderHook(() => useStatusStream('my-app', 'production'));
+    // A primitiva resolve o token ANTES de abrir; ler a instancia sincrono era
+    // uma corrida que passava isolada e falhava na suite.
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull());
     const mockES = MockEventSource.lastInstance!;
 
     act(() => {
@@ -318,8 +373,11 @@ describe('useStatusStream — T3.1 J-18 T1.3.b EventSource backend wire-up', () 
     expect(result.current.signals.status?.value).toBe('Healthy');
   });
 
-  it('silently skips malformed signal.changed payload (does NOT crash)', () => {
+  it('silently skips malformed signal.changed payload (does NOT crash)', async () => {
     const { result } = renderHook(() => useStatusStream('my-app', 'production'));
+    // A primitiva resolve o token ANTES de abrir; ler a instancia sincrono era
+    // uma corrida que passava isolada e falhava na suite.
+    await waitFor(() => expect(MockEventSource.lastInstance).not.toBeNull());
     const mockES = MockEventSource.lastInstance!;
 
     act(() => {
