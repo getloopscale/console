@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from '
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import {
   Bell,
+  Database,
   Link2,
   Lock,
   Receipt,
@@ -522,6 +523,27 @@ export default function App() {
                     <Route path="/memory/playground" element={<Boundaried path="/memory/playground"><PlaygroundPage /></Boundaried>} />
                     <Route path="/memory/skills" element={<Boundaried path="/memory/skills"><SkillsPage /></Boundaried>} />
                     <Route path="/rag" element={<Boundaried path="/rag"><RagOverviewPage /></Boundaried>} />
+                    {/* PLACEHOLDER · revisar ate 2026-11-07. Databases e uma capacidade
+                        ANUNCIADA no menu (comingSoon) e ainda nao construida. A rota existe para
+                        que o item nao leve a lugar nenhum, e a tela diz o que fara.
+
+                        SEM `cliCommand` DE PROPOSITO: nao ha comando `theo db` hoje. Sugerir um
+                        seria mentir de forma mais convincente que a ausencia — o placeholder
+                        existe justamente para nao afirmar o que nao existe.
+
+                        Na revisao: ou vira implementacao, ou sai JUNTO com a entrada do menu. */}
+                    <Route
+                      path="/databases"
+                      element={
+                        <Boundaried path="/databases">
+                          <SubPagePlaceholder
+                            title="Databases"
+                            description="Provisionar e operar bancos gerenciados para os seus projetos, com backup, restauração e conexão por variável de ambiente."
+                            icon={Database}
+                          />
+                        </Boundaried>
+                      }
+                    />
                     <Route path="/workspaces" element={<Boundaried path="/workspaces"><WorkspacePage /></Boundaried>} />
                     <Route path="/storage" element={<Navigate to="/workspaces" replace />} />
                     <Route path="/rag/collections" element={<Boundaried path="/rag/collections"><RagCollectionsPage /></Boundaried>} />

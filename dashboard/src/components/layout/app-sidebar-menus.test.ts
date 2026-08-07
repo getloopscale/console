@@ -79,3 +79,53 @@ describe('resolveActiveMenu — o playground do M14', () => {
     expect(itens.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+/**
+ * Capacidades anunciadas e não construídas.
+ *
+ * O menu de Capabilities é onde alguém conta o que o produto entrega — e uma
+ * entrada indistinguível das prontas infla essa conta. `comingSoon` é o que
+ * separa anunciar um roadmap de afirmar uma entrega.
+ *
+ * Estes testes protegem o par: a entrada existe E está marcada. Tirar o marcador
+ * sem entregar a tela é a regressão silenciosa que eles pegam — o item continua
+ * lá, clicável, agora parecendo pronto.
+ */
+describe('capacidades marcadas como em breve', () => {
+  const capabilities = MENUS.main.groups.find((g) => g.title === 'Capabilities');
+
+  it('o grupo Capabilities existe — o resto depende disto', () => {
+    expect(capabilities, 'grupo "Capabilities" sumiu do menu principal').toBeDefined();
+  });
+
+  it('Databases está declarada e MARCADA como em breve', () => {
+    const db = capabilities?.items.find((i) => i.label === 'Databases');
+    expect(db, 'a entrada Databases sumiu do menu').toBeDefined();
+    expect(
+      db?.comingSoon,
+      'Databases perdeu o marcador `comingSoon`. Se a tela foi entregue, remova também\n' +
+        'o placeholder da rota /databases em app.tsx — os dois saem juntos. Se não foi,\n' +
+        'o marcador é o que impede a entrada de afirmar uma entrega que não houve.',
+    ).toBe(true);
+  });
+
+  it('toda entrada marcada tem rota própria — nenhuma leva a lugar nenhum', () => {
+    const marcadas = MENUS.main.groups.flatMap((g) => g.items).filter((i) => i.comingSoon);
+    expect(marcadas.length, 'nenhuma capacidade marcada — este teste ficou sem objeto').toBeGreaterThan(0);
+    for (const i of marcadas) {
+      expect(i.path, `"${i.label}" está marcada mas não declara path`).toMatch(/^\//);
+    }
+  });
+
+  it('as capacidades ENTREGUES não carregam o marcador', () => {
+    const entregues = ['Memory', 'Knowledge Base', 'Observability', 'Trust', 'Skills', 'Prompts'];
+    const marcadasIndevidamente = capabilities?.items
+      .filter((i) => entregues.includes(i.label) && i.comingSoon)
+      .map((i) => i.label);
+    expect(
+      marcadasIndevidamente,
+      'Capacidade entregue marcada como em breve — o erro oposto, e igualmente caro:\n' +
+        'esconde do usuário algo que já funciona.',
+    ).toEqual([]);
+  });
+});

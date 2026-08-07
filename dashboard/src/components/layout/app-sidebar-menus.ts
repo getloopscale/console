@@ -5,6 +5,7 @@ import {
   Bell,
   BookOpen,
   Boxes,
+  Database,
   Brain,
   FilePlus,
   FileText,
@@ -55,6 +56,21 @@ export interface MenuItem {
    * referenced submenu (Vercel drill-down pattern). The route is also
    * navigated so URL stays in sync. */
   drillsInto?: string;
+  /**
+   * Marca a capacidade como ANUNCIADA e ainda não construída. A entrada continua
+   * navegável — a rota renderiza `SubPagePlaceholder`, que diz o que a tela fará
+   * e o que dá para fazer hoje.
+   *
+   * Existe porque o padrão anterior (entrada normal + página placeholder) só
+   * revela o estado DEPOIS do clique. Para uma lista de capacidades de topo isso
+   * é caro: quem avalia o produto conta o que está pronto pelo menu, e uma
+   * entrada indistinguível das outras infla essa conta. O marcador é a diferença
+   * entre anunciar um roadmap e afirmar uma entrega.
+   *
+   * O rótulo é anunciado por leitor de tela junto do nome — um selo só visual
+   * reintroduziria a mesma mentira para quem não o vê.
+   */
+  comingSoon?: boolean;
 }
 
 export interface MenuGroup {
@@ -119,6 +135,17 @@ export const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'Memory', path: '/memory', icon: Brain, drillsInto: 'memory' },
           { label: 'Knowledge Base', path: '/rag', icon: BookOpen, drillsInto: 'rag' },
+          // Databases — ANUNCIADA, nao entregue. `theo-db` existe como produto
+          // (extensao PostgreSQL) e nao tem superficie alguma no dashboard: nem
+          // rota, nem endpoint, nem comando de CLI que a tela pudesse oferecer.
+          // Por isso o placeholder NAO sugere comando — inventar um seria pior
+          // que omitir.
+          //
+          // PLACEHOLDER · revisar ate 2026-11-07. Na revisao, ou vira
+          // implementacao ou sai JUNTO com a rota: uma entrada de menu sem data
+          // vira promessa para quem le o menu, que e o defeito que o marcador
+          // `comingSoon` existe para evitar.
+          { label: 'Databases', path: '/databases', icon: Database, comingSoon: true },
           { label: 'Workspace', path: '/workspaces', icon: FolderTree },
           { label: 'Observability', path: '/observability', icon: Activity, drillsInto: 'lens' },
           // M23 — a capacidade trust. Sem esta entrada as rotas /trust existem e ninguém as
