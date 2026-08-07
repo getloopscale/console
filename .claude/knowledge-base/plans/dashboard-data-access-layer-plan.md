@@ -7,13 +7,23 @@ date: 2026-08-07
 
 # Plan: Camada de acesso a dados por domínio no dashboard
 
-> **Version 1.0** — Hoje 64 arquivos de `src/pages` chamam o transporte HTTP diretamente, e três domínios (`trust`, `skills`, `promptly`) já têm um arquivo de acesso a dados pela metade: eles exportam transporte mas nenhuma query key, então cada página que os consome reescreve o `useQuery` à mão. Este plano move o acesso a dados das páginas para hooks por domínio, com query key vinda da factory, reduzindo os 64 arquivos para no máximo 45 e eliminando a segunda fonte de verdade que os três `*-api.ts` criaram. O resultado observável é um teste de guarda que falha quando uma página volta a importar o transporte.
+> **Version 1.0** — Hoje 64 arquivos de `src/pages` chamam o transporte HTTP diretamente, e três domínios (`trust`, `skills`, `promptly`) já têm um arquivo de acesso a dados pela metade: eles exportam transporte mas nenhuma query key, então cada página que os consome reescreve o `useQuery` à mão. Este plano move o acesso a dados das páginas para hooks por domínio, com query key vinda da factory, zerando as 19 páginas que montam o `useQuery` à mão e eliminando a segunda fonte de verdade que os três `*-api.ts` criaram. O resultado observável é um teste de guarda que falha quando uma página volta a importar o transporte.
 
 ## Goal
 
-> Reduzir de **64 para ≤ 45** os arquivos de `src/pages/**` que importam `cloudFetch`/`engineFetch` diretamente, medido por `src/lib/data-access-layer.test.ts` passando com `TETO = 45`.
+> Reduzir de **19 para 0** as páginas que consomem um `*-api.ts` e montam o `useQuery` à mão, medido por `src/lib/data-access-layer.test.ts` passando com `TETO_PAGINAS_COM_QUERY_MANUAL = 0`.
 
-**Nota sobre o número.** 45 é o que ESTE plano entrega: 19 páginas dos três domínios com camada pela metade (5 trust + 8 skills + 6 promptly). Não é o alvo final — é o alvo desta fatia. Os 45 restantes pertencem a domínios que ainda não têm `*-api.ts`, e migrá-los exige criar a camada do zero em vez de completá-la, o que é outro escopo e outra métrica. A primeira versão deste plano dizia "≤ 20" e estava errada: as fases somam 19 páginas, não 44. O Goal é o contrato que `/plan-confidence`, `/implement` e `/review` citam — um número que as fases não entregam faria os três medirem contra ficção.
+**Nota sobre o número — duas correções, ambas por medição.**
+
+A v1.0 dizia "64 → ≤ 20". Dois defeitos, achados ao implementar a Fase 0 e corrigidos antes de escrever qualquer hook:
+
+1. **O 64 era falso.** Veio de `grep -rl "cloudFetch\|engineFetch"`, que casa qualquer ocorrência — inclusive comentário. O guard, que casa o BLOCO de import, mede **58**. Os 7 de diferença são prosa: quatro deles dizem explicitamente que *pararam* de usar transporte (`"passa pelo hook de mutation em vez do engineFetch cru"`), e um injeta `cloudFetch` como dependência, que é o padrão certo. Contar comentário foi a classe de erro que este repositório vem apanhando o dia todo, agora dentro de um plano.
+
+2. **A métrica não media as fases.** Medido: **zero** das 19 páginas dos três domínios importa transporte direto — elas importam o `*-api.ts`, e é ele que importa. Migrar as 19 moveria o número de páginas-com-transporte em **zero**. O Goal e as fases estavam desconectados, e o plano teria chegado à Fase 3 com todas as tarefas feitas e a métrica intacta.
+
+A métrica correta para o trabalho que este plano faz é a que ele de fato move: **19 páginas consomem um `*-api.ts` e montam o `useQuery` à mão** (medido; são exatamente as 5+8+6 das três fases). Zerar isso é o que significa "a camada existe".
+
+O número de páginas-com-transporte (58) continua sendo medido pelo mesmo arquivo de guard, com teto próprio que só desce — ele é a métrica de B-012/B-029, que **outro** plano move. Manter os dois no mesmo arquivo é deliberado: são o mesmo fenômeno em duas escalas, e separá-los faria alguém medir um e achar que mediu o outro.
 
 ## Context
 
@@ -330,7 +340,7 @@ Cada página perde o import do transporte e ganha o do hook. `data-access-layer.
 
 #### Tasks
 1. Migrar página a página, rodando o teste da página a cada uma
-2. Baixar `TETO` para 59
+2. Baixar `TETO_PAGINAS_COM_QUERY_MANUAL` para 14
 3. Confirmar que nenhum teste de página precisou ser alterado
 
 #### TDD
@@ -348,7 +358,7 @@ VERIFY:  cd dashboard && npx vitest run src/pages/trust src/lib/data-access-laye
 
 #### Acceptance Criteria
 - [ ] Nenhuma página de trust importa `cloudFetch`/`engineFetch`
-- [ ] `TETO` = 59 e o guard passa
+- [ ] `TETO_PAGINAS_COM_QUERY_MANUAL` = 14 e o guard passa
 - [ ] Os testes de página existentes passam **sem edição**
 
 #### DoD
@@ -418,7 +428,7 @@ VERIFY:  cd dashboard && npx vitest run src/hooks/skills
 ### T2.2 — Migrar as 8 páginas de skills
 
 #### Objective
-As 8 páginas importam o hook; `TETO` desce para 51.
+As 8 páginas importam o hook; o teto desce para 11.
 
 #### Why this step (action + reasoning — ReAct discipline)
 
@@ -459,7 +469,7 @@ VERIFY:  cd dashboard && npx vitest run src/pages/skills src/lib/data-access-lay
 
 #### Acceptance Criteria
 - [ ] Nenhuma página de skills importa transporte
-- [ ] `TETO` = 51
+- [ ] `TETO_PAGINAS_COM_QUERY_MANUAL` = 11
 
 #### DoD
 - [ ] `npx vitest run` verde
@@ -539,7 +549,7 @@ VERIFY:  cd dashboard && npx vitest run src/hooks/promptly src/pages/promptly
 ### T3.2 — Migrar as 6 páginas de promptly
 
 #### Objective
-As 6 páginas importam o hook; `TETO` desce para 45.
+As 6 páginas importam o hook; o teto desce para 0.
 
 #### Why this step (action + reasoning — ReAct discipline)
 
@@ -580,7 +590,7 @@ VERIFY:  cd dashboard && npx vitest run
 
 #### Acceptance Criteria
 - [ ] Nenhuma página de promptly importa transporte
-- [ ] `TETO` = 45 e o guard passa
+- [ ] `TETO_PAGINAS_COM_QUERY_MANUAL` = 0 e o guard passa
 
 #### DoD
 - [ ] `npx vitest run` verde
@@ -638,7 +648,7 @@ VERIFY:  cd dashboard && npx vitest run && npx tsc --noEmit && npx eslint src &&
 
 #### Acceptance Criteria
 - [ ] Suíte inteira verde
-- [ ] `TETO` = 45 no guard
+- [ ] `TETO_PAGINAS_COM_QUERY_MANUAL` = 0 no guard
 - [ ] `size-limit` dentro do orçamento
 - [ ] CHANGELOG atualizado
 
@@ -651,8 +661,8 @@ VERIFY:  cd dashboard && npx vitest run && npx tsc --noEmit && npx eslint src &&
 
 | # | Gap / Requirement | Task(s) | Resolution |
 |---|---|---|---|
-| 1 | B-012 — acesso a dados vive nas páginas (64 arquivos) | T0.1, T1.2, T2.2, T3.2 | Desce para 45 e ganha teto que só desce. **Parcial por desenho** (D3) |
-| 2 | B-029 — fan-in de `lib/http/api.ts` (99 importadores) | T1.2, T2.2, T3.2 | 19 páginas deixam de importar. **Parcial**: o resíduo depende dos domínios não migrados |
+| 1 | B-012 — acesso a dados vive nas páginas (**58** arquivos, remedido) | T0.1 | Ganha teto que só desce. **Parcial por desenho**: este plano não move o número (as 19 páginas não importam transporte direto); ele instala a rede que o próximo plano usa |
+| 2 | B-029 — fan-in de `lib/http/api.ts` (99 importadores) | T0.1 | **Não movido por este plano** — medido que as 19 páginas não são importadoras. Coberto pelo teto do guard, que impede o fan-in crescer |
 | 3 | B-052 — camada pela metade nos três `*-api.ts` (0/0/1 query key) | T1.1, T2.1, T3.1 | **Total**: os três ganham hook com query key da factory |
 | 4 | B-053 — inversão de massa (47.569 vs 5.263 LOC) | T1.1, T2.1, T3.1 | **Parcial**: move responsabilidade, não LOC (D2). O resíduo vai para o plano de decomposição |
 
@@ -668,7 +678,7 @@ VERIFY:  cd dashboard && npx vitest run && npx tsc --noEmit && npx eslint src &&
 - [ ] `npm run build && npx size-limit` dentro de 320 kB no `TOTAL EAGER`
 - [ ] `CHANGELOG.md` atualizado sob `[Unreleased]` (Unbreakable Rule 6)
 - [ ] Compatibilidade preservada: nenhum teste de página existente precisou ser editado
-- [ ] `TETO` = 45 em `data-access-layer.test.ts`, e a sonda de detecção foi confirmada
+- [ ] `TETO_PAGINAS_COM_QUERY_MANUAL` = 0 e `TETO_PAGINAS_COM_TRANSPORTE` = 58 em `data-access-layer.test.ts`, com sonda de detecção confirmada para os dois
 - [ ] **Prova de métrica em runtime** — não se aplica: este plano não acrescenta contador de runtime; a métrica é o guard
 - [ ] Plano arquivado em `knowledge-base/plans/completed/` **após** o merge do PR
 
