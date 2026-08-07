@@ -2095,7 +2095,7 @@ dod:
   - `GOPRIVATE` e o `insteadOf` citam `usetheoai/`
   - um run de quality.yml no HEAD passa o job `go` (a prova e o run, nao a leitura do YAML)
 
-## B-093 — O guard de divida upstream casa substring do config em vez de resolver a regra   [ ]
+## B-093 — O guard de divida upstream casa substring do config em vez de resolver a regra   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -2106,12 +2106,25 @@ category: false_green_guard
 evidence: src/lib/upstream-debt.test.ts:64-66 — o predicado e `eslintCfg.includes('no-restricted-imports') && eslintCfg.includes('Alert')` sobre o TEXTO do config. Um revisor deletou o bloco inteiro do ban do Alert (eslint.config.js) e o teste seguiu VERDE: ha outras duas regras `no-restricted-imports` sem relacao (as de camada, B-070) e a palavra "Alert" aparece em comentarios. Prova offline: HEAD banAtivo=true; ban REMOVIDO banAtivo=true; so comentario + regra alheia banAtivo=true.
 provenance: revisao de promocao 2026-08-07 (auditor de testes), verificado por injecao
 why_now: o docblock promete guardar o PAR "guard + ban, nunca um sem o outro". Ele detecta a remocao do guard (verificado vermelho) e NUNCA a remocao do ban — metade da promessa, com a outra metade afirmada por escrito.
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - o teste resolve a regra (`await import('./eslint.config.js')` + assercao sobre o valor efetivo para `src/**`), nao substring
   - apagar o bloco do ban deixa o teste VERMELHO — verificado por injecao, nao por leitura
 
-## B-094 — O escape hatch `silent-null-ok` virou carimbo   [ ]
+ENTREGUE. O predicado era `eslintCfg.includes('no-restricted-imports') && eslintCfg.includes('Alert')`
+— substring no TEXTO do config. Trocado por `ESLint.calculateConfigForFile()`, que
+devolve a config EFETIVA ja resolvida pela cascata do flat config.
+
+Pergunta pelo arquivo de uma FEATURE, nao pelo proprio guard: `alert-guard.tsx`
+tem override que desliga a regra, entao perguntar por ele responderia sempre
+"off".
+
+VERIFICADO POR SONDA na condicao exata que enganava o predicado antigo: apaguei o
+ban do Alert deixando as regras de camada e SETE ocorrencias da palavra "Alert"
+no arquivo. O teste antigo passava verde; o novo fica vermelho.
+
+## B-094 — O escape hatch `silent-null-ok` virou carimbo   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -2122,10 +2135,42 @@ category: unverified_exemption
 evidence: 10 dos 13 marcadores repetem a mesma frase ("o consumo deste hook ja trata null resolvido como erro"). `src/hooks/use-whoami.ts:21` de fato EXPOE `error`; nenhum consumidor LE: components/team/team-switcher.tsx:28 `const { whoami } = useWhoami()`; pages/settings.tsx:22 idem (`:31` `if (!whoami?.team_id) return;` — delecao de team vira no-op silencioso); hooks/use-onboarding-state.ts:104 `logged_in: !!whoami` — falha de backend reportada como "nao logado", e o arquivo faz isso com 4 hooks (`:104-107`).
 provenance: revisao de promocao 2026-08-07 (auditor de testes)
 why_now: o guard confia no marcador e para de olhar. Um escape hatch concedido por afirmacao nao verificada reabre a classe inteira com a suite verde — que e pior que nao ter guard, porque a auditoria seguinte le a afirmacao e nao re-mede.
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - para cada um dos 13 marcadores: OU o consumidor de fato le `error`/`isError`, OU o marcador sai e o site ganha `throwOnError`
   - a redacao do marcador descreve o que o consumidor FAZ, nao o que se espera dele
+
+ENTREGUE, e o diagnostico mudou no meio da medicao.
+
+A leitura inicial — "os hooks nao tratam null como erro" — esta ERRADA. Eles
+tratam: `useCloudApi`, `useWhoami` e os outros computam
+`error: isError || (isFetched && data === null)` e devolvem esse campo. O
+marcador era verdadeiro no nivel do hook.
+
+O DEFEITO ESTAVA A JUSANTE: telas que ignoram o `error` que o hook entrega.
+Medido: de 9 hooks marcados, os consumidores de 7 nao liam o campo.
+
+O caso caro e o painel de onboarding. `logged_in: !!whoami` vira FALSE quando a
+leitura falha — o painel dizia a um usuario LOGADO que ele precisa entrar. E
+`project_initialized: projects.length > 0` dizia "voce nao tem projetos" numa
+falha de rede, empurrando alguem a criar um projeto que ja existe. E a classe do
+#274 no lugar mais caro que existe: a primeira tela que um usuario novo le.
+
+Corrigido: o hook le os erros das fontes e expoe `fonteIndisponivel`; o painel
+some em vez de cobrar. "Nao consegui saber" e um estado diferente de "nao foi
+feito", e so um dos dois justifica pedir acao ao usuario.
+
+`useProjects` nao expunha `error` e passou a expor — usa `throwOnError: true`,
+mas quem so desestruturava `projects` recebia `[]` e nao tinha como distinguir
+lista vazia de falha.
+
+Os 9 marcadores foram REESCRITOS para dizer a verdade: cobrem a metade de cima
+(o hook nao perde a falha) e declaram explicitamente que NAO garantem a de baixo.
+
+Tres testes, verificados por sonda nas duas direcoes — inclusive o guarda oposto:
+esconder o painel quando as leituras funcionam tiraria o onboarding de quem
+precisa dele.
 
 ## B-095 — `test-only-module-guard` nao distingue `import type` de import de valor   [ ]
 

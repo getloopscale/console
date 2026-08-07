@@ -20,7 +20,7 @@ function statsDefault() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mProjects.mockReturnValue({ projects: [], total: 0, loading: false } as ReturnType<typeof useProjects>);
+  mProjects.mockReturnValue({ projects: [], total: 0, loading: false, error: false } as ReturnType<typeof useProjects>);
   mCloud.mockReturnValue({ data: null, loading: false, error: false } as ReturnType<typeof useCloudApi>);
   mStats.mockReturnValue(statsDefault());
 });

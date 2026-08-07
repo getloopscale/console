@@ -65,7 +65,7 @@ interface ProjectsResponse {
  */
 export function useProjects(
   options?: { limit?: number },
-): { projects: Project[]; total: number; loading: boolean } {
+): { projects: Project[]; total: number; loading: boolean; error: boolean } {
   const limit = options?.limit ?? 50;
   const query = useQuery({
     queryKey: [...queryKeys.projects.list(), { limit }] as const,
@@ -76,5 +76,14 @@ export function useProjects(
     projects: query.data?.projects ?? [],
     total: query.data?.total ?? query.data?.projects?.length ?? 0,
     loading: query.isLoading,
+    /**
+     * B-094 — o hook usa `throwOnError: true`, entao uma falha vira `isError` e
+     * NAO uma lista vazia. Mas quem so desestruturava `projects` recebia `[]` de
+     * qualquer jeito e nao tinha como distinguir "nenhum projeto" de "nao
+     * consegui perguntar". Expor o estado e o que permite ao consumidor decidir —
+     * `use-onboarding-state` derivava `project_initialized: projects.length > 0`
+     * a partir dessa ambiguidade e dizia "voce nao tem projetos" numa falha.
+     */
+    error: query.isError,
   };
 }

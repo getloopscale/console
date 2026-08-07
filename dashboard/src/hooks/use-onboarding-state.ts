@@ -82,8 +82,19 @@ function safeSet(state: OnboardingState): void {
 export function useOnboardingState() {
   const [persistedState, setPersistedState] = useState<OnboardingState>(() => safeGet());
 
-  const { whoami } = useWhoami();
-  const { projects } = useProjects();
+  // B-094 — os tres hooks EXPOEM `error`; este consumidor ignorava os tres.
+  //
+  // O custo era concreto e visivel ao usuario: `logged_in: !!whoami` vira FALSE
+  // quando a leitura de whoami falha, entao o painel dizia a um usuario logado
+  // que ele precisa entrar. `project_initialized: projects.length > 0` idem —
+  // "voce nao tem projetos" quando a busca falhou, empurrando alguem a criar um
+  // projeto que ja existe.
+  //
+  // E a classe do #274 no lugar mais caro: o painel de onboarding e a primeira
+  // coisa que um usuario novo le, e ele estava afirmando o negativo a partir de
+  // ausencia de dado.
+  const { whoami, error: erroWhoami } = useWhoami();
+  const { projects, error: erroProjetos } = useProjects();
   const { data: domainsData } = useEngineApi<{ domains: unknown[] }>('/api/v1/domains');
   const { builds } = useDeployments(projects[0]?.name);
 
@@ -139,9 +150,17 @@ export function useOnboardingState() {
     });
   }, []);
 
-  const isVisible = !state.dismissed && completed < total;
+  // Quando qualquer fonte falhou, os passos derivados dela sao INDETERMINADOS,
+  // nao falsos. O painel some em vez de cobrar algo que talvez ja esteja feito —
+  // "nao consegui saber" e um estado diferente de "nao foi feito", e so um deles
+  // justifica pedir acao ao usuario.
+  const fonteIndisponivel = Boolean(erroWhoami || erroProjetos);
+
+  const isVisible = !state.dismissed && completed < total && !fonteIndisponivel;
 
   return {
+    /** true quando uma das leituras falhou — os passos derivados dela nao valem. */
+    fonteIndisponivel,
     state,
     completed,
     total,

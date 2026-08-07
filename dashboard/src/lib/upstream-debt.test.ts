@@ -61,9 +61,33 @@ describe('divida de upstream — guardas de sunset', () => {
    * dois sozinho — inclusive quando #175 for corrigido e a remocao correta for
    * dos DOIS.
    */
-  it('o guard de Alert e o ban de lint existem em par (nunca um sem o outro)', () => {
-    const eslintCfg = readFileSync(join(ROOT, 'eslint.config.js'), 'utf8');
-    const banAtivo = eslintCfg.includes('no-restricted-imports') && eslintCfg.includes('Alert');
+  it('o guard de Alert e o ban de lint existem em par (nunca um sem o outro)', async () => {
+    // B-093 — RESOLVE a regra, nao casa substring no texto do config.
+    //
+    // O predicado anterior era
+    //   eslintCfg.includes('no-restricted-imports') && eslintCfg.includes('Alert')
+    // e passava verde com o ban do Alert APAGADO: hoje existem outras duas regras
+    // `no-restricted-imports` (as fronteiras de camada de B-070) e a palavra
+    // "Alert" aparece em quatro comentarios. Um revisor deletou o bloco inteiro do
+    // ban e este teste nao acusou — ele prometia guardar o PAR e so via metade.
+    //
+    // `calculateConfigForFile` devolve a config EFETIVA, ja resolvida pela cascata
+    // do flat config. E o unico jeito de perguntar "esta regra vale para este
+    // arquivo?" sem reimplementar a resolucao — que e o que a substring tentava
+    // fazer, e errava.
+    const { ESLint } = await import('eslint');
+    const eslint = new ESLint({ cwd: ROOT });
+    // Um arquivo de FEATURE, nao o proprio guard: `alert-guard.tsx` tem override
+    // que desliga a regra, entao perguntar por ele responderia sempre "off".
+    const cfg = await eslint.calculateConfigForFile(join(ROOT, 'src/pages/settings/billing.tsx'));
+    const regra = cfg.rules?.['no-restricted-imports'];
+    const opcoes = Array.isArray(regra) ? regra[1] : undefined;
+    const paths = (opcoes as { paths?: { name?: string; importNames?: string[] }[] } | undefined)?.paths ?? [];
+    const banAtivo =
+      Array.isArray(regra) &&
+      regra[0] !== 0 &&
+      regra[0] !== 'off' &&
+      paths.some((p) => p.name === '@usetheo/ui' && (p.importNames ?? []).includes('Alert'));
 
     let guardExiste = true;
     try {
