@@ -403,6 +403,9 @@ dod:
   - Extrair um modulo de data-access por feature no padrao ja emergente em src/components/promptly/promptly-api.ts, src/components/trust/trust-api.ts e src/components/skills/skills-api.ts, movido para src/features/<feature>/api/ + src/features/<feature>/hooks/
   - `src/pages/lens/traces.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
+
+progresso_2026-08-07: o plano `dashboard-data-access-layer` instalou o guard que MEDE este item — `src/lib/data-access-layer.test.ts`, teto 58 e so desce. Remedido: o achado dizia 58 em pages e 13 em components; sao 58 e ZERO, e o 64 que eu mesmo escrevi no plano vinha de um grep que casava COMENTARIO (sete dos arquivos apenas mencionavam transporte, quatro deles para dizer que pararam de usar). As 19 paginas dos tres dominios migrados NAO importavam transporte direto — elas importavam o `*-api.ts` — entao este numero nao desceu, e isso esta declarado. Segue aberto para os dominios sem `*-api.ts`.
+
 ## B-013 — Promote-to-production e rollback fazem fetch cru, pulando o pipeline de auth/erro do cloudFetch   [x]
 
 domain: frontend-dashboard
@@ -777,6 +780,9 @@ status: triaged
 dod:
   - Split by reason-to-change before the fan-in grows further: move the token lifecycle (lines 110-224) into src/lib/api/session.ts, keep transport (cloudFetch/engineFetch/cloudFetchRaw) and ApiError in the entry module, and fold the file into the existing src/lib/api/ directory as...
   - a contagem de importadores diretos de `src/lib/api.ts` cai de forma medida (registrar o antes/depois com o mesmo parser de imports usado na auditoria)
+
+
+progresso_2026-08-07: nao movido pelo plano da camada, e a razao esta medida: as 19 paginas migradas nao eram importadoras de `lib/http/api`. O teto do guard impede o fan-in crescer. Segue aberto.
 
 ## B-030 — Two user-facing hooks are wired to nothing but their own tests: useDomainStatusPolling and useFirstDeployTrigger   [x]
 
@@ -1297,7 +1303,7 @@ dod:
   - Decidir uma das duas: (a) consumir de verdade — `const { signals: live, connected } = useStatusStream(...)` e mesclar sobre o snapshot REST em project-status.tsx:206, ou (b) remover a chamada ate a UI existir
   - `src/pages/project-status.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-052 — A camada de data-access por feature ja existe pela metade e mora em src/components/ — exporta transporte, mas nao query key nem hook   [ ]
+## B-052 — A camada de data-access por feature ja existe pela metade e mora em src/components/ — exporta transporte, mas nao query key nem hook   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1309,7 +1315,35 @@ evidence: src/components/skills/skills-api.ts:27 — src/components/trust/trust-
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#17
 overlaps: B-012, B-053
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: PLANO `dashboard-data-access-layer-plan.md` EXECUTADO. Os tres dominios ganharam hook com chave da factory; a
+metrica foi de 19 paginas gerenciando cache a mao para ZERO, com teto travado em `src/lib/data-access-layer.test.ts`.
+
+DEFEITOS REAIS ENCONTRADOS AO MIGRAR — nenhum estava no achado original:
+  · trust — `overview.tsx:56` e `violations.tsx:154` usavam a MESMA chave literal com limites 200 e 100. O TanStack serve quem
+    cacheou primeiro, entao abrir /trust/violations e depois o overview fazia o `coverageGap` calcular a cobertura sobre 100
+    violacoes: uma tela de compliance SUB-REPORTANDO lacunas.
+  · trust — `fetchValidators()` e literalmente `fetchTrust('/validators')`; overview chamava um e guardrails o outro, com chaves
+    diferentes. O mesmo catalogo em duas entradas que nunca se invalidavam juntas.
+  · skills — o mesmo prefixo carregava TRES coisas no mesmo slot: token de pagina, id de skill e limite numerico.
+  · skills — `overview` e `catalog` faziam a MESMA chamada com chaves diferentes, e nenhuma carregava o limite.
+  · promptly — a query de "tags" era uma BUSCA NO CATALOGO com chave prometendo um recurso que nao existe.
+
+TRES REGRESSOES QUE EU MESMO CRIEI E OS TESTES APANHARAM, todas por migrar leitor antes de escritor: guardrail-new, playground e
+detail invalidavam chaves literais que ninguem mais lia. Criar um guardrail ou publicar uma revisao deixaria de atualizar a tela.
+
+QUATRO PERDAS DE `enabled` em promptly, todas do mesmo tipo — a condicao carregava uma decisao de produto e o hook a apagou:
+resolvido pedido sempre (travessia de grafo em toda abertura), revisions disparando com after=0 (janela errada na tela de onde sai
+a promocao — #364), o cursor de paginacao descartado (tinha default, entao sem erro de tipo), e a invalidacao literal do playground.
+Nenhuma muda o caminho feliz; todas mudam a conta ou o pior caso.
+
+O guard de CAMADA (B-070) apanhou o D2 do plano: o ADR mandava manter o transporte onde estava, e `hooks/` nao pode importar de
+`pages/`. Transporte, tipos de payload, construtores de request e a leitura do header Link desceram para `hooks/<dominio>/`, com
+re-export nos modulos de apresentacao preservando os caminhos das paginas.
+
+O guard de CONVERGENCIA bloqueou o estado intermediario em skills, cobrando o que o D1 ja mandava.
+
+Nenhum teste de pagina precisou ser editado nas tres fases.
 dod:
   - Promover os tres para src/features/<feature>/api/ (client.ts + keys.ts) e adicionar src/features/<feature>/hooks/ com os useQuery/useMutation que hoje estao inline nas 19 paginas
   - `src/components/skills/skills-api.ts` deixa de conter a logica apontada e ha teste cobrindo o novo dono
@@ -1330,6 +1364,9 @@ status: triaged
 dod:
   - Meta de reorganizacao: nenhuma pagina declara queryKey nem chama cloudFetch
   - `src/pages/api-keys.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
+
+
+progresso_2026-08-07: o plano moveu RESPONSABILIDADE e nao LOC — por decisao (D2), o `*-api.ts` continua existindo, agora sob `hooks/<dominio>/`. A inversao de massa segue e pertence ao plano de decomposicao. Segue aberto.
 
 ## B-054 — memory/entities baixa o conjunto inteiro e pagina no cliente — a paginacao visivel esconde que o request nao tem teto   [x]
 

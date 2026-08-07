@@ -7,6 +7,8 @@ date: 2026-08-07
 
 # Plan: Camada de acesso a dados por domínio no dashboard
 
+> **Version 1.1 — EXECUTADO em 2026-08-07.** Métrica atingida: 19 → 0.
+>
 > **Version 1.0** — Hoje 64 arquivos de `src/pages` chamam o transporte HTTP diretamente, e três domínios (`trust`, `skills`, `promptly`) já têm um arquivo de acesso a dados pela metade: eles exportam transporte mas nenhuma query key, então cada página que os consome reescreve o `useQuery` à mão. Este plano move o acesso a dados das páginas para hooks por domínio, com query key vinda da factory, zerando as 19 páginas que montam o `useQuery` à mão e eliminando a segunda fonte de verdade que os três `*-api.ts` criaram. O resultado observável é um teste de guarda que falha quando uma página volta a importar o transporte.
 
 ## Goal
