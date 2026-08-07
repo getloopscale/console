@@ -6,6 +6,7 @@
 
 ### Changed
 
+- **A promessa de que os dados falsos de desenvolvimento nunca viajam no aplicativo passou a ser verificada, não apenas afirmada.** O dashboard carrega 3.900 linhas de respostas simuladas para desenvolvimento offline, e a garantia de que elas ficam fora do que o navegador baixa era checada por uma verificação **incapaz de falhar** — procurava um nome de arquivo, que o empacotador apaga. Duas revisões independentes provaram isso injetando os dados no aplicativo e vendo a verificação passar. Agora ela procura uma marca que sobrevive ao empacotamento, colocada no módulo mais fundo da cadeia, e foi conferida nos quatro cenários possíveis: sem os dados, ela passa; nos três caminhos de entrada, ela falha. Nada muda no que se baixa hoje — o que muda é que amanhã, se mudar, alguém fica sabendo.
 - **BREAKING: o import path do módulo Go mudou de `github.com/usetheodev/theo-cloud` para `github.com/usetheoai/theo-cloud`** (B-091). Qualquer consumidor Go que importe pacotes deste repositório precisa atualizar o caminho — não há alias nem período de compatibilidade. A dependência `theo-contracts` acompanhou o rename e subiu de `v0.2.0` para `v0.4.0`. O rename anterior (`usetheo/theo/cloud` → `usetheodev/theo-cloud`) está registrado neste mesmo arquivo; este ficou de fora até a revisão de promoção apontar a omissão.
 - **O dashboard parou de pedir a sessão ao Ory pelo browser.** `getSession()` chamava
   `/sessions/whoami` diretamente e recebia a sessão inteira: além do que a tela usa
