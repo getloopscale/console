@@ -77,7 +77,7 @@ abrir PR: sao cross-validacoes que se confirmam, nao trabalho independente.
 
 ## Itens
 
-Proximo id livre: **B-088**.
+Proximo id livre: **B-089**.
 
 **O que `[x]` e `status: shipped` significam aqui.** O contrato canonico reserva
 `shipped` para o que passou por `/release` — tag semver em `main`. Este registro usa o
@@ -330,7 +330,7 @@ dod:
   - Em src/hooks/use-sse-stream.ts:179, tratar `es.readyState === EventSource.CLOSED` como sinal terminal e refazer o token+reconexao imediatamente (threshold 1 nesse caso), mantendo o contador de 3 apenas para o caminho de reconexao nativa
   - `src/hooks/use-sse-stream.ts` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-015 — use-status-stream abre EventSource cru com estrategia de auth divergente da primitiva useSSEStream   [x]
+## B-015 — use-status-stream abre EventSource cru com estrategia de auth divergente da primitiva useSSEStream   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -341,8 +341,9 @@ category: state_synchronization_issue
 evidence: src/hooks/use-status-stream.ts:194 — use-status-stream.ts:193-194 `const url = `/engine/api/v1/projects/.../signals/stream?env=...`; const es = new EventSource(url, { withCredentials: true });` — sem token. Compare com src/hooks/use-sse-stream.ts:146-156 que monta `${API_URL}${path}?token=${encodeURIComponent(token)}` apos ensureSSEToken(). Os outros 3 consumidores (use-log-stream, use-deployment-stream,...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#5
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: shipped
-resolved_in: 4c52dc1
+status: triaged
+REVERTIDO em 2026-08-06: a unificacao na primitiva trocava auth por COOKIE por JWT em QUERY STRING. Ganho de refresh/reconexao nao paga expor o token de sessao (ver B-088). O hook voltou ao EventSource com withCredentials. Reabrir so depois de B-088.
+resolved_in_revertido: 4c52dc1
 risco_aberto: a primitiva autentica por ?token= na URL; a versao anterior usava cookie (withCredentials). Confirmar com o BACKEND que /signals/stream aceita token na query antes de a UI voltar a consumir o hook. Seguro hoje porque B-051 removeu o unico consumidor.
 dod:
   - Reescrever src/hooks/use-status-stream.ts:180-226 como wrapper de useSSEStream({eventTypes:["signal.changed"], maxEvents:...}) preservando o reducer puro applySignalEvent (que ja e testavel isoladamente e deve ficar em src/hooks/use-status-stream.reducer.ts)
@@ -1619,6 +1620,28 @@ registra-los como trabalho seria fabricar tarefa:
 | `scaling#10` | RETIRADO — Load more de deployments: a premissa do achado estava errada (o backend limita em 50 e o  | RETIRADO pelo proprio auditor apos re-verificacao — a premissa estava errada (backend limita em 50 e o tradeoff esta documentado). Status withdrawn no banco. |
 | `tradeoff#17` | Testes co-localizados com o codigo de producao, na proporcao de ~1:1 em arquivos (43.3k LOC de teste | decisao AVALIADA COMO CORRETA — testes co-localizados. A recomendacao medida e explicitamente NAO mexer. |
 | `tradeoff#15` | Roteamento centralizado num unico app.tsx de 729 LoC com 85 React.lazy e 118 elementos <Route> | decisao AVALIADA COMO CORRETA — roteamento centralizado deve ser mantido. A unica acao derivada (incoerencia do orcamento de LoC) ja e o item do tradeoff #2. |
+
+## B-088 — O JWT de sessao viaja em query string nos streams SSE   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high (consensus)
+category: credential_exposure
+evidence: src/hooks/use-sse-stream.ts:165 — `const baseUrl = `${API_URL}${path}${separator}token=${encodeURIComponent(token)}`` · src/lib/api.ts:207 — `ensureSSEToken()` retorna `ensureToken()`, o MESMO bearer da API, sem TTL proprio nem escopo de stream · quatro consumidores: use-log-stream, use-deployment-stream, use-deploy-timeline, use-deployments-list-stream
+provenance: encontrado em 2026-08-06 ao reavaliar B-015 sob a lente de cybersecurity, a pedido do dono do projeto. NAO consta da auditoria /loop-system-design.
+why_now: o dashboard tem nginx.conf versionado (access log), roda atras de Cloudflare, e o token e o de sessao completo. Um JWT em query string chega a log de servidor, log de proxy, historico do navegador e header Referer — quatro lugares onde um bearer nao deveria estar. A auditoria de system design nao olhou credenciais; este e um achado de seguranca, nao de arquitetura.
+status: raw
+dod:
+  - o JWT de sessao completo nao aparece em nenhuma URL de EventSource
+  - existe teste que falha se alguem reintroduzir `token=` na query de um stream
+  - a decisao entre as tres saidas esta registrada em ADR
+
+nota_sobre_as_saidas: EventSource nao suporta headers customizados — e essa a razao tecnica original, e ela e legitima. As saidas conhecidas, em ordem de custo: (a) COOKIE httpOnly + SameSite, que e o que `use-status-stream` sempre fez e para onde foi revertido; (b) token EFEMERO de uso unico, escopado ao stream e com TTL de segundos, trocado por um endpoint dedicado — mitiga sem mudar o transporte; (c) SSE sobre `fetch` com ReadableStream, que aceita header Authorization e elimina a classe, ao custo de perder a reconexao nativa do EventSource.
+
+relacionado: B-015 (revertido por causa deste achado — a unificacao na primitiva teria levado o quinto stream para o mesmo caminho)
+
 
 ---
 

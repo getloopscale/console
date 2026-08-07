@@ -38,20 +38,27 @@ const ALLOWLIST = new Set([
   // B-031 — doze modulos sem importador nao-teste. Triagem em dois baldes
   // (wire vs apagar) registrada no item; safe-redirect.ts em especial e um guard
   // de open-redirect que ninguem chama, o que e uma lacuna de seguranca latente.
-  'lib/format-ts.ts',
-  'lib/format-build-error-patterns.ts',
-  // B-031 (continuacao) — componentes de UI escritos, testados e nunca renderizados
-  // por producao. O guard os encontrou na primeira execucao; `table-skeleton` NAO
-  // constava do achado original, o que e o argumento a favor de quantificar sobre
-  // o efeito em vez de listar os casos conhecidos.
-  'components/data/card-skeleton.tsx',
-  'components/data/table-skeleton.tsx',
-  'components/error/sheet-boundary.tsx',
-  'components/login/network-retry-button.tsx',
-  'components/logs/dropped-lines-indicator.tsx',
-  'components/logs/log-viewer-toolbar.tsx',
-  'components/project/deployment-visit-button.tsx',
-  'pages/rag/wiki-tree.tsx',
+  // CASCATA (2026-08-06) — apagar os 10 orfaos de B-031 revelou DOIS modulos que
+  // so eram alcancados por eles. Limpeza de codigo morto e iterativa: cada camada
+  // removida expoe a seguinte, e e por isso que o guard quantifica sobre o efeito
+  // em vez de listar casos.
+  //
+  // Nenhum dos dois foi apagado junto, e por razoes diferentes:
+  //
+  // `lib/auth/return-to.ts` e um GUARD DE SEGURANCA (`sanitizeReturnTo`, OWASP
+  // A01: XSS por javascript:/data: e open-redirect via `return_to`). Verifiquei
+  // os tres usos de `return_to` no repo — todos ESCREVEM a URL com o proprio
+  // origin, nenhum LE um `return_to` externo para navegar. Ou seja: nao ha vetor
+  // ativo hoje, diferente do `safe-redirect.ts`, que tinha o device-verify
+  // navegando cru. Apagar um guard escrito para um vetor que pode voltar e
+  // decisao consciente, nao efeito colateral de uma limpeza.
+  //
+  // `lib/log-download.ts` exporta o download do buffer de log; sua UI era o
+  // `log-viewer-toolbar.tsx` que acabou de sair. A feature nunca esteve
+  // acessivel (o toolbar tambem era orfao), entao apagar e provavelmente certo —
+  // mas isso e apagar uma FEATURE, e vale ser dito em voz alta.
+  'lib/auth/return-to.ts',
+  'lib/log-download.ts',
 ]);
 
 function walk(dir: string, out: string[] = []): string[] {
