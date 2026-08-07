@@ -97,7 +97,7 @@ vi.mock('@/hooks/settings/use-whoami', () => ({
 }));
 
 // Static imports — vi.mock factories above apply before module evaluation.
-import { OverviewPage } from '@/pages/overview';
+import { OverviewPage } from '@/pages/overview/overview';
 import { ProjectsPage } from '@/pages/projects/projects';
 import { ProjectDetailPage } from '@/pages/projects/project-detail';
 import { DeploymentsPage } from '@/pages/deploy/deployments';

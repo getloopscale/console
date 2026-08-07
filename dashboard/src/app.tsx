@@ -43,7 +43,7 @@ function Boundaried({ path, children }: { path: string; children: ReactNode }) {
  * D7 +30% gzip target).
  */
 const OverviewPage = lazy(() =>
-  import('@/pages/overview').then((m) => ({ default: m.OverviewPage })),
+  import('@/pages/overview/overview').then((m) => ({ default: m.OverviewPage })),
 );
 const ProjectsPage = lazy(() =>
   import('@/pages/projects/projects').then((m) => ({ default: m.ProjectsPage })),
@@ -59,7 +59,7 @@ const BillingPage = lazy(() =>
 );
 // M21 — the detail behind the sidebar health indicator.
 const StatusPage = lazy(() =>
-  import('@/pages/status').then((m) => ({ default: m.StatusPage })),
+  import('@/pages/overview/status').then((m) => ({ default: m.StatusPage })),
 );
 const SettingsPage = lazy(() =>
   import('@/pages/settings/overview').then((m) => ({ default: m.SettingsPage })),

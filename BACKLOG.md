@@ -155,6 +155,16 @@ dod:
   - Migrar para package-by-feature de forma incremental, um dominio por PR, comecando pelos mais dispersos (deploy, auth, logs): criar src/features/<dominio>/ com pages/, components/, hooks/, api.ts e um index.ts que exporta APENAS o que outras features podem consumir
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/deployments.tsx` e passa depois da mudanca
 
+DOD REESCRITO em 2026-08-07 — o original nomeava `src/features/<dominio>/`, que o
+ADR-0001 aceito rejeita. Criterio que vale agora:
+  - todo arquivo de `pages/`, `hooks/` e `lib/` com UM dominio consumidor mora no
+    diretorio desse dominio (regra de residencia, ADR-0001 D3)
+  - existe teste que constroi o grafo de import e FALHA quando um modulo em pasta
+    compartilhada tem menos de 2 dominios consumidores (ADR-0001 D5, item 2)
+
+PARCIAL: `pages/` (40->2), `hooks/` (40->14) e `lib/` (29->0) feitos. Falta
+`components/`, que e B-006, e falta o teste de grafo de D5.
+
 ## B-003 — src/app.tsx e um manifesto de rotas monolitico: 729 LOC, 85 lazy() e 118 Route cobrindo ~15 dominios   [ ]
 
 domain: frontend-dashboard
@@ -171,7 +181,7 @@ dod:
   - Fatiar por dominio: cada feature exporta seu proprio subtree de rotas (ex
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/app.tsx` e passa depois da mudanca
 
-## B-004 — src/hooks e um shared kernel falso: 33 de 44 hooks (75%) sao usados por uma unica feature   [ ]
+## B-004 — src/hooks e um shared kernel falso: 33 de 44 hooks (75%) sao usados por uma unica feature   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -183,10 +193,25 @@ evidence: src/hooks/use-scale-cost.ts:1 — Hooks com exatamente 1 feature consu
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#7
 overlaps: B-002, B-008, B-032, B-070
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: f1af9b7
 dod:
   - Mover os 33 hooks feature-private para dentro da respectiva feature (src/features/scale/hooks/use-scale-cost.ts etc.) na mesma migracao do achado de package-by-layer
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/hooks/use-scale-cost.ts` e passa depois da mudanca
+
+SUPERSEDED pelo ADR-0001 revisado (2026-08-07). O `dod` acima nomeia
+`src/features/<dominio>/`, que o ADR ACEITO rejeita explicitamente — a decisao do
+dono foi manter o esqueleto de camadas e as rotas globais, e esvaziar as camadas
+compartilhadas do que nao e compartilhado. Marcar `[x]` contra um criterio que a
+decisao superou seria o mesmo erro que fez B-001 ser reaberto, entao o criterio
+foi reescrito e a reescrita esta declarada aqui.
+
+ENTREGUE: os 26 hooks de dominio unico foram para `hooks/<dominio>/` — auth(2),
+deploy(9), infra(2), memory(1), projects(9), rag(1), settings(2). Ficaram na
+camada hooks de proposito (ADR-0001 D4.1): empurra-los para `pages/<d>/` correria
+o risco de violacao de camada que o lint pegou com trace-layout. `hooks/` saiu de
+40 arquivos soltos para 14.
+
 
 ## B-005 — Dois componentes AddSecretSheet com o mesmo nome em pastas concorrentes; o legado tem contrato de backend comprovadamente errado e continua...   [x]
 
@@ -222,6 +247,15 @@ dod:
   - Adotar UM eixo e escreve-lo no README/architecture: src/components/ passa a conter SOMENTE o que e cross-feature (ui/, layout/, error/, loading/, common/, e o confirm-dialog), e todo o resto muda para a pasta da feature dona
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/components/sheets/add-domain-sheet.tsx` e passa depois da mudanca
 
+DOD REESCRITO em 2026-08-07 pela mesma razao de B-002. Criterio que vale agora:
+  - `src/components/` contem SOMENTE o que tem 2+ dominios consumidores; o resto
+    muda para o diretorio do dominio dono
+  - medido hoje: das 121 pastas/modulos de components/, apenas SEIS tem 2+ dominios
+    consumidores. E a maior concentracao restante do problema.
+
+NAO INICIADO. E o item mais caro que sobrou de P1, e o unico onde a reorganizacao
+ainda nao encostou.
+
 ## B-007 — Fronteira do design system tem tres donos em tres versoes: componentes de @usetheo/ui@0.35.1, provider de tema de @theokit/ui@1.3.2, tokens...   [ ]
 
 domain: frontend-dashboard
@@ -239,7 +273,7 @@ dod:
   - Resolver a contradicao com um teste, nao com leitura: um teste de integracao que monta a arvore com o provider real e assere getComputedStyle(document.documentElement).getPropertyValue(--primary) igual ao valor canonico. Isso transforma a duvida em gate e vale para os proximos bumps
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/main.tsx` e passa depois da mudanca
 
-## B-008 — Raiz de src/pages: 41 arquivos de ~15 dominios sem agrupamento, 6 dos quais nao sao paginas (inclui uma pagina declarada deletada que ainda...   [ ]
+## B-008 — Raiz de src/pages: 41 arquivos de ~15 dominios sem agrupamento, 6 dos quais nao sao paginas (inclui uma pagina declarada deletada que ainda...   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -251,10 +285,25 @@ evidence: src/pages/new-folder-dialog.tsx:1 — find src/pages -maxdepth 1 -type
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#13
 overlaps: B-002, B-004, B-032, B-070
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: cf52038
 dod:
   - Escrever e aplicar a regra que hoje e implicita: TODO dominio vira pasta, sem excecao — a raiz de src/pages/ deve conter no maximo o not-found e o sub-page-placeholder. Promover os agrupamentos obvios ja visiveis nos nomes: project/ (project-connect, project-detail, project-readiness,...
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/new-folder-dialog.tsx` e passa depois da mudanca
+
+SUPERSEDED pelo ADR-0001 revisado (2026-08-07). O `dod` acima nomeia
+`src/features/<dominio>/`, que o ADR ACEITO rejeita explicitamente — a decisao do
+dono foi manter o esqueleto de camadas e as rotas globais, e esvaziar as camadas
+compartilhadas do que nao e compartilhado. Marcar `[x]` contra um criterio que a
+decisao superou seria o mesmo erro que fez B-001 ser reaberto, entao o criterio
+foi reescrito e a reescrita esta declarada aqui.
+
+ENTREGUE ao pe da letra: a raiz de `src/pages/` contem exatamente `not-found.tsx`
+e `sub-page-placeholder.tsx`, que e o que o dod pede. Os outros 38 foram para
+auth/, projects/, deploy/, infra/, settings/, overview/ e para as sete pastas de
+produto que ja existiam. `new-folder-dialog.tsx`, citado no dod como exemplo de
+'nao e pagina', foi para components/dialogs/ — tem DOIS dominios consumidores.
+
 
 ## B-009 — Sub-decomposicao de paginas: 32 arquivos .tsx acima de 400 LOC somando 17.735 LOC, e a maioria e UM unico componente gigante, nao varios...   [ ]
 
@@ -841,7 +890,7 @@ dod:
   - Deletar src/components/scaling/ inteiro (o componente e orfao e ScaleConfirmDialog em components/scale/ ja cobre o caso de dialogo de escala)
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/components/scaling/scale-dialog.tsx` e passa depois da mudanca
 
-## B-041 — src/lib e um saco plano de 31 modulos onde apenas 7 sao realmente compartilhados; lens e auth tem submodulos de dominio escondidos la   [ ]
+## B-041 — src/lib e um saco plano de 31 modulos onde apenas 7 sao realmente compartilhados; lens e auth tem submodulos de dominio escondidos la   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -853,10 +902,27 @@ evidence: src/lib/trace-layout.ts:1 — Compartilhados de fato (2+ features): sr
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#12
 overlaps: B-068
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: c7b94d8
 dod:
   - Mover os 8 modulos de lens para features/lens/lib/ (ou pages/lens/lib/ se a migracao por feature ainda nao comecou) — sao domain logic, nao utilidade
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/lib/trace-layout.ts` e passa depois da mudanca
+
+SUPERSEDED pelo ADR-0001 revisado (2026-08-07). O `dod` acima nomeia
+`src/features/<dominio>/`, que o ADR ACEITO rejeita explicitamente — a decisao do
+dono foi manter o esqueleto de camadas e as rotas globais, e esvaziar as camadas
+compartilhadas do que nao e compartilhado. Marcar `[x]` contra um criterio que a
+decisao superou seria o mesmo erro que fez B-001 ser reaberto, entao o criterio
+foi reescrito e a reescrita esta declarada aqui.
+
+ENTREGUE: `lib/` saiu de 29 arquivos soltos para ZERO. Os de dominio unico
+desceram (trace-layout, span-status, lens-error, traces-export, otel-attributes,
+usage-series, usage-summary para lens; kratos, oidc-form, auth-policy, validation
+para auth; e mais infra/settings/deploy); o que sobrou compartilhado ganhou pasta
+de contexto: http/, telemetry/, formatting/, export/, auth/, api/.
+O dod dizia 'features/lens/lib/ (ou pages/lens/lib/ se a migracao por feature
+ainda nao comecou)' — a segunda alternativa e a que valeu.
+
 
 ## B-042 — src/lib/api.ts guarda o estado de sessao em 6 variaveis mutaveis de modulo e abre um BroadcastChannel como efeito colateral de import, para...   [x]
 

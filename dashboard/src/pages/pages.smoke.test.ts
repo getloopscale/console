@@ -19,7 +19,7 @@ import { describe, it, expect } from 'vitest';
 
 describe('pages smoke — modules compile + export named function', () => {
   it('exports OverviewPage', async () => {
-    const m = await import('./overview');
+    const m = await import('./overview/overview');
     expect(typeof m.OverviewPage).toBe('function');
   });
 
