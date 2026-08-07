@@ -2357,3 +2357,35 @@ status: triaged
 dod:
   - a causa esta identificada (nao "reexecutei e passou")
   - 20 execucoes consecutivas verdes, OU o teste e corrigido/removido
+
+
+progresso_2026-08-07: 32 EXECUCOES CONSECUTIVAS VERDES, TRES HIPOTESES REFUTADAS, CAUSA NAO IDENTIFICADA. O item SEGUE ABERTO.
+
+O bullet 2 do dod esta cumprido com folga; o bullet 1 NAO, e ele existe exatamente para impedir o que eu faria se fechasse agora.
+
+MEDIDO (todas sobre arvore estavel e commitada, sem edicao durante):
+  - 20 execucoes mornas consecutivas: 20/20 verdes (309-310 arquivos, ~2680 testes)
+  - 6 execucoes com `node_modules/.vite` APAGADO antes de cada uma: 6/6 verdes
+  - 3 pares de execucoes CONCORRENTES, cache frio a cada par: 6/6 verdes
+
+HIPOTESES TESTADAS E REFUTADAS:
+  1. corrida no transform/resolve com cache frio (a que o proprio item sugeria) — refutada pelas 6 frias
+  2. dois vitest concorrentes corrompendo `node_modules/.vite` — refutada pelos 3 pares. Esta tinha
+     evidencia direta: eu MESMO produzi a condicao hoje, rodando 20 execucoes em background enquanto
+     validava em primeiro plano
+  3. edicao concorrente com a execucao — refutada pelo git: `alert-guard.tsx`, `eslint.config.js` e
+     `sessions.tsx` so foram tocados as 01:53 e 01:57, DEPOIS das duas execucoes do relato (01:09 falhou,
+     01:24 passou)
+
+O QUE 32 VERDES PROVAM, HONESTAMENTE: com 95% de confianca, a taxa esta abaixo de ~9%. NAO excluem um
+flake de 1 em 20. A observacao original foi 1 em 2, o que ou foi azar extremo, ou a condicao que a
+produziu nao existe mais na arvore atual — e nao da para distinguir as duas sem a causa.
+
+UM FLAKE REAL FOI ENCONTRADO E CORRIGIDO nesta sessao, mas NAO e este: seis asserções de
+`use-status-stream.test.tsx` liam a instancia do EventSource de forma SINCRONA numa primitiva que resolve
+o token antes de abrir. Passavam isoladas e falhavam na suite cheia. Foi introduzido hoje por B-015 e
+corrigido no mesmo commit; nao existia em 2026-08-07 01:09.
+
+PARA QUEM PEGAR ISTO DEPOIS: as tres hipoteses acima ja foram queimadas. Se recorrer, capture no momento
+`DEBUG=vite:* npx vitest run` e o conteudo de `node_modules/.vite` — sem isso a proxima investigacao
+comeca do zero como esta comecou.
