@@ -24,7 +24,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { formatDate, shortId } from '@/lib/format';
+import { formatDate, shortId } from '@/lib/formatting/format';
 import { cloudFetch } from '@/lib/api';
 import { alertSeverity } from './alerts';
 

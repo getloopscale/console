@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('./config', () => ({ API_URL: 'http://test.local', mocksEnabled: () => false }));
+vi.mock('./http/config', () => ({ API_URL: 'http://test.local', mocksEnabled: () => false }));
 
 /**
  * B-042 — o canal de coordenacao entre abas tem ciclo de vida explicito.

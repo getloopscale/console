@@ -15,8 +15,8 @@
  */
 
 import type { AuditEntry } from '@/lib/api/types';
-import { toCsv } from '@/lib/csv';
-import { triggerDownload } from '@/lib/download';
+import { toCsv } from '@/lib/export/csv';
+import { triggerDownload } from '@/lib/export/download';
 
 const HEADER = [
   'Timestamp',

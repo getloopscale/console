@@ -19,7 +19,7 @@ vi.mock('@/lib/api', () => ({
   engineFetch: vi.fn(),
 }));
 
-vi.mock('@/lib/config', () => ({ API_URL: '' }));
+vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 
 import { useMetricsRange } from './use-metrics-range';
 import type { MetricsRangeResponse } from './use-metrics-range';

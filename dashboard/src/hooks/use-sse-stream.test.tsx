@@ -11,7 +11,7 @@ vi.mock('@/lib/api', () => ({
   cloudFetch: vi.fn(),
 }));
 
-vi.mock('@/lib/config', () => ({
+vi.mock('@/lib/http/config', () => ({
   API_URL: '',
 }));
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen, waitFor } from '@/test/render';
 
-vi.mock('@/lib/config', () => ({
+vi.mock('@/lib/http/config', () => ({
   API_URL: 'http://kratos.local',
   AUTH_URL: '',
   ENGINE_URL: '',
@@ -29,7 +29,7 @@ vi.mock('@/pages/auth/kratos', async () => {
 // Tests default to `null` (no session) so the existing flow tests are
 // unaffected; the #54 test flips this to a truthy session.
 const mockGetSession = vi.fn().mockResolvedValue(null);
-vi.mock('@/lib/auth', () => ({
+vi.mock('@/lib/auth/session', () => ({
   getSession: (...args: unknown[]) => mockGetSession(...args),
   logout: vi.fn(),
 }));

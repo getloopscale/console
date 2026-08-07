@@ -1,6 +1,6 @@
 import { Button } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { getVerificationURL } from '@/lib/auth';
+import { getVerificationURL } from '@/lib/auth/session';
 
 /**
  * Non-dismissible banner shown when user's email is not verified.

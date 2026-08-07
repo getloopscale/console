@@ -4,7 +4,7 @@ import { AttributesTable, Badge, Button, IOCards, TokenCostBreakdown } from '@us
 import { ClipboardCheck } from 'lucide-react';
 
 import { cloudFetch } from '@/lib/api';
-import { formatCost, formatDate, formatDuration, formatScore } from '@/lib/format';
+import { formatCost, formatDate, formatDuration, formatScore } from '@/lib/formatting/format';
 import { spanOwnCostUsd } from '@/components/lens/trace-layout';
 import { detectPii } from '@/pages/lens/otel-attributes';
 import { LensPlayground } from '../playground';

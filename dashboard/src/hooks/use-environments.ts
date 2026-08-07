@@ -19,7 +19,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { engineFetch } from '@/lib/api';
 import { queryKeys } from '@/lib/api/query-keys';
-import { DEFAULT_PERMANENT_ENV } from '@/lib/domain';
+import { DEFAULT_PERMANENT_ENV } from '@/lib/api/domain';
 
 interface EnvironmentRow {
   name: string;

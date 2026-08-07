@@ -9,7 +9,7 @@ import { fireEvent } from '@testing-library/react';
 
 import { render, screen } from '@/test/render';
 import { AppSidebar } from './app-sidebar';
-import type { Session } from '@/lib/auth';
+import type { Session } from '@/lib/auth/session';
 
 const { navigateSpy } = vi.hoisted(() => ({ navigateSpy: vi.fn() }));
 

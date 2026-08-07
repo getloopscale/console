@@ -7,7 +7,7 @@ import { Badge, Button, Card, EmptyState, StatusDot, Textarea } from '@usetheo/u
 import { Alert } from '@/components/ui/alert-guard';
 
 import { cloudFetch } from '@/lib/api';
-import { shortId } from '@/lib/format';
+import { shortId } from '@/lib/formatting/format';
 import { Markdown } from '@/components/common/markdown';
 import type { TraceSpanNode } from '@/components/lens/trace-layout';
 import { STARTER_PROMPTS, buildEntityMap, resolveCitations, type Turn } from './ask-thread-model';

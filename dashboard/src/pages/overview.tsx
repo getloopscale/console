@@ -24,7 +24,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useBuildStats } from '@/hooks/use-build-stats';
 import { useCloudApi } from '@/hooks/use-api';
-import { formatDate, formatNumber, isZeroTime } from '@/lib/format';
+import { formatDate, formatNumber, isZeroTime } from '@/lib/formatting/format';
 
 interface UsageMetricShape {
   used: number;

@@ -8,7 +8,7 @@
 // `detectPii` is deliberately CONSERVATIVE — a false negative leaks a raw value into the DOM, so the
 // detector errs toward masking (matches → true). Non-string values are never PII.
 
-import { formatCost, formatTokens } from '@/lib/format';
+import { formatCost, formatTokens } from '@/lib/formatting/format';
 
 export interface NamespaceGroup {
   namespace: string;

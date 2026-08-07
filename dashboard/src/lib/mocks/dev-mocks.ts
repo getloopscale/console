@@ -16,13 +16,13 @@
 // is set, and Vite's dead-code-elimination drops the import in prod builds
 // because the env var is statically resolvable at build time).
 
-import type { Session } from '../api/types';
+import type { Session } from '@/lib/api/types';
 
 // B-049 — `mocksEnabled` mora em ./config para que api.ts e auth.ts (producao)
 // nao precisem importar deste modulo de fixtures. Re-exportado aqui porque os
 // consumidores internos e o harness de e2e ja o pegavam por este caminho.
-export { mocksEnabled } from '../config';
-import { mocksEnabled } from '../config';
+export { mocksEnabled } from '@/lib/http/config';
+import { mocksEnabled } from '@/lib/http/config';
 
 /**
  * Logged-out mock mode — when `VITE_USE_MOCKS=true` AND EITHER the build-time

@@ -4,7 +4,7 @@ import { useQueries } from '@tanstack/react-query';
 import { IOCards } from '@usetheo/ui';
 
 import { cloudFetch } from '@/lib/api';
-import { shortId } from '@/lib/format';
+import { shortId } from '@/lib/formatting/format';
 import type { TraceSpanNode } from '@/components/lens/trace-layout';
 import { Markdown } from '@/components/common/markdown';
 import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } from './to-conversation-turns';

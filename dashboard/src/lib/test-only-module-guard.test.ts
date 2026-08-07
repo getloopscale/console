@@ -58,7 +58,7 @@ const ALLOWLIST = new Set([
   // acessivel (o toolbar tambem era orfao), entao apagar e provavelmente certo —
   // mas isso e apagar uma FEATURE, e vale ser dito em voz alta.
   'lib/auth/return-to.ts',
-  'lib/log-download.ts',
+  'lib/export/log-download.ts',
 ]);
 
 function walk(dir: string, out: string[] = []): string[] {

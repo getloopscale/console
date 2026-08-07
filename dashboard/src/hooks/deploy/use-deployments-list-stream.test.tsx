@@ -12,7 +12,7 @@ vi.mock('@/lib/api', () => ({
   cloudFetch: vi.fn(),
 }));
 
-vi.mock('@/lib/config', () => ({ API_URL: '' }));
+vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 
 import { useDeploymentsListStream } from './use-deployments-list-stream';
 import { engineFetch } from '@/lib/api';

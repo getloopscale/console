@@ -18,7 +18,7 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { InviteMemberSheet } from "@/components/sheets/invite-member-sheet";
 import { useRemoveMember, useUpdateMemberRole } from '@/hooks/mutations/use-team';
-import { formatDate } from '@/lib/format';
+import { formatDate } from '@/lib/formatting/format';
 
 interface Member {
   username?: string;

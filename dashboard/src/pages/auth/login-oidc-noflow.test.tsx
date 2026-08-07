@@ -23,14 +23,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen, waitFor } from '@/test/render';
 
-vi.mock('@/lib/config', () => ({
+vi.mock('@/lib/http/config', () => ({
   API_URL: 'http://kratos.local',
   AUTH_URL: '',
   ENGINE_URL: '',
   ACCOUNTS_URL: '',
 }));
 
-vi.mock('@/lib/auth', () => ({
+vi.mock('@/lib/auth/session', () => ({
   getSession: vi.fn().mockResolvedValue(null),
   startLogin: vi.fn(),
 }));
@@ -40,8 +40,8 @@ vi.mock('@/lib/api', () => ({
 }));
 
 const reportEventSpy = vi.fn();
-vi.mock('@/lib/rum', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/rum')>()),
+vi.mock('@/lib/telemetry/rum', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/telemetry/rum')>()),
   reportEvent: (...args: unknown[]) => reportEventSpy(...args),
 }));
 

@@ -9,7 +9,7 @@ import { useProjects } from '@/hooks/projects/use-projects';
 import { CreateProjectSheet } from "@/components/sheets/create-project-sheet";
 import { BulkDeleteProjectsDialog } from '@/components/dialogs/bulk-delete-projects-dialog';
 import { EmptyProjectsHero } from '@/components/onboarding/empty-projects-hero';
-import { formatDate } from '@/lib/format';
+import { formatDate } from '@/lib/formatting/format';
 import type { Project } from '@/lib/api/types';
 
 // Data-plane staleness thresholds — T4.2 of plan

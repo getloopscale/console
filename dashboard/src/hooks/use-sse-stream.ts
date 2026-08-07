@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { API_URL } from '@/lib/config';
+import { API_URL } from '@/lib/http/config';
 import { ensureSSEToken, clearToken } from '@/lib/api';
 
 /**

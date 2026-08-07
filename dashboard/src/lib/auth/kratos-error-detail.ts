@@ -1,4 +1,4 @@
-import type { AuthFailureReason } from '@/lib/rum';
+import type { AuthFailureReason } from '@/lib/telemetry/rum';
 
 /**
  * Kratos error-detail helpers extracted from pages/login.tsx (T3.1 of

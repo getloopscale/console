@@ -3,10 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, Loader2, Mail } from 'lucide-react';
 import { Button, Card, PinInput } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { API_URL, AUTH_URL } from '@/lib/config';
+import { API_URL, AUTH_URL } from '@/lib/http/config';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { enrichKratosError } from '@/pages/auth/kratos';
-import { getSession } from '@/lib/auth';
+import { getSession } from '@/lib/auth/session';
 import { ResendCooldownButton } from '@/components/verification/resend-cooldown-button';
 
 const KRATOS_URL = AUTH_URL || API_URL;

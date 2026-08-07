@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { useDeployments } from '@/hooks/projects/use-deployments';
-import { reportEvent } from '@/lib/rum';
+import { reportEvent } from '@/lib/telemetry/rum';
 
 /**
  * useFirstDeployTrigger (Sprint 3 T3.4) — fires celebration ONCE per project

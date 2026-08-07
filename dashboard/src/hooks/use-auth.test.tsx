@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
 const mockGetSession = vi.fn();
-vi.mock('@/lib/auth', () => ({
+vi.mock('@/lib/auth/session', () => ({
   getSession: () => mockGetSession(),
 }));
 

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import { Button, Card } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
-import { AUTH_URL, API_URL } from '@/lib/config';
+import { AUTH_URL, API_URL } from '@/lib/http/config';
 
 // Red Team theo/theo#162 closure (2026-07-01): the post-signup redirect
 // target /auth/check-email used to return 404 Caddy raw because the

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@/test/render';
-import type { Session } from '@/lib/auth';
+import type { Session } from '@/lib/auth/session';
 
 // Mock useRequireAuth to control session state per test.
 // Hoisted via vi.mock so component import sees the mock.

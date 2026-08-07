@@ -14,7 +14,7 @@ vi.mock('@/lib/api', () => ({
   cloudFetch: vi.fn(),
 }));
 
-vi.mock('@/lib/config', () => ({ API_URL: '' }));
+vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 
 // Skip the auth gate.
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => undefined }));

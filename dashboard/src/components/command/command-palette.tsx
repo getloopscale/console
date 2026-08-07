@@ -1,7 +1,7 @@
 import { Command } from 'cmdk';
 import { Dialog } from '@usetheo/ui';
 import type { ComponentType } from 'react';
-import { reportError } from '@/lib/error-reporter';
+import { reportError } from '@/lib/telemetry/error-reporter';
 
 /**
  * CommandPalette (Sprint 2 T2.1) — global ⌘K command surface.

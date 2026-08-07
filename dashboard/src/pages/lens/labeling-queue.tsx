@@ -8,7 +8,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { shortId } from '@/lib/format';
+import { shortId } from '@/lib/formatting/format';
 import { cloudFetch } from '@/lib/api';
 import { SCORE_CONFIGS } from './labeling-queue/score-configs';
 import { ResolveForm } from './labeling-queue/resolve-form';

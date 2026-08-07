@@ -6,7 +6,7 @@ import { Badge, Button, Card, Input, Select, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { cloudFetch } from '@/lib/api';
-import { formatCost, formatDuration, formatTokens } from '@/lib/format';
+import { formatCost, formatDuration, formatTokens } from '@/lib/formatting/format';
 import type { TraceSpanNode } from '@/components/lens/trace-layout';
 import { type EditableMessage, isStale, runKey, updateVariant, type Variant } from './variant-model';
 

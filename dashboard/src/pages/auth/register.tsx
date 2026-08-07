@@ -5,8 +5,8 @@ import { Button, Card, Input } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { GoogleBrandIcon } from '@/components/google-brand-icon';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
-import { getSession } from '@/lib/auth';
-import { API_URL, AUTH_URL } from '@/lib/config';
+import { getSession } from '@/lib/auth/session';
+import { API_URL, AUTH_URL } from '@/lib/http/config';
 // T1.2/T1.3 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #18 + #28.
 import { KRATOS_PASSWORD_MIN_LENGTH } from '@/pages/auth/auth-policy';
 import { validateRequired, validateEmail, validatePasswordMinLength, validateMaxLength } from '@/pages/auth/validation';

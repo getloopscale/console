@@ -5,7 +5,7 @@ const mockUseDeployments = vi.fn();
 vi.mock('@/hooks/projects/use-deployments', () => ({
   useDeployments: () => mockUseDeployments(),
 }));
-vi.mock('@/lib/rum', () => ({ reportEvent: vi.fn() }));
+vi.mock('@/lib/telemetry/rum', () => ({ reportEvent: vi.fn() }));
 vi.mock('canvas-confetti', () => ({ default: vi.fn() }));
 
 import { useFirstDeployTrigger } from './use-first-deploy-trigger';

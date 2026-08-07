@@ -20,7 +20,7 @@ import { ProjectHealthCard } from '@/components/project/project-health-card';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { engineFetch } from '@/lib/api';
 import { normalizeBuildStatus } from '@/lib/api/types';
-import { formatDate, humanizeAuthor, isZeroTime } from '@/lib/format';
+import { formatDate, humanizeAuthor, isZeroTime } from '@/lib/formatting/format';
 import { useState } from 'react';
 
 /**

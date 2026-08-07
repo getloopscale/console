@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen, waitFor } from '@/test/render';
 
-vi.mock('@/lib/config', () => ({
+vi.mock('@/lib/http/config', () => ({
   API_URL: 'http://kratos.local',
   AUTH_URL: '',
   ENGINE_URL: '',
   ACCOUNTS_URL: '',
 }));
 
-vi.mock('@/lib/auth', () => ({
+vi.mock('@/lib/auth/session', () => ({
   getSession: vi.fn().mockResolvedValue(null),
   startLogin: vi.fn(),
 }));
@@ -28,7 +28,7 @@ const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
 import { RegisterPage } from './register';
-import { getSession } from '@/lib/auth';
+import { getSession } from '@/lib/auth/session';
 
 interface FlowMessage {
   text: string;

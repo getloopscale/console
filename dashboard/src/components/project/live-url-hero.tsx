@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Copy, ExternalLink } from 'lucide-react';
 import { Badge, Card, Skeleton } from '@usetheo/ui';
 import type { ProjectStatusDetail } from '@/lib/api/types';
-import { copyToClipboard } from '@/lib/clipboard';
+import { copyToClipboard } from '@/lib/export/clipboard';
 
 /**
  * LiveUrlHero — T1.1 of plan 2026-06-12-dashboard-journey-j25-live-url-discoverability v1.2.

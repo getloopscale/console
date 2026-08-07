@@ -47,7 +47,7 @@ function extractActionableErrorMessage(err: unknown): string {
   // 5xx + network failures stay retryable.
   return 'Failed to start checkout. Please try again in a moment.';
 }
-import { formatDate, formatNumber } from '@/lib/format';
+import { formatDate, formatNumber } from '@/lib/formatting/format';
 
 interface UsageMetric {
   used: number;

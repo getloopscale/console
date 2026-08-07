@@ -12,8 +12,8 @@ vi.mock('@/hooks/use-auth', () => ({
   }),
 }));
 
-vi.mock('@/lib/auth', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/auth')>('@/lib/auth');
+vi.mock('@/lib/auth/session', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/auth/session')>('@/lib/auth/session');
   return {
     ...actual,
     logout: vi.fn(),

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Card } from '@usetheo/ui';
-import { copyToClipboard } from '@/lib/clipboard';
+import { copyToClipboard } from '@/lib/export/clipboard';
 import {
   INTERFACES,
   gerarTrechoDeConsumo,

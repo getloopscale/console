@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@/test/render';
 import { AppSidebar } from './app-sidebar';
-import type { Session } from '@/lib/auth';
+import type { Session } from '@/lib/auth/session';
 
 function makeSession(name?: string): Session {
   return {

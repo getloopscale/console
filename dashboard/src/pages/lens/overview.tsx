@@ -10,7 +10,7 @@ import { LENS_EXPLORE_CARDS } from '@/components/lens/lens-capabilities';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
-import { formatCost, formatDuration, formatNumber } from '@/lib/format';
+import { formatCost, formatDuration, formatNumber } from '@/lib/formatting/format';
 import { TrendChart, type TrendSeries } from '@usetheo/ui';
 import {
   throughputSeries,

@@ -21,7 +21,7 @@ import { Breadcrumb, useSelection, useSpanKeyboardNav } from './breadcrumb';
 import { SpanDetail } from './span-detail';
 import { toTraceSpan } from './to-trace-span';
 import { traceSummary } from './summary';
-import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/format';
+import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/formatting/format';
 
 /**
  * M47/M48/M58 — the trace-detail view composition root. Fetches the reconstructed span tree from the

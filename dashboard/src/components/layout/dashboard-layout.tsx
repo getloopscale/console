@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { isEmailVerified } from '@/lib/auth';
+import { isEmailVerified } from '@/lib/auth/session';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import { useCommandPalette } from '@/hooks/use-command-palette';
 import { useProjects } from '@/hooks/projects/use-projects';

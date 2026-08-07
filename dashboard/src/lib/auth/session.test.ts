@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isEmailVerified } from './auth';
-import type { Session } from './auth';
+import { isEmailVerified } from './session';
+import type { Session } from './session';
 
 // Helper to build a minimal session object for testing.
 function makeSession(overrides: Partial<Session> = {}): Session {

@@ -18,7 +18,7 @@ import {
   Table,
   type StatusKind,
 } from '@usetheo/ui';
-import { humanizeAuthor } from '@/lib/format';
+import { humanizeAuthor } from '@/lib/formatting/format';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useDeploymentsListStream } from '@/hooks/deploy/use-deployments-list-stream';
@@ -27,7 +27,7 @@ import { useMutationInFlight } from '@/hooks/deploy/use-mutation-in-flight';
 import { useBuildEnvs } from '@/hooks/deploy/use-build-envs';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { DeploymentRowVisitIcon } from '@/components/project/deployment-row-visit-icon';
-import { formatDate } from '@/lib/format';
+import { formatDate } from '@/lib/formatting/format';
 import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
 
 const STATUS_MAP: Record<BuildStatus, StatusKind> = {

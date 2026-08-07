@@ -39,7 +39,7 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) })
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 const mockTriggerDownload = vi.fn();
-vi.mock('@/lib/download', () => ({ triggerDownload: (...a: unknown[]) => mockTriggerDownload(...a) }));
+vi.mock('@/lib/export/download', () => ({ triggerDownload: (...a: unknown[]) => mockTriggerDownload(...a) }));
 
 // Mock the M48 trace-detail's layout lib (jsdom cannot lay it out — see trace-detail.test.tsx).
 vi.mock('react-resizable-panels', () => ({
@@ -49,7 +49,7 @@ vi.mock('react-resizable-panels', () => ({
 }));
 
 import { LensTracesPage, buildTraceQuery, nsToIso } from './traces';
-import { formatDate } from '@/lib/format';
+import { formatDate } from '@/lib/formatting/format';
 
 // M49 — list-vs-detail-vs-tags URL discriminator. The list read is the base path optionally
 // followed by `?<filters>`; the detail read is base + `/<id>`; tags/annotations contain `/tags`.

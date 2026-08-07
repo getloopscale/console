@@ -1,7 +1,7 @@
 import { Badge, Button, Checkbox, CopyButton, StatusDot, type DataTableColumn } from '@usetheo/ui';
 import { Sparkles } from 'lucide-react';
 
-import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/format';
+import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/formatting/format';
 import { isSpanError } from '@/pages/lens/span-status';
 import { nsToIso } from './helpers';
 

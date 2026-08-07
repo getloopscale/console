@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { formatLineForExport, triggerLogDownload } from './log-download';
-import type { LogLine } from './api/types';
+import type { LogLine } from '@/lib/api/types';
 
 describe('formatLineForExport', () => {
   it('test_format_line_includes_ts_level_source_msg', () => {

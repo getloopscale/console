@@ -15,8 +15,8 @@ import {
   getFieldErrors,
   enrichKratosError,
 } from '@/pages/auth/kratos';
-import { getSession, logout } from '@/lib/auth';
-import { API_URL } from '@/lib/config';
+import { getSession, logout } from '@/lib/auth/session';
+import { API_URL } from '@/lib/http/config';
 
 const ACCOUNTS_URL = API_URL;
 

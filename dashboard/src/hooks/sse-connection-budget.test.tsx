@@ -10,7 +10,7 @@ vi.mock('@/lib/api', () => ({
   cloudFetch: vi.fn(async () => null),
 }));
 
-vi.mock('@/lib/config', () => ({ API_URL: '', AUTH_URL: '', ENGINE_URL: '', ACCOUNTS_URL: '' }));
+vi.mock('@/lib/http/config', () => ({ API_URL: '', AUTH_URL: '', ENGINE_URL: '', ACCOUNTS_URL: '' }));
 
 import { useDeploymentStream } from './deploy/use-deployment-stream';
 

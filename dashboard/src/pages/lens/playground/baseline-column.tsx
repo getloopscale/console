@@ -1,6 +1,6 @@
 import { Badge, Card } from '@usetheo/ui';
 
-import { formatCost, formatDuration, formatTokens } from '@/lib/format';
+import { formatCost, formatDuration, formatTokens } from '@/lib/formatting/format';
 import type { TraceSpanNode } from '@/components/lens/trace-layout';
 import { durationMs } from '../trace-detail/helpers';
 

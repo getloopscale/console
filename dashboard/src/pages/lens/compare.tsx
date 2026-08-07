@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/api';
-import { formatCost } from '@/lib/format';
+import { formatCost } from '@/lib/formatting/format';
 import { type TraceSpanNode } from './trace-detail/helpers';
 import { toTraceSpan } from './trace-detail/to-trace-span';
 

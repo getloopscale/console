@@ -4,9 +4,9 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { TheoUIProvider, violetForge } from '@theokit/ui';
 import App from './app';
 import { RouteBoundary } from './components/error/route-boundary';
-import { queryClient } from './lib/query-client';
+import { queryClient } from './lib/http/query-client';
 import { installAuthChannel } from './lib/api';
-import { initWebVitals } from './lib/rum';
+import { initWebVitals } from './lib/telemetry/rum';
 import './index.css';
 
 // DevTools only em dev — Sprint 3 (#23) v1.1 ADR D3 defense in depth:

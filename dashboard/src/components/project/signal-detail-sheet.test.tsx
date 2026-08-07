@@ -19,7 +19,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/api', () => ({
   engineFetch: vi.fn(),
 }));
-vi.mock('@/lib/config', () => ({ API_URL: '' }));
+vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 
 import { SignalDetailSheet } from './signal-detail-sheet';
 import { engineFetch } from '@/lib/api';

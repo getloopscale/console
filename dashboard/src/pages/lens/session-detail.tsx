@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { formatCost, shortId } from '@/lib/format';
+import { formatCost, shortId } from '@/lib/formatting/format';
 import { cloudFetch } from '@/lib/api';
 import { nsToIso } from './traces';
 import type { Trace } from './traces/columns';

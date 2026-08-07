@@ -11,9 +11,9 @@ import {
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { logout } from '@/lib/auth';
+import { logout } from '@/lib/auth/session';
 import { engineFetch } from '@/lib/api';
-import { maskEmail } from '@/lib/format';
+import { maskEmail } from '@/lib/formatting/format';
 
 export function ProfilePage() {
   const session = useRequireAuth();

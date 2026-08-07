@@ -7,7 +7,7 @@ vi.mock('@/lib/api', () => ({
   engineFetch: vi.fn(),
 }));
 
-vi.mock('@/lib/config', () => ({ API_URL: '' }));
+vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 
 import { BulkUploadSheet } from './bulk-upload-sheet';
 import { engineFetch } from '@/lib/api';

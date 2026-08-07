@@ -15,7 +15,7 @@
  * V1 terminal-redirect behavior. Revisit per sponsor walkthrough feedback.
  */
 
-import type { LogLine } from './api/types';
+import type { LogLine } from '@/lib/api/types';
 
 export function formatLineForExport(line: LogLine): string {
   const src = line.source ? `${line.source} ` : '';

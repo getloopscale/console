@@ -7,7 +7,7 @@
  * mode every peer LLM-observability dashboard has). No new dependency; reuses the shipped CSV guard +
  * Blob download.
  */
-import { toCsv } from '@/lib/csv';
+import { toCsv } from '@/lib/export/csv';
 
 /** The backend caps `limit` at LIST_TRACES_LIMIT_CAP=500 per request; we page by it. */
 export const PAGE_SIZE = 500;

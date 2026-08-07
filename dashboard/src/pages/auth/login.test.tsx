@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen, waitFor } from '@/test/render';
 
-vi.mock('@/lib/config', () => ({
+vi.mock('@/lib/http/config', () => ({
   API_URL: 'http://kratos.local',
   AUTH_URL: '',
   ENGINE_URL: '',
   ACCOUNTS_URL: '',
 }));
 
-vi.mock('@/lib/auth', () => ({
+vi.mock('@/lib/auth/session', () => ({
   getSession: vi.fn().mockResolvedValue(null),
   startLogin: vi.fn(),
 }));
@@ -20,8 +20,8 @@ vi.mock('@/lib/api', () => ({
 
 // Mock @/lib/rum to assert telemetry wire-points (T2.2).
 const mockReportEvent = vi.fn();
-vi.mock('@/lib/rum', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/rum')>('@/lib/rum');
+vi.mock('@/lib/telemetry/rum', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/telemetry/rum')>('@/lib/telemetry/rum');
   return {
     ...actual,
     reportEvent: (...args: unknown[]) => mockReportEvent(...args),

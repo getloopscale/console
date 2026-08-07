@@ -21,7 +21,7 @@ import { engineFetch } from '@/lib/api';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useDomainStatusPolling } from '@/hooks/infra/use-domain-status-polling';
 import { useDeleteDomain, useVerifyDomain } from '@/hooks/mutations/use-domains';
-import { formatDate } from '@/lib/format';
+import { formatDate } from '@/lib/formatting/format';
 import { NSInstructionsCard } from '@/components/domains/ns-instructions-card';
 import { ReverifyButton } from '@/components/domains/reverify-button';
 import { DomainTroubleshootSheet } from '@/components/domains/domain-troubleshoot-sheet';

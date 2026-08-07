@@ -14,21 +14,21 @@
 // isn't set (dev / same-origin). Production with split domains (Kratos at
 // accounts.theo.dev vs API at api.theo.dev) requires AUTH_URL set explicitly
 // via /__config.js — without this fallback the auth flow breaks silently.
-import { API_URL, AUTH_URL, mocksEnabled } from './config';
+import { API_URL, AUTH_URL, mocksEnabled } from '@/lib/http/config';
 // B-049 — `mocksEnabled` agora vem de ./config (e configuracao, nao fixture).
 // `getMockSession` continua vindo de ./dev-mocks: transforma-lo em injecao no
 // boot (main.tsx) e o passo 2 da remediacao e fica registrado no item, porque
 // muda o ciclo de vida da sessao e merece o seu proprio teste.
-import { getMockSession } from './mocks/dev-mocks';
-import { exchangeSessionToken, getExchangedIdentity } from './api';
+import { getMockSession } from '@/lib/mocks/dev-mocks';
+import { exchangeSessionToken, getExchangedIdentity } from '@/lib/api';
 const KRATOS_URL = AUTH_URL || API_URL;
 
 // Os tipos de sessao moram em ./api/types (a ACL de tipos do backend, que nao
 // importa nada) para que dev-mocks.ts possa consumir `Session` sem importar
 // deste modulo — era esse import de volta que fechava o ciclo (B-039).
 // O re-export mantem `@/lib/auth` como superficie publica dos consumidores.
-export type { VerifiableAddress, AuthenticationMethod, Session } from './api/types';
-import type { Session } from './api/types';
+export type { VerifiableAddress, AuthenticationMethod, Session } from '@/lib/api/types';
+import type { Session } from '@/lib/api/types';
 
 // OIDC providers whose email verification we trust (MEET-037 security mandate).
 const TRUSTED_OIDC_PROVIDERS = ['github', 'google'];
@@ -136,7 +136,7 @@ export function getVerificationURL(): string {
 /** Logout — destroy Kratos session, clear JWT, and notify other tabs. */
 export async function logout(): Promise<void> {
   // Clear in-memory JWT and broadcast to other tabs (§3.3 + Fix #5)
-  const { logout: apiLogout } = await import('./api');
+  const { logout: apiLogout } = await import('@/lib/api');
   apiLogout();
 
   try {

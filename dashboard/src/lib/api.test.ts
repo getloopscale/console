@@ -7,7 +7,7 @@ import { engineFetch, exchangeSessionToken, cloudFetch, ApiError, sessionDefinit
 // B-049 — `mocksEnabled` passou a morar em ./config (era ./dev-mocks), para que
 // api.ts — o modulo mais importado do repo — nao dependa do modulo de fixtures.
 // O mock precisa declarar o valor: sem mocks de dev, e sempre false.
-vi.mock('./config', () => ({ API_URL: 'http://test.local', mocksEnabled: () => false }));
+vi.mock('./http/config', () => ({ API_URL: 'http://test.local', mocksEnabled: () => false }));
 
 // ---------------------------------------------------------------------------
 // T6.1 / find_sec_004 — the JWT must NEVER transit the BroadcastChannel.
