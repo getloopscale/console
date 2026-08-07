@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSession, type Session } from '@/lib/auth/session';
-import { exchangeSessionToken, hasValidToken, sessionDefinitivelyExpired } from '@/lib/api';
+import { exchangeSessionToken, hasValidToken, sessionDefinitivelyExpired } from '@/lib/http/api';
 
 /** Check Kratos session + exchange for JWT. Redirects to /login if not authenticated. */
 export function useRequireAuth(): Session | null {

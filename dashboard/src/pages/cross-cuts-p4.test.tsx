@@ -23,9 +23,9 @@ const mockCloudFetch = vi.fn();
 const mockEngineFetch = vi.fn();
 // Partial-mock pattern (vitest-recommended): preserve ApiError (used by
 // useInvoices via `q.error instanceof ApiError`) and any other genuine
-// exports from '@/lib/api'; override only the two fetchers under test.
-vi.mock('@/lib/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/api')>();
+// exports from '@/lib/http/api'; override only the two fetchers under test.
+vi.mock('@/lib/http/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/http/api')>();
   return {
     ...actual,
     cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),

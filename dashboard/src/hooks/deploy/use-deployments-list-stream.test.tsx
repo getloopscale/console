@@ -4,7 +4,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Build, BuildListResponse } from '@/lib/api/types';
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   ensureSSEToken: vi.fn(async () => 'tok'),
   clearToken: vi.fn(),
   hasValidToken: vi.fn(() => true),
@@ -15,7 +15,7 @@ vi.mock('@/lib/api', () => ({
 vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 
 import { useDeploymentsListStream } from './use-deployments-list-stream';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
 

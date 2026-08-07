@@ -17,7 +17,7 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, cloudFetchRaw } from '@/lib/api';
+import { cloudFetch, cloudFetchRaw } from '@/lib/http/api';
 import { presignedUpload, presignedDownloadURL, type PresignDeps } from './workspace-presign';
 import { useWorkspaceSelection } from './use-workspace-selection';
 

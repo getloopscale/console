@@ -17,7 +17,7 @@ import { NewFolderDialog } from '@/components/dialogs/new-folder-dialog';
 import { AppModal } from '@/components/ui/app-modal';
 
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * Open Wiki — /rag/wiki. A single folder-browser (like /workspaces) over per-tenant

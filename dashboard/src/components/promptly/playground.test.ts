@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 import { camposDeVariaveis, podeRodar, classificarFalha } from './playground';
 

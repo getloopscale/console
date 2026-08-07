@@ -6,7 +6,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * M23 — /rag landing (Overview). The first customer-visible RAG surface, mirroring

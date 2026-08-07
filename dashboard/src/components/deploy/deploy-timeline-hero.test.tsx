@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   ensureSSEToken: vi.fn(async () => 'tok'),
   clearToken: vi.fn(),
   hasValidToken: vi.fn(() => true),

@@ -5,7 +5,7 @@ import {
   labelsOferecidos,
   mensagemDeRecusa,
 } from './rollback';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 /**
  * M12 T6/T7 — o que a tela AFIRMA sobre reverter, e o que ela oferece para escolher.

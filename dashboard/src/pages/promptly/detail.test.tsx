@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -302,7 +302,7 @@ describe('PromptDetailPage', () => {
   });
 
   it('a recusa da política chega à tela com a MENSAGEM do serviço, não "erro genérico"', async () => {
-    const { ApiError } = await import('@/lib/api');
+    const { ApiError } = await import('@/lib/http/api');
     const user = userEvent.setup();
     mockPromote.mockRejectedValue(
       new ApiError(409, {

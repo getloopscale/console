@@ -11,7 +11,7 @@
 //   - mutations: retry 0 (never auto-retry user actions)
 
 import { QueryClient } from '@tanstack/react-query';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 /**
  * Red Team theo-cloud#93 absorption (2026-06-27): retry guard.

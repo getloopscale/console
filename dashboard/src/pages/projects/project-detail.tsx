@@ -18,7 +18,7 @@ import { useDeployments } from '@/hooks/projects/use-deployments';
 import { LiveUrlHero } from '@/components/project/live-url-hero';
 import { ProjectHealthCard } from '@/components/project/project-health-card';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import { normalizeBuildStatus } from '@/lib/api/types';
 import { formatDate, humanizeAuthor, isZeroTime } from '@/lib/formatting/format';
 import { useState } from 'react';

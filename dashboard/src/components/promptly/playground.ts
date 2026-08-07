@@ -6,7 +6,7 @@
 // milissegundos e sem browser, como nas cinco irmãs (`projections`, `diff`,
 // `preview`, `rollback`, `create-form`).
 
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 /** Um campo de variável na tela: o nome que a API declarou e o que foi digitado. */
 export interface CampoVariavel {

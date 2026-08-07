@@ -20,7 +20,7 @@ import { API_URL, AUTH_URL, mocksEnabled } from '@/lib/http/config';
 // boot (main.tsx) e o passo 2 da remediacao e fica registrado no item, porque
 // muda o ciclo de vida da sessao e merece o seu proprio teste.
 import { getMockSession } from '@/lib/mocks/dev-mocks';
-import { exchangeSessionToken, getExchangedIdentity } from '@/lib/api';
+import { exchangeSessionToken, getExchangedIdentity } from '@/lib/http/api';
 const KRATOS_URL = AUTH_URL || API_URL;
 
 // Os tipos de sessao moram em ./api/types (a ACL de tipos do backend, que nao
@@ -136,7 +136,7 @@ export function getVerificationURL(): string {
 /** Logout — destroy Kratos session, clear JWT, and notify other tabs. */
 export async function logout(): Promise<void> {
   // Clear in-memory JWT and broadcast to other tabs (§3.3 + Fix #5)
-  const { logout: apiLogout } = await import('@/lib/api');
+  const { logout: apiLogout } = await import('@/lib/http/api');
   apiLogout();
 
   try {

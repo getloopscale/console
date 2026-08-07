@@ -25,8 +25,8 @@ vi.mock('@/hooks/use-page-meta', async (orig) => ({
 }));
 
 const mockEngineFetch = vi.fn();
-vi.mock('@/lib/api', async (orig) => ({
-  ...(await orig<typeof import('@/lib/api')>()),
+vi.mock('@/lib/http/api', async (orig) => ({
+  ...(await orig<typeof import('@/lib/http/api')>()),
   engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
 }));
 

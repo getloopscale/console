@@ -1,4 +1,4 @@
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * Real per-entity cascade forget (#252). The previous implementation ignored

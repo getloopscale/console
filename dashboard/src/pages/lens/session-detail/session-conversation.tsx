@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import { IOCards } from '@usetheo/ui';
 
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 import { shortId } from '@/lib/formatting/format';
 import type { TraceSpanNode } from '@/components/lens/trace-layout';
 import { Markdown } from '@/components/common/markdown';

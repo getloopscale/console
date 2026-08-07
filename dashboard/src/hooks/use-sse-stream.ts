@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_URL } from '@/lib/http/config';
-import { ensureSSEToken, clearToken } from '@/lib/api';
+import { ensureSSEToken, clearToken } from '@/lib/http/api';
 
 /**
  * useSSEStream — generic typed SSE consumer (Plan J-17 T2.1).

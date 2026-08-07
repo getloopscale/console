@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 import { serviceCode, serviceMessage } from './trust-api';
 

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Secret } from '@/lib/api/types';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 
 /**

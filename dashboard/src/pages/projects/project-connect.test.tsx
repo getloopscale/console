@@ -7,8 +7,8 @@ vi.mock('@/hooks/use-auth', () => ({
 }));
 
 const engineFetchMock = vi.fn();
-vi.mock('@/lib/api', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
+vi.mock('@/lib/http/api', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/http/api')>('@/lib/http/api');
   return {
     ...actual,
     engineFetch: (path: string, opts?: RequestInit) => engineFetchMock(path, opts),

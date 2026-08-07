@@ -13,7 +13,7 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useWhoami } from '@/hooks/settings/use-whoami';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 
 export function SettingsPage() {
   useRequireAuth();

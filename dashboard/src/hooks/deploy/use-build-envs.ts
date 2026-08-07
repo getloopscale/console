@@ -7,7 +7,7 @@
 // adapter, so cold/wrong-tenant lookups return 404 PROJECT_NOT_FOUND.
 
 import { useQuery } from '@tanstack/react-query';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 
 interface BuildEnvsResponse {
   envs: string[];

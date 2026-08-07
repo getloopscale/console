@@ -6,7 +6,7 @@ import { render, screen } from '@/test/render';
 //   - useEngineApi('/api/v1/projects') to render the picker
 //   - engineFetch POST to create the env
 const mockEngineFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
 }));
 

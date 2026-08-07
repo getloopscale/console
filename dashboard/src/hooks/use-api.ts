@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { cloudFetch, engineFetch } from '@/lib/api';
+import { cloudFetch, engineFetch } from '@/lib/http/api';
 
 /**
  * T1.4 deviation: plan v1.1 called for outright deletion. Pragmatic path

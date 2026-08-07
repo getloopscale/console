@@ -20,7 +20,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, cloudFetchRaw } from '@/lib/api';
+import { cloudFetch, cloudFetchRaw } from '@/lib/http/api';
 import { ChunksPanel } from './chunks-panel';
 
 // M11 — file types the engine ingests (PDF/office/CSV/text/image). The engine is the

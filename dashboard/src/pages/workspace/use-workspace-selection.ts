@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { useToast } from '@usetheo/ui';
 
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 import type { StorageFile } from './helpers';
 
 /**

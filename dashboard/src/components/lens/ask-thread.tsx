@@ -6,7 +6,7 @@ import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, StatusDot, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 import { shortId } from '@/lib/formatting/format';
 import { Markdown } from '@/components/common/markdown';
 import type { TraceSpanNode } from '@/components/lens/trace-layout';

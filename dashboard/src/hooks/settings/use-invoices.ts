@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { cloudFetch, ApiError } from '@/lib/api';
+import { cloudFetch, ApiError } from '@/lib/http/api';
 import type { Invoice } from '@/lib/api/types';
 
 export interface UseInvoicesResult {

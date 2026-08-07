@@ -8,7 +8,7 @@ import {
 import { Dialog } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 export interface SavedView {
   id: string;

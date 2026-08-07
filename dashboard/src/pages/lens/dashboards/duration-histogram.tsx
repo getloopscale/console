@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, Histogram, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 import { formatDuration } from '@/lib/formatting/format';
 import type { Trace } from '../traces/columns';
 

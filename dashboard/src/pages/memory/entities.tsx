@@ -20,7 +20,7 @@ import { ExpandableText, TablePager } from '@/pages/memory/row-cells';
 import { SessionPicker } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * Plan 2 of dashboard-memory-section-roadmap.md, T2.5.

@@ -1,4 +1,4 @@
-import { cloudFetch, ApiError } from '@/lib/api';
+import { cloudFetch, ApiError } from '@/lib/http/api';
 import { temProximaPagina } from './projections';
 
 /**

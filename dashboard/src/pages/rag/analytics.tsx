@@ -5,7 +5,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * M21 + v8-M7 — /rag/analytics. Read-only usage/cost/latency for the caller's workspace,

@@ -7,12 +7,12 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) })
 const mockCloudFetch = vi.fn();
 // `ApiError` é re-exportado do módulo REAL: sem isto o `new ApiError(...)` do teste construiria
 // `undefined` e o erro que chega à tela seria um TypeError — não a recusa tipada que se quer provar.
-vi.mock('@/lib/api', async (original) => ({
-  ...(await original<typeof import('@/lib/api')>()),
+vi.mock('@/lib/http/api', async (original) => ({
+  ...(await original<typeof import('@/lib/http/api')>()),
   cloudFetch: (...a: unknown[]) => mockCloudFetch(...a),
 }));
 
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 import { LensAlertsPage, alertSeverity } from './alerts';
 
 describe('alertSeverity (honest status → Severity)', () => {

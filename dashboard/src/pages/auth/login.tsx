@@ -10,7 +10,7 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { usePendingOIDC } from '@/hooks/auth/use-pending-oidc';
 import { postOIDCForm } from '@/pages/auth/oidc-form';
 import { getSession, startLogin } from '@/lib/auth/session';
-import { clearToken } from '@/lib/api';
+import { clearToken } from '@/lib/http/api';
 import { API_URL, AUTH_URL } from '@/lib/http/config';
 import { safeErrorDetail, isEnumerationCollision } from '@/lib/auth/kratos-error-detail';
 import { mapKratosError } from '@/lib/auth/error-mapper';

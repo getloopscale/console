@@ -1,4 +1,4 @@
-import { ApiError, cloudFetch } from '@/lib/api';
+import { ApiError, cloudFetch } from '@/lib/http/api';
 
 /**
  * M23 — o único ponto por onde as telas de trust falam com o BFF.

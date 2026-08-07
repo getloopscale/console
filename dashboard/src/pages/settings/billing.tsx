@@ -9,7 +9,7 @@ import { InvoicesCard } from '@/components/billing/invoices-card';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useCloudApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, ApiError } from '@/lib/api';
+import { cloudFetch, ApiError } from '@/lib/http/api';
 
 /**
  * theo-cloud#63: extract the actionable error copy when the backend rejected

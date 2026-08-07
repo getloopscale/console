@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 
 interface Project {

@@ -6,7 +6,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import type {
   InstallationRepositoriesResponse,
   InstallationRepository,

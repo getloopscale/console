@@ -5,8 +5,8 @@ import { render, screen, within } from '@/test/render';
 import { LensDashboardsPage } from './dashboards';
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/api')>();
+vi.mock('@/lib/http/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/http/api')>();
   return { ...actual, cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) };
 });
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));

@@ -4,7 +4,7 @@ import { Brain, Download, History, ShieldAlert, X } from 'lucide-react';
 import { Badge, Button, Card, PageShell, Table } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import { formatDate } from '@/lib/formatting/format';
 import { triggerAuditCsvDownload } from '@/pages/settings/audit-csv';
 import type { AuditEntry, AuditListResponse, AuditSeverity } from '@/lib/api/types';

@@ -9,8 +9,8 @@ import { VariantColumn, errorMessage } from './variant-column';
 import { newVariant, type Variant } from './variant-model';
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/api')>();
+vi.mock('@/lib/http/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/http/api')>();
   return { ...actual, cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) };
 });
 

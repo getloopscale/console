@@ -12,7 +12,7 @@ vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
 }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   cloudFetch: (...a: unknown[]) => mockCloudFetch(...a),
   engineFetch: (...a: unknown[]) => mockCloudFetch(...a),
 }));

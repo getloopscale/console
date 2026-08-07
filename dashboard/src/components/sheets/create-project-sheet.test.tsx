@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: vi.fn(),
 }));
 

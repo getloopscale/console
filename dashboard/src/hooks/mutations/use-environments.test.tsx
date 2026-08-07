@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactElement, ReactNode } from 'react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: vi.fn(),
 }));
 
@@ -13,7 +13,7 @@ import {
   usePromoteEnvironment,
 } from './use-environments';
 import { queryKeys } from '@/lib/api/query-keys';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
 

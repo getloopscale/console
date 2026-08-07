@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useLogStream, capLogLines } from '@/hooks/deploy/use-log-stream';
 import { useDeployment } from '@/hooks/deploy/use-deployment';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import { normalizeBuildStatus } from '@/lib/api/types';
 import type { LogLine, LogLevel } from '@/lib/api/types';
 

@@ -30,7 +30,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { ApiError, cloudFetch } from '@/lib/api';
+import { ApiError, cloudFetch } from '@/lib/http/api';
 
 /**
  * M53 — /observability/alerts. Threshold alert rules on observability metrics. A rule

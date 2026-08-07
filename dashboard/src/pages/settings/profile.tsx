@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { logout } from '@/lib/auth/session';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import { maskEmail } from '@/lib/formatting/format';
 
 export function ProfilePage() {

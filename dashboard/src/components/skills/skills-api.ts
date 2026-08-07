@@ -1,4 +1,4 @@
-import { ApiError, cloudFetch } from '@/lib/api';
+import { ApiError, cloudFetch } from '@/lib/http/api';
 import {
   corpoDoDiagnostico,
   type EstadoDaCandidata,

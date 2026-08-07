@@ -3,14 +3,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/api', () => ({ cloudFetch: vi.fn() }));
+vi.mock('@/lib/http/api', () => ({ cloudFetch: vi.fn() }));
 
 import {
   useProvisioningStatus,
   provisioningRefetchInterval,
   __test_POLL_INTERVAL_MS,
 } from './use-provisioning-status';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 const mockedCloudFetch = vi.mocked(cloudFetch);
 

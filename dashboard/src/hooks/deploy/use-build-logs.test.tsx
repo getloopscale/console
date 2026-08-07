@@ -4,7 +4,7 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { MAX_LOG_LINES } from './use-log-stream';
 
 const mockEngineFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
 }));
 

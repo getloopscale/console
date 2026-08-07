@@ -4,12 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { ReactNode } from 'react';
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: vi.fn(),
 }));
 
 import { DeleteEnvironmentDialog } from './delete-environment-dialog';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
 

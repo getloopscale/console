@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { Button, Input, Label } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import type { Project } from '@/lib/api/types';
 
 interface CreateProjectSheetProps {

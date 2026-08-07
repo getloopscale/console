@@ -11,7 +11,7 @@ vi.mock('@/lib/http/config', () => ({
 }));
 
 const mockEngineFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
 }));
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 import type { Domain, DomainStatus } from '@/lib/api/types';
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 
 import { render, screen } from '@/test/render';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 import type { TraceSpanNode } from '@/components/lens/trace-layout';
 import { STARTER_PROMPTS } from './ask-thread-model';
 import { AskThread, errorMessage } from './ask-thread';
@@ -15,8 +15,8 @@ import { AskThread, errorMessage } from './ask-thread';
  */
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/api')>();
+vi.mock('@/lib/http/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/http/api')>();
   return { ...actual, cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) };
 });
 

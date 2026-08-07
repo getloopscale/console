@@ -37,7 +37,7 @@ function renderWithParams(ui: React.ReactElement, searchParams: string): RenderR
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+vi.mock('@/lib/http/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 const mockTriggerDownload = vi.fn();
 vi.mock('@/lib/export/download', () => ({ triggerDownload: (...a: unknown[]) => mockTriggerDownload(...a) }));
 

@@ -9,7 +9,7 @@ import {
 } from '@usetheo/ui';
 import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
-import { cloudFetchRaw } from '@/lib/api';
+import { cloudFetchRaw } from '@/lib/http/api';
 import { useStartRollback, useEndRollback } from '@/hooks/use-rollback-in-flight';
 import type { Build, RollbackResponse } from '@/lib/api/types';
 

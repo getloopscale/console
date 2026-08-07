@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { queryClient, invalidate } from './query-client';
 import { QueryClient } from '@tanstack/react-query';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 describe('queryClient', () => {
   it('test_singleton_exports_queryClient', () => {

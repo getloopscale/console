@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { AttributesTable, Badge, Button, IOCards, TokenCostBreakdown } from '@usetheo/ui';
 import { ClipboardCheck } from 'lucide-react';
 
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 import { formatCost, formatDate, formatDuration, formatScore } from '@/lib/formatting/format';
 import { spanOwnCostUsd } from '@/components/lens/trace-layout';
 import { detectPii } from '@/pages/lens/otel-attributes';

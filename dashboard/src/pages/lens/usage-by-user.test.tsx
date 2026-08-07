@@ -5,15 +5,15 @@ import { render, screen } from '@/test/render';
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
+vi.mock('@/lib/http/api', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/http/api')>('@/lib/http/api');
   return { ...actual, cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) };
 });
 
 // A classe REAL, não um dublê: a página faz `err instanceof ApiError`, e uma cópia local com o
 // mesmo formato falha nesse teste sem que o defeito seja da página. Foi o que aconteceu na
 // primeira rodada — quatro casos vermelhos por um erro meu de instrumentação, não de produto.
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 import { cabeSerie, LensUsageByUserPage } from './usage-by-user';
 

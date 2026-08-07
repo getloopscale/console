@@ -4,7 +4,7 @@ import { render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   cloudFetch: (...a: unknown[]) => mockCloudFetch(...a),
   getApiBase: () => 'https://cloud-test',
 }));

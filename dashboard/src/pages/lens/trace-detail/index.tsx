@@ -14,7 +14,7 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 import { flattenAll, flattenVisible, type TraceSpanNode } from './helpers';
 import { Breadcrumb, useSelection, useSpanKeyboardNav } from './breadcrumb';

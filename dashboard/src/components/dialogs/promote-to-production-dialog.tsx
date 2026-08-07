@@ -8,7 +8,7 @@ import {
 } from '@usetheo/ui';
 import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
-import { cloudFetchRaw } from '@/lib/api';
+import { cloudFetchRaw } from '@/lib/http/api';
 import { useStartMutation, useEndMutation } from '@/hooks/deploy/use-mutation-in-flight';
 import type { Build, PromoteResponse } from '@/lib/api/types';
 

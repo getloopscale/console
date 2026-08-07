@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen, within } from '@/test/render';
 
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),

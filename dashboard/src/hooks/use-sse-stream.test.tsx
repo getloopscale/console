@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the auth helpers before importing the hook so the EventSource
 // constructor is wrapped with our stub.
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   ensureSSEToken: vi.fn(async () => 'tok-1'),
   clearToken: vi.fn(),
   hasValidToken: vi.fn(() => true),
@@ -16,7 +16,7 @@ vi.mock('@/lib/http/config', () => ({
 }));
 
 import { useSSEStream } from './use-sse-stream';
-import { clearToken } from '@/lib/api';
+import { clearToken } from '@/lib/http/api';
 
 interface MockListenerMap {
   [event: string]: Array<(ev: unknown) => void>;

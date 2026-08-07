@@ -14,7 +14,7 @@ vi.mock('@/lib/auth/session', () => ({
   startLogin: vi.fn(),
 }));
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   clearToken: vi.fn(),
 }));
 

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import type { Domain } from '@/lib/api/types';
 import { queryKeys } from '@/lib/api/query-keys';
 

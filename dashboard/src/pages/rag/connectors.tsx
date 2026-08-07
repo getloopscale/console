@@ -21,7 +21,7 @@ import { ProviderLogo } from '@/components/rag/provider-logo';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, getApiBase } from '@/lib/api';
+import { cloudFetch, getApiBase } from '@/lib/http/api';
 
 /**
  * #191 + M8 — /rag/connectors. See and manage the workspace's connector connections (list +

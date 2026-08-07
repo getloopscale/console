@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * Session-separation (2026-07-23) — the M8 scope switcher.

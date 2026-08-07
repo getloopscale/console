@@ -1,4 +1,4 @@
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 /**
  * M12 T6/T7 — a lógica de reverter, FORA do React.

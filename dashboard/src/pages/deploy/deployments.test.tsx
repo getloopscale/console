@@ -6,7 +6,7 @@ import { NuqsAdapter } from 'nuqs/adapters/react-router/v6';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Build, BuildListResponse } from '@/lib/api/types';
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   ensureSSEToken: vi.fn(async () => 'tok'),
   clearToken: vi.fn(),
   hasValidToken: vi.fn(() => true),
@@ -20,7 +20,7 @@ vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => undefined }));
 
 import { DeploymentsPage } from './deployments';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
 

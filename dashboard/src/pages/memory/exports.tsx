@@ -5,7 +5,7 @@ import { Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageS
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, getApiBase } from '@/lib/api';
+import { cloudFetch, getApiBase } from '@/lib/http/api';
 
 /**
  * Plan 3 of dashboard-memory-section-roadmap.md, T3.6.

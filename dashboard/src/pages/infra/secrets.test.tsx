@@ -4,13 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/api', () => ({ engineFetch: vi.fn() }));
+vi.mock('@/lib/http/api', () => ({ engineFetch: vi.fn() }));
 vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: vi.fn() }));
 vi.mock('@/hooks/use-page-meta', () => ({ useSetPageTitle: vi.fn() }));
 
 import { SecretsPage } from './secrets';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
 

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 
 /**
  * use-build-stats (J-06 D2) — the tenant-scoped deploys aggregate that feeds the

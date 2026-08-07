@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * use-provisioning-status (M0 J-02 T2.1).

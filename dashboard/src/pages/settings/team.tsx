@@ -12,7 +12,7 @@ import {
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useQuery } from '@tanstack/react-query';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

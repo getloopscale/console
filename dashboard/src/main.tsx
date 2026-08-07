@@ -5,7 +5,7 @@ import { TheoUIProvider, violetForge } from '@theokit/ui';
 import App from './app';
 import { RouteBoundary } from './components/error/route-boundary';
 import { queryClient } from './lib/http/query-client';
-import { installAuthChannel } from './lib/api';
+import { installAuthChannel } from './lib/http/api';
 import { initWebVitals } from './lib/telemetry/rum';
 import './index.css';
 

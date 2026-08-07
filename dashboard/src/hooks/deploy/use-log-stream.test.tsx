@@ -4,7 +4,7 @@ import { useLogStream } from './use-log-stream';
 import type { LogLine } from '@/lib/api/types';
 
 // Mock ensureSSEToken to bypass network — returns deterministic token.
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   ensureSSEToken: vi.fn(async () => 'mock-jwt'),
 }));
 

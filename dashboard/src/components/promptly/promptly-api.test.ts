@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/api')>();
+vi.mock('@/lib/http/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/http/api')>();
   return { ...actual, cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) };
 });
 
@@ -91,7 +91,7 @@ describe('fetchCatalogPage', () => {
   });
 
   it('propaga a recusa tipada em vez de resolver para lista vazia', async () => {
-    const { ApiError } = await import('@/lib/api');
+    const { ApiError } = await import('@/lib/http/api');
     mockCloudFetch.mockRejectedValue(new ApiError(502, undefined, 'upstream'));
 
     // "não há prompts" e "não consegui perguntar" levam a decisões opostas — o erro precisa subir.

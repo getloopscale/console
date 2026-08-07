@@ -11,7 +11,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { ApiError, cloudFetch } from '@/lib/api';
+import { ApiError, cloudFetch } from '@/lib/http/api';
 import { formatCost, formatNumber, shortId } from '@/lib/formatting/format';
 
 /**

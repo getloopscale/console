@@ -17,7 +17,7 @@
 // construction. The `error` flag is also exposed so the page can render
 // an inline warning toast.
 import { useQuery } from '@tanstack/react-query';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 import { DEFAULT_PERMANENT_ENV } from '@/lib/api/domain';
 

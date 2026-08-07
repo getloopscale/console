@@ -5,7 +5,7 @@
 // tests prove the rendering honors it, and that an unknown state degrades the row
 // instead of blanking the page (ADR D11).
 //
-// Data arrives through `vi.mock('@/lib/api')`, the repo's pattern for page tests
+// Data arrives through `vi.mock('@/lib/http/api')`, the repo's pattern for page tests
 // (precedent: `src/pages/memory/graph.test.tsx:20-23`). A global `fetch` stub cannot
 // be used here: `cloudFetch` calls `ensureToken()` first (`src/lib/api.ts:184-188`),
 // which in a test has no token, exchanges one against the SAME stub and then
@@ -21,7 +21,7 @@ vi.mock('@/hooks/use-auth', () => ({
 }));
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
   engineFetch: (...args: unknown[]) => mockCloudFetch(...args),
 }));

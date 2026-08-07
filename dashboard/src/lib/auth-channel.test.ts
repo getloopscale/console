@@ -43,26 +43,26 @@ describe('installAuthChannel — ciclo de vida explicito (B-042)', () => {
   });
 
   it('importar lib/api NAO abre canal nenhum', async () => {
-    await import('./api');
+    await import('./http/api');
     // Este era o comportamento antigo: o import bastava para abrir.
     expect(aberturas).toEqual([]);
   });
 
   it('installAuthChannel abre o canal theo-auth', async () => {
-    const { installAuthChannel } = await import('./api');
+    const { installAuthChannel } = await import('./http/api');
     installAuthChannel();
     expect(aberturas).toEqual(['theo-auth']);
   });
 
   it('e idempotente — chamar duas vezes nao abre dois canais', async () => {
-    const { installAuthChannel } = await import('./api');
+    const { installAuthChannel } = await import('./http/api');
     installAuthChannel();
     installAuthChannel();
     expect(aberturas).toEqual(['theo-auth']);
   });
 
   it('devolve um dispose que fecha o canal — o teardown que nao existia', async () => {
-    const { installAuthChannel } = await import('./api');
+    const { installAuthChannel } = await import('./http/api');
     const dispose = installAuthChannel();
     expect(fechados).toBe(0);
     dispose();
@@ -70,7 +70,7 @@ describe('installAuthChannel — ciclo de vida explicito (B-042)', () => {
   });
 
   it('apos o dispose, instalar de novo volta a abrir', async () => {
-    const { installAuthChannel } = await import('./api');
+    const { installAuthChannel } = await import('./http/api');
     installAuthChannel()();
     installAuthChannel();
     expect(aberturas).toEqual(['theo-auth', 'theo-auth']);
@@ -81,7 +81,7 @@ describe('installAuthChannel — ciclo de vida explicito (B-042)', () => {
       throw new Error('indisponivel');
     }) as unknown as typeof BroadcastChannel;
 
-    const { installAuthChannel } = await import('./api');
+    const { installAuthChannel } = await import('./http/api');
     expect(() => installAuthChannel()()).not.toThrow();
   });
 });

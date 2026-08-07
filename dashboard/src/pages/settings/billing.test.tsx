@@ -26,7 +26,7 @@ vi.mock('@/hooks/settings/use-invoices', () => ({
 }));
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => {
+vi.mock('@/lib/http/api', () => {
   // Declare ApiError inside the factory closure — vi.mock hoists, so a top-
   // level class would be in the TDZ when the mock executes (vitest error
   // "Cannot access 'ApiError' before initialization").
@@ -49,7 +49,7 @@ vi.mock('@/lib/api', () => {
 
 // Import the same mocked ApiError so the test's instanceof checks line up with
 // the real module's export (the production catch branch checks instanceof).
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 import { BillingPage } from './billing';
 

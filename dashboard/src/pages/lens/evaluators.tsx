@@ -23,7 +23,7 @@ import { scoresToSeries, type ScoreBucket } from '@/components/lens/lens-series'
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * M44 — /lens/evaluators. List / create / run / delete online evaluators via the read+write

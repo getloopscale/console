@@ -19,7 +19,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 import {
   frasePreRollback,
   resultadoDoRollback,

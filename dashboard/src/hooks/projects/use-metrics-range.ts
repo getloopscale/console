@@ -18,7 +18,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { engineFetch } from '@/lib/api';
+import { engineFetch } from '@/lib/http/api';
 
 export interface MetricsRangeDataPoint {
   /** Unix timestamp (seconds). */

@@ -15,7 +15,7 @@ vi.mock('@/hooks/use-auth', () => ({
 // FRONTEIRA (engineFetch): a pagina exerce o caminho de dados real, incluindo a
 // query key, e o teste sobrevive ao proximo refactor interno.
 const mockEngineFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
   cloudFetch: (...args: unknown[]) => mockEngineFetch(...args),
 }));

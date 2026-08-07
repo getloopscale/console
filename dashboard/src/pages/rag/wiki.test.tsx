@@ -11,7 +11,7 @@ import { render, screen, waitFor } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+vi.mock('@/lib/http/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 // KbEditor wraps TipTap (heavy in jsdom) — swap for a plain textarea; not under test here.
 vi.mock('@/components/rag/kb-editor', () => ({
   KbEditor: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
