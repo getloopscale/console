@@ -448,7 +448,7 @@ describe('B-025 — o custo de pintar as linhas fora da tela', () => {
           { ts: '2026-08-07T10:00:01Z', level: 'info', msg: 'segunda' },
         ]}
         connected
-        error={null}
+        error={false}
         paused={false}
         onTogglePause={() => {}}
         onClear={() => {}}

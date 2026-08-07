@@ -617,7 +617,7 @@ dod:
   - Alinhar as entradas do package.json aos chunks que src/build/manual-chunks.ts realmente emite: remover 02/03/06 (theo-ui, radix, lucide) ou reintroduzir esses chunks
   - o tamanho brotli do conjunto eager e re-medido com `ANALYZE=true npm run bundle:analyze` e registrado antes/depois
 
-## B-023 — A virtualizacao da arvore de spans nunca foi implementada: @tanstack/react-virtual tem 0 import sites e VIRTUALIZE_THRESHOLD nao e lido por...   [ ]
+## B-023 — A virtualizacao da arvore de spans nunca foi implementada: @tanstack/react-virtual tem 0 import sites e VIRTUALIZE_THRESHOLD nao e lido por...   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -629,7 +629,8 @@ evidence: src/pages/lens/trace-detail/helpers.ts:48 — MEDIDO: grep -rn "from '
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · scaling#3
 overlaps: B-062
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: killed
+kill_reason: PREMISSA ERRADA — a arvore de spans E virtualizada, so que uma camada abaixo. MEDIDO em 2026-08-07 no node_modules: `@usetheo/ui` renderiza `SpanTreeVirtual` com `useVirtualizer` (9 ocorrencias de useVirtualizer/getVirtualItems em dist/index.js), decide por `virtualized = flat.length >= virtualizeThreshold`, emite `data-slot="span-tree-virtual"` e ate faz `virtualizer.scrollToIndex` para revelar o span selecionado. A auditoria grepou `src/` por imports de react-virtual, achou zero e concluiu que a funcionalidade nunca foi construida — a mesma classe de erro de tirar conclusao de um grep que nao alcanca o codigo real. O comentario em trace-detail/index.tsx:28 que os tres itens chamam de falso esta CORRETO. `@tanstack/react-virtual` nao aparece em package.json porque entra como dependencia transitiva de @usetheo/ui — 'unused' descrevia a arvore de dependencias diretas, nao o comportamento. A regressao ja tem rede: trace-detail.test.tsx:201 falha se o slot virtual sumir, seja por mudanca aqui ou por bump do pacote. Nada a construir; o item foi filado contra uma ausencia que nao existe.
 correcao_ao_achado_2026-08-06: a remediacao dizia "trocar <SpanTree> pelo SpanTreeVirtual que @usetheo/ui JA EXPORTA". VERIFICADO no pacote instalado: ele NAO exporta. O arquivo dist/components/composites/span-tree/span-tree-virtual.d.ts existe, mas o dist/index.d.ts expoe apenas SpanTree, SpanTreeProps, SpanTreeRenderCtx, SpanTreeRow, SpanTreeRowProps e SpanTrees — e o campo `exports` do package.json so permite os subpaths "." e "./preset", entao nem por caminho profundo da. O caminho descrito na remediacao NAO EXISTE. As opcoes reais sao: (a) pedir o export ao upstream (@usetheo/ui) e so entao trocar; (b) virtualizar aqui com @tanstack/react-virtual, que seria o primeiro uso proprio no repo — e a decisao que B-062 pede. Registrado para que a proxima pessoa nao gaste o tempo que eu gastei descobrindo isso.
 dod:
   - Trocar src/pages/lens/trace-detail/index.tsx:157 de <SpanTree> para o SpanTreeVirtual que @usetheo/ui ja exporta, acionando-o quando flattenVisible (linha 79) passar de VIRTUALIZE_THRESHOLD — a virtualizacao ja esta implementada e testada no design system, nao precisa ser escrita aqui
@@ -1386,7 +1387,7 @@ dod:
   - npm uninstall @codemirror/lang-json @codemirror/state @codemirror/view @uiw/react-codemirror, then npm run build && npm run test:e2e
   - a entrada correspondente saiu de `package.json` e `npm run build` + `npm run lint` passam
 
-## B-062 — @tanstack/react-virtual unused while three code comments claim the app virtualizes with it   [ ]
+## B-062 — @tanstack/react-virtual unused while three code comments claim the app virtualizes with it   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1398,7 +1399,8 @@ evidence: package.json:77 — @tanstack/react-virtual is a production dependency
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#9
 overlaps: B-023
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: killed
+kill_reason: PREMISSA ERRADA — a arvore de spans E virtualizada, so que uma camada abaixo. MEDIDO em 2026-08-07 no node_modules: `@usetheo/ui` renderiza `SpanTreeVirtual` com `useVirtualizer` (9 ocorrencias de useVirtualizer/getVirtualItems em dist/index.js), decide por `virtualized = flat.length >= virtualizeThreshold`, emite `data-slot="span-tree-virtual"` e ate faz `virtualizer.scrollToIndex` para revelar o span selecionado. A auditoria grepou `src/` por imports de react-virtual, achou zero e concluiu que a funcionalidade nunca foi construida — a mesma classe de erro de tirar conclusao de um grep que nao alcanca o codigo real. O comentario em trace-detail/index.tsx:28 que os tres itens chamam de falso esta CORRETO. `@tanstack/react-virtual` nao aparece em package.json porque entra como dependencia transitiva de @usetheo/ui — 'unused' descrevia a arvore de dependencias diretas, nao o comportamento. A regressao ja tem rede: trace-detail.test.tsx:201 falha se o slot virtual sumir, seja por mudanca aqui ou por bump do pacote. Nada a construir; o item foi filado contra uma ausencia que nao existe.
 analise_2026-08-06: a decisao ficou mais simples com o fato apurado em B-023 — o SpanTreeVirtual do design system NAO e importavel (nao consta do index.d.ts nem do campo exports). Logo nao existe a opcao "usar a virtualizacao pronta e remover a dep": ou o upstream exporta, ou virtualizar aqui significa o PRIMEIRO uso proprio de @tanstack/react-virtual no repo. A escolha (a) manter a dep e implementar, ou (b) remover a dep, apagar VIRTUALIZE_THRESHOLD e corrigir os tres comentarios que afirmam uma virtualizacao inexistente — segue sendo de produto, mas agora com o custo real de cada lado visivel.
 dod:
   - Decide explicitly, do not just uninstall: either (a) the large-trace virtualization is still required - implement it and keep the dep; or (b) it is not - npm uninstall @tanstack/react-virtual, delete VIRTUALIZE_THRESHOLD from helpers.ts:48, and correct the three comments
@@ -1945,7 +1947,7 @@ linhas com quatro consumidores, tocando streaming, reconexao e autenticacao ao
 mesmo tempo. Nao e trabalho de varredura — precisa de plano, teste de reconexao
 com resume, e revisao propria.
 
-## B-089 — A virtualizacao da arvore de spans foi planejada e nunca construida   [ ]
+## B-089 — A virtualizacao da arvore de spans foi planejada e nunca construida   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1956,7 +1958,8 @@ category: unfinished_feature
 evidence: medido em 2026-08-06 pelo gate /code-quality (knip) — `@tanstack/react-virtual@^3.13.26` declarada em dashboard/package.json e ZERO import estatico; as tres ocorrencias no codigo eram comentarios (trace-detail/index.tsx:29, trace-detail/helpers.ts:46, logs/log-viewer.tsx:59) e `VIRTUALIZE_THRESHOLD = 200` em helpers.ts:49 nao era lido por ninguem.
 provenance: nao consta da auditoria /loop-system-design; surgiu ao habilitar o gate de code-quality, que estava inteiramente desligado.
 why_now: a dependencia e o limiar foram REMOVIDOS na limpeza que fechou o gate — este item existe para que a intencao nao se perca junto com os vestigios. O comentario que sobrou em log-viewer.tsx ("we'd need react-virtual — deferred") continua descrevendo o problema real: a arvore de spans renderiza recursivamente sem teto.
-status: raw
+status: killed
+kill_reason: PREMISSA ERRADA — a arvore de spans E virtualizada, so que uma camada abaixo. MEDIDO em 2026-08-07 no node_modules: `@usetheo/ui` renderiza `SpanTreeVirtual` com `useVirtualizer` (9 ocorrencias de useVirtualizer/getVirtualItems em dist/index.js), decide por `virtualized = flat.length >= virtualizeThreshold`, emite `data-slot="span-tree-virtual"` e ate faz `virtualizer.scrollToIndex` para revelar o span selecionado. A auditoria grepou `src/` por imports de react-virtual, achou zero e concluiu que a funcionalidade nunca foi construida — a mesma classe de erro de tirar conclusao de um grep que nao alcanca o codigo real. O comentario em trace-detail/index.tsx:28 que os tres itens chamam de falso esta CORRETO. `@tanstack/react-virtual` nao aparece em package.json porque entra como dependencia transitiva de @usetheo/ui — 'unused' descrevia a arvore de dependencias diretas, nao o comportamento. A regressao ja tem rede: trace-detail.test.tsx:201 falha se o slot virtual sumir, seja por mudanca aqui ou por bump do pacote. Nada a construir; o item foi filado contra uma ausencia que nao existe.
 dod:
   - existe medicao de quantos spans um trace real tem em p95 (hoje nao existe — o comentario afirma "a handful" sem numero)
   - OU a virtualizacao entrega, OU o item e killed com a medicao mostrando que o volume nao justifica
@@ -2246,7 +2249,7 @@ morto —, coberta pelo knip), e o docblock ja dizia isso.
 
 Verificado por sonda: modulo alcancado so por `import type` e acusado.
 
-## B-096 — Oito `it.skip` de corpo vazio em login.test.tsx   [ ]
+## B-096 — Oito `it.skip` de corpo vazio em login.test.tsx   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -2257,7 +2260,8 @@ category: hollow_test
 evidence: src/pages/login.test.tsx:280,290,405,419,426,432,436,444 — os 8 blocos contem APENAS comentarios, nenhuma assercao. Verificado: copia do arquivo trocando `it.skip(` por `it(` roda `Tests 30 passed (30)`. Remover o `.skip` nao restaura cobertura; produz 8 verdes vacuosos. Nenhum tem sunset, dono ou issue. Sao de 2026-06-05, anteriores a esta promocao.
 provenance: revisao de promocao 2026-08-07 (auditor de testes)
 why_now: `rules/testing.md § 6` trata skip permanente como divida invisivel. Contraste correto no mesmo repo: `sse-connection-budget.test.tsx:104` tem corpo completo e o `.skip` e so o interruptor.
-status: triaged
+status: shipped
+shipped_note: as 8 cascas nao viraram testes NEM foram apagadas — o motivo do esvaziamento deixou de existir. Elas descreviam corretamente uma funcionalidade ausente: com form.submit() a pagina navega e o correlation_id vivia num useRef, entao `auth.method.success`/`failure`, declarados em rum.ts desde 2026-05-29, nunca saiam do codigo. Media-se quem TENTOU entrar e ninguem que ENTROU. lib/auth/auth-attempt.ts e o elo: carrega a tentativa pelo sessionStorage (nao localStorage — a tentativa morre com a aba) e a entrega UMA vez do outro lado. O sucesso e emitido em useRequireAuth, depois da guarda `if (!s)`; a falha em hooks/auth/use-login-outcome.ts, que finalmente consome o classifyKratosErrorReason exportado sem consumidor desde 2026-06-01 com um comentario dizendo que esperava 'o caminho de classificacao pos-mount'. 12 testes novos, todos sondados: quebrar recordAttempt derruba 3, quebrar o wire de sucesso derruba 2, quebrar o consumo derruba 1. Essa ultima sonda pegou um teste MEU que era vazio — ele assertava a consequencia (um terceiro render nao emite de novo) e passava com o consumo removido; foi reescrito para assertar o mecanismo (a chave sai do storage). login.tsx caiu de 540 para 471 linhas ao extrair os dois emissores para hooks/auth/, por coesao — sao os dois lados do mesmo funil — e nao para caber no orcamento.
 dod:
   - cada um dos 8: OU o teste e escrito de verdade, OU a casca e apagada
   - achado embutido: `auth.method.success`/`failure` sao declarados em lib/rum.ts:58-59 e nunca emitidos — telemetria de autenticacao morta, decidir junto

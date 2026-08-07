@@ -15,16 +15,11 @@ import { API_URL, AUTH_URL } from '@/lib/http/config';
 import { safeErrorDetail, isEnumerationCollision } from '@/lib/auth/kratos-error-detail';
 import { mapKratosError } from '@/lib/auth/error-mapper';
 import type { Flow } from './kratos';
-import {
-  reportEvent,
-  viewportBucket,
-  type ActivationEvent,
-  type AuthFailureReason,
-  type AuthMethod,
-  type AuthTelemetryPayload,
-} from '@/lib/telemetry/rum';
+import { type AuthMethod } from '@/lib/telemetry/rum';
 
 export { classifyKratosErrorReason } from '@/lib/auth/kratos-error-detail';
+import { recordAttempt } from '@/lib/auth/auth-attempt';
+import { useLoginFailureOutcome, emitAuthTelemetry } from '@/hooks/auth/use-login-outcome';
 
 const KRATOS_URL = AUTH_URL || API_URL;
 
@@ -142,32 +137,7 @@ export function LoginPage() {
     });
   }, [searchParams, loading, setSearchParams]);
 
-  /**
-   * emitAuthTelemetry — FAANG-grade observable auth funnel.
-   *
-   * PII-FREE INVARIANT enforced by spec (`test_login_payload_pii_free`):
-   * payload NEVER contains email, password, sessionID, userID, tenantID,
-   * or referrer. See lib/rum.ts AuthTelemetryPayload doc block.
-   */
-  const emitAuthTelemetry = (
-    event: Extract<ActivationEvent, `auth.method.${string}`>,
-    ctx: { method: AuthMethod; correlation_id: string; started_at: number },
-    extras: { reason?: AuthFailureReason } = {},
-  ): void => {
-    const payload: AuthTelemetryPayload = {
-      v: 1,
-      method: ctx.method,
-      correlation_id: ctx.correlation_id,
-      latency_ms:
-        event === 'auth.method.attempt'
-          ? undefined
-          : Math.max(0, Date.now() - ctx.started_at),
-      reason: extras.reason,
-      viewport_bucket: viewportBucket(),
-      timestamp: Date.now(),
-    };
-    reportEvent(event, payload as unknown as Record<string, unknown>);
-  };
+  useLoginFailureOutcome(flow);
 
   const startAuthAttempt = (method: AuthMethod): {
     method: AuthMethod;
@@ -181,6 +151,9 @@ export function LoginPage() {
       started_at: Date.now(),
     };
     authCtxRef.current = ctx;
+    // B-096 — o ref nao sobrevive ao form.submit(). O sessionStorage sim, e e
+    // dele que a pagina de destino tira o correlation_id para fechar o funil.
+    recordAttempt(ctx);
     emitAuthTelemetry('auth.method.attempt', ctx);
     return ctx;
   };

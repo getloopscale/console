@@ -277,21 +277,135 @@ describe('LoginPage', () => {
     submitStub.mockRestore();
   });
 
-  it.skip('test_login_kratos_5xx_shows_network_error', async () => {
-    // SKIPPED 2026-06-05 (Ralph J-04 loop): test assumes XHR fetch returns
-    // HTTP 5xx and code branches to networkError=true inline. Current code
-    // uses form.submit() top-level POST (SameSite-Lax 2026-06-01 mandate),
-    // so 5xx happens on Kratos server post-navigation; the dashboard NEVER
-    // sees the 5xx in the same render. To restore: implement landing-page
-    // outcome handler that detects HTTP error nodes in re-fetched flow (out
-    // of scope for J-04 plan; feature gap, not bug).
+  // =========================================================================
+  // B-096 — o DESFECHO da tentativa, do outro lado da navegacao
+  //
+  // Os oito `it.skip` que ocupavam este espaco descreviam, corretamente, uma
+  // funcionalidade ausente: com `form.submit()` a pagina navega e o desfecho
+  // acontece noutro render. Eles nao eram testes ruins — eram testes de algo que
+  // nao existia. `lib/auth/auth-attempt.ts` e o elo que faltava, e o que segue
+  // exercita o comportamento real em vez de descrever a lacuna.
+  //
+  // O ramo de SUCESSO nao mora aqui: ele acontece na pagina autenticada, em
+  // `useRequireAuth`, e tem cobertura em `src/hooks/use-auth.test.tsx`.
+  // =========================================================================
+
+  it('B-096 — o Kratos recusar emite auth.method.failure com o MESMO correlation_id da tentativa', async () => {
+    sessionStorage.clear();
+    vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => undefined);
+    mockFetch.mockResolvedValue({ ok: true, json: async () => flowFixture() });
+
+    const user = userEvent.setup();
+    const { unmount } = render(<LoginPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /continue with github/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /continue with github/i }));
+    const tentativa = mockReportEvent.mock.calls.find((c) => c[0] === 'auth.method.attempt');
+    const idDaTentativa = (tentativa![1] as Record<string, unknown>).correlation_id;
+
+    // O `form.submit()` navega; na vida real a montagem seguinte e uma pagina
+    // nova. Aqui desmontar e remontar reproduz isso — e e justamente o que o
+    // `useRef` original nao sobrevivia.
+    unmount();
+    mockReportEvent.mockReset();
+    const comErro = flowFixture();
+    comErro.ui.messages = [{ type: 'error' as const, text: 'The provided credentials are invalid' }];
+    mockFetch.mockResolvedValue({ ok: true, json: async () => comErro });
+    render(<LoginPage />);
+
+    await waitFor(() => {
+      const falhas = mockReportEvent.mock.calls.filter((c) => c[0] === 'auth.method.failure');
+      expect(falhas.length).toBe(1);
+    });
+    const payload = mockReportEvent.mock.calls.find((c) => c[0] === 'auth.method.failure')![1] as Record<string, unknown>;
+    // O correlation_id atravessando a navegacao E o item: sem ele o evento de
+    // desfecho nao liga na tentativa e o funil nao fecha.
+    expect(payload.correlation_id).toBe(idDaTentativa);
+    expect(payload.method).toBe('github');
+    expect(payload.reason).toBe('kratos_validation');
+    expect(typeof payload.latency_ms).toBe('number');
   });
 
-  it.skip('test_login_kratos_503_html_body_no_crash', async () => {
-    // SKIPPED 2026-06-05 (Ralph J-04 loop): same as above — 503 with HTML
-    // body is a server-side 5xx that under form.submit() pattern lands on
-    // an error page, not the dashboard. Requires landing-page outcome
-    // handler (out of scope for J-04 plan; feature gap, not bug).
+  it('B-096 — um erro de CSRF e classificado como csrf_expired, nao como validacao', async () => {
+    sessionStorage.clear();
+    vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => undefined);
+    mockFetch.mockResolvedValue({ ok: true, json: async () => flowFixture() });
+    const user = userEvent.setup();
+    const { unmount } = render(<LoginPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /continue with github/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /continue with github/i }));
+    unmount();
+    mockReportEvent.mockReset();
+
+    const comCsrf = flowFixture();
+    comCsrf.ui.messages = [{ type: 'error' as const, text: 'The CSRF token could not be found' }];
+    mockFetch.mockResolvedValue({ ok: true, json: async () => comCsrf });
+    render(<LoginPage />);
+
+    await waitFor(() => {
+      expect(mockReportEvent.mock.calls.filter((c) => c[0] === 'auth.method.failure').length).toBe(1);
+    });
+    const payload = mockReportEvent.mock.calls.find((c) => c[0] === 'auth.method.failure')![1] as Record<string, unknown>;
+    // A distincao importa para quem le a metrica: credencial errada e problema
+    // de quem entra; CSRF expirado e problema nosso, e some no meio do outro se
+    // os dois virarem "kratos_validation".
+    expect(payload.reason).toBe('csrf_expired');
+  });
+
+  it('B-096 — abrir a tela de erro SEM ter tentado nao emite falha', async () => {
+    sessionStorage.clear();
+    mockReportEvent.mockReset();
+    const comErro = flowFixture();
+    comErro.ui.messages = [{ type: 'error' as const, text: 'The provided credentials are invalid' }];
+    mockFetch.mockResolvedValue({ ok: true, json: async () => comErro });
+    render(<LoginPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /continue with github/i })).toBeInTheDocument();
+    });
+    // Um deep-link para um flow ja expirado mostra erro sem ninguem ter tentado
+    // nada. Emitir falha ali inventaria tentativas que nao existiram, e a taxa
+    // de sucesso cairia por conta de gente que nem chegou a digitar.
+    expect(mockReportEvent.mock.calls.filter((c) => c[0] === 'auth.method.failure')).toEqual([]);
+  });
+
+  it('B-096 — recarregar a pagina de erro NAO emite uma segunda falha', async () => {
+    sessionStorage.clear();
+    vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => undefined);
+    mockFetch.mockResolvedValue({ ok: true, json: async () => flowFixture() });
+    const user = userEvent.setup();
+    const primeira = render(<LoginPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /continue with github/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /continue with github/i }));
+    primeira.unmount();
+
+    const comErro = flowFixture();
+    comErro.ui.messages = [{ type: 'error' as const, text: 'invalid' }];
+    mockFetch.mockResolvedValue({ ok: true, json: async () => comErro });
+    mockReportEvent.mockReset();
+    const segunda = render(<LoginPage />);
+    await waitFor(() => {
+      expect(mockReportEvent.mock.calls.filter((c) => c[0] === 'auth.method.failure').length).toBe(1);
+    });
+    segunda.unmount();
+
+    // A leitura da tentativa CONSOME. Sem isso, cada F5 na tela de erro somaria
+    // uma falha e a metrica mediria teimosia em vez de autenticacao.
+    // Assertar o MECANISMO e nao so a consequencia. A primeira versao deste teste
+    // olhava apenas a contagem apos um terceiro render — e uma sonda mostrou que
+    // ela passava mesmo com o consumo removido, ou seja, era vazia. A chave ter
+    // sumido do storage e o fato que a protecao depende, e e verificavel aqui.
+    expect(sessionStorage.getItem('theo.auth.pending-attempt')).toBeNull();
+
+    render(<LoginPage />);
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /continue with github/i }).length).toBeGreaterThan(0);
+    });
+    expect(mockReportEvent.mock.calls.filter((c) => c[0] === 'auth.method.failure').length).toBe(1);
   });
 
   // =========================================================================
@@ -400,54 +514,6 @@ describe('LoginPage', () => {
     const calls = mockReportEvent.mock.calls.filter((c) => c[0] === 'auth.method.attempt');
     expect(calls.length).toBe(1);
     expect((calls[0][1] as Record<string, unknown>).method).toBe('google');
-  });
-
-  it.skip('test_login_emits_success_on_password_session', async () => {
-    // SKIPPED 2026-06-05 (Ralph J-04 loop): `auth.method.success` event is
-    // declared in lib/rum.ts:58 but NEVER emitted from production code. The
-    // submitPassword refactor for form.submit() (2026-06-01 SameSite-Lax fix)
-    // moved outcome emission to "landing page after navigation" per code
-    // comment line 232-236 — but the landing-page handler was never
-    // implemented. Restoring requires:
-    //   1. login.tsx detects ?flow=X on remount post-navigation
-    //   2. fetches flow → if session created → emit 'auth.method.success'
-    //   3. classify error nodes → emit 'auth.method.failure' with reason
-    // Out of scope for J-04 plan; feature gap, not bug. Re-enable after
-    // landing-page handler implemented.
-  });
-
-  it.skip('test_login_emits_failure_kratos_5xx', async () => {
-    // SKIPPED 2026-06-05 (Ralph J-04 loop): `auth.method.failure` event type
-    // declared in lib/rum.ts:59 but NEVER emitted from production code (same
-    // root cause as test_login_emits_success_on_password_session). Re-enable
-    // after landing-page outcome handler implemented.
-  });
-
-  it.skip('test_login_emits_failure_kratos_validation', async () => {
-    // SKIPPED 2026-06-05 (Ralph J-04 loop): same as above. Re-enable after
-    // landing-page outcome handler. classifyKratosErrorReason() exported but
-    // unused — see login.tsx:77-86 doc-comment.
-  });
-
-  it.skip('test_login_emits_failure_csrf_expired', async () => {
-    // SKIPPED 2026-06-05 (Ralph J-04 loop): same as above.
-  });
-
-  it.skip('test_login_emits_failure_network', async () => {
-    // SKIPPED 2026-06-05 (Ralph J-04 loop): same as above. Note: the form.submit
-    // catch block at login.tsx:268-271 catches DOM/CSP errors and sets
-    // networkError=true (visible UI) but does NOT emit 'auth.method.failure'
-    // because the comment says outcome moves to landing page. Re-enable after
-    // landing-page outcome handler implemented.
-  });
-
-  it.skip('test_login_attempt_and_outcome_share_correlation_id', async () => {
-    // SKIPPED 2026-06-05 (Ralph J-04 loop): correlation_id contract is honored
-    // by authCtxRef.current in login.tsx, but outcome events aren't emitted so
-    // the assertion attemptId === outcomeId can't run. Re-enable after
-    // landing-page outcome handler. The correlation_id invariant survives in
-    // attempt event payloads (see test_login_emits_attempt_on_github_click
-    // which DOES pass).
   });
 
   it('test_login_payload_pii_free', async () => {

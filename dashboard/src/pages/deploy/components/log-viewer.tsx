@@ -54,9 +54,11 @@ const LEVELS: { value: 'all' | LogLevel; label: string }[] = [
  * auto-scroll to bottom (disable on user scroll-up — re-enable when user
  * scrolls back to bottom). Pause/resume + clear controls in toolbar.
  *
- * Designed to render thousands of lines; uses CSS overflow-y-auto rather
- * than virtual scrolling (acceptable up to ~5000 lines; for larger streams
- * we'd need react-virtual — deferred).
+ * Renderiza ate MAX_LOG_LINES (5000) sem remover nos do DOM: o custo de estar
+ * fora da tela e pago por `content-visibility` (ver LINHA_FORA_DA_TELA), nao por
+ * uma janela de virtualizacao. O texto anterior dizia "para streams maiores
+ * precisariamos de react-virtual — adiado"; a conclusao mudou, e o porque esta
+ * no bloco de LINHA_FORA_DA_TELA.
  */
 /**
  * Uma linha do log.
