@@ -10,8 +10,8 @@
 
 // MEET-040: Single origin. Dashboard served at cloud.{domain} — all API calls are relative.
 // Runtime config via /__config.js (empty in prod = same-origin, set per-env in container).
-import { API_URL } from './config';
-import { mocksEnabled } from './dev-mocks';
+import { API_URL, mocksEnabled } from './config';
+
 const API_BASE = API_URL;
 
 export function getApiBase() { return API_BASE; }
@@ -71,25 +71,72 @@ let refreshPromise: Promise<boolean> | null = null; // Dedup concurrent refreshe
 type AuthMessage = { type: 'logged-out' };
 
 let authChannel: BroadcastChannel | null = null;
-try {
-  authChannel = new BroadcastChannel('theo-auth');
-  authChannel.onmessage = (event: MessageEvent<AuthMessage>) => {
-    const msg = event.data;
-    if (msg.type === 'logged-out') {
-      // Another tab logged out — clear this tab's token and redirect.
-      accessToken = null;
-      tokenExpiresAt = 0;
-      redirectToLogin('expired');
-    }
-  };
-} catch {
-  // BroadcastChannel not available (e.g., some workers) — graceful degradation
+
+/**
+ * Abre o canal de coordenacao entre abas. Chamado UMA vez no boot (main.tsx).
+ *
+ * B-042 — antes o canal era aberto como efeito colateral de IMPORT deste modulo.
+ * api.ts tem 151 importadores, entao qualquer um deles — incluindo um teste que
+ * so queria `formatBytes` — abria um BroadcastChannel real e registrava um
+ * handler que redireciona a pagina. Efeito colateral de import tambem nao tem
+ * teardown: nada podia fechar o canal, o que forcava os testes a depender de
+ * vi.resetModules para isolamento.
+ *
+ * Agora o ciclo de vida e explicito e a funcao devolve o seu proprio dispose.
+ * Idempotente de proposito: chamar duas vezes nao abre dois canais.
+ */
+export function installAuthChannel(): () => void {
+  if (authChannel) return () => {};
+  try {
+    const ch = new BroadcastChannel('theo-auth');
+    ch.onmessage = (event: MessageEvent<AuthMessage>) => {
+      const msg = event.data;
+      if (msg.type === 'logged-out') {
+        // Another tab logged out — clear this tab's token and redirect.
+        accessToken = null;
+        tokenExpiresAt = 0;
+        redirectToLogin('expired');
+      }
+    };
+    authChannel = ch;
+    return () => {
+      ch.close();
+      if (authChannel === ch) authChannel = null;
+    };
+  } catch {
+    // BroadcastChannel not available (e.g., some workers) — graceful degradation
+    return () => {};
+  }
 }
 
 // #324: status HTTP da ULTIMA troca de token (null = rejeicao de rede, sem
 // resposta). Nao e estado de autenticacao — e a diferenca entre "tente daqui a
 // pouco" e "voce foi deslogado", que a resposta carrega e o booleano perde.
 let lastExchangeStatus: number | null = null;
+
+/**
+ * Identity carried by the last successful token exchange.
+ *
+ * The exchange already validates the Kratos cookie server-side, so the BFF has
+ * the session in hand and returns the subset the dashboard reads. Caching it
+ * here is what lets `getSession()` stop calling Kratos from the browser — and
+ * with it stop receiving devices[].ip_address and recovery_addresses, which no
+ * screen has ever read.
+ */
+let lastIdentity: ExchangedIdentity | null = null;
+
+export interface ExchangedIdentity {
+  id: string;
+  email: string;
+  name?: string;
+  verifiable_addresses?: { value: string; verified: boolean; via: string }[];
+  authentication_methods?: { method: string; provider?: string }[];
+}
+
+/** The identity from the most recent successful exchange, if any. */
+export function getExchangedIdentity(): ExchangedIdentity | null {
+  return lastIdentity;
+}
 
 /**
  * #324, forma final. As tres rodadas anteriores enumeravam o lado TRANSITORIO
@@ -144,9 +191,14 @@ export async function exchangeSessionToken(): Promise<boolean> {
       }
       lastExchangeStatus = resp.status;
 
-      const data = await resp.json() as { access_token: string; expires_in: number };
+      const data = await resp.json() as {
+        access_token: string;
+        expires_in: number;
+        identity?: ExchangedIdentity;
+      };
       accessToken = data.access_token;
       tokenExpiresAt = Date.now() + (data.expires_in * 1000) - 60000; // 60s buffer
+      lastIdentity = data.identity ?? null;
 
       // SECURITY: do NOT broadcast the token. Each tab exchanges its own token
       // from its Kratos session cookie on demand (see ensureToken).
@@ -211,6 +263,7 @@ function redirectToLogin(reason?: string): void {
 export function clearToken(): void {
   accessToken = null;
   tokenExpiresAt = 0;
+  lastIdentity = null;
 }
 
 /** Logout — clears token and broadcasts to other tabs. */
@@ -244,9 +297,6 @@ export async function cloudFetch<T>(path: string, options: RequestInit = {}, cfg
   }
   return fetchWithAuth<T>(API_BASE, path, token, options, true, cfg.throwOnError === true, cfg.onResponse);
 }
-
-// Alias for backward compatibility during migration
-export { cloudFetch as apiFetch };
 
 // Engine API calls proxied through cloud service.
 export async function engineFetch<T>(path: string, options: RequestInit = {}, cfg: CloudFetchConfig = {}): Promise<T | null> {

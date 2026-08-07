@@ -16,12 +16,13 @@
 // is set, and Vite's dead-code-elimination drops the import in prod builds
 // because the env var is statically resolvable at build time).
 
-import type { Session } from './auth';
+import type { Session } from './api/types';
 
-/** Single source of truth for "is the dev mock layer active?". */
-export function mocksEnabled(): boolean {
-  return import.meta.env.VITE_USE_MOCKS === 'true';
-}
+// B-049 — `mocksEnabled` mora em ./config para que api.ts e auth.ts (producao)
+// nao precisem importar deste modulo de fixtures. Re-exportado aqui porque os
+// consumidores internos e o harness de e2e ja o pegavam por este caminho.
+export { mocksEnabled } from './config';
+import { mocksEnabled } from './config';
 
 /**
  * Logged-out mock mode — when `VITE_USE_MOCKS=true` AND EITHER the build-time
@@ -391,11 +392,6 @@ export function installKratosMocks(): void {
 
     // Pass through anything that's not a Kratos self-service path
     if (!url.includes('/self-service/')) {
-      return originalFetch!(input, init);
-    }
-
-    // Pass through Kratos /sessions/whoami — handled by getMockSession() in auth.ts
-    if (url.includes('/sessions/whoami')) {
       return originalFetch!(input, init);
     }
 

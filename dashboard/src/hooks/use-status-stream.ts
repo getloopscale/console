@@ -191,6 +191,20 @@ export function useStatusStream(
     }
 
     const url = `/engine/api/v1/projects/${encodeURIComponent(projectName)}/signals/stream?env=${encodeURIComponent(env)}`;
+    // SEGURANCA (B-088) — `withCredentials: true` autentica por COOKIE, e nao
+    // por `?token=<jwt>` na URL como a primitiva `useSSEStream` faz.
+    //
+    // B-015 unificou este hook na primitiva, o que trouxe refresh de token e
+    // reconexao com backoff — e, sem que eu tivesse percebido na hora, TROCOU a
+    // autenticacao de cookie por JWT em query string. Revertido: o ganho de
+    // resiliencia nao paga o custo de expor o token de sessao.
+    //
+    // O JWT que `ensureSSEToken()` devolve NAO e efemero nem escopado ao stream:
+    // e o MESMO bearer que autentica toda a API. Numa query string ele chega a
+    // access logs de nginx/Caddy/Cloudflare, ao historico do navegador, ao header
+    // Referer e a qualquer proxy no caminho.
+    //
+    // NAO migre este hook para useSSEStream sem que B-088 esteja resolvido.
     const es = new EventSource(url, { withCredentials: true });
 
     const handleOpen = () => setConnected(true);

@@ -10,7 +10,7 @@ for the Theo MCP Gateway.
 
 Both workflows run on a **self-hosted runner** — the `usetheodev` org's GitHub-hosted minutes are
 currently billing-blocked, so CI executes on a DigitalOcean droplet (runner `theo-ci-theo-cloud`;
-cross-repo runbook in the `theo-data` workspace).
+cross-repo runbook in the `theo-workspace` umbrella).
 
 The org convention is `ci.yml` (the per-repo test gate) + `publish.yml` (the image build, a thin
 caller of the shared reusable `theo/build-publish.yml`).
@@ -27,9 +27,9 @@ digests + cosign result before the run is recorded.
 ## Governance
 
 This repo is driven by the **Cycle 6+1** pipeline (discover → plan → implement → code-quality →
-review → release → analysis). The full contract — rules, skills, knowledge-base — lives under
-[`.claude/`](./.claude). See [`CHANGELOG.md`](./CHANGELOG.md) for the change log and
-[`ROADMAP.md`](./ROADMAP.md) for milestones.
+review → release → analysis). The pipeline contract (`.claude/`), the `CHANGELOG.md` and the
+`ROADMAP.md` are no longer versioned here — they were removed in the docs cleanup (`8cbc8e7`).
+Release history is the git tag list; current design docs live under [`docs/`](./docs).
 
 ## License
 

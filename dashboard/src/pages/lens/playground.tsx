@@ -3,7 +3,7 @@ import { GitCompareArrows, Play, Plus } from 'lucide-react';
 import { Badge, Button } from '@usetheo/ui';
 
 import type { TraceSpanNode } from '@/lib/trace-layout';
-import { asChat } from './trace-detail';
+import { asChat } from './trace-detail/helpers';
 import { TracePeekSheet } from './traces/peek-sheet';
 import { BaselineColumn } from './playground/baseline-column';
 import { VariantColumn, type VariantColumnHandle } from './playground/variant-column';

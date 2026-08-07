@@ -16,7 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/serviceversions"
+	"github.com/usetheoai/theo-cloud/internal/serviceversions"
 )
 
 // fakeCollector stands in for the real fan-out so the handler contract is tested

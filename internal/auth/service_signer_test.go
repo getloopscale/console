@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-contracts/serviceauth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-contracts/serviceauth"
 )
 
 // TestServiceSigner_AttachAddsAllThreeHeaders — happy path: a configured

@@ -18,7 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 func rotateRequest(t *testing.T, keyID string, body string, u *auth.UserContext) *http.Request {

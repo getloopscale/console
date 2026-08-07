@@ -3,8 +3,8 @@ import { Loader2 } from 'lucide-react';
 import { Button, Input, Label, Select } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
-import { engineFetch } from '@/lib/api';
 import { useEngineApi } from '@/hooks/use-api';
+import { useAddDomain } from '@/hooks/mutations/use-domains';
 import { useEnvironments } from '@/hooks/use-environments';
 import type { Domain, Project } from '@/lib/api/types';
 
@@ -33,6 +33,7 @@ export function AddDomainSheet({
   const [environment, setEnvironment] = useState('production');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const addDomain = useAddDomain();
 
   // M18: bind project / app / environment from real sources instead of free text,
   // so a typo can't register a domain against a non-existent workload.
@@ -51,10 +52,11 @@ export function AddDomainSheet({
     }
     setSubmitting(true);
     try {
-      const res = await engineFetch<Domain>('/api/v1/domains', {
-        method: 'POST',
-        body: JSON.stringify({ domain, project, app, environment }),
-      });
+      // B-017 — passa pelo hook de mutation em vez do engineFetch cru. O POST era
+      // identico; o que faltava era o onSuccess que invalida a lista. Sem ele,
+      // adicionar um dominio nao atualizava a tabela por tras do sheet, e o
+      // consumidor (domains.tsx) nem sequer passa onAdded — entao NADA acontecia.
+      const res = await addDomain.mutateAsync({ domain, project, app, environment });
       if (res === null) {
         setError("Couldn't add domain. Try again in a moment.");
         return;

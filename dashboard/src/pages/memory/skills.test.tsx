@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
-import { render, screen } from '@/test/render';
+import { render, screen, waitFor} from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({
@@ -68,13 +68,43 @@ describe('SkillsPage (/memory/skills)', () => {
     expect(mockCloudFetch).toHaveBeenCalled();
   });
 
-  it('search forwards the q query param', async () => {
+  it('search forwards the q query param — apos o debounce (B-050)', async () => {
     mockCloudFetch.mockResolvedValue({ skills: [], total: 0, truncated: false });
     render(<SkillsPage />);
     const input = await screen.findByLabelText(/search/i);
     await userEvent.type(input, 'csv');
-    // last call carries q=csv
-    expect(mockCloudFetch).toHaveBeenLastCalledWith(expect.stringContaining('q=csv'), expect.anything(), expect.objectContaining({ throwOnError: true }));
+
+    // B-050 — a busca passou a ser debouncida: antes cada tecla disparava um GET
+    // (tres requests para "csv"), agora sai um so depois que a digitacao para.
+    // O waitFor e o que torna o teste honesto sobre esse contrato — sem ele, ele
+    // afirmaria que a request e sincrona com a tecla, que e justamente o defeito.
+    await waitFor(() => {
+      expect(mockCloudFetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('q=csv'),
+        expect.anything(),
+        expect.objectContaining({ throwOnError: true }),
+      );
+    });
+  });
+
+  it('NAO dispara uma request por tecla — o defeito que B-050 fechou', async () => {
+    mockCloudFetch.mockResolvedValue({ skills: [], total: 0, truncated: false });
+    render(<SkillsPage />);
+    const input = await screen.findByLabelText(/search/i);
+
+    const antes = mockCloudFetch.mock.calls.length;
+    await userEvent.type(input, 'csv');
+    // Tres teclas. Antes de B-050 cada uma entrava na queryKey e disparava um GET.
+    const durante = mockCloudFetch.mock.calls.length - antes;
+    expect(durante).toBeLessThan(3);
+
+    await waitFor(() => {
+      expect(mockCloudFetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('q=csv'),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
   });
 
   it('pagination: Next advances offset; Previous is disabled on the first page', async () => {

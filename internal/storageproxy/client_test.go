@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/storage"
-	"github.com/usetheodev/theo-cloud/internal/storage/share"
+	"github.com/usetheoai/theo-cloud/internal/storage"
+	"github.com/usetheoai/theo-cloud/internal/storage/share"
 )
 
 // upstream is a minimal stand-in for the theo-storage service. It records the

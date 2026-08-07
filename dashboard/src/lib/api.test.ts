@@ -4,7 +4,10 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { engineFetch, exchangeSessionToken, cloudFetch, ApiError, sessionDefinitivelyExpired } from './api';
 
-vi.mock('./config', () => ({ API_URL: 'http://test.local' }));
+// B-049 — `mocksEnabled` passou a morar em ./config (era ./dev-mocks), para que
+// api.ts — o modulo mais importado do repo — nao dependa do modulo de fixtures.
+// O mock precisa declarar o valor: sem mocks de dev, e sempre false.
+vi.mock('./config', () => ({ API_URL: 'http://test.local', mocksEnabled: () => false }));
 
 // ---------------------------------------------------------------------------
 // T6.1 / find_sec_004 — the JWT must NEVER transit the BroadcastChannel.
@@ -20,6 +23,11 @@ beforeAll(() => {
 describe('dashboard auth cross-tab coordination', () => {
   it('never broadcasts the JWT over BroadcastChannel (find_sec_004)', async () => {
     const api = await import('./api');
+    // B-042 — o canal deixou de ser aberto como efeito colateral de import e
+    // passou a ter ciclo de vida explicito, entao o teste instala antes de
+    // exercitar o logout. A asserção de seguranca abaixo e a mesma: nenhum
+    // segredo pode transitar pelo canal.
+    const disposeChannel = api.installAuthChannel();
     posted.length = 0;
 
     api.logout(); // the only path that broadcasts
@@ -33,6 +41,7 @@ describe('dashboard auth cross-tab coordination', () => {
     }
     // Logout coordination (carries no secret) is still present.
     expect(posted.some((m) => (m as { type?: string }).type === 'logged-out')).toBe(true);
+    disposeChannel();
   });
 });
 

@@ -17,7 +17,7 @@ export interface SessionRow {
   last_activity_at?: string;
 }
 
-export function useSessionsQuery() {
+function useSessionsQuery() {
   return useQuery({
     queryKey: ['cloud', '/v1/dashboard/memory/sessions'] as const,
     queryFn: () =>
@@ -32,7 +32,7 @@ export function useSessionsQuery() {
 }
 
 /** Short human handle for a session id (full id stays in the option title). */
-export function sessionLabel(s: SessionRow): string {
+function sessionLabel(s: SessionRow): string {
   const shortId = s.session_id.length > 10 ? `${s.session_id.slice(0, 10)}…` : s.session_id;
   return `${shortId} · ${s.memory_count} ${s.memory_count === 1 ? 'memory' : 'memories'}`;
 }

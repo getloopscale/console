@@ -79,9 +79,6 @@ export function errorRateValues(traffic: TrafficBucket[]): number[] {
 export function p95Values(latency: LatencyBucket[]): number[] {
   return latency.map((l) => l.p95Ms);
 }
-export function costValues(cost: { costUsd: number }[]): number[] {
-  return cost.map((b) => b.costUsd);
-}
 
 /**
  * Per-period total cost from the range-scoped by-model rows, in chronological period order. Lets the

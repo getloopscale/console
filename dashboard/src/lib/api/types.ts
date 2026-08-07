@@ -71,10 +71,25 @@ export interface App {
 
 export interface Project {
   name: string;
+  /**
+   * @deprecated B-063 — forma legada. O backend passou a emitir `apps_count` e
+   * `latest_framework` via LATERAL join (T2.1), e as duas paginas que liam
+   * `apps` ja usam os campos novos com este array apenas como fallback
+   * (`projects.tsx:89-90`). Sunset: remover quando a engine confirmar que
+   * nenhuma resposta em producao ainda traz `apps[]` — a confirmacao e do
+   * backend, nao deste repo.
+   */
   apps?: App[];
   last_deploy?: string | null;     // ISO timestamp; null if never deployed
   last_deploy_status?: ProjectStatus;
-  environment?: string;            // legacy singular (pre-M2); kept for backward compat
+  /**
+   * @deprecated B-063 — singular legado, anterior ao M2. Substituido pela
+   * familia `*_env_count`. Sobrevive como ultimo elo da cadeia de fallback de
+   * quatro niveis em `projects.tsx:174` e `project-detail.tsx:182`. Sunset:
+   * remover junto com o ultimo `?? (p.environment ? 1 : 0)`, o que exige
+   * confirmar com a engine que `active_env_count` chega sempre.
+   */
+  environment?: string;
   // T2.1 + ADR D2 (plan 2026-06-08-dashboard-screens-review-fixes):
   // per-project total env count, derived server-side via LEFT JOIN
   // LATERAL on environment_targets. The dashboard /projects table
@@ -756,4 +771,43 @@ export interface Invoice {
   period_start: string;
   period_end: string;
   hosted_invoice_url: string;
+}
+
+// ---------------------------------------------------------------------------
+// Sessao Kratos.
+//
+// Estes tres tipos moravam em `src/lib/auth.ts`. Foram movidos para ca porque
+// `dev-mocks.ts` precisa do `Session` e `auth.ts` precisa das funcoes de
+// `dev-mocks` — o import de tipo de volta fechava o ciclo
+// `api.ts -> dev-mocks.ts -> auth.ts` que o madge reportava (B-039).
+//
+// Este modulo e a ACL de tipos do backend e nao importa nada, entao e o unico
+// destino que nao pode reintroduzir o ciclo. `auth.ts` re-exporta os tres, de
+// modo que `@/lib/auth` continua sendo a superficie publica para os ~10
+// consumidores existentes.
+// ---------------------------------------------------------------------------
+
+export interface VerifiableAddress {
+  value: string;
+  verified: boolean;
+  via: string;
+}
+
+export interface AuthenticationMethod {
+  method: string;
+  provider?: string;
+  completed_at?: string;
+}
+
+export interface Session {
+  active: boolean;
+  identity: {
+    id: string;
+    traits: {
+      email: string;
+      name?: string;
+    };
+    verifiable_addresses?: VerifiableAddress[];
+  };
+  authentication_methods?: AuthenticationMethod[];
 }

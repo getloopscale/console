@@ -39,7 +39,7 @@ import (
 
 // Injected at link time by the container build:
 //
-//	-ldflags "-X github.com/usetheodev/theo-cloud/internal/version.Version=$V ..."
+//	-ldflags "-X github.com/usetheoai/theo-cloud/internal/version.Version=$V ..."
 //
 // The defaults are the unstamped-build sentinels and are NOT interchangeable — see the note on
 // Version below.

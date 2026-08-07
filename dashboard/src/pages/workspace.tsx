@@ -20,6 +20,26 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch, cloudFetchRaw } from '@/lib/api';
 import { presignedUpload, presignedDownloadURL, type PresignDeps } from './workspace-presign';
 import { useWorkspaceSelection } from './use-workspace-selection';
+
+// Dominio do workspace mora em ./workspace/helpers para que use-workspace-selection
+// e workspace-preview-sheet possam consumi-lo sem importar desta pagina — era esse
+// import de volta que fechava os dois ciclos (B-038). O re-export mantem
+// `@/pages/workspace` como superficie publica.
+import {
+  FOLDER_MARKER,
+  deriveEntries,
+  formatBytes,
+  previewKind,
+  type StorageFile,
+} from './workspace/helpers';
+export {
+  deriveEntries,
+  formatBytes,
+  previewKind,
+  type StorageFile,
+  type WorkspaceEntries,
+  type PreviewKind,
+} from './workspace/helpers';
 import { WorkspacePreviewSheet } from './workspace-preview-sheet';
 import { NewFolderDialog } from './new-folder-dialog';
 
@@ -28,12 +48,6 @@ import { NewFolderDialog } from './new-folder-dialog';
  * (derived from the `/` in each object key), multi-select + bulk/folder delete,
  * upload, in-app New-folder dialog, and a side-panel preview. Product language only.
  */
-
-export interface StorageFile {
-  path: string;
-  size: number;
-  content_type: string;
-}
 
 interface ListResult {
   files: StorageFile[];
@@ -47,61 +61,8 @@ interface UsageInfo {
   unlimited: boolean;
 }
 
-/** Empty marker object that makes an otherwise-empty folder visible; hidden from the file list. */
-const FOLDER_MARKER = '.keep';
-
-export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let v = n / 1024;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(1)} ${units[i]}`;
-}
-
-export interface WorkspaceEntries {
-  folders: string[];
-  files: StorageFile[];
-}
-
-/**
- * Split a flat object list into the folders and files that live directly under
- * `prefix` (e.g. `""` for root, `"data/"` for a subfolder). Keys deeper than this
- * level contribute their first segment as a folder; the `.keep` marker is hidden.
- */
-export function deriveEntries(all: StorageFile[], prefix: string): WorkspaceEntries {
-  const folders = new Set<string>();
-  const files: StorageFile[] = [];
-  for (const f of all) {
-    if (!f.path.startsWith(prefix)) continue;
-    const rest = f.path.slice(prefix.length);
-    if (rest === '') continue;
-    const slash = rest.indexOf('/');
-    if (slash === -1) {
-      if (rest === FOLDER_MARKER) continue;
-      files.push(f);
-    } else {
-      folders.add(rest.slice(0, slash));
-    }
-  }
-  return {
-    folders: [...folders].sort((a, b) => a.localeCompare(b)),
-    files: files.sort((a, b) => a.path.localeCompare(b.path)),
-  };
-}
-
 function encodePath(p: string): string {
   return p.split('/').map(encodeURIComponent).join('/');
-}
-
-export type PreviewKind = 'text' | 'image' | 'none';
-export function previewKind(ct: string): PreviewKind {
-  if (ct.startsWith('image/')) return 'image';
-  if (ct.startsWith('text/') || /(json|javascript|typescript|xml|yaml|markdown|csv|x-sh|html)/i.test(ct)) return 'text';
-  return 'none';
 }
 
 function fileIcon(ct: string) {

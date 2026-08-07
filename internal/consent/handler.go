@@ -21,7 +21,7 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // expiredLinkHTML is the canonical error page rendered when the Hydra

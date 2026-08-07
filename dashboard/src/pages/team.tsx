@@ -11,8 +11,10 @@ import {
   Table,
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
+import { useQuery } from '@tanstack/react-query';
+import { engineFetch } from '@/lib/api';
+import { queryKeys } from '@/lib/api/query-keys';
 import { usePageMeta } from '@/hooks/use-page-meta';
-import { useEngineApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { InviteMemberSheet } from "@/components/sheets/invite-member-sheet";
 import { useRemoveMember, useUpdateMemberRole } from '@/hooks/mutations/use-team';
@@ -40,7 +42,21 @@ export function TeamPage() {
   useRequireAuth();
   const { setPageTitle } = usePageMeta();
 
-  const { data, loading } = useEngineApi<TeamResponse>('/api/v1/teams/members');
+  // B-060 — a lista precisa morar na MESMA hierarquia que as mutations invalidam.
+  // Antes usava useEngineApi (chave ['engine', path]) enquanto useInviteMember e
+  // useRemoveMember invalidavam ['team']: convidar ou remover um membro nunca
+  // atualizava a tabela.
+  //
+  // throwOnError deliberado, nao o escape hatch silent-null-ok: esta pagina nunca
+  // leu a flag `error`, entao uma falha de rede renderizava a lista VAZIA — o
+  // operador le "seu time nao tem ninguem" quando a verdade e "nao consegui
+  // perguntar" (#274). Com throwOnError a falha sobe para o RouteBoundary.
+  const teamQuery = useQuery({
+    queryKey: queryKeys.team.list(),
+    queryFn: () => engineFetch<TeamResponse>('/api/v1/teams/members', {}, { throwOnError: true }),
+  });
+  const data = teamQuery.data ?? null;
+  const loading = teamQuery.isLoading;
   const members = data?.members ?? [];
   const [searchQuery, setSearchQuery] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);

@@ -10,7 +10,7 @@ make dev-logs    # tail backend logs   (dashboard log: dev/.vite.log)
 ```
 
 Requires `docker`, `docker compose`, `go`, `node`/`npm`. The sibling TheMemory
-repo is expected at `../../theo-data/theo-memory` (override `THEMORY_DIR`).
+repo is expected at `../theo-memory` (override `THEMORY_DIR`).
 First run builds the TheMemory image + installs dashboard deps (slow; cached after).
 
 ## What you get

@@ -11,7 +11,7 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // tenantEnsurer is the slice of *auth.TenantProvisioner the resolver needs. An interface (not the

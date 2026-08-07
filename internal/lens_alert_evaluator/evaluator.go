@@ -14,7 +14,7 @@ import (
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/usetheodev/theo-cloud/internal/metrics"
+	"github.com/usetheoai/theo-cloud/internal/metrics"
 	"time"
 )
 

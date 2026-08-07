@@ -9,8 +9,7 @@ import {
 } from '@usetheo/ui';
 import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
-import { ensureSSEToken } from '@/lib/api';
-import { API_URL } from '@/lib/config';
+import { cloudFetchRaw } from '@/lib/api';
 import { useStartRollback, useEndRollback } from '@/hooks/use-rollback-in-flight';
 import type { Build, RollbackResponse } from '@/lib/api/types';
 
@@ -79,24 +78,23 @@ export function RollbackDialog({
     });
 
     try {
-      const token = await ensureSSEToken();
-      if (!token) {
-        endRollback(projectName);
-        dismiss(progressId);
-        toast({
-          title: 'Rollback failed',
-          description: 'Session expired. Sign in again and retry the rollback.',
-          variant: 'destructive',
-        });
-        return;
-      }
-      const resp = await fetch(
-        `${API_URL}/engine/api/v1/projects/${encodeURIComponent(projectName)}/rollback`,
+      // B-013 — passa por cloudFetchRaw em vez de window.fetch cru.
+      //
+      // O caminho anterior pegava o JWT via ensureSSEToken() — o helper do
+      // EventSource — e montava o fetch a mao. Isso saía do pipeline de auth do
+      // client: sem retry-apos-refresh no 401 e sem o interceptor de 402 (limite
+      // de plano). Num POST que promove ou reverte producao, perder o refresh
+      // significa que uma sessao renovavel vira "Session expired" na cara do
+      // operador no pior momento possivel.
+      //
+      // cloudFetchRaw devolve a Response, entao o tratamento de erro por status
+      // + corpo abaixo continua identico — o que muda e quem obtem o token.
+      const resp = await cloudFetchRaw(
+        `/engine/api/v1/projects/${encodeURIComponent(projectName)}/rollback`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
             'Idempotency-Key': crypto.randomUUID(),
           },
           body: JSON.stringify({
@@ -106,6 +104,16 @@ export function RollbackDialog({
           credentials: 'include',
         },
       );
+      if (!resp) {
+        endRollback(projectName);
+        dismiss(progressId);
+        toast({
+          title: 'Rollback failed',
+          description: 'Session expired. Sign in again and retry the rollback.',
+          variant: 'destructive',
+        });
+        return;
+      }
       dismiss(progressId);
       if (!resp.ok) {
         endRollback(projectName);

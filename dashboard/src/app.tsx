@@ -601,6 +601,10 @@ export default function App() {
                     {/* M21 — distinct from /projects/:name/status: this one is the platform-wide aggregate. */}
                     <Route path="/status" element={<Boundaried path="/status"><StatusPage /></Boundaried>} />
                     <Route path="/settings" element={<Boundaried path="/settings"><SettingsPage /></Boundaried>} />
+                    {/* PLACEHOLDER · rastreio B-082 · revisar ate 2026-11-06.
+                        Rota navegavel que renderiza EmptyState + comando de CLI. Na revisao,
+                        ou vira implementacao ou sai JUNTO com a entrada de nav — um placeholder
+                        nao e uma feature, e sem data ele vira uma para quem le o menu. */}
                     <Route
                       path="/settings/members"
                       element={
@@ -614,6 +618,10 @@ export default function App() {
                         </Boundaried>
                       }
                     />
+                    {/* PLACEHOLDER · rastreio B-082 · revisar ate 2026-11-06.
+                        Rota navegavel que renderiza EmptyState + comando de CLI. Na revisao,
+                        ou vira implementacao ou sai JUNTO com a entrada de nav — um placeholder
+                        nao e uma feature, e sem data ele vira uma para quem le o menu. */}
                     <Route
                       path="/settings/billing"
                       element={
@@ -648,6 +656,10 @@ export default function App() {
                         </Boundaried>
                       }
                     />
+                    {/* PLACEHOLDER · rastreio B-082 · revisar ate 2026-11-06.
+                        Rota navegavel que renderiza EmptyState + comando de CLI. Na revisao,
+                        ou vira implementacao ou sai JUNTO com a entrada de nav — um placeholder
+                        nao e uma feature, e sem data ele vira uma para quem le o menu. */}
                     <Route
                       path="/settings/notifications"
                       element={
@@ -661,6 +673,10 @@ export default function App() {
                         </Boundaried>
                       }
                     />
+                    {/* PLACEHOLDER · rastreio B-082 · revisar ate 2026-11-06.
+                        Rota navegavel que renderiza EmptyState + comando de CLI. Na revisao,
+                        ou vira implementacao ou sai JUNTO com a entrada de nav — um placeholder
+                        nao e uma feature, e sem data ele vira uma para quem le o menu. */}
                     <Route
                       path="/settings/danger"
                       element={
@@ -675,6 +691,10 @@ export default function App() {
                       }
                     />
                     <Route path="/profile" element={<Boundaried path="/profile"><ProfilePage /></Boundaried>} />
+                    {/* PLACEHOLDER · rastreio B-082 · revisar ate 2026-11-06.
+                        Rota navegavel que renderiza EmptyState + comando de CLI. Na revisao,
+                        ou vira implementacao ou sai JUNTO com a entrada de nav — um placeholder
+                        nao e uma feature, e sem data ele vira uma para quem le o menu. */}
                     <Route
                       path="/profile/security"
                       element={
@@ -688,6 +708,10 @@ export default function App() {
                         </Boundaried>
                       }
                     />
+                    {/* PLACEHOLDER · rastreio B-082 · revisar ate 2026-11-06.
+                        Rota navegavel que renderiza EmptyState + comando de CLI. Na revisao,
+                        ou vira implementacao ou sai JUNTO com a entrada de nav — um placeholder
+                        nao e uma feature, e sem data ele vira uma para quem le o menu. */}
                     <Route
                       path="/profile/sessions"
                       element={
@@ -701,6 +725,10 @@ export default function App() {
                         </Boundaried>
                       }
                     />
+                    {/* PLACEHOLDER · rastreio B-082 · revisar ate 2026-11-06.
+                        Rota navegavel que renderiza EmptyState + comando de CLI. Na revisao,
+                        ou vira implementacao ou sai JUNTO com a entrada de nav — um placeholder
+                        nao e uma feature, e sem data ele vira uma para quem le o menu. */}
                     <Route
                       path="/profile/danger"
                       element={

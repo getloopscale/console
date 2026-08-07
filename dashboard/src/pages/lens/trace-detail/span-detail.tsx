@@ -9,7 +9,7 @@ import { spanOwnCostUsd } from '@/lib/trace-layout';
 import { detectPii } from '@/lib/otel-attributes';
 import { LensPlayground } from '../playground';
 import { durationMs, type TraceSpanNode } from './helpers';
-import { Markdown } from './markdown';
+import { Markdown } from '@/components/common/markdown';
 import { toTraceSpan } from './to-trace-span';
 
 /**

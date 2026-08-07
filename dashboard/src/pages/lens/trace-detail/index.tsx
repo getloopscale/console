@@ -33,7 +33,7 @@ import { formatCost, formatDuration, formatNumber, formatTokens } from '@/lib/fo
  *
  * The pure helpers + `TraceSpanNode` live in `./helpers`; the presentational tree/detail components
  * live in `./tree`. The old `../trace-detail.tsx` is now a D1 re-export shim so existing imports
- * (`trace-detail.test.tsx`, `compare.tsx`, `compare-core.ts`, `playground.tsx`) keep resolving.
+ * (`trace-detail.test.tsx`, `compare.tsx`, `playground.tsx`) keep resolving.
  */
 
 /** One segment of the Tree ⇄ Transcript ⇄ Graph view toggle. */

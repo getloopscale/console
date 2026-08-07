@@ -15,8 +15,11 @@ import {
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
-import { useEngineApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { engineFetch } from '@/lib/api';
+import { queryKeys } from '@/lib/api/query-keys';
+import { useDomainStatusPolling } from '@/hooks/use-domain-status-polling';
 import { useDeleteDomain, useVerifyDomain } from '@/hooks/mutations/use-domains';
 import { formatDate } from '@/lib/format';
 import { NSInstructionsCard } from '@/components/domains/ns-instructions-card';
@@ -130,11 +133,64 @@ function DnsRecordsRow({ domain, columnCount }: { domain: Domain; columnCount: n
  * expandable composite, no click-to-expand state. The information is
  * actionable so it always shows.
  */
+/**
+ * Observa um dominio ainda nao-terminal e atualiza a lista quando ele resolve.
+ *
+ * B-030 — `useDomainStatusPolling` existia, testado, sem NENHUM consumidor. E o
+ * problema que ele resolve e real: depois de adicionar um dominio ou clicar em
+ * Verify, o status muda quando o DNS propaga — do lado de fora do navegador.
+ * Sem alguem observando, a tabela mostrava "Pending DNS" ate o operador
+ * recarregar a pagina por conta propria.
+ *
+ * Observa APENAS um dominio — o mesmo pendente que o NSInstructionsCard ja
+ * destaca — em vez de um por linha. Uma conexao de polling por linha pendente
+ * seria N vezes o custo para o mesmo ganho: o operador acompanha um dominio de
+ * cada vez, que e o que acabou de adicionar.
+ *
+ * O hook para sozinho ao atingir estado terminal e quando a aba fica oculta.
+ * Nao renderiza nada: quem mostra o estado e a tabela, que este componente so
+ * faz revalidar.
+ */
+function DomainStatusWatcher({ domainName }: { domainName: string }) {
+  const queryClient = useQueryClient();
+  const { data, isPolling } = useDomainStatusPolling(domainName);
+  const statusObservado = data?.status;
+
+  useEffect(() => {
+    // Enquanto pollar, o estado ainda esta em transito. Quando o polling PARA
+    // com um status em maos, ele chegou ao terminal — e a lista, que foi lida
+    // antes, esta velha.
+    if (!isPolling && statusObservado) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.domains.all });
+    }
+  }, [isPolling, statusObservado, queryClient]);
+
+  return null;
+}
+
 export function DomainsPage() {
   useRequireAuth();
   useSetPageTitle('Domains');
 
-  const { data, loading } = useEngineApi<DomainsResponse>('/api/v1/domains');
+  // B-017 — a lista precisa morar na MESMA hierarquia que as mutations invalidam.
+  // Antes ela usava useEngineApi, cuja chave e ['engine', '/api/v1/domains'],
+  // enquanto useDeleteDomain/useVerifyDomain invalidavam ['domains']: dois
+  // namespaces disjuntos, entao verificar ou remover um dominio NUNCA atualizava
+  // a tabela — o usuario via o estado velho ate recarregar a pagina.
+  //
+  // `throwOnError: true` e deliberado, e NAO e o escape hatch `silent-null-ok`.
+  // O useEngineApi que estava aqui antes tolerava um null resolvido porque SEU
+  // consumidor trata `data === null` como erro — mas esta pagina nunca leu a flag
+  // `error` que ele devolvia. Na pratica, uma falha de rede renderizava a tabela
+  // VAZIA, que o operador le como "voce nao tem nenhum dominio" quando a verdade
+  // e "nao consegui perguntar" — exatamente a classe que silent-null-guard fecha
+  // (#274). Com throwOnError a falha sobe para o RouteBoundary da rota.
+  const domainsQuery = useQuery({
+    queryKey: queryKeys.domains.list(),
+    queryFn: () => engineFetch<DomainsResponse>('/api/v1/domains', {}, { throwOnError: true }),
+  });
+  const data = domainsQuery.data ?? null;
+  const loading = domainsQuery.isLoading;
   const domains = data?.domains ?? [];
   const [verifying, setVerifying] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -221,6 +277,8 @@ export function DomainsPage() {
         if (!pendingWithNS) return null;
         return (
           <div className="mb-6">
+            {/* B-030 — observa este mesmo dominio ate ele resolver. */}
+            <DomainStatusWatcher domainName={pendingWithNS.domain} />
             <NSInstructionsCard
               nameservers={pendingWithNS.nameservers}
               domainName={pendingWithNS.domain}

@@ -5,6 +5,7 @@ import { TheoUIProvider, violetForge } from '@theokit/ui';
 import App from './app';
 import { RouteBoundary } from './components/error/route-boundary';
 import { queryClient } from './lib/query-client';
+import { installAuthChannel } from './lib/api';
 import { initWebVitals } from './lib/rum';
 import './index.css';
 
@@ -38,6 +39,12 @@ if (import.meta.env.VITE_USE_MOCKS === 'true') {
     mocks.installAllMocks();
   });
 }
+
+// B-042 — o canal de coordenacao de logout entre abas e aberto AQUI, no boot,
+// e nao como efeito colateral de importar lib/api. Aquele modulo tem 151
+// importadores; abrir um BroadcastChannel e registrar um handler que redireciona
+// a pagina a cada import era invisivel e sem teardown.
+installAuthChannel();
 
 // T-DR-5.2 v1.2 (Phase 5) — Web Vitals RUM reporter per ADR D8.
 // Dev: console.log LCP/INP/CLS with verdict. Prod: ready to POST to

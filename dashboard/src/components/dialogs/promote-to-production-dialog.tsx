@@ -8,8 +8,7 @@ import {
 } from '@usetheo/ui';
 import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
-import { ensureSSEToken } from '@/lib/api';
-import { API_URL } from '@/lib/config';
+import { cloudFetchRaw } from '@/lib/api';
 import { useStartMutation, useEndMutation } from '@/hooks/use-mutation-in-flight';
 import type { Build, PromoteResponse } from '@/lib/api/types';
 
@@ -95,8 +94,34 @@ export function PromoteToProductionDialog({
     });
 
     try {
-      const token = await ensureSSEToken();
-      if (!token) {
+      // Backend contract retained: POST /promote { from, to }. The
+      // preview env name is the source (we know the deploy is in a
+      // preview env because the caller hides this action for prod
+      // deploys); the target is always production.
+      //
+      // B-013 — passa por cloudFetchRaw em vez de window.fetch cru. O caminho
+      // anterior pegava o JWT via ensureSSEToken() (o helper do EventSource) e
+      // montava o fetch a mao, saindo do pipeline de auth do client: sem
+      // retry-apos-refresh no 401 e sem o interceptor de 402 (limite de plano).
+      // Promover para producao e exatamente onde perder o refresh custa mais.
+      // cloudFetchRaw devolve a Response, entao o tratamento por status + corpo
+      // abaixo segue identico — muda quem obtem o token.
+      const resp = await cloudFetchRaw(
+        `/engine/api/v1/projects/${encodeURIComponent(projectName)}/promote`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': crypto.randomUUID(),
+          },
+          body: JSON.stringify({
+            from: sourceBuild.environment,
+            to: 'production',
+          }),
+          credentials: 'include',
+        },
+      );
+      if (!resp) {
         endMutation(projectName);
         dismiss(progressId);
         toast({
@@ -107,26 +132,6 @@ export function PromoteToProductionDialog({
         });
         return;
       }
-      // Backend contract retained: POST /promote { from, to }. The
-      // preview env name is the source (we know the deploy is in a
-      // preview env because the caller hides this action for prod
-      // deploys); the target is always production.
-      const resp = await fetch(
-        `${API_URL}/engine/api/v1/projects/${encodeURIComponent(projectName)}/promote`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            'Idempotency-Key': crypto.randomUUID(),
-          },
-          body: JSON.stringify({
-            from: sourceBuild.environment,
-            to: 'production',
-          }),
-          credentials: 'include',
-        },
-      );
       dismiss(progressId);
       if (!resp.ok) {
         endMutation(projectName);

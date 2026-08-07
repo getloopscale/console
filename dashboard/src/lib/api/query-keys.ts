@@ -56,6 +56,26 @@ export const queryKeys = {
   // J-20 Scale plan v1.1 — scale queryKey canonical. The hook is a
   // mutation (no list query yet) so only `all` is defined. Future read
   // endpoints (e.g., GET current scaling state per env) attach here.
+  // B-018 — o recurso domains tinha DOIS namespaces independentes: as mutations
+  // invalidavam ['domains'] e o polling de status lia ['engine', '/api/v1/domains/:name'].
+  // Invalidar um nunca alcancava o outro, entao um verify/delete bem-sucedido deixava
+  // o detalhe servindo dado velho ate o gc. Uma hierarquia unica resolve: invalidar
+  // ['domains'] agora alcanca lista E detalhe.
+  domains: {
+    all: ['domains'] as const,
+    list: (filters?: Record<string, unknown>) =>
+      ['domains', 'list', filters ?? {}] as const,
+    detail: (name: string | undefined) => ['domains', 'detail', name] as const,
+  },
+  // B-060 — mesmo defeito de domains (B-017/B-018): as mutations invalidavam
+  // ['team'] enquanto team.tsx lia a lista com useEngineApi, cuja chave e
+  // ['engine', '/api/v1/teams/members']. Arvores disjuntas, entao convidar ou
+  // remover um membro nunca atualizava a tabela.
+  team: {
+    all: ['team'] as const,
+    list: (filters?: Record<string, unknown>) =>
+      ['team', 'list', filters ?? {}] as const,
+  },
   scale: {
     all: ['scale'] as const,
     detail: (project: string, env: string) =>

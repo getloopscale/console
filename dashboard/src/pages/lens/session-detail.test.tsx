@@ -8,6 +8,12 @@ const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
 import { LensSessionDetailPage } from './session-detail';
+// Importado, e nao repetido como literal: o teste afirmava "exactly
+// CONVERSATION_TURN_CAP (50)" num COMENTARIO e assertava 50 no codigo. Com o
+// numero duplicado, mudar o cap deixava o teste vermelho apontando para um
+// magic number em vez de acompanhar a constante — e a constante ficava
+// exportada para ninguem, que foi como o gate a encontrou.
+import { CONVERSATION_TURN_CAP } from './session-detail/session-conversation';
 
 /**
  * M9 — /observability/sessions/:sessionId. The detail page fetches the session's traces
@@ -148,7 +154,7 @@ describe('LensSessionDetailPage (/observability/sessions/:sessionId)', () => {
 
   it('M132 (review HIGH/MED) — a >50-turn session caps at 50 turns + a "view all" link (earliest kept)', async () => {
     // 51 traces returned NEWEST-first (start desc) — the cap must keep the EARLIEST 50, not the latest.
-    const many = Array.from({ length: 51 }, (_, i) => ({
+    const many = Array.from({ length: CONVERSATION_TURN_CAP + 1 }, (_, i) => ({
       traceId: `tr-${i}`,
       startTimeUnixNano: String(1000 - i), // i=0 is newest (1000), i=50 is oldest (950)
     }));
@@ -160,9 +166,11 @@ describe('LensSessionDetailPage (/observability/sessions/:sessionId)', () => {
     });
     renderAt('sess-abc');
     await userEvent.click(await screen.findByRole('tab', { name: /conversation/i }));
-    // exactly CONVERSATION_TURN_CAP (50) turn cards + the overflow link disclosing the true total.
-    expect(await screen.findByText(/view all 51 traces/i)).toBeInTheDocument();
-    expect(screen.getAllByTestId('conversation-turn')).toHaveLength(50);
+    // exactly CONVERSATION_TURN_CAP turn cards + the overflow link disclosing the true total.
+    expect(
+      await screen.findByText(new RegExp(`view all ${CONVERSATION_TURN_CAP + 1} traces`, 'i')),
+    ).toBeInTheDocument();
+    expect(screen.getAllByTestId('conversation-turn')).toHaveLength(CONVERSATION_TURN_CAP);
   });
 
   it('M132 (review MED) — a failed per-trace fetch shows "(could not load this turn)", others still render', async () => {

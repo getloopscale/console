@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button, Card } from '@usetheo/ui';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   INTERFACES,
   gerarTrechoDeConsumo,
@@ -125,9 +126,12 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
                       // `writeText` pode falhar (permissão negada, contexto inseguro). Falhar em
                       // silêncio deixaria o operador colando o que estava antes na área de
                       // transferência — e concluindo que copiou este trecho.
-                      void navigator.clipboard
-                        .writeText(trecho)
-                        .then(() => {
+                      // B-031 — mesmo motivo do live-url-hero: `navigator.clipboard`
+                      // e undefined fora de contexto seguro, e o operador via a
+                      // falha mesmo com o fallback de execCommand disponivel.
+                      void copyToClipboard(trecho)
+                        .then((ok) => {
+                          if (!ok) throw new Error('copy failed');
                           setCopiada(iface.id);
                           // Volta a "Copiar": sem isto o rótulo fica preso, e o operador não
                           // distingue "copiei agora" de "copiei há dez minutos".

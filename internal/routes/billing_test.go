@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // Plan release-blockers-2026-06-25-set T4.2 — closes theo-cloud#39.

@@ -135,19 +135,34 @@ html[data-density] {
    * NOTE: dark-scope override lives in the `.dark { … }` block below —
    * @usetheo/ui/tokens.css redeclares `--primary` under `.dark` (line 166),
    * so a :root-only override is DEAD in the app's actual runtime theme.
-   * Red Team #163 v1 caught this via getComputedStyle. Keeping this
-   * :root declaration too so a future light-mode surface also benefits. */
-  --primary: oklch(0.50 0.16 296.97);
+   * Red Team #163 v1 caught this via getComputedStyle.
+   *
+   * B-034 — MEDIDO em 2026-08-06 no app BUILDADO (vite preview + Chrome headless,
+   * getComputedStyle(document.documentElement)): o valor efetivo e
+   * `oklch(0.57 0.13 302)`, vindo do tema do TheoUIProvider (main.tsx), NAO daqui.
+   * O provider aplica no elemento, o que precede folha de estilo na cascata.
+   *
+   * Esta declaracao fica como FALLBACK pre-hidratacao — e o que pinta a tela entre
+   * o primeiro paint e o React montar — e por isso foi ALINHADA ao valor vencedor.
+   * Antes ela declarava `oklch(0.50 0.16 296.97)`, um roxo diferente: quem abrisse
+   * o dashboard via um flash da cor errada. Divergir do tema aqui nao "reforca" o
+   * contraste, apenas produz dois roxos. */
+  --primary: oklch(0.57 0.13 302);
 }
 
-/* Red Team theo/theo#163 v2 — dark-mode override.
- * Higher specificity than @usetheo/ui/tokens.css `.dark { --primary: … }`
- * on the CSS cascade order (dashboard @import runs after @usetheo/ui, and
- * both selectors have equal specificity — later declaration wins). This
- * is the block the app actually uses at runtime; without it the fix
- * ships dead. */
+/* Red Team theo/theo#163 v2 — dark-mode fallback.
+ *
+ * B-034 — o docblock anterior afirmava "This is the block the app actually uses
+ * at runtime". MEDIDO em 2026-08-06 com `.dark` ATIVO no html: falso. O valor
+ * computado e `oklch(0.57 0.13 302)`, do TheoUIProvider. Este bloco perde para
+ * o tema porque o provider aplica no elemento, nao via folha.
+ *
+ * Duas afirmacoes opostas coexistiam no repo — esta e a de main.tsx:91 ("o
+ * index.css NAO tem efeito no primary") — e nenhum teste distinguia. A medicao
+ * deu razao ao main.tsx. Mantido como fallback pre-hidratacao, alinhado ao valor
+ * vencedor para que nao haja flash de cor divergente. */
 .dark {
-  --primary: oklch(0.50 0.16 296.97);
+  --primary: oklch(0.57 0.13 302);
 }
 
 /* Red Team theo/theo#163 v2 — WCAG 1.4.3 escape for `text-primary` used

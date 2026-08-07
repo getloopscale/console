@@ -26,7 +26,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/usetheodev/theo-cloud/internal/storage/s3x"
+	"github.com/usetheoai/theo-cloud/internal/storage/s3x"
 )
 
 type fixedTier struct{ tier string }

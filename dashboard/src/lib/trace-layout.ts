@@ -10,7 +10,7 @@
  *
  * `TraceSpanNode` + `computeTraceBounds` + `computeBarLayout` moved here from `../pages/lens/
  * trace-detail/helpers.ts`, which now re-exports them so `trace-detail.test.tsx`, the D1 shim,
- * `compare.tsx`, `compare-core.ts`, and `playground.tsx` keep resolving with zero churn.
+ * `compare.tsx` and `playground.tsx` keep resolving with zero churn.
  */
 
 export interface TraceSpanNode {

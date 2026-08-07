@@ -30,22 +30,11 @@ import { TOGGLEABLE_COLUMNS, decodeColumns, encodeColumns, isColumnVisible } fro
 // keeps resolving after the decomposition (behavior-preserving shim; no test churn).
 export type { Trace };
 
-/**
- * M57 T1.1 — convert an OTLP `startTimeUnixNano` (nanoseconds since epoch, as a
- * string) to an ISO string for the timestamp column. Pure + total: nullish,
- * non-numeric, or non-positive (Go zero-time) input returns null so the cell
- * renders the em-dash. BigInt avoids float precision loss on 19-digit ns.
- */
-export function nsToIso(ns: string | undefined | null): string | null {
-  if (!ns) return null;
-  try {
-    const ms = Number(BigInt(ns) / 1_000_000n);
-    if (!Number.isFinite(ms) || ms <= 0) return null;
-    return new Date(ms).toISOString();
-  } catch {
-    return null;
-  }
-}
+// `nsToIso` mora em ./traces/helpers para que traces/columns.tsx possa consumi-lo
+// sem importar do proprio pai — era esse import que fechava o ciclo (B-037).
+// O re-export mantem `@/pages/lens/traces` como superficie publica: session-detail.tsx
+// e traces.test.tsx seguem importando daqui.
+export { nsToIso } from './traces/helpers';
 
 /**
  * M44 — /lens/traces. Read the workspace's traces and manage their human-in-the-loop

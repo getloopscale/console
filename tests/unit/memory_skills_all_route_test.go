@@ -23,8 +23,8 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/themory"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/themory"
 )
 
 // 200 path: a theo_live_* key carrying memory:read reaches the handler, which

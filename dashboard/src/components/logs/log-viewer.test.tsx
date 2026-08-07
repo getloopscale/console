@@ -294,3 +294,147 @@ describe('LogViewer permalink (J-19 T2.1 — R5 SHOULD)', () => {
     ).not.toThrow();
   });
 });
+
+/**
+ * B-025 — o contrato de SCROLL do LogViewer, escrito antes de virtualizar.
+ *
+ * A virtualizacao do viewer estava travada por um motivo honesto: ela troca a
+ * estrutura da lista e mexe justamente em dois comportamentos que ninguem
+ * cobria — o permalink por hash (`#L<n>` depende do indice RENDERIZADO) e o
+ * auto-scroll com deteccao de "usuario rolou para cima". Sem rede, a mudanca
+ * seria feita no escuro.
+ *
+ * A suite ja cobria os caminhos INVALIDOS do permalink (hash malformado, fora de
+ * faixa, ausente) e a escrita do hash no clique. Faltava o caminho FELIZ — o que
+ * de fato acontece quando o link e valido — e o auto-scroll inteiro.
+ *
+ * ## O que estes testes garantem, e onde eles sao acoplados
+ *
+ * Tres dos cinco sao agnosticos de implementacao — falam de `scrollTop`, que e
+ * o estado observavel do container, e passariam sem alteracao numa lista
+ * virtualizada.
+ *
+ * Os DOIS do permalink espiam `scrollIntoView`, e isso e acoplamento assumido,
+ * nao descuido: em jsdom nao ha layout, entao "a linha ficou visivel" nao e
+ * observavel de outro jeito. A consequencia pratica precisa estar escrita aqui:
+ * uma implementacao virtualizada usaria `virtualizer.scrollToIndex` e estes dois
+ * casos PRECISARAO ser adaptados. A PROPRIEDADE a preservar continua a mesma —
+ * seguir `#L<n>` leva a linha n ao centro da vista, e o auto-scroll para de
+ * arrastar o leitor — e e ela que a adaptacao deve manter. Trocar o alvo do
+ * espiao e legitimo; afrouxar a asserção para "nao lanca" nao e.
+ */
+describe('LogViewer — contrato de scroll (B-025, rede para a virtualizacao)', () => {
+  const linhas: LogLine[] = Array.from({ length: 6 }, (_, i) => ({
+    ts: TS,
+    level: 'info' as const,
+    msg: `linha ${i}`,
+  }));
+
+  const base = {
+    connected: true,
+    error: false,
+    paused: false,
+    onTogglePause: vi.fn(),
+    onClear: vi.fn(),
+  };
+
+  beforeEach(() => {
+    window.location.hash = '';
+  });
+
+  afterEach(() => {
+    window.location.hash = '';
+    vi.restoreAllMocks();
+  });
+
+  it('permalink VALIDO rola a linha alvo para a vista (o caminho feliz que faltava)', () => {
+    const scrollIntoView = vi.fn();
+    // jsdom nao implementa scrollIntoView; o stub e o unico jeito de observar.
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    window.location.hash = '#L3';
+
+    render(<LogViewer lines={linhas} {...base} />);
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    // Centralizada: uma linha no rodape da viewport nao ajuda quem seguiu o link.
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' });
+  });
+
+  it('a linha alvo do permalink e a de indice correspondente, nao outra', () => {
+    const alvos: (HTMLElement | null)[] = [];
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value(this: HTMLElement) {
+        alvos.push(this);
+      },
+    });
+    window.location.hash = '#L4';
+
+    render(<LogViewer lines={linhas} {...base} />);
+
+    expect(alvos).toHaveLength(1);
+    // O contrato do permalink e posicional: #L4 e a QUINTA linha.
+    expect(alvos[0]?.getAttribute('data-line-index')).toBe('4');
+    expect(alvos[0]?.textContent).toContain('linha 4');
+  });
+
+  it('linhas novas rolam para o fim enquanto o usuario esta no fim', () => {
+    const { container, rerender } = render(<LogViewer lines={linhas} {...base} />);
+    const scroller = container.querySelector('[class*="overflow"]') as HTMLElement | null;
+    expect(scroller).not.toBeNull();
+
+    // jsdom nao faz layout: scrollHeight e 0 por padrao. Simulamos um conteudo
+    // maior que a viewport para que a intencao do componente seja observavel.
+    Object.defineProperty(scroller!, 'scrollHeight', { configurable: true, value: 1000 });
+    Object.defineProperty(scroller!, 'clientHeight', { configurable: true, value: 200 });
+    scroller!.scrollTop = 0;
+
+    rerender(<LogViewer lines={[...linhas, { ts: TS, level: 'info', msg: 'linha 6' }]} {...base} />);
+
+    // Ancorado no fim: o operador que acompanha um build ao vivo nao deve
+    // precisar rolar a cada linha.
+    expect(scroller!.scrollTop).toBe(1000);
+  });
+
+  it('rolar para CIMA desliga o auto-scroll — a linha lida nao foge', () => {
+    const { container, rerender } = render(<LogViewer lines={linhas} {...base} />);
+    const scroller = container.querySelector('[class*="overflow"]') as HTMLElement | null;
+    Object.defineProperty(scroller!, 'scrollHeight', { configurable: true, value: 1000 });
+    Object.defineProperty(scroller!, 'clientHeight', { configurable: true, value: 200 });
+
+    // Usuario rola para longe do fim e o componente registra isso no onScroll.
+    scroller!.scrollTop = 100;
+    act(() => {
+      scroller!.dispatchEvent(new Event('scroll', { bubbles: true }));
+    });
+
+    rerender(<LogViewer lines={[...linhas, { ts: TS, level: 'info', msg: 'linha 6' }]} {...base} />);
+
+    // Continua onde o usuario deixou: arrastar de volta ao fim durante a leitura
+    // e o defeito que a deteccao de "rolou para cima" existe para evitar.
+    expect(scroller!.scrollTop).toBe(100);
+  });
+
+  it('seguir um permalink desliga o auto-scroll — o alvo fica onde parou', () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    window.location.hash = '#L2';
+
+    const { container, rerender } = render(<LogViewer lines={linhas} {...base} />);
+    const scroller = container.querySelector('[class*="overflow"]') as HTMLElement | null;
+    Object.defineProperty(scroller!, 'scrollHeight', { configurable: true, value: 1000 });
+    Object.defineProperty(scroller!, 'clientHeight', { configurable: true, value: 200 });
+    scroller!.scrollTop = 42;
+
+    rerender(<LogViewer lines={[...linhas, { ts: TS, level: 'info', msg: 'linha 6' }]} {...base} />);
+
+    // Sem isto, quem abre um link para uma linha especifica de um build ainda
+    // rodando e arrastado para o fim assim que a proxima linha chega.
+    expect(scroller!.scrollTop).toBe(42);
+  });
+});

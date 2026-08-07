@@ -15,7 +15,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/auth"
 )
 
 // theo-lens M66 — LensDashboardsHandler. Per-WORKSPACE custom dashboards (tenant_id scoping,

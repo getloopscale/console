@@ -20,8 +20,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/metrics"
-	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheoai/theo-cloud/internal/metrics"
+	"github.com/usetheoai/theo-cloud/internal/routes"
 )
 
 // scrapeMetricCounter renders the /metrics output via metrics.Handler()

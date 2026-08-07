@@ -35,9 +35,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/routes"
-	theojwt "github.com/usetheodev/theo-contracts/jwt"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/routes"
+	theojwt "github.com/usetheoai/theo-contracts/jwt"
 )
 
 // mockKratosServer simulates Kratos /sessions/whoami. behavior is configured
@@ -412,5 +412,114 @@ func TestExchange_LogsCookieNamesNeverValues_WhenKratosRejects(t *testing.T) {
 	}
 	if strings.Contains(logged, sessionCookieValue) {
 		t.Fatalf("VAZAMENTO: o valor do cookie de sessao apareceu no log")
+	}
+}
+
+// mockKratosWithFullSession returns the SHAPE Ory actually returns — including
+// the fields the browser must stop receiving. The exchange already calls
+// /sessions/whoami server-side, so it is the natural place to hand the client
+// the minimum it needs instead of proxying Ory to the browser.
+func mockKratosWithFullSession(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/sessions/whoami" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"active": true,
+			"identity": map[string]any{
+				"id":         "de110292-bcba-498a-94bd-631a755ca5e9",
+				"schema_url": "https://auth-dev.usetheo.dev/schemas/ZGVmYXVsdA",
+				"traits":     map[string]string{"email": "user@example.com", "name": "A User"},
+				"verifiable_addresses": []map[string]any{
+					{"value": "user@example.com", "verified": false, "via": "email", "status": "sent"},
+				},
+				"recovery_addresses": []map[string]any{
+					{"value": "user@example.com", "via": "email"},
+				},
+			},
+			"authentication_methods": []map[string]any{
+				{"method": "oidc", "provider": "google", "aal": "aal1"},
+			},
+			"devices": []map[string]any{
+				{"ip_address": "177.185.23.136", "user_agent": "Mozilla/5.0"},
+			},
+		})
+	}))
+}
+
+// The exchange must hand back the identity the dashboard needs, so the browser
+// never has to call Kratos itself.
+func TestExchange_ReturnsIdentityForTheDashboard(t *testing.T) {
+	kratos := mockKratosWithFullSession(t)
+	defer kratos.Close()
+	h, _ := buildHandler(t, kratos)
+
+	w := postWithCookie(t, h, map[string]string{"ory_kratos_session": "x"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body=%s)", w.Code, w.Body.String())
+	}
+	var body struct {
+		Identity struct {
+			ID                  string `json:"id"`
+			Email               string `json:"email"`
+			Name                string `json:"name"`
+			VerifiableAddresses []struct {
+				Value    string `json:"value"`
+				Verified bool   `json:"verified"`
+				Via      string `json:"via"`
+			} `json:"verifiable_addresses"`
+			AuthenticationMethods []struct {
+				Method   string `json:"method"`
+				Provider string `json:"provider"`
+			} `json:"authentication_methods"`
+		} `json:"identity"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Identity.ID != "de110292-bcba-498a-94bd-631a755ca5e9" {
+		t.Errorf("identity.id = %q, want the Ory identity id", body.Identity.ID)
+	}
+	if body.Identity.Email != "user@example.com" || body.Identity.Name != "A User" {
+		t.Errorf("identity email/name = %q/%q", body.Identity.Email, body.Identity.Name)
+	}
+	if len(body.Identity.VerifiableAddresses) != 1 || body.Identity.VerifiableAddresses[0].Verified {
+		t.Errorf("verifiable_addresses not carried through: %+v", body.Identity.VerifiableAddresses)
+	}
+	if len(body.Identity.AuthenticationMethods) != 1 ||
+		body.Identity.AuthenticationMethods[0].Method != "oidc" ||
+		body.Identity.AuthenticationMethods[0].Provider != "google" {
+		t.Errorf("authentication_methods not carried through: %+v", body.Identity.AuthenticationMethods)
+	}
+}
+
+// The point of moving this server-side: the fields the dashboard never reads
+// must NOT be forwarded. This is the assertion that keeps the endpoint from
+// becoming another passthrough — devices[].ip_address and recovery_addresses
+// are exactly what prompted the change.
+func TestExchange_DoesNotForwardFieldsTheClientNeverReads(t *testing.T) {
+	kratos := mockKratosWithFullSession(t)
+	defer kratos.Close()
+	h, _ := buildHandler(t, kratos)
+
+	w := postWithCookie(t, h, map[string]string{"ory_kratos_session": "x"})
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	raw := w.Body.String()
+	for _, forbidden := range []string{
+		"ip_address",
+		"177.185.23.136",
+		"recovery_addresses",
+		"user_agent",
+		"schema_url",
+	} {
+		if strings.Contains(raw, forbidden) {
+			t.Errorf("response leaks %q — the client does not read it:\n%s", forbidden, raw)
+		}
 	}
 }

@@ -17,7 +17,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/routes"
+	"github.com/usetheoai/theo-cloud/internal/routes"
 )
 
 // routerHeaderRe matches a router key at the 4-space indent under `http.routers:`

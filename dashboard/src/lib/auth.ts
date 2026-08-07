@@ -14,34 +14,21 @@
 // isn't set (dev / same-origin). Production with split domains (Kratos at
 // accounts.theo.dev vs API at api.theo.dev) requires AUTH_URL set explicitly
 // via /__config.js — without this fallback the auth flow breaks silently.
-import { API_URL, AUTH_URL } from './config';
-import { mocksEnabled, getMockSession } from './dev-mocks';
+import { API_URL, AUTH_URL, mocksEnabled } from './config';
+// B-049 — `mocksEnabled` agora vem de ./config (e configuracao, nao fixture).
+// `getMockSession` continua vindo de ./dev-mocks: transforma-lo em injecao no
+// boot (main.tsx) e o passo 2 da remediacao e fica registrado no item, porque
+// muda o ciclo de vida da sessao e merece o seu proprio teste.
+import { getMockSession } from './dev-mocks';
+import { exchangeSessionToken, getExchangedIdentity } from './api';
 const KRATOS_URL = AUTH_URL || API_URL;
 
-export interface VerifiableAddress {
-  value: string;
-  verified: boolean;
-  via: string;
-}
-
-export interface AuthenticationMethod {
-  method: string;
-  provider?: string;
-  completed_at?: string;
-}
-
-export interface Session {
-  active: boolean;
-  identity: {
-    id: string;
-    traits: {
-      email: string;
-      name?: string;
-    };
-    verifiable_addresses?: VerifiableAddress[];
-  };
-  authentication_methods?: AuthenticationMethod[];
-}
+// Os tipos de sessao moram em ./api/types (a ACL de tipos do backend, que nao
+// importa nada) para que dev-mocks.ts possa consumir `Session` sem importar
+// deste modulo — era esse import de volta que fechava o ciclo (B-039).
+// O re-export mantem `@/lib/auth` como superficie publica dos consumidores.
+export type { VerifiableAddress, AuthenticationMethod, Session } from './api/types';
+import type { Session } from './api/types';
 
 // OIDC providers whose email verification we trust (MEET-037 security mandate).
 const TRUSTED_OIDC_PROVIDERS = ['github', 'google'];
@@ -92,27 +79,43 @@ export async function getSession(): Promise<Session | null> {
   if (mocksEnabled()) return getMockSession();
 
   try {
-    const resp = await fetch(`${KRATOS_URL}/sessions/whoami`, {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    });
-    if (!resp.ok) {
+    // The BFF exchange validates the Kratos cookie server-side and returns the
+    // identity subset this app reads. Going through it — instead of calling
+    // Kratos from the browser — is what keeps devices[].ip_address and
+    // recovery_addresses out of the page: they are never sent, so no XSS can
+    // read them from here.
+    //
+    // exchangeSessionToken() de-duplicates in-flight calls, so a screen that
+    // asks for the session while a refresh is running does not add a request.
+    const ok = await exchangeSessionToken();
+    if (!ok) {
       // eslint-disable-next-line no-console
       console.warn(
-        `[auth] getSession: Kratos returned HTTP ${resp.status} (no active session). ` +
+        `[auth] getSession: session exchange failed (no active session). ` +
           `If you just registered/logged in but see this, the session cookie may not have been ` +
           `set (open DevTools → Application → Cookies → usetheo.dev and look for ory_kratos_session). ` +
           `Clear cookies and re-login to reset.`,
       );
       return null;
     }
-    const session = await resp.json();
-    if (!session.active) {
+    const identity = getExchangedIdentity();
+    if (!identity) {
+      // A 200 without an identity means the BFF is older than this dashboard.
+      // Fail closed: a session we cannot describe is not a session we should
+      // act on.
       // eslint-disable-next-line no-console
-      console.warn('[auth] getSession: Kratos returned session but active=false', session);
+      console.warn('[auth] getSession: exchange succeeded but carried no identity');
       return null;
     }
-    return session;
+    return {
+      active: true,
+      identity: {
+        id: identity.id,
+        traits: { email: identity.email, name: identity.name },
+        verifiable_addresses: identity.verifiable_addresses,
+      },
+      authentication_methods: identity.authentication_methods,
+    };
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[auth] getSession: network/parse error', err);
@@ -123,11 +126,6 @@ export async function getSession(): Promise<Session | null> {
 /** Start login flow — redirect to Kratos login UI. */
 export function startLogin(): void {
   window.location.href = `${KRATOS_URL}/self-service/login/browser`;
-}
-
-/** Start registration flow. */
-export function startRegistration(): void {
-  window.location.href = `${KRATOS_URL}/self-service/registration/browser`;
 }
 
 /** Get verification URL — redirects to Kratos verification flow. */

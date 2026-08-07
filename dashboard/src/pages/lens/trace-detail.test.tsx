@@ -16,7 +16,8 @@ vi.mock('react-resizable-panels', () => ({
   PanelResizeHandle: (props: Record<string, unknown>) => <div role="separator" {...props} />,
 }));
 
-import { LensTraceDetail, durationMs, prettyValue, asChat, computeBarLayout } from './trace-detail';
+import { LensTraceDetail } from './trace-detail/index';
+import { durationMs, prettyValue, asChat, computeBarLayout } from './trace-detail/helpers';
 import { ancestors } from './trace-detail/breadcrumb';
 
 /**

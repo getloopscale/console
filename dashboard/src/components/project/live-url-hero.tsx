@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Copy, ExternalLink } from 'lucide-react';
 import { Badge, Card, Skeleton } from '@usetheo/ui';
 import type { ProjectStatusDetail } from '@/lib/api/types';
+import { copyToClipboard } from '@/lib/clipboard';
 
 /**
  * LiveUrlHero — T1.1 of plan 2026-06-12-dashboard-journey-j25-live-url-discoverability v1.2.
@@ -17,7 +18,7 @@ import type { ProjectStatusDetail } from '@/lib/api/types';
  *   as `https://<project>-<env>.<baseDomain>` (e.g., https://teste-production.usetheo.dev
  *   for dev-public). Per ADR D1, this is the single source of truth — zero backend change.
  *
- * Copy affordance uses navigator.clipboard.writeText + a transient ARIA-live region
+ * Copy affordance uses `copyToClipboard` (secure-context aware, com fallback) + uma regiao ARIA-live transitoria
  * ("Copied" message announced to AT for 2s). Avoids introducing a Toaster scaffolding
  * dependency for test setup; accessibility canonical.
  */
@@ -112,12 +113,15 @@ export function LiveUrlHero({
   }
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopyMessage('Copied');
-    } catch {
-      setCopyMessage('Copy failed');
-    }
+    // B-031 — usa `copyToClipboard` em vez de `navigator.clipboard` cru.
+    //
+    // O helper existia, testado, sem NENHUM consumidor. E ele resolve um caso
+    // real: `navigator.clipboard` exige contexto seguro (W3C), entao em
+    // `http://192.168.x.x:5173` — o pareamento de dev em LAN — o objeto e
+    // `undefined`, a chamada lanca, e o operador via "Copy failed" mesmo com o
+    // fallback de `document.execCommand` disponivel e funcionando.
+    const ok = await copyToClipboard(url);
+    setCopyMessage(ok ? 'Copied' : 'Copy failed');
   };
 
   return (

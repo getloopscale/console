@@ -34,6 +34,13 @@ export {
 
 export { registerAllMockHandlers, resetMockDB } from './handlers';
 
+/**
+ * O sentinela mora em `./fixtures` — o modulo mais profundo da cadeia, para que
+ * um import direto dele tambem acione o gate. Reexportado aqui por conveniencia
+ * de quem consome o barrel. Ver o docblock la para o porque.
+ */
+export { MOCKS_BUNDLE_SENTINEL } from './fixtures';
+
 /** Single-call install for main.tsx. Idempotent + env-gated. */
 export function installAllMocks(): void {
   registerAllMockHandlers();

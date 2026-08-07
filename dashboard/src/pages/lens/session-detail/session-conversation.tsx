@@ -6,7 +6,7 @@ import { IOCards } from '@usetheo/ui';
 import { cloudFetch } from '@/lib/api';
 import { shortId } from '@/lib/format';
 import type { TraceSpanNode } from '@/lib/trace-layout';
-import { Markdown } from '../trace-detail/markdown';
+import { Markdown } from '@/components/common/markdown';
 import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } from './to-conversation-turns';
 
 /**

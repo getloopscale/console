@@ -33,11 +33,37 @@ interface UseLogStreamResult {
   clear: () => void;
 }
 
+/**
+ * Teto FIFO de linhas mantidas em memoria.
+ *
+ * B-016 — exportado porque o SNAPSHOT historico (REST) precisa do mesmo numero.
+ * O stream sempre respeitou este cap; o snapshot entrava inteiro, entao um build
+ * com centenas de milhares de linhas anulava a protecao antes do primeiro evento
+ * SSE chegar. Duplicar o literal 5000 do outro lado seria criar a proxima
+ * divergencia silenciosa.
+ */
+export const MAX_LOG_LINES = 5000;
+
+/**
+ * Aplica o teto FIFO a um lote de linhas, mantendo as ULTIMAS.
+ *
+ * B-016 — o stream ja capava via `maxEvents`; o snapshot historico (REST) nao
+ * tinha equivalente, entao um build grande anulava a protecao antes do primeiro
+ * evento SSE chegar. Esta funcao e a regra compartilhada pelos dois caminhos.
+ *
+ * Mantem o FIM e nao o inicio porque em log e o fim que interessa — e porque e o
+ * que o FIFO do stream sempre preservou. Trocar o lado silenciosamente faria o
+ * historico e o vivo discordarem sobre qual metade e a relevante.
+ */
+export function capLogLines<T>(lines: readonly T[], max: number = MAX_LOG_LINES): T[] {
+  return lines.length <= max ? [...lines] : lines.slice(-max);
+}
+
 export function useLogStream(
   path: string | null,
   options: UseLogStreamOptions = {},
 ): UseLogStreamResult {
-  const { maxLines = 5000, paused = false } = options;
+  const { maxLines = MAX_LOG_LINES, paused = false } = options;
 
   const stream = useSSEStream<LogLine | string>(path, {
     maxEvents: maxLines,

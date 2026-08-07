@@ -72,17 +72,6 @@ export async function submitFlow(action: string, method: string, body: Record<st
   return resp.json();
 }
 
-/** Extract input nodes from a flow (excludes CSRF, hidden, submit). */
-export function getInputNodes(flow: Flow, group?: string): FlowNode[] {
-  return flow.ui.nodes.filter(n => {
-    if (n.attributes.type === 'hidden') return false;
-    if (n.attributes.type === 'submit') return false;
-    if (n.attributes.name === 'csrf_token') return false;
-    if (group && n.group !== group && n.group !== 'default') return false;
-    return n.attributes.type === 'text' || n.attributes.type === 'email' || n.attributes.type === 'password';
-  });
-}
-
 /** Extract CSRF token from a flow. */
 export function getCsrfToken(flow: Flow): string {
   const node = flow.ui.nodes.find(n => n.attributes.name === 'csrf_token');

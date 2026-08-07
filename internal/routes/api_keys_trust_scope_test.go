@@ -3,7 +3,7 @@ package routes
 import (
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/trust"
+	"github.com/usetheoai/theo-cloud/internal/trust"
 )
 
 // TestTrustScopesRegistered trava os escopos trust:* no registro ativo — cruzando com a

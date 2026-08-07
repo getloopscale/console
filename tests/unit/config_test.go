@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/usetheodev/theo-cloud/internal/config"
+	"github.com/usetheoai/theo-cloud/internal/config"
 )
 
 func TestConfigLoadDefaults(t *testing.T) {

@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/usetheodev/theo-cloud/internal/auth"
-	"github.com/usetheodev/theo-cloud/internal/rag"
+	"github.com/usetheoai/theo-cloud/internal/auth"
+	"github.com/usetheoai/theo-cloud/internal/rag"
 )
 
 // stubRagDataClient records the calls; it never talks to a real theo-rag.

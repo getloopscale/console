@@ -22,7 +22,7 @@ make e2e-logs     # tail the stack logs
 ```
 
 Requires `docker`, `docker compose`, and `go`. The sibling TheMemory repo is
-expected at `../../theo-data/theo-memory` (override with `THEMORY_DIR=/path`).
+expected at `../theo-memory` (override with `THEMORY_DIR=/path`).
 First run builds the TheMemory image (slow; cached afterwards).
 
 ## What it proves

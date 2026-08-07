@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { engineFetch } from '@/lib/api';
+import { queryKeys } from '@/lib/api/query-keys';
 import type { Domain, DomainStatus } from '@/lib/api/types';
 
 /**
@@ -52,7 +53,7 @@ export function useDomainStatusPolling(
 ): UseDomainStatusPollingResult {
   const visible = useDocumentVisible();
   const query = useQuery({
-    queryKey: ['engine', `/api/v1/domains/${domainName}`] as const,
+    queryKey: queryKeys.domains.detail(domainName),
     queryFn: () => engineFetch<Domain>(`/api/v1/domains/${encodeURIComponent(domainName ?? '')}`, {}, { throwOnError: true }),
     enabled: !!domainName,
     refetchInterval: (q) => {

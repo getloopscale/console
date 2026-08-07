@@ -15,7 +15,7 @@ import { Select } from '@usetheo/ui';
  * Per `.claude/rules/cli-output.md § Rule 3`, this UX uses product language
  * ("Last X hours"); internal terms (Loki, since) stay backend-only.
  */
-export const TIME_RANGE_PRESETS = [
+const TIME_RANGE_PRESETS = [
   { value: '5m', label: 'Last 5 min' },
   { value: '15m', label: 'Last 15 min' },
   { value: '1h', label: 'Last 1 hour' },
