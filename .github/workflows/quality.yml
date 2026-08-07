@@ -98,6 +98,14 @@ jobs:
         # O `grep` nao e zelo: sem ele, remover `-tags=integration` ou acrescentar um `-run` que nao
         # casa devolve `ok … [no tests to run]` com EXIT 0 — o job fica verde e o portao nao rodou.
         # A saida e a unica prova de que o teste executou de fato.
+        #
+        # `shell: bash` NAO e cosmetico: o shell default de `run:` no GitHub Actions e
+        # `bash -e {0}`, SEM `pipefail`. Com `go test | tee`, o exit code visto pelo job e o
+        # do `tee` — sempre 0. Um revisor reproduziu: `--- FAIL` no log e o step verde. O
+        # `grep` guardava contra "no tests to run", nao contra teste FALHANDO; bastava o
+        # teste nomeado imprimir PASS em algum ponto. `shell: bash` adiciona `-o pipefail` e
+        # e o que faz a falha chegar ao job.
+        shell: bash
         run: |
           go test -tags=integration -count=1 -timeout 3m -v ./internal/auth/... | tee /tmp/integ.log
           grep -q 'PASS: TestIntegracao_OComandoDeRegistroEValidoNoPostgres' /tmp/integ.log \

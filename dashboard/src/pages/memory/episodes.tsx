@@ -78,7 +78,16 @@ export function EpisodesPage() {
       if (debouncedQuery) params.set('q', debouncedQuery);
       if (asOf) params.set('asOf', asOf);
       if (pageParam) params.set('after', pageParam);
-      return cloudFetch<EpisodesPage>(`/v1/dashboard/memory/episodes?${params.toString()}`);
+      // throwOnError para que uma falha vire `query.isError` em vez de uma lista
+      // vazia. Sem isso o `cloudFetch` devolvia `null`, o branch de erro logo
+      // abaixo era INALCANCAVEL, e a tela dizia "No episodes yet" — ou seja,
+      // "voce nao tem nenhum" quando a verdade era "nao consegui perguntar".
+      // Mesmo padrao ja usado na pagina irma `entities.tsx:100`.
+      return cloudFetch<EpisodesPage>(
+        `/v1/dashboard/memory/episodes?${params.toString()}`,
+        undefined,
+        { throwOnError: true },
+      );
     },
     getNextPageParam: (last) => last?.nextCursor ?? undefined,
   });
@@ -168,7 +177,7 @@ export function EpisodesPage() {
 
       {query.isLoading ? (
         <p className="text-muted-foreground mt-6 text-sm">Loading episodes…</p>
-      ) : items.length === 0 ? (
+      ) : query.isError ? null : items.length === 0 ? (
         <div className="mt-6">
           <EmptyState
             icon={History}
