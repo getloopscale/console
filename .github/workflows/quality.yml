@@ -167,8 +167,18 @@ jobs:
       # entradas apontavam para chunks que o manual-chunks.ts nao emite mais
       # (theo-ui, radix, lucide), e o glob do TOTAL era `dist/assets/*.js`, que
       # somava os 129 chunks — inclusive os lazy que o usuario nunca baixa no
-      # primeiro paint. Um gate que passa por apontar para arquivo inexistente e
-      # pior que gate nenhum: produz um verde que nao significa nada.
+      # primeiro paint.
+      #
+      # CORRECAO de 2026-08-07: este comentario dizia que as entradas obsoletas
+      # produziam "um verde que nao significa nada". Um revisor testou o
+      # mecanismo em diretorio isolado e o `size-limit` FALHA ALTO num glob sem
+      # correspondencia ("Size Limit can't find files at ...", exit 1) — ele
+      # nunca passa por apontar para arquivo inexistente. O defeito real era
+      # outro, e mais simples: este passo e NOVO neste diff, entao a config
+      # obsoleta nunca chegou a rodar em CI. Nao produzia verde falso; nao
+      # produzia nada. O reancoramento seguia necessario — sem ele o passo novo
+      # nasceria vermelho —, mas a justificativa escrita atribuia a ferramenta um
+      # comportamento que ela nao tem.
       #
       # Reancorado nos chunks reais e no conjunto EAGER (os 4 com modulepreload
       # em dist/index.html), com os limites nos valores MEDIDOS. Isso trava a

@@ -228,7 +228,7 @@ export default [
       // decomposto; nenhuma linha nova entra sem ADR.
       'src/pages/api-keys.tsx', // 954 LOC
       'src/pages/promptly/detail.tsx', // 915 LOC
-      'src/lib/api/types.ts', // 798 LOC
+      'src/lib/api/types.ts', // 813 LOC
       'src/lib/mocks/handlers.ts', // 797 LOC
       'src/app.tsx', // 757 LOC
       'src/pages/recovery.tsx', // 711 LOC

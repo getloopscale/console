@@ -22,7 +22,7 @@ está em `system-design-output/final_report.md`.
 | Arquivos de produção | 375 (mediana 113 LOC, p90 401, máx 955) |
 | Arestas de import internas | 1.084 |
 | Arestas cross-feature | **90** — 70 delas para `use-auth` |
-| Arestas ascendentes (`components`/`hooks`/`lib` → `pages`) | **0** |
+| Arestas ascendentes (`components`/`hooks`/`lib` → `pages`) | **0** — número REFUTADO pela própria promoção: ao virar regra executável (B-070), o lint achou `components/lens/ask-thread.tsx` importando de `pages/`. A auditoria media zero; a medição estava errada. É a lição do documento inteiro em uma linha — uma fronteira sem verificação é uma preferência, e uma métrica sem verificação é um palpite. |
 | Ciclos de import | **1** (eram 8 antes de B-001/B-037/B-038/B-039) |
 
 **A leitura que importa:** o acoplamento é baixo e a direção das camadas está correta. O
@@ -50,8 +50,7 @@ A regra é contável, e é isso que a torna verificável em vez de opinativa. El
 três perguntas que hoje não têm resposta escrita:
 
 - **Quando um domínio vira pasta?** Sempre.
-- **O que é API pública de uma feature?** O `index.ts`. Hoje existem **zero** deles nas 30
-  subpastas de `src/components/`.
+- **O que é API pública de uma feature?** O `index.ts`. Hoje existe **um** (`components/layout/index.ts`, anterior a esta promoção) nas **28** subpastas de `src/components/`.
 - **O que pode morar em `lib/`?** Só o que 2+ features consomem. Hoje são 7 de 39 módulos.
 
 ## Fronteiras que hoje NÃO são verificadas
@@ -63,10 +62,19 @@ verificação é uma preferência, não uma fronteira.**
 |---|---|
 | `madge` | Existe apenas como binário **global** na máquina do dev. Não é devDependency, não roda em CI. |
 | `dependency-cruiser` | Idem. A auditoria tentou usá-lo e obteve `modules: 0`. |
-| `import/no-restricted-paths` | **Não configurado.** |
-| `no-restricted-imports` (`eslint.config.js:89`) | Única regra de fronteira executável — e bane exatamente **um** símbolo de terceiro por causa de um bug upstream. |
+| `import/no-restricted-paths` | **Não configurado.** Continua assim — `eslint-plugin-import` não está instalado. |
+| `no-restricted-imports` | **Três** blocos desde B-070: o ban do `Alert` (símbolo de terceiro, bug upstream #175) e dois de direção de camada — `hooks`/`components` não importam de `pages/`, e `lib` não importa de nenhum dos dois. |
+| `max-lines` (B-033) | 500 LOC por arquivo, com allowlist de 18 arquivos que carrega o LOC de cada um. |
 
-Enquanto isso não mudar, este documento é intenção, não contrato. O passo que o converte em
+**Correção de 2026-08-07:** as duas linhas acima diziam que `no-restricted-imports` era a
+única regra de fronteira e banía um símbolo. Isso valia quando este documento foi escrito
+(15:34) e deixou de valer três horas depois, quando B-070 entrou — o documento eleito como
+contrato de arquitetura descrevia errado o próprio `eslint.config.js`. A revisão de
+promoção apontou; vale registrar que quem escreveu as duas coisas foi a mesma sessão.
+
+O que segue verdadeiro: nenhuma ferramenta detecta CICLO em CI. `madge` não é
+devDependency e o único ciclo remanescente (B-001) é protegido por um comentário, não por
+um gate. O passo que o converte em
 contrato está em ADR-0001 § Consequências: adicionar `dependency-cruiser` às
 devDependencies, criar `.dependency-cruiser.cjs` com as regras e plugá-lo no CI.
 
@@ -88,7 +96,7 @@ correção é sempre o mesmo: o domínio desce para um módulo folha e a página
 ## Orçamento de LoC por arquivo
 
 Ver [`adr/0002-orcamento-de-loc-por-arquivo.md`](adr/0002-orcamento-de-loc-por-arquivo.md).
-A incoerência que ele resolve: `app.tsx` tem 729 linhas — 49 a mais que o `trace-detail.tsx`
+A incoerência que ele resolve: `app.tsx` tem 757 linhas — 49 a mais que o `trace-detail.tsx`
 que foi refatorado inteiro por "estourar o orçamento de 500". Ou a regra vale para a raiz
 também, ou não vale para ninguém.
 
