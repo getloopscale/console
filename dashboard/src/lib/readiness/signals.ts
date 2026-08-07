@@ -44,7 +44,7 @@ export interface SignalDefinition {
  *
  * Add a route to this allowlist when the corresponding J-XX feature ships.
  */
-export const KNOWN_ROUTES: ReadonlySet<string> = new Set([
+const KNOWN_ROUTES: ReadonlySet<string> = new Set([
   '/projects/:name', // J-08 detail page
   '/projects/:name/scale', // J-20 v0.16.0 ✅
   '/projects/:name/secrets', // J-22 ✅

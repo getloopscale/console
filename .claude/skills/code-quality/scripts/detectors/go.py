@@ -46,7 +46,13 @@ class GoDetector(BaseDetector):
 
     def detect_dead_code(self, repo_root: Path) -> list[Finding]:
         """Run `deadcode -json ./...` and parse JSON list into Findings."""
-        cmd = ["deadcode", "-json", "./..."]
+        # `-test` inclui os pacotes de teste como raizes de alcancabilidade. Sem ele o
+        # deadcode enxerga so o binario, e todo seam existente PARA teste —
+        # `WithInsecureCookieForTests`, `WithClock`, os contadores exercitados em
+        # metrics_test.go — aparece como codigo morto. Reportar um seam de teste como
+        # morto convida a apaga-lo, e apagar um seam quebra o teste que o usa: o gate
+        # estaria empurrando na direcao errada.
+        cmd = ["deadcode", "-test", "-json", "./..."]
         try:
             result = subprocess.run(
                 cmd,

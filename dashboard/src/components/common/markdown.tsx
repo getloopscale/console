@@ -14,7 +14,7 @@ import { Button } from '@usetheo/ui';
 
 // Size guard: a markdown body longer than this many characters is truncated with a "Show more"
 // affordance so a pathological megabyte-string payload cannot lock the render.
-export const MAX_MARKDOWN_CHARS = 8000;
+const MAX_MARKDOWN_CHARS = 8000;
 
 /**
  * Render `source` as sanitized markdown. Empty string → renders nothing; plain text → verbatim. Over

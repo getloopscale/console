@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react';
-import { Badge, Button, DropdownMenu } from '@usetheo/ui';
+import { Badge, DropdownMenu } from '@usetheo/ui';
 import { useWhoami } from '@/hooks/use-whoami';
 import { useSwitchTeam } from '@/hooks/mutations/use-switch-team';
 
@@ -140,9 +140,3 @@ export function TeamSwitcher({ fallbackName, onCreateTeam }: TeamSwitcherProps) 
     </DropdownMenu>
   );
 }
-
-// Compatibility re-export for default-export shape if needed
-export default TeamSwitcher;
-
-// Helper re-export to keep callers from importing Button (avoid unused-import warnings in test environments)
-export { Button };

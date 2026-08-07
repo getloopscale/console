@@ -32,7 +32,7 @@ const ATRIBUTO_DO_PROMPT = 'prompt.id';
  * **A premissa era falsa** — `view-encoding.ts` vive neste mesmo dashboard; o `theo-lens` é o
  * serviço, e toda tela do ecossistema nasce aqui. A `/acceptance` pegou.
  */
-export const COLUNAS_DE_RESOLUCAO: ColumnState = {
+const COLUNAS_DE_RESOLUCAO: ColumnState = {
   visibility: { model: false, latency: true, tokens: false, cost: false, evals: false },
   density: 'comfortable',
 };

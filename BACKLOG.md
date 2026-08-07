@@ -1642,6 +1642,42 @@ nota_sobre_as_saidas: EventSource nao suporta headers customizados — e essa a 
 
 relacionado: B-015 (revertido por causa deste achado — a unificacao na primitiva teria levado o quinto stream para o mesmo caminho)
 
+## B-089 — A virtualizacao da arvore de spans foi planejada e nunca construida   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: discover-review
+severity: low (heuristic)
+category: unfinished_feature
+evidence: medido em 2026-08-06 pelo gate /code-quality (knip) — `@tanstack/react-virtual@^3.13.26` declarada em dashboard/package.json e ZERO import estatico; as tres ocorrencias no codigo eram comentarios (trace-detail/index.tsx:29, trace-detail/helpers.ts:46, logs/log-viewer.tsx:59) e `VIRTUALIZE_THRESHOLD = 200` em helpers.ts:49 nao era lido por ninguem.
+provenance: nao consta da auditoria /loop-system-design; surgiu ao habilitar o gate de code-quality, que estava inteiramente desligado.
+why_now: a dependencia e o limiar foram REMOVIDOS na limpeza que fechou o gate — este item existe para que a intencao nao se perca junto com os vestigios. O comentario que sobrou em log-viewer.tsx ("we'd need react-virtual — deferred") continua descrevendo o problema real: a arvore de spans renderiza recursivamente sem teto.
+status: raw
+dod:
+  - existe medicao de quantos spans um trace real tem em p95 (hoje nao existe — o comentario afirma "a handful" sem numero)
+  - OU a virtualizacao entrega, OU o item e killed com a medicao mostrando que o volume nao justifica
+
+nota: `log-viewer.tsx` ja tem teto de 5.000 linhas (B-016). A arvore de spans e a lista de traces nao tem equivalente medido.
+
+## B-090 — Dois subsistemas Go so sao alcancados por teste   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: discover-review
+severity: medium (heuristic)
+category: test_only_module
+evidence: medido em 2026-08-06 com `deadcode -test -json ./...` comparado a `deadcode` sem `-test`. `metering.NewTracker` (internal/metering/tracker.go:21) e `auth.NewIdentityMigrator` (internal/auth/migration.go:29) so aparecem como alcancaveis quando os pacotes de teste entram como raizes; os unicos chamadores sao tests/unit/metering_test.go:15 e tests/unit/migration_test.go:15. Nenhum caminho de producao os constroi.
+provenance: nao consta da auditoria /loop-system-design (que cobriu apenas dashboard/). Surgiu ao habilitar `go` no gate de code-quality.
+why_now: e o mesmo padrao que `src/lib/test-only-module-guard.test.ts` quantifica no dashboard — codigo com teste verde que producao nunca executa. A suite reporta cobertura sobre um caminho morto, o que e verdadeiro e irrelevante. `IdentityMigrator` em particular faz ponte entre identidades Kratos e usuarios legados: se a migracao nunca roda, ou ela ja nao e necessaria (apagar) ou ha uma ponte faltando (ligar).
+status: raw
+dod:
+  - para cada um dos dois: OU existe chamador de producao, OU o subsistema foi removido com seus testes
+  - a decisao de cada um esta registrada, porque apagar uma migracao de identidade nao e faxina
+
+nota_sobre_o_gate: `deadcode -test` e a configuracao correta (sem ela, todo seam de teste — `WithInsecureCookieForTests`, `WithClock` — aparece como morto e o gate empurra para apaga-lo, quebrando o teste que o usa). O custo e este: "alcancavel so por teste" deixa de ser visivel para a ferramenta. Por isso o achado virou item em vez de ficar so no relatorio.
+
 
 ---
 

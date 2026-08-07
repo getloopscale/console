@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Loader2, Plus, Rocket } from 'lucide-react';
+import { ArrowRight, Loader2, Rocket } from 'lucide-react';
 import {
   Button,
   Label,
@@ -332,6 +332,3 @@ export function PromoteDialog({
     </Dialog>
   );
 }
-
-// Re-export Plus icon for any caller building "Create" buttons next to this dialog.
-export { Plus };

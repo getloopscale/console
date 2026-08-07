@@ -1,5 +1,4 @@
 import {
-  Activity,
   BellRing,
   Bot,
   ClipboardCheck,
@@ -60,6 +59,3 @@ export const LENS_EXPLORE_CARDS = LENS_CAPABILITIES.filter((c) => !c.sidebarOnly
 export const LENS_SIDEBAR_GROUPS: { title: LensGroup; items: LensCapability[] }[] = (
   ['Observe', 'Evaluate', 'Improve'] as const
 ).map((title) => ({ title, items: LENS_CAPABILITIES.filter((c) => c.group === title) }));
-
-// re-export so a consumer that wants the section header icon has it without a second import.
-export { Activity };

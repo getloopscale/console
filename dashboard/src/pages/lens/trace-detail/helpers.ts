@@ -17,7 +17,6 @@
 
 export {
   computeBarLayout,
-  computeTraceBounds,
   type TraceSpanNode,
 } from '@/lib/trace-layout';
 import type { TraceSpanNode } from '@/lib/trace-layout';
@@ -42,11 +41,6 @@ export interface FlatNode {
   node: TraceSpanNode;
   depth: number;
 }
-
-// Above this many visible rows, switch from the recursive render to the react-virtual flat-list.
-// Our Claude Code agent traces are small (a handful of spans), so the common path stays recursive;
-// virtualization engages only when it earns its complexity (blueprint D2; langfuse uses 350).
-export const VIRTUALIZE_THRESHOLD = 200;
 
 /** Span duration in ms; null when unavailable or clock-skewed (end < start). */
 export function durationMs(n: Pick<TraceSpanNode, 'startTimeUnixNano' | 'endTimeUnixNano'>): number | null {

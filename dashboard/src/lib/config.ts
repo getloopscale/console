@@ -29,9 +29,6 @@ function getConfig(): TheoConfig {
 /** Base URL for API calls (cloud service). Empty = same-origin. */
 export const API_URL = getConfig().API_URL;
 
-/** Base URL for engine API. Empty = same-origin. */
-export const ENGINE_URL = getConfig().ENGINE_URL;
-
 /** Base URL for auth (Kratos). Empty = same-origin. */
 export const AUTH_URL = getConfig().AUTH_URL;
 

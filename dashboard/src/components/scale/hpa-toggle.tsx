@@ -7,10 +7,10 @@ import { Input, Label } from '@usetheo/ui';
  * boundary (EC-4 absorption — client-side validation is UX, not the
  * authoritative gate).
  */
-export const HPA_CPU_MIN = 10;
-export const HPA_CPU_MAX = 95;
-export const HPA_MEMORY_MIN = 10;
-export const HPA_MEMORY_MAX = 90;
+const HPA_CPU_MIN = 10;
+const HPA_CPU_MAX = 95;
+const HPA_MEMORY_MIN = 10;
+const HPA_MEMORY_MAX = 90;
 
 export type HPAMode = 'manual' | 'auto';
 
