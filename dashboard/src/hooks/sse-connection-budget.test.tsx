@@ -13,6 +13,7 @@ vi.mock('@/lib/http/api', () => ({
 vi.mock('@/lib/http/config', () => ({ API_URL: '', AUTH_URL: '', ENGINE_URL: '', ACCOUNTS_URL: '' }));
 
 import { useDeploymentStream } from '@/hooks/deploy/use-deployment-stream';
+import { __setTransporte } from '@/hooks/deploy/shared-event-source';
 
 /**
  * B-020 — orcamento de conexoes SSE por URL.
@@ -54,7 +55,10 @@ class ContadorEventSource {
   static readonly OPEN = 1;
   static readonly CLOSED = 2;
 
-  constructor(url: string) {
+  /** B-088 — token e cursor viajam em header; o fake guarda para poder assertar. */
+  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+    this.opcoes = opcoes;
     // A URL carrega `?token=`; o orcamento e por ENDPOINT, entao normalizamos.
     ContadorEventSource.abertas.push(url.split('?')[0] ?? url);
   }
@@ -80,7 +84,7 @@ function contagem() {
 describe('orcamento de conexoes SSE (B-020)', () => {
   beforeEach(() => {
     ContadorEventSource.abertas = [];
-    vi.stubGlobal('EventSource', ContadorEventSource);
+    __setTransporte((url, opcoes) => new ContadorEventSource(url, opcoes) as unknown as EventSource);
   });
 
   afterEach(() => {

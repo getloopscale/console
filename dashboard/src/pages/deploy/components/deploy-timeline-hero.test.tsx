@@ -15,6 +15,7 @@ vi.mock('@/lib/http/config', () => ({
 }));
 
 import { DeployTimelineHero } from './deploy-timeline-hero';
+import { __setTransporte } from '@/hooks/deploy/shared-event-source';
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -25,7 +26,9 @@ class MockEventSource {
   onerror: ((ev: unknown) => void) | null = null;
   closed = false;
 
-  constructor(url: string) {
+  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+    this.opcoes = opcoes;
     this.url = url;
     MockEventSource.instances.push(this);
     queueMicrotask(() => this.onopen?.({}));
@@ -45,8 +48,10 @@ class MockEventSource {
 
 beforeEach(() => {
   MockEventSource.instances = [];
-  // @ts-expect-error global stub
-  globalThis.EventSource = MockEventSource;
+    // B-088 — o transporte deixou de ser o EventSource global (o JWT foi para
+    // o header Authorization). O fake expoe a mesma superficie; muda so onde
+    // ele e instalado.
+    __setTransporte((url, opcoes) => new MockEventSource(url, opcoes) as unknown as EventSource);
   vi.clearAllMocks();
 });
 

@@ -162,22 +162,27 @@ export function useSSEStream<T = unknown>(
         setError(true);
         return;
       }
-      const separator = path.includes('?') ? '&' : '?';
-      const baseUrl = `${API_URL}${path}${separator}token=${encodeURIComponent(token)}`;
-      // Inject Last-Event-ID into URL because EventSource does not let
-      // us set custom headers manually. Server-side handler treats
-      // ?last_event_id= and the Last-Event-ID header equivalently
-      // (existing stream_handler resume logic).
-      const url = lastIDRef.current
-        ? `${baseUrl}&last_event_id=${encodeURIComponent(lastIDRef.current)}`
-        : baseUrl;
+      // B-088 — a URL nao carrega mais credencial nem cursor de retomada.
+      //
+      // Ate 2026-08-07 esta linha montava `?token=${jwt}`, e o jwt era o bearer
+      // COMPLETO da sessao — o mesmo da API, sem TTL proprio nem escopo de
+      // stream. Um JWT em query string chega a access log do nginx (versionado
+      // neste repo), log do proxy, historico do navegador e header Referer.
+      //
+      // O `last_event_id` estava na URL pelo mesmo motivo: `EventSource` nao
+      // aceita header. Os dois voltaram para onde pertencem porque o transporte
+      // deixou de ser `EventSource` — ver `fetch-event-source.ts` e o ADR-0009.
+      const url = `${API_URL}${path}`;
 
       // B-020 — multiplexado por URL. `SharedEventSource` implementa a
       // superficie que este hook usa e compartilha a conexao real: dois
       // consumidores do mesmo build passam a gastar uma conexao, nao duas.
       // Toda a logica abaixo (token, backoff, o conserto do B-014) fica
       // intocada de proposito — a deduplicacao nao e assunto dela.
-      es = new SharedEventSource(url) as unknown as EventSource;
+      es = new SharedEventSource(url, {
+        token,
+        lastEventId: lastIDRef.current,
+      }) as unknown as EventSource;
 
       es.onopen = () => {
         if (cancelled) return;

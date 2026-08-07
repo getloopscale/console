@@ -14,6 +14,7 @@ vi.mock('@/lib/http/config', () => ({
 }));
 
 import { useDeploymentStream } from './use-deployment-stream';
+import { __setTransporte } from '@/hooks/deploy/shared-event-source';
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -24,7 +25,10 @@ class MockEventSource {
   onerror: ((ev: unknown) => void) | null = null;
   closed = false;
 
-  constructor(url: string) {
+  /** B-088 — o fake recebe as opcoes: token e cursor viajam em header agora. */
+  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+    this.opcoes = opcoes;
     this.url = url;
     MockEventSource.instances.push(this);
     queueMicrotask(() => this.onopen?.({}));
@@ -44,14 +48,16 @@ class MockEventSource {
 
 beforeEach(() => {
   MockEventSource.instances = [];
-  // @ts-expect-error global stub
-  globalThis.EventSource = MockEventSource;
+  // B-088 — o transporte deixou de ser o EventSource global (o JWT saiu da URL
+// e foi para o header Authorization, o que `EventSource` nao permite). O fake
+// abaixo continua valendo: `FetchEventSource` expoe a MESMA superficie. O que
+// muda e onde ele e instalado — `__setTransporte` em vez de globalThis.
+  __setTransporte((url, opcoes) => new MockEventSource(url, opcoes) as unknown as EventSource);
   vi.clearAllMocks();
 });
 
 afterEach(() => {
-  // @ts-expect-error restore
-  delete globalThis.EventSource;
+    __setTransporte(null);
 });
 
 const startedPayload = (stepName: string, startedAt: string) => ({
@@ -170,11 +176,15 @@ describe('useDeploymentStream', () => {
     await waitFor(() => expect(result.current.steps.length).toBe(3));
   });
 
-  it('test_lastEventID_from_REST_seeds_url_EC5', async () => {
+  it('test_lastEventID_from_REST_vai_por_header_EC5', async () => {
     renderHook(() =>
       useDeploymentStream('build-abc', { initialLastEventID: '99' }),
     );
     await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
-    expect(MockEventSource.instances[0].url).toContain('last_event_id=99');
+    // B-088 — o cursor de retomada saiu da query e foi para o header. A
+    // invariante do EC-5 e a mesma: o SSE entrega o DELTA a partir do snapshot
+    // REST, senao o servidor reenvia tudo e o reducer refaz o trabalho.
+    expect(MockEventSource.instances[0].url).not.toContain('last_event_id');
+    expect(MockEventSource.instances[0].opcoes?.lastEventId).toBe('99');
   });
 });

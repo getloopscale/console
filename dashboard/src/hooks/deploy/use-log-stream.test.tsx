@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useLogStream } from './use-log-stream';
 import type { LogLine } from '@/lib/api/types';
+import { __setTransporte } from '@/hooks/deploy/shared-event-source';
 
 // Mock ensureSSEToken to bypass network — returns deterministic token.
 vi.mock('@/lib/http/api', () => ({
@@ -31,7 +32,10 @@ class TestEventSource {
   readyState = 0;
   private namedListeners = new Map<string, EventListenerEntry[]>();
 
-  constructor(url: string) {
+  /** B-088 — token e cursor viajam em header; o fake guarda para poder assertar. */
+  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+    this.opcoes = opcoes;
     this.url = url;
     TestEventSource.instances.push(this);
     // Fire onopen on next microtask (simulate async connect)
@@ -77,8 +81,10 @@ const mkLine = (i: number): LogLine => ({
 describe('useLogStream (J-19 T1.3 — R3 droppedCount field)', () => {
   beforeEach(() => {
     TestEventSource.instances = [];
-    (globalThis as { EventSource: typeof EventSource }).EventSource =
-      TestEventSource as unknown as typeof EventSource;
+    // B-088 — o transporte deixou de ser o EventSource global (o JWT saiu da
+    // URL e foi para o header). O fake abaixo continua valendo: a superficie e
+    // a mesma; o que muda e onde ele e instalado.
+    __setTransporte((url, opcoes) => new TestEventSource(url, opcoes) as unknown as EventSource);
   });
 
   afterEach(() => {

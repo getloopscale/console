@@ -1894,7 +1894,7 @@ registra-los como trabalho seria fabricar tarefa:
 | `tradeoff#17` | Testes co-localizados com o codigo de producao, na proporcao de ~1:1 em arquivos (43.3k LOC de teste | decisao AVALIADA COMO CORRETA — testes co-localizados. A recomendacao medida e explicitamente NAO mexer. |
 | `tradeoff#15` | Roteamento centralizado num unico app.tsx de 729 LoC com 85 React.lazy e 118 elementos <Route> | decisao AVALIADA COMO CORRETA — roteamento centralizado deve ser mantido. A unica acao derivada (incoerencia do orcamento de LoC) ja e o item do tradeoff #2. |
 
-## B-088 — O JWT de sessao viaja em query string nos streams SSE   [ ]
+## B-088 — O JWT de sessao viaja em query string nos streams SSE   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1905,7 +1905,8 @@ category: credential_exposure
 evidence: src/hooks/use-sse-stream.ts:165 — `const baseUrl = `${API_URL}${path}${separator}token=${encodeURIComponent(token)}`` · src/lib/api.ts:207 — `ensureSSEToken()` retorna `ensureToken()`, o MESMO bearer da API, sem TTL proprio nem escopo de stream · quatro consumidores: use-log-stream, use-deployment-stream, use-deploy-timeline, use-deployments-list-stream
 provenance: encontrado em 2026-08-06 ao reavaliar B-015 sob a lente de cybersecurity, a pedido do dono do projeto. NAO consta da auditoria /loop-system-design.
 why_now: o dashboard tem nginx.conf versionado (access log), roda atras de Cloudflare, e o token e o de sessao completo. Um JWT em query string chega a log de servidor, log de proxy, historico do navegador e header Referer — quatro lugares onde um bearer nao deveria estar. A auditoria de system design nao olhou credenciais; este e um achado de seguranca, nao de arquitetura.
-status: raw
+status: shipped
+shipped_note: os dois bullets que faltavam. `fetch-event-source.ts` implementa a fatia da superficie de EventSource que o useSSEStream consome, sobre fetch + ReadableStream: o JWT vai em Authorization e o cursor de retomada em Last-Event-ID, e a URL fica limpa. 12 testes cobrem o fio (frame simples, nomeado, data multi-linha, frame partido entre chunks, CRLF, comentario de keep-alive, nao-2xx, sem token, servidor encerrando, abort no close). A ORDEM em falhar() e contrato: readyState vai para CLOSED ANTES de onerror disparar, porque e exatamente isso que o useSSEStream le para decidir que o token expirou — inverter reintroduz o B-014. Efeito colateral util: sem token na URL, a chave do registro do SharedEventSource (B-020) passa a ser a URL limpa, entao dois consumidores compartilham mesmo tendo obtido o token em instantes diferentes. A allowlist do teste de contencao foi a ZERO e o teto virou 0 — enquanto valia 1 o alvo era esvaziar; agora qualquer entrada nova e regressao da classe. O guard tambem foi corrigido: ele acusou o BLOCO DE DOCUMENTACAO do proprio arquivo que conserta o defeito, que cita `?token=` para explica-lo. Passou a ignorar comentarios — um guard que nao distingue codigo de prosa ensina que documentar o defeito da trabalho, e a prosa e o que impede alguem de reintroduzi-lo. Onze arquivos de teste migraram de vi.stubGlobal('EventSource') para __setTransporte: os fakes valem iguais (mesma superficie), muda so onde sao instalados. Sondado: reintroduzir o token na URL derruba 2 testes.
 dod:
   - o JWT de sessao completo nao aparece em nenhuma URL de EventSource
   - existe teste que falha se alguem reintroduzir `token=` na query de um stream

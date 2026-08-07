@@ -30,11 +30,31 @@ const SRC = resolve(__dirname, '..');
  *
  * A allowlist tem os quatro que já existem, nomeados. Ela só encolhe.
  */
-const ALLOWLIST = new Set([
-  // Os quatro consumidores da primitiva, e a primitiva. Saem juntos quando o
-  // ADR-0009 for implementado — a correção é numa linha só, em use-sse-stream.
-  'hooks/deploy/use-sse-stream.ts',
-]);
+/**
+ * VAZIA desde 2026-08-07 — o ADR-0009 foi implementado.
+ *
+ * Ela existiu com uma entrada: `use-sse-stream.ts`, a primitiva, que montava
+ * `?token=${jwt}` porque `EventSource` não aceita headers. `fetch-event-source.
+ * ts` substituiu o transporte, o token foi para `Authorization`, e a entrada
+ * saiu. O teste abaixo falha se ela voltar a crescer.
+ */
+const ALLOWLIST = new Set<string>([]);
+
+/**
+ * Tira comentários antes de procurar.
+ *
+ * A primeira versão do guard olhava o arquivo inteiro, e a primeira coisa que
+ * ele acusou depois da correção foi o BLOCO DE DOCUMENTAÇÃO de
+ * `fetch-event-source.ts`, que cita `?token=${jwt}` para explicar o defeito que
+ * ele conserta. O guard estava certo sobre o texto e errado sobre o fato.
+ *
+ * Um guard que não distingue código de prosa ensina que documentar o defeito
+ * corrigido dá trabalho — e a prosa que explica o porquê é justamente o que
+ * impede alguém de reintroduzi-lo.
+ */
+function semComentarios(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+}
 
 /** Sinais de que uma credencial está sendo posta numa URL. */
 const PADROES: { nome: string; re: RegExp }[] = [
@@ -59,7 +79,7 @@ describe('credencial em URL de stream (B-088)', () => {
     for (const f of arquivos(SRC)) {
       const rel = relative(SRC, f).replace(/\\/g, '/');
       if (ALLOWLIST.has(rel)) continue;
-      const src = readFileSync(f, 'utf8');
+      const src = semComentarios(readFileSync(f, 'utf8'));
       for (const { nome, re } of PADROES) {
         if (re.test(src)) ofensores.push(`${rel} — ${nome}`);
       }
@@ -80,8 +100,12 @@ describe('credencial em URL de stream (B-088)', () => {
   it('a allowlist não cresceu além dos casos que o ADR-0009 registra', () => {
     expect(
       ALLOWLIST.size,
-      'A allowlist de B-088 só encolhe. Se um caso novo precisa entrar, ele precisa\n' +
-        'primeiro de uma linha no ADR-0009 explicando por que a correção não serve.\n',
-    ).toBeLessThanOrEqual(1);
+      'A allowlist de B-088 chegou a ZERO em 2026-08-07 e não volta a crescer.\n\n' +
+        'Enquanto ela tinha uma entrada, o teto era 1 e o alvo era esvaziá-la. Agora\n' +
+        'que está vazia, qualquer entrada nova é uma REGRESSÃO da classe inteira —\n' +
+        'não uma dívida a mais. Se um caso novo parece precisar de exceção, ele\n' +
+        'precisa antes de uma linha no ADR-0009 explicando por que `fetch` +\n' +
+        'ReadableStream com header Authorization não serve para ele.\n',
+    ).toBe(0);
   });
 });

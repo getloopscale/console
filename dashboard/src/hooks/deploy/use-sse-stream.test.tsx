@@ -17,6 +17,7 @@ vi.mock('@/lib/http/config', () => ({
 
 import { useSSEStream } from '@/hooks/deploy/use-sse-stream';
 import { clearToken } from '@/lib/http/api';
+import { __setTransporte } from '@/hooks/deploy/shared-event-source';
 
 interface MockListenerMap {
   [event: string]: Array<(ev: unknown) => void>;
@@ -37,7 +38,12 @@ class MockEventSource {
   readyState = 0;
   closed = false;
 
-  constructor(url: string) {
+  /** B-088 — o fake recebe as OPCOES agora: o token e o cursor de retomada
+   * saíram da URL e viajam em header. Guardá-las é o que permite assertar sobre
+   * eles sem reintroduzir a asserção sobre a query, que é o defeito. */
+  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+    this.opcoes = opcoes;
     this.url = url;
     MockEventSource.instances.push(this);
     // Defer onopen so consumers can attach handlers first.
@@ -91,14 +97,16 @@ class MockEventSource {
 
 beforeEach(() => {
   MockEventSource.instances = [];
-  // @ts-expect-error — overriding global EventSource for tests.
-  globalThis.EventSource = MockEventSource;
+  // B-088 — o transporte deixou de ser o EventSource global (o JWT saiu da URL
+// e foi para o header Authorization, o que `EventSource` nao permite). O fake
+// abaixo continua valendo: `FetchEventSource` expoe a MESMA superficie. O que
+// muda e onde ele e instalado — `__setTransporte` em vez de globalThis.
+  __setTransporte((url, opcoes) => new MockEventSource(url, opcoes) as unknown as EventSource);
   vi.clearAllMocks();
 });
 
 afterEach(() => {
-  // @ts-expect-error — restore
-  delete globalThis.EventSource;
+    __setTransporte(null);
 });
 
 describe('useSSEStream', () => {
@@ -171,12 +179,17 @@ describe('useSSEStream', () => {
     expect(result.current.events.length).toBe(0);
   });
 
-  it('test_initial_lastEventID_seeds_url', async () => {
+  it('test_initial_lastEventID_vai_por_HEADER_e_nao_pela_url', async () => {
     renderHook(() =>
       useSSEStream('/api/v1/test', { initialLastEventID: '42' }),
     );
     await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
-    expect(MockEventSource.instances[0].url).toContain('last_event_id=42');
+    // B-088 — este caso assertava `url).toContain('last_event_id=42')`. O cursor
+    // estava na query pelo mesmo motivo que o token: `EventSource` nao aceita
+    // header. Com o transporte sobre `fetch` os dois voltaram para o header, e a
+    // asserção antiga ficou falsa por bom motivo.
+    expect(MockEventSource.instances[0].url).not.toContain('last_event_id');
+    expect(MockEventSource.instances[0].opcoes?.lastEventId).toBe('42');
   });
 
   it('test_token_refresh_on_three_consecutive_errors_EC3', async () => {
@@ -235,7 +248,7 @@ describe('useSSEStream', () => {
     expect(MockEventSource.instances.length).toBe(1);
   });
 
-  it('test_lastEventID_propagates_to_reconnect_url_EC9', async () => {
+  it('test_lastEventID_propaga_na_RECONEXAO_por_header_EC9', async () => {
     const { result } = renderHook(() =>
       useSSEStream('/api/v1/test', { eventTypes: ['x'] }),
     );
@@ -255,7 +268,11 @@ describe('useSSEStream', () => {
     });
 
     await waitFor(() => expect(MockEventSource.instances.length).toBe(2));
-    expect(MockEventSource.instances[1].url).toContain('last_event_id=7');
+    // A invariante do EC-9 nao mudou — a reconexao RETOMA de onde parou, senao
+    // o servidor reenvia o stream inteiro e o reducer refaz todo o trabalho. O
+    // que mudou (B-088) e por onde o cursor viaja: header, nao query.
+    expect(MockEventSource.instances[1].url).not.toContain('last_event_id');
+    expect(MockEventSource.instances[1].opcoes?.lastEventId).toBe('7');
   });
 
   it('test_clear_resets_buffer', async () => {

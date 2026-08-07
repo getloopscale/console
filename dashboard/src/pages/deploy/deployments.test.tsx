@@ -21,6 +21,7 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => undefined }));
 
 import { DeploymentsPage } from './deployments';
 import { engineFetch } from '@/lib/http/api';
+import { __setTransporte } from '@/hooks/deploy/shared-event-source';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
 
@@ -33,7 +34,9 @@ class MockEventSource {
   onerror: ((ev: unknown) => void) | null = null;
   closed = false;
 
-  constructor(url: string) {
+  opcoes: { token: string | null; lastEventId?: string | null } | undefined;
+  constructor(url: string, opcoes?: { token: string | null; lastEventId?: string | null }) {
+    this.opcoes = opcoes;
     this.url = url;
     MockEventSource.instances.push(this);
     queueMicrotask(() => this.onopen?.({}));
@@ -83,14 +86,15 @@ function renderPage() {
 
 beforeEach(() => {
   MockEventSource.instances = [];
-  // @ts-expect-error global stub
-  globalThis.EventSource = MockEventSource;
+    // B-088 — o transporte deixou de ser o EventSource global (o JWT foi para
+    // o header Authorization). O fake expoe a mesma superficie; muda so onde
+    // ele e instalado.
+    __setTransporte((url, opcoes) => new MockEventSource(url, opcoes) as unknown as EventSource);
   vi.clearAllMocks();
 });
 
 afterEach(() => {
-  // @ts-expect-error restore
-  delete globalThis.EventSource;
+    __setTransporte(null);
 });
 
 describe('DeploymentsPage', () => {

@@ -16,6 +16,7 @@ vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 
 import { useDeploymentsListStream } from './use-deployments-list-stream';
 import { engineFetch } from '@/lib/http/api';
+import { __setTransporte } from '@/hooks/deploy/shared-event-source';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
 
@@ -74,13 +75,16 @@ function makeWrapper(): { wrapper: (props: { children: ReactNode }) => ReactElem
 beforeEach(() => {
   MockEventSource.instances = [];
   // @ts-expect-error global stub
-  globalThis.EventSource = MockEventSource;
+  // B-088 — o transporte deixou de ser o EventSource global (o JWT saiu da URL
+// e foi para o header Authorization, o que `EventSource` nao permite). O fake
+// abaixo continua valendo: `FetchEventSource` expoe a MESMA superficie. O que
+// muda e onde ele e instalado — `__setTransporte` em vez de globalThis.
+  __setTransporte((url, opcoes) => new MockEventSource(url, opcoes) as unknown as EventSource);
   vi.clearAllMocks();
 });
 
 afterEach(() => {
-  // @ts-expect-error restore
-  delete globalThis.EventSource;
+    __setTransporte(null);
 });
 
 describe('useDeploymentsListStream', () => {

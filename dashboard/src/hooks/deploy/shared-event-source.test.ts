@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SharedEventSource, __resetSharedEventSources } from './shared-event-source';
+import { SharedEventSource, __resetSharedEventSources, __setTransporte } from './shared-event-source';
 
 /**
  * B-020 — uma conexão por URL, quantos consumidores quiserem.
@@ -66,9 +66,14 @@ describe('SharedEventSource (B-020)', () => {
   beforeEach(() => {
     FakeEventSource.criadas = [];
     __resetSharedEventSources();
-    vi.stubGlobal('EventSource', FakeEventSource);
+    // B-088 — o transporte e injetado, nao global: `FetchEventSource` fala por
+    // `fetch` para que o JWT va no header. O fake expoe a mesma superficie.
+    __setTransporte((url) => new FakeEventSource(url) as unknown as EventSource);
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    __setTransporte(null);
+    vi.unstubAllGlobals();
+  });
 
   it('dois consumidores da MESMA url abrem UMA conexão real', () => {
     new SharedEventSource('/stream?token=a');

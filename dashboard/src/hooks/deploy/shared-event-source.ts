@@ -37,6 +37,8 @@
  * conexão real falha: quem reabrir cria uma nova.
  */
 
+import { FetchEventSource } from '@/hooks/deploy/fetch-event-source';
+
 type Ouvinte = (event: MessageEvent) => void;
 
 interface Entrada {
@@ -59,6 +61,32 @@ const REPLAY_MAX = 1000;
 
 const registro = new Map<string, Entrada>();
 
+/**
+ * Fabrica do transporte. Existe como variavel — e nao como `new FetchEventSource`
+ * inline — por um motivo de teste que vale declarar em voz alta.
+ *
+ * Ate 2026-08-07 o transporte era o `EventSource` global, e os nove arquivos de
+ * teste de SSE o substituiam com `vi.stubGlobal`. O B-088 trocou o transporte
+ * por `fetch` (para tirar o JWT da URL) e esse seam sumiu junto. As opcoes eram
+ * reescrever os nove fakes para servir um corpo SSE de verdade, ou expor o ponto
+ * de troca.
+ *
+ * A segunda ganhou porque os testes daqueles arquivos NAO sao sobre o fio: eles
+ * cobrem reducer, cap FIFO, reconexao e contagem de conexoes. Faze-los passar
+ * por um parser de SSE acrescentaria uma fonte de falha que nao tem a ver com o
+ * que eles afirmam. O parser tem os seus proprios doze testes em
+ * `fetch-event-source.test.ts`, e la o fio e o assunto.
+ */
+type Transporte = (url: string, opcoes: { token: string | null; lastEventId?: string | null }) => EventSource;
+
+let criarTransporte: Transporte = (url, opcoes) =>
+  new FetchEventSource(url, opcoes) as unknown as EventSource;
+
+/** So para teste — troca o transporte. Ver o bloco acima para o porque. */
+export function __setTransporte(t: Transporte | null): void {
+  criarTransporte = t ?? ((url, opcoes) => new FetchEventSource(url, opcoes) as unknown as EventSource);
+}
+
 /** Só para teste — o registro é global por natureza e precisa zerar entre casos. */
 export function __resetSharedEventSources(): void {
   for (const e of registro.values()) e.real.close();
@@ -78,7 +106,10 @@ export class SharedEventSource {
   private entrada: Entrada;
   private fechado = false;
 
-  constructor(public readonly url: string) {
+  constructor(
+    public readonly url: string,
+    private readonly opcoes: { token: string | null; lastEventId?: string | null } = { token: null },
+  ) {
     const existente = registro.get(url);
     if (existente) {
       this.entrada = existente;
@@ -93,7 +124,14 @@ export class SharedEventSource {
   }
 
   private abrirNova(url: string): Entrada {
-    const real = new EventSource(url);
+    // B-088 — o transporte e `FetchEventSource`, nao `EventSource`: o token vai
+    // em `Authorization` e some da URL. Efeito colateral util: a chave do
+    // registro passa a ser a URL LIMPA, entao dois consumidores do mesmo stream
+    // compartilham mesmo que tenham obtido o token em instantes diferentes.
+    const real = criarTransporte(url, {
+      token: this.opcoes.token,
+      lastEventId: this.opcoes.lastEventId,
+    });
     const entrada: Entrada = {
       real,
       handles: new Set([this]),
