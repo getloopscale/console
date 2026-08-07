@@ -2096,7 +2096,10 @@ casos na allowlist; a triagem wire-vs-apagar de cada um permanece.
 Um item registrado por engano e marcado `status: killed` com `kill_reason` — nunca
 deletado, nunca renumerado. Se ja estava `triaged`, a evidencia permanece no bloco: saber
 que algo foi medido e depois descartado vale mais que um arquivo limpo.
-
+progresso_2026-08-07: MEDIDO, e o item era MUITO menor que o achado. Os dois subsistemas foram escalados como issue porque a correcao de cada um depende de dado ou de decisao que nao esta neste repositorio.
+  · metering -> issue #471 (P0/Billing). NENHUM caminho de producao pode criar a primeira linha de `usage_records` para a metrica `builds`. O Tracker (unico escritor primario) nao tem chamador; o Reconciler so insere quando driftPct <= 5%, e com recorded=0 o drift e SEMPRE 100% para qualquer tenant com builds — o ramo de auto-correcao e inalcancavel com a tabela vazia. O Reporter, que ESTA ligado, le uma tabela vazia. Consumo de build nunca chega ao Stripe. Causa provavel: `UPDATE builds` NAO EXISTE em Go neste repo (zero ocorrencias fora de teste) — a transicao de status pertence a engine, entao o ponto de chamada que o Tracker pressupoe esta do outro lado da fronteira. Nao foi 'esquecer de ligar'.
+  · IdentityMigrator -> issue #472. O docblock afirma 'called after every successful authentication via Kratos' e nao e chamado. O caminho que roda (tenant.go:101) casa por `ON CONFLICT (id)`, e o migrador casava por E-MAIL. Um usuario legado com id != UUID do Kratos ganharia linha nova em users, Account nova e tenant novo — workspace vazio, projetos antigos presos ao id velho. NAO da para determinar deste repo se ainda existem usuarios nessa condicao; o issue traz as tres consultas que decidem entre 'apagar', 'ligar antes que entrem' e 'P0 de reconciliacao'.
+  · o item SEGUE ABERTO: o dod pede chamador de producao OU remocao, e as duas dependem das respostas nos issues.
 
 ## B-091 — Rename do module path Go: usetheodev -> usetheoai   [x]
 
