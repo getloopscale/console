@@ -1,7 +1,7 @@
 import { FileText, Download, Link2, Trash2 } from 'lucide-react';
 import { Button, Badge, Skeleton, Sheet, CopyButton, CodeBlock } from '@usetheo/ui';
 
-import { formatBytes, previewKind, type StorageFile } from './workspace/helpers';
+import { formatBytes, previewKind, type StorageFile } from './helpers';
 
 type PreviewData = { kind: 'image'; url: string } | { kind: 'text'; text: string };
 

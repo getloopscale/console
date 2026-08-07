@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { toBulkRequest, selectionStats } from './use-workspace-selection';
-import type { StorageFile } from './workspace';
+import type { StorageFile } from './overview';
 
 describe('toBulkRequest', () => {
   it('splits keys into files (paths) and folders (trailing slash → prefixes)', () => {

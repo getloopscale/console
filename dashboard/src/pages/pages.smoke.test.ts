@@ -44,7 +44,7 @@ describe('pages smoke — modules compile + export named function', () => {
   });
 
   it('exports SettingsPage', async () => {
-    const m = await import('./settings');
+    const m = await import('./settings/overview');
     expect(typeof m.SettingsPage).toBe('function');
   });
 

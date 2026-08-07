@@ -5,7 +5,7 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) })
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
-import { RagOverviewPage } from './rag';
+import { RagOverviewPage } from './overview';
 
 const ANALYTICS = {
   window: { since: '2026-07-01T00:00:00Z' },

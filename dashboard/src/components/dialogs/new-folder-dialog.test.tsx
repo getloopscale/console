@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@/test/render';
-import { NewFolderDialog } from './new-folder-dialog';
+import { NewFolderDialog } from '@/components/dialogs/new-folder-dialog';
 
 const base = {
   open: true,

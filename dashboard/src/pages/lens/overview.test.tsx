@@ -7,7 +7,7 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) })
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
-import { LensOverviewPage } from './lens';
+import { LensOverviewPage } from './overview';
 
 // A full observability series fixture (traffic/latency/tokensByModel) + a cost summary.
 function seriesMock(overrides: Record<string, unknown> = {}) {

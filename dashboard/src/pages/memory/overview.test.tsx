@@ -18,7 +18,7 @@ vi.mock('@/lib/api', () => ({
   engineFetch: (...args: unknown[]) => mockCloudFetch(...args),
 }));
 
-import { MemoryPage } from './memory';
+import { MemoryPage } from './overview';
 
 describe('MemoryPage (/memory landing)', () => {
   beforeEach(() => {

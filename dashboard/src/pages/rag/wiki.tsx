@@ -13,7 +13,7 @@ import { applyTemplate, WIKI_TEMPLATES } from './wiki-templates';
 import { WikiSearch } from './wiki-search';
 import { WikiBrowser } from './wiki-browser';
 import { WIKI_FOLDER_MARKER, type WikiEntry } from './wiki-entries';
-import { NewFolderDialog } from '../new-folder-dialog';
+import { NewFolderDialog } from '@/components/dialogs/new-folder-dialog';
 import { AppModal } from '@/components/ui/app-modal';
 
 import { useRequireAuth } from '@/hooks/use-auth';

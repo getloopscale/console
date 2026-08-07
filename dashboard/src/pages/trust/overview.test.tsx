@@ -11,7 +11,7 @@ vi.mock('@/components/trust/trust-api', async (importOriginal) => {
   return { ...actual, fetchTrust: (...a: unknown[]) => mockTrust(...a) };
 });
 
-import { TrustOverviewPage } from './trust';
+import { TrustOverviewPage } from './overview';
 
 /**
  * Esta tela emite um JULGAMENTO numa frase ("tantas políticas não estão sendo bloqueadas"),

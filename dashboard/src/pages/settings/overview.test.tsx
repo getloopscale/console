@@ -9,7 +9,7 @@ vi.mock('@/hooks/use-auth', () => ({
   }),
 }));
 
-import { SettingsPage } from './settings';
+import { SettingsPage } from './overview';
 
 describe('SettingsPage', () => {
   beforeEach(() => {

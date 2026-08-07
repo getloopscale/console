@@ -11,7 +11,7 @@ vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
   return { ...actual, fetchCatalogPage: (...a: unknown[]) => mockPage(...a) };
 });
 
-import { PromptlyOverviewPage } from './promptly';
+import { PromptlyOverviewPage } from './overview';
 
 /**
  * M13 — `/promptly` deixou de ser a lista e virou o painel.

@@ -62,7 +62,7 @@ const StatusPage = lazy(() =>
   import('@/pages/status').then((m) => ({ default: m.StatusPage })),
 );
 const SettingsPage = lazy(() =>
-  import('@/pages/settings').then((m) => ({ default: m.SettingsPage })),
+  import('@/pages/settings/overview').then((m) => ({ default: m.SettingsPage })),
 );
 const ProfilePage = lazy(() =>
   import('@/pages/profile').then((m) => ({ default: m.ProfilePage })),
@@ -74,7 +74,7 @@ const ApiKeysPage = lazy(() =>
   import('@/pages/api-keys').then((m) => ({ default: m.ApiKeysPage })),
 );
 const MemoryPage = lazy(() =>
-  import('@/pages/memory').then((m) => ({ default: m.MemoryPage })),
+  import('@/pages/memory/overview').then((m) => ({ default: m.MemoryPage })),
 );
 const MemoryListPage = lazy(() =>
   import('@/pages/memory/memories').then((m) => ({ default: m.MemoryListPage })),
@@ -104,10 +104,10 @@ const SkillsPage = lazy(() =>
   import('@/pages/memory/skills').then((m) => ({ default: m.SkillsPage })),
 );
 const RagOverviewPage = lazy(() =>
-  import('@/pages/rag').then((m) => ({ default: m.RagOverviewPage })),
+  import('@/pages/rag/overview').then((m) => ({ default: m.RagOverviewPage })),
 );
 const WorkspacePage = lazy(() =>
-  import('@/pages/workspace').then((m) => ({ default: m.WorkspacePage })),
+  import('@/pages/workspace/overview').then((m) => ({ default: m.WorkspacePage })),
 );
 const RagCollectionsPage = lazy(() =>
   import('@/pages/rag/collections').then((m) => ({ default: m.RagCollectionsPage })),
@@ -132,7 +132,7 @@ const RagWikiPage = lazy(() =>
 );
 // M23 — a capacidade trust chega ao dashboard (visão geral + violações).
 const TrustOverviewPage = lazy(() =>
-  import('@/pages/trust').then((m) => ({ default: m.TrustOverviewPage })),
+  import('@/pages/trust/overview').then((m) => ({ default: m.TrustOverviewPage })),
 );
 const TrustViolationsPage = lazy(() =>
   import('@/pages/trust/violations').then((m) => ({ default: m.TrustViolationsPage })),
@@ -151,7 +151,7 @@ const TrustEnforcementPage = lazy(() =>
 // versões e canais. As rotas só são alcançáveis por clique porque `resolveActiveMenu` reconhece
 // `/skills`; declarar a rota aqui sem aquela linha entrega telas que ninguém encontra.
 const SkillsOverviewPage = lazy(() =>
-  import('@/pages/skills').then((m) => ({ default: m.SkillsOverviewPage })),
+  import('@/pages/skills/overview').then((m) => ({ default: m.SkillsOverviewPage })),
 );
 const SkillDetailPage = lazy(() =>
   import('@/pages/skills/detail').then((m) => ({ default: m.SkillDetailPage })),
@@ -179,7 +179,7 @@ const BundleDetailPage = lazy(() =>
 // As rotas só são alcançáveis por clique porque `resolveActiveMenu` reconhece `/promptly`;
 // declarar a rota aqui sem aquela linha entrega telas que ninguém encontra.
 const PromptlyOverviewPage = lazy(() =>
-  import('@/pages/promptly').then((m) => ({ default: m.PromptlyOverviewPage })),
+  import('@/pages/promptly/overview').then((m) => ({ default: m.PromptlyOverviewPage })),
 );
 // M13 — o catálogo saiu da raiz: `/promptly` virou o painel, como em memory/rag/lens.
 const PromptlyCatalogoPage = lazy(() =>
@@ -199,7 +199,7 @@ const PromptlyDiffPage = lazy(() =>
 );
 // M44 — lens management dashboard pages; M46 — Overview landing
 const LensOverviewPage = lazy(() =>
-  import('@/pages/lens').then((m) => ({ default: m.LensOverviewPage })),
+  import('@/pages/lens/overview').then((m) => ({ default: m.LensOverviewPage })),
 );
 const LensTracesPage = lazy(() =>
   import('@/pages/lens/traces').then((m) => ({ default: m.LensTracesPage })),

@@ -31,7 +31,7 @@ import {
   formatBytes,
   previewKind,
   type StorageFile,
-} from './workspace/helpers';
+} from './helpers';
 export {
   deriveEntries,
   formatBytes,
@@ -39,9 +39,9 @@ export {
   type StorageFile,
   type WorkspaceEntries,
   type PreviewKind,
-} from './workspace/helpers';
+} from './helpers';
 import { WorkspacePreviewSheet } from './workspace-preview-sheet';
-import { NewFolderDialog } from './new-folder-dialog';
+import { NewFolderDialog } from '@/components/dialogs/new-folder-dialog';
 
 /**
  * Workspace — a folder-browser over the flat tenant store (M7): navigable folders

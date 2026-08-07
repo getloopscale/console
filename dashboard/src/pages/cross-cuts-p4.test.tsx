@@ -39,7 +39,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
 
 import { BillingPage } from './billing';
 import { AuditPage } from './audit';
-import { SettingsPage } from './settings';
+import { SettingsPage } from './settings/overview';
 
 describe('Plan 4 Memory cross-cuts — regression + additive guards', () => {
   beforeEach(() => {

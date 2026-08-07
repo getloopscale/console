@@ -9,7 +9,7 @@ vi.mock('@/lib/api', () => ({
   cloudFetchRaw: () => Promise.resolve({ ok: true, text: () => Promise.resolve('# hello'), blob: () => Promise.resolve(new Blob()) }),
 }));
 
-import { WorkspacePage, deriveEntries, StorageFile } from './workspace';
+import { WorkspacePage, deriveEntries, StorageFile } from './overview';
 
 const USAGE = { used_bytes: 52_428_800, aggregate_limit: 104_857_600, tier: 'starter', unlimited: false };
 const FILES = {
