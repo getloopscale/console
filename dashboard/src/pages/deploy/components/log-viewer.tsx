@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, memo} from 'react';
-import { Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
+import { Download, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge, Button, Input } from '@usetheo/ui';
+import { triggerLogDownload } from '@/pages/deploy/export/log-download';
 import type { LogLine, LogLevel } from '@/lib/api/types';
 import { parseAnsi } from '@/pages/deploy/components/ansi';
 
@@ -275,6 +276,25 @@ export function LogViewer({
             ) : (
               <Pause className="size-4" aria-hidden="true" />
             )}
+          </Button>
+          {/* B-031 — o download do buffer estava escrito e testado desde a
+              versao J-19, e ORFAO: a toolbar que o chamava saiu numa limpeza de
+              codigo morto, e a funcao ficou sem consumidor. Isto religa, nao
+              inventa.
+
+              Exporta o buffer INTEIRO e nao o subconjunto filtrado — decisao Q3
+              do plano original, mantida: quem baixa um log quer o log, e um
+              arquivo silenciosamente cortado pelo filtro de tela e a forma mais
+              cara de perder a linha que importava. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => triggerLogDownload(lines)}
+            disabled={lines.length === 0}
+            aria-label="Download log buffer"
+            title="Download"
+          >
+            <Download className="size-4" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"

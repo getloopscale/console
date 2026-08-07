@@ -63,6 +63,13 @@ const NOMES_EXATOS = [
   'is-plain-obj', 'html-void-elements', 'stringify-entities',
   'react-syntax-highlighter', 'refractor', 'lowlight', 'highlight.js', 'prismjs',
   'hastscript', 'parse-entities', 'fault',
+  // B-030 — `canvas-confetti` dispara UMA vez na vida de um projeto, e a maioria
+  // das sessoes nunca o ve. Ligar a celebracao o trouxe para o vendor eager
+  // (305.85 -> 309.49 kB): 3,6 kB baixados em toda visita por uma animacao de
+  // um segundo. O import dinamico no hook NAO bastou — esta config manda todo
+  // node_modules para o vendor, entao o pacote precisa ser ejetado aqui tambem.
+  // Medido: as duas coisas juntas e que tiram o peso do caminho critico.
+  'canvas-confetti',
 ];
 
 /** Familias cujo hifen final ja ancora: `remark-` nunca casa `remarkable`. */

@@ -16,6 +16,7 @@ import { useProject } from '@/hooks/projects/use-project';
 import { useProjectStatus } from '@/hooks/use-project-status';
 import { useDeployments } from '@/hooks/projects/use-deployments';
 import { LiveUrlHero } from '@/pages/projects/components/live-url-hero';
+import { FirstDeployCelebration } from '@/pages/projects/first-deploy-celebration';
 import { ProjectHealthCard } from '@/pages/projects/components/project-health-card';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { engineFetch } from '@/lib/http/api';
@@ -233,6 +234,12 @@ export function ProjectDetailPage() {
             UNION of last_deploy_status === 'preview' (mapper canonical) and
             production_env_count === 0 && latest_build_environment === 'preview'
             (catches the SQL-direct path on legacy mapper). */}
+        {/* B-030 — a celebracao do primeiro deploy. Nao renderiza nada; existe
+            para dar um lugar ao useFirstDeployTrigger, que precisa de useToast
+            dentro da arvore. Aqui custa ZERO requests: esta pagina ja chama
+            useDeployments(name) e ja tem status.url. */}
+        <FirstDeployCelebration projectName={name} liveUrl={status?.url ?? undefined} />
+
         <LiveUrlHero
           status={status}
           loading={statusLoading}

@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import confetti from 'canvas-confetti';
 import { useDeployments } from '@/hooks/projects/use-deployments';
 import { reportEvent } from '@/lib/telemetry/rum';
 
@@ -66,15 +65,24 @@ export function useFirstDeployTrigger({ projectName, toast, liveUrl }: Options):
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
     if (!reduceMotion) {
-      try {
-        confetti({
-          particleCount: 50,
-          spread: 70,
-          origin: { y: 0.7 },
+      // B-030 — import DINAMICO, e nao no topo do modulo.
+      //
+      // Ligar a celebracao empurrou `canvas-confetti` para o bundle eager:
+      // 305.85 -> 309.49 kB. Sao 3,6 kB baixados em TODA visita por uma
+      // animacao que dispara UMA vez na vida de um projeto — e que a maioria
+      // das sessoes nunca ve. Carregar no momento do disparo custa um round-trip
+      // a quem esta comemorando, e zero a todo mundo.
+      //
+      // A falha e nao-fatal de proposito: se o chunk nao carregar, o toast ainda
+      // anuncia que o app subiu. Perder a animacao nao pode significar perder a
+      // informacao.
+      void import('canvas-confetti')
+        .then(({ default: confetti }) => {
+          confetti({ particleCount: 50, spread: 70, origin: { y: 0.7 } });
+        })
+        .catch(() => {
+          // chunk indisponivel — o toast abaixo ja foi/sera disparado.
         });
-      } catch {
-        // confetti error — non-fatal, toast still fires
-      }
     }
 
     toast?.show(`Your app is live${liveUrl ? ` at ${liveUrl}` : ''} 🎉`);

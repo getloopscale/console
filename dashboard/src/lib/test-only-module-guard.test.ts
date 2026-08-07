@@ -33,8 +33,10 @@ const SRC = resolve(__dirname, '..');
  * chamada de produto, nao de engenharia. A lista nao deve crescer.
  */
 const ALLOWLIST = new Set([
-  // B-030 — hooks de comportamento visivel, aguardando decisao de wire-ou-apagar.
-  'hooks/use-first-deploy-trigger.ts',
+  // B-030 — `use-first-deploy-trigger.ts` SAIU daqui em 2026-08-07: ligado em
+  // `pages/projects/first-deploy-celebration.tsx`, montado por project-detail.
+  // A pagina ja chamava useDeployments(name) e ja tinha status.url, entao a
+  // celebracao custa zero requests a mais.
   // B-031 — doze modulos sem importador nao-teste. Triagem em dois baldes
   // (wire vs apagar) registrada no item; safe-redirect.ts em especial e um guard
   // de open-redirect que ninguem chama, o que e uma lacuna de seguranca latente.
@@ -58,7 +60,9 @@ const ALLOWLIST = new Set([
   // acessivel (o toolbar tambem era orfao), entao apagar e provavelmente certo —
   // mas isso e apagar uma FEATURE, e vale ser dito em voz alta.
   'lib/auth/return-to.ts',
-  'lib/export/log-download.ts',
+  // `pages/deploy/export/log-download.ts` SAIU daqui em 2026-08-07: religado ao botao
+  // Download da toolbar do LogViewer. Nao era feature a apagar — era feature
+  // ORFANADA quando a toolbar que a chamava saiu numa limpeza de codigo morto.
   // B-095 / B-051 — `useStatusStream` NAO e descuido: a assinatura foi removida de
   // `project-status.tsx` de proposito, porque abria um EventSource e DESCARTAVA
   // todo evento recebido — gastando uma das ~6 conexoes que o browser concede por

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { LogViewer } from './log-viewer';
 import type { LogLine } from '@/lib/api/types';
 
@@ -469,5 +470,51 @@ describe('B-025 — o custo de pintar as linhas fora da tela', () => {
     // para o que pulou: a barra de rolagem mente e o scroll pula. Assertar so o
     // content-visibility deixaria passar exatamente a metade que quebra a tela.
     expect(style.getPropertyValue('contain-intrinsic-size')).not.toBe('');
+  });
+});
+
+describe('B-031 — o download do buffer volta a ter consumidor', () => {
+  it('o botao existe e chama triggerLogDownload com o buffer INTEIRO', async () => {
+    const user = userEvent.setup();
+    const criarUrl = vi.fn(() => 'blob:x');
+    vi.stubGlobal('URL', { ...URL, createObjectURL: criarUrl, revokeObjectURL: vi.fn() });
+
+    render(
+      <LogViewer
+        lines={[
+          { ts: '2026-08-07T10:00:00Z', level: 'info', msg: 'primeira' },
+          { ts: '2026-08-07T10:00:01Z', level: 'error', msg: 'segunda' },
+        ]}
+        connected
+        error={false}
+        paused={false}
+        onTogglePause={() => {}}
+        onClear={() => {}}
+        onRefresh={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /download log buffer/i }));
+    // A funcao existia, testada, desde J-19 — e sem chamador, porque a toolbar
+    // que a usava saiu numa limpeza de codigo morto. Este teste e o que impede
+    // a proxima limpeza de orfana-la de novo em silencio.
+    expect(criarUrl).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
+  it('com o buffer vazio o botao fica desabilitado', () => {
+    render(
+      <LogViewer
+        lines={[]}
+        connected
+        error={false}
+        paused={false}
+        onTogglePause={() => {}}
+        onClear={() => {}}
+      />,
+    );
+    // Baixar um arquivo vazio nao e um erro que o usuario cometeu — e uma acao
+    // que nao devia estar disponivel.
+    expect(screen.getByRole('button', { name: /download log buffer/i })).toBeDisabled();
   });
 });

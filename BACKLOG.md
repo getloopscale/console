@@ -773,7 +773,7 @@ dod:
   - Split by reason-to-change before the fan-in grows further: move the token lifecycle (lines 110-224) into src/lib/api/session.ts, keep transport (cloudFetch/engineFetch/cloudFetchRaw) and ApiError in the entry module, and fold the file into the existing src/lib/api/ directory as...
   - a contagem de importadores diretos de `src/lib/api.ts` cai de forma medida (registrar o antes/depois com o mesmo parser de imports usado na auditoria)
 
-## B-030 — Two user-facing hooks are wired to nothing but their own tests: useDomainStatusPolling and useFirstDeployTrigger   [ ]
+## B-030 — Two user-facing hooks are wired to nothing but their own tests: useDomainStatusPolling and useFirstDeployTrigger   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -785,7 +785,9 @@ evidence: src/hooks/use-domain-status-polling.ts:50 — An import graph over all
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#20
 overlaps: B-031, B-069, B-076
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: `useFirstDeployTrigger` LIGADO. Ele nao era esboco — respeita prefers-reduced-motion, trava por localStorage contra repeticao entre abas, filtra builds historicos por `mountedAt` e emite telemetria. Faltava o lugar. `pages/projects/first-deploy-celebration.tsx` e um componente sem marcacao cujo unico papel e dar arvore ao hook (useToast so pode ser chamado dentro dela), montado por project-detail — que JA chamava useDeployments(name) e JA tinha status.url, entao o wire custa ZERO requests. 6 testes, sendo o central o filtro de build historico: e a diferenca entre um marco e um incomodo, porque sem ele abrir a pagina de um projeto antigo apos limpar o localStorage dispara confetti por um deploy de seis meses atras. Dois efeitos colaterais medidos e corrigidos: (1) o guard de RESIDENCIA (ADR-0001 D3) acusou o hook por passar a ter um unico dominio consumidor — ligar um modulo torna a residencia dele mensuravel pela primeira vez — e ele foi para hooks/projects/, mantendo a CAMADA e marcando o dominio, conforme D4.1. (2) o bundle eager subiu de 305.85 para 309.49 kB porque canvas-confetti caiu no vendor pre-carregado: 3,6 kB em TODA visita por uma animacao que dispara uma vez na vida do projeto. O import dinamico sozinho NAO resolveu (a config manda todo node_modules para o vendor) — precisou tambem ejeta-lo em manual-chunks. Final: 306.1 kB, com o confetti em chunk proprio. A primeira explicacao que dei para o crescimento estava errada e foi a medicao que corrigiu.
+B-030 FECHADO: os dois hooks decididos e agidos (useDomainStatusPolling em 861476b, useFirstDeployTrigger aqui).
 partial_progress: 861476b — useDomainStatusPolling LIGADO via DomainStatusWatcher: a tabela passa a atualizar quando o DNS propaga, em vez de exigir reload manual. So funciona porque B-018 unificou a hierarquia de chave. RESTA useFirstDeployTrigger (confetti no primeiro deploy) — feature completa nunca ligada; wire muda a UX sem pedido, apagar destroi trabalho. Chamada de produto.
 partial_progress: mecanismo entregue: src/lib/test-only-module-guard.test.ts impede a PROXIMA instancia. Os dois hooks seguem na allowlist — a decisao de wire-ou-apagar e de produto (useFirstDeployTrigger dispara confetti no primeiro deploy)
 dod:
@@ -812,6 +814,9 @@ partial_progress: o guard encontrou OITO modulos alem dos listados no achado, in
 dod:
   - Triage in two buckets rather than deleting blindly
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/pages/lens/compare-core.ts`
+
+progresso_2026-08-07: `lib/export/log-download.ts` LIGADO ao botao Download da toolbar do LogViewer, e MOVIDO para pages/deploy/export/ pelo guard de residencia. Ele nao era feature a apagar — era feature ORFANADA quando a toolbar que a chamava saiu numa limpeza de codigo morto anterior. Exporta o buffer INTEIRO e nao o subconjunto filtrado (decisao Q3 do plano original, mantida): quem baixa um log quer o log, e um arquivo silenciosamente cortado pelo filtro de tela e a forma mais cara de perder a linha que importava. 2 testes, um deles provando que o botao fica desabilitado com buffer vazio.
+RESTA na allowlist: `lib/auth/return-to.ts` (guard de open-redirect sem vetor ativo — verificado que os tres usos de `return_to` ESCREVEM a URL com o proprio origin e nenhum LE uma externa para navegar) e `hooks/projects/use-status-stream.ts`, que agora tem motivo MUITO mais forte para ficar: issue #473 mediu que servidor e cliente falam contratos diferentes — o servidor emite o patch de auditoria do reaper e o cliente filtra por um campo `signal` que esse payload nao tem. Ligar reproduziria o custo que B-051 removeu; apagar destruiria a metade cliente de uma feature cuja metade servidor existe e esta roteada.
 
 ## B-032 — Estrategia de organizacao de codigo: package-by-layer no topo (pages/ components/ hooks/ lib/) com feature-folders aninhados dentro de cada...   [ ]
 
