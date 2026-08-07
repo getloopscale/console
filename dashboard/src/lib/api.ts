@@ -115,6 +115,30 @@ export function installAuthChannel(): () => void {
 let lastExchangeStatus: number | null = null;
 
 /**
+ * Identity carried by the last successful token exchange.
+ *
+ * The exchange already validates the Kratos cookie server-side, so the BFF has
+ * the session in hand and returns the subset the dashboard reads. Caching it
+ * here is what lets `getSession()` stop calling Kratos from the browser — and
+ * with it stop receiving devices[].ip_address and recovery_addresses, which no
+ * screen has ever read.
+ */
+let lastIdentity: ExchangedIdentity | null = null;
+
+export interface ExchangedIdentity {
+  id: string;
+  email: string;
+  name?: string;
+  verifiable_addresses?: { value: string; verified: boolean; via: string }[];
+  authentication_methods?: { method: string; provider?: string }[];
+}
+
+/** The identity from the most recent successful exchange, if any. */
+export function getExchangedIdentity(): ExchangedIdentity | null {
+  return lastIdentity;
+}
+
+/**
  * #324, forma final. As tres rodadas anteriores enumeravam o lado TRANSITORIO
  * ("foi 429?"), e esse conjunto e ABERTO: `/v1/auth/session/token` falha com
  * 429, 500 (INTERNAL_ERROR / TENANT_ERROR / TOKEN_ERROR), 502
@@ -167,9 +191,14 @@ export async function exchangeSessionToken(): Promise<boolean> {
       }
       lastExchangeStatus = resp.status;
 
-      const data = await resp.json() as { access_token: string; expires_in: number };
+      const data = await resp.json() as {
+        access_token: string;
+        expires_in: number;
+        identity?: ExchangedIdentity;
+      };
       accessToken = data.access_token;
       tokenExpiresAt = Date.now() + (data.expires_in * 1000) - 60000; // 60s buffer
+      lastIdentity = data.identity ?? null;
 
       // SECURITY: do NOT broadcast the token. Each tab exchanges its own token
       // from its Kratos session cookie on demand (see ensureToken).
@@ -234,6 +263,7 @@ function redirectToLogin(reason?: string): void {
 export function clearToken(): void {
   accessToken = null;
   tokenExpiresAt = 0;
+  lastIdentity = null;
 }
 
 /** Logout — clears token and broadcasts to other tabs. */

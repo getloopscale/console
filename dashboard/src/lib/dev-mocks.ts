@@ -395,11 +395,6 @@ export function installKratosMocks(): void {
       return originalFetch!(input, init);
     }
 
-    // Pass through Kratos /sessions/whoami — handled by getMockSession() in auth.ts
-    if (url.includes('/sessions/whoami')) {
-      return originalFetch!(input, init);
-    }
-
     // Match the flow type from the URL: /self-service/{type}/browser or .../flows
     const match = url.match(/\/self-service\/([a-z]+)\//);
     const flowType = match?.[1] ?? '';

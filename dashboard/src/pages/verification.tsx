@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { API_URL, AUTH_URL } from '@/lib/config';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { enrichKratosError } from '@/lib/kratos';
+import { getSession } from '@/lib/auth';
 import { ResendCooldownButton } from '@/components/verification/resend-cooldown-button';
 
 const KRATOS_URL = AUTH_URL || API_URL;
@@ -47,8 +48,8 @@ export function VerificationPage() {
    * mail after a POST that includes the `email` field. The dashboard UI
    * surfaces PinInput directly (no email-prompt screen), so without this
    * auto-POST users see an input box waiting for a code that was never
-   * sent. We pull the email from /sessions/whoami (set when the user is
-   * logged in) and submit it. If there is no session, we fall through
+   * sent. We pull the email from the session (via the BFF exchange, not from
+   * Kratos directly) and submit it. If there is no session, we fall through
    * silently — there is nothing to send the code to.
    *
    * Idempotent: re-POSTing the same email on a flow that already has a
@@ -57,12 +58,7 @@ export function VerificationPage() {
    */
   const ensureCodeRequested = async (flow: string) => {
     try {
-      const sessionResp = await fetch(`${KRATOS_URL}/sessions/whoami`, {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      });
-      if (!sessionResp.ok) return;
-      const session = await sessionResp.json();
+      const session = await getSession();
       const email: string | undefined = session?.identity?.traits?.email;
       if (!email) return;
 

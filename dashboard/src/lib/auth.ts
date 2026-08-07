@@ -20,6 +20,7 @@ import { API_URL, AUTH_URL, mocksEnabled } from './config';
 // boot (main.tsx) e o passo 2 da remediacao e fica registrado no item, porque
 // muda o ciclo de vida da sessao e merece o seu proprio teste.
 import { getMockSession } from './dev-mocks';
+import { exchangeSessionToken, getExchangedIdentity } from './api';
 const KRATOS_URL = AUTH_URL || API_URL;
 
 // Os tipos de sessao moram em ./api/types (a ACL de tipos do backend, que nao
@@ -78,27 +79,43 @@ export async function getSession(): Promise<Session | null> {
   if (mocksEnabled()) return getMockSession();
 
   try {
-    const resp = await fetch(`${KRATOS_URL}/sessions/whoami`, {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    });
-    if (!resp.ok) {
+    // The BFF exchange validates the Kratos cookie server-side and returns the
+    // identity subset this app reads. Going through it — instead of calling
+    // Kratos from the browser — is what keeps devices[].ip_address and
+    // recovery_addresses out of the page: they are never sent, so no XSS can
+    // read them from here.
+    //
+    // exchangeSessionToken() de-duplicates in-flight calls, so a screen that
+    // asks for the session while a refresh is running does not add a request.
+    const ok = await exchangeSessionToken();
+    if (!ok) {
       // eslint-disable-next-line no-console
       console.warn(
-        `[auth] getSession: Kratos returned HTTP ${resp.status} (no active session). ` +
+        `[auth] getSession: session exchange failed (no active session). ` +
           `If you just registered/logged in but see this, the session cookie may not have been ` +
           `set (open DevTools → Application → Cookies → usetheo.dev and look for ory_kratos_session). ` +
           `Clear cookies and re-login to reset.`,
       );
       return null;
     }
-    const session = await resp.json();
-    if (!session.active) {
+    const identity = getExchangedIdentity();
+    if (!identity) {
+      // A 200 without an identity means the BFF is older than this dashboard.
+      // Fail closed: a session we cannot describe is not a session we should
+      // act on.
       // eslint-disable-next-line no-console
-      console.warn('[auth] getSession: Kratos returned session but active=false', session);
+      console.warn('[auth] getSession: exchange succeeded but carried no identity');
       return null;
     }
-    return session;
+    return {
+      active: true,
+      identity: {
+        id: identity.id,
+        traits: { email: identity.email, name: identity.name },
+        verifiable_addresses: identity.verifiable_addresses,
+      },
+      authentication_methods: identity.authentication_methods,
+    };
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[auth] getSession: network/parse error', err);

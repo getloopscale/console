@@ -6,6 +6,20 @@
 
 ### Changed
 
+- **O dashboard parou de pedir a sessão ao Ory pelo browser.** `getSession()` chamava
+  `/sessions/whoami` diretamente e recebia a sessão inteira: além do que a tela usa
+  (`identity.id`, `email`, `name`, `verifiable_addresses`, `authentication_methods`), vinham
+  `devices[].ip_address`, `devices[].user_agent`, `recovery_addresses` e `schema_url` — nenhum deles
+  lido por nenhuma tela. O IP do usuário e o canal de recuperação da conta trafegavam até o browser
+  sem consumidor, o que transforma um XSS de "ler o nome" em "ler o IP e por onde recuperar a conta".
+
+  `POST /v1/auth/session/token` **já** validava o cookie contra o Ory no servidor — ele tinha a
+  sessão em mãos e devolvia só o JWT. Agora devolve junto a identidade mínima, então o dashboard
+  obtém tudo na chamada que já fazia, sem requisição extra. O handler decodifica apenas os campos
+  que o cliente lê: um campo que não é parseado não pode ser repassado por descuido depois.
+  Dois testes fixam o contrato — um verifica que os campos usados chegam, o outro que
+  `ip_address`, `recovery_addresses`, `user_agent` e `schema_url` **não** aparecem na resposta (#267)
+
 - **O carregamento inicial do dashboard ficou 180 KB menor (comprimido).** O editor de texto rico, o pipeline de markdown e o realce de sintaxe eram baixados por toda visita, inclusive por quem só abre a lista de deployments — cada um é usado por uma única tela, que já carrega sob demanda. O conjunto baixado no primeiro acesso caiu de 485 KB para 306 KB.
 
 - **A documentação de `theo-cloud` virou conhecimento que um agente consegue percorrer, e não nove arquivos soltos.** Os nove documentos de `docs/` passaram a ser conceitos no **Open Knowledge Format** (OKF v0.2, a especificação aberta do Google Cloud): cada um declara o que é (`Governance Mandate`, `Runbook`, `Roadmap`, `Meeting Record`…), de onde veio e quando foi escrito, e agora existe um índice na raiz e um por pasta para se chegar a qualquer um por navegação em vez de busca por nome de arquivo. **Nenhuma linha do conteúdo mudou** — só se acrescentou cabeçalho, índices e os elos entre documentos; a conversão é verificável comparando cada corpo com o git. Seis arquivos ganharam pasta que diz a sua natureza (`governance/`, `products/`, `architecture/`, `roadmaps/`, `handoffs/`), todos via `git mv`, então o histórico segue o arquivo. O ganho concreto é o elo: quem lê o runbook do M0 chega às invariantes do dashboard que ele fecha, e quem lê a superfície de Storage chega ao roadmap que está mudando o caminho dos bytes por baixo dela — antes essas relações existiam só na cabeça de quem já conhecia o repositório. **Quem apontava para os caminhos antigos foi corrigido junto** (`CLAUDE.md` e o handoff de M7 Storage); as citações no histórico já lançado deste changelog ficaram como estavam, porque registram o que era verdade na época.
