@@ -135,6 +135,24 @@ grupos que colapsam no conjunto abaixo. Nove já existem como subpasta em `pages
 Um artefato consumido por `pages/lens/**` e por `components/lens/**` tem **um** domínio
 consumidor — `lens` —, não dois. A contagem é por domínio, não por diretório.
 
+### D4.1 — Quando domínio e camada discordam, a camada decide
+
+*Aprendido na execução, 2026-08-07.* `trace-layout.ts` tem um único domínio
+consumidor (`lens`), então a regra D3 mandava descê-lo para o domínio. Ao movê-lo
+para `pages/lens/`, o lint reprovou: `components/lens/ask-thread.tsx` também o
+consome, e a direção de camada proíbe `components/` importar de `pages/`.
+
+> Um módulo de domínio único consumido por **mais de uma camada** mora na **camada
+> mais baixa** entre as que o consomem — não na pasta de páginas do domínio.
+
+`trace-layout.ts` foi para `components/lens/`. A regra de residência diz *qual
+domínio*; a direção de camada diz *qual altura*. As duas se aplicam, e quando
+colidem a camada vence — porque violar a direção fecha ciclo, e violar a
+residência só custa navegabilidade.
+
+O episódio também é evidência a favor de D5: a regra executável pegou o erro na
+mesma hora. Sem ela, `components → pages` teria entrado silenciosamente.
+
 ### D5 — Verificação, com o que existe hoje
 
 A versão anterior prescrevia `import/no-restricted-paths`. Isso é

@@ -13,7 +13,7 @@ describe('login.tsx LoC budget', () => {
   it('test_login_tsx_within_500_line_budget', () => {
     // vitest cwd is the dashboard package root; resolve the page from there
     // (import.meta.url is not a file:// scheme under jsdom).
-    const path = resolve(process.cwd(), 'src/pages/login.tsx');
+    const path = resolve(process.cwd(), 'src/pages/auth/login.tsx');
     const content = readFileSync(path, 'utf8');
     // wc -l semantics: count newlines (a trailing newline is the line terminator,
     // not an extra line).

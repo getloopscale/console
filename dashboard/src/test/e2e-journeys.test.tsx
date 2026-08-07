@@ -98,16 +98,16 @@ vi.mock('@/hooks/use-whoami', () => ({
 
 // Static imports — vi.mock factories above apply before module evaluation.
 import { OverviewPage } from '@/pages/overview';
-import { ProjectsPage } from '@/pages/projects';
-import { ProjectDetailPage } from '@/pages/project-detail';
-import { DeploymentsPage } from '@/pages/deployments';
-import { BillingPage } from '@/pages/billing';
-import { TeamPage } from '@/pages/team';
-import { SecretsPage } from '@/pages/secrets';
-import { AuditPage } from '@/pages/audit';
-import { ProjectStatusPage } from '@/pages/project-status';
-import { DomainsPage } from '@/pages/domains';
-import { EnvironmentsPage } from '@/pages/environments';
+import { ProjectsPage } from '@/pages/projects/projects';
+import { ProjectDetailPage } from '@/pages/projects/project-detail';
+import { DeploymentsPage } from '@/pages/deploy/deployments';
+import { BillingPage } from '@/pages/settings/billing';
+import { TeamPage } from '@/pages/settings/team';
+import { SecretsPage } from '@/pages/infra/secrets';
+import { AuditPage } from '@/pages/settings/audit';
+import { ProjectStatusPage } from '@/pages/projects/project-status';
+import { DomainsPage } from '@/pages/infra/domains';
+import { EnvironmentsPage } from '@/pages/infra/environments';
 
 describe('E2E journey smoke — Plan v1.0 Final Phase Dogfood QA', () => {
   beforeEach(() => {

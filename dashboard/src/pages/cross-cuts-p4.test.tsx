@@ -37,8 +37,8 @@ vi.mock('@/lib/api', async (importOriginal) => {
 // useCloudApi delegates to cloudFetch under the hood; the existing pages
 // use both. Mocking the underlying fetcher covers both paths.
 
-import { BillingPage } from './billing';
-import { AuditPage } from './audit';
+import { BillingPage } from './settings/billing';
+import { AuditPage } from './settings/audit';
 import { SettingsPage } from './settings/overview';
 
 describe('Plan 4 Memory cross-cuts — regression + additive guards', () => {

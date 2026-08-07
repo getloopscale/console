@@ -46,16 +46,16 @@ const OverviewPage = lazy(() =>
   import('@/pages/overview').then((m) => ({ default: m.OverviewPage })),
 );
 const ProjectsPage = lazy(() =>
-  import('@/pages/projects').then((m) => ({ default: m.ProjectsPage })),
+  import('@/pages/projects/projects').then((m) => ({ default: m.ProjectsPage })),
 );
 const EnvironmentsPage = lazy(() =>
-  import('@/pages/environments').then((m) => ({ default: m.EnvironmentsPage })),
+  import('@/pages/infra/environments').then((m) => ({ default: m.EnvironmentsPage })),
 );
 const TeamPage = lazy(() =>
-  import('@/pages/team').then((m) => ({ default: m.TeamPage })),
+  import('@/pages/settings/team').then((m) => ({ default: m.TeamPage })),
 );
 const BillingPage = lazy(() =>
-  import('@/pages/billing').then((m) => ({ default: m.BillingPage })),
+  import('@/pages/settings/billing').then((m) => ({ default: m.BillingPage })),
 );
 // M21 — the detail behind the sidebar health indicator.
 const StatusPage = lazy(() =>
@@ -65,13 +65,13 @@ const SettingsPage = lazy(() =>
   import('@/pages/settings/overview').then((m) => ({ default: m.SettingsPage })),
 );
 const ProfilePage = lazy(() =>
-  import('@/pages/profile').then((m) => ({ default: m.ProfilePage })),
+  import('@/pages/settings/profile').then((m) => ({ default: m.ProfilePage })),
 );
 const DomainsPage = lazy(() =>
-  import('@/pages/domains').then((m) => ({ default: m.DomainsPage })),
+  import('@/pages/infra/domains').then((m) => ({ default: m.DomainsPage })),
 );
 const ApiKeysPage = lazy(() =>
-  import('@/pages/api-keys').then((m) => ({ default: m.ApiKeysPage })),
+  import('@/pages/settings/api-keys').then((m) => ({ default: m.ApiKeysPage })),
 );
 const MemoryPage = lazy(() =>
   import('@/pages/memory/overview').then((m) => ({ default: m.MemoryPage })),
@@ -244,40 +244,40 @@ const LensDashboardsPage = lazy(() =>
   import('@/pages/lens/dashboards').then((m) => ({ default: m.LensDashboardsPage })),
 );
 const LoginPage = lazy(() =>
-  import('@/pages/login').then((m) => ({ default: m.LoginPage })),
+  import('@/pages/auth/login').then((m) => ({ default: m.LoginPage })),
 );
 const RegisterPage = lazy(() =>
-  import('@/pages/register').then((m) => ({ default: m.RegisterPage })),
+  import('@/pages/auth/register').then((m) => ({ default: m.RegisterPage })),
 );
 // Red Team theo/theo#162 (2026-07-01): SPA-side page for the post-signup
 // redirect target /auth/check-email that previously 404'd against the BFF.
 const CheckEmailPage = lazy(() =>
-  import('@/pages/check-email').then((m) => ({ default: m.CheckEmailPage })),
+  import('@/pages/auth/check-email').then((m) => ({ default: m.CheckEmailPage })),
 );
 const VerificationPage = lazy(() =>
-  import('@/pages/verification').then((m) => ({ default: m.VerificationPage })),
+  import('@/pages/auth/verification').then((m) => ({ default: m.VerificationPage })),
 );
 const RecoveryPage = lazy(() =>
-  import('@/pages/recovery').then((m) => ({ default: m.RecoveryPage })),
+  import('@/pages/auth/recovery').then((m) => ({ default: m.RecoveryPage })),
 );
 const DeviceSuccessPage = lazy(() =>
-  import('@/pages/device-success').then((m) => ({ default: m.DeviceSuccessPage })),
+  import('@/pages/auth/device-success').then((m) => ({ default: m.DeviceSuccessPage })),
 );
 const DeviceVerifyPage = lazy(() =>
-  import('@/pages/device-verify').then((m) => ({ default: m.DeviceVerifyPage })),
+  import('@/pages/auth/device-verify').then((m) => ({ default: m.DeviceVerifyPage })),
 );
 const ProjectDetailPage = lazy(() =>
-  import('@/pages/project-detail').then((m) => ({ default: m.ProjectDetailPage })),
+  import('@/pages/projects/project-detail').then((m) => ({ default: m.ProjectDetailPage })),
 );
 const NotFoundPage = lazy(() =>
   import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })),
 );
 const DeploymentsPage = lazy(() =>
-  import('@/pages/deployments').then((m) => ({ default: m.DeploymentsPage })),
+  import('@/pages/deploy/deployments').then((m) => ({ default: m.DeploymentsPage })),
 );
 // Plan J-17 T5.1: layout + 4 tabs replace the 4 sibling routes below.
 const DeploymentDetailLayout = lazy(() =>
-  import('@/pages/deployment-detail-layout').then((m) => ({ default: m.DeploymentDetailLayout })),
+  import('@/pages/deploy/deployment-detail-layout').then((m) => ({ default: m.DeploymentDetailLayout })),
 );
 const TimelineTab = lazy(() =>
   import('@/pages/deployment-tabs/timeline-tab').then((m) => ({ default: m.TimelineTab })),
@@ -297,13 +297,13 @@ const AttestationTab = lazy(() =>
 // lugar nenhum, então link direto algum as alcançava. O que existe são as abas aninhadas
 // `logs` / `sbom` / `attestation` sob /projects/:name/deployments/:id, logo abaixo.
 const RuntimeLogsPage = lazy(() =>
-  import('@/pages/runtime-logs').then((m) => ({ default: m.RuntimeLogsPage })),
+  import('@/pages/deploy/runtime-logs').then((m) => ({ default: m.RuntimeLogsPage })),
 );
 const ProjectStatusPage = lazy(() =>
-  import('@/pages/project-status').then((m) => ({ default: m.ProjectStatusPage })),
+  import('@/pages/projects/project-status').then((m) => ({ default: m.ProjectStatusPage })),
 );
 const SecretsPage = lazy(() =>
-  import('@/pages/secrets').then((m) => ({ default: m.SecretsPage })),
+  import('@/pages/infra/secrets').then((m) => ({ default: m.SecretsPage })),
 );
 // PreviewsPage deleted per plan 2026-06-08-dashboard-screens-review-fixes
 // The multi-row preview table is obsolete under the post-M2 single-slot
@@ -366,16 +366,16 @@ function RouteScope({ children }: { children: ReactNode }) {
 }
 
 const ProjectConnectPage = lazy(() =>
-  import('@/pages/project-connect').then((m) => ({ default: m.ProjectConnectPage })),
+  import('@/pages/projects/project-connect').then((m) => ({ default: m.ProjectConnectPage })),
 );
 const AuditPage = lazy(() =>
-  import('@/pages/audit').then((m) => ({ default: m.AuditPage })),
+  import('@/pages/settings/audit').then((m) => ({ default: m.AuditPage })),
 );
 const ProjectScalePage = lazy(() =>
-  import('@/pages/project-scale').then((m) => ({ default: m.ProjectScalePage })),
+  import('@/pages/projects/project-scale').then((m) => ({ default: m.ProjectScalePage })),
 );
 const ProjectReadinessPage = lazy(() =>
-  import('@/pages/project-readiness').then((m) => ({ default: m.ProjectReadinessPage })),
+  import('@/pages/projects/project-readiness').then((m) => ({ default: m.ProjectReadinessPage })),
 );
 
 // Sprint 3 Phase 2 (#17) v1.1 ADR D1 — `PageLoader` superseded by

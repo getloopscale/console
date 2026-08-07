@@ -226,24 +226,24 @@ export default [
       'src/test/**/*.{ts,tsx}',
       // Divida registrada (B-033). Cada linha sai daqui quando o arquivo for
       // decomposto; nenhuma linha nova entra sem ADR.
-      'src/pages/api-keys.tsx', // 954 LOC
+      'src/pages/settings/api-keys.tsx', // 954 LOC
       'src/pages/promptly/detail.tsx', // 915 LOC
       'src/lib/api/types.ts', // 813 LOC
       'src/lib/mocks/handlers.ts', // 797 LOC
       'src/app.tsx', // 757 LOC
-      'src/pages/recovery.tsx', // 711 LOC
-      'src/pages/deployments.tsx', // 704 LOC
-      'src/pages/project-connect.tsx', // 696 LOC
+      'src/pages/auth/recovery.tsx', // 711 LOC
+      'src/pages/deploy/deployments.tsx', // 704 LOC
+      'src/pages/projects/project-connect.tsx', // 696 LOC
       'src/components/deploy/deploy-timeline-hero.tsx', // 677 LOC
       'src/pages/memory/graph.tsx', // 664 LOC
       'src/pages/lens/evaluators.tsx', // 585 LOC
       'src/pages/memory/webhooks.tsx', // 560 LOC
       'src/pages/skills/bundle-detail.tsx', // 554 LOC
       'src/lib/mocks/skills-handlers.ts', // 546 LOC
-      'src/pages/billing.tsx', // 539 LOC
+      'src/pages/settings/billing.tsx', // 539 LOC
       'src/pages/settings/webhooks.tsx', // 533 LOC
       'src/pages/lens/alerts.tsx', // 522 LOC
-      'src/pages/projects.tsx', // 513 LOC
+      'src/pages/projects/projects.tsx', // 513 LOC
     ],
     rules: {
       'max-lines': ['error', { max: 500, skipBlankLines: false, skipComments: false }],

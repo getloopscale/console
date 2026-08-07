@@ -18,8 +18,8 @@
 export {
   computeBarLayout,
   type TraceSpanNode,
-} from '@/pages/lens/trace-layout';
-import type { TraceSpanNode } from '@/pages/lens/trace-layout';
+} from '@/components/lens/trace-layout';
+import type { TraceSpanNode } from '@/components/lens/trace-layout';
 
 /** One OpenAI-shaped tool call attached to an assistant message. */
 export interface ToolCall {

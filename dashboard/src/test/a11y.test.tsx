@@ -55,10 +55,10 @@ vi.mock('@/hooks/use-whoami', () => ({
   }),
 }));
 
-import { ProjectsPage } from '@/pages/projects';
-import { ProjectDetailPage } from '@/pages/project-detail';
-import { SecretsPage } from '@/pages/secrets';
-import { TeamPage } from '@/pages/team';
+import { ProjectsPage } from '@/pages/projects/projects';
+import { ProjectDetailPage } from '@/pages/projects/project-detail';
+import { SecretsPage } from '@/pages/infra/secrets';
+import { TeamPage } from '@/pages/settings/team';
 
 describe('A11y semantic skeleton — every page', () => {
   it('projects_page_has_accessible_primary_action', () => {

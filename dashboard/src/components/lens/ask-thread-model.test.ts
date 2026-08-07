@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { STARTER_PROMPTS, buildEntityMap, resolveCitations } from './ask-thread-model';
-import type { TraceSpanNode } from '@/pages/lens/trace-layout';
+import type { TraceSpanNode } from '@/components/lens/trace-layout';
 
 /**
  * M61 P0 T0.1 — the pure thread helpers. `buildEntityMap` flattens the fetched span tree to

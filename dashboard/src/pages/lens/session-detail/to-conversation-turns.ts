@@ -1,4 +1,4 @@
-import type { TraceSpanNode } from '@/pages/lens/trace-layout';
+import type { TraceSpanNode } from '@/components/lens/trace-layout';
 import { flattenAll } from '../trace-detail/helpers';
 
 /**
