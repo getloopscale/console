@@ -1,12 +1,24 @@
 ---
-active: true
+active: false
+# INTERROMPIDO em 2026-08-07 a pedido do dono do projeto — NAO concluido.
+#
+# A promessa `SYSTEM DESIGN AUDIT COMPLETE` NAO foi emitida, e a distincao
+# importa: dos quatro criterios de conclusao (fase 6), verifiquei dois —
+# `final_report.md` existe (704 linhas) e ha 3 figuras SVG em `figures/`. Os
+# outros dois (contagens do relatorio conferindo com o DB; remediation
+# populada em todo achado critical/high) NAO foram verificados, porque
+# `sqlite3` nao esta instalado nesta maquina.
+#
+# Marcar `active: false` sem a promessa e o que `rules/loop-engine-convention.md`
+# § State files prescreve para um loop abandonado. O trabalho dele foi consumido:
+# os 91 achados viraram os 87 itens iniciais de BACKLOG.md.
 target: /home/paulo/Projetos/theo/theo-platform/theo-cloud/dashboard
 scope: organizacao de pastas, fronteiras de modulos e componentizacao do frontend
   React/Vite
 current_phase: 6
 phase_name: report
 phase_iteration: 1
-global_iteration: 3
+global_iteration: 5
 max_global_iterations: 80
 completion_promise: SYSTEM DESIGN AUDIT COMPLETE
 started_at: '2026-08-06T14:22:09Z'
