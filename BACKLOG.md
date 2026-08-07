@@ -2312,7 +2312,7 @@ PROVA DE EQUIVALENCIA: comparei as duas regex contra todos os pacotes instalados
 — zero deixaram de ser ejetados, zero passaram a ser. A ancoragem fecha a classe
 sem mudar comportamento. `size-limit` exit 0.
 
-## B-098 — 233 citacoes `ADR D1..D9` nao resolvem   [ ]
+## B-098 — 233 citacoes `ADR D1..D9` nao resolvem   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -2323,7 +2323,8 @@ category: broken_reference
 evidence: 233 ocorrencias de `ADR D1`..`ADR D9` em 133 arquivos; os arquivos criados por B-078 sao `ADR-0001`..`ADR-0008`. Nenhuma resolve. Slugs de plano tambem pendurados: `2026-05-27-backend-frontend-integration`, `2026-06-08-dashboard-screens-review-fixes`, `2026-06-11-code-review-remediation`, entre 10+.
 provenance: revisao de promocao 2026-08-07 (cross-validation)
 why_now: B-078 esta `[x]` e o dod literal foi cumprido (os 8 ADRs existem como arquivos), mas a CONDICAO que motivou o item — docblock citando ADR que nao resolve — persiste em 133 arquivos. Fechar o item nao fechou o problema.
-status: triaged
+status: shipped
+shipped_note: as DUAS saidas do dod partiam de uma premissa falsa, e medi-la foi o trabalho. `ADR D1..D9` NAO sao citacoes mal-escritas dos ADRs deste repo: sao referencias a decisao D<n> de um PLANO, pela convencao do /to-plan, em que cada plano numera as suas proprias. O D2 de um arquivo e o D2 de outro sao decisoes diferentes de planos diferentes — entao 'usar a mesma nomenclatura dos arquivos' exigiria decidir, para cada uma das 234, qual dos 9 ADRs ela significa, e para a maioria a resposta e nenhum (ADR D2 sobre contraste WCAG nao vira ADR-0002, que e sobre orcamento de LoC); e um mapa D1..D9 -> ADR-000N e IMPOSSIVEL, nao dificil, porque nao ha funcao. Medi tambem que os planos citados NAO EXISTEM em .claude/knowledge-base/plans/ (2026-06-08-dashboard-screens-review-fixes, 2026-05-27-backend-frontend-integration, 2026-06-11-code-review-remediation, theo-memory-dashboard-full-integration): nem as 33 citacoes que nomeiam o plano resolvem. A saida: docs/adr/README.md explica as duas nomenclaturas e diz qual resolve, e src/lib/adr-nomenclature.test.ts fecha a CLASSE mecanicamente (segundo bullet do dod) com tres asserções — a contagem de `ADR D<n>` so encolhe a partir de 234, toda citacao `ADR-000N` resolve para arquivo real, e o README lista todos os ADRs existentes (um indice que envelhece em silencio e pior que nenhum). Reescrever as 234 exigiria inventar conteudo que ninguem pode recuperar, e uma citacao ERRADA e mais convincente que uma que nao resolve. O guard pegou a mim mesmo na primeira execucao: acusou 237 contra teto 234, e as tres a mais eram a prosa do proprio arquivo explicando a notacao — a mesma confusao entre forma e significado que ele existe para resolver.
 dod:
   - as citacoes usam a mesma nomenclatura dos arquivos, OU existe um mapa D1..D9 -> ADR-000N escrito
   - a verificacao e mecanica (script que resolve toda citacao), nao amostral
