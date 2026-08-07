@@ -59,6 +59,21 @@ const ALLOWLIST = new Set([
   // mas isso e apagar uma FEATURE, e vale ser dito em voz alta.
   'lib/auth/return-to.ts',
   'lib/export/log-download.ts',
+  // B-095 / B-051 — `useStatusStream` NAO e descuido: a assinatura foi removida de
+  // `project-status.tsx` de proposito, porque abria um EventSource e DESCARTAVA
+  // todo evento recebido — gastando uma das ~6 conexoes que o browser concede por
+  // dominio, e reabrindo com o ambiente errado quando o snapshot chegava.
+  //
+  // O caminho de reintroducao esta escrito no lugar (`project-status.tsx:88`), e
+  // os tres importadores de producao consomem so o TIPO `SignalName` — foi por
+  // isso que o guard nao o via ate B-095 ensina-lo a ignorar `import type`.
+  //
+  // Fica aqui, e nao apagado, por uma razao concreta: e o UNICO stream que
+  // autentica por COOKIE em vez de token na URL, e serve de referencia viva para
+  // a correcao de B-088. Apaga-lo levaria junto o exemplo de como fazer certo.
+  //
+  // Sai daqui quando a SignalGrid consumir realtime, ou quando B-088 fechar.
+  'hooks/projects/use-status-stream.ts',
 ]);
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -102,8 +117,25 @@ describe('nenhum modulo de producao e importado apenas pelo proprio teste', () =
     for (const file of todos) {
       const src = readFileSync(file, 'utf8');
       const isTest = /\.(test|spec)\.(ts|tsx)$/.test(file);
-      const specs = [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
-      specs.push(...[...src.matchAll(/import\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]));
+      // B-095 — `import type` NAO conta como consumidor.
+      //
+      // Um import de tipo desaparece na compilacao: ele nao mantem nada vivo em
+      // runtime. Contar os dois igual fazia o guard declarar consumido um modulo
+      // cujo codigo executavel nunca roda — e o caso real era grande:
+      // `use-status-stream.ts` (250 LoC, abre EventSource) tem TRES importadores
+      // de producao, e os tres fazem `import type { SignalName }`. O guard estava
+      // verde sobre um modulo cujo unico `useStatusStream(` no repositorio inteiro
+      // e uma LINHA COMENTADA.
+      //
+      // A regex ignora `import type {...} from` e `export type {...} from`. Nao
+      // pega o caso misto (`import { type A, B }`), que consome B de verdade e
+      // portanto DEVE contar — entao o falso-negativo remanescente e conservador,
+      // que e o lado certo de errar aqui.
+      const semImportDeTipo = src
+        .replace(/import\s+type\s+[^;]*?from\s+['"][^'"]+['"]/g, '')
+        .replace(/export\s+type\s+\{[^}]*\}\s*from\s+['"][^'"]+['"]/g, '');
+      const specs = [...semImportDeTipo.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
+      specs.push(...[...semImportDeTipo.matchAll(/import\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]));
 
       for (const spec of specs) {
         let alvo: string | null = null;

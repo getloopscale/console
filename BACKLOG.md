@@ -2172,7 +2172,7 @@ Tres testes, verificados por sonda nas duas direcoes — inclusive o guarda opos
 esconder o painel quando as leituras funcionam tiraria o onboarding de quem
 precisa dele.
 
-## B-095 — `test-only-module-guard` nao distingue `import type` de import de valor   [ ]
+## B-095 — `test-only-module-guard` nao distingue `import type` de import de valor   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -2183,11 +2183,34 @@ category: false_green_guard
 evidence: src/lib/test-only-module-guard.test.ts:105 — a regex `from\s+['"]...` nao distingue tipo de valor; `:129` (`if (refs.length === 0) continue`) pula modulo sem importador algum, por desenho. Instancia real: `src/hooks/use-status-stream.ts` (250 LoC, abre EventSource, exporta `useStatusStream` em `:164`) tem 3 importadores em producao, TODOS `import type { SignalName }` (project-status.tsx:9, signal-detail-sheet.tsx:7, signal-grid.tsx:12). O hook de runtime nao tem consumidor e o guard reporta verde.
 provenance: revisao de promocao 2026-08-07 (auditor de testes), verificado com modulo-sonda
 why_now: e o mesmo arquivo que B-015 reverteu por seguranca — se ele estiver de fato morto, a reversao preserva codigo que ninguem chama; se estiver vivo, o guard esta certo por acaso. Hoje nao da para saber.
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - o guard ignora `import type` ao contar consumidores
   - zero-importador vira ofensor OU o docblock declara que a classe e delegada ao knip
   - `use-status-stream.ts` tem decisao registrada: consumidor real ou remocao
+
+ENTREGUE. O guard passou a ignorar `import type` ao contar consumidores — um
+import de tipo desaparece na compilacao e nao mantem nada vivo em runtime.
+
+O CASO REAL QUE ISSO REVELOU: `hooks/projects/use-status-stream.ts` (250 LoC,
+abre EventSource) tem TRES importadores de producao, e os tres fazem
+`import type { SignalName }`. O unico `useStatusStream(` no repositorio inteiro e
+uma LINHA COMENTADA em `project-status.tsx:88`.
+
+NAO E DESCUIDO, e foi por isso que nao apaguei: B-051 removeu a assinatura de
+proposito, porque ela abria um EventSource e DESCARTAVA todo evento — gastando
+uma das ~6 conexoes por dominio e reabrindo com o ambiente errado. O caminho de
+reintroducao esta escrito no lugar.
+
+Entrou na allowlist com o motivo, e um motivo a mais: e o UNICO stream que
+autentica por COOKIE em vez de token na URL, entao serve de referencia viva para
+a correcao de B-088. Apaga-lo levaria junto o exemplo de como fazer certo.
+
+Zero-importador continua fora de escopo por desenho (e outra classe — codigo
+morto —, coberta pelo knip), e o docblock ja dizia isso.
+
+Verificado por sonda: modulo alcancado so por `import type` e acusado.
 
 ## B-096 — Oito `it.skip` de corpo vazio em login.test.tsx   [ ]
 
@@ -2205,7 +2228,7 @@ dod:
   - cada um dos 8: OU o teste e escrito de verdade, OU a casca e apagada
   - achado embutido: `auth.method.success`/`failure` sao declarados em lib/rum.ts:58-59 e nunca emitidos — telemetria de autenticacao morta, decidir junto
 
-## B-097 — `LAZY_ONLY_RE` entrou sem teste e com prefixos nao ancorados   [ ]
+## B-097 — `LAZY_ONLY_RE` entrou sem teste e com prefixos nao ancorados   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -2216,10 +2239,36 @@ category: untested_build_logic
 evidence: src/build/manual-chunks.ts:45-62 — lista de ~40 pacotes adicionada nesta promocao; `manual-chunks.test.ts` tem ZERO assercao sobre ela. O bloco irmao `FORCE_GRAPH_RE` e testado em `manual-chunks.test.ts:35-51` INCLUSIVE com sosias negativos (`d3po`, `md3-utils`) — disciplina abandonada na lista nova. Rodando a funcao real: 9 de 10 sosias sao ejetados do vendor (`highlightXjs` porque o `.` de `highlight.js` nao esta escapado; `unified-engine`, `mdurl-extra`, `devlop-tools`, `faultline`, `bail-out`, `trough-lite`, `zwitch-x`, `ccounter`). Nenhum instalado hoje — impacto LATENTE, nao presente.
 provenance: revisao de promocao 2026-08-07 (revisor de arquitetura), verificado executando a funcao
 why_now: o criterio declarado ("a familia so e alcancada por rota lazy") foi testado pelo revisor e SE SUSTENTA — `@theokit/ui` carrega `hast-util-to-jsx-runtime` via `await import(...)`. O problema nao e o criterio, e a ancoragem dos padroes e a ausencia de teste.
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - cada entrada ancorada (sufixo `/` ou `-`, `.` escapado)
   - teste espelhando manual-chunks.test.ts:35-51: positivos + sosias negativos
+
+ENTREGUE, e o processo importa mais que o resultado.
+
+A lista era interpolada crua, entao cada entrada virava prefixo solto: `unified`
+casava `unified-engine`, `ccount` casava `ccounter`, e `highlight.js` casava
+`highlightXjs` porque o ponto nao estava escapado. Teste: nenhum — enquanto o
+bloco IRMAO no mesmo arquivo (`FORCE_GRAPH_RE`) e testado com positivos E sosias
+desde sempre. A disciplina existia e foi abandonada na lista nova.
+
+MINHA PRIMEIRA CORRECAO ESTAVA ERRADA. Ancorei com `/` (fim do nome do pacote) e
+o `size-limit` reprovou: o vendor eager cresceu 1,45 kB. Medi o porque — 31
+pacotes REAIS deixaram de ser ejetados: os 20 `micromark-util-*`,
+`character-entities-legacy`, `vfile-message`, `markdown-it-task-lists`. Sao
+irmaos legitimos, publicados com hifen pela convencao do ecossistema unified.
+
+A ancora certa e `[/-]`: o hifen e o que distingue IRMAO de SOSIA. `ccounter`
+continua fora porque nao ha hifen depois de `ccount`.
+
+Tive de corrigir o PROPRIO TESTE junto: ele listava `unified-engine`, `bail-out`
+e `trough-lite` como sosias, e sao (ou seriam) irmaos. Sosia de verdade e o que
+continua o nome sem separador.
+
+PROVA DE EQUIVALENCIA: comparei as duas regex contra todos os pacotes instalados
+— zero deixaram de ser ejetados, zero passaram a ser. A ancoragem fecha a classe
+sem mudar comportamento. `size-limit` exit 0.
 
 ## B-098 — 233 citacoes `ADR D1..D9` nao resolvem   [ ]
 
