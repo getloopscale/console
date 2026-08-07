@@ -1,5 +1,5 @@
 import { Badge, Button, Card, Table } from '@usetheo/ui';
-import { useInvoices } from '@/hooks/use-invoices';
+import { useInvoices } from '@/hooks/settings/use-invoices';
 import { formatMinor } from '@/lib/money';
 import { formatDate } from '@/lib/format';
 

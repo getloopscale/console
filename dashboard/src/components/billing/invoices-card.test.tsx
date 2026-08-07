@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@/test/render';
 
-vi.mock('@/hooks/use-invoices', () => ({ useInvoices: vi.fn() }));
+vi.mock('@/hooks/settings/use-invoices', () => ({ useInvoices: vi.fn() }));
 
 import { InvoicesCard } from './invoices-card';
-import { useInvoices } from '@/hooks/use-invoices';
+import { useInvoices } from '@/hooks/settings/use-invoices';
 
 const mocked = vi.mocked(useInvoices);
 

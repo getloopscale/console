@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@/test/render';
 import { DocThemeToggle } from './doc-theme-toggle';
-import { setDocTheme } from '@/hooks/use-doc-theme';
+import { setDocTheme } from '@/hooks/rag/use-doc-theme';
 import { MarkdownView } from '@/components/common/markdown-view';
 
 describe('DocThemeToggle — global document theme', () => {

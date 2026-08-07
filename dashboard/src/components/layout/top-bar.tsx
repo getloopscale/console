@@ -1,7 +1,7 @@
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { FolderKanban, Search } from 'lucide-react';
 import { Select } from '@usetheo/ui';
-import { useProjects } from '@/hooks/use-projects';
+import { useProjects } from '@/hooks/projects/use-projects';
 
 interface TopBarProps {
   showProjectSelector?: boolean;

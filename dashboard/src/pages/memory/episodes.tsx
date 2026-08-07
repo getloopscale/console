@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useDebouncedValue } from '@/hooks/memory/use-debounced-value';
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, History, Search, X } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell, Timestamp } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';

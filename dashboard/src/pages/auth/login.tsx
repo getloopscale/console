@@ -7,7 +7,7 @@ import { GoogleBrandIcon } from '@/components/google-brand-icon';
 import { LoginErrorBanner } from '@/components/login/login-error-banner';
 import { CookieBlockedAlert } from '@/components/login/cookie-blocked-alert';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
-import { usePendingOIDC } from '@/hooks/use-pending-oidc';
+import { usePendingOIDC } from '@/hooks/auth/use-pending-oidc';
 import { postOIDCForm } from '@/lib/oidc-form';
 import { getSession, startLogin } from '@/lib/auth';
 import { clearToken } from '@/lib/api';

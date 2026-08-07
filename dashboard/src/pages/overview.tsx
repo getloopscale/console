@@ -21,7 +21,7 @@ import { OverviewKPIStrip } from '@/components/overview/overview-kpi-strip';
 import { DeploysActivity } from '@/components/overview/deploys-activity';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { useProjects } from '@/hooks/use-projects';
+import { useProjects } from '@/hooks/projects/use-projects';
 import { useBuildStats } from '@/hooks/use-build-stats';
 import { useCloudApi } from '@/hooks/use-api';
 import { formatDate, formatNumber, isZeroTime } from '@/lib/format';

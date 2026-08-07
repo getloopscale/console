@@ -75,7 +75,7 @@ describe('useDomainStatusPolling registra a query sob a hierarquia domains (B-01
   it('a chave efetiva do hook e alcancada por invalidateQueries(domains.all)', async () => {
     const { renderHook, waitFor } = await import('@testing-library/react');
     const { QueryClientProvider } = await import('@tanstack/react-query');
-    const { useDomainStatusPolling } = await import('@/hooks/use-domain-status-polling');
+    const { useDomainStatusPolling } = await import('@/hooks/infra/use-domain-status-polling');
     const React = await import('react');
 
     const qc = new QueryClient({

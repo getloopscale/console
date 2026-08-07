@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FolderKanban, Loader2 } from 'lucide-react';
 import { Button, EmptyState, PageShell } from '@usetheo/ui';
-import { useProjects } from '@/hooks/use-projects';
+import { useProjects } from '@/hooks/projects/use-projects';
 
 /**
  * ProjectGuard — wraps every per-project sub-route so a non-existent

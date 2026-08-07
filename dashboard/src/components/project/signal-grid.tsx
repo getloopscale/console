@@ -9,7 +9,7 @@ import {
   GitBranch,
   TrendingUp,
 } from 'lucide-react';
-import type { SignalName } from '@/hooks/use-status-stream';
+import type { SignalName } from '@/hooks/projects/use-status-stream';
 
 /**
  * SignalGrid — Plan J-18 T3.2.

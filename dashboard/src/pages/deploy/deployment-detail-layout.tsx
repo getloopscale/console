@@ -5,7 +5,7 @@ import { Button, EmptyState, PageShell } from '@usetheo/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { useDeployment } from '@/hooks/use-deployment';
+import { useDeployment } from '@/hooks/deploy/use-deployment';
 import { BuildHeader } from '@/components/deploy/build-header';
 import { DeployTimelineHero } from '@/components/deploy/deploy-timeline-hero';
 import { useProjectStatus } from '@/hooks/use-project-status';

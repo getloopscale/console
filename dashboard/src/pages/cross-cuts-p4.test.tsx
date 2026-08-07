@@ -15,7 +15,7 @@ vi.mock('@/hooks/use-auth', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-whoami', () => ({
+vi.mock('@/hooks/settings/use-whoami', () => ({
   useWhoami: () => ({ whoami: { team_id: 'team-a' } }),
 }));
 

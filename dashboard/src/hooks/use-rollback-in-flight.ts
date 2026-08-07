@@ -5,7 +5,7 @@ import {
   useEndMutation,
   __resetMutationInFlightStore,
   type MutationInFlight,
-} from './use-mutation-in-flight';
+} from './deploy/use-mutation-in-flight';
 
 /**
  * use-rollback-in-flight — back-compat wrapper around use-mutation-in-

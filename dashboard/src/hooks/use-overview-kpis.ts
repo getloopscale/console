@@ -1,4 +1,4 @@
-import { useProjects } from './use-projects';
+import { useProjects } from './projects/use-projects';
 import { useCloudApi } from './use-api';
 import { useBuildStats } from './use-build-stats';
 

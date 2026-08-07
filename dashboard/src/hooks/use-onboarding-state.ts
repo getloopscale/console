@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useEngineApi } from '@/hooks/use-api';
-import { useDeployments } from '@/hooks/use-deployments';
-import { useProjects } from '@/hooks/use-projects';
-import { useWhoami } from '@/hooks/use-whoami';
+import { useDeployments } from '@/hooks/projects/use-deployments';
+import { useProjects } from '@/hooks/projects/use-projects';
+import { useWhoami } from '@/hooks/settings/use-whoami';
 
 /**
  * useOnboardingState (Sprint 3 T3.1) — first-run UX state machine.

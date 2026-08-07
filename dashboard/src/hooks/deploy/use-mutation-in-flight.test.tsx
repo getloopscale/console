@@ -16,7 +16,7 @@ import {
   useEndMutation,
   __resetMutationInFlightStore,
 } from './use-mutation-in-flight';
-import { useRollbackInFlight } from './use-rollback-in-flight';
+import { useRollbackInFlight } from '../use-rollback-in-flight';
 
 beforeEach(() => {
   __resetMutationInFlightStore();

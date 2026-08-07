@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 
 const mockUseDeployments = vi.fn();
-vi.mock('@/hooks/use-deployments', () => ({
+vi.mock('@/hooks/projects/use-deployments', () => ({
   useDeployments: () => mockUseDeployments(),
 }));
 vi.mock('@/lib/rum', () => ({ reportEvent: vi.fn() }));

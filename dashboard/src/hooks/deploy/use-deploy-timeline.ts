@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useSSEStream } from './use-sse-stream';
+import { useSSEStream } from '../use-sse-stream';
 import {
   PHASE_ORDER,
   TIMELINE_EVENT_TYPES,

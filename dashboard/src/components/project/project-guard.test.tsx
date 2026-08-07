@@ -6,7 +6,7 @@ import { ProjectGuard } from './project-guard';
 
 // Mock the useProjects hook — drives the guard's project-existence check.
 const useProjectsMock = vi.fn();
-vi.mock('@/hooks/use-projects', () => ({
+vi.mock('@/hooks/projects/use-projects', () => ({
   useProjects: () => useProjectsMock(),
 }));
 

@@ -20,7 +20,7 @@ const mockUseLogStream = vi.fn(
   }),
 );
 
-vi.mock('@/hooks/use-log-stream', () => ({
+vi.mock('@/hooks/deploy/use-log-stream', () => ({
   useLogStream: (path: string | null, opts: { paused?: boolean }) => mockUseLogStream(path, opts),
 }));
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: vi.fn() }));

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useDeployments } from '@/hooks/use-deployments';
-import { useProjects } from '@/hooks/use-projects';
+import { useDeployments } from '@/hooks/projects/use-deployments';
+import { useProjects } from '@/hooks/projects/use-projects';
 import { useProjectStatus } from '@/hooks/use-project-status';
 import { SIGNALS, type SignalName } from '@/lib/readiness/signals';
 import type { ReadinessStatus } from '@/lib/readiness/status-icons';

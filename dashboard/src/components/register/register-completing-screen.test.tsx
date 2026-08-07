@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@/test/render';
 
-vi.mock('@/hooks/use-provisioning-status', () => ({ useProvisioningStatus: vi.fn() }));
+vi.mock('@/hooks/auth/use-provisioning-status', () => ({ useProvisioningStatus: vi.fn() }));
 
 import { RegisterCompletingScreen } from './register-completing-screen';
-import { useProvisioningStatus } from '@/hooks/use-provisioning-status';
+import { useProvisioningStatus } from '@/hooks/auth/use-provisioning-status';
 
 const mockedHook = vi.mocked(useProvisioningStatus);
 

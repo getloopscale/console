@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
-import { useDeployments } from '@/hooks/use-deployments';
+import { useDeployments } from '@/hooks/projects/use-deployments';
 import { reportEvent } from '@/lib/rum';
 
 /**

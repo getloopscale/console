@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { ReadinessChecklist } from './readiness-checklist';
 import { SIGNALS } from '@/lib/readiness/signals';
-import type { ReadinessSignal } from '@/hooks/use-readiness-signals';
+import type { ReadinessSignal } from '@/hooks/projects/use-readiness-signals';
 
 function buildSignals(overrides: Partial<Record<string, Partial<ReadinessSignal>>> = {}): Record<string, ReadinessSignal> {
   return Object.fromEntries(

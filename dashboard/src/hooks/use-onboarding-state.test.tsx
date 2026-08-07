@@ -6,13 +6,13 @@ const mockUseProjects = vi.fn();
 const mockUseEngineApi = vi.fn();
 const mockUseDeployments = vi.fn();
 
-vi.mock('@/hooks/use-whoami', () => ({ useWhoami: () => mockUseWhoami() }));
-vi.mock('@/hooks/use-projects', () => ({ useProjects: () => mockUseProjects() }));
+vi.mock('@/hooks/settings/use-whoami', () => ({ useWhoami: () => mockUseWhoami() }));
+vi.mock('@/hooks/projects/use-projects', () => ({ useProjects: () => mockUseProjects() }));
 vi.mock('@/hooks/use-api', () => ({
   useEngineApi: (path: string) => mockUseEngineApi(path),
   useCloudApi: () => ({ data: null, loading: false, error: false }),
 }));
-vi.mock('@/hooks/use-deployments', () => ({
+vi.mock('@/hooks/projects/use-deployments', () => ({
   useDeployments: () => mockUseDeployments(),
 }));
 

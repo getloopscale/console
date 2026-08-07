@@ -8,7 +8,7 @@ import { KbEditor } from '@/components/rag/kb-editor';
 import { DocThemeToggle } from '@/components/rag/doc-theme-toggle';
 import { TagChip } from '@/components/rag/tag-chip';
 import { TagInput } from '@/components/rag/tag-input';
-import { useDocTheme } from '@/hooks/use-doc-theme';
+import { useDocTheme } from '@/hooks/rag/use-doc-theme';
 import { applyTemplate, WIKI_TEMPLATES } from './wiki-templates';
 import { WikiSearch } from './wiki-search';
 import { WikiBrowser } from './wiki-browser';

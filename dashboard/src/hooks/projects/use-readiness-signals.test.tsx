@@ -3,14 +3,14 @@ import { renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
-vi.mock('@/hooks/use-projects', () => ({ useProjects: vi.fn() }));
+vi.mock('@/hooks/projects/use-projects', () => ({ useProjects: vi.fn() }));
 vi.mock('@/hooks/use-project-status', () => ({ useProjectStatus: vi.fn() }));
-vi.mock('@/hooks/use-deployments', () => ({ useDeployments: vi.fn() }));
+vi.mock('@/hooks/projects/use-deployments', () => ({ useDeployments: vi.fn() }));
 
 import { useReadinessSignals, __test_computeScore } from './use-readiness-signals';
-import { useProjects } from '@/hooks/use-projects';
+import { useProjects } from '@/hooks/projects/use-projects';
 import { useProjectStatus } from '@/hooks/use-project-status';
-import { useDeployments } from '@/hooks/use-deployments';
+import { useDeployments } from '@/hooks/projects/use-deployments';
 import { SIGNALS, TOTAL_WEIGHT } from '@/lib/readiness/signals';
 
 const mockedUseProjects = vi.mocked(useProjects);

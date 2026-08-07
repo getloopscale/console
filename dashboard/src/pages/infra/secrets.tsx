@@ -4,7 +4,7 @@ import { ArrowLeft, KeyRound, Plus, Upload } from 'lucide-react';
 import { Button, Card, PageShell } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { useSecrets } from '@/hooks/use-secrets';
+import { useSecrets } from '@/hooks/infra/use-secrets';
 import { useEnvironments } from '@/hooks/use-environments';
 import { SecretsTable } from '@/components/secrets/secrets-table';
 import { AddSecretSheet } from '@/components/secrets/add-secret-sheet';

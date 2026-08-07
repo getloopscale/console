@@ -4,7 +4,7 @@ import { Routes, Route } from 'react-router-dom';
 
 // EC-08 + general: mock useProjects to control project-not-found path
 const mockUseProjects = vi.fn();
-vi.mock('@/hooks/use-projects', () => ({
+vi.mock('@/hooks/projects/use-projects', () => ({
   useProjects: () => mockUseProjects(),
 }));
 

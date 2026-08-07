@@ -6,7 +6,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { isEmailVerified } from '@/lib/auth';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import { useCommandPalette } from '@/hooks/use-command-palette';
-import { useProjects } from '@/hooks/use-projects';
+import { useProjects } from '@/hooks/projects/use-projects';
 import { VerificationBanner } from '@/components/verification-banner';
 import { CommandPalette } from '@/components/command/command-palette';
 import { buildCommands, sortByRecentDeploy } from '@/components/command/commands';

@@ -10,8 +10,8 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
-import { useDeployTimelineWithSteps } from '@/hooks/use-deploy-timeline-with-steps';
-import type { PhaseState, OverallStatus, PhaseStep } from '@/hooks/use-deploy-timeline';
+import { useDeployTimelineWithSteps } from '@/hooks/deploy/use-deploy-timeline-with-steps';
+import type { PhaseState, OverallStatus, PhaseStep } from '@/hooks/deploy/use-deploy-timeline';
 import {
   PHASE_LABEL,
   PHASE_DEFAULT_SUBSTATE,

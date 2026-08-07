@@ -5,7 +5,7 @@ import { Badge, Button, Card, Checkbox, PageShell, StatusDot, Table } from '@use
 import type { StatusKind } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { useProjects } from '@/hooks/use-projects';
+import { useProjects } from '@/hooks/projects/use-projects';
 import { CreateProjectSheet } from "@/components/sheets/create-project-sheet";
 import { BulkDeleteProjectsDialog } from '@/components/dialogs/bulk-delete-projects-dialog';
 import { EmptyProjectsHero } from '@/components/onboarding/empty-projects-hero';

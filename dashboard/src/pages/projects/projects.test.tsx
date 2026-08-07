@@ -10,7 +10,7 @@ vi.mock('@/hooks/use-auth', () => ({
 }));
 
 const mockUseProjects = vi.fn();
-vi.mock('@/hooks/use-projects', () => ({
+vi.mock('@/hooks/projects/use-projects', () => ({
   useProjects: () => mockUseProjects(),
 }));
 

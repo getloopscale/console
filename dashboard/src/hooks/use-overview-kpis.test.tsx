@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 
-vi.mock('@/hooks/use-projects', () => ({ useProjects: vi.fn() }));
+vi.mock('@/hooks/projects/use-projects', () => ({ useProjects: vi.fn() }));
 vi.mock('@/hooks/use-api', () => ({ useCloudApi: vi.fn() }));
 vi.mock('@/hooks/use-build-stats', () => ({ useBuildStats: vi.fn() }));
 
 import { useOverviewKPIs } from './use-overview-kpis';
-import { useProjects } from './use-projects';
+import { useProjects } from './projects/use-projects';
 import { useCloudApi } from './use-api';
 import { useBuildStats } from './use-build-stats';
 

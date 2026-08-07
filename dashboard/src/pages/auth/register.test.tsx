@@ -20,7 +20,7 @@ vi.mock('@/lib/api', () => ({
 
 // M0 J-02 T3.1 — mock the provisioning hook so the completing screen renders
 // without a real poll. Default: still pending (stays on the screen).
-vi.mock('@/hooks/use-provisioning-status', () => ({
+vi.mock('@/hooks/auth/use-provisioning-status', () => ({
   useProvisioningStatus: vi.fn(() => ({ status: 'pending', loading: false })),
 }));
 

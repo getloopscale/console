@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card } from '@usetheo/ui';
 
-import { useBuildLogs } from '@/hooks/use-build-logs';
+import { useBuildLogs } from '@/hooks/deploy/use-build-logs';
 import { LogViewer } from '@/components/logs/log-viewer';
 
 /**

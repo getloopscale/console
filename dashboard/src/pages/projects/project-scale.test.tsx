@@ -11,7 +11,7 @@ vi.mock('@/hooks/use-project-status', () => ({
   useProjectStatus: () => mockUseProjectStatus(),
 }));
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => undefined }));
-vi.mock('@/hooks/use-scale', () => ({
+vi.mock('@/hooks/projects/use-scale', () => ({
   useScale: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, error: null, data: undefined }),
 }));
 

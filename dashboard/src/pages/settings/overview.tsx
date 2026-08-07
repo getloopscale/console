@@ -12,7 +12,7 @@ import {
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { useWhoami } from '@/hooks/use-whoami';
+import { useWhoami } from '@/hooks/settings/use-whoami';
 import { engineFetch } from '@/lib/api';
 
 export function SettingsPage() {

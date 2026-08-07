@@ -3,13 +3,13 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { BuildTimelineLive } from './build-timeline-live';
 import type { BuildStep } from '@/lib/api/sse-events';
-import type { UseDeploymentStreamResult } from '@/hooks/use-deployment-stream';
+import type { UseDeploymentStreamResult } from '@/hooks/deploy/use-deployment-stream';
 
-vi.mock('@/hooks/use-deployment-stream', () => ({
+vi.mock('@/hooks/deploy/use-deployment-stream', () => ({
   useDeploymentStream: vi.fn(),
 }));
 
-import { useDeploymentStream } from '@/hooks/use-deployment-stream';
+import { useDeploymentStream } from '@/hooks/deploy/use-deployment-stream';
 
 const mockedStream = vi.mocked(useDeploymentStream);
 

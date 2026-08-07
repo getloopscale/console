@@ -5,7 +5,7 @@ import { Button, Card, PageShell, Select } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useEnvironments } from '@/hooks/use-environments';
-import { useLogStream } from '@/hooks/use-log-stream';
+import { useLogStream } from '@/hooks/deploy/use-log-stream';
 import { LogViewer } from '@/components/logs/log-viewer';
 import { TimeRangePicker } from '@/components/logs/time-range-picker';
 

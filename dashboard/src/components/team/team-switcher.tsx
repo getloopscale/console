@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react';
 import { Badge, DropdownMenu } from '@usetheo/ui';
-import { useWhoami } from '@/hooks/use-whoami';
+import { useWhoami } from '@/hooks/settings/use-whoami';
 import { useSwitchTeam } from '@/hooks/mutations/use-switch-team';
 
 interface TeamSwitcherProps {

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { Badge, Button, StatusDot, type StatusKind } from '@usetheo/ui';
 import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
-import { useMutationInFlight } from '@/hooks/use-mutation-in-flight';
+import { useMutationInFlight } from '@/hooks/deploy/use-mutation-in-flight';
 
 /**
  * BuildHeader — Plan J-17 T3.5.

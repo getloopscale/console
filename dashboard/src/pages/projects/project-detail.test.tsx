@@ -31,7 +31,7 @@ vi.mock('@/hooks/use-page-meta', async () => {
 });
 
 const mockUseProject = vi.fn();
-vi.mock('@/hooks/use-project', () => ({
+vi.mock('@/hooks/projects/use-project', () => ({
   useProject: () => mockUseProject(),
 }));
 
@@ -41,7 +41,7 @@ vi.mock('@/hooks/use-project-status', () => ({
 }));
 
 const mockUseDeployments = vi.fn(() => ({ builds: [], loading: false }));
-vi.mock('@/hooks/use-deployments', () => ({
+vi.mock('@/hooks/projects/use-deployments', () => ({
   useDeployments: () => mockUseDeployments(),
 }));
 

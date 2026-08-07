@@ -2,9 +2,9 @@ import { ExternalLink } from 'lucide-react';
 import { Button } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 
-import { useMetricsRange } from '@/hooks/use-metrics-range';
+import { useMetricsRange } from '@/hooks/projects/use-metrics-range';
 import { buildGrafanaDeepLink } from '@/components/project/grafana-deep-link';
-import type { SignalName } from '@/hooks/use-status-stream';
+import type { SignalName } from '@/hooks/projects/use-status-stream';
 
 /**
  * SignalDetailSheet — Plan J-18 T3.3.

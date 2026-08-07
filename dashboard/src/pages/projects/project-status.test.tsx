@@ -8,7 +8,7 @@ const mockUseProjectStatus = vi.fn();
 vi.mock('@/hooks/use-project-status', () => ({
   useProjectStatus: () => mockUseProjectStatus(),
 }));
-vi.mock('@/hooks/use-status-stream', () => ({
+vi.mock('@/hooks/projects/use-status-stream', () => ({
   useStatusStream: () => ({ connected: false, signals: [] }),
 }));
 // J-18 KPI metrics: default null (renders "—") so the existing tests are
@@ -16,7 +16,7 @@ vi.mock('@/hooks/use-status-stream', () => ({
 const mockUseKpiMetric = vi.fn(
   (_n: string, _e: string | undefined, _signal: string, _mult?: number): number | null => null,
 );
-vi.mock('@/hooks/use-kpi-metric', () => ({
+vi.mock('@/hooks/projects/use-kpi-metric', () => ({
   useKpiMetric: (n: string, e: string | undefined, signal: string, mult?: number) =>
     mockUseKpiMetric(n, e, signal, mult),
 }));

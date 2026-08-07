@@ -1,5 +1,5 @@
 import { Monitor, Sun } from 'lucide-react';
-import { useDocTheme } from '@/hooks/use-doc-theme';
+import { useDocTheme } from '@/hooks/rag/use-doc-theme';
 
 /**
  * DocThemeToggle — segmented [Sistema | Branco] control for the wiki page content theme.

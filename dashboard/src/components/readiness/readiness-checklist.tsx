@@ -2,7 +2,7 @@ import { Card, Tooltip } from '@usetheo/ui';
 import { Link } from 'react-router-dom';
 import { SIGNALS, isKnownRoute } from '@/lib/readiness/signals';
 import { STATUS_VISUALS } from '@/lib/readiness/status-icons';
-import type { ReadinessSignal } from '@/hooks/use-readiness-signals';
+import type { ReadinessSignal } from '@/hooks/projects/use-readiness-signals';
 
 /**
  * J-21 Readiness Score plan v1.1 T2.2 — ReadinessChecklist.

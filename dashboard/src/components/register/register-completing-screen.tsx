@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button, Card } from '@usetheo/ui';
-import { useProvisioningStatus } from '@/hooks/use-provisioning-status';
+import { useProvisioningStatus } from '@/hooks/auth/use-provisioning-status';
 
 /**
  * RegisterCompletingScreen — M0 J-02 T3.1.

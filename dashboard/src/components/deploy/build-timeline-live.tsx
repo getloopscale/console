@@ -1,5 +1,5 @@
 import { Stepper, type StepperStepData } from '@usetheo/ui';
-import { useDeploymentStream, type DeploymentStatus } from '@/hooks/use-deployment-stream';
+import { useDeploymentStream, type DeploymentStatus } from '@/hooks/deploy/use-deployment-stream';
 import type { BuildStep, PhaseGroup } from '@/lib/api/sse-events';
 import type { BuildStatus } from '@/lib/api/types';
 import { BuildStepTimer } from './build-step-timer';

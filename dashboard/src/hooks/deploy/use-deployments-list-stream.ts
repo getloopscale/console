@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useDeployments } from './use-deployments';
-import { useSSEStream } from './use-sse-stream';
+import { useDeployments } from '../projects/use-deployments';
+import { useSSEStream } from '../use-sse-stream';
 import type { Build, BuildStatus } from '@/lib/api/types';
 import { normalizeBuildStatus } from '@/lib/api/types';
 import { queryKeys } from '@/lib/api/query-keys';
