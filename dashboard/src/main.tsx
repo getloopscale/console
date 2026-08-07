@@ -30,15 +30,29 @@ const ReactQueryDevtools = __DEV__
 // In dev with VITE_USE_MOCKS=true: full Kratos + /api/v1/* + SSE mocks load.
 // In prod (env var absent): the dynamic import is never executed, and the
 // statically-resolvable env check lets Vite DCE the if-body to zero bytes.
-if (import.meta.env.VITE_USE_MOCKS === 'true') {
-  Promise.all([
-    import('./lib/mocks/dev-mocks'),
-    import('./lib/mocks'),
-  ]).then(([devMocks, mocks]) => {
-    devMocks.installKratosMocks();
-    mocks.installAllMocks();
-  });
-}
+// A instalacao e AGUARDADA antes do render. Ela era `.then(...)` solto, e o
+// `createRoot().render()` logo abaixo e sincrono — entao as primeiras queries
+// disparavam ANTES do interceptador existir e escapavam para a rede. Em dev sem
+// backend isso vira 500 do proxy do Vite, e a tela abre com paineis em erro que
+// nao tem nada a ver com o codigo sendo desenvolvido.
+//
+// Medido em 2026-08-07 com `VITE_USE_MOCKS=true` e sem backend: sete requisicoes
+// escapavam (`/engine/api/v1/projects`, `/engine/api/v1/auth/whoami`,
+// `/v1/dashboard/status/versions`, `/engine/api/v1/domains`, `/v1/billing`).
+// O mock JA remove o prefixo `/engine` (server.ts:150) — o problema nunca foi
+// casamento de rota, era ordem.
+//
+// Custo em producao: ZERO. O `if` e resolvido em tempo de build (a env e literal),
+// entao o corpo inteiro — inclusive o await — some do bundle.
+const prontoParaRenderizar =
+  import.meta.env.VITE_USE_MOCKS === 'true'
+    ? Promise.all([import('./lib/mocks/dev-mocks'), import('./lib/mocks')]).then(
+        ([devMocks, mocks]) => {
+          devMocks.installKratosMocks();
+          mocks.installAllMocks();
+        },
+      )
+    : Promise.resolve();
 
 // B-042 — o canal de coordenacao de logout entre abas e aberto AQUI, no boot,
 // e nao como efeito colateral de importar lib/api. Aquele modulo tem 151
@@ -83,7 +97,8 @@ if (import.meta.env.PROD) {
 //         TheoUIProvider — design system + toaster
 //           App
 //             ReactQueryDevtools (dev only) — Cmd-Shift-Q inspect cache
-createRoot(document.getElementById('root')!).render(
+void prontoParaRenderizar.then(() =>
+  createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <RouteBoundary routePath="root">
       <QueryClientProvider client={queryClient}>
@@ -124,4 +139,5 @@ createRoot(document.getElementById('root')!).render(
       </QueryClientProvider>
     </RouteBoundary>
   </StrictMode>,
+),
 );
