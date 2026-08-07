@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { Flow } from './kratos';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Github, Loader2, Zap } from 'lucide-react';
 import { Button, Card, Input } from '@usetheo/ui';
@@ -14,21 +15,6 @@ import { RegisterCompletingScreen } from '@/pages/auth/components/register-compl
 
 const KRATOS_URL = AUTH_URL || API_URL;
 
-interface FlowNode {
-  group: string;
-  attributes: { name?: string; type?: string; value?: string };
-  messages?: { text: string; type: string }[];
-}
-
-interface Flow {
-  id: string;
-  ui: {
-    action: string;
-    method: string;
-    nodes: FlowNode[];
-    messages?: { text: string; type: string }[];
-  };
-}
 
 // Red Team theo-cloud#74 closure: the form POST navigates the page so
 // React state is wiped on re-render. The user lands back here with empty

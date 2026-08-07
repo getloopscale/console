@@ -330,9 +330,18 @@ export interface Environment {
   status?: string;
   // M2 v1.2 (2026-06-07): per-(project, env) tuple. Empty string =
   // legacy production entry (ADR D2 backward compat).
+  //
+  // legacy-value-ok (B-063): o campo NAO esta depreciado — o que e legado e o
+  // VALOR vazio, que ADR D2 mantem significando "pertence a todo projeto".
+  // Anotar @deprecated aqui afirmaria que o campo vai sair, e ele nao vai.
   project?: string;
-  // Legacy counter — kept for backward compat with v1.0 dashboard
-  // surfaces that displayed an aggregate project count per env.
+  /**
+   * @deprecated B-063 — contador agregado de projetos por ambiente, mantido para
+   * as telas do dashboard v1.0. Nenhuma tela atual o lê: `grep -rn '\.projects'
+   * src/pages` não retorna consumidor. Sunset: remover quando o backend parar de
+   * emiti-lo, ou na próxima mudança que toque este tipo — o que vier primeiro.
+   * Enquanto estiver aqui, um campo que ninguém lê convida a ser lido por engano.
+   */
   projects?: number;
   protected?: boolean;
   domain?: string;
@@ -708,7 +717,13 @@ export interface AuditEntry {
   correlation_id?: string;
   metadata?: Record<string, unknown>;
 
-  // Legacy aliases — backend MAY add these later for richer UX.
+  /**
+   * @deprecated B-063 — aliases legados do wire de auditoria. Os consumidores
+   * DEVEM ler os campos canônicos acima (`event_id`, `occurred_at`, `actor`);
+   * estes existem só para backends que ainda os emitem. Sunset: remover quando
+   * a engine parar de emitir qualquer um deles — verificável por uma resposta
+   * de `/v1/dashboard/audit` sem estes campos.
+   */
   id?: string;
   ts?: string;
   actor_email?: string;

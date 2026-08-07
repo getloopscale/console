@@ -1370,7 +1370,7 @@ dod:
   - Decide explicitly, do not just uninstall: either (a) the large-trace virtualization is still required - implement it and keep the dep; or (b) it is not - npm uninstall @tanstack/react-virtual, delete VIRTUALIZE_THRESHOLD from helpers.ts:48, and correct the three comments
   - a entrada correspondente saiu de `package.json` e `npm run build` + `npm run lint` passam
 
-## B-063 — Zero @deprecated annotations in 673 files while 44 files carry 97 prose legacy references and live backward-compat fallbacks   [ ]
+## B-063 — Zero @deprecated annotations in 673 files while 44 files carry 97 prose legacy references and live backward-compat fallbacks   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1381,11 +1381,35 @@ category: missing_deprecation_marker
 evidence: src/pages/projects.tsx:174 — grep for @deprecated, DEPRECATED and LEGACY across all 673 .ts/.tsx files under src/ returns exactly 0 hits, yet grep -i legacy returns 97 occurrences in 44 files. The prose is doing the job the annotation should do, so nothing is machine-visible: no IDE strikethrough, no lint rule, no report of what is safe to remove. Several of these are real backward-compat fallback chains still executing...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#14
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 partial_progress: 626eed9 — os dois campos legados de Project (`apps`, `environment`) ganharam @deprecated com CONDICAO de sunset. environment_count/production_env_count NAO foram marcados: respondem perguntas diferentes, marcar seria inventar divida. CORRECAO AO ACHADO: "enable eslint no-deprecated" nao e possivel — a regra exige type-aware linting e o eslint.config.js declara parserOptions SEM project/projectService. Habilitar muda o custo do lint no repo inteiro e e decisao propria. O TS Language Server ja risca o simbolo no editor, que e onde a decisao de usar acontece.
 dod:
   - Adopt @deprecated JSDoc on every compat shim with a sunset condition in the tag body, e.g
   - o marcador/mecanismo existe em `src/pages/projects.tsx` e ha regra de lint ou gate de CI que falha na ausencia dele
+
+ENTREGUE os dois bullets.
+
+ANOTACOES: os shims vivos do contrato agora carregam `@deprecated` com CONDICAO
+de sunset — `apps[]`, `environment?` (singular pre-M2), `projects?` (contador
+agregado) e os aliases legados de `AuditEntry`. Condicao e nao data: um prazo que
+ninguem controla e ignorado no dia; "remover quando a engine parar de emitir" e
+verificavel.
+
+GATE: `src/lib/deprecation-marker.test.ts`, com dois invariantes — prosa sobre
+legado no contrato exige a tag, e toda tag exige condicao de sunset. Verificado
+por sonda nas duas direcoes.
+
+O GATE ME ENSINOU DUAS COISAS ao ser escrito, e as duas viraram codigo:
+
+  1. Ele acusava quatro casos de prosa HISTORICA — comentarios que contam que um
+     campo JA foi removido. Exigir a tag ali seria pedi-la para um simbolo que
+     nao existe, e sao exatamente os casos que fariam alguem desligar o teste em
+     vez de atende-lo. Filtro `HISTORICO` resolve.
+  2. Em `project?: string` o legado e o VALOR (string vazia significando "todo
+     projeto", por ADR D2), nao o campo. Anotar `@deprecated` ali afirmaria que
+     o campo vai sair, e ele nao vai. Escape explicito `legacy-value-ok`, com o
+     motivo escrito no lugar — mesmo padrao de `silent-null-ok`.
 
 ## B-064 — package.json declares packageManager pnpm while the repo tracks package-lock.json and gitignores pnpm-lock.yaml   [x]
 
@@ -1456,7 +1480,7 @@ dod:
   - Extend the tree-shake-check script to also fail on dev-mocks / mocksEnabled / mock-jwt-for-visual-validation, so the layer coupled into auth is guarded like the other
   - a contagem de importadores diretos de `src/lib/dev-mocks.ts` cai de forma medida (registrar o antes/depois com o mesmo parser de imports usado na auditoria)
 
-## B-068 — Auth logic is split across three homonymous modules with two divergent copies of the Kratos Flow type   [ ]
+## B-068 — Auth logic is split across three homonymous modules with two divergent copies of the Kratos Flow type   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1468,10 +1492,23 @@ evidence: src/lib/auth/kratos-flow.ts:9 — Three modules own auth concerns and 
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#22
 overlaps: B-041
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - Pick one Flow/FlowNode definition (kratos.ts is the stricter and more widely used one - 3 importers vs 1) and delete the other, updating src/pages/login.tsx:17
   - a contagem de importadores diretos de `src/lib/auth/kratos-flow.ts` cai de forma medida (registrar o antes/depois com o mesmo parser de imports usado na auditoria)
+
+ENTREGUE. Eram TRES copias do tipo, nao duas como o item dizia: `pages/auth/kratos.ts`
+(estrita), `lib/auth/kratos-flow.ts` (frouxa) e uma terceira declarada inline em
+`pages/auth/register.tsx`.
+
+Unificadas na estrita, que e a que tem `type`, `required`, `disabled`, `node_type`
+e `messages` com `id`. Zero erros de tipo na troca — a frouxa era um subconjunto,
+que e o modo mais silencioso de a duplicacao cobrar: quando o backend acrescenta
+um campo, o autor encontra tres declaracoes e muda a que estava aberta.
+
+`lib/auth/kratos-flow.ts` apagado. Os tres consumidores estao todos em
+`pages/auth/`, entao nao houve questao de camada.
 
 ## B-069 — No feature-flag mechanism exists at all: 118 routes ship all-or-nothing, which is why half-built features are abandoned in the tree   [ ]
 

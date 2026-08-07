@@ -14,7 +14,7 @@ import { clearToken } from '@/lib/http/api';
 import { API_URL, AUTH_URL } from '@/lib/http/config';
 import { safeErrorDetail, isEnumerationCollision } from '@/lib/auth/kratos-error-detail';
 import { mapKratosError } from '@/lib/auth/error-mapper';
-import type { Flow } from '@/lib/auth/kratos-flow';
+import type { Flow } from './kratos';
 import {
   reportEvent,
   viewportBucket,
