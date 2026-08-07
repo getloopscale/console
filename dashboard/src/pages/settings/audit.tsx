@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useQueryState, parseAsString } from 'nuqs';
 import { Brain, Download, History, ShieldAlert, X } from 'lucide-react';
 import { Badge, Button, Card, PageShell, Table } from '@usetheo/ui';
@@ -7,7 +8,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { engineFetch } from '@/lib/http/api';
 import { formatDate } from '@/lib/formatting/format';
 import { triggerAuditCsvDownload } from '@/pages/settings/audit-csv';
-import type { AuditEntry, AuditListResponse, AuditSeverity } from '@/lib/api/types';
+import type { AuditListResponse, AuditSeverity } from '@/lib/api/types';
 
 const SEVERITY_BADGE: Record<
   AuditSeverity,
@@ -53,11 +54,20 @@ export function displayAction(action: string, resourceType?: string | null): str
  * timestamp. Filterable by action (substring) and actor email. Backend
  * GET /api/v1/audit returns entries already sorted desc by ts.
  */
+/** Teto por pagina. Espelha SESSIONS_PAGE_SIZE (pages/lens/sessions.tsx:42). */
+const AUDIT_PAGE_SIZE = 50;
+
 export function AuditPage() {
   useRequireAuth();
   useSetPageTitle('Audit log');
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  // B-024 — teto explicito. O request nao tinha limit nem offset: pedia a
+  // auditoria INTEIRA e renderizava tudo. Num workspace com meses de atividade
+  // isso e uma resposta sem tamanho previsivel indo para a memoria e para a
+  // arvore da pagina.
+  //
+  // Segue o padrao ja em uso em `pages/lens/sessions.tsx:54-60` — mesmo
+  // PAGE_SIZE explicito, mesmo calculo de pageCount, mesma UI de navegacao.
+  const [page, setPage] = useState(1);
   // T2.3: filters live in URL — bookmarkable + browser back/forward works.
   const [actionFilter, setActionFilter] = useQueryState(
     'action',
@@ -77,24 +87,36 @@ export function AuditPage() {
     parseAsString.withDefault(''),
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (actionFilter.trim()) params.set('action', actionFilter.trim());
-    if (actorFilter.trim()) params.set('actor', actorFilter.trim());
-    const qs = params.toString();
-    engineFetch<AuditListResponse>(
-      `/api/v1/audit${qs ? `?${qs}` : ''}`,
-    ).then((data) => {
-      if (cancelled) return;
-      setEntries(data?.entries ?? []);
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [actionFilter, actorFilter]);
+  // Migrado de `useEffect` + `useState` para a camada de query. O motivo nao e
+  // uniformidade: o codigo anterior fazia `data?.entries ?? []`, entao uma falha
+  // de rede virava LISTA VAZIA — a tela dizia "nenhum registro de auditoria"
+  // quando a verdade era "nao consegui perguntar". Numa tela de AUDITORIA isso e
+  // especialmente caro: ausencia de registro e exatamente o que alguem
+  // investigando um incidente procura.
+  //
+  // O guard de null silencioso nao pegava porque ele quantifica sobre
+  // `useQuery`/`useInfiniteQuery`/`useSuspenseQuery`, e aqui era `engineFetch`
+  // cru dentro de um efeito.
+  const query = useQuery({
+    queryKey: ['engine', '/api/v1/audit', { actionFilter, actorFilter, page }] as const,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (actionFilter.trim()) params.set('action', actionFilter.trim());
+      if (actorFilter.trim()) params.set('actor', actorFilter.trim());
+      params.set('limit', String(AUDIT_PAGE_SIZE));
+      params.set('offset', String((page - 1) * AUDIT_PAGE_SIZE));
+      return engineFetch<AuditListResponse>(`/api/v1/audit?${params.toString()}`, {}, { throwOnError: true });
+    },
+  });
+
+  const entries = query.data?.entries ?? [];
+  const total = query.data?.total ?? 0;
+  const loading = query.isLoading;
+  const pageCount = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
+
+  // Trocar filtro reinicia a paginacao: manter a pagina 7 ao filtrar por outro
+  // ator mostra uma tela vazia que parece "sem resultados".
+  useEffect(() => setPage(1), [actionFilter, actorFilter]);
 
   // T4.3 — client-side memory filter. Matches resource_type beginning
   // with 'memory' (covers memory + memory_export + memory_webhook). When
@@ -276,6 +298,36 @@ export function AuditPage() {
             </Table.Body>
           </Table>
         </Card.Body>
+        {/* B-024 — navegacao entre paginas, espelhando pages/lens/sessions.tsx:215-224.
+            So aparece quando ha mais de uma pagina: um controle desabilitado permanente
+            e ruido que ensina o usuario a ignora-lo. */}
+        {pageCount > 1 && (
+          <Card.Footer>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-label text-muted-foreground">
+                Página {page} de {pageCount} · {total} registros
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={page <= 1 || query.isFetching}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={page >= pageCount || query.isFetching}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          </Card.Footer>
+        )}
       </Card>
 
       <input type="hidden" value={actorFilter} onChange={() => setActorFilter('')} />

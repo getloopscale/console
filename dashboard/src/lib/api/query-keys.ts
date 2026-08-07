@@ -38,11 +38,6 @@ export const queryKeys = {
   whoami: {
     all: ['whoami'] as const,
   },
-  audit: {
-    all: ['audit'] as const,
-    list: (filters?: Record<string, unknown>) =>
-      ['audit', 'list', filters ?? {}] as const,
-  },
   // Plan J-10 v1.1 — environments queryKey canonical. Replaces the legacy
   // local ENVS_KEY = ['environments'] used in use-environments.ts so
   // invalidation by canonical key works across hooks.

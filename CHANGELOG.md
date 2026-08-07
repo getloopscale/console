@@ -38,6 +38,8 @@
 
 ### Fixed
 
+- **O registro de auditoria parou de pedir o histórico inteiro, e parou de dizer "nenhum registro" quando não conseguia perguntar.** A tela buscava toda a auditoria do workspace de uma vez, sem teto — numa conta com meses de atividade, isso é uma resposta de tamanho imprevisível indo para a memória do navegador. Agora pagina de 50 em 50, com navegação. E a falha de rede virava lista vazia: a tela afirmava ausência de registros quando a verdade era que a consulta falhou — o pior lugar possível para esse defeito, já que ausência de registro é exatamente o que alguém investigando um incidente procura.
+
 - **O painel de boas-vindas parou de dizer que você não fez coisas que talvez tenha feito.** Ele derivava os passos de leituras que podem falhar: quando a consulta de identidade falhava, o passo "entrar na conta" virava pendente — para alguém que já estava logado; quando a de projetos falhava, dizia "crie um projeto" a quem talvez tivesse vários. Agora, quando alguma leitura falha, o painel **não aparece**: "não consegui saber" é um estado diferente de "não foi feito", e só um dos dois justifica pedir uma ação.
 
 - **A tela inicial em modo de desenvolvimento parou de mostrar números de fallback como se fossem dados.** As quatro barras de uso — projetos, builds, ambientes, assentos — liam chaves que a simulação nunca fornecia, então caíam em valores padrão **plausíveis**, que é pior que valores obviamente errados: ninguém desconfia. A simulação descrevia um formato de resposta que o serviço real não produz. Alinhada ao contrato de verdade. Junto, o preço do plano passou a existir no espelho do contrato — a tela já o lia por um caminho paralelo, e um campo que o serviço envia e o contrato não declara não é protegido por nada.

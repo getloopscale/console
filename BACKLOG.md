@@ -635,7 +635,7 @@ dod:
   - Trocar src/pages/lens/trace-detail/index.tsx:157 de <SpanTree> para o SpanTreeVirtual que @usetheo/ui ja exporta, acionando-o quando flattenVisible (linha 79) passar de VIRTUALIZE_THRESHOLD — a virtualizacao ja esta implementada e testada no design system, nao precisa ser escrita aqui
   - o request emitido por `src/pages/lens/trace-detail/helpers.ts` carrega teto explicito (limit/offset) — verificavel no painel Network ou por teste sobre o handler MSW
 
-## B-024 — A pagina de Audit busca GET /api/v1/audit sem limit nem offset e renderiza toda a resposta — audit log e a tabela append-only por definicao   [ ]
+## B-024 — A pagina de Audit busca GET /api/v1/audit sem limit nem offset e renderiza toda a resposta — audit log e a tabela append-only por definicao   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -646,10 +646,38 @@ category: unbounded_query
 evidence: src/pages/audit.tsx:87 — MEDIDO por varredura AST-lite de todos os literais de URL passados a cloudFetch/engineFetch em src (excluindo testes e mocks): 185 literais distintos, dos quais apenas 6 carregam limit/offset/page — /engine/api/v1/projects?limit=, /v1/dashboard/lens/labeling-queue?page=, /v1/dashboard/lens/sessions?limit=&offset=, /v1/dashboard/lens/traces (via buildTraceQuery com limit/offset),...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · scaling#4
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - Adicionar limit/offset ao request em src/pages/audit.tsx:87 e expor paginacao na UI, seguindo o padrao ja existente em src/pages/lens/sessions.tsx:54-60 (SESSIONS_PAGE_SIZE + calculo de pageCount)
   - o request emitido por `src/pages/audit.tsx` carrega teto explicito (limit/offset) — verificavel no painel Network ou por teste sobre o handler MSW
+
+ENTREGUE os dois bullets, e um terceiro defeito que estava no mesmo trecho.
+
+TETO: `limit`/`offset` no request, seguindo `pages/lens/sessions.tsx:54-60` como o
+dod mandava — mesmo PAGE_SIZE explicito, mesmo calculo de pageCount, mesma UI de
+navegacao. A resposta ja trazia `total`, entao a paginacao e server-side de fato.
+
+O TERCEIRO DEFEITO, que o item nao cita e e mais grave: `engineFetch` sem
+`throwOnError` e `data?.entries ?? []` transformavam falha de rede em LISTA
+VAZIA. A tela dizia "nenhum registro de auditoria" quando a verdade era "nao
+consegui perguntar" — e numa tela de AUDITORIA ausencia de registro e exatamente
+o que alguem investigando um incidente procura.
+
+O guard de null silencioso nao pegava porque quantifica sobre useQuery e aqui era
+`engineFetch` cru dentro de um `useEffect`. Migrado para a camada de query, que
+resolve os dois de uma vez.
+
+MEU PROPRIO GUARD DE CONVERGENCIA ME PEGOU: ao criar a chave
+`['engine', '/api/v1/audit', ...]` eu introduzi a segunda convencao para um
+recurso que ja tinha `queryKeys.audit` na factory — exatamente o que B-019
+existe para impedir. A entrada da factory tinha ZERO consumidores e foi removida:
+as telas usam a tupla literal, e manter as duas e a ilha de cache que ninguem
+atravessa.
+
+Verificado por sonda: sem `limit` ou sem `throwOnError`, os testes ficam
+vermelhos.
+
 
 ## B-025 — LogViewer materializa uma linha de DOM por linha de log, sem virtualizacao, e o teto de 5000 que ele assume nao existe no caminho real   [ ]
 
