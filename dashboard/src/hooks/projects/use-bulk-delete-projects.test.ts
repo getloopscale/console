@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { bulkDeleteProjects } from './use-bulk-delete-projects';
+import { bulkDeleteProjects } from '@/hooks/projects/use-bulk-delete-projects';
 
 // J-07 D4 — the bulk-delete core is best-effort: one failure never aborts the
 // rest, and the result honestly reports which succeeded vs failed.

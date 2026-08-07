@@ -5,7 +5,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import {
   useServiceVersions,
   type ServiceStatus,
-} from '@/hooks/use-service-versions';
+} from '@/hooks/overview/use-service-versions';
 
 /**
  * /status (M21) — the detail behind the sidebar's health indicator: one row per

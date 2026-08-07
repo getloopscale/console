@@ -12,7 +12,7 @@ vi.mock('@/lib/http/api', () => ({
 
 vi.mock('@/lib/http/config', () => ({ API_URL: '', AUTH_URL: '', ENGINE_URL: '', ACCOUNTS_URL: '' }));
 
-import { useDeploymentStream } from './deploy/use-deployment-stream';
+import { useDeploymentStream } from '@/hooks/deploy/use-deployment-stream';
 
 /**
  * B-020 — orcamento de conexoes SSE por URL.

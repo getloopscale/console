@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@/test/render';
 
-vi.mock('@/hooks/use-bulk-delete-projects', () => ({ useBulkDeleteProjects: vi.fn() }));
+vi.mock('@/hooks/projects/use-bulk-delete-projects', () => ({ useBulkDeleteProjects: vi.fn() }));
 
 import { BulkDeleteProjectsDialog, confirmPhrase } from './bulk-delete-projects-dialog';
-import { useBulkDeleteProjects } from '@/hooks/use-bulk-delete-projects';
+import { useBulkDeleteProjects } from '@/hooks/projects/use-bulk-delete-projects';
 
 const mocked = vi.mocked(useBulkDeleteProjects);
 

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useSSEStream } from '../use-sse-stream';
+import { useSSEStream } from '@/hooks/deploy/use-sse-stream';
 import type {
   BuildStep,
   BuildStepStartedPayload,

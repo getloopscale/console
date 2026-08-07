@@ -6,9 +6,9 @@ import type { StatusKind } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/projects/use-projects';
-import { CreateProjectSheet } from "@/components/sheets/create-project-sheet";
-import { BulkDeleteProjectsDialog } from '@/components/dialogs/bulk-delete-projects-dialog';
-import { EmptyProjectsHero } from '@/components/onboarding/empty-projects-hero';
+import { CreateProjectSheet } from "@/pages/projects/components/create-project-sheet";
+import { BulkDeleteProjectsDialog } from '@/pages/projects/components/bulk-delete-projects-dialog';
+import { EmptyProjectsHero } from '@/pages/projects/components/empty-projects-hero';
 import { formatDate } from '@/lib/formatting/format';
 import type { Project } from '@/lib/api/types';
 

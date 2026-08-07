@@ -9,10 +9,10 @@ import { useDeployment } from '@/hooks/deploy/use-deployment';
 import { BuildHeader } from '@/pages/deploy/components/build-header';
 import { DeployTimelineHero } from '@/pages/deploy/components/deploy-timeline-hero';
 import { useProjectStatus } from '@/hooks/use-project-status';
-import { RollbackDialog } from '@/components/dialogs/rollback-dialog';
+import { RollbackDialog } from '@/pages/deploy/components/rollback-dialog';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
-import { CancelBuildDialog } from '@/components/dialogs/cancel-build-dialog';
-import { PromoteToProductionDialog } from '@/components/dialogs/promote-to-production-dialog';
+import { CancelBuildDialog } from '@/pages/deploy/components/cancel-build-dialog';
+import { PromoteToProductionDialog } from '@/pages/deploy/components/promote-to-production-dialog';
 import { queryKeys } from '@/lib/api/query-keys';
 
 /**

@@ -16,7 +16,7 @@ vi.mock('@/lib/http/api', () => ({
   engineFetch: (...args: unknown[]) => mockCloudFetch(...args),
 }));
 
-import { SERVICE_VERSIONS_PATH } from '@/hooks/use-service-versions';
+import { SERVICE_VERSIONS_PATH } from '@/hooks/overview/use-service-versions';
 
 import { SystemStatusIndicator } from './system-status-indicator';
 

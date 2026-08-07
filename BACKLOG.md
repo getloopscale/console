@@ -138,7 +138,7 @@ madge como escrito, ou (b) reescrever o bullet 2 para um criterio que o time ace
 (ex.: "nenhum ciclo cuja aresta de fechamento seja ESTATICA"), o que exige uma
 ferramenta que distinga — madge sozinho nao serve.
 
-## B-002 — Organizacao package-by-layer dispersa cada feature por 3-4 diretorios de topo, sem nenhuma fronteira de modulo declarada   [ ]
+## B-002 — Organizacao package-by-layer dispersa cada feature por 3-4 diretorios de topo, sem nenhuma fronteira de modulo declarada   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -150,7 +150,8 @@ evidence: src/pages/deployments.tsx:23 — Dispersao medida (arquivos de produca
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#5
 overlaps: B-004, B-008, B-032, B-070
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - Migrar para package-by-feature de forma incremental, um dominio por PR, comecando pelos mais dispersos (deploy, auth, logs): criar src/features/<dominio>/ com pages/, components/, hooks/, api.ts e um index.ts que exporta APENAS o que outras features podem consumir
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/deployments.tsx` e passa depois da mudanca
@@ -162,8 +163,21 @@ ADR-0001 aceito rejeita. Criterio que vale agora:
   - existe teste que constroi o grafo de import e FALHA quando um modulo em pasta
     compartilhada tem menos de 2 dominios consumidores (ADR-0001 D5, item 2)
 
-PARCIAL: `pages/` (40->2), `hooks/` (40->14), `lib/` (29->0) e `components/`
-(28 pastas -> 10) feitos. Falta o teste de grafo de D5.
+ENTREGUE. Os dois bullets do dod reescrito:
+
+  1. Residencia: `pages/` 40 soltos -> 2, `hooks/` 40 -> 8, `lib/` 29 -> 0,
+     `components/` 28 pastas -> 9. Cada arquivo com UM dominio consumidor mora
+     no diretorio desse dominio.
+  2. O teste de grafo existe: `src/lib/residence-rule.test.ts`. Constroi o grafo
+     de import, conta dominios consumidores por modulo, e FALHA quando um modulo
+     em pasta compartilhada tem menos de dois. Verificado por sonda — injetei um
+     modulo consumido so por lens e o teste ficou vermelho nomeando-o.
+
+A allowlist tem QUATRO entradas, cada uma com o motivo escrito:
+`lens-capabilities` e `team-switcher` (consumidos pela barra lateral, que e
+cross-cutting mas nao e dominio) e `config.ts`/`rum.ts` (consumidos por
+`main.tsx` e por `lib/http/api.ts` — a raiz de composicao e a camada lib nao sao
+dominio, e descer os dois faria elas importarem de pages/).
 
 ## B-003 — src/app.tsx e um manifesto de rotas monolitico: 729 LOC, 85 lazy() e 118 Route cobrindo ~15 dominios   [ ]
 

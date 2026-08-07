@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { LogLine } from '@/lib/api/types';
-import { useSSEStream } from '../use-sse-stream';
+import { useSSEStream } from '@/hooks/deploy/use-sse-stream';
 
 /**
  * use-log-stream — consumes a SSE log stream into a growing line buffer.

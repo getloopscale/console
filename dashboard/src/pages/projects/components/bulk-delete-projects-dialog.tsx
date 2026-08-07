@@ -8,7 +8,7 @@ import {
 import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
 
-import { useBulkDeleteProjects } from '@/hooks/use-bulk-delete-projects';
+import { useBulkDeleteProjects } from '@/hooks/projects/use-bulk-delete-projects';
 
 /**
  * BulkDeleteProjectsDialog (J-07 D4) — type-to-confirm bulk delete for the

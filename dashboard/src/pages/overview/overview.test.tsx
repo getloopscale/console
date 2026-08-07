@@ -23,7 +23,7 @@ vi.mock('@/hooks/use-api', () => ({
 // T-P1: the deploys-activity + KPI strip read useBuildStats (engineFetch). Mock it
 // so the Overview test is deterministic and never hits the network.
 const mockUseBuildStats = vi.fn();
-vi.mock('@/hooks/use-build-stats', () => ({
+vi.mock('@/hooks/overview/use-build-stats', () => ({
   useBuildStats: () => mockUseBuildStats(),
 }));
 

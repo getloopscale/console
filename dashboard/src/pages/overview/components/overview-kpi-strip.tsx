@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Card } from '@usetheo/ui';
 import { CreditCard, FolderKanban, Layers, Rocket } from 'lucide-react';
 
-import { useOverviewKPIs, type OverviewPlanPrice } from '@/hooks/use-overview-kpis';
+import { useOverviewKPIs, type OverviewPlanPrice } from '@/hooks/overview/use-overview-kpis';
 
 /**
  * OverviewKPIStrip (J-06 T2.1) — the four Overview KPI cards: Projects,

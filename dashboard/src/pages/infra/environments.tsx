@@ -5,9 +5,9 @@ import { Button, Card, PageShell, StatusDot, Table } from '@usetheo/ui';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useEngineApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { CreateEnvironmentSheet } from '@/components/sheets/create-environment-sheet';
-import { DeleteEnvironmentDialog } from '@/components/dialogs/delete-environment-dialog';
-import { PromoteDialog } from '@/components/dialogs/promote-dialog';
+import { CreateEnvironmentSheet } from '@/pages/infra/components/create-environment-sheet';
+import { DeleteEnvironmentDialog } from '@/pages/infra/components/delete-environment-dialog';
+import { PromoteDialog } from '@/pages/infra/components/promote-dialog';
 import { EnvironmentKPIRow } from '@/pages/infra/components/environment-kpi-row';
 import { PreviewRow, type PreviewSlot } from '@/pages/infra/components/preview-row';
 

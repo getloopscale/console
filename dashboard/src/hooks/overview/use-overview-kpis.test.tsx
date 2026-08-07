@@ -3,12 +3,12 @@ import { renderHook } from '@testing-library/react';
 
 vi.mock('@/hooks/projects/use-projects', () => ({ useProjects: vi.fn() }));
 vi.mock('@/hooks/use-api', () => ({ useCloudApi: vi.fn() }));
-vi.mock('@/hooks/use-build-stats', () => ({ useBuildStats: vi.fn() }));
+vi.mock('@/hooks/overview/use-build-stats', () => ({ useBuildStats: vi.fn() }));
 
-import { useOverviewKPIs } from './use-overview-kpis';
-import { useProjects } from './projects/use-projects';
-import { useCloudApi } from './use-api';
-import { useBuildStats } from './use-build-stats';
+import { useOverviewKPIs } from '@/hooks/overview/use-overview-kpis';
+import { useProjects } from '@/hooks/projects/use-projects';
+import { useCloudApi } from '@/hooks/use-api';
+import { useBuildStats } from '@/hooks/overview/use-build-stats';
 
 const mProjects = vi.mocked(useProjects);
 const mCloud = vi.mocked(useCloudApi);

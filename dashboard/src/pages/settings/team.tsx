@@ -16,7 +16,7 @@ import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { InviteMemberSheet } from "@/components/sheets/invite-member-sheet";
+import { InviteMemberSheet } from "@/pages/settings/components/invite-member-sheet";
 import { useRemoveMember, useUpdateMemberRole } from '@/hooks/mutations/use-team';
 import { formatDate } from '@/lib/formatting/format';
 

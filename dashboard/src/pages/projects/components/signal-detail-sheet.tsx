@@ -3,7 +3,7 @@ import { Button } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 
 import { useMetricsRange } from '@/hooks/projects/use-metrics-range';
-import { buildGrafanaDeepLink } from '@/components/project/grafana-deep-link';
+import { buildGrafanaDeepLink } from '@/pages/projects/components/grafana-deep-link';
 import type { SignalName } from '@/hooks/projects/use-status-stream';
 
 /**

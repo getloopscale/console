@@ -1,5 +1,5 @@
 import { Card } from '@usetheo/ui';
-import type { BuildStatsDay } from '@/hooks/use-build-stats';
+import type { BuildStatsDay } from '@/hooks/overview/use-build-stats';
 
 /**
  * DeploysActivity (T-P1) — a compact 7-day deploys bar chart for the Overview.

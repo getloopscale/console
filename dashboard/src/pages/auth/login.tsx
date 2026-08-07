@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Github, Loader2 } from 'lucide-react';
 import { Button, Card, CodeBlock, FormField, Input } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { GoogleBrandIcon } from '@/components/google-brand-icon';
+import { GoogleBrandIcon } from '@/pages/auth/components/google-brand-icon';
 import { LoginErrorBanner } from '@/pages/auth/components/login-error-banner';
 import { CookieBlockedAlert } from '@/pages/auth/components/cookie-blocked-alert';
 import { useSetPageTitle } from '@/hooks/use-page-meta';

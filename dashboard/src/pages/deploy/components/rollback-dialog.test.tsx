@@ -6,7 +6,7 @@ vi.mock('@usetheo/ui', async (orig) => {
   const actual = await orig<typeof import('@usetheo/ui')>();
   return { ...actual, useToast: () => ({ toast: vi.fn(), dismiss: vi.fn() }) };
 });
-vi.mock('@/hooks/use-rollback-in-flight', () => ({
+vi.mock('@/hooks/deploy/use-rollback-in-flight', () => ({
   useStartRollback: () => vi.fn(),
   useEndRollback: () => vi.fn(),
 }));

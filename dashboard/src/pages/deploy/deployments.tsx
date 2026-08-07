@@ -26,7 +26,7 @@ import { useProjectStatus } from '@/hooks/use-project-status';
 import { useMutationInFlight } from '@/hooks/deploy/use-mutation-in-flight';
 import { useBuildEnvs } from '@/hooks/deploy/use-build-envs';
 import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
-import { DeploymentRowVisitIcon } from '@/components/project/deployment-row-visit-icon';
+import { DeploymentRowVisitIcon } from '@/pages/deploy/components/deployment-row-visit-icon';
 import { formatDate } from '@/lib/formatting/format';
 import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
 

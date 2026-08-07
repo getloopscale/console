@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, FolderPlus, Plus } from 'lucide-react';
 import { Badge, Button, Card, EmptyState, Input, PageShell, Select, Skeleton, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { MarkdownView } from '@/components/common/markdown-view';
+import { MarkdownView } from '@/pages/rag/components/markdown-view';
 import { KbEditor } from '@/pages/rag/components/kb-editor';
 import { DocThemeToggle } from '@/pages/rag/components/doc-theme-toggle';
 import { TagChip } from '@/pages/rag/components/tag-chip';

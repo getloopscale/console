@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle2, Github, KeyRound } from 'lucide-react';
 import { Button, Card, Input } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { GoogleBrandIcon } from '@/components/google-brand-icon';
+import { GoogleBrandIcon } from '@/pages/auth/components/google-brand-icon';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import {
   type Flow,

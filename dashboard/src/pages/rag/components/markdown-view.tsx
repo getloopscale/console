@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 
-import { CodeBlock } from './code-block';
+import { CodeBlock } from '@/pages/rag/components/code-block';
 
 /**
  * MarkdownView — the document-reading markdown renderer for the Knowledge Base (KB1

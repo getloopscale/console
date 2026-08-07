@@ -11,7 +11,7 @@ import {
   useStartRollback,
   useEndRollback,
   __resetRollbackInFlightStore,
-} from './use-rollback-in-flight';
+} from '@/hooks/deploy/use-rollback-in-flight';
 
 beforeEach(() => {
   __resetRollbackInFlightStore();

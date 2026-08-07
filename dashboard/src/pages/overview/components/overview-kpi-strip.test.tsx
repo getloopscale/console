@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@/test/render';
 
-vi.mock('@/hooks/use-overview-kpis', () => ({ useOverviewKPIs: vi.fn() }));
+vi.mock('@/hooks/overview/use-overview-kpis', () => ({ useOverviewKPIs: vi.fn() }));
 
 import { OverviewKPIStrip, formatPlanPrice } from './overview-kpi-strip';
-import { useOverviewKPIs } from '@/hooks/use-overview-kpis';
+import { useOverviewKPIs } from '@/hooks/overview/use-overview-kpis';
 
 const mocked = vi.mocked(useOverviewKPIs);
 

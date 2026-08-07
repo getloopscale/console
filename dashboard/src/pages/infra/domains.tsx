@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AddDomainSheet } from "@/components/sheets/add-domain-sheet";
+import { AddDomainSheet } from "@/pages/infra/components/add-domain-sheet";
 import { Globe, Loader2, RefreshCw, Shield, Trash2 } from 'lucide-react';
 import {
   Badge,

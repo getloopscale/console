@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@/test/render';
 import { DeploysActivity } from './deploys-activity';
-import type { BuildStatsDay } from '@/hooks/use-build-stats';
+import type { BuildStatsDay } from '@/hooks/overview/use-build-stats';
 
 const week: BuildStatsDay[] = [
   { date: '2026-07-13', count: 0 },

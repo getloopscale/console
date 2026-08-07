@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, it, expect } from 'vitest';
-import { aggregateState, describeStatus, SERVICE_VERSIONS_PATH, type ServiceStatus } from './use-service-versions';
+import { aggregateState, describeStatus, SERVICE_VERSIONS_PATH, type ServiceStatus } from '@/hooks/overview/use-service-versions';
 
 const at = '2026-07-28T10:00:00Z';
 const ok = (name: string, version: string): ServiceStatus => ({ name, state: 'ok', checked_at: at, version });

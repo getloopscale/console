@@ -1,6 +1,6 @@
-import { useProjects } from './projects/use-projects';
-import { useCloudApi } from './use-api';
-import { useBuildStats } from './use-build-stats';
+import { useProjects } from '@/hooks/projects/use-projects';
+import { useCloudApi } from '@/hooks/use-api';
+import { useBuildStats } from '@/hooks/overview/use-build-stats';
 
 /**
  * use-overview-kpis (J-06 T1.1) — the single aggregator hook that feeds the

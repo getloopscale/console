@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@/test/render';
 import { DocThemeToggle } from './doc-theme-toggle';
 import { setDocTheme } from '@/hooks/rag/use-doc-theme';
-import { MarkdownView } from '@/components/common/markdown-view';
+import { MarkdownView } from '@/pages/rag/components/markdown-view';
 
 describe('DocThemeToggle — global document theme', () => {
   beforeEach(() => setDocTheme('system')); // reset the shared preference

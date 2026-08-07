@@ -15,7 +15,7 @@ vi.mock('@/lib/http/config', () => ({
   API_URL: '',
 }));
 
-import { useSSEStream } from './use-sse-stream';
+import { useSSEStream } from '@/hooks/deploy/use-sse-stream';
 import { clearToken } from '@/lib/http/api';
 
 interface MockListenerMap {

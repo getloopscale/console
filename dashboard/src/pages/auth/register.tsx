@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Github, Loader2, Zap } from 'lucide-react';
 import { Button, Card, Input } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { GoogleBrandIcon } from '@/components/google-brand-icon';
+import { GoogleBrandIcon } from '@/pages/auth/components/google-brand-icon';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { getSession } from '@/lib/auth/session';
 import { API_URL, AUTH_URL } from '@/lib/http/config';

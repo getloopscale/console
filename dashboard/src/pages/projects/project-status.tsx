@@ -7,10 +7,10 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjectStatus } from '@/hooks/use-project-status';
 import { useKpiMetric } from '@/hooks/projects/use-kpi-metric';
 import type { SignalName } from '@/hooks/projects/use-status-stream';
-import { KPIStripStatus } from '@/components/project/kpi-strip-status';
-import { SignalGrid } from '@/components/project/signal-grid';
-import { SignalDetailSheet } from '@/components/project/signal-detail-sheet';
-import { RefreshButton } from '@/components/common/refresh-button';
+import { KPIStripStatus } from '@/pages/projects/components/kpi-strip-status';
+import { SignalGrid } from '@/pages/projects/components/signal-grid';
+import { SignalDetailSheet } from '@/pages/projects/components/signal-detail-sheet';
+import { RefreshButton } from '@/pages/projects/components/refresh-button';
 
 /**
  * ProjectStatusPage — Plan J-18 T4.1 + T4.2 (v1.1).
