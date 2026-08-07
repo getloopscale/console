@@ -28,6 +28,7 @@ import { useWorkspaceSelection } from './use-workspace-selection';
 import {
   FOLDER_MARKER,
   deriveEntries,
+  STORAGE_OBJECT_LIMIT,
   formatBytes,
   previewKind,
   type StorageFile,
@@ -97,7 +98,11 @@ export function WorkspacePage() {
 
   const filesQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/storage/objects'] as const,
-    queryFn: () => cloudFetch<ListResult>('/v1/dashboard/storage/objects', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<ListResult>(
+        `/v1/dashboard/storage/objects?limit=${STORAGE_OBJECT_LIMIT}`,
+        {},
+        { throwOnError: true },
+      ),
   });
   const usageQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/storage/usage'] as const,
@@ -421,6 +426,20 @@ export function WorkspacePage() {
             })}
           </ul>
         )}
+          {(filesQuery.data?.files?.length ?? 0) === STORAGE_OBJECT_LIMIT ? (
+            /*
+             * B-024 (classe) — a listagem tem teto (ver STORAGE_OBJECT_LIMIT). Aqui
+             * o silencio seria pior que numa tabela comum: `deriveEntries` monta as
+             * PASTAS a partir da lista plana, entao um corte esconde diretorios
+             * inteiros — a tela nao pareceria truncada, pareceria vazia naquele
+             * ramo. Dizer que ha mais e o que impede alguem de concluir que apagou
+             * o que nao apagou.
+             */
+            <p className="border-t px-3 py-2.5 text-body-sm text-muted-foreground" role="status">
+              Showing the first {STORAGE_OBJECT_LIMIT.toLocaleString()} objects. Some folders and
+              files may not appear — narrow the path to see the rest.
+            </p>
+          ) : null}
       </Card>
 
       <NewFolderDialog

@@ -23,6 +23,7 @@ import { ProviderLogo } from '@/pages/rag/components/provider-logo';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch, getApiBase } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * #191 + M8 — /rag/connectors. See and manage the workspace's connector connections (list +
@@ -155,11 +156,11 @@ export function RagConnectorsPage() {
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/connectors'] as const,
-    queryFn: () => cloudFetch<ConnectionsResult>('/v1/dashboard/rag/connectors', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<ConnectionsResult>(`/v1/dashboard/rag/connectors?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const providersQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/connectors/providers'] as const,
-    queryFn: () => cloudFetch<OAuthProvidersResult>('/v1/dashboard/rag/connectors/providers', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<OAuthProvidersResult>(`/v1/dashboard/rag/connectors/providers?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const collectionsQuery = useCollections();
 

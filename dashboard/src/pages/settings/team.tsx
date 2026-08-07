@@ -19,6 +19,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { InviteMemberSheet } from "@/pages/settings/components/invite-member-sheet";
 import { useRemoveMember, useUpdateMemberRole } from '@/hooks/mutations/use-team';
 import { formatDate } from '@/lib/formatting/format';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 interface Member {
   username?: string;
@@ -53,7 +54,7 @@ export function TeamPage() {
   // perguntar" (#274). Com throwOnError a falha sobe para o RouteBoundary.
   const teamQuery = useQuery({
     queryKey: queryKeys.team.list(),
-    queryFn: () => engineFetch<TeamResponse>('/api/v1/teams/members', {}, { throwOnError: true }),
+    queryFn: () => engineFetch<TeamResponse>(`/api/v1/teams/members?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const data = teamQuery.data ?? null;
   const loading = teamQuery.isLoading;

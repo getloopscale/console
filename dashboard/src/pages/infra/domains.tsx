@@ -26,6 +26,7 @@ import { NSInstructionsCard } from '@/pages/infra/components/ns-instructions-car
 import { ReverifyButton } from '@/pages/infra/components/reverify-button';
 import { DomainTroubleshootSheet } from '@/pages/infra/components/domain-troubleshoot-sheet';
 import type { DomainStatus } from '@/lib/api/types';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 interface Domain {
   id: string;
@@ -187,7 +188,7 @@ export function DomainsPage() {
   // (#274). Com throwOnError a falha sobe para o RouteBoundary da rota.
   const domainsQuery = useQuery({
     queryKey: queryKeys.domains.list(),
-    queryFn: () => engineFetch<DomainsResponse>('/api/v1/domains', {}, { throwOnError: true }),
+    queryFn: () => engineFetch<DomainsResponse>(`/api/v1/domains?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const data = domainsQuery.data ?? null;
   const loading = domainsQuery.isLoading;

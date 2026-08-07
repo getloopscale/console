@@ -677,7 +677,7 @@ atravessa.
 
 Verificado por sonda: sem `limit` ou sem `throwOnError`, os testes ficam
 vermelhos.
-
+class_guard: dashboard/src/lib/request-ceiling.test.ts — quantifica a CLASSE (B-024/B-054/B-057 eram o mesmo formato tres vezes). Varreu 20 leituras sem teto alem das tres: 13 ganharam LIST_SAFETY_CEILING (rede de protecao, nao paginacao), 4 que crescem de verdade (faturas, traces do histograma, sessoes do seletor, objetos do storage) ganharam teto + AVISO na tela, e 3 agregacoes ficaram justificadas por nao serem colecoes.
 
 ## B-025 — LogViewer materializa uma linha de DOM por linha de log, sem virtualizacao, e o teto de 5000 que ele assume nao existe no caminho real   [ ]
 
@@ -1244,7 +1244,7 @@ dod:
   - Meta de reorganizacao: nenhuma pagina declara queryKey nem chama cloudFetch
   - `src/pages/api-keys.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-054 — memory/entities baixa o conjunto inteiro e pagina no cliente — a paginacao visivel esconde que o request nao tem teto   [ ]
+## B-054 — memory/entities baixa o conjunto inteiro e pagina no cliente — a paginacao visivel esconde que o request nao tem teto   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1255,7 +1255,8 @@ category: unbounded_query
 evidence: src/pages/memory/entities.tsx:95 — MEDIDO por leitura: entities.tsx:95-101 monta a URL so com scope e session_id opcional; linha 120 const all = query.data?.entities ?? []; linha 124 const entities = filtered.slice(offset, offset + PAGE_SIZE) com PAGE_SIZE=25 (linha 56). Comparacao no mesmo diretorio: memories.tsx:95 faz params.set(limit, String(PAGE_SIZE)) e episodes.tsx:77 idem — ambos com paginacao server-side. CONTEXTO A...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · scaling#5
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: entities.tsx manda limit=PAGE_SIZE + offset, com offset DENTRO da queryKey (era so o scope, entao trocar de pagina servia cache errado), e o `q` vai para o servidor. O .slice() do cliente saiu. O filtro de substring FICOU, documentado como fallback: se a engine honra `q` nao da para verificar deste repositorio, e um filtro a mais e inofensivo enquanto um a menos esconde linhas. A prop `total` do TablePager saiu — o endpoint nao devolve contagem, e '1-50 de 50' com 500 entidades e mais convincente que nao dizer nada.
 dod:
   - Alinhar src/pages/memory/entities.tsx ao padrao de src/pages/memory/memories.tsx:95: mandar limit=PAGE_SIZE e offset no querystring, incluir offset na queryKey (linha 91) para o cache do TanStack Query paginar corretamente, e mover o filtro de substring da linha 121 para um parametro de busca no...
   - o request emitido por `src/pages/memory/entities.tsx` carrega teto explicito (limit/offset) — verificavel no painel Network ou por teste sobre o handler MSW
@@ -1292,7 +1293,7 @@ dod:
   - Introduzir um read em lote no BFF (por exemplo GET /v1/dashboard/lens/traces?ids=a,b,c ou um /v1/dashboard/lens/sessions/{id}/conversation que ja devolva os turnos com suas arvores) e trocar o useQueries de session-conversation.tsx:87 por um unico useQuery
   - o numero de requests disparados por `src/pages/lens/session-detail/session-conversation.tsx` deixa de crescer com o tamanho da colecao — medido no Network antes e depois
 
-## B-057 — O grafo de memoria e baixado inteiro sem limit — as mitigacoes do incidente #254 sao todas de leitura, nenhuma de transporte   [ ]
+## B-057 — O grafo de memoria e baixado inteiro sem limit — as mitigacoes do incidente #254 sao todas de leitura, nenhuma de transporte   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1303,7 +1304,8 @@ category: unbounded_query
 evidence: src/pages/memory/graph.tsx:548 — MEDIDO por leitura, com o numero de producao citado pelo proprio codigo: graph.tsx:549-551 monta a URL sem parametro de limite; graph.tsx:233 registra 4423 nodes como o caso reportado e :245 registra 1266 of 4423 nodes (29%) were unconnected; :237 HAIRBALL_NODE_THRESHOLD = 500. Contraste medido na varredura de literais de URL desta auditoria:...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · scaling#9
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: graph.tsx manda GRAPH_REQUEST_CAP=300 (mais scope/session_id/includeSuperseded). 300 e ESCOLHA que espelha o irmao rag/graphrag.tsx:135 — mesmo motor de render — nao derivacao; o comentario diz isso em vez de inventar uma origem. A primeira versao afirmava espelhar um GRAPH_NODE_CAP que nao existe (LABEL_BUDGET=40 limita rotulos, nao nos) e foi corrigida. Se a medicao mostrar que 300 corta grafos uteis, o numero muda; o que nao volta e a ausencia de teto.
 dod:
   - Mandar um teto no request de src/pages/memory/graph.tsx:548, no mesmo formato que src/pages/rag/graphrag.tsx ja usa (limit, e level quando o backend suportar), preferindo os nos de maior grau — que e exatamente o criterio que topLabelIds (linha 270-281) ja implementa no cliente e que ficaria...
   - o request emitido por `src/pages/memory/graph.tsx` carrega teto explicito (limit/offset) — verificavel no painel Network ou por teste sobre o handler MSW

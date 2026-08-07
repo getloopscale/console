@@ -20,6 +20,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * J-16 Settings › Webhooks — registration-only v0.1.
@@ -114,7 +115,7 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
 
   const list = useQuery({
     queryKey: LIST_KEY,
-    queryFn: () => cloudFetch<ListResult>('/v1/settings/webhooks/list', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<ListResult>(`/v1/settings/webhooks/list?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
 
   const [createOpen, setCreateOpen] = useState(false);

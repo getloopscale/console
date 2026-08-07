@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@/test/render';
 
-vi.mock('@/hooks/settings/use-invoices', () => ({ useInvoices: vi.fn() }));
+// importOriginal: só o HOOK é dublado. As constantes do módulo (o teto de
+// histórico) atravessam reais — um teste que redeclara a constante afirmaria
+// sobre um número que a tela não usa.
+vi.mock('@/hooks/settings/use-invoices', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/settings/use-invoices')>()),
+  useInvoices: vi.fn(),
+}));
 
 import { InvoicesCard } from './invoices-card';
 import { useInvoices } from '@/hooks/settings/use-invoices';

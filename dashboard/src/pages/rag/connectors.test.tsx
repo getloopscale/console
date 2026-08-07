@@ -10,6 +10,7 @@ vi.mock('@/lib/http/api', () => ({
 }));
 
 import { RagConnectorsPage } from './connectors';
+import { isPath } from '@/test/url';
 
 const ONE = { items: [{ id: 'conn_1', provider_id: 's3', collection_id: 'col_1', status: 'active' }] };
 
@@ -39,7 +40,7 @@ describe('RagConnectorsPage (/rag/connectors)', () => {
   it('M12 — connects an S3 paste-credential source with the entered fields', async () => {
     mockCloudFetch.mockImplementation((path: string) => {
       if (path === '/v1/dashboard/rag/collections') return Promise.resolve({ items: [{ id: 'col_1', name: 'docs' }] });
-      if (path === '/v1/dashboard/rag/connectors/providers') return Promise.resolve({ providers: [] });
+      if (isPath(path, '/v1/dashboard/rag/connectors/providers')) return Promise.resolve({ providers: [] });
       if (path.endsWith('/connect')) return Promise.resolve({ id: 'conn_new' });
       return Promise.resolve({ items: [] });
     });
@@ -94,7 +95,7 @@ describe('RagConnectorsPage — destructive delete flow', () => {
     // so it is robust to the extra providers/collections queries the M8 connect flow now fires.
     mockCloudFetch.mockImplementation((path: string, opts?: { method?: string }) => {
       if (opts?.method === 'DELETE') return Promise.reject(new Error('409 connection_syncing'));
-      if (path === '/v1/dashboard/rag/connectors') return Promise.resolve(ONE);
+      if (isPath(path, '/v1/dashboard/rag/connectors')) return Promise.resolve(ONE);
       return Promise.resolve({ items: [] });
     });
     render(<RagConnectorsPage />);
@@ -112,7 +113,7 @@ describe('RagConnectorsPage — M8 OAuth "Connect a source"', () => {
   // Path-aware mock: connectors list empty, two configured OAuth providers, one collection.
   const wireOAuth = () =>
     mockCloudFetch.mockImplementation((path: string) => {
-      if (path === '/v1/dashboard/rag/connectors/providers') return Promise.resolve({ providers: ['dropbox', 'google-drive'] });
+      if (isPath(path, '/v1/dashboard/rag/connectors/providers')) return Promise.resolve({ providers: ['dropbox', 'google-drive'] });
       if (path === '/v1/dashboard/rag/collections') return Promise.resolve({ items: [{ id: 'col_1', name: 'Docs' }] });
       return Promise.resolve({ items: [] }); // connectors list
     });

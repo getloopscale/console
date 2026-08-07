@@ -87,18 +87,36 @@ export function EntitiesPage() {
     setOffset(0);
   };
 
+  // B-054 — TETO EXPLICITO. O request pedia o conjunto INTEIRO de entidades e a
+  // paginacao acontecia no cliente (`filtered.slice(offset, ...)`): a barra de
+  // paginas dava a impressao de que o servidor mandava uma pagina, e ele mandava
+  // tudo. Segue o padrao de `memories.tsx:91-95` — limit/offset no querystring e
+  // o offset DENTRO da queryKey, sem o que o cache do TanStack Query serviria a
+  // pagina anterior ao trocar de pagina.
+  //
+  // `q` vai para o servidor quando presente. NAO consegui verificar se o endpoint
+  // o honra — ele vive na engine, outro repositorio — e por isso o filtro de
+  // substring do cliente FICA, logo abaixo, como fallback: se o servidor filtrar,
+  // o filtro do cliente e no-op; se ignorar, o comportamento e o de hoje. Mandar
+  // um parametro que o servidor ignora e inofensivo; remover o filtro do cliente
+  // apostando que ele funciona nao e.
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/entities', activeScope, session] as const,
+    queryKey: ['cloud', '/v1/dashboard/memory/entities', { activeScope, session, offset, q }] as const,
     // throwOnError so a failed fetch is query.isError, not an empty list rendered
     // as "no entities" (theo-cloud#250).
-    queryFn: () =>
-      cloudFetch<EntitiesResult>(
-        `/v1/dashboard/memory/entities?scope=${activeScope}${
-          activeScope === 'session' && session ? `&session_id=${encodeURIComponent(session)}` : ''
-        }`,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set('scope', activeScope);
+      params.set('limit', String(PAGE_SIZE));
+      if (offset > 0) params.set('offset', String(offset));
+      if (activeScope === 'session' && session) params.set('session_id', session);
+      if (q.trim()) params.set('q', q.trim());
+      return cloudFetch<EntitiesResult>(
+        `/v1/dashboard/memory/entities?${params.toString()}`,
         {},
         { throwOnError: true },
-      ),
+      );
+    },
   });
 
   // #252 REAL cascade: every round lists ONLY the entity's memories via the
@@ -118,10 +136,15 @@ export function EntitiesPage() {
   });
 
   const all = query.data?.entities ?? [];
+  // Fallback do filtro — ver o comentario da query. Se o servidor honrar `q`,
+  // isto nao remove nada; se ignorar, preserva o comportamento anterior sobre a
+  // pagina recebida.
   const filtered = q
     ? all.filter((e) => e.id.toLowerCase().includes(q.trim().toLowerCase()))
     : all;
-  const entities = filtered.slice(offset, offset + PAGE_SIZE);
+  // O `.slice()` SAIU: a pagina agora vem do servidor. Mante-lo recortaria a
+  // pagina recebida uma segunda vez, mostrando menos do que o servidor mandou.
+  const entities = filtered;
   // #253 — hide the SUMMARY column when the whole filtered set has none
   // (instead of a wall of em-dashes that reads as broken).
   const hasSummaries = filtered.some((e) => e.summary);
@@ -241,11 +264,16 @@ export function EntitiesPage() {
         ) : (
           <Card>
             <DataTable columns={columns} data={entities} rowKey={(row) => row.id} />
+            {/* SEM `total`: o endpoint de entidades nao devolve contagem (o de
+                memories devolve, e por isso memories.tsx a mostra). Passar
+                `filtered.length` exibiria "1–50 of 50" com 500 entidades no
+                servidor — um numero errado e mais convincente que nenhum. O
+                TablePager omite o "of N" quando `total` e undefined, e o botao
+                Next ja usa `pageCount < pageSize` como heuristica de "ha mais". */}
             <TablePager
               offset={offset}
               pageSize={PAGE_SIZE}
               pageCount={entities.length}
-              total={filtered.length}
               busy={query.isFetching}
               onOffsetChange={setOffset}
             />

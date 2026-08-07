@@ -2,6 +2,17 @@ import { useQuery } from '@tanstack/react-query';
 import { cloudFetch, ApiError } from '@/lib/http/api';
 import type { Invoice } from '@/lib/api/types';
 
+/**
+ * B-024 (classe) — faturas nascem uma por mes e nunca saem. Sem teto, a conta
+ * de tres anos baixa 36 registros e a de dez baixa 120: o cliente mais antigo,
+ * que e o que menos deveria sentir atrito, e o que paga mais caro.
+ *
+ * 24 = dois anos. Escolha, nao derivacao: cobre o horizonte fiscal que alguem
+ * abre a tela para conferir. O card avisa quando bate o teto, entao a decisao
+ * e visivel em vez de silenciosa.
+ */
+export const INVOICE_HISTORY_LIMIT = 24;
+
 export interface UseInvoicesResult {
   invoices: Invoice[];
   loading: boolean;
@@ -21,7 +32,11 @@ export function useInvoices(): UseInvoicesResult {
   const q = useQuery({
     queryKey: ['cloud', '/v1/billing/invoices'],
     queryFn: () =>
-      cloudFetch<{ invoices: Invoice[] }>('/v1/billing/invoices', {}, { throwOnError: true }),
+      cloudFetch<{ invoices: Invoice[] }>(
+        `/v1/billing/invoices?limit=${INVOICE_HISTORY_LIMIT}`,
+        {},
+        { throwOnError: true },
+      ),
     // User-facing synchronous read — never hammer on a 4xx/5xx (F5); the
     // backend already fails fast.
     retry: false,

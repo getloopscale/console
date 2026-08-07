@@ -21,6 +21,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * Plan 3 of dashboard-memory-section-roadmap.md, T3.7.
@@ -101,7 +102,7 @@ export function WebhooksPage() {
     // throwOnError so a failed fetch is query.isError, not an empty list rendered
     // as "no webhooks" (theo-cloud#250).
     queryFn: () =>
-      cloudFetch<ListResult>('/v1/dashboard/memory/webhooks/list', {}, { throwOnError: true }),
+      cloudFetch<ListResult>(`/v1/dashboard/memory/webhooks/list?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
 
   const [createOpen, setCreateOpen] = useState(false);

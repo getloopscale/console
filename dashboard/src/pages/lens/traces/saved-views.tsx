@@ -9,6 +9,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
 import { cloudFetch } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 export interface SavedView {
   id: string;
@@ -48,7 +49,7 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
   const savedViewsKey = ['cloud', '/v1/dashboard/lens/saved-views'] as const;
   const savedViews = useQuery({
     queryKey: savedViewsKey,
-    queryFn: () => cloudFetch<SavedViewsResult>('/v1/dashboard/lens/saved-views', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<SavedViewsResult>(`/v1/dashboard/lens/saved-views?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const invalidateViews = () => void queryClient.invalidateQueries({ queryKey: savedViewsKey });
 

@@ -7,6 +7,7 @@ const mockCloudFetch = vi.fn();
 vi.mock('@/lib/http/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
 import { LensMonitorsPage } from './monitors';
+import { isPath } from '@/test/url';
 
 describe('LensMonitorsPage (/observability/monitors)', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -24,7 +25,7 @@ describe('LensMonitorsPage (/observability/monitors)', () => {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'Answer relevance' }] });
       if (/\/monitors\/gd_1\/breaches$/.test(url)) return Promise.resolve({ traceIds });
-      if (url === '/v1/dashboard/lens/monitors') return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      if (isPath(url, '/v1/dashboard/lens/monitors')) return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
       return Promise.resolve({});
     });
   }
@@ -56,7 +57,7 @@ describe('LensMonitorsPage (/observability/monitors)', () => {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'Answer relevance' }] });
       if (/\/monitors\/gd_1\/breaches$/.test(url)) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
-      if (url === '/v1/dashboard/lens/monitors') return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      if (isPath(url, '/v1/dashboard/lens/monitors')) return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
       return Promise.resolve({});
     });
     render(<LensMonitorsPage />);
@@ -202,7 +203,7 @@ describe('#259 — monitor severity + last-evaluated', () => {
   function withMonitorAndRules(alert_rules: unknown[], opts: { rulesFail?: boolean } = {}) {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [{ id: 'ev_1', name: 'Answer relevance' }] });
-      if (url === '/v1/dashboard/lens/monitors') return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      if (isPath(url, '/v1/dashboard/lens/monitors')) return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
       if (String(url).startsWith('/v1/dashboard/lens/alert-rules')) {
         if (opts.rulesFail) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
         return Promise.resolve({ alert_rules });
@@ -317,7 +318,7 @@ describe('#259 — a null-resolving alert-rules read must not read as "Not monit
   it('resolving null (cloudFetch default on failure) still shows Unknown', async () => {
     mockCloudFetch.mockImplementation((url: string, _init?: unknown, opts?: { throwOnError?: boolean }) => {
       if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [] });
-      if (url === '/v1/dashboard/lens/monitors') return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
+      if (isPath(url, '/v1/dashboard/lens/monitors')) return Promise.resolve({ monitors: [{ id: 'gd_1', evaluatorId: 'ev_1', operator: 'gte', threshold: 0.8 }] });
       if (String(url).startsWith('/v1/dashboard/lens/alert-rules')) {
         // The real client: throws ONLY when the call site opted in; otherwise resolves null.
         if (opts?.throwOnError) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
@@ -353,7 +354,7 @@ describe('#261 — a null-resolving monitors list must not read as "No monitors 
         if (opts?.throwOnError) return Promise.resolve().then(() => { throw Object.assign(new Error('down'), { status: 502 }); });
         return Promise.resolve(null);
       }
-      if (url === '/v1/dashboard/lens/monitors') return Promise.resolve({ monitors: [] });
+      if (isPath(url, '/v1/dashboard/lens/monitors')) return Promise.resolve({ monitors: [] });
       if (url === '/v1/dashboard/lens/evaluators') return Promise.resolve({ evaluators: [] });
       return Promise.resolve({});
     });

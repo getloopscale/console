@@ -31,6 +31,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { ApiError, cloudFetch } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * M53 — /observability/alerts. Threshold alert rules on observability metrics. A rule
@@ -204,7 +205,7 @@ export function LensAlertsPage() {
   });
   const webhooks = useQuery({
     queryKey: ['cloud', '/v1/settings/webhooks/list'] as const,
-    queryFn: () => cloudFetch<WebhooksResult>('/v1/settings/webhooks/list', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<WebhooksResult>(`/v1/settings/webhooks/list?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: rulesKey });
 

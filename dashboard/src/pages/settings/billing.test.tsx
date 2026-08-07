@@ -21,7 +21,8 @@ vi.mock('@/hooks/use-api', () => ({
 // useInvoices hook. Mock it to a neutral empty state so the page tests don't
 // exercise (or pollute the shared cloudFetch mock with) the invoices fetch —
 // the invoice table has its own tests (components/billing/invoices-card.test.tsx).
-vi.mock('@/hooks/settings/use-invoices', () => ({
+vi.mock('@/hooks/settings/use-invoices', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/settings/use-invoices')>()),
   useInvoices: () => ({ invoices: [], loading: false, forbidden: false, error: false }),
 }));
 

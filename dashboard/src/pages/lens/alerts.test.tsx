@@ -14,6 +14,7 @@ vi.mock('@/lib/http/api', async (original) => ({
 
 import { ApiError } from '@/lib/http/api';
 import { LensAlertsPage, alertSeverity } from './alerts';
+import { isPath } from '@/test/url';
 
 describe('alertSeverity (honest status → Severity)', () => {
   it('a firing rule is alert, a cleared rule is ok', () => {
@@ -38,7 +39,7 @@ const WEBHOOKS = '/v1/settings/webhooks/list';
 function mockRoutes(opts: { rules?: unknown[]; webhooks?: unknown[] } = {}) {
   mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
     if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: opts.rules ?? [] });
-    if (url === WEBHOOKS) return Promise.resolve({ webhooks: opts.webhooks ?? [{ id: 'wwh-1', label: 'prod hook' }] });
+    if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: opts.webhooks ?? [{ id: 'wwh-1', label: 'prod hook' }] });
     if (url === RULES && init?.method === 'POST') return Promise.resolve({ id: 'lar-new', name: 'x', status: 'OK' });
     if (url.startsWith(`${RULES}/`) && init?.method === 'DELETE') return Promise.resolve({});
     if (url.startsWith(`${RULES}/`) && init?.method === 'PATCH') return Promise.resolve({});
@@ -72,7 +73,7 @@ describe('LensAlertsPage (M53)', () => {
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url === RULES && (!init || init.method === undefined))
         return Promise.resolve({ alert_rules: [{ id: 'lar-1', name: 'high errors', metric: 'error_rate', comparator: 'gt', threshold: 5, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'TRIGGERED', last_evaluated_at: null, last_triggered_at: '2026-07-04T10:00:00Z' }] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod' }] });
       if (url.includes('/history'))
         return Promise.resolve({ firings: [{ id: 'lfa-1', metric: 'error_rate', comparator: 'gt', threshold: 5, value: 12, fired_at: '2026-07-04T10:00:00Z' }], total: 1, limit: 20, offset: 0 });
       return Promise.resolve({});
@@ -88,7 +89,7 @@ describe('LensAlertsPage (M53)', () => {
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url === RULES && (!init || init.method === undefined))
         return Promise.resolve({ alert_rules: [{ id: 'lar-1', name: 'quiet', metric: 'cost', comparator: 'gt', threshold: 5, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod' }] });
       if (url.includes('/history')) return Promise.resolve({ firings: [], total: 0, limit: 20, offset: 0 });
       return Promise.resolve({});
     });
@@ -102,7 +103,7 @@ describe('LensAlertsPage (M53)', () => {
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url === RULES && (!init || init.method === undefined))
         return Promise.resolve({ alert_rules: [{ id: 'lar-1', name: 'boom', metric: 'cost', comparator: 'gt', threshold: 5, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod' }] });
       if (url.includes('/history')) return Promise.reject(Object.assign(new Error('boom'), { status: 500 }));
       return Promise.resolve({});
     });
@@ -151,7 +152,7 @@ describe('LensAlertsPage (M53)', () => {
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url === RULES && (!init || init.method === undefined))
         return Promise.resolve({ alert_rules: [{ id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null }] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'h' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'h' }] });
       if (url.startsWith(`${RULES}/`) && init?.method === 'PATCH')
         return Promise.reject(Object.assign(new Error('boom'), { status: 403 }));
       return Promise.resolve({});
@@ -179,7 +180,7 @@ describe('LensAlertsPage (M53)', () => {
     const rule = { id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null };
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [rule] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
       if (url.startsWith(`${RULES}/`) && init?.method === 'PATCH') return new Promise<void>((res) => (resolvePatch = res));
       return Promise.resolve({});
     });
@@ -198,7 +199,7 @@ describe('LensAlertsPage (M53)', () => {
     const rule = { id: 'lar-1', name: 'r', metric: 'cost', comparator: 'gt', threshold: 1, window_seconds: 3600, webhook_id: 'wwh-1', enabled: true, status: 'OK', last_evaluated_at: null, last_triggered_at: null };
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [rule] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
       if (url.startsWith(`${RULES}/`) && init?.method === 'PATCH') return Promise.reject(Object.assign(new Error('boom'), { status: 500 }));
       return Promise.resolve({});
     });
@@ -322,7 +323,7 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
     // lê o mesmo agregado que a aba de produção mostra.
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
       if (url === USAGE('saudacao')) return Promise.resolve({ rows: [{ revision: 6, resolutions: 42 }] });
       return Promise.resolve({});
     });
@@ -340,7 +341,7 @@ describe('LensAlertsPage — M22, a métrica de prompt', () => {
     // fabricado ao lado do campo de limiar convidaria ao limite errado.
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
       if (url === USAGE('saudacao')) return Promise.reject(new Error('lens fora do ar'));
       return Promise.resolve({});
     });
@@ -469,7 +470,7 @@ describe('LensAlertsPage — M22, o valor medido cobre a janela DA REGRA', () =>
   it('o texto declara a janela que foi de fato consultada', async () => {
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === RULES) return Promise.resolve({ alert_rules: [] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
       if (url.includes('/usage?')) return Promise.resolve({ rows: [{ revision: 6, resolutions: 42 }] });
       return Promise.resolve({});
     });
@@ -499,7 +500,7 @@ describe('LensAlertsPage — M22, a recusa do serviço chega à tela', () => {
     // tela; o texto genérico é só o fallback".
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
       if (url.includes('/usage?')) return Promise.resolve({ rows: [] });
       if (url === RULES && init?.method === 'POST') {
         return Promise.reject(
@@ -524,7 +525,7 @@ describe('LensAlertsPage — M22, a recusa do serviço chega à tela', () => {
     // O contra-exemplo: um 500 sem corpo não tem o que dizer, e aí o genérico é honesto.
     mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
       if (url === RULES && (!init || init.method === undefined)) return Promise.resolve({ alert_rules: [] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
       if (url === RULES && init?.method === 'POST') return Promise.reject(new ApiError(500));
       return Promise.resolve({});
     });
@@ -546,7 +547,7 @@ describe('LensAlertsPage — M22, a recusa do serviço chega à tela', () => {
     // número plausível que ninguém questiona é pior que um erro declarado.
     mockCloudFetch.mockImplementation((url: string) => {
       if (url === RULES) return Promise.resolve({ alert_rules: [] });
-      if (url === WEBHOOKS) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
+      if (isPath(url, WEBHOOKS)) return Promise.resolve({ webhooks: [{ id: 'wwh-1', label: 'prod hook' }] });
       if (url.includes('/usage?')) return Promise.resolve({}); // 200, sem `rows`
       return Promise.resolve({});
     });

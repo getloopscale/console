@@ -19,6 +19,7 @@ vi.mock('@/lib/http/api', () => ({
 }));
 
 import { WorkspaceWebhooksPage } from './webhooks';
+import { isPath } from '@/test/url';
 
 describe('WorkspaceWebhooksPage (/settings/webhooks)', () => {
   beforeEach(() => {
@@ -59,7 +60,7 @@ describe('WorkspaceWebhooksPage (/settings/webhooks)', () => {
     // #274 — a leitura passou a optar por `throwOnError`, então a chamada tem 3 argumentos. A
     // assertiva afirma o TERCEIRO em vez de ignorá-lo: sem isso, um futuro que remova o opt-in
     // deixaria este teste verde de novo, e o estado vazio voltaria a mentir.
-    expect(mockCloudFetch).toHaveBeenCalledWith('/v1/settings/webhooks/list', expect.anything(), expect.objectContaining({ throwOnError: true }));
+    expect(mockCloudFetch).toHaveBeenCalledWith(expect.stringContaining('/v1/settings/webhooks/list'), expect.anything(), expect.objectContaining({ throwOnError: true }));
   });
 
   it('create shows the signing secret exactly once (show-once contract)', async () => {
@@ -94,7 +95,7 @@ describe('WorkspaceWebhooksPage (/settings/webhooks)', () => {
   it('view-deliveries opens a sheet that lists the webhook delivery history', async () => {
     const user = userEvent.setup();
     mockCloudFetch.mockImplementation((path: string) => {
-      if (String(path) === '/v1/settings/webhooks/list') {
+      if (isPath(path, '/v1/settings/webhooks/list')) {
         return Promise.resolve({
           webhooks: [
             {

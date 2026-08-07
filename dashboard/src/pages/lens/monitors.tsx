@@ -27,6 +27,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { formatDate, shortId } from '@/lib/formatting/format';
 import { cloudFetch } from '@/lib/http/api';
 import { alertSeverity } from './alerts';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * M44 — /lens/monitors. List / create / delete monitors via the read+write lens management BFF
@@ -141,7 +142,7 @@ export function LensMonitorsPage() {
   // follow it. Same movement as #250 did for Memories.
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/monitors'] as const,
-    queryFn: () => cloudFetch<MonitorsResult>('/v1/dashboard/lens/monitors', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<MonitorsResult>(`/v1/dashboard/lens/monitors?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
     retry: false,
   });
   // #179 — the evaluator is chosen from the workspace's evaluators (by name), not typed as a raw id

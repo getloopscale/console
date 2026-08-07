@@ -25,6 +25,7 @@ import { FilterBar } from './traces/filter-bar';
 import { EMPTY_FILTERS, RANGE_VALUES, type Range, type TraceFilters } from './traces/filter-model';
 import { ColumnsToggle } from './traces/columns-toggle';
 import { TOGGLEABLE_COLUMNS, decodeColumns, encodeColumns, isColumnVisible } from './traces/view-encoding';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 // M59 P0 (D1) — re-export the moved list-row type so any importer of `Trace` from `./traces`
 // keeps resolving after the decomposition (behavior-preserving shim; no test churn).
@@ -226,7 +227,7 @@ export function LensTracesPage() {
   // A failed/empty discovery leaves the key input as free-text (the filter still works).
   const attrKeysQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/metrics/span-attributes'] as const,
-    queryFn: () => cloudFetch<{ mode: 'keys'; keys: { key: string; count: number }[] }>('/v1/dashboard/lens/metrics/span-attributes', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<{ mode: 'keys'; keys: { key: string; count: number }[] }>(`/v1/dashboard/lens/metrics/span-attributes?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const attributeKeys = (attrKeysQuery.data?.keys ?? []).map((k) => k.key);
 

@@ -1,5 +1,5 @@
 import { Badge, Button, Card, Table } from '@usetheo/ui';
-import { useInvoices } from '@/hooks/settings/use-invoices';
+import { useInvoices, INVOICE_HISTORY_LIMIT } from '@/hooks/settings/use-invoices';
 import { formatMinor } from '@/pages/settings/components/money';
 import { formatDate } from '@/lib/formatting/format';
 
@@ -80,6 +80,22 @@ export function InvoicesCard() {
             </Table.Body>
           </Table>
         )}
+        {invoices.length === INVOICE_HISTORY_LIMIT ? (
+          /*
+           * B-024 (classe) — a leitura tem teto (ver INVOICE_HISTORY_LIMIT). Uma
+           * lista truncada sem aviso e pior que uma lista longa: quem procura uma
+           * fatura de tres anos atras conclui que ela nao existe.
+           *
+           * O aviso so aparece quando o resultado bate exatamente o teto — o unico
+           * sinal disponivel de "pode haver mais", porque o endpoint nao devolve
+           * total. Um falso positivo aqui (exatamente 24 faturas) e barato; o falso
+           * negativo, que e a lista truncada em silencio, nao e.
+           */
+          <p className="border-t px-6 py-3 text-body-sm text-muted-foreground">
+            Showing your most recent {INVOICE_HISTORY_LIMIT} invoices. For older billing history,
+            contact support.
+          </p>
+        ) : null}
       </Card.Body>
     </Card>
   );

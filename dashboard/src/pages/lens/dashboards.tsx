@@ -26,6 +26,7 @@ import { DurationHistogram } from './dashboards/duration-histogram';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 import { formatCost, formatDuration, formatNumber } from '@/lib/formatting/format';
 import { TrendChart } from '@usetheo/ui';
 import type { TrafficBucket, LatencyBucket, ModelBucket } from '@/pages/lens/components/lens-series';
@@ -193,7 +194,7 @@ export function LensDashboardsPage() {
 
   const listQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/dashboards'] as const,
-    queryFn: () => cloudFetch<{ dashboards: DashboardRow[] }>('/v1/dashboard/lens/dashboards', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<{ dashboards: DashboardRow[] }>(`/v1/dashboard/lens/dashboards?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const boardQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/dashboards', boardId] as const,

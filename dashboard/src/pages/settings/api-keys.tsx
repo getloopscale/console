@@ -23,6 +23,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * Plan 0 of dashboard-memory-section-roadmap.md, T0.1.
@@ -222,7 +223,7 @@ export function ApiKeysPage() {
     queryKey: ['cloud', '/v1/api-keys/list'] as const,
     queryFn: () =>
       cloudFetch<ListKeysResponse>(
-        '/v1/api-keys/list',
+        `/v1/api-keys/list?limit=${LIST_SAFETY_CEILING}`,
         {},
         { throwOnError: true },
       ),
