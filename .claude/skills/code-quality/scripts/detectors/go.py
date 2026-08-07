@@ -10,10 +10,32 @@ import subprocess
 from pathlib import Path
 
 from scripts import _registry
-from scripts._shared import Finding, safe_parse_json, sanitize_symbol, to_rel_path
+from scripts._shared import (
+    DEFAULT_SKIP_DIRS,
+    Finding,
+    safe_parse_json,
+    sanitize_symbol,
+    to_rel_path,
+)
 from scripts.check_symbol_fab import extract_imports_and_calls
 
 from . import BaseDetector
+
+
+def _is_stdlib_import(module: str) -> bool:
+    """True para um import da biblioteca padrao do Go.
+
+    A regra e do proprio Go, nao uma lista heuristica: o primeiro elemento de um
+    module path DEVE conter um ponto (e um dominio — `github.com/...`, `golang.org/x/...`),
+    e caminhos da stdlib nunca contem. Ver `go help importpath`.
+
+    Sem esta exclusao o D2 consultava o Go proxy por `encoding/hex`, `crypto/rand` e
+    `net/http`, recebia 404 — porque de fato nao sao modulos — e emitia HARD
+    `symbol_fabrication_go`. Foram 783 findings afirmando que a biblioteca padrao do
+    Go nao existe, o suficiente para reprovar o gate sozinhos.
+    """
+    primeiro = module.split("/", 1)[0]
+    return "." not in primeiro
 
 _DEADCODE_TIMEOUT_SEC = 180
 
@@ -79,6 +101,7 @@ class GoDetector(BaseDetector):
         """
         findings: list[Finding] = []
         self_module = self._read_go_mod_module(changed_files)
+        requeridos = self._declared_requires(changed_files)
         for src_file in changed_files:
             if not src_file.exists():
                 continue
@@ -94,6 +117,10 @@ class GoDetector(BaseDetector):
                     continue
                 if self_module and (module == self_module or module.startswith(f"{self_module}/")):
                     continue  # EC-17 analog — self-module imports
+                if _is_stdlib_import(module):
+                    continue
+                if self._coberto_por_require(module, requeridos):
+                    continue
                 exists = _registry.module_exists_on_go_proxy(module)
                 if exists is True:
                     continue
@@ -127,22 +154,80 @@ class GoDetector(BaseDetector):
     @staticmethod
     def _read_go_mod_module(changed_files: list[Path]) -> str | None:
         """Walk up from any changed file looking for go.mod; extract `module X` line."""
+        for candidate in GoDetector._find_go_mods(changed_files):
+            try:
+                for line in candidate.read_text(encoding="utf-8").splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("module "):
+                        return stripped.removeprefix("module ").strip()
+            except OSError:
+                return None
+        return None
+
+    @staticmethod
+    def _find_go_mods(changed_files: list[Path]) -> list[Path]:
+        """go.mod files reachable walking up from the changed files (dedup, order preserved)."""
+        achados: list[Path] = []
         for src in changed_files:
             current = src.resolve().parent if src.is_file() else src.resolve()
             for _ in range(10):  # walk up at most 10 levels
                 candidate = current / "go.mod"
-                if candidate.is_file():
-                    try:
-                        for line in candidate.read_text(encoding="utf-8").splitlines():
-                            stripped = line.strip()
-                            if stripped.startswith("module "):
-                                return stripped.removeprefix("module ").strip()
-                    except OSError:
-                        return None
+                if candidate.is_file() and candidate not in achados:
+                    achados.append(candidate)
+                    break
                 if current == current.parent:
                     break
                 current = current.parent
-        return None
+        return achados
+
+    @staticmethod
+    def _declared_requires(changed_files: list[Path]) -> set[str]:
+        """Module paths declared in `require` across the reachable go.mod files.
+
+        POR QUE ISTO PRECEDE O PROXY: o proxy indexa MODULE paths; o codigo importa
+        PACKAGE paths. `github.com/jackc/pgx/v5/stdlib` e um pacote dentro do modulo
+        `github.com/jackc/pgx/v5` — o proxy devolve 404 para o caminho completo, e o
+        detector concluia "modulo fabricado". Pior: `theo-contracts` e um modulo
+        PRIVADO, entao o proxy publico responde 404 para ele PARA SEMPRE. Um 404 de
+        proxy publico nao distingue "nao existe" de "nao e publico", e tratar os dois
+        como HARD `symbol_fabrication_go` torna o gate permanentemente vermelho num
+        repo que depende de modulo privado — que e este.
+
+        O go.mod responde as duas perguntas offline e com autoridade: um import cujo
+        prefixo esta declarado em `require` e resolvido pelo `go build ./...` que o
+        CI ja roda. Se o modulo nao existisse, o build teria falhado antes deste gate.
+        """
+        requeridos: set[str] = set()
+        for gomod in GoDetector._find_go_mods(changed_files):
+            try:
+                texto = gomod.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            dentro_do_bloco = False
+            for linha in texto.splitlines():
+                s = linha.split("//", 1)[0].strip()
+                if not s:
+                    continue
+                if s.startswith("require ("):
+                    dentro_do_bloco = True
+                    continue
+                if dentro_do_bloco and s == ")":
+                    dentro_do_bloco = False
+                    continue
+                if dentro_do_bloco:
+                    partes = s.split()
+                elif s.startswith("require "):
+                    partes = s.removeprefix("require ").split()
+                else:
+                    continue
+                if partes:
+                    requeridos.add(partes[0])
+        return requeridos
+
+    @staticmethod
+    def _coberto_por_require(module: str, requeridos: set[str]) -> bool:
+        """True quando `module` e o modulo declarado ou um pacote dentro dele."""
+        return any(module == r or module.startswith(f"{r}/") for r in requeridos)
 
     def detect_orphan_exports(self, repo_root: Path) -> list[Finding]:
         raise NotImplementedError("T3.1: cross-package wiring detector not yet implemented")
@@ -154,28 +239,74 @@ class GoDetector(BaseDetector):
     # ------------------------------------------------------------------
 
     def _parse_deadcode_json(self, data) -> list[Finding]:
+        """Parse a saida `-json` do deadcode em Findings por FUNCAO.
+
+        Corrigido em 2026-08-06. A versao anterior lia `entry["position"]` e
+        `entry["name"]` — minusculos, no nivel de topo. O `deadcode` emite uma
+        lista de PACOTES com chaves capitalizadas:
+
+            [{"Name": ..., "Path": ..., "Funcs": [{"Name": ..., "Position": {...}}]}]
+
+        Consequencia medida antes do fix: os `.get()` caiam no default, entao cada
+        PACOTE virava um Finding HARD chamado `<unknown>` em `<unknown>:0:0`.
+        Neste repo isso produziu 7 findings — o numero de pacotes, nao de funcoes
+        mortas — e um FAIL_HARD que bloqueava a promocao sem apontar para lugar
+        nenhum. Um gate que reprova sem dizer o que reprovou custa mais que gate
+        nenhum: ele treina o time a ignora-lo.
+
+        O formato plano continua aceito, para nao regredir em outra versao.
+        """
         findings: list[Finding] = []
         if not isinstance(data, list):
             return findings
+
         for entry in data:
             if not isinstance(entry, dict):
                 continue
-            position = entry.get("position", "<unknown>:0:0")
-            name = entry.get("name", "<unknown>")
-            file_part = position.split(":", 1)[0] if ":" in position else position
-            sanitized = sanitize_symbol(name)
-            findings.append(
-                Finding(
-                    detector="d1_dead_code",
-                    language="go",
-                    severity="HARD",
-                    file_path=file_part,
-                    symbol_or_line=f"{name} @ {position}",
-                    message=f"Unreachable Go symbol '{name}' at {position}",
-                    allowlist_key=f"go|{file_part}|dead_code|{sanitized}",
-                )
-            )
+            funcs = entry.get("Funcs")
+            if isinstance(funcs, list):
+                for fn in funcs:
+                    if isinstance(fn, dict):
+                        f = self._finding_from_func(fn)
+                        if f is not None:
+                            findings.append(f)
+                continue
+            position, name = entry.get("position"), entry.get("name")
+            if position is None and name is None:
+                continue
+            f = self._make_dead_finding(str(name or "<unknown>"), str(position or "<unknown>:0:0"))
+            if f is not None:
+                findings.append(f)
         return findings
+
+    def _finding_from_func(self, fn: dict) -> Finding | None:
+        name = str(fn.get("Name", "<unknown>"))
+        pos = fn.get("Position")
+        if isinstance(pos, dict):
+            position = f"{pos.get('File', '<unknown>')}:{pos.get('Line', 0)}:{pos.get('Col', 0)}"
+        else:
+            position = str(pos or "<unknown>:0:0")
+        return self._make_dead_finding(name, position)
+
+    def _make_dead_finding(self, name: str, position: str) -> Finding | None:
+        file_part = position.split(":", 1)[0] if ":" in position else position
+
+        # DEFAULT_SKIP_DIRS existia e este detector nao o aplicava: `deadcode ./...`
+        # varre tudo abaixo da raiz, incluindo `dashboard/node_modules/flatted/golang/`
+        # — codigo Go dentro de uma dependencia npm. Auditar codigo morto de
+        # terceiro nao e trabalho deste gate; quem decide e o dono do pacote.
+        if any(p in DEFAULT_SKIP_DIRS for p in Path(file_part).parts):
+            return None
+
+        return Finding(
+            detector="d1_dead_code",
+            language="go",
+            severity="HARD",
+            file_path=file_part,
+            symbol_or_line=f"{name} @ {position}",
+            message=f"Unreachable Go symbol '{name}' at {position}",
+            allowlist_key=f"go|{file_part}|dead_code|{sanitize_symbol(name)}",
+        )
 
     def _auditor_unavailable(self, reason: str) -> Finding:
         return Finding(

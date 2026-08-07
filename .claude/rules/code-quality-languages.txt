@@ -19,3 +19,25 @@
 # kotlin
 # ruby
 # csharp
+
+# ---------------------------------------------------------------------------
+# ATENCAO AO FORMATO: o cabecalho acima diz "one language identifier per line".
+# Isso esta ERRADO — o parser que consome este arquivo
+# (skills/code-quality/scripts/_shared.py:110, `load_languages_config`) exige
+# quatro campos separados por `|`:
+#
+#     LANGUAGE | MANIFEST-MARKER | STATUS | NOTES
+#
+# com STATUS em {ENABLED, DISABLED, DEFER}. Uma linha com so o identificador
+# levanta `languages.txt malformed line`. Descobri isso em 2026-08-06 ao rodar o
+# gate: escrevi no formato que o cabecalho descreve e o skill recusou. O
+# cabecalho ficou como estava (nao e meu para reescrever), mas a contradicao
+# precisa estar visivel para quem editar depois.
+#
+# Habilitadas em 2026-08-06, antes da promocao workspace -> develop. Ate aqui o
+# arquivo estava inteiramente comentado, entao /code-quality saia com INFO "no
+# auditable languages" — um gate configurado para nao auditar nada. As duas nao
+# sao escolha: sao o que o repo COMPROVADAMENTE usa, com manifesto no disco.
+# ---------------------------------------------------------------------------
+go         | go.mod               | ENABLED  | Control plane na raiz do repo.
+typescript | dashboard/package.json | ENABLED  | Dashboard SPA (React/Vite).

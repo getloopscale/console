@@ -299,31 +299,59 @@ class TypescriptDetector(BaseDetector):
     # ------------------------------------------------------------------
 
     def _parse_knip_json(self, data: dict, repo_root: Path) -> list[Finding]:
+        """Traduz o JSON do knip em Findings.
+
+        FORMATO REAL (`knip --reporter json`), medido contra knip 5.x neste repo:
+
+            {"issues": [ {"file": "src/lib/config.ts",
+                          "exports": [{"name": "ENGINE_URL", "line": 33}],
+                          "types":   [{"name": "SessionRow",  "line": 14}],
+                          "files":   [{"name": "public/__config.js"}],
+                          "dependencies": [{"name": "@tanstack/react-virtual"}],
+                          "devDependencies": [], "duplicates": [], ... } ] }
+
+        O parser anterior lia `data["files"]` / `data["exports"]` no TOPO do objeto —
+        chaves que o knip nunca emite. Resultado: JSON valido, zero findings, gate
+        verde por nao ter olhado. Mesmo defeito que o detector de Go tinha.
+
+        DELIBERADAMENTE FORA: `types` (tipo exportado sem consumidor), `duplicates`,
+        `unlisted` e `unresolved`. O parser original tampouco os emitia, e um espelho
+        de contrato como `src/lib/api/types.ts` declara legitimamente tipos que ainda
+        nao tem importador. Incluir aqui seria endurecer o gate de carona num reparo
+        — decisao separada, com seu proprio item.
+        """
         findings: list[Finding] = []
+        issues = data.get("issues")
+        if not isinstance(issues, list):
+            # Formato plano (versoes antigas / outro reporter): mantido por seguranca,
+            # para que um bump do knip que volte a achatar o objeto nao vire silencio.
+            issues = [data] if isinstance(data, dict) else []
 
-        for file_path in data.get("files", []) or []:
-            findings.append(self._make_finding(file_path, "unimported file", "file", repo_root))
+        for issue in issues:
+            if not isinstance(issue, dict):
+                continue
+            origem = str(issue.get("file") or "package.json")
 
-        for export in data.get("exports", []) or []:
-            file_path = export.get("file", "<unknown>")
-            name = export.get("name", "<unknown>")
-            findings.append(
-                self._make_finding(file_path, f"unused export '{name}'", name, repo_root)
-            )
-
-        for dep in data.get("dependencies", []) or []:
-            name = dep.get("name") if isinstance(dep, dict) else str(dep)
-            findings.append(
-                self._make_finding("package.json", f"unused dependency '{name}'", name, repo_root)
-            )
-
-        for dep in data.get("devDependencies", []) or []:
-            name = dep.get("name") if isinstance(dep, dict) else str(dep)
-            findings.append(
-                self._make_finding(
-                    "package.json", f"unused devDependency '{name}'", name, repo_root
+            for arquivo in issue.get("files") or []:
+                nome = arquivo.get("name") if isinstance(arquivo, dict) else str(arquivo)
+                findings.append(
+                    self._make_finding(str(nome), "unimported file", "file", repo_root)
                 )
-            )
+
+            for export in issue.get("exports") or []:
+                nome = export.get("name", "<unknown>") if isinstance(export, dict) else str(export)
+                findings.append(
+                    self._make_finding(origem, f"unused export '{nome}'", str(nome), repo_root)
+                )
+
+            for chave, rotulo in (("dependencies", "dependency"), ("devDependencies", "devDependency")):
+                for dep in issue.get(chave) or []:
+                    nome = dep.get("name") if isinstance(dep, dict) else str(dep)
+                    findings.append(
+                        self._make_finding(
+                            origem, f"unused {rotulo} '{nome}'", str(nome), repo_root
+                        )
+                    )
 
         return findings
 

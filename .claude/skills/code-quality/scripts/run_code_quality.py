@@ -211,7 +211,8 @@ def main(argv: list[str] | None = None) -> int:
 
     for language in enabled_languages:
         manifest_marker = cfg[language]["manifest"]
-        manifest_present = (repo_root / manifest_marker).exists()
+        manifest_path = repo_root / manifest_marker
+        manifest_present = manifest_path.exists()
         detector = _build_detector(language)
         if detector is None:
             languages_skipped[language] = "no detector implementation"
@@ -221,13 +222,24 @@ def main(argv: list[str] | None = None) -> int:
             continue
         languages_audited.append(language)
 
+        # A raiz de ANALISE e o diretorio do manifesto, nao a raiz do repo. A coluna
+        # `manifest` do languages.txt aceita um caminho (`dashboard/package.json`), e
+        # so faz sentido se o detector rodar onde a ferramenta encontra o projeto:
+        # `knip` invocado na raiz de um repo cujo package.json esta em dashboard/ sai
+        # com erro, e o gate reportava `auditor_unavailable_knip` — um FAIL_SOFT que
+        # parece indisponibilidade de ferramenta e na verdade era invocacao errada.
+        lang_root = manifest_path.parent
+
         # D1 — dead code
         d1_findings, d1_crash = _safe_call(
-            "d1", detector.detect_dead_code, repo_root, language=language
+            "d1", detector.detect_dead_code, lang_root, language=language
         )
         if d1_crash:
             findings.append(d1_crash)
-        findings.extend(d1_findings)
+        # Os findings voltam relativos a `lang_root`; o contrato de Finding exige
+        # repo-relativo (e o relatorio e lido da raiz), entao reancoramos aqui em vez
+        # de propagar duas raizes por toda a API dos detectores.
+        findings.extend(_reroot(d1_findings, lang_root, repo_root))
 
         # D2 — symbol fabrication (skip when --no-network per EC-25)
         if args.no_network:
@@ -257,6 +269,29 @@ def main(argv: list[str] | None = None) -> int:
     return _emit_and_exit(findings, args, repo_root, plan_path,
                           languages_audited=languages_audited,
                           languages_skipped=languages_skipped)
+
+
+def _reroot(findings: list[Finding], lang_root: Path, repo_root: Path) -> list[Finding]:
+    """Reancora file_path (e a chave de allowlist) de lang-relativo para repo-relativo.
+
+    No-op quando o manifesto esta na raiz (caso Go: `go.mod`). A chave de allowlist
+    carrega o file_path embutido, entao ela e reconstruida junto — caso contrario uma
+    entrada de allowlist escrita a partir do relatorio nunca casaria com o finding.
+    """
+    try:
+        prefix = lang_root.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return findings
+    if not prefix or prefix == ".":
+        return findings
+    for f in findings:
+        antigo = f.file_path
+        f.file_path = f"{prefix}/{antigo}" if not antigo.startswith(prefix + "/") else antigo
+        partes = f.allowlist_key.split("|")
+        if len(partes) == 4 and partes[1] == antigo:
+            partes[1] = f.file_path
+            f.allowlist_key = "|".join(partes)
+    return findings
 
 
 def _apply_allowlist(findings: list[Finding], allowlist: list, repo_root: Path) -> list[Finding]:
