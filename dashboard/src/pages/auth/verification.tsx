@@ -5,7 +5,7 @@ import { Button, Card, PinInput } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { API_URL, AUTH_URL } from '@/lib/config';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
-import { enrichKratosError } from '@/lib/kratos';
+import { enrichKratosError } from '@/pages/auth/kratos';
 import { getSession } from '@/lib/auth';
 import { ResendCooldownButton } from '@/components/verification/resend-cooldown-button';
 

@@ -14,7 +14,7 @@ import {
   getFlowMessages,
   getFieldErrors,
   enrichKratosError,
-} from '@/lib/kratos';
+} from '@/pages/auth/kratos';
 import { getSession, logout } from '@/lib/auth';
 import { API_URL } from '@/lib/config';
 

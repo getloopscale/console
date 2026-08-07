@@ -31,8 +31,8 @@ vi.mock('@/lib/api', async (orig) => ({
 }));
 
 const mockTriggerCsv = vi.fn();
-vi.mock('@/lib/audit-csv', async (orig) => ({
-  ...(await orig<typeof import('@/lib/audit-csv')>()),
+vi.mock('@/pages/settings/audit-csv', async (orig) => ({
+  ...(await orig<typeof import('@/pages/settings/audit-csv')>()),
   triggerAuditCsvDownload: (...args: unknown[]) => mockTriggerCsv(...args),
 }));
 

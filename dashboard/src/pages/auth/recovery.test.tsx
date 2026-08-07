@@ -13,8 +13,8 @@ const mockGetFlow = vi.fn();
 const mockSubmitFlow = vi.fn();
 const mockInitFlow = vi.fn();
 // Use REAL enrichKratosError so EC-2 D8 mapping (identifier_similarity) applies.
-vi.mock('@/lib/kratos', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/kratos')>('@/lib/kratos');
+vi.mock('@/pages/auth/kratos', async () => {
+  const actual = await vi.importActual<typeof import('@/pages/auth/kratos')>('@/pages/auth/kratos');
   return {
     ...actual,
     getFlow: (...args: unknown[]) => mockGetFlow(...args),

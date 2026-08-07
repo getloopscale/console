@@ -6,7 +6,7 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { engineFetch } from '@/lib/api';
 import { formatDate } from '@/lib/format';
-import { triggerAuditCsvDownload } from '@/lib/audit-csv';
+import { triggerAuditCsvDownload } from '@/pages/settings/audit-csv';
 import type { AuditEntry, AuditListResponse, AuditSeverity } from '@/lib/api/types';
 
 const SEVERITY_BADGE: Record<

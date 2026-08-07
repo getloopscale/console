@@ -4,8 +4,8 @@ import { parseAsInteger, useQueryState } from 'nuqs';
 import { Button, Card, DataTable, type DataTableColumn, EmptyState, MetricCard, PageShell, Progress, Select } from '@usetheo/ui';
 import { Coins, DollarSign, Layers, Users } from 'lucide-react';
 import { TrendChart, type TrendSeries } from '@usetheo/ui';
-import { densificar, janelaDaSerie, type CampoPlotavel, type PontoDaSerie } from '@/lib/usage-series';
-import { resumirConsumo } from '@/lib/usage-summary';
+import { densificar, janelaDaSerie, type CampoPlotavel, type PontoDaSerie } from '@/pages/lens/usage-series';
+import { resumirConsumo } from '@/pages/lens/usage-summary';
 import { ListSkeleton } from '@/components/lens/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 

@@ -14,9 +14,9 @@
  * finishes streaming. Defer revoke via setTimeout so the browser can read it.
  */
 
-import type { AuditEntry } from './api/types';
-import { toCsv } from './csv';
-import { triggerDownload } from './download';
+import type { AuditEntry } from '@/lib/api/types';
+import { toCsv } from '@/lib/csv';
+import { triggerDownload } from '@/lib/download';
 
 const HEADER = [
   'Timestamp',

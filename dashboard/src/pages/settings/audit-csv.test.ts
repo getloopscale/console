@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { auditEntriesToCsv } from './audit-csv';
-import type { AuditEntry } from './api/types';
+import type { AuditEntry } from '@/lib/api/types';
 
 const HEADER = 'Timestamp,Actor,Action,Resource Type,Resource ID,Severity,Correlation ID';
 

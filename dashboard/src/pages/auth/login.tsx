@@ -8,7 +8,7 @@ import { LoginErrorBanner } from '@/components/login/login-error-banner';
 import { CookieBlockedAlert } from '@/components/login/cookie-blocked-alert';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { usePendingOIDC } from '@/hooks/auth/use-pending-oidc';
-import { postOIDCForm } from '@/lib/oidc-form';
+import { postOIDCForm } from '@/pages/auth/oidc-form';
 import { getSession, startLogin } from '@/lib/auth';
 import { clearToken } from '@/lib/api';
 import { API_URL, AUTH_URL } from '@/lib/config';

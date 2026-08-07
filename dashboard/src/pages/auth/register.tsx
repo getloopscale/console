@@ -8,8 +8,8 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { getSession } from '@/lib/auth';
 import { API_URL, AUTH_URL } from '@/lib/config';
 // T1.2/T1.3 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #18 + #28.
-import { KRATOS_PASSWORD_MIN_LENGTH } from '@/lib/auth-policy';
-import { validateRequired, validateEmail, validatePasswordMinLength, validateMaxLength } from '@/lib/validation';
+import { KRATOS_PASSWORD_MIN_LENGTH } from '@/pages/auth/auth-policy';
+import { validateRequired, validateEmail, validatePasswordMinLength, validateMaxLength } from '@/pages/auth/validation';
 import { RegisterCompletingScreen } from '@/components/register/register-completing-screen';
 
 const KRATOS_URL = AUTH_URL || API_URL;

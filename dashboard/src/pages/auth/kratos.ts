@@ -4,7 +4,7 @@
 
 // Prefer dedicated ACCOUNTS_URL (Kratos may live at accounts.theo.dev in prod
 // while API lives at api.theo.dev). Falls back to API_URL for same-origin dev.
-import { API_URL, ACCOUNTS_URL as CONFIG_ACCOUNTS_URL } from './config';
+import { API_URL, ACCOUNTS_URL as CONFIG_ACCOUNTS_URL } from '@/lib/config';
 const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL;
 
 export interface FlowNode {
