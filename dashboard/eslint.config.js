@@ -25,6 +25,32 @@ const reactHooksShim = {
   },
 };
 
+// M87 — o ban do `Alert` cru. Extraido para constante porque no flat config um
+// objeto POSTERIOR SUBSTITUI o valor da mesma regra; ele nao mescla. Enquanto
+// este ban era o unico `no-restricted-imports` do arquivo isso nao aparecia.
+// Quando B-070 acrescentou os blocos de camada com `patterns`, eles apagaram o
+// `paths` daqui em src/components, src/hooks e src/lib — provado com
+// `npx eslint --print-config src/components/lens/alert-create-form.tsx`, que
+// devolvia so `patterns`. Tres das quatro camadas ficaram sem o ban, em
+// silencio, e o override de alert-guard.tsx virou redundante nelas.
+//
+// A ironia vale registrar: o commit que instalou fronteiras executaveis
+// desligou a unica fronteira executavel que ja existia. Toda regra de camada
+// abaixo espalha esta constante no MESMO valor de regra.
+const BAN_ALERT_CRU = {
+  name: '@usetheo/ui',
+  importNames: ['Alert'],
+  message:
+    "Import Alert from '@/components/ui/alert-guard' — the raw @usetheo/ui Alert silently drops a `children` body (#175). The guard renders it as `description`.",
+};
+
+// Caminho para `pages/`, por alias E por relativo de QUALQUER profundidade.
+// `../pages/*` e `../../pages/*` cobriam so dois niveis: um
+// `../../../../pages/team` passava (verificado com uma sonda em
+// src/components/a/b/deep.tsx, que acusou o alias e ignorou o relativo).
+const GRUPO_PAGES = ['@/pages/*', '@/pages/**', '**/pages/*', '**/pages/**'];
+const GRUPO_COMPONENTS = ['@/components/*', '@/components/**', '**/components/*', '**/components/**'];
+
 export default [
   {
     ignores: [
@@ -86,25 +112,8 @@ export default [
       // (the raw kit line the dashboard pins, @usetheo/ui@0.13.x, cannot itself be type-hardened here).
       // The guard file (`src/components/ui/alert-guard.tsx`) is the sanctioned raw-Alert consumer and is
       // overridden below.
-      'no-restricted-imports': [
-        'error',
-        {
-          paths: [
-            {
-              name: '@usetheo/ui',
-              importNames: ['Alert'],
-              message:
-                "Import Alert from '@/components/ui/alert-guard' — the raw @usetheo/ui Alert silently drops a `children` body (#175). The guard renders it as `description`.",
-            },
-          ],
-        },
-      ],
+      'no-restricted-imports': ['error', { paths: [BAN_ALERT_CRU] }],
     },
-  },
-  {
-    // The alert-guard is the ONE sanctioned consumer of the raw @usetheo/ui Alert (it wraps it).
-    files: ['src/components/ui/alert-guard.tsx'],
-    rules: { 'no-restricted-imports': 'off' },
   },
 
   // ---------------------------------------------------------------------------
@@ -133,17 +142,18 @@ export default [
   // que nao tem para onde ir.
   // ---------------------------------------------------------------------------
   {
-    files: ['src/lib/**/*.{ts,tsx}', 'src/hooks/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'],
+    files: ['src/hooks/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'],
     ignores: ['src/**/*.test.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
+          paths: [BAN_ALERT_CRU],
           patterns: [
             {
-              group: ['@/pages/*', '@/pages/**', '../pages/*', '../../pages/*'],
+              group: GRUPO_PAGES,
               message:
-                'Camada inferior nao importa de pages/ (docs/architecture.md). Uma pagina que exporta dominio para o que esta abaixo dela fecha um ciclo — foi a causa dos quatro ciclos de import fechados em B-001/B-037/B-038/B-039. Mova o dominio para um modulo folha e faca a pagina IMPORTAR o que ela exportava.',
+                'Camada inferior nao importa de pages/ (docs/architecture.md). Uma pagina que exporta dominio para o que esta abaixo dela fecha um ciclo. Mova o dominio para um modulo folha e faca a pagina IMPORTAR o que ela exportava.',
             },
           ],
         },
@@ -151,17 +161,24 @@ export default [
     },
   },
   {
-    // src/lib e src/hooks tambem nao dependem de componentes: a direcao e
-    // components -> hooks -> lib, nunca o contrario.
+    // src/lib e a camada mais baixa: nao importa de pages/ NEM de components/.
+    // Bloco separado porque so aqui o ban de components/ se aplica — mas ele
+    // repete `paths` e o grupo de pages, ja que substituir e o comportamento do
+    // flat config. Antes este bloco listava so `src/lib/**` embora o comentario
+    // afirmasse cobrir hooks tambem; hooks subiu para o bloco acima, onde o ban
+    // de components NAO vale (a direcao e components -> hooks, entao um hook
+    // importar componente seria a inversao — mas isso e outra regra, e afirmar
+    // cobertura que a config nao tem foi o defeito original).
     files: ['src/lib/**/*.{ts,tsx}'],
     ignores: ['src/**/*.test.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
+          paths: [BAN_ALERT_CRU],
           patterns: [
             {
-              group: ['@/pages/*', '@/pages/**', '@/components/*', '@/components/**'],
+              group: [...GRUPO_PAGES, ...GRUPO_COMPONENTS],
               message:
                 'src/lib e a camada mais baixa: nao importa de pages/ nem de components/ (docs/architecture.md).',
             },
@@ -169,6 +186,15 @@ export default [
         },
       ],
     },
+  },
+  {
+    // O alert-guard e o UNICO consumidor sancionado do Alert cru — ele o embrulha.
+    // POSICAO IMPORTA: este bloco precisa vir DEPOIS de todas as regras de camada.
+    // No flat config o ultimo objeto que casa vence; enquanto ele estava antes,
+    // o ban de src/components/** era reaplicado por cima e o proprio guard virava
+    // erro de lint. Mover para ca e o que torna o 'off' efetivo.
+    files: ['src/components/ui/alert-guard.tsx'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   // ---------------------------------------------------------------------------
   // B-033 — o orcamento de 500 LoC vira regra EXECUTAVEL.

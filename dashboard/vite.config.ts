@@ -248,7 +248,17 @@ export default defineConfig(({ mode }) => ({
         // usuario nunca baixa no primeiro paint. A entrada chamada "app entry"
         // media 69 kB quando o entry tem 23. Um nome distinto e o que torna o
         // glob capaz de dizer a verdade.
-        entryFileNames: 'assets/app-[hash].js',
+        //
+        // `app-` NAO era distinto o bastante, e a primeira tentativa repetiu o
+        // defeito que corrigia. Trocar `entryFileNames` sem trocar
+        // `chunkFileNames` deixa qualquer chunk cujo nome comece com "app"
+        // dentro do glob: `components/ui/app-modal.tsx` vira `app-modal-*.js`,
+        // um chunk LAZY somado no orcamento EAGER. Medido no HEAD: o gate passava
+        // com 0,48 kB de folga contando 2,1 kB que nao pertencem ali — passar por
+        // pouco somando o arquivo errado nao e passar.
+        //
+        // `entry-` nao colide: nenhum modulo em src/ comeca com "entry".
+        entryFileNames: 'assets/entry-[hash].js',
       },
     },
   },

@@ -178,8 +178,23 @@ jobs:
         run: npx size-limit
 
       - name: Tree-shake check (mocks fora do bundle de producao)
+        # O predicado ANTERIOR procurava a string `lib/mocks` no dist. Com
+        # `sourcemap: false` (vite.config.ts) e minificacao, um caminho de modulo
+        # nunca sobrevive ao bundle: o grep nao podia casar NEM quando os mocks
+        # estavam la. Verificado por dois revisores independentes, que injetaram
+        # `import * as m from './lib/mocks'` em main.tsx, rebuildaram, e viram o
+        # passo imprimir PASS com os mocks DENTRO do bundle.
+        #
+        # O docblock acima condena essa exata classe de defeito uma linha antes
+        # de reintroduzi-la — o que diz algo sobre revisar o proprio gate com o
+        # mesmo rigor com que se revisa o codigo que ele guarda.
+        #
+        # Agora procura um SENTINELA: um literal de string exportado e consumido
+        # por `installAllMocks()` (src/lib/mocks/index.ts). Literal sobrevive a
+        # minificacao; caminho de modulo nao. E ele e consumido de proposito —
+        # um const so atribuido seria descartado pelo minificador.
         run: |
-          if grep -q 'lib/mocks' dist/assets/*.js; then
+          if grep -q '__theo_mocks_present_in_bundle__' dist/assets/*.js; then
             echo "FAIL: chunk de mocks vazou para o bundle de producao"
             exit 1
           fi

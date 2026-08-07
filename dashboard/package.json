@@ -33,7 +33,7 @@
     },
     {
       "name": "03 \u2014 app entry [eager]",
-      "path": "dist/assets/app-*.js",
+      "path": "dist/assets/entry-*.js",
       "limit": "25 kB"
     },
     {
@@ -49,7 +49,7 @@
     {
       "name": "TOTAL EAGER \u2014 HARD GATE (os 4 chunks com modulepreload no index.html, brotli)",
       "path": [
-        "dist/assets/app-*.js",
+        "dist/assets/entry-*.js",
         "dist/assets/react-vendor-*.js",
         "dist/assets/router-*.js",
         "dist/assets/vendor-*.js"

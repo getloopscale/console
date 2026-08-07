@@ -29,25 +29,35 @@ const segredoReal = "sk_live_naoDeveVazar_9f3a2b"
 func TestSecret_RedigeEmTodasAsRotasDeFormatacao(t *testing.T) {
 	s := Secret(segredoReal)
 
+	// IGUALDADE EXATA, nao "contem ***". Uma revisao mostrou que a assercao
+	// frouxa deixava passar o mutante `String() { return "***" + string(s)[:8] }`,
+	// cuja saida e `***sk_live_` — prefixo de chave, que e vazamento real e o
+	// bastante para identificar o provedor e o ambiente.
+	//
+	//nolint:staticcheck // S1025 manda trocar fmt.Sprintf("%s", s) por s.String().
+	// O conselho e correto em geral e errado aqui: o objeto sob teste E o despacho
+	// de fmt para a interface Stringer. Chamar String() direto testaria o metodo e
+	// deixaria de testar a rota pela qual o segredo realmente vaza num log.
 	casos := []struct {
-		nome   string
-		obtido string
+		nome     string
+		obtido   string
+		esperado string
 	}{
-		{"%s — o caso de log mais comum", fmt.Sprintf("%s", s)},
-		{"%v — usado por slog e por print de struct", fmt.Sprintf("%v", s)},
-		{"%q — citado, ainda assim redigido", fmt.Sprintf("%q", s)},
-		{"%#v — dump de debug via GoString", fmt.Sprintf("%#v", s)},
-		{"String() direto", s.String()},
-		{"GoString() direto", s.GoString()},
+		{"%s — o caso de log mais comum", fmt.Sprintf("%s", s), "***"},
+		{"%v — usado por slog e por print de struct", fmt.Sprintf("%v", s), "***"},
+		{"%q — citado, ainda assim redigido", fmt.Sprintf("%q", s), `"***"`},
+		{"%#v — dump de debug via GoString", fmt.Sprintf("%#v", s), "***"},
+		{"String() direto", s.String(), "***"},
+		{"GoString() direto", s.GoString(), "***"},
 	}
 
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
 			if strings.Contains(c.obtido, segredoReal) {
-				t.Fatalf("o segredo vazou: %q", c.obtido)
+				t.Fatalf("o segredo vazou inteiro: %q", c.obtido)
 			}
-			if !strings.Contains(c.obtido, "***") {
-				t.Errorf("esperava a mascara ***, obtive %q", c.obtido)
+			if c.obtido != c.esperado {
+				t.Errorf("esperava exatamente %q, obtive %q — qualquer coisa alem da mascara e vazamento parcial", c.esperado, c.obtido)
 			}
 		})
 	}
