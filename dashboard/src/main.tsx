@@ -32,7 +32,7 @@ const ReactQueryDevtools = __DEV__
 // statically-resolvable env check lets Vite DCE the if-body to zero bytes.
 if (import.meta.env.VITE_USE_MOCKS === 'true') {
   Promise.all([
-    import('./lib/dev-mocks'),
+    import('./lib/mocks/dev-mocks'),
     import('./lib/mocks'),
   ]).then(([devMocks, mocks]) => {
     devMocks.installKratosMocks();

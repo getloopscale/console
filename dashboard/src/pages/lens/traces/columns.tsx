@@ -2,13 +2,13 @@ import { Badge, Button, Checkbox, CopyButton, StatusDot, type DataTableColumn } 
 import { Sparkles } from 'lucide-react';
 
 import { formatCost, formatDate, formatDuration, formatTokens, shortId } from '@/lib/format';
-import { isSpanError } from '@/lib/span-status';
+import { isSpanError } from '@/pages/lens/span-status';
 import { nsToIso } from './helpers';
 
 /**
  * One traces-list row as the read API returns it. Declares the fields the list item carries today —
  * the M49/M52 identity/status fields PLUS the latency/tokens/cost fields proven on the wire by
- * `ExportTrace` (`src/lib/traces-export.ts` — the read API's `traceListItemSchema`) and surfaced as
+ * `ExportTrace` (`src/pages/lens/traces-export.ts` — the read API's `traceListItemSchema`) and surfaced as
  * columns in M59 P1. `input/output preview` and `tags` are NOT on the list wire (see the plan's
  * Unresolved Questions Q1/Q2) — no column fabricates them.
  */

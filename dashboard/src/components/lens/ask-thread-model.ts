@@ -1,4 +1,4 @@
-import type { TraceSpanNode } from '@/lib/trace-layout';
+import type { TraceSpanNode } from '@/pages/lens/trace-layout';
 
 /**
  * M61 P0 — pure Ask-copilot thread helpers (dependency-free leaf; ADR D2/D4). No React, no I/O. The

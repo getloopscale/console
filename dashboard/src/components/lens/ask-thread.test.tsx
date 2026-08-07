@@ -3,7 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 
 import { render, screen } from '@/test/render';
 import { ApiError } from '@/lib/api';
-import type { TraceSpanNode } from '@/lib/trace-layout';
+import type { TraceSpanNode } from '@/pages/lens/trace-layout';
 import { STARTER_PROMPTS } from './ask-thread-model';
 import { AskThread, errorMessage } from './ask-thread';
 

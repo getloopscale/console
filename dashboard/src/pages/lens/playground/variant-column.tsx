@@ -1,4 +1,4 @@
-import { lensErrorMessage } from '../../../lib/lens-error';
+import { lensErrorMessage } from '@/pages/lens/lens-error';
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Braces, Plus, Trash2 } from 'lucide-react';
@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { cloudFetch } from '@/lib/api';
 import { formatCost, formatDuration, formatTokens } from '@/lib/format';
-import type { TraceSpanNode } from '@/lib/trace-layout';
+import type { TraceSpanNode } from '@/pages/lens/trace-layout';
 import { type EditableMessage, isStale, runKey, updateVariant, type Variant } from './variant-model';
 
 /**

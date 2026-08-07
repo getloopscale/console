@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { userEvent } from '@testing-library/user-event';
 
 import { render, screen, within } from '@/test/render';
-import type { TraceSpanNode } from '@/lib/trace-layout';
+import type { TraceSpanNode } from '@/pages/lens/trace-layout';
 import { BaselineColumn } from './baseline-column';
 import { VariantColumn, errorMessage } from './variant-column';
 import { newVariant, type Variant } from './variant-model';

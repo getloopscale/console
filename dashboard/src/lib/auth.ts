@@ -19,7 +19,7 @@ import { API_URL, AUTH_URL, mocksEnabled } from './config';
 // `getMockSession` continua vindo de ./dev-mocks: transforma-lo em injecao no
 // boot (main.tsx) e o passo 2 da remediacao e fica registrado no item, porque
 // muda o ciclo de vida da sessao e merece o seu proprio teste.
-import { getMockSession } from './dev-mocks';
+import { getMockSession } from './mocks/dev-mocks';
 import { exchangeSessionToken, getExchangedIdentity } from './api';
 const KRATOS_URL = AUTH_URL || API_URL;
 

@@ -5,7 +5,7 @@ import { ClipboardCheck } from 'lucide-react';
 
 import { cloudFetch } from '@/lib/api';
 import { formatCost, formatDate, formatDuration, formatScore } from '@/lib/format';
-import { spanOwnCostUsd } from '@/lib/trace-layout';
+import { spanOwnCostUsd } from '@/pages/lens/trace-layout';
 import { detectPii } from '@/lib/otel-attributes';
 import { LensPlayground } from '../playground';
 import { durationMs, type TraceSpanNode } from './helpers';

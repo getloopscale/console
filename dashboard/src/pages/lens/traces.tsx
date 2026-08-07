@@ -16,7 +16,7 @@ import {
   tracesToJson,
   EXPORT_CAP,
   type ExportTrace,
-} from '@/lib/traces-export';
+} from '@/pages/lens/traces-export';
 import { tracesColumns, type Trace } from './traces/columns';
 import { SavedViewsBar } from './traces/saved-views';
 import { TracePeekSheet } from './traces/peek-sheet';
