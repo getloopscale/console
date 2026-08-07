@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { GitCompareArrows, Play, Plus } from 'lucide-react';
 import { Badge, Button } from '@usetheo/ui';
 
-import type { TraceSpanNode } from '@/pages/lens/components/trace-layout';
+import type { TraceSpanNode } from '@/lib/lens/trace-layout';
 import { asChat } from './trace-detail/helpers';
 import { TracePeekSheet } from './traces/peek-sheet';
 import { BaselineColumn } from './playground/baseline-column';

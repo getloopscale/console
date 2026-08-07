@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { traceTreeQueryKey, fetchTrace } from '@/hooks/lens/use-trace';
 import { Link } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import { IOCards } from '@usetheo/ui';
 
-import { cloudFetch } from '@/lib/http/api';
 import { shortId } from '@/lib/formatting/format';
-import type { TraceSpanNode } from '@/pages/lens/components/trace-layout';
+import type { TraceSpanNode } from '@/lib/lens/trace-layout';
 import { Markdown } from '@/pages/lens/components/markdown';
 import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } from './to-conversation-turns';
 
@@ -86,8 +86,10 @@ export function SessionConversation({ sessionId, traces }: { sessionId: string; 
 
   const results = useQueries({
     queries: capped.map((t) => ({
-      queryKey: ['cloud', '/v1/dashboard/lens/traces', t.traceId, 'tree'] as const,
-      queryFn: () => cloudFetch<TraceSpanNode>(`/v1/dashboard/lens/traces/${encodeURIComponent(t.traceId)}`),
+      queryKey: traceTreeQueryKey(t.traceId),
+      // throwOnError: false DELIBERADO — um turno que falha mostra
+      // "(could not load this turn)" e os outros renderizam. Ver use-trace.ts.
+      queryFn: () => fetchTrace(t.traceId, { throwOnError: false }),
     })),
   });
 

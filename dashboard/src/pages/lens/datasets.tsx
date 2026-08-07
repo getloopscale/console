@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDatasets, datasetsQueryKey } from '@/hooks/lens/use-datasets';
 import { Link } from 'react-router-dom';
 import { useQueryState, parseAsString } from 'nuqs';
 import { Plus, Trash2 } from 'lucide-react';
@@ -36,9 +37,6 @@ interface Dataset {
   name: string;
   createdAt?: string;
   itemCount?: number;
-}
-interface DatasetsResult {
-  datasets: Dataset[];
 }
 interface DatasetItem {
   traceId: string;
@@ -85,10 +83,7 @@ export function LensDatasetsPage() {
   const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Dataset | null>(null);
 
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/datasets'] as const,
-    queryFn: () => cloudFetch<DatasetsResult>('/v1/dashboard/lens/datasets', {}, { throwOnError: true }),
-  });
+  const query = useDatasets();
 
   const detail = useQuery({
     queryKey: ['cloud', '/v1/dashboard/lens/datasets', openID] as const,
@@ -100,7 +95,7 @@ export function LensDatasetsPage() {
   });
 
   const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/lens/datasets'] });
+    void queryClient.invalidateQueries({ queryKey: datasetsQueryKey });
 
   const create = useMutation({
     mutationFn: (n: string) =>

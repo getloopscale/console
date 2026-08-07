@@ -1083,7 +1083,7 @@ dod:
   - Migrar para useQuery com refetchInterval derivado do dado, seguindo src/hooks/use-provisioning-status.ts:52; extrair src/hooks/use-project-connection.ts e src/hooks/use-billing-activation.ts
   - `src/pages/project-connect.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-048 — 20 endpoints sao buscados de mais de um arquivo; /v1/dashboard/rag/collections aparece em 7 paginas diferentes   [ ]
+## B-048 — 20 endpoints sao buscados de mais de um arquivo; /v1/dashboard/rag/collections aparece em 7 paginas diferentes   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1094,10 +1094,41 @@ category: state_synchronization_issue
 evidence: src/pages/rag/collections.tsx:49 — /v1/dashboard/rag/collections: rag/ask.tsx:60, rag/connectors.tsx:168, rag/documents.tsx:74, rag/wiki.tsx:97, rag/graphrag.tsx:134, rag/analytics.tsx:60, rag/collections.tsx:49 e :57. /v1/dashboard/lens/datasets: lens/datasets.tsx:90 e :107, lens/experiments.tsx:134, lens/traces.tsx:305, lens/playground/variant-column.tsx:119. /v1/dashboard/lens/traces/{id}: lens/ask.tsx:32,...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#12
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - Um hook por recurso compartilhado — src/features/rag/hooks/use-collections.ts, src/features/lens/hooks/use-datasets.ts, use-trace.ts — com o queryKey vindo da factory da feature
   - `src/pages/rag/collections.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
+
+ENTREGUE. O dod nomeava os tres recursos compartilhados, e os tres foram medidos
+antes de virar hook — 7 telas liam collections, 3 liam datasets, 4 liam a arvore
+de um trace, todas declarando a query por conta propria.
+
+  hooks/rag/use-collections.ts   7 telas -> 1 dono
+  hooks/lens/use-datasets.ts     3 telas -> 1 dono
+  hooks/lens/use-trace.ts        4 sites -> chave + fetcher compartilhados
+
+DESTINO: `hooks/<dominio>/`, nao `src/features/<f>/hooks/` como o dod original
+dizia — o ADR-0001 aceito rejeita o eixo features/.
+
+DOIS ACHADOS QUE SO APARECERAM AO OLHAR OS QUATRO LADO A LADO:
+
+1. As chaves de trace DIVERGIAM: `ask.tsx` usava `[..., traceId]` e os outros
+   tres `[..., traceId, 'tree']`. Mesmo dado, duas entradas de cache — abrir o
+   mesmo trace em Ask e em Trace Detail baixava a arvore DUAS vezes. Nao e bug
+   de correcao, e desperdicio silencioso.
+
+2. `session-conversation.tsx` NAO usa throwOnError, e isso e DELIBERADO e
+   TESTADO (session-detail.test.tsx:176): ele busca N traces com useQueries e
+   mostra "(could not load this turn)" no que falhou, mantendo os outros.
+   Uniformizar teria quebrado a degradacao graciosa — um turno ruim mataria a
+   conversa inteira. Por isso `fetchTrace` expoe a politica de erro em vez de
+   fixa-la, e o docblock explica por que.
+
+A REGRA DE CAMADA ME CORRIGIU PELA TERCEIRA VEZ nesta sessao: o hook precisava
+do tipo `TraceSpanNode`, que morava em `pages/lens/components/` — importar dali
+seria hooks -> pages. O lint acusou, e `trace-layout.ts` desceu para `lib/lens/`,
+que e a camada mais baixa entre as tres que o consomem (D4.1).
 
 ## B-049 — O client HTTP de producao importa estaticamente o modulo de fixtures de dev (src/lib/api.ts -> dev-mocks.ts)   [x]
 

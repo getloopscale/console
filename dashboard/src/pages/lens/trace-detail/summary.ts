@@ -1,4 +1,4 @@
-import { aggregateCost, hasRecordedTokens, type TraceSpanNode } from '@/pages/lens/components/trace-layout';
+import { aggregateCost, hasRecordedTokens, type TraceSpanNode } from '@/lib/lens/trace-layout';
 import { isSpanError } from '@/pages/lens/span-status';
 import { durationMs, flattenAll } from './helpers';
 

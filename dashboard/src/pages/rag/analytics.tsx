@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useCollections } from '@/hooks/rag/use-collections';
 import { Card, MetricCard, PageShell, Select, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
@@ -17,10 +18,6 @@ import { cloudFetch } from '@/lib/http/api';
  * selected the M5 summary is shown alone (backward-compat).
  */
 
-interface Collection {
-  id: string;
-  name: string | null;
-}
 
 interface AnalyticsResult {
   window: { since: string };
@@ -55,10 +52,7 @@ export function RagAnalyticsPage() {
 
   const [collectionID, setCollectionID] = useState('');
 
-  const collectionsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
-  });
+  const collectionsQuery = useCollections();
 
   // When a collection is picked, the fetch key changes AND the URL carries
   // `?collection_id=` — theo-rag rc.80+ attaches the `scale` block only then.

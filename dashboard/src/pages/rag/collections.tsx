@@ -1,5 +1,6 @@
+import { useCollections, collectionsQueryKey } from '@/hooks/rag/use-collections';
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import {
   Button,
@@ -31,9 +32,6 @@ interface Collection {
   created_at?: string;
 }
 
-interface CollectionsResult {
-  items: Collection[];
-}
 
 export function RagCollectionsPage() {
   const { setPageTitle } = usePageMeta();
@@ -44,13 +42,10 @@ export function RagCollectionsPage() {
   const [name, setName] = useState('');
   const [pendingDelete, setPendingDelete] = useState<Collection | null>(null);
 
-  const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<CollectionsResult>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
-  });
+  const query = useCollections();
 
   const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/rag/collections'] });
+    void queryClient.invalidateQueries({ queryKey: collectionsQueryKey });
 
   const create = useMutation({
     mutationFn: (n: string) =>

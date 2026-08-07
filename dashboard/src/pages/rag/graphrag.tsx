@@ -1,3 +1,4 @@
+import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { MessageSquare, Network } from 'lucide-react';
@@ -30,10 +31,6 @@ import { collapseGraph, isSuperNodeId } from './graphrag/collapse-graph';
  * The graph JSON is forwarded opaquely by the BFF; this page renders it. No fabrication.
  */
 
-interface Collection {
-  id: string;
-  name: string | null;
-}
 interface GraphNode {
   id: string;
   name: string;
@@ -129,10 +126,7 @@ export function RagGraphRagPage() {
       return next;
     });
 
-  const collectionsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
-  });
+  const collectionsQuery = useCollections();
   const graphQuery = useQuery({
     enabled: collectionID !== '',
     queryKey: ['cloud', 'rag-graph', collectionID, level] as const,

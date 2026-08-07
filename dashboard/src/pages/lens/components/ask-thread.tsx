@@ -9,7 +9,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { cloudFetch } from '@/lib/http/api';
 import { shortId } from '@/lib/formatting/format';
 import { Markdown } from '@/pages/lens/components/markdown';
-import type { TraceSpanNode } from '@/pages/lens/components/trace-layout';
+import type { TraceSpanNode } from '@/lib/lens/trace-layout';
 import { STARTER_PROMPTS, buildEntityMap, resolveCitations, type Turn } from './ask-thread-model';
 
 /**

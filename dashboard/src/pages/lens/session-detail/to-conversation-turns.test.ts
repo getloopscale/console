@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { TraceSpanNode } from '@/pages/lens/components/trace-layout';
+import type { TraceSpanNode } from '@/lib/lens/trace-layout';
 import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } from './to-conversation-turns';
 
 function node(o: Partial<TraceSpanNode> & { spanId: string }): TraceSpanNode {

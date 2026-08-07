@@ -1,3 +1,4 @@
+import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, FolderPlus, Plus } from 'lucide-react';
@@ -27,10 +28,6 @@ import { cloudFetch } from '@/lib/http/api';
  * path; a "folder" is a path prefix (empty folders carry a hidden `.keep` marker).
  */
 
-interface Collection {
-  id: string;
-  name?: string;
-}
 interface OkfMeta {
   type?: string;
   title?: string;
@@ -92,10 +89,7 @@ export function RagWikiPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const collectionsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
-  });
+  const collectionsQuery = useCollections();
 
   const pagesQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/wiki/pages', collectionID] as const,

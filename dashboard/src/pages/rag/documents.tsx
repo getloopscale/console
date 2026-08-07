@@ -1,3 +1,4 @@
+import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2, Upload } from 'lucide-react';
@@ -36,10 +37,6 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
  * are surfaced — never a fake "done".
  */
 
-interface Collection {
-  id: string;
-  name: string | null;
-}
 interface Document {
   id: string;
   name?: string;
@@ -69,10 +66,7 @@ export function RagDocumentsPage() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const collectionsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
-  });
+  const collectionsQuery = useCollections();
 
   const docsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/documents', collectionID] as const,
