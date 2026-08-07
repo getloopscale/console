@@ -77,7 +77,7 @@ abrir PR: sao cross-validacoes que se confirmam, nao trabalho independente.
 
 ## Itens
 
-Proximo id livre: **B-093**.
+Proximo id livre: **B-100**.
 
 **O que `[x]` e `status: shipped` significam aqui.** O contrato canonico reserva
 `shipped` para o que passou por `/release` — tag semver em `main`. Este registro usa o
@@ -1727,7 +1727,7 @@ nota_sobre_o_gate: `deadcode -test` e a configuracao correta (sem ela, todo seam
 
 ## Triagem por esforco (2026-08-06, apos a primeira rodada de execucao)
 
-Os itens nao sao homogeneos (eram 87 na auditoria; hoje 92), e tratar a contagem como se fossem produz um
+Os itens nao sao homogeneos (eram 87 na auditoria; hoje 99), e tratar a contagem como se fossem produz um
 plano falso. Esta triagem separa o que a execucao mostrou:
 
 | Faixa | N | O que sao |
@@ -1867,3 +1867,116 @@ status: raw
 dod:
   - `GOPRIVATE` e o `insteadOf` citam `usetheoai/`
   - um run de quality.yml no HEAD passa o job `go` (a prova e o run, nao a leitura do YAML)
+
+## B-093 — O guard de divida upstream casa substring do config em vez de resolver a regra   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: high (consensus)
+category: false_green_guard
+evidence: src/lib/upstream-debt.test.ts:64-66 — o predicado e `eslintCfg.includes('no-restricted-imports') && eslintCfg.includes('Alert')` sobre o TEXTO do config. Um revisor deletou o bloco inteiro do ban do Alert (eslint.config.js) e o teste seguiu VERDE: ha outras duas regras `no-restricted-imports` sem relacao (as de camada, B-070) e a palavra "Alert" aparece em comentarios. Prova offline: HEAD banAtivo=true; ban REMOVIDO banAtivo=true; so comentario + regra alheia banAtivo=true.
+provenance: revisao de promocao 2026-08-07 (auditor de testes), verificado por injecao
+why_now: o docblock promete guardar o PAR "guard + ban, nunca um sem o outro". Ele detecta a remocao do guard (verificado vermelho) e NUNCA a remocao do ban — metade da promessa, com a outra metade afirmada por escrito.
+status: triaged
+dod:
+  - o teste resolve a regra (`await import('./eslint.config.js')` + assercao sobre o valor efetivo para `src/**`), nao substring
+  - apagar o bloco do ban deixa o teste VERMELHO — verificado por injecao, nao por leitura
+
+## B-094 — O escape hatch `silent-null-ok` virou carimbo   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: high (consensus)
+category: unverified_exemption
+evidence: 10 dos 13 marcadores repetem a mesma frase ("o consumo deste hook ja trata null resolvido como erro"). `src/hooks/use-whoami.ts:21` de fato EXPOE `error`; nenhum consumidor LE: components/team/team-switcher.tsx:28 `const { whoami } = useWhoami()`; pages/settings.tsx:22 idem (`:31` `if (!whoami?.team_id) return;` — delecao de team vira no-op silencioso); hooks/use-onboarding-state.ts:104 `logged_in: !!whoami` — falha de backend reportada como "nao logado", e o arquivo faz isso com 4 hooks (`:104-107`).
+provenance: revisao de promocao 2026-08-07 (auditor de testes)
+why_now: o guard confia no marcador e para de olhar. Um escape hatch concedido por afirmacao nao verificada reabre a classe inteira com a suite verde — que e pior que nao ter guard, porque a auditoria seguinte le a afirmacao e nao re-mede.
+status: triaged
+dod:
+  - para cada um dos 13 marcadores: OU o consumidor de fato le `error`/`isError`, OU o marcador sai e o site ganha `throwOnError`
+  - a redacao do marcador descreve o que o consumidor FAZ, nao o que se espera dele
+
+## B-095 — `test-only-module-guard` nao distingue `import type` de import de valor   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: medium (heuristic)
+category: false_green_guard
+evidence: src/lib/test-only-module-guard.test.ts:105 — a regex `from\s+['"]...` nao distingue tipo de valor; `:129` (`if (refs.length === 0) continue`) pula modulo sem importador algum, por desenho. Instancia real: `src/hooks/use-status-stream.ts` (250 LoC, abre EventSource, exporta `useStatusStream` em `:164`) tem 3 importadores em producao, TODOS `import type { SignalName }` (project-status.tsx:9, signal-detail-sheet.tsx:7, signal-grid.tsx:12). O hook de runtime nao tem consumidor e o guard reporta verde.
+provenance: revisao de promocao 2026-08-07 (auditor de testes), verificado com modulo-sonda
+why_now: e o mesmo arquivo que B-015 reverteu por seguranca — se ele estiver de fato morto, a reversao preserva codigo que ninguem chama; se estiver vivo, o guard esta certo por acaso. Hoje nao da para saber.
+status: triaged
+dod:
+  - o guard ignora `import type` ao contar consumidores
+  - zero-importador vira ofensor OU o docblock declara que a classe e delegada ao knip
+  - `use-status-stream.ts` tem decisao registrada: consumidor real ou remocao
+
+## B-096 — Oito `it.skip` de corpo vazio em login.test.tsx   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: medium (heuristic)
+category: hollow_test
+evidence: src/pages/login.test.tsx:280,290,405,419,426,432,436,444 — os 8 blocos contem APENAS comentarios, nenhuma assercao. Verificado: copia do arquivo trocando `it.skip(` por `it(` roda `Tests 30 passed (30)`. Remover o `.skip` nao restaura cobertura; produz 8 verdes vacuosos. Nenhum tem sunset, dono ou issue. Sao de 2026-06-05, anteriores a esta promocao.
+provenance: revisao de promocao 2026-08-07 (auditor de testes)
+why_now: `rules/testing.md § 6` trata skip permanente como divida invisivel. Contraste correto no mesmo repo: `sse-connection-budget.test.tsx:104` tem corpo completo e o `.skip` e so o interruptor.
+status: triaged
+dod:
+  - cada um dos 8: OU o teste e escrito de verdade, OU a casca e apagada
+  - achado embutido: `auth.method.success`/`failure` sao declarados em lib/rum.ts:58-59 e nunca emitidos — telemetria de autenticacao morta, decidir junto
+
+## B-097 — `LAZY_ONLY_RE` entrou sem teste e com prefixos nao ancorados   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: medium (heuristic)
+category: untested_build_logic
+evidence: src/build/manual-chunks.ts:45-62 — lista de ~40 pacotes adicionada nesta promocao; `manual-chunks.test.ts` tem ZERO assercao sobre ela. O bloco irmao `FORCE_GRAPH_RE` e testado em `manual-chunks.test.ts:35-51` INCLUSIVE com sosias negativos (`d3po`, `md3-utils`) — disciplina abandonada na lista nova. Rodando a funcao real: 9 de 10 sosias sao ejetados do vendor (`highlightXjs` porque o `.` de `highlight.js` nao esta escapado; `unified-engine`, `mdurl-extra`, `devlop-tools`, `faultline`, `bail-out`, `trough-lite`, `zwitch-x`, `ccounter`). Nenhum instalado hoje — impacto LATENTE, nao presente.
+provenance: revisao de promocao 2026-08-07 (revisor de arquitetura), verificado executando a funcao
+why_now: o criterio declarado ("a familia so e alcancada por rota lazy") foi testado pelo revisor e SE SUSTENTA — `@theokit/ui` carrega `hast-util-to-jsx-runtime` via `await import(...)`. O problema nao e o criterio, e a ancoragem dos padroes e a ausencia de teste.
+status: triaged
+dod:
+  - cada entrada ancorada (sufixo `/` ou `-`, `.` escapado)
+  - teste espelhando manual-chunks.test.ts:35-51: positivos + sosias negativos
+
+## B-098 — 233 citacoes `ADR D1..D9` nao resolvem   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+severity: low (heuristic)
+category: broken_reference
+evidence: 233 ocorrencias de `ADR D1`..`ADR D9` em 133 arquivos; os arquivos criados por B-078 sao `ADR-0001`..`ADR-0008`. Nenhuma resolve. Slugs de plano tambem pendurados: `2026-05-27-backend-frontend-integration`, `2026-06-08-dashboard-screens-review-fixes`, `2026-06-11-code-review-remediation`, entre 10+.
+provenance: revisao de promocao 2026-08-07 (cross-validation)
+why_now: B-078 esta `[x]` e o dod literal foi cumprido (os 8 ADRs existem como arquivos), mas a CONDICAO que motivou o item — docblock citando ADR que nao resolve — persiste em 133 arquivos. Fechar o item nao fechou o problema.
+status: triaged
+dod:
+  - as citacoes usam a mesma nomenclatura dos arquivos, OU existe um mapa D1..D9 -> ADR-000N escrito
+  - a verificacao e mecanica (script que resolve toda citacao), nao amostral
+
+## B-099 — `npm test` e flaky, e a suite e gate de CI   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: discover-review
+severity: medium (heuristic)
+category: flaky_test
+evidence: duas execucoes completas da MESMA arvore, sem edicao entre elas: run 1 (01:09) `1 failed | 297 passed` — `src/pages/lens/sessions.test.tsx: Failed to resolve import "@/components/ui/alert-guard"`; run 2 (01:24) `298 passed`, exit 0. O arquivo `src/components/ui/alert-guard.tsx` EXISTE e tem 91 importadores; isolado, `sessions.test.tsx` passa (10/10). Nenhum teste muta o filesystem em `src/` (`env-terminology.test.ts` escreve so em /tmp). Origem provavel: corrida no transform/resolve do Vite sob a suite cheia — NAO confirmado.
+provenance: revisao de promocao 2026-08-07 (cross-validation)
+why_now: `rules/testing.md § 3` — "flaky tests are bugs; fix or delete". Afeta o bullet "npm test passa" de ~20 dods e o ultimo passo de quality.yml. Amostra de 2 e pequena demais para taxa; o fato e que ocorreu.
+status: triaged
+dod:
+  - a causa esta identificada (nao "reexecutei e passou")
+  - 20 execucoes consecutivas verdes, OU o teste e corrigido/removido
