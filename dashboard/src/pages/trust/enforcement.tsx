@@ -14,13 +14,13 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchEnforcementEvents } from '@/components/trust/trust-api';
+import { fetchEnforcementEvents } from '@/pages/trust/components/trust-api';
 import {
   blockedCount,
   enforcementRows,
   type EnforcementPayload,
   type EnforcementRow,
-} from '@/components/trust/enforcement-rows';
+} from '@/pages/trust/components/enforcement-rows';
 
 /**
  * M24 T7.1 — `/trust/enforcement`: o que a proteção de fato barrou.

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 
 import { render, screen } from '@/test/render';
-import type { TraceSpanNode } from '@/components/lens/trace-layout';
+import type { TraceSpanNode } from '@/pages/lens/components/trace-layout';
 import { LensLabelingQueuePage } from './labeling-queue';
 import { SpanDetail } from './trace-detail/span-detail';
 

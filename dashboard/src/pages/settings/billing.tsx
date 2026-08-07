@@ -5,7 +5,7 @@ import { Button, Card, PageShell, PlanBadge, type PlanTier } from '@usetheo/ui';
 import { UsageMeter, type UsageMetric as UsageMeterMetric } from '@theokit/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { ContentGrid } from '@/components/layout';
-import { InvoicesCard } from '@/components/billing/invoices-card';
+import { InvoicesCard } from '@/pages/settings/components/invoices-card';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useCloudApi } from '@/hooks/use-api';
 import { useRequireAuth } from '@/hooks/use-auth';

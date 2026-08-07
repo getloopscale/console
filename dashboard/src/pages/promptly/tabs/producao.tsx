@@ -2,8 +2,8 @@ import { Link } from 'react-router-dom';
 import { linkParaTracesDoPrompt } from '../traces-link';
 import { Card } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import type { LinhaDeUso } from '@/components/promptly/usage';
-import type { Dependente } from '@/components/promptly/composicao';
+import type { LinhaDeUso } from '@/pages/promptly/components/usage';
+import type { Dependente } from '@/pages/promptly/components/composicao';
 
 export interface ProducaoTabProps {
   readonly janelaDias: number;

@@ -6,15 +6,15 @@ import { Button, Card, FormField, PageShell, Skeleton, Textarea } from '@usetheo
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { createRevision, fetchPrompt, runPlayground } from '@/components/promptly/promptly-api';
+import { createRevision, fetchPrompt, runPlayground } from '@/pages/promptly/components/promptly-api';
 import {
   camposDeVariaveis,
   classificarFalha,
   podeRodar,
   type CampoVariavel,
   type Falha,
-} from '@/components/promptly/playground';
-import { variaveisDoTexto } from '@/components/promptly/preview';
+} from '@/pages/promptly/components/playground';
+import { variaveisDoTexto } from '@/pages/promptly/components/preview';
 
 interface PromptWire {
   readonly name: string;

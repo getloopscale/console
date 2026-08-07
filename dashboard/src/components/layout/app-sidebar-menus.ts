@@ -1,5 +1,5 @@
 import type { ElementType } from 'react';
-import { LENS_SIDEBAR_GROUPS } from '@/components/lens/lens-capabilities';
+import { LENS_SIDEBAR_GROUPS } from '@/components/layout/lens-capabilities';
 import {
   Activity,
   Bell,

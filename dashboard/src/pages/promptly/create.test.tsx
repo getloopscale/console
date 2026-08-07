@@ -9,8 +9,8 @@ vi.mock('@/hooks/use-auth', () => ({
 }));
 
 const mockCreate = vi.fn();
-vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
+vi.mock('@/pages/promptly/components/promptly-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/pages/promptly/components/promptly-api')>();
   return { ...actual, createRevision: (...a: unknown[]) => mockCreate(...a) };
 });
 

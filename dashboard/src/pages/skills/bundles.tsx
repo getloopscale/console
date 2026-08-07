@@ -15,7 +15,7 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { createBundle, fetchBundles, promotionRefusal } from '@/components/skills/skills-api';
+import { createBundle, fetchBundles, promotionRefusal } from '@/pages/skills/components/skills-api';
 
 /**
  * M35 — `/bundles`: os pacotes de distribuição deste workspace.

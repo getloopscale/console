@@ -3,7 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 
 import { render, screen, within } from '@/test/render';
 import { waitFor } from '@testing-library/react';
-import type { TraceSpanNode } from '@/components/lens/trace-layout';
+import type { TraceSpanNode } from '@/pages/lens/components/trace-layout';
 import { LensPlayground } from './playground';
 
 const mockCloudFetch = vi.fn();

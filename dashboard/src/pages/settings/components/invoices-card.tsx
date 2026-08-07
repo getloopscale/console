@@ -1,6 +1,6 @@
 import { Badge, Button, Card, Table } from '@usetheo/ui';
 import { useInvoices } from '@/hooks/settings/use-invoices';
-import { formatMinor } from '@/components/billing/money';
+import { formatMinor } from '@/pages/settings/components/money';
 import { formatDate } from '@/lib/formatting/format';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'destructive' | 'default'> = {

@@ -16,14 +16,14 @@ import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { deleteGuardrail, fetchValidators, serviceMessage } from '@/components/trust/trust-api';
+import { deleteGuardrail, fetchValidators, serviceMessage } from '@/pages/trust/components/trust-api';
 import {
   catalogRows,
   originLabel,
   tenantRowCount,
   type CatalogPayload,
   type CatalogRow,
-} from '@/components/trust/guardrail-catalog';
+} from '@/pages/trust/components/guardrail-catalog';
 
 /**
  * M24 T4.2 — `/trust/guardrails`: o catálogo do que protege as conversas deste workspace.

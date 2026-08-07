@@ -6,14 +6,14 @@ import { Card, PageShell } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchRevisions } from '@/components/promptly/promptly-api';
+import { fetchRevisions } from '@/pages/promptly/components/promptly-api';
 import {
   diffLines,
   diffConfig,
   saoEquivalentes,
   DIFF_LINE_CEILING,
   type ConfigDeRevisao,
-} from '@/components/promptly/diff';
+} from '@/pages/promptly/components/diff';
 
 /**
  * M12 T5 — `/promptly/:name/diff`: o que mudou entre duas revisões.

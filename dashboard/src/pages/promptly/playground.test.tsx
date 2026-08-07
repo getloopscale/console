@@ -16,8 +16,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
 const mockPrompt = vi.fn();
 const mockRun = vi.fn();
 const mockCreate = vi.fn();
-vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
+vi.mock('@/pages/promptly/components/promptly-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/pages/promptly/components/promptly-api')>();
   return {
     ...actual,
     fetchPrompt: (...a: unknown[]) => mockPrompt(...a),

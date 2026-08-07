@@ -22,9 +22,9 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { useDomainStatusPolling } from '@/hooks/infra/use-domain-status-polling';
 import { useDeleteDomain, useVerifyDomain } from '@/hooks/mutations/use-domains';
 import { formatDate } from '@/lib/formatting/format';
-import { NSInstructionsCard } from '@/components/domains/ns-instructions-card';
-import { ReverifyButton } from '@/components/domains/reverify-button';
-import { DomainTroubleshootSheet } from '@/components/domains/domain-troubleshoot-sheet';
+import { NSInstructionsCard } from '@/pages/infra/components/ns-instructions-card';
+import { ReverifyButton } from '@/pages/infra/components/reverify-button';
+import { DomainTroubleshootSheet } from '@/pages/infra/components/domain-troubleshoot-sheet';
 import type { DomainStatus } from '@/lib/api/types';
 
 interface Domain {

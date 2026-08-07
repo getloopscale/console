@@ -7,8 +7,8 @@ import { Button, Card, DataTable, EmptyState, PageShell, type DataTableColumn } 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchCatalogPage, CATALOG_PAGE_LIMIT, CATALOG_QUERY_KEY } from '@/components/promptly/promptly-api';
-import { catalogRows, maiorVersaoServida, type CatalogRow } from '@/components/promptly/projections';
+import { fetchCatalogPage, CATALOG_PAGE_LIMIT, CATALOG_QUERY_KEY } from '@/pages/promptly/components/promptly-api';
+import { catalogRows, maiorVersaoServida, type CatalogRow } from '@/pages/promptly/components/projections';
 
 /**
  * M13 — `/promptly/catalogo`: a lista dos prompts do workspace.

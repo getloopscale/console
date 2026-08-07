@@ -1,7 +1,7 @@
 import { Badge, Button, type DataTableColumn } from '@usetheo/ui';
-import type { LinhaDeUso } from '@/components/promptly/usage';
-import type { RevisionRow } from '@/components/promptly/projections';
-import type { ResultadoRollback } from '@/components/promptly/rollback';
+import type { LinhaDeUso } from '@/pages/promptly/components/usage';
+import type { RevisionRow } from '@/pages/promptly/components/projections';
+import type { ResultadoRollback } from '@/pages/promptly/components/rollback';
 
 /**
  * As colunas da tabela de revisões — extraídas do detalhe (M21).

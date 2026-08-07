@@ -2,8 +2,8 @@ import { ApiError, cloudFetch } from '@/lib/http/api';
 import {
   corpoDoDiagnostico,
   type EstadoDaCandidata,
-} from '@/components/skills/discoverability-request';
-import { corpoDaPublicacao } from '@/components/skills/skill-upload';
+} from '@/pages/skills/components/discoverability-request';
+import { corpoDaPublicacao } from '@/pages/skills/components/skill-upload';
 
 /**
  * M26 — o único ponto por onde as telas de skills falam com o BFF.

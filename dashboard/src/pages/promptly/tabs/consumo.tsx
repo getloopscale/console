@@ -6,7 +6,7 @@ import {
   gerarTrechoDeConsumo,
   type Alvo,
   type InterfaceDeConsumo,
-} from '@/components/promptly/consumo';
+} from '@/pages/promptly/components/consumo';
 
 /**
  * M21 DoD-2 — *como consumir*, a aba de maior alcance e a mais barata.

@@ -24,7 +24,7 @@ import {
   type AdoptionRow,
   type TokenRow,
   type TokensPayload,
-} from '@/components/skills/distribution';
+} from '@/pages/skills/components/distribution';
 import {
   fetchBundleAdoption,
   fetchBundleTokens,
@@ -35,7 +35,7 @@ import {
   promotionRefusal,
   revokeBundleToken,
   setBundleItems,
-} from '@/components/skills/skills-api';
+} from '@/pages/skills/components/skills-api';
 
 /**
  * M35 — `/bundles/:bundleId`: os tokens delegados de um pacote e a adoção dele.

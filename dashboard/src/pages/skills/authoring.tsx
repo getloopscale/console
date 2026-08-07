@@ -4,8 +4,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Badge, Button, Card, Input, PageShell } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
-import { faseDaOperacao } from '@/components/skills/operation-state';
-import { avaliarArquivo, paraBase64 } from '@/components/skills/skill-upload';
+import { faseDaOperacao } from '@/pages/skills/components/operation-state';
+import { avaliarArquivo, paraBase64 } from '@/pages/skills/components/skill-upload';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import {
@@ -16,7 +16,7 @@ import {
   promotionRefusal,
   validateSkill,
   validationDiagnostic,
-} from '@/components/skills/skills-api';
+} from '@/pages/skills/components/skills-api';
 
 /**
  * M31 — `/skills/new`: escrever uma skill sem publicar às cegas.

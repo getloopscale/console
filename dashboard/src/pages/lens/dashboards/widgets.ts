@@ -8,7 +8,7 @@ import {
   type TrafficBucket,
   type LatencyBucket,
   type ModelBucket,
-} from '@/components/lens/lens-series';
+} from '@/pages/lens/components/lens-series';
 import { formatNumber, formatDuration, formatCost } from '@/lib/formatting/format';
 
 /**

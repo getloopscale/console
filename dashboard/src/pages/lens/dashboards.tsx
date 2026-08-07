@@ -28,7 +28,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/http/api';
 import { formatCost, formatDuration, formatNumber } from '@/lib/formatting/format';
 import { TrendChart } from '@usetheo/ui';
-import type { TrafficBucket, LatencyBucket, ModelBucket } from '@/components/lens/lens-series';
+import type { TrafficBucket, LatencyBucket, ModelBucket } from '@/pages/lens/components/lens-series';
 import {
   TRACING_OVERVIEW_TEMPLATE,
   WIDGET_TYPES,

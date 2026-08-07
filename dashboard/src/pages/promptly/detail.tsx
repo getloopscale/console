@@ -8,7 +8,7 @@ import {
   temComposicao,
   textoExibido,
   type ModoDeTexto,
-} from '@/components/promptly/composicao';
+} from '@/pages/promptly/components/composicao';
 import { ABAS, abaDaRota, rotaDaAba } from './detail-tabs';
 import { revisionColumns } from './revision-columns';
 import { ConsumoTab } from './tabs/consumo';
@@ -27,7 +27,7 @@ import {
   mensagemDeRecusa,
   type RespostaRollback,
   type ResultadoRollback,
-} from '@/components/promptly/rollback';
+} from '@/pages/promptly/components/rollback';
 import {
   fetchLabels,
   fetchPolicy,
@@ -42,7 +42,7 @@ import {
   addComment,
   fetchPromptResolvido,
   fetchDependentes,
-} from '@/components/promptly/promptly-api';
+} from '@/pages/promptly/components/promptly-api';
 import {
   catalogRows,
   comentarioRows,
@@ -53,8 +53,8 @@ import {
   revisionsWindow,
   type LabelPointer,
   type PromotionPolicy,
-} from '@/components/promptly/projections';
-import { projetarUso, type AgregadoDeUso, type LinhaDeUso } from '@/components/promptly/usage';
+} from '@/pages/promptly/components/projections';
+import { projetarUso, type AgregadoDeUso, type LinhaDeUso } from '@/pages/promptly/components/usage';
 
 /**
  * M25 — `/promptly/:promptName`: as revisões de um prompt e a promoção de um label.

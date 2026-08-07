@@ -5,7 +5,7 @@ import { useQueryState, parseAsStringEnum } from 'nuqs';
 import { RefreshCw, type LucideIcon } from 'lucide-react';
 import { Button, Card, PageShell, Select, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { LENS_EXPLORE_CARDS } from '@/components/lens/lens-capabilities';
+import { LENS_EXPLORE_CARDS } from '@/components/layout/lens-capabilities';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -20,9 +20,9 @@ import {
   type TrafficBucket,
   type LatencyBucket,
   type ModelBucket,
-} from '@/components/lens/lens-series';
-import { OverviewKpiStrip, type KpiTile, type OverviewMetric } from '@/components/lens/overview-kpi-strip';
-import { costByPeriod, errorRateValues, p95Values, tracesValues } from '@/components/lens/overview-metrics';
+} from '@/pages/lens/components/lens-series';
+import { OverviewKpiStrip, type KpiTile, type OverviewMetric } from '@/pages/lens/components/overview-kpi-strip';
+import { costByPeriod, errorRateValues, p95Values, tracesValues } from '@/pages/lens/components/overview-metrics';
 
 /**
  * M46 — /lens landing (Overview). The first customer-visible Lens surface, mirroring the Memory /

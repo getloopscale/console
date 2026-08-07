@@ -234,7 +234,7 @@ export default [
       'src/pages/auth/recovery.tsx', // 711 LOC
       'src/pages/deploy/deployments.tsx', // 704 LOC
       'src/pages/projects/project-connect.tsx', // 696 LOC
-      'src/components/deploy/deploy-timeline-hero.tsx', // 677 LOC
+      'src/pages/deploy/components/deploy-timeline-hero.tsx', // 677 LOC
       'src/pages/memory/graph.tsx', // 664 LOC
       'src/pages/lens/evaluators.tsx', // 585 LOC
       'src/pages/memory/webhooks.tsx', // 560 LOC

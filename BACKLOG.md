@@ -162,8 +162,8 @@ ADR-0001 aceito rejeita. Criterio que vale agora:
   - existe teste que constroi o grafo de import e FALHA quando um modulo em pasta
     compartilhada tem menos de 2 dominios consumidores (ADR-0001 D5, item 2)
 
-PARCIAL: `pages/` (40->2), `hooks/` (40->14) e `lib/` (29->0) feitos. Falta
-`components/`, que e B-006, e falta o teste de grafo de D5.
+PARCIAL: `pages/` (40->2), `hooks/` (40->14), `lib/` (29->0) e `components/`
+(28 pastas -> 10) feitos. Falta o teste de grafo de D5.
 
 ## B-003 — src/app.tsx e um manifesto de rotas monolitico: 729 LOC, 85 lazy() e 118 Route cobrindo ~15 dominios   [ ]
 
@@ -231,7 +231,7 @@ dod:
   - Deletar src/components/sheets/add-secret-sheet.tsx agora — nao ha importador e a versao canonica ja esta em producao
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/components/sheets/add-secret-sheet.tsx` e passa depois da mudanca
 
-## B-006 — src/components mistura tres taxonomias concorrentes (por feature, por tipo de widget, por concern) em 30 pastas irmas   [ ]
+## B-006 — src/components mistura tres taxonomias concorrentes (por feature, por tipo de widget, por concern) em 30 pastas irmas   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -242,7 +242,8 @@ category: missing_interface
 evidence: src/components/sheets/add-domain-sheet.tsx:1 — Componentes com 1 unico importador (feature-private guardados por tipo): src/components/sheets/add-domain-sheet.tsx <- src/pages/domains.tsx:3 src/components/sheets/create-environment-sheet.tsx <- src/pages/environments.tsx:8 src/components/sheets/create-project-sheet.tsx <- src/pages/projects.tsx:9 src/components/sheets/invite-member-sheet.tsx <- src/pages/team.tsx:17...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#10
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - Adotar UM eixo e escreve-lo no README/architecture: src/components/ passa a conter SOMENTE o que e cross-feature (ui/, layout/, error/, loading/, common/, e o confirm-dialog), e todo o resto muda para a pasta da feature dona
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/components/sheets/add-domain-sheet.tsx` e passa depois da mudanca
@@ -253,8 +254,15 @@ DOD REESCRITO em 2026-08-07 pela mesma razao de B-002. Criterio que vale agora:
   - medido hoje: das 121 pastas/modulos de components/, apenas SEIS tem 2+ dominios
     consumidores. E a maior concentracao restante do problema.
 
-NAO INICIADO. E o item mais caro que sobrou de P1, e o unico onde a reorganizacao
-ainda nao encostou.
+ENTREGUE: `src/components/` saiu de 28 pastas irmas para 10, e as 10 tem 2+
+dominios consumidores — ui, layout, dialogs, sheets, common, command, error,
+loading, onboarding e project (este ultimo compartilhado entre deploy e projects).
+As outras 18 foram para `pages/<dominio>/components/`, 154 arquivos.
+
+DUAS EXCECOES, medidas antes de mover: `lens-capabilities.ts` e `team-switcher.tsx`
+sao consumidos pela barra lateral (`components/layout/`). Mover suas pastas
+inteiras faria o layout importar de `pages/` — a violacao de camada de D4.1. Os
+dois ficaram em `components/layout/`, que e quem os consome de fora.
 
 ## B-007 — Fronteira do design system tem tres donos em tres versoes: componentes de @usetheo/ui@0.35.1, provider de tema de @theokit/ui@1.3.2, tokens...   [ ]
 

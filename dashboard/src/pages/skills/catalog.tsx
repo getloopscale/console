@@ -7,9 +7,9 @@ import { Badge, Button, Card, EmptyState, Input, PageShell } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { catalogCards, categoryChips, type CatalogSkill } from '@/components/skills/catalog';
-import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/components/skills/paging';
-import { fetchSkills } from '@/components/skills/skills-api';
+import { catalogCards, categoryChips, type CatalogSkill } from '@/pages/skills/components/catalog';
+import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/pages/skills/components/paging';
+import { fetchSkills } from '@/pages/skills/components/skills-api';
 
 /**
  * M33 — `/skills/catalog`: ver o que existe sem saber o que procurar.

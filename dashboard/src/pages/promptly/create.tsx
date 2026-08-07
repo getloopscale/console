@@ -6,10 +6,10 @@ import { Button, Card, FormField, PageShell, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { createRevision } from '@/components/promptly/promptly-api';
-import { DESCRICAO_MAX, validarCriacao, fraseDePermanencia } from '@/components/promptly/create-form';
-import { camposDeVariaveis, renderTemplate, variaveisDoTexto } from '@/components/promptly/preview';
-import { mensagemDeRecusa } from '@/components/promptly/rollback';
+import { createRevision } from '@/pages/promptly/components/promptly-api';
+import { DESCRICAO_MAX, validarCriacao, fraseDePermanencia } from '@/pages/promptly/components/create-form';
+import { camposDeVariaveis, renderTemplate, variaveisDoTexto } from '@/pages/promptly/components/preview';
+import { mensagemDeRecusa } from '@/pages/promptly/components/rollback';
 
 /**
  * M12 T3 — `/promptly/new`: autorar uma revisão.

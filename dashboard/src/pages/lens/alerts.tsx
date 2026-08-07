@@ -15,9 +15,9 @@ import {
   Timestamp,
 } from '@usetheo/ui';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
-import { ListSkeleton } from '@/components/lens/list-skeleton';
-import { AlertCreateForm } from '@/components/lens/alert-create-form';
-import type { AlertDraft, AlertField } from '@/components/lens/alert-draft';
+import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
+import { AlertCreateForm } from '@/pages/lens/components/alert-create-form';
+import type { AlertDraft, AlertField } from '@/pages/lens/components/alert-draft';
 import {
   EMPTY_ALERT_DRAFT,
   METRICA_DE_PROMPT,
@@ -25,7 +25,7 @@ import {
   visibleAlertProblems,
   exigeNomeDePrompt,
   toCreateBody,
-} from '@/components/lens/alert-draft';
+} from '@/pages/lens/components/alert-draft';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';

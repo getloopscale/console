@@ -17,7 +17,7 @@ import {
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
-import { ProviderLogo } from '@/components/rag/provider-logo';
+import { ProviderLogo } from '@/pages/rag/components/provider-logo';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';

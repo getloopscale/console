@@ -16,8 +16,8 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchSkills } from '@/components/skills/skills-api';
-import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/components/skills/paging';
+import { fetchSkills } from '@/pages/skills/components/skills-api';
+import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/pages/skills/components/paging';
 
 /**
  * M26 — `/skills`: o acervo de skills do workspace.

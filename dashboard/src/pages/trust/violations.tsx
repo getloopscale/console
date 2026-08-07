@@ -13,16 +13,16 @@ import {
   type DataTableColumn,
 } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { ConversationPanel } from '@/components/trust/conversation-panel';
+import { ConversationPanel } from '@/pages/trust/components/conversation-panel';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchTrust } from '@/components/trust/trust-api';
+import { fetchTrust } from '@/pages/trust/components/trust-api';
 import {
   filterByPolicy,
   type ViolationsPayload,
   type PolicyViolation,
   type ConversationPayload,
-} from '@/components/trust/trust-series';
+} from '@/pages/trust/components/trust-series';
 
 /**
  * M23 — `/trust/violations`: a lista de violações de política, navegável até a conversa de origem.

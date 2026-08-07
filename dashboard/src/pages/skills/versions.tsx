@@ -22,7 +22,7 @@ import {
   fetchSkillVersions,
   promoteChannel,
   promotionRefusal,
-} from '@/components/skills/skills-api';
+} from '@/pages/skills/components/skills-api';
 import {
   channelAnomalies,
   currentChannelOf,
@@ -30,8 +30,8 @@ import {
   type ChannelsPayload,
   type VersionRow,
   type VersionsPayload,
-} from '@/components/skills/projections';
-import { promotionConfirmation, promotionPhrase } from '@/components/skills/confirm-text';
+} from '@/pages/skills/components/projections';
+import { promotionConfirmation, promotionPhrase } from '@/pages/skills/components/confirm-text';
 
 /** O canal que a tela promove. Um só, e declarado: `stable` é o que os consumidores resolvem. */
 const CANAL_ALVO = 'stable';

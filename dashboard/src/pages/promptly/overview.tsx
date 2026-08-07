@@ -7,8 +7,8 @@ import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchCatalogPage, CATALOG_PAGE_LIMIT, CATALOG_QUERY_KEY } from '@/components/promptly/promptly-api';
-import { catalogRows, resumoCatalogo } from '@/components/promptly/projections';
+import { fetchCatalogPage, CATALOG_PAGE_LIMIT, CATALOG_QUERY_KEY } from '@/pages/promptly/components/promptly-api';
+import { catalogRows, resumoCatalogo } from '@/pages/promptly/components/projections';
 
 /**
  * M13 — `/promptly`: o painel da capacidade.

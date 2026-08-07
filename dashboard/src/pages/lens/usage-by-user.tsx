@@ -6,7 +6,7 @@ import { Coins, DollarSign, Layers, Users } from 'lucide-react';
 import { TrendChart, type TrendSeries } from '@usetheo/ui';
 import { densificar, janelaDaSerie, type CampoPlotavel, type PontoDaSerie } from '@/pages/lens/usage-series';
 import { resumirConsumo } from '@/pages/lens/usage-summary';
-import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';

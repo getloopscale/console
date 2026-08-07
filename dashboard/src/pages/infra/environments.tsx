@@ -8,8 +8,8 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { CreateEnvironmentSheet } from '@/components/sheets/create-environment-sheet';
 import { DeleteEnvironmentDialog } from '@/components/dialogs/delete-environment-dialog';
 import { PromoteDialog } from '@/components/dialogs/promote-dialog';
-import { EnvironmentKPIRow } from '@/components/environments/environment-kpi-row';
-import { PreviewRow, type PreviewSlot } from '@/components/environments/preview-row';
+import { EnvironmentKPIRow } from '@/pages/infra/components/environment-kpi-row';
+import { PreviewRow, type PreviewSlot } from '@/pages/infra/components/preview-row';
 
 interface Environment {
   name: string;

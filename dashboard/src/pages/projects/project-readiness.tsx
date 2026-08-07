@@ -5,9 +5,9 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { useDocumentTitle } from '@/hooks/use-page-meta';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useReadinessSignals } from '@/hooks/projects/use-readiness-signals';
-import { ReadinessScoreCard } from '@/components/readiness/readiness-score-card';
-import { ReadinessChecklist } from '@/components/readiness/readiness-checklist';
-import { ReadinessFAQ } from '@/components/readiness/readiness-faq';
+import { ReadinessScoreCard } from '@/pages/projects/components/readiness-score-card';
+import { ReadinessChecklist } from '@/pages/projects/components/readiness-checklist';
+import { ReadinessFAQ } from '@/pages/projects/components/readiness-faq';
 import type { SignalName } from '@/lib/readiness/signals';
 
 /**

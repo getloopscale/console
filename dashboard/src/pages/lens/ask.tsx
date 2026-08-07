@@ -7,8 +7,8 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/http/api';
-import type { TraceSpanNode } from '@/components/lens/trace-layout';
-import { AskThread } from '@/components/lens/ask-thread';
+import type { TraceSpanNode } from '@/pages/lens/components/trace-layout';
+import { AskThread } from '@/pages/lens/components/ask-thread';
 
 /**
  * M61 — /observability/ask. The Ask copilot as a persistent conversation **docked to the open trace**

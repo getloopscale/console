@@ -10,9 +10,9 @@
 // Nada aqui busca dado nem decide se o par métrica↔prompt é válido.
 
 import { Button, Input, Select } from '@usetheo/ui';
-import { exigeNomeDePrompt } from '@/components/lens/alert-draft';
-import type { AlertDraft } from '@/components/lens/alert-draft';
-import type { AlertField } from '@/components/lens/alert-draft';
+import { exigeNomeDePrompt } from '@/pages/lens/components/alert-draft';
+import type { AlertDraft } from '@/pages/lens/components/alert-draft';
+import type { AlertField } from '@/pages/lens/components/alert-draft';
 
 export interface AlertCreateFormProps {
   /** O rascunho inteiro. Espelhar campo a campo duplicaria um tipo que já existe. */

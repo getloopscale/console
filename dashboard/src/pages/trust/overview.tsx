@@ -14,14 +14,14 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchTrust } from '@/components/trust/trust-api';
+import { fetchTrust } from '@/pages/trust/components/trust-api';
 import {
   coverageGap,
   unenforcedCount,
   type PolicyCoverage,
   type ViolationsPayload,
   type ValidatorsPayload,
-} from '@/components/trust/trust-series';
+} from '@/pages/trust/components/trust-series';
 
 /**
  * M23 — `/trust`. A tela abre com uma frase, não com três números.

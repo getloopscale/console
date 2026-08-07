@@ -9,7 +9,7 @@ import {
 import { Input, Sidebar } from '@usetheo/ui';
 import { SystemStatusIndicator } from './system-status-indicator';
 import type { Session } from '@/lib/auth/session';
-import { TeamSwitcher } from '@/components/team/team-switcher';
+import { TeamSwitcher } from '@/components/layout/team-switcher';
 import { useOnboardingState } from '@/hooks/use-onboarding-state';
 import { reportEvent } from '@/lib/telemetry/rum';
 import {

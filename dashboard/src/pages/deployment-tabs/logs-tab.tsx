@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Card } from '@usetheo/ui';
 
 import { useBuildLogs } from '@/hooks/deploy/use-build-logs';
-import { LogViewer } from '@/components/logs/log-viewer';
+import { LogViewer } from '@/pages/deploy/components/log-viewer';
 
 /**
  * LogsTab — Plan J-17 T5.4 + LIVE bug fix 2026-06-06.

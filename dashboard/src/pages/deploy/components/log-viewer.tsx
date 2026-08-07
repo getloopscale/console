@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, memo} from 'react';
 import { Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge, Button, Input } from '@usetheo/ui';
 import type { LogLine, LogLevel } from '@/lib/api/types';
-import { parseAnsi } from '@/components/logs/ansi';
+import { parseAnsi } from '@/pages/deploy/components/ansi';
 
 interface LogViewerProps {
   lines: LogLine[];

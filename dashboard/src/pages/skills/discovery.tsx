@@ -16,8 +16,8 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { discoveryRows, type DiscoveryRow, type RetrievePayload } from '@/components/skills/discovery';
-import { promotionRefusal, retrieveSkills } from '@/components/skills/skills-api';
+import { discoveryRows, type DiscoveryRow, type RetrievePayload } from '@/pages/skills/components/discovery';
+import { promotionRefusal, retrieveSkills } from '@/pages/skills/components/skills-api';
 
 /**
  * M31 — `/skills/discovery`: a razão de existir do produto, finalmente com tela.

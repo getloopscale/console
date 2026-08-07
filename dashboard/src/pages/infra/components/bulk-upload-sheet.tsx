@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { Button, Sheet, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { useBulkUploadSecrets } from '@/hooks/mutations/use-secrets-mutations';
-import { parseDotenv } from '@/components/secrets/dotenv';
+import { parseDotenv } from '@/pages/infra/components/dotenv';
 
 interface BulkUploadSheetProps {
   open: boolean;

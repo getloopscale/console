@@ -13,7 +13,7 @@ import {
   fetchSkillInstructions,
   promotionRefusal,
   setSkillLifecycle,
-} from '@/components/skills/skills-api';
+} from '@/pages/skills/components/skills-api';
 
 /**
  * M26 — `/skills/:skillId`: uma skill, e a instrução que um agente de fato carregaria.

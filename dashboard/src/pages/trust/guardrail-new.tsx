@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, FlaskConical, ShieldCheck } from 'lucide-react';
 import { Button, Card, FormField, PageShell, Textarea } from '@usetheo/ui';
 
-import { GuardrailRuleFields } from '@/components/trust/guardrail-rule-fields';
+import { GuardrailRuleFields } from '@/pages/trust/components/guardrail-rule-fields';
 
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -14,7 +14,7 @@ import {
   serviceCode,
   serviceMessage,
   testGuardrail,
-} from '@/components/trust/trust-api';
+} from '@/pages/trust/components/trust-api';
 import {
   EMPTY_DRAFT,
   cleanTerms,
@@ -26,7 +26,7 @@ import {
   type DraftField,
   type DryRunVerdict,
   type GuardrailDraft,
-} from '@/components/trust/guardrail-draft';
+} from '@/pages/trust/components/guardrail-draft';
 
 /**
  * M24 T5.1 — criar uma guardrail, com o teste como PASSAGEM OBRIGATÓRIA.

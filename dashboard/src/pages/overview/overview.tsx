@@ -17,8 +17,8 @@ import {
 } from '@usetheo/ui';
 import { UsageMeter } from '@theokit/ui';
 import { ContentGrid } from '@/components/layout';
-import { OverviewKPIStrip } from '@/components/overview/overview-kpi-strip';
-import { DeploysActivity } from '@/components/overview/deploys-activity';
+import { OverviewKPIStrip } from '@/pages/overview/components/overview-kpi-strip';
+import { DeploysActivity } from '@/pages/overview/components/deploys-activity';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/projects/use-projects';

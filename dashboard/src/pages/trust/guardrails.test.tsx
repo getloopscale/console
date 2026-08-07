@@ -10,8 +10,8 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const mockList = vi.fn();
 const mockDelete = vi.fn();
-vi.mock('@/components/trust/trust-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/trust/trust-api')>();
+vi.mock('@/pages/trust/components/trust-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/pages/trust/components/trust-api')>();
   return {
     ...actual,
     fetchValidators: (...a: unknown[]) => mockList(...a),

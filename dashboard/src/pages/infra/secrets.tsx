@@ -6,11 +6,11 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useSecrets } from '@/hooks/infra/use-secrets';
 import { useEnvironments } from '@/hooks/use-environments';
-import { SecretsTable } from '@/components/secrets/secrets-table';
-import { AddSecretSheet } from '@/components/secrets/add-secret-sheet';
-import { RotateSecretDialog } from '@/components/secrets/rotate-secret-dialog';
-import { DeleteSecretDialog } from '@/components/secrets/delete-secret-dialog';
-import { BulkUploadSheet } from '@/components/secrets/bulk-upload-sheet';
+import { SecretsTable } from '@/pages/infra/components/secrets-table';
+import { AddSecretSheet } from '@/pages/infra/components/add-secret-sheet';
+import { RotateSecretDialog } from '@/pages/infra/components/rotate-secret-dialog';
+import { DeleteSecretDialog } from '@/pages/infra/components/delete-secret-dialog';
+import { BulkUploadSheet } from '@/pages/infra/components/bulk-upload-sheet';
 import type { Secret } from '@/lib/api/types';
 import { DEFAULT_PERMANENT_ENV } from '@/lib/api/domain';
 

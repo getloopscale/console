@@ -7,7 +7,7 @@ import { API_URL, AUTH_URL } from '@/lib/http/config';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { enrichKratosError } from '@/pages/auth/kratos';
 import { getSession } from '@/lib/auth/session';
-import { ResendCooldownButton } from '@/components/verification/resend-cooldown-button';
+import { ResendCooldownButton } from '@/pages/auth/components/resend-cooldown-button';
 
 const KRATOS_URL = AUTH_URL || API_URL;
 

@@ -8,10 +8,10 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { useScale } from '@/hooks/projects/use-scale';
 import { useScaleCost } from '@/hooks/projects/use-scale-cost';
 import { useProjectStatus } from '@/hooks/use-project-status';
-import { ScaleSlider } from '@/components/scale/scale-slider';
-import { HPAToggle, type HPAMode } from '@/components/scale/hpa-toggle';
-import { KEDAToggle } from '@/components/scale/keda-toggle';
-import { ScaleConfirmDialog } from '@/components/scale/scale-confirm-dialog';
+import { ScaleSlider } from '@/pages/projects/components/scale-slider';
+import { HPAToggle, type HPAMode } from '@/pages/projects/components/hpa-toggle';
+import { KEDAToggle } from '@/pages/projects/components/keda-toggle';
+import { ScaleConfirmDialog } from '@/pages/projects/components/scale-confirm-dialog';
 
 // Until the project status endpoint surfaces the current scaling config,
 // derive the initial state from a conservative default. The first
