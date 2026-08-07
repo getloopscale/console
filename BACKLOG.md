@@ -799,7 +799,7 @@ dod:
   - Per hook, decide and act - do not leave them
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/hooks/use-domain-status-polling.ts`
 
-## B-031 — Twelve modules (935 LOC + 844 LOC of tests) have no importer except their own test file   [ ]
+## B-031 — Twelve modules (935 LOC + 844 LOC of tests) have no importer except their own test file   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -811,7 +811,28 @@ evidence: src/pages/lens/compare-core.ts:1 — Built a static import graph over 
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#23
 overlaps: B-030, B-069, B-076
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: os dois bullets cumpridos. `npx knip` nao reporta mais compare-core (removido — o @usetheo/ui ja exportava
+alignSpanTrees e traceMetrics, era duplicacao e nao modulo esperando ligacao), `tsc --noEmit` limpo, 2677 testes verdes.
+
+A triagem em dois baldes foi feita modulo a modulo, e o registro esta nos partial_progress acima. O saldo:
+  LIGADOS  — safe-redirect.ts (era lacuna de seguranca LATENTE: device-verify navegava cru para URL da resposta do servidor),
+             clipboard.ts (defeito real — sem contexto seguro o objeto e undefined e o operador via "Copy failed"),
+             log-download.ts (feature ORFANADA quando a toolbar que a chamava saiu numa limpeza anterior)
+  APAGADOS — compare-core.ts (duplicacao do kit), os 9 componentes do balde apagar, e return-to.ts
+
+`return-to.ts` fechado em 2026-08-07 com uma leitura que so apareceu ao comparar os dois guards: ele e `safe-redirect.ts`
+respondiam A MESMA pergunta de seguranca com formatos diferentes (saneador com fallback vs predicado). Ter duas respostas para
+uma pergunta de seguranca e risco por si so — quem chega pega a que encontrar primeiro, e elas divergem em silencio. Ficou o que
+tem consumidor de producao. A DIFERENCA de contrato foi preservada no arquivo que ficou, em voz alta: `sanitizeReturnTo` aceitava
+apenas mesma origem, e `isSafeRedirectUrl` aceita tambem os hosts canonicos do Kratos — entao quem um dia precisar sanear um
+`return_to` de link externo deve perguntar "o allowlist vale para ESTE destino?" e nao "posso reusar este guard?".
+
+A ALLOWLIST DO GUARD FOI DE 4 PARA 1. A unica entrada restante e `hooks/projects/use-status-stream.ts`, e ela nao e um modulo
+sem triagem — foi triada num TERCEIRO estado, que e mais honesto que forcar um dos dois baldes: BLOQUEADO pelo issue #473.
+Medido que servidor e cliente falam contratos diferentes (o servidor emite o patch de auditoria do reaper, o cliente filtra por um
+campo `signal` que esse payload nao tem). Ligar reproduziria exatamente o custo que B-051 removeu; apagar destruiria a metade
+cliente de uma feature cuja metade servidor existe, esta roteada e testada.
 partial_progress: 84a62d9 — BALDE "WIRE" FECHADO. compare-core.ts removido: o @usetheo/ui exporta alignSpanTrees e traceMetrics (as mesmas funcoes) e compare.tsx ja usa TraceCompare do kit — era duplicacao, nao modulo esperando ligacao. Restam os NOVE do balde "apagar"; a distincao entre skeleton orfao e feature planejada (deployment-visit-button, wiki-tree) e decisao de produto.
 partial_progress: 5a4263b — SEGURANCA: safe-redirect.ts LIGADO. device-verify.tsx navegava para window.location.href com URL vinda direto da resposta do servidor, sem checagem (OWASP A01). O guard existia, testado, com zero chamadores. Fail-closed aplicado + teste que prova a rejeicao de host hostil. recovery.tsx verificado e NAO alterado: extrai o flow= por regex, nao navega.
 partial_progress: b3463f6 — clipboard.ts LIGADO aos dois call sites que copiavam com navigator.clipboard cru (live-url-hero, promptly/consumo). Era defeito real: sem contexto seguro o objeto e undefined e o operador via "Copy failed" com o fallback disponivel. Saiu da allowlist do guard. RESTAM: balde wire (safe-redirect.ts — guard de open-redirect sem chamador, lacuna de seguranca latente; compare-core.ts) e balde apagar (9 componentes, pende dono de produto).

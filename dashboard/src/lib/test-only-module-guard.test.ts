@@ -59,7 +59,6 @@ const ALLOWLIST = new Set([
   // `log-viewer-toolbar.tsx` que acabou de sair. A feature nunca esteve
   // acessivel (o toolbar tambem era orfao), entao apagar e provavelmente certo —
   // mas isso e apagar uma FEATURE, e vale ser dito em voz alta.
-  'lib/auth/return-to.ts',
   // `pages/deploy/export/log-download.ts` SAIU daqui em 2026-08-07: religado ao botao
   // Download da toolbar do LogViewer. Nao era feature a apagar — era feature
   // ORFANADA quando a toolbar que a chamava saiu numa limpeza de codigo morto.

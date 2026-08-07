@@ -26,6 +26,34 @@ export const SAFE_REDIRECT_ORIGINS: readonly string[] = [
   'https://cloud.usetheo.dev',
 ];
 
+/**
+ * B-031 — este guard SUBSUMIU `sanitizeReturnTo` (`lib/auth/return-to.ts`),
+ * apagado em 2026-08-07.
+ *
+ * Os dois respondiam a mesma pergunta — "e seguro navegar para esta URL?" — com
+ * formatos diferentes: aquele devolvia uma string ja saneada, com fallback para
+ * `/projects`; este e um predicado e deixa a decisao com quem chama.
+ *
+ * Ter DUAS respostas para uma pergunta de seguranca e risco por si so: quem
+ * chega pega a que encontrar primeiro, e as duas divergem em silencio ao longo
+ * do tempo. Este ficou porque tem consumidor de producao (`device-verify.tsx`,
+ * que antes navegava cru para uma URL vinda da resposta do servidor); o outro
+ * nunca teve, e nao havia vetor ativo — medido duas vezes: os tres usos de
+ * `return_to` no repo ESCREVEM a URL com o proprio origin, e nenhum LE uma
+ * externa para navegar.
+ *
+ * ## A diferenca que nao pode se perder
+ *
+ * `sanitizeReturnTo` aceitava APENAS mesma origem. Este aceita tambem os hosts
+ * canonicos de `SAFE_REDIRECT_ORIGINS` (Kratos publico) — necessario para o
+ * fluxo de autenticacao, e mais permissivo do que aquele era.
+ *
+ * Se um dia alguem precisar sanear um `return_to` que chega de link externo
+ * (e-mail, share), a pergunta a fazer NAO e "posso usar este guard?" e sim "o
+ * allowlist de origens vale para ESTE destino?". Para um `return_to` pos-login,
+ * provavelmente sim. Para um destino arbitrario, provavelmente nao — e ai o
+ * certo e um segundo predicado com allowlist propria, nao afrouxar este.
+ */
 export function isSafeRedirectUrl(raw: string | null | undefined): boolean {
   if (raw == null || raw === '') {
     return false;
