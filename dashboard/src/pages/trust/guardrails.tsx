@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useTrustValidators, useInvalidateTrust } from '@/hooks/trust/use-trust';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import {
   Badge,
@@ -16,12 +16,11 @@ import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { deleteGuardrail, fetchValidators, serviceMessage } from '@/pages/trust/components/trust-api';
+import { deleteGuardrail, serviceMessage } from '@/hooks/trust/trust-api';
 import {
   catalogRows,
   originLabel,
   tenantRowCount,
-  type CatalogPayload,
   type CatalogRow,
 } from '@/pages/trust/components/guardrail-catalog';
 
@@ -38,22 +37,22 @@ import {
  * tela reimplementava. A confirmação é o `ConfirmDialog` canônico, com `confirmationPhrase`.
  */
 
-const QUERY_KEY = ['cloud', '/v1/dashboard/trust/validators'] as const;
 
 export function TrustGuardrailsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Trust — guardrails'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
+  const invalidarTrust = useInvalidateTrust();
   const navigate = useNavigate();
 
   const [pending, setPending] = useState<CatalogRow | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
-  const query = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => fetchValidators<CatalogPayload>(),
-  });
+  // B-052 — o mesmo catálogo que `overview.tsx` lê. Antes eram duas chaves
+  // literais para o MESMO endpoint (`fetchValidators` é `fetchTrust('/validators')`,
+  // trust-api.ts:32), então o catálogo ocupava duas entradas de cache que nunca
+  // se invalidavam juntas.
+  const query = useTrustValidators();
 
   const rows = catalogRows(query.data);
   const failed = Boolean(query.error);
@@ -128,7 +127,9 @@ export function TrustGuardrailsPage() {
     setRemoveError(null);
     try {
       await deleteGuardrail(pending.removableId);
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      // B-052 — `QUERY_KEY` era a literal local desta página. Invalidar o
+      // domínio alcança também o overview, que conta o mesmo catálogo.
+      invalidarTrust();
       setPending(null);
     } catch (err) {
       // A linha permanece na lista: sumir otimisticamente diria que a proteção acabou
@@ -175,7 +176,7 @@ export function TrustGuardrailsPage() {
           columns={columns}
           data={rows}
           rowKey={(row) => row.key}
-          loading={query.isLoading}
+          loading={query.loading}
           emptyState={
             <EmptyState
               icon={ShieldCheck}

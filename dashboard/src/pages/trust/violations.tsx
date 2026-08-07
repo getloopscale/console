@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTrustViolations, useTrustConversation } from '@/hooks/trust/use-trust';
+import { useQueryClient } from '@tanstack/react-query';
 import { useQueryState } from 'nuqs';
 import { RefreshCw, ShieldCheck, X } from 'lucide-react';
 import {
@@ -16,12 +17,9 @@ import { Alert } from '@/components/ui/alert-guard';
 import { ConversationPanel } from '@/pages/trust/components/conversation-panel';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchTrust } from '@/pages/trust/components/trust-api';
 import {
   filterByPolicy,
-  type ViolationsPayload,
   type PolicyViolation,
-  type ConversationPayload,
 } from '@/pages/trust/components/trust-series';
 
 /**
@@ -150,21 +148,14 @@ export function TrustViolationsPage() {
   const [selected, setSelected] = useQueryState('conversation');
   const [policy, setPolicy] = useQueryState('policy');
 
-  const listQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/trust/policy-violations'] as const,
-    queryFn: () =>
-      fetchTrust<ViolationsPayload>('/policy-violations?limit=100'),
-  });
-
-  const detailQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/trust/conversations', selected] as const,
-    // Só busca quando há uma conversa selecionada — ver nota de N+1 no cabeçalho.
-    enabled: Boolean(selected),
-    queryFn: () =>
-      fetchTrust<ConversationPayload>(
-        `/conversations/${encodeURIComponent(selected ?? '')}`,
-      ),
-  });
+  // B-052 — acesso a dados por hook. A chave literal que estava aqui era a MESMA
+  // de `overview.tsx`, que pede o mesmo endpoint com limite 200: o TanStack
+  // servia quem cacheasse primeiro, então esta tela podia mostrar 200 linhas e o
+  // overview calcular a cobertura sobre 100. Agora o limite entra na chave.
+  const listQuery = useTrustViolations(100);
+  // O `enabled` é do hook: só busca quando há conversa selecionada — ver a nota
+  // de N+1 no cabeçalho.
+  const detailQuery = useTrustConversation(selected);
 
   const all = Array.isArray(listQuery.data?.violations)
     ? listQuery.data.violations
@@ -213,7 +204,7 @@ export function TrustViolationsPage() {
           columns={columns}
           data={rows}
           rowKey={rowKey}
-          loading={listQuery.isLoading}
+          loading={listQuery.loading}
           emptyState={
             <EmptyState
               icon={ShieldCheck}
@@ -265,7 +256,7 @@ export function TrustViolationsPage() {
         <ConversationPanel
           conversationId={selected}
           data={detailQuery.data}
-          isLoading={detailQuery.isLoading}
+          isLoading={detailQuery.loading}
           failed={Boolean(detailQuery.error)}
           onClose={() => void setSelected(null)}
         />

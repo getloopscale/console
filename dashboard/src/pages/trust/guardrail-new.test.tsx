@@ -10,8 +10,8 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const mockTest = vi.fn();
 const mockCreate = vi.fn();
-vi.mock('@/pages/trust/components/trust-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/pages/trust/components/trust-api')>();
+vi.mock('@/hooks/trust/trust-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/trust/trust-api')>();
   return {
     ...actual,
     testGuardrail: (...a: unknown[]) => mockTest(...a),

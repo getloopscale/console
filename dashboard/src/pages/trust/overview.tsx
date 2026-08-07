@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowRight, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
 import {
@@ -14,13 +13,15 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchTrust } from '@/pages/trust/components/trust-api';
+import {
+  useTrustViolations,
+  useTrustValidators,
+  useInvalidateTrust,
+} from '@/hooks/trust/use-trust';
 import {
   coverageGap,
   unenforcedCount,
   type PolicyCoverage,
-  type ViolationsPayload,
-  type ValidatorsPayload,
 } from '@/pages/trust/components/trust-series';
 
 /**
@@ -50,30 +51,31 @@ export function TrustOverviewPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Trust'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
+  const invalidarTrust = useInvalidateTrust();
 
-  const violationsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/trust/policy-violations'] as const,
-    queryFn: () => fetchTrust<ViolationsPayload>('/policy-violations?limit=200'),
-  });
+  // B-052 — o acesso a dados mora em `hooks/trust/use-trust.ts`. As chaves
+  // literais que estavam aqui colidiam com as de `violations.tsx`, que pede o
+  // MESMO endpoint com limite 100: o TanStack servia quem cacheasse primeiro, e
+  // o `coverageGap` abaixo podia calcular a cobertura sobre 100 violações em vez
+  // de 200 — sub-reportando lacunas numa tela de compliance.
+  const violationsQuery = useTrustViolations(200);
+  const validatorsQuery = useTrustValidators();
 
-  const validatorsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/trust/validators'] as const,
-    queryFn: () => fetchTrust<ValidatorsPayload>('/validators'),
-  });
-
-  const isLoading = violationsQuery.isLoading || validatorsQuery.isLoading;
-  const failed = Boolean(violationsQuery.error);
+  const isLoading = violationsQuery.loading || validatorsQuery.loading;
+  const failed = violationsQuery.error;
   // Uma falha ao ler o CATÁLOGO não zera a tela: `coverageGap` conta tudo como descoberto, que é o
   // lado seguro. Mas o operador precisa saber que a coluna "bloqueado" está cega.
-  const catalogBlind = Boolean(validatorsQuery.error);
+  const catalogBlind = validatorsQuery.error;
 
   const coverage = coverageGap(violationsQuery.data, validatorsQuery.data);
   const gaps = unenforcedCount(coverage);
 
   const onRefresh = () => {
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/trust/policy-violations'] });
-    void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/trust/validators'] });
+    // Uma invalidação alcança o domínio inteiro. Antes eram duas chamadas com
+    // chaves literais, e cada tela precisava saber a chave de todas as outras —
+    // era por isso que criar um guardrail em `guardrails.tsx` nunca atualizava
+    // a contagem aqui.
+    invalidarTrust();
   };
 
   const columns: DataTableColumn<PolicyCoverage>[] = [

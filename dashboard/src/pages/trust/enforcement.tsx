@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTrustEnforcement } from '@/hooks/trust/use-trust';
+import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
 import {
   Badge,
@@ -14,11 +15,9 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchEnforcementEvents } from '@/pages/trust/components/trust-api';
 import {
   blockedCount,
   enforcementRows,
-  type EnforcementPayload,
   type EnforcementRow,
 } from '@/pages/trust/components/enforcement-rows';
 
@@ -48,10 +47,10 @@ export function TrustEnforcementPage() {
   useRequireAuth();
   const queryClient = useQueryClient();
 
-  const query = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => fetchEnforcementEvents<EnforcementPayload>(PAGE_LIMIT),
-  });
+  // B-052 — o limite entra na chave. `QUERY_KEY` era fixa, entao pedir uma
+  // janela diferente serviria o cache da anterior — menos linhas do que se
+  // pediu, em silencio.
+  const query = useTrustEnforcement(PAGE_LIMIT);
 
   const rows = enforcementRows(query.data);
   const failed = Boolean(query.error);
@@ -136,7 +135,7 @@ export function TrustEnforcementPage() {
           columns={columns}
           data={rows}
           rowKey={(row) => row.key}
-          loading={query.isLoading}
+          loading={query.loading}
           emptyState={
             <EmptyState
               icon={ShieldCheck}

@@ -1,3 +1,8 @@
+import type { EnforcementEvent, EnforcementPayload } from '@/hooks/trust/trust-payloads';
+
+// Re-export: B-052 moveu a DECLARACAO para junto de quem busca (o guard de
+// camada nao deixa `hooks/` importar de `pages/`); o caminho continua valendo.
+export type { EnforcementEvent, EnforcementPayload };
 /**
  * M24 T7.1 — a projeção do log de auditoria do enforcement inline.
  *
@@ -10,19 +15,7 @@
 
 type EnforcementDecision = 'block' | 'modify' | 'allow' | 'unknown';
 
-interface EnforcementEvent {
-  readonly id?: string;
-  readonly decision?: string;
-  readonly direction?: string;
-  readonly category?: string;
-  readonly validatorName?: string;
-  readonly redacted?: string;
-  readonly createdAt?: string;
-}
 
-export interface EnforcementPayload {
-  readonly events?: readonly EnforcementEvent[];
-}
 
 export interface EnforcementRow {
   readonly key: string;

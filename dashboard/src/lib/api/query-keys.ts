@@ -71,6 +71,19 @@ export const queryKeys = {
     list: (filters?: Record<string, unknown>) =>
       ['team', 'list', filters ?? {}] as const,
   },
+  // B-052 — o dominio trust tinha DUAS convencoes ao mesmo tempo: overview.tsx
+  // lia `['cloud', '/v1/dashboard/trust/policy-violations']` e guardrails.tsx um
+  // `QUERY_KEY` local. Arvores disjuntas, entao criar um guardrail nunca
+  // atualizava a contagem do overview — o mesmo defeito de domains (B-018) e de
+  // team (B-060), pela terceira vez.
+  trust: {
+    all: ['trust'] as const,
+    violations: (filters?: Record<string, unknown>) =>
+      ['trust', 'violations', filters ?? {}] as const,
+    validators: () => ['trust', 'validators'] as const,
+    enforcement: (limit: number) => ['trust', 'enforcement', limit] as const,
+    conversation: (id: string | null) => ['trust', 'conversation', id] as const,
+  },
   scale: {
     all: ['scale'] as const,
     detail: (project: string, env: string) =>

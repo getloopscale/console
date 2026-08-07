@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, FlaskConical, ShieldCheck } from 'lucide-react';
 import { Button, Card, FormField, PageShell, Textarea } from '@usetheo/ui';
 
@@ -9,12 +8,13 @@ import { GuardrailRuleFields } from '@/pages/trust/components/guardrail-rule-fie
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
+import { useInvalidateTrust } from '@/hooks/trust/use-trust';
 import {
   createGuardrail,
   serviceCode,
   serviceMessage,
   testGuardrail,
-} from '@/pages/trust/components/trust-api';
+} from '@/hooks/trust/trust-api';
 import {
   EMPTY_DRAFT,
   cleanTerms,
@@ -49,7 +49,7 @@ export function TrustGuardrailNewPage() {
   useEffect(() => setPageTitle('Trust — nova guardrail'), [setPageTitle]);
   useRequireAuth();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const invalidarTrust = useInvalidateTrust();
 
   const [draft, setDraft] = useState<GuardrailDraft>(EMPTY_DRAFT);
   const [termsText, setTermsText] = useState('');
@@ -118,7 +118,14 @@ export function TrustGuardrailNewPage() {
     setError(null);
     try {
       await createGuardrail(toCreateBody(current));
-      await queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/trust/validators'] });
+      // B-052 — invalida o DOMÍNIO, não uma chave literal.
+      //
+      // Esta linha citava `['cloud', '/v1/dashboard/trust/validators']`, e no
+      // instante em que `guardrails.tsx` passou a ler pela factory ela virou uma
+      // invalidação de chave que ninguém lê: criar um guardrail deixaria de
+      // atualizar a lista. Foi o defeito de árvores disjuntas se recriando em
+      // tempo real, por migrar leitor antes de escritor.
+      invalidarTrust();
       void navigate('/trust/guardrails');
     } catch (err) {
       const code = serviceCode(err);

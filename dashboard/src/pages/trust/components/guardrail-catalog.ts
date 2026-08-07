@@ -1,3 +1,8 @@
+import type { CatalogSpec, CatalogEntry, CatalogPayload } from '@/hooks/trust/trust-payloads';
+
+// Re-export: B-052 moveu a DECLARACAO para junto de quem busca (o guard de
+// camada nao deixa `hooks/` importar de `pages/`); o caminho continua valendo.
+export type { CatalogSpec, CatalogEntry, CatalogPayload };
 /**
  * M24 T4.1 — a projeção do catálogo mesclado plataforma + tenant.
  *
@@ -13,31 +18,8 @@
 
 export type GuardrailOrigin = 'platform' | 'tenant';
 
-/** A spec de uma regra do tenant. É aqui que vive o `kind` dela — não no topo da entrada. */
-interface CatalogSpec {
-  readonly kind?: string;
-  readonly terms?: readonly string[];
-  readonly action?: string;
-}
 
-/** Uma linha do catálogo como o serviço a devolve. Campos extras são ignorados de propósito. */
-interface CatalogEntry {
-  readonly source?: string;
-  readonly id?: string;
-  readonly name?: string;
-  /** Presente nas regras de PLATAFORMA. Nas do tenant o equivalente é `spec.kind`. */
-  readonly kind?: string;
-  /** O que a regra de plataforma detecta (`credential_leak`, `pii_exposure`, …). */
-  readonly category?: string | null;
-  /** Presente nas regras do TENANT. */
-  readonly spec?: CatalogSpec;
-  readonly directions?: readonly string[];
-}
 
-export interface CatalogPayload {
-  readonly catalogVersion?: number;
-  readonly validators?: readonly CatalogEntry[];
-}
 
 /** Uma linha pronta para a tabela: o que exibir e o que o operador pode fazer com ela. */
 export interface CatalogRow {

@@ -113,6 +113,8 @@ Por `ADR-0001 D4.1`, quando residência e camada colidem, **a camada vence** —
 
 ### D2 — O `*-api.ts` permanece como camada de transporte; o hook o consome
 
+> **CORRIGIDO NA FASE 1 (2026-08-07).** A decisão de manter o transporte estava certa; a de deixá-lo **onde estava** não. O guard de camada (`eslint no-restricted-imports`, instalado por B-070) recusa `hooks/` importando de `pages/` — e a mensagem dele diz o conserto: *"mova o domínio para um módulo folha e faça a página IMPORTAR o que ela exportava"*. O transporte e os tipos de payload desceram para `src/hooks/<dominio>/`, e os módulos de apresentação que os declaravam passaram a re-exportá-los, mantendo os caminhos de import das páginas. O ADR seguia válido no *quê* e errado no *onde*, e foi uma regra automática que apanhou — não uma revisão.
+
 **Decisão:** os três `*-api.ts` **não** são apagados. Eles continuam exportando transporte, e o hook de domínio passa a ser o único consumidor deles.
 
 **Rationale:** `rules/parsimony-ladder.md` degrau 1 — reescrever 51 funções de transporte que já funcionam e já têm consumidor não resolve necessidade nenhuma. O defeito medido pelo B-052 não é "o transporte está no lugar errado", é "não há query key nem cache" — e isso se resolve acrescentando a camada acima, não movendo a de baixo.

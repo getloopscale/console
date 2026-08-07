@@ -1,3 +1,22 @@
+import type {
+  PolicyViolation,
+  ViolationsPayload,
+  Validator,
+  ValidatorsPayload,
+  ConversationMessage,
+  ConversationPayload,
+} from '@/hooks/trust/trust-payloads';
+
+// Re-export: as paginas ja importavam estes tipos daqui. B-052 moveu a
+// DECLARACAO para junto de quem busca; o caminho de import continua valendo.
+export type {
+  PolicyViolation,
+  ViolationsPayload,
+  Validator,
+  ValidatorsPayload,
+  ConversationMessage,
+  ConversationPayload,
+};
 /**
  * M23 — projeções puras do payload do theo-trust para o que a tela desenha.
  *
@@ -23,29 +42,7 @@ export interface TrendsPayload {
   readonly [k: string]: unknown;
 }
 
-/** Uma violação de política devolvida por `GET /v1/policy-violations`. */
-export interface PolicyViolation {
-  readonly id?: string;
-  readonly messageId?: string;
-  readonly conversationId?: string;
-  readonly policy?: string;
-  readonly severity?: string;
-  readonly detectedAt?: string;
-  /**
-   * O trecho já redigido pelo serviço (`"sk…ab"`) — nunca o conteúdo bruto.
-   *
-   * É o único campo que descreve O QUE foi detectado, e o serviço o manda hoje. `detectedAt` e
-   * `conversationId` estão declarados porque o contrato os prevê, mas medido em 2026-08-01 o
-   * `/policy-violations` do deploy NÃO os devolve — ver a issue de contrato.
-   */
-  readonly redacted?: string;
-  readonly [k: string]: unknown;
-}
 
-export interface ViolationsPayload {
-  readonly violations?: readonly PolicyViolation[];
-  readonly [k: string]: unknown;
-}
 
 /** Ponto que o gráfico de tendência consome. */
 export interface SeriesPoint {
@@ -138,19 +135,7 @@ export function peakSeverity(
   return peak >= 0 ? SEVERITY_ORDER[peak] : null;
 }
 
-/** Um validator do catálogo mesclado plataforma+tenant. */
-export interface Validator {
-  readonly name?: string;
-  readonly category?: string;
-  readonly policy?: string;
-  readonly [k: string]: unknown;
-}
 
-export interface ValidatorsPayload {
-  readonly validators?: readonly Validator[];
-  readonly items?: readonly Validator[];
-  readonly [k: string]: unknown;
-}
 
 /** Uma política observada, com a informação que decide a ação: existe guardrail para ela? */
 export interface PolicyCoverage {
@@ -223,19 +208,7 @@ export function filterByPolicy(
   return violations.filter((v) => v.policy === policy);
 }
 
-export interface ConversationMessage {
-  readonly id?: string;
-  readonly role?: string;
-  readonly content?: string;
-  readonly createdAt?: string;
-  readonly [k: string]: unknown;
-}
 
-export interface ConversationPayload {
-  readonly id?: string;
-  readonly messages?: readonly ConversationMessage[];
-  readonly [k: string]: unknown;
-}
 
 /**
  * Extrai as mensagens da conversa para render.
