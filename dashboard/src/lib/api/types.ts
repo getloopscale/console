@@ -680,6 +680,23 @@ export interface BillingResponse {
   period_start?: string;
   period_end?: string;
   plan_cap?: BillingPlanCap;
+  /**
+   * Preço recorrente do plano. OMITIDO pela API para enterprise e para planos
+   * ainda não persistidos — o card "Plan" do Overview renderiza "—" honesto
+   * nesse caso, nunca um zero fabricado.
+   *
+   * Estava ausente deste espelho enquanto `use-overview-kpis.ts` já o lia por uma
+   * interface local (`BillingShape`). Um campo que a API manda, a tela lê e o
+   * contrato não declara é drift silencioso: o `tsc` não protege o que não
+   * conhece, e a próxima mudança de forma passa sem ninguém notar.
+   */
+  plan_price?: BillingPlanPrice;
+}
+
+export interface BillingPlanPrice {
+  amount_minor: number;
+  currency: string;
+  interval: string;
 }
 
 export interface BillingUsageMetric {
