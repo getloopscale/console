@@ -1131,6 +1131,32 @@ dod:
   - Definir nuqs como a unica API de estado de URL para filtros/paginacao e reservar useSearchParams do react-router para o que o roteador realmente possui (callbacks OAuth, ?flow= do Kratos)
   - `src/pages/lens/traces.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
+
+medicao_2026-08-07 (durante /to-plan): O ITEM MUDA DE NATUREZA. Nao e migracao — e convencao ausente.
+
+MEDIDO:
+  - nuqs em 7 arquivos, `useSearchParams` cru em 28, e EXATAMENTE UM usa os dois: `pages/lens/traces.tsx`
+  - nuqs e dependencia declarada (`package.json:77`, ^2.8.9), nao um experimento
+  - 14 arquivos escrevem via `setSearchParams(`
+
+A HIPOTESE QUE EU IA PLANEJAR ESTAVA ERRADA. Parti de que os dois donos de URL num arquivo so se
+sobrescreveriam. Fui ler: `traces.tsx:203` usa a forma FUNCIONAL e copia `prev`, preservando os 6
+params do nuqs — o comentario da linha 198 diz exatamente isso. E `traces.tsx:214` substitui a query
+inteira DE PROPOSITO, porque aplicar uma visao salva e trocar todos os filtros; o comentario diz
+"nuqs re-reads every key". Os dois estao certos e coordenados.
+
+ENTAO O QUE FALTA: uma regra dizendo QUAL usar QUANDO. Hoje a escolha esta certa nos dois casos que
+medi, mas por conhecimento de quem escreveu, nao por convencao escrita — o proximo tem de fazer
+engenharia reversa da decisao. E para leitura de UM parametro (`searchParams.get('trace')`), trazer o
+nuqs adiciona um parser sem ganho: e o degrau 5 da escada da parcimonia, nao uma divida.
+
+ESCOPO REAL, MUITO MENOR QUE O DOD SUGERE: documentar a convencao (nuqs para estado de filtro
+tipado com default; primitiva do router para leitura/escrita pontual de um param) e um guard que
+impeca os dois ESCREVEREM no mesmo arquivo sem a forma funcional. Nao ha 28 arquivos a migrar.
+
+NAO virou plano por isso: a Regra de Qualidade 0 do /to-plan pede uma metrica, e a metrica honesta
+aqui nao e "28 -> 0". Um plano de migracao seria trabalho contra um defeito que a medicao nao achou.
+
 ## B-047 — Estado de servidor guardado em useState com polling manual por setInterval, ao lado de hooks que ja fazem isso declarativamente   [ ]
 
 domain: frontend-dashboard
