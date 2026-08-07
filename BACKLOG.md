@@ -77,7 +77,7 @@ abrir PR: sao cross-validacoes que se confirmam, nao trabalho independente.
 
 ## Itens
 
-Proximo id livre: **B-089**.
+Proximo id livre: **B-093**.
 
 **O que `[x]` e `status: shipped` significam aqui.** O contrato canonico reserva
 `shipped` para o que passou por `/release` — tag semver em `main`. Este registro usa o
@@ -91,7 +91,7 @@ auditoria. `severity` traz o `severity_source` entre parenteses: `consensus` (co
 ampla da industria), `default` (limiar publicado adotado) ou `heuristic` (regra de bolso
 declarada como tal).
 
-## B-001 — 5 ciclos de import em pages/lens causados por shims de re-export homonimos (arquivo.tsx + pasta/)   [x]
+## B-001 — 5 ciclos de import em pages/lens causados por shims de re-export homonimos (arquivo.tsx + pasta/)   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -103,12 +103,40 @@ evidence: src/pages/lens/playground.tsx:6 — madge --circular src -> 8 ciclos, 
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#1
 overlaps: B-044, B-079
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: shipped
+status: triaged
 resolved_in: abc391f — 7 dos 8 ciclos eliminados (todos com a mesma causa: pagina exportando dominio para os filhos). O 8o NAO e divida: a unica aresta que o fecha e um React.lazy(() => import(...)), fronteira de code-splitting deliberada. Sem ciclo de init em runtime; o madge nao distingue dinamico de estatico. Nota no peek-sheet impede a "correcao" errada, que reintroduziria risco de init E desfaria parte dos 180 kB de B-021.
 partial_progress: 9ef2466 — 5 dos 6 ciclos da familia lens fechados (filhos passaram a importar trace-detail/helpers em vez do shim pai). RESIDUO: span-detail renderiza a pagina irma LensPlayground; fechar exige inverter via render-prop, mudanca de comportamento sem teste que cubra a interacao playground/peek-sheet
 dod:
   - Regra de lint (import/no-internal-modules ou dependency-cruiser rule): nenhum arquivo dentro de X/ pode importar de X (o shim pai). Filhos importam leafs: playground.tsx:6 vira import { asChat } from './trace-detail/helpers'; baseline-column.tsx:5 vira from '../trace-detail/helpers';...
   - `npx madge --extensions ts,tsx --ts-config tsconfig.json --circular src` nao lista mais o ciclo que passa por `src/pages/lens/playground.tsx`
+
+REABERTO em 2026-08-07 pela revisao de promocao. Estava `[x]`, e NENHUM dos dois
+bullets do dod acima estava cumprido:
+
+  - o madge AINDA lista o ciclo que o bullet 2 nomeia (`peek-sheet -> trace-detail/index
+    -> span-detail -> playground`), verificado no HEAD;
+  - a regra de lint do bullet 1 nao existe. Os blocos criados em B-070 proibem camada
+    inferior importar de `pages/`; nenhum proibe `pages/X/*` importar `pages/X`.
+
+O argumento do `resolved_in` PROCEDE tecnicamente — a unica aresta que fecha o laco e
+um `React.lazy(() => import(...))`, entao nao ha ciclo de inicializacao em runtime, e o
+madge nao distingue dinamico de estatico. Mas isso e razao para REESCREVER o dod, nao
+para marcar `[x]` contra o dod que esta escrito. Marcar fechado um item cujo proprio
+comando de verificacao o refuta e a forma mais direta de a marcacao parar de significar
+algo.
+
+Agravante registrado pela revisao: `resolved_in: abc391f` aponta para um commit que so
+acrescenta 16 linhas de comentario. O trabalho real (7 dos 8 ciclos) esta em `9ef2466`,
+registrado como `partial_progress`.
+
+RESIDUO REAL, e o unico: `span-detail.tsx:10` importa estaticamente a pagina irma
+`playground.tsx`. Fechar exige inverter via render-prop — mudanca de comportamento sem
+teste que cubra a interacao playground/peek-sheet.
+
+Antes de fechar de novo, decida qual das duas: (a) inverter a aresta e satisfazer o
+madge como escrito, ou (b) reescrever o bullet 2 para um criterio que o time aceite
+(ex.: "nenhum ciclo cuja aresta de fechamento seja ESTATICA"), o que exige uma
+ferramenta que distinga — madge sozinho nao serve.
 
 ## B-002 — Organizacao package-by-layer dispersa cada feature por 3-4 diretorios de topo, sem nenhuma fronteira de modulo declarada   [ ]
 
@@ -296,7 +324,7 @@ dod:
   - Extrair um modulo de data-access por feature no padrao ja emergente em src/components/promptly/promptly-api.ts, src/components/trust/trust-api.ts e src/components/skills/skills-api.ts, movido para src/features/<feature>/api/ + src/features/<feature>/hooks/
   - `src/pages/lens/traces.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-013 — Promote-to-production e rollback fazem fetch cru, pulando o pipeline de auth/erro do cloudFetch   [x]
+## B-013 — Promote-to-production e rollback fazem fetch cru, pulando o pipeline de auth/erro do cloudFetch   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -307,11 +335,26 @@ category: state_synchronization_issue
 evidence: src/components/dialogs/promote-to-production-dialog.tsx:113 — promote-to-production-dialog.tsx:113 usa `await fetch(`${API_URL}/engine/api/v1/projects/.../promote`, {headers:{Authorization: `Bearer ${token}`}})` com token vindo de ensureSSEToken(); mesmo padrao em src/components/dialogs/rollback-dialog.tsx:93. cloudFetch (src/lib/api.ts:226) faz refresh-e-retry no 401 (linha 314) e maybeEmitPaymentRequired no 402 (linha 381) — nada disso roda nestes dois...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#3
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: shipped
-resolved_in: 702fc1d
+status: triaged
+partial_progress: 702fc1d — `cloudFetchRaw` substituiu o `fetch` cru nos dois dialogs. Metade do primeiro bullet.
 dod:
   - Trocar por cloudFetch(path,{method:POST,body},{throwOnError:true}) de src/lib/api.ts:226 e mover a chamada para src/hooks/mutations/use-promote.ts e use-rollback.ts (src/hooks/mutations/ ja existe com 7 mutations)
   - `src/components/dialogs/promote-to-production-dialog.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
+
+REABERTO em 2026-08-07 pela revisao de promocao, confirmado por dois revisores
+independentes. `702fc1d` trocou o `fetch` cru por `cloudFetchRaw` nos dois dialogs —
+o que resolve a parte do refresh-no-401 — mas:
+
+  - `src/hooks/mutations/use-promote.ts` e `use-rollback.ts` NAO existem (verificado
+    com `ls src/hooks/mutations/`), entao a segunda metade do bullet 1 nao foi feita;
+  - o commit tocou ZERO arquivos de teste, entao o bullet 2 nao foi cumprido. Os
+    testes existentes (`promote-to-production-dialog-format.test.ts`,
+    `rollback-dialog.test.tsx`) sao anteriores e cobrem o formatador de erro, nao o
+    pipeline de autenticacao.
+
+O efeito pratico: nada fica vermelho se alguem voltar ao `window.fetch` cru — que e o
+defeito original — justamente nas duas acoes que o proprio item descreve como as mais
+caras de perder a sessao.
 
 ## B-014 — Recuperacao de token no SSE exige 3 erros consecutivos, mas um 401 fecha o EventSource no primeiro   [x]
 
@@ -380,6 +423,7 @@ overlaps: B-058, B-059, B-060
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
 status: shipped
 resolved_in: 78b0f6e
+conflito_com: B-017 — este item pedia APAGAR `useAddDomain`; B-017 pedia LIGAR o hook ao sheet. Prevaleceu B-017: o hook foi wired em vez de deletado, o que resolve a duplicacao pelo lado certo (a implementacao viva passou a ser a que invalida cache corretamente). A escolha e defensavel e provavelmente melhor que a do dod abaixo — registrada aqui porque fechar um item pelo oposto do proprio criterio, sem nota, e indistinguivel de nao ter lido o criterio. Padrao ja usado no par B-080/B-075.
 dod:
   - Deletar o engineFetch dos sheets e consumir useAddDomain / useCreateEnvironment / useInviteMember (src/hooks/mutations/), alinhando o payload com o do sheet (que e o que o backend aceita hoje)
   - existe teste que falha hoje e passa depois, provando que `invalidateQueries` alcanca a chave afetada a partir de `src/components/sheets/add-domain-sheet.tsx`
@@ -1683,12 +1727,12 @@ nota_sobre_o_gate: `deadcode -test` e a configuracao correta (sem ela, todo seam
 
 ## Triagem por esforco (2026-08-06, apos a primeira rodada de execucao)
 
-Os 87 itens nao sao homogeneos, e tratar a contagem como se fossem produz um
+Os itens nao sao homogeneos (eram 87 na auditoria; hoje 92), e tratar a contagem como se fossem produz um
 plano falso. Esta triagem separa o que a execucao mostrou:
 
 | Faixa | N | O que sao |
 |---|---|---|
-| **Fechados** | 23 | Implementados, validados e commitados. Cada um com `resolved_in`. |
+| **Fechados** | 46 | Implementados, validados e commitados. Cada um com `resolved_in`. |
 | **[A] Projetos grandes** | 20 | Migracao ou refactor amplo — semanas, nao sessoes. Precisam de plano proprio via `/to-plan`, nao de execucao direta. |
 | **[B] Dependem de decisao ou de terceiro** | 15 | Exigem uma decisao que e do time (qual pacote de UI e canonico, o SW fica ou sai, a politica de memoizacao) ou um contrato de backend que este repo nao controla. |
 | **[C] Fechaveis com esforco moderado** | 29 | Mesma natureza dos 23 ja fechados: escopo delimitado, criterio verificavel, cabem numa sessao cada. |
@@ -1786,3 +1830,40 @@ casos na allowlist; a triagem wire-vs-apagar de cada um permanece.
 Um item registrado por engano e marcado `status: killed` com `kill_reason` — nunca
 deletado, nunca renumerado. Se ja estava `triaged`, a evidencia permanece no bloco: saber
 que algo foi medido e depois descartado vale mais que um arquivo limpo.
+
+
+## B-091 — Rename do module path Go: usetheodev -> usetheoai   [x]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: human
+severity: high (consensus)
+category: breaking_change
+evidence: go.mod:1 `module github.com/usetheoai/theo-cloud` contra `origin/develop:go.mod:1` `module github.com/usetheodev/theo-cloud`; go.mod:66 `github.com/usetheoai/theo-contracts v0.4.0` (era v0.2.0). 384 das 1146 linhas do diff Go sao o rename mecanico.
+provenance: registrado em 2026-08-07 pela revisao de promocao, que apontou a ausencia de entrada de CHANGELOG para uma mudanca BREAKING (Regra 6).
+why_now: o rename entrou em 2d5e5b1 sem entrada de CHANGELOG. Um rename anterior (usetheo/theo/cloud -> usetheodev/theo-cloud) TEM entrada neste mesmo arquivo — a convencao existe e foi omitida desta vez. Sem a entrada, um consumidor Go descobre o break ao compilar.
+status: shipped
+resolved_in: 2d5e5b1 (rename) + a entrada de CHANGELOG desta promocao
+dod:
+  - `[Unreleased] § Changed` declara o rename como BREAKING com o caminho antigo e o novo
+  - o bump de release derivado e `major` (cycle-release.md § Bump-level derivation)
+
+RESIDUO ABERTO, registrado por honestidade e coberto por B-092: `GOPRIVATE` e o
+`insteadOf` de `.github/workflows/quality.yml` continuam apontando para `usetheodev/`.
+
+## B-092 — CI nao consegue baixar theo-contracts depois do rename   [ ]
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: discover-review
+severity: high (consensus)
+category: ci_breakage
+evidence: `.github/workflows/quality.yml:69` faz `insteadOf` de `https://github.com/usetheodev/`, e as linhas 75/80/93/108 declaram `GOPRIVATE: github.com/usetheodev/*`. O modulo privado hoje e `github.com/usetheoai/theo-contracts` (go.mod:66). O rewrite que injeta o PAT deixou de casar, entao `go build ./...` no CI tenta HTTPS anonimo. Verificado que os 6 runs verdes mais recentes de quality.yml sao de 2026-08-05, TODOS anteriores ao rename (2d5e5b1, 2026-08-06 11:21) — nenhum run de CI exercitou este estado.
+provenance: registrado em 2026-08-07 pela revisao de promocao (revisor Go).
+why_now: o proprio quality.yml:20 documenta que o GOMOD_TOKEN existe para ler o modulo privado, e o unico mecanismo que o injeta e o insteadOf que parou de casar. O CI ainda nao falhou porque ainda nao rodou depois do rename.
+status: raw
+dod:
+  - `GOPRIVATE` e o `insteadOf` citam `usetheoai/`
+  - um run de quality.yml no HEAD passa o job `go` (a prova e o run, nao a leitura do YAML)
