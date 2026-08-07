@@ -132,7 +132,7 @@ export function describeStatus(services: readonly ServiceStatus[]): string {
  */
 export function useServiceVersions(): UseQueryResult<ServiceVersionsReport | null> {
   return useQuery({
-    queryKey: ['dashboard', 'status', 'versions'],
+    queryKey: ['cloud', SERVICE_VERSIONS_PATH],
     queryFn: () => cloudFetch<ServiceVersionsReport>(SERVICE_VERSIONS_PATH, {}, { throwOnError: true }),
   });
 }

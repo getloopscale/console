@@ -19,7 +19,7 @@ export interface UseInvoicesResult {
  */
 export function useInvoices(): UseInvoicesResult {
   const q = useQuery({
-    queryKey: ['billing', 'invoices'],
+    queryKey: ['cloud', '/v1/billing/invoices'],
     queryFn: () =>
       cloudFetch<{ invoices: Invoice[] }>('/v1/billing/invoices', {}, { throwOnError: true }),
     // User-facing synchronous read — never hammer on a 4xx/5xx (F5); the

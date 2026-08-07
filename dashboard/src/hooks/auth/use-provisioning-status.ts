@@ -39,7 +39,7 @@ export function useProvisioningStatus(enabled = true): {
   loading: boolean;
 } {
   const query = useQuery({
-    queryKey: ['provisioning-status'],
+    queryKey: ['cloud', '/v1/auth/me', 'provisioning'],
     // silent-null-ok: esta tela FALHA PARA FRENTE por desenho, e isso está declarado em
     // `register-completing-screen.tsx`: *"a terminal `unknown` / absent field — all mean 'stop waiting,
     // the dashboard can take it from here'"*, e o escape manual de timeout chama o MESMO `onReady`. Uma

@@ -132,7 +132,7 @@ export function WorkspacePage() {
 
   // Content preview for the open file (text → CodeBlock, image → object URL).
   const previewQuery = useQuery({
-    queryKey: ['storage-object', preview?.path] as const,
+    queryKey: ['cloud', '/v1/dashboard/storage/objects', preview?.path] as const,
     enabled: !!preview && previewKind(preview.content_type) !== 'none',
     queryFn: async () => {
       const res = await cloudFetchRaw(`/v1/dashboard/storage/objects/${encodePath(preview!.path)}`);

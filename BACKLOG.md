@@ -361,7 +361,7 @@ dod:
   - Escrever dashboard/docs/architecture.md curto (uma pagina) fixando cinco decisoes que hoje sao ambiguas, e so entao migrar codigo: (1) o eixo de organizacao (feature-first sob src/features/, com src/components e src/hooks reservados ao que e cross-feature); (2) o criterio objetivo de quando um...
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/lens/trace-detail.tsx` e passa depois da mudanca
 
-## B-011 — Query keys inline em 71 dos 87 arquivos que definem queryKey — factory central so cobre 8 dominios   [ ]
+## B-011 — Query keys inline em 71 dos 87 arquivos que definem queryKey — factory central so cobre 8 dominios   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -373,10 +373,13 @@ evidence: src/lib/api/query-keys.ts:11 — 87 arquivos non-test contem queryKey:
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#1
 overlaps: B-019, B-036
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - Mover query-keys.ts para um factory por feature (src/features/<feature>/api/query-keys.ts) e proibir tupla literal via lint rule (@tanstack/eslint-plugin-query exige-query-key-factory nao existe, mas um no-restricted-syntax sobre ObjectProperty[key.name=queryKey] > ArrayExpression resolve)
   - existe teste que falha hoje e passa depois, provando que `invalidateQueries` alcanca a chave afetada a partir de `src/lib/api/query-keys.ts`
+
+ENTREGUE junto de B-019 — mesma medicao, mesmo teste. Ver a nota la.
 
 ## B-012 — Acesso a dados vive nas paginas: 58 arquivos de src/pages e 13 de src/components chamam cloudFetch/engineFetch direto   [ ]
 
@@ -516,7 +519,7 @@ dod:
   - Adicionar `domains: { all, list(filters), detail(name) }` em src/lib/api/query-keys.ts e trocar as duas chaves literais por ela, para que invalidate(["domains"]) alcance lista e detalhe
   - existe teste que falha hoje e passa depois, provando que `invalidateQueries` alcanca a chave afetada a partir de `src/hooks/use-domain-status-polling.ts`
 
-## B-019 — Ha TRES convencoes de query key competindo; a que src/lib/api/query-keys.ts define e minoria (12% dos 208 sites)   [ ]
+## B-019 — Ha TRES convencoes de query key competindo; a que src/lib/api/query-keys.ts define e minoria (12% dos 208 sites)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -528,10 +531,37 @@ evidence: src/hooks/use-api.ts:40 — Contagem por primeiro elemento da tupla em
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#13
 overlaps: B-011, B-036
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - Nao migrar as 130 para query-keys.ts — formalizar a convencao que ja venceu
   - existe teste que falha hoje e passa depois, provando que `invalidateQueries` alcanca a chave afetada a partir de `src/hooks/use-api.ts`
+
+ENTREGUE. O dod pedia "nao migrar as 130 — formalizar a convencao que ja venceu"
+e um teste provando que a invalidacao alcanca a chave.
+
+A PREMISSA OBVIA CAIU NA MEDICAO. A leitura natural do achado — "as duas formas
+nao se cruzam, logo a invalidacao esta quebrada" — foi verificada e NAO se
+sustenta: os 9 recursos que usam a factory a usam de ponta a ponta, e os dominios
+que usam tupla literal nao tem entrada na factory. Nao havia bug ativo, so risco
+de composicao.
+
+`src/lib/api/query-key-convergence.test.ts` guarda o risco real, com QueryClient
+de verdade e nao comparacao de string:
+  1. invalidacao por prefixo alcanca a chave que use-api produz (o bullet do dod)
+  2. invalidar um recurso NAO alcanca outro (o guarda do lado oposto — invalidacao
+     larga demais refetcha tudo, que e pior que o defeito que conserta)
+  3. nenhum recurso usa as DUAS convencoes ao mesmo tempo
+  4. ninguem inventa um terceiro prefixo
+
+O item 4 achou os SEIS que a auditoria contou como "outros literais"
+(provisioning-status, build-envs, build-stats, dashboard, billing,
+storage-object) — duas medicoes independentes concordando. Migrados para
+cloud/engine; zero invalidacoes os citavam, entao a migracao nao mexeu em
+comportamento, so fechou a classe.
+
+Verificado por sonda nas duas direcoes: injetei um `queryKeys.skills` conflitando
+com a tupla literal de skills e um terceiro prefixo, e o guard acusou os dois.
 
 ## B-020 — A aba Timeline do deploy abre TRES EventSource, duas delas para a MESMA URL — SSE nao tem dedup por conexao   [ ]
 
@@ -824,7 +854,7 @@ dod:
   - Reescrever as entradas para os chunks que existem hoje (react-vendor, router, vendor, index) e reancorar o TOTAL no valor medido com um plano de reducao — ou apagar o size-limit
   - mudanca verificavel em `package.json` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-036 — Acesso a dados sem camada dedicada: TanStack Query chamado direto das paginas, com tres convencoes concorrentes de query key   [ ]
+## B-036 — Acesso a dados sem camada dedicada: TanStack Query chamado direto das paginas, com tres convencoes concorrentes de query key   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -837,10 +867,15 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-011, B-019
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+resolved_in: (esta fatia)
 dod:
   - Nao criar uma camada nova — tornar obrigatoria a que ja existe
   - mudanca verificavel em `src/lib/api/query-keys.ts` com `npx tsc --noEmit` + `npm test` verdes
+
+ENTREGUE junto de B-019. O dod pedia 'nao criar camada nova, tornar obrigatoria
+a que ja existe' com mudanca verificavel em query-keys.ts e tsc+test verdes: o
+guard de convergencia e o mecanismo que a torna obrigatoria.
 
 ## B-037 — Ciclo runtime pages/lens/traces/columns.tsx <-> pages/lens/traces.tsx   [x]
 
