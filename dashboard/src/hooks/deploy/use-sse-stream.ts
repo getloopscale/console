@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_URL } from '@/lib/http/config';
 import { ensureSSEToken, clearToken } from '@/lib/http/api';
+import { SharedEventSource } from '@/hooks/deploy/shared-event-source';
 
 /**
  * useSSEStream — generic typed SSE consumer (Plan J-17 T2.1).
@@ -171,7 +172,12 @@ export function useSSEStream<T = unknown>(
         ? `${baseUrl}&last_event_id=${encodeURIComponent(lastIDRef.current)}`
         : baseUrl;
 
-      es = new EventSource(url);
+      // B-020 — multiplexado por URL. `SharedEventSource` implementa a
+      // superficie que este hook usa e compartilha a conexao real: dois
+      // consumidores do mesmo build passam a gastar uma conexao, nao duas.
+      // Toda a logica abaixo (token, backoff, o conserto do B-014) fica
+      // intocada de proposito — a deduplicacao nao e assunto dela.
+      es = new SharedEventSource(url) as unknown as EventSource;
 
       es.onopen = () => {
         if (cancelled) return;

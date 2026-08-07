@@ -87,23 +87,32 @@ describe('orcamento de conexoes SSE (B-020)', () => {
     vi.unstubAllGlobals();
   });
 
-  it('BASELINE: dois consumidores do MESMO build abrem duas conexoes identicas', async () => {
-    // Reproduz o que o layout faz hoje: o hero e a aba assinam o mesmo build.
+  it('TRES consumidores do mesmo build seguem numa conexao — nao e um caso especial de dois', async () => {
+    // Este caso era o BASELINE: assertava `total: 2, duplicadas: 1`, fixando o
+    // defeito para que a correcao tivesse contra o que medir. Ele cumpriu o
+    // papel e a asserção antiga ficou falsa por bom motivo.
+    //
+    // No lugar dela, a versao que continua valendo alguma coisa: TRES. Uma
+    // deduplicacao escrita para o caso de dois — um `if` guardando a segunda
+    // conexao — passaria no teste de dois e falharia aqui. O que se quer e
+    // refcount, e o unico jeito de distinguir os dois e contar mais que dois.
+    renderHook(() => useDeploymentStream('build-1'), { wrapper });
     renderHook(() => useDeploymentStream('build-1'), { wrapper });
     renderHook(() => useDeploymentStream('build-1'), { wrapper });
 
-    await waitFor(() => expect(ContadorEventSource.abertas.length).toBeGreaterThanOrEqual(2));
+    await waitFor(() => expect(ContadorEventSource.abertas.length).toBeGreaterThanOrEqual(1));
 
     const { total, distintas, duplicadas } = contagem();
-    // Este e o estado ATUAL, fixado para que a correcao tenha contra o que medir.
     expect(distintas).toBe(1);
-    expect(total).toBe(2);
-    expect(duplicadas).toBe(1);
+    expect(total).toBe(1);
+    expect(duplicadas).toBe(0);
   });
 
-  it.skip('ALVO B-020: consumidores do mesmo build compartilham UMA conexao', async () => {
-    // Remova o `.skip` ao implementar a deduplicacao. Se esta asserção nao
-    // passar, a correcao nao funcionou — por mais que a tela pareca certa.
+  it('B-020 RESOLVIDO: consumidores do mesmo build compartilham UMA conexao', async () => {
+    // Este teste nasceu `skip`, escrito antes da correcao, com a asserção que
+    // ela teria de tornar verdadeira. A correcao chegou em `shared-event-source
+    // .ts`: a multiplexacao mora no TRANSPORTE, entao o `useSSEStream` — com a
+    // recuperacao de token, o backoff e o conserto do B-014 — nao foi tocado.
     renderHook(() => useDeploymentStream('build-1'), { wrapper });
     renderHook(() => useDeploymentStream('build-1'), { wrapper });
 
