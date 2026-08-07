@@ -1852,7 +1852,7 @@ dod:
 RESIDUO ABERTO, registrado por honestidade e coberto por B-092: `GOPRIVATE` e o
 `insteadOf` de `.github/workflows/quality.yml` continuam apontando para `usetheodev/`.
 
-## B-092 — CI nao consegue baixar theo-contracts depois do rename   [ ]
+## B-092 — CI nao consegue baixar theo-contracts depois do rename   [x]
 
 domain: control-plane
 repo: theo-cloud
@@ -1863,7 +1863,9 @@ category: ci_breakage
 evidence: `.github/workflows/quality.yml:69` faz `insteadOf` de `https://github.com/usetheodev/`, e as linhas 75/80/93/108 declaram `GOPRIVATE: github.com/usetheodev/*`. O modulo privado hoje e `github.com/usetheoai/theo-contracts` (go.mod:66). O rewrite que injeta o PAT deixou de casar, entao `go build ./...` no CI tenta HTTPS anonimo. Verificado que os 6 runs verdes mais recentes de quality.yml sao de 2026-08-05, TODOS anteriores ao rename (2d5e5b1, 2026-08-06 11:21) — nenhum run de CI exercitou este estado.
 provenance: registrado em 2026-08-07 pela revisao de promocao (revisor Go).
 why_now: o proprio quality.yml:20 documenta que o GOMOD_TOKEN existe para ler o modulo privado, e o unico mecanismo que o injeta e o insteadOf que parou de casar. O CI ainda nao falhou porque ainda nao rodou depois do rename.
-status: raw
+status: shipped
+resolved_in: cc58595 — cobre as DUAS orgs em vez de trocar, porque o redirect do GitHub mantem os caminhos antigos validos e ci.yml referencia usetheodev/theo, que e outro repositorio.
+verificacao: PR #469, run 31149955062, commit 48f8a5f — job `go — build + test (race) + integracao + vet + lint` PASS em 58s. Fechado pelo criterio que o proprio dod exigia: a prova e o run.
 dod:
   - `GOPRIVATE` e o `insteadOf` citam `usetheoai/`
   - um run de quality.yml no HEAD passa o job `go` (a prova e o run, nao a leitura do YAML)

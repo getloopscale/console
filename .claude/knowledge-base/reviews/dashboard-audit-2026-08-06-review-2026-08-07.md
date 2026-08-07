@@ -81,6 +81,10 @@ Zero BLOCKER em aberto e a dívida está nomeada e registrada — que é o que `
 
 ## O que NÃO foi verificado
 
-- **Nenhum run de CI rodou neste HEAD.** Todos os gates foram medidos localmente. `B-092` é precisamente a hipótese de que o CI falha — e ela só se resolve com um run.
+- ~~Nenhum run de CI rodou neste HEAD.~~ **Resolvido em 2026-08-07:** o PR [#469](https://github.com/usetheoai/theo-cloud/pull/469) rodou e os 9 checks passam em `48f8a5f`. Duas coisas saíram daí:
+  - **`B-092` confirmado e fechado.** O job `go` passa com a correção do `insteadOf`; sem ela o fetch de `theo-contracts` sairia sem credencial. A hipótese era real.
+  - **O CI achou um defeito que 2603 testes unitários não acharam.** O `e2e-ui` reprovou `device-verify.spec.ts:57`: o guard de open-redirect que esta promoção ligou recusava `/device-success?simulated=1` — caminho relativo, mesma origem, o destino menos perigoso possível. `new URL('/x')` lança sem base. Em produção teria bloqueado a conclusão do login por dispositivo para todo mundo. Nenhum unitário pegou porque todos exercitavam URL absoluta. Corrigido em `4e07ad1`, com o cenário 4 do e2e cobrindo a fiação e verificado por injeção.
+
+  A lição operacional, registrada porque me custou um ciclo: **o e2e nunca foi rodado localmente durante a sessão.** O `webServer` do Playwright só é configurado quando `CI` está setado, então `npx playwright test` local falha com connection refused e passa a impressão de indisponibilidade. Com `CI=1` roda em 5 segundos.
 - A suíte foi medida com edições não-commitadas de outra sessão presentes na árvore. Verde apesar disso, mas não é uma árvore limpa.
 - Cobertura de caso negativo em `domains.test.tsx`, `team.test.tsx` e `memory/skills.test.tsx` segue só no happy path (MEDIUM, não registrado como item).
