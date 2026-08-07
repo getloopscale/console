@@ -9,7 +9,8 @@ import {
 } from '@usetheo/ui';
 import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
-import { cloudFetchRaw } from '@/lib/http/api';
+import { ApiError } from '@/lib/http/api';
+import { useRollback } from '@/hooks/mutations/use-rollback';
 import { useStartRollback, useEndRollback } from '@/hooks/deploy/use-rollback-in-flight';
 import type { Build, RollbackResponse } from '@/lib/api/types';
 
@@ -30,6 +31,7 @@ export function RollbackDialog({
   targetBuild,
   onRolledBack,
 }: RollbackDialogProps) {
+  const rollback = useRollback();
   const [phrase, setPhrase] = useState('');
   // M18: non-production rollback still needs an explicit acknowledgement (a
   // single deliberate step) so a stray click on the grid can't silently revert
@@ -78,35 +80,18 @@ export function RollbackDialog({
     });
 
     try {
-      // B-013 — passa por cloudFetchRaw em vez de window.fetch cru.
-      //
-      // O caminho anterior pegava o JWT via ensureSSEToken() — o helper do
-      // EventSource — e montava o fetch a mao. Isso saía do pipeline de auth do
-      // client: sem retry-apos-refresh no 401 e sem o interceptor de 402 (limite
-      // de plano). Num POST que promove ou reverte producao, perder o refresh
-      // significa que uma sessao renovavel vira "Session expired" na cara do
-      // operador no pior momento possivel.
-      //
-      // cloudFetchRaw devolve a Response, entao o tratamento de erro por status
-      // + corpo abaixo continua identico — o que muda e quem obtem o token.
-      const resp = await cloudFetchRaw(
-        `/engine/api/v1/projects/${encodeURIComponent(projectName)}/rollback`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': crypto.randomUUID(),
-          },
-          body: JSON.stringify({
-            environment: targetBuild.environment,
-            build_id: targetBuild.build_id,
-          }),
-          credentials: 'include',
-        },
-      );
-      if (!resp) {
+      // B-013 — a chamada tem dono: `useRollback`. Um dialogo coleta a
+      // confirmacao e mostra o resultado; a rede nao e assunto dele. Enquanto
+      // morava aqui, testar o rollback exigia montar um modal e a invalidacao
+      // de cache dependia de quem abrisse o dialogo lembrar de faze-la.
+      const res = await rollback.mutateAsync({
+        projectName,
+        environment: targetBuild.environment ?? '',
+        buildId: targetBuild.build_id,
+      });
+      dismiss(progressId);
+      if (!res) {
         endRollback(projectName);
-        dismiss(progressId);
         toast({
           title: 'Rollback failed',
           description: 'Session expired. Sign in again and retry the rollback.',
@@ -114,21 +99,6 @@ export function RollbackDialog({
         });
         return;
       }
-      dismiss(progressId);
-      if (!resp.ok) {
-        endRollback(projectName);
-        const errBody = await resp.json().catch(() => null) as
-          | { message?: string; code?: string; error?: string }
-          | null;
-        toast({
-          title: 'Rollback failed',
-          description: formatRollbackError(resp.status, errBody),
-          variant: 'destructive',
-          duration: null, // user must dismiss critical errors
-        });
-        return;
-      }
-      const res = (await resp.json()) as RollbackResponse;
       // Clear in-flight BEFORE onRolledBack so the grid invalidation +
       // refetch in the parent renders the canonical "● Active" badge in
       // the same frame the pulsing badge disappears (no visual flicker).
@@ -142,10 +112,17 @@ export function RollbackDialog({
     } catch (e) {
       endRollback(projectName);
       dismiss(progressId);
+      // B-013 — `formatRollbackError` segue dono da mensagem por status; o que
+      // mudou e a FONTE. Antes vinha de `resp.status` apos um `if (!resp.ok)`;
+      // agora da `ApiError` que o `throwOnError` levanta. Falha de rede nao e
+      // ApiError e cai no texto generico — a distincao importa, porque "o
+      // backend recusou" e "sua internet caiu" pedem acoes diferentes.
+      const apiErr = e instanceof ApiError ? e : null;
       toast({
         title: 'Rollback failed',
-        description:
-          e instanceof Error
+        description: apiErr
+          ? formatRollbackError(apiErr.status, apiErr.body as { message?: string; code?: string; error?: string } | null)
+          : e instanceof Error
             ? `${e.message}. The current release remains active. Check connection and retry.`
             : 'Network error. The current release remains active. Check connection and retry.',
         variant: 'destructive',

@@ -398,7 +398,7 @@ dod:
   - Extrair um modulo de data-access por feature no padrao ja emergente em src/components/promptly/promptly-api.ts, src/components/trust/trust-api.ts e src/components/skills/skills-api.ts, movido para src/features/<feature>/api/ + src/features/<feature>/hooks/
   - `src/pages/lens/traces.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-013 — Promote-to-production e rollback fazem fetch cru, pulando o pipeline de auth/erro do cloudFetch   [ ]
+## B-013 — Promote-to-production e rollback fazem fetch cru, pulando o pipeline de auth/erro do cloudFetch   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -409,7 +409,8 @@ category: state_synchronization_issue
 evidence: src/components/dialogs/promote-to-production-dialog.tsx:113 — promote-to-production-dialog.tsx:113 usa `await fetch(`${API_URL}/engine/api/v1/projects/.../promote`, {headers:{Authorization: `Bearer ${token}`}})` com token vindo de ensureSSEToken(); mesmo padrao em src/components/dialogs/rollback-dialog.tsx:93. cloudFetch (src/lib/api.ts:226) faz refresh-e-retry no 401 (linha 314) e maybeEmitPaymentRequired no 402 (linha 381) — nada disso roda nestes dois...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#3
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: segunda metade fechada. hooks/mutations/use-promote.ts e use-rollback.ts passam a ser os donos: cloudFetch com throwOnError, Idempotency-Key por CHAMADA (nao por dialogo — reusar entre chamadas faria o backend descartar uma segunda promocao deliberada como repeticao) e invalidacao de builds + environments no onSuccess. Os dialogos so coletam a confirmacao e mostram o resultado. formatPromoteError/formatRollbackError seguem donos da mensagem por status; o que mudou e a FONTE — antes `resp.status` apos um `if (!resp.ok)` que cada chamador precisava lembrar de escrever, agora a ApiError levantada pelo throwOnError. Falha de rede nao e ApiError e cai no texto generico, porque 'o backend recusou' e 'sua internet caiu' pedem acoes diferentes. 6 testes novos sobre o dono, incluindo dois que o dialogo nunca conseguiu cobrir: a Idempotency-Key mudar entre chamadas e a invalidacao dos DOIS caches — era essa que ficava para tras quando alguem abria a promocao de um lugar novo, e a badge '● Active' seguia no build antigo. Verificado que cloudFetchRaw NAO ficou orfao: rag/documents.tsx usa para upload multipart, em que o browser precisa definir o boundary.
 partial_progress: 702fc1d — `cloudFetchRaw` substituiu o `fetch` cru nos dois dialogs. Metade do primeiro bullet.
 dod:
   - Trocar por cloudFetch(path,{method:POST,body},{throwOnError:true}) de src/lib/api.ts:226 e mover a chamada para src/hooks/mutations/use-promote.ts e use-rollback.ts (src/hooks/mutations/ ja existe com 7 mutations)

@@ -8,7 +8,8 @@ import {
 } from '@usetheo/ui';
 import { Dialog } from '@/components/ui/dialog';
 import { Alert } from '@/components/ui/alert-guard';
-import { cloudFetchRaw } from '@/lib/http/api';
+import { ApiError } from '@/lib/http/api';
+import { usePromote } from '@/hooks/mutations/use-promote';
 import { useStartMutation, useEndMutation } from '@/hooks/deploy/use-mutation-in-flight';
 import type { Build, PromoteResponse } from '@/lib/api/types';
 
@@ -54,6 +55,7 @@ export function PromoteToProductionDialog({
   const [phrase, setPhrase] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { toast, dismiss } = useToast();
+  const promote = usePromote();
   const startMutation = useStartMutation();
   const endMutation = useEndMutation();
 
@@ -94,59 +96,32 @@ export function PromoteToProductionDialog({
     });
 
     try {
-      // Backend contract retained: POST /promote { from, to }. The
-      // preview env name is the source (we know the deploy is in a
-      // preview env because the caller hides this action for prod
-      // deploys); the target is always production.
+      // Backend contract retained: POST /promote { from, to }. A env de
+      // preview e a origem; o destino e sempre producao.
       //
-      // B-013 — passa por cloudFetchRaw em vez de window.fetch cru. O caminho
-      // anterior pegava o JWT via ensureSSEToken() (o helper do EventSource) e
-      // montava o fetch a mao, saindo do pipeline de auth do client: sem
-      // retry-apos-refresh no 401 e sem o interceptor de 402 (limite de plano).
-      // Promover para producao e exatamente onde perder o refresh custa mais.
-      // cloudFetchRaw devolve a Response, entao o tratamento por status + corpo
-      // abaixo segue identico — muda quem obtem o token.
-      const resp = await cloudFetchRaw(
-        `/engine/api/v1/projects/${encodeURIComponent(projectName)}/promote`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Idempotency-Key': crypto.randomUUID(),
-          },
-          body: JSON.stringify({
-            from: sourceBuild.environment,
-            to: 'production',
-          }),
-          credentials: 'include',
-        },
-      );
-      if (!resp) {
-        endMutation(projectName);
-        dismiss(progressId);
-        toast({
-          title: 'Promote failed',
-          description:
-            'Session expired. Sign in again and retry the promote.',
-          variant: 'destructive',
-        });
-        return;
-      }
+      // B-013 — a chamada tem dono: `usePromote`. Um dialogo e uma tela, e
+      // enquanto a rede morava aqui o unico jeito de testar a promocao era
+      // montar um modal, e a invalidacao de cache dependia de quem abrisse o
+      // dialogo lembrar de faze-la.
+      //
+      // O hook usa `throwOnError`, entao a rejeicao carrega `ApiError` com
+      // `status` e `body` — os mesmos dois dados que `formatPromoteError` ja
+      // consumia. O `if (!resp.ok)` que cada chamador precisava lembrar de
+      // escrever some: um esquecido virava uma promocao que falhava calada.
+      const res = await promote.mutateAsync({
+        projectName,
+        fromEnvironment: sourceBuild.environment ?? '',
+      });
       dismiss(progressId);
-      if (!resp.ok) {
+      if (!res) {
         endMutation(projectName);
-        const errBody = (await resp.json().catch(() => null)) as
-          | { message?: string; code?: string; error?: string }
-          | null;
         toast({
           title: 'Promote failed',
-          description: formatPromoteError(resp.status, errBody),
+          description: 'Session expired. Sign in again and retry the promote.',
           variant: 'destructive',
-          duration: null,
         });
         return;
       }
-      const res = (await resp.json()) as PromoteResponse;
       // Clear in-flight BEFORE onPromoted so the grid invalidation +
       // refetch in the parent renders the canonical "● Active" badge
       // in the same frame the pulsing badge disappears (no flicker).
@@ -160,10 +135,18 @@ export function PromoteToProductionDialog({
     } catch (e) {
       endMutation(projectName);
       dismiss(progressId);
+      // B-013 — `formatPromoteError` continua sendo o dono da mensagem por
+      // status; o que mudou e a FONTE do status. Antes vinha de `resp.status`
+      // depois de um `if (!resp.ok)`; agora vem da `ApiError` que o
+      // `throwOnError` levanta. Uma falha de rede nao e ApiError e cai no texto
+      // generico — a distincao importa: "seu plano nao permite" e "sua internet
+      // caiu" pedem acoes diferentes de quem le.
+      const apiErr = e instanceof ApiError ? e : null;
       toast({
         title: 'Promote failed',
-        description:
-          e instanceof Error
+        description: apiErr
+          ? formatPromoteError(apiErr.status, apiErr.body as { message?: string; code?: string; error?: string } | null)
+          : e instanceof Error
             ? `${e.message}. The current production release remains active. Check connection and retry.`
             : 'Network error. The current production release remains active. Check connection and retry.',
         variant: 'destructive',
