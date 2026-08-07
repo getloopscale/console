@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { Badge, Button, Card, Input, PageShell } from '@usetheo/ui';
 
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
+import { useSkill, useSkillInstructions, useInvalidateSkills } from '@/hooks/skills/use-skills';
 import {
   deleteSkill,
-  fetchSkill,
-  fetchSkillInstructions,
   promotionRefusal,
   setSkillLifecycle,
-} from '@/pages/skills/components/skills-api';
+} from '@/hooks/skills/skills-api';
 
 /**
  * M26 — `/skills/:skillId`: uma skill, e a instrução que um agente de fato carregaria.
@@ -57,25 +56,16 @@ export function SkillDetailPage() {
   useEffect(() => setPageTitle(`Skill — ${skillId}`), [setPageTitle, skillId]);
   useRequireAuth();
 
-  const skill = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/skills', skillId],
-    queryFn: () => fetchSkill<SkillDetail>(skillId),
-    enabled: skillId !== '',
-  });
+  // B-052 — esta chave colidia com a de `overview.tsx`, que punha um TOKEN DE
+  // PAGINA no mesmo slot onde esta punha um id de skill.
+  const skill = useSkill<SkillDetail>(skillId);
 
-  const instructions = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/skills', skillId, 'instructions'],
-    queryFn: () => fetchSkillInstructions<Instructions>(skillId),
-    enabled: skillId !== '',
-    // Uma skill `local` responde 422 por CONTRATO, não por falha: repetir a chamada não muda
-    // a resposta e só gasta a paciência de quem espera a tela.
-    retry: false,
-  });
+    const instructions = useSkillInstructions<Instructions>(skillId);
 
   const data = skill.data;
 
   // ---- M32 — o ciclo de vida --------------------------------------------------------------
-  const queryClient = useQueryClient();
+  const invalidarSkills = useInvalidateSkills();
   const [motivo, setMotivo] = useState('');
   const [sucessora, setSucessora] = useState('');
   const [confirmar, setConfirmar] = useState(false);
@@ -89,7 +79,10 @@ export function SkillDetailPage() {
       setConfirmar(false);
       setMotivo('');
       setSucessora('');
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/skills'] });
+      // B-052 — invalida a RAIZ do dominio. As chaves literais que estavam aqui
+      // deixaram de ser lidas no instante em que as paginas migraram: manter uma
+      // delas seria invalidar o que ninguem le, e a lista mostraria dado velho.
+      invalidarSkills();
     },
     onError: (err) => {
       setConfirmar(false);
@@ -107,7 +100,10 @@ export function SkillDetailPage() {
   const apagar = useMutation({
     mutationFn: () => deleteSkill(skillId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/skills'] });
+      // B-052 — invalida a RAIZ do dominio. As chaves literais que estavam aqui
+      // deixaram de ser lidas no instante em que as paginas migraram: manter uma
+      // delas seria invalidar o que ninguem le, e a lista mostraria dado velho.
+      invalidarSkills();
       // Volta ao acervo: permanecer num detalhe que não existe mais mostraria uma tela de erro
       // como resultado de uma operação bem-sucedida.
       void navigate('/skills');
@@ -195,7 +191,7 @@ export function SkillDetailPage() {
               title="This skill does not deliver instructions by loading"
               description="It runs on the client machine and ships a script; the instructions reference files a remote agent does not have. Install it through the CLI instead of loading it."
             />
-          ) : instructions.isLoading ? (
+          ) : instructions.loading ? (
             <p className="text-sm text-muted-foreground">Carregando…</p>
           ) : instructions.data ? (
             <>

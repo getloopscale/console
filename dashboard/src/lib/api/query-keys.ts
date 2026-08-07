@@ -84,6 +84,42 @@ export const queryKeys = {
     enforcement: (limit: number) => ['trust', 'enforcement', limit] as const,
     conversation: (id: string | null) => ['trust', 'conversation', id] as const,
   },
+  // B-052 — o dominio skills tinha o pior caso dos tres: o MESMO prefixo
+  // `['cloud', '/v1/dashboard/skills', X]` carregava tres coisas diferentes no
+  // slot X — um token de pagina (overview.tsx:77), um id de skill
+  // (detail.tsx:61) e um limite numerico (bundle-detail.tsx:104). Tupla
+  // posicional com slot sem tipo colide por coincidencia de valor, e o defeito
+  // aparece como "a tela mostrou o dado de outra coisa", que ninguem liga a
+  // cache.
+  //
+  // Aqui cada leitura tem nome proprio, entao o slot nao e mais posicional.
+  skills: {
+    all: ['skills'] as const,
+    // O LIMITE entra na chave junto do token. `overview.tsx:78` e
+    // `catalog.tsx:47` fazem a MESMA chamada `fetchSkills(PAGE_LIMIT, token)` e
+    // usavam chaves diferentes — mesmo dado, dois caches. E nenhuma das duas
+    // carregava o limite, o que e a mesma armadilha que `trust` tinha entre
+    // limite 200 e 100.
+    catalog: (limit: number, token: string | null) =>
+      ['skills', 'catalog', limit, token ?? 'primeira'] as const,
+    detail: (id: string | undefined) => ['skills', 'detail', id] as const,
+    instructions: (id: string | undefined) => ['skills', 'detail', id, 'instructions'] as const,
+    versions: (id: string | undefined) => ['skills', 'detail', id, 'versions'] as const,
+    channels: (id: string | undefined) => ['skills', 'detail', id, 'channels'] as const,
+    discovery: (q: string, rascunhos: boolean, descontinuadas: boolean) =>
+      ['skills', 'discovery', q, rascunhos, descontinuadas] as const,
+    operation: (id: string | undefined) => ['skills', 'operation', id] as const,
+  },
+  // Bundles sao do mesmo dominio de produto, mas com raiz propria: invalidar
+  // `skills.all` depois de criar um bundle refaria o catalogo inteiro sem
+  // motivo, e invalidar `bundles.all` depois de publicar uma skill idem.
+  bundles: {
+    all: ['bundles'] as const,
+    list: () => ['bundles', 'list'] as const,
+    tokens: (bundleId: string | undefined) => ['bundles', bundleId, 'tokens'] as const,
+    adoption: (bundleId: string | undefined, dias: number) =>
+      ['bundles', bundleId, 'adoption', dias] as const,
+  },
   scale: {
     all: ['scale'] as const,
     detail: (project: string, env: string) =>

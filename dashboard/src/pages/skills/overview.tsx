@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Boxes } from 'lucide-react';
 import {
   Badge,
@@ -16,7 +15,7 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { fetchSkills } from '@/pages/skills/components/skills-api';
+import { useSkillsCatalog } from '@/hooks/skills/use-skills';
 import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/pages/skills/components/paging';
 
 /**
@@ -34,7 +33,6 @@ import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/pages/skills/c
 /** Explícito de propósito: sem `limit` herdaríamos o teto do servidor sem saber qual é. */
 const PAGE_LIMIT = 100;
 
-const QUERY_KEY = ['cloud', '/v1/dashboard/skills'] as const;
 
 /** Medido em `packages/api/src/server/store/skills-store.ts` — não inferido do nome do método. */
 interface SkillSummary {
@@ -73,10 +71,11 @@ export function SkillsOverviewPage() {
   const [tokenAtual, setTokenAtual] = useState<string | undefined>(undefined);
   const [filtro, setFiltro] = useState('');
 
-  const query = useQuery({
-    queryKey: [...QUERY_KEY, tokenAtual ?? 'primeira'] as const,
-    queryFn: () => fetchSkills<SkillsPayload>(PAGE_LIMIT, tokenAtual),
-  });
+  // B-052 — `overview` e `catalog` faziam a MESMA chamada com chaves
+  // diferentes: o mesmo catalogo em duas entradas de cache que nunca se
+  // invalidavam juntas. E nenhuma das duas carregava o limite, que e a
+  // armadilha que `trust` tinha entre 200 e 100.
+  const query = useSkillsCatalog<SkillsPayload>(PAGE_LIMIT, tokenAtual);
 
   const pagina = useMemo(
     () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillLinha[]) : []),
@@ -229,7 +228,7 @@ export function SkillsOverviewPage() {
           columns={columns}
           data={rows}
           rowKey={(row) => row.skill_id}
-          loading={query.isLoading}
+          loading={query.loading}
           emptyState={
             <EmptyState
               icon={Boxes}

@@ -107,7 +107,7 @@ const DOMINIOS_COM_API_PARCIAL = ['trust', 'skills', 'promptly'];
  * O que o trabalho de fato move é isto: quantas páginas consomem um `*-api.ts`
  * e ainda montam o `useQuery` à mão. Zerar é o que significa "a camada existe".
  */
-const TETO_PAGINAS_COM_QUERY_MANUAL = 14;
+const TETO_PAGINAS_COM_QUERY_MANUAL = 5;
 
 export function paginasComQueryManual(): string[] {
   const fora: string[] = [];
@@ -116,17 +116,25 @@ export function paginasComQueryManual(): string[] {
     const usaApiParcial = DOMINIOS_COM_API_PARCIAL.some((d) =>
       new RegExp(`from\\s*'[^']*${d}-api'`).test(src),
     );
-    // O sinal é a página GERENCIAR CACHE, e há três verbos para isso.
+    // O sinal é a página CONHECER UMA QUERY KEY. São dois verbos, e a escolha
+    // deles foi corrigida duas vezes por medição.
     //
-    // `useQueryClient` entrou depois de medir: `trust/guardrail-new.tsx:52` não
-    // monta `useQuery`, ele invalida à mão — o que exige conhecer a query key,
-    // que é exatamente o defeito. Contar só os dois primeiros deixaria de fora
-    // uma página que faz a pior metade do trabalho.
+    // `useQueryClient` ENTROU: `trust/guardrail-new.tsx:52` não montava
+    // `useQuery`, ele invalidava à mão — e invalidar exige conhecer a chave, que
+    // é exatamente o defeito. Contar só `useQuery` deixaria de fora a página que
+    // faz a pior metade do trabalho.
     //
-    // A fronteira de palavra também é medida, não estilo: `'useQuery' in src`
-    // casa `useQueryClient` por substring, e foi assim que a contagem anterior
-    // deu 19 pelo motivo errado antes de dar 19 pelo certo.
-    if (usaApiParcial && /\buseQuery\b|\buseMutation\b|\buseQueryClient\b/.test(src)) {
+    // `useMutation` SAIU. Ele estava aqui por simetria e não por medição: uma
+    // mutation NÃO precisa conhecer chave nenhuma. Depois de migrar skills, as
+    // quatro páginas que ainda contavam tinham `useQueryClient=0` e
+    // `queryKey:=0` — o defeito havia saído inteiro delas, e o número não descia
+    // porque o sinal media o verbo errado. Uma `useMutation` cujo `onSuccess`
+    // chama `invalidarSkills()` delega o cache; é o oposto de gerenciá-lo à mão.
+    //
+    // A fronteira de palavra também é medida: `'useQuery' in src` casa
+    // `useQueryClient` por substring, e foi assim que a contagem deu 19 pelo
+    // motivo errado antes de dar 19 pelo certo.
+    if (usaApiParcial && /\buseQuery\b|\buseQueryClient\b/.test(src)) {
       fora.push(relative(SRC, f).replace(/\\/g, '/'));
     }
   }

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { GitBranch } from 'lucide-react';
 import {
   Badge,
@@ -18,11 +17,9 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import {
-  fetchSkillChannels,
-  fetchSkillVersions,
   promoteChannel,
   promotionRefusal,
-} from '@/pages/skills/components/skills-api';
+} from '@/hooks/skills/skills-api';
 import {
   channelAnomalies,
   currentChannelOf,
@@ -32,6 +29,7 @@ import {
   type VersionsPayload,
 } from '@/pages/skills/components/projections';
 import { promotionConfirmation, promotionPhrase } from '@/pages/skills/components/confirm-text';
+import { useSkillVersions, useSkillChannels, useInvalidateSkills } from '@/hooks/skills/use-skills';
 
 /** O canal que a tela promove. Um só, e declarado: `stable` é o que os consumidores resolvem. */
 const CANAL_ALVO = 'stable';
@@ -54,23 +52,17 @@ export function SkillVersionsPage() {
   useEffect(() => setPageTitle(`Skill — versions of ${skillId}`), [setPageTitle, skillId]);
   useRequireAuth();
 
-  const versions = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/skills', skillId, 'versions'],
-    queryFn: () => fetchSkillVersions<VersionsPayload>(skillId),
-    enabled: skillId !== '',
-  });
+  // B-052 — chave da factory. `bundle-detail.tsx` lia os MESMOS canais com uma
+  // tupla escrita a mao; agora e a mesma chave, entao invalidar alcanca os dois.
+  const versions = useSkillVersions<VersionsPayload>(skillId);
 
-  const channels = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/skills', skillId, 'channels'],
-    queryFn: () => fetchSkillChannels<ChannelsPayload>(skillId),
-    enabled: skillId !== '',
-  });
+    const channels = useSkillChannels<ChannelsPayload>(skillId);
 
   const rows = versionRows(versions.data, channels.data);
   const anomalies = channelAnomalies(channels.data);
   const failed = Boolean(versions.error || channels.error);
 
-  const queryClient = useQueryClient();
+  const invalidarSkills = useInvalidateSkills();
   const [pending, setPending] = useState<VersionRow | null>(null);
   const [promotionError, setPromotionError] = useState<string | null>(null);
 
@@ -83,8 +75,10 @@ export function SkillVersionsPage() {
       await promoteChannel(skillId, CANAL_ALVO, pending.revisionId);
       // Invalida AMBAS: a promoção muda o canal, e a tabela de versões deriva dele. Recarregar
       // só uma deixaria a tela mostrando o estado anterior como se fosse o atual.
-      await queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/skills', skillId, 'channels'] });
-      await queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/skills', skillId, 'versions'] });
+      // B-052 — invalida a RAIZ do dominio. As chaves literais que estavam aqui
+      // deixaram de ser lidas no instante em que as paginas migraram: manter uma
+      // delas seria invalidar o que ninguem le, e a lista mostraria dado velho.
+      invalidarSkills();
       setPending(null);
     } catch (err) {
       // A linha permanece como está: o canal NÃO se moveu, e mudar a tela otimisticamente diria
@@ -199,7 +193,7 @@ export function SkillVersionsPage() {
           columns={columns}
           data={rows}
           rowKey={(row) => row.revisionId}
-          loading={versions.isLoading || channels.isLoading}
+          loading={versions.loading || channels.loading}
           emptyState={
             <EmptyState
               icon={GitBranch}
