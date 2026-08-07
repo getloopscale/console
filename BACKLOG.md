@@ -1148,6 +1148,30 @@ dod:
   - Migrar para useQuery com refetchInterval derivado do dado, seguindo src/hooks/use-provisioning-status.ts:52; extrair src/hooks/use-project-connection.ts e src/hooks/use-billing-activation.ts
   - `src/pages/project-connect.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
+
+progresso_2026-08-07: METADE FEITA — `use-billing-activation.ts` extraido, com a rede de teste que faltava. A outra metade
+(`project-connect.tsx`) SEGUE fora de escopo pela analise de 2026-08-06, que continua valendo: 696 LOC, 16 useState, uma FSM, e tres
+comportamentos sem cobertura (teto de 5min, refetch por visibilitychange com debounce, parada em transicao). Refatorar ali e mexer
+numa maquina de estados sem rede.
+
+NAO virou `useQuery` com refetchInterval, contra a letra do dod, e a razao e semantica: a condicao de parada nao e "chegou dado", e
+"o dado MUDOU em relacao a um baseline capturado ANTES do checkout", com teto de tentativas e desfecho proprio. Os dois sao estado da
+ESPERA e nao do recurso — um useQuery guardaria o billing, e ninguem guardaria a espera.
+
+UM DEFEITO QUE A AUDITORIA NAO NOMEOU, corrigido junto: o `catch { /* continue polling */ }` engolia tudo. Uma falha PERSISTENTE
+(500, 402, rede fora) ficava indistinguivel de "ainda nao ativou" — a pessoa esperava 30s e recebia "timeout", cuja mensagem manda
+recarregar e esperar. Conselho errado quando o servidor esta recusando, e pior: a cobranca do Stripe JA passou nesse ponto, entao a
+mensagem antiga podia levar alguem a comprar de novo. Ha um terceiro desfecho agora (`error`) com mensagem propria que diz que o
+pagamento passou e para NAO comprar de novo. Falha transitoria segue nao interrompendo (3 seguidas para desistir).
+
+DRIFT DE CONTRATO ENCONTRADO NO CAMINHO: `pages/settings/billing.tsx` declarava uma interface LOCAL chamada `BillingResponse`, de
+mesmo nome e formato DIFERENTE do canonico em `lib/api/types.ts` — a local tinha `subscription_id`, o canonico nao. Duas interfaces
+homonimas com formatos diferentes e pior que uma incompleta: o import certo vira sorte. O campo foi para o contrato e os dois espelhos
+locais (`BillingResponse` e `UsageMetric`) sairam. O proprio types.ts ja documentava essa classe para `plan_price`: "um campo que a API
+manda, a tela le e o contrato nao declara e drift silencioso".
+
+8 testes novos, sondados: desligar o ramo de falha persistente derruba 1.
+
 ## B-048 — 20 endpoints sao buscados de mais de um arquivo; /v1/dashboard/rag/collections aparece em 7 paginas diferentes   [x]
 
 domain: frontend-dashboard

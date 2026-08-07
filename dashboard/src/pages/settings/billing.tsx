@@ -48,21 +48,12 @@ function extractActionableErrorMessage(err: unknown): string {
   return 'Failed to start checkout. Please try again in a moment.';
 }
 import { formatDate, formatNumber } from '@/lib/formatting/format';
+import { useBillingActivation, type ActivationOutcome } from '@/hooks/settings/use-billing-activation';
+import type { BillingResponse } from '@/lib/api/types';
 
-interface UsageMetric {
-  used: number;
-  limit: number | null;
-}
-
-interface BillingResponse {
-  plan: string;
-  team: string;
-  usage: Record<string, UsageMetric>;
-  period_start?: string;
-  period_end?: string;
-  subscription_id?: string;
-}
-
+// B-047 — o espelho local de `UsageMetric` saiu junto com o de `BillingResponse`:
+// ele so existia para tipar o campo `usage` daquela interface. O contrato
+// canonico (`lib/api/types.ts`) ja declara os dois.
 /**
  * §3.4: Post-checkout activation polling.
  *
@@ -74,48 +65,31 @@ interface BillingResponse {
  */
 function useCheckoutActivation(initialBilling: BillingResponse | null | undefined) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activating, setActivating] = useState(false);
-  const [activationResult, setActivationResult] = useState<'success' | 'timeout' | null>(null);
-  const [activatedBilling, setActivatedBilling] = useState<BillingResponse | null>(null);
+  const [activationResult, setActivationResult] = useState<ActivationOutcome | null>(null);
+
+  // B-047 — a espera mora em `useBillingActivation`. Aqui fica so o que e da
+  // PAGINA: ler o `?success=true`, limpar a URL quando a espera termina, e
+  // guardar o desfecho para a mensagem.
+  //
+  // O hook tambem corrigiu um defeito que morava neste arquivo: o `catch` era
+  // mudo, entao uma falha PERSISTENTE da API virava "timeout" depois de 30
+  // segundos — e "timeout" manda tentar de novo, quando o problema e do
+  // servidor. Ha um terceiro desfecho agora, `error`.
+  const esperandoCheckout = searchParams.get('success') === 'true' && initialBilling !== undefined;
+  const {
+    activating,
+    outcome,
+    billing: activatedBilling,
+  } = useBillingActivation({
+    enabled: esperandoCheckout,
+    baseline: initialBilling ?? null,
+  });
 
   useEffect(() => {
-    if (searchParams.get('success') !== 'true') return;
-    if (initialBilling === undefined) return;
-
-    setActivating(true);
-    let attempts = 0;
-    const maxAttempts = 15;
-    const baselineSubscriptionID = initialBilling?.subscription_id ?? '';
-    const baselinePlan = initialBilling?.plan ?? '';
-
-    const poll = setInterval(async () => {
-      attempts++;
-      try {
-        const result = await cloudFetch<BillingResponse>('/v1/billing');
-        const currentSubscriptionID = result?.subscription_id ?? '';
-        const subscriptionChanged =
-          currentSubscriptionID !== '' && currentSubscriptionID !== baselineSubscriptionID;
-        const planChanged = result?.plan && result.plan !== baselinePlan;
-        if (result && (subscriptionChanged || planChanged)) {
-          clearInterval(poll);
-          setActivating(false);
-          setActivatedBilling(result);
-          setActivationResult('success');
-          setSearchParams({}, { replace: true });
-        }
-      } catch {
-        /* continue polling */
-      }
-      if (attempts >= maxAttempts) {
-        clearInterval(poll);
-        setActivating(false);
-        setActivationResult('timeout');
-        setSearchParams({}, { replace: true });
-      }
-    }, 2000);
-
-    return () => clearInterval(poll);
-  }, [searchParams, setSearchParams, initialBilling]);
+    if (!outcome) return;
+    setActivationResult(outcome);
+    setSearchParams({}, { replace: true });
+  }, [outcome, setSearchParams]);
 
   return { activating, activationResult, setActivationResult, activatedBilling };
 }
@@ -290,6 +264,24 @@ export function BillingPage() {
           intent="warning"
           title="Taking longer than expected."
           description="Your subscription is being processed. Refresh the page in a moment, or contact support if it doesn't update within a few minutes."
+          className="mb-4"
+        />
+      )}
+      {activationResult === 'error' && (
+        /*
+         * B-047 — o terceiro desfecho, que antes nao existia.
+         *
+         * Falhas CONSECUTIVAS ao consultar o billing paravam disfarcadas de
+         * "timeout", e "Taking longer than expected" manda esperar e recarregar
+         * — conselho errado quando o servidor esta recusando. A cobranca ja foi
+         * feita pelo Stripe neste ponto; dizer isso e o que impede a pessoa de
+         * comprar de novo achando que a primeira nao passou.
+         */
+        <Alert
+          intent="destructive"
+          title="Couldn't confirm your subscription."
+          description="Your payment went through — we just couldn't reach the billing service to confirm it. Don't purchase again. Refresh in a moment, or contact support with your receipt."
+          onDismiss={() => setActivationResult(null)}
           className="mb-4"
         />
       )}

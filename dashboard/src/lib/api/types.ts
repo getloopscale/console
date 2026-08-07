@@ -691,6 +691,22 @@ export interface BillingResponse {
    * conhece, e a próxima mudança de forma passa sem ninguém notar.
    */
   plan_price?: BillingPlanPrice;
+  /**
+   * Identificador da assinatura no Stripe. OMITIDO enquanto nao ha assinatura.
+   *
+   * B-047 — mesmo drift que `plan_price` documenta logo acima, e a prova de que
+   * o padrao se repete: `pages/settings/billing.tsx` declarava uma interface
+   * LOCAL de mesmo nome (`BillingResponse`) so para poder ler este campo, e a
+   * espera pos-checkout inteira depende dele. Duas interfaces homonimas com
+   * formatos diferentes e pior que uma incompleta: o import certo passa a ser
+   * sorte.
+   *
+   * A deteccao usa `subscription_id` e nao o rotulo do plano porque comparar
+   * rotulos falha quando a base e o alvo coincidem — alguem no Pro que cancela e
+   * recompra Pro. O id do Stripe e unico por sessao de checkout, entao qualquer
+   * compra produz diferenca.
+   */
+  subscription_id?: string;
 }
 
 export interface BillingPlanPrice {
