@@ -67,3 +67,36 @@ describe('isSafeRedirectUrl — EC-2 OWASP A01 defense', () => {
     expect(SAFE_REDIRECT_ORIGINS).toContain('https://app.usetheo.dev');
   });
 });
+
+/**
+ * Caminhos relativos — a classe que o guard rejeitava por engano.
+ *
+ * `new URL('/x')` lanca sem base, entao `isSafeRedirectUrl('/device-success')`
+ * devolvia false: o destino MAIS seguro possivel (mesma origem, sem host) era
+ * tratado como hostil. Em producao isso quebraria o fluxo de device-verify
+ * inteiro — a pagina existe para seguir o redirect do servidor.
+ *
+ * Os unitarios nao pegaram porque so exercitavam URLs absolutas. Quem pegou foi
+ * o e2e (`e2e/device-verify.spec.ts:57`), cujo mock devolve
+ * `redirect_to: '/device-success?simulated=1'`. Vale a lição: um guard testado
+ * so com a forma que o autor imaginou é um guard testado pela metade.
+ */
+describe('safe-redirect — caminhos relativos e as armadilhas ao lado deles', () => {
+  it('aceita caminho relativo de mesma origem', () => {
+    expect(isSafeRedirectUrl('/device-success')).toBe(true);
+    expect(isSafeRedirectUrl('/device-success?simulated=1')).toBe(true);
+    expect(isSafeRedirectUrl('/a/b/c#frag')).toBe(true);
+  });
+
+  it('RECUSA protocol-relative, que parece caminho e nao e', () => {
+    // `//evil.com` resolve para `https://evil.com` sob a origem da pagina — e a
+    // armadilha classica de quem trata "comeca com /" como sinonimo de seguro.
+    expect(isSafeRedirectUrl('//evil.com')).toBe(false);
+    expect(isSafeRedirectUrl('//evil.com/path')).toBe(false);
+  });
+
+  it('RECUSA esquemas hostis mesmo com a base presente', () => {
+    expect(isSafeRedirectUrl('javascript:alert(1)')).toBe(false);
+    expect(isSafeRedirectUrl('data:text/html,<script>alert(1)</script>')).toBe(false);
+  });
+});

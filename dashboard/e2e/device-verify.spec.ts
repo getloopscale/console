@@ -82,3 +82,36 @@ test.describe('J-05 Device Verify — dogfood Cenários (DOM-driven)', () => {
     await expect(page.getByTestId('device-verify-error')).toContainText(/Invalid user code/i);
   });
 });
+
+/**
+ * Cenário 4 — a propriedade de segurança, ponta a ponta.
+ *
+ * Os unitários ja cobrem a DECISAO (`safe-redirect.test.ts`) e o uso dela na
+ * pagina (`device-verify.test.tsx`). Este caso cobre a FIACAO: que a decisao de
+ * fato governa a navegacao do browser.
+ *
+ * Vale escrever porque o e2e ja provou pegar o que os unitarios nao pegaram —
+ * o guard rejeitava `/device-success`, um caminho relativo de mesma origem, e
+ * nenhum unitario acusou porque todos exercitavam URL absoluta. Um guard testado
+ * so na forma que o autor imaginou e um guard testado pela metade.
+ */
+test('Cenário 4: um redirect_to hostil NAO move a pagina', async ({ page, context }) => {
+  await context.route('**/v1/auth/device/accept', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      // Origem fora da allowlist: o caso do servico de auth mal configurado ou
+      // de uma resposta injetada.
+      body: JSON.stringify({ redirect_to: 'https://phishing.example.com/login' }),
+    });
+  });
+
+  await page.goto('/device-verify?device_challenge=chal-abc&user_code=YC7V3TSE');
+  await page.getByTestId('device-verify-submit').click();
+
+  // O erro aparece...
+  await expect(page.getByTestId('device-verify-error')).toBeVisible();
+  // ...e, o que importa de verdade: a pagina NAO saiu do lugar.
+  await expect(page).toHaveURL(/\/device-verify/);
+  expect(page.url()).not.toContain('phishing.example.com');
+});

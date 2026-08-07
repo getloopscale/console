@@ -32,7 +32,29 @@ export function isSafeRedirectUrl(raw: string | null | undefined): boolean {
   }
   let url: URL;
   try {
-    url = new URL(raw);
+    // BASE OBRIGATORIA. Sem ela, `new URL('/device-success')` LANCA — um caminho
+    // relativo nao tem origem — e o guard rejeitava o destino mais seguro que
+    // existe: mesma origem, sem host. O e2e pegou (`device-verify.spec.ts:57`);
+    // os testes unitarios nao, porque so exercitavam URLs absolutas.
+    //
+    // Com a base, a checagem de origem abaixo continua fazendo todo o trabalho:
+    // `/device-success` resolve para a propria origem e passa; `//evil.com`
+    // resolve para `https://evil.com` e e recusado como qualquer outro host de
+    // fora. Um caminho relativo NAO ganha excecao — ele so passa a ser resolvido
+    // antes de ser julgado.
+    // A base so entra quando a entrada COMECA com `/`. Aplicar base a qualquer
+    // string tornaria `'not a url'` valido — ele resolveria para
+    // `<origem>/not%20a%20url`, que e mesma origem e portanto "seguro", mas
+    // navegar para lixo nao e o comportamento certo: entrada malformada deve
+    // virar erro visivel, nao uma navegacao silenciosa para um 404.
+    //
+    // `//evil.com` tambem comeca com `/` e recebe a base — de proposito: ele
+    // resolve para `https://evil.com` e e recusado pela checagem de origem, que
+    // e onde essa decisao pertence. Nao existe atalho "comeca com / logo e
+    // seguro"; a resolucao acontece antes do julgamento, nunca no lugar dele.
+    const base =
+      raw.startsWith('/') && typeof window !== 'undefined' ? window.location.origin : undefined;
+    url = base ? new URL(raw, base) : new URL(raw);
   } catch {
     return false;
   }
