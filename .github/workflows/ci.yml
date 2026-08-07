@@ -92,6 +92,7 @@ jobs:
       # it over HTTPS with the PAT. NEVER printed; same mechanism as the Dockerfile.
       - name: Configure private module access (theo-contracts)
         run: |
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheoai/".insteadOf "https://github.com/usetheoai/"
           git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
@@ -115,7 +116,7 @@ jobs:
       - name: Run the full e2e suite (make e2e)
         working-directory: theo-cloud/theo-cloud
         env:
-          GOPRIVATE: github.com/usetheodev/*
+          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
         run: |
           # As imagens dos vizinhos vem PINADAS POR DIGEST de `.github/e2e-images.env`, nao de
           # um checkout do repo deles. `run.sh` ja aceitava `*_IMAGE`; o mecanismo existia e
@@ -174,6 +175,7 @@ jobs:
 
       - name: Configure private module access (theo-contracts)
         run: |
+          git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheoai/".insteadOf "https://github.com/usetheoai/"
           git config --global url."https://x-access-token:${GOMOD_TOKEN}@github.com/usetheodev/".insteadOf "https://github.com/usetheodev/"
         env:
           GOMOD_TOKEN: ${{ secrets.GOMOD_TOKEN }}
@@ -236,7 +238,7 @@ jobs:
       - name: Run the edge ForwardAuth e2e (make e2e-edge)
         working-directory: theo-cloud/theo-cloud
         env:
-          GOPRIVATE: github.com/usetheodev/*
+          GOPRIVATE: github.com/usetheoai/*,github.com/usetheodev/*
           # Aponta o run.sh para o checkout vizinho EXPLICITAMENTE. Este comentario ja
           # existia descrevendo a correcao — e as variaveis nunca foram adicionadas, entao
           # o default continuou resolvendo para um caminho inexistente. O default tambem
