@@ -1,6 +1,8 @@
 ---
-status: proposed
+status: accepted
 date: 2026-08-06
+executado-em: 2026-08-08
+origem-da-execucao: B-055 (cache de API) · B-074 (requisito do SW)
 decision-makers: time do dashboard theo-cloud
 origem: tradeoff_decisions#12 · scaling_findings#7 · system_design_findings#9
 ---

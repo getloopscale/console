@@ -1532,8 +1532,7 @@ dod:
   - Alinhar src/pages/memory/entities.tsx ao padrao de src/pages/memory/memories.tsx:95: mandar limit=PAGE_SIZE e offset no querystring, incluir offset na queryKey (linha 91) para o cache do TanStack Query paginar corretamente, e mover o filtro de substring da linha 121 para um parametro de busca no...
   - o request emitido por `src/pages/memory/entities.tsx` carrega teto explicito (limit/offset) — verificavel no painel Network ou por teste sobre o handler MSW
 
-## B-055 — O Service Worker adiciona uma segunda camada de cache sobre a API que contradiz o staleTime do app em 60x, e o proprio codigo documenta tres...   [ ]
-
+## B-055 — O Service Worker adiciona uma segunda camada de cache sobre a API que contradiz o staleTime do app em 60x, e o proprio codigo documenta tres...   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: evolve
@@ -1543,7 +1542,7 @@ category: premature_distribution
 evidence: vite.config.ts:162 — MEDIDO por leitura: vite.config.ts:162-169 { urlPattern: /\/api\/v1\//, handler: NetworkFirst, networkTimeoutSeconds: 3, expiration: { maxEntries: 100, maxAgeSeconds: 60*60 } }. src/lib/query-client.ts:38-42 new QueryClient com staleTime 60_000 e gcTime 5*60_000 (coberto por src/lib/query-client.test.ts:11 test_default_staleTime_60s). src/lib/api.ts:253 engineFetch chama cloudFetch(/engine +...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · scaling#7
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 dod:
   - Remover a regra NetworkFirst de /api/v1/ do runtimeCaching em vite.config.ts:162 e deixar o TanStack Query como unica camada de cache de dados de servidor — ele ja tem invalidacao por queryKey, que o SW nao tem
   - a decisao fica escrita e a configuracao em `vite.config.ts` reflete o que foi decidido
@@ -1570,6 +1569,27 @@ tres invalidacoes ficaram apontando para chaves mortas e o que faltava em todas 
 O QUE SEGUE SENDO SUA DECISAO (B-074): se o SW deve cachear a API. Um dashboard operacional servindo dado de uma hora atras quando
 a rede cai pode ser o certo (melhor que nada) ou o errado (mostrar um deploy como "rodando" quando ele falhou). O buraco corrigido
 existia INDEPENDENTEMENTE dessa escolha.
+
+
+fechado_2026-08-08: a regra `NetworkFirst` de `/api/v1/` SAIU. `dist/sw.js` construido nao contem mais o cache `theo-api`; restam `theo-assets`
+e `theo-config`. O TanStack Query passa a ser a unica camada de cache de dado de servidor — ele tem invalidacao por `queryKey`, o SW nao tem
+nada equivalente, e era por isso que as duas nao podiam coexistir sobre o mesmo dado.
+
+A DECISAO JA EXISTIA E NAO TINHA SIDO EXECUTADA. `ADR-0004` escolheu esta exata opcao em 2026-08-06, com alternativas e consequencias
+escritas, e o config seguiu com a regra por mais dois dias. O item nao descobriu nada: ele executou.
+
+O DEFEITO NAO ERA "o cache fica velho". Era: o Query decide que expirou aos 60 s e refaz a busca; a rede demora mais que os 3 s de
+`networkTimeoutSeconds`; o SW responde do cache com dado de ate UMA HORA; e o Query guarda essa resposta COMO FRESCA por mais 60 s. A camada
+de baixo mente para a de cima, e a de cima nao tem como saber — `Cache-Control` nao atravessa a fronteira do Workbox de volta.
+
+GUARD: `src/build/sw-runtime-caching.test.ts`. As regras sairam do `vite.config.ts` para `src/build/sw-runtime-caching.ts` — mesma razao pela
+qual `sw-bff-paths.ts` saiu antes: lista dentro de config de build nao tem como ser testada, e esta superficie ja produziu tres incidentes
+(#112, #203, e o `urlPattern` como funcao que derrubou o roteamento inteiro do SW).
+
+O guard checa SIGNIFICADO, nao texto. Procurar a string `/api/v1/` verificaria a FORMA — a regra voltaria como `/\/engine\//`, ou host
+absoluto, ou `\/v\d+\/`, e passaria limpa guardando o mesmo dado. Entao ele pega caminhos que o app REALMENTE chama e exige que nenhum
+`urlPattern` com handler que armazena case com eles. Inclui a forma prefixada por `/engine`, que era como a regra antiga alcancava o control
+plane sem nome-lo. Verificado falhando nos 8 caminhos antes da remocao.
 
 ## B-056 — A conversa da sessao dispara ate 50 GETs paralelos de arvore de spans — um por turno — por falta de endpoint em lote   [x]
 
@@ -2022,8 +2042,7 @@ dod:
   - O ciclo de init impede chunk dedicado para as familias de UI, mas NAO impede tratar TipTap, markdown e syntax-highlight como a familia force-graph ja e tratada: devolver undefined para elas em manual-chunks.ts e deixar o Rollup coloca-las no chunk dinamico do consumidor
   - mudanca verificavel em `src/build/manual-chunks.ts` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-074 — Service worker / PWA (vite-plugin-pwa + Workbox) num dashboard operacional autenticado   [ ]
-
+## B-074 — Service worker / PWA (vite-plugin-pwa + Workbox) num dashboard operacional autenticado   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: evolve
@@ -2034,7 +2053,7 @@ evidence: vite.config.ts:86 — vite.config.ts:86-91 comentario T4.2 documentand
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#12
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 dod:
   - Escrever 5 linhas de ADR respondendo 'o SW existe para que?'
   - mudanca verificavel em `vite.config.ts` com `npx tsc --noEmit` + `npm test` verdes
@@ -2061,6 +2080,26 @@ tres invalidacoes ficaram apontando para chaves mortas e o que faltava em todas 
 O QUE SEGUE SENDO SUA DECISAO (B-074): se o SW deve cachear a API. Um dashboard operacional servindo dado de uma hora atras quando
 a rede cai pode ser o certo (melhor que nada) ou o errado (mostrar um deploy como "rodando" quando ele falhou). O buraco corrigido
 existia INDEPENDENTEMENTE dessa escolha.
+
+
+fechado_2026-08-08: o requisito esta escrito, e foi MEDIDO em vez de escolhido. Ficou em `ADR-0004` (que ja perguntava exatamente
+isto e mandava a resposta ser escrita nele) em vez de um ADR novo — havia um lugar certo, criar outro produziria dois.
+
+> O SW entrega a politica de cache de assets que o nginx NAO entrega, e atualiza abas de vida longa sem exigir que a pessoa feche todas elas.
+
+A MEDICAO CORRIGIU UMA PREMISSA FALSA DA PROPRIA ADR-0004. Ela apresentava a opcao "remover o SW inteiro" com o argumento de que "o nginx.conf
+versionado ja emite os headers de cache de assets". **Ele nao emite.** Li as 55 linhas: nao ha `expires`, nao ha `Cache-Control`, nao ha
+`immutable`. A unica coisa que o nginx manda e `ETag`/`Last-Modified`, entao sem o SW cada asset com hash no nome pagaria uma revalidacao
+condicional por carregamento.
+
+Uma ADR que justifica uma opcao com um fato falso e pior que uma sem justificativa: a proxima pessoa a considerar remover o SW teria comecado
+de uma base errada, e o custo so apareceria em producao.
+
+A segunda metade do requisito nao e cosmetica num painel de operacao: quem opera deixa a aba aberta por dias, e sem `skipWaiting` so veria a
+versao nova depois de fechar todas. Isso ja estava no comentario original do `skipWaiting` desde sempre — nunca tinha sido promovido a
+requisito, que e a diferenca entre uma opcao configurada e uma decisao.
+
+Mudanca verificavel em `vite.config.ts`: as regras de `runtimeCaching` viraram um modulo importado e testado. tsc e suite verdes.
 
 ## B-075 — React Compiler (auto-memoizacao via babel-plugin-react-compiler) ativo em todo o build   [x]
 
@@ -2854,3 +2893,22 @@ corrigido no mesmo commit; nao existia em 2026-08-07 01:09.
 PARA QUEM PEGAR ISTO DEPOIS: as tres hipoteses acima ja foram queimadas. Se recorrer, capture no momento
 `DEBUG=vite:* npx vitest run` e o conteudo de `node_modules/.vite` — sem isso a proxima investigacao
 comeca do zero como esta comecou.
+
+## B-100 — `nginx.conf` do dashboard nao emite nenhum header de cache   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+evidence: `dashboard/nginx.conf` (55 linhas, lidas inteiras, 2026-08-08) — nao ha `expires`, `Cache-Control` nem `immutable` em nenhuma
+  `location`. O `location /` faz apenas `try_files $uri /index.html`.
+why_now: medido ao responder B-074. O `ADR-0004` afirmava que "o nginx.conf versionado ja emite os headers de cache de assets" e usava isso
+  para justificar a opcao de remover o service worker inteiro. A premissa e falsa, e enquanto ela ficar de pe a opcao 3 do ADR nao pode ser
+  executada: remover o SW hoje faria cada asset com hash no nome pagar uma revalidacao condicional por carregamento, porque a unica coisa que
+  o nginx manda e `ETag`/`Last-Modified`.
+status: raw
+dod:
+  - `nginx.conf` emite `Cache-Control: public, max-age=31536000, immutable` para `/assets/` (nomes tem hash, entao e seguro) e `no-cache`
+    para `index.html` e `__config.js`
+  - existe teste ou verificacao que FALHA no estado atual
+  - o pre-requisito da opcao 3 do `ADR-0004` fica desbloqueado, e o ADR registra que foi

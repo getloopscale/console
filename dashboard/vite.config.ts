@@ -12,7 +12,8 @@ import { manualChunks } from './src/build/manual-chunks';
 // single source of truth shared by navigateFallbackDenylist + the NetworkOnly
 // runtimeCaching predicate, so a BFF navigation path can never be added to one and
 // forgotten in the other (the recurring #112/#203 bug class).
-import { BFF_NAVIGATION_DENYLIST, BFF_NAVIGATION_REGEXP } from './src/build/sw-bff-paths';
+import { BFF_NAVIGATION_DENYLIST } from './src/build/sw-bff-paths';
+import { SW_RUNTIME_CACHING } from './src/build/sw-runtime-caching';
 
 /**
  * Dev-only CSP relaxation. The index.html `<meta>` CSP is PRODUCTION-shaped
@@ -163,45 +164,7 @@ export default defineConfig(({ mode }) => ({
         // outage). Mirror in runtimeCaching below as NetworkOnly so the
         // path never enters any cache, even after warmup.
         navigateFallbackDenylist: [...BFF_NAVIGATION_DENYLIST],
-        runtimeCaching: [
-          // Auth/session — NetworkOnly (no fallback, no cache).
-          // urlPattern MUST be a RegExp value, not a function referencing the
-          // isBffNavigationPath import — Workbox stringifies the pattern into sw.js
-          // without bundling imports, so a function form emits an undefined identifier
-          // → "ReferenceError: isBffNavigationPath is not defined" that crashes ALL SW
-          // routing (uploads included). BFF_NAVIGATION_REGEXP is the self-contained,
-          // single-source union of the denylist (see src/build/sw-bff-paths.ts).
-          {
-            urlPattern: BFF_NAVIGATION_REGEXP,
-            handler: 'NetworkOnly',
-          },
-          // Generic API — NetworkFirst with 3s timeout, cache fallback.
-          {
-            urlPattern: /\/api\/v1\//,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'theo-api',
-              networkTimeoutSeconds: 3,
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 },
-            },
-          },
-          // Static assets — CacheFirst, 30 days.
-          {
-            urlPattern: /\.(js|css|woff2?|svg|png|webp)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'theo-assets',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          // Runtime config — StaleWhileRevalidate (rarely changes but must
-          // refresh eventually after rotation).
-          {
-            urlPattern: /\/__config\.js$/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'theo-config' },
-          },
-        ],
+        runtimeCaching: [...SW_RUNTIME_CACHING],
         // skipWaiting + clientsClaim: new SW activates immediately em next
         // page load. Without these, SW waits all tabs close → SPA user com
         // tab aberta nunca recebe update.

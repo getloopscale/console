@@ -39,7 +39,20 @@
  * Prefixo, e não nome exato, porque o Workbox versiona (`theo-api-v3`). Casar
  * por igualdade deixaria um cache renomeado sobreviver ao logout, em silêncio.
  *
- * Espelha o `runtimeCaching` de `vite.config.ts`. Um `cacheName` novo de dado
+ * ## `theo-api` continua aqui DEPOIS de a regra ter saído do build
+ *
+ * Desde o `ADR-0004`/B-055 o service worker não guarda mais dado de servidor, e
+ * um build novo nunca cria `theo-api`. Manter a entrada não é resíduo: **o
+ * service worker que está instalado no navegador de alguém ainda tem o cache
+ * dele.** Ele só é substituído quando aquela pessoa carrega a página de novo, e
+ * até lá o dado do tenant anterior continua em disco.
+ *
+ * Ou seja, o único momento em que esta linha importa é exatamente o que ela
+ * cobre: alguém com a versão velha instalada faz logout. Apagá-la porque "o
+ * build não cria mais" seria raciocinar sobre o código, não sobre os
+ * navegadores que existem.
+ *
+ * Espelha `src/build/sw-runtime-caching.ts`. Um `cacheName` novo de dado
  * precisa entrar aqui — `logout-cache-purge.test.ts` é a única coisa que
  * lembra disso.
  */
