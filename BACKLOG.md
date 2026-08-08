@@ -1340,8 +1340,7 @@ impeca os dois ESCREVEREM no mesmo arquivo sem a forma funcional. Nao ha 28 arqu
 NAO virou plano por isso: a Regra de Qualidade 0 do /to-plan pede uma metrica, e a metrica honesta
 aqui nao e "28 -> 0". Um plano de migracao seria trabalho contra um defeito que a medicao nao achou.
 
-## B-047 — Estado de servidor guardado em useState com polling manual por setInterval, ao lado de hooks que ja fazem isso declarativamente   [ ]
-
+## B-047 — Estado de servidor guardado em useState com polling manual por setInterval, ao lado de hooks que ja fazem isso declarativamente   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: review
@@ -1351,7 +1350,7 @@ category: state_synchronization_issue
 evidence: src/pages/project-connect.tsx:170 — project-connect.tsx:68 `const [conn, setConn] = useState<ProjectConnection|null>(null)` (13 useState no total, 696 LOC) e :170 `const id = window.setInterval(async () => {...}, POLL_INTERVAL_MS)`; src/pages/billing.tsx:91 `const poll = setInterval(async () => { ... await cloudFetch<BillingResponse>("/v1/billing") ... }, 2000)` com maxAttempts=15. Compare com...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#9
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 analise_2026-08-06: reavaliado duas vezes e mantido FORA do escopo de sessao. O polling nao e um setInterval isolado: `fetchConn` (project-connect.tsx:101) faz setConn + setLoading imperativos, e `conn` alimenta uma FSM (`state`) que decide a UI inteira do arquivo — 696 LOC, 16 useState. Migrar para useQuery+refetchInterval significa inverter quem e dono de `conn`, e junto vem replicar tres comportamentos que hoje sao explicitos: o teto de 5 min (POLL_TIMEOUT_MS) com mensagem de erro propria, o refetch por visibilitychange com debounce de 500ms (que refetchOnWindowFocus cobre so em parte), e a parada em transicao de estado. Os testes existentes cobrem o observavel, nao os caminhos de timeout — entao o refactor seria feito sem rede. Recomendacao: /to-plan proprio, junto de B-009 (decomposicao de project-connect.tsx, que ja esta na allowlist de max-lines com 696 LOC).
 dod:
   - Migrar para useQuery com refetchInterval derivado do dado, seguindo src/hooks/use-provisioning-status.ts:52; extrair src/hooks/use-project-connection.ts e src/hooks/use-billing-activation.ts
@@ -1380,6 +1379,39 @@ locais (`BillingResponse` e `UsageMetric`) sairam. O proprio types.ts ja documen
 manda, a tela le e o contrato nao declara e drift silencioso".
 
 8 testes novos, sondados: desligar o ramo de falha persistente derruba 1.
+
+
+fechado_2026-08-08: migrado para `useQuery` + `refetchInterval`. E A ANALISE QUE MANTINHA O ITEM FORA DE ESCOPO ESTAVA ERRADA.
+
+Ela dizia: "os testes existentes cobrem o observavel, nao os caminhos de timeout — entao o refactor seria feito sem rede". Os tres testes
+existem, com estes nomes: `test_polling_stops_on_installation_id_received`, `test_polling_max_5min_then_error`,
+`test_visibilitychange_debounced_500ms`. E sao FORTES: contam requisicoes e aferem texto especifico. Um `grep it(` teria bastado. O item ficou
+dois dias fora de escopo por uma premissa que ninguem checou — terceira vez hoje (ADR-0004/nginx, Playwright/jsdom).
+
+A rede fez o trabalho dela: os 10 testes FALHARAM juntos na primeira tentativa, e cada correcao foi guiada por eles.
+
+O QUE SAIU: 2 useState (`conn`, `loading`), 1 useEffect de busca inicial, 1 setInterval de 2 s, 1 useRef guardando o fetch mais recente (ele
+existia so porque os efeitos de polling nao podiam se reinscrever sem reiniciar o timer) e 1 useRef de inicio do polling que virou orfao.
+16 useState -> 12.
+
+DOIS ACHADOS QUE A MIGRACAO EXPOS:
+
+(1) TDZ EM RUNTIME QUE O TSC NAO ACUSA. `refetchInterval` lendo `state` estoura com "Cannot access 'state' before initialization" — o
+TanStack avalia a opcao DURANTE o hook, e `state` deriva da propria consulta. Como funcao o tsc aceita e o runtime nao. A saida nao foi
+repetir as cinco condicoes da FSM no `refetchInterval` (dois donos da mesma regra), e sim extrai-la para funcao pura. Ela ganhou 12 casos de
+teste diretos — antes so era exercitavel montando a arvore e clicando.
+
+(2) A CLASSE #274, MAIS VELHA QUE A MIGRACAO. `silent-null-guard` acusou a consulta no instante em que ela virou `useQuery`: o `engineFetch`
+sem `throwOnError` devolvia `null` tanto para o 404 legitimo ("ainda nao conectado") quanto para um 500. Um 500 renderizava a tela de
+"conecte seu repositorio" — o operador lia "voce nao tem conexao" quando a verdade era "nao consegui perguntar". Agora o 404 e tratado como
+RESPOSTA e o resto sobe, com ramo de erro proprio na tela. O defeito ja existia; buscar o dado a mao o mantinha invisivel para o guard.
+
+ONDE AS PECAS FORAM PARAR: `hooks/projects/use-project-connection.ts` (a consulta, por ADR-0006) e `hooks/projects/connect-fsm.ts` (a FSM
+pura). A FSM tentou morar em `pages/projects/` primeiro; o `no-restricted-imports` acusou o hook importando de `pages/` e a mensagem dele ja
+dizia a saida. ADR-0001 D4.1: quando residencia e camada colidem, a camada vence.
+
+E a pagina caiu de 696 para 664 linhas — 32 abaixo, teto da catraca baixado junto. billing.tsx, a outra metade da evidencia, ja nao tem
+setInterval nenhum: essa parte envelheceu.
 
 ## B-048 — 20 endpoints sao buscados de mais de um arquivo; /v1/dashboard/rag/collections aparece em 7 paginas diferentes   [x]
 

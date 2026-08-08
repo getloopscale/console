@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useConexaoDoProjeto } from '@/hooks/projects/use-project-connection';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Github, Link2, Loader2, Unlink2 } from 'lucide-react';
 import { Badge, Button, Card, Checkbox, Input, Label, PageShell } from '@usetheo/ui';
@@ -7,6 +8,8 @@ import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { engineFetch } from '@/lib/http/api';
+import { derivarConexaoEfetiva, derivarEstado } from '@/hooks/projects/connect-fsm';
+import type { ConnectState } from '@/hooks/projects/connect-fsm';
 import type {
   InstallationRepositoriesResponse,
   InstallationRepository,
@@ -33,15 +36,21 @@ import type {
  * branch, auto_deploy} payload the backend persists the installation via
  * engine.LinkRepository -- no extra call needed from the dashboard.
  */
-type ConnectState =
-  | 'idle'
-  | 'installing'
-  | 'has_installation'
-  | 'connected'
-  | 'error';
-
-const POLL_INTERVAL_MS = 2_000;
 const POLL_TIMEOUT_MS = 5 * 60 * 1_000; // 5 min cap (EC-3 cancel guard)
+/**
+ * A mensagem do prazo esgotado.
+ *
+ * Ela vai para `installError` e não para um sinalizador próprio, e isso é o que
+ * faz o polling parar: `installError` é entrada da FSM, então preenchê-lo tira
+ * o estado de `installing`, e `refetchInterval` devolve `false` na sequência.
+ *
+ * Um sinalizador separado teria virado laço: o efeito do prazo o zeraria ao sair
+ * de `installing`, a mensagem sumiria, a FSM voltaria a `installing`, e o prazo
+ * recomeçaria. Uma peça de estado a menos, e ela já é reiniciada no lugar certo
+ * — `handleInstallClick`, que sempre limpou o `installError`.
+ */
+const MENSAGEM_PRAZO_DO_INSTALL =
+  "We didn't see the GitHub install complete. Try again from the install button.";
 const VISIBILITY_DEBOUNCE_MS = 500;
 
 export function ProjectConnectPage() {
@@ -65,8 +74,6 @@ export function ProjectConnectPage() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
   })();
 
-  const [conn, setConn] = useState<ProjectConnection | null>(null);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('main');
@@ -84,106 +91,56 @@ export function ProjectConnectPage() {
   const [selectedRepo, setSelectedRepo] = useState('');
   const [repoFilter, setRepoFilter] = useState('');
 
-  const fetchConnRef = useRef<() => Promise<ProjectConnection | null>>(() =>
-    Promise.resolve(null),
-  );
   const lastVisibilityFetchRef = useRef(0);
-  const pollStartRef = useRef(0);
 
-  // Normalize the engine response. Backend returns 404 + NOT_CONNECTED
-  // when no row exists in project_repositories yet, which engineFetch
-  // surfaces as `null`. Semantically that's the "not connected, no
-  // install" state -- treat it as a valid ProjectConnection shape so
-  // every downstream consumer can rely on a non-null object.
-  const normalize = (data: ProjectConnection | null): ProjectConnection =>
-    data ?? { connected: false };
 
-  const fetchConn = useMemo(() => {
-    return async (): Promise<ProjectConnection> => {
-      const data = await engineFetch<ProjectConnection>(
-        `/api/v1/projects/${encodeURIComponent(name)}/connect`,
-      );
-      const normalized = normalize(data);
-      setConn(normalized);
-      setLoading(false);
-      return normalized;
-    };
-  }, [name]);
-  // Keep a ref to the latest fetchConn so polling effects don't need to
-  // re-subscribe every render -- they read fetchConnRef.current.
-  fetchConnRef.current = fetchConn;
+  const conexao = useConexaoDoProjeto(name, {
+    busy,
+    repoUrl,
+    connectError,
+    installError,
+    installedQueryID,
+  });
+  const conn = conexao.data ?? null;
+  const loading = conexao.isLoading;
 
   // Effective conn: merge ?installation_id=<id> query param into the
   // backend response so the FSM transitions to has_installation right
   // after the callback redirect, without waiting for project_repositories
   // to be populated (which only happens after POST /connect). Backend
   // installation_id always wins if present (post-Connect persistence).
-  const effectiveConn: ProjectConnection | null = useMemo(() => {
-    if (!conn) {
-      // Backend response still in flight AND we already know the install
-      // id from the URL? Render the picker without waiting.
-      if (installedQueryID) {
-        return { connected: false, installation_id: installedQueryID };
-      }
-      return null;
-    }
-    if (conn.installation_id || conn.connected) return conn;
-    if (installedQueryID) return { ...conn, installation_id: installedQueryID };
-    return conn;
-  }, [conn, installedQueryID]);
+  const effectiveConn = useMemo(
+    () => derivarConexaoEfetiva(conn, installedQueryID),
+    [conn, installedQueryID],
+  );
 
   // FSM derivation. Single useState would have desync hazards across
   // refetches; deriving from `effectiveConn` keeps the FSM as a function
   // of state.
-  const state: ConnectState = useMemo(() => {
-    if (!effectiveConn) return 'idle';
-    if (effectiveConn.connected) return 'connected';
-    if (effectiveConn.installation_id) return 'has_installation';
-    if (busy && repoUrl === '' && connectError === null && installError === null) {
-      return 'installing';
-    }
-    return 'idle';
-  }, [effectiveConn, busy, repoUrl, connectError, installError]);
+  const state: ConnectState = useMemo(
+    () => derivarEstado(effectiveConn, { busy, repoUrl, connectError, installError }),
+    [effectiveConn, busy, repoUrl, connectError, installError],
+  );
 
-  // Initial fetch.
-  useEffect(() => {
-    if (!name) return;
-    let cancelled = false;
-    void engineFetch<ProjectConnection>(
-      `/api/v1/projects/${encodeURIComponent(name)}/connect`,
-    ).then((data) => {
-      if (cancelled) return;
-      setConn(normalize(data));
-      setLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name]);
 
-  // Polling effect — only active while state === 'installing'.
+  /**
+   * O PRAZO do polling — e só ele. O polling em si é `refetchInterval`.
+   *
+   * A separação é o ponto: antes um único `setInterval` fazia as duas coisas, e
+   * o teto de 5 min era checado DENTRO do tique. Isso amarrava a precisão do
+   * prazo ao período do tique e escondia a regra no meio do laço de busca.
+   *
+   * Agora o `setTimeout` cuida do prazo (que é o trabalho dele) e a mensagem de
+   * erro é DERIVADA do sinalizador, em vez de escrita por efeito colateral de
+   * dentro do tique.
+   */
   useEffect(() => {
     if (state !== 'installing') return;
-    if (pollStartRef.current === 0) pollStartRef.current = Date.now();
-
-    const id = window.setInterval(async () => {
-      if (Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) {
-        window.clearInterval(id);
-        pollStartRef.current = 0;
-        setInstallError(
-          "We didn't see the GitHub install complete. Try again from the install button.",
-        );
-        return;
-      }
-      try {
-        await fetchConnRef.current();
-      } catch {
-        // Transient -- next tick retries.
-      }
-    }, POLL_INTERVAL_MS);
-
-    return () => window.clearInterval(id);
+    const id = window.setTimeout(
+      () => setInstallError(MENSAGEM_PRAZO_DO_INSTALL),
+      POLL_TIMEOUT_MS,
+    );
+    return () => window.clearTimeout(id);
   }, [state]);
 
   // Visibility-change refetch: when user comes back from the GitHub
@@ -197,7 +154,7 @@ export function ProjectConnectPage() {
       const now = Date.now();
       if (now - lastVisibilityFetchRef.current < VISIBILITY_DEBOUNCE_MS) return;
       lastVisibilityFetchRef.current = now;
-      void fetchConnRef.current();
+      void conexao.refetch();
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
@@ -208,7 +165,7 @@ export function ProjectConnectPage() {
   // updated-access landing page during incident triage.
   useEffect(() => {
     if (!isAccessUpdated) return;
-    void fetchConnRef.current();
+    void conexao.refetch();
   }, [isAccessUpdated]);
 
   // T2.2 — fetch repos when we transition into has_installation. We do
@@ -241,7 +198,6 @@ export function ProjectConnectPage() {
 
   const handleInstallClick = () => {
     setInstallError(null);
-    pollStartRef.current = Date.now();
     const returnTo = encodeURIComponent(
       `/projects/${encodeURIComponent(name)}/connect`,
     );
@@ -256,7 +212,7 @@ export function ProjectConnectPage() {
     setBusy(true);
     // Trigger an immediate poll so state flips to 'installing' even
     // before the 2s interval fires.
-    void fetchConnRef.current();
+    void conexao.refetch();
   };
 
   const handleDisconnect = async () => {
@@ -267,7 +223,7 @@ export function ProjectConnectPage() {
         `/api/v1/projects/${encodeURIComponent(name)}/connect`,
         { method: 'DELETE' },
       );
-      await fetchConn();
+      await conexao.refetch();
       setDisconnectOpen(false);
     } catch (e) {
       // M18: a failed disconnect must NOT no-op silently (the repo stays
@@ -326,7 +282,7 @@ export function ProjectConnectPage() {
         );
         return;
       }
-      await fetchConn();
+      await conexao.refetch();
       setRepoUrl('');
       setSelectedRepo('');
       setRepoFilter('');
@@ -334,6 +290,18 @@ export function ProjectConnectPage() {
       setBusy(false);
     }
   };
+
+  if (conexao.isError) {
+    return (
+      <PageShell title="Connect">
+        <Alert
+          intent="destructive"
+          title="Could not load the connection state"
+          description="The request to the engine failed. Reload the page to try again."
+        />
+      </PageShell>
+    );
+  }
 
   if (loading) {
     return (

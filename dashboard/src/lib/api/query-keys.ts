@@ -14,6 +14,9 @@ export const queryKeys = {
     list: (filters?: Record<string, unknown>) =>
       ['projects', 'list', filters ?? {}] as const,
     detail: (name: string) => ['projects', name] as const,
+    // B-047 — a conexão com o repositório. Sob `['projects', name]` de
+    // propósito: invalidar o projeto alcança a conexão dele.
+    conexao: (name: string) => ['projects', name, 'connect'] as const,
   },
   builds: {
     all: ['builds'] as const,

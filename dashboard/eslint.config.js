@@ -242,7 +242,7 @@ export default [
       'src/app.tsx', // 592 LOC (era 779 — B-003 extraiu as 83 declaracoes lazy)
       'src/pages/auth/recovery.tsx', // 711 LOC
       'src/pages/deploy/deployments.tsx', // 704 LOC
-      'src/pages/projects/project-connect.tsx', // 696 LOC
+      'src/pages/projects/project-connect.tsx', // 664 LOC
       'src/pages/deploy/components/deploy-timeline-hero.tsx', // 677 LOC
       'src/pages/memory/graph.tsx', // 690 LOC
       'src/pages/lens/evaluators.tsx', // 585 LOC
