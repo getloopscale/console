@@ -2636,7 +2636,7 @@ category: test_only_module
 evidence: medido em 2026-08-06 com `deadcode -test -json ./...` comparado a `deadcode` sem `-test`. `metering.NewTracker` (internal/metering/tracker.go:21) e `auth.NewIdentityMigrator` (internal/auth/migration.go:29) so aparecem como alcancaveis quando os pacotes de teste entram como raizes; os unicos chamadores sao tests/unit/metering_test.go:15 e tests/unit/migration_test.go:15. Nenhum caminho de producao os constroi.
 provenance: nao consta da auditoria /loop-system-design (que cobriu apenas dashboard/). Surgiu ao habilitar `go` no gate de code-quality.
 why_now: e o mesmo padrao que `src/lib/test-only-module-guard.test.ts` quantifica no dashboard — codigo com teste verde que producao nunca executa. A suite reporta cobertura sobre um caminho morto, o que e verdadeiro e irrelevante. `IdentityMigrator` em particular faz ponte entre identidades Kratos e usuarios legados: se a migracao nunca roda, ou ela ja nao e necessaria (apagar) ou ha uma ponte faltando (ligar).
-status: raw
+status: triaged
 dod:
   - para cada um dos dois: OU existe chamador de producao, OU o subsistema foi removido com seus testes
   - a decisao de cada um esta registrada, porque apagar uma migracao de identidade nao e faxina
@@ -2755,6 +2755,36 @@ progresso_2026-08-07: MEDIDO, e o item era MUITO menor que o achado. Os dois sub
   · metering -> issue #471 (P0/Billing). NENHUM caminho de producao pode criar a primeira linha de `usage_records` para a metrica `builds`. O Tracker (unico escritor primario) nao tem chamador; o Reconciler so insere quando driftPct <= 5%, e com recorded=0 o drift e SEMPRE 100% para qualquer tenant com builds — o ramo de auto-correcao e inalcancavel com a tabela vazia. O Reporter, que ESTA ligado, le uma tabela vazia. Consumo de build nunca chega ao Stripe. Causa provavel: `UPDATE builds` NAO EXISTE em Go neste repo (zero ocorrencias fora de teste) — a transicao de status pertence a engine, entao o ponto de chamada que o Tracker pressupoe esta do outro lado da fronteira. Nao foi 'esquecer de ligar'.
   · IdentityMigrator -> issue #472. O docblock afirma 'called after every successful authentication via Kratos' e nao e chamado. O caminho que roda (tenant.go:101) casa por `ON CONFLICT (id)`, e o migrador casava por E-MAIL. Um usuario legado com id != UUID do Kratos ganharia linha nova em users, Account nova e tenant novo — workspace vazio, projetos antigos presos ao id velho. NAO da para determinar deste repo se ainda existem usuarios nessa condicao; o issue traz as tres consultas que decidem entre 'apagar', 'ligar antes que entrem' e 'P0 de reconciliacao'.
   · o item SEGUE ABERTO: o dod pede chamador de producao OU remocao, e as duas dependem das respostas nos issues.
+
+
+medicao_2026-08-08: REMEDIDO. Os dois seguem com ZERO chamadores de producao. E NENHUM DOS DOIS PODE SER DECIDIDO POR QUEM ESCREVE CODIGO —
+a razao e diferente em cada um, e e isso que o item precisava registrar.
+
+TRACKER (metering) — o comentario dele descreve uma transacao que NAO EXISTE NESTE SERVICO.
+
+  `tracker.go:26` diz "Called atomically within the build status update transaction". Medido: nao ha tabela `builds` neste repositorio
+  (`grep -rl builds --include=*.sql` vazio) e nao ha `UPDATE builds` em Go. O ciclo de vida do build vive no engine (`theo`).
+
+  A ASSIMETRIA E O QUE TORNA ISSO UM P0 SILENCIOSO: a metade que LE `usage_records` e reporta ao Stripe esta ligada e roda
+  (`cmd/main.go:1824-1825`, NewReporter + NewReconciler). A que ESCREVE nunca e construida. O reporter roda com SUCESSO sobre tabela vazia —
+  sem erro, sem alerta, e o painel mostra zero uso como se zero uso fosse o fato.
+
+  NAO LIGUEI, e a razao e a Regra 1. O sinal in-repo mais proximo de "um build terminou" e o evento `deploy.succeeded` drenado pelo
+  `deploy_event_enqueuer`. Ligar o tracker ali exige decidir que UM DEPLOY BEM-SUCEDIDO CONTA COMO UM BUILD FATURAVEL — decisao de modelo de
+  cobranca, nao de wiring. Errar essa equivalencia cobra o cliente errado, nos dois sentidos. Medicao completa em #471.
+
+IDENTITYMIGRATOR — o proprio codigo declara o prazo de remocao, e ele VENCEU.
+
+  `migration.go:19-22`: "DEPRECATED ... Target removal: 2026-Q3. Once no rows in user_identity_map reference users that authenticate only via
+  the legacy GitHub flow, this can be dropped." Hoje e 2026-08-08, dentro do Q3. O prazo chegou.
+
+  NAO APAGUEI: a condicao de remocao e uma pergunta sobre DADOS DE PRODUCAO, nao sobre codigo, e eu nao tenho como consulta-la. O risco e
+  assimetrico — apagar cedo demais deixa um usuario legado sem ponte e ele cai numa conta/tenant NOVOS, que e o defeito do #472 tornado
+  permanente em vez de latente. A consulta que decide esta escrita no #472.
+
+O ITEM SEGUE ABERTO, e o bloqueio agora esta NOMEADO em vez de suposto. O DoD pede "chamador OU remocao"; os dois caminhos dependem de uma
+decisao (modelo de cobranca / consulta em producao) que nao e de quem le o codigo. O segundo bullet do DoD — "a decisao de cada um esta
+registrada" — avancou: o que faltava para decidir agora esta medido e nos dois issues.
 
 ## B-091 — Rename do module path Go: usetheodev -> usetheoai   [x]
 
