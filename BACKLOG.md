@@ -1783,6 +1783,30 @@ dod:
   - Escrever um ADR de 10 linhas que registre o split (qual pacote e dono do tema, qual e dono dos componentes, e o que fazer quando um bump de um quebra o outro) e atualizar DESIGN.md secao 3 — hoje ela nomeia uma versao e um pacote que nao correspondem ao que o app carrega
   - mudanca verificavel em `src/main.tsx` com `npx tsc --noEmit` + `npm test` verdes
 
+
+medicao_2026-08-08: PREMISSA DESMENTIDA, e o custo real virou o issue #474.
+
+O item diz "duas bibliotecas de UI coexistindo", implicando duplicacao. MEDIDO: as superficies sao DISJUNTAS.
+`@usetheo/ui` tem 116 exports e NENHUM casa `Theme*`, `Usage*` ou `violet*`. Uma da componentes (183 arquivos importam), a outra da
+o tema e um widget que a primeira nao tem (3 arquivos, 4 simbolos: TheoUIProvider, violetForge, UsageMeter, UsageMetric).
+Nao ha o que consolidar.
+
+O QUE EXISTE E CUSTO DE EMPACOTAMENTO, medido com ANALYZE=true + bundle-stats: `@theokit/ui` contribui 110,8 kB renderizados
+(POS-tree-shake) em 1645 modulos, dos quais 48,3 kB e o proprio barril `index.js` — o que indica que ele nao e so re-export. Contra
+358 kB do @usetheo/ui que serve 183 arquivos: 31% do custo para 1,6% do uso, no chunk vendor que e pre-carregado.
+
+NAO DA PARA IMPORTAR MENOS: o package.json expoe UMA entrada JS (`.`), e todos os outros subpaths sao CSS. Nao existe
+`@theokit/ui/theme`. E nao da para tornar lazy: o TheoUIProvider envolve a aplicacao em main.tsx, e a ejecao do vendor eager (o
+truque usado no canvas-confetti) nao se aplica a raiz.
+
+BLOQUEIO HONESTO: o package.json publicado nao tem `repository` nem `homepage`, e `usetheoai/theokit-app` NAO EXISTE — nao sei onde
+o pacote vive para filar contra ele. O issue #474 esta em theo-cloud, onde o custo e pago e a decisao cabe, com as quatro saidas
+(pedir subpath ao pacote / cortar o barril na origem / absorver os 4 simbolos / aceitar registrado).
+
+O item segue aberto porque a decisao e das quatro saidas, e ela nao e tecnica: absorver os simbolos quebra a razao de existir do
+pacote (ser a fonte unica do tema entre produtos) por 110 kB, e isso pode sair mais caro que os 110 kB. Aceitar tambem e legitimo —
+o TOTAL EAGER esta em 306,47 kB contra teto de 320. O que nao era legitimo era o numero nao existir.
+
 ## B-072 — Gerenciador de pacotes: npm na pratica, pnpm declarado no campo packageManager   [x]
 
 domain: frontend-dashboard
