@@ -223,6 +223,28 @@ MEDIDO em vez de declarado, que era exatamente o objetivo dela.
 Bundle caiu 0,38 kB (306,47 -> 306,09). O item SEGUE ABERTO: restam 119 rotas em 592 linhas, e a proxima fatia natural sao os
 grupos de rota por dominio — mas essa mexe em aninhamento e guarda, e tem risco diferente do corte mecanico de hoje.
 
+
+progresso_2026-08-08 (rede antes do proximo corte): a proxima fatia mexe em ANINHAMENTO e GUARDA, e a rede existente nao
+cobria isso — `app.test.tsx` tem 7 casos, todos sobre redirect e alias.
+
+MEDIDO: 10 rotas publicas ANTES do `<DashboardLayout>`, 78 autenticadas dentro, 104 passando por `Boundaried`. Nenhum teste cobria
+a fronteira, entao um refactor que reordenasse blocos passaria silenciosamente nos dois sentidos:
+  · rota PUBLICA caindo para dentro do layout passa a exigir login — `/recovery` atras da autenticacao e um beco perfeito: a pessoa
+    precisa da tela para conseguir entrar, e precisa entrar para alcancar a tela;
+  · rota AUTENTICADA subindo para fora deixa de exigir login, com dado de tenant atras de uma tela que renderiza sem sessao.
+
+`src/lib/route-boundary.test.ts` fecha as duas direcoes, mais duas asserções: a ancora nao se moveu (senao as duas primeiras
+passariam sobre conjuntos vazios — a armadilha do dist vazio outra vez) e toda rota de topo passa por `Boundaried`.
+
+DOIS FALSOS POSITIVOS DO MEU PROPRIO TESTE, corrigidos por medicao antes do commit:
+  · `PreviewsRedirect` e `RepositoryAlias` foram acusados de nao ter fronteira. Sao COMPONENTES que devolvem `<Navigate>` (existem
+    porque precisam de useParams para montar o destino). "Consertar" seria envolver um redirect numa fronteira de erro que ele
+    nunca usa.
+  · `logs`, `sbom` e `attestation` foram acusados pelo mesmo motivo. Sao rotas ANINHADAS que herdam a fronteira do pai — elas se
+    distinguem por nao comecarem com `/`. "Consertar" seria uma segunda fronteira dentro de uma que ja existe.
+
+Sondado: mover `/recovery` para dentro do layout derruba o teste nomeando a rota.
+
 ## B-004 — src/hooks e um shared kernel falso: 33 de 44 hooks (75%) sao usados por uma unica feature   [x]
 
 domain: frontend-dashboard
