@@ -1,8 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
 import { Badge, Card, Sheet, Timestamp } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import { cloudFetch } from '@/lib/http/api';
-import type { APIKeyView } from '@/pages/settings/api-keys';
+import { useApiKeyLineage } from '@/hooks/settings/use-api-keys';
+import type { APIKeyView, LineageItem } from '@/hooks/settings/api-keys-api';
 
 /**
  * O painel de linhagem de uma chave de API.
@@ -31,20 +30,9 @@ import type { APIKeyView } from '@/pages/settings/api-keys';
  * passaria a existir para servir o painel.
  */
 
-interface LineageItem {
-  id: string;
-  name: string;
-  key_prefix: string;
-  created_at: string;
-  revoked_at?: string | null;
-  expires_at?: string | null;
-  is_current: boolean;
-}
-
-interface LineageResult {
-  lineage: LineageItem[];
-}
-
+// B-012/B-053 — `LineageItem` e `LineageResult` mudaram de casa junto com a
+// consulta que os produz (`hooks/settings/api-keys-api.ts`). Este arquivo
+// desenha; ele não busca.
 interface LineageSheetProps {
   target: APIKeyView | null;
   onClose: () => void;
@@ -57,16 +45,7 @@ interface LineageSheetProps {
  */
 export function LineageSheet({ target, onClose }: LineageSheetProps) {
   const open = target !== null;
-  const query = useQuery({
-    queryKey: ['cloud', `/v1/api-keys/${target?.id ?? ''}/lineage`] as const,
-    queryFn: () =>
-      cloudFetch<LineageResult>(
-        `/v1/api-keys/${target!.id}/lineage`,
-        {},
-        { throwOnError: true },
-      ),
-    enabled: open && !!target,
-  });
+  const query = useApiKeyLineage(target?.id);
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>

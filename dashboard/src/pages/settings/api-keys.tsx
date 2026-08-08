@@ -1,12 +1,16 @@
 import {useEffect, useState} from 'react';
-import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
+import {
+  useApiKeys,
+  useCriarApiKey,
+  useRevogarApiKey,
+  useRotacionarApiKey,
+} from '@/hooks/settings/use-api-keys';
+import type { APIKeyView, CreateKeyResponse } from '@/hooks/settings/api-keys-api';
 import {History, Key, Plus, Recycle, Trash2} from 'lucide-react';
 import {Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Timestamp} from '@usetheo/ui';
 import {Alert} from '@/components/ui/alert-guard';
 import {usePageMeta} from '@/hooks/use-page-meta';
 import {useRequireAuth} from '@/hooks/use-auth';
-import {cloudFetch} from '@/lib/http/api';
-import {LIST_SAFETY_CEILING} from '@/lib/http/list-ceiling';
 import { LineageSheet } from '@/pages/settings/components/api-key-lineage';
 import {
   ConfirmRotateDialog,
@@ -27,31 +31,11 @@ import {
  *  - DESIGN.md v1.0 5Q-3s + danger zone choreography per Memory Section mandate
  */
 
-// Mirrors the wire shape returned by GET /v1/api-keys/list — see APIKeyView in
-// cloud/internal/routes/api_keys.go. Wire field names use snake_case per the
-// Go JSON tags; keep them verbatim on the UI side to avoid translation churn.
-export interface APIKeyView {
-  id: string;
-  name: string;
-  key_prefix: string;
-  scopes: string[];
-  created_at: string;
-  last_used_at?: string | null;
-  expires_at?: string | null;
-}
-
-export interface CreateKeyResponse {
-  id: string;
-  name: string;
-  key_prefix: string;
-  scopes: string[];
-  /** Raw secret — shown ONCE; never returned again. */
-  secret: string;
-}
-
-interface ListKeysResponse {
-  keys: APIKeyView[];
-}
+// B-012/B-053 — a forma dos dados mora com quem os busca
+// (`hooks/settings/api-keys-api.ts`). Reexportados aqui porque os diálogos e o
+// painel de linhagem já importavam desta página, e mover o tipo não é motivo
+// para tocar em cinco arquivos.
+export type { APIKeyView, CreateKeyResponse } from '@/hooks/settings/api-keys-api';
 
 // Exportado para que `api-keys-scope-catalog.test.ts` confronte esta lista com o enum
 // `validScopes` do backend. Enquanto cada lado tinha só o SEU teste, as duas divergiram
@@ -207,17 +191,7 @@ export function ApiKeysPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('API Keys'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
-
-  const listQuery = useQuery({
-    queryKey: ['cloud', '/v1/api-keys/list'] as const,
-    queryFn: () =>
-      cloudFetch<ListKeysResponse>(
-        `/v1/api-keys/list?limit=${LIST_SAFETY_CEILING}`,
-        {},
-        { throwOnError: true },
-      ),
-  });
+  const listQuery = useApiKeys();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [revealed, setRevealed] = useState<CreateKeyResponse | null>(null);
@@ -227,73 +201,14 @@ export function ApiKeysPage() {
   // API Key Lineage View plan T7.4 — pendingLineage opens the Sheet.
   const [pendingLineage, setPendingLineage] = useState<APIKeyView | null>(null);
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/api-keys/list'] });
-
-  const createMutation = useMutation({
-    mutationFn: async (input: {
-      name: string;
-      scopes: string[];
-      expires_at?: string | null;
-    }) =>
-      // `throwOnError` NÃO é opcional aqui, apesar de a doc de `cloudFetch` chamá-lo
-      // de "opt-in": sem ele o helper RESOLVE para `null` num 4xx, o React Query trata
-      // como sucesso e o `onSuccess` abaixo fecha o diálogo — o operador sai convencido
-      // de que criou uma chave que o backend recusou. Medido ao vivo em 2026-08-01
-      // (LT-019): um 400 UNKNOWN_SCOPE fechou o diálogo sem mensagem alguma. O caminho
-      // de LEITURA desta página sempre passou a flag; os de MUTAÇÃO não passavam.
-      cloudFetch<CreateKeyResponse>(
-        '/v1/api-keys',
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(input),
-        },
-        { throwOnError: true },
-      ),
-    onSuccess: (resp) => {
-      setRevealed(resp);
-      setCreateOpen(false);
-      invalidate();
-    },
+  const createMutation = useCriarApiKey((resp) => {
+    setRevealed(resp);
+    setCreateOpen(false);
   });
-
-  const revokeMutation = useMutation({
-    mutationFn: async (id: string) =>
-      // Mesma classe do create (LT-019): sem a flag, uma revogação recusada fecharia
-      // o confirm e sumiria da lista como se tivesse dado certo — a pior mentira
-      // possível numa operação de segurança.
-      cloudFetch<null>(
-        `/v1/api-keys/${id}`,
-        { method: 'DELETE' },
-        { throwOnError: true },
-      ),
-    onSuccess: () => {
-      setPendingDelete(null);
-      invalidate();
-    },
-  });
-
-  // API Key Rotation plan T6.5 — POST /v1/api-keys/{id}/rotate.
-  // On success, reuse the existing RevealedSecretDialog for show-once secret.
-  const rotateMutation = useMutation({
-    mutationFn: async (id: string) =>
-      // Mesma classe do create (LT-019): uma rotação recusada abriria o diálogo de
-      // segredo com `null` e o operador perderia a chave antiga achando que tem a nova.
-      cloudFetch<CreateKeyResponse>(
-        `/v1/api-keys/${id}/rotate`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({}),
-        },
-        { throwOnError: true },
-      ),
-    onSuccess: (resp) => {
-      setRevealed(resp);
-      setPendingRotate(null);
-      invalidate();
-    },
+  const revokeMutation = useRevogarApiKey(() => setPendingDelete(null));
+  const rotateMutation = useRotacionarApiKey((resp) => {
+    setRevealed(resp);
+    setPendingRotate(null);
   });
 
   const keys = listQuery.data?.keys ?? [];

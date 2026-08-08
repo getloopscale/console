@@ -78,6 +78,8 @@
 
 ### Fixed
 
+- **Exportar traces com um filtro que o servidor recusa deixou de anunciar sucesso.** A tela dizia "Exported 0 traces" — uma mensagem de sucesso, com número — quando a busca tinha falhado; quem lia concluía que o filtro não casou nada e ia mexer no filtro. Agora a falha aparece como falha.
+
 - **Duas funções chamadas `logout` deixaram de coexistir.** Uma encerra a sessão de verdade — avisa o servidor de autenticação e leva à tela de entrada; a outra só limpa a credencial guardada na memória da aba, como primeiro passo da primeira. Usar a segunda por engano deixaria a pessoa achando que saiu enquanto a sessão continuava aberta no servidor. A segunda passou a se chamar pelo que faz.
 
 - **A tela de conectar um repositório deixou de dizer "sem conexão" quando na verdade não conseguiu perguntar.** Qualquer falha do servidor era tratada como a resposta "este projeto ainda não tem repositório conectado" — indistinguível, para quem olha, de um projeto realmente novo. Agora só a resposta que de fato significa isso é lida assim; uma falha aparece como falha, com opção de recarregar. A espera pela instalação no GitHub continua igual, incluindo o limite de 5 minutos e a atualização ao voltar da aba do GitHub.

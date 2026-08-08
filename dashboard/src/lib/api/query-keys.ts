@@ -9,6 +9,22 @@
 // to nuke all project-related queries (list, detail, sub-resources).
 
 export const queryKeys = {
+  // B-012/B-053 — chaves de API. A listagem era declarada como literal em dois
+  // lugares da página (consulta e invalidação); errar uma letra na segunda não
+  // quebra teste nenhum e a lista só para de atualizar.
+  lens: {
+    all: ['lens'] as const,
+    // Chaveada pelos VALORES dos filtros, nunca pela janela temporal derivada:
+    // `from` vem do relógio no momento da busca, e pô-lo na chave produziria
+    // chave nova a cada render — e refetch infinito.
+    traces: (filtros: unknown, page: number) => ['lens', 'traces', filtros, page] as const,
+    spanAttributes: () => ['lens', 'span-attributes'] as const,
+  },
+  apiKeys: {
+    all: ['api-keys'] as const,
+    list: () => ['api-keys', 'list'] as const,
+    lineage: (id: string) => ['api-keys', id, 'lineage'] as const,
+  },
   projects: {
     all: ['projects'] as const,
     list: (filters?: Record<string, unknown>) =>

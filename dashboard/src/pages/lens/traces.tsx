@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useTraces, useChavesDeAtributo, useCriarDatasetDeRegressao } from '@/hooks/lens/use-traces';
+import { buscarParaExportar, TRACES_PAGE_SIZE } from '@/hooks/lens/traces-api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryState, parseAsString, parseAsStringEnum } from 'nuqs';
 import { Button, Card, DataTable, EmptyState, Input, PageShell } from '@usetheo/ui';
@@ -8,7 +9,6 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/http/api';
 import { triggerDownload } from '@/lib/export/download';
 import {
   fetchFilteredTraces,
@@ -25,7 +25,6 @@ import { FilterBar } from './traces/filter-bar';
 import { EMPTY_FILTERS, RANGE_VALUES, type Range, type TraceFilters } from './traces/filter-model';
 import { ColumnsToggle } from './traces/columns-toggle';
 import { TOGGLEABLE_COLUMNS, decodeColumns, encodeColumns, isColumnVisible } from './traces/view-encoding';
-import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 // M59 P0 (D1) — re-export the moved list-row type so any importer of `Trace` from `./traces`
 // keeps resolving after the decomposition (behavior-preserving shim; no test churn).
@@ -45,16 +44,6 @@ export { nsToIso } from './traces/helpers';
  * stays read-only (spans arrive via OTLP); only the metadata is browser-authored.
  */
 
-interface TracesResult {
-  traces: Trace[];
-  // M81 — server-side pagination envelope (workspace-scoped total + the applied window).
-  total?: number;
-  limit?: number;
-  offset?: number;
-}
-
-/** M81 — the traces page window. */
-const TRACES_PAGE_SIZE = 50;
 
 const RANGE_MS: Record<Exclude<Range, 'all'>, number> = {
   '1h': 3_600_000,
@@ -220,21 +209,16 @@ export function LensTracesPage() {
     setSearchParams(new URLSearchParams(queryString.replace(/^\?/, '')));
   };
 
-  const query = useQuery({
-    // Key by the filter VALUES (not the derived `from` timestamp) so the cache is stable across
-    // renders; `buildTraceQuery` computes `from` from the clock only at fetch time (no refetch loop).
-    // M81: the page is part of the key so Next/Prev refetch the right window.
-    queryKey: ['cloud', '/v1/dashboard/lens/traces', filters, page] as const,
-    queryFn: () =>
-      cloudFetch<TracesResult>(
-        `/v1/dashboard/lens/traces${buildTraceQuery(filters, Date.now(), { limit: TRACES_PAGE_SIZE, offset: (page - 1) * TRACES_PAGE_SIZE })}`, {}, { throwOnError: true }),
-  });
-  // M92 — facet discovery: the workspace's top attribute keys, to suggest in the attribute filter.
-  // A failed/empty discovery leaves the key input as free-text (the filter still works).
-  const attrKeysQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/metrics/span-attributes'] as const,
-    queryFn: () => cloudFetch<{ mode: 'keys'; keys: { key: string; count: number }[] }>(`/v1/dashboard/lens/metrics/span-attributes?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
-  });
+  const query = useTraces(
+    filters,
+    page,
+    buildTraceQuery(filters, Date.now(), {
+      limit: TRACES_PAGE_SIZE,
+      offset: (page - 1) * TRACES_PAGE_SIZE,
+    }),
+  );
+  // M92 — descoberta de facetas: as chaves de atributo mais usadas do workspace.
+  const attrKeysQuery = useChavesDeAtributo();
   const attributeKeys = (attrKeysQuery.data?.keys ?? []).map((k) => k.key);
 
   // M81 — pagination derived state (workspace-scoped total from the response).
@@ -295,28 +279,9 @@ export function LensTracesPage() {
 
   // M64 — turn the selected traces into a regression dataset (create dataset + add each selected trace),
   // then route to the experiments page to run it. Reuses the M44 dataset routes (no new dataset code).
-  const createDataset = useMutation({
-    mutationFn: async (traceIds: string[]) => {
-      const name = `regression ${new Date().toISOString().slice(0, 19)}`;
-      const ds = await cloudFetch<{ id: string }>(
-        '/v1/dashboard/lens/datasets',
-        { method: 'POST', body: JSON.stringify({ name }) },
-        { throwOnError: true },
-      );
-      for (const traceId of traceIds) {
-        await cloudFetch(
-          `/v1/dashboard/lens/datasets/${encodeURIComponent(ds!.id)}/items`,
-          { method: 'POST', body: JSON.stringify({ traceId }) },
-          { throwOnError: true },
-        );
-      }
-      return ds!.id;
-    },
-    retry: false,
-    onSuccess: (datasetId) => {
-      setSelected(new Set());
-      navigate(`/observability/experiments?datasetId=${encodeURIComponent(datasetId)}`);
-    },
+  const createDataset = useCriarDatasetDeRegressao((datasetId) => {
+    setSelected(new Set());
+    navigate(`/observability/experiments?datasetId=${encodeURIComponent(datasetId)}`);
   });
 
   async function doExport(format: 'csv' | 'json') {
@@ -326,8 +291,11 @@ export function LensTracesPage() {
     try {
       const baseQuery = buildTraceQuery(filters, Date.now());
       const { traces: rows, capped } = await fetchFilteredTraces(baseQuery, async (queryWithPaging) => {
-        const res = await cloudFetch<{ traces: ExportTrace[] }>(`/v1/dashboard/lens/traces${queryWithPaging}`);
-        return res?.traces ?? [];
+        // B-012 — esta chamada era um `cloudFetch` cru SEM `throwOnError`, e o
+        // `res?.traces ?? []` logo abaixo transformava qualquer 4xx/5xx em lista
+        // vazia. O `catch` nunca era alcançado e a tela anunciava "Exported 0
+        // traces" — sucesso, com número, para uma exportação que não aconteceu.
+        return (await buscarParaExportar(queryWithPaging)) as ExportTrace[];
       });
       const stamp = new Date().toISOString();
       if (format === 'csv') {

@@ -51,7 +51,10 @@ exatamente a classe "grep casa prosa".
  * exige explicar por quê, e o plano diz que não há razão: uma página nova busca
  * dado pelo hook do domínio.
  */
-const TETO_PAGINAS_COM_TRANSPORTE = 58;
+// 58 em 2026-08-07; 53 desde 2026-08-08, quando `settings/api-keys.tsx`,
+// `settings/components/api-key-lineage.tsx` e `lens/traces.tsx` ganharam hooks
+// de domínio (B-012 / B-053). SÓ DESCE.
+const TETO_PAGINAS_COM_TRANSPORTE = 53;
 
 /** Os identificadores que caracterizam transporte. `ApiError` NÃO é um deles. */
 const TRANSPORTE = ['cloudFetch', 'engineFetch', 'cloudFetchRaw'];

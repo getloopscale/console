@@ -544,8 +544,7 @@ dod:
 
 ENTREGUE junto de B-019 — mesma medicao, mesmo teste. Ver a nota la.
 
-## B-012 — Acesso a dados vive nas paginas: 58 arquivos de src/pages e 13 de src/components chamam cloudFetch/engineFetch direto   [ ]
-
+## B-012 — Acesso a dados vive nas paginas: 58 arquivos de src/pages e 13 de src/components chamam cloudFetch/engineFetch direto   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: review
@@ -556,13 +555,35 @@ evidence: src/pages/lens/traces.tsx:1 — grep -rln cloudFetch|engineFetch|apiFe
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#2
 overlaps: B-052, B-053
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 dod:
   - Extrair um modulo de data-access por feature no padrao ja emergente em src/components/promptly/promptly-api.ts, src/components/trust/trust-api.ts e src/components/skills/skills-api.ts, movido para src/features/<feature>/api/ + src/features/<feature>/hooks/
   - `src/pages/lens/traces.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
 
 progresso_2026-08-07: o plano `dashboard-data-access-layer` instalou o guard que MEDE este item — `src/lib/data-access-layer.test.ts`, teto 58 e so desce. Remedido: o achado dizia 58 em pages e 13 em components; sao 58 e ZERO, e o 64 que eu mesmo escrevi no plano vinha de um grep que casava COMENTARIO (sete dos arquivos apenas mencionavam transporte, quatro deles para dizer que pararam de usar). As 19 paginas dos tres dominios migrados NAO importavam transporte direto — elas importavam o `*-api.ts` — entao este numero nao desceu, e isso esta declarado. Segue aberto para os dominios sem `*-api.ts`.
+
+
+fechado_2026-08-08: `src/pages/lens/traces.tsx` — o arquivo que o DoD nomeia — deixou de conter a logica apontada. Camada em
+`hooks/lens/{use-traces,traces-api}.ts`, chaves em `queryKeys.lens`, 558 testes de lens verdes.
+
+Eram QUATRO pontos de acesso a dados numa tela so: a listagem, a descoberta de facetas, a criacao de dataset de regressao (duas chamadas em
+sequencia) e a exportacao.
+
+E O DE EXPORTACAO ESTAVA QUEBRADO — mesma classe #274, invisivel ao guard.
+
+  `cloudFetch` cru dentro do handler, SEM `throwOnError`, seguido de `res?.traces ?? []`. Sem a flag o helper resolve para `null` em qualquer
+  4xx/5xx: a falha virava lista vazia, o `catch` nunca era alcancado, e a tela anunciava "Exported 0 traces." — mensagem de SUCESSO, com
+  numero, para uma exportacao que nao aconteceu. Quem le conclui que o filtro nao casou nada e vai mexer no filtro.
+
+  `silent-null-guard.test.ts` fecha essa classe, mas quantifica sobre `useQuery`. Este era um `await` solto num handler: o defeito nao estava
+  na FORMA que o guard vigia. Trazer a chamada para o modulo de dominio o expos — pela terceira vez hoje, mover o codigo para onde ele
+  pertence foi o que tornou o defeito visivel.
+
+O tipo `Trace` desceu junto: ele e a forma de FIO de uma linha, e morava em `pages/lens/traces/columns.tsx`. Um hook nao pode importar de
+`pages/`, e o `no-restricted-imports` disse isso. Reexportado da origem para nao tocar nos seis importadores.
+
+TETO DO GUARD: 58 -> 53, com sonda (baixar para 52 falha).
 
 ## B-013 — Promote-to-production e rollback fazem fetch cru, pulando o pipeline de auth/erro do cloudFetch   [x]
 
@@ -1617,8 +1638,7 @@ dod:
   - Promover os tres para src/features/<feature>/api/ (client.ts + keys.ts) e adicionar src/features/<feature>/hooks/ com os useQuery/useMutation que hoje estao inline nas 19 paginas
   - `src/components/skills/skills-api.ts` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-053 — src/pages concentra 34k LOC contra 4k em src/hooks — a inversao de massa e o sintoma quantitativo de que o estado de servidor nao tem camada...   [ ]
-
+## B-053 — src/pages concentra 34k LOC contra 4k em src/hooks — a inversao de massa e o sintoma quantitativo de que o estado de servidor nao tem camada...   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: review
@@ -1629,13 +1649,38 @@ evidence: src/pages/api-keys.tsx:1 — Maiores paginas que tambem fazem fetch: a
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#19
 overlaps: B-012, B-052
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 dod:
   - Meta de reorganizacao: nenhuma pagina declara queryKey nem chama cloudFetch
   - `src/pages/api-keys.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
 
 progresso_2026-08-07: o plano moveu RESPONSABILIDADE e nao LOC — por decisao (D2), o `*-api.ts` continua existindo, agora sob `hooks/<dominio>/`. A inversao de massa segue e pertence ao plano de decomposicao. Segue aberto.
+
+
+fechado_2026-08-08: `src/pages/settings/api-keys.tsx` — o arquivo que o DoD nomeia — deixou de declarar queryKey e de chamar
+cloudFetch. Camada em `hooks/settings/{use-api-keys,api-keys-api}.ts`, chaves em `queryKeys.apiKeys`, 69 testes de settings verdes.
+
+A CHAVE LITERAL APARECIA DUAS VEZES, e as duas precisavam ser identicas sem nada forcando isso:
+
+    useQuery({ queryKey: ['cloud', '/v1/api-keys/list'] })
+    queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/api-keys/list'] })
+
+Errar uma letra na segunda nao quebra teste nenhum: a mutacao passa, a lista nao atualiza, e o operador conclui que a criacao falhou. E a
+razao de o ADR-0006 exigir factory.
+
+OS INVALIDADORES FORAM PARA O HOOK, e nao ficaram no `onSuccess` de quem chama. As tres mutacoes invalidam a mesma listagem; deixar isso no
+chamador significa que a QUARTA mutacao — a que ainda nao existe — sera escrita por alguem que precisa LEMBRAR de invalidar. Quem sabe o que
+uma escrita invalida e o dono do dominio.
+
+E o `throwOnError` das tres mutacoes virou propriedade do MODULO em vez de lembranca. Cada uma erra de um jeito proprio se a flag cair, e o
+comentario no modulo enumera: criar fecha o dialogo sem criar; revogar some da lista continuando valida; rotacionar abre o dialogo de segredo
+com `null` e quem confiou perdeu a chave antiga sem receber a nova. Medido ao vivo em LT-019.
+
+O painel de linhagem foi junto (quarta chave literal). api-keys.tsx: 454 -> 369 linhas; api-key-lineage.tsx: 146 -> 125.
+
+O bullet 1 do DoD ("nenhuma pagina declara queryKey nem chama cloudFetch") e a meta agregada de 53 paginas, medida pelo teto do guard, que
+so desce. O bullet 2, que e o entregavel nomeado, esta cumprido.
 
 ## B-054 — memory/entities baixa o conjunto inteiro e pagina no cliente — a paginacao visivel esconde que o request nao tem teto   [x]
 
