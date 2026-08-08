@@ -1,6 +1,8 @@
 ---
-status: proposed
+status: accepted
 date: 2026-08-06
+executado-em: 2026-08-08
+origem-da-execucao: B-007 (o gate de --primary) · B-071 (o split registrado)
 decision-makers: time do dashboard theo-cloud
 origem: tradeoff_decisions#4 · boundary_findings#11 · system_design_findings#4, #5
 ---
@@ -59,3 +61,38 @@ apagar a definicao perdedora; fixar a vencedora num teste Playwright de regressa
 - Bom: o acoplamento cross-package deixa de ser folclore e passa a ter dono declarado.
 - Bom: o teste de `--primary` transforma a duvida em gate e vale para todos os bumps futuros.
 - Ruim: continuam sendo dois versionamentos independentes que precisam ser bumpados em coordenacao. Mitigacao: check de CI comparando os tokens vendorizados com os do `@usetheo/ui` instalado, hoje 13 minors defasados de forma invisivel.
+
+## O que foi executado (2026-08-08)
+
+O ADR previa que *"o teste de `--primary` transforma a duvida em gate e vale para
+todos os bumps futuros"*. Esse teste agora existe — e o que ele achou ao ser
+escrito foi maior que a duvida original.
+
+**A configuracao do tema tinha DOIS donos, nao um.** `main.tsx` montava a sua, e
+`src/test/render.tsx` montava outra com o `violetForge` **cru**, sem o override
+de `primary` e sem `respectSystemMode: false`. Medido:
+
+| | `--primary` computado | modo |
+|---|---|---|
+| app | `oklch(0.57 0.13 302)` | escuro |
+| suite inteira | `oklch(0.50 0.16 296.97)` | **claro** |
+
+Toda a suite renderizava um produto travado em escuro no modo claro, com o roxo
+que reprova o WCAG AA — o mesmo que o Red Team `theo/theo#163` mandou trocar. E
+existe `src/test/a11y.test.tsx` nesta suite: ele media a cor errada.
+
+A config virou `src/lib/theme/theo-theme.ts`, importada pelos dois lados.
+Trocar a suite inteira de claro para escuro **nao quebrou nenhum teste** — 2725
+verdes.
+
+### A nota que dizia precisar de Playwright estava errada
+
+`index.primary-token.test.ts` afirmava que fixar o valor COMPUTADO exigiria
+Playwright, *"porque jsdom nao resolve cascade de `@import`"*. Medido: o tema nao
+chega por `@import`. O provider injeta um `<style>` com seletor
+`[data-theme="violet-forge"][data-mode="dark"]` e poe os atributos no `<html>` —
+e jsdom **resolve** seletor de atributo em `getComputedStyle`, verificado
+injetando `oklch(0.99 0.99 99)` no tema e lendo esse valor de volta.
+
+O teste que faltava era escrevivel o tempo todo. A premissa que o adiava era
+sobre o mecanismo errado.

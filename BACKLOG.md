@@ -350,8 +350,7 @@ sao consumidos pela barra lateral (`components/layout/`). Mover suas pastas
 inteiras faria o layout importar de `pages/` — a violacao de camada de D4.1. Os
 dois ficaram em `components/layout/`, que e quem os consome de fora.
 
-## B-007 — Fronteira do design system tem tres donos em tres versoes: componentes de @usetheo/ui@0.35.1, provider de tema de @theokit/ui@1.3.2, tokens...   [ ]
-
+## B-007 — Fronteira do design system tem tres donos em tres versoes: componentes de @usetheo/ui@0.35.1, provider de tema de @theokit/ui@1.3.2, tokens...   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: review
@@ -362,10 +361,41 @@ evidence: src/main.tsx:4 — package.json:78 "@theokit/ui": "^1.3.2" e package.j
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#11
 overlaps: B-034, B-071
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 dod:
   - Resolver a contradicao com um teste, nao com leitura: um teste de integracao que monta a arvore com o provider real e assere getComputedStyle(document.documentElement).getPropertyValue(--primary) igual ao valor canonico. Isso transforma a duvida em gate e vale para os proximos bumps
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/main.tsx` e passa depois da mudanca
+
+
+fechado_2026-08-08: o gate existe, e o que ele achou foi maior que a duvida do item.
+
+O item apontava uma contradicao entre `main.tsx:91` ("o index.css NAO tem efeito no primary") e o docblock do `index.css`. Essa parte ja
+tinha sido resolvida pelo B-034, por medicao em Chrome: o main.tsx estava certo. O que o B-034 NAO cobriu — e nem podia, sendo um teste
+textual — e o terceiro dono.
+
+OS TRES DONOS, MEDIDOS:
+  · `violetForge` do pacote (cru) ....... oklch(0.50 0.16 296.97)
+  · `main.tsx` .......................... oklch(0.57 0.13 302)
+  · `src/test/render.tsx` ............... oklch(0.50 0.16 296.97)  <-- montava o violetForge CRU
+
+E render.tsx tambem nao passava `respectSystemMode: false`, entao o provider seguia o `prefers-color-scheme` do ambiente. Em jsdom ele e
+`light`. Resultado medido: TODA A SUITE renderizava um produto travado em escuro NO MODO CLARO, com um roxo que o app nunca mostra.
+
+Nao e cosmetico. O `--primary` foi escurecido por CONTRASTE no Red Team theo/theo#163: o default do pacote da 3,87:1 de branco sobre primary
+e reprova o WCAG AA; o valor do app da ~4,73:1. Existe `src/test/a11y.test.tsx` nesta suite. Ele media a cor errada.
+
+FIX: a config virou `src/lib/theme/theo-theme.ts` — um dono, importado pelo `main.tsx` E pela arvore de teste. Trocar a suite inteira de
+claro para escuro NAO QUEBROU NENHUM TESTE (2725 verdes), o que e ao mesmo tempo alivio e um dado: nenhum teste dependia do tema, incluindo
+os de a11y.
+
+E A NOTA QUE ADIAVA ESTE TESTE ESTAVA ERRADA. `index.primary-token.test.ts` dizia que fixar o valor COMPUTADO exigiria Playwright, "porque
+jsdom nao resolve cascade de @import". O tema nao chega por @import: o provider injeta um `<style>` com seletor
+`[data-theme="violet-forge"][data-mode="dark"]` e poe os atributos no `<html>`. jsdom RESOLVE seletor de atributo em getComputedStyle —
+verificado injetando `oklch(0.99 0.99 99)` no tema e lendo esse valor de volta. O teste era escrevivel o tempo todo; a premissa que o adiava
+era sobre o mecanismo errado.
+
+DoD: (1) teste de integracao com o provider real assertando getComputedStyle -> `src/lib/theme/theo-theme.test.tsx`; (2) regra executavel que
+FALHA no estado anterior -> falhou nos 3 casos antes do fix, passa depois.
 
 ## B-008 — Raiz de src/pages: 41 arquivos de ~15 dominios sem agrupamento, 6 dos quais nao sao paginas (inclui uma pagina declarada deletada que ainda...   [x]
 
@@ -1964,8 +1994,7 @@ dod:
   - Depois de escrever o ADR do achado #1, codificar a regra de residencia em import/no-restricted-paths (ja disponivel via eslint-plugin-import) — mesmo que comece permissiva (ex.: 'lib/ nao pode importar de pages/ nem de components/')
   - mudanca verificavel em `eslint.config.js` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-071 — Duas bibliotecas de UI npm coexistindo: @usetheo/ui@0.35.1 para componentes e @theokit/ui@1.3.2 apenas para o theme provider   [ ]
-
+## B-071 — Duas bibliotecas de UI npm coexistindo: @usetheo/ui@0.35.1 para componentes e @theokit/ui@1.3.2 apenas para o theme provider   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: evolve
@@ -1977,7 +2006,7 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-007, B-034
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 dod:
   - Escrever um ADR de 10 linhas que registre o split (qual pacote e dono do tema, qual e dono dos componentes, e o que fazer quando um bump de um quebra o outro) e atualizar DESIGN.md secao 3 — hoje ela nomeia uma versao e um pacote que nao correspondem ao que o app carrega
   - mudanca verificavel em `src/main.tsx` com `npx tsc --noEmit` + `npm test` verdes
@@ -2005,6 +2034,26 @@ o pacote vive para filar contra ele. O issue #474 esta em theo-cloud, onde o cus
 O item segue aberto porque a decisao e das quatro saidas, e ela nao e tecnica: absorver os simbolos quebra a razao de existir do
 pacote (ser a fonte unica do tema entre produtos) por 110 kB, e isso pode sair mais caro que os 110 kB. Aceitar tambem e legitimo —
 o TOTAL EAGER esta em 306,47 kB contra teto de 320. O que nao era legitimo era o numero nao existir.
+
+
+fechado_2026-08-08: o ADR registra o split e o DESIGN.md deixou de mentir. A decisao de CUSTO segue em aberto, no #474, e por desenho.
+
+O item pedia duas coisas separaveis, e so uma dependia de decisao humana.
+
+(1) REGISTRAR O SPLIT — feito. `ADR-0003` passou a accepted, com o que foi medido: as superficies sao DISJUNTAS (116 exports do
+`@usetheo/ui`, nenhum casando `Theme*`/`Usage*`/`violet*`), entao nao ha o que consolidar. O ADR ja dizia quem e dono do incidente num bump
+que quebra o outro; o que faltava era o gate que ele mesmo previa, e ele agora existe (B-007).
+
+(2) DESIGN.md — corrigido. A secao 3 afirmava `@usetheo/ui@0.12.0-next.0+`; o instalado e `0.35.1`. VINTE E TRES MINORS de defasagem, e
+`@theokit/ui` nao era mencionado em lugar nenhum, apesar de ser o dono do tema. Um documento de design que nomeia a versao errada e pior que
+um que nao nomeia nenhuma: quem le acredita. Agora ha tabela com pacote, versao instalada, o que cada um possui e o alcance medido.
+
+(3) `mudanca verificavel em src/main.tsx` — a config do tema saiu dele para `lib/theme/theo-theme.ts`. tsc e 2725 testes verdes.
+
+O QUE SEGUE ABERTO E SO O CUSTO, e esta no #474: `@theokit/ui` contribui 110,8 kB pos-tree-shake para 4 simbolos, 31% do custo para 1,6% do
+uso. As quatro saidas (pedir subpath ao pacote / cortar o barril na origem / absorver os 4 simbolos / aceitar registrado) nao sao escolha
+tecnica — absorver quebra a razao de existir do pacote, que e ser a fonte unica do tema ENTRE produtos. Aceitar tambem e legitimo: o TOTAL
+EAGER esta em 306,37 kB contra teto de 320. O que nao era legitimo era o numero nao existir, e agora ele existe.
 
 ## B-072 — Gerenciador de pacotes: npm na pratica, pnpm declarado no campo packageManager   [x]
 

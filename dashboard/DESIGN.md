@@ -85,7 +85,22 @@ Never destructive action with a `variant="primary"` Button — always `variant="
 
 ## 3. Design system as contract (not suggestion)
 
-The dashboard uses `@usetheo/ui@0.12.0-next.0+` as canonical component library.
+The dashboard uses **two** npm packages, with disjoint surfaces (measured
+2026-08-08 — see `docs/adr/0003`):
+
+| Package | Version installed | Owns | Reach |
+|---|---|---|---|
+| `@usetheo/ui` | `0.35.1` | components | 183 files import it |
+| `@theokit/ui` | `1.3.2` | the theme (`ThemeProvider`, `violetForge`) + `UsageMeter`/`UsageMetric` | 3 files, 4 symbols |
+
+There is nothing to consolidate: `@usetheo/ui` exports 116 symbols and **none**
+match `Theme*`, `Usage*` or `violet*`. What the split does cost is bundle weight,
+measured and tracked in `theo-cloud#474`.
+
+The theme configuration has a **single owner**: `src/lib/theme/theo-theme.ts`,
+imported by both `main.tsx` and the test tree. Before it existed the two
+diverged, and the whole suite rendered in light mode with a `--primary` the app
+never shows (B-007).
 
 ### 3.1 Hard rules
 
@@ -117,7 +132,7 @@ Any new recurring need becomes an upstream contribution (per ADR D3 of remediati
 
 | Token category | Source |
 |---|---|
-| Color | `@usetheo/ui/preset.css` + Violet Forge theme |
+| Color | Violet Forge theme via `src/lib/theme/theo-theme.ts` (the provider applies on the element, which beats any stylesheet); `src/index.css` holds the pre-hydration fallback, aligned to the same value |
 | Typography | Geist Sans + Geist Mono (via `fonts-cdn.css`) |
 | Spacing | Tailwind v4 default scale |
 | Radius | `rounded-{sm,md,lg,xl}` |
@@ -795,7 +810,7 @@ If they can't, the dashboard isn't done.
 - **Remediation plan:** `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-plan.md` — how we get from current to contract.
 - **Edge case review:** `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-edge-cases.md` — what can go wrong in implementation.
 - **Architecture:** `.claude/knowledge-base/architecture/dashboard/` — C4 docs (system-context / container / component / deep-dive).
-- **Composite library:** `@usetheo/ui@0.12.0-next.0` — required canonical components.
+- **Composite library:** `@usetheo/ui@0.35.1` — required canonical components. Theme + usage widgets come from `@theokit/ui@1.3.2`; the split is recorded in `docs/adr/0003`.
 - **Voice rules:** root `CLAUDE.md` § Voice and Tone (technical-direct for dashboard; aspirational reserved for PITCH.md).
 
 ---
