@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { takePendingAttempt } from '@/lib/auth/auth-attempt';
-import { classifyKratosErrorReason } from '@/lib/auth/kratos-error-detail';
+import { takePendingAttempt } from '@/hooks/auth/auth-attempt';
+import { classifyKratosErrorReason } from '@/hooks/auth/kratos-error-detail';
 import { reportEvent, viewportBucket } from '@/lib/telemetry/rum';
 import type {
   ActivationEvent,

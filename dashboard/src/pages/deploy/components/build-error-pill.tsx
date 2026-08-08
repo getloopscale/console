@@ -1,6 +1,6 @@
 import { AlertCircle, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { ErrorClass } from '@/lib/api/sse-events';
+import type { ErrorClass } from '@/hooks/deploy/sse-events';
 
 /**
  * BuildErrorPill — Plan J-17 T3.4.

@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { useDeployments } from '@/hooks/projects/use-deployments';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useProjectStatus } from '@/hooks/use-project-status';
-import { SIGNALS, type SignalName } from '@/lib/readiness/signals';
-import type { ReadinessStatus } from '@/lib/readiness/status-icons';
+import { SIGNALS, type SignalName } from '@/hooks/projects/signals';
+import type { ReadinessStatus } from '@/hooks/projects/status-icons';
 
 /**
  * J-21 Readiness Score plan v1.1 — useReadinessSignals(projectName)

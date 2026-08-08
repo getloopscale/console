@@ -19,7 +19,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
-import { DEFAULT_PERMANENT_ENV } from '@/lib/api/domain';
+import { DEFAULT_PERMANENT_ENV } from '@/hooks/infra/domain';
 import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 interface EnvironmentRow {

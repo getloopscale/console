@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, Button } from '@usetheo/ui';
-import { isSafeRedirectUrl } from '@/lib/auth/safe-redirect';
+import { isSafeRedirectUrl } from '@/pages/auth/safe-redirect';
 
 // Plan J-05 amendment 2026-06-05 (LIVE debug iter 3) — Hydra v2.6 requires
 // the operator to host the device-verify UI: when the browser opens

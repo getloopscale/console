@@ -33,7 +33,7 @@ vi.mock('react-router-dom', async () => {
 });
 
 import { useRequireAuth } from './use-auth';
-import { recordAttempt } from '@/lib/auth/auth-attempt';
+import { recordAttempt } from '@/hooks/auth/auth-attempt';
 
 function wrapper({ children }: { children: ReactNode }) {
   return <MemoryRouter>{children}</MemoryRouter>;

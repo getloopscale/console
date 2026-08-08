@@ -12,13 +12,13 @@ import { postOIDCForm } from '@/pages/auth/oidc-form';
 import { getSession, startLogin } from '@/lib/auth/session';
 import { clearToken } from '@/lib/http/api';
 import { API_URL, AUTH_URL } from '@/lib/http/config';
-import { safeErrorDetail, isEnumerationCollision } from '@/lib/auth/kratos-error-detail';
-import { mapKratosError } from '@/lib/auth/error-mapper';
+import { safeErrorDetail, isEnumerationCollision } from '@/hooks/auth/kratos-error-detail';
+import { mapKratosError } from '@/pages/auth/error-mapper';
 import type { Flow } from './kratos';
 import { type AuthMethod } from '@/lib/telemetry/rum';
 
-export { classifyKratosErrorReason } from '@/lib/auth/kratos-error-detail';
-import { recordAttempt } from '@/lib/auth/auth-attempt';
+export { classifyKratosErrorReason } from '@/hooks/auth/kratos-error-detail';
+import { recordAttempt } from '@/hooks/auth/auth-attempt';
 import { useLoginFailureOutcome, emitAuthTelemetry } from '@/hooks/auth/use-login-outcome';
 
 const KRATOS_URL = AUTH_URL || API_URL;

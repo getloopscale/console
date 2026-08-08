@@ -6,7 +6,7 @@ import {
   buildStepToPhaseStep,
 } from './use-deploy-timeline';
 import { useDeploymentStream } from './use-deployment-stream';
-import { phaseGroupToCanonicalPhase } from '@/lib/api/phase-group-mapping';
+import { phaseGroupToCanonicalPhase } from '@/hooks/deploy/phase-group-mapping';
 
 /**
  * useDeployTimelineWithSteps — Plan deploy-timeline-canonical-5-phases

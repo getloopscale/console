@@ -12,7 +12,7 @@ import { RotateSecretDialog } from '@/pages/infra/components/rotate-secret-dialo
 import { DeleteSecretDialog } from '@/pages/infra/components/delete-secret-dialog';
 import { BulkUploadSheet } from '@/pages/infra/components/bulk-upload-sheet';
 import type { Secret } from '@/lib/api/types';
-import { DEFAULT_PERMANENT_ENV } from '@/lib/api/domain';
+import { DEFAULT_PERMANENT_ENV } from '@/hooks/infra/domain';
 
 /**
  * SecretsPage — J-22 T4.1.

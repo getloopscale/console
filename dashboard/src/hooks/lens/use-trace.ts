@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { cloudFetch } from '@/lib/http/api';
-import type { TraceSpanNode } from '@/lib/lens/trace-layout';
+import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
 
 /**
  * B-048 — a árvore de um trace, num lugar só.

@@ -6,8 +6,8 @@ import {
   type DeployTimelineEventPayload,
   type Phase,
   type PhaseStatus,
-} from '@/lib/api/deploy-timeline-events';
-import type { BuildStep } from '@/lib/api/sse-events';
+} from '@/hooks/deploy/deploy-timeline-events';
+import type { BuildStep } from '@/hooks/deploy/sse-events';
 
 /**
  * Step-level detail rendered inside an expandable PhaseCell.

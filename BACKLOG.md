@@ -1008,8 +1008,7 @@ dod:
 progresso_2026-08-07: `lib/export/log-download.ts` LIGADO ao botao Download da toolbar do LogViewer, e MOVIDO para pages/deploy/export/ pelo guard de residencia. Ele nao era feature a apagar — era feature ORFANADA quando a toolbar que a chamava saiu numa limpeza de codigo morto anterior. Exporta o buffer INTEIRO e nao o subconjunto filtrado (decisao Q3 do plano original, mantida): quem baixa um log quer o log, e um arquivo silenciosamente cortado pelo filtro de tela e a forma mais cara de perder a linha que importava. 2 testes, um deles provando que o botao fica desabilitado com buffer vazio.
 RESTA na allowlist: `lib/auth/return-to.ts` (guard de open-redirect sem vetor ativo — verificado que os tres usos de `return_to` ESCREVEM a URL com o proprio origin e nenhum LE uma externa para navegar) e `hooks/projects/use-status-stream.ts`, que agora tem motivo MUITO mais forte para ficar: issue #473 mediu que servidor e cliente falam contratos diferentes — o servidor emite o patch de auditoria do reaper e o cliente filtra por um campo `signal` que esse payload nao tem. Ligar reproduziria o custo que B-051 removeu; apagar destruiria a metade cliente de uma feature cuja metade servidor existe e esta roteada.
 
-## B-032 — Estrategia de organizacao de codigo: package-by-layer no topo (pages/ components/ hooks/ lib/) com feature-folders aninhados dentro de cada...   [ ]
-
+## B-032 — Estrategia de organizacao de codigo: package-by-layer no topo (pages/ components/ hooks/ lib/) com feature-folders aninhados dentro de cada...   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: evolve
@@ -1021,11 +1020,41 @@ provenance: dashboard/system-design-output/final_report.md · loop-system-design
 overlaps: B-002, B-004, B-008, B-070
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 partial_progress: 9314954 — ADR-0001 (eixo + regra de residencia) escrito e versionado em dashboard/docs/adr/. NAO fechado: o ADR esta em status proposed. Declara-lo accepted e decisao do time, nao de quem escreveu o rascunho.
 dod:
   - Escrever um ADR curto que declare o eixo de organizacao e a regra de residencia ('um hook com um unico consumidor mora com a feature; lib/ so aceita modulo com >=2 features consumidoras'), e entao migrar incrementalmente para package-by-feature comecando por lens e deploy — as duas com maior...
   - mudanca verificavel em `src` com `npx tsc --noEmit` + `npm test` verdes
+
+
+fechado_2026-08-08: o bloqueio registrado tinha envelhecido, e o guard da regra escondia onze violacoes.
+
+O `partial_progress` dizia "NAO fechado: o ADR esta em status proposed. Declara-lo accepted e decisao do time". O `ADR-0001` esta
+`accepted` desde 2026-08-07, revisado, com `supersedes:` da versao proposed. A nota descrevia um estado que ja nao existia. Quarta premissa
+envelhecida hoje.
+
+O QUE FALTAVA DE VERDADE ERA A ENFORCACAO, e ela tinha um buraco silencioso. `residence-rule.test.ts` governava uma lista FIXA de pastas
+compartilhadas: `['components','hooks','lib/http','lib/telemetry','lib/formatting','lib/export']`. Quatro pastas de `lib/` nunca entraram
+nela — `lib/api`, `lib/auth`, `lib/lens`, `lib/readiness` — e nada acusava. Eu mesmo criei `lib/theme/` hoje e ela nasceu fora da governanca.
+
+Uma lista fixa governa a FORMA que existia no dia em que foi escrita. Passou a LER O DISCO, e o primeiro efeito foi acusar ONZE artefatos com
+um unico dominio consumidor:
+
+  lib/api/{deploy-timeline-events,phase-group-mapping,sse-events}.ts -> hooks/deploy/
+  lib/api/domain.ts ................................................ -> hooks/infra/
+  lib/auth/{auth-attempt,kratos-error-detail}.ts ................... -> hooks/auth/
+  lib/auth/{error-mapper,safe-redirect}.ts ......................... -> pages/auth/
+  lib/lens/trace-layout.ts ......................................... -> hooks/lens/
+  lib/readiness/{signals,status-icons}.ts .......................... -> hooks/projects/
+
+O criterio do destino nao foi gosto: quem tem consumidor em `hooks/` desce para `hooks/<dominio>/` (D4.1 — camada vence); quem so tem
+consumidor em `pages/<dominio>/` vai para la. `lib/lens/` e `lib/readiness/` ficaram VAZIAS e foram removidas: existiam so para hospedar
+modulo de um dominio so.
+
+E o guard ganhou sinal positivo. Sem ele, uma leitura de disco que falhasse devolveria lista vazia e o caso principal passaria governando
+NADA — a mesma armadilha do `dist` vazio e da ancora que migra. O caso novo exige >= 4 subpastas e nomeia duas que tem de estar la.
+
+16 arquivos movidos, 40 com import reescrito, `npx tsc` limpo, madge sem ciclo, 2737 verdes.
 
 ## B-033 — Adotar um orcamento de 500 LoC por modulo como regra de arquitetura, citando um documento 'architecture.md' que nao existe neste repositorio   [x]
 

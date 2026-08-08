@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@/test/render';
 import { LoginErrorBanner } from './login-error-banner';
-import type { KratosErrorMapped } from '@/lib/auth/error-mapper';
+import type { KratosErrorMapped } from '@/pages/auth/error-mapper';
 
 // T2.1 — RED specs for LoginErrorBanner. Plan v1.1 Phase 2 Task T2.1.
 // Per ADR D1 the upstream error-mapper is a pure function; this banner

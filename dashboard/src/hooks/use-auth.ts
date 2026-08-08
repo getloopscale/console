@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSession, type Session } from '@/lib/auth/session';
 import { exchangeSessionToken, hasValidToken, sessionDefinitivelyExpired } from '@/lib/http/api';
-import { takePendingAttempt } from '@/lib/auth/auth-attempt';
+import { takePendingAttempt } from '@/hooks/auth/auth-attempt';
 import { reportEvent, viewportBucket } from '@/lib/telemetry/rum';
 
 /** Check Kratos session + exchange for JWT. Redirects to /login if not authenticated. */

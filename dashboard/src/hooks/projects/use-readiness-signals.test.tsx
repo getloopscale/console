@@ -11,7 +11,7 @@ import { useReadinessSignals, __test_computeScore } from './use-readiness-signal
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useProjectStatus } from '@/hooks/use-project-status';
 import { useDeployments } from '@/hooks/projects/use-deployments';
-import { SIGNALS, TOTAL_WEIGHT } from '@/lib/readiness/signals';
+import { SIGNALS, TOTAL_WEIGHT } from '@/hooks/projects/signals';
 
 const mockedUseProjects = vi.mocked(useProjects);
 const mockedUseProjectStatus = vi.mocked(useProjectStatus);

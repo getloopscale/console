@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card } from '@usetheo/ui';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { SIGNALS, type SignalName } from '@/lib/readiness/signals';
+import { SIGNALS, type SignalName } from '@/hooks/projects/signals';
 
 /**
  * J-21 Readiness Score plan v1.1 T2.3 — ReadinessFAQ.

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { BuildTimelineLive } from './build-timeline-live';
-import type { BuildStep } from '@/lib/api/sse-events';
+import type { BuildStep } from '@/hooks/deploy/sse-events';
 import type { UseDeploymentStreamResult } from '@/hooks/deploy/use-deployment-stream';
 
 vi.mock('@/hooks/deploy/use-deployment-stream', () => ({

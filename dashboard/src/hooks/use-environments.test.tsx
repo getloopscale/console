@@ -11,7 +11,7 @@ vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 
 import { useEnvironments } from './use-environments';
 import { engineFetch } from '@/lib/http/api';
-import { DEFAULT_PERMANENT_ENV } from '@/lib/api/domain';
+import { DEFAULT_PERMANENT_ENV } from '@/hooks/infra/domain';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
 

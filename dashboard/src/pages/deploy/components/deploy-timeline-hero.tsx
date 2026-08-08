@@ -16,7 +16,7 @@ import {
   PHASE_LABEL,
   PHASE_DEFAULT_SUBSTATE,
   type PhaseStatus,
-} from '@/lib/api/deploy-timeline-events';
+} from '@/hooks/deploy/deploy-timeline-events';
 import { LiveReleaseBadge } from './live-release-badge';
 
 /**

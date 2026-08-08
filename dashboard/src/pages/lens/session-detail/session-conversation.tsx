@@ -5,7 +5,7 @@ import { useQueries } from '@tanstack/react-query';
 import { IOCards } from '@usetheo/ui';
 
 import { shortId } from '@/lib/formatting/format';
-import type { TraceSpanNode } from '@/lib/lens/trace-layout';
+import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
 import { Markdown } from '@/pages/lens/components/markdown';
 import { sortSessionTracesByStart, toConversationTurns, type SessionTraceRef } from './to-conversation-turns';
 

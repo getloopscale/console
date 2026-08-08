@@ -8,7 +8,7 @@ import { useReadinessSignals } from '@/hooks/projects/use-readiness-signals';
 import { ReadinessScoreCard } from '@/pages/projects/components/readiness-score-card';
 import { ReadinessChecklist } from '@/pages/projects/components/readiness-checklist';
 import { ReadinessFAQ } from '@/pages/projects/components/readiness-faq';
-import type { SignalName } from '@/lib/readiness/signals';
+import type { SignalName } from '@/hooks/projects/signals';
 
 /**
  * J-21 Readiness Score plan v1.1 T3.1 + T3.2 — ProjectReadinessPage.

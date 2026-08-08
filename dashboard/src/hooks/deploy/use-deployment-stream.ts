@@ -7,7 +7,7 @@ import type {
   BuildStepFailedPayload,
   ErrorClass,
   PhaseGroup,
-} from '@/lib/api/sse-events';
+} from '@/hooks/deploy/sse-events';
 
 /**
  * useDeploymentStream — Plan J-17 T2.2.

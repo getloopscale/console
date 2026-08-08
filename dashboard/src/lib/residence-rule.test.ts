@@ -48,8 +48,22 @@ const NORMALIZA: Record<string, string> = {
  * Pastas compartilhadas cujo conteúdo a regra governa. `components/ui` e
  * `components/layout` estão de fora de propósito: são a fronteira do design
  * system e o shell da aplicação, consumidos por composição e não por domínio.
+ *
+ * As subpastas de `lib/` são LIDAS DO DISCO, e não enumeradas.
+ *
+ * Enumerá-las deixava a regra com um buraco silencioso: criar `lib/theme/`
+ * bastava para o conteúdo dela escapar da contagem de consumidores, sem que
+ * nada acusasse — e foi o que aconteceu em 2026-08-08, quando esta pasta
+ * nasceu. Uma lista fixa governa a FORMA que existia no dia em que foi escrita;
+ * ler o disco governa o que EXISTE.
  */
-const GOVERNADAS = ['components', 'hooks', 'lib/http', 'lib/telemetry', 'lib/formatting', 'lib/export'];
+function subpastasDeLib(): string[] {
+  return readdirSync(join(SRC, 'lib'))
+    .filter((e) => statSync(join(SRC, 'lib', e)).isDirectory())
+    .map((e) => `lib/${e}`);
+}
+
+const GOVERNADAS = ['components', 'hooks', ...subpastasDeLib()];
 
 /**
  * `hooks/<dominio>/` JA E o diretorio do dominio — na camada hooks, que e onde
@@ -73,6 +87,11 @@ const ALLOWLIST = new Set<string>([
   // de pages/, que e a violacao de direcao que D4.1 descreve.
   'lib/http/config.ts',
   'lib/telemetry/rum.ts',
+  // Mesma razão, B-007: o tema é montado pela raiz de composição (`main.tsx`) e
+  // pela árvore de teste. Nenhuma das duas é domínio, então a contagem não as
+  // enxerga — e descer o tema para um domínio faria a raiz da aplicação
+  // importar de `pages/`.
+  'lib/theme/theo-theme.ts',
 ]);
 
 function arquivos(dir: string, out: string[] = []): string[] {
@@ -154,5 +173,19 @@ describe('regra de residência (ADR-0001 D3/D5)', () => {
         'Se o artefato for genuinamente cross-cutting e a contagem por domínio não\n' +
         'o enxergar, acrescente à ALLOWLIST deste arquivo COM o motivo.\n',
     ).toEqual([]);
+  });
+
+  it('as pastas de lib/ vêm do disco — a lista não pode secar em silêncio', () => {
+    // Sem este caso, um erro na leitura do disco devolveria lista vazia e o caso
+    // acima passaria sem governar NADA de `lib/`. É a mesma armadilha do `dist`
+    // vazio e da âncora que migra: quem afirma ausência precisa provar que olhou.
+    const deLib = GOVERNADAS.filter((g) => g.startsWith('lib/'));
+    expect(deLib.length, 'nenhuma subpasta de lib/ foi governada').toBeGreaterThanOrEqual(4);
+
+    // E as que existem de fato têm de estar lá — inclusive as criadas depois
+    // desta linha, que é o ponto de ler o disco.
+    for (const esperada of ['lib/http', 'lib/theme']) {
+      expect(deLib, `${esperada} não entrou na governança`).toContain(esperada);
+    }
   });
 });

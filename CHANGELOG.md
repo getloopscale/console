@@ -24,6 +24,8 @@
 
 ### Changed
 
+- **Onze módulos de um domínio só saíram da pasta de código compartilhado.** A regra do projeto diz que só vive em pasta compartilhada o que dois ou mais domínios usam — mas a verificação automática dessa regra consultava uma lista de pastas escrita à mão, e quatro pastas nunca tinham entrado nela. Agora a verificação lê as pastas do disco, então uma pasta nova entra sob a regra no instante em que é criada. Os onze módulos foram para junto do domínio que os usa; duas pastas ficaram vazias e sumiram. Nenhum comportamento mudou.
+
 - **O dashboard deixou de mostrar dado velho como se fosse atual em rede lenta.** O service worker mantinha uma segunda cópia das respostas da API por até uma hora e a servia quando a rede demorava mais de 3 segundos — e a aplicação recebia essa cópia acreditando que era recente. Num painel de operação isso significa ver um deploy como saudável depois de ele ter caído. O cache de API do service worker foi removido; o cache da aplicação, que sabe invalidar o que mudou, passou a ser o único. Arquivos estáticos e configuração continuam em cache normalmente.
 
 - **A tela de chaves de API saiu da lista de dívida técnica do projeto.** Depois dos diálogos, o painel que mostra a procedência de uma chave também ganhou arquivo próprio, e a tela chegou a 454 linhas — abaixo do limite de 500 que o projeto adota. É o primeiro arquivo a **deixar** a lista de exceções em vez de apenas encolher dentro dela: a verificação de tamanho agora passa nele sem isenção. Nenhum comportamento mudou.

@@ -1,7 +1,7 @@
 import { Card, Tooltip } from '@usetheo/ui';
 import { Link } from 'react-router-dom';
-import { SIGNALS, isKnownRoute } from '@/lib/readiness/signals';
-import { STATUS_VISUALS } from '@/lib/readiness/status-icons';
+import { SIGNALS, isKnownRoute } from '@/hooks/projects/signals';
+import { STATUS_VISUALS } from '@/hooks/projects/status-icons';
 import type { ReadinessSignal } from '@/hooks/projects/use-readiness-signals';
 
 /**

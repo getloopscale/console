@@ -1,6 +1,6 @@
 import { Button } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
-import type { KratosErrorMapped } from '@/lib/auth/error-mapper';
+import type { KratosErrorMapped } from '@/pages/auth/error-mapper';
 
 /**
  * LoginErrorBanner — surfaces the product-language tuple from
