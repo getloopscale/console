@@ -226,23 +226,33 @@ export default [
       'src/test/**/*.{ts,tsx}',
       // Divida registrada (B-033). Cada linha sai daqui quando o arquivo for
       // decomposto; nenhuma linha nova entra sem ADR.
-      'src/pages/settings/api-keys.tsx', // 954 LOC
-      'src/pages/promptly/detail.tsx', // 915 LOC
-      'src/lib/api/types.ts', // 813 LOC
-      'src/lib/mocks/handlers.ts', // 797 LOC
-      'src/app.tsx', // 757 LOC
+      //
+      // O NUMERO E TETO, nao anotacao. Medido em 2026-08-07: a regra cobria quem
+      // ENTRA e nao quem ja estava dentro, e OITO dos dezoito tinham crescido —
+      // handlers.ts +78, types.ts +48, graph.tsx +26, app.tsx +22. Divida
+      // registrada e ilimitada: um arquivo entra a 757 linhas e chega a 1500 sem
+      // que nada acuse.
+      //
+      // `src/lib/loc-budget-ratchet.test.ts` faz o numero ser teto: ele so desce,
+      // e tem de bater com o disco exatamente (sem folga onde crescer). Ao
+      // decompor, baixe o numero — o progresso passa a ser medido.
+      'src/pages/settings/api-keys.tsx', // 955 LOC
+      'src/pages/promptly/detail.tsx', // 887 LOC
+      'src/lib/api/types.ts', // 861 LOC
+      'src/lib/mocks/handlers.ts', // 875 LOC
+      'src/app.tsx', // 779 LOC
       'src/pages/auth/recovery.tsx', // 711 LOC
       'src/pages/deploy/deployments.tsx', // 704 LOC
       'src/pages/projects/project-connect.tsx', // 696 LOC
       'src/pages/deploy/components/deploy-timeline-hero.tsx', // 677 LOC
-      'src/pages/memory/graph.tsx', // 664 LOC
+      'src/pages/memory/graph.tsx', // 690 LOC
       'src/pages/lens/evaluators.tsx', // 585 LOC
-      'src/pages/memory/webhooks.tsx', // 560 LOC
-      'src/pages/skills/bundle-detail.tsx', // 554 LOC
+      'src/pages/memory/webhooks.tsx', // 561 LOC
+      'src/pages/skills/bundle-detail.tsx', // 539 LOC
       'src/lib/mocks/skills-handlers.ts', // 546 LOC
-      'src/pages/settings/billing.tsx', // 539 LOC
-      'src/pages/settings/webhooks.tsx', // 533 LOC
-      'src/pages/lens/alerts.tsx', // 522 LOC
+      'src/pages/settings/billing.tsx', // 531 LOC
+      'src/pages/settings/webhooks.tsx', // 534 LOC
+      'src/pages/lens/alerts.tsx', // 523 LOC
       'src/pages/projects/projects.tsx', // 513 LOC
     ],
     rules: {

@@ -348,6 +348,27 @@ dod:
   - Generalizar o gate que ja existe: trocar login-loc-budget.test.ts por uma regra de eslint (max-lines com max 500 para src/**/*.tsx) com uma allowlist explicita dos 32 arquivos atuais, e proibir que a allowlist cresca. Isso trava a divida e nao exige refactor de tudo de uma vez
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/promptly/detail.tsx` e passa depois da mudanca
 
+
+progresso_2026-08-07: ACHADO NOVO, e ele muda a prioridade do item. Medindo antes de planejar a decomposicao:
+
+O `max-lines: 500` JA EXISTE no eslint.config.js com 18 arquivos isentos e a regra escrita — "cada linha sai daqui quando o arquivo
+for decomposto; nenhuma linha nova entra sem ADR". Mas a regra cobre quem ENTRA e nao quem ja esta dentro, e a isencao era uma lista
+de NOMES, nao de orcamentos.
+
+MEDIDO: OITO dos dezoito CRESCERAM desde que entraram — `lib/mocks/handlers.ts` +78, `lib/api/types.ts` +48,
+`pages/memory/graph.tsx` +26, `src/app.tsx` +22, e mais quatro por 1 linha. Divida registrada e ILIMITADA: um arquivo entra a 757
+linhas e chega a 1500 sem que nada acuse. Parte desse crescimento foi meu, nesta sessao.
+
+`src/lib/loc-budget-ratchet.test.ts` transforma o numero do comentario em TETO: ele so desce, e tem de bater com o disco
+EXATAMENTE — sem folga, senao a catraca vira enfeite. Sondado nos dois sentidos: +1 linha em app.tsx derruba os dois casos.
+
+Congelei nos valores reais de hoje em vez de exigir que encolham ja. Exigir agora bloquearia todo trabalho ate dezoito
+decomposicoes terminarem, o que ninguem pediu, para uma divida que ja estava registrada. Cada decomposicao futura fica MENSURAVEL.
+
+O item segue aberto: a decomposicao dos 18 nao aconteceu. O que mudou e que ela agora tem placar.
+
+Numero remedido: o achado dizia 32 arquivos acima de 400 LOC; sao 39. E o orcamento real e 500 (ADR-0002), nao 400.
+
 ## B-010 — Nao existe contrato escrito de fronteira de modulo para o dashboard, e o codigo cita um que nao esta no repositorio   [x]
 
 domain: frontend-dashboard
