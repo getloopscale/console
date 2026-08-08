@@ -1700,6 +1700,34 @@ dod:
   - Extend the tree-shake-check script to also fail on dev-mocks / mocksEnabled / mock-jwt-for-visual-validation, so the layer coupled into auth is guarded like the other
   - a contagem de importadores diretos de `src/lib/dev-mocks.ts` cai de forma medida (registrar o antes/depois com o mesmo parser de imports usado na auditoria)
 
+
+medicao_2026-08-08: o item pergunta se os dois frameworks devem coexistir. Medindo, achei algo antes disso: O GATE QUE OS
+VIGIA NAO PODIA FALHAR.
+
+`package.json` tinha `tree-shake-check: grep -q 'lib/mocks' dist/assets/*.js` — procurava o CAMINHO DO MODULO, que o empacotador
+apaga. PROVADO: injetei `installAllMocks` em main.tsx, o sentinela apareceu no bundle de producao, e o check imprimiu PASS. Uma
+verificacao que nao pode falhar e pior que nenhuma — produz confianca sem cobertura, e ninguem reabre um gate verde.
+
+Isso e residuo de B-068: eu criei o sentinela `MOCKS_BUNDLE_SENTINEL` naquela ocasiao e NAO atualizei o script que deveria le-lo.
+Ele ficou declarado e sem consumidor.
+
+E a cobertura era METADE: o sentinela vive em `fixtures.ts`, do framework `mocks/`. O outro framework, `dev-mocks.ts`, tem caminho
+de eliminacao DIFERENTE — `lib/auth/session.ts:22` importa `getMockSession` ESTATICAMENTE, enquanto main.tsx importa o outro
+dinamicamente atras do flag. Um sentinela so provava o caminho mais facil.
+
+ARMADILHA QUE EU MESMO CRIEI E MEDI: ao dar um sentinela proprio ao dev-mocks, o vazamento apareceu. A causa era o sentinela — um
+marcador com EFEITO DE MODULO num arquivo importado ESTATICAMENTE impede a propria eliminacao que ele deveria verificar. O check
+acusou um vazamento que ele mesmo tinha causado. A marca certa ali e um literal que JA EXISTE nos dados (`'choose_method'`, estado
+de fluxo do Kratos que so aparece la): some com o resto quando a eliminacao funciona, sobrevive a minificacao quando nao funciona.
+
+`scripts/check-mocks-tree-shaken.mjs` substitui o grep. Cobre os DOIS frameworks, nomeia o caminho de entrada de cada um na
+mensagem de falha, recusa um dist vazio (zero marcas em zero arquivos e o mesmo resultado de zero marcas em cem — a forma mais facil
+de voltar a ser tautologia), e VERIFICA A PROPRIA MARCA no fonte: apagar o literal faz o check falhar dizendo que parou de provar,
+em vez de ficar verde sem cobertura. Sondado nas tres direcoes.
+
+A PERGUNTA DO ITEM SEGUE ABERTA: consolidar os dois frameworks em um. Agora ela e uma decisao sobre 3.414 LOC de conveniencia de
+desenvolvimento, e nao sobre risco de producao — o risco esta medido e vigiado.
+
 ## B-068 — Auth logic is split across three homonymous modules with two divergent copies of the Kratos Flow type   [x]
 
 domain: frontend-dashboard

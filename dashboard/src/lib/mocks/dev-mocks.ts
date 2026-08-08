@@ -40,6 +40,7 @@ import { mocksEnabled } from '@/lib/http/config';
  * (gated by mocksEnabled → dead-code-eliminated in production). (Plan T-B.1,
  * ADR-D2; runtime override added M0 J-01 e2e harness fix.)
  */
+
 export function mocksLoggedOut(): boolean {
   if (!mocksEnabled()) return false;
   if (import.meta.env.VITE_MOCK_LOGGED_OUT === 'true') return true;
