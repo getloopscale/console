@@ -1980,7 +1980,7 @@ dod:
   - Nao introduzir feature flags — a escolha esta correta para o tamanho do time
   - mudanca verificavel em `src/app.tsx` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-077 — Nenhum modelo de consistencia declarado para o estado servidor cacheado do TanStack Query num dashboard operacional   [ ]
+## B-077 — Nenhum modelo de consistencia declarado para o estado servidor cacheado do TanStack Query num dashboard operacional   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1992,7 +1992,27 @@ evidence: src/lib/query-client.ts:1 — DESIGN.md:534-540 tabela 'Strategy by op
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#18
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: PREMISSA DESMENTIDA, e a lacuna real era outra. Registrado em `dashboard/docs/adr/0013`.
+
+O item diz "nenhum modelo de consistencia declarado". `lib/http/query-client.ts` declara o modelo INTEIRO, com justificativa por
+default: staleTime 60s (espelha o TTL manual pre-migracao), gcTime 5min, refetch em foco e reconexao, mutations sem retry, e um
+`retryGuard` que so repete falha transitoria. Esse guard nao e gosto — nasceu do Red Team theo-cloud#93: o `retry: 1` anterior
+repetia TUDO, inclusive 404 e 403, que nao se recuperam por repeticao e ainda atrasam o "nao encontrado" que a pessoa espera.
+
+O QUE A MEDICAO ACHOU: 32 overrides locais, e DOIS repetiam exatamente o default —
+`pages/memory/scope-switcher.tsx:42` e `hooks/overview/use-build-stats.ts:41`, ambos `staleTime: 60_000` com comentario
+justificando a escolha. O valor esta certo hoje, e e por isso que passava despercebido.
+
+POR QUE ISSO E DEFEITO: no dia em que o default global mudar, essas linhas ficam CONGELADAS SOZINHAS sem que nada acuse, e o
+comentario ao lado segue afirmando uma intencao que a linha deixou de entregar. Quem ler acredita no comentario.
+
+A regra que faltava: um override existe para DIVERGIR; se concorda com o default, some. `src/lib/cache-policy.test.ts` a impoe e
+tambem asserta que o modelo global EXISTE — para que a proxima auditoria nao repita a leitura de "nenhum modelo declarado".
+Os dois redundantes foram removidos com a intencao preservada em comentario. Sondado: reintroduzir um falha.
+
+NAO COBRE `refetchInterval` (18 ocorrencias) nem `refetchOnWindowFocus` (2): nao ha default numerico comparavel — o global do
+refetchInterval e `false`, entao qualquer valor ja e divergencia.
 dod:
   - Escrever meia pagina classificando os dados em duas ou tres classes (operacional volatil: builds, deploys, status de dominio; configuracao estavel: settings, team, billing) e fixar staleTime/refetch por classe no queryClient, com override explicito por excecao
   - mudanca verificavel em `src/lib/query-client.ts` com `npx tsc --noEmit` + `npm test` verdes

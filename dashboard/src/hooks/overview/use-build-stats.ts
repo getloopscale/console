@@ -38,7 +38,9 @@ export function useBuildStats(window: BuildStatsWindow = '30d'): BuildStats {
   const query = useQuery({
     queryKey: ['engine', '/api/v1/builds/stats', window],
     queryFn: () => engineFetch<BuildStatsResponse>(`/api/v1/builds/stats?window=${window}`, {}, { throwOnError: true }),
-    staleTime: 60_000,
+    // B-077 — o `staleTime: 60_000` que estava aqui repetia o default global
+    // (`lib/http/query-client.ts`). Um override existe para DIVERGIR; este
+    // concordava, entao so criava um ponto a mais para esquecer de atualizar.
   });
 
   return {

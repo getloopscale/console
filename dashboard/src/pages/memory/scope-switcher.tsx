@@ -39,7 +39,12 @@ function useSessionsQuery() {
         { throwOnError: true },
       ),
     // Sessions change slowly; keep the picker snappy without hammering the BFF.
-    staleTime: 60_000,
+    //
+    // B-077 — o `staleTime: 60_000` que estava aqui REPETIA o default global
+    // (`lib/http/query-client.ts`), entao nao declarava politica nenhuma: no dia
+    // em que o default mudasse, esta linha ficaria congelada sozinha e o
+    // comentario acima seguiria afirmando uma intencao que ela deixou de
+    // entregar. O default ja da os 60s, e agora muda para todo mundo de uma vez.
   });
 }
 
