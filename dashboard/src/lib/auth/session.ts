@@ -29,6 +29,7 @@ const KRATOS_URL = AUTH_URL || API_URL;
 // O re-export mantem `@/lib/auth` como superficie publica dos consumidores.
 export type { VerifiableAddress, AuthenticationMethod, Session } from '@/lib/api/types';
 import type { Session } from '@/lib/api/types';
+import { purgarCachesDeDados } from '@/lib/auth/logout-cache-purge';
 
 // OIDC providers whose email verification we trust (MEET-037 security mandate).
 const TRUSTED_OIDC_PROVIDERS = ['github', 'google'];
@@ -138,6 +139,14 @@ export async function logout(): Promise<void> {
   // Clear in-memory JWT and broadcast to other tabs (§3.3 + Fix #5)
   const { logout: apiLogout } = await import('@/lib/http/api');
   apiLogout();
+
+  // B-055 — apaga o cache do service worker que guarda dado de tenant.
+  //
+  // Limpar o JWT nao bastava: o Workbox chaveia por URL, e `/api/v1/projects` e
+  // a mesma URL para todo mundo. A resposta de quem sai ficava no disco por ate
+  // uma hora, e uma falha de rede (ou 3s de timeout) a serviria para quem
+  // entrasse depois. Nunca lanca — ver o modulo.
+  await purgarCachesDeDados();
 
   try {
     const resp = await fetch(`${KRATOS_URL}/self-service/logout/browser`, {

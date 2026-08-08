@@ -1441,6 +1441,29 @@ dod:
   - Remover a regra NetworkFirst de /api/v1/ do runtimeCaching em vite.config.ts:162 e deixar o TanStack Query como unica camada de cache de dados de servidor — ele ja tem invalidacao por queryKey, que o SW nao tem
   - a decisao fica escrita e a configuracao em `vite.config.ts` reflete o que foi decidido
 
+
+progresso_2026-08-08: MEDIDO, e a medicao achou um defeito de SEGURANCA que nao era decisao de produto nenhuma.
+
+O SW guarda `/api/v1/*` com NetworkFirst — 100 entradas, 1 hora, fallback ao cache quando a rede falha ou passa de 3s. O Workbox
+chaveia pela URL, e `/api/v1/projects` e a MESMA URL para todo tenant: o tenant vem do Authorization, que nao entra na chave.
+
+`logout()` limpava o JWT, avisava as outras abas e destruia a sessao no Kratos. NAO tocava no cache — verificado: `caches.delete`
+nao aparecia em NENHUM lugar de src/ (as duas ocorrencias de `caches.` eram comentarios).
+
+A sequencia que isso permitia: A usa o dashboard, o SW guarda as respostas dela; A sai (JWT limpo, sessao destruida, CACHE FICA);
+B entra no mesmo navegador; qualquer falha de rede ou resposta acima de 3s serve a resposta de A para B. Nao exige estar offline —
+os 3s de timeout tornam isso rotina numa conexao ruim. Janela de ate uma hora.
+
+CORRIGIDO: `lib/auth/logout-cache-purge.ts`, ligado no `logout()`. Apaga so os caches de DADO (prefixo, nao nome exato, porque o
+Workbox versiona), preserva os de asset (identicos para todos, caros de rebaixar; apagar tudo faria cada logout virar recarga fria,
+que e o excesso que faz alguem desligar a limpeza). Nunca lanca: `caches` nao existe em contexto inseguro, e uma excecao ali
+impediria a pessoa de SAIR — trocar o defeito por um pior. 7 testes, incluindo um do WIRE e nao so do modulo, porque hoje mesmo
+tres invalidacoes ficaram apontando para chaves mortas e o que faltava em todas era exatamente isso. Sondado nos dois.
+
+O QUE SEGUE SENDO SUA DECISAO (B-074): se o SW deve cachear a API. Um dashboard operacional servindo dado de uma hora atras quando
+a rede cai pode ser o certo (melhor que nada) ou o errado (mostrar um deploy como "rodando" quando ele falhou). O buraco corrigido
+existia INDEPENDENTEMENTE dessa escolha.
+
 ## B-056 — A conversa da sessao dispara ate 50 GETs paralelos de arvore de spans — um por turno — por falta de endpoint em lote   [x]
 
 domain: frontend-dashboard
@@ -1812,6 +1835,29 @@ status: triaged
 dod:
   - Escrever 5 linhas de ADR respondendo 'o SW existe para que?'
   - mudanca verificavel em `vite.config.ts` com `npx tsc --noEmit` + `npm test` verdes
+
+
+progresso_2026-08-08: MEDIDO, e a medicao achou um defeito de SEGURANCA que nao era decisao de produto nenhuma.
+
+O SW guarda `/api/v1/*` com NetworkFirst — 100 entradas, 1 hora, fallback ao cache quando a rede falha ou passa de 3s. O Workbox
+chaveia pela URL, e `/api/v1/projects` e a MESMA URL para todo tenant: o tenant vem do Authorization, que nao entra na chave.
+
+`logout()` limpava o JWT, avisava as outras abas e destruia a sessao no Kratos. NAO tocava no cache — verificado: `caches.delete`
+nao aparecia em NENHUM lugar de src/ (as duas ocorrencias de `caches.` eram comentarios).
+
+A sequencia que isso permitia: A usa o dashboard, o SW guarda as respostas dela; A sai (JWT limpo, sessao destruida, CACHE FICA);
+B entra no mesmo navegador; qualquer falha de rede ou resposta acima de 3s serve a resposta de A para B. Nao exige estar offline —
+os 3s de timeout tornam isso rotina numa conexao ruim. Janela de ate uma hora.
+
+CORRIGIDO: `lib/auth/logout-cache-purge.ts`, ligado no `logout()`. Apaga so os caches de DADO (prefixo, nao nome exato, porque o
+Workbox versiona), preserva os de asset (identicos para todos, caros de rebaixar; apagar tudo faria cada logout virar recarga fria,
+que e o excesso que faz alguem desligar a limpeza). Nunca lanca: `caches` nao existe em contexto inseguro, e uma excecao ali
+impediria a pessoa de SAIR — trocar o defeito por um pior. 7 testes, incluindo um do WIRE e nao so do modulo, porque hoje mesmo
+tres invalidacoes ficaram apontando para chaves mortas e o que faltava em todas era exatamente isso. Sondado nos dois.
+
+O QUE SEGUE SENDO SUA DECISAO (B-074): se o SW deve cachear a API. Um dashboard operacional servindo dado de uma hora atras quando
+a rede cai pode ser o certo (melhor que nada) ou o errado (mostrar um deploy como "rodando" quando ele falhou). O buraco corrigido
+existia INDEPENDENTEMENTE dessa escolha.
 
 ## B-075 — React Compiler (auto-memoizacao via babel-plugin-react-compiler) ativo em todo o build   [ ]
 

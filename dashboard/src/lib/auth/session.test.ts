@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { isEmailVerified } from './session';
 import type { Session } from './session';
 
@@ -127,5 +127,33 @@ describe('isEmailVerified', () => {
       ],
     });
     expect(isEmailVerified(session)).toBe(false);
+  });
+});
+
+describe('logout — B-055: o cache do service worker sai junto', () => {
+  it('logout() apaga o cache de dados do tenant', async () => {
+    const deletadas: string[] = [];
+    vi.stubGlobal('caches', {
+      keys: () => Promise.resolve(['theo-api', 'theo-assets']),
+      delete: (n: string) => {
+        deletadas.push(n);
+        return Promise.resolve(true);
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })));
+    const location = { href: '' };
+    vi.stubGlobal('location', location);
+    Object.defineProperty(window, 'location', { value: location, writable: true });
+
+    const { logout } = await import('./session');
+    await logout();
+
+    // Este teste prova o WIRE, e não o módulo — `logout-cache-purge.test.ts` já
+    // cobre a função isolada. A distinção importa: hoje mesmo, três invalidações
+    // de cache ficaram apontando para chaves que ninguém mais lia, e o que
+    // faltava em todas era exatamente um teste do wire.
+    expect(deletadas).toContain('theo-api');
+    expect(deletadas).not.toContain('theo-assets');
+    vi.unstubAllGlobals();
   });
 });
