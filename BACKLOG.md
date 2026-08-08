@@ -245,6 +245,28 @@ DOIS FALSOS POSITIVOS DO MEU PROPRIO TESTE, corrigidos por medicao antes do comm
 
 Sondado: mover `/recovery` para dentro do layout derruba o teste nomeando a rota.
 
+
+tentativa_2026-08-08 — SEGUNDA FATIA ABANDONADA, e a razao vale mais que o corte.
+
+Medi para agrupar as 94 rotas autenticadas por dominio: /observability 17, /projects 13, /memory 9, /skills 9, /promptly 9, /rag 8,
+/settings 7, /trust 5. Seis grupos sao CONTIGUOS (extraiveis sem reordenar) e dois NAO — /rag e /projects. A contiguidade importa
+porque a ordem de <Route> e significativa no react-router: a primeira que casa vence, entao mover um bloco entremeado muda qual
+rota atende um caminho.
+
+TENTEI duas vezes e revertI as duas:
+  1. corte por regex ate o primeiro `/>`  — quebrou, porque o `/>` que ele achou era de um COMPONENTE interno
+     (`<WorkspaceWebhooksPage context="observability" />`), nao do <Route>. Gerou fragmento JSX invalido.
+  2. parser por profundidade de tag — nao fechou: <Route> aparece auto-fechado, com filhos, com element multi-linha e com
+     aninhamento, e cada forma pede um caso.
+
+A conclusao NAO e "e dificil": e que o custo de acertar o corte automatico excede o ganho. app.tsx tem 592 linhas contra orcamento
+de 500 — 92 acima —, ja tem rede de teste em quatro direcoes (fronteira publico/autenticado nos dois sentidos, ancora, cobertura de
+Boundaried), e um corte manual rota a rota gastaria horas com risco de trocar precedencia em silencio.
+
+O QUE FICA: a medicao dos grupos e da contiguidade, para quem for fazer o corte manual. E os quatro grupos maiores contiguos
+(observability, memory, skills, promptly, somando 44 rotas) estao identificados — o corte deles e mecanico DESDE QUE feito a mao,
+com o teste de fronteira rodando a cada grupo.
+
 ## B-004 — src/hooks e um shared kernel falso: 33 de 44 hooks (75%) sao usados por uma unica feature   [x]
 
 domain: frontend-dashboard
