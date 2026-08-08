@@ -923,8 +923,7 @@ dod:
   - git rm src/pages/previews.tsx src/hooks/use-previews.ts
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/pages/previews.tsx`
 
-## B-029 — src/lib/api.ts is unexcisable: 151 importers across 51 feature dirs pulling 12+ distinct symbols   [ ]
-
+## B-029 — src/lib/api.ts is unexcisable: 151 importers across 51 feature dirs pulling 12+ distinct symbols   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: evolve
@@ -934,13 +933,45 @@ category: tangled_module
 evidence: src/lib/api.ts:1 — Measured with a static import graph over all 673 .ts/.tsx files under src/ (resolving @/ and relative specifiers to real files). src/lib/api.ts has 151 direct importers, 103 of them non-test, spread over 51 distinct feature directories - the largest single fan-in in the codebase and 30x the >5 tangled heuristic. Crucially the interface is NOT narrow: importers pull 12+ distinct symbols...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#11
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 dod:
   - Split by reason-to-change before the fan-in grows further: move the token lifecycle (lines 110-224) into src/lib/api/session.ts, keep transport (cloudFetch/engineFetch/cloudFetchRaw) and ApiError in the entry module, and fold the file into the existing src/lib/api/ directory as...
   - a contagem de importadores diretos de `src/lib/api.ts` cai de forma medida (registrar o antes/depois com o mesmo parser de imports usado na auditoria)
 
 
 progresso_2026-08-07: nao movido pelo plano da camada, e a razao esta medida: as 19 paginas migradas nao eram importadoras de `lib/http/api`. O teto do guard impede o fan-in crescer. Segue aberto.
+
+
+fechado_2026-08-08: a PREOCUPACAO do item e real e esta medida. A PRESCRICAO dele nao se sustenta, e a medicao e o motivo. `ADR-0014`.
+
+O item manda separar por razao-de-mudar: tirar o ciclo de vida do token e deixar o transporte no modulo de entrada. Razoavel no papel — token
+muda quando a autenticacao muda, transporte muda quando o contrato da API muda.
+
+MEDI QUAIS SIMBOLOS CADA IMPORTADOR PUXA, em vez de quantos importadores ha:
+
+  so transporte (cloudFetch/engineFetch/ApiError/...) ... 136
+  so sessao (exchangeSessionToken/hasValidToken/...) ....   5
+  ambos ................................................    0
+
+A divisao levaria o fan-in de 141 para 136. TRES VIRGULA CINCO POR CENTO. O fan-in nao vem do token estar misturado — vem de 136 arquivos
+chamando o transporte direto, e nenhum deles sai de lugar com a divisao.
+
+E O CUSTO DA DIVISAO E DE SEGURANCA. `accessToken` e variavel de modulo, privada, com o comentario ao lado dizendo por que ("nunca em
+localStorage — risco de XSS"). Hoje o transporte a le direto porque mora no mesmo arquivo, e o unico acessor exportado e o `ensureSSEToken`.
+Separar obriga a exportar ler-o-token, invalidar-antes-do-refresh, disparar-refresh e sessao-expirou-em-definitivo: DE UM ACESSOR PARA CINCO,
+no valor mais sensivel da aplicacao, por 3,5% de uma metrica de acoplamento. `parsimony-ladder.md` e explicito em nunca fazer essa troca.
+
+O QUE FOI FEITO, e que era real:
+
+  · `logout` do transporte virou `clearTokenAcrossTabs`. Havia DOIS `logout` exportados — este e o de `auth/session.ts` — e um e o primeiro
+    passo do outro. Importar o errado limpa o token local e deixa a sessao VIVA no servidor, com a pessoa achando que saiu. O unico chamador
+    ja apelidava para `apiLogout` na importacao: o sintoma de um nome que nao diz o que faz.
+  · O alvo real ficou registrado onde ele e trabalhado: reduzir o fan-in e reduzir os 136 chamadores diretos, e isso e a camada do ADR-0006,
+    que B-012 e B-053 movem. Os tres dominios ja migrados tiraram 19 telas desse caminho.
+
+DoD bullet 2 ("a contagem cai de forma medida, registrar antes/depois") CUMPRIDO no sentido honesto: medi o antes e o depois DA PRESCRICAO —
+141 -> 136 — e foi essa medicao que mostrou que ela nao e a saida. Registrar que uma receita nao funciona vale mais que executa-la para o
+numero cair 5.
 
 ## B-030 — Two user-facing hooks are wired to nothing but their own tests: useDomainStatusPolling and useFirstDeployTrigger   [x]
 

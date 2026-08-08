@@ -30,7 +30,7 @@ describe('dashboard auth cross-tab coordination', () => {
     const disposeChannel = api.installAuthChannel();
     posted.length = 0;
 
-    api.logout(); // the only path that broadcasts
+    api.clearTokenAcrossTabs(); // the only path that broadcasts
 
     expect(posted.length).toBeGreaterThan(0);
     for (const msg of posted) {

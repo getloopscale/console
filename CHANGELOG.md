@@ -78,6 +78,8 @@
 
 ### Fixed
 
+- **Duas funções chamadas `logout` deixaram de coexistir.** Uma encerra a sessão de verdade — avisa o servidor de autenticação e leva à tela de entrada; a outra só limpa a credencial guardada na memória da aba, como primeiro passo da primeira. Usar a segunda por engano deixaria a pessoa achando que saiu enquanto a sessão continuava aberta no servidor. A segunda passou a se chamar pelo que faz.
+
 - **A tela de conectar um repositório deixou de dizer "sem conexão" quando na verdade não conseguiu perguntar.** Qualquer falha do servidor era tratada como a resposta "este projeto ainda não tem repositório conectado" — indistinguível, para quem olha, de um projeto realmente novo. Agora só a resposta que de fato significa isso é lida assim; uma falha aparece como falha, com opção de recarregar. A espera pela instalação no GitHub continua igual, incluindo o limite de 5 minutos e a atualização ao voltar da aba do GitHub.
 
 - **Os testes automatizados passaram a checar as cores que o produto realmente mostra.** O dashboard é escuro e usa um roxo escolhido por contraste — o tom padrão da biblioteca reprova o critério de acessibilidade para texto sobre ele. Mas a bateria de testes montava o tema por conta própria, com o tom padrão e em modo **claro**: tudo o que ela verificava sobre aparência, incluindo as verificações de acessibilidade, se referia a uma tela que ninguém vê. Tema do app e tema dos testes passaram a vir do mesmo lugar. Nada mudou para quem usa o dashboard — mudou o que os testes conseguem detectar.

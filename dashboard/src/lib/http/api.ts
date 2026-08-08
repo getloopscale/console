@@ -266,8 +266,20 @@ export function clearToken(): void {
   lastIdentity = null;
 }
 
-/** Logout — clears token and broadcasts to other tabs. */
-export function logout(): void {
+/**
+ * Encerra o token DESTA sessão de navegador e avisa as outras abas.
+ *
+ * NÃO é o logout do produto. Ele não fala com o Kratos, não encerra a sessão no
+ * servidor e não leva ninguém para a tela de login — quem faz isso é
+ * `lib/auth/session.ts § logout`, que chama esta função como primeiro passo.
+ *
+ * B-029 — chamava-se `logout`, e havia outro `logout` exportado por
+ * `auth/session.ts`. Dois nomes iguais, um deles um passo do outro: importar o
+ * errado limpa o token local e deixa a sessão VIVA no servidor, com a pessoa
+ * acreditando que saiu. O único chamador já apelidava para `apiLogout` na
+ * importação, o que é o sintoma de um nome que não diz o que faz.
+ */
+export function clearTokenAcrossTabs(): void {
   clearToken();
   // §3.3: Broadcast logout to all tabs
   authChannel?.postMessage({ type: 'logged-out' } satisfies AuthMessage);

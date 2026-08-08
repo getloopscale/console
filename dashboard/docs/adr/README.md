@@ -23,6 +23,7 @@ citação nova usa esta.
 | `ADR-0011` | Os dois frameworks de mock permanecem |
 | `ADR-0012` | React Compiler permanece ligado, com o custo medido |
 | `ADR-0013` | Modelo de consistência do cache e a regra de override |
+| `ADR-0014` | Fan-in do transporte HTTP: por que não dividir |
 
 ## `ADR D1`..`ADR D9` — decisões internas de planos. **Não resolvem, e não vão.**
 

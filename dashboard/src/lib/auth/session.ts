@@ -137,8 +137,8 @@ export function getVerificationURL(): string {
 /** Logout — destroy Kratos session, clear JWT, and notify other tabs. */
 export async function logout(): Promise<void> {
   // Clear in-memory JWT and broadcast to other tabs (§3.3 + Fix #5)
-  const { logout: apiLogout } = await import('@/lib/http/api');
-  apiLogout();
+  const { clearTokenAcrossTabs } = await import('@/lib/http/api');
+  clearTokenAcrossTabs();
 
   // B-055 — apaga o cache do service worker que guarda dado de tenant.
   //
