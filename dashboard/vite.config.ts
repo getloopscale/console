@@ -64,7 +64,25 @@ export default defineConfig(({ mode }) => ({
     devCspRelax(),
     // T0.2: React Compiler (auto-memoization). React 19 GA, babel-plugin@1.0.
     // Auto-memoiza components + hooks sem useMemo/useCallback/memo() manuais.
-    // Build-time only, zero runtime overhead. Existing 6 manual memos convivem.
+    //
+    // MEDIDO em 2026-08-08 (B-075), porque "zero runtime overhead" era afirmacao
+    // e nao numero — e ela estava ERRADA:
+    //
+    //   memoizacao:  170 de 207 componentes .tsx (rodando o babel-plugin sobre
+    //                cada arquivo e procurando `useMemoCache` na saida)
+    //   bundle:      306,47 kB com · 301,00 kB sem  ->  +5,5 kB EAGER
+    //   build:       34,0s com · 22,7s sem          ->  +50%
+    //
+    // Os 5,5 kB sao o codigo de memoizacao emitido nos componentes; o helper
+    // `useMemoCache` vem do proprio React 19 (nao ha dependencia de
+    // `react-compiler-runtime`). Entao ha custo de runtime em BYTES, ainda que
+    // nao em trabalho por render.
+    //
+    // A decisao de manter esta no ADR-0012. O comentario anterior dizia "zero
+    // runtime overhead" — quem lesse isso ao caçar bytes descartaria este
+    // plugin da lista de suspeitos sem medir.
+    //
+    // Os 6 memos manuais existentes convivem.
     react({
       babel: {
         plugins: [

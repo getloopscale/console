@@ -1926,7 +1926,7 @@ O QUE SEGUE SENDO SUA DECISAO (B-074): se o SW deve cachear a API. Um dashboard 
 a rede cai pode ser o certo (melhor que nada) ou o errado (mostrar um deploy como "rodando" quando ele falhou). O buraco corrigido
 existia INDEPENDENTEMENTE dessa escolha.
 
-## B-075 — React Compiler (auto-memoizacao via babel-plugin-react-compiler) ativo em todo o build   [ ]
+## B-075 — React Compiler (auto-memoizacao via babel-plugin-react-compiler) ativo em todo o build   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1938,7 +1938,26 @@ evidence: vite.config.ts:66 — vite.config.ts:66-74 — plugin react() com babe
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#13
 adr_draft: dashboard/system-design-output/adrs/
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: MEDIDO e mantido — registrado em `dashboard/docs/adr/0012`.
+
+A hipotese que motivava desligar era "custo sem retorno". A medicao a desmente: 170 de 207 componentes .tsx sao memoizados (rodei o
+babel-plugin sobre cada arquivo procurando `useMemoCache` na saida). O plugin nao e enfeite.
+
+CUSTO, com dois builds completos ligando e desligando:
+  bundle  306,47 kB com · 301,00 kB sem  ->  +5,5 kB EAGER
+  build   34,0s com · 22,7s sem          ->  +50%
+
+E A AFIRMACAO DO CONFIG ESTAVA ERRADA. O comentario dizia "build-time only, ZERO RUNTIME OVERHEAD" — sao 5,5 kB de codigo de
+memoizacao emitido nos componentes, no chunk eager. O que nao existe e DEPENDENCIA de runtime: `react-compiler-runtime` nao esta no
+package.json e o helper `useMemoCache` vem do proprio React 19. A distincao importa porque quem lesse "zero" ao cacar bytes
+descartaria o plugin da lista de suspeitos sem medir. O comentario foi corrigido para carregar os numeros.
+
+MANTIDO porque a troca nao fecha: desligar devolve 5,5 kB e 11s de build ao custo de perder memoizacao em 170 componentes, e
+recuperar isso a mao exigiria decidir componente a componente onde por useMemo/memo() — que e justamente a memoizacao manual difusa
+que a documentacao do React desaconselha por errar mais do que acerta.
+
+O item fecha como DECIDIDO. Se o TOTAL EAGER chegar perto do teto de 320 kB, este plugin e um suspeito LEGITIMO — agora com numero.
 conflito_com: B-080 (fechado em 106c10e) — CONTRADICAO REAL entre dois achados da mesma auditoria. deletion#10 mediu que eslint-plugin-react-compiler nao e referenciado em eslint.config.js e mandou REMOVER a dependencia; tradeoff#13 mandou ADICIONA-LA ao eslint.config.js justamente por ser o mecanismo que torna visivel quando o React Compiler desiste de um componente. Ambos os achados estao corretos sobre o estado — a dep estava instalada e nao usada. O que eles discordam e sobre o DESTINO. A onda 1 executou a remocao (o caminho reversivel: reinstalar e uma linha). Quem pegar B-075 decide primeiro a politica de memoizacao e, SE decidir pelo plugin, reinstala a dep na mesma PR que o wira no eslint.config.js — nao antes.
 dod:
   - Adicionar eslint-plugin-react-compiler ao eslint.config.js — ele e o mecanismo que transforma 'o compiler desistiu deste componente' em sinal visivel, e sem ele a adocao e cega

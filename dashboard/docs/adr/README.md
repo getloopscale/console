@@ -21,6 +21,7 @@ citação nova usa esta.
 | `ADR-0009` | Autenticação dos streams SSE |
 | `ADR-0010` | Estado de URL: `nuqs` vs primitiva do router |
 | `ADR-0011` | Os dois frameworks de mock permanecem |
+| `ADR-0012` | React Compiler permanece ligado, com o custo medido |
 
 ## `ADR D1`..`ADR D9` — decisões internas de planos. **Não resolvem, e não vão.**
 
