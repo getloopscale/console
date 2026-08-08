@@ -3110,6 +3110,50 @@ PARA QUEM PEGAR ISTO DEPOIS: as tres hipoteses acima ja foram queimadas. Se reco
 `DEBUG=vite:* npx vitest run` e o conteudo de `node_modules/.vite` — sem isso a proxima investigacao
 comeca do zero como esta comecou.
 
+
+progresso_2026-08-08: MAIS DUAS HIPOTESES REFUTADAS, UM DEFEITO DE AMBIENTE ACHADO, CAUSA AINDA NAO IDENTIFICADA. SEGUE ABERTO.
+
+Total agora: 35 execucoes verdes, CINCO hipoteses testadas.
+
+HIPOTESES 4 E 5, refutadas hoje:
+
+  4. `alert-guard.tsx` teria sido criado pouco antes da execucao, e o resolver teria cacheado a ausencia.
+     REFUTADA: `git log --diff-filter=A` mostra criacao em 2026-07-08, um mes antes.
+
+  5. Contencao de worker. Esta tinha o melhor mecanismo de todas — o proprio `vitest.config.ts` documenta
+     starvation ("import-smoke + render tests timing out at 10-27s while the default 5s elapses"), e a
+     correcao aplicada la subiu TIMEOUTS, que trata o sintoma de timeout e nao o de resolve. Se a
+     contencao produz falha de resolucao, SOBRECARREGAR deveria reproduzir.
+     REFUTADA: 3 execucoes com `--maxWorkers=24` em 12 CPUs, cache de deps apagado antes de cada uma:
+     3/3 verdes, exit 0, zero "failed to resolve".
+
+  (Testei tambem se os tres commits das 01:04-01:05 — quatro minutos antes da falha — tocavam `src/`.
+   Nenhum toca: sao 68 arquivos, todos em `.claude/knowledge-base/`.)
+
+DEFEITO DE AMBIENTE ENCONTRADO, e NAO estou chamando de causa:
+
+  `node_modules/.vite/deps.root-owned-1785734089/` — 81 KB de diretorio pertencente ao ROOT, datado de
+  2026-08-02 21:17, que o usuario `paulo` nao consegue remover. O nome e um marcador humano: nada no Vite
+  e nada neste repositorio cria essa string. Alguem rodou algo como root nesta arvore e estacionou o
+  diretorio ali para destravar o Vite.
+
+  Ele e anterior ao flake (08-07) e continua presente. NAO PROVEI que causa a falha — o Vite procura
+  `deps`, nao `deps.root-owned-*`, e as 35 execucoes verdes aconteceram com ele no lugar. Chama-lo de
+  causa seria a post-racionalizacao que o bullet 1 deste DoD existe para impedir.
+
+  O que ele PROVA e que algo rodou como root nesta arvore. Artefato root-owned na arvore de um usuario
+  produz exatamente esta classe de falha transitoria e irreproduzivel, e removê-lo exige sudo — decisao
+  de quem opera a maquina, nao minha.
+
+E UMA CORRECAO SOBRE COMO EU MEDI:
+
+  Duas vezes hoje um harness meu escondeu erro de INVOCACAO atras de um grep. `--reporter=basic` (que nao
+  existe) fez o vitest abortar e meu filtro reportou 20 "ok"; hoje `--minWorkers` (que nao existe nesta
+  versao) fez o mesmo. Nos dois casos uma execucao que NUNCA ACONTECEU parecia verde.
+
+  Passei a checar exit code explicitamente. Isso importa para este item em particular: parte da confianca
+  nas 32 execucoes anteriores vinha de harnesses com essa forma.
+
 ## B-100 — `nginx.conf` do dashboard nao emite nenhum header de cache   [ ]
 
 domain: frontend-dashboard
