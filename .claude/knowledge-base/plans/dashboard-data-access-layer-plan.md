@@ -674,19 +674,60 @@ VERIFY:  cd dashboard && npx vitest run && npx tsc --noEmit && npx eslint src &&
 
 ## Global Definition of Done
 
-- [ ] Todas as fases completas
-- [ ] `cd dashboard && npx vitest run` verde
-- [ ] `npx tsc --noEmit` zero erros
-- [ ] `npx eslint src` zero warnings
-- [ ] Orçamento de tamanho respeitado (`rules/architecture.md`; 500 linhas por arquivo)
-- [ ] `npm run build && npx size-limit` dentro de 320 kB no `TOTAL EAGER`
-- [ ] `CHANGELOG.md` atualizado sob `[Unreleased]` (Unbreakable Rule 6)
-- [ ] Compatibilidade preservada: nenhum teste de página existente precisou ser editado
-- [ ] `TETO_PAGINAS_COM_QUERY_MANUAL` = 0 e `TETO_PAGINAS_COM_TRANSPORTE` = 58 em `data-access-layer.test.ts`, com sonda de detecção confirmada para os dois
-- [ ] **Prova de métrica em runtime** — não se aplica: este plano não acrescenta contador de runtime; a métrica é o guard
-- [ ] Plano arquivado em `knowledge-base/plans/completed/` **após** o merge do PR
+Verificado em 2026-08-08. Cada item foi medido, não conferido de memória.
 
-## Failure scenarios
+- [x] Todas as fases completas — Fase 0 (guard) · Fase 1 `af674023` · Fase 2 `7e5d9ea7` · Fase 3 `47e91273` · Fase 4 (esta verificação)
+- [x] `cd dashboard && npx vitest run` verde — **2722 testes, 320 arquivos**
+- [x] `npx tsc --noEmit` zero erros
+- [x] `npx eslint src` zero warnings
+- [x] Orçamento de tamanho respeitado — coberto por `loc-budget-ratchet.test.ts`, que roda na suíte
+- [x] `npm run build && npx size-limit` — **306,27 kB** de 320 kB no `TOTAL EAGER`
+- [x] `CHANGELOG.md` atualizado sob `[Unreleased]` — entrada em `47e91273`, cobrindo as 19 telas
+- [ ] ~~Compatibilidade preservada: nenhum teste de página existente precisou ser editado~~ — **ESTE ITEM ERA FALSO COMO ESCRITO. Ver abaixo.**
+- [x] `TETO_PAGINAS_COM_QUERY_MANUAL` = 0 e `TETO_PAGINAS_COM_TRANSPORTE` = 58, com sonda confirmada para os dois
+- [x] **Prova de métrica em runtime** — não se aplica; a métrica é o guard
+- [ ] Plano arquivado em `knowledge-base/plans/completed/` — **bloqueado por desenho**: só depois do merge do PR
+
+### O item 8, corrigido em vez de marcado
+
+**10 testes de página FORAM editados**, contra o que o DoD afirmava:
+
+| Fase | Arquivos | O que mudou |
+|---|---|---|
+| 1 · trust | `enforcement` `guardrail-new` `guardrails` `overview` | 8 linhas |
+| 3 · promptly | `catalogo` `create` `detail` `diff` `overview` `playground` | 12 linhas |
+
+E as 20 linhas são **todas da mesma forma**:
+
+```diff
+-vi.mock('@/pages/promptly/components/promptly-api', …)
++vi.mock('@/hooks/promptly/promptly-api',           …)
+```
+
+**Zero asserções mudaram. Zero expectativas de comportamento mudaram.**
+
+A causa é mecânica e era previsível: `vi.mock` recebe um caminho de módulo
+**literal**. Quando o módulo muda de lugar, o mock não segue — ele não resolve
+por identidade, resolve por string. Era impossível mover `trust-api.ts` para
+`hooks/` e deixar os mocks intactos.
+
+**Por que corrigir o item em vez de marcá-lo assim mesmo.** O que o DoD queria
+garantir era *compatibilidade comportamental* — e isso vale: nenhuma asserção
+precisou mudar, que é a prova de que a migração não alterou o que as telas
+fazem. Mas ele foi escrito medindo "arquivo tocado", e arquivo tocado não é a
+mesma coisa que comportamento alterado.
+
+Marcar `[x]` num item literalmente falso porque "a intenção valia" é como
+declarar o gate verde e explicar o vermelho no rodapé — a próxima pessoa lê o
+`[x]`, não o rodapé. Deixá-lo `[ ]` sem explicação seria pior ainda: pareceria
+trabalho pendente quando não há nenhum.
+
+O critério que o item deveria ter usado desde o começo:
+
+> Nenhum teste de página teve **asserção** alterada. Mudança de caminho de mock
+> é consequência mecânica de mover o módulo, e não evidência de incompatibilidade.
+
+## Failure scenarios## Failure scenarios
 
 Este plano toca I/O externo (HTTP via `cloudFetch`/`engineFetch`), então os cenários são obrigatórios.
 
