@@ -210,6 +210,12 @@ export function LensTracesPage() {
   );
 
   // Apply a saved view: replace the URL search with its stored query string; nuqs re-reads every key.
+  //
+  // url-state: substituicao-total — INTENCIONAL, e o ADR-0010 registra por quê.
+  // Aplicar uma visão salva É trocar todos os filtros; usar a forma funcional
+  // aqui preservaria justamente o que esta função existe para substituir. A
+  // declaração é o que distingue esta linha da vizinha em :203, que copia
+  // `prev` porque só mexe no `?trace=`.
   const applyView = (queryString: string) => {
     setSearchParams(new URLSearchParams(queryString.replace(/^\?/, '')));
   };

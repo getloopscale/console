@@ -19,6 +19,7 @@ citação nova usa esta.
 | `ADR-0007` | Modelo de consistência do estado de servidor |
 | `ADR-0008` | ADRs versionados no repositório |
 | `ADR-0009` | Autenticação dos streams SSE |
+| `ADR-0010` | Estado de URL: `nuqs` vs primitiva do router |
 
 ## `ADR D1`..`ADR D9` — decisões internas de planos. **Não resolvem, e não vão.**
 

@@ -1121,7 +1121,7 @@ dod:
   - Extrair src/hooks/use-build-logs.ts (snapshot REST + useLogStream + merge + refetch), espelhando a assinatura de src/hooks/use-deployments-list-stream.ts:54
   - `src/pages/deployment-tabs/logs-tab.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
 
-## B-046 — Estado de URL tem duas implementacoes: nuqs em 7 arquivos, useSearchParams cru em 28 — e traces.tsx usa as duas ao mesmo tempo   [ ]
+## B-046 — Estado de URL tem duas implementacoes: nuqs em 7 arquivos, useSearchParams cru em 28 — e traces.tsx usa as duas ao mesmo tempo   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1132,7 +1132,26 @@ category: state_synchronization_issue
 evidence: src/pages/lens/traces.tsx:204 — traces.tsx:128-148 declara 11 useQueryState; traces.tsx:204 `const [searchParams, setSearchParams] = useSearchParams();` e traces.tsx:224 `setSearchParams(new URLSearchParams(queryString.replace(/^\?/, "")))` substitui a query inteira. Contagem: 7 arquivos importam nuqs, 28 importam useSearchParams (src/pages/lens/*, src/pages/memory/*, secrets, team, projects, domains...).
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · state#8
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: NAO virou migracao, e a medicao e que decidiu. O dod pedia escolher UMA das duas implementacoes; medindo:
+`nuqs` em 7 arquivos, `useSearchParams` em 28, e EXATAMENTE UM usa os dois — `pages/lens/traces.tsx`, onde os dois estao CERTOS e
+coordenados. `:203` usa a forma funcional e copia `prev`, preservando os 6 params do nuqs (o comentario da :198 diz isso); `:214`
+substitui a query inteira DE PROPOSITO, porque aplicar uma visao salva e trocar todos os filtros (o comentario diz "nuqs re-reads
+every key"). Quem escreveu conhecia a interacao.
+
+Eu ia planejar a migracao partindo de que dois donos de URL se sobrescreveriam. Fui ler antes de escrever e a premissa caiu.
+
+O QUE FALTAVA ERA A REGRA ESCRITA: `docs/adr/0010` declara a fronteira — `nuqs` para estado de FILTRO tipado com default; a
+primitiva do router para leitura/escrita PONTUAL de um parametro. Para ler um `?trace=`, trazer um parser e o degrau 5 da escada da
+parcimonia: dependencia conceitual sem ganho.
+
+E `src/lib/url-state-convention.test.ts` protege o UNICO caso perigoso: num arquivo com nuqs, `setSearchParams(novoObjeto)` — a
+forma NAO funcional — apaga os filtros em silencio (a tela nao quebra, ela esquece). A forma funcional passa; a substituicao total
+passa quando DECLARADA com `url-state: substituicao-total`, que e o que distingue a linha que sabe o que faz da que nao sabe.
+Sondado: trocar a forma funcional da :203 pela literal e acusado.
+
+O guard do B-098 apanhou um descuido meu no caminho: escrevi o ADR-0010 e nao atualizei o indice de `docs/adr/README.md` — que e
+exatamente o que ele existe para impedir.
 dod:
   - Definir nuqs como a unica API de estado de URL para filtros/paginacao e reservar useSearchParams do react-router para o que o roteador realmente possui (callbacks OAuth, ?flow= do Kratos)
   - `src/pages/lens/traces.tsx` deixa de conter a logica apontada e ha teste cobrindo o novo dono
