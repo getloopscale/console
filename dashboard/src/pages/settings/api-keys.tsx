@@ -1,12 +1,13 @@
 import {useEffect, useState} from 'react';
 import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
 import {History, Key, Plus, Recycle, Trash2} from 'lucide-react';
-import {Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Sheet, Timestamp} from '@usetheo/ui';
+import {Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Timestamp} from '@usetheo/ui';
 import {Alert} from '@/components/ui/alert-guard';
 import {usePageMeta} from '@/hooks/use-page-meta';
 import {useRequireAuth} from '@/hooks/use-auth';
 import {cloudFetch} from '@/lib/http/api';
 import {LIST_SAFETY_CEILING} from '@/lib/http/list-ceiling';
+import { LineageSheet } from '@/pages/settings/components/api-key-lineage';
 import {
   ConfirmRotateDialog,
   CreateApiKeyDialog,
@@ -451,125 +452,3 @@ export function ApiKeysPage() {
     </>
   );
 }
-
-interface LineageItem {
-  id: string;
-  name: string;
-  key_prefix: string;
-  created_at: string;
-  revoked_at?: string | null;
-  expires_at?: string | null;
-  is_current: boolean;
-}
-
-interface LineageResult {
-  lineage: LineageItem[];
-}
-
-interface LineageSheetProps {
-  target: APIKeyView | null;
-  onClose: () => void;
-}
-
-/**
- * API Key Lineage View plan T7.4 — Sheet drawer showing the rotation chain
- * as a vertical timeline. Each item: prefix + name + status badge.
- * Current key highlighted with a "Current" badge.
- */
-function LineageSheet({ target, onClose }: LineageSheetProps) {
-  const open = target !== null;
-  const query = useQuery({
-    queryKey: ['cloud', `/v1/api-keys/${target?.id ?? ''}/lineage`] as const,
-    queryFn: () =>
-      cloudFetch<LineageResult>(
-        `/v1/api-keys/${target!.id}/lineage`,
-        {},
-        { throwOnError: true },
-      ),
-    enabled: open && !!target,
-  });
-
-  return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <Sheet.Content side="right">
-        <Sheet.Header>
-          <Sheet.Title>Rotation history</Sheet.Title>
-          <Sheet.Description>
-            {target
-              ? `Lineage of "${target.name}" — root key first, current key last.`
-              : null}
-          </Sheet.Description>
-        </Sheet.Header>
-        <div className="p-4 space-y-3" data-testid="lineage-timeline">
-          {query.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading lineage…</p>
-          ) : query.isError ? (
-            <Alert
-              intent="warning"
-              title="Could not load lineage"
-              description="Try again in a moment."
-            />
-          ) : (
-            (query.data?.lineage ?? []).map((item) => (
-              <LineageRow key={item.id} item={item} />
-            ))
-          )}
-        </div>
-      </Sheet.Content>
-    </Sheet>
-  );
-}
-
-function LineageRow({ item }: { item: LineageItem }) {
-  let statusLabel = 'Active';
-  let statusVariant: 'default' | 'success' | 'warning' | 'destructive' =
-    'default';
-  if (item.revoked_at) {
-    statusLabel = 'Revoked';
-    statusVariant = 'destructive';
-  } else if (item.expires_at && new Date(item.expires_at) < new Date()) {
-    statusLabel = 'Expired';
-    statusVariant = 'warning';
-  } else if (item.is_current) {
-    statusLabel = 'Active';
-    statusVariant = 'success';
-  }
-
-  return (
-    <Card
-      className={item.is_current ? 'border-primary' : undefined}
-      data-testid={`lineage-row-${item.id}`}
-    >
-      <div className="p-3 space-y-1">
-        <div className="flex items-center justify-between gap-2">
-          <code className="font-mono text-xs text-muted-foreground">
-            {item.key_prefix}…
-          </code>
-          <div className="flex gap-1">
-            {item.is_current ? (
-              <Badge
-                variant="success"
-                data-testid={`lineage-current-${item.id}`}
-              >
-                Current
-              </Badge>
-            ) : null}
-            <Badge variant={statusVariant}>{statusLabel}</Badge>
-          </div>
-        </div>
-        <p className="text-sm font-medium">{item.name}</p>
-        <p className="text-xs text-muted-foreground">
-          Created <Timestamp value={item.created_at} />
-        </p>
-      </div>
-    </Card>
-  );
-}
-
-
-/**
- * API Key Rotation plan T6.5 — ConfirmDialog for the rotate flow.
- * Uses the same typed-verification pattern as ConfirmDeleteDialog.
- * Body copy explains the 24h default grace window so the customer
- * understands BOTH keys will work during the overlap.
- */

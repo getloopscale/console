@@ -456,6 +456,26 @@ ultima linha. O guard usa uma convencao e eu usei outra; o guard e a autoridade,
 
 Nenhum teste de pagina editado (69 verdes em settings). Bundle 306,31/320 kB.
 
+
+progresso_2026-08-08 (segunda fatia): `settings/api-keys.tsx` de 575 para 454 — ABAIXO DO ORCAMENTO. Ele SAIU da allowlist do
+max-lines, e essa e a primeira vez que um arquivo DEIXA a lista em vez de so encolher dentro dela. O lint passa nele sem isencao.
+
+O painel de linhagem foi a fatia: `LineageSheet` + `LineageRow` + os tres tipos exclusivos deles. Nao veio junto com os dialogos no
+corte anterior porque nao E um dialogo — ele EXIBE a procedencia de uma chave, nao confirma nem cria nada. Juntar teria produzido
+"componentes que estavam no api-keys", o balde que ADR-0001 impede; separar por natureza custou um arquivo a mais e evitou um balde.
+
+DOIS ACHADOS NO CAMINHO:
+  · o corte por "comentario acima da declaracao" recuou demais e partiu o LineageSheet ao meio — o tsc pegou na hora e eu reverti,
+    refazendo pela DECLARACAO em vez de pela heuristica de comentario;
+  · sobrou um comentario ORFAO no fim do arquivo descrevendo o `ConfirmRotateDialog`, que eu havia extraido no commit anterior.
+    Removido. Nenhum teste ou lint detecta comentario que descreve codigo que nao esta mais ali.
+
+O TETO DA ALLOWLIST BAIXOU DE 18 PARA 17 junto com a saida. Deixa-lo em 18 abriria uma vaga para a proxima divida entrar sem que
+nada acusasse — o progresso de hoje viraria credito para amanha.
+
+Restam 16 arquivos na lista. O maior agora e `promptly/detail.tsx` (887), que tem UM componente e por isso nao tem fronteira
+natural: ele exige DESENHAR a divisao, nao aplica-la.
+
 ## B-010 — Nao existe contrato escrito de fronteira de modulo para o dashboard, e o codigo cita um que nao esta no repositorio   [x]
 
 domain: frontend-dashboard
