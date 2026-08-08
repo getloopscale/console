@@ -20,6 +20,7 @@ citação nova usa esta.
 | `ADR-0008` | ADRs versionados no repositório |
 | `ADR-0009` | Autenticação dos streams SSE |
 | `ADR-0010` | Estado de URL: `nuqs` vs primitiva do router |
+| `ADR-0011` | Os dois frameworks de mock permanecem |
 
 ## `ADR D1`..`ADR D9` — decisões internas de planos. **Não resolvem, e não vão.**
 

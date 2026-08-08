@@ -1683,7 +1683,7 @@ dod:
   - Delete src/components/layout/action-bar.tsx and src/components/layout/action-bar.test.tsx, and drop line 2 of src/components/layout/index.ts
   - `npx tsc --noEmit` e `npm test` passam apos a remocao/wiring, e `npx knip` nao reporta mais o simbolo de `src/components/layout/action-bar.tsx`
 
-## B-067 — Two parallel mock frameworks (3,944 LOC, 6.2% of src) behind one flag; only one is excisable   [ ]
+## B-067 — Two parallel mock frameworks (3,944 LOC, 6.2% of src) behind one flag; only one is excisable   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1695,7 +1695,22 @@ evidence: src/lib/dev-mocks.ts:23 — Two independent window.fetch-wrapping mock
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#21
 overlaps: B-039, B-049
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: DECIDIDO, nao consertado — e a distincao importa para quem ler depois. O dono do projeto decidiu em 2026-08-08
+que os dois frameworks PERMANECEM. Registrado em `dashboard/docs/adr/0011`.
+
+A medicao feita ANTES da decisao mostrou que a pergunta era menos urgente do que o item sugeria, e que o risco real estava noutro
+lugar: o gate que vigiava os mocks era TAUTOLOGIA (procurava o caminho do modulo, que o empacotador apaga) e dizia PASS com os mocks
+DENTRO do bundle — provado por injecao. Corrigido antes desta decisao; ver o progresso anterior neste item.
+
+Com o risco de producao fechado e vigiado, o que sobrava era conveniencia de desenvolvimento. E ai a coexistencia tem uma
+justificativa que a leitura de "duplicacao" nao enxerga: os dois cobrem superficies DIFERENTES POR NATUREZA — `dev-mocks.ts` (463
+LOC) dubla um provedor de identidade externo com maquina de estados propria; `mocks/` (2.952 LOC) dubla a NOSSA API. Fundi-los
+produziria um modulo que serve a dois protocolos.
+
+O QUE A DECISAO ACEITA, com numero para poder ser revista com dado: 3.415 LOC de codigo de desenvolvimento no repositorio, 6,2% de
+src/. O que ela RESTRINGE: qualquer framework de mock novo precisa de marca propria em `scripts/check-mocks-tree-shaken.mjs`, que
+tem auto-checagem — se a marca sumir do fonte, ele falha dizendo que parou de provar, em vez de ficar verde sem cobertura.
 dod:
   - Extend the tree-shake-check script to also fail on dev-mocks / mocksEnabled / mock-jwt-for-visual-validation, so the layer coupled into auth is guarded like the other
   - a contagem de importadores diretos de `src/lib/dev-mocks.ts` cai de forma medida (registrar o antes/depois com o mesmo parser de imports usado na auditoria)
