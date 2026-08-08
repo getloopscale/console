@@ -200,6 +200,29 @@ dod:
   - Fatiar por dominio: cada feature exporta seu proprio subtree de rotas (ex
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/app.tsx` e passa depois da mudanca
 
+
+progresso_2026-08-08: PRIMEIRO CORTE FEITO — app.tsx de 780 para 592 linhas (-188).
+
+MEDIDO antes de cortar: 85 declaracoes `lazy()`, 119 `<Route>`, 101 linhas de comentario, e TRES funcoes entremeadas no bloco de
+lazy. O corte respeitou as naturezas em vez de fatiar por tamanho:
+
+  SAIU  -> `src/app-routes-lazy.ts`: as 85 declaracoes `lazy()`. Sao REGISTRO — uma linha por pagina, sem logica.
+  FICOU -> `PreviewsRedirect` e `RepositoryAlias` (redirects de link legado) e `RouteScope` (conserto do scroll-lock que o Radix
+           deixa preso no <body> quando um overlay desmonta durante navegacao, radix-ui/primitives#2122). Sao DECISAO DE ROTEAMENTO
+           e conserto de comportamento; pertencem a arvore que os aplica.
+
+Mover os tres teria produzido um arquivo "coisas que estavam no app.tsx" — o balde generico que o ADR-0001 existe para impedir.
+
+`src/lib/lazy-registry.test.ts` guarda a fronteira: nada de funcao ou export nao-lazy no registro. Terceira asserção cobre o arquivo
+VAZIO, que passaria nas outras duas (zero intrusos, zero exports errados) — a mesma armadilha do dist vazio, que aparece toda vez
+que um teste afirma uma AUSENCIA.
+
+A CATRACA DO B-009 PAGOU PELA PRIMEIRA VEZ: ela falhou pedindo que o teto de app.tsx fosse baixado de 779 para 592. Progresso
+MEDIDO em vez de declarado, que era exatamente o objetivo dela.
+
+Bundle caiu 0,38 kB (306,47 -> 306,09). O item SEGUE ABERTO: restam 119 rotas em 592 linhas, e a proxima fatia natural sao os
+grupos de rota por dominio — mas essa mexe em aninhamento e guarda, e tem risco diferente do corte mecanico de hoje.
+
 ## B-004 — src/hooks e um shared kernel falso: 33 de 44 hooks (75%) sao usados por uma unica feature   [x]
 
 domain: frontend-dashboard

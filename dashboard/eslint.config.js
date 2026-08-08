@@ -240,7 +240,7 @@ export default [
       'src/pages/promptly/detail.tsx', // 887 LOC
       'src/lib/api/types.ts', // 861 LOC
       'src/lib/mocks/handlers.ts', // 875 LOC
-      'src/app.tsx', // 779 LOC
+      'src/app.tsx', // 592 LOC (era 779 — B-003 extraiu as 83 declaracoes lazy)
       'src/pages/auth/recovery.tsx', // 711 LOC
       'src/pages/deploy/deployments.tsx', // 704 LOC
       'src/pages/projects/project-connect.tsx', // 696 LOC

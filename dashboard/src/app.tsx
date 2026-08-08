@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type ReactNode } from 'react';
+import { Suspense, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import {
@@ -20,6 +20,93 @@ import { RouteLoading } from '@/components/loading/route-loading';
 // render functional UI on top of an empty data set when the URL slug is
 // a deleted/non-existent project.
 import { ProjectGuard } from '@/components/project/project-guard';
+import {
+  ApiKeysPage,
+  AttestationTab,
+  AuditPage,
+  BillingPage,
+  BundleDetailPage,
+  BundlesPage,
+  CheckEmailPage,
+  DeploymentDetailLayout,
+  DeploymentsPage,
+  DeviceSuccessPage,
+  DeviceVerifyPage,
+  DomainsPage,
+  EntitiesPage,
+  EnvironmentsPage,
+  EpisodesPage,
+  ExportsPage,
+  GraphPage,
+  LensAgentsPage,
+  LensAlertsPage,
+  LensAskPage,
+  LensComparePage,
+  LensDashboardsPage,
+  LensDatasetsPage,
+  LensEvaluatorsPage,
+  LensExperimentsPage,
+  LensLabelingQueuePage,
+  LensMonitorsPage,
+  LensOverviewPage,
+  LensSessionDetailPage,
+  LensSessionsPage,
+  LensTracesPage,
+  LensUsageByUserPage,
+  LoginPage,
+  LogsTab,
+  MemoryListPage,
+  MemoryPage,
+  NotFoundPage,
+  OverviewPage,
+  PlaygroundPage,
+  ProfilePage,
+  ProjectConnectPage,
+  ProjectDetailPage,
+  ProjectReadinessPage,
+  ProjectScalePage,
+  ProjectStatusPage,
+  ProjectsPage,
+  PromptDetailPage,
+  PromptlyCatalogoPage,
+  PromptlyCreatePage,
+  PromptlyDiffPage,
+  PromptlyOverviewPage,
+  PromptlyPlaygroundPage,
+  RagAnalyticsPage,
+  RagAskPage,
+  RagCollectionsPage,
+  RagConnectorsPage,
+  RagDocumentsPage,
+  RagGraphRagPage,
+  RagOverviewPage,
+  RagWikiPage,
+  RecoveryPage,
+  RegisterPage,
+  RuntimeLogsPage,
+  SBOMTab,
+  SecretsPage,
+  SettingsPage,
+  SkillAuthoringPage,
+  SkillDetailPage,
+  SkillVersionsPage,
+  SkillsCatalogPage,
+  SkillsDiscoveryPage,
+  SkillsOverviewPage,
+  SkillsPage,
+  StatusPage,
+  TeamPage,
+  TimelineTab,
+  TrustEnforcementPage,
+  TrustGuardrailNewPage,
+  TrustGuardrailsPage,
+  TrustOverviewPage,
+  TrustViolationsPage,
+  VerificationPage,
+  WebhooksPage,
+  WorkspacePage,
+  WorkspaceWebhooksPage,
+} from '@/app-routes-lazy';
 
 /**
  * T0.1: helper para wrap cada <Route element> em <RouteBoundary>.
@@ -43,269 +130,7 @@ function Boundaried({ path, children }: { path: string; children: ReactNode }) {
  * Reduces initial bundle ≥30% for first paint (per T-H.3 attempt to meet
  * D7 +30% gzip target).
  */
-const OverviewPage = lazy(() =>
-  import('@/pages/overview/overview').then((m) => ({ default: m.OverviewPage })),
-);
-const ProjectsPage = lazy(() =>
-  import('@/pages/projects/projects').then((m) => ({ default: m.ProjectsPage })),
-);
-const EnvironmentsPage = lazy(() =>
-  import('@/pages/infra/environments').then((m) => ({ default: m.EnvironmentsPage })),
-);
-const TeamPage = lazy(() =>
-  import('@/pages/settings/team').then((m) => ({ default: m.TeamPage })),
-);
-const BillingPage = lazy(() =>
-  import('@/pages/settings/billing').then((m) => ({ default: m.BillingPage })),
-);
-// M21 — the detail behind the sidebar health indicator.
-const StatusPage = lazy(() =>
-  import('@/pages/overview/status').then((m) => ({ default: m.StatusPage })),
-);
-const SettingsPage = lazy(() =>
-  import('@/pages/settings/overview').then((m) => ({ default: m.SettingsPage })),
-);
-const ProfilePage = lazy(() =>
-  import('@/pages/settings/profile').then((m) => ({ default: m.ProfilePage })),
-);
-const DomainsPage = lazy(() =>
-  import('@/pages/infra/domains').then((m) => ({ default: m.DomainsPage })),
-);
-const ApiKeysPage = lazy(() =>
-  import('@/pages/settings/api-keys').then((m) => ({ default: m.ApiKeysPage })),
-);
-const MemoryPage = lazy(() =>
-  import('@/pages/memory/overview').then((m) => ({ default: m.MemoryPage })),
-);
-const MemoryListPage = lazy(() =>
-  import('@/pages/memory/memories').then((m) => ({ default: m.MemoryListPage })),
-);
-const EntitiesPage = lazy(() =>
-  import('@/pages/memory/entities').then((m) => ({ default: m.EntitiesPage })),
-);
-const EpisodesPage = lazy(() =>
-  import('@/pages/memory/episodes').then((m) => ({ default: m.EpisodesPage })),
-);
-const GraphPage = lazy(() =>
-  import('@/pages/memory/graph').then((m) => ({ default: m.GraphPage })),
-);
-const ExportsPage = lazy(() =>
-  import('@/pages/memory/exports').then((m) => ({ default: m.ExportsPage })),
-);
-const WebhooksPage = lazy(() =>
-  import('@/pages/memory/webhooks').then((m) => ({ default: m.WebhooksPage })),
-);
-const WorkspaceWebhooksPage = lazy(() =>
-  import('@/pages/settings/webhooks').then((m) => ({ default: m.WorkspaceWebhooksPage })),
-);
-const PlaygroundPage = lazy(() =>
-  import('@/pages/memory/playground').then((m) => ({ default: m.PlaygroundPage })),
-);
-const SkillsPage = lazy(() =>
-  import('@/pages/memory/skills').then((m) => ({ default: m.SkillsPage })),
-);
-const RagOverviewPage = lazy(() =>
-  import('@/pages/rag/overview').then((m) => ({ default: m.RagOverviewPage })),
-);
-const WorkspacePage = lazy(() =>
-  import('@/pages/workspace/overview').then((m) => ({ default: m.WorkspacePage })),
-);
-const RagCollectionsPage = lazy(() =>
-  import('@/pages/rag/collections').then((m) => ({ default: m.RagCollectionsPage })),
-);
-const RagConnectorsPage = lazy(() =>
-  import('@/pages/rag/connectors').then((m) => ({ default: m.RagConnectorsPage })),
-);
-const RagDocumentsPage = lazy(() =>
-  import('@/pages/rag/documents').then((m) => ({ default: m.RagDocumentsPage })),
-);
-const RagAskPage = lazy(() =>
-  import('@/pages/rag/ask').then((m) => ({ default: m.RagAskPage })),
-);
-const RagAnalyticsPage = lazy(() =>
-  import('@/pages/rag/analytics').then((m) => ({ default: m.RagAnalyticsPage })),
-);
-const RagGraphRagPage = lazy(() =>
-  import('@/pages/rag/graphrag').then((m) => ({ default: m.RagGraphRagPage })),
-);
-const RagWikiPage = lazy(() =>
-  import('@/pages/rag/wiki').then((m) => ({ default: m.RagWikiPage })),
-);
-// M23 — a capacidade trust chega ao dashboard (visão geral + violações).
-const TrustOverviewPage = lazy(() =>
-  import('@/pages/trust/overview').then((m) => ({ default: m.TrustOverviewPage })),
-);
-const TrustViolationsPage = lazy(() =>
-  import('@/pages/trust/violations').then((m) => ({ default: m.TrustViolationsPage })),
-);
-// M24 — operar guardrails: catálogo, criação com dry-run obrigatório e auditoria do enforcement.
-const TrustGuardrailsPage = lazy(() =>
-  import('@/pages/trust/guardrails').then((m) => ({ default: m.TrustGuardrailsPage })),
-);
-const TrustGuardrailNewPage = lazy(() =>
-  import('@/pages/trust/guardrail-new').then((m) => ({ default: m.TrustGuardrailNewPage })),
-);
-const TrustEnforcementPage = lazy(() =>
-  import('@/pages/trust/enforcement').then((m) => ({ default: m.TrustEnforcementPage })),
-);
-// M26 — o registro de skills ganha superfície: acervo → detalhe (com a instrução resolvida) →
-// versões e canais. As rotas só são alcançáveis por clique porque `resolveActiveMenu` reconhece
-// `/skills`; declarar a rota aqui sem aquela linha entrega telas que ninguém encontra.
-const SkillsOverviewPage = lazy(() =>
-  import('@/pages/skills/overview').then((m) => ({ default: m.SkillsOverviewPage })),
-);
-const SkillDetailPage = lazy(() =>
-  import('@/pages/skills/detail').then((m) => ({ default: m.SkillDetailPage })),
-);
-const SkillVersionsPage = lazy(() =>
-  import('@/pages/skills/versions').then((m) => ({ default: m.SkillVersionsPage })),
-);
 
-// M35 — a distribuição: pacotes e, dentro de cada um, os tokens delegados e a adoção. Declarar
-// estas rotas sem a linha correspondente em `resolveActiveMenu` entregaria telas que ninguém
-// encontra pelo menu — o defeito que o theo-trust levou três rodadas para achar.
-const SkillsDiscoveryPage = lazy(() =>
-  import('@/pages/skills/discovery').then((m) => ({ default: m.SkillsDiscoveryPage })),
-);
-const SkillsCatalogPage = lazy(() =>
-  import('@/pages/skills/catalog').then((m) => ({ default: m.SkillsCatalogPage })),
-);
-const SkillAuthoringPage = lazy(() =>
-  import('@/pages/skills/authoring').then((m) => ({ default: m.SkillAuthoringPage })),
-);
-const BundlesPage = lazy(() => import('@/pages/skills/bundles').then((m) => ({ default: m.BundlesPage })));
-const BundleDetailPage = lazy(() =>
-  import('@/pages/skills/bundle-detail').then((m) => ({ default: m.BundleDetailPage })),
-);// M25 — os prompts ganham superfície: catálogo → detalhe, onde a promoção de um label acontece.
-// As rotas só são alcançáveis por clique porque `resolveActiveMenu` reconhece `/promptly`;
-// declarar a rota aqui sem aquela linha entrega telas que ninguém encontra.
-const PromptlyOverviewPage = lazy(() =>
-  import('@/pages/promptly/overview').then((m) => ({ default: m.PromptlyOverviewPage })),
-);
-// M13 — o catálogo saiu da raiz: `/promptly` virou o painel, como em memory/rag/lens.
-const PromptlyCatalogoPage = lazy(() =>
-  import('@/pages/promptly/catalogo').then((m) => ({ default: m.PromptlyCatalogoPage })),
-);
-const PromptDetailPage = lazy(() =>
-  import('@/pages/promptly/detail').then((m) => ({ default: m.PromptDetailPage })),
-);
-const PromptlyCreatePage = lazy(() =>
-  import('@/pages/promptly/create').then((m) => ({ default: m.PromptlyCreatePage })),
-);
-const PromptlyPlaygroundPage = lazy(() =>
-  import('@/pages/promptly/playground').then((m) => ({ default: m.PromptlyPlaygroundPage })),
-);
-const PromptlyDiffPage = lazy(() =>
-  import('@/pages/promptly/diff').then((m) => ({ default: m.PromptlyDiffPage })),
-);
-// M44 — lens management dashboard pages; M46 — Overview landing
-const LensOverviewPage = lazy(() =>
-  import('@/pages/lens/overview').then((m) => ({ default: m.LensOverviewPage })),
-);
-const LensTracesPage = lazy(() =>
-  import('@/pages/lens/traces').then((m) => ({ default: m.LensTracesPage })),
-);
-const LensUsageByUserPage = lazy(() =>
-  import('@/pages/lens/usage-by-user').then((m) => ({ default: m.LensUsageByUserPage })),
-);
-const LensSessionsPage = lazy(() =>
-  import('@/pages/lens/sessions').then((m) => ({ default: m.LensSessionsPage })),
-);
-const LensSessionDetailPage = lazy(() =>
-  import('@/pages/lens/session-detail').then((m) => ({ default: m.LensSessionDetailPage })),
-);
-const LensDatasetsPage = lazy(() =>
-  import('@/pages/lens/datasets').then((m) => ({ default: m.LensDatasetsPage })),
-);
-const LensEvaluatorsPage = lazy(() =>
-  import('@/pages/lens/evaluators').then((m) => ({ default: m.LensEvaluatorsPage })),
-);
-const LensMonitorsPage = lazy(() =>
-  import('@/pages/lens/monitors').then((m) => ({ default: m.LensMonitorsPage })),
-);
-const LensAlertsPage = lazy(() =>
-  import('@/pages/lens/alerts').then((m) => ({ default: m.LensAlertsPage })),
-);
-const LensComparePage = lazy(() =>
-  import('@/pages/lens/compare').then((m) => ({ default: m.LensComparePage })),
-);
-const LensAgentsPage = lazy(() =>
-  import('@/pages/lens/agents').then((m) => ({ default: m.LensAgentsPage })),
-);
-const LensAskPage = lazy(() =>
-  import('@/pages/lens/ask').then((m) => ({ default: m.LensAskPage })),
-);
-const LensLabelingQueuePage = lazy(() =>
-  import('@/pages/lens/labeling-queue').then((m) => ({ default: m.LensLabelingQueuePage })),
-);
-const LensExperimentsPage = lazy(() =>
-  import('@/pages/lens/experiments').then((m) => ({ default: m.LensExperimentsPage })),
-);
-const LensDashboardsPage = lazy(() =>
-  import('@/pages/lens/dashboards').then((m) => ({ default: m.LensDashboardsPage })),
-);
-const LoginPage = lazy(() =>
-  import('@/pages/auth/login').then((m) => ({ default: m.LoginPage })),
-);
-const RegisterPage = lazy(() =>
-  import('@/pages/auth/register').then((m) => ({ default: m.RegisterPage })),
-);
-// Red Team theo/theo#162 (2026-07-01): SPA-side page for the post-signup
-// redirect target /auth/check-email that previously 404'd against the BFF.
-const CheckEmailPage = lazy(() =>
-  import('@/pages/auth/check-email').then((m) => ({ default: m.CheckEmailPage })),
-);
-const VerificationPage = lazy(() =>
-  import('@/pages/auth/verification').then((m) => ({ default: m.VerificationPage })),
-);
-const RecoveryPage = lazy(() =>
-  import('@/pages/auth/recovery').then((m) => ({ default: m.RecoveryPage })),
-);
-const DeviceSuccessPage = lazy(() =>
-  import('@/pages/auth/device-success').then((m) => ({ default: m.DeviceSuccessPage })),
-);
-const DeviceVerifyPage = lazy(() =>
-  import('@/pages/auth/device-verify').then((m) => ({ default: m.DeviceVerifyPage })),
-);
-const ProjectDetailPage = lazy(() =>
-  import('@/pages/projects/project-detail').then((m) => ({ default: m.ProjectDetailPage })),
-);
-const NotFoundPage = lazy(() =>
-  import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })),
-);
-const DeploymentsPage = lazy(() =>
-  import('@/pages/deploy/deployments').then((m) => ({ default: m.DeploymentsPage })),
-);
-// Plan J-17 T5.1: layout + 4 tabs replace the 4 sibling routes below.
-const DeploymentDetailLayout = lazy(() =>
-  import('@/pages/deploy/deployment-detail-layout').then((m) => ({ default: m.DeploymentDetailLayout })),
-);
-const TimelineTab = lazy(() =>
-  import('@/pages/deployment-tabs/timeline-tab').then((m) => ({ default: m.TimelineTab })),
-);
-const LogsTab = lazy(() =>
-  import('@/pages/deployment-tabs/logs-tab').then((m) => ({ default: m.LogsTab })),
-);
-const SBOMTab = lazy(() =>
-  import('@/pages/deployment-tabs/sbom-tab').then((m) => ({ default: m.SBOMTab })),
-);
-const AttestationTab = lazy(() =>
-  import('@/pages/deployment-tabs/attestation-tab').then((m) => ({ default: m.AttestationTab })),
-);
-// As três páginas autônomas de build (logs / SBOM / attestation) foram REMOVIDAS (#377).
-// O comentário que as acompanhava dizia que ficavam "como fallback para links diretos" — e
-// isso era falso e verificável: elas eram importadas, `void`adas e NÃO estavam roteadas em
-// lugar nenhum, então link direto algum as alcançava. O que existe são as abas aninhadas
-// `logs` / `sbom` / `attestation` sob /projects/:name/deployments/:id, logo abaixo.
-const RuntimeLogsPage = lazy(() =>
-  import('@/pages/deploy/runtime-logs').then((m) => ({ default: m.RuntimeLogsPage })),
-);
-const ProjectStatusPage = lazy(() =>
-  import('@/pages/projects/project-status').then((m) => ({ default: m.ProjectStatusPage })),
-);
-const SecretsPage = lazy(() =>
-  import('@/pages/infra/secrets').then((m) => ({ default: m.SecretsPage })),
-);
 // PreviewsPage deleted per plan 2026-06-08-dashboard-screens-review-fixes
 // The multi-row preview table is obsolete under the post-M2 single-slot
 // preview model, and Previews was removed from the nav. Stale
@@ -366,18 +191,6 @@ function RouteScope({ children }: { children: ReactNode }) {
   return <div key={location.pathname}>{children}</div>;
 }
 
-const ProjectConnectPage = lazy(() =>
-  import('@/pages/projects/project-connect').then((m) => ({ default: m.ProjectConnectPage })),
-);
-const AuditPage = lazy(() =>
-  import('@/pages/settings/audit').then((m) => ({ default: m.AuditPage })),
-);
-const ProjectScalePage = lazy(() =>
-  import('@/pages/projects/project-scale').then((m) => ({ default: m.ProjectScalePage })),
-);
-const ProjectReadinessPage = lazy(() =>
-  import('@/pages/projects/project-readiness').then((m) => ({ default: m.ProjectReadinessPage })),
-);
 
 // Sprint 3 Phase 2 (#17) v1.1 ADR D1 — `PageLoader` superseded by
 // `<RouteLoading />` (`src/components/loading/route-loading.tsx`). The new
