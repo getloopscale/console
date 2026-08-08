@@ -436,6 +436,26 @@ O item segue aberto: a decomposicao dos 18 nao aconteceu. O que mudou e que ela 
 
 Numero remedido: o achado dizia 32 arquivos acima de 400 LOC; sao 39. E o orcamento real e 500 (ADR-0002), nao 400.
 
+
+progresso_2026-08-08: `settings/api-keys.tsx` de 955 para 575 linhas (-380). Era o MAIOR arquivo do projeto.
+
+ESCOLHI ESTE ALVO POR MEDICAO, nao por ordem. Depois de abandonar a segunda fatia do app.tsx (ver B-003), medi a estrutura dos
+cinco maiores da catraca: api-keys tem SETE componentes, contra UM em promptly/detail.tsx e ZERO em types.ts e handlers.ts. Sete
+componentes sao sete fronteiras naturais; um arquivo de 887 linhas com um componente so nao tem onde cortar sem inventar.
+
+MEDI O ACOPLAMENTO ANTES DE MOVER: os quatro dialogos (364 linhas) referenciam do topo do arquivo apenas ACTIVE_SCOPES,
+RESERVED_SCOPES, CreateKeyResponse e APIKeyView — quatro nomes, todos exportaveis. `ConfirmRotateDialog` e `ConfirmDeleteDialog`
+nao referenciam NADA. A fronteira ja existia: cada dialogo recebe props e devolve por callback.
+
+NAO VIERAM JUNTO `LineageSheet` e `LineageRow`. Eles renderizam o painel lateral de linhagem — nao confirmam nem criam nada, entao
+nao sao dialogos. Move-los junto teria produzido "componentes que estavam no api-keys", o balde generico que ADR-0001 impede. Ficam
+como proxima fatia, com fronteira propria.
+
+A CATRACA PAGOU PELA SEGUNDA VEZ, e apanhou um erro meu: eu baixei o teto para 574 e ela cobrou 575 — meu calculo nao contava a
+ultima linha. O guard usa uma convencao e eu usei outra; o guard e a autoridade, porque e ele que vai medir da proxima vez.
+
+Nenhum teste de pagina editado (69 verdes em settings). Bundle 306,31/320 kB.
+
 ## B-010 — Nao existe contrato escrito de fronteira de modulo para o dashboard, e o codigo cita um que nao esta no repositorio   [x]
 
 domain: frontend-dashboard
