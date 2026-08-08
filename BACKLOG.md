@@ -1773,7 +1773,7 @@ um campo, o autor encontra tres declaracoes e muda a que estava aberta.
 `lib/auth/kratos-flow.ts` apagado. Os tres consumidores estao todos em
 `pages/auth/`, entao nao houve questao de camada.
 
-## B-069 — No feature-flag mechanism exists at all: 118 routes ship all-or-nothing, which is why half-built features are abandoned in the tree   [ ]
+## B-069 — No feature-flag mechanism exists at all: 118 routes ship all-or-nothing, which is why half-built features are abandoned in the tree   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1785,7 +1785,36 @@ evidence: src/app.tsx:1 — Searched for every common flag mechanism - feature_f
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · deletion#24
 overlaps: B-030, B-031, B-076
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: A ALEGACAO DO ITEM E FALSA HOJE, e o defeito real era o oposto dela.
+
+O item afirma que trabalho incompleto e escondido APAGANDO ROTA, e cita `pages/previews.tsx` como prova — arquivo vivo, sem
+importador, rota removida. A evidencia ENVELHECEU: o arquivo nao existe mais (verificado 2026-08-08), e a varredura por paginas sem
+rota E sem importador retorna ZERO. `test-only-module-guard.test.ts` ja cobre a classe.
+
+O que existe e o oposto de esconder: OITO rotas navegaveis renderizam `SubPagePlaceholder`, que diz o que a pagina fara e oferece o
+comando de CLI. Honesto — mas so DEPOIS do clique.
+
+DEFEITO MEDIDO: sete das oito estavam no menu sem marca nenhuma. E em dois casos, pior — o menu tinha DUAS entradas para o mesmo
+assunto, uma funcionando e outra em placeholder:
+  'Team' -> /team (real)     ·  'Members' -> /settings/members (placeholder)
+  'Billing' -> /billing (real) ·  'Billing' -> /settings/billing (placeholder)
+Dois itens com o MESMO rotulo, e quem clicava nao tinha como saber qual era o real.
+
+CORRIGIDO: `Members` e `Billing` repontados para as telas reais; os cinco sem tela equivalente ganharam `comingSoon: true`, o selo
+que ja existia (criado para /databases) e e anunciado por leitor de tela.
+
+`src/lib/placeholder-honesty.test.ts` fecha as tres classes: placeholder no menu sem aviso, item apontando para rota inexistente, e
+dois rotulos iguais com um em placeholder.
+
+E A SONDA APANHOU UM DEFEITO NO PROPRIO GUARD: a asserção de rota morta NAO detectava nada, porque `path="*"` (o 404) entrava no
+conjunto de rotas e virava o regex `^.*$`, que casa qualquer caminho. Pus `/faturamento` no menu e o teste ficou verde. Excluir o
+catch-all e o teste inteiro — sem a sonda, eu teria commitado um guard que afirma detectar e detecta nada, a mesma tautologia que
+este repositorio ja pagou tres vezes hoje.
+
+O ITEM FECHA. A pergunta original — adotar mecanismo de feature flag — nao se sustenta sobre a premissa medida: o mecanismo de
+esconder trabalho JA EXISTE e e melhor que flag para este caso (a rota fica navegavel, diz o que fara e da o caminho pela CLI). Uma
+flag esconderia a rota inteira, que e justamente o que o item B-076 critica.
 dod:
   - Introduce one minimal build-time flag module (a typed record read from import.meta.env, no SaaS dependency needed at this scale) with a mandatory sunset date per flag, and route new partially-built features through it instead of merging them unwired
   - o marcador/mecanismo existe em `src/app.tsx` e ha regra de lint ou gate de CI que falha na ausencia dele
@@ -1963,7 +1992,7 @@ dod:
   - Adicionar eslint-plugin-react-compiler ao eslint.config.js — ele e o mecanismo que transforma 'o compiler desistiu deste componente' em sinal visivel, e sem ele a adocao e cega
   - mudanca verificavel em `vite.config.ts` com `npx tsc --noEmit` + `npm test` verdes
 
-## B-076 — Nao adotar feature flags: trabalho incompleto e escondido apagando rotas, nao desligando flags   [ ]
+## B-076 — Nao adotar feature flags: trabalho incompleto e escondido apagando rotas, nao desligando flags   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -1975,7 +2004,36 @@ evidence: src/app.tsx:308 — src/app.tsx:308 '// PreviewsPage deleted per plan 
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · tradeoff#14
 overlaps: B-030, B-031, B-069
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
+shipped_note: A ALEGACAO DO ITEM E FALSA HOJE, e o defeito real era o oposto dela.
+
+O item afirma que trabalho incompleto e escondido APAGANDO ROTA, e cita `pages/previews.tsx` como prova — arquivo vivo, sem
+importador, rota removida. A evidencia ENVELHECEU: o arquivo nao existe mais (verificado 2026-08-08), e a varredura por paginas sem
+rota E sem importador retorna ZERO. `test-only-module-guard.test.ts` ja cobre a classe.
+
+O que existe e o oposto de esconder: OITO rotas navegaveis renderizam `SubPagePlaceholder`, que diz o que a pagina fara e oferece o
+comando de CLI. Honesto — mas so DEPOIS do clique.
+
+DEFEITO MEDIDO: sete das oito estavam no menu sem marca nenhuma. E em dois casos, pior — o menu tinha DUAS entradas para o mesmo
+assunto, uma funcionando e outra em placeholder:
+  'Team' -> /team (real)     ·  'Members' -> /settings/members (placeholder)
+  'Billing' -> /billing (real) ·  'Billing' -> /settings/billing (placeholder)
+Dois itens com o MESMO rotulo, e quem clicava nao tinha como saber qual era o real.
+
+CORRIGIDO: `Members` e `Billing` repontados para as telas reais; os cinco sem tela equivalente ganharam `comingSoon: true`, o selo
+que ja existia (criado para /databases) e e anunciado por leitor de tela.
+
+`src/lib/placeholder-honesty.test.ts` fecha as tres classes: placeholder no menu sem aviso, item apontando para rota inexistente, e
+dois rotulos iguais com um em placeholder.
+
+E A SONDA APANHOU UM DEFEITO NO PROPRIO GUARD: a asserção de rota morta NAO detectava nada, porque `path="*"` (o 404) entrava no
+conjunto de rotas e virava o regex `^.*$`, que casa qualquer caminho. Pus `/faturamento` no menu e o teste ficou verde. Excluir o
+catch-all e o teste inteiro — sem a sonda, eu teria commitado um guard que afirma detectar e detecta nada, a mesma tautologia que
+este repositorio ja pagou tres vezes hoje.
+
+O ITEM FECHA. A pergunta original — adotar mecanismo de feature flag — nao se sustenta sobre a premissa medida: o mecanismo de
+esconder trabalho JA EXISTE e e melhor que flag para este caso (a rota fica navegavel, diz o que fara e da o caminho pela CLI). Uma
+flag esconderia a rota inteira, que e justamente o que o item B-076 critica.
 dod:
   - Nao introduzir feature flags — a escolha esta correta para o tamanho do time
   - mudanca verificavel em `src/app.tsx` com `npx tsc --noEmit` + `npm test` verdes

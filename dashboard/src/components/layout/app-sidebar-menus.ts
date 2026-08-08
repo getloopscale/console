@@ -196,8 +196,18 @@ export const MENUS: Record<string, MenuDefinition> = {
         title: 'Workspace',
         items: [
           { label: 'General', path: '/settings', icon: Settings },
-          { label: 'Members', path: '/settings/members', icon: Users },
-          { label: 'Billing', path: '/settings/billing', icon: Receipt },
+          // B-076 — apontam para as telas REAIS, nao para os placeholders de
+          // `/settings/members` e `/settings/billing`.
+          //
+          // Medido em 2026-08-08: o menu tinha DUAS entradas 'Billing' — uma
+          // para `/billing`, que funciona, e outra para `/settings/billing`,
+          // que renderiza "ainda nao construida". E 'Members' levava a um
+          // placeholder enquanto 'Team' (no menu principal) ja mostrava a
+          // mesma coisa funcionando. Quem clicava nao tinha como saber qual
+          // das duas era a real, e metade das vezes concluia que a
+          // funcionalidade nao existe.
+          { label: 'Members', path: '/team', icon: Users },
+          { label: 'Billing', path: '/billing', icon: Receipt },
         ],
       },
       {
@@ -205,12 +215,12 @@ export const MENUS: Record<string, MenuDefinition> = {
         items: [
           { label: 'API Tokens', path: '/settings/tokens', icon: Key },
           { label: 'Webhooks', path: '/settings/webhooks', icon: Webhook },
-          { label: 'Notifications', path: '/settings/notifications', icon: Bell },
+          { label: 'Notifications', path: '/settings/notifications', icon: Bell, comingSoon: true },
         ],
       },
       {
         items: [
-          { label: 'Danger Zone', path: '/settings/danger', icon: ShieldAlert },
+          { label: 'Danger Zone', path: '/settings/danger', icon: ShieldAlert, comingSoon: true },
         ],
       },
     ],
@@ -224,13 +234,13 @@ export const MENUS: Record<string, MenuDefinition> = {
         title: 'Personal',
         items: [
           { label: 'Account', path: '/profile', icon: User },
-          { label: 'Security', path: '/profile/security', icon: Lock },
-          { label: 'Sessions', path: '/profile/sessions', icon: Link2 },
+          { label: 'Security', path: '/profile/security', icon: Lock, comingSoon: true },
+          { label: 'Sessions', path: '/profile/sessions', icon: Link2, comingSoon: true },
         ],
       },
       {
         items: [
-          { label: 'Danger Zone', path: '/profile/danger', icon: ShieldAlert },
+          { label: 'Danger Zone', path: '/profile/danger', icon: ShieldAlert, comingSoon: true },
         ],
       },
     ],
