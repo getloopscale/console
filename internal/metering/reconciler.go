@@ -75,8 +75,23 @@ func (r *Reconciler) ReconcileBuilds() error {
 			continue
 		}
 
+		// B-090 / #471 — `recordedCount == 0` é AUSÊNCIA, não drift.
+		//
+		// A conta abaixo dá 100% para qualquer `actual > 0` quando nada foi
+		// gravado, e 100 > DriftThresholdPct. O resultado é que o reconciler roda,
+		// mede certo, avisa "requires manual review" e NÃO ESCREVE — o que manteve
+		// `usage_records` vazia desde que a métrica foi definida. O Stripe nunca
+		// recebeu uso de build, e a tela de Overview mostra "0 de 100" para toda
+		// conta.
+		//
+		// O teto existe para impedir que uma reconciliação ERRADA sobrescreva dados
+		// de cobrança bons. É a proteção certa — e quando não há linha, não há o que
+		// proteger: semear não pode perder valor nenhum. Sobrescrever um valor
+		// existente que diverge 100% continua exigindo revisão humana, que é o caso
+		// para o qual o teto foi escrito.
+		semear := recordedCount == 0
 		driftPct := math.Abs(float64(recordedCount-actualCount)) / float64(actualCount) * 100
-		if driftPct > 0 && driftPct <= DriftThresholdPct {
+		if semear || (driftPct > 0 && driftPct <= DriftThresholdPct) {
 			// §1.6: Auto-correct small drift
 			_, corrErr := r.db.Exec(
 				`INSERT INTO usage_records (id, tenant_id, metric, quantity, period_start, period_end, reported_to_stripe, created_at)
@@ -89,6 +104,11 @@ func (r *Reconciler) ReconcileBuilds() error {
 			)
 			if corrErr != nil {
 				r.logger.Error("failed to auto-correct drift", "tenant", tenantID, "error", corrErr)
+			} else if semear {
+				correctedCount++
+				r.logger.Info("seeded usage from source of truth",
+					"tenant", tenantID, "metric", "builds", "actual", actualCount,
+				)
 			} else {
 				correctedCount++
 				r.logger.Info("auto-corrected usage drift",

@@ -2748,8 +2748,7 @@ dod:
 
 nota: `log-viewer.tsx` ja tem teto de 5.000 linhas (B-016). A arvore de spans e a lista de traces nao tem equivalente medido.
 
-## B-090 — Dois subsistemas Go so sao alcancados por teste   [ ]
-
+## B-090 — Dois subsistemas Go so sao alcancados por teste   [x]
 domain: control-plane
 repo: theo-cloud
 suggested_mode: review
@@ -2759,7 +2758,7 @@ category: test_only_module
 evidence: medido em 2026-08-06 com `deadcode -test -json ./...` comparado a `deadcode` sem `-test`. `metering.NewTracker` (internal/metering/tracker.go:21) e `auth.NewIdentityMigrator` (internal/auth/migration.go:29) so aparecem como alcancaveis quando os pacotes de teste entram como raizes; os unicos chamadores sao tests/unit/metering_test.go:15 e tests/unit/migration_test.go:15. Nenhum caminho de producao os constroi.
 provenance: nao consta da auditoria /loop-system-design (que cobriu apenas dashboard/). Surgiu ao habilitar `go` no gate de code-quality.
 why_now: e o mesmo padrao que `src/lib/test-only-module-guard.test.ts` quantifica no dashboard — codigo com teste verde que producao nunca executa. A suite reporta cobertura sobre um caminho morto, o que e verdadeiro e irrelevante. `IdentityMigrator` em particular faz ponte entre identidades Kratos e usuarios legados: se a migracao nunca roda, ou ela ja nao e necessaria (apagar) ou ha uma ponte faltando (ligar).
-status: triaged
+status: shipped
 dod:
   - para cada um dos dois: OU existe chamador de producao, OU o subsistema foi removido com seus testes
   - a decisao de cada um esta registrada, porque apagar uma migracao de identidade nao e faxina
@@ -2973,6 +2972,42 @@ motivo errado: eu parei achando que o migrator era necessario (o defeito de logi
 descobrir isso exigiu perguntar ao dono. Parar foi certo; a conclusao a que eu tinha chegado, nao.
 
 O TRACKER SEGUE ABERTO. Ele nao depende de dado, e sim de decidir o modelo de cobranca (#471) — e essa decisao continua sem dono.
+
+
+fechado_2026-08-09 (TRACKER): REMOVIDO, e o defeito real era outro — estava no reconciler, que ESTA ligado.
+
+EU ESTAVA PERGUNTANDO A COISA ERRADA. Passei duas medicoes convencido de que faltava um evento vindo do engine, e cheguei a desenhar
+um outbox com tipo `build.completed` novo. A medicao seguinte desmentiu a premissa: `reconciler.go:42` consulta
+`FROM builds WHERE status IN ('SUCCEEDED','FAILED') GROUP BY tenant_id`. O BANCO E COMPARTILHADO — a fonte da verdade sempre esteve
+ao alcance daqui, e o reconciler ja a consultava com sucesso.
+
+O DEFEITO: o reconciler decide por porcentagem.
+
+    driftPct = |recorded - actual| / actual * 100
+    if driftPct > 0 && driftPct <= 5.0 { autoCorrect() } else if driftPct > 5.0 { warn() }
+
+Com `recorded = 0` — o estado de TODA conta, porque nada nunca escreveu a primeira linha — a conta da 100% para qualquer actual > 0.
+Como 100 > 5, a auto-correcao NUNCA executa. O reconciler roda, mede CERTO, avisa "usage drift exceeds threshold — requires manual
+review" a cada ciclo para cada conta, e nao escreve.
+
+A PROTECAO CONTRA CORROMPER O DADO ERA EXATAMENTE O QUE IMPEDIA O DADO DE EXISTIR.
+
+FIX: `recorded == 0` e AUSENCIA, nao divergencia — semeia. O teto de 5% segue valendo onde ja ha valor gravado, que e o caso para o
+qual ele foi escrito: semear nao tem valor a perder; sobrescrever tem, e ali quem pode estar errada e a propria reconciliacao.
+
+E O TRACKER SAIU. Reconciliar da fonte CONVERGE (erra num ciclo, acerta no seguinte); acumular de eventos perde receita quando um
+evento se perde e cobra a mais quando chega duas vezes. Manter os dois seria manter dois escritores da mesma tabela agregada — o
+problema que o teto tentava remediar. `RecordStorageSnapshot` ja estava fora de escopo por decisao registrada em
+`storage/meter.go` ("the MVP has NO overage billing").
+
+TRES CONSEQUENCIAS CORRIGIDAS PELO MESMO CAMINHO, e so a primeira estava no issue: o Stripe passa a receber uso; a tela de Overview
+deixa de mostrar "0 de 100 builds" para todo mundo (ela le a MESMA tabela); e o limite dos planos passa a ter com o que vincular.
+
+O TESTE QUE FALTAVA E QUE EXPLICA A SOBREVIVENCIA DO DEFEITO: o caso de PROTECAO do guard nunca tivera teste — `TestReconcilerDriftCallback`
+so cobria DB nulo. Afrouxei uma condicao, entao escrevi o teste que fixa o que sobrou dela.
+
+ADR: `.claude/knowledge-base/adrs/ADR-metering-reconcilia-da-fonte-da-verdade.md`, com as quatro alternativas rejeitadas — inclusive o
+outbox que eu ia propor, e por que a fonte estar ao alcance o torna infraestrutura sem necessidade.
 
 ## B-091 — Rename do module path Go: usetheodev -> usetheoai   [x]
 

@@ -84,6 +84,8 @@
 
 ### Fixed
 
+- **O uso de builds volta a ser contabilizado — e a tela para de mostrar um número falso.** A contagem de builds do mês aparecia como zero para todas as contas, e nada era enviado ao faturamento. A causa: a rotina que confere a contagem contra os builds reais só corrigia divergências de até 5%, e "nenhum registro" conta como 100% de divergência — então ela media certo, avisava nos logs e nunca escrevia a primeira linha. Agora ausência de registro é semeada com a contagem real; divergências sobre um valor já existente continuam exigindo revisão humana, que é o que aquele limite existia para garantir.
+
 - **Exportar traces com um filtro que o servidor recusa deixou de anunciar sucesso.** A tela dizia "Exported 0 traces" — uma mensagem de sucesso, com número — quando a busca tinha falhado; quem lia concluía que o filtro não casou nada e ia mexer no filtro. Agora a falha aparece como falha.
 
 - **Duas funções chamadas `logout` deixaram de coexistir.** Uma encerra a sessão de verdade — avisa o servidor de autenticação e leva à tela de entrada; a outra só limpa a credencial guardada na memória da aba, como primeiro passo da primeira. Usar a segunda por engano deixaria a pessoa achando que saiu enquanto a sessão continuava aberta no servidor. A segunda passou a se chamar pelo que faz.
