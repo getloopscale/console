@@ -3232,6 +3232,45 @@ E UMA CORRECAO SOBRE COMO EU MEDI:
   Passei a checar exit code explicitamente. Isso importa para este item em particular: parte da confianca
   nas 32 execucoes anteriores vinha de harnesses com essa forma.
 
+
+progresso_2026-08-09: MAIS DUAS HIPOTESES REFUTADAS (7 no total, 36 verdes). CAUSA AINDA NAO IDENTIFICADA — o item SEGUE ABERTO.
+
+HIPOTESE 6 — esgotamento de descritores de arquivo. Tinha o melhor mecanismo que restava: `EMFILE` produz falha de RESOLUCAO espuria,
+transitoria e dependente de carga, que e exatamente a forma do defeito. Local o limite e 1.048.576, entao aqui era impossivel; mas a suite e
+gate de CI, e em container o tipico e 1024. Rodei a suite inteira com `ulimit -n 1024`: 2741 verdes, exit 0, zero ocorrencia de
+"failed to resolve" ou EMFILE. REFUTADA.
+
+HIPOTESE 7 — algum teste escrevendo em `src/` durante a execucao. Ja fora verificada em 2026-08-07, mas EU acrescentei mais de vinte testes
+de guard desde entao, entao a premissa podia ter mudado por obra minha. Revarrida: um unico teste escreve em disco (`env-terminology`), e so
+em `/tmp`. REFUTADA.
+
+(Tambem conferi o CI: `blacksmith-8vcpu-ubuntu-2404`. OITO vCPUs contra doze aqui — menos paralelismo, nao mais. A hipotese de contencao,
+que ja caira na medicao local, tambem nao ganha forca la.)
+
+O QUE A ARITMETICA PERMITE AFIRMAR AGORA, e isto muda o que o item significa:
+
+  Se a taxa real fosse a observada (1 em 2), a chance de 36 execucoes consecutivas verdes seria 1,5 x 10^-11.
+
+  Ou seja: A CONDICAO QUE PRODUZIU AQUELE 1-EM-2 NAO EXISTE MAIS NA ARVORE ATUAL. Isso e uma conclusao mensurada, nao um "reexecutei e
+  passou". O limite superior de 95% para a taxa hoje e 8%, entao um flake RARO segue possivel — o que esta excluido e o regime observado.
+
+  E a arvore mudou enormemente desde 07-08: a camada de dados de tres dominios, a regra de residencia movendo onze modulos, o manifesto de
+  rotas virando nove arquivos, a tela de prompt virando dez. Qualquer uma dessas pode te-lo removido sem que eu soubesse. Nao da para
+  distinguir "consertado por acidente" de "raro e nao sorteado" sem a causa — e e por isso que o bullet 1 existe.
+
+O QUE UM FUTURO INVESTIGADOR NAO PRECISA REFAZER (7 hipoteses, todas com o metodo registrado):
+  1. corrida no transform/resolve com cache frio ..... 6 execucoes frias
+  2. dois vitest concorrentes corrompendo `.vite` .... 3 pares concorrentes
+  3. edicao concorrente com a execucao ............... git: nada em src/ tocado entre 01:09 e 01:24
+  4. `alert-guard.tsx` recem-criado .................. git --diff-filter=A: criado 2026-07-08, um mes antes
+  5. contencao de worker ............................. 3 execucoes com --maxWorkers=24 em 12 CPUs
+  6. esgotamento de descritores ...................... suite inteira com ulimit -n 1024
+  7. teste escrevendo em src/ ........................ varredura de writeFileSync: so /tmp
+
+ACHADO DE AMBIENTE QUE SEGUE DE PE, e que nao e a causa: `node_modules/.vite/deps.root-owned-1785734089/` continua la, do root, desde
+2026-08-02. Nao explica o defeito (o Vite procura `deps`, e as 36 verdes aconteceram com ele presente), mas prova que algo rodou como root
+nesta arvore. Remove-lo exige sudo.
+
 ## B-100 — `nginx.conf` do dashboard nao emite nenhum header de cache   [ ]
 
 domain: frontend-dashboard
