@@ -3462,3 +3462,22 @@ VERIFICACAO: `docker build` + `docker run` + `curl -I` em cinco caminhos, mais `
 
 DESBLOQUEIA A OPCAO 3 DO ADR-0004: remover o service worker inteiro agora e possivel sem piorar a entrega, porque o nginx passou a
 fazer o que o ADR ja afirmava (erradamente) que ele fazia.
+
+## B-101 — `upstream-debt.test.ts` falha na suite cheia e passa isolado   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: discover-review
+evidence: observado 2026-08-09 ao fechar o plano `modal-primitive-consolidation`. Uma execucao completa reprovou
+  `upstream-debt.test.ts > o guard de Alert e o ban de lint existem em par`; o mesmo arquivo passa isolado (25/25), e DUAS execucoes
+  completas seguintes passaram (2760/2760). O detector de arvore instavel (B-099) NAO disparou — a arvore estava estavel, entao NAO e
+  a causa daquele item.
+why_now: o teste instancia o ESLint e chama `calculateConfigForFile` — I/O de resolucao de config sob contencao de worker. E a mesma
+  classe que o proprio `vitest.config.ts` documenta ("import-smoke + render tests timing out at 10-27s while the default 5s elapses
+  under starvation"), e a correcao aplicada la foi subir `testTimeout` para 20s. Este caso pode estar estourando o mesmo teto por outro
+  caminho: ao contrario dos outros, ele nao renderiza — ele SOBE UM PROCESSO de analise estatica dentro de um worker.
+status: raw
+dod:
+  - a causa esta identificada (nao "reexecutei e passou") — medir o tempo do caso sob suite cheia contra isolado
+  - OU o teste deixa de subir o ESLint dentro do worker (mover para um gate proprio de lint), OU o motivo de nao fazer isso esta escrito

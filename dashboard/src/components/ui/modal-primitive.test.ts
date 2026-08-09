@@ -109,6 +109,69 @@ describe('primitivo de modal único', () => {
     ).toEqual([]);
   });
 
+  it('todo botão de enviar dentro de um modal alcança o seu form', () => {
+    // O `AppModal` renderiza o `footer` FORA do container dos children. Quando o
+    // botão de confirmar é `type="submit"` e o `<form>` está no corpo, mover o
+    // footer o tira do form: a tela renderiza IDÊNTICA e o clique não faz nada.
+    //
+    // Foi o defeito mais caro desta migração. O teste de `delete-environment`
+    // pegou — "Number of calls: 0" — mas três dos catorze call sites não têm
+    // teste co-locado, então a suíte sozinha não teria pego todos, e uma revisão
+    // visual por amostra também não.
+    //
+    // A saída é o atributo NATIVO `form="id"`, que `create-project-sheet.tsx` e
+    // `add-domain-sheet.tsx` já usavam antes desta migração — o idioma existia,
+    // faltava aplicá-lo. Verificado no navegador: `submit.form.id` resolve com o
+    // botão fora do form.
+    //
+    // Este caso troca a amostra por uma quantificação: TODO submit dentro de um
+    // AppModal, em todo arquivo de produção.
+    const quebrados: string[] = [];
+    for (const f of arquivosDeProducao()) {
+      const src = readFileSync(f, 'utf8');
+      if (!src.includes('<AppModal')) continue;
+
+      const ids = new Set([...src.matchAll(/<form[^>]*\bid="([^"]+)"/g)].map((m) => m[1]));
+      const rel = relative(SRC, f).replace(/\\/g, '/');
+
+      // SÓ a região do `footer={…}`, e não o arquivo inteiro.
+      //
+      // A primeira versão varria o arquivo e acusou `rag/graphrag.tsx`, que tem
+      // um `<form>` com submit no CORPO DA PÁGINA — nada a ver com o modal, que
+      // vem depois. Medir o ARQUIVO em vez do CONSTRUTO é o erro que este
+      // repositório vem repetindo: foi ele que pôs a escala de tokens na tabela
+      // de "larguras ad-hoc" do levantamento, e que me fez atribuir um
+      // `max-w-sm` de um `<div>` de layout ao modal de `memory/skills.tsx`.
+      for (const abre of src.matchAll(/footer=\{/g)) {
+        let nivel = 0;
+        let i = abre.index! + 'footer='.length;
+        const inicio = i;
+        while (i < src.length) {
+          if (src[i] === '{') nivel++;
+          else if (src[i] === '}' && --nivel === 0) break;
+          i++;
+        }
+        const regiao = src.slice(inicio, i);
+        for (const m of regiao.matchAll(/<Button\b[^>]*?type="submit"[^>]*?>/gs)) {
+          const alvo = m[0].match(/\bform="([^"]+)"/)?.[1];
+          if (!alvo) quebrados.push(`${rel}: submit no footer sem \`form=\``);
+          else if (!ids.has(alvo)) quebrados.push(`${rel}: form="${alvo}" não existe no arquivo`);
+        }
+      }
+    }
+
+    expect(
+      quebrados,
+      'Botão de enviar num modal sem alcançar o seu `<form>`.\n\n' +
+        'O `AppModal` renderiza o `footer` FORA dos children. Um `type="submit"`\n' +
+        'ali não pertence ao `<form>` do corpo, e o clique NÃO FAZ NADA — a tela\n' +
+        'renderiza idêntica e a ação some. É o pior modo de falha possível numa\n' +
+        'confirmação destrutiva.\n\n' +
+        'Dê um `id` ao `<form>` e `form="<id>"` ao botão. É o atributo nativo do\n' +
+        'HTML, e o idioma que `create-project-sheet.tsx` já usava.\n',
+    ).toEqual([]);
+  });
+
   it('o primitivo existe e expõe a escala — a asserção acima não passa por vacuidade', () => {
     // Sem este caso, apagar `app-modal.tsx` faria o primeiro caso falhar (bom)
     // mas esvaziar a escala passaria despercebido no segundo. É a contraparte

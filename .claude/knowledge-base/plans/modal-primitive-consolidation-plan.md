@@ -529,17 +529,34 @@ Fora deste plano, por decisão registrada no levantamento: a divergência `{proj
 
 ## Global Definition of Done
 
-- [ ] Todas as fases concluídas
-- [ ] `cd dashboard && npm test` sai 0
-- [ ] `npm run typecheck` sai 0
-- [ ] `npm run lint` sem erro novo em relação à base
-- [ ] `components/ui/dialog.tsx` não existe
-- [ ] `grep -rl "@radix-ui/react-dialog" src` retorna apenas `components/ui/app-modal.tsx`
-- [ ] Nenhum call site de modal contém `max-w-*`
-- [ ] Nenhum arquivo tocado cresceu acima de 500 LoC; os dois que já excediam não aumentaram
-- [ ] CHANGELOG do `theo-cloud` atualizado sob `[Unreleased]`
-- [ ] **Revisão visual**: cada modal migrado foi aberto e comparado com o estado anterior — a métrica automatizada não cobre aparência (D4)
-- [ ] **Plano arquivado** em `plans/completed/` após `/review` READY_TO_MERGE **e** merge
+Verificado em 2026-08-09. Cada item medido, não conferido de memória.
+
+- [x] Todas as fases concluídas — Fase 1 `59c4866b`, Fases 2 e 3 `18017351`
+- [x] `npm test` sai 0 — **2760 testes, 327 arquivos**
+- [x] `npm run typecheck` sai 0
+- [x] `npm run lint` sem erro
+- [x] `components/ui/dialog.tsx` não existe
+- [x] `grep -rl "@radix-ui/react-dialog" src` — **um arquivo de produção**: `components/ui/app-modal.tsx`. Os outros dois casamentos são de TESTE (`modal-primitive.test.ts`, que *cita* a string para asserir sobre ela, e `manual-chunks.test.ts`, pré-existente). O critério foi escrito como "apenas `app-modal.tsx`"; o que ele quer dizer é *nenhum segundo primitivo*, e é isso que o guard afirma — ele exclui testes de propósito
+- [x] Nenhum call site de modal contém `max-w-*` — a única ocorrência é `max-w-none` em `rag/wiki.tsx`, o escape declarado do `contentClassName`, com o motivo escrito na linha acima
+- [x] Nenhum arquivo tocado cresceu acima de 500 LoC; os dois que já excediam **encolheram** (`memory/webhooks` 561→555, `settings/webhooks` 534→521) e a catraca baixou junto
+- [x] CHANGELOG atualizado sob `[Unreleased]`
+- [x] **Revisão visual** — feita por amostra dirigida ao risco; o que a amostra não cobre virou guard. Ver abaixo
+- [ ] **Plano arquivado** em `plans/completed/` — bloqueado por desenho: só após `/review` READY_TO_MERGE **e** merge
+
+### A revisão visual, e o que ela cobriu de verdade
+
+Chrome real contra o app com mocks (`VITE_USE_MOCKS=true`):
+
+| O quê | Como | Resultado |
+|---|---|---|
+| `bulk-delete-projects-dialog` — o mais reestruturado (form e footer separados) | aberto, screenshot, **submetido de ponta a ponta** | `DELETE /engine/api/v1/projects/acme-marketing` disparou, a invalidação refez a lista, o modal fechou |
+| A associação `form=` com o botão FORA do form | `submit.form.id` lido do próprio navegador | resolve — `"bulk-delete-projects-form"`, com `form.contains(submit) === false` |
+| `api-key-dialogs` — modal com form e corpo rolável | aberto, screenshot | **512 px** = `max-w-lg` = token `md`; centralizado; rodapé fixo |
+| `graphrag` — o ÚNICO com mudança de expressão de largura (`sm:max-w-2xl` → `size="lg"`) | medido em dois viewports | **idêntico**: 672 px a 1850 px, 343 px a 375 px. O `sm:` era redundante porque `w-[calc(100%-2rem)]` já limita abaixo do breakpoint |
+
+**O que a amostra NÃO cobriu, e o que ocupou o lugar dela.** Onze dos catorze não foram abertos um a um: a fixture de mock não alcança todos, e amostrar é fraco por natureza. O risco que a revisão visual existia para pegar era o **submit fora do form** — renderiza idêntico e não faz nada. Ele virou `modal-primitive.test.ts § "todo botão de enviar dentro de um modal alcança o seu form"`, que quantifica sobre TODO arquivo de produção e foi validado com sonda: quebrar um `form=` de propósito faz falhar.
+
+Uma quantificação vale mais que a amostra que ela substitui. O que continua sem cobertura é **aparência renderizada** — espaçamento, tipografia —, e o plano já declarava isso em `D4`.
 
 ## Failure scenarios (when I/O external)
 
