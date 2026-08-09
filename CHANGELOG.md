@@ -24,6 +24,8 @@
 
 ### Changed
 
+- **A tela de um prompt deixou de ser um arquivo único de 887 linhas.** Cada painel dela — o texto, as etiquetas, a discussão, os ambientes, o histórico de revisões e as confirmações de promover/reverter — passou a ter arquivo próprio. Nenhum comportamento mudou; uma verificação automática pegou a única regressão que a divisão introduziu, e ela foi corrigida antes de sair.
+
 - **O mapa de rotas do dashboard deixou de ser um arquivo só.** As 119 rotas de quinze áreas do produto moravam num único arquivo de 780 linhas, e cada área nova entrava ali porque era onde as outras estavam. Agora cada área tem o seu, e uma verificação automática recusa que uma volte a se acumular no arquivo central. Nenhum endereço mudou e nenhuma tela se comporta diferente.
 
 - **Onze módulos de um domínio só saíram da pasta de código compartilhado.** A regra do projeto diz que só vive em pasta compartilhada o que dois ou mais domínios usam — mas a verificação automática dessa regra consultava uma lista de pastas escrita à mão, e quatro pastas nunca tinham entrado nela. Agora a verificação lê as pastas do disco, então uma pasta nova entra sob a regra no instante em que é criada. Os onze módulos foram para junto do domínio que os usa; duas pastas ficaram vazias e sumiram. Nenhum comportamento mudou.

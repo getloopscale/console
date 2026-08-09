@@ -471,8 +471,7 @@ produto que ja existiam. `new-folder-dialog.tsx`, citado no dod como exemplo de
 'nao e pagina', foi para components/dialogs/ — tem DOIS dominios consumidores.
 
 
-## B-009 — Sub-decomposicao de paginas: 32 arquivos .tsx acima de 400 LOC somando 17.735 LOC, e a maioria e UM unico componente gigante, nao varios...   [ ]
-
+## B-009 — Sub-decomposicao de paginas: 32 arquivos .tsx acima de 400 LOC somando 17.735 LOC, e a maioria e UM unico componente gigante, nao varios...   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: evolve
@@ -482,7 +481,7 @@ category: god_module
 evidence: src/pages/promptly/detail.tsx:131 — Distribuicao .tsx de producao (n=216): mediana 153 LOC; 32 arquivos acima de 400 LOC somando 17.735 LOC; apenas 4 arquivos com 5+ componentes. Maiores com UM unico componente: src/pages/promptly/detail.tsx 916 LOC (PromptDetailPage na linha 131, 15 useState, 9 useQuery), src/pages/deployments.tsx 705, src/pages/lens/evaluators.tsx 586, src/pages/skills/bundle-detail.tsx 555,...
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#15
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 dod:
   - Generalizar o gate que ja existe: trocar login-loc-budget.test.ts por uma regra de eslint (max-lines com max 500 para src/**/*.tsx) com uma allowlist explicita dos 32 arquivos atuais, e proibir que a allowlist cresca. Isso trava a divida e nao exige refactor de tudo de uma vez
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/pages/promptly/detail.tsx` e passa depois da mudanca
@@ -547,6 +546,43 @@ nada acusasse — o progresso de hoje viraria credito para amanha.
 
 Restam 16 arquivos na lista. O maior agora e `promptly/detail.tsx` (887), que tem UM componente e por isso nao tem fronteira
 natural: ele exige DESENHAR a divisao, nao aplica-la.
+
+
+fechado_2026-08-09: `promptly/detail.tsx` — o arquivo que o DoD NOMEIA — de 887 para 465 linhas. Saiu da allowlist. Teto 16 -> 15.
+
+Bullet 1 ja estava cumprido: o `max-lines: 500` com allowlist existe, e `loc-budget-ratchet.test.ts` proibe a lista crescer (numero anotado
+tem de bater com o disco, exatamente). Bullet 2 era este arquivo.
+
+ELE ERA O CASO DIFICIL DE PROPOSITO: 887 linhas, UM componente de 755, zero fronteira de funcao. Todos os cortes anteriores desta sessao
+aplicaram uma divisao que ja existia; este exigiu DESENHAR uma.
+
+O desenho veio dos CARTOES. Cada um responde uma pergunta propria — o texto, as tags, a discussao, os ambientes, as revisoes — e recebe
+entre 3 e 7 simbolos, medido antes de cortar. Cortar por tamanho teria produzido metades sem nome.
+
+  detail/{texto,tags,discussao,ambientes,revisoes}-card.tsx  os cinco cartoes
+  detail/confirmacoes-de-ponteiro.tsx                        promover + reverter, JUNTOS: sao a mesma decisao em sentidos opostos
+  detail/cabecalho.tsx                                       volta + as quatro abas
+  detail/painel-de-abas.tsx                                  as tres abas que nao sao a de conteudo
+  detail/{tipos,constantes}.ts                               tipos derivados das fontes e as constantes que desceram
+
+O QUE OS TESTES PEGARAM, e que eu teria enviado: ao extrair o cartao de texto, o guard virou `abaAtiva === 'conteudo'` e PERDEU o `compoe &&`.
+O alternador escrito/resolvido passaria a aparecer em prompt que nao compoe — dois textos identicos lado a lado, exatamente o ruido que o
+comentario do bloco dizia evitar. Dois testes falharam nomeando o comportamento. Restaurado.
+
+TRES ERROS MEUS DE METODO, um deles pela segunda vez:
+
+  1. Cortei por marcador de texto e parti o bloco ao meio — mesma falha das tentativas antigas do B-003. Restaurei com `git restore` e refiz
+     com o compilador de TypeScript, que devolve o intervalo exato. Depois disso, nenhum corte errado.
+  2. Inventei nomes de tipo (`PromptQuery`, `Ponteiros`) em vez de derivar das fontes. O hook devolve `PromptlyQuery<T>`, um tipo proprio do
+     dominio. `tipos.ts` agora deriva de `ReturnType` e do generico, para nao haver um segundo dono da forma.
+  3. Filtrei a saida do tsc com `head -3` e escondi cinco TS2304 reais. E a MESMA classe que venho catalogando o dia todo, agora na minha
+     ferramenta de diagnostico.
+
+E o auto-fixer que escreveu props deixou cinco `any`. O eslint acusou; tipei todos contra a fonte real. `USAGE_WINDOW_DAYS`,
+`AMBIENTES_DE_PRODUCAO`, `BASE_DE_CONSUMO` e `ambienteDoTrecho` viraram IMPORT e nao prop: prop e para o que varia entre renders, e uma
+constante de modulo passada por prop finge ser estado.
+
+2741 verdes, 324 arquivos, madge sem ciclo, 305,45 kB de 320.
 
 ## B-010 — Nao existe contrato escrito de fronteira de modulo para o dashboard, e o codigo cita um que nao esta no repositorio   [x]
 

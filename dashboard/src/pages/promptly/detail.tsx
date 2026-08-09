@@ -1,27 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { History } from 'lucide-react';
-import { Badge, Button, Card, DataTable, EmptyState, PageShell } from '@usetheo/ui';
+import { Button, PageShell } from '@usetheo/ui';
 import {
   dependentRows,
   temComposicao,
   textoExibido,
   type ModoDeTexto,
 } from '@/pages/promptly/components/composicao';
-import { ABAS, abaDaRota, rotaDaAba } from './detail-tabs';
+import { abaDaRota } from './detail-tabs';
 import { revisionColumns } from './revision-columns';
-import { ConsumoTab } from './tabs/consumo';
-import { ConfigTab } from './tabs/config';
-import { ProducaoTab } from './tabs/producao';
+import { TextoDoPromptCard } from './detail/texto-card';
+import { USAGE_WINDOW_DAYS } from './detail/constantes';
+import { ConfirmacoesDePonteiro } from './detail/confirmacoes-de-ponteiro';
+import { CabecalhoDoPrompt } from './detail/cabecalho';
+import { PainelDeAbas } from './detail/painel-de-abas';
+import { TagsCard } from './detail/tags-card';
+import { DiscussaoCard } from './detail/discussao-card';
+import { AmbientesCard } from './detail/ambientes-card';
+import { RevisoesCard } from './detail/revisoes-card';
 
 import { Alert } from '@/components/ui/alert-guard';
-import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { ApiError } from '@/lib/http/api';
 import {
-  frasePreRollback,
   resultadoDoRollback,
   labelsOferecidos,
   mensagemDeRecusa,
@@ -39,10 +42,8 @@ import {
   comentarioRows,
   labelRows,
   policySummary,
-  promotionConsequence,
   revisionRows,
   revisionsWindow,
-  type LabelPointer,
   type PromotionPolicy,
 } from '@/pages/promptly/components/projections';
 import { projetarUso, type AgregadoDeUso, type LinhaDeUso } from '@/pages/promptly/components/usage';
@@ -83,9 +84,6 @@ import {
 /** Pequeno e EXPLÍCITO — ver o comentário acima. Nunca o default do serviço. */
 const REVISIONS_LIMIT = 10;
 
-// M15 — a janela do agregado de uso. Curta por padrão e DITA na tela (ver a coluna "Uso"):
-// implícita, o operador atribuiria o número ao período errado.
-const USAGE_WINDOW_DAYS = 7;
 
 /**
  * O endereço público da capacidade na borda — a base que o trecho de consumo publica (M21 DoD-2).
@@ -100,27 +98,8 @@ const USAGE_WINDOW_DAYS = 7;
  * Um conjunto, e não um `===`, porque os dois convivem no catálogo real deste ambiente — há prompts
  * servindo `production` e outros servindo `prod`.
  */
-const AMBIENTES_DE_PRODUCAO = new Set(['production', 'prod']);
 
-/**
- * Qual ambiente o trecho de consumo publica.
- *
- * Produção vence; na ausência dela, o primeiro declarado. O `/review` mediu que o fallback é
- * DETERMINÍSTICO (o repositório ordena por label) mas **arbitrário**: um prompt com `canary` e
- * `staging` publica `canary` porque C vem antes de S. A escolha em si é defensável — publicar
- * versão fixa seria pior —, e o que faltava era a tela DIZER que não é produção. Ver
- * `ambienteEProducao`.
- */
-function ambienteDoTrecho(
-  ponteiros: readonly { readonly label: string; readonly version: number }[],
-): string | null {
-  return (
-    ponteiros.find((p) => AMBIENTES_DE_PRODUCAO.has(p.label))?.label ?? ponteiros[0]?.label ?? null
-  );
-}
 
-const BASE_DE_CONSUMO =
-  typeof window === 'undefined' ? '/v1/promptly' : `${window.location.origin}/v1/promptly`;
 
 /** A linha crua do agregado, como o BFF a repassa do `theo-lens`. */
 interface LinhaDoAgregadoBruta {
@@ -371,55 +350,7 @@ export function PromptDetailPage() {
       title={promptName}
       description="As revisões deste prompt e o label de ambiente que cada uma serve."
     >
-      {/* Caminho de VOLTA explícito: sem ele o detalhe é uma sala sem porta. */}
-      <div className="flex flex-wrap items-center gap-4">
-        <Link to="/promptly" className="text-sm underline-offset-4 hover:underline">
-          ← Catálogo de prompts
-        </Link>
-        {/* M12: as duas ações POR PROMPT ficam aqui, não no menu — uma entrada de menu para elas
-            exigiria um nome que o menu não tem e levaria a lugar nenhum. */}
-        {/* M14: o playground e alcancado DAQUI, nao do submenu — ele e sempre de UM prompt, e um
-            item de menu levaria a uma tela que nao sabe de qual. */}
-        <Link
-          to={`/promptly/${encodeURIComponent(promptName)}/playground`}
-          className="text-sm underline-offset-4 hover:underline"
-        >
-          Playground
-        </Link>
-        <Link
-          to={`/promptly/${encodeURIComponent(promptName)}/diff`}
-          className="text-sm underline-offset-4 hover:underline"
-        >
-          Comparar revisões
-        </Link>
-        <Link
-          to={`/promptly/new?name=${encodeURIComponent(promptName)}&next=${(latestVersion ?? 0) + 1}`}
-          className="text-sm underline-offset-4 hover:underline"
-        >
-          Nova revisão deste prompt
-        </Link>
-      </div>
-
-      {/* M21 DoD-1 — as quatro perguntas. São quatro coisas diferentes sobre o mesmo objeto, e
-          empilhá-las numa coluna fazia o operador rolar por três respostas que não pediu para
-          chegar na que pediu. */}
-      <nav aria-label="Seções do prompt" className="flex flex-wrap gap-1 border-b">
-        {ABAS.map((aba) => (
-          <Link
-            key={aba.id}
-            to={rotaDaAba(promptName, aba.id)}
-            aria-current={abaAtiva === aba.id ? 'page' : undefined}
-            title={aba.pergunta}
-            className={
-              abaAtiva === aba.id
-                ? 'border-b-2 border-primary px-3 py-2 text-sm font-medium'
-                : 'border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'
-            }
-          >
-            {aba.rotulo}
-          </Link>
-        ))}
-      </nav>
+      <CabecalhoDoPrompt promptName={promptName} latestVersion={latestVersion} abaAtiva={abaAtiva} />
 
       {rollbackResultado ? (
         <Alert
@@ -485,102 +416,9 @@ export function PromptDetailPage() {
           O par existe porque *"sem ele, composição vira mágica que ninguém depura"*. O alternador
           só aparece quando o prompt de fato referencia alguém — dois textos idênticos lado a lado
           seriam ruído, e a leitura resolvida custa a travessia do grafo. */}
-      {compoe && abaAtiva === 'conteudo' ? (
-        <Card>
-          <Card.Header>
-            <Card.Title asChild>
-              <h2>Texto do prompt</h2>
-            </Card.Title>
-            <Card.Description>
-              Este prompt referencia outros. <strong>Como foi escrito</strong> mostra os marcadores;{' '}
-              <strong>resolvido</strong> mostra o texto que o modelo de fato recebe.
-            </Card.Description>
-          </Card.Header>
-          <div className="space-y-3 p-4 pt-0">
-            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Qual texto exibir">
-              <Button
-                variant={modoDeTexto === 'escrito' ? 'primary' : 'secondary'}
-                size="sm"
-                aria-pressed={modoDeTexto === 'escrito'}
-                onClick={() => { setModoDeTexto('escrito'); }}
-              >
-                Como foi escrito
-              </Button>
-              <Button
-                variant={modoDeTexto === 'resolvido' ? 'primary' : 'secondary'}
-                size="sm"
-                aria-pressed={modoDeTexto === 'resolvido'}
-                onClick={() => { setModoDeTexto('resolvido'); }}
-              >
-                Resolvido
-              </Button>
-            </div>
-            {texto.estado === 'falhou' ? (
-              // NUNCA cair para o texto escrito aqui: seria mostrar um texto correto sob um rótulo
-              // errado, e o operador leria marcadores literais achando ver a composição.
-              <Alert
-                intent="destructive"
-                title="Não foi possível resolver a composição"
-                description="O texto resolvido não pôde ser lido. Alterne de volta para ver o texto como foi escrito."
-              />
-            ) : texto.estado === 'carregando' ? (
-              <p className="text-sm text-muted-foreground">Resolvendo as referências…</p>
-            ) : (
-              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-mono text-xs">
-                {texto.texto || '(vazio)'}
-              </pre>
-            )}
-          </div>
-        </Card>
-      ) : null}
+      {compoe && abaAtiva === 'conteudo' ? <TextoDoPromptCard texto={texto} modoDeTexto={modoDeTexto} setModoDeTexto={setModoDeTexto} /> : null}
 
-      {/* M21 — as três abas que não são a de conteúdo. `Tags` e `Ambientes` ficam FORA delas, no
-          corpo do layout, porque o DoD-3 pede promover e etiquetar SEM SAIR DA TELA: numa aba, a
-          ação sumiria em três dos quatro estados. */}
-      {abaAtiva === 'config' ? (
-        <ConfigTab
-          ilegivel={Boolean(prompt.error)}
-          versao={latestVersion}
-          modelConfig={prompt.data?.modelConfig ?? null}
-          variaveis={prompt.data?.variables ?? []}
-        />
-      ) : null}
-
-      {abaAtiva === 'producao' ? (
-        <ProducaoTab
-          promptName={promptName}
-          janelaDias={USAGE_WINDOW_DAYS}
-          linhas={[...usoPorRevisao.values()]}
-          dependentes={dependentesLinhas}
-          dependentesIlegiveis={Boolean(dependentes.error)}
-          dependentesCarregando={dependentes.loading}
-        />
-      ) : null}
-
-      {abaAtiva === 'consumo' ? (
-        <ConsumoTab
-          ambientesIlegiveis={Boolean(labels.error)}
-          promptIlegivel={Boolean(prompt.error)}
-          alvo={
-            // `latestVersion === null` é ausência de dado, não "versão 1". Cair para `1` fabricaria
-            // um número que PODE existir e ser a revisão errada — num trecho feito para ser copiado.
-            promptContent === null || latestVersion === null
-              ? null
-              : {
-                  nome: promptName,
-                  compoe,
-                  ultimaVersao: latestVersion,
-                  label: ambienteDoTrecho(ponteiros),
-                  ambienteEProducao:
-                    ambienteDoTrecho(ponteiros) === null
-                      ? true // sem ambiente, o trecho usa versão e não afirma nada sobre produção
-                      : AMBIENTES_DE_PRODUCAO.has(ambienteDoTrecho(ponteiros) as string),
-                  variaveis: prompt.data?.variables ?? [],
-                  baseUrl: BASE_DE_CONSUMO,
-                }
-          }
-        />
-      ) : null}
+      <PainelDeAbas usoPorRevisao={usoPorRevisao} labels={labels} dependentesLinhas={dependentesLinhas} dependentes={dependentes} abaAtiva={abaAtiva} prompt={prompt} promptName={promptName} promptContent={promptContent} latestVersion={latestVersion} compoe={compoe} ponteiros={ponteiros} />
 
 
       {/* M16 — as tags do prompt, lidas e ESCRITAS aqui.
@@ -588,279 +426,19 @@ export function PromptDetailPage() {
           entrega do milestone fez só a leitura no catálogo: o `PUT` existia na API e parava no
           BFF, e a tela não tinha como marcar nada. Um produto onde só a API sabe marcar não tem
           a jornada que o milestone promete. */}
-      <Card>
-        <Card.Header>
-          <Card.Title asChild>
-            <h2>Tags</h2>
-          </Card.Title>
-          <Card.Description>
-            Como este prompt é encontrado no catálogo. A marcação é do PROMPT, não da revisão —
-            criar a revisão seguinte não a perde.
-          </Card.Description>
-        </Card.Header>
-        <div className="space-y-3 p-4 pt-0">
-          {erroDeTag !== null ? (
-            <Alert intent="destructive" title="A marcação não foi salva" description={erroDeTag} />
-          ) : null}
-          <div className="flex flex-wrap items-center gap-2">
-            {tags.length === 0 ? (
-              // Dito, nunca em branco: um espaço vazio lê como "não carregou". A ausência é um
-              // fato sobre o prompt — mesma razão do "sem descrição" do M17.
-              <span className="text-sm text-muted-foreground">Nenhuma tag neste prompt.</span>
-            ) : (
-              tags.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
-                  {t}
-                  <button
-                    type="button"
-                    aria-label={`Remover a tag ${t}`}
-                    disabled={marcando.isPending}
-                    onClick={() => { marcando.mutate(tags.filter((x) => x !== t)); }}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              value={novaTag}
-              onChange={(e) => { setNovaTag(e.target.value); }}
-              aria-label="Nova tag"
-              placeholder="suporte"
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={novaTag.trim() === '' || marcando.isPending}
-              onClick={() => {
-                // O conjunto INTEIRO, nunca só a nova: o contrato do serviço é substituição, e
-                // mandar só a tag nova apagaria as antigas do outro lado.
-                const t = novaTag.trim();
-                marcando.mutate(tags.includes(t) ? tags : [...tags, t]);
-              }}
-            >
-              Marcar
-            </Button>
-          </div>
-        </div>
-      </Card>
+      <TagsCard novaTag={novaTag} setNovaTag={setNovaTag} erroDeTag={erroDeTag} marcando={marcando} tags={tags} />
 
       {/* M18 — a discussão. O DoD pede que quem promove a veja ANTES de confirmar, e é por isso
           que o cartão fica ACIMA de Ambientes: a ordem da tela é a ordem da decisão.
           M21 — vive na aba de CONTEÚDO: "por que esta revisão existe" é sobre o que ele diz. */}
-      {abaAtiva === 'conteudo' ? (
-      <Card>
-        <Card.Header>
-          <Card.Title asChild>
-            <h2>Discussão {revisaoDiscutida !== null ? `da v${String(revisaoDiscutida)}` : ''}</h2>
-          </Card.Title>
-          <Card.Description>
-            Por que esta revisão existe, foi rejeitada ou está pronta. O comentário é da REVISÃO —
-            criar a próxima não o move.
-          </Card.Description>
-        </Card.Header>
-        <div className="space-y-3 p-4 pt-0">
-          {comentariosFalharam ? (
-            <Alert
-              intent="destructive"
-              title="Não foi possível ler a discussão"
-              description="A ausência abaixo é ignorância, não silêncio: pode haver comentários que esta tela não conseguiu carregar."
-            />
-          ) : null}
-          {erroDeComentario !== null ? (
-            <Alert intent="destructive" title="O comentário não foi salvo" description={erroDeComentario} />
-          ) : null}
-          {comentarios.length === 0 && !comentariosFalharam ? (
-            <p className="text-sm text-muted-foreground">Nenhum comentário nesta revisão.</p>
-          ) : (
-            <ul className="space-y-2">
-              {comentarios.map((c) => (
-                <li key={c.id} className="rounded-md border p-3 text-sm">
-                  <p className="whitespace-pre-wrap">{c.body}</p>
-                  <p className="pt-1 text-xs text-muted-foreground">
-                    {/* Autor ausente é DITO: uma credencial sem identidade humana não tem autor,
-                        e inventar um apareceria numa auditoria como fato. */}
-                    {c.author ?? 'autor não registrado'}{c.quando === '' ? '' : ` · ${c.quando}`}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="flex flex-wrap items-start gap-2">
-            <textarea
-              value={novoComentario}
-              onChange={(e) => { setNovoComentario(e.target.value); }}
-              aria-label="Comentar esta revisão"
-              placeholder="por que esta revisão existe, ou por que não deve ir ao ar"
-              rows={2}
-              className="min-w-[18rem] flex-1 rounded-md border border-input bg-background p-2 text-sm"
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={novoComentario.trim() === '' || comentando.isPending || revisaoDiscutida === null}
-              onClick={() => { comentando.mutate(novoComentario.trim()); }}
-            >
-              Comentar
-            </Button>
-          </div>
-        </div>
-      </Card>
-      ) : null}
+      {abaAtiva === 'conteudo' ? <DiscussaoCard revisaoDiscutida={revisaoDiscutida} comentando={comentando} comentarios={comentarios} comentariosFalharam={comentariosFalharam} erroDeComentario={erroDeComentario} novoComentario={novoComentario} setNovoComentario={setNovoComentario} /> : null}
 
-      <Card>
-        <Card.Header>
-          <Card.Title asChild>
-            <h2>Ambientes</h2>
-          </Card.Title>
-          <Card.Description>
-            Qual revisão cada label serve neste momento — e a promoção para a{' '}
-            <strong>última</strong> revisão, que é o ato comum. Para promover uma revisão anterior,
-            a tabela em <em>Conteúdo</em> tem uma ação por linha.
-          </Card.Description>
-        </Card.Header>
-        <div className="flex flex-wrap items-center gap-2 p-4 pt-0">
-          {ponteiros.length === 0 ? (
-            <span className="text-sm text-muted-foreground">
-              {labelsFailed
-                ? 'Sem dados — a leitura falhou.'
-                : 'Nenhum label de ambiente aponta para este prompt.'}
-            </span>
-          ) : (
-            ponteiros.map((p: LabelPointer) => (
-              <span key={p.label} className="inline-flex items-center gap-1">
-                {/* Texto, nunca só cor: o par label→revisão é o dado que a promoção altera. */}
-                <Badge variant="outline">{`${p.label} → v${p.version}`}</Badge>
-                {/* M21 DoD-3 — a AÇÃO, e não só a leitura.
-                    O `/review` mediu que este cartão ficava fora das abas mas era somente leitura:
-                    a promoção inteira vivia na tabela de revisões, que está na aba de conteúdo. O
-                    teste que dizia cobrir o DoD-3 só verificava dois cabeçalhos, e passava com ZERO
-                    botões — e o CHANGELOG afirmava publicamente o que a tela não fazia.
-                    Promover a ÚLTIMA revisão é o ato comum; promover uma anterior continua na
-                    tabela, e a descrição diz isso em vez de deixar o operador procurar. */}
-                {latestVersion !== null && p.version !== latestVersion ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    // O rótulo diz "para a ÚLTIMA revisão", e não só o número: existem duas formas de promover
-                    // na tela (esta e a da tabela por linha), e um rótulo idêntico as tornaria
-                    // indistinguíveis para leitor de tela e para teste. A diferença não é cosmética —
-                    // esta promove a última; aquela, a linha que o operador escolheu.
-                    aria-label={`Promover ${p.label} para a última revisão, v${String(latestVersion)}`}
-                    onClick={() => {
-                      setPromoteError(null);
-                      setLabelAlvo(p.label);
-                      setAlvo(latestVersion);
-                    }}
-                  >
-                    → v{latestVersion}
-                  </Button>
-                ) : null}
-              </span>
-            ))
-          )}
-        </div>
-      </Card>
+      <AmbientesCard ponteiros={ponteiros} latestVersion={latestVersion} setAlvo={setAlvo} setLabelAlvo={setLabelAlvo} labelsFailed={labelsFailed} setPromoteError={setPromoteError} />
 
       {/* M21 — o histórico é sobre O QUE ELE DIZ: vive na aba de conteúdo. */}
-      {abaAtiva === 'conteudo' ? (
-      <Card>
-        <Card.Header>
-          <Card.Title asChild>
-            <h2>Revisões</h2>
-          </Card.Title>
-          <Card.Description>
-            {latestVersion === null
-              ? `As ${REVISIONS_LIMIT} primeiras — a página vem do servidor.`
-              : `As ${REVISIONS_LIMIT} mais recentes (até a v${latestVersion}) — a página vem do servidor, e o histórico completo continua na API.`}
-          </Card.Description>
-        </Card.Header>
+      {abaAtiva === 'conteudo' ? <RevisoesCard revisions={revisions} latestVersion={latestVersion} REVISIONS_LIMIT={REVISIONS_LIMIT} columns={columns} linhas={linhas} revisionsFailed={revisionsFailed} /> : null}
 
-        <DataTable
-          columns={columns}
-          data={linhas}
-          rowKey={(row) => String(row.version)}
-          loading={revisions.loading}
-          emptyState={
-            <EmptyState
-              icon={History}
-              title={revisionsFailed ? 'Sem dados — a leitura falhou' : 'Nenhuma revisão'}
-              description={
-                revisionsFailed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber quais revisões existem.'
-                  : 'Este prompt ainda não tem revisões publicadas.'
-              }
-            />
-          }
-        />
-      </Card>
-      ) : null}
-
-      <ConfirmDialog
-        open={alvo !== null}
-        onOpenChange={(open) => {
-          // O erro NÃO é limpo aqui: o diálogo fecha ao confirmar, inclusive quando o serviço
-          // recusa, e limpar neste ponto apagaria no mesmo ciclo a mensagem que explica por que o
-          // label continua onde estava. Ele é limpo ao ABRIR um novo diálogo.
-          if (!open) {
-            setAlvo(null);
-          }
-        }}
-        intent="destructive"
-        title={`Promover "${labelAlvo}" para a revisão v${alvo ?? ''}?`}
-        description={
-          <>
-            <p>{promotionConsequence({ label: labelAlvo, atual: atualDoLabel(labelAlvo), alvo: alvo ?? 0 })}</p>
-            <p className="mt-2">
-              {/* A regra vigente, ANTES do ato. Ilegível ≠ ausente: o primeiro manda investigar, o
-                  segundo diz que a promoção é livre. Confundi-los é o defeito que a tela evita. */}
-              <strong>Política: </strong>
-              {politicaIlegivel
-                ? 'não foi possível ler a política deste label — a promoção pode ser recusada pelo serviço.'
-                : resumoPolitica.texto}
-            </p>
-          </>
-        }
-        confirmLabel="Promover"
-        cancelLabel="Cancelar"
-        confirmationPhrase={labelAlvo}
-        loading={promote.isPending}
-        onConfirm={() => {
-          if (alvo === null || labelAlvo === '') return;
-          promote.mutate({ label: labelAlvo, version: alvo });
-        }}
-      />
-
-      {/* M12 — a confirmação de reverter. Nomeia a revisão que será CRIADA: um texto de "volta
-          para a v1" faria o operador esperar o histórico encolher, e ele nunca encolhe. */}
-      <ConfirmDialog
-        open={revAlvo !== null}
-        onOpenChange={(aberto) => !aberto && setRevAlvo(null)}
-        title={`Reverter ${promptName} para a v${revAlvo ?? 0}`}
-        description={
-          <p className="text-sm">
-            {frasePreRollback({
-              nome: promptName,
-              paraVersao: revAlvo ?? 0,
-              ultimaVersao: latestVersion ?? 0,
-              label: labelRollback,
-            })}
-          </p>
-        }
-        confirmLabel="Reverter"
-        cancelLabel="Cancelar"
-        confirmationPhrase={promptName}
-        loading={rollback.isPending}
-        onConfirm={() => {
-          if (revAlvo === null) return;
-          rollback.mutate({ toVersion: revAlvo, label: labelRollback });
-        }}
-      />
+      <ConfirmacoesDePonteiro alvo={alvo} setAlvo={setAlvo} labelAlvo={labelAlvo} promote={promote} revAlvo={revAlvo} setRevAlvo={setRevAlvo} labelRollback={labelRollback} rollback={rollback} latestVersion={latestVersion} promptName={promptName} atualDoLabel={atualDoLabel} resumoPolitica={resumoPolitica} politicaIlegivel={politicaIlegivel} />
     </PageShell>
   );
 }

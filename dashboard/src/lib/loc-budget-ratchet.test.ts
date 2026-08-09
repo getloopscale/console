@@ -108,14 +108,15 @@ describe('catraca do orçamento de LoC (B-009/B-033)', () => {
   });
 
   it('a allowlist não cresce em silêncio', () => {
-    // Congelado em 2026-08-07 com 18 entradas; 17 desde 2026-08-08
-    // (`settings/api-keys.tsx`, a 454 linhas) e 16 desde 2026-08-09, quando
-    // `app.tsx` saiu a 319 — o manifesto de rotas que era o maior arquivo do
-    // projeto quando esta catraca foi escrita.
+    // Congelado em 2026-08-07 com 18 entradas. Saíram: `settings/api-keys.tsx`
+    // (2026-08-08, a 454), `app.tsx` (2026-08-09, a 226) e
+    // `promptly/detail.tsx` (2026-08-09, a 465) — este último o MAIOR arquivo
+    // do projeto, e o único que não tinha fronteira de função nenhuma: um
+    // componente de 755 linhas. A divisão dele precisou ser desenhada.
     //
     // O teto acompanha a saída de propósito: se ele ficasse em 18, sobraria uma
     // vaga para a próxima dívida entrar sem que nada acusasse, e o progresso de
     // hoje viraria crédito para amanhã.
-    expect(isentos().length).toBeLessThanOrEqual(16);
+    expect(isentos().length).toBeLessThanOrEqual(15);
   });
 });
