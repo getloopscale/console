@@ -3371,8 +3371,7 @@ ACHADO DE AMBIENTE QUE SEGUE DE PE, e que nao e a causa: `node_modules/.vite/dep
 2026-08-02. Nao explica o defeito (o Vite procura `deps`, e as 36 verdes aconteceram com ele presente), mas prova que algo rodou como root
 nesta arvore. Remove-lo exige sudo.
 
-## B-100 — `nginx.conf` do dashboard nao emite nenhum header de cache   [ ]
-
+## B-100 — `nginx.conf` do dashboard nao emite nenhum header de cache   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: review
@@ -3383,9 +3382,44 @@ why_now: medido ao responder B-074. O `ADR-0004` afirmava que "o nginx.conf vers
   para justificar a opcao de remover o service worker inteiro. A premissa e falsa, e enquanto ela ficar de pe a opcao 3 do ADR nao pode ser
   executada: remover o SW hoje faria cada asset com hash no nome pagar uma revalidacao condicional por carregamento, porque a unica coisa que
   o nginx manda e `ETag`/`Last-Modified`.
-status: raw
+status: shipped
 dod:
   - `nginx.conf` emite `Cache-Control: public, max-age=31536000, immutable` para `/assets/` (nomes tem hash, entao e seguro) e `no-cache`
     para `index.html` e `__config.js`
   - existe teste ou verificacao que FALHA no estado atual
   - o pre-requisito da opcao 3 do `ADR-0004` fica desbloqueado, e o ADR registra que foi
+
+
+fechado_2026-08-09: politica de cache no nginx, VERIFICADA NA REDE contra o container real — nao lendo o arquivo.
+
+    /assets/*   -> public, max-age=31536000, immutable   (nome com hash: build novo, nome novo)
+    /sw.js      -> no-cache
+    /__config.js-> no-cache
+    /           -> no-cache   (o index e o MAPA para os nomes com hash)
+
+DUAS ARMADILHAS QUE EU EVITEI, e as duas quebram semanas depois:
+
+1. `sw.js` NAO TEM HASH NO NOME. Um `location ~ \.js$` com `immutable` congelaria o service worker e o app nunca mais atualizaria —
+   sintoma so no deploy SEGUINTE, quando a causa ja nao e obvia. Por isso ele tem bloco proprio, e o teste trava isso.
+
+2. `add_header` num `location` DESCARTA os do `server`. E a regra de heranca do nginx: as diretivas do nivel anterior valem se e
+   somente se o nivel atual nao declarar nenhuma. Por `Cache-Control` em `/assets/` derrubaria o CSP e o X-Frame-Options EXATAMENTE
+   nos arquivos JavaScript. Os headers de seguranca viraram `nginx-security-headers.conf`, incluido em cada bloco que declara header
+   proprio — estrutura que impede o erro vale mais que teste que o detecta, e o teste cobre o que sobra.
+
+E UMA TERCEIRA QUE EU MESMO INTRODUZI E ACHEI COM `curl`: `add_header Cache-Control ... always` fazia um 404 de asset sair com
+`max-age=31536000, immutable`. Num deploy rolling o cliente carrega o index novo de um pod, pede o asset a outro que ainda nao o tem,
+recebe 404 e o GUARDA POR UM ANO — o modo de falha classico de asset com hash.
+
+  A correcao e a assimetria: `always` faz o header valer em 4xx/5xx tambem. Os de SEGURANCA querem isso (pagina de erro e onde
+  conteudo do atacante pode ser refletido); o `Cache-Control` quer o oposto. Verificado depois: 200 leva o cache imutavel, 404 leva
+  so o CSP.
+
+O snippet ficou FORA de `conf.d/` de proposito: a imagem base faz `include /etc/nginx/conf.d/*.conf`, entao um snippet ali seria
+carregado DUAS vezes — uma pelo glob, no contexto http.
+
+VERIFICACAO: `docker build` + `docker run` + `curl -I` em cinco caminhos, mais `nginx -t`. Guard em
+`src/build/nginx-cache-policy.test.ts` (5 casos), que falha no estado anterior.
+
+DESBLOQUEIA A OPCAO 3 DO ADR-0004: remover o service worker inteiro agora e possivel sem piorar a entrega, porque o nginx passou a
+fazer o que o ADR ja afirmava (erradamente) que ele fazia.

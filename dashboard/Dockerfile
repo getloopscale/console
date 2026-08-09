@@ -37,6 +37,10 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY docker-entrypoint.sh /docker-entrypoint.d/40-runtime-config.sh
 # Committed nginx config with CSP + security headers (find_infra_012).
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# B-100 — snippet incluido pelo default.conf. FORA de conf.d/ de proposito: a
+# imagem base faz `include /etc/nginx/conf.d/*.conf`, entao um snippet ali seria
+# carregado DUAS vezes — uma pelo glob, no contexto http, e outra pelos includes.
+COPY nginx-security-headers.conf /etc/nginx/security-headers.conf
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
