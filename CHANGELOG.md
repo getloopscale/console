@@ -26,6 +26,8 @@
 
 ### Changed
 
+- **Os três modais compartilhados do dashboard passaram a usar o primitivo padrão.** Confirmação de ação destrutiva, redeploy e aviso de limite de plano eram construídos sobre um segundo primitivo de modal, com a largura escrita à mão em cada um. Agora vêm da mesma escala de tamanhos do resto do sistema. Nenhuma das telas mudou de aparência — as larguras escolhidas são as mesmas que já eram usadas.
+
 - **A tela de um prompt deixou de ser um arquivo único de 887 linhas.** Cada painel dela — o texto, as etiquetas, a discussão, os ambientes, o histórico de revisões e as confirmações de promover/reverter — passou a ter arquivo próprio. Nenhum comportamento mudou; uma verificação automática pegou a única regressão que a divisão introduziu, e ela foi corrigida antes de sair.
 
 - **O mapa de rotas do dashboard deixou de ser um arquivo só.** As 119 rotas de quinze áreas do produto moravam num único arquivo de 780 linhas, e cada área nova entrava ali porque era onde as outras estavam. Agora cada área tem o seu, e uma verificação automática recusa que uma volte a se acumular no arquivo central. Nenhum endereço mudou e nenhuma tela se comporta diferente.

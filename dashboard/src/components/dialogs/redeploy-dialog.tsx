@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Button,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useRedeploy } from '@/hooks/mutations/use-redeploy';
 import type { Build } from '@/lib/api/types';
@@ -59,53 +59,55 @@ export function RedeployDialog({
     : null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title className="inline-flex items-center gap-2">
-            <RefreshCw className="size-5 text-primary" aria-hidden="true" />
-            Redeploy {sha}
-          </Dialog.Title>
-          <Dialog.Description>
-            A new build will start from commit{' '}
-            <span className="font-mono">{sha}</span> targeting{' '}
-            <span className="font-mono">{sourceBuild.environment}</span>. The
-            current release stays active until the new one finishes.
-          </Dialog.Description>
-        </Dialog.Header>
-
-        <div className="space-y-4">
-          <Alert
-            intent="info"
-            description="The build uses the same source and apps as the original. Useful for re-running after a transient infra issue or refreshing dependencies."
-          />
-
-          {errorMessage && (
-            <Alert intent="destructive" description={errorMessage} />
-          )}
-
-          <Dialog.Footer>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={redeploy.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleConfirm}
-              disabled={redeploy.isPending}
-            >
-              {redeploy.isPending && (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              )}
-              {redeploy.isPending ? 'Starting deploy…' : `Redeploy ${sha}`}
-            </Button>
-          </Dialog.Footer>
-        </div>
-      </Dialog.Content>
-    </Dialog>
+    // Sem `size`: o default `md` é `max-w-lg`, a MESMA largura que este arquivo
+    // já herdava do default de `ui/dialog`. Zero mudança visual.
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={
+        <span className="inline-flex items-center gap-2">
+          <RefreshCw className="size-5 text-primary" aria-hidden="true" />
+          Redeploy {sha}
+        </span>
+      }
+      description={
+        <>
+          A new build will start from commit{' '}
+          <span className="font-mono">{sha}</span> targeting{' '}
+          <span className="font-mono">{sourceBuild.environment}</span>. The
+          current release stays active until the new one finishes.
+        </>
+      }
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={redeploy.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={handleConfirm}
+            disabled={redeploy.isPending}
+          >
+            {redeploy.isPending && (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            )}
+            {redeploy.isPending ? 'Starting deploy…' : `Redeploy ${sha}`}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Alert
+          intent="info"
+          description="The build uses the same source and apps as the original. Useful for re-running after a transient infra issue or refreshing dependencies."
+        />
+        {errorMessage && <Alert intent="destructive" description={errorMessage} />}
+      </div>
+    </AppModal>
   );
 }

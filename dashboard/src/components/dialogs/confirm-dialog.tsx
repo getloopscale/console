@@ -15,7 +15,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button, Input } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -76,30 +76,17 @@ export function ConfirmDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content className="max-w-md gap-4">
-        <Dialog.Header>
-          <Dialog.Title>{title}</Dialog.Title>
-          <Dialog.Description>{description}</Dialog.Description>
-        </Dialog.Header>
-        {phraseRequired ? (
-          <div className="space-y-1.5">
-            <p className="text-sm text-muted-foreground">
-              Type <span className="font-mono font-medium text-foreground">{confirmationPhrase}</span> to confirm.
-            </p>
-            <Input
-              autoComplete="off"
-              placeholder={confirmationPhrase}
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void confirm();
-              }}
-              aria-label="Type to confirm"
-            />
-          </div>
-        ) : null}
-        <Dialog.Footer>
+    // `size="sm"` é `max-w-md` — a MESMA largura que este arquivo declarava como
+    // `className`. A migração não muda um pixel; ela tira a largura do call site
+    // e a põe na escala, que é o ponto do plano.
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={title}
+      description={description}
+      size="sm"
+      footer={
+        <>
           <Button ref={cancelRef} variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
             {cancelLabel}
           </Button>
@@ -110,8 +97,26 @@ export function ConfirmDialog({
           >
             {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : confirmLabel}
           </Button>
-        </Dialog.Footer>
-      </Dialog.Content>
-    </Dialog>
+        </>
+      }
+    >
+      {phraseRequired ? (
+        <div className="space-y-1.5">
+          <p className="text-sm text-muted-foreground">
+            Type <span className="font-mono font-medium text-foreground">{confirmationPhrase}</span> to confirm.
+          </p>
+          <Input
+            autoComplete="off"
+            placeholder={confirmationPhrase}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void confirm();
+            }}
+            aria-label="Type to confirm"
+          />
+        </div>
+      ) : null}
+    </AppModal>
   );
 }

@@ -11,6 +11,7 @@
 //   - onConfirm fires on confirm click
 
 import { describe, it, expect, vi } from 'vitest';
+import { userEvent } from '@testing-library/user-event';
 import { render, screen, fireEvent, waitFor } from '@/test/render';
 import { ConfirmDialog } from './confirm-dialog';
 
@@ -128,5 +129,47 @@ describe('ConfirmDialog — canonical destructive confirm primitive', () => {
         />,
       ),
     ).not.toThrow();
+  });
+});
+
+// Plano modal-primitive-consolidation T1.1 — a REDE antes da troca de primitivo.
+//
+// Nenhum dos três modais compartilhados tinha teste de FECHAMENTO, e é a
+// propriedade que mais muda ao trocar `ui/dialog` por `AppModal`: os dois
+// delegam foco/ESC/overlay ao Radix, mas por composições diferentes. Um erro na
+// fiação do `onClose` não quebra nenhum dos 6 casos existentes — eles verificam
+// o que aparece, não o que fecha —, e o modal ficaria preso na tela.
+//
+// 29 arquivos consomem este componente. Um modal que não fecha é um produto
+// travado, não um defeito visual.
+describe('ConfirmDialog — fechamento (T1.1)', () => {
+  it('ESC pede o fechamento', async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        onOpenChange={onOpenChange}
+        title="Apagar"
+        description="Sem volta."
+        onConfirm={vi.fn()}
+      />,
+    );
+    await userEvent.keyboard('{Escape}');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('o botão de fechar pede o fechamento', async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        onOpenChange={onOpenChange}
+        title="Apagar"
+        description="Sem volta."
+        onConfirm={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /close/i }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

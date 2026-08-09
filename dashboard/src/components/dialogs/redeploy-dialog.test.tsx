@@ -27,7 +27,7 @@ function makeBuild(overrides: Partial<Build> = {}): Build {
   };
 }
 
-function renderDialog(build: Build = makeBuild()) {
+function renderDialog(build: Build = makeBuild(), onOpenChange = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
@@ -36,7 +36,7 @@ function renderDialog(build: Build = makeBuild()) {
       <MemoryRouter>
         <RedeployDialog
           open
-          onOpenChange={vi.fn()}
+          onOpenChange={onOpenChange}
           projectName="teste"
           sourceBuild={build}
         />
@@ -90,5 +90,25 @@ describe('RedeployDialog', () => {
     await waitFor(() => {
       expect(screen.getByText(/BUILD_NOT_TERMINAL/i)).toBeInTheDocument();
     });
+  });
+});
+
+// Plano modal-primitive-consolidation T1.1 — a rede de FECHAMENTO antes da troca
+// de primitivo. Ver o mesmo bloco em `confirm-dialog.test.tsx`: os três
+// compartilhados não tinham teste de fechar, e é o que mais muda ao trocar
+// `ui/dialog` por `AppModal`.
+describe('RedeployDialog — fechamento (T1.1)', () => {
+  it('ESC pede o fechamento', async () => {
+    const onOpenChange = vi.fn();
+    renderDialog(makeBuild(), onOpenChange);
+    await userEvent.keyboard('{Escape}');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('o botão de fechar pede o fechamento', async () => {
+    const onOpenChange = vi.fn();
+    renderDialog(makeBuild(), onOpenChange);
+    await userEvent.click(screen.getByRole('button', { name: /close/i }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
