@@ -2944,6 +2944,36 @@ O ITEM SEGUE ABERTO no bullet 1 (chamador OU remocao — nenhum dos dois). O bul
 apagar uma migracao de identidade nao e faxina") esta CUMPRIDO: as duas decisoes estao tomadas e documentadas, e a do migrator
 inverteu o desfecho que o prazo do codigo empurrava.
 
+
+resolucao_2026-08-09 (IDENTITYMIGRATOR): REMOVIDO. O dono do projeto declarou que NAO HA USUARIO LEGADO, e isso fecha o caso.
+
+Era exatamente a pergunta que eu nao podia responder: a condicao de remocao escrita no proprio codigo — "once no rows in
+`user_identity_map` reference users that authenticate only via the legacy GitHub flow" — e sobre DADOS, e eu nao tinha como
+consulta-los. Com a declaracao, ela e verdadeira.
+
+E O CODIGO CONFIRMA QUE E SEGURO, o que importa porque a declaracao sozinha nao cobriria uma linha criada por outro caminho:
+
+  `tenant.go:101` e o UNICO `INSERT INTO users` do repositorio inteiro, e ele grava `id = UUID do Kratos`.
+
+  Logo, sem usuario legado, TODO `users.id` E o UUID do Kratos. A invariante `§5.2` ("users.id IS the Kratos UUID for all new
+  users") passa a valer universalmente, e a colisao de e-mail que eu havia medido — INSERT com id novo violando o UNIQUE de
+  `users.email`, derrubando o login com 500 — fica INALCANCAVEL. Nao ha linha que possa disparar.
+
+  Ou seja: o defeito que eu descrevi no #472 era real na FORMA e vazio na PRATICA. Ele precisava de um usuario legado para
+  existir, e nao ha nenhum.
+
+Removidos `internal/auth/migration.go` (3.605 bytes) e `tests/unit/migration_test.go` (778). Nada mais no repositorio referenciava
+`IdentityMigrator`, `EnsureMigration` ou `isTableNotFoundError`. `go build ./...`, `go vet ./...` e `go test ./...` verdes.
+
+O `Target removal: 2026-Q3` do proprio codigo foi CUMPRIDO, no trimestre que ele declarou.
+
+O QUE EU IA FAZER E NAO FIZ: apagar direto na medicao de ontem, pelo prazo vencido. O bullet 2 do DoD deste item — "a decisao de
+cada um esta registrada, PORQUE APAGAR UMA MIGRACAO DE IDENTIDADE NAO E FAXINA" — foi o que me segurou, e ele estava certo pelo
+motivo errado: eu parei achando que o migrator era necessario (o defeito de login que medi), e a verdade e que ele nao era, mas
+descobrir isso exigiu perguntar ao dono. Parar foi certo; a conclusao a que eu tinha chegado, nao.
+
+O TRACKER SEGUE ABERTO. Ele nao depende de dado, e sim de decidir o modelo de cobranca (#471) — e essa decisao continua sem dono.
+
 ## B-091 — Rename do module path Go: usetheodev -> usetheoai   [x]
 
 domain: control-plane
