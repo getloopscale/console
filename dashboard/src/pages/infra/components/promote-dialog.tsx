@@ -4,7 +4,7 @@ import {
   Button,
   Label,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePromoteEnvironment } from '@/hooks/mutations/use-environments';
 
@@ -176,21 +176,31 @@ export function PromoteDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title className="inline-flex items-center gap-2">
-            <Rocket className="size-5 text-primary" aria-hidden="true" />
-            Promote release
-          </Dialog.Title>
-          <Dialog.Description>
-            Copy the active release of <span className="font-mono">{fromEnv || '...'}</span>{' '}
-            into <span className="font-mono">{toEnv || '...'}</span>. The source release
-            stays active until the target deploy completes.
-          </Dialog.Description>
-        </Dialog.Header>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={<span className="inline-flex items-center gap-2"><Rocket className="size-5 text-primary" aria-hidden="true" />Promote release</span>}
+      description={<>Copy the active release of <span className="font-mono">{fromEnv || '...'}</span>{' '}into <span className="font-mono">{toEnv || '...'}</span>. The source release
+            stays active until the target deploy completes.</>}
+      footer={<><Button
+              ref={cancelRef}
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={promote.isPending}
+            >
+              Cancel
+            </Button><Button
+              type="submit" form="promote-environment-form"
+              disabled={promote.isPending || !fromEnv || !toEnv || fromEnv === toEnv}
+            >
+              {promote.isPending && (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              )}
+              {promote.isPending ? 'Promoting…' : `Promote ${fromEnv || '...'} → ${toEnv || '...'}`}
+            </Button></>}
+    >
+      <form id="promote-environment-form" onSubmit={handleSubmit} className="space-y-4">
           <div className="flex items-end gap-2">
             <div className="flex-1">
               <Label htmlFor="promote-from">From</Label>
@@ -307,28 +317,8 @@ export function PromoteDialog({
 
           {error && <Alert intent="destructive" description={error} />}
 
-          <Dialog.Footer>
-            <Button
-              ref={cancelRef}
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={promote.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={promote.isPending || !fromEnv || !toEnv || fromEnv === toEnv}
-            >
-              {promote.isPending && (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              )}
-              {promote.isPending ? 'Promoting…' : `Promote ${fromEnv || '...'} → ${toEnv || '...'}`}
-            </Button>
-          </Dialog.Footer>
+          
         </form>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }

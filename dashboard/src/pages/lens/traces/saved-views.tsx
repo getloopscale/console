@@ -5,7 +5,7 @@ import {
   Button,
   Input,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
 import { cloudFetch } from '@/lib/http/api';
@@ -129,16 +129,18 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
       {/* M59 P3 — the naming Dialog (replaces the inline form). The stored query_string is the whole
           filter URL — including the M59 `cols=` (column visibility) + `density=` params — so a saved
           view captures the columns + density with no schema change (ADR D4). */}
-      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
-        <Dialog.Content>
-          <Dialog.Header>
-            <Dialog.Title>Save current view</Dialog.Title>
-            <Dialog.Description>
-              Names this filter, column, and density combination for one-click recall (per workspace).
-            </Dialog.Description>
-          </Dialog.Header>
-          <Dialog.Body>
-            <form
+      <AppModal
+      open={saveOpen}
+      onClose={() => setSaveOpen(false)}
+      title={<>Save current view</>}
+      description={<>Names this filter, column, and density combination for one-click recall (per workspace).</>}
+      footer={<><Button type="button" variant="ghost" onClick={() => setSaveOpen(false)}>
+              Cancel
+            </Button><Button type="submit" form="save-view-form" disabled={!viewName.trim() || createView.isPending}>
+              Save
+            </Button></>}
+    >
+      <form
               id="save-view-form"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -157,17 +159,7 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
                 autoFocus
               />
             </form>
-          </Dialog.Body>
-          <Dialog.Footer>
-            <Button type="button" variant="ghost" onClick={() => setSaveOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" form="save-view-form" disabled={!viewName.trim() || createView.isPending}>
-              Save
-            </Button>
-          </Dialog.Footer>
-        </Dialog.Content>
-      </Dialog>
+    </AppModal>
 
       {pendingView !== null ? (
         <ConfirmDialog

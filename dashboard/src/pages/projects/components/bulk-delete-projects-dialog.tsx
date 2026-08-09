@@ -5,7 +5,7 @@ import {
   Input,
   Label,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { useBulkDeleteProjects } from '@/hooks/projects/use-bulk-delete-projects';
@@ -77,13 +77,33 @@ export function BulkDeleteProjectsDialog({
   const count = projectNames.length;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content>
-        <form onSubmit={handleSubmit}>
-          <Dialog.Header>
-            <Dialog.Title>Delete {count} project{count === 1 ? '' : 's'}?</Dialog.Title>
-          </Dialog.Header>
-          <div className="space-y-4 py-2">
+    // O `<form>` fica nos CHILDREN e o botão de enviar no `footer`, que o
+    // `AppModal` renderiza FORA dele. A ligação é o atributo nativo `form=` —
+    // o mesmo idioma que `create-project-sheet.tsx` e `add-domain-sheet.tsx` já
+    // usavam. Sem ele o clique não faz nada: a tela renderiza idêntica e a ação
+    // some, que é o pior modo de falha possível numa exclusão em massa.
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={<>Delete {count} project{count === 1 ? '' : 's'}?</>}
+      footer={
+        <>
+          <Button ref={cancelRef} type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        form="bulk-delete-projects-form"
+                        variant="destructive"
+                        disabled={!matches || bulkDelete.isPending}
+                      >
+                        {bulkDelete.isPending ? 'Deleting…' : `Delete ${count} project${count === 1 ? '' : 's'}`}
+                      </Button>
+        </>
+      }
+    >
+      <form id="bulk-delete-projects-form" onSubmit={handleSubmit}>
+        <div className="space-y-4 py-2">
             <p className="text-body-sm text-muted-foreground">
               This permanently deletes {count === 1 ? 'this project' : `these ${count} projects`} and
               all of their environments, deployments, and domains. This cannot be undone.
@@ -102,20 +122,7 @@ export function BulkDeleteProjectsDialog({
               />
             </div>
           </div>
-          <Dialog.Footer>
-            <Button ref={cancelRef} type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={!matches || bulkDelete.isPending}
-            >
-              {bulkDelete.isPending ? 'Deleting…' : `Delete ${count} project${count === 1 ? '' : 's'}`}
-            </Button>
-          </Dialog.Footer>
-        </form>
-      </Dialog.Content>
-    </Dialog>
+      </form>
+    </AppModal>
   );
 }

@@ -5,7 +5,7 @@ import {
   Input,
   Label,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useDeleteSecret } from '@/hooks/mutations/use-secrets-mutations';
 import type { Secret } from '@/lib/api/types';
@@ -77,17 +77,39 @@ export function DeleteSecretDialog({
   if (!secret) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title>Delete {secret.name}</Dialog.Title>
-          <Dialog.Description>
-            This permanently removes the secret from {environment ?? 'this environment'}.
-            Apps reading it will fail on next deploy.
-          </Dialog.Description>
-        </Dialog.Header>
-
-        <div className="space-y-4 py-2">
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={<>Delete {secret.name}</>}
+      description={<>This permanently removes the secret from {environment ?? 'this environment'}.
+            Apps reading it will fail on next deploy.</>}
+      footer={<><Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              reset();
+              onOpenChange(false);
+            }}
+            disabled={submitting}
+          >
+            Cancel
+          </Button><Button
+            type="button"
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={!canDelete || submitting}
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                Deleting…
+              </>
+            ) : (
+              'Delete'
+            )}
+          </Button></>}
+    >
+      <div className="space-y-4 py-2">
           <div>
             <Label htmlFor="delete-confirm">
               Type <span className="font-mono font-semibold">{secret.name}</span> to confirm
@@ -103,36 +125,6 @@ export function DeleteSecretDialog({
 
           {error && <Alert intent="destructive" description={error} />}
         </div>
-
-        <Dialog.Footer>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              reset();
-              onOpenChange(false);
-            }}
-            disabled={submitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleDelete}
-            disabled={!canDelete || submitting}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                Deleting…
-              </>
-            ) : (
-              'Delete'
-            )}
-          </Button>
-        </Dialog.Footer>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }

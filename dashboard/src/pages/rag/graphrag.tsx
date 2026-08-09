@@ -12,7 +12,7 @@ import {
   Skeleton,
   Textarea,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -430,13 +430,14 @@ export function RagGraphRagPage() {
     </PageShell>
 
     {/* M13 — full community report drill-down (title + full_content + findings). */}
-    <Dialog open={reportKey !== null} onOpenChange={(o) => { if (!o) setReportKey(null); }}>
-      <Dialog.Content className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <Dialog.Header>
-          <Dialog.Title>{reportQuery.data?.title ?? `Community ${reportKey ?? ''}`}</Dialog.Title>
-          <Dialog.Description>Auto-generated report for community {reportKey}.</Dialog.Description>
-        </Dialog.Header>
-        <div className="mt-4 space-y-4">
+    <AppModal
+      open={reportKey !== null}
+      onClose={() => setReportKey(null)}
+      title={<>{reportQuery.data?.title ?? `Community ${reportKey ?? ''}`}</>}
+      description={<>Auto-generated report for community {reportKey}.</>}
+      size="lg"
+    >
+      <div className="mt-4 space-y-4">
           {reportQuery.isLoading ? (
             <Skeleton />
           ) : reportQuery.isError ? (
@@ -465,8 +466,7 @@ export function RagGraphRagPage() {
             </>
           ) : null}
         </div>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
     </>
   );
 }

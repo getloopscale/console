@@ -6,7 +6,7 @@ import {
 } from '@/pages/settings/api-keys';
 import {useState} from 'react';
 import {Badge, Button, Checkbox, CodeBlock, CopyButton, Input, Tooltip} from '@usetheo/ui';
-import {Dialog} from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import {ConfirmDialog} from '@/components/dialogs/confirm-dialog';
 import {Alert} from '@/components/ui/alert-guard';
 
@@ -155,17 +155,28 @@ export function CreateApiKeyDialog({
     submitting || name.trim() === '' || selected.size === 0;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title>Create API Key</Dialog.Title>
-          <Dialog.Description>
-            Choose scopes carefully — a key with fewer scopes is safer if it
-            leaks.
-          </Dialog.Description>
-        </Dialog.Header>
-        <Dialog.Body>
-          <form
+    <AppModal
+      open={open}
+      onClose={handleClose}
+      title={<>Create API Key</>}
+      description={<>Choose scopes carefully — a key with fewer scopes is safer if it
+            leaks.</>}
+      footer={<><Button
+            type="button"
+            variant="ghost"
+            onClick={handleClose}
+            disabled={submitting}
+          >
+            Cancel
+          </Button><Button
+            type="submit"
+            form="create-api-key-form"
+            disabled={submitDisabled}
+          >
+            {submitting ? 'Creating…' : 'Create key'}
+          </Button></>}
+    >
+      <form
             id="create-api-key-form"
             className="space-y-4"
             onSubmit={handleSubmit}
@@ -256,26 +267,7 @@ export function CreateApiKeyDialog({
               </Alert>
             ) : null}
           </form>
-        </Dialog.Body>
-        <Dialog.Footer>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={handleClose}
-            disabled={submitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            form="create-api-key-form"
-            disabled={submitDisabled}
-          >
-            {submitting ? 'Creating…' : 'Create key'}
-          </Button>
-        </Dialog.Footer>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }
 
@@ -313,16 +305,21 @@ export function RevealedSecretDialog({
   };
 
   return (
-    <Dialog open={revealed !== null} onOpenChange={(o) => !o && close()}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title>Your new API key</Dialog.Title>
-          <Dialog.Description>
-            Copy this key now — it will never be shown again.
-          </Dialog.Description>
-        </Dialog.Header>
-        <Dialog.Body>
-          <div className="space-y-4">
+    <AppModal
+      open={revealed !== null}
+      onClose={close}
+      title={<>Your new API key</>}
+      description={<>Copy this key now — it will never be shown again.</>}
+      footer={<><Button
+            type="button"
+            onClick={close}
+            disabled={!copied}
+            aria-disabled={!copied}
+          >
+            Done
+          </Button></>}
+    >
+      <div className="space-y-4">
             <Alert intent="info" title="Copy this key now">
               This is the only time the full key will be shown. After you close
               this dialog, you can only see the prefix. If you lose the key,
@@ -344,19 +341,7 @@ export function RevealedSecretDialog({
               <span className="text-sm">I've copied my key safely</span>
             </label>
           </div>
-        </Dialog.Body>
-        <Dialog.Footer>
-          <Button
-            type="button"
-            onClick={close}
-            disabled={!copied}
-            aria-disabled={!copied}
-          >
-            Done
-          </Button>
-        </Dialog.Footer>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }
 

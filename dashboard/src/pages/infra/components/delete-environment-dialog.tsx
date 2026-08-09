@@ -5,7 +5,7 @@ import {
   Input,
   Label,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useDeleteEnvironment } from '@/hooks/mutations/use-environments';
 
@@ -131,19 +131,31 @@ export function DeleteEnvironmentDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title className="inline-flex items-center gap-2 text-destructive">
-            <Trash2 className="size-5" aria-hidden="true" />
-            Delete environment {envName}?
-          </Dialog.Title>
-          <Dialog.Description>
-            This action is permanent and cannot be undone.
-          </Dialog.Description>
-        </Dialog.Header>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={<span className="inline-flex items-center gap-2"><Trash2 className="size-5" aria-hidden="true" />Delete environment {envName}?</span>}
+      description={<>This action is permanent and cannot be undone.</>}
+      footer={<><Button
+              ref={cancelRef}
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={deleteEnv.isPending}
+            >
+              Cancel
+            </Button><Button
+              type="submit" form="delete-environment-form"
+              variant="destructive"
+              disabled={!matches || deleteEnv.isPending}
+            >
+              {deleteEnv.isPending && (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              )}
+              {deleteEnv.isPending ? 'Deleting…' : `Delete ${envName}`}
+            </Button></>}
+    >
+      <form id="delete-environment-form" onSubmit={handleSubmit} className="space-y-4">
           {/* Cascade warning section per blueprint § 2.2 — what will be deleted. */}
           {cascadeLines.length > 0 ? (
             <Alert
@@ -196,29 +208,8 @@ export function DeleteEnvironmentDialog({
 
           {error && <Alert intent="destructive" description={error} />}
 
-          <Dialog.Footer>
-            <Button
-              ref={cancelRef}
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              disabled={deleteEnv.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={!matches || deleteEnv.isPending}
-            >
-              {deleteEnv.isPending && (
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              )}
-              {deleteEnv.isPending ? 'Deleting…' : `Delete ${envName}`}
-            </Button>
-          </Dialog.Footer>
+          
         </form>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }

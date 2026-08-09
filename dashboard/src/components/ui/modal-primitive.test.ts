@@ -1,0 +1,122 @@
+import { describe, it, expect } from 'vitest';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
+
+const SRC = resolve(__dirname, '../..');
+
+/**
+ * Plano `modal-primitive-consolidation` — UM primitivo de modal, e só um.
+ *
+ * ## O que este teste trava
+ *
+ * O dashboard tinha DOIS wrappers locais de `@radix-ui/react-dialog`:
+ * `ui/dialog.tsx` (composto: `Dialog.Root/Content/Header/…`) e `ui/app-modal.tsx`
+ * (declarativo: `<AppModal size=… />`). O overlay era idêntico byte a byte, e o
+ * `app-modal` se declarava, no próprio doc-comment, *"the system-wide
+ * standardized modal primitive"* — enquanto 17 call sites usavam o outro,
+ * inclusive os três modais compartilhados que o resto do produto copia.
+ *
+ * Enquanto a porta errada existir, ela é uma opção. Deletar `ui/dialog.tsx` foi
+ * o passo que impediu a volta; este teste é o que impede a PRÓXIMA.
+ *
+ * ## Por que quantificar sobre o import do Radix, e não sobre nomes de arquivo
+ *
+ * Um teste que procurasse `ui/dialog.tsx` verificaria a FORMA: bastaria alguém
+ * criar `ui/modal-v2.tsx` para reintroduzir o problema com a suíte verde. O que
+ * define um segundo primitivo não é o nome — é compor `@radix-ui/react-dialog`
+ * por conta própria.
+ *
+ * Então a asserção é sobre o EFEITO: exatamente um arquivo de produção pode
+ * importar o Radix dialog, e ele é o primitivo. Qualquer outro é, por definição,
+ * uma segunda porta.
+ */
+
+const PRIMITIVO = 'components/ui/app-modal.tsx';
+
+function arquivosDeProducao(dir = SRC, out: string[] = []): string[] {
+  for (const entrada of readdirSync(dir)) {
+    if (entrada === 'node_modules' || entrada === 'vendor' || entrada === 'mocks') continue;
+    const caminho = join(dir, entrada);
+    if (statSync(caminho).isDirectory()) arquivosDeProducao(caminho, out);
+    else if (/\.tsx?$/.test(entrada) && !/\.(test|spec)\.tsx?$/.test(entrada)) out.push(caminho);
+  }
+  return out;
+}
+
+describe('primitivo de modal único', () => {
+  it('só o `app-modal` compõe o Radix dialog', () => {
+    const donos = arquivosDeProducao()
+      .filter((f) => /from '@radix-ui\/react-dialog'/.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(SRC, f).replace(/\\/g, '/'))
+      .sort();
+
+    expect(
+      donos,
+      'Mais de um arquivo de produção compõe `@radix-ui/react-dialog`.\n\n' +
+        'Isso é um SEGUNDO primitivo de modal, independentemente do nome do\n' +
+        'arquivo. Foi exatamente assim que o dashboard chegou a ter dois wrappers\n' +
+        'com overlay idêntico e escalas de largura diferentes: um deles se\n' +
+        'declarava o padrão, e dezessete call sites usavam o outro.\n\n' +
+        'Se a tela precisa de algo que o `AppModal` não oferece, a resposta é\n' +
+        'estender o `AppModal` — uma prop nova serve todo mundo; um primitivo novo\n' +
+        'serve quem o escreveu e divide o produto.\n',
+    ).toEqual([PRIMITIVO]);
+  });
+
+  it('nenhum call site escolhe uma largura da MESMA FAMÍLIA dos tokens', () => {
+    // O outro modo de a padronização vazar: manter um primitivo só e deixar a
+    // largura voltar pelo `className` de cada call site.
+    //
+    // A regra é precisa de propósito, e a distinção importa:
+    //
+    //   `max-w-2xl` em `contentClassName`  → um TOKEN disfarçado. É `lg`, escrito
+    //                                        à mão, e é assim que a escala perde o
+    //                                        monopólio de "quão largo é um modal".
+    //   `max-w-none` + `w-[75vw]`          → uma OPÇÃO DE SAIR da escala. O modal
+    //                                        deixa de ser "um passo de largura" e
+    //                                        vira outra coisa — um editor de
+    //                                        página com trilho, no caso do
+    //                                        `rag/wiki.tsx`, com o motivo escrito
+    //                                        na linha acima.
+    //
+    // O doc do `AppModal` chama `contentClassName` de *"escape hatch for a rare
+    // bespoke width/spacing"*. Proibi-lo por inteiro seria o teste contradizendo o
+    // contrato do primitivo que ele existe para proteger. `max-w-none` é
+    // autoexplicativo: ele DIZ que não há largura máxima.
+    const ofensores: string[] = [];
+    for (const f of arquivosDeProducao()) {
+      const src = readFileSync(f, 'utf8');
+      if (!src.includes('<AppModal')) continue;
+      for (const m of src.matchAll(/contentClassName="([^"]*)"/g)) {
+        // `max-w-none` é a saída explícita; qualquer outro `max-w-*` é um token
+        // da escala escrito à mão.
+        if (/max-w-(?!none\b)[a-z0-9]/.test(m[1])) {
+          ofensores.push(`${relative(SRC, f).replace(/\\/g, '/')}: ${m[1]}`);
+        }
+      }
+    }
+
+    expect(
+      ofensores,
+      'Largura de modal declarada em `contentClassName` em vez do token `size`.\n\n' +
+        'A escala existe para que "quão largo é este modal" tenha UMA resposta no\n' +
+        'produto inteiro. Uma largura no call site é como a deriva recomeça — e ela\n' +
+        'recomeça sem que nada quebre, que é o que a torna difícil de ver.\n\n' +
+        'Use `size` (`sm` `md` `lg` `xl`). Se nenhum token serve, acrescente um à\n' +
+        'escala em `app-modal.tsx` com o motivo — aí a escolha vale para todos.\n\n' +
+        'Se o modal não pertence à escala (um editor em tela cheia, por exemplo),\n' +
+        '`max-w-none` com uma largura de viewport é a saída explícita e aceita.\n',
+    ).toEqual([]);
+  });
+
+  it('o primitivo existe e expõe a escala — a asserção acima não passa por vacuidade', () => {
+    // Sem este caso, apagar `app-modal.tsx` faria o primeiro caso falhar (bom)
+    // mas esvaziar a escala passaria despercebido no segundo. É a contraparte
+    // positiva: quem afirma ausência precisa provar que olhou.
+    const primitivo = readFileSync(join(SRC, PRIMITIVO), 'utf8');
+    for (const token of ['sm:', 'md:', 'lg:', 'xl:']) {
+      expect(primitivo, `a escala perdeu o token \`${token.slice(0, -1)}\``).toContain(token);
+    }
+    expect(primitivo).toMatch(/max-w-/);
+  });
+});

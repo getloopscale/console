@@ -13,7 +13,7 @@ import {
   PageShell,
   Timestamp,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -258,17 +258,16 @@ export function SkillsPage() {
       </div>
 
       {detail ? (
-        <Dialog open={detail !== null} onOpenChange={(o) => !o && setDetail(null)}>
-          <Dialog.Content>
-            <Dialog.Header>
-              <Dialog.Title>{detail.description}</Dialog.Title>
-              <Dialog.Description>
-                <span className="font-mono">{detail.repoId}</span>
-                {detail.codeLanguage ? ` · ${detail.codeLanguage}` : ''}
-              </Dialog.Description>
-            </Dialog.Header>
-            <Dialog.Body>
-              <div className="space-y-3 text-sm">
+        <AppModal
+      open={detail !== null}
+      onClose={() => setDetail(null)}
+      title={<>{detail.description}</>}
+      description={<><span className="font-mono">{detail.repoId}</span>{detail.codeLanguage ? ` · ${detail.codeLanguage}` : ''}</>}
+      footer={<><Button variant="secondary" onClick={() => setDetail(null)}>
+                Close
+              </Button></>}
+    >
+      <div className="space-y-3 text-sm">
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-muted-foreground text-xs">
                   <span>
                     Created: <Timestamp value={detail.createdAt} />
@@ -294,14 +293,7 @@ export function SkillsPage() {
                   )}
                 </div>
               </div>
-            </Dialog.Body>
-            <Dialog.Footer>
-              <Button variant="secondary" onClick={() => setDetail(null)}>
-                Close
-              </Button>
-            </Dialog.Footer>
-          </Dialog.Content>
-        </Dialog>
+    </AppModal>
       ) : null}
 
       {pendingDelete ? (

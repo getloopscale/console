@@ -2,7 +2,7 @@ import { Loader2, XCircle } from 'lucide-react';
 import {
   Button,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useCancelBuild } from '@/hooks/mutations/use-cancel-build';
 import type { Build } from '@/lib/api/types';
@@ -54,40 +54,20 @@ export function CancelBuildDialog({
   const sha = build.commit_sha.slice(0, 7);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title className="inline-flex items-center gap-2">
-            <XCircle className="size-5 text-destructive" aria-hidden="true" />
-            Cancel build {sha}
-          </Dialog.Title>
-          <Dialog.Description>
-            This stops the build at the current step. Any partial work is
-            discarded. The active release in{' '}
-            <span className="font-mono">{build.environment}</span> is unaffected.
-          </Dialog.Description>
-        </Dialog.Header>
-
-        <div className="space-y-4">
-          <Alert
-            intent="warning"
-            description="If the build was about to succeed you'll need to push a new commit or redeploy to retry."
-          />
-
-          {errorMessage && (
-            <Alert intent="destructive" description={errorMessage} />
-          )}
-
-          <Dialog.Footer>
-            <Button
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={<span className="inline-flex items-center gap-2"><XCircle className="size-5 text-destructive" aria-hidden="true" />Cancel build {sha}</span>}
+      description={<>This stops the build at the current step. Any partial work is
+            discarded. The active release in{' '}<span className="font-mono">{build.environment}</span>is unaffected.</>}
+      footer={<><Button
               type="button"
               variant="ghost"
               onClick={() => onOpenChange(false)}
               disabled={cancelBuild.isPending}
             >
               Keep building
-            </Button>
-            <Button
+            </Button><Button
               type="button"
               variant="destructive"
               onClick={handleConfirm}
@@ -97,10 +77,20 @@ export function CancelBuildDialog({
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
               )}
               {cancelBuild.isPending ? 'Cancelling…' : `Cancel build`}
-            </Button>
-          </Dialog.Footer>
+            </Button></>}
+    >
+      <div className="space-y-4">
+          <Alert
+            intent="warning"
+            description="If the build was about to succeed you'll need to push a new commit or redeploy to retry."
+          />
+
+          {errorMessage && (
+            <Alert intent="destructive" description={errorMessage} />
+          )}
+
+          
         </div>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }

@@ -6,7 +6,7 @@ import {
   Label,
   useToast,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { ApiError } from '@/lib/http/api';
 import { usePromote } from '@/hooks/mutations/use-promote';
@@ -156,23 +156,28 @@ export function PromoteToProductionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title className="inline-flex items-center gap-2">
-            <ArrowUpToLine className="size-5 text-primary" aria-hidden="true" />
-            Promote {sha} to production
-          </Dialog.Title>
-          <Dialog.Description>
-            This will make <span className="font-mono">{sha}</span> the
-            production deploy of{' '}
-            <span className="font-mono">{projectName}</span>. Visitors will see
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={<span className="inline-flex items-center gap-2"><ArrowUpToLine className="size-5 text-primary" aria-hidden="true" />Promote {sha}to production</span>}
+      description={<>This will make <span className="font-mono">{sha}</span>the
+            production deploy of{' '}<span className="font-mono">{projectName}</span>. Visitors will see
             this version. The current production release becomes the previous
-            release — one click to revert.
-          </Dialog.Description>
-        </Dialog.Header>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+            release — one click to revert.</>}
+      footer={<><Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button><Button
+              type="submit" form="promote-to-production-form"
+              disabled={phrase !== CONFIRMATION_PHRASE}
+            >
+              Promote {sha} to production
+            </Button></>}
+    >
+      <form id="promote-to-production-form" onSubmit={handleSubmit} className="space-y-4">
           <Alert
             intent="warning"
             description="Traffic switches within a few seconds. Existing connections drain gracefully."
@@ -195,24 +200,9 @@ export function PromoteToProductionDialog({
 
           {error && <Alert intent="destructive" description={error} />}
 
-          <Dialog.Footer>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={phrase !== CONFIRMATION_PHRASE}
-            >
-              Promote {sha} to production
-            </Button>
-          </Dialog.Footer>
+          
         </form>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }
 

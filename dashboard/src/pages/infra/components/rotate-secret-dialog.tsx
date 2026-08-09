@@ -5,7 +5,7 @@ import {
   Input,
   Label,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useRotateSecret } from '@/hooks/mutations/use-secrets-mutations';
 import type { Secret } from '@/lib/api/types';
@@ -86,16 +86,33 @@ export function RotateSecretDialog({
   if (!secret) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title>Rotate {secret.name}</Dialog.Title>
-          <Dialog.Description>
-            The current value will be overwritten. Type the secret name to confirm.
-          </Dialog.Description>
-        </Dialog.Header>
-
-        <div className="space-y-4 py-2">
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={<>Rotate {secret.name}</>}
+      description={<>The current value will be overwritten. Type the secret name to confirm.</>}
+      footer={<><Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              reset();
+              onOpenChange(false);
+            }}
+            disabled={submitting}
+          >
+            Cancel
+          </Button><Button type="button" onClick={handleRotate} disabled={!canRotate || submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                Rotating…
+              </>
+            ) : (
+              'Rotate'
+            )}
+          </Button></>}
+    >
+      <div className="space-y-4 py-2">
           <div>
             <Label htmlFor="rotate-confirm">
               Type <span className="font-mono font-semibold">{secret.name}</span> to confirm
@@ -122,31 +139,6 @@ export function RotateSecretDialog({
 
           {error && <Alert intent="destructive" description={error} />}
         </div>
-
-        <Dialog.Footer>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              reset();
-              onOpenChange(false);
-            }}
-            disabled={submitting}
-          >
-            Cancel
-          </Button>
-          <Button type="button" onClick={handleRotate} disabled={!canRotate || submitting}>
-            {submitting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                Rotating…
-              </>
-            ) : (
-              'Rotate'
-            )}
-          </Button>
-        </Dialog.Footer>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }

@@ -7,7 +7,7 @@ import {
   Label,
   useToast,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { ApiError } from '@/lib/http/api';
 import { useRollback } from '@/hooks/mutations/use-rollback';
@@ -132,19 +132,22 @@ export function RollbackDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <Dialog.Content>
-        <Dialog.Header>
-          <Dialog.Title className="inline-flex items-center gap-2">
-            <Undo2 className="size-5 text-warning" aria-hidden="true" />
-            Rollback to {sha}
-          </Dialog.Title>
-          <Dialog.Description>
-            This will replace the current release in <span className="font-mono">{targetBuild.environment}</span> with the build from commit <span className="font-mono">{sha}</span>.
-          </Dialog.Description>
-        </Dialog.Header>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <AppModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={<span className="inline-flex items-center gap-2"><Undo2 className="size-5 text-warning" aria-hidden="true" />Rollback to {sha}</span>}
+      description={<>This will replace the current release in <span className="font-mono">{targetBuild.environment}</span>with the build from commit <span className="font-mono">{sha}</span>.</>}
+      footer={<><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button><Button
+              type="submit" form="rollback-form"
+              variant="destructive"
+              disabled={(requiresPhrase && phrase !== CONFIRMATION_PHRASE) || (!isProd && !ack)}
+            >
+              Rollback to {sha}
+            </Button></>}
+    >
+      <form id="rollback-form" onSubmit={handleSubmit} className="space-y-4">
           <Alert
             intent="warning"
             description={`Traffic will switch within a few seconds. Existing connections drain gracefully.`}
@@ -179,21 +182,9 @@ export function RollbackDialog({
 
           {error && <Alert intent="destructive" description={error} />}
 
-          <Dialog.Footer>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="destructive"
-              disabled={(requiresPhrase && phrase !== CONFIRMATION_PHRASE) || (!isProd && !ack)}
-            >
-              Rollback to {sha}
-            </Button>
-          </Dialog.Footer>
+          
         </form>
-      </Dialog.Content>
-    </Dialog>
+    </AppModal>
   );
 }
 
