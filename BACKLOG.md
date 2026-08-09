@@ -184,8 +184,7 @@ cross-cutting mas nao e dominio) e `config.ts`/`rum.ts` (consumidos por
 `main.tsx` e por `lib/http/api.ts` — a raiz de composicao e a camada lib nao sao
 dominio, e descer os dois faria elas importarem de pages/).
 
-## B-003 — src/app.tsx e um manifesto de rotas monolitico: 729 LOC, 85 lazy() e 118 Route cobrindo ~15 dominios   [ ]
-
+## B-003 — src/app.tsx e um manifesto de rotas monolitico: 729 LOC, 85 lazy() e 118 Route cobrindo ~15 dominios   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: evolve
@@ -195,7 +194,7 @@ category: god_module
 evidence: src/app.tsx:45 — wc -l src/app.tsx = 729 | grep -c lazy( = 85 | grep -c Route = 118 | src/app.tsx:45 const OverviewPage = lazy(...import @/pages/overview) | src/app.tsx:313 function PreviewsRedirect() | src/app.tsx:326 function RepositoryAlias() | src/app.tsx:351 function RouteScope()
 provenance: dashboard/system-design-output/final_report.md · loop-system-design 2026-08-06 · boundary#6
 why_now: a auditoria de system design de 2026-08-06 mediu este estado no nosso proprio codigo (quality gate 0.90, evidencia file:line verificada contra o disco)
-status: triaged
+status: shipped
 dod:
   - Fatiar por dominio: cada feature exporta seu proprio subtree de rotas (ex
   - existe regra executavel (ESLint/dependency-cruiser) que FALHA no estado atual de `src/app.tsx` e passa depois da mudanca
@@ -266,6 +265,49 @@ Boundaried), e um corte manual rota a rota gastaria horas com risco de trocar pr
 O QUE FICA: a medicao dos grupos e da contiguidade, para quem for fazer o corte manual. E os quatro grupos maiores contiguos
 (observability, memory, skills, promptly, somando 44 rotas) estao identificados — o corte deles e mecanico DESDE QUE feito a mao,
 com o teste de fronteira rodando a cada grupo.
+
+
+fechado_2026-08-09: `app.tsx` de 780 para 226 linhas. NOVE subtrees em `src/routes/`, 93 rotas fora do manifesto. Ele SAIU da allowlist do
+max-lines — segundo arquivo a deixar a lista, depois do `settings/api-keys.tsx`. Teto da catraca: 17 -> 16.
+
+O QUE DERRUBOU AS DUAS TENTATIVAS ANTERIORES foi cortar JSX por regex e por contagem de profundidade. Nesta usei o compilador de TypeScript,
+que ja estava instalado (degrau 4 da escada): `ts.createSourceFile` devolve o intervalo EXATO de cada `<Route>` filho direto do `<Routes>`
+autenticado. Sete dominios sairam de uma vez, sem um unico corte errado.
+
+E quando eu voltei ao regex para o decimo — o bloco `projects` — ele cortou pela metade OUTRA VEZ, deixando duas rotas para tras. Refiz com
+o parser. A licao nao e "regex e ruim": e que uma ferramenta que ja esta no projeto e melhor que uma heuristica minha, e eu levei tres
+tentativas para aplicar isso.
+
+O MODO DE FALHA QUE ESTE CORTE PODIA PRODUZIR, E COMO ELE FOI FECHADO:
+
+  `<Routes>` so percorre `<Route>` e `React.Fragment`. QUALQUER outro elemento ele ignora EM SILENCIO. Entao `<TrustRoutes />` compilaria,
+  passaria no lint, renderizaria sem erro — e as cinco rotas de confianca simplesmente nao existiriam: quem navegasse cairia no `path="*"`,
+  a tela de 404. Um dominio inteiro sumindo com a suite verde.
+
+  Por isso cada subtree e um VALOR JSX. E antes de fazer os outros oito, extrai UM (trust) e escrevi `subtree-wiring.test.tsx`, que pergunta
+  ao PROPRIO react-router quantas rotas ele enxerga, via `createRoutesFromChildren`. So depois de ele responder "5, todas com element" e que
+  os demais foram cortados.
+
+REGRA EXECUTAVEL (bullet 2 do DoD): `src/routes/domain-subtree.test.ts` — nenhum dominio concentra mais de 3 rotas dentro do `app.tsx`.
+Ela FALHA no estado anterior e passa neste. Tem contraparte positiva (>= 5 subtrees em disco, > 50 rotas neles) porque sem ela um `app.tsx`
+renomeado a faria passar governando nada.
+
+  E ela nasceu com um defeito que eu mesmo venho catalogando o dia todo: contava `path="` solto, e cada linha de rota tem DOIS — o do
+  `<Route>` e o do `<Boundaried>`. Reprovava um dominio de 2 rotas como se tivesse 4. Corrigido para `<Route\s+path="`.
+
+TRES GUARDS LIAM `app.tsx` COMO FONTE UNICA DAS ROTAS e falharam, corretamente: `route-boundary`, `placeholder-honesty` e o teste de redirect
+de `monitors`. Passaram a ler `src/test/manifesto-de-rotas.ts`, que descobre os subtrees pela PASTA — assim o decimo entra sob os mesmos
+guards no dia em que nascer, que e a licao que `residence-rule` aprendeu ontem em `lib/`.
+
+  E a primeira versao do manifesto CONCATENAVA os arquivos, o que quebrou o `(?!path=)` do `placeholder-honesty`: a ultima rota de
+  `rag-routes.tsx` passou a enxergar a linha `import { SubPagePlaceholder }` do arquivo seguinte e foi acusada de placeholder sem aviso. Ela
+  renderiza uma pagina real. A fronteira entre arquivos e uma fronteira de verdade: quem depende de adjacencia itera a LISTA.
+
+`Boundaried` desceu para `src/routes/boundaried.tsx` antes de tudo: mantê-la no `app.tsx` fecharia ciclo assim que o primeiro subtree saisse.
+`PreviewsRedirect` e `RepositoryAlias` foram junto com as rotas de projeto — a nota do primeiro corte dizia que pertenciam "a arvore que os
+aplica", e essa arvore mudou de arquivo.
+
+2741 verdes, 324 arquivos, madge sem ciclo, 305,44 kB de 320.
 
 ## B-004 — src/hooks e um shared kernel falso: 33 de 44 hooks (75%) sao usados por uma unica feature   [x]
 

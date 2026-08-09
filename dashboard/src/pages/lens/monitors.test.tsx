@@ -1,3 +1,4 @@
+import { textoDoManifestoDeRotas } from '@/test/manifesto-de-rotas';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
@@ -171,9 +172,8 @@ describe('M136 deprecated UI route', () => {
     // Deliberately a SOURCE assertion, not a render: mounting <App/> nests a second Router.
     // It proves the route is DECLARED; that it actually redirects was verified in a real browser
     // against dev-public, which is how the missing alias was found in the first place.
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const src = fs.readFileSync(path.resolve(process.cwd(), 'src/app.tsx'), 'utf8');
+    // B-003 — o redirect saiu de `app.tsx` para `src/routes/observability-routes.tsx`.
+    const src = textoDoManifestoDeRotas();
     // Match the ROUTE line, not the comment above it — the first draft of this assertion picked
     // the comment and failed against correct code, which is the same wrong-thing-matched mistake
     // this milestone kept surfacing at larger scales.
@@ -291,9 +291,9 @@ describe('#259 — monitor severity + last-evaluated', () => {
  */
 describe('#259 — the alert-rule contract the Monitors screen depends on', () => {
   it('lens_alert_rules.go still emits monitor_id, stale and last_evaluated_at', async () => {
+    // dashboard/ → theo-cloud/
     const fs = await import('node:fs');
     const path = await import('node:path');
-    // dashboard/ → theo-cloud/
     const src = fs.readFileSync(path.resolve(process.cwd(), '../internal/routes/lens_alert_rules.go'), 'utf8');
     for (const tag of ['json:"monitor_id,omitempty"', 'json:"stale"', 'json:"last_evaluated_at"']) {
       expect(src, `${tag} is read by the Monitors screen — renaming it silently blanks the Status column`).toContain(tag);

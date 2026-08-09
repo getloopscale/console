@@ -1,8 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { arquivosDoManifestoDeRotas } from '@/test/manifesto-de-rotas';
 
 const APP = readFileSync(resolve(__dirname, '../app.tsx'), 'utf8');
+/**
+ * B-003 — os subtrees de domínio saíram para `src/routes/`, e TODOS eles vivem
+ * dentro do `<DashboardLayout>`. Ler só o `app.tsx` para contar rotas
+ * autenticadas passou a medir o resto de um arquivo que já não as tem.
+ */
+const AUTENTICADAS = arquivosDoManifestoDeRotas().slice(1).join('\n');
 
 /**
  * B-003 — a fronteira entre rota pública e rota autenticada.
@@ -41,7 +48,10 @@ function rotasAntesDaAncora(): string[] {
 
 function rotasDepoisDaAncora(): string[] {
   const corte = APP.indexOf(ANCORA);
-  return [...APP.slice(corte).matchAll(/path="([^"]+)"/g)].map((m) => m[1]);
+  return [
+    ...[...APP.slice(corte).matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]),
+    ...[...AUTENTICADAS.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]),
+  ];
 }
 
 /**
@@ -107,7 +117,7 @@ describe('fronteira público/autenticado (B-003)', () => {
     // `Boundaried` isola o crash na página: a barra lateral e a superior
     // sobrevivem, e o relatório de erro sai classificado por rota. Uma rota que
     // escape disso troca "esta página falhou" por uma tela branca.
-    const rotas = [...APP.matchAll(/<Route\s+path="([^"]+)"[\s\S]{0,400}?\/>/g)];
+    const rotas = [...(APP + '\n' + AUTENTICADAS).matchAll(/<Route\s+path="([^"]+)"[\s\S]{0,400}?\/>/g)];
     const semGuarda = rotas
       .filter(([bloco, caminho]) => {
         if (bloco.includes('Boundaried')) return false;

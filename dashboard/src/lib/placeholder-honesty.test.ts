@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { arquivosDoManifestoDeRotas } from '@/test/manifesto-de-rotas';
 
 const SRC = resolve(__dirname, '..');
-const APP = readFileSync(join(SRC, 'app.tsx'), 'utf8');
+// B-003 — as rotas moraram todas em `app.tsx` até 2026-08-09. Ler só ele
+// agora mediria um terço delas.
+const ARQUIVOS_DE_ROTA = arquivosDoManifestoDeRotas();
+const APP = ARQUIVOS_DE_ROTA.join('\n');
 const MENUS = readFileSync(join(SRC, 'components/layout/app-sidebar-menus.ts'), 'utf8');
 
 /**
@@ -49,8 +53,12 @@ export function rotasComPlaceholder(): string[] {
   // Casa `path="…"` seguido, dentro do mesmo <Route>, de SubPagePlaceholder.
   // O `(?![\s\S]*?path=)` impede atravessar para a rota seguinte e atribuir o
   // placeholder de uma a outra — o erro que faria o teste medir a rota errada.
-  for (const m of APP.matchAll(/path="([^"]+)"(?:(?!path=)[\s\S])*?SubPagePlaceholder/g)) {
-    out.push(m[1]);
+  // POR ARQUIVO, e não sobre a concatenação: a busca não pode atravessar a
+  // fronteira entre dois arquivos de rota. Ver `routes/manifesto.ts`.
+  for (const arquivo of ARQUIVOS_DE_ROTA) {
+    for (const m of arquivo.matchAll(/path="([^"]+)"(?:(?!path=)[\s\S])*?SubPagePlaceholder/g)) {
+      out.push(m[1]);
+    }
   }
   return out;
 }

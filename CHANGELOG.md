@@ -24,6 +24,8 @@
 
 ### Changed
 
+- **O mapa de rotas do dashboard deixou de ser um arquivo só.** As 119 rotas de quinze áreas do produto moravam num único arquivo de 780 linhas, e cada área nova entrava ali porque era onde as outras estavam. Agora cada área tem o seu, e uma verificação automática recusa que uma volte a se acumular no arquivo central. Nenhum endereço mudou e nenhuma tela se comporta diferente.
+
 - **Onze módulos de um domínio só saíram da pasta de código compartilhado.** A regra do projeto diz que só vive em pasta compartilhada o que dois ou mais domínios usam — mas a verificação automática dessa regra consultava uma lista de pastas escrita à mão, e quatro pastas nunca tinham entrado nela. Agora a verificação lê as pastas do disco, então uma pasta nova entra sob a regra no instante em que é criada. Os onze módulos foram para junto do domínio que os usa; duas pastas ficaram vazias e sumiram. Nenhum comportamento mudou.
 
 - **O dashboard deixou de mostrar dado velho como se fosse atual em rede lenta.** O service worker mantinha uma segunda cópia das respostas da API por até uma hora e a servia quando a rede demorava mais de 3 segundos — e a aplicação recebia essa cópia acreditando que era recente. Num painel de operação isso significa ver um deploy como saudável depois de ele ter caído. O cache de API do service worker foi removido; o cache da aplicação, que sabe invalidar o que mudou, passou a ser o único. Arquivos estáticos e configuração continuam em cache normalmente.
