@@ -2,6 +2,8 @@
 
 ### Added
 
+- **A bateria de testes avisa quando o código muda no meio da própria execução.** Editar um arquivo enquanto os testes rodam fazia a execução falhar dizendo que um arquivo não existe — e ele existe, quando se vai olhar depois. A contradição custou um dia de investigação. Agora a suíte compara o estado dos arquivos antes e depois, e quando eles mudaram no meio do caminho ela diz exatamente isso, nomeando os arquivos. Ela não impede a edição: quem escreve código enquanto os testes rodam está fazendo trabalho legítimo.
+
 - **O primeiro deploy de um projeto passou a ser comemorado.** A animação e o aviso "seu app está no ar" existiam prontos e testados desde junho, e nunca tinham sido ligados a nada. Ela dispara uma única vez por projeto, respeita a preferência de movimento reduzido do sistema, e não celebra deploys antigos — abrir a página de um projeto de seis meses atrás não dispara nada, porque um marco que acontece toda hora deixa de ser um marco. A biblioteca da animação é baixada só no momento em que ela toca, então quem nunca a vê não paga por ela.
 
 - **O visualizador de logs voltou a ter botão de download.** A função existia, testada, e ficou órfã quando a barra de ferramentas que a chamava saiu numa limpeza de código não utilizado. Ela exporta o buffer inteiro, e não o que o filtro da tela está mostrando — um arquivo silenciosamente cortado pelo filtro é a forma mais cara de perder justamente a linha que se procurava.
