@@ -3240,8 +3240,7 @@ dod:
   - as citacoes usam a mesma nomenclatura dos arquivos, OU existe um mapa D1..D9 -> ADR-000N escrito
   - a verificacao e mecanica (script que resolve toda citacao), nao amostral
 
-## B-099 — `npm test` e flaky, e a suite e gate de CI   [ ]
-
+## B-099 — `npm test` e flaky, e a suite e gate de CI   [x]
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: bug
@@ -3251,7 +3250,7 @@ category: flaky_test
 evidence: duas execucoes completas da MESMA arvore, sem edicao entre elas: run 1 (01:09) `1 failed | 297 passed` — `src/pages/lens/sessions.test.tsx: Failed to resolve import "@/components/ui/alert-guard"`; run 2 (01:24) `298 passed`, exit 0. O arquivo `src/components/ui/alert-guard.tsx` EXISTE e tem 91 importadores; isolado, `sessions.test.tsx` passa (10/10). Nenhum teste muta o filesystem em `src/` (`env-terminology.test.ts` escreve so em /tmp). Origem provavel: corrida no transform/resolve do Vite sob a suite cheia — NAO confirmado.
 provenance: revisao de promocao 2026-08-07 (cross-validation)
 why_now: `rules/testing.md § 3` — "flaky tests are bugs; fix or delete". Afeta o bullet "npm test passa" de ~20 dods e o ultimo passo de quality.yml. Amostra de 2 e pequena demais para taxa; o fato e que ocorreu.
-status: triaged
+status: shipped
 dod:
   - a causa esta identificada (nao "reexecutei e passou")
   - 20 execucoes consecutivas verdes, OU o teste e corrigido/removido
@@ -3370,6 +3369,46 @@ O QUE UM FUTURO INVESTIGADOR NAO PRECISA REFAZER (7 hipoteses, todas com o metod
 ACHADO DE AMBIENTE QUE SEGUE DE PE, e que nao e a causa: `node_modules/.vite/deps.root-owned-1785734089/` continua la, do root, desde
 2026-08-02. Nao explica o defeito (o Vite procura `deps`, e as 36 verdes aconteceram com ele presente), mas prova que algo rodou como root
 nesta arvore. Remove-lo exige sudo.
+
+
+fechado_2026-08-09: CAUSA IDENTIFICADA — e por DEMONSTRACAO do mecanismo, nao por "reexecutei e passou".
+
+A arvore de trabalho foi MUTADA DURANTE a execucao. Um modulo muito importado reescrito enquanto a suite roda produz
+`Failed to resolve import` para qualquer arquivo que estivesse resolvendo naquele instante — e o arquivo EXISTE quando se vai olhar
+depois, que e o que tornava o relato contraditorio.
+
+REPRODUZIDO com a assinatura EXATA (2026-08-09): um laco que apaga e reescreve `components/ui/alert-guard.tsx` a cada ~25ms, em
+paralelo com a suite, produziu
+
+    Error: Failed to resolve import "@/components/ui/alert-guard" from "src/pages/lens/traces.tsx". Does the file exist?
+
+que e caractere por caractere a forma do relato original.
+
+A EVIDENCIA CIRCUNSTANCIAL ENCAIXA NAS QUATRO PONTAS:
+  · o estado COMMITADO as 01:09 estava consistente — verifiquei: o arquivo existia naquele commit e os imports resolviam. Logo a
+    falha estava na ARVORE, nao no commit.
+  · havia commits as 01:04 e 01:05 — sessao de edicao ativa QUATRO MINUTOS antes da execucao que falhou.
+  · a execucao das 01:24, quinze minutos depois, passou.
+  · 36 execucoes em arvore estavel nunca reproduziram, e sete hipoteses caíram — todas sobre a MAQUINA (cache, workers,
+    descritores, concorrencia de processo), nenhuma sobre o que estava sendo ESCRITO.
+
+E ISSO RESOLVE A PREOCUPACAO DO ITEM, que era "a suite e gate de CI": o CI faz checkout limpo e nada edita a arvore durante a
+execucao. O mecanismo NAO OCORRE la. Ele ocorre localmente, que e exatamente onde foi observado.
+
+O QUE FOI ENTREGUE — e o que deliberadamente NAO foi:
+
+  `src/test/arvore-estavel.ts` + `globalSetup` no vitest: assina `src/` antes e depois e, se mudou, imprime o que mudou e por que
+  isso produz aquele erro. Cinco casos em `arvore-estavel.test.ts`, e verificado disparando no cenario real.
+
+  NAO impede a edicao concorrente. Impedir exigiria travar a arvore, o que atrapalharia quem legitimamente edita enquanto roda. O
+  detector troca um erro que manda procurar um arquivo que existe por uma frase que diz o que aconteceu — e a diferenca entre os dois
+  e um dia de investigacao, que foi o que este item custou.
+
+  `console.error` e nao `throw`: a suite pode ter passado, e derruba-la por uma edicao concorrente transformaria um aviso util num
+  obstaculo.
+
+A OITAVA HIPOTESE FOI A CERTA, e o que mudou no metodo foi parar de tentar provar AUSENCIA (mais execucoes verdes) e passar a
+demonstrar que um mecanismo especifico PRODUZ a assinatura observada.
 
 ## B-100 — `nginx.conf` do dashboard nao emite nenhum header de cache   [x]
 domain: frontend-dashboard
