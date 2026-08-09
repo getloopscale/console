@@ -2909,6 +2909,41 @@ O ITEM SEGUE ABERTO, e o bloqueio agora esta NOMEADO em vez de suposto. O DoD pe
 decisao (modelo de cobranca / consulta em producao) que nao e de quem le o codigo. O segundo bullet do DoD — "a decisao de cada um esta
 registrada" — avancou: o que faltava para decidir agora esta medido e nos dois issues.
 
+
+decisao_2026-08-09: METADE DO ITEM ESTA DECIDIDA, e a resposta e a OPOSTA da que o prazo do proprio codigo sugeria.
+
+IDENTITYMIGRATOR — NAO REMOVER. Apagar cimentaria um bloqueio de login.
+
+  A pergunta ("ainda e necessario, ou pode sair no prazo de 2026-Q3?") foi respondida PELO CODIGO, sem consultar producao:
+
+  Todo login passa por `EnsureTenant` (`session_token.go:153` no dashboard, `consent/handler.go:296` no CLI), que faz
+  `INSERT INTO users (id, email, ...) VALUES ($1=UUID_DO_KRATOS, ...) ON CONFLICT (id) DO UPDATE`.
+
+  Usuario legado tem outro `id`, entao NAO ha conflito em `id`. Mas `users.email` e NOT NULL UNIQUE (declarado em
+  `promptly/broker.go:183`), e o `ON CONFLICT (id)` nao cobre a violacao de email. O INSERT falha.
+
+    dashboard -> `500 TENANT_ERROR`, "Failed to set up your account. Try again or contact support." SEMPRE. "Try again" nunca
+                 ajuda: a violacao e deterministica.
+    CLI/OIDC  -> nao-fatal, mas o JWT sai SEM `tenant_id`, e toda chamada de API e recusada com "Account setup required".
+
+  `EnsureMigration` casa por E-MAIL e grava o mapeamento — e exatamente a ponte que impediria a colisao. Existe, tem teste, nunca
+  foi chamado. E o comentario dele afirma "This is called after every successful authentication via Kratos": TERCEIRO comentario
+  desta varredura afirmando um chamador que nao existe, depois do tracker (#471) e do nginx no ADR-0004.
+
+  O `Target removal: 2026-Q3` do proprio codigo deve ser REVOGADO, nao cumprido. Registrado no #472, que passa de "subsistema
+  alcancado so por teste" a "defeito ativo de login".
+
+O QUE SEGUE ABERTO, e nao e decisao de quem le codigo: COMO ligar. Depois do mapeamento, qual `id` vale para a sessao — o legado ou
+o do Kratos? Trocar viola a invariante `§5.2` ("users.id IS the Kratos UUID for all new users"). Casar por e-mail assume que o mesmo
+e-mail e a mesma pessoa, e em provedor social com e-mail reutilizado isso FUNDE duas contas, irreversivelmente. E a chamada precisa
+rodar ANTES do INSERT do `tenant.go`, na mesma transacao. As tres decidem identidade; nenhuma e escolha tecnica.
+
+TRACKER — segue como na medicao de 08-08: nao da para ligar sem decidir o modelo de cobranca (#471).
+
+O ITEM SEGUE ABERTO no bullet 1 (chamador OU remocao — nenhum dos dois). O bullet 2 ("a decisao de cada um esta registrada, porque
+apagar uma migracao de identidade nao e faxina") esta CUMPRIDO: as duas decisoes estao tomadas e documentadas, e a do migrator
+inverteu o desfecho que o prazo do codigo empurrava.
+
 ## B-091 — Rename do module path Go: usetheodev -> usetheoai   [x]
 
 domain: control-plane
