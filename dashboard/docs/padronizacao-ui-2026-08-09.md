@@ -37,7 +37,7 @@ agora seria trabalho sem defeito correspondente.
 | `components/dialogs/*` | 33 | 4 modais prontos (confirm, new-folder, plan-limit-upgrade, redeploy) |
 | `components/ui/dialog` | 17 | primitivo compound (`Dialog.Root/Overlay/Content`) |
 | `components/ui/app-modal` | 13 | primitivo declarativo (`<AppModal size=… />`) |
-| `@radix-ui/react-dialog` direto | 2 | fura os dois primitivos |
+| `@radix-ui/react-dialog` direto | 2 | **os próprios `ui/dialog` e `ui/app-modal`** — ninguém fura |
 
 Comandos:
 
@@ -94,19 +94,34 @@ copia como referência. Enquanto eles usarem a porta errada, a porta errada é o
 
 ### 1.4 O custo hoje é pequeno, e é isso que torna a hora certa
 
-Larguras ad-hoc nos call sites de `ui/dialog` / Radix:
+Larguras declaradas nos 17 call sites de `ui/dialog`:
 
-| Largura | Ocorrências |
-|---|---:|
-| `max-w-md` | 2 |
-| `max-w-lg` | 2 |
-| `max-w-2xl` | 2 |
-| `max-w-sm` | 1 |
-| `max-w-4xl` | 1 |
+| Arquivo | Largura | Token equivalente |
+|---|---|---|
+| `components/dialogs/confirm-dialog.tsx` | `max-w-md` | `sm` |
+| `pages/rag/graphrag.tsx` | `max-w-2xl` | `lg` |
+| `pages/memory/skills.tsx` | `max-w-sm` | **nenhum** |
+| os outros **14** | *nenhuma* | — |
 
-**5 valores distintos, 8 ocorrências, 1 (`max-w-4xl`) fora da escala de 4 tokens.**
+**Três ocorrências, três valores.** E o fato que mais importa para a migração está na
+última linha: `components/ui/dialog.tsx:37` traz `max-w-lg` como **largura padrão**, então
+os 14 arquivos que não declaram nada renderizam em `max-w-lg` — que é exatamente o token
+`md` do `AppModal`.
 
-A deriva visual ainda é pequena. Consolidar agora custa uma migração de 19 call sites;
+> **Quinta correção — a tabela anterior contava a solução como parte do problema.** Eu
+> havia publicado *"5 valores distintos em 8 ocorrências"*: `max-w-md ×2`, `max-w-lg ×2`,
+> `max-w-2xl ×2`, `max-w-sm ×1`, `max-w-4xl ×1`. Cinco dessas oito **não são call sites**:
+> quatro são a escala de tokens dentro de `app-modal.tsx` (`sm/md/lg/xl`) e uma é o default
+> de `dialog.tsx`. O `grep` varreu os próprios primitivos junto com quem os consome.
+>
+> A quarta correção chegou a um passo disto — notou que `max-w-4xl` casava um token e
+> concluiu *"está dentro da escala"*, quando a leitura certa era *"**é** a escala, e não
+> pertence a esta tabela"*.
+>
+> O número real deixa o argumento **mais** forte, não menos: a deriva é de três arquivos,
+> não de oito, e doze migrações são provadamente idênticas.
+
+A deriva visual ainda é pequena. Consolidar agora custa uma migração de 17 call sites, doze dos quais sem decisão a tomar;
 consolidar quando forem 60 custa uma migração de 60 e uma revisão visual de cada tela.
 
 ---
@@ -193,26 +208,29 @@ consumidores que **não** mudam.
 **Pronto quando:** `grep -rl 'ui/dialog' components/dialogs/` retorna vazio, e as três telas
 abrem visualmente idênticas ao estado atual (largura equivalente, overlay já é o mesmo).
 
-### P2 — Fechar as duas fugas para o Radix
+> **Terceira correção de hipótese — o antigo P2 foi removido.** Eu havia escrito que 2
+> arquivos furavam os primitivos indo direto ao Radix. Remedi ao montar o plano: os dois
+> importadores de `@radix-ui/react-dialog` são `ui/dialog.tsx` e `ui/app-modal.tsx` — os
+> próprios primitivos, que **devem** importá-lo. **Nenhum call site fura o design system.**
+> O trabalho que eu tinha listado ali não existe.
 
-2 arquivos importam `@radix-ui/react-dialog` direto, contornando os dois primitivos. Ou
-passam a usar `AppModal`, ou o motivo de não poderem vai no código como comentário.
-
-**Pronto quando:** `grep -rl '@radix-ui/react-dialog' --exclude-dir=ui` retorna vazio, ou
-cada ocorrência restante tem uma linha explicando o porquê.
-
-### P3 — Migrar os 17 call sites de página e remover `ui/dialog`
+### P2 — Migrar os 14 call sites de página e remover `ui/dialog`
 
 Só depois de P1: enquanto os compartilhados usarem a porta antiga, migrar as páginas é
 pedir a elas o que o próprio design system não faz.
 
-Ao migrar, `max-w-4xl` precisa de decisão: ou vira um token `2xl` na escala, ou aquela tela
-adota `xl`. **Não** deixar como `className` avulso — é assim que a escala volta a vazar.
+Ao migrar, só `max-w-sm` (`pages/memory/skills.tsx`) precisa de decisão: ou vira um token
+novo, ou aquela tela adota `sm` (`max-w-md`, um passo mais larga). **Não** deixar como
+`className` avulso — é assim que a escala volta a vazar.
+
+Os outros treze não têm decisão: `graphrag.tsx` (`max-w-2xl`) vai para `lg`, e os doze sem
+largura declarada vão para `md`, porque `md` é `max-w-lg` e `max-w-lg` é o default que eles
+já herdam de `dialog.tsx:37`.
 
 **Pronto quando:** `components/ui/dialog.tsx` é deletado e a suíte passa. Deletar é o teste:
 enquanto o arquivo existir, alguém o importa de novo.
 
-### P4 — Unificar o nome do parâmetro de projeto
+### P3 — Unificar o nome do parâmetro de projeto
 
 `{project}` no menu ou `:name` no router — tanto faz qual vence, desde que seja um só.
 
@@ -243,5 +261,5 @@ O que **não** foi medido, e portanto não é afirmado:
 - **Os 3 diálogos de exclusão próprios** foram contados e classificados pelo import,
   não lidos um a um. A razão de UX que atribuo a cada um é inferida do nome do arquivo.
 
-Cada um desses seria uma medição própria. Nenhum precisa ser feito antes de P1–P4, que se
+Cada um desses seria uma medição própria. Nenhum precisa ser feito antes de P1–P3, que se
 sustentam só na evidência acima.
