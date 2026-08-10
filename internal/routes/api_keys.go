@@ -73,6 +73,10 @@ const (
 
 	// listLimit caps the list-handler response to prevent runaway payload
 	// if a customer accumulates many keys (EC-1 absorption).
+	//
+	// B-114 — a query pede `listLimit + 1` e o handler corta em `listLimit`, devolvendo
+	// `has_more`. Cortar em `listLimit` no SQL tornava "exatamente 100 chaves" e "mais de 100
+	// chaves" indistinguíveis na resposta, e a 101ª sumia sem que nada dissesse.
 	listLimit = 100
 
 	// keyNameMaxLength mirrors the DB CHECK constraint at migration 000024.
@@ -236,13 +240,13 @@ func (h *APIKeysHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 	// O cap vem da constante `listLimit`, nao de um 100 digitado aqui. Antes a constante
 	// existia sem uso e o 100 estava hardcoded na query: mudar uma nao mudava a outra, e o
 	// comentario da constante prometia um cap que ela nao controlava. `%d` mantem o SQL
-	// final identico (`LIMIT 100`), que e o que `TestListKeys_QueryContainsLIMIT100` trava.
+	// final e `LIMIT 101` desde o B-114: uma linha a mais do que se devolve, para saber que ha mais.
 	q := fmt.Sprintf(`SELECT id, key_name, key_prefix, scopes, created_at, last_used_at, expires_at
 		FROM theo_api_keys
 		WHERE subject = $1 AND tenant_id = $2 AND revoked_at IS NULL
 		  AND COALESCE(bff_minted, false) = false
 		ORDER BY created_at DESC
-		LIMIT %d`, listLimit)
+		LIMIT %d`, listLimit+1)
 
 	rows, err := h.db.QueryContext(r.Context(), q, user.Subject, user.TenantID)
 	if err != nil {
@@ -288,7 +292,8 @@ func (h *APIKeysHandler) ListKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"keys": keys})
+	keys, temMais := truncar(keys, listLimit)
+	writeJSON(w, http.StatusOK, map[string]any{"keys": keys, "has_more": temMais})
 }
 
 // RevokeKey soft-deletes the key (D7). Cross-tenant attempts return 404

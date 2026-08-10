@@ -2,6 +2,8 @@
 
 ### Fixed
 
+- **theo-cloud:** seis listas truncavam em silêncio — com mais de 100 saved views, dashboards, webhooks ou API keys (200 para alert rules), os excedentes sumiam sem que a resposta ou a tela dissessem. Agora a resposta traz `has_more` e a tela avisa quantos está mostrando (B-114).
+
 - **theo-cloud/dashboard:** apagar um projeto deixava de removê-lo dos seletores de "Add domain" e "Create environment" por até um minuto — as folhas liam a lista por uma segunda chave de cache que a invalidação não alcançava, e o usuário podia apontar um domínio para um projeto que não existia mais (B-113).
 - **theo-cloud/dashboard:** a folha de novo ambiente oferecia "crie um projeto" a quem já tinha projetos enquanto a lista carregava, porque tratava uma leitura em andamento como zero projetos (B-113).
 

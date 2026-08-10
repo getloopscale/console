@@ -9,6 +9,7 @@ import type { APIKeyView, CreateKeyResponse } from '@/hooks/settings/api-keys-ap
 import {History, Key, Plus, Recycle, Trash2} from 'lucide-react';
 import {Badge, Button, Card, DataTable, type DataTableColumn, EmptyState, PageShell, Timestamp} from '@usetheo/ui';
 import {Alert} from '@/components/ui/alert-guard';
+import { ListTruncationNotice } from '@/components/ui/list-truncation-notice';
 import {usePageMeta} from '@/hooks/use-page-meta';
 import {useRequireAuth} from '@/hooks/use-auth';
 import { LineageSheet } from '@/pages/settings/components/api-key-lineage';
@@ -325,6 +326,11 @@ export function ApiKeysPage() {
         ) : (
           <Card>
             <DataTable columns={columns} data={keys} rowKey={(row) => row.id} />
+            <ListTruncationNotice
+              temMais={listQuery.data?.has_more === true}
+              total={keys.length}
+              substantivo="API keys"
+            />
           </Card>
         )}
       </PageShell>

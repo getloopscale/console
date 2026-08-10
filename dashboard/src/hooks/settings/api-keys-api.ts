@@ -54,6 +54,11 @@ export interface CreateKeyResponse {
 
 export interface ListKeysResponse {
   keys: APIKeyView[];
+  /**
+   * B-114 — o cap de 100 (`listLimit`, EC-1) passou a ser declarado. Antes a 101ª chave sumia em
+   * silêncio, e a tela mostrava 100 como se fossem todas.
+   */
+  has_more?: boolean;
 }
 
 export interface LineageItem {

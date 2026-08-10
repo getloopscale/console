@@ -6,6 +6,7 @@ import {
   Input,
 } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
+import { ListTruncationNotice } from '@/components/ui/list-truncation-notice';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
 import { cloudFetch } from '@/lib/http/api';
@@ -18,6 +19,11 @@ export interface SavedView {
 }
 interface SavedViewsResult {
   saved_views: SavedView[];
+  /**
+   * B-114 — o servidor aplica um teto de 100 e passou a DIZER quando ele mordeu. Antes a 101ª
+   * view sumia em silêncio: a tela mostrava 100 e nada indicava que havia mais.
+   */
+  has_more?: boolean;
 }
 
 /** Return the query string with a `viewId=` handle set (so the applied view is shareable by URL). */
@@ -54,6 +60,7 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
   const invalidateViews = () => void queryClient.invalidateQueries({ queryKey: savedViewsKey });
 
   const views = savedViews.data?.saved_views ?? [];
+  const truncou = savedViews.data?.has_more === true;
 
   // M59 P3 — a view is shareable via a `?viewId=` handle: applying appends it (the active view is
   // highlighted); opening a bare `?viewId=X` link applies that view's stored query string ONCE (a ref
@@ -125,6 +132,7 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
           Save current view
         </Button>
       </div>
+      <ListTruncationNotice temMais={truncou} total={views.length} substantivo="saved views" />
 
       {/* M59 P3 — the naming Dialog (replaces the inline form). The stored query_string is the whole
           filter URL — including the M59 `cols=` (column visibility) + `density=` params — so a saved
