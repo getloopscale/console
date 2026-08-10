@@ -140,8 +140,12 @@ test.describe('J-04 Recovery — dogfood Cenários B + F (DOM-driven)', () => {
     });
 
     // Track submitFlow request bodies
-    let firstSubmitBody: Record<string, string> | null = null;
-    let secondSubmitBody: Record<string, string> | null = null;
+    // Holder pelo mesmo motivo de `device-verify.spec.ts`: atribuição só dentro do
+    // callback de rota faz o TS estreitar a leitura para `never`.
+    const enviado: {
+      primeiro: Record<string, string> | null;
+      segundo: Record<string, string> | null;
+    } = { primeiro: null, segundo: null };
     let submitCount = 0;
 
     // O ALVO DO POST É A PRÓPRIA URL DA PÁGINA, e isso foi MEDIDO, não deduzido.
@@ -174,11 +178,11 @@ test.describe('J-04 Recovery — dogfood Cenários B + F (DOM-driven)', () => {
         }
         submitCount += 1;
         if (submitCount === 1) {
-          firstSubmitBody = body;
+          enviado.primeiro = body;
           // First attempt: simulate network failure
           await route.abort('failed');
         } else {
-          secondSubmitBody = body;
+          enviado.segundo = body;
           await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -208,13 +212,13 @@ test.describe('J-04 Recovery — dogfood Cenários B + F (DOM-driven)', () => {
     await page.getByLabel('Email').fill('a@x.com');
     await page.getByRole('button', { name: /send recovery code/i }).click();
     await expect(page.getByRole('button', { name: /retry/i })).toBeVisible();
-    expect(firstSubmitBody?.email).toBe('a@x.com');
+    expect(enviado.primeiro?.email).toBe('a@x.com');
 
     // User corrects email to "b@x.com" and clicks Retry
     await page.getByLabel('Email').fill('b@x.com');
     await page.getByRole('button', { name: /retry/i }).click();
 
     // Second submission should carry CURRENT input "b@x.com" (EC-4)
-    await expect.poll(() => secondSubmitBody?.email, { timeout: 5000 }).toBe('b@x.com');
+    await expect.poll(() => enviado.segundo?.email, { timeout: 5000 }).toBe('b@x.com');
   });
 });

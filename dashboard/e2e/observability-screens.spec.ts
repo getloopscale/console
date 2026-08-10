@@ -24,7 +24,7 @@
  * instrumento. Toda espera abaixo é por CONDIÇÃO (`toBeVisible`), nunca por relógio.
  */
 import { expect, test } from '@playwright/test';
-import { LENS_CAPABILITIES } from '@/components/lens/lens-capabilities';
+import { LENS_CAPABILITIES } from '../src/components/layout/lens-capabilities';
 
 /**
  * Telas cujo título diverge do rótulo do menu — MEDIDO, não suposto (2026-08-02).

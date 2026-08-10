@@ -22,15 +22,20 @@ import { expect, test } from '@playwright/test';
 
 test.describe('J-05 Device Verify — dogfood Cenários (DOM-driven)', () => {
   test('Cenário 1: device-verify pre-fills user_code and follows redirect_to on submit', async ({ page, context }) => {
-    let observedBody: { device_challenge: string; user_code: string } | null = null;
+    // Holder, e não `let … = null`. O TS estreita uma variável atribuída SÓ dentro de um
+    // callback para o tipo do inicializador — ele não prova que a rota roda —, e no ponto
+    // de leitura `observedBody?.x` vira acesso a `never`. A propriedade de um objeto não
+    // sofre esse estreitamento. Ficou invisível por meses porque `e2e/` estava fora do
+    // escopo do `npm run typecheck`.
+    const observado: { body: { device_challenge: string; user_code: string } | null } = { body: null };
 
     await context.route('**/v1/auth/device/accept', async (route) => {
       const raw = route.request().postData();
       if (raw) {
         try {
-          observedBody = JSON.parse(raw);
+          observado.body = JSON.parse(raw);
         } catch {
-          observedBody = null;
+          observado.body = null;
         }
       }
       await route.fulfill({
@@ -50,8 +55,8 @@ test.describe('J-05 Device Verify — dogfood Cenários (DOM-driven)', () => {
 
     await page.getByTestId('device-verify-submit').click();
 
-    await expect.poll(() => observedBody?.user_code, { timeout: 5000 }).toBe('YC7V3TSE');
-    expect(observedBody?.device_challenge).toBe('chal-abc');
+    await expect.poll(() => observado.body?.user_code, { timeout: 5000 }).toBe('YC7V3TSE');
+    expect(observado.body?.device_challenge).toBe('chal-abc');
 
     // Submitting redirects to /device-success (mocked path).
     await expect(page).toHaveURL(/\/device-success/);
