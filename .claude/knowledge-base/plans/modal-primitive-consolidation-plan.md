@@ -593,7 +593,7 @@ Fora deste plano, por decisão registrada no levantamento: a divergência `{proj
 Verificado em 2026-08-09. Cada item medido, não conferido de memória.
 
 - [x] Todas as fases concluídas — Fase 1 `59c4866b`, Fases 2 e 3 `18017351`
-- [x] `npm test` sai 0 — **2760 testes, 327 arquivos**
+- [x] `npm test` sai 0 — **2764 testes, 328 arquivos** (medido 2026-08-10, após os testes de submit)
 - [x] `npm run typecheck` sai 0
 - [x] `npm run lint` sem erro
 - [x] `components/ui/dialog.tsx` não existe
@@ -612,6 +612,14 @@ Verificado em 2026-08-09. Cada item medido, não conferido de memória.
   O texto original volta, e o veredito honesto é: **não cumprido**. Onze dos catorze não foram
   abertos. O que ocupou o lugar está descrito abaixo e vale mais que a amostra — mas vale como
   OUTRA coisa, não como este critério cumprido.
+
+  **E o critério não será cumprido por uma segunda passada manual.** A amostra dirigida já
+  falhou uma vez nesta mesma fatia, do jeito exato que amostras falham: mediu largura e
+  concluiu paridade de aparência, e o `D4` teve de retratar isso quatro horas depois. Repetir
+  o instrumento esperando resultado diferente é o oposto de uma correção. O instrumento certo
+  para "aparência renderizada" é regressão visual com linha de base — registrado como
+  `B-106`, com dono e critério de fechamento, em vez de ficar como um `[ ]` que ninguém
+  possui.
 - [ ] **Plano arquivado** em `plans/completed/` — bloqueado por desenho: só após `/review` READY_TO_MERGE **e** merge
 
 ### A revisão visual, e o que ela cobriu de verdade

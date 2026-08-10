@@ -3572,3 +3572,33 @@ status: raw
 dod:
   - teste que falha se `onOpenChange(false)` passar a rodar quando `onConfirm` lança
   - o caso positivo (fecha no sucesso) coberto no mesmo arquivo
+
+## B-106 — Aparência renderizada de modal não tem instrumento; a revisão manual já falhou uma vez   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: discover-review
+evidence: |
+  Custo medido do status quo, na própria fatia que o expôs:
+  - A revisão visual da consolidação de modais abriu **3 de 14** call sites. O critério do
+    plano pedia os 14 ("cada modal migrado foi aberto e comparado com o estado anterior").
+  - A amostra mediu `max-w-*` em dois viewports e a prosa concluiu **paridade de aparência**.
+    Quatro horas depois, o agente de arquitetura mediu `gap-3` (antigo) vs `gap-4` (novo) e
+    o ADR `D4` teve de ser retratado: **16 modais ficaram ~8 px mais altos**, mudança visível
+    ao usuário que a revisão visual não pegou.
+  - `dashboard/src/pages/rag/wiki-search.tsx:71` já gastava `contentClassName="gap-3"` antes
+    da migração — alguém sentiu a diferença e a desfez à mão, sem que nada registrasse.
+  O defeito de **comportamento** (submit fora do form) virou guard quantificado sobre todos
+  os call sites. O de **aparência** não tem instrumento nenhum: nem antes, nem agora.
+why_now: |
+  A consolidação concentrou ~30 modais num único primitivo. Isso é a padronização
+  funcionando — e também significa que uma mudança de uma linha na caixa do `AppModal`
+  agora altera trinta telas de uma vez. Antes, o raio de uma mudança de espaçamento era um
+  arquivo; hoje é o produto. É esse delta que torna o instrumento necessário agora, e não
+  a existência de modais.
+status: raw
+dod:
+  - linha de base de captura para os modais migrados, versionada
+  - a suíte falha quando a caixa do `AppModal` muda sem a linha de base ser atualizada junto
+  - o `D4` do plano de consolidação deixa de ser a única evidência de que o `gap` mudou
