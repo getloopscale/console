@@ -26,7 +26,7 @@
 
 ### Changed
 
-- **Todos os modais do dashboard passaram a vir do mesmo componente.** Existiam dois construídos lado a lado, com aparência idêntica e regras de largura diferentes: um oferecia uma escala de tamanhos, o outro deixava cada tela escolher a sua. Dezessete telas usavam o segundo. Agora há um só, e a largura de qualquer modal vem da mesma escala. Nenhuma tela mudou de aparência — as larguras equivalentes foram escolhidas uma a uma.
+- **Todos os modais do dashboard passaram a vir do mesmo componente.** Existiam dois construídos lado a lado, com regras de largura diferentes: um oferecia uma escala de tamanhos, o outro deixava cada tela escolher a sua. Dezessete telas usavam o segundo. Agora há um só, e a largura de qualquer modal vem da mesma escala. **O espaçamento interno mudou em dezesseis deles** — cerca de 8 px a mais de altura —, porque os dois componentes espaçavam diferente e consolidar significa adotar um. As larguras continuam idênticas às de antes, escolhidas uma a uma.
 
 - **Os três modais compartilhados do dashboard passaram a usar o primitivo padrão.** Confirmação de ação destrutiva, redeploy e aviso de limite de plano eram construídos sobre um segundo primitivo de modal, com a largura escrita à mão em cada um. Agora vêm da mesma escala de tamanhos do resto do sistema. Nenhuma das telas mudou de aparência — as larguras escolhidas são as mesmas que já eram usadas.
 

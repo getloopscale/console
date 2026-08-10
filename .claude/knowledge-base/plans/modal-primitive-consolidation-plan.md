@@ -172,46 +172,51 @@ Os **catorze** arquivos restantes não declaram largura nenhuma — eles herdam 
 
 **Consequences.** A migração daquele arquivo carrega uma decisão a mais. Constrange: se a decisão for adiada de novo, `className` avulso volta — por isso é critério de aceite explícito da tarefa.
 
-### D4 — Nenhuma mudança visual é intencional
+### D4 — Paridade de LARGURA, e convergência declarada de espaçamento
 
-**Decisão.** A migração preserva aparência: mesma largura efetiva, mesmo overlay, mesmo comportamento de foco.
+> **Emendado em 2026-08-10, depois da implementação, por medição.** A versão anterior
+> dizia *"a migração preserva aparência: mesma largura efetiva, mesmo overlay, mesmo
+> comportamento de foco"*, e rejeitava uniformizar espaçamento porque *"o levantamento não
+> mediu espaçamento"*. A rejeição estava certa como intenção e **impossível de cumprir**: os
+> dois primitivos já tinham espaçamentos diferentes, e trocar um pelo outro muda o
+> espaçamento por construção. Eu afirmei paridade tendo verificado LARGURA — o review de
+> arquitetura mediu o resto e desmentiu.
 
-**Rationale.** O overlay já é idêntico e as larguras têm token equivalente, então a paridade é alcançável. Misturar consolidação com redesenho tornaria impossível dizer se uma diferença é bug de migração ou decisão de design.
+**Decisão.** A migração preserva **largura efetiva, overlay e comportamento de foco**. O
+**espaçamento interno converge** para a caixa do `AppModal`, e isso é declarado, não
+silencioso.
 
-**Alternatives considered.** *Aproveitar para uniformizar espaçamento interno.* **Rejeitada:** o levantamento **não** mediu espaçamento (declarado em `§ 5 Limites`). Mudar o que não foi medido é o oposto do que este plano se propõe.
-
-**Consequences.** Constrange: divergências visuais reais que existirem hoje sobrevivem à migração. São trabalho de um levantamento visual, que ainda não foi feito.
-
-## Drawbacks & Risks
-
-| Drawback / Risk | Severity | Mitigation | Owner |
-|---|---|---|---|
-| Regressão visual silenciosa: um modal migrado abre com largura diferente e ninguém percebe até um usuário reclamar | **Alta** | Mapa explícito largura→token na tarefa, revisado no PR; `max-w-sm` tratado como decisão consciente e não como arredondamento | quem migra |
-| `pages/settings/webhooks.tsx` (534) e `pages/memory/webhooks.tsx` (561) já excedem o teto de 500 LoC | Média | A migração desses dois arquivos deve reduzir ou manter as linhas, nunca aumentar. Se aumentar, extrair o modal para `components/` no mesmo commit | quem migra |
-| A API compound pode ser genuinamente necessária em algum dos 17 (ex.: trigger fora do painel) | Média | Se um arquivo não migrar sem contorção, ele **para** a tarefa e vira pergunta em aberto — não recebe um `AppModal` deformado para fechar o checklist | quem migra |
-| Deletar `ui/dialog.tsx` quebra um import que o grep não pegou (import dinâmico, re-export) | Baixa | `npm run typecheck` acusa; a deleção é o último passo, com a suíte verde antes e depois | — |
-| Os 29 consumidores de `ConfirmDialog` dependem de comportamento não coberto por teste | Média | A tarefa adiciona teste de abrir/fechar aos 3 compartilhados **antes** de migrá-los (RED sobre o comportamento atual, que deve continuar GREEN depois) | quem migra |
-
-## Unresolved Questions
-
-- Q1 — Algum dos 14 call sites precisa da API compound por razão real (trigger fora do painel, painel aninhado)? Só a migração responde. Se sim, D1 ganha uma exceção nomeada e `ui/dialog` não é deletado — o Goal muda e o plano precisa de nova versão.
-- Q2 — `max-w-sm` (1 ocorrência): adota `sm` ou justifica um token `xs`? Decidido ao migrar o arquivo, per D3.
-- Q3 — Os 3 modais compartilhados têm teste hoje? Verifiquei que `components/ui/` tem `app-modal.test.tsx` e `alert-guard.test.tsx`, mas não inventariei testes em `components/dialogs/`. Se não houver, a T1.1 os cria; se houver, ela os estende.
-
-## Dependency Graph
+**A medição.** O primitivo antigo usava `gap-3` (0,75 rem) entre as regiões do painel; o
+`AppModal` usa `gap-4` (1 rem):
 
 ```
-Phase 1 (compartilhados)  ──▶  Phase 2 (páginas)  ──▶  Phase 3 (deletar + validar)
+git show 59c4866b~1:…/ui/dialog.tsx   →  flex-col gap-3
+…/ui/app-modal.tsx:77                 →  flex-col gap-4
 ```
 
-Sequenciais por D2. Dentro da Phase 2, os 14 arquivos são independentes entre si e podem
-ser migrados em qualquer ordem ou em paralelo.
+Dos 17 call sites migrados, **um** (`confirm-dialog.tsx`) já declarava `gap-4` no próprio
+`className` — para ele nada muda. Os **outros 16** herdavam `gap-3` e passam a `gap-4`: 4 px
+por intervalo, cerca de 8 px a mais na altura de um modal de três regiões.
 
----
+**Rationale da emenda.** Preservar `gap-3` exigiria `contentClassName="gap-3"` em 16
+arquivos — gastar o escape hatch dezesseis vezes para conservar uma diferença que só existia
+*porque havia dois primitivos*. Isso é exatamente a deriva por call site que o Goal deste
+plano existe para acabar. Consolidar significa adotar a caixa do primitivo que fica.
 
-## Phase 1: Os modais compartilhados adotam o padrão que o código declara
+**Corroboração independente, e o que ela ressalva.** `pages/rag/wiki-search.tsx:71` já
+gastava `contentClassName="gap-3"` **antes** desta migração — alguém sentiu o `gap-4` como
+largo demais numa tela e o desfez. Isso não invalida a decisão, mas registra que ela não é
+unânime: se aparecer um segundo caso, a resposta certa é discutir a caixa do `AppModal`, não
+acumular escapes.
 
-**Objective:** fazer a referência do produto usar `AppModal`, sem que nenhum dos 29 consumidores mude.
+**Alternatives considered.** *Mudar o `AppModal` para `gap-3`.* **Rejeitada:** trocaria 16
+telas alteradas por 13 — os call sites que já usavam o `AppModal` —, todas fora do escopo
+deste plano e nenhuma delas medida. *Gastar o escape em 16 arquivos.* **Rejeitada** pelo
+rationale acima.
+
+**Consequences.** Constrange: 16 modais ficam ~8 px mais altos, e isso vai ao CHANGELOG
+porque é visível ao usuário. Libera: uma única caixa para todo modal do produto, que é o que
+torna a escala de tokens significativa.
 
 ### T1.1 — RED: os 3 compartilhados abrem e fecham
 
