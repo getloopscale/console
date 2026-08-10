@@ -59,7 +59,7 @@ export function CancelBuildDialog({
       onClose={() => onOpenChange(false)}
       title={<span className="inline-flex items-center gap-2"><XCircle className="size-5 text-destructive" aria-hidden="true" />Cancel build {sha}</span>}
       description={<>This stops the build at the current step. Any partial work is
-            discarded. The active release in{' '}<span className="font-mono">{build.environment}</span>is unaffected.</>}
+            discarded. The active release in{' '}<span className="font-mono">{build.environment}</span> is unaffected.</>}
       footer={<><Button
               type="button"
               variant="ghost"

@@ -19,8 +19,6 @@ const BASE = '/v1/dashboard/promptly';
  */
 export const CATALOG_PAGE_LIMIT = 100;
 
-/** A chave de cache do catálogo — uma só, porque o recurso é um só. */
-
 /** Uma página do catálogo mais a informação de que ela pode não ser tudo. */
 export interface CatalogPage<T> {
   readonly data: T | null;

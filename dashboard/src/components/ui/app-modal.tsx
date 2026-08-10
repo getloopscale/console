@@ -9,12 +9,27 @@ import { twMerge } from 'tailwind-merge';
  * A traditional CENTERED modal (overlay + centered panel), built directly on
  * `@radix-ui/react-dialog` so it renders correctly regardless of the design system.
  *
- * Why not the `@usetheo/ui` `Dialog`? In `@usetheo/ui@0.28.2` both `Dialog` and `Sheet`
- * are the SAME object (`DialogPrimitive.Root`), and `Sheet.Content = <drawer>` runs after
- * `Dialog.Content = <centered>`, clobbering it — so `Dialog.Content` renders as a right-
- * anchored SHEET (drawer) everywhere. AppModal bypasses that bug by composing Radix
- * primitives itself, and delegates focus-trap / focus-restore / ESC / overlay-click / the
- * WAI-ARIA `role="dialog"` + `aria-modal` contract to Radix (Rule 9 — Don't Reinvent).
+ * Why not the `@usetheo/ui` `Dialog`? The original reason was a bug: in
+ * `@usetheo/ui@0.28.2` `Dialog` and `Sheet` were the SAME object, and `Sheet.Content =
+ * <drawer>` ran after `Dialog.Content = <centered>` and clobbered it, so every "dialog"
+ * rendered as a right-anchored drawer.
+ *
+ * THAT BUG IS FIXED. Measured on the installed `@usetheo/ui@0.35.1`
+ * (2026-08-10): `dist/` ships a separate `primitives/dialog/`, and the bundle carries a
+ * centered panel (`left-1/2 top-1/2 -translate-x-1/2`) alongside the lateral sheet
+ * (`inset-y-0 right-0`). Leaving the old rationale in place would have been a Rule-9
+ * justification that stopped being true — the kind of stale claim that outlives its
+ * own reason and then defends whatever is there.
+ *
+ * So what still justifies a local primitive is NOT the bug; it is the width scale below
+ * (`AppModalSize`), which is the whole point of this file: "how wide is a modal" has ONE
+ * answer in this product. Adopting the upstream `Dialog` would mean either giving that
+ * up or re-implementing it on top — a real question, and a separate one. It is filed
+ * rather than decided here, because deciding it inside a consolidation plan is how a
+ * migration turns into a redesign.
+ *
+ * Radix still owns focus-trap / focus-restore / ESC / overlay-click and the WAI-ARIA
+ * `role="dialog"` + `aria-modal` contract (Rule 9 — Don't Reinvent).
  *
  * Use this instead of `<Dialog.Content>` for every transient action screen — it is the
  * traditional-modal pattern for the whole dashboard (New folder / New page / connect / …).
@@ -42,7 +57,20 @@ export interface AppModalProps {
   readonly description?: ReactNode;
   /** Width token — defaults to `md`. */
   readonly size?: AppModalSize;
-  /** Footer actions (e.g. Cancel + primary). Omitted → no footer region. */
+  /**
+   * Footer actions (e.g. Cancel + primary). Omitted → no footer region.
+   *
+   * ⚠️ The footer renders as a SIBLING of `children`, not inside it. A `type="submit"`
+   * button here is therefore OUTSIDE any `<form>` in the body, and clicking it does
+   * nothing — while the screen renders identically. This cost the modal consolidation
+   * its most expensive defect; on a destructive confirmation it is the worst possible
+   * failure mode, because the operator sees no error either.
+   *
+   * Give the `<form>` an `id` and the button `form="<id>"` — the native HTML association,
+   * already the idiom in `create-project-sheet.tsx`. Enforced over EVERY call site by
+   * `modal-primitive.test.ts § "todo botão de enviar dentro de um modal alcança o seu
+   * form"`, not by review.
+   */
   readonly footer?: ReactNode;
   /** Modal body. */
   readonly children?: ReactNode;

@@ -1,0 +1,309 @@
+agent: review-modal-primitive-consolidation-wiring
+review_target: 59c4866b~1..HEAD (59c4866b, 18017351, 26c7976b) for plan modal-primitive-consolidation
+plan: .claude/knowledge-base/plans/modal-primitive-consolidation-plan.md
+
+measurement_environment:
+  repo: /home/paulo/Projetos/theo/theo-platform/theo-cloud
+  branch: workspace
+  head: 4e48b7fb
+  working_tree: clean (only untracked .claude/agents + .claude/skills review scaffolding)
+  tsc: "npx tsc --noEmit -> exit 0"
+  eslint: "npm run lint -> exit 0"
+  suite_run_2: "327/327 files, 2760/2760 tests green, no tree-mutation warning"
+
+triad_revalidation:
+  scope_note: >
+    Frontend slice — there is no runtime-metric surface (pillar c) in this dashboard
+    for a presentational primitive, and the plan declares none. Pillar (c) is
+    therefore reported as N/A rather than fabricated as observed. Pillars (a) and
+    (b) were re-measured independently with my own probe, not by reading the
+    in-repo guard test.
+  total_footer_submit_call_sites: 12
+  pillar_a_honest_pass: 12 / 12
+  pillar_b_honest_pass: 8 / 12
+  pillar_c_observed: N/A (no runtime-metric surface declared for this slice)
+
+verified_positive:
+  - id: V-1
+    claim: Every `type="submit"` inside an `AppModal` `footer={…}` reaches a real `<form>`.
+    method: >
+      Independent probe (not the repo's guard): walked every non-test .ts/.tsx under
+      dashboard/src, brace-matched each `footer={…}` region, and matched BOTH `<Button`
+      and `<button` with `type="submit"`, then resolved each `form="id"` against the
+      `<form id=…>` declarations in the same file, also recording whether that form has
+      an `onSubmit`. Broadened beyond the repo guard, which only matches `<Button`.
+    result: >
+      12 footer submits, in 12 files. All 12 carry `form="…"`, all 12 ids resolve to a
+      real `<form>` in the same file, and all 12 of those forms have an `onSubmit`.
+      Zero footer submits without `form=`. Files (submit line -> form line):
+        pages/deploy/components/promote-to-production-dialog.tsx L173 -> L180
+        pages/deploy/components/rollback-dialog.tsx L142 -> L150
+        pages/infra/components/add-domain-sheet.tsx L91 -> L98
+        pages/infra/components/create-environment-sheet.tsx L185 -> L192
+        pages/infra/components/delete-environment-dialog.tsx L147 -> L158
+        pages/infra/components/promote-dialog.tsx L193 -> L203
+        pages/lens/traces/saved-views.tsx L139 -> L143
+        pages/memory/webhooks.tsx L502 -> L506
+        pages/projects/components/bulk-delete-projects-dialog.tsx L94 -> L105
+        pages/projects/components/create-project-sheet.tsx L71 -> L78
+        pages/settings/components/api-key-dialogs.tsx L171 -> L179
+        pages/settings/webhooks.tsx L468 -> L472
+      One submit is outside any footer — pages/rag/graphrag.tsx L406 — and it sits inside
+      the page-body form at L379 ("Ask the graph"), unrelated to that file's modal.
+      Correctly excluded, not a miss.
+  - id: V-2
+    claim: The `form=` attribute actually reaches the DOM button — the mechanism is real, not merely textual.
+    method: Read the compiled `@usetheo/ui` Button rather than assuming prop forwarding.
+    result: >
+      node_modules/@usetheo/ui/dist/index.js:610-625 — `Button = forwardRef(({className,
+      variant, size, asChild=false, type, ...props}, ref) => …  ...props )`. `form` is not
+      destructured away, so it spreads onto the intrinsic `"button"`. The type also admits
+      it: ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>. Both the `<form>` and
+      the footer button render inside the SAME RadixDialog.Portal subtree (app-modal.tsx
+      L74-L100), so the HTML form-owner ID lookup resolves in one document.
+  - id: V-3
+    claim: The `form=` association is proven at RUNTIME, not only statically.
+    method: Read the co-located tests for the two call sites whose submit is outside the form.
+    result: >
+      dashboard/src/pages/projects/components/bulk-delete-projects-dialog.test.tsx:50-53
+      fires a real click on the footer submit and asserts `mutateAsync` was called with
+      ['a','b'] and the dialog closed. delete-environment-dialog.test.tsx:128-136 does the
+      same and asserts `engineFetch` was called and `onDeleted` fired. Both buttons are
+      outside their `<form>` (V-1 line pairs). These are genuine Act-phase exercises, not
+      import-and-ignore — pillar (b) is honest where it exists.
+  - id: V-4
+    claim: No dangling reference to the deleted `components/ui/dialog.tsx`.
+    method: grep for the module path across the whole repo excluding node_modules/.git; plus tsc.
+    result: >
+      Zero imports. The 6 remaining source mentions are prose in doc-comments that describe
+      the migration in the past tense (modal-primitive.test.ts L13/L19/L24,
+      redeploy-dialog.tsx:63, confirm-dialog.test.tsx:138, redeploy-dialog.test.tsx:99) —
+      history, not references to live code. `npx tsc --noEmit` exits 0.
+  - id: V-5
+    claim: The 4 shared modals in components/dialogs/ kept every consumer.
+    method: git grep of JSX usage at 59c4866b~1 vs HEAD, plus importer count at HEAD.
+    result: >
+      ConfirmDialog 41 -> 43 usages, 29 importer files (matches the 29 stated in the task).
+      RedeployDialog 4 -> 4. PlanLimitUpgradeModal 6 -> 7. NewFolderDialog 9 -> 9.
+      No consumer lost; the increases are the test files added by this slice.
+  - id: V-6
+    claim: No symbol orphaned by the migration.
+    method: knip (unused exports), plus per-symbol caller count for every `export function` in the 9 migrated dialog modules.
+    result: >
+      Every migrated modal component has exactly 1 production caller file. The two non-JSX
+      exports are alive: `formatPromoteError` is called at
+      promote-to-production-dialog.tsx:148, `confirmPhrase` at
+      bulk-delete-projects-dialog.tsx:46. knip reports zero unused exported VALUES; its
+      "unused exported types" list includes `AppModalSize`, which is used internally at
+      app-modal.tsx L27 and L44 — not dead.
+  - id: V-7
+    claim: The 6 dead exports removed in 26c7976b broke no live caller.
+    method: Per-symbol grep across src after the removal.
+    result: >
+      DATASETS_PATH / TRACES_PATH / COLLECTIONS_PATH lost only the `export` keyword and are
+      still used 3x each in their own file. CATALOG_QUERY_KEY and useInvalidatePromptly have
+      zero remaining references outside prose. PAGE_SIZE removed; the module's 10 consumers
+      import LIST_SAFETY_CEILING, which survives. tsc and lint both clean.
+  - id: V-8
+    claim: No inert confirm button was left behind by the migration.
+    method: Probe for footer `<Button>` with neither onClick nor type="submit" nor asChild.
+    result: >
+      Exactly 1 hit — pages/projects/components/signal-detail-sheet.tsx:89 — which is
+      explicitly `disabled` with aria-label "Grafana deep-link not configured". Deliberate
+      placeholder, and that file is not part of this diff. Not a regression.
+
+findings:
+  - id: F-wire-1
+    severity: MEDIUM
+    file: dashboard/src/hooks/promptly/promptly-api.ts
+    line: 22
+    plan_ref: commit 26c7976b — removal of the six dead exports
+    summary: >
+      Deleting `CATALOG_QUERY_KEY` left its doc-comment behind, describing a constant that
+      no longer exists — the exact orphan-comment defect the same commit says it took care
+      to avoid for PAGE_SIZE, missed one file over.
+    evidence: |
+      Current file, lines 20-25:
+        20: export const CATALOG_PAGE_LIMIT = 100;
+        21:
+        22: /** A chave de cache do catálogo — uma só, porque o recurso é um só. */
+        23:
+        24: /** Uma página do catálogo mais a informação de que ela pode não ser tudo. */
+        25: export interface CatalogPage<T> {
+      The comment on L22 now documents nothing: L23 is blank and L24 opens an unrelated
+      doc-block. `git show 26c7976b -- dashboard/src/hooks/promptly/promptly-api.ts`:
+          /** A chave de cache do catálogo — uma só, porque o recurso é um só. */
+        - export const CATALOG_QUERY_KEY = ['cloud', '/v1/dashboard/promptly/prompts'] as const;
+      Only the declaration was removed. The commit message states, for the PAGE_SIZE case:
+      "apaga-lo deixaria o doc-comment do modulo descrevendo uma constante que nao existe
+      mais, que e o defeito de comentario orfao que este repositorio ja pagou" — the care
+      was applied to lib/http/list-ceiling.ts and not to this file.
+      No tool caught it: tsc, eslint and knip are all clean, because an orphan comment is
+      valid code.
+    recommended_action: >
+      Delete line 22. If the sentence is worth keeping as history, fold it into the
+      migration note in src/lib/api/query-keys.ts where the key now lives, instead of
+      leaving it attached to nothing.
+
+  - id: F-wire-2
+    severity: MEDIUM
+    file: dashboard/src/components/ui/app-modal.tsx
+    line: 4
+    plan_ref: Phase 3 — ui/dialog.tsx deleted, AppModal becomes the single modal primitive
+    summary: >
+      The single modal primitive for the whole dashboard imports `tailwind-merge`, which is
+      not declared in dashboard/package.json. It resolves today only because two other
+      packages hoist it. Pre-existing, but this slice concentrated the blast radius onto one
+      file that every modal in the product now goes through.
+    evidence: |
+      app-modal.tsx:4 — `import { twMerge } from 'tailwind-merge';`
+      `grep -n "tailwind-merge" dashboard/package.json` -> no match (only @tailwindcss/postcss,
+      @tailwindcss/typography, tailwindcss are declared).
+      knip: "Unlisted dependencies (4) ... src/components/ui/app-modal.tsx: tailwind-merge".
+      The only declarers in the tree are node_modules/@usetheo/ui/package.json and
+      node_modules/@theokit/ui/package.json — i.e. it is present by npm hoisting of a
+      transitive dependency, not by our own manifest.
+      Honest scoping: NOT introduced here. The deleted ui/dialog.tsx used the same import
+      (git show 59c4866b~1:dashboard/src/components/ui/dialog.tsx line 4), and
+      pages/lens/traces/peek-sheet.tsx still does. What changed is concentration: 17 call
+      sites plus the 4 shared modals now render through this one file, so a @usetheo/ui bump
+      that drops tailwind-merge takes out every modal at once rather than some of them.
+    recommended_action: >
+      Add `tailwind-merge` to dashboard/package.json dependencies at the version currently
+      hoisted. One line, and it converts a silent build-time cliff into a declared edge.
+
+  - id: F-wire-3
+    severity: LOW
+    file: dashboard/src/components/ui/app-modal.test.tsx
+    line: 60
+    plan_ref: Global DoD — "o defeito mais caro desta migração" (submit outside the form)
+    summary: >
+      The primitive's own test suite covers the footer slot only as "footer content
+      renders". The dangerous property that footer is rendered OUTSIDE the children
+      container — the defect the plan itself calls the most expensive of the migration — is
+      never asserted in the primitive that causes it.
+    evidence: |
+      app-modal.test.tsx declares 9 cases (L19-L103): title/body, open=false, size xl, size
+      default, footer slot, description, ESC, X click, hideCloseButton. The footer case is
+      L60-L62 and asserts only that `<button>Create folder</button>` renders.
+      Where the contract IS proven: statically for all 12 call sites by
+      modal-primitive.test.ts L119-L177 (text scan), and at runtime by exactly 2 call-site
+      tests (V-3). So the primitive's most failure-prone design decision is guarded
+      everywhere except in the primitive.
+      Coverage of the call sites is also uneven — 4 of the 12 footer-submit files have no
+      co-located test at all and rest solely on the static guard:
+        pages/deploy/components/promote-to-production-dialog.tsx
+        pages/infra/components/add-domain-sheet.tsx
+        pages/lens/traces/saved-views.tsx
+        pages/settings/components/api-key-dialogs.tsx
+    recommended_action: >
+      Add one case to app-modal.test.tsx: render an AppModal whose children hold
+      `<form id="x" onSubmit={spy}>` and whose footer holds
+      `<Button type="submit" form="x">`, click it, assert the spy fired. It pins the
+      contract at the primitive, in ~8 lines, and would fail if the portal or the footer
+      placement were ever restructured in a way the text scan cannot see.
+
+  - id: F-wire-4
+    severity: LOW
+    file: dashboard/src/lib/api/query-keys.ts
+    line: 143
+    plan_ref: commit 26c7976b — removal of the six dead exports
+    summary: >
+      Stale file:line citation — the comment points at `promptly-api.ts:23` for
+      `CATALOG_QUERY_KEY`, which that commit deleted. Line 23 of that file is now blank.
+    evidence: |
+      query-keys.ts:142-143:
+        // B-052 — promptly era o unico dos tres com UMA chave declarada
+        // (`CATALOG_QUERY_KEY`, promptly-api.ts:23) e o resto escrito a mao nas telas.
+      promptly-api.ts:23 is now an empty line (see F-wire-1). The prose is in the past tense
+      and remains true as history; only the pointer is dead.
+      Same class in src/lib/data-access-layer.test.ts:96, which describes promptly as having
+      "UMA chave local (`CATALOG_QUERY_KEY`)" in the present tense — that sentence is now
+      false, though the constant it feeds (DOMINIOS_COM_API_PARCIAL, L98) is unaffected.
+    recommended_action: >
+      Drop the ":23" from the citation, or point it at src/lib/api/query-keys.ts where the
+      key now lives. Fix the tense in data-access-layer.test.ts:96 in the same pass.
+
+  - id: F-wire-5
+    severity: INFO
+    file: dashboard/src/components/ui/modal-primitive.test.ts
+    line: 45
+    plan_ref: >
+      Plan § "O que a amostra NÃO cobriu" — the guard that replaced the visual sample review
+    summary: >
+      The guard that now stands in for the visual review is a filesystem scanner, so it
+      inherits the B-099 concurrent-mutation flake class. It failed in my first full-suite
+      run and passed in the second. Environment, not product — recorded rather than resolved
+      toward the more interesting explanation.
+    evidence: |
+      Run 1 (22:23:21, 183s): "Test Files 1 failed | 326 passed", the failure being
+      modal-primitive.test.ts § "só o `app-modal` compõe o Radix dialog" at the
+      `.toEqual([PRIMITIVO])` assertion. The same run printed the B-099 detector warning
+      "`src/` MUDOU DURANTE A EXECUÇÃO DA SUÍTE", naming 5 files including 3 AppModal call
+      sites (confirm-dialog.tsx, plan-limit-upgrade-modal.tsx, redeploy-dialog.tsx,
+      promote-to-production-dialog.tsx, wiki-search.tsx).
+      Corroboration that the mutation was real and external: `stat` shows those 5 files with
+      mtimes of 22:24:43-22:26:23, inside the run window, while `git status --porcelain` is
+      clean — i.e. rewritten with byte-identical content mid-run.
+      Run 2 (immediately after, tree quiet): 327/327 files, 2760/2760 tests, no warning, all
+      4 modal-primitive cases green. In isolation the file also passes (4/4, 1.17s).
+      Honest attribution: most likely a sibling agent of this same /review run touching the
+      tree; I did not observe the writer, so I am not claiming which. Nothing in the repo
+      writes to src/ during tests (the only test writer, env-terminology.test.ts:97, writes
+      to /tmp). The detector did its job — it named the cause instead of leaving an
+      unresolvable import error.
+    recommended_action: >
+      No product change. If CI ever runs the suite on a tree that something else can touch,
+      have the guard snapshot the file list once (or read via `git ls-files`) rather than
+      stat-walking live. On CI's clean checkout the mechanism does not occur, as the B-099
+      module already documents.
+
+  - id: F-wire-6
+    severity: LOW
+    file: .claude/skills/review/scripts/consolidate_findings.py
+    line: 247
+    plan_ref: cycle-review — per-agent findings consolidation
+    summary: >
+      Harness defect surfaced while filing this report: the consolidator reads only `*.yml`,
+      but this agent was instructed to write `wiring.yaml`. An agent that followed the
+      instruction literally would have its entire findings file silently dropped from the
+      consolidated review.
+    evidence: |
+      consolidate_findings.py:247 — `for yml_path in sorted(args.findings_dir.glob("*.yml")):`
+      The agent definition at
+      .claude/agents/review-modal-primitive-consolidation-2026-08-10/wiring.md:77 says
+      `findings/wiring.yml`; the dispatching instruction for this run said
+      `findings/wiring.yaml`. The two disagree, and only one of them is read.
+      Mitigation applied here: I wrote BOTH paths with identical content. Because the glob
+      matches only `.yml`, this does not double-count today — but it would the moment the
+      glob is widened to `*.y*ml`.
+      This is not hypothetical. Listing the findings dir at 22:36 during this very review
+      run shows a sibling agent already caught by it:
+        architecture.yaml    architecture.yml     (both -> will be read)
+        tests.yaml           tests.yml            (both -> will be read)
+        domain-frontend.yaml (NO .yml twin        -> will be SILENTLY DROPPED)
+        wiring.yaml          wiring.yml           (both -> will be read)
+      So the consolidated review for this plan is, as things stand, missing the entire
+      domain-frontend agent's findings, and nothing in the pipeline reports the omission.
+    recommended_action: >
+      Widen the glob to `*.y*ml` AND de-duplicate by agent name, or fix the dispatch text to
+      say `.yml`. A consolidator that silently skips an unreadable/unmatched agent file is
+      the meta-defect class cycle-judge-codex `:final` exists to catch.
+
+verdict_input:
+  blockers: 0
+  high: 0
+  medium: 2
+  low: 3
+  info: 1
+  wiring_opinion: >
+    The central risk of this migration — a `type="submit"` stranded outside its `<form>` by
+    the footer being rendered outside the children — is CLOSED, and closed on evidence
+    rather than on reading. All 12 footer submits carry a `form=` that resolves to a real
+    form with an onSubmit; the attribute demonstrably reaches the DOM button through
+    @usetheo/ui's prop spread; and two call-site tests click a submit that is physically
+    outside its form and assert the mutation fired. Nothing is orphaned, the 29 ConfirmDialog
+    consumers are intact, and the deleted ui/dialog.tsx leaves no live reference.
+    What remains is residue, not risk: an orphan doc-comment and a stale file:line from the
+    dead-export commit, an undeclared dependency the slice concentrated rather than created,
+    and a contract asserted everywhere except in the primitive that owns it.

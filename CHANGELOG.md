@@ -92,6 +92,10 @@
 
 ### Fixed
 
+
+- **Três confirmações de deploy voltaram a ser lidas corretamente por leitor de tela.** A consolidação dos modais apagou, sem querer, quatro espaços dentro do texto — quem usa leitor de tela ouvia "Promote abcdef1to production" e "no ambiente stagingcom o build de". Na tela o navegador dobra os espaços e nada parecia errado, então a revisão visual não tinha como pegar: a diferença só existe no nome acessível. Vale para promover, reverter e cancelar build.
+
+- **Um botão de confirmar dentro de um modal agora tem quem prove que ele funciona.** O componente de modal desenha a área dos botões fora do formulário, então um botão de enviar movido para lá deixa de pertencer ao formulário: a tela renderiza idêntica e o clique não faz nada. Numa confirmação destrutiva é o pior jeito de falhar, porque também não aparece erro. A ligação correta existia no HTML e já era usada em duas telas; agora um teste percorre **todos** os modais do dashboard e falha se algum perder a ligação — e outros dois testes provam o efeito em promover e reverter, duas telas que até aqui só tinham teste da fricção e nunca chegavam a enviar.
 - **A verificação de qualidade do dashboard voltou a verificar.** O passo automatizado que roda testes, tipos e lint antes de uma entrega procurava a configuração do projeto na raiz do repositório — e ela mora na pasta do dashboard. O resultado é que os quatro checks mais importantes eram sempre pulados, com a justificativa de que o projeto "ainda não tem código". Ao rodá-los de verdade pela primeira vez, dois problemas reais apareceram e foram corrigidos.
 
 - **Os arquivos do dashboard passaram a ser guardados pelo navegador.** O servidor não enviava nenhuma instrução de cache, então cada visita rebaixava todos os arquivos da aplicação mesmo sem nada ter mudado. Agora os arquivos versionados são guardados por um ano — é seguro porque cada build gera nomes novos — enquanto a página inicial, a configuração e o service worker continuam sendo sempre buscados, que é o que garante que uma atualização chegue. Os cabeçalhos de segurança foram preservados em todos os caminhos, inclusive nas respostas de erro.

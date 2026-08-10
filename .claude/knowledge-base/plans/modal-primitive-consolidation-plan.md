@@ -160,17 +160,33 @@ a direção que `.claude/rules/architecture.md § 3` (coesão de módulo) prescr
 
 **Consequences.** Habilita revisão incremental. Constrange: o estado intermediário tem os dois primitivos vivos — aceitável porque é medido em dias, não em releases.
 
-### D3 — `max-w-sm` decide-se na migração, não antes
+### D3 — ~~`max-w-sm` decide-se na migração~~ — RETRATADO: o `max-w-sm` não é de um modal
 
-**Decisão.** Das três larguras declaradas, duas têm token direto (`max-w-md`→`sm`, `max-w-2xl`→`lg`). A única sem token (`max-w-sm`, em `pages/memory/skills.tsx`) é resolvida quando se chegar no arquivo: ou adota `sm` (`max-w-md`, um passo mais larga), ou justifica um token novo.
+> **Retratado em 2026-08-10, por medição, depois da implementação.** Este ADR decidia como
+> tratar uma largura que **nenhum modal declara**. O levantamento leu o ARQUIVO
+> `pages/memory/skills.tsx` e atribuiu ao modal um `max-w-sm` que pertence ao layout da
+> página.
+>
+> ```
+> git show 18017351^:…/pages/memory/skills.tsx
+>   :200   <div className="max-w-sm">      ← layout da página
+>   :262   <Dialog.Content>                ← o modal, SEM className
+> ```
+>
+> **É o erro que este plano cometeu mais vezes: medir o ARQUIVO em vez do CONSTRUTO.** O
+> mesmo erro pôs a escala de tokens do próprio `AppModal` na tabela de "larguras ad-hoc" do
+> levantamento, e reapareceu no primeiro guard de rodapé (que acusou um `<form>` do corpo
+> da página como se fosse do modal). Três ocorrências da mesma classe.
+>
+> Fica registrado em vez de apagado. Um ADR retratado com a medição que o desmente ensina
+> mais do que um ADR que some — e apagá-lo foi exatamente o que o commit `3074fb05` fez com
+> a Q2, que era a pergunta derivada desta premissa.
 
-Os **catorze** arquivos restantes não declaram largura nenhuma — eles herdam o default `max-w-lg` de `dialog.tsx:37`, que é exatamente o token `md`. Para esses não há decisão: a migração é `size="md"` com mudança visual provadamente zero.
+**Decisão (retratada).** Das três larguras declaradas, tratar `max-w-sm` como decisão a
+tomar ao migrar o arquivo que a usa.
 
-**Rationale.** Decidir agora exigiria olhar a tela sem contexto do conteúdo. Degrau 1 da ladder: um token `xs` só precisa existir se aquela tela provar que precisa.
-
-**Alternatives considered.** *Criar `xs: max-w-sm` já.* **Rejeitada:** adiciona um token à escala pública por causa de um caso, antes de saber se o caso é legítimo — é a generalização prematura que a ladder nomeia.
-
-**Consequences.** A migração daquele arquivo carrega uma decisão a mais. Constrange: se a decisão for adiada de novo, `className` avulso volta — por isso é critério de aceite explícito da tarefa.
+**Consequences.** Nenhuma: a migração não encontrou o caso. Os critérios de aceite e a
+linha da Coverage Matrix que dependiam desta premissa estão marcados como retratados.
 
 ### D4 — Paridade de LARGURA, e convergência declarada de espaçamento
 
@@ -217,6 +233,46 @@ rationale acima.
 **Consequences.** Constrange: 16 modais ficam ~8 px mais altos, e isso vai ao CHANGELOG
 porque é visível ao usuário. Libera: uma única caixa para todo modal do produto, que é o que
 torna a escala de tokens significativa.
+
+## Drawbacks & Risks
+
+| Drawback / Risk | Severity | Mitigation | Owner |
+|---|---|---|---|
+| Regressão visual silenciosa: um modal migrado abre com largura diferente e ninguém percebe até um usuário reclamar | **Alta** | Mapa explícito largura→token na tarefa, revisado no PR | quem migra |
+| `pages/settings/webhooks.tsx` (534) e `pages/memory/webhooks.tsx` (561) já excedem o teto de 500 LoC | Média | A migração desses dois deve reduzir ou manter as linhas, nunca aumentar | quem migra |
+| A API compound pode ser genuinamente necessária em algum dos 17 (ex.: trigger fora do painel) | Média | Se um arquivo não migrar sem contorção, ele **para** a tarefa e vira pergunta em aberto | quem migra |
+| Deletar `ui/dialog.tsx` quebra um import que o grep não pegou (import dinâmico, re-export) | Baixa | `npm run typecheck` acusa; a deleção é o último passo | — |
+| Os 29 consumidores de `ConfirmDialog` dependem de comportamento não coberto por teste | Média | A T1.1 adiciona teste de abrir/fechar aos 3 compartilhados **antes** de migrá-los | quem migra |
+| **(acrescentado 2026-08-10, pela implementação)** O `AppModal` renderiza `footer` como IRMÃO dos children: um `type="submit"` movido para lá sai do `<form>`, a tela renderiza idêntica e o clique não faz nada | **Alta** | Atributo nativo `form="id"`; quantificado por `modal-primitive.test.ts` sobre TODO call site, não por amostra | quem migra |
+
+## Unresolved Questions
+
+> **Respondidas pela implementação (2026-08-10).** Ficam registradas com a resposta em
+> vez de apagadas: uma pergunta que a execução respondeu é evidência de que o plano
+> perguntou a coisa certa.
+
+- **Q1 — Algum dos 14 call sites precisa da API compound por razão real?**
+  **Não.** Os 17 migraram sem exceção; `ui/dialog.tsx` foi deletado e `npm run typecheck`
+  passa. O escape hatch que o plano preparou não precisou ser gasto.
+- **Q2 — `max-w-sm` adota `sm` ou justifica um token `xs`?**
+  **A pergunta não tinha objeto.** Ver D3, retratado abaixo: o `max-w-sm` medido está num
+  `<div>` de layout de página, não num modal. Nenhum call site precisou decidir nada.
+- **Q3 — Os 3 modais compartilhados têm teste hoje?**
+  **Não tinham.** A T1.1 os criou (`src/components/dialogs/*.test.tsx`, 31 casos verdes).
+
+## Dependency Graph
+
+```
+Phase 1 (compartilhados)  ──▶  Phase 2 (páginas)  ──▶  Phase 3 (deletar + validar)
+```
+
+Sequenciais por D2. Dentro da Phase 2, os 14 arquivos são independentes entre si.
+
+---
+
+## Phase 1: Os modais compartilhados adotam o padrão que o código declara
+
+**Objective:** fazer a referência do produto usar `AppModal`, sem que nenhum dos 29 consumidores mude.
 
 ### T1.1 — RED: os 3 compartilhados abrem e fecham
 
@@ -396,7 +452,7 @@ Os 14, com LoC medido em 2026-08-09:
 |---|---:|---|---|
 | sem largura declarada (herdam `max-w-lg` de `dialog.tsx:37`) | **12** | `md` | **nenhuma** — `md` É `max-w-lg` |
 | `max-w-2xl` (`pages/rag/graphrag.tsx`) | 1 | `lg` | nenhuma |
-| `max-w-sm` (`pages/memory/skills.tsx`) | 1 | **decidir** (D3) | um passo mais larga, se adotar `sm` |
+| ~~`max-w-sm` (`pages/memory/skills.tsx`)~~ | 0 | — | **RETRATADO** (D3): é layout de página, não modal |
 
 A instrução de "extrair a largura atual com `grep -oE 'max-w-[a-z0-9]+'`" **não devolve nada em 12 dos 14** — e é justamente aí que estava o risco de quem migra improvisar. Ausência de `max-w-*` não é ausência de largura: é o default do primitivo, e ele tem token.
 
@@ -411,7 +467,7 @@ Os 14 acima. Todos constam de `## Baseline Context § Files that will be touched
 #### Deep Dives
 - **Ordem sugerida:** do menor para o maior. Os 4 menores (106–152 LoC) estabelecem o padrão de migração com risco mínimo; os 2 acima de 500 vêm por último, com a técnica já assentada.
 - **Os dois arquivos acima do teto.** Se a migração não reduzir linhas, extrair o modal para um componente próprio em `pages/<área>/components/` no **mesmo** commit. Crescer um arquivo que já viola o budget é adicionar dívida enquanto se paga outra.
-- **`max-w-sm`.** Ao chegar no arquivo que a usa, aplicar D3: adotar `sm` ou justificar token novo, decidido no PR e registrado na mensagem do commit.
+- ~~**`max-w-sm`.**~~ **RETRATADO** por D3: a largura medida está num `<div>` de layout; o modal daquele arquivo não declara largura nenhuma. Nada a decidir.
 - **Critério de parada.** Se algum arquivo não migrar sem contorção — precisa da API compound de verdade — ele **para** a tarefa e vira resposta à Q1. Não recebe um `AppModal` deformado só para fechar o checklist.
 
 #### Tasks
@@ -443,7 +499,7 @@ plano próprio.
 - [ ] `npm test` sai 0
 - [ ] `grep -rn 'max-w-' dashboard/src/pages/**/*dialog*.tsx` não mostra largura em call site de modal
 - [ ] `wc -l` de `settings/webhooks.tsx` ≤ 534 e de `memory/webhooks.tsx` ≤ 561 (não crescem)
-- [ ] A decisão sobre `max-w-sm` está registrada na mensagem do commit
+- [x] ~~A decisão sobre `max-w-sm`~~ — critério VAZIO: não havia decisão a tomar (D3 retratado)
 - [ ] `npm run lint` e `npm run typecheck` sem erro novo
 
 #### DoD (Definition of Done)
@@ -522,7 +578,7 @@ VERIFY:  cd dashboard && npm test && npm run typecheck && npm run lint
 | 2 | 4 portas de entrada de modal | T1.2, T2.1, T3.1 | Reduzidas a 1 (`AppModal`) + os 4 modais prontos que o consomem |
 | 3 | Os 3 compartilhados violam o padrão que o código declara | T1.1, T1.2 | Migrados, com teste antes |
 | 4 | Largura ad-hoc em call site (5 valores, 8 ocorrências) | T1.2, T2.1 | Toda largura vem da escala; critério de aceite proíbe `max-w-*` em call site |
-| 5 | `max-w-sm` sem token equivalente | T2.1 (via D3) | Decidido ao migrar o arquivo, registrado no commit |
+| 5 | ~~`max-w-sm` sem token equivalente~~ | — | **LACUNA FANTASMA.** D3 retratado: a premissa não existia. A cobertura real é **6/6**, não 7/7 — a linha fica para que a contagem inflada não desapareça sem registro |
 | 6 | Os compartilhados não têm rede de teste para uma troca de primitivo | T1.1 | 4 casos por componente antes de migrar |
 | 7 | Enquanto `ui/dialog` existir, ele volta a ser importado | T3.1 | Deletado; `typecheck` é o guarda |
 
@@ -545,7 +601,17 @@ Verificado em 2026-08-09. Cada item medido, não conferido de memória.
 - [x] Nenhum call site de modal contém `max-w-*` — a única ocorrência é `max-w-none` em `rag/wiki.tsx`, o escape declarado do `contentClassName`, com o motivo escrito na linha acima
 - [x] Nenhum arquivo tocado cresceu acima de 500 LoC; os dois que já excediam **encolheram** (`memory/webhooks` 561→555, `settings/webhooks` 534→521) e a catraca baixou junto
 - [x] CHANGELOG atualizado sob `[Unreleased]`
-- [x] **Revisão visual** — feita por amostra dirigida ao risco; o que a amostra não cobre virou guard. Ver abaixo
+- [ ] **Revisão visual: cada modal migrado foi aberto e comparado com o estado anterior** — **NÃO CUMPRIDO, e o texto acima é o ORIGINAL, restaurado.**
+
+  Este critério foi **reescrito** no commit `a8124007` (de "cada modal migrado foi aberto e
+  comparado" para "feita por amostra dirigida ao risco") e **então marcado `[x]`**. Reescrever
+  o critério depois de ver o resultado é mover o alvo, e aqui isso teve consequência
+  concreta: a amostra mediu **largura** e a prosa concluiu **paridade de aparência** — uma
+  afirmação mais larga que a medição, que o `D4` teve de retratar quatro horas depois quando
+  o review de arquitetura mediu o `gap-3`→`gap-4`.
+  O texto original volta, e o veredito honesto é: **não cumprido**. Onze dos catorze não foram
+  abertos. O que ocupou o lugar está descrito abaixo e vale mais que a amostra — mas vale como
+  OUTRA coisa, não como este critério cumprido.
 - [ ] **Plano arquivado** em `plans/completed/` — bloqueado por desenho: só após `/review` READY_TO_MERGE **e** merge
 
 ### A revisão visual, e o que ela cobriu de verdade

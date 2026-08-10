@@ -33,6 +33,36 @@ const SRC = resolve(__dirname, '../..');
 
 const PRIMITIVO = 'components/ui/app-modal.tsx';
 
+/**
+ * O nome LOCAL do primitivo neste arquivo, ou `null` se ele não o importa.
+ *
+ * ## Por que resolver pelo import, e não pela tag
+ *
+ * A primeira versão abria os casos com `if (!src.includes('<AppModal')) continue`.
+ * O review de testes derrubou isso com uma sonda de quatro linhas: trocar para
+ * `import { AppModal as Modal }` + `<Modal` fez o guard passar **4/4 com o
+ * `form=` removido da árvore**. Um alias — coisa que ninguém escreve por
+ * malícia, e que qualquer refactor de conflito de nomes produz — tirava o
+ * arquivo inteiro de cobertura sem que nada acusasse.
+ *
+ * É a mesma lição que o cabeçalho deste arquivo já pregava para o OUTRO caso
+ * ("um teste que procurasse `ui/dialog.tsx` verificaria a FORMA") e que eu não
+ * apliquei aqui. O import é o fato; a tag é a grafia dele.
+ */
+function nomeLocalDoPrimitivo(src: string): string | null {
+  const m = src.match(
+    /import\s*\{([^}]*)\}\s*from\s*'@\/components\/ui\/app-modal'/,
+  );
+  if (!m) return null;
+  for (const parte of m[1].split(',')) {
+    const [orig, alias] = parte.split(/\s+as\s+/).map((s) => s.trim());
+    if (orig === 'AppModal') return alias ?? orig;
+  }
+  return null;
+}
+
+
+
 function arquivosDeProducao(dir = SRC, out: string[] = []): string[] {
   for (const entrada of readdirSync(dir)) {
     if (entrada === 'node_modules' || entrada === 'vendor' || entrada === 'mocks') continue;
@@ -84,10 +114,13 @@ describe('primitivo de modal único', () => {
     // contrato do primitivo que ele existe para proteger. `max-w-none` é
     // autoexplicativo: ele DIZ que não há largura máxima.
     const ofensores: string[] = [];
+    let varridos = 0;
     for (const f of arquivosDeProducao()) {
       const src = readFileSync(f, 'utf8');
-      if (!src.includes('<AppModal')) continue;
-      for (const m of src.matchAll(/contentClassName="([^"]*)"/g)) {
+      if (!nomeLocalDoPrimitivo(src)) continue;
+      varridos++;
+      // `="…"` e `={"…"}` — a forma de expressão também precisa ser vista.
+      for (const m of src.matchAll(/contentClassName=\{?"([^"]*)"\}?/g)) {
         // `max-w-none` é a saída explícita; qualquer outro `max-w-*` é um token
         // da escala escrito à mão.
         if (/max-w-(?!none\b)[a-z0-9]/.test(m[1])) {
@@ -95,6 +128,19 @@ describe('primitivo de modal único', () => {
         }
       }
     }
+
+    // O piso de não-vacuidade, e a razão de ele existir DUAS vezes:
+    //
+    // `ofensores` vazio tem duas causas indistinguíveis — nenhum call site declara
+    // largura (o que se quer), ou o laço não varreu call site nenhum (o que passaria
+    // verde com a padronização inteira quebrada). Só a contagem separa as duas.
+    //
+    // Eu já tinha posto este piso no caso do rodapé e NÃO aqui, e a minha própria
+    // re-verificação do achado deu "fechado" porque procurou o literal
+    // `toBeGreaterThanOrEqual(20)` no ARQUIVO e o encontrou — no outro caso. É a
+    // sexta ocorrência, nesta fatia, de medir o arquivo em vez do construto; quem
+    // pegou foi o lint, reclamando de uma variável contada e nunca usada.
+    expect(varridos, 'o guard não varreu call site nenhum').toBeGreaterThanOrEqual(20);
 
     expect(
       ofensores,
@@ -127,9 +173,11 @@ describe('primitivo de modal único', () => {
     // Este caso troca a amostra por uma quantificação: TODO submit dentro de um
     // AppModal, em todo arquivo de produção.
     const quebrados: string[] = [];
+    let varridos = 0;
     for (const f of arquivosDeProducao()) {
       const src = readFileSync(f, 'utf8');
-      if (!src.includes('<AppModal')) continue;
+      if (!nomeLocalDoPrimitivo(src)) continue;
+      varridos++;
 
       const ids = new Set([...src.matchAll(/<form[^>]*\bid="([^"]+)"/g)].map((m) => m[1]));
       const rel = relative(SRC, f).replace(/\\/g, '/');
@@ -159,6 +207,8 @@ describe('primitivo de modal único', () => {
         }
       }
     }
+
+    expect(varridos, 'o guard não varreu call site nenhum').toBeGreaterThanOrEqual(20);
 
     expect(
       quebrados,
