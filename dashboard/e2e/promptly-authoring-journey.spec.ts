@@ -126,10 +126,19 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
 
     await page.getByLabel(/Roll back to revision v1/i).first().click();
 
-    // A confirmação nomeia a revisão que será CRIADA. Um texto de "volta para a v1" faria o
-    // operador esperar o histórico encolher, e ele nunca encolhe.
+    // A confirmação nomeia a revisão que será CRIADA, e DIZ que o histórico não encolhe.
+    //
+    // A asserção negativa mudou de forma na tradução para inglês, e a razão vale registrar: ela
+    // proibia a frase "volta para", porque um texto assim faria o operador esperar o histórico
+    // encolher — e ele nunca encolhe. Em inglês, o TÍTULO legítimo passou a ser "Roll … back to
+    // v1", que nomeia o alvo e é exatamente o que a tela deve dizer. Proibir "back to" passou a
+    // proibir o produto correto.
+    //
+    // A intenção nunca foi banir palavras: era garantir que a confirmação NÃO promete reversão
+    // de histórico. Isso se afirma melhor pelo positivo — a frase que o corpo tem de conter — do
+    // que por uma lista de frases que ele não pode ter.
     await expect(page.getByText(/creates revision v\d+/i)).toBeVisible();
-    await expect(page.getByText(/back to/i)).toHaveCount(0);
+    await expect(page.getByText(/history does not shrink/i)).toBeVisible();
 
     await page.getByRole('textbox').last().fill('saudacao');
     await page.getByRole('button', { name: /^roll back$/i }).click();

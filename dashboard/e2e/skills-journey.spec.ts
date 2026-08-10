@@ -68,7 +68,11 @@ test.describe('M26 — navegar o registro de skills pelo dashboard', () => {
     // ---- DETALHE: alcançado pelo nome, que é o caminho da lista --------------------------
     await page.getByRole('link', { name: 'Review pull request' }).click();
     await expect(page).toHaveURL(/\/skills\/sk_ordering$/);
-    await expect(page.getByText('sk_ordering')).toBeVisible();
+    // `.first()` porque o identificador aparece em mais de um lugar da tela do detalhe — o
+    // cabeçalho e, conforme o que já carregou, os canais. Sem isto o `strict mode` do Playwright
+    // reprova por AMBIGUIDADE, e ambiguidade depende de tempo: passa aqui e falha no runner.
+    // A asserção quer que o identificador ESTEJA na tela, não que esteja uma vez só.
+    await expect(page.getByText('sk_ordering').first()).toBeVisible();
 
     // ---- INSTRUÇÃO RESOLVIDA: o fim da jornada de leitura --------------------------------
     // O TEXTO, não a presença do bloco: é ele que um agente carregaria, e é lendo-o que o
@@ -295,7 +299,7 @@ test.describe('M35 — o conteúdo do pacote é editável pela tela (AC1)', () =
     await page.getByRole('button', { name: /save contents/i }).click();
     // Depois de salvar o aviso some: é o sinal de que o rascunho virou estado do servidor.
     await expect(page.getByText(/unsaved changes/i)).toHaveCount(0);
-    await expect(page.getByText('sk_ordering')).toBeVisible();
+    await expect(page.getByText('sk_ordering').first()).toBeVisible();
   });
 
   test('a mesma skill no mesmo canal não entra duas vezes', async ({ page }) => {
