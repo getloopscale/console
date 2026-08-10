@@ -3947,7 +3947,7 @@ fechado_2026-08-10: |
   para `replacement` MESMO citando "term" na frase. Sondado — simular a regressao (voltar a
   devolver so a frase) reprova 11 casos.
 
-## B-112 — A Overview da plataforma cobre só o sistema de aplicações   [ ]
+## B-112 — A Overview da plataforma cobre só o sistema de aplicações   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `platform-overview-covers-all-capabilities`).
 
@@ -3976,7 +3976,7 @@ why_now: |
   que o produto é um PaaS de deploy, e as outras sete capacidades passam a depender de alguém
   ir clicar no menu para descobrir que existem. Uma capacidade ausente da tela principal é
   indistinguível, para quem chega, de uma capacidade que não existe.
-status: triaged
+status: planned
 dod:
   - toda capacidade declarada no registro do menu aparece em `/` — afirmado por teste que QUANTIFICA sobre o registro, não por uma lista escrita à mão (uma lista fixa passaria verde no dia em que a nona capacidade fosse criada e esquecida, que é este mesmo defeito um nível acima)
   - os três estados são distinguíveis na tela e no teste — "não adotada" ≠ "zero" ≠ "não consegui ler"; uma capacidade que aparece vazia por falha de leitura convida a concluir que ela não serve
@@ -4002,6 +4002,41 @@ medido_2026-08-10: |
   CAVEAT para o plano: os quatro agregados NAO TEM MOCK. Em modo mock eles escapam para o proxy
   e voltam 500 — foi assim que a medicao os encontrou. No ambiente onde o dono valida telas,
   essas quatro capacidades nao mostram numero algum hoje.
+
+entregue_2026-08-10: |
+  Fechado em `5142a160`. A tela inicial mostra as OITO capacidades, medidas no navegador em
+  modo mock:
+
+    Memory          1,284 memories      Knowledge Base   3,921 retrievals
+    Workspace       734 MB stored       Databases        Coming soon
+    Observability   In use              Trust            In use
+    Skills          In use              Prompts          In use
+
+  DoD-1 — `overview.test.tsx` e `capability-grid.test.tsx` quantificam sobre
+  `MENUS.main.groups['Capabilities']`; `capabilities.test.ts` reprova nos DOIS sentidos
+  (capacidade sem sinal, sinal sem capacidade). Uma nona capacidade não entra em silêncio.
+
+  DoD-2 — os quatro estados são discriminados no TIPO (`EstadoDaCapacidade`), nunca deduzidos do
+  texto. `estadoDaCapacidade` põe `falhou` ANTES de tudo, e trata consulta assentada sem dado
+  como falha em vez de vazio.
+
+  DoD-3 — decisões D1..D5 de `knowledge-base/plans/platform-overview-plan.md`. O custo é
+  antecipação e não gasto novo: as chaves de query são as MESMAS das páginas de capacidade
+  (`['cloud', rota]`), então abrir a Overview aquece o cache. A exceção — Observability usa
+  `['cloud', rota, range]` e não casa — está declarada no código.
+
+  DOIS ACHADOS COLATERAIS, ambos fabricações minhas pegas pelo próprio trabalho:
+  - `trust/guardrails` não existe; a listagem é `/validators`. Pego pelo teste da fase 3, que
+    exige handler de mock para toda rota declarada.
+  - o catálogo de prompts responde um ARRAY NU, não `{ prompts }`. O card ficaria em "not set up
+    yet" para sempre, sem erro e sem log. É o quarto contrato de lista do backend — `B-114`.
+
+  AMBIENTE: `memory/metrics`, `rag/analytics`, `lens/observability` e `storage/usage` ganharam
+  mock (`overview-handlers.ts`). Antes escapavam para o proxy e voltavam 500, e a DoD-2 era
+  inverificável no único ambiente onde alguém a verifica.
+
+  2792 testes unitários verdes, typecheck e lint limpos, e-2-e 134/135 com a paralelização da CI
+  (a única falha passa isolada; a máquina estava com load average 27 em 12 cores).
 
 ## B-113 — O dashboard endereça os backends por dez prefixos, e o mesmo recurso por dois caminhos   [ ]
 
