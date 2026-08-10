@@ -29,7 +29,7 @@ export interface DatasetsResult {
   datasets: Dataset[];
 }
 
-export const DATASETS_PATH = '/v1/dashboard/lens/datasets';
+const DATASETS_PATH = '/v1/dashboard/lens/datasets';
 
 /** Chave canônica — exportada para invalidar sem repetir a tupla. */
 export const datasetsQueryKey = ['cloud', DATASETS_PATH] as const;

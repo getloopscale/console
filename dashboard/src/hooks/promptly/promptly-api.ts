@@ -20,7 +20,6 @@ const BASE = '/v1/dashboard/promptly';
 export const CATALOG_PAGE_LIMIT = 100;
 
 /** A chave de cache do catálogo — uma só, porque o recurso é um só. */
-export const CATALOG_QUERY_KEY = ['cloud', '/v1/dashboard/promptly/prompts'] as const;
 
 /** Uma página do catálogo mais a informação de que ela pode não ser tudo. */
 export interface CatalogPage<T> {

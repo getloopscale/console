@@ -41,7 +41,7 @@ export interface CollectionsResult {
   items: Collection[];
 }
 
-export const COLLECTIONS_PATH = '/v1/dashboard/rag/collections';
+const COLLECTIONS_PATH = '/v1/dashboard/rag/collections';
 
 /** Chave canônica — exportada para que uma mutation invalide sem repetir a tupla. */
 export const collectionsQueryKey = ['cloud', COLLECTIONS_PATH] as const;

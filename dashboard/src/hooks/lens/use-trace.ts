@@ -31,7 +31,7 @@ import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
  * conversa inteira. Por isso `fetchTrace` expõe a escolha, e o hook — que serve
  * o caso de tela única — assume o padrão seguro.
  */
-export const TRACES_PATH = '/v1/dashboard/lens/traces';
+const TRACES_PATH = '/v1/dashboard/lens/traces';
 
 /** Chave canônica da ÁRVORE de um trace. Os quatro sites convergiram nela. */
 export function traceTreeQueryKey(traceId: string) {

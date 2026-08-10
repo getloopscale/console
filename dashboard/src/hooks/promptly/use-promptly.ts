@@ -233,9 +233,3 @@ export function useInvalidatePrompt(): (name: string) => void {
   };
 }
 
-export function useInvalidatePromptly(): () => void {
-  const queryClient = useQueryClient();
-  return () => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.promptly.all });
-  };
-}
