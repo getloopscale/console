@@ -64,6 +64,23 @@ test.describe('J-10 Environments — browser-runtime E2E (mocks)', () => {
 
   test('S3: PlanLimitUpgradeModal opens on theo:plan-limit event', async ({ page }) => {
     await page.goto(ROTA);
+    // Espera o app estar MONTADO antes de disparar o evento.
+    //
+    // `page.goto` resolve no evento `load` do documento, que acontece ANTES de o React
+    // montar e de o `useEffect` do `PlanLimitUpgradeModal` registrar o listener de
+    // `window`. Disparar antes disso manda o evento para o vazio: ninguém escuta, o modal
+    // nunca abre, e o teste reprova acusando o produto.
+    //
+    // Medido em 2026-08-10, com o mesmo servidor e a mesma rota:
+    //   waitUntil=load         app montado no disparo: false → modal abriu: false
+    //   waitUntil=networkidle  app montado no disparo: true  → modal abriu: true
+    //
+    // O teste sempre foi uma corrida; ele só passou a perder. Esperar por um elemento real
+    // é o sinal certo — `networkidle` "consertaria" trocando uma corrida por outra, e a
+    // documentação do Playwright desaconselha justamente por isso.
+    await expect(page.getByRole('navigation').or(page.locator('aside')).first()).toBeVisible({
+      timeout: 15_000,
+    });
     // Dispatch the global window event that lib/api.ts emits on 402.
     // PlanLimitUpgradeModal is mounted at app root and listens for it.
     await page.evaluate(() => {
@@ -88,6 +105,10 @@ test.describe('J-10 Environments — browser-runtime E2E (mocks)', () => {
 
   test('S4: PlanLimitUpgradeModal renders fallback on null detail', async ({ page }) => {
     await page.goto(ROTA);
+    // Mesma corrida do S3 — ver o comentário lá.
+    await expect(page.getByRole('navigation').or(page.locator('aside')).first()).toBeVisible({
+      timeout: 15_000,
+    });
     await page.evaluate(() => {
       window.dispatchEvent(new CustomEvent('theo:plan-limit', { detail: null }));
     });

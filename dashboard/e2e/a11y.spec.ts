@@ -37,28 +37,38 @@ test.describe('Dashboard a11y — DOM + axe (replaces bundle-grep)', () => {
     }
   });
 
-  // #81 — the onboarding progress is a real ARIA progressbar with aria-valuenow,
-  // not a plain div (screen readers must announce it as a progress indicator).
-  test('#81 onboarding: progress is an ARIA progressbar with aria-valuenow', async ({ page }) => {
+  // #81 — a barra ARIA do onboarding NÃO é coberta aqui. Ela é coberta em
+  // `src/components/onboarding/onboarding-panel.test.tsx:118`, que assere o mesmo
+  // contrato (`role=progressbar`, `aria-valuenow`, `aria-valuemax=100`, nome acessível
+  // "onboarding progress").
+  //
+  // Por que saiu daqui, com a medição: o painel só existe enquanto o onboarding está
+  // INCOMPLETO (`use-onboarding-state.ts:159` — `completed < total`), e os cinco passos
+  // derivam de dados: whoami, projetos, um deploy bem-sucedido, um domínio. A conta mockada
+  // satisfaz os cinco, então o painel corretamente não renderiza e o caso reprovava um
+  // produto CERTO.
+  //
+  // Ele nunca esteve sólido: passava enquanto os dados do mock estivessem incompletos, e
+  // quebrou quando eles ficaram completos. Interceptar a rota de domínios para forçar a
+  // pré-condição não funciona — a camada de mocks intercepta o `fetch` DENTRO da página, e
+  // o `page.route` do Playwright nunca vê a requisição (medido: zero requisições de
+  // `domains` observadas).
+  //
+  // Cobertura de runtime de navegador para o painel exige uma fixture com onboarding
+  // incompleto, e isso é trabalho próprio: registrado como **B-107**. Fingir cobertura com
+  // um caso vermelho permanente, ou com uma asserção condicional que passa vazia, seria
+  // pior que declarar a lacuna.
+  //
+  // O que SOBRA aqui é verdadeiro e vale proteger: uma conta estabelecida não é cobrada por
+  // um onboarding que ela já terminou.
+  test('#81/M57 — conta com onboarding completo não recebe o painel de cobrança', async ({ page }) => {
     await page.goto('/');
-    // Localizado pelo NOME ACESSÍVEL, não por `.first()`.
-    //
-    // `.first()` casava a barra de onboarding enquanto ela era a única da página. Depois o
-    // Overview ganhou medidores de uso ("Projects: 0 / 2"), e o teste passou a asserir
-    // `aria-valuemax === '100'` contra um medidor cujo max é 2 — reprovando um produto CORRETO:
-    // `2` é o valuemax certo de "0 / 2". Um seletor posicional casa o que estiver na frente, não
-    // o que o teste quer dizer. O teste de unidade do componente já localizava pelo nome.
-    // O painel nasce RECOLHIDO; a barra só existe expandido. Expandir é o que o usuário faz —
-    // e é a etapa que faltava: sem ela o teste caía no medidor de uso e nunca chegou a exercitar
-    // a barra que o #81 existe para cobrir.
-    await page.getByRole('button', { name: /get your app live/i }).click();
-
-    const bar = page.getByRole('progressbar', { name: /onboarding progress/i });
-    await expect(bar).toBeVisible();
-    const now = await bar.getAttribute('aria-valuenow');
-    expect(now, 'progressbar exposes aria-valuenow').not.toBeNull();
-    expect(Number(now), 'aria-valuenow is numeric').not.toBeNaN();
-    expect(await bar.getAttribute('aria-valuemax'), 'progressbar exposes aria-valuemax').toBe('100');
+    // A âncora positiva: a página carregou de fato (senão a ausência abaixo é vácuo).
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole('button', { name: /get your app live/i }),
+      'o painel de onboarding apareceu para uma conta que já tem projeto, deploy e domínio',
+    ).toHaveCount(0);
   });
 
   // #80 — the recovery code field is an OTP-friendly numeric input (inputmode +

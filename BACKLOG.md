@@ -3622,3 +3622,32 @@ dod:
   - linha de base de captura para os modais migrados, versionada
   - a suíte falha quando a caixa do `AppModal` muda sem a linha de base ser atualizada junto
   - o `D4` do plano de consolidação deixa de ser a única evidência de que o `gap` mudou
+
+## B-107 — O painel de onboarding não tem cobertura de runtime de navegador   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: discover-review
+evidence: |
+  `e2e/a11y.spec.ts` tinha um caso `#81` que clicava no painel para exercitar a barra ARIA.
+  Ele reprovava um produto CERTO: o painel só existe com o onboarding INCOMPLETO
+  (`src/hooks/use-onboarding-state.ts:159` — `isVisible = !dismissed && completed < total`),
+  os cinco passos derivam de dados (whoami, projetos, deploy bem-sucedido, domínio), e a
+  conta mockada satisfaz os cinco.
+  Forçar a pré-condição pelo teste NÃO funciona hoje: a camada de mocks intercepta o `fetch`
+  dentro da página, então `page.route('**/api/v1/domains*')` nunca vê a requisição —
+  medido em 2026-08-10, zero requisições de `domains` observadas pelo Playwright.
+  O contrato ARIA segue coberto em `src/components/onboarding/onboarding-panel.test.tsx:118`
+  (jsdom). O que falta é a confirmação em navegador real.
+why_now: |
+  O caso passava enquanto os dados do mock estivessem INCOMPLETOS e quebrou quando eles
+  ficaram completos — ou seja, ele media o ambiente, não o produto. Foi um de onze e2e que
+  só ficaram visíveis quando a suíte de jornadas voltou a carregar (ela morria num import
+  quebrado, reportando "0 tests"). Trocá-lo por uma asserção verdadeira fecha o vermelho
+  sem fingir cobertura; a cobertura em si continua devendo.
+status: raw
+dod:
+  - existe uma forma declarada de o e2e escolher o estado de onboarding (fixture alternativa, seed do mock, ou parâmetro de rota em dev)
+  - um caso em navegador real exercita `role=progressbar` com `aria-valuenow` no painel expandido
+  - OU está escrito por que a cobertura em jsdom basta para este contrato
