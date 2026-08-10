@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+### Fixed
+
+- O caminho de reconstrução usado quando a credencial do registro falha voltou a funcionar. Ele existe
+  justamente para esse dia, e falhava por duas coisas que nenhum build normal revelaria: apontava para
+  o endereço antigo da biblioteca de contratos — e um apontamento que não casa é ignorado em silêncio,
+  então tudo parecia bem enquanto a credencial funcionava — e compilava um único arquivo em vez do
+  programa inteiro, o que quebrou no dia em que esse arquivo passou a chamar código vizinho. Uma
+  verificação passou a exercitar os dois todo dia, porque um caminho de recuperação que só é usado no
+  incidente apodrece calado (theo/BACKLOG.md B-017)
+
 ### Added
 
 - **A bateria de testes avisa quando o código muda no meio da própria execução.** Editar um arquivo enquanto os testes rodam fazia a execução falhar dizendo que um arquivo não existe — e ele existe, quando se vai olhar depois. A contradição custou um dia de investigação. Agora a suíte compara o estado dos arquivos antes e depois, e quando eles mudaram no meio do caminho ela diz exatamente isso, nomeando os arquivos. Ela não impede a edição: quem escreve código enquanto os testes rodam está fazendo trabalho legítimo.
