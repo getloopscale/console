@@ -37,33 +37,56 @@ test.describe('Dashboard a11y — DOM + axe (replaces bundle-grep)', () => {
     }
   });
 
-  // #81 — a barra ARIA do onboarding NÃO é coberta aqui. Ela é coberta em
-  // `src/components/onboarding/onboarding-panel.test.tsx:118`, que assere o mesmo
-  // contrato (`role=progressbar`, `aria-valuenow`, `aria-valuemax=100`, nome acessível
-  // "onboarding progress").
-  //
-  // Por que saiu daqui, com a medição: o painel só existe enquanto o onboarding está
-  // INCOMPLETO (`use-onboarding-state.ts:159` — `completed < total`), e os cinco passos
-  // derivam de dados: whoami, projetos, um deploy bem-sucedido, um domínio. A conta mockada
-  // satisfaz os cinco, então o painel corretamente não renderiza e o caso reprovava um
-  // produto CERTO.
-  //
-  // Ele nunca esteve sólido: passava enquanto os dados do mock estivessem incompletos, e
-  // quebrou quando eles ficaram completos. Interceptar a rota de domínios para forçar a
-  // pré-condição não funciona — a camada de mocks intercepta o `fetch` DENTRO da página, e
-  // o `page.route` do Playwright nunca vê a requisição (medido: zero requisições de
-  // `domains` observadas).
-  //
-  // Cobertura de runtime de navegador para o painel exige uma fixture com onboarding
-  // incompleto, e isso é trabalho próprio: registrado como **B-107**. Fingir cobertura com
-  // um caso vermelho permanente, ou com uma asserção condicional que passa vazia, seria
-  // pior que declarar a lacuna.
-  //
-  // O que SOBRA aqui é verdadeiro e vale proteger: uma conta estabelecida não é cobrada por
-  // um onboarding que ela já terminou.
-  test('#81/M57 — conta com onboarding completo não recebe o painel de cobrança', async ({ page }) => {
+  /**
+   * #81 — a barra de progresso do onboarding é uma `progressbar` ARIA de verdade, medida em
+   * NAVEGADOR, não só em jsdom.
+   *
+   * ## Como este caso chegou aqui
+   *
+   * Ele existia, reprovava, e eu o tirei: o painel só renderiza enquanto o onboarding está
+   * INCOMPLETO (`use-onboarding-state.ts:159` — `completed < total`), os cinco passos derivam
+   * de dados, e a conta mockada satisfaz os cinco. O caso cobrava um painel que o produto
+   * corretamente não mostra — ele nunca esteve sólido: passava enquanto os dados do mock
+   * estivessem incompletos e quebrou quando ficaram completos, ou seja, media o ambiente.
+   *
+   * Forçar a pré-condição pela rede não funciona, e isso foi medido: a camada de mocks
+   * intercepta o `fetch` DENTRO da página, então `page.route('**\/api/v1/domains*')` nunca vê
+   * a requisição — zero requisições observadas.
+   *
+   * A alavanca ficou do lado certo: `window.__THEO_MOCK_NO_DOMAINS`, quarta do mesmo idioma
+   * que `__THEO_MOCK_LOGGED_OUT` já usava. **O teste declara o estado que precisa** em vez de
+   * herdar o que o mock por acaso tiver — que é o que o tornava frágil.
+   *
+   * ## Por que em navegador, se jsdom já cobre
+   *
+   * `onboarding-panel.test.tsx:118` assere os mesmos atributos, e para atributos estáticos
+   * jsdom basta. O que ele NÃO prova é que o painel é ALCANÇÁVEL: que existe um estado real
+   * do produto em que ele aparece, que o botão recolhido expande, e que a barra sobrevive à
+   * árvore inteira do app. O caso anterior morreu exatamente aí — o contrato ARIA estava
+   * certo o tempo todo, e o painel é que não vinha.
+   */
+  test('#81 onboarding: a barra é uma progressbar ARIA com aria-valuenow', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __THEO_MOCK_NO_DOMAINS?: boolean }).__THEO_MOCK_NO_DOMAINS = true;
+    });
     await page.goto('/');
-    // A âncora positiva: a página carregou de fato (senão a ausência abaixo é vácuo).
+
+    // O painel nasce RECOLHIDO; a barra só existe expandido, e expandir é o que o usuário faz.
+    await page.getByRole('button', { name: /get your app live/i }).click();
+
+    const barra = page.getByRole('progressbar', { name: /onboarding progress/i });
+    await expect(barra).toBeVisible();
+
+    const agora = await barra.getAttribute('aria-valuenow');
+    expect(agora, 'a progressbar não expõe `aria-valuenow`').not.toBeNull();
+    expect(Number(agora), '`aria-valuenow` não é numérico').not.toBeNaN();
+    expect(await barra.getAttribute('aria-valuemax'), 'a progressbar não expõe `aria-valuemax`').toBe('100');
+  });
+
+  test('#81/M57 — conta com onboarding completo não recebe o painel de cobrança', async ({ page }) => {
+    // A contraparte, e ela é o que a alavanca acima torna afirmável: sem poder escolher o
+    // estado, este caso e o de cima seriam mutuamente exclusivos.
+    await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 });
     await expect(
       page.getByRole('button', { name: /get your app live/i }),

@@ -3703,7 +3703,7 @@ fechado_2026-08-10: |
   e alteracao que eu nao consigo verificar daqui, e o modo de falha (um spec que trava o job
   no carregamento) custou tres runs vermelhos hoje.
 
-## B-107 — O painel de onboarding não tem cobertura de runtime de navegador   [ ]
+## B-107 — O painel de onboarding não tem cobertura de runtime de navegador   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -3726,8 +3726,45 @@ why_now: |
   só ficaram visíveis quando a suíte de jornadas voltou a carregar (ela morria num import
   quebrado, reportando "0 tests"). Trocá-lo por uma asserção verdadeira fecha o vermelho
   sem fingir cobertura; a cobertura em si continua devendo.
-status: raw
+status: shipped
 dod:
   - existe uma forma declarada de o e2e escolher o estado de onboarding (fixture alternativa, seed do mock, ou parâmetro de rota em dev)
   - um caso em navegador real exercita `role=progressbar` com `aria-valuenow` no painel expandido
   - OU está escrito por que a cobertura em jsdom basta para este contrato
+fechado_2026-08-10: |
+  A DoD oferecia a saida "escrever por que jsdom basta". NAO usei, e o motivo importa: jsdom
+  cobre os ATRIBUTOS (`onboarding-panel.test.tsx:118` assere os mesmos), mas nao prova que o
+  painel e ALCANCAVEL — que existe um estado real do produto em que ele aparece, que o botao
+  recolhido expande, e que a barra sobrevive a arvore inteira do app. O caso anterior morreu
+  exatamente ai: o contrato ARIA estava certo o tempo todo e o painel e que nao vinha.
+
+  A ALAVANCA, e por que ela nao e invencao minha: `window.__THEO_MOCK_NO_DOMAINS`, a QUARTA
+  do mesmo idioma — `__THEO_MOCK_LOGGED_OUT`, `__THEO_MOCK_FLOW_ERROR` e
+  `__THEO_MOCK_CONNECT_SEQUENCE` ja existiam. Regra de 3 satisfeita antes de eu chegar; isto
+  e estender um padrao do repositorio, nao introduzir um.
+  Ela fica do lado da PAGINA porque tem de ficar: a camada de mocks intercepta o `fetch`
+  dentro da pagina, e `page.route('**/api/v1/domains*')` nunca ve a requisicao — medido, zero
+  requisicoes observadas pelo Playwright.
+  Zerar DOMINIOS e o mais barato dos cinco passos: e o unico que nao desfaz outra coisa da
+  tela (zerar projetos esvaziaria metade do dashboard).
+
+  O GANHO QUE PASSA DO ITEM: o teste agora DECLARA o estado que precisa em vez de herdar o
+  que o mock por acaso tiver. Era exatamente essa heranca que tornava o caso fragil — ele
+  passava enquanto os dados do mock estivessem incompletos e quebrou quando ficaram
+  completos, ou seja, media o ambiente. E as duas afirmacoes viraram afirmaveis JUNTAS: sem a
+  alavanca, "o painel aparece para quem nao terminou" e "nao aparece para quem terminou"
+  seriam mutuamente exclusivas.
+
+  SONDADO: apagar `aria-valuenow={percent}` do componente derruba exatamente esse caso
+  (1 failed, 4 passed).
+
+  E O QUE A CATRACA DE LoC COBROU NO MEIO, que vale mais que o item: acrescentar a alavanca
+  (quatro linhas) a `handlers.ts` REPROVOU `loc-budget-ratchet.test.ts` — o arquivo esta na
+  divida registrada de `max-lines` com teto anotado, e a catraca nao tem folga: "o numero so
+  desce". A tentacao era encurtar o comentario ate caber, trocando a explicacao por duas
+  linhas de orcamento — a falsa economia que a catraca nao deveria causar. O contrato dela
+  diz a saida certa em voz alta ("decompor um arquivo baixa o numero"), entao os handlers de
+  dominio sairam para `domain-handlers.ts`, na forma dos irmaos que ja existiam
+  (trust/lens/skills/promptly): modulo autocontido, estado proprio, reset proprio.
+  `handlers.ts` 875 -> 815, e a anotacao baixou junto. A divida encolheu 60 linhas porque um
+  guard recusou 4.

@@ -19,8 +19,6 @@ import type {
   BuildAttestation,
   BuildListResponse,
   BuildSBOM,
-  Domain,
-  DomainListResponse,
   Environment,
   EnvironmentListResponse,
   Preview,
@@ -39,7 +37,6 @@ import type {
 import {
   auditEntriesFixture,
   buildsFixture,
-  domainsFixture,
   environmentsFixture,
   makeProject,
   makeProjectConnection,
@@ -58,6 +55,7 @@ import { registerTrustHandlers } from './trust-handlers';
 import { registerLensHandlers } from './lens-handlers';
 import { registerSkillsDistributionHandlers, registerSkillsHandlers } from './skills-handlers';
 import { registerPromptlyHandlers } from './promptly-handlers';
+import { registerDomainHandlers, resetDomainMocks } from './domain-handlers';
 
 /**
  * Cursor da sequência de `/connect` (ver a rota lá embaixo, issue #378).
@@ -78,7 +76,6 @@ const db = {
   secrets: [...secretsFixture] as Secret[],
   members: [...teamMembersFixture] as TeamMember[],
   environments: [...environmentsFixture] as Environment[],
-  domains: [...domainsFixture] as Domain[],
   previews: [...previewsFixture] as Preview[],
 };
 
@@ -594,63 +591,6 @@ function registerEnvironmentHandlers() {
 // Domains
 // ============================================================================
 
-function registerDomainHandlers() {
-  registerRoute('GET', '/api/v1/domains', async () => {
-    const body: DomainListResponse = { domains: db.domains, total: db.domains.length };
-    return Response.json(body);
-  });
-
-  registerRoute('GET', '/api/v1/domains/{domain}', async (_req, { domain }) => {
-    const d = db.domains.find((x) => x.domain === domain);
-    if (!d) return err('NOT_FOUND', `Domain "${domain}" not found`, 404);
-    return Response.json(d);
-  });
-
-  registerRoute('POST', '/api/v1/domains', async (req) => {
-    const body = (await req.json()) as {
-      domain?: string;
-      project?: string;
-      app?: string;
-      environment?: string;
-    };
-    if (!body.domain) return err('INVALID_INPUT', 'domain required', 400);
-    if (db.domains.find((d) => d.domain === body.domain)) {
-      return err('CONFLICT', `Domain "${body.domain}" already exists`, 409);
-    }
-    const domain: Domain = {
-      id: `dom-${Date.now()}`,
-      domain: body.domain,
-      project: body.project ?? '',
-      app: body.app ?? '',
-      environment: body.environment ?? 'production',
-      status: 'pending_verification',
-      cname_target: `${body.project ?? 'app'}.theo.app`,
-      created_at: new Date().toISOString(),
-      verification: {
-        txt_name: `_theo.${body.domain}`,
-        txt_value: `verify=${Math.random().toString(36).slice(2, 18)}`,
-      },
-    };
-    db.domains.push(domain);
-    return Response.json(domain, { status: 201 });
-  });
-
-  registerRoute('POST', '/api/v1/domains/{domain}/verify', async (_req, { domain }) => {
-    const d = db.domains.find((x) => x.domain === domain);
-    if (!d) return err('NOT_FOUND', `Domain "${domain}" not found`, 404);
-    d.status = 'verified';
-    d.verified_at = new Date().toISOString();
-    delete d.verification;
-    return Response.json(d);
-  });
-
-  registerRoute('DELETE', '/api/v1/domains/{domain}', async (_req, { domain }) => {
-    const i = db.domains.findIndex((x) => x.domain === domain);
-    if (i < 0) return err('NOT_FOUND', `Domain "${domain}" not found`, 404);
-    db.domains.splice(i, 1);
-    return new Response(null, { status: 204 });
-  });
-}
 
 // ============================================================================
 // Previews
@@ -869,7 +809,7 @@ export function resetMockDB(): void {
   db.secrets = [...secretsFixture];
   db.members = [...teamMembersFixture];
   db.environments = [...environmentsFixture];
-  db.domains = [...domainsFixture];
+  resetDomainMocks();
   db.previews = [...previewsFixture];
   installed = false;
 }

@@ -251,7 +251,7 @@ export default [
       // e tem de bater com o disco exatamente (sem folga onde crescer). Ao
       // decompor, baixe o numero — o progresso passa a ser medido.
       'src/lib/api/types.ts', // 861 LOC
-      'src/lib/mocks/handlers.ts', // 875 LOC
+      'src/lib/mocks/handlers.ts', // 815 LOC
       'src/pages/auth/recovery.tsx', // 711 LOC
       'src/pages/deploy/deployments.tsx', // 704 LOC
       'src/pages/projects/project-connect.tsx', // 664 LOC
