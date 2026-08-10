@@ -4038,7 +4038,7 @@ entregue_2026-08-10: |
   2792 testes unitários verdes, typecheck e lint limpos, e-2-e 134/135 com a paralelização da CI
   (a única falha passa isolada; a máquina estava com load average 27 em 12 cores).
 
-## B-113 — O dashboard endereça os backends por dez prefixos, e o mesmo recurso por dois caminhos   [ ]
+## B-113 — O dashboard endereça os backends por dez prefixos, e o mesmo recurso por dois caminhos   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `dashboard-endpoint-surface`).
 
@@ -4078,11 +4078,51 @@ why_now: |
   O QUE MUDOU: a plataforma cresceu de um produto de deploy para oito capacidades, e cada uma
   chegou com o seu prefixo. Nenhuma decisão foi errada isoladamente; o conjunto é que virou uma
   superfície que ninguém consegue descrever numa frase.
-status: raw
+status: planned
+evidence: knowledge-base/discoveries/opportunities/dashboard-endpoint-surface-opportunity.md
 dod:
   - existe UM caminho canônico por recurso — o mesmo recurso não é endereçável por dois prefixos
   - toda chamada de rede de produção passa pelo cliente que carrega auth, retry e semântica de erro (nenhum `fetch(` cru)
   - teste que falha quando um prefixo novo é introduzido sem estar declarado
+
+medido_2026-08-10: |
+  A EVIDÊNCIA DESTE ITEM, COMO EU A REGISTREI, ESTAVA INFLADA. O grep do intake não excluía
+  testes e mocks. Medido só sobre produção:
+
+                          intake (errado)   produção (medido)
+    `fetch(` cru               49                 19
+    builds por dois caminhos    5/33               3/9
+    domains por dois caminhos   3/18               1/9
+
+  E dos 19 `fetch(` crus, 18 têm razão de existir: 11 falam com o Kratos (servidor de
+  identidade separado), 4 são o próprio `lib/http/api.ts`, 2 são telemetria e 1 é o transporte
+  SSE do B-088. **A DoD-2 já estava factualmente satisfeita** — não havia o que migrar, e ela
+  virou um guard contra regressão em vez de um trabalho de migração.
+
+  O QUE SOBROU É MENOR E PIOR. A lista de projetos era lida por dois caminhos sob duas chaves
+  de cache que não se falam, e `use-bulk-delete-projects` invalida só uma. Com `staleTime` de
+  60s, um projeto apagado continuava sendo oferecido em "Add domain" e "Create environment".
+
+  Também conferi e DESCARTEI o risco de cache entre tenants que o item sugeria: o ADR-0004/B-055
+  removeu o cache de API do build, e `logout-cache-purge.ts` cobre os service workers antigos.
+
+entregue_2026-08-10: |
+  Fechado em `5e9af68c`.
+
+  DoD-1 — um endereço por recurso: `engineFetch('/api/v1/…')` é o vocabulário único, e
+  `endpoint-surface.test.ts` reprova quando um recurso volta a ser endereçado pelos dois
+  prefixos. Ele ignora comentários — a primeira versão acusava três arquivos que só CITAM os
+  caminhos em prosa, e um guard que reprova comentário ensina a apagar a explicação.
+
+  DoD-2 — reescrita conforme a medição acima: virou o guard, porque não havia migração a fazer.
+
+  DoD-3 — `project-picker-cache.test.ts` conta as requisições da lista na mesma árvore: duas
+  chaves produzem duas buscas, uma produz uma. Falhava com 2.
+
+  UMA LIÇÃO REGISTRADA: o primeiro teste que escrevi passou verde ANTES do conserto. Ele
+  mockava os dois clientes com a mesma resposta, então os dois caminhos davam no mesmo lugar e
+  nada discriminava. Um teste que não distingue o estado defeituoso do consertado não é um
+  teste — é uma afirmação com sintaxe de teste.
 
 ## B-114 — A API nomeia o mesmo conceito de quatro formas, e as listas têm três contratos   [ ]
 
