@@ -3946,3 +3946,46 @@ fechado_2026-08-10: |
   Um segundo caso trava o contrato que a precedencia salvava: o problema do replacement vai
   para `replacement` MESMO citando "term" na frase. Sondado — simular a regressao (voltar a
   devolver so a frase) reprova 11 casos.
+
+## B-112 — A Overview da plataforma cobre só o sistema de aplicações   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `platform-overview-covers-all-capabilities`).
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: human
+evidence: none-yet
+why_now: |
+  A tela chama-se **Overview** e é o overview de UM subsistema.
+
+  Medido em 2026-08-10, com o dashboard em modo mock:
+  `src/pages/overview/overview.tsx` consome exatamente `useProjects`, `useBuildStats` e
+  `useCloudApi` (billing). O que ela renderiza é PROJECTS · DEPLOYS (7D) · ACTIVE ENVS · PLAN ·
+  USAGE · DEPLOY ACTIVITY · lista de projetos · quick actions. Tudo aplicações e cobrança.
+
+  O menu lateral declara, sob `CAPABILITIES`: Memory, Knowledge Base, Databases (Soon),
+  Workspace, Observability, Trust, Skills e Prompts. **Nenhuma aparece na Overview.**
+
+  O QUE MUDOU: a plataforma cresceu sete capacidades, e cada uma ganhou a SUA PRÓPRIA página de
+  overview — `lens/overview.tsx`, `memory/overview.tsx`, `promptly/overview.tsx`,
+  `rag/overview.tsx`. A overview da PLATAFORMA nunca foi atualizada junto. Hoje existem sete
+  overviews de capacidade e nenhuma de plataforma.
+
+  O custo é de primeira impressão, e ele é assimétrico: quem entra pela primeira vez conclui
+  que o produto é um PaaS de deploy, e as outras sete capacidades passam a depender de alguém
+  ir clicar no menu para descobrir que existem. Uma capacidade ausente da tela principal é
+  indistinguível, para quem chega, de uma capacidade que não existe.
+status: raw
+dod:
+  - toda capacidade declarada no registro do menu aparece em `/` — afirmado por teste que QUANTIFICA sobre o registro, não por uma lista escrita à mão (uma lista fixa passaria verde no dia em que a nona capacidade fosse criada e esquecida, que é este mesmo defeito um nível acima)
+  - os três estados são distinguíveis na tela e no teste — "não adotada" ≠ "zero" ≠ "não consegui ler"; uma capacidade que aparece vazia por falha de leitura convida a concluir que ela não serve
+  - o custo por carregamento está declarado: a tela mais visitada do produto não passa a disparar uma requisição por capacidade sem ADR que registre a decisão
+decisao_pendente: |
+  Medido no intake: NÃO existe endpoint de resumo por capacidade (o único agregado no dashboard
+  é `/api/v1/builds/stats`). O número de cada card viria de chamar a lista de cada capacidade
+  (~9 requisições no primeiro carregamento, algumas paginadas — entrega hoje e paga todo dia) ou
+  de um agregado no backend (uma requisição, dependente de trabalho fora do dashboard).
+  Recomendação registrada: o agregado; e enquanto ele não existe, os cards mostram a capacidade
+  e o caminho de entrada SEM número — o que já resolve o problema central sem comprar custo
+  permanente. Decisão final em `/to-plan`, com ADR.
