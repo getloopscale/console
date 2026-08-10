@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { cloudFetch } from '@/lib/http/api';
+import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 
 interface Project {
@@ -70,7 +70,7 @@ export function useProjects(
   const query = useQuery({
     queryKey: [...queryKeys.projects.list(), { limit }] as const,
     queryFn: () =>
-      cloudFetch<ProjectsResponse>(`/engine/api/v1/projects?limit=${limit}`, {}, { throwOnError: true }),
+      engineFetch<ProjectsResponse>(`/api/v1/projects?limit=${limit}`, {}, { throwOnError: true }),
   });
   return {
     projects: query.data?.projects ?? [],

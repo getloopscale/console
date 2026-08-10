@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { cloudFetch } from '@/lib/http/api';
+import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 import type { RollbackResponse } from '@/lib/api/types';
 
@@ -18,8 +18,8 @@ export function useRollback() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (vars: { projectName: string; environment: string; buildId: string }) =>
-      cloudFetch<RollbackResponse>(
-        `/engine/api/v1/projects/${encodeURIComponent(vars.projectName)}/rollback`,
+      engineFetch<RollbackResponse>(
+        `/api/v1/projects/${encodeURIComponent(vars.projectName)}/rollback`,
         {
           method: 'POST',
           // Por chamada, nunca por diálogo: reverter tem efeito de mundo real, e

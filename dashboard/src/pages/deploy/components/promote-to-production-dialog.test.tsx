@@ -12,15 +12,17 @@ vi.mock('@/hooks/deploy/use-mutation-in-flight', () => ({
   useStartMutation: () => vi.fn(),
   useEndMutation: () => vi.fn(),
 }));
+// B-113 — `usePromote` passou de `cloudFetch('/engine/api/v1/…')` para `engineFetch('/api/v1/…')`.
+// Mesma URL final, mesma requisição; um vocabulário só para endereçar a engine.
 vi.mock('@/lib/http/api', async (orig) => {
   const actual = await orig<typeof import('@/lib/http/api')>();
-  return { ...actual, cloudFetch: vi.fn() };
+  return { ...actual, engineFetch: vi.fn() };
 });
 
 import { PromoteToProductionDialog } from './promote-to-production-dialog';
-import { cloudFetch } from '@/lib/http/api';
+import { engineFetch } from '@/lib/http/api';
 
-const mockCloudFetch = vi.mocked(cloudFetch);
+const mockCloudFetch = vi.mocked(engineFetch);
 
 /**
  * Plano `modal-primitive-consolidation` — a lacuna que o `/review` isolou.
@@ -78,7 +80,7 @@ beforeEach(() => {
 describe('PromoteToProductionDialog', () => {
   it('o botão do rodapé alcança o form do corpo e dispara a promoção', async () => {
     // A asserção central. O botão vive no `footer` do `AppModal`, fora do
-    // `<form>`; só o `form="…"` os liga. Sem ele, `cloudFetch` nunca é chamado e
+    // `<form>`; só o `form="…"` os liga. Sem ele, `engineFetch` nunca é chamado e
     // NADA na tela denuncia isso.
     abrir();
 
@@ -90,7 +92,7 @@ describe('PromoteToProductionDialog', () => {
 
     await waitFor(() => expect(mockCloudFetch).toHaveBeenCalledTimes(1));
     const [url, init] = mockCloudFetch.mock.calls[0];
-    expect(url).toBe('/engine/api/v1/projects/demo/promote');
+    expect(url).toBe('/api/v1/projects/demo/promote');
     expect(JSON.parse(String((init as RequestInit).body))).toEqual({
       from: 'preview-42',
       to: 'production',

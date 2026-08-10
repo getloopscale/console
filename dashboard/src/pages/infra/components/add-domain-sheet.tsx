@@ -3,10 +3,10 @@ import { Loader2 } from 'lucide-react';
 import { Button, Input, Label, Select } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
-import { useEngineApi } from '@/hooks/use-api';
+import { useProjects } from '@/hooks/projects/use-projects';
 import { useAddDomain } from '@/hooks/mutations/use-domains';
 import { useEnvironments } from '@/hooks/use-environments';
-import type { Domain, Project } from '@/lib/api/types';
+import type { Domain } from '@/lib/api/types';
 
 interface AddDomainSheetProps {
   open: boolean;
@@ -37,8 +37,12 @@ export function AddDomainSheet({
 
   // M18: bind project / app / environment from real sources instead of free text,
   // so a typo can't register a domain against a non-existent workload.
-  const { data: projectsData } = useEngineApi<{ projects: Project[] }>('/api/v1/projects');
-  const projects = projectsData?.projects ?? [];
+  // B-113 — a lista vem do hook canônico, e não de uma segunda leitura própria.
+  // Esta folha lia por `useEngineApi('/api/v1/projects')`, chave `['engine','/api/v1/projects']`.
+  // Era a MESMA requisição que `useProjects` faz (`engineFetch(p)` é `cloudFetch('/engine'+p)`) —
+  // só a chave divergia. E `use-bulk-delete-projects` invalida `['projects']`, que não alcança
+  // `['engine', …]`: com `staleTime` de 60s, um projeto apagado continuava sendo oferecido aqui.
+  const { projects } = useProjects();
   const selectedProject = projects.find((p) => p.name === project);
   const apps = selectedProject?.apps ?? [];
   const { envs } = useEnvironments(project);

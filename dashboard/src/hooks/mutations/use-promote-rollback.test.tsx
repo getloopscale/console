@@ -3,10 +3,14 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 
+// B-113 — o hook passou de `cloudFetch('/engine/api/v1/…')` para `engineFetch('/api/v1/…')`.
+// A URL final e a requisição são as MESMAS (`engineFetch(p)` é `cloudFetch('/engine' + p)`); o que
+// muda é haver UM vocabulário para endereçar a engine, em vez de dois. O mock segue a fonte, e as
+// asserções de path abaixo passam a afirmar o caminho sem o prefixo repetido à mão.
 const mockCloudFetch = vi.fn();
 vi.mock('@/lib/http/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/http/api')>('@/lib/http/api');
-  return { ...actual, cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) };
+  return { ...actual, engineFetch: (...a: unknown[]) => mockCloudFetch(...a) };
 });
 
 import { usePromote } from './use-promote';
@@ -44,7 +48,7 @@ describe('usePromote / useRollback (B-013)', () => {
     // O nome do projeto vai codificado: um projeto com espaço ou barra montaria
     // uma URL diferente da pretendida, e o alvo de uma promoção é o último
     // lugar onde isso pode acontecer em silêncio.
-    expect(path).toBe('/engine/api/v1/projects/app%20x/promote');
+    expect(path).toBe('/api/v1/projects/app%20x/promote');
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       from: 'preview-7',
       to: 'production',
@@ -99,7 +103,7 @@ describe('usePromote / useRollback (B-013)', () => {
     await result.current.mutateAsync({ projectName: 'p', environment: 'production', buildId: 'b-9' });
 
     const [path, init] = mockCloudFetch.mock.calls[0];
-    expect(path).toBe('/engine/api/v1/projects/p/rollback');
+    expect(path).toBe('/api/v1/projects/p/rollback');
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       environment: 'production',
       build_id: 'b-9',

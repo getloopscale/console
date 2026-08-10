@@ -5,8 +5,8 @@ import { Button, Checkbox, Input, Label, Select } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { useCreateEnvironment } from '@/hooks/mutations/use-environments';
-import { useEngineApi } from '@/hooks/use-api';
-import type { Environment, Project } from '@/lib/api/types';
+import { useProjects } from '@/hooks/projects/use-projects';
+import type { Environment } from '@/lib/api/types';
 
 interface CreateEnvironmentSheetProps {
   open: boolean;
@@ -50,8 +50,12 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: projectsData, error: projectsError } = useEngineApi<{ projects: Project[] }>('/api/v1/projects');
-  const projects = projectsData?.projects ?? [];
+  // B-113 — a lista vem do hook canônico, e não de uma segunda leitura própria.
+  // Esta folha lia por `useEngineApi('/api/v1/projects')`, chave `['engine','/api/v1/projects']`.
+  // Era a MESMA requisição que `useProjects` faz (`engineFetch(p)` é `cloudFetch('/engine'+p)`) —
+  // só a chave divergia. E `use-bulk-delete-projects` invalida `['projects']`, que não alcança
+  // `['engine', …]`: com `staleTime` de 60s, um projeto apagado continuava sendo oferecido aqui.
+  const { projects, loading: projectsLoading, error: projectsError } = useProjects();
   const hasProjects = projects.length > 0;
   const singleProject = projects.length === 1;
 
@@ -140,7 +144,11 @@ export function CreateEnvironmentSheet({ open, onOpenChange, defaultProject, onC
 
   // EC-2: zero projects → render an actionable empty state instead of
   // a form the user cannot submit.
-  if (!hasProjects && projectsData !== undefined) {
+  // `!projectsLoading` e não `data !== undefined`: a condição antiga tratava uma leitura em
+  // andamento — e, antes do `throwOnError`, uma leitura que FALHOU — como "zero projetos", e
+  // oferecia "crie um projeto" a quem já tem. É o `B-094` outra vez, e o erro já tem o seu próprio
+  // ramo trinta linhas acima.
+  if (!hasProjects && !projectsLoading) {
     return (
       <AppModal
         open={open}

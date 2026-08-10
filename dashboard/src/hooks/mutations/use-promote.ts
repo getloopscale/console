@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { cloudFetch } from '@/lib/http/api';
+import { engineFetch } from '@/lib/http/api';
 import { queryKeys } from '@/lib/api/query-keys';
 import type { PromoteResponse } from '@/lib/api/types';
 
@@ -36,8 +36,8 @@ export function usePromote() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (vars: { projectName: string; fromEnvironment: string }) =>
-      cloudFetch<PromoteResponse>(
-        `/engine/api/v1/projects/${encodeURIComponent(vars.projectName)}/promote`,
+      engineFetch<PromoteResponse>(
+        `/api/v1/projects/${encodeURIComponent(vars.projectName)}/promote`,
         {
           method: 'POST',
           headers: { 'Idempotency-Key': crypto.randomUUID() },

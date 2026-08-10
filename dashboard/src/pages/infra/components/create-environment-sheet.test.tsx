@@ -10,9 +10,11 @@ vi.mock('@/lib/http/api', () => ({
   engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
 }));
 
-const mockUseEngineApi = vi.fn();
-vi.mock('@/hooks/use-api', () => ({
-  useEngineApi: () => mockUseEngineApi(),
+// B-113 — a folha lê a lista pelo hook canônico (`useProjects`), e não mais por uma segunda
+// leitura própria sob `['engine','/api/v1/projects']`. O mock acompanha a fonte.
+const mockUseProjects = vi.fn();
+vi.mock('@/hooks/projects/use-projects', () => ({
+  useProjects: () => mockUseProjects(),
 }));
 
 import { CreateEnvironmentSheet } from './create-environment-sheet';
@@ -24,8 +26,8 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
 
   // EC-2: 0 projects → empty state, no form
   it('test_M2_renders_empty_state_when_no_projects', () => {
-    mockUseEngineApi.mockReturnValue({
-      data: { projects: [] },
+    mockUseProjects.mockReturnValue({
+      projects: [],
       loading: false,
       error: false,
     });
@@ -41,8 +43,8 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
 
   // Auto-fill rule: exactly 1 project → the picker is auto-selected.
   it('test_M2_auto_fills_when_single_project', () => {
-    mockUseEngineApi.mockReturnValue({
-      data: { projects: [{ name: 'web' }] },
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'web' }],
       loading: false,
       error: false,
     });
@@ -55,8 +57,8 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
 
   // ≥2 projects → user picks (NO auto-fill, NO read-only).
   it('test_M2_renders_select_with_multiple_projects', () => {
-    mockUseEngineApi.mockReturnValue({
-      data: { projects: [{ name: 'web' }, { name: 'api' }] },
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'web' }, { name: 'api' }],
       loading: false,
       error: false,
     });
@@ -70,8 +72,8 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
   // picker is pre-selected + locked, and the POST targets that project even
   // when the tenant has multiple projects (no "pick a project" step).
   it('test_M20_defaultProject_locks_and_preselects_the_project', async () => {
-    mockUseEngineApi.mockReturnValue({
-      data: { projects: [{ name: 'web' }, { name: 'api' }] }, // 2 projects
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'web' }, { name: 'api' }], // 2 projects
       loading: false,
       error: false,
     });
@@ -90,8 +92,8 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
 
   // POST body includes the project field — defends T4.1 contract.
   it('test_M2_post_body_includes_project', async () => {
-    mockUseEngineApi.mockReturnValue({
-      data: { projects: [{ name: 'web' }] },
+    mockUseProjects.mockReturnValue({
+      projects: [{ name: 'web' }],
       loading: false,
       error: false,
     });
