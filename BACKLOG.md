@@ -3604,7 +3604,7 @@ fechado_2026-08-10: |
     antes  <p  id="radix-_r_b_"><div class="space-y-2 text-sm"><p>This webhook wil…
     depois <div id="radix-_r_b_" class="text-sm text-muted-foreground"><div…><p>This webhook wil…
 
-## B-105 — `ConfirmDialog` fecha só no sucesso, e essa regra não tem teste   [ ]
+## B-105 — `ConfirmDialog` fecha só no sucesso, e essa regra não tem teste   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -3620,10 +3620,28 @@ why_now: |
   Achado pelo agente de testes durante o `/review` da consolidação (F-tests-5, 2026-08-10).
   A migração trocou o primitivo sob esse componente sem que nada provasse que a regra
   sobreviveu — ela sobreviveu, mas por sorte de leitura, não por medição.
-status: raw
+status: shipped
 dod:
   - teste que falha se `onOpenChange(false)` passar a rodar quando `onConfirm` lança
   - o caso positivo (fecha no sucesso) coberto no mesmo arquivo
+fechado_2026-08-10: |
+  O par de casos existe, e ESCREVE-LOS ACHOU UM DEFEITO QUE O ITEM NAO PREVIA.
+
+  A regra estava certa — o dialogo nao fecha quando `onConfirm` lanca. Mas o `try/finally`
+  nao tinha `catch`, e `onClick={() => void confirm()}` deixava a rejeicao escapar: cada
+  falha virava uma unhandled rejection. Nao e ruido — o `vitest` SAI 1 nela. Ou seja, o caso
+  negativo era impossivel de escrever sem primeiro consertar o vazamento, que e a razao mais
+  concreta possivel para o item ter existido.
+
+  E a meia-correcao que o vazamento escondia: ficar aberto SEM DIZER NADA e um dialogo que
+  nao respondeu. Quem clicou nao distingue "falhou" de "travou" de "o clique nao pegou".
+  `error-handling.md § 3` pede falhar alto E claro. Acrescentado um `Alert` destrutivo com a
+  mensagem ESPECIFICA dentro do proprio painel — idioma que `redeploy-dialog.tsx:109` ja
+  usava (degrau 4 da ladder). Aditivo para os 29 consumidores: aparece so quando a acao
+  falha, onde antes nao aparecia nada.
+
+  Os dois casos afirmam efeito observavel, nao "lanca": fecha no sucesso; no erro NAO fecha
+  E a mensagem aparece na tela.
 
 ## B-106 — Aparência renderizada de modal não tem instrumento; a revisão manual já falhou uma vez   [ ]
 

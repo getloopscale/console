@@ -172,4 +172,68 @@ describe('ConfirmDialog — fechamento (T1.1)', () => {
     await userEvent.click(screen.getByRole('button', { name: /close/i }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+  /**
+   * B-105 — o par que faltava: fecha no sucesso, NÃO fecha no erro.
+   *
+   * `confirm-dialog.tsx:67-76` chama `onOpenChange(false)` DEPOIS do `await onConfirm()`,
+   * dentro do `try`. Se a ação lançar, o diálogo continua aberto — que é o comportamento
+   * certo numa confirmação destrutiva, e exatamente por isso precisava de teste: **29
+   * consumidores** dependem dele, e a consolidação de modais trocou o primitivo debaixo
+   * deste componente sem que nada provasse que a regra sobreviveu. Ela sobreviveu por
+   * leitura, não por medição.
+   *
+   * Fechar em cima de um erro é o pior desfecho possível aqui: quem clicou "Excluir" vê o
+   * diálogo sumir e conclui que excluiu. Não excluiu.
+   */
+  it('fecha quando a ação de confirmação conclui', async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        onOpenChange={onOpenChange}
+        title="Excluir ambiente"
+        description="Isto é irreversível."
+        onConfirm={() => Promise.resolve()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it('NÃO fecha quando a ação de confirmação falha', async () => {
+    // O caso negativo, e o que o `testing.md § 4.1` chama de prova do error handling:
+    // não basta "lança" — o que se afirma é o efeito observável de ter lançado.
+    const onOpenChange = vi.fn();
+    const falha = vi.fn(() => Promise.reject(new Error('o servidor recusou')));
+    render(
+      <ConfirmDialog
+        open
+        onOpenChange={onOpenChange}
+        title="Excluir ambiente"
+        description="Isto é irreversível."
+        onConfirm={falha}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+
+    await waitFor(() => expect(falha).toHaveBeenCalledTimes(1));
+    expect(
+      onOpenChange,
+      'o diálogo fechou apesar de a ação ter falhado — quem clicou vai acreditar que a ação aconteceu',
+    ).not.toHaveBeenCalledWith(false);
+
+    // A outra metade, e a que faltava no produto até este teste ser escrito: ficar aberto
+    // SEM DIZER NADA é um diálogo que não respondeu. O usuário não distingue "falhou" de
+    // "travou" de "o clique não pegou". `error-handling.md § 3` — falhar alto E claro.
+    //
+    // A mensagem específica, não um genérico: um "algo deu errado" não diz a quem está
+    // lendo se ele deve tentar de novo, corrigir a entrada, ou chamar alguém.
+    expect(
+      await screen.findByText(/o servidor recusou/i),
+      'a falha não apareceu na tela',
+    ).toBeInTheDocument();
+  });
 });

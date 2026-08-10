@@ -16,6 +16,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button, Input } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
+import { Alert } from '@/components/ui/alert-guard';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -48,11 +49,13 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (open) {
       setTyped('');
+      setErro(null);
       // Focus Cancel on open, not the destructive action.
       const t = setTimeout(() => cancelRef.current?.focus(), 0);
       return () => clearTimeout(t);
@@ -68,8 +71,26 @@ export function ConfirmDialog({
     if (!canConfirm) return;
     try {
       setBusy(true);
+      setErro(null);
       await onConfirm();
       onOpenChange(false);
+    } catch (e) {
+      // O `catch` que faltava, e por que ele NÃO é engolir o erro (B-105).
+      //
+      // O diálogo já não fechava quando `onConfirm` lançava — correto: fechar em cima de um
+      // erro faz quem clicou "Excluir" acreditar que excluiu. Mas ele também não DIZIA nada,
+      // e a rejeição escapava sem `catch`: `onClick={() => void confirm()}` transformava
+      // cada falha numa unhandled rejection. Medido — o teste do caso negativo, ao ser
+      // escrito, fez o `vitest` sair 1 com `Unhandled Rejection: o servidor recusou`.
+      //
+      // Ficar aberto sem explicação é meia correção: o usuário vê um diálogo que não
+      // respondeu e não sabe se a ação falhou, se travou, ou se o clique não pegou.
+      // `error-handling.md § 3` pede falhar ALTO e CLARO — o erro sobe até quem sabe
+      // tratá-lo, e aqui quem sabe é a tela que o usuário está olhando.
+      //
+      // O idioma é o de `redeploy-dialog.tsx:109`, que já mostrava a falha num `Alert`
+      // dentro do próprio painel. Degrau 4 da ladder: o padrão existia no repositório.
+      setErro(e instanceof Error ? e.message : 'A ação falhou. Tente novamente em instantes.');
     } finally {
       setBusy(false);
     }
@@ -100,6 +121,7 @@ export function ConfirmDialog({
         </>
       }
     >
+      {erro ? <Alert intent="destructive" description={erro} /> : null}
       {phraseRequired ? (
         <div className="space-y-1.5">
           <p className="text-sm text-muted-foreground">
