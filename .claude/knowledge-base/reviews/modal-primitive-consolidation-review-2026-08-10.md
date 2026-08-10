@@ -1174,3 +1174,46 @@ os 5 HIGH fechados e verificados; o débito restante é MEDIUM/LOW, real, nomead
 registrado. Per `cycle-review.md`, esse é exatamente o caso que este token existe para
 descrever — em vez de esticar `READY_TO_MERGE` sobre débito reconhecido, ou de alegar
 `NEEDS_FIXES` quando o trabalho bloqueante está demonstravelmente fechado.
+
+
+---
+
+## § Adendo — o que os cinco agentes NÃO podiam ver
+
+Escrito depois do veredito, e por isso um adendo em vez de uma edição: nenhum dos cinco
+agentes tinha como encontrar isto, e o veredito acima foi computado sobre um estado em que
+**a suíte de jornadas do navegador estava silenciosamente morta**.
+
+O job `e2e-ui` do CI estava vermelho há três runs. A causa não era instabilidade nem
+ambiente: `b423ae99` (a reorganização de `components/`, desta mesma sessão) moveu
+`lens-capabilities.ts`, e um spec do Playwright continuou importando o caminho antigo. O
+Playwright falha o **módulo inteiro** no carregamento, então o job saía com
+`Total: 0 tests in 0 files` — e o vermelho parecia ser de outra coisa.
+
+Nada acusou porque `tsconfig.json` declara `"include": ["src"]`: `e2e/` estava fora do
+verificador de tipos. Typecheck verde, lint verde, 2764 testes de unidade verdes, e um
+import quebrado no único diretório que ninguém verificava.
+
+**Com a suíte voltando a carregar, o placar foi 118 passaram / 11 falharam** — e `develop`
+estava verde em 2026-08-07 com a suíte rodando. Onze regressões entraram nesta branch e
+ficaram invisíveis. Todas diagnosticadas com causa medida, nenhuma arquivada como flake:
+
+| O quê | Causa medida |
+|---|---|
+| **6 casos** — a timeline de deploy travava em `queued` **para sempre** | `B-088` trocou o transporte SSE do `EventSource` global por `FetchEventSource` (para tirar o JWT da URL). `installSSEMocks()` funciona substituindo `window.EventSource`, e `fetch` não é `window.EventSource`: as chamadas passaram a bater no proxy do Vite → `ECONNREFUSED 127.0.0.1:13002` → 500. **A única regressão de produto.** |
+| **1** — billing | O teste assertava `upgrade to pro`, o botão do estado de FALLBACK. Passava porque o mock de billing nunca casava e a tela levava 500 |
+| **2** — modal de limite de plano | O evento era disparado antes de o React montar. Medido: `waitUntil=load` → app montado `false` → modal não abre |
+| **1** — a11y do onboarding | Cobrava um painel que só existe com onboarding INCOMPLETO; a conta mockada satisfaz os cinco passos. Reprovava um produto certo |
+| **1** — abas do promptly | `name` do `getByRole` casa substring, e o indicador de status passou a publicar "…1 not **config**ured" |
+| **2** — referências visuais | A de billing era **a foto de uma tela quebrada**: plano "Starter/FREE" numa conta `pro`, seção de uso ausente, "Couldn't load invoices" em vermelho |
+
+**O que isto diz sobre o veredito acima.** Ele continua válido para o que mediu — a
+consolidação de modais. Mas foi computado num repositório onde o gate de jornadas reportava
+sucesso por não rodar, e vale registrar que **nenhuma das cinco lentes do `/review` cobre
+"os gates que a CI executa estão de fato executando"**. Foi o `e2e-ui` vermelho, olhado por
+curiosidade depois do veredito, que abriu isto — não o review.
+
+Gate acrescentado para que a classe não volte: `npm run typecheck` passou a cobrir
+`e2e/tsconfig.json`, e o `quality.yml` ganhou um passo próprio para ele — porque a esteira
+não chama `npm run typecheck`, ela chama `npm run build`, e `tsc -b` só constrói o projeto
+raiz. Sondado: reintroduzir o caminho antigo produz `TS2307` no gate.
