@@ -51,7 +51,7 @@ export function TagsCard({ novaTag, setNovaTag, erroDeTag, marcando, tags }: Pro
                 {t}
                 <button
                   type="button"
-                  aria-label={`Remover a tag ${t}`}
+                  aria-label={`Remove the ${t} tag`}
                   disabled={marcando.isPending}
                   onClick={() => { marcando.mutate(tags.filter((x) => x !== t)); }}
                   className="text-muted-foreground hover:text-destructive"

@@ -300,7 +300,7 @@ export function BundleDetailPage() {
                       )
                     }
                   >
-                    Remover
+                    Remove
                   </Button>
                 </li>
               ))}
@@ -360,7 +360,7 @@ export function BundleDetailPage() {
               >
                 <option value="">
                   {skillEscolhida === ''
-                    ? 'escolha a skill antes'
+                    ? 'choose the skill first'
                     : canaisQuery.loading
                       ? 'carregando…'
                       : 'selecione…'}

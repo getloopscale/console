@@ -236,7 +236,7 @@ export function SkillsOverviewPage() {
               description={
                 failed
                   ? 'Try again in a moment. Until then, there is no way to know what the registry holds.'
-                  : 'Publique uma skill pela CLI para que os agentes deste workspace possam descobri-la.'
+                  : 'Publish a skill through the CLI so the agents in this workspace can discover it.'
               }
             />
           }

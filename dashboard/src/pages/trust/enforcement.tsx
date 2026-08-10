@@ -93,7 +93,7 @@ export function TrustEnforcementPage() {
     },
     {
       key: 'createdAt',
-      label: 'Quando',
+      label: 'When',
       align: 'right',
       // Data legível — o ISO cru obriga o operador a converter de cabeça justamente no
       // momento em que ele está investigando um incidente.
@@ -127,7 +127,7 @@ export function TrustEnforcementPage() {
             <h2>Recorded actions</h2>
           </Card.Title>
           <Card.Description>
-            {blockedCount(rows)} bloqueio(s) entre {rows.length} registro(s).
+            {blockedCount(rows)} block(s) among {rows.length} record(s).
           </Card.Description>
         </Card.Header>
 

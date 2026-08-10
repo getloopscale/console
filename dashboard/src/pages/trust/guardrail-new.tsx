@@ -147,7 +147,7 @@ export function TrustGuardrailNewPage() {
   return (
     <PageShell
       title="New guardrail"
-      description="Os termos abaixo passam a ser bloqueados nas conversas deste workspace assim que a regra for salva."
+      description="The terms below start being blocked in this workspace conversations as soon as the rule is saved."
     >
       <GuardrailRuleFields
         draft={draft}
@@ -190,7 +190,7 @@ export function TrustGuardrailNewPage() {
               onClick={() => void onTest()}
             >
               <FlaskConical className="size-4" />
-              {busy === 'testing' ? 'Testando…' : 'Testar'}
+              {busy === 'testing' ? 'Testing…' : 'Test'}
             </Button>
 
             {/* Um botão cinza sem motivo faz o operador procurar o que não existe. Os erros por

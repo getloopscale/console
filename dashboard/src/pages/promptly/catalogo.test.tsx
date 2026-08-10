@@ -320,7 +320,7 @@ describe('PromptlyCatalogoPage — recortes vindos do endereço', () => {
   it('recorta por não-promovidos quando o endereço pede', async () => {
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?recorte=nao-promovidos'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?recorte=not-promoted'] });
 
     // `saudacao` (v3, prod→v1) e `despedida` (v1, sem label) não estão no ar; `agentbuilder-base`
     // (v2, prod→v2) está.
@@ -332,7 +332,7 @@ describe('PromptlyCatalogoPage — recortes vindos do endereço', () => {
   it('anuncia o recorte ativo e oferece a saída dele', async () => {
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?recorte=nao-promovidos'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?recorte=not-promoted'] });
 
     expect(await screen.findByRole('heading', { name: /not promoted/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /see all/i })).toBeInTheDocument();
@@ -549,7 +549,7 @@ describe('PromptlyCatalogoPage — tags (M16)', () => {
     render(<PromptlyCatalogoPage />);
     await screen.findByText('suporte');
 
-    await userEvent.click(screen.getByRole('button', { name: /filtrar por suporte/i }));
+    await userEvent.click(screen.getByRole('button', { name: /filter by suporte/i }));
 
     await vi.waitFor(() =>
       expect(mockCatalog).toHaveBeenCalledWith(

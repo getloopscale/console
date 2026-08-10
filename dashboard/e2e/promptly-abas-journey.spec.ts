@@ -97,8 +97,8 @@ test.describe('M21 — as quatro perguntas do detalhe', () => {
     // falso-verde: o DoD diz "copiar o trecho e executá-lo", e um bloco visível sem botão que
     // funcione não cumpre a primeira metade.
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.getByRole('button', { name: /Copiar o trecho REST/ }).click();
-    await expect(page.getByRole('button', { name: /Copiar o trecho REST/ })).toHaveText('Copiado');
+    await page.getByRole('button', { name: /Copy the REST snippet/ }).click();
+    await expect(page.getByRole('button', { name: /Copy the REST snippet/ })).toHaveText('Copied');
     const copiado = await page.evaluate(() => navigator.clipboard.readText());
     expect(copiado).toContain('curl');
     expect(copiado).toContain('saudacao');

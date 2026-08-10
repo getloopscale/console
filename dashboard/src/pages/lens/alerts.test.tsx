@@ -368,7 +368,7 @@ describe('LensAlertsPage — M22, o formulário ensina em vez de ralhar', () => 
     await userEvent.click(screen.getByRole('combobox', { name: /Metric/i }));
     await userEvent.click(await screen.findByRole('option', { name: /prompt/i }));
 
-    expect(screen.queryByText(/Diga qual prompt/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Say which prompt/i)).not.toBeInTheDocument();
   });
 
   it('DIZ por que não dá para criar, depois de tocar o campo', async () => {
@@ -384,7 +384,7 @@ describe('LensAlertsPage — M22, o formulário ensina em vez de ralhar', () => 
     await userEvent.type(campo, 'x');
     await userEvent.clear(campo); // tocado, e agora vazio
 
-    expect(await screen.findByText(/Diga qual prompt/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Say which prompt/i)).toBeInTheDocument();
   });
 });
 

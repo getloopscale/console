@@ -121,7 +121,7 @@ export function violationColumns(
     },
     {
       key: 'conversation',
-      label: 'Conversa',
+      label: 'Conversation',
       align: 'right',
       render: (row) =>
         row.conversationId ? (
@@ -130,7 +130,7 @@ export function violationColumns(
             size="sm"
             onClick={() => onOpen(row.conversationId ?? null)}
           >
-            Abrir
+            Open
           </Button>
         ) : (
           DASH

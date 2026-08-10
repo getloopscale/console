@@ -63,15 +63,15 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
 
     // ---- O PREVIEW RENDERIZA SEM CHAMAR MODELO --------------------------------------------
     await page.getByLabel('Prompt name').fill('boas-vindas');
-    await page.getByLabel('Prompt text').fill('Hello {{name}}, bem-vindo ao {{produto}}.');
+    await page.getByLabel('Prompt text').fill('Hello {{name}}, welcome to {{product}}.');
 
     // Campo em branco deixa o marcador À VISTA — o buraco não pode passar despercebido.
-    await expect(page.getByTestId('promptly-preview')).toContainText('{{nome}}');
+    await expect(page.getByTestId('promptly-preview')).toContainText('{{name}}');
 
-    await page.getByLabel('nome', { exact: true }).fill('Paulo');
+    await page.getByLabel('name', { exact: true }).fill('Paulo');
     await expect(page.getByTestId('promptly-preview')).toContainText('Hello Paulo');
     // E o que segue em branco continua marcado: o preview mostra o estado real, não um otimista.
-    await expect(page.getByTestId('promptly-preview')).toContainText('{{produto}}');
+    await expect(page.getByTestId('promptly-preview')).toContainText('{{product}}');
 
     // ---- O PORQUÊ É OBRIGATÓRIO (M17) ------------------------------------------------------
     // Sem descrição o botão fica DESABILITADO — a recusa acontece antes do clique, e não
@@ -104,7 +104,7 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
     // O campo de busca só existe no catálogo: a ausência dele prova a troca.
     await expect(page).toHaveURL(/\/promptly\/saudacao$/);
     await expect(page.getByRole('searchbox')).toHaveCount(0);
-    await page.getByRole('link', { name: /comparar/i }).click();
+    await page.getByRole('link', { name: /compare/i }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao\/diff$/);
 
     // A tela precisa ter TERMINADO de carregar antes de qualquer contagem. `count()` NÃO
@@ -121,7 +121,7 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
     // ---- REVERTER: o verbo que fechava a jornada e faltava no e2e (FU-1) -------------------
     // Vai no MESMO teste, não num novo: a DoD pede UM e2e da jornada, e um segundo arquivo
     // provaria os passos isolados em vez da costura entre eles.
-    await page.getByRole('link', { name: /voltar para saudacao/i }).click();
+    await page.getByRole('link', { name: /back to saudacao/i }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao$/);
 
     await page.getByLabel(/Roll back to revision v1/i).first().click();
@@ -129,10 +129,10 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
     // A confirmação nomeia a revisão que será CRIADA. Um texto de "volta para a v1" faria o
     // operador esperar o histórico encolher, e ele nunca encolhe.
     await expect(page.getByText(/creates revision v\d+/i)).toBeVisible();
-    await expect(page.getByText(/volta para/i)).toHaveCount(0);
+    await expect(page.getByText(/back to/i)).toHaveCount(0);
 
     await page.getByRole('textbox').last().fill('saudacao');
-    await page.getByRole('button', { name: /^reverter$/i }).click();
+    await page.getByRole('button', { name: /^roll back$/i }).click();
 
     // Este prompt serve DOIS ambientes, então reverter sem nomear um produz a recusa tipada
     // `400 label_required` — e a tela tem de transformá-la em ESCOLHA, não repetir o erro.

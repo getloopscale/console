@@ -36,8 +36,8 @@ const payload = {
 describe('enforcementRows', () => {
   it('traduz a decisão para TEXTO, não só cor', () => {
     const rows = enforcementRows(payload);
-    expect(rows[0].decisionLabel).toBe('Bloqueado');
-    expect(rows[1].decisionLabel).toBe('Liberado');
+    expect(rows[0].decisionLabel).toBe('Blocked');
+    expect(rows[1].decisionLabel).toBe('Allowed');
   });
 
   it('preserva o marcador redigido', () => {
@@ -68,7 +68,7 @@ describe('enforcementRows', () => {
   it('trata decisão desconhecida sem quebrar e sem mentir', () => {
     const rows = enforcementRows({ events: [{ id: 'x', decision: 'algo-novo' }] });
     expect(rows[0].decision).toBe('unknown');
-    expect(rows[0].decisionLabel).toBe('Desconhecido');
+    expect(rows[0].decisionLabel).toBe('Unknown');
   });
 
   it('substitui campo ausente por travessão em vez de "undefined"', () => {

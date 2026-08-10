@@ -43,12 +43,12 @@ type EstadoVazio = 'falha-de-leitura' | 'catalogo-vazio' | 'filtro-sem-resultado
  * existe agora, e o recorte vive no ENDEREÇO: colar o link leva outra pessoa à mesma lista.
  */
 const RECORTES = {
-  'nao-promovidos': {
+  'not-promoted': {
     titulo: 'Not promoted',
     descricao: 'Prompts whose latest revision no label serves — written and not live.',
     casa: (r: CatalogRow) => r.latestVersion > maiorVersaoServida(r.labels),
   },
-  'sem-ambiente': {
+  'no-environment': {
     titulo: 'No environment',
     descricao: 'Prompts that were never promoted: no label points at them.',
     casa: (r: CatalogRow) => !Array.isArray(r.labels) || r.labels.length === 0,
@@ -91,8 +91,17 @@ export function PromptlyCatalogoPage() {
   // O recorte vem da URL, não do estado local: é o que torna o link do painel COLÁVEL. Um valor
   // desconhecido é ignorado (a lista inteira), nunca um erro — um endereço antigo continua abrindo.
   const [params, setParams] = useSearchParams();
+  // Os nomes ANTIGOS, em português, continuam resolvendo. O recorte vive no endereço
+  // justamente para ser colável — um link já mandado num chat não pode deixar de filtrar
+  // porque o produto mudou de idioma. Mesmo raciocínio dos redirects de rota (ADR D2), na
+  // escala menor de um parâmetro: aqui o custo de aceitar os dois é um mapa de duas linhas.
+  const ANTIGOS: Record<string, Recorte> = {
+    'nao-promovidos': 'not-promoted',
+    'sem-ambiente': 'no-environment',
+  };
   const bruto = params.get('recorte');
-  const recorte = recorteValido(bruto) ? bruto : null;
+  const normalizado = bruto !== null && bruto in ANTIGOS ? ANTIGOS[bruto] : bruto;
+  const recorte = recorteValido(normalizado) ? normalizado : null;
   const porPagina = tamanhoValido(params.get('porPagina'));
 
   // M16 — os três filtros de SERVIDOR vivem no endereço, pela mesma razão do recorte: o link é
@@ -233,7 +242,7 @@ export function PromptlyCatalogoPage() {
                 key={t}
                 type="button"
                 onClick={() => { trocarParam({ tag: t }); }}
-                aria-label={`Filtrar por ${t}`}
+                aria-label={`Filter by ${t}`}
                 className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
               >
                 {t}

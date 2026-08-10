@@ -40,7 +40,7 @@ async function openWithValidDraft() {
   const user = userEvent.setup();
   render(<TrustGuardrailNewPage />);
   await user.type(screen.getByLabelText('Name'), 'termos-internos');
-  await user.type(screen.getByLabelText('Termos a bloquear'), 'projeto-fenix');
+  await user.type(screen.getByLabelText('Terms to block'), 'projeto-fenix');
   return user;
 }
 
@@ -48,7 +48,7 @@ const saveButton = () => screen.queryByRole('button', { name: /save/i });
 
 /** Roda o dry-run e devolve o controle já com o caminho de gravação disponível. */
 async function runDryRun(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /testar/i }));
+  await user.click(screen.getByRole('button', { name: /test/i }));
   return screen.findByRole('button', { name: /save/i });
 }
 
@@ -98,7 +98,7 @@ describe('TrustGuardrailNewPage', () => {
     await runDryRun(user);
 
     // Um termo a mais = outra regra. O veredito anterior não fala dela.
-    await user.type(screen.getByLabelText('Termos a bloquear'), '\noutro-termo');
+    await user.type(screen.getByLabelText('Terms to block'), '\noutro-termo');
 
     expect(saveButton()).not.toBeInTheDocument();
     expect(await screen.findByText(/rule changed after the test/i)).toBeInTheDocument();
@@ -145,7 +145,7 @@ describe('TrustGuardrailNewPage', () => {
     mockTest.mockRejectedValueOnce(new ApiError(500));
     const user = await openWithValidDraft();
 
-    await user.click(screen.getByRole('button', { name: /testar/i }));
+    await user.click(screen.getByRole('button', { name: /test/i }));
 
     expect(await screen.findByText(/could not be run/i)).toBeInTheDocument();
     expect(saveButton()).not.toBeInTheDocument();
@@ -208,7 +208,7 @@ describe('TrustGuardrailNewPage', () => {
       // recem-aberta com um botao cinza e nenhuma pista. A frase descreve o proximo passo.
       render(<TrustGuardrailNewPage />);
 
-      expect(screen.getByRole('button', { name: /testar/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /test/i })).toBeDisabled();
       expect(screen.getByText(/name and at least one term/i)).toBeInTheDocument();
     });
 
@@ -217,10 +217,10 @@ describe('TrustGuardrailNewPage', () => {
       render(<TrustGuardrailNewPage />);
 
       await user.type(screen.getByLabelText('Name'), 'regra-x');
-      await user.type(screen.getByLabelText('Termos a bloquear'), 'segredo');
+      await user.type(screen.getByLabelText('Terms to block'), 'segredo');
 
       expect(screen.queryByText(/name and at least one term/i)).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /testar/i })).toBeEnabled();
+      expect(screen.getByRole('button', { name: /test/i })).toBeEnabled();
     });
   });
 });

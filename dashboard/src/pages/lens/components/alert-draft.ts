@@ -59,7 +59,7 @@ function alertProblemsByField(d: AlertDraft): Partial<Record<AlertField, string>
   const out: Partial<Record<AlertField, string>> = {};
 
   if (d.name.trim() === '') out.name = 'Give the alert a name.';
-  if (d.webhookId.trim() === '') out.webhookId = 'Escolha para onde o aviso vai.';
+  if (d.webhookId.trim() === '') out.webhookId = 'Choose where the alert goes.';
 
   const limiar = Number(d.threshold);
   if (d.threshold.trim() === '' || !Number.isFinite(limiar)) {
@@ -71,7 +71,7 @@ function alertProblemsByField(d: AlertDraft): Partial<Record<AlertField, string>
   if (exigeNomeDePrompt(d.metric) && !temNome) {
     // Sem isto o avaliador não tem o que consultar e pula a regra para sempre: o cliente vê uma
     // regra armada que nunca dispara.
-    out.promptName = 'Diga qual prompt este alerta observa.';
+    out.promptName = 'Say which prompt this alert watches.';
   } else if (!exigeNomeDePrompt(d.metric) && temNome) {
     // Aqui o backend simplesmente ignora o campo, e o próximo leitor da regra não sabe dizer se o
     // escopo valia. Recusar é o que mantém a regra legível depois.

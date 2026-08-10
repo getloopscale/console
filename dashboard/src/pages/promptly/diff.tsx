@@ -135,7 +135,7 @@ export function PromptlyDiffPage() {
 
         <div className="flex flex-wrap gap-4 p-6 pt-0">
           <label className="text-sm">
-            <span className="mb-1 block text-muted-foreground">Antes</span>
+            <span className="mb-1 block text-muted-foreground">Before</span>
             <select
               aria-label="Previous revision"
               className="rounded-md border bg-background px-3 py-2 font-mono text-sm"
@@ -149,7 +149,7 @@ export function PromptlyDiffPage() {
             <Porque texto={porqueDe(a)} />
           </label>
           <label className="text-sm">
-            <span className="mb-1 block text-muted-foreground">Depois</span>
+            <span className="mb-1 block text-muted-foreground">After</span>
             <select
               aria-label="Next revision"
               className="rounded-md border bg-background px-3 py-2 font-mono text-sm"

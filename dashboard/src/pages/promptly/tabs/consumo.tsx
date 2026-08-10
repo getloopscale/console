@@ -121,7 +121,7 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
                   <Button
                     variant="secondary"
                     size="sm"
-                    aria-label={`Copiar o trecho ${iface.rotulo}`}
+                    aria-label={`Copy the ${iface.rotulo} snippet`}
                     onClick={() => {
                       // `writeText` pode falhar (permissão negada, contexto inseguro). Falhar em
                       // silêncio deixaria o operador colando o que estava antes na área de
@@ -144,7 +144,7 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
                         });
                     }}
                   >
-                    {copiada === iface.id ? 'Copiado' : 'Copiar'}
+                    {copiada === iface.id ? 'Copied' : 'Copy'}
                   </Button>
                 </div>
                 <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-mono text-xs">

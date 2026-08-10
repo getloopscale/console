@@ -104,7 +104,7 @@ export function PromptlyOverviewPage() {
                 o que o DoD-3 pede. Sem o link, o painel diria "2 não promovidos" e deixaria o
                 operador abrir prompt por prompt para descobrir QUAIS. O recorte vive no endereço,
                 então o link é colável. */}
-            <Link to="/promptly/catalog?recorte=nao-promovidos" aria-label="See the prompts that were never promoted">
+            <Link to="/promptly/catalog?recorte=not-promoted" aria-label="See the prompts that were never promoted">
               <MetricCard
                 title="Not promoted"
                 value={resumo.naoPromovidos}

@@ -31,10 +31,10 @@ export interface EnforcementRow {
 }
 
 const DECISION_LABEL: Record<EnforcementDecision, string> = {
-  block: 'Bloqueado',
-  modify: 'Reescrito',
-  allow: 'Liberado',
-  unknown: 'Desconhecido',
+  block: 'Blocked',
+  modify: 'Rewritten',
+  allow: 'Allowed',
+  unknown: 'Unknown',
 };
 
 function decisionOf(raw: string | undefined): EnforcementDecision {

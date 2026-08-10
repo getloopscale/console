@@ -391,7 +391,7 @@ function SaidaDoModelo({
       return (
         <Alert
           intent="destructive"
-          title="Nada foi enviado ao modelo"
+          title="Nothing was sent to the model"
           description={
             falha.variavelFaltante !== undefined
               ? `Variable "${falha.variavelFaltante}" was left blank. No call was made, and nothing was charged.`

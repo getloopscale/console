@@ -307,7 +307,7 @@ describe('PromptDetailPage', () => {
     mockPromote.mockRejectedValue(
       new ApiError(409, {
         error: 'promotion_blocked',
-        message: 'a promoção exige score ≥ 0.8; a melhor execução obteve 0.41',
+        message: 'promotion requires score ≥ 0.8; the best run of this revision scored 0.41',
         required: 0.8,
         actual: 0.41,
       }),
@@ -318,7 +318,7 @@ describe('PromptDetailPage', () => {
     await user.type(await screen.findByRole('textbox'), 'prod');
     await user.click(screen.getByRole('button', { name: /^Promote$/i }));
 
-    expect(await screen.findByText(/melhor execução obteve 0\.41/i)).toBeInTheDocument();
+    expect(await screen.findByText(/best run of this revision scored 0\.41/)).toBeInTheDocument();
   });
 
   it('a promoção só é emitida depois da confirmação digitada', async () => {
@@ -377,7 +377,7 @@ describe('M12 — ler a revisão INTEIRA (BLOCKER 3)', () => {
   });
 
   it('detail_shows_the_variables_the_service_declares', async () => {
-    mockRevisions.mockResolvedValue([{ version: 1, content: 'Olá {{nome}}', createdAt: '2026-07-28T10:00:00Z', variables: ['nome'] }]);
+    mockRevisions.mockResolvedValue([{ version: 1, content: 'Hello {{name}}', createdAt: '2026-07-28T10:00:00Z', variables: ['nome'] }]);
     render(<PromptDetailPage />);
 
     expect(await screen.findByText('nome')).toBeInTheDocument();
@@ -385,11 +385,11 @@ describe('M12 — ler a revisão INTEIRA (BLOCKER 3)', () => {
 
   it('detail_shows_no_variables_when_the_service_declares_none', async () => {
     // A metade que dá valor à anterior: sem `variables` no corpo, a tela não inventa nenhuma —
-    // é a invariante central do M12 ("nunca adivinhadas do texto"), e o texto TEM {{nome}}.
-    mockRevisions.mockResolvedValue([{ version: 1, content: 'Olá {{nome}}', createdAt: '2026-07-28T10:00:00Z' }]);
+    // é a invariante central do M12 ("nunca adivinhadas do texto"), e o texto TEM {{name}}.
+    mockRevisions.mockResolvedValue([{ version: 1, content: 'Hello {{name}}', createdAt: '2026-07-28T10:00:00Z' }]);
     render(<PromptDetailPage />);
 
-    expect(await screen.findByText(/Olá \{\{nome\}\}/)).toBeInTheDocument();
+    expect(await screen.findByText(/Hello \{\{name\}\}/)).toBeInTheDocument();
     expect(screen.queryByText('nome')).not.toBeInTheDocument();
   });
 });
@@ -543,7 +543,7 @@ describe('PromptDetailPage — tags (M16)', () => {
     render(<PromptDetailPage />);
     await screen.findByText('campanha');
 
-    await userEvent.click(screen.getByRole('button', { name: /remover a tag campanha/i }));
+    await userEvent.click(screen.getByRole('button', { name: /remove the campanha tag/i }));
 
     await vi.waitFor(() => expect(mockSetTags).toHaveBeenCalledWith('saudacao', ['suporte']));
   });

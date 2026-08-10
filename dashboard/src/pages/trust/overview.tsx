@@ -101,13 +101,13 @@ export function TrustOverviewPage() {
         row.enforced ? (
           <Badge variant="outline">
             <ShieldCheck className="size-3.5" aria-hidden="true" />
-            Bloqueada
+            Blocked
           </Badge>
         ) : (
           <Button variant="secondary" size="sm" asChild>
             <Link to={`/trust/violations?policy=${encodeURIComponent(row.policy)}`}>
               <ShieldAlert className="size-4" aria-hidden="true" />
-              Revisar e bloquear
+              Review and block
             </Link>
           </Button>
         ),

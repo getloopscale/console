@@ -194,6 +194,6 @@ describe('PromptlyOverviewPage — cada número leva à lista', () => {
     render(<PromptlyOverviewPage />);
 
     const link = await screen.findByRole('link', { name: /see the prompts that were never promoted/i });
-    expect(link).toHaveAttribute('href', '/promptly/catalog?recorte=nao-promovidos');
+    expect(link).toHaveAttribute('href', '/promptly/catalog?recorte=not-promoted');
   });
 });

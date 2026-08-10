@@ -2,6 +2,8 @@
 
 ### Fixed
 
+- **Mais dezenas de rótulos que ainda estavam em português foram traduzidos.** Botões como "Remover", "Testar", "Copiar", "Abrir" e "Bloqueado", campos como "Termos a bloquear" e "Mensagem de exemplo", e o parâmetro de filtro que aparece no endereço da lista de prompts. Eram palavras curtas e sem acento — o tipo que passa despercebido tanto por quem lê a tela quanto por uma busca automática. O filtro na URL mudou de nome e **o antigo continua funcionando**, pelo mesmo motivo dos endereços: um link já compartilhado não pode deixar de filtrar porque o produto mudou de idioma.
+
 - O caminho de reconstrução usado quando a credencial do registro falha voltou a funcionar. Ele existe
   justamente para esse dia, e falhava por duas coisas que nenhum build normal revelaria: apontava para
   o endereço antigo da biblioteca de contratos — e um apontamento que não casa é ignorado em silêncio,

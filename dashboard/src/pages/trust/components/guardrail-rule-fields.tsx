@@ -54,10 +54,10 @@ export function GuardrailRuleFields(props: GuardrailRuleFieldsProps) {
         </FormField>
 
         <FormField id="guardrail-terms" invalid={Boolean(fieldProblems.terms)}>
-          <FormField.Label>Termos a bloquear</FormField.Label>
+          <FormField.Label>Terms to block</FormField.Label>
           <FormField.Control>
             <Textarea
-              aria-label="Termos a bloquear"
+              aria-label="Terms to block"
               rows={4}
               className="font-mono"
               value={termsText}
@@ -74,13 +74,13 @@ export function GuardrailRuleFields(props: GuardrailRuleFieldsProps) {
         </FormField>
 
         <FormField id="guardrail-action">
-          <FormField.Label>O que fazer ao encontrar</FormField.Label>
+          <FormField.Label>What to do on a match</FormField.Label>
           <FormField.Control>
             <Select
               value={draft.action}
               onValueChange={(v) => onDraftChange({ action: v as GuardrailDraft['action'] })}
             >
-              <Select.Trigger aria-label="O que fazer ao encontrar">
+              <Select.Trigger aria-label="What to do on a match">
                 <Select.Value />
               </Select.Trigger>
               <Select.Content>

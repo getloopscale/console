@@ -177,7 +177,7 @@ export function LensUsageByUserPage() {
         row.userId === UNATTRIBUTED ? (
           // Rótulo, não substituição: a linha continua sendo a do balde, com seus números.
           <span title="Spans with no user.id — real usage that could not be attributed to anyone">
-            Unattributed <span className="text-xs text-muted-foreground">(sem user.id)</span>
+            Unattributed <span className="text-xs text-muted-foreground">(no user.id)</span>
           </span>
         ) : (
           // `shortId` encurta para leitura; o valor completo fica no title para cópia.

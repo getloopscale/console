@@ -43,7 +43,7 @@ describe('alertProblems', () => {
     });
     // A mensagem ESPECÍFICA, não "alguma que cite prompt": as duas do ramo contêm a palavra, e um
     // `toMatch(/prompt/i)` sobrevive a trocar uma pela outra — mutante medido pelo `/review`.
-    expect(problemas.join(' ')).toMatch(/Diga qual prompt/i);
+    expect(problemas.join(' ')).toMatch(/Say which prompt/i);
   });
 
   it('acusa nome de prompt numa métrica de workspace', () => {
@@ -95,7 +95,7 @@ describe('alertProblems', () => {
       threshold: '3',
       webhookId: 'wh-1',
     });
-    expect(problemas.join(' ')).toMatch(/Diga qual prompt/i);
+    expect(problemas.join(' ')).toMatch(/Say which prompt/i);
   });
 
   // F2 do `/review` — a regra do limiar não tinha fronteira nem caso negativo. Dois mutantes

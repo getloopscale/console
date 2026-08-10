@@ -88,7 +88,7 @@ export function PromptlyCreatePage() {
             <h2>Content</h2>
           </Card.Title>
           <Card.Description>
-            Use <code>{'{{variavel}}'}</code> para os trechos que mudam a cada chamada.
+            Use <code>{'{{variable}}'}</code> for the parts that change on every call.
           </Card.Description>
         </Card.Header>
 
@@ -180,7 +180,7 @@ export function PromptlyCreatePage() {
           )}
 
           <div>
-            <h3 className="mb-2 text-sm font-medium">O que o modelo receberia</h3>
+            <h3 className="mb-2 text-sm font-medium">What the model would receive</h3>
             <pre
               data-testid="promptly-preview"
               className="whitespace-pre-wrap rounded-md bg-muted p-4 font-mono text-xs"

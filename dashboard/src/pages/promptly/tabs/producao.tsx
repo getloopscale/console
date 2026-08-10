@@ -132,7 +132,7 @@ export function ProducaoTab({
                 não se sabe se houve chamada é afirmar o que não se mediu. */}
         {linkDosTraces !== null && houveChamada ? (
           <p>
-            Quer ver cada uma delas?{' '}
+            Want to see each of them?{' '}
             <Link
               to={linkDosTraces}
               aria-label={`See ${promptName} runs in traces`}
@@ -155,7 +155,7 @@ export function ProducaoTab({
             aria-label={`Set a monitor for ${promptName}`}
             className="underline underline-offset-2"
           >
-            Definir um monitor para este prompt →
+            Set a monitor for this prompt →
           </Link>
         </p>
       </div>

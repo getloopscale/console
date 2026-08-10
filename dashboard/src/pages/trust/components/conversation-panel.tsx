@@ -48,7 +48,7 @@ export function ConversationPanel(props: ConversationPanelProps) {
         {/* asChild → <h2>: o PageShell já rende o <h1> (WCAG 1.3.1). */}
         <Card.Title asChild>
           <h2>
-            Conversa{' '}
+            Conversation{' '}
             <span className="font-mono text-base">{conversationId}</span>
           </h2>
         </Card.Title>
@@ -141,10 +141,10 @@ export function ConversationPanel(props: ConversationPanelProps) {
           variant="ghost"
           size="sm"
           onClick={onClose}
-          aria-label="Fechar conversa"
+          aria-label="Close conversation"
         >
           <X className="size-4" aria-hidden="true" />
-          Fechar conversa
+          Close conversation
         </Button>
       </Card.Footer>
     </Card>

@@ -58,7 +58,7 @@ describe('TrustEnforcementPage', () => {
     expect(await screen.findByText('credential-mask')).toBeInTheDocument();
     // A contagem é o resumo que o operador lê antes da tabela; ela distingue "houve registro"
     // de "houve BLOQUEIO", que não são a mesma coisa (um `allow` também é registrado).
-    expect(screen.getByText(/1 bloqueio\(s\) entre 2 registro\(s\)/)).toBeInTheDocument();
+    expect(screen.getByText(/1 block\(s\) among 2 record\(s\)/)).toBeInTheDocument();
   });
 
   it('quando a leitura FALHA, não afirma que nada foi bloqueado', async () => {

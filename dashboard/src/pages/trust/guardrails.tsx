@@ -73,7 +73,7 @@ export function TrustGuardrailsPage() {
       // não tem como decidir se uma regra ainda faz sentido. Na plataforma é a categoria
       // detectada, a mesma chave que `/trust` usa ("credential_leak observada 2×").
       key: 'effect',
-      label: 'O que faz',
+      label: 'What it does',
       render: (row) => <span className="text-muted-foreground">{row.effect}</span>,
     },
     {
@@ -109,14 +109,14 @@ export function TrustGuardrailsPage() {
           <Button
             variant="ghost"
             size="sm"
-            aria-label={`Remover ${row.name}`}
+            aria-label={`Remove ${row.name}`}
             onClick={() => {
               setRemoveError(null);
               setPending(row);
             }}
           >
             <Trash2 className="size-4" />
-            Remover
+            Remove
           </Button>
         ) : null,
     },
@@ -206,7 +206,7 @@ export function TrustGuardrailsPage() {
           // que a guardrail continua na lista. Ele é limpo ao ABRIR um novo diálogo.
           if (!open) setPending(null);
         }}
-        title={`Remover a guardrail "${pending?.name ?? ''}"?`}
+        title={`Remove the "${pending?.name ?? ''}" guardrail?`}
         description={
           <>
             The terms of this rule stop being blocked in this workspace conversations as soon as
@@ -214,7 +214,7 @@ export function TrustGuardrailsPage() {
             <strong>This action cannot be undone.</strong>
           </>
         }
-        confirmLabel="Remover guardrail"
+        confirmLabel="Remove guardrail"
         intent="destructive"
         confirmationPhrase={pending?.name}
         onConfirm={confirmRemoval}
