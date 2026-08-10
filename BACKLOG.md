@@ -3768,3 +3768,93 @@ fechado_2026-08-10: |
   (trust/lens/skills/promptly): modulo autocontido, estado proprio, reset proprio.
   `handlers.ts` 875 -> 815, e a anotacao baixou junto. A divida encolheu 60 linhas porque um
   guard recusou 4.
+
+## B-108 — Promptly está inteiramente em português: telas, rotas e nomes de arquivo   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+evidence: |
+  Medido em 2026-08-10, com o dashboard em modo mock e um scanner de AST (TypeScript
+  Compiler API) que separa string de usuário de comentário — o repositório comenta em
+  português por convenção, então grep simples inflaria o número.
+
+  **136 strings de usuário distintas em português** sob `src/pages/promptly/`, os maiores:
+    playground.tsx 22 · catalogo.tsx 13 · diff.tsx 13 · tabs/producao.tsx 13
+    overview.tsx 12 · create.tsx 9 · detail.tsx 9 · tabs/consumo.tsx 9
+
+  Exemplos lidos da tela `/promptly`:
+    "Prompts versionados resolvidos em runtime — e o que já foi escrito mas ainda não
+     está servindo ninguém."
+    "NÃO PROMOVIDOS"   "REVISÕES ESCRITAS"   "O que ainda não está no ar"
+    "Ver o catálogo"   "Nova revisão"
+
+  **Três ROTAS em português** — a URL é parte do que o usuário vê:
+    /promptly/catalogo · /promptly/:promptName/producao · /promptly/:promptName/consumo
+  As abas do detalhe expõem isso na barra de endereço: "Uso em produção" → `/producao`.
+
+  **Nove ARQUIVOS com nome em português**: catalogo.tsx, tabs/producao.tsx,
+  tabs/consumo.tsx, detail/{discussao-card,revisoes-card,ambientes-card,cabecalho,
+  texto-card,confirmacoes-de-ponteiro}.tsx
+why_now: |
+  O dono declarou que o sistema inteiro deve estar em inglês. A varredura de 20 rotas mostra
+  que **o resto do dashboard JÁ ESTÁ** — Projects, Billing, Domains, Team, Memory, Skills,
+  Observability, Settings, Audit: todas em inglês. Promptly e Trust são as duas ilhas.
+  Não é preferência: uma tela em outro idioma dentro de um produto em inglês lê como uma
+  parte que veio de outro lugar.
+
+  Existe PRECEDENTE DIRETO e recente: o commit `05132088` (2026-08-04) fez exatamente isto
+  no domínio Skills — `/skills/{catalogo,nova,descoberta}` → `{catalog,new,discovery}`, com
+  as antigas RESOLVENDO por redirect, "porque link salvo ou colado num ticket não pode virar
+  404". A forma do trabalho já está decidida; falta aplicá-la aqui.
+status: raw
+dod:
+  - zero strings de usuário em português sob `src/pages/promptly/` (medido por scanner de AST, não grep)
+  - rotas em inglês, com as três antigas resolvendo por redirect — nenhum link salvo vira 404
+  - teste que falha se uma string de usuário em português voltar a entrar (o guard que o Skills não deixou)
+
+## B-109 — Trust está em português   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+evidence: |
+  **40 strings de usuário em português** sob `src/pages/trust/`, medidas pelo mesmo scanner:
+    components/conversation-panel.tsx 8 · guardrail-new.tsx 7 · guardrails.tsx 7
+    overview.tsx 7 · violations.tsx 5 · enforcement.tsx 4 · components/guardrail-rule-fields.tsx 1
+  A varredura de tela confirmou em `/trust` ("nenhuma", "todas").
+  As rotas de trust JÁ estão em inglês — aqui é só texto.
+why_now: |
+  Segunda das duas ilhas de português num dashboard que já está em inglês em todas as outras
+  18 rotas varridas. Item separado de B-108 porque é trabalho independente e fecha sozinho:
+  Trust não tem rota nem arquivo em português, só conteúdo.
+status: raw
+dod:
+  - zero strings de usuário em português sob `src/pages/trust/`
+  - coberto pelo mesmo guard de B-108
+
+## B-110 — Resíduo de português fora de Promptly e Trust   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+evidence: |
+  **15 strings de usuário em português** espalhadas fora das duas ilhas:
+    pages/lens 8 (usage-by-user.tsx 8, labeling-queue.tsx 2)
+    pages/skills 4 (bundle-detail.tsx 4, detail.tsx 2) — resíduo do que `05132088` não pegou
+    pages/settings 2 (audit.tsx, components/api-key-dialogs.tsx)
+    app.tsx 1
+  Nenhuma apareceu na varredura de tela das 20 rotas, o que sugere estado vazio, erro ou
+  caminho que o mock não alcança — e é justamente por isso que precisa do scanner de código:
+  a tela sozinha não as revela.
+why_now: |
+  São as que um teste manual não encontra. Fechar B-108 e B-109 sem esta deixaria o produto
+  em inglês com português escondido em estados de erro — que é onde ele é mais caro, porque
+  aparece exatamente quando alguém está tentando entender o que deu errado.
+status: raw
+dod:
+  - zero strings de usuário em português em `src/` fora de comentários
+  - o guard de B-108 cobre o repositório inteiro, não só as pastas migradas
