@@ -73,6 +73,20 @@ export default [
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+
+  // Scripts de build/CI rodam em NODE, não no navegador.
+  //
+  // Sem este bloco eles caem no `js.configs.recommended` sem globais
+  // declarados, e `console`/`process` viram `no-undef`. Ficou assim por dois
+  // dias sem ninguém ver, porque a verificação que eu rodava era `eslint src` e
+  // o script do projeto é `eslint .` — o subconjunto passava e o comando real
+  // reprovava. É o mesmo erro de medir o recorte em vez do todo.
+  {
+    files: ['scripts/**/*.{mjs,js}'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly', URL: 'readonly', fetch: 'readonly' },
+    },
+  },
   {
     files: ['src/**/*.{ts,tsx}'],
     linterOptions: {

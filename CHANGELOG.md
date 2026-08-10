@@ -92,6 +92,8 @@
 
 ### Fixed
 
+- **A verificação de qualidade do dashboard voltou a verificar.** O passo automatizado que roda testes, tipos e lint antes de uma entrega procurava a configuração do projeto na raiz do repositório — e ela mora na pasta do dashboard. O resultado é que os quatro checks mais importantes eram sempre pulados, com a justificativa de que o projeto "ainda não tem código". Ao rodá-los de verdade pela primeira vez, dois problemas reais apareceram e foram corrigidos.
+
 - **Os arquivos do dashboard passaram a ser guardados pelo navegador.** O servidor não enviava nenhuma instrução de cache, então cada visita rebaixava todos os arquivos da aplicação mesmo sem nada ter mudado. Agora os arquivos versionados são guardados por um ano — é seguro porque cada build gera nomes novos — enquanto a página inicial, a configuração e o service worker continuam sendo sempre buscados, que é o que garante que uma atualização chegue. Os cabeçalhos de segurança foram preservados em todos os caminhos, inclusive nas respostas de erro.
 
 - **O uso de builds volta a ser contabilizado — e a tela para de mostrar um número falso.** A contagem de builds do mês aparecia como zero para todas as contas, e nada era enviado ao faturamento. A causa: a rotina que confere a contagem contra os builds reais só corrigia divergências de até 5%, e "nenhum registro" conta como 100% de divergência — então ela media certo, avisava nos logs e nunca escrevia a primeira linha. Agora ausência de registro é semeada com a contagem real; divergências sobre um valor já existente continuam exigindo revisão humana, que é o que aquele limite existia para garantir.

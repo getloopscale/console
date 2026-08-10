@@ -3481,3 +3481,43 @@ status: raw
 dod:
   - a causa esta identificada (nao "reexecutei e passou") — medir o tempo do caso sob suite cheia contra isolado
   - OU o teste deixa de subir o ESLint dentro do worker (mover para um gate proprio de lint), OU o motivo de nao fazer isso esta escrito
+
+## B-102 — `run_validation.py` era cego a monorepo e pulava os quatro gates principais   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud
+suggested_mode: bug
+source: discover-review
+evidence: `_has_package_json` só checava `project_root / "package.json"`. Neste repositório o `package.json` mora em `dashboard/`, então
+  `npm test`, `npm run typecheck`, `npm run lint` e `coverage` saíam SEMPRE como SKIP — com o motivo `"package.json absent — pre-code
+  phase"`.
+why_now: descoberto ao rodar o gate para o plano `modal-primitive-consolidation`. O motivo do SKIP era FALSO, e é isso que torna o defeito
+  grave: um gate que pula com explicação plausível não parece quebrado — parece um projeto que ainda não tem código. TODO plano do
+  dashboard passou por aqui com os quatro gates mais importantes desligados, e o relatório dizia que estava tudo bem.
+status: shipped
+dod:
+  - o gate roda os comandos npm na pasta certa
+  - com layout ambíguo (duas subpastas com package.json) ele NÃO escolhe — reporta que não dá para escolher
+
+fechado_2026-08-10: `_npm_root()` aceita a raiz, ou uma subpasta QUANDO ELA E A UNICA candidata. Com duas, a resposta certa nao e
+escolher — e dizer que nao da, e o motivo do SKIP passou a ser honesto. Ao rodar pela primeira vez de verdade, os gates acusaram DOIS
+defeitos reais que estavam escondidos (ver B-103).
+
+## B-103 — `npm run lint` reprovava havia dois dias, e eu media `eslint src`   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: discover-review
+evidence: `npm run lint` e `eslint .`, nao `eslint src`. Reprovava com 20 erros `no-undef` em `scripts/check-mocks-tree-shaken.mjs` —
+  arquivo que EU criei em 77841e61 (2026-08-08). O config nao declarava globais de Node para `scripts/**`, entao `console` e `process`
+  viravam `no-undef`.
+why_now: dois dias sem ninguem ver, porque a verificacao que eu rodava a cada validacao era `npx eslint src` — o subconjunto passava e o
+  comando do projeto reprovava. Mesmo erro de medir o recorte em vez do todo, agora na minha propria rotina de validacao.
+status: shipped
+dod:
+  - `npm run lint` sai 0
+  - o config declara o ambiente certo para scripts de build, em vez de ignora-los
+
+fechado_2026-08-10: bloco `files: ['scripts/**/*.{mjs,js}']` com os globais de Node. Ignorar o diretorio tambem faria o comando passar, e
+seria pior: o script de build deixaria de ser verificado justamente por ser dificil de classificar.
