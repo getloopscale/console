@@ -82,6 +82,8 @@
 
 ### Removed
 
+- **Seis constantes e funções internas que ninguém usava saíram do código.** Nenhuma tinha consumidor — a verificação automática de código morto as apontou, e três delas continuavam sendo usadas dentro do próprio arquivo, então só deixaram de ser oferecidas para fora. Nada muda para quem usa o produto; muda o que a próxima pessoa a ler esses módulos encontra.
+
 - **A ponte de migração de identidades legadas foi removida.** Ela existia para ligar contas antigas, criadas antes da autenticação atual, às novas identidades — e nunca chegou a ser acionada em produção. Não há contas nessa condição, e a verificação do código confirma que não pode haver: toda conta é criada já com o identificador do sistema de autenticação atual. Nenhum comportamento muda.
 
 - **Uma biblioteca de virtualização de listas que nunca foi usada saiu das dependências.** `@tanstack/react-virtual` estava instalada, e as três menções a ela no código eram **comentários** descrevendo a virtualização como algo a fazer — junto com uma constante de limiar que ninguém lia. Era uma funcionalidade planejada da qual só os vestígios existiam. A intenção não se perdeu: ficou registrada como item de backlog, com o número que estava escolhido. Uma dependência declarada e não importada é peso de instalação e superfície de CVE em troca de nada.
