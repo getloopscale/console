@@ -112,7 +112,23 @@ export function AppModal({
               {title}
             </RadixDialog.Title>
             {description ? (
-              <RadixDialog.Description className="text-sm text-muted-foreground">{description}</RadixDialog.Description>
+              // `asChild` + `<div>`: a descrição é um contêiner, não um parágrafo (B-104).
+              //
+              // `RadixDialog.Description` renderiza `Primitive.p`, e treze call sites passam
+              // bloco nesta prop — `<p><div>…</div></p>`, HTML inválido. `asChild` faz o Radix
+              // aplicar o `id` (o alvo do `aria-describedby`) ao elemento que damos, em vez de
+              // criar o dele: o contrato de acessibilidade fica idêntico e o aninhamento passa
+              // a ser legal.
+              //
+              // O que NÃO é o motivo, porque foi medido e é falso: a primeira versão do B-104
+              // dizia que o parser fecharia o `<p>` e o leitor de tela perderia a descrição.
+              // Medido em navegador real, o `aria-describedby` resolvia e o texto estava
+              // inteiro — o React monta o DOM por API, não pelo parser. A invalidez é latente,
+              // não ativa: ela cobra no dia em que este HTML for PARSEADO (render no servidor,
+              // pré-render, hidratação a partir de markup).
+              <RadixDialog.Description asChild>
+                <div className="text-sm text-muted-foreground">{description}</div>
+              </RadixDialog.Description>
             ) : null}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>

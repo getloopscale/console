@@ -3542,7 +3542,7 @@ dod:
 fechado_2026-08-10: bloco `files: ['scripts/**/*.{mjs,js}']` com os globais de Node. Ignorar o diretorio tambem faria o comando passar, e
 seria pior: o script de build deixaria de ser verificado justamente por ser dificil de classificar.
 
-## B-104 — Descrição de modal aninha bloco dentro do `<p>` que carrega o `aria-describedby`   [ ]
+## B-104 — Descrição de modal aninha bloco dentro de um `<p>` (HTML inválido)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -3551,26 +3551,58 @@ source: discover-review
 evidence: |
   `RadixDialog.Description` renderiza `Primitive.p` — medido no bundle instalado
   (`node_modules/@radix-ui/react-dialog/dist/index.mjs`: `jsx(Primitive.p, { id: context.descriptionId, … })`).
-  **13 call sites** passam elemento de bloco nessa prop. Duas ocorrências abertas e lidas:
+  **13 call sites** passam elemento de bloco nessa prop, p.ex.:
     dashboard/src/pages/settings/webhooks.tsx:260   description={<div className="space-y-2 text-sm">…}
     dashboard/src/pages/lens/datasets.tsx:376       description={<p className="text-sm">…}
-  `<div>` dentro de `<p>` faz o parser HTML **fechar o `<p>` sozinho**. O conteúdo então
-  escapa do elemento que carrega `id={descriptionId}` — o mesmo id que o `aria-describedby`
-  do diálogo aponta. Quem usa leitor de tela perde a descrição do modal, e o DOM resultante
-  não é o que o JSX diz.
+
+  MEDIDO EM NAVEGADOR REAL (2026-08-10, `/settings/webhooks`, diálogo de exclusão aberto):
+    aria-describedby      → "radix-_r_b_"
+    elemento existe       → true
+    texto do elemento     → completo
+    HTML                  → <p id="radix-_r_b_"><div class="space-y-2 text-sm"><p>…
+corrigido_2026-08-10: |
+  A PRIMEIRA VERSÃO DESTE ITEM AFIRMAVA que o parser fecharia o `<p>` sozinho e que "quem usa
+  leitor de tela perde a descrição do modal". **Isso está errado, e a medição acima é o que
+  desmente.** O React constrói o DOM por API (`createElement`/`appendChild`), não pelo parser
+  HTML — o aninhamento inválido é montado tal como escrito, e o `aria-describedby` resolve
+  normalmente. Eu deduzi a consequência da especificação em vez de observá-la.
+
+  A entrada fica corrigida em vez de reescrita: um item que afirmou o que não mediu e foi
+  pego é registro melhor que um item que parece ter sempre estado certo.
+severidade_real: |
+  Baixa hoje, latente amanhã. O DOM é HTML inválido, e isso não custa nada ENQUANTO ninguém
+  fizer o navegador PARSEAR esse HTML. No dia em que houver render no servidor, pré-render
+  estático, ou hidratação a partir de markup, o parser fecha o `<p>` e a estrutura muda de
+  verdade — inclusive o que o `aria-describedby` passa a envolver.
+  O custo de fechar agora é uma linha no primitivo; o de descobrir depois é durante uma
+  migração para SSR.
 why_now: |
   Achado pelo agente domain-frontend durante o `/review` da consolidação de modais
-  (F-dom-4, 2026-08-10). **NÃO é regressão dessa migração** — medido em `59c4866b~1`, os
-  dois call sites já passavam bloco no `description` antes, via `ConfirmDialog`, que
-  delegava ao mesmo `RadixDialog.Description`. A consolidação só o tornou visível ao
-  concentrar 30 modais num primitivo. Fica como item próprio em vez de ser corrigido dentro
-  do plano de consolidação: misturar migração com correção de acessibilidade é exatamente
-  o que torna impossível dizer, depois, se uma diferença é bug de migração ou decisão.
-status: raw
+  (F-dom-4, 2026-08-10). NÃO é regressão dessa migração — medido em `59c4866b~1`, os dois
+  call sites já passavam bloco antes, via `ConfirmDialog`, que delegava ao mesmo componente
+  Radix. A consolidação só tornou visível ao concentrar ~30 modais num primitivo: a correção
+  que antes seria em 13 arquivos hoje é em um.
+status: shipped
 dod:
-  - nenhum call site passa elemento de bloco em `description` (guard que quantifica, não amostra)
-  - o `AppModal` ou aceita bloco renderizando `asChild`/`<div>`, ou a prop recusa bloco no tipo
-  - o `aria-describedby` do diálogo resolve para um elemento que contém o texto inteiro
+  - o elemento que carrega o `aria-describedby` aceita conteúdo de bloco sem produzir aninhamento inválido
+  - o `aria-describedby` continua resolvendo para um elemento que contém o texto inteiro
+  - teste que falha se o primitivo voltar a renderizar a descrição num `<p>`
+fechado_2026-08-10: |
+  Uma linha no primitivo, pelo degrau 3 da ladder de parcimonia — o Radix ja oferece o
+  mecanismo. `RadixDialog.Description asChild` + `<div>`: o Radix aplica o `id` (o alvo do
+  `aria-describedby`) ao elemento que damos em vez de criar o dele. Contrato de
+  acessibilidade identico, aninhamento legal. Um so arquivo, servindo os treze call sites —
+  a consolidacao de modais e o que tornou isso possivel.
+
+  TDD: o caso RED afirma que o elemento do `aria-describedby` NAO e um `<p>` e contem o
+  texto inteiro (a contraparte positiva, senao trocar por um elemento vazio passaria).
+  Falhava antes, passa depois.
+
+  VERIFICADO EM NAVEGADOR REAL, nao so em jsdom — porque jsdom nao reproduz o parser e foi
+  justamente confiar na especificacao em vez de observar que produziu a justificativa errada
+  na primeira versao deste item:
+    antes  <p  id="radix-_r_b_"><div class="space-y-2 text-sm"><p>This webhook wil…
+    depois <div id="radix-_r_b_" class="text-sm text-muted-foreground"><div…><p>This webhook wil…
 
 ## B-105 — `ConfirmDialog` fecha só no sucesso, e essa regra não tem teste   [ ]
 
