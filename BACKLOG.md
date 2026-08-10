@@ -3521,3 +3521,54 @@ dod:
 
 fechado_2026-08-10: bloco `files: ['scripts/**/*.{mjs,js}']` com os globais de Node. Ignorar o diretorio tambem faria o comando passar, e
 seria pior: o script de build deixaria de ser verificado justamente por ser dificil de classificar.
+
+## B-104 — Descrição de modal aninha bloco dentro do `<p>` que carrega o `aria-describedby`   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+evidence: |
+  `RadixDialog.Description` renderiza `Primitive.p` — medido no bundle instalado
+  (`node_modules/@radix-ui/react-dialog/dist/index.mjs`: `jsx(Primitive.p, { id: context.descriptionId, … })`).
+  **13 call sites** passam elemento de bloco nessa prop. Duas ocorrências abertas e lidas:
+    dashboard/src/pages/settings/webhooks.tsx:260   description={<div className="space-y-2 text-sm">…}
+    dashboard/src/pages/lens/datasets.tsx:376       description={<p className="text-sm">…}
+  `<div>` dentro de `<p>` faz o parser HTML **fechar o `<p>` sozinho**. O conteúdo então
+  escapa do elemento que carrega `id={descriptionId}` — o mesmo id que o `aria-describedby`
+  do diálogo aponta. Quem usa leitor de tela perde a descrição do modal, e o DOM resultante
+  não é o que o JSX diz.
+why_now: |
+  Achado pelo agente domain-frontend durante o `/review` da consolidação de modais
+  (F-dom-4, 2026-08-10). **NÃO é regressão dessa migração** — medido em `59c4866b~1`, os
+  dois call sites já passavam bloco no `description` antes, via `ConfirmDialog`, que
+  delegava ao mesmo `RadixDialog.Description`. A consolidação só o tornou visível ao
+  concentrar 30 modais num primitivo. Fica como item próprio em vez de ser corrigido dentro
+  do plano de consolidação: misturar migração com correção de acessibilidade é exatamente
+  o que torna impossível dizer, depois, se uma diferença é bug de migração ou decisão.
+status: raw
+dod:
+  - nenhum call site passa elemento de bloco em `description` (guard que quantifica, não amostra)
+  - o `AppModal` ou aceita bloco renderizando `asChild`/`<div>`, ou a prop recusa bloco no tipo
+  - o `aria-describedby` do diálogo resolve para um elemento que contém o texto inteiro
+
+## B-105 — `ConfirmDialog` fecha só no sucesso, e essa regra não tem teste   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+evidence: |
+  dashboard/src/components/dialogs/confirm-dialog.tsx:67-76 — `onOpenChange(false)` roda
+  DEPOIS de `await onConfirm()`, dentro do `try`. Se `onConfirm` lançar, o diálogo continua
+  aberto — que é o comportamento certo numa confirmação destrutiva, e é exatamente por isso
+  que precisa de teste: **29 consumidores** dependem dele.
+  Nenhum teste co-locado exercita o caminho de erro.
+why_now: |
+  Achado pelo agente de testes durante o `/review` da consolidação (F-tests-5, 2026-08-10).
+  A migração trocou o primitivo sob esse componente sem que nada provasse que a regra
+  sobreviveu — ela sobreviveu, mas por sorte de leitura, não por medição.
+status: raw
+dod:
+  - teste que falha se `onOpenChange(false)` passar a rodar quando `onConfirm` lança
+  - o caso positivo (fecha no sucesso) coberto no mesmo arquivo

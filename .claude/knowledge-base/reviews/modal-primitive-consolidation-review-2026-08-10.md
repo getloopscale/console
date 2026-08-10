@@ -1145,6 +1145,23 @@ verificada por asserção executável sobre o estado atual, não por afirmação
 | tests: lacuna de submit | `promote-to-production-dialog.test.tsx` (**NOVO** — nenhum teste renderizava o componente) e um caso em `rollback-dialog.test.tsx`. Ambos **sondados**: remover o `form=` faz falhar |
 | xval: `implementations/` vazio | `implementations/modal-primitive-consolidation-implementation.md` escrito, declarando no topo que foi reconstruído depois e que isso não é o mesmo que tê-lo produzido durante |
 
+### Followups REGISTRADOS (não mencionados em prosa)
+
+O gate do `READY_TO_MERGE_WITH_FOLLOWUPS` exige que o débito reconhecido seja um item
+registrado, nunca uma frase num relatório: *"um caveat que ninguém possui é um defeito com
+modos melhores"*. Os dois achados abertos que sobrevivem a este ciclo:
+
+| Item | Achado | Por que não foi corrigido aqui |
+|---|---|---|
+| **`B-104`** | `F-dom-4` — 13 call sites aninham bloco dentro do `<p>` do `RadixDialog.Description`, quebrando o `aria-describedby` | **Pré-existente**, medido em `59c4866b~1`: os call sites já passavam bloco antes, via `ConfirmDialog`. A consolidação só tornou visível. Corrigir aqui misturaria migração com correção de acessibilidade — exatamente o que torna impossível dizer depois se uma diferença é bug de migração ou decisão |
+| **`B-105`** | `F-tests-5` — `ConfirmDialog` (29 consumidores) fecha só no sucesso, e a regra não tem teste | Comportamento correto e não coberto. Sobreviveu à troca de primitivo por leitura, não por medição |
+
+Fechado neste ciclo em vez de registrado: **`F-wire-2`** — `tailwind-merge` era usada pelo
+único primitivo de modal do dashboard e **não estava declarada** no `package.json`; vinha
+transitivamente de `@theokit/ui` e `@usetheo/ui`. Qualquer um dos dois largando a
+dependência quebraria o build. É uma linha, no artefato que este plano possui, e o risco é
+de cadeia de suprimentos — não é débito a agendar.
+
 ### O que esta re-verificação NÃO cobre — e por quê o veredito não vira verde sozinho
 
 - **Ela é dirigida ao BLOCKER e aos 5 HIGH.** Os 18 MEDIUM e 13 LOW não foram re-medidos um a um. Vários são reais e continuam abertos (T1.1/T1.2 colapsados num commit; scope creep não declarado em `26c7976b`/`4e48b7fb`; 24 checkboxes de tarefa em `[ ]` com o DoD global marcado).
