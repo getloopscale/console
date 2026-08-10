@@ -35,7 +35,7 @@ const promptlyDb: {
       updatedAt: '2026-08-01T10:00:00Z',
     },
     { name: 'despedida', latestVersion: 1, labels: [], tags: [], updatedAt: '2026-07-30T09:00:00Z' },
-    // M20 — a composição. `atendimento` referencia `politica`, e é o par que torna o DoD-2 e o
+    // M20 — a composição. `atendimento` referencia `policy`, e é o par que torna o DoD-2 e o
     // DoD-4 exercitáveis: sem um prompt que de fato compõe, o alternador de textos nunca aparece e
     // a lista de dependentes é sempre vazia — dois caminhos que passariam por "verdes" sem nunca
     // terem sido percorridos.
@@ -58,7 +58,7 @@ const promptlyDb: {
       { version: 3, content: 'Hello {{name}}, I am the assistant. How can I help?', createdAt: '2026-08-01T10:00:00Z' },
     ],
     despedida: [{ version: 1, content: 'See you, {{name}}.', createdAt: '2026-07-30T09:00:00Z' }],
-    politica: [
+    policy: [
       { version: 1, content: 'Always be courteous and never promise a deadline.', createdAt: '2026-08-03T09:00:00Z' },
     ],
     atendimento: [

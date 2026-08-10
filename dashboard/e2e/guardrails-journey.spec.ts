@@ -64,7 +64,7 @@ test.describe('M24 — operar guardrails pelo dashboard', () => {
   test('não há caminho para salvar sem antes testar', async ({ page }) => {
     await page.goto('/trust/guardrails/new');
 
-    await page.getByLabel('Nome').fill(NAME);
+    await page.getByLabel('Name').fill(NAME);
     await page.getByLabel('Termos a bloquear').fill(TERM);
 
     // A asserção que define o milestone: com rascunho válido e sem dry-run, o caminho de
@@ -75,7 +75,7 @@ test.describe('M24 — operar guardrails pelo dashboard', () => {
   test('criar → testar → salvar → aparecer → remover → sumir', async ({ page }) => {
     await page.goto('/trust/guardrails/new');
 
-    await page.getByLabel('Nome').fill(NAME);
+    await page.getByLabel('Name').fill(NAME);
     await page.getByLabel('Termos a bloquear').fill(TERM);
 
     // Dry-run com uma amostra que a regra alcança: o veredito deve dizer que bloquearia.

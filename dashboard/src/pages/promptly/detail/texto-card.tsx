@@ -50,7 +50,7 @@ export function TextoDoPromptCard({ texto, modoDeTexto, setModoDeTexto }: Props)
             aria-pressed={modoDeTexto === 'resolvido'}
             onClick={() => { setModoDeTexto('resolvido'); }}
           >
-            Resolvido
+            Resolved
           </Button>
         </div>
         {texto.estado === 'falhou' ? (

@@ -68,12 +68,12 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     // vazia é indistinguível de dado que não carregou.
     //
     // A asserção é escopada à LINHA do `despedida`, e não à página. Enquanto ele era o único prompt
-    // sem ambiente, `getByText('nenhum')` era não-ambíguo por acidente do fixture — o M20
+    // sem ambiente, `getByText('none')` era não-ambíguo por acidente do fixture — o M20
     // acrescentou dois prompts de composição, também sem ambiente, e a asserção passou a casar três
     // elementos e falhar em modo estrito. O que ela sempre quis dizer é "a célula DESTE prompt diz
     // 'nenhum'"; agora ela diz isso.
     await expect(
-      page.getByRole('row', { name: /despedida/ }).getByText('nenhum'),
+      page.getByRole('row', { name: /despedida/ }).getByText('none'),
     ).toBeVisible();
 
     // ---- DETALHE: alcançado pelo NOME, que é o caminho da lista ---------------------------

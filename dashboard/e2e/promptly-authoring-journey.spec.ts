@@ -62,8 +62,8 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
     await expect(page.getByText(/immutable/i)).toBeVisible();
 
     // ---- O PREVIEW RENDERIZA SEM CHAMAR MODELO --------------------------------------------
-    await page.getByLabel('Nome do prompt').fill('boas-vindas');
-    await page.getByLabel('Texto do prompt').fill('Hello {{name}}, bem-vindo ao {{produto}}.');
+    await page.getByLabel('Prompt name').fill('boas-vindas');
+    await page.getByLabel('Prompt text').fill('Hello {{name}}, bem-vindo ao {{produto}}.');
 
     // Campo em branco deixa o marcador À VISTA — o buraco não pode passar despercebido.
     await expect(page.getByTestId('promptly-preview')).toContainText('{{nome}}');

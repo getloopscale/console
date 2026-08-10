@@ -656,7 +656,7 @@ describe('M20 — composição na tela', () => {
     render(<PromptDetailPage />);
     expect(await screen.findByText(/Tags/)).toBeInTheDocument();
 
-    expect(screen.queryByRole('button', { name: /Como foi escrito/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /As written/ })).not.toBeInTheDocument();
     expect(mockResolvido).not.toHaveBeenCalled();
   });
 
@@ -668,7 +668,7 @@ describe('M20 — composição na tela', () => {
     mockResolvido.mockResolvedValue({ resolvedContent: 'Antes SEJA CORDIAL depois' });
 
     render(<PromptDetailPage />);
-    const botao = await screen.findByRole('button', { name: /Resolvido/ });
+    const botao = await screen.findByRole('button', { name: /Resolved/ });
 
     // Começa em "como foi escrito": o marcador é visível, e é isso que torna a composição depurável.
     expect(screen.getByText(/@@@promptly:name=policy/)).toBeInTheDocument();
@@ -690,7 +690,7 @@ describe('M20 — composição na tela', () => {
     mockResolvido.mockRejectedValue(new ApiError(500, 'falhou'));
 
     render(<PromptDetailPage />);
-    await userEvent.click(await screen.findByRole('button', { name: /Resolvido/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /Resolved/ }));
 
     expect(await screen.findByText(/Could not resolve the composition/)).toBeInTheDocument();
   });
