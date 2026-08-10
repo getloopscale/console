@@ -19,6 +19,7 @@ import { UsageMeter } from '@theokit/ui';
 import { ContentGrid } from '@/components/layout';
 import { OverviewKPIStrip } from '@/pages/overview/components/overview-kpi-strip';
 import { DeploysActivity } from '@/pages/overview/components/deploys-activity';
+import { CapabilityGrid } from '@/pages/overview/capability-grid';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/projects/use-projects';
@@ -111,6 +112,17 @@ export function OverviewPage() {
       <div className="mb-6">
         <OverviewKPIStrip />
       </div>
+      {/* B-112 — a Overview é da PLATAFORMA, e esta seção é o que faz dela isso.
+          Antes daqui a tela consumia `useProjects`, `useBuildStats` e billing, e as OITO
+          capacidades que o menu declara não apareciam nela: quem chegava concluía, da tela
+          inicial, que o produto é um PaaS de deploy. Fica ACIMA do grid de duas colunas de
+          propósito — o que a plataforma oferece vem antes do detalhe de um subsistema dela. */}
+      <section className="mb-6">
+        <h2 className="text-label-caps text-muted-foreground uppercase mb-3 tracking-wider">
+          Platform
+        </h2>
+        <CapabilityGrid />
+      </section>
       <ContentGrid columns="2-asymmetric" gap={6}>
         {/* Left column — Usage + Alerts */}
         <div className="space-y-6">

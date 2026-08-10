@@ -21,8 +21,6 @@ import type {
   BuildSBOM,
   Environment,
   EnvironmentListResponse,
-  Preview,
-  PreviewListResponse,
   Project,
   ProjectConnection,
   ProjectListResponse,
@@ -41,7 +39,6 @@ import {
   makeProject,
   makeProjectConnection,
   makeProjectStatus,
-  previewsFixture,
   projectsFixture,
   secretsFixture,
   teamMembersFixture,
@@ -53,9 +50,11 @@ import { registerRoute } from './server';
 import { registerSSE } from './sse';
 import { registerTrustHandlers } from './trust-handlers';
 import { registerLensHandlers } from './lens-handlers';
+import { registerOverviewHandlers } from './overview-handlers';
 import { registerSkillsDistributionHandlers, registerSkillsHandlers } from './skills-handlers';
 import { registerPromptlyHandlers } from './promptly-handlers';
 import { registerDomainHandlers, resetDomainMocks } from './domain-handlers';
+import { registerPreviewHandlers, resetPreviewMocks } from './preview-handlers';
 
 /**
  * Cursor da sequência de `/connect` (ver a rota lá embaixo, issue #378).
@@ -76,7 +75,6 @@ const db = {
   secrets: [...secretsFixture] as Secret[],
   members: [...teamMembersFixture] as TeamMember[],
   environments: [...environmentsFixture] as Environment[],
-  previews: [...previewsFixture] as Preview[],
 };
 
 function err(code: string, message: string, status: number): Response {
@@ -593,48 +591,6 @@ function registerEnvironmentHandlers() {
 
 
 // ============================================================================
-// Previews
-// ============================================================================
-
-function registerPreviewHandlers() {
-  registerRoute('GET', '/api/v1/projects/{project}/previews', async (_req, { project }) => {
-    const previews = db.previews.filter((p) => p.project === project);
-    const body: PreviewListResponse = { previews, total: previews.length };
-    return Response.json(body);
-  });
-
-  registerRoute('GET', '/api/v1/projects/{project}/previews/{id}', async (_req, { id }) => {
-    const preview = db.previews.find((p) => p.id === id);
-    if (!preview) return err('NOT_FOUND', `Preview "${id}" not found`, 404);
-    return Response.json(preview);
-  });
-
-  registerRoute('POST', '/api/v1/projects/{project}/previews', async (req, { project }) => {
-    const body = (await req.json()) as { branch?: string; commit_sha?: string };
-    if (!body.branch) return err('INVALID_INPUT', 'branch required', 400);
-    const preview: Preview = {
-      id: `prv-${Date.now()}`,
-      project,
-      branch: body.branch,
-      url: `https://${body.branch.replace(/\W/g, '-')}.preview.acme.com`,
-      status: 'creating',
-      created_by: 'demo@usetheo.dev',
-      created_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    db.previews.push(preview);
-    return Response.json(preview, { status: 201 });
-  });
-
-  registerRoute('DELETE', '/api/v1/projects/{project}/previews/{id}', async (_req, { id }) => {
-    const i = db.previews.findIndex((p) => p.id === id);
-    if (i < 0) return err('NOT_FOUND', `Preview "${id}" not found`, 404);
-    db.previews.splice(i, 1);
-    return new Response(null, { status: 204 });
-  });
-}
-
-// ============================================================================
 // Audit log
 // ============================================================================
 
@@ -800,6 +756,9 @@ export function registerAllMockHandlers(): void {
   // M142 — sem este registro a tela de consumo por end-user sobe VAZIA no e2e, e um portão que
   // só afirma heading fica verde nela.
   registerLensHandlers();
+  // B-112 — os quatro agregados de capacidade que nenhum mock servia. Sem eles, metade dos cards
+  // da Overview de plataforma diz "couldn't load" no unico ambiente onde alguem valida telas.
+  registerOverviewHandlers();
 }
 
 /** Test-only: reset the in-memory DB to initial fixture state. */
@@ -810,6 +769,6 @@ export function resetMockDB(): void {
   db.members = [...teamMembersFixture];
   db.environments = [...environmentsFixture];
   resetDomainMocks();
-  db.previews = [...previewsFixture];
+  resetPreviewMocks();
   installed = false;
 }

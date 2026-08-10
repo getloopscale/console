@@ -27,6 +27,7 @@ vi.mock('@/hooks/overview/use-build-stats', () => ({
   useBuildStats: () => mockUseBuildStats(),
 }));
 
+import { MENUS } from '@/components/layout/app-sidebar-menus';
 import { OverviewPage } from './overview';
 
 describe('OverviewPage', () => {
@@ -271,5 +272,25 @@ describe('OverviewPage', () => {
     }
     // At least one h2 must exist (the section labels we promoted).
     expect(levels).toContain(2);
+  });
+
+  it('a Overview representa a PLATAFORMA, e não só o sistema de aplicações (B-112)', () => {
+    // O teste de WIRING. `capability-grid.test.tsx` prova que o grid funciona; este prova que ele
+    // está NA TELA — a distinção que o repositório trata como pilar (a) da tríade, e sem a qual um
+    // componente correto e nunca montado passa por entregue.
+    //
+    // Quantificado sobre o registro do menu pelo mesmo motivo de sempre: uma lista escrita aqui
+    // passaria verde no dia em que a nona capacidade fosse criada e esquecida.
+    render(<OverviewPage />);
+
+    const grupo = MENUS.main?.groups.find((g) => g.title === 'Capabilities');
+    const declaradas = grupo?.items ?? [];
+    expect(declaradas.length).toBeGreaterThanOrEqual(8);
+
+    const ausentes = declaradas
+      .filter((d) => screen.queryByTestId(`capability-card-${d.path}`) === null)
+      .map((d) => d.label);
+
+    expect(ausentes, 'capacidade declarada no menu e ausente da tela inicial').toEqual([]);
   });
 });

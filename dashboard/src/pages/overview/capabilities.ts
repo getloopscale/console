@@ -60,6 +60,17 @@ export type SinalDaCapacidade =
       /** O número de manchete. `null` quando a resposta chegou sem ele — que não é zero. */
       readonly extrair: (dados: unknown) => number | null;
       readonly unidade: string;
+      /**
+       * Como o número é escrito. `grouped` é o padrão; `bytes` existe porque
+       * `1,234,567 bytes stored` é tecnicamente correto e ilegível.
+       *
+       * O vocabulário é o de `formatNumber` — nenhum formatador novo. O degrau 4 da ladder de
+       * parcimônia: a capacidade já está instalada, e uma segunda implementação de bytes seria a
+       * terceira neste repositório (`pages/workspace/helpers.ts` já mantém a sua, em base 1024,
+       * divergindo da base 1000 que o ADR-D4 ratificou — divergência registrada, não resolvida
+       * aqui).
+       */
+      readonly formato?: 'grouped' | 'bytes';
     }
   | {
       readonly tipo: 'presenca';
@@ -152,7 +163,8 @@ export const CAPACIDADES: readonly Capacidade[] = [
       tipo: 'contagem',
       rota: '/v1/dashboard/storage/usage',
       extrair: (d) => numero(d, 'used_bytes'),
-      unidade: 'bytes stored',
+      unidade: 'stored',
+      formato: 'bytes',
     },
   },
   {
@@ -172,10 +184,19 @@ export const CAPACIDADES: readonly Capacidade[] = [
     path: '/trust',
     label: 'Trust',
     resumo: 'What gets blocked in conversations, before it happens.',
+    // `/validators`, e não `/guardrails`. A primeira versão deste descritor citava
+    // `/v1/dashboard/trust/guardrails?limit=1` — uma rota que NÃO EXISTE: o serviço aceita `POST
+    // /guardrails/` para criar e expõe a listagem por `/validators` (`guardrail-new.tsx:123` lê
+    // essa mesma chave). O endereço era plausível e nunca tinha sido chamado.
+    //
+    // Foi `overview-handlers.test.ts` quem pegou, ao exigir handler de mock para toda rota
+    // declarada. Vale registrar por que a fase anterior não pegou: `capabilities.test.ts` prova
+    // que todo sinal DECLARA uma fonte, não que a fonte existe — a diferença entre um contrato
+    // completo e um contrato verdadeiro.
     sinal: {
       tipo: 'presenca',
-      rota: '/v1/dashboard/trust/guardrails?limit=1',
-      temAlgo: (d) => (lista(d, 'guardrails')?.length ?? 0) > 0,
+      rota: '/v1/dashboard/trust/validators',
+      temAlgo: (d) => (lista(d, 'validators')?.length ?? 0) > 0,
     },
   },
   {
@@ -192,10 +213,18 @@ export const CAPACIDADES: readonly Capacidade[] = [
     path: '/promptly',
     label: 'Prompts',
     resumo: 'Versioned prompts resolved at runtime, with no redeploy.',
+    // O catálogo de prompts responde um ARRAY NU, não `{ prompts, total }`. Eu tinha declarado
+    // `lista(d, 'prompts')` por simetria com as vizinhas, e o card ficaria eternamente em "not set
+    // up yet" — sem erro, sem log, sem nada que apontasse para o motivo.
+    //
+    // É o quarto contrato de lista deste backend, e é o `B-114`: sete rotas respondem
+    // `{ <plural>, total }`, `TeamListResponse` omite `total`, `AuditListResponse` inventa a
+    // própria paginação, e esta devolve o array direto (a paginação viaja no header `Link`). Um
+    // consumidor genérico — que é o que esta tela é — precisa de um caso especial por endpoint.
     sinal: {
       tipo: 'presenca',
       rota: '/v1/dashboard/promptly/prompts?limit=1',
-      temAlgo: (d) => (lista(d, 'prompts')?.length ?? 0) > 0,
+      temAlgo: (d) => (Array.isArray(d) ? d.length : (lista(d, 'prompts')?.length ?? 0)) > 0,
     },
   },
 ];

@@ -72,7 +72,7 @@ describe('as capacidades da Overview derivam do registro do menu', () => {
   });
 
   it('toda capacidade declara COMO obter o seu sinal — ou que não tem sinal', () => {
-    // O que separa um overview de um segundo menu (ADR D1). Um card sem sinal não informa
+    // O que separa um overview de um segundo menu (decisão D1 de `platform-overview-plan.md`). Um card sem sinal não informa
     // estado; `em-breve` é a única ausência legítima, e ela é declarada.
     const semFonte = CAPACIDADES.filter((c) => c.sinal.tipo !== 'em-breve' && !('rota' in c.sinal));
 
