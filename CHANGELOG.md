@@ -96,6 +96,8 @@
 
 ### Fixed
 
+- **Em modo de demonstração, um prompt que referencia outro voltou a mostrar o texto resolvido.** A tela oferece dois modos — "como foi escrito", com o marcador da referência à vista, e "resolvido", com o texto que o modelo de fato recebe. O segundo tinha parado de resolver: a lista de prompts anunciava um pelo nome novo enquanto as revisões dele continuavam guardadas sob o nome antigo, então a busca não achava nada e a tela devolvia o texto sem resolver, com o marcador aparente. Só afetava o ambiente de demonstração, e apareceu no mesmo dia em que foi introduzido — mas era justamente a funcionalidade que aquela tela existe para tornar inspecionável.
+
 
 - **O painel de primeiros passos voltou a ser verificado em navegador de verdade.** A barra de progresso dele precisa ser anunciada como progresso por leitor de tela, e essa garantia só era verificada num navegador simulado — que confirma os atributos, mas não prova que o painel é alcançável. A verificação real estava impossível: o painel só aparece para quem ainda não terminou os primeiros passos, e a conta de demonstração já terminou todos. Agora um teste pode declarar o estado de que precisa, em vez de depender do que a conta de demonstração por acaso tiver — o que também torna afirmáveis as duas metades ao mesmo tempo: que o painel aparece para quem não terminou, e que não incomoda quem já terminou.
 
