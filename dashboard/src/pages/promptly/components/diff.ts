@@ -69,7 +69,7 @@ export function diffLines(anterior: string, novo: string): DiffBlock[] {
   const maiorLado = Math.max(a.length, b.length);
   if (maiorLado > DIFF_LINE_CEILING) {
     return [
-      { kind: 'too-large', text: `${maiorLado} linhas — acima do teto de ${DIFF_LINE_CEILING}` },
+      { kind: 'too-large', text: `${maiorLado} lines — above the ceiling of ${DIFF_LINE_CEILING}` },
     ];
   }
 
@@ -130,7 +130,7 @@ export interface DiffDeConfig {
 }
 
 /** O que a tela diz quando um dos lados é anterior ao milestone (ADR-1). */
-const ANTERIOR = 'revisão anterior à config';
+const ANTERIOR = 'revision before the config';
 
 function mostrar(cfg: ConfigDeRevisao | null | undefined, campo: 'temperature' | 'model'): string {
   // `!= null` cobre `null` E `undefined`: o primeiro vem do serviço, o segundo de uma

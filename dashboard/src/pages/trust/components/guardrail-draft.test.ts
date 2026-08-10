@@ -31,28 +31,28 @@ describe('draftProblems', () => {
 
   it('exige nome', () => {
     const problems = draftProblems(draft({ terms: ['segredo'] }));
-    expect(problems).toContain('Dê um nome à guardrail.');
+    expect(problems).toContain('Give the guardrail a name.');
   });
 
   it('exige ao menos um termo', () => {
     const problems = draftProblems(draft({ name: 'sem-termos' }));
-    expect(problems).toContain('Adicione ao menos um termo a bloquear.');
+    expect(problems).toContain('Add at least one term to block.');
   });
 
   it('recusa nome reservado da plataforma antes de ir ao servidor', () => {
     // O serviço devolveria 422 VALIDATOR_NAME_RESERVED — mas só depois de uma ida ao servidor,
     // com o operador já tendo perdido o contexto do campo. A autoridade continua sendo o 422.
     const problems = draftProblems(draft({ name: 'pii', terms: ['x'] }));
-    expect(problems.some((p) => p.includes('reservado'))).toBe(true);
+    expect(problems.some((p) => p.includes('reserved'))).toBe(true);
   });
 
   it('recusa nome reservado independentemente de caixa', () => {
-    expect(draftProblems(draft({ name: 'PII', terms: ['x'] })).some((p) => p.includes('reservado'))).toBe(true);
+    expect(draftProblems(draft({ name: 'PII', terms: ['x'] })).some((p) => p.includes('reserved'))).toBe(true);
   });
 
   it('exige replacement quando a ação é modify', () => {
     const problems = draftProblems(draft({ name: 'n', terms: ['x'], action: 'modify', replacement: '  ' }));
-    expect(problems).toContain('Defina o texto que substitui o termo encontrado.');
+    expect(problems).toContain('Set the text that replaces the term found.');
   });
 
   it('não exige replacement quando a ação é block', () => {
@@ -129,7 +129,7 @@ describe('toTestBody', () => {
 describe('verdictSummary', () => {
   it('fala no futuro do pretérito — o dry-run não alterou nada', () => {
     // Dizer "bloqueado" faria o operador acreditar que a regra já está valendo.
-    expect(verdictSummary({ action: 'block' })).toBe('Esta mensagem seria bloqueada.');
+    expect(verdictSummary({ action: 'block' })).toBe('This message would be blocked.');
   });
 
   it('mostra o texto reescrito quando há modificação', () => {
@@ -137,7 +137,7 @@ describe('verdictSummary', () => {
   });
 
   it('diz claramente quando a regra não alcança a mensagem', () => {
-    expect(verdictSummary({ action: 'allow' })).toContain('passaria');
+    expect(verdictSummary({ action: 'allow' })).toContain('would pass');
   });
 
   it('devolve null para veredito ausente ou desconhecido', () => {
@@ -152,13 +152,13 @@ describe('draftProblemsByField', () => {
   it('endereça o problema ao campo que o causou', () => {
     // Sem isto, a frase aparece no rodapé e o operador adivinha qual campo corrigir.
     const byField = draftProblemsByField(EMPTY_DRAFT);
-    expect(byField.name).toContain('nome');
-    expect(byField.terms).toContain('termo');
+    expect(byField.name).toContain('name');
+    expect(byField.terms).toContain('term');
   });
 
   it('aponta o nome reservado para o campo de nome', () => {
     const byField = draftProblemsByField(draft({ name: 'pii', terms: ['x'] }));
-    expect(byField.name).toContain('reservado');
+    expect(byField.name).toContain('reserved');
     expect(byField.terms).toBeUndefined();
   });
 
@@ -185,7 +185,7 @@ describe('visibleFieldProblems', () => {
   it('reporta apenas o campo visitado', () => {
     const visible = visibleFieldProblems(EMPTY_DRAFT, new Set<DraftField>(['name']));
 
-    expect(visible.name).toContain('nome');
+    expect(visible.name).toContain('name');
     expect(visible.terms).toBeUndefined();
   });
 

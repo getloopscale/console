@@ -57,7 +57,7 @@ describe('alertProblems', () => {
       threshold: '5',
       webhookId: 'wh-1',
     });
-    expect(problemas.join(' ')).toMatch(/workspace inteiro/i);
+    expect(problemas.join(' ')).toMatch(/workspace-wide/i);
   });
 
   it('não acusa o par válido', () => {
@@ -112,7 +112,7 @@ describe('alertProblems', () => {
     const problemas = alertProblems({
       ...EMPTY_ALERT_DRAFT, name: 'x', metric: 'error_rate', threshold: '', webhookId: 'wh-1',
     });
-    expect(problemas.join(' ')).toMatch(/limite/i);
+    expect(problemas.join(' ')).toMatch(/threshold/i);
   });
 
   it('recusa limiar que não é número', () => {
@@ -120,7 +120,7 @@ describe('alertProblems', () => {
       const problemas = alertProblems({
         ...EMPTY_ALERT_DRAFT, name: 'x', metric: 'error_rate', threshold: t, webhookId: 'wh-1',
       });
-      expect(problemas.join(' ')).toMatch(/limite/i);
+      expect(problemas.join(' ')).toMatch(/threshold/i);
     }
   });
 

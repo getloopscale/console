@@ -130,11 +130,11 @@ describe('AppSidebar', () => {
   it('M12 — a autoria de revisão é alcançável pelo MENU, não só pela URL', () => {
     // A tela de criar existia e não abria: um item de submenu ausente é indistinguível, para
     // quem opera, de uma tela que não foi entregue. E o par abaixo é o que dá valor à asserção —
-    // 'Nova revisão' só pertence ao submenu de prompts, então vê-lo prova que o submenu abriu,
+    // 'New revision' só pertence ao submenu de prompts, então vê-lo prova que o submenu abriu,
     // e não que a raiz foi renderizada.
     render(<AppSidebar session={makeSession()} />, { initialEntries: ['/promptly/new'] });
 
-    expect(screen.getByText('Nova revisão')).toBeInTheDocument();
+    expect(screen.getByText('New revision')).toBeInTheDocument();
     expect(screen.queryByText('Domains')).not.toBeInTheDocument();
   });
 

@@ -53,9 +53,9 @@ export function ConversationPanel(props: ConversationPanelProps) {
           </h2>
         </Card.Title>
         <Card.Description>
-          Este é o <strong>conteúdo original</strong> da conversa, como foi
-          ingerido — inclusive o trecho que a violação apontou. Cuidado ao
-          exibir em tela compartilhada ou impressão.
+          This is the <strong>original content</strong> of the conversation, as it was
+          ingested — including the excerpt the violation pointed at. Be careful when
+          showing it on a shared screen or in print.
         </Card.Description>
       </Card.Header>
 
@@ -65,8 +65,8 @@ export function ConversationPanel(props: ConversationPanelProps) {
         ) : failed ? (
           <Alert
             intent="destructive"
-            title="Não foi possível carregar a conversa"
-            description="A violação continua válida; apenas o detalhe não pôde ser lido agora."
+            title="Could not load the conversation"
+            description="The violation still stands; only the detail could not be read right now."
           />
         ) : content.kind === 'withheld' ? (
           /* #347 — a mensagem antiga ("não trouxe mensagens legíveis") descrevia o DADO quando o
@@ -77,14 +77,14 @@ export function ConversationPanel(props: ConversationPanelProps) {
              a ingestão está de pé. */
           <Alert
             intent="info"
-            title="Conteúdo não exibido por falta de permissão"
-            description={`Esta conversa tem ${content.total} ${
-              content.total === 1 ? 'mensagem' : 'mensagens'
-            }, e o texto delas não foi entregue porque a credencial em uso não inclui o escopo trust:content. A ingestão está correta; o que falta é permissão de leitura.`}
+            title="Content not shown for lack of permission"
+            description={`This conversation has ${content.total} ${
+              content.total === 1 ? 'message' : 'messages'
+            }, and their text was not delivered because the credential in use does not include the trust:content scope. Ingestion is correct; what is missing is read permission.`}
           />
         ) : messages.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            A conversa foi lida e não tem mensagem alguma.
+            The conversation was read and has no messages at all.
           </p>
         ) : (
           <ol className="space-y-3">
@@ -113,7 +113,7 @@ export function ConversationPanel(props: ConversationPanelProps) {
                   // já respondem isso. Exibir por padrão punha o vazamento na jornada mais
                   // provável do produto, com o operador em screen-share sem perceber.
                   <p className="text-body-sm italic text-muted-foreground">
-                    Conteúdo oculto — {m.content?.length ?? 0} caractere(s).
+                    Content hidden — {m.content?.length ?? 0} character(s).
                   </p>
                 )}
               </li>
@@ -134,7 +134,7 @@ export function ConversationPanel(props: ConversationPanelProps) {
             ) : (
               <Eye className="size-4" aria-hidden="true" />
             )}
-            {revealed ? 'Ocultar conteúdo' : 'Revelar conteúdo original'}
+            {revealed ? 'Hide content' : 'Reveal original content'}
           </Button>
         ) : null}
         <Button

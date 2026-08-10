@@ -50,21 +50,21 @@ export function ConfirmacoesDePonteiro({
         }
       }}
       intent="destructive"
-      title={`Promover "${labelAlvo}" para a revisão v${alvo ?? ''}?`}
+      title={`Promote "${labelAlvo}" to revision v${alvo ?? ''}?`}
       description={
         <>
           <p>{promotionConsequence({ label: labelAlvo, atual: atualDoLabel(labelAlvo), alvo: alvo ?? 0 })}</p>
           <p className="mt-2">
             {/* A regra vigente, ANTES do ato. Ilegível ≠ ausente: o primeiro manda investigar, o
                 segundo diz que a promoção é livre. Confundi-los é o defeito que a tela evita. */}
-            <strong>Política: </strong>
+            <strong>Policy: </strong>
             {politicaIlegivel
-              ? 'não foi possível ler a política deste label — a promoção pode ser recusada pelo serviço.'
+              ? 'the policy for this label could not be read — the service may refuse the promotion.'
               : resumoPolitica.texto}
           </p>
         </>
       }
-      confirmLabel="Promover"
+      confirmLabel="Promote"
       cancelLabel="Cancelar"
       confirmationPhrase={labelAlvo}
       loading={promote.isPending}
@@ -79,7 +79,7 @@ export function ConfirmacoesDePonteiro({
     <ConfirmDialog
       open={revAlvo !== null}
       onOpenChange={(aberto) => !aberto && setRevAlvo(null)}
-      title={`Reverter ${promptName} para a v${revAlvo ?? 0}`}
+      title={`Roll ${promptName} back to v${revAlvo ?? 0}`}
       description={
         <p className="text-sm">
           {frasePreRollback({
@@ -90,7 +90,7 @@ export function ConfirmacoesDePonteiro({
           })}
         </p>
       }
-      confirmLabel="Reverter"
+      confirmLabel="Roll back"
       cancelLabel="Cancelar"
       confirmationPhrase={promptName}
       loading={rollback.isPending}

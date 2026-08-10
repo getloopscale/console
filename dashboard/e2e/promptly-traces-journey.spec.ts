@@ -36,8 +36,8 @@ async function navegarAteOCatalogoPeloMenu(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: /^prompts$/i }).click();
   await expect(page.getByRole('button', { name: /^projects$/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /^catálogo$/i }).click();
-  await expect(page).toHaveURL(/\/promptly\/catalogo$/);
+  await page.getByRole('button', { name: /^catalog$/i }).click();
+  await expect(page).toHaveURL(/\/promptly\/catalog$/);
 }
 
 test.describe('M23 — do número na aba até as resoluções que o produziram', () => {
@@ -46,10 +46,10 @@ test.describe('M23 — do número na aba até as resoluções que o produziram',
 
     // ---- Abrir um prompt e a aba de uso, clicando --------------------------------------
     await page.getByRole('link', { name: 'saudacao', exact: true }).click();
-    await page.getByRole('link', { name: 'Uso em produção' }).click();
+    await page.getByRole('link', { name: 'Production usage' }).click();
 
     // ---- O caminho existe, e diz ao operador o que vai encontrar -----------------------
-    const caminho = page.getByRole('link', { name: /execuç/i });
+    const caminho = page.getByRole('link', { name: /runs in traces/i });
     await expect(caminho).toBeVisible();
 
     await caminho.click();
@@ -93,8 +93,8 @@ test.describe('M23 — do número na aba até as resoluções que o produziram',
     // `despedida` tem uso na aba (logo o caminho é oferecido) e nenhuma resolução no explorador.
     await navegarAteOCatalogoPeloMenu(page);
     await page.getByRole('link', { name: 'despedida', exact: true }).click();
-    await page.getByRole('link', { name: 'Uso em produção' }).click();
-    await page.getByRole('link', { name: /execuç/i }).click();
+    await page.getByRole('link', { name: 'Production usage' }).click();
+    await page.getByRole('link', { name: /runs in traces/i }).click();
 
     await expect(page).toHaveURL(/span_query=attr%3Aprompt\.id%3Ddespedida/);
     await expect(page.getByText(/PROMPT\.ID=DESPEDIDA/i)).toBeVisible();

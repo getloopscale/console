@@ -52,7 +52,7 @@ describe('ConversationPanel', () => {
     panel();
 
     // O texto e quebrado por <strong>, entao casa-se a advertencia, que vive num no unico.
-    expect(screen.getByText(/cuidado ao exibir em tela compartilhada/i)).toBeInTheDocument();
+    expect(screen.getByText(/careful when showing it on a shared screen/i)).toBeInTheDocument();
   });
 
   it('NÃO exibe o conteúdo por padrão — abrir a tela não pode vazar', async () => {
@@ -70,7 +70,7 @@ describe('ConversationPanel', () => {
     const user = userEvent.setup();
     panel();
 
-    await user.click(screen.getByRole('button', { name: /revelar/i }));
+    await user.click(screen.getByRole('button', { name: /reveal/i }));
 
     expect(screen.getByText(/FIXTURE-LT013-NAO-E-CREDENCIAL-REAL/)).toBeInTheDocument();
   });

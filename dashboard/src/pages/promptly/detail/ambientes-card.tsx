@@ -28,20 +28,20 @@ export function AmbientesCard({ ponteiros, latestVersion, setAlvo, setLabelAlvo,
     <Card>
       <Card.Header>
         <Card.Title asChild>
-          <h2>Ambientes</h2>
+          <h2>Environments</h2>
         </Card.Title>
         <Card.Description>
-          Qual revisão cada label serve neste momento — e a promoção para a{' '}
-          <strong>última</strong> revisão, que é o ato comum. Para promover uma revisão anterior,
-          a tabela em <em>Conteúdo</em> tem uma ação por linha.
+          Which revision each label serves right now — and promotion to the{' '}
+          <strong>latest</strong> revision, which is the common act. To promote an earlier
+          revision, the table under <em>Content</em> has a per-row action.
         </Card.Description>
       </Card.Header>
       <div className="flex flex-wrap items-center gap-2 p-4 pt-0">
         {ponteiros.length === 0 ? (
           <span className="text-sm text-muted-foreground">
             {labelsFailed
-              ? 'Sem dados — a leitura falhou.'
-              : 'Nenhum label de ambiente aponta para este prompt.'}
+              ? 'No data — the read failed.'
+              : 'No environment label points at this prompt.'}
           </span>
         ) : (
           ponteiros.map((p: LabelPointer) => (
@@ -63,7 +63,7 @@ export function AmbientesCard({ ponteiros, latestVersion, setAlvo, setLabelAlvo,
                   // na tela (esta e a da tabela por linha), e um rótulo idêntico as tornaria
                   // indistinguíveis para leitor de tela e para teste. A diferença não é cosmética —
                   // esta promove a última; aquela, a linha que o operador escolheu.
-                  aria-label={`Promover ${p.label} para a última revisão, v${String(latestVersion)}`}
+                  aria-label={`Promote ${p.label} to the latest revision, v${String(latestVersion)}`}
                   onClick={() => {
                     setPromoteError(null);
                     setLabelAlvo(p.label);

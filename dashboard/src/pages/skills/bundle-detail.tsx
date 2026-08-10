@@ -224,7 +224,7 @@ export function BundleDetailPage() {
       {/* Caminho de volta explícito. O item de menu leva ao overview da capacidade, não à lista
           de pacotes — sem este link o operador que entrou pelo detalhe não tem saída óbvia. */}
       <Link to="/bundles" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-        ← Todos os pacotes
+        ← All bundles
       </Link>
 
       {erro !== null ? <Alert intent="destructive" title="The operation failed" description={erro} /> : null}
@@ -374,7 +374,7 @@ export function BundleDetailPage() {
             </label>
 
             <Button type="submit" variant="secondary" disabled={skillEscolhida === '' || canalEscolhido === ''}>
-              Adicionar ao pacote
+              Add to bundle
             </Button>
           </form>
 

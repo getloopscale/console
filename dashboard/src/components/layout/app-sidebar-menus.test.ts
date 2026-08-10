@@ -20,7 +20,7 @@ describe('submenu do promptly', () => {
   });
 
   it('declara o catálogo, que saiu da raiz no M13', () => {
-    expect(itens.map((i) => i.path)).toContain('/promptly/catalogo');
+    expect(itens.map((i) => i.path)).toContain('/promptly/catalog');
   });
 
   it('rotula a raiz como painel, não como lista', () => {
@@ -36,7 +36,7 @@ describe('resolveActiveMenu', () => {
   });
 
   it('reconhece a rota do catálogo — a metade que faz o menu ABRIR', () => {
-    expect(resolveActiveMenu('/promptly/catalogo')).toEqual({ id: 'promptly' });
+    expect(resolveActiveMenu('/promptly/catalog')).toEqual({ id: 'promptly' });
   });
 
   it('continua reconhecendo as rotas que já existiam', () => {

@@ -47,13 +47,13 @@ export function PromptlyOverviewPage() {
   return (
     <PageShell
       title="Prompts"
-      description="Prompts versionados resolvidos em runtime — e o que já foi escrito mas ainda não está servindo ninguém."
+      description="Versioned prompts resolved at runtime — and what has been written but is not serving anyone yet."
     >
       {query.error ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar o catálogo"
-          description="Nenhum número é exibido abaixo porque a leitura falhou — isto NÃO significa que não há prompts neste workspace."
+          title="Could not load the catalog"
+          description="No number is shown below because the read failed — this does NOT mean there are no prompts in this workspace."
           /* Sem saída, o operador que cai numa falha transitória só pode recarregar a página
              inteira. O mecanismo já existia em `AlertProps.action` e não estava sendo usado. */
           action={
@@ -69,7 +69,7 @@ export function PromptlyOverviewPage() {
       {query.isPending ? (
         <div
           role="status"
-          aria-label="Carregando os números do catálogo"
+          aria-label="Loading the catalog numbers"
           className="grid grid-cols-2 gap-4 lg:grid-cols-4"
         >
           {/* `aria-hidden` nos esqueletos DE PROPÓSITO: cada `Skeleton` traz `role="status"`, e
@@ -86,13 +86,13 @@ export function PromptlyOverviewPage() {
           {resumo.parcial ? (
             <Alert
               intent="warning"
-              title="Os números abaixo são parciais"
-              description={`O serviço indicou que há mais prompts além dos ${String(resumo.prompts)} desta página. Os valores são mínimos, não totais.`}
+              title="The numbers below are partial"
+              description={`The service reported more prompts beyond the ${String(resumo.prompts)} on this page. These values are minimums, not totals.`}
             />
           ) : null}
 
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Link to="/promptly/catalogo" aria-label="Ver todos os prompts no catálogo">
+            <Link to="/promptly/catalog" aria-label="See all prompts in the catalog">
               <MetricCard
                 title="Prompts"
                 value={resumo.prompts}
@@ -104,9 +104,9 @@ export function PromptlyOverviewPage() {
                 o que o DoD-3 pede. Sem o link, o painel diria "2 não promovidos" e deixaria o
                 operador abrir prompt por prompt para descobrir QUAIS. O recorte vive no endereço,
                 então o link é colável. */}
-            <Link to="/promptly/catalogo?recorte=nao-promovidos" aria-label="Ver os prompts não promovidos">
+            <Link to="/promptly/catalog?recorte=nao-promovidos" aria-label="See the prompts that were never promoted">
               <MetricCard
-                title="Não promovidos"
+                title="Not promoted"
                 value={resumo.naoPromovidos}
                 data-testid="kpi-nao-promovidos"
                 icon={<Rocket className="h-4 w-4" aria-hidden="true" />}
@@ -118,13 +118,13 @@ export function PromptlyOverviewPage() {
                 inventar um destino seria pior que a ausência. Declarado no registro de aceitação
                 em vez de fingido aqui. */}
             <MetricCard
-              title="Revisões escritas"
+              title="Revisions written"
               value={resumo.revisoesPublicadas}
               data-testid="kpi-revisoes"
               icon={<Layers className="h-4 w-4" aria-hidden="true" />}
             />
             <MetricCard
-              title="Ambientes"
+              title="Environments"
               value={resumo.ambientes}
               data-testid="kpi-ambientes"
               icon={<Server className="h-4 w-4" aria-hidden="true" />}
@@ -134,7 +134,7 @@ export function PromptlyOverviewPage() {
           <Card>
             <Card.Header>
               <Card.Title asChild>
-                <h2>{resumo.prompts === 0 ? 'Nenhum prompt ainda' : 'O que ainda não está no ar'}</h2>
+                <h2>{resumo.prompts === 0 ? 'No prompts yet' : 'What is not live yet'}</h2>
               </Card.Title>
               <Card.Description>
                 {/* `prompts === 0` é testado ANTES de `naoPromovidos === 0`, e a ordem É o
@@ -142,12 +142,12 @@ export function PromptlyOverviewPage() {
                     afirmava que "toda última revisão está servindo pelo menos um ambiente" sobre
                     revisões que não existem — no primeiro contato de quem acabou de chegar. */}
                 {resumo.prompts === 0
-                  ? 'Crie a primeira revisão e ela passa a valer no runtime, sem redeploy.'
+                  ? 'Create the first revision and it takes effect at runtime, with no redeploy.'
                   : resumo.naoPromovidos === 0
-                    ? 'Toda última revisão está servindo pelo menos um ambiente.'
-                    : `${String(resumo.naoPromovidos)} ${resumo.naoPromovidos === 1 ? 'prompt tem uma revisão' : 'prompts têm revisões'} que nenhum label serve` +
+                    ? 'Every latest revision is serving at least one environment.'
+                    : `${String(resumo.naoPromovidos)} ${resumo.naoPromovidos === 1 ? 'prompt has a revision' : 'prompts have revisions'} that no label serves` +
                       (resumo.semAmbiente > 0
-                        ? ` — ${String(resumo.semAmbiente)} ${resumo.semAmbiente === 1 ? 'deles nunca foi promovido' : 'deles nunca foram promovidos'}.`
+                        ? ` — ${String(resumo.semAmbiente)} of them ${resumo.semAmbiente === 1 ? 'was' : 'were'} never promoted.`
                         : '.')}
               </Card.Description>
             </Card.Header>
@@ -156,17 +156,17 @@ export function PromptlyOverviewPage() {
                 // Zeros AQUI são a verdade: a leitura aconteceu e não há prompts. O caso de falha
                 // é o ramo `isError` acima, e é por isso que os dois não podem renderizar igual.
                 <Button asChild>
-                  <Link to="/promptly/new">Criar o primeiro prompt</Link>
+                  <Link to="/promptly/new">Create the first prompt</Link>
                 </Button>
               ) : (
                 <>
                   <Button asChild>
-                    <Link to="/promptly/catalogo">Ver o catálogo</Link>
+                    <Link to="/promptly/catalog">See the catalog</Link>
                   </Button>
                   <Button variant="secondary" asChild>
                     <Link to="/promptly/new">
                       <FilePlus className="mr-2 h-4 w-4" aria-hidden="true" />
-                      Nova revisão
+                      New revision
                     </Link>
                   </Button>
                 </>

@@ -48,8 +48,8 @@ async function navegarAteOCatalogoPeloMenu(page: Page) {
   // nome: clicar cedo demais acerta o da raiz e a jornada continua em `/`, com a navegação
   // parecendo funcionar. O sinal de troca é a ausência de um item que só a raiz tem.
   await expect(page.getByRole('button', { name: /^projects$/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /^catálogo$/i }).click();
-  await expect(page).toHaveURL(/\/promptly\/catalogo$/);
+  await page.getByRole('button', { name: /^catalog$/i }).click();
+  await expect(page).toHaveURL(/\/promptly\/catalog$/);
 }
 
 test.describe('M25 — operar prompts pelo dashboard', () => {
@@ -82,25 +82,25 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
 
     // O trecho da revisão — o suficiente para reconhecê-la. O corpo inteiro é editor, e editor
     // está fora deste milestone por decisão registrada.
-    await expect(page.getByText(/sou o assistente/)).toBeVisible();
+    await expect(page.getByText(/I am the assistant/)).toBeVisible();
     // No detalhe cada ambiente é um selo próprio, então aqui a igualdade exata é a asserção certa.
     await expect(page.getByText('prod → v1', { exact: true })).toBeVisible();
 
     // ---- A POLÍTICA, ANTES DO ATO --------------------------------------------------------
     // Este prompt não tem política: a promoção é livre, e a tela precisa DIZER isso. Silêncio
     // aqui seria indistinguível de "não consegui ler a regra".
-    await page.getByRole('button', { name: /Promover prod para a revisão v3/i }).click();
+    await page.getByRole('button', { name: /Promote prod to revision v3/i }).click();
     const dialogo = page.getByRole('dialog');
-    await expect(dialogo.getByText(/promoção é livre/i)).toBeVisible();
+    await expect(dialogo.getByText(/promotion is unrestricted/i)).toBeVisible();
 
     // ---- A CONSEQUÊNCIA, NOMEADA ---------------------------------------------------------
     // Não "o item será alterado": QUAL revisão deixa de servir o label. O v1 vem de `/labels`.
-    await expect(dialogo.getByText(/deixa de servir a v1/i)).toBeVisible();
-    await expect(dialogo.getByText(/passa a servir a v3/i)).toBeVisible();
+    await expect(dialogo.getByText(/stops serving v1/i)).toBeVisible();
+    await expect(dialogo.getByText(/starts serving v3/i)).toBeVisible();
 
     // ---- A PROMOÇÃO, ATRÁS DA FRASE DIGITADA ---------------------------------------------
     await dialogo.getByRole('textbox').fill('prod');
-    await dialogo.getByRole('button', { name: /^Promover$/i }).click();
+    await dialogo.getByRole('button', { name: /^Promote$/i }).click();
 
     // ---- O ORÁCULO É O ESTADO, NÃO A RESPOSTA --------------------------------------------
     // O que prova a promoção é o ponteiro ter mudado na tela: um 200 do servidor com o label
@@ -116,19 +116,19 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     await navegarAteOCatalogoPeloMenu(page);
     await page.getByRole('link', { name: 'saudacao', exact: true }).click();
 
-    await page.getByRole('button', { name: /Promover staging para a revisão v3/i }).click();
+    await page.getByRole('button', { name: /Promote staging to revision v3/i }).click();
     const dialogo = page.getByRole('dialog');
 
     // A regra vigente é exibida ANTES do ato — é a razão de o GET de políticas existir neste
     // milestone em vez de ficar para depois.
-    await expect(dialogo.getByText(/score mínimo de 0\.8/i)).toBeVisible();
+    await expect(dialogo.getByText(/minimum score of 0\.8/i)).toBeVisible();
 
     await dialogo.getByRole('textbox').fill('staging');
-    await dialogo.getByRole('button', { name: /^Promover$/i }).click();
+    await dialogo.getByRole('button', { name: /^Promote$/i }).click();
 
     // O TEXTO do serviço, com os números que dizem POR QUE. Sem eles o operador vê "erro" e
     // tenta de novo igual.
-    await expect(page.getByText(/melhor execução desta revisão obteve 0\.41/i)).toBeVisible();
+    await expect(page.getByText(/best run of this revision scored 0\.41/i)).toBeVisible();
     // E o ponteiro NÃO se moveu: a recusa foi honrada, não apenas exibida.
     await expect(page.getByText('staging → v2')).toBeVisible();
   });
@@ -147,7 +147,7 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     // ...e o começo do histórico NÃO está — este é o par que discrimina.
     await expect(page.getByRole('cell', { name: 'v1', exact: true })).toHaveCount(0);
     // A legenda declara até onde a página vai, em vez de prometer algo inauditável.
-    await expect(page.getByText(/até a v30/i)).toBeVisible();
+    await expect(page.getByText(/up to v30/i)).toBeVisible();
   });
 
   test('o prompt sem label algum diz isso, em vez de oferecer promoção às cegas', async ({ page }) => {
@@ -156,6 +156,6 @@ test.describe('M25 — operar prompts pelo dashboard', () => {
     await page.getByRole('link', { name: 'despedida', exact: true }).click();
     await expect(page).toHaveURL(/\/promptly\/despedida$/);
 
-    await expect(page.getByText(/Nenhum label de ambiente aponta para este prompt/i)).toBeVisible();
+    await expect(page.getByText(/No environment label points at this prompt/i)).toBeVisible();
   });
 });

@@ -50,7 +50,7 @@ beforeEach(() => {
 async function prontoParaRodar() {
   fireEvent.change(await screen.findByLabelText('topico'), { target: { value: 'chuva' } });
   fireEvent.change(screen.getByLabelText('artigo'), { target: { value: 'NYT' } });
-  fireEvent.change(screen.getByLabelText('Chave de API do modelo'), {
+  fireEvent.change(screen.getByLabelText('Model API key'), {
     target: { value: SENTINELA },
   });
 }
@@ -75,9 +75,9 @@ describe('M14 — o playground', () => {
     render(<PromptlyPlaygroundPage />);
 
     const aviso = await screen.findByTestId('playground-aviso-custo');
-    const botao = screen.getByRole('button', { name: 'Rodar' });
+    const botao = screen.getByRole('button', { name: 'Run' });
 
-    expect(aviso.textContent).toMatch(/consome a quota da sua chave/i);
+    expect(aviso.textContent).toMatch(/consumes your key quota/i);
     expect(aviso.compareDocumentPosition(botao) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -85,7 +85,7 @@ describe('M14 — o playground', () => {
   it('DoD4_o_campo_de_credencial_e_type_password', async () => {
     render(<PromptlyPlaygroundPage />);
 
-    expect(await screen.findByLabelText('Chave de API do modelo')).toHaveAttribute(
+    expect(await screen.findByLabelText('Model API key')).toHaveAttribute(
       'type',
       'password',
     );
@@ -100,7 +100,7 @@ describe('M14 — o playground', () => {
     render(<PromptlyPlaygroundPage />);
     await prontoParaRodar();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Rodar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     await screen.findByText('chove muito');
 
     expect(JSON.stringify(localStorage)).not.toContain(SENTINELA);
@@ -114,7 +114,7 @@ describe('M14 — o playground', () => {
     render(<PromptlyPlaygroundPage />);
     await prontoParaRodar();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Rodar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     await screen.findByText('chove muito');
 
     // M17 acrescentou um 5º argumento (a config). `null` aqui é o caso "não afinei".
@@ -139,7 +139,7 @@ describe('M14 — o playground', () => {
     render(<PromptlyPlaygroundPage />);
     await prontoParaRodar();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Rodar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
 
     const saida = await screen.findByTestId('playground-saida');
     expect(within(saida).getByText(/Incorrect API key provided/)).toBeInTheDocument();
@@ -155,10 +155,10 @@ describe('M14 — o playground', () => {
     render(<PromptlyPlaygroundPage />);
     await prontoParaRodar();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Rodar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
 
     const saida = await screen.findByTestId('playground-saida');
-    expect(within(saida).getByText(/não foi possível falar com o serviço/i)).toBeInTheDocument();
+    expect(within(saida).getByText(/could not reach the service/i)).toBeInTheDocument();
     expect(within(saida).queryByText(/provedor do modelo recusou/i)).toBeNull();
   });
 
@@ -170,7 +170,7 @@ describe('M14 — o playground', () => {
     render(<PromptlyPlaygroundPage />);
 
     const saida = await screen.findByTestId('playground-saida');
-    expect(within(saida).getByText(/Nada foi executado ainda/i)).toBeInTheDocument();
+    expect(within(saida).getByText(/Nothing has been executed yet/i)).toBeInTheDocument();
   });
 
   /** DoD-5, a metade barata: sem preencher, não dá nem para tentar. */
@@ -178,12 +178,12 @@ describe('M14 — o playground', () => {
     render(<PromptlyPlaygroundPage />);
 
     fireEvent.change(await screen.findByLabelText('topico'), { target: { value: 'chuva' } });
-    fireEvent.change(screen.getByLabelText('Chave de API do modelo'), {
+    fireEvent.change(screen.getByLabelText('Model API key'), {
       target: { value: SENTINELA },
     });
 
     // `artigo` continua vazia.
-    expect(screen.getByRole('button', { name: 'Rodar' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
   });
 
   it('DoD5_Rodar_fica_desabilitado_sem_credencial', async () => {
@@ -192,17 +192,17 @@ describe('M14 — o playground', () => {
     fireEvent.change(await screen.findByLabelText('topico'), { target: { value: 'chuva' } });
     fireEvent.change(screen.getByLabelText('artigo'), { target: { value: 'NYT' } });
 
-    expect(screen.getByRole('button', { name: 'Rodar' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
   });
 
   /** DoD-6 — salvar manda o texto DA TELA, que é o mesmo que foi rodado. */
   it('DoD6_salvar_envia_o_conteudo_que_esta_na_tela', async () => {
     render(<PromptlyPlaygroundPage />);
-    fireEvent.change(await screen.findByLabelText('Conteúdo do prompt'), {
+    fireEvent.change(await screen.findByLabelText('Prompt content'), {
       target: { value: 'TEXTO EDITADO {{topico}}' },
     });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Salvar como nova revisão' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save as a new revision' }));
 
     // M17 acrescentou os extras. A descrição vai vazia aqui porque este teste mede o
     // CONTEÚDO; a obrigatoriedade da descrição é da tela de criação (ADR-3), e o
@@ -216,19 +216,19 @@ describe('M14 — o playground', () => {
   /** O mesmo texto que foi rodado é o que se salva — o par que dá sentido ao DoD-6. */
   it('DoD6_o_texto_rodado_e_o_texto_salvo_sao_o_mesmo', async () => {
     render(<PromptlyPlaygroundPage />);
-    fireEvent.change(await screen.findByLabelText('Conteúdo do prompt'), {
+    fireEvent.change(await screen.findByLabelText('Prompt content'), {
       target: { value: 'EDITADO {{topico}}' },
     });
     // O texto editado declara SÓ `topico` — `artigo` deixou de existir, e o campo
     // dele some junto (é o regime editado; ver o segundo `describe` abaixo).
     fireEvent.change(screen.getByLabelText('topico'), { target: { value: 'chuva' } });
-    fireEvent.change(screen.getByLabelText('Chave de API do modelo'), {
+    fireEvent.change(screen.getByLabelText('Model API key'), {
       target: { value: SENTINELA },
     });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Rodar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     await screen.findByText('chove muito');
-    await userEvent.click(screen.getByRole('button', { name: 'Salvar como nova revisão' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save as a new revision' }));
 
     expect(mockRun.mock.calls[0]?.[1]).toBe('EDITADO {{topico}}');
     expect(mockCreate.mock.calls[0]?.[1]).toBe('EDITADO {{topico}}');
@@ -245,7 +245,7 @@ describe('M14 — o playground', () => {
     render(<PromptlyPlaygroundPage />);
     await prontoParaRodar();
 
-    const botao = screen.getByRole('button', { name: 'Rodar' });
+    const botao = screen.getByRole('button', { name: 'Run' });
     await userEvent.click(botao);
     await userEvent.click(botao); // o segundo cai num botão já desabilitado
 
@@ -261,14 +261,14 @@ describe('M14 — o playground', () => {
     mockPrompt.mockRejectedValue(new ApiError(500, { error: 'internal_error' }));
     render(<PromptlyPlaygroundPage />);
 
-    expect(await screen.findByText(/Não foi possível carregar este prompt/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Could not load this prompt/i)).toBeInTheDocument();
   });
 
   /** Todo formulário tem saída explícita — o checklist de navegação da casa. */
   it('existe_caminho_de_volta_ao_detalhe_do_prompt', async () => {
     render(<PromptlyPlaygroundPage />);
 
-    expect(await screen.findByRole('link', { name: /Voltar ao prompt/i })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: /Back to the prompt/i })).toHaveAttribute(
       'href',
       '/promptly/saudacao',
     );
@@ -289,7 +289,7 @@ describe('M14 — os campos acompanham o conteúdo EDITADO', () => {
     render(<PromptlyPlaygroundPage />);
     await screen.findByLabelText('topico');
 
-    fireEvent.change(screen.getByLabelText('Conteúdo do prompt'), {
+    fireEvent.change(screen.getByLabelText('Prompt content'), {
       target: { value: 'Sobre {{topico}} citando {{artigo}} e a {{fonte}}' },
     });
 
@@ -300,7 +300,7 @@ describe('M14 — os campos acompanham o conteúdo EDITADO', () => {
     render(<PromptlyPlaygroundPage />);
     await screen.findByLabelText('artigo');
 
-    fireEvent.change(screen.getByLabelText('Conteúdo do prompt'), {
+    fireEvent.change(screen.getByLabelText('Prompt content'), {
       target: { value: 'Só sobre {{topico}}' },
     });
 
@@ -314,7 +314,7 @@ describe('M14 — os campos acompanham o conteúdo EDITADO', () => {
     render(<PromptlyPlaygroundPage />);
     fireEvent.change(await screen.findByLabelText('topico'), { target: { value: 'chuva' } });
 
-    fireEvent.change(screen.getByLabelText('Conteúdo do prompt'), {
+    fireEvent.change(screen.getByLabelText('Prompt content'), {
       target: { value: 'Reescrito, mas ainda com {{topico}}' },
     });
 
@@ -328,17 +328,17 @@ describe('M14 — os campos acompanham o conteúdo EDITADO', () => {
     render(<PromptlyPlaygroundPage />);
     await screen.findByLabelText('topico');
 
-    fireEvent.change(screen.getByLabelText('Conteúdo do prompt'), {
+    fireEvent.change(screen.getByLabelText('Prompt content'), {
       target: { value: 'Sobre {{topico}} e {{fonte}}' },
     });
     fireEvent.change(await screen.findByLabelText('fonte'), { target: { value: 'IBGE' } });
     fireEvent.change(screen.getByLabelText('topico'), { target: { value: 'chuva' } });
-    fireEvent.change(screen.getByLabelText('Chave de API do modelo'), {
+    fireEvent.change(screen.getByLabelText('Model API key'), {
       target: { value: SENTINELA },
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Rodar' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Run' })).toBeEnabled();
     });
   });
 
@@ -374,10 +374,10 @@ describe('M14 — a recusa do provider como o serviço realmente a emite', () =>
     render(<PromptlyPlaygroundPage />);
     await prontoParaRodar();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Rodar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
 
     const saida = await screen.findByTestId('playground-saida');
-    expect(within(saida).getByText(/provedor respondeu 401/i)).toBeInTheDocument();
+    expect(within(saida).getByText(/provider replied 401/i)).toBeInTheDocument();
     // E não deixa o número sumir — o defeito seria "O provedor respondeu  e recusou".
     expect(within(saida).queryByText(/respondeu\s+e recusou/i)).toBeNull();
   });
@@ -387,10 +387,10 @@ describe('M14 — a recusa do provider como o serviço realmente a emite', () =>
     render(<PromptlyPlaygroundPage />);
     await prontoParaRodar();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Rodar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
 
     const saida = await screen.findByTestId('playground-saida');
-    expect(within(saida).getByText(/provedor respondeu 429/i)).toBeInTheDocument();
+    expect(within(saida).getByText(/provider replied 429/i)).toBeInTheDocument();
   });
 });
 
@@ -400,7 +400,7 @@ describe('M17 — a config que se testa é a que se salva (ADR-2)', () => {
     await prontoParaRodar();
     fireEvent.change(screen.getByLabelText(/temperatura/i), { target: { value: '0.2' } });
 
-    await userEvent.click(screen.getByRole('button', { name: /rodar/i }));
+    await userEvent.click(screen.getByRole('button', { name: /run/i }));
 
     await vi.waitFor(() => expect(mockRun).toHaveBeenCalled());
     const [, , , , config] = mockRun.mock.calls[0] as unknown[];
@@ -414,7 +414,7 @@ describe('M17 — a config que se testa é a que se salva (ADR-2)', () => {
     await prontoParaRodar();
     fireEvent.change(screen.getByLabelText(/temperatura/i), { target: { value: '0' } });
 
-    await userEvent.click(screen.getByRole('button', { name: /rodar/i }));
+    await userEvent.click(screen.getByRole('button', { name: /run/i }));
 
     await vi.waitFor(() => expect(mockRun).toHaveBeenCalled());
     const [, , , , config] = mockRun.mock.calls[0] as unknown[];
@@ -425,7 +425,7 @@ describe('M17 — a config que se testa é a que se salva (ADR-2)', () => {
     render(<PromptlyPlaygroundPage />);
     await prontoParaRodar();
 
-    await userEvent.click(screen.getByRole('button', { name: /rodar/i }));
+    await userEvent.click(screen.getByRole('button', { name: /run/i }));
 
     await vi.waitFor(() => expect(mockRun).toHaveBeenCalled());
     const [, , , , config] = mockRun.mock.calls[0] as unknown[];
@@ -442,11 +442,11 @@ describe('M17 — a config que se testa é a que se salva (ADR-2)', () => {
     // entrega, com teste. Gravar o que está no campo é o que o DoD-2 pede, literalmente.
     render(<PromptlyPlaygroundPage />);
     fireEvent.change(await screen.findByLabelText(/temperatura/i), { target: { value: '0.2' } });
-    fireEvent.change(screen.getByLabelText(/por que esta revisão/i), {
+    fireEvent.change(screen.getByLabelText(/why this revision/i), {
       target: { value: 'afinei para extração' },
     });
 
-    await userEvent.click(screen.getByRole('button', { name: /salvar como nova revisão/i }));
+    await userEvent.click(screen.getByRole('button', { name: /save as a new revision/i }));
 
     await vi.waitFor(() => expect(mockCreate).toHaveBeenCalled());
     const [, , extras] = mockCreate.mock.calls[0] as unknown[];
@@ -456,11 +456,11 @@ describe('M17 — a config que se testa é a que se salva (ADR-2)', () => {
 
   it('sem temperatura digitada, salvar nao grava config — nao um default', async () => {
     render(<PromptlyPlaygroundPage />);
-    fireEvent.change(await screen.findByLabelText(/por que esta revisão/i), {
+    fireEvent.change(await screen.findByLabelText(/why this revision/i), {
       target: { value: 'so texto' },
     });
 
-    await userEvent.click(screen.getByRole('button', { name: /salvar como nova revisão/i }));
+    await userEvent.click(screen.getByRole('button', { name: /save as a new revision/i }));
 
     await vi.waitFor(() => expect(mockCreate).toHaveBeenCalled());
     const [, , extras] = mockCreate.mock.calls[0] as unknown[];

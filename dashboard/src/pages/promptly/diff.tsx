@@ -63,7 +63,7 @@ function Porque({ texto }: { readonly texto: string | null }) {
       {texto !== null ? (
         <span className="text-foreground">{texto}</span>
       ) : (
-        <span className="italic text-muted-foreground">sem descrição</span>
+        <span className="italic text-muted-foreground">no description</span>
       )}
     </span>
   );
@@ -72,7 +72,7 @@ function Porque({ texto }: { readonly texto: string | null }) {
 export function PromptlyDiffPage() {
   const { name = '' } = useParams<{ name: string }>();
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle(`Comparar — ${name}`), [setPageTitle, name]);
+  useEffect(() => setPageTitle(`Compare — ${name}`), [setPageTitle, name]);
   useRequireAuth();
 
   const [params] = useSearchParams();
@@ -110,25 +110,25 @@ export function PromptlyDiffPage() {
 
   return (
     <PageShell
-      title={`Comparar revisões de ${name}`}
-      description="O que mudou entre duas revisões — fim de linha e espaço no fim da linha são ignorados; espaçamento dentro da linha não, porque num prompt ele é conteúdo."
+      title={`Compare revisions of ${name}`}
+      description="What changed between two revisions — line endings and trailing whitespace are ignored; whitespace inside a line is not, because in a prompt it is content."
     >
       {falhou ? (
         <Alert
           intent="destructive"
-          title="Não foi possível ler as revisões"
-          description="A comparação abaixo está vazia porque a leitura falhou — isto NÃO significa que as revisões são iguais."
+          title="Could not read the revisions"
+          description="The comparison below is empty because the read failed — this does NOT mean the revisions are identical."
         />
       ) : null}
 
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Revisões</h2>
+            <h2>Revisions</h2>
           </Card.Title>
           <Card.Description>
             <Link to={`/promptly/${encodeURIComponent(name)}`} className="underline-offset-4 hover:underline">
-              Voltar para {name}
+              Back to {name}
             </Link>
           </Card.Description>
         </Card.Header>
@@ -137,7 +137,7 @@ export function PromptlyDiffPage() {
           <label className="text-sm">
             <span className="mb-1 block text-muted-foreground">Antes</span>
             <select
-              aria-label="Revisão anterior"
+              aria-label="Previous revision"
               className="rounded-md border bg-background px-3 py-2 font-mono text-sm"
               value={esquerda ?? ''}
               onChange={(e) => setEsquerda(Number(e.target.value))}
@@ -151,7 +151,7 @@ export function PromptlyDiffPage() {
           <label className="text-sm">
             <span className="mb-1 block text-muted-foreground">Depois</span>
             <select
-              aria-label="Revisão posterior"
+              aria-label="Next revision"
               className="rounded-md border bg-background px-3 py-2 font-mono text-sm"
               value={direita ?? ''}
               onChange={(e) => setDireita(Number(e.target.value))}
@@ -168,7 +168,7 @@ export function PromptlyDiffPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Diferenças</h2>
+            <h2>Differences</h2>
           </Card.Title>
         </Card.Header>
 
@@ -176,20 +176,20 @@ export function PromptlyDiffPage() {
           {ordenadas.length < 2 ? (
             <p className="text-sm text-muted-foreground">
               {falhou
-                ? 'Sem dados para comparar — a leitura falhou.'
-                : 'Este prompt tem uma única revisão: não há o que comparar ainda.'}
+                ? 'No data to compare — the read failed.'
+                : 'This prompt has a single revision: there is nothing to compare yet.'}
             </p>
           ) : grande ? (
             <p data-testid="promptly-diff-too-large" className="text-sm text-muted-foreground">
-              Comparação inline omitida: {blocos[0].text}. Acima de {DIFF_LINE_CEILING} linhas a
-              comparação travaria a aba — abra as revisões lado a lado para inspecionar.
+              Inline comparison omitted: {blocos[0].text}. Above {DIFF_LINE_CEILING} lines the
+              comparison would freeze the tab — open the revisions side by side to inspect.
             </p>
           ) : config.mudou && saoEquivalentes(blocos) ? (
             // Texto igual, config diferente: dizer só "idênticas" apagaria a diferença
             // que importa, e mostrar um diff de texto vazio não a explicaria.
             <div data-testid="promptly-diff-config" className="space-y-2 text-sm">
               <p className="text-muted-foreground">
-                O texto é o mesmo. O que mudou foi a configuração com que a revisão foi testada:
+                The text is the same. What changed was the configuration the revision was tested with:
               </p>
               <ul className="space-y-1 font-mono text-xs">
                 {config.linhas.map((l) => (
@@ -204,8 +204,8 @@ export function PromptlyDiffPage() {
             </div>
           ) : iguais ? (
             <p data-testid="promptly-diff-identical" className="text-sm text-muted-foreground">
-              As duas revisões têm o mesmo conteúdo. Se uma foi criada por reversão, é exatamente o
-              esperado — reverter copia o texto e cria uma revisão nova.
+              Both revisions have the same content. If one was created by a rollback, that is
+              exactly what is expected — a rollback copies the text and creates a new revision.
             </p>
           ) : (
             <pre data-testid="promptly-diff" className="overflow-x-auto rounded-md bg-muted p-4 font-mono text-xs">

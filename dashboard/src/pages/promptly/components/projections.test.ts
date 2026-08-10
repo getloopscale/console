@@ -42,7 +42,7 @@ describe('catalogRows', () => {
     // O prompt existe e não serve ambiente algum — estado normal, distinto de "não sei".
     const linhas = catalogRows([{ name: 'rascunho', latestVersion: 1, labels: [], updatedAt: '' }]);
 
-    expect(linhas[0].labelsResumo).toBe('nenhum');
+    expect(linhas[0].labelsResumo).toBe('none');
   });
 
   it('resume os labels na forma que o operador lê: label seguido da revisão que ele serve', () => {
@@ -132,17 +132,17 @@ describe('promotionConsequence', () => {
     expect(frase).toContain('prod');
     expect(frase).toContain('v4');
     expect(frase).toContain('v7');
-    expect(frase).toMatch(/deixa de servir/i);
+    expect(frase).toMatch(/stops serving/i);
   });
 
   it('quando o label ainda não existe, a frase MUDA em vez de inventar a revisão que sai', () => {
     // Se o dado não existe, não se inventa o dado nem se implementa API para sustentar a frase.
     const frase = promotionConsequence({ label: 'canario', atual: null, alvo: 2 });
 
-    expect(frase).not.toMatch(/deixa de servir/i);
+    expect(frase).not.toMatch(/stops serving/i);
     expect(frase).toContain('canario');
     expect(frase).toContain('v2');
-    expect(frase).toMatch(/passa a servir|ainda não aponta/i);
+    expect(frase).toMatch(/starts serving|does not point at any revision/i);
   });
 
   it('avisa quando o label já serve exatamente a revisão escolhida', () => {
@@ -150,7 +150,7 @@ describe('promotionConsequence', () => {
     // que o operador ache que a promoção falhou.
     const frase = promotionConsequence({ label: 'prod', atual: 5, alvo: 5 });
 
-    expect(frase).toMatch(/já serve/i);
+    expect(frase).toMatch(/already serves/i);
   });
 });
 
@@ -170,7 +170,7 @@ describe('policySummary', () => {
     const resumo = policySummary(null);
 
     expect(resumo.livre).toBe(true);
-    expect(resumo.texto).toMatch(/livre|nenhuma regra/i);
+    expect(resumo.texto).toMatch(/unrestricted|no rule governs/i);
   });
 });
 
@@ -184,7 +184,7 @@ describe('policySummary', () => {
  */
 describe('resumoCatalogo', () => {
   const linha = (over: Partial<CatalogRow> = {}): CatalogRow =>
-    ({ name: 'a', latestVersion: 1, labels: [], updatedAt: '', labelsResumo: 'nenhum', ...over }) as CatalogRow;
+    ({ name: 'a', latestVersion: 1, labels: [], updatedAt: '', labelsResumo: 'none', ...over }) as CatalogRow;
 
   it('conta prompt com revisão nova que nenhum label serve', () => {
     const r = resumoCatalogo([linha({ latestVersion: 4, labels: [{ label: 'prod', version: 3 }] })], false);

@@ -38,8 +38,8 @@ export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTa
     return (
       <Alert
         intent="destructive"
-        title="Não foi possível ler esta revisão"
-        description="A afinação e as variáveis exigidas vêm da mesma leitura, e ela falhou. Não trate isto como 'esta revisão não declara nada' — são fatos diferentes."
+        title="Could not read this revision"
+        description="The tuning and the required variables come from the same read, and it failed. Do not read this as 'this revision declares nothing' — they are different facts."
       />
     );
   }
@@ -55,11 +55,11 @@ export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTa
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Afinação {versao !== null ? `da v${String(versao)}` : ''}</h2>
+            <h2>Tuning {versao !== null ? `of v${String(versao)}` : ''}</h2>
           </Card.Title>
           <Card.Description>
-            Modelo e parâmetros que ESTA revisão declara. A config é da revisão, não do prompt —
-            criar a próxima não a herda por acidente.
+            Model and parameters THIS revision declares. The config belongs to the revision, not
+            the prompt — creating the next one does not inherit it by accident.
           </Card.Description>
         </Card.Header>
         <div className="p-4 pt-0">
@@ -68,7 +68,7 @@ export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTa
             // sobre a revisão — as anteriores ao M17 não têm config, e inventar uma retroativamente
             // apareceria numa auditoria como se alguém a tivesse escolhido.
             <p className="text-sm text-muted-foreground">
-              Esta revisão não declara afinação. Quem a consome usa a do próprio cliente.
+              This revision declares no tuning. Whoever consumes it uses their own client settings.
             </p>
           ) : (
             <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-sm">
@@ -98,17 +98,17 @@ export function ConfigTab({ ilegivel, versao, modelConfig, variaveis }: ConfigTa
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Variáveis exigidas</h2>
+            <h2>Required variables</h2>
           </Card.Title>
           <Card.Description>
-            O contrato de entrada: quem chamar este prompt precisa fornecer estes valores. A lista é
-            DECLARADA pelo serviço a partir do texto — nunca deduzida por regex nosso.
+            The input contract: whoever calls this prompt must supply these values. The list is
+            DECLARED by the service from the text — never inferred by a regex of ours.
           </Card.Description>
         </Card.Header>
         <div className="p-4 pt-0">
           {variaveis.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nenhuma variável — o prompt é servido exatamente como está escrito.
+              No variables — the prompt is served exactly as written.
             </p>
           ) : (
             <ul className="flex flex-wrap gap-2">

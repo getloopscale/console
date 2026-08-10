@@ -59,12 +59,12 @@ describe('TrustOverviewPage', () => {
     responder({ violacoes: new Error('trust fora do ar'), catalogo: CATALOGO });
     render(<TrustOverviewPage />);
 
-    expect(await screen.findByText('Não foi possível ler a camada de confiança')).toBeInTheDocument();
-    expect(screen.getByText('Sem leitura da camada de confiança.')).toBeInTheDocument();
-    expect(screen.getByText('Sem dados — a leitura falhou')).toBeInTheDocument();
+    expect(await screen.findByText('Could not read the trust layer')).toBeInTheDocument();
+    expect(screen.getByText('No reading from the trust layer.')).toBeInTheDocument();
+    expect(screen.getByText('No data — the read failed')).toBeInTheDocument();
 
     // O julgamento de ausência não pode aparecer: a tela não sabe.
-    expect(screen.queryByText('Nenhuma violação registrada.')).not.toBeInTheDocument();
+    expect(screen.queryByText('No violation recorded.')).not.toBeInTheDocument();
   });
 
   it('quando só o CATÁLOGO falha, mantém a lista e avisa que a cobertura está cega', async () => {
@@ -72,9 +72,9 @@ describe('TrustOverviewPage', () => {
     render(<TrustOverviewPage />);
 
     // A falha do catálogo NÃO é a falha da tela — o alerta destrutivo não deve aparecer.
-    expect(await screen.findByText('O catálogo de guardrails não respondeu')).toBeInTheDocument();
-    expect(screen.queryByText('Não foi possível ler a camada de confiança')).not.toBeInTheDocument();
-    expect(screen.queryByText('Sem dados — a leitura falhou')).not.toBeInTheDocument();
+    expect(await screen.findByText('The guardrail catalog did not respond')).toBeInTheDocument();
+    expect(screen.queryByText('Could not read the trust layer')).not.toBeInTheDocument();
+    expect(screen.queryByText('No data — the read failed')).not.toBeInTheDocument();
   });
 
   it('quando LEU tudo e não há violação, aí sim afirma a ausência', async () => {
@@ -83,8 +83,8 @@ describe('TrustOverviewPage', () => {
     responder({ violacoes: { violations: [] }, catalogo: CATALOGO });
     render(<TrustOverviewPage />);
 
-    expect(await screen.findByText('Nenhuma violação registrada.')).toBeInTheDocument();
-    expect(screen.queryByText('Não foi possível ler a camada de confiança')).not.toBeInTheDocument();
-    expect(screen.queryByText('O catálogo de guardrails não respondeu')).not.toBeInTheDocument();
+    expect(await screen.findByText('No violation recorded.')).toBeInTheDocument();
+    expect(screen.queryByText('Could not read the trust layer')).not.toBeInTheDocument();
+    expect(screen.queryByText('The guardrail catalog did not respond')).not.toBeInTheDocument();
   });
 });

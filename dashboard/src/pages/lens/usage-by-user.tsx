@@ -176,8 +176,8 @@ export function LensUsageByUserPage() {
       render: (row) =>
         row.userId === UNATTRIBUTED ? (
           // Rótulo, não substituição: a linha continua sendo a do balde, com seus números.
-          <span title="Spans sem user.id — consumo real que não pôde ser atribuído a ninguém">
-            Não atribuído <span className="text-xs text-muted-foreground">(sem user.id)</span>
+          <span title="Spans with no user.id — real usage that could not be attributed to anyone">
+            Unattributed <span className="text-xs text-muted-foreground">(sem user.id)</span>
           </span>
         ) : (
           // `shortId` encurta para leitura; o valor completo fica no title para cópia.
@@ -192,7 +192,7 @@ export function LensUsageByUserPage() {
     },
     {
       key: 'costUsd',
-      label: 'Custo estimado',
+      label: 'Estimated cost',
       // `formatCost` mantém 4 casas ABAIXO de 1¢ e 2 acima. O que isso salva não é $0.03 (que já
       // é legível), e sim o custo zero: `$0.0000` diz "não custou", enquanto um `$0.00` de duas
       // casas seria indistinguível de um custo real arredondado para baixo — a leitura perigosa
@@ -201,7 +201,7 @@ export function LensUsageByUserPage() {
     },
     {
       key: 'share',
-      label: 'Participação',
+      label: 'Share',
       /**
        * Barra + rótulo direto, não donut: `dataviz/choosing-a-form` — magnitude comparada entre
        * categorias é barra, e mantê-la NA tabela deixa o rótulo (o `userId`) ao lado da magnitude
@@ -225,7 +225,7 @@ export function LensUsageByUserPage() {
               value={p * 100}
               height="h-1.5"
               className="w-16"
-              aria-label={`${pct} do custo exibido`}
+              aria-label={`${pct} of the cost shown`}
               data-testid="usage-share"
             />
             <span className="tabular-nums text-xs text-muted-foreground">{pct}</span>
@@ -260,7 +260,7 @@ export function LensUsageByUserPage() {
    * ali mentiria — a mesma armadilha que a faixa de KPI já evita ao declarar escopo parcial.
    */
   const escopoDoGrafico =
-    page === 1 ? `${LINHAS_NO_GRAFICO} maiores` : `${LINHAS_NO_GRAFICO} maiores desta página`;
+    page === 1 ? `top ${LINHAS_NO_GRAFICO}` : `top ${LINHAS_NO_GRAFICO} on this page`;
 
   const totalDe = (u: UsageRow, campo: CampoPlotavel): number =>
     campo === 'costUsd' ? u.costUsd : u.inputTokens + u.outputTokens;
@@ -279,7 +279,7 @@ export function LensUsageByUserPage() {
     const diasComPonto = plotaveis.flatMap((u) => (u.series ?? []).map((p) => Date.parse(p.periodStart)));
     const { inicio, dias } = janelaDaSerie(diasComPonto, days, Date.now());
     return plotaveis.map((u, i) => ({
-      name: u.userId === UNATTRIBUTED ? 'Não atribuído' : shortId(u.userId, 12),
+      name: u.userId === UNATTRIBUTED ? 'Unattributed' : shortId(u.userId, 12),
       // A cor segue a POSIÇÃO no recorte, não a entidade: com quatro slots e um conjunto ilimitado
       // de usuários, cor estável por usuário não é alcançável sem colisão. Quem carrega a identidade
       // é a LEGENDA, que nomeia cada linha — a cor é pista secundária. O que importa e é garantido:
@@ -296,12 +296,12 @@ export function LensUsageByUserPage() {
   return (
     <PageShell
       title="Usage by user"
-      description="Consumo de tokens e custo estimado por usuário final (somente leitura)."
+      description="Token usage and estimated cost per end user (read only)."
     >
       <div className="space-y-6">
         <div className="flex items-center gap-2">
           <label htmlFor="usage-window" className="text-sm text-muted-foreground">
-            Janela
+            Window
           </label>
           {/*
             `Select` do design system, não `<select>` nativo. Esta era a ÚNICA tela do lens com o
@@ -326,7 +326,7 @@ export function LensUsageByUserPage() {
               não para ser reescolhida. Clampar o valor seria a alternativa, e joga fora a recusa
               tipada que a M140 pagou para ter.
             */}
-            <Select.Trigger id="usage-window" className="w-[190px]" aria-label="Janela">
+            <Select.Trigger id="usage-window" className="w-[190px]" aria-label="Window">
               <Select.Value />
             </Select.Trigger>
             <Select.Content>
@@ -334,7 +334,7 @@ export function LensUsageByUserPage() {
                 <Select.Item value={String(days)} disabled>{`Personalizado: ${days} dias`}</Select.Item>
               )}
               {JANELAS.map((d) => (
-                <Select.Item key={d} value={String(d)}>{`Últimos ${d} dias`}</Select.Item>
+                <Select.Item key={d} value={String(d)}>{`Last ${d} days`}</Select.Item>
               ))}
             </Select.Content>
           </Select>
@@ -343,13 +343,13 @@ export function LensUsageByUserPage() {
         {query.isLoading ? (
           <ListSkeleton label="usage" />
         ) : query.isError ? (
-          <Alert intent="warning" title={doServico ? 'O serviço recusou a consulta' : 'Não foi possível carregar o consumo'}>
-            {doServico ?? 'O serviço de observabilidade está indisponível. Tente novamente em instantes.'}
+          <Alert intent="warning" title={doServico ? 'The service refused the query' : 'Could not load the usage'}>
+            {doServico ?? 'The observability service is unavailable. Try again in a moment.'}
           </Alert>
         ) : users.length === 0 ? (
           <EmptyState
-            title="Nenhum consumo nesta janela"
-            description="O consumo é agrupado pela identidade que o seu SDK registrou em user.id (com fallback para o gen_ai.user.id da convenção OpenTelemetry). Instrumente um agente definindo user.id nos spans para começar a ver quem consumiu o quê."
+            title="No usage in this window"
+            description="Usage is grouped by the identity your SDK recorded in user.id (falling back to the OpenTelemetry convention gen_ai.user.id). Instrument an agent by setting user.id on spans to start seeing who consumed what."
             action={
               <a
                 href="https://docs.usetheo.dev/observability/quickstart"
@@ -381,37 +381,37 @@ export function LensUsageByUserPage() {
             <div data-testid="usage-kpis" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <MetricCard
                 data-testid="kpi-custo"
-                title="Custo estimado"
+                title="Estimated cost"
                 value={formatCost(resumo.custoUsd)}
                 icon={<DollarSign className="h-4 w-4" />}
-                hint={resumo.completo ? `todos os ${total} usuários do período` : `entre os ${users.length} exibidos`}
+                hint={resumo.completo ? `all ${total} users in the period` : `among the ${users.length} shown`}
               />
               <MetricCard
                 data-testid="kpi-tokens"
                 title="Tokens"
                 value={formatNumber(resumo.tokens, 'compact')}
                 icon={<Coins className="h-4 w-4" />}
-                hint="entrada + saída"
+                hint="input + output"
               />
               <MetricCard
                 data-testid="kpi-usuarios"
-                title="Usuários com consumo"
+                title="Users with usage"
                 value={formatNumber(total, 'grouped')}
                 icon={<Users className="h-4 w-4" />}
-                hint={`nos últimos ${days} dias`}
+                hint={`in the last ${days} days`}
               />
               <MetricCard
                 data-testid="kpi-cache"
                 title="Entrada servida por cache"
                 value={resumo.cacheRatio === null ? '—' : formatNumber(resumo.cacheRatio, 'percent')}
                 icon={<Layers className="h-4 w-4" />}
-                hint={resumo.cacheRatio === null ? 'sem leitura de cache no período' : 'da entrada veio do cache'}
+                hint={resumo.cacheRatio === null ? 'no cache reading in the period' : 'of the input came from cache'}
               />
             </div>
 
             {unpriced > 0 ? (
-              <Alert intent="warning" title="O custo mostrado é um piso, não o total" data-testid="usage-unpriced-notice">
-                {`${formatNumber(unpriced, 'grouped')} spans têm tokens e nenhum preço na tabela — o custo real é MAIOR que o exibido.`}
+              <Alert intent="warning" title="The cost shown is a floor, not the total" data-testid="usage-unpriced-notice">
+                {`${formatNumber(unpriced, 'grouped')} spans have tokens and no price in the table — the real cost is HIGHER than shown.`}
               </Alert>
             ) : null}
 
@@ -432,20 +432,20 @@ export function LensUsageByUserPage() {
               <div className="mb-6 grid gap-4 lg:grid-cols-2">
                 <Card className="p-4" data-testid="usage-chart">
                   <TrendChart
-                    title={`Custo por dia — ${escopoDoGrafico}`}
+                    title={`Cost per day — ${escopoDoGrafico}`}
                     series={serieDe('costUsd')}
                     valueFormatter={(v) => formatCost(v)}
                     xFormatter={diaDoEixo}
-                    xLabel="Dia"
+                    xLabel="Day"
                   />
                 </Card>
                 <Card className="p-4" data-testid="usage-chart">
                   <TrendChart
-                    title={`Tokens por dia — ${escopoDoGrafico}`}
+                    title={`Tokens per day — ${escopoDoGrafico}`}
                     series={serieDe('tokens')}
                     valueFormatter={(v) => formatNumber(v, 'compact')}
                     xFormatter={diaDoEixo}
-                    xLabel="Dia"
+                    xLabel="Day"
                   />
                 </Card>
               </div>
@@ -453,7 +453,7 @@ export function LensUsageByUserPage() {
               // Gráfico ausente sem explicação é lido como "não há dado". O motivo é o orçamento do
               // serviço, e a tela o diz em vez de sumir em silêncio.
               <p data-testid="usage-chart-indisponivel" className="mb-6 text-sm text-muted-foreground">
-                {`A evolução diária não é exibida para ${days} dias: o serviço limita a ${MAX_BUCKET_POINTS} pontos, e (${days} + 1) dias × ${PAGE_SIZE} linhas ultrapassam o teto. Escolha 7 ou 30 dias para ver os gráficos.`}
+                {`The daily trend is not shown for ${days} days: the service caps at ${MAX_BUCKET_POINTS} points, and (${days} + 1) days × ${PAGE_SIZE} rows exceed it. Pick 7 or 30 days to see the charts.`}
               </p>
             ) : null}
 
@@ -470,11 +470,11 @@ export function LensUsageByUserPage() {
             {pageCount > 1 ? (
               <div className="mt-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">
                 <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                  Anterior
+                  Previous
                 </Button>
-                <span className="tabular-nums" data-testid="usage-pager">{`Página ${page} / ${pageCount}`}</span>
+                <span className="tabular-nums" data-testid="usage-pager">{`Page ${page} / ${pageCount}`}</span>
                 <Button variant="ghost" size="sm" disabled={page >= pageCount || query.isFetching} onClick={() => setPage((p) => p + 1)}>
-                  Próxima
+                  Next
                 </Button>
               </div>
             ) : null}

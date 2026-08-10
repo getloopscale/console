@@ -33,16 +33,16 @@ export function GuardrailRuleFields(props: GuardrailRuleFieldsProps) {
           <h2>A regra</h2>
         </Card.Title>
         <Card.Description>
-          O nome identifica a guardrail no catálogo e na auditoria; os termos são o que ela procura.
+          The name identifies the guardrail in the catalog and in the audit trail; the terms are what it looks for.
         </Card.Description>
       </Card.Header>
 
       <Card.Body className="space-y-5">
         <FormField id="guardrail-name" invalid={Boolean(fieldProblems.name)}>
-          <FormField.Label>Nome</FormField.Label>
+          <FormField.Label>Name</FormField.Label>
           <FormField.Control>
             <Input
-              aria-label="Nome"
+              aria-label="Name"
               size="md"
               value={draft.name}
               placeholder="termos-internos"
@@ -69,7 +69,7 @@ export function GuardrailRuleFields(props: GuardrailRuleFieldsProps) {
           {fieldProblems.terms ? (
             <FormField.Error>{fieldProblems.terms}</FormField.Error>
           ) : (
-            <FormField.Hint>Um termo por linha.</FormField.Hint>
+            <FormField.Hint>One term per line.</FormField.Hint>
           )}
         </FormField>
 
@@ -84,7 +84,7 @@ export function GuardrailRuleFields(props: GuardrailRuleFieldsProps) {
                 <Select.Value />
               </Select.Trigger>
               <Select.Content>
-                <Select.Item value="block">Bloquear a mensagem</Select.Item>
+                <Select.Item value="block">Block the message</Select.Item>
                 <Select.Item value="modify">Substituir o termo</Select.Item>
               </Select.Content>
             </Select>

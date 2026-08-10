@@ -88,7 +88,7 @@ describe('textoExibido — o par resolvido / como escrito', () => {
 
 describe('temComposicao — quando o par vale ser oferecido', () => {
   it('reconhece referência por versão e por label', () => {
-    expect(temComposicao('a @@@promptly:name=politica|version=3@@@ b')).toBe(true);
+    expect(temComposicao('a @@@promptly:name=policy|version=3@@@ b')).toBe(true);
     expect(temComposicao('@@@promptly:name=tom|label=production@@@')).toBe(true);
   });
 

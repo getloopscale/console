@@ -305,7 +305,7 @@ export function AuditPage() {
           <Card.Footer>
             <div className="flex items-center justify-between gap-4">
               <span className="text-label text-muted-foreground">
-                Página {page} de {pageCount} · {total} registros
+                Page {page} of {pageCount} · {total} records
               </span>
               <div className="flex gap-2">
                 <Button
@@ -314,7 +314,7 @@ export function AuditPage() {
                   disabled={page <= 1 || query.isFetching}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
-                  Anterior
+                  Previous
                 </Button>
                 <Button
                   variant="ghost"
@@ -322,7 +322,7 @@ export function AuditPage() {
                   disabled={page >= pageCount || query.isFetching}
                   onClick={() => setPage((p) => p + 1)}
                 >
-                  Próxima
+                  Next
                 </Button>
               </div>
             </div>

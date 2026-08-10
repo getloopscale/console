@@ -46,12 +46,12 @@ describe('projetarUso — os três estados', () => {
   });
 
   it('agregado em ERRO projeta nao-lido, e nenhum zero (DoD-3)', () => {
-    const agregado: AgregadoDeUso = { estado: 'nao-lido', razao: 'o serviço não respondeu' };
+    const agregado: AgregadoDeUso = { estado: 'nao-lido', razao: 'the service did not respond' };
 
     const linhas = projetarUso(agregado, REVISOES);
 
     expect(linhas.every((l) => l.estado === 'nao-lido')).toBe(true);
-    expect(linhas[0]?.razao).toMatch(/não respondeu/);
+    expect(linhas[0]?.razao).toMatch(/did not respond/);
     // Nenhum número de contagem pode existir no resultado — nem como 0.
     expect(linhas.some((l) => l.chamadas !== undefined)).toBe(false);
     expect(linhas.some((l) => l.custoUsd !== undefined)).toBe(false);

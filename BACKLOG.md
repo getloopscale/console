@@ -3769,7 +3769,7 @@ fechado_2026-08-10: |
   `handlers.ts` 875 -> 815, e a anotacao baixou junto. A divida encolheu 60 linhas porque um
   guard recusou 4.
 
-## B-108 — Promptly está inteiramente em português: telas, rotas e nomes de arquivo   [ ]
+## B-108 — Promptly está inteiramente em português: telas, rotas e nomes de arquivo   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -3808,13 +3808,23 @@ why_now: |
   no domínio Skills — `/skills/{catalogo,nova,descoberta}` → `{catalog,new,discovery}`, com
   as antigas RESOLVENDO por redirect, "porque link salvo ou colado num ticket não pode virar
   404". A forma do trabalho já está decidida; falta aplicá-la aqui.
-status: raw
+status: shipped
 dod:
   - zero strings de usuário em português sob `src/pages/promptly/` (medido por scanner de AST, não grep)
   - rotas em inglês, com as três antigas resolvendo por redirect — nenhum link salvo vira 404
   - teste que falha se uma string de usuário em português voltar a entrar (o guard que o Skills não deixou)
+fechado_2026-08-10: |
+  Plano `dashboard-english-only`. As tres rotas migradas com redirect `replace`
+  (/promptly/catalogo -> /catalog, /producao -> /production, /consumo -> /consumption), no
+  padrao que 05132088 estabeleceu no Skills. O `TabRedirect` re-codifica o nome do prompt
+  porque o M16 trouxe pastas e `m16-sup/relatorio` tem barra — sem codificar, o redirect
+  apontaria para lugar nenhum, que e o 404 que ele existe para impedir.
 
-## B-109 — Trust está em português   [ ]
+  OS NOMES DE ARQUIVO NAO FORAM RENOMEADOS, e isso e decisao registrada (ADR D3 do plano):
+  nome de arquivo nao e interface. Renomear nove arquivos churna imports e nao muda um pixel.
+  A DoD deste item nao pedia isso; pedir mais que a DoD e escopo inventado.
+
+## B-109 — Trust está em português   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -3830,12 +3840,19 @@ why_now: |
   Segunda das duas ilhas de português num dashboard que já está em inglês em todas as outras
   18 rotas varridas. Item separado de B-108 porque é trabalho independente e fecha sozinho:
   Trust não tem rota nem arquivo em português, só conteúdo.
-status: raw
+status: shipped
 dod:
   - zero strings de usuário em português sob `src/pages/trust/`
   - coberto pelo mesmo guard de B-108
+fechado_2026-08-10: |
+  E A TRADUCAO ACHOU UM DEFEITO QUE O ITEM NAO PREVIA: `guardrail-draft.ts:85` decidia a qual
+  CAMPO cada erro de formulario pertencia casando SUBSTRING da mensagem humana
+  (`problem.includes('nome')`). Traduzir as frases fez o roteador parar de casar qualquer uma
+  — e o modo de falha era silencioso: a lista de problemas seguia correta, so a associacao com
+  o campo sumia, entao a tela dizia "ha um erro" sem dizer ONDE. Cinco casos pegaram.
+  Consertado para as frases novas; a CLASSE do defeito fica registrada como B-111.
 
-## B-110 — Resíduo de português fora de Promptly e Trust   [ ]
+## B-110 — Resíduo de português fora de Promptly e Trust   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -3854,7 +3871,57 @@ why_now: |
   São as que um teste manual não encontra. Fechar B-108 e B-109 sem esta deixaria o produto
   em inglês com português escondido em estados de erro — que é onde ele é mais caro, porque
   aparece exatamente quando alguém está tentando entender o que deu errado.
-status: raw
+status: shipped
 dod:
   - zero strings de usuário em português em `src/` fora de comentários
   - o guard de B-108 cobre o repositório inteiro, não só as pastas migradas
+fechado_2026-08-10: |
+  O residuo era MAIOR que os 15 estimados, e a razao vale o registro: o scanner que produziu a
+  estimativa tinha QUATRO buracos, todos achados ao cruzar o resultado do guard com os
+  localizadores dos testes — nunca pelo guard sozinho.
+
+    1. template COM substituicao nao era lido       aria-label={`Promover ${x} …`}
+    2. so posicoes "de nome visivel" eram lidas     texto: 'Nenhuma regra governa …'
+    3. marcador por lista de palavras tem cauda     'Texto do prompt' (sem acento)
+    4. a cauda tem cauda                            `Uso (${n} dias)`
+
+  A licao nao e "faltou uma palavra". E que UM GUARD SOZINHO NAO SE VALIDA: foram os testes,
+  uma fonte independente, que revelaram os quatro. Por isso a varredura de tela em navegador
+  continua na DoD do plano — duas redes que erram por motivos diferentes.
+
+  O guard final marca QUALQUER literal por conteudo e exclui o que comprovadamente nao e
+  interface: tipo, comparacao, chave de objeto, className, data-testid, e identificador
+  interno (uma palavra minuscula e solta — `estado: 'carregando'` e nome, nao rotulo).
+
+## B-111 — O erro de formulário escolhe o campo casando SUBSTRING do texto de interface   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: discover-review
+evidence: |
+  `dashboard/src/pages/trust/components/guardrail-draft.ts:85` decide a qual campo cada
+  problema pertence lendo a MENSAGEM HUMANA:
+
+      if (problem.includes('nome') || problem.includes('reservado')) out.name ??= problem;
+      else if (problem.includes('substitui')) out.replacement ??= problem;
+      else if (problem.includes('termo')) out.terms ??= problem;
+
+  Medido em 2026-08-10, durante a tradução do Trust (B-109): traduzir as mensagens para inglês
+  fez o roteador parar de casar QUALQUER uma delas — todo problema deixou de ser associado ao
+  seu campo. E o modo de falha é o pior possível: a lista de problemas continuava correta, só
+  a associação com o campo sumia, então a tela seguia dizendo "há um erro" sem dizer ONDE.
+  Cinco casos de `guardrail-draft.test.ts` pegaram; sem eles, teria passado.
+why_now: |
+  Já cobrou uma vez. O acoplamento é invisível — nada no arquivo diz que mudar uma frase
+  quebra o roteamento —, e o próprio comentário do bloco documenta uma ORDEM entre os `if`s
+  ("`substitui` vem ANTES de `termo`"), o que mostra que a fragilidade já era conhecida e foi
+  tratada como cuidado a manter em vez de defeito a remover.
+  Consertado para as frases novas (o produto está correto hoje). O que fica aberto é a CLASSE:
+  decidir campo por substring de texto de interface volta a quebrar na próxima vez que alguém
+  reescrever uma mensagem — inclusive por motivo de clareza, sem suspeitar de nada.
+status: raw
+dod:
+  - cada problema carrega o campo a que pertence como DADO (discriminante), não como texto
+  - reescrever qualquer mensagem de erro não altera o roteamento
+  - teste que falha se o roteamento voltar a depender do conteúdo da frase

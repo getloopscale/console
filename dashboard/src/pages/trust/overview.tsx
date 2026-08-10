@@ -81,7 +81,7 @@ export function TrustOverviewPage() {
   const columns: DataTableColumn<PolicyCoverage>[] = [
     {
       key: 'policy',
-      label: 'Política',
+      label: 'Policy',
       render: (row) => <span className="font-mono font-medium">{row.policy}</span>,
     },
     {
@@ -116,32 +116,32 @@ export function TrustOverviewPage() {
 
   /** O veredito da tela, em uma frase — já com o julgamento embutido. */
   const headline = failed
-    ? 'Sem leitura da camada de confiança.'
+    ? 'No reading from the trust layer.'
     : coverage.length === 0
-      ? 'Nenhuma violação registrada.'
+      ? 'No violation recorded.'
       : gaps === 0
-        ? 'Toda política observada já está sendo bloqueada.'
-        : `${gaps} ${gaps === 1 ? 'política observada não está sendo bloqueada' : 'políticas observadas não estão sendo bloqueadas'}.`;
+        ? 'Every observed policy is already being blocked.'
+        : `${gaps} observed ${gaps === 1 ? 'policy is' : 'policies are'} not being blocked.`;
 
   return (
     <PageShell
       title="Trust"
-      description="O que a camada de confiança observou — e o que dela ainda passa sem ser bloqueado."
+      description="What the trust layer observed — and what of it still gets through unblocked."
       primaryAction={{ label: 'Atualizar', icon: RefreshCw, onClick: onRefresh }}
     >
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível ler a camada de confiança"
-          description="Nada abaixo foi carregado — isto NÃO significa ausência de violações. Confira se o serviço trust está no ar na página de status."
+          title="Could not read the trust layer"
+          description="Nothing below was loaded — this does NOT mean there are no violations. Check whether the trust service is up on the status page."
         />
       ) : null}
 
       {catalogBlind && !failed ? (
         <Alert
           intent="warning"
-          title="O catálogo de guardrails não respondeu"
-          description="Toda política aparece como descoberta abaixo, porque não foi possível confirmar o contrário. Algumas podem já estar bloqueadas."
+          title="The guardrail catalog did not respond"
+          description="Every policy appears as discovered below, because the opposite could not be confirmed. Some may already be blocked."
         />
       ) : null}
 
@@ -153,8 +153,8 @@ export function TrustOverviewPage() {
             <h2>{headline}</h2>
           </Card.Title>
           <Card.Description>
-            O plano de observação vê toda conversa; o inline só bloqueia o que tem guardrail. A
-            distância entre os dois é o que esta lista mede.
+            The observation plane sees every conversation; the inline one only blocks what has a
+            guardrail. The distance between the two is what this list measures.
           </Card.Description>
         </Card.Header>
 
@@ -166,10 +166,10 @@ export function TrustOverviewPage() {
           emptyState={
             <EmptyState
               icon={failed ? ShieldAlert : ShieldCheck}
-              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma violação registrada'}
+              title={failed ? 'No data — the read failed' : 'No violation recorded'}
               description={
                 failed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que passou.'
+                  ? 'Try again in a moment. Until then, there is no way to know what got through.'
                   : 'As guardrails ativas seguem valendo no caminho inline.'
               }
             />
@@ -179,7 +179,7 @@ export function TrustOverviewPage() {
         <Card.Footer>
           <Button variant="ghost" asChild>
             <Link to="/trust/violations">
-              Ver todas as violações
+              See all violations
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </Button>

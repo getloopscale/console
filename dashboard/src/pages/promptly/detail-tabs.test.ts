@@ -18,6 +18,9 @@ describe('M21 — o mapa de abas do detalhe', () => {
   it('as quatro perguntas estão declaradas, e só elas', () => {
     // Quatro, porque são quatro perguntas diferentes sobre o mesmo objeto. Uma quinta aba sem
     // pergunta própria é um cartão que alguém não soube onde pôr.
+    // Os ids seguem em português DE PROPÓSITO: são discriminantes internos, como
+    // `estado: 'carregando'`, e nomes internos são a convenção deste repositório — a mesma
+    // dos comentários. O que mudou foi o SUFIXO, que é URL, e URL o usuário lê.
     expect(ABAS.map((a) => a.id)).toEqual(['conteudo', 'config', 'producao', 'consumo']);
   });
 
@@ -29,8 +32,8 @@ describe('M21 — o mapa de abas do detalhe', () => {
 
   it('cada sufixo resolve para a sua aba', () => {
     expect(abaDaRota('/promptly/saudacao/config')).toBe('config');
-    expect(abaDaRota('/promptly/saudacao/producao')).toBe('producao');
-    expect(abaDaRota('/promptly/saudacao/consumo')).toBe('consumo');
+    expect(abaDaRota('/promptly/saudacao/production')).toBe('producao');
+    expect(abaDaRota('/promptly/saudacao/consumption')).toBe('consumo');
   });
 
   it('um sufixo que NÃO é aba não vira aba nenhuma', () => {

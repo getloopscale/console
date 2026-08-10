@@ -348,11 +348,11 @@ export const MENUS: Record<string, MenuDefinition> = {
           // M13: o catálogo saiu da raiz e ganhou endereço próprio. Sem esta entrada ele só seria
           // alcançável pelo botão do painel — e um item de menu é o caminho de volta que todo
           // formulário precisa ter.
-          { label: 'Catálogo', path: '/promptly/catalogo', icon: List },
+          { label: 'Catalog', path: '/promptly/catalog', icon: List },
           // M12: autorar é ação do workspace, não de um prompt — por isso ENTRA no menu, onde
           // comparar e promover não entram: essas duas são POR PROMPT e se alcançam do detalhe
           // (o catálogo oferece o atalho de comparar em cada linha desde o M13).
-          { label: 'Nova revisão', path: '/promptly/new', icon: FilePlus },
+          { label: 'New revision', path: '/promptly/new', icon: FilePlus },
           // M12: autorar é ação do workspace, não de um prompt — por isso ENTRA no menu, onde
           // comparar e promover não entram: essas duas são POR PROMPT e se alcançam do detalhe.
         ],

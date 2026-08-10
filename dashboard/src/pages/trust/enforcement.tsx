@@ -58,7 +58,7 @@ export function TrustEnforcementPage() {
   const columns: DataTableColumn<EnforcementRow>[] = [
     {
       key: 'decision',
-      label: 'Decisão',
+      label: 'Decision',
       // Badge rotulado: a decisão é o dado mais lido da tabela e não pode depender só de cor.
       render: (row) => (
         <Badge
@@ -105,7 +105,7 @@ export function TrustEnforcementPage() {
   return (
     <PageShell
       title="Enforcement"
-      description="Cada linha é uma vez em que a proteção agiu numa conversa deste workspace."
+      description="Each row is one time the protection acted on a conversation in this workspace."
       primaryAction={{
         label: 'Atualizar',
         icon: RefreshCw,
@@ -115,8 +115,8 @@ export function TrustEnforcementPage() {
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar a auditoria"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que nada foi bloqueado."
+          title="Could not load the audit trail"
+          description="The list below is empty because the read failed — this does NOT mean nothing was blocked."
         />
       ) : null}
 
@@ -124,7 +124,7 @@ export function TrustEnforcementPage() {
         <Card.Header>
           {/* asChild → <h2>: o PageShell já rende o <h1> (WCAG 1.3.1). */}
           <Card.Title asChild>
-            <h2>Ações registradas</h2>
+            <h2>Recorded actions</h2>
           </Card.Title>
           <Card.Description>
             {blockedCount(rows)} bloqueio(s) entre {rows.length} registro(s).
@@ -139,11 +139,11 @@ export function TrustEnforcementPage() {
           emptyState={
             <EmptyState
               icon={ShieldCheck}
-              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma ação de enforcement registrada'}
+              title={failed ? 'No data — the read failed' : 'No enforcement action recorded'}
               description={
                 failed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que foi barrado.'
-                  : `Nenhuma mensagem foi bloqueada ou reescrita nas últimas ${PAGE_LIMIT} ocorrências.`
+                  ? 'Try again in a moment. Until then, there is no way to know what was stopped.'
+                  : `No message was blocked or rewritten in the last ${PAGE_LIMIT} occurrences.`
               }
             />
           }

@@ -46,22 +46,22 @@ export function draftProblems(d: GuardrailDraft): string[] {
   const out: string[] = [];
   const name = d.name.trim();
 
-  if (name === '') out.push('Dê um nome à guardrail.');
+  if (name === '') out.push('Give the guardrail a name.');
   else if (RESERVED.has(name.toLowerCase())) {
-    out.push(`"${name}" é um nome reservado da plataforma. Escolha outro.`);
+    out.push(`"${name}" is a name reserved by the platform. Choose another.`);
   }
 
   const terms = cleanTerms(d.terms);
-  if (terms.length === 0) out.push('Adicione ao menos um termo a bloquear.');
+  if (terms.length === 0) out.push('Add at least one term to block.');
 
   // Um termo em branco casaria em todo lugar — o serviço rejeita, mas o operador merece saber
   // antes de enviar, e sem descobrir por tentativa.
   if (d.terms.some((t) => t.trim() === '' && t !== '')) {
-    out.push('Um dos termos está em branco.');
+    out.push('One of the terms is blank.');
   }
 
   if (d.action === 'modify' && d.replacement.trim() === '') {
-    out.push('Defina o texto que substitui o termo encontrado.');
+    out.push('Set the text that replaces the term found.');
   }
   return out;
 }
@@ -79,12 +79,19 @@ export type DraftField = 'name' | 'terms' | 'replacement';
 export function draftProblemsByField(d: GuardrailDraft): Partial<Record<DraftField, string>> {
   const out: Partial<Record<DraftField, string>> = {};
   for (const problem of draftProblems(d)) {
-    // `substitui` vem ANTES de `termo`: a frase do replacement é "Defina o texto que substitui o
-    // TERMO encontrado" — checar `termo` primeiro a mandaria para o campo errado. O teste que
-    // pegou isso vale mais que a ordem parecer arbitrária, então ela fica documentada.
-    if (problem.includes('nome') || problem.includes('reservado')) out.name ??= problem;
-    else if (problem.includes('substitui')) out.replacement ??= problem;
-    else if (problem.includes('termo')) out.terms ??= problem;
+    // `replaces` vem ANTES de `term`: a frase do replacement é "Set the text that REPLACES the
+    // TERM found" — checar `term` primeiro a mandaria para o campo errado. A ordem é o conserto,
+    // e fica documentada porque parece arbitrária.
+    //
+    // ESTE ROTEAMENTO CASA A MENSAGEM HUMANA, e isso é frágil de um jeito que a tradução para
+    // inglês (B-109) tornou visível: as frases mudaram e o roteador continuou procurando
+    // `nome`/`reservado`/`termo`, mandando TODO problema para nenhum campo — silenciosamente,
+    // porque a lista de problemas seguia correta e só a associação com o campo sumia.
+    // Consertado casando as palavras novas. O defeito de fundo — decidir campo por substring de
+    // texto de interface em vez de por um discriminante — está registrado como `B-111`.
+    if (problem.includes('name') || problem.includes('reserved')) out.name ??= problem;
+    else if (problem.includes('replaces')) out.replacement ??= problem;
+    else if (problem.includes('term')) out.terms ??= problem;
   }
   return out;
 }
@@ -163,13 +170,13 @@ export function verdictSummary(v: DryRunVerdict | null | undefined): string | nu
   if (!v || typeof v.action !== 'string') return null;
   switch (v.action) {
     case 'block':
-      return 'Esta mensagem seria bloqueada.';
+      return 'This message would be blocked.';
     case 'modify':
       return typeof v.modified === 'string'
-        ? `A mensagem seria reescrita como: ${v.modified}`
-        : 'A mensagem seria reescrita.';
+        ? `The message would be rewritten as: ${v.modified}`
+        : 'The message would be rewritten.';
     case 'allow':
-      return 'Esta mensagem passaria — a regra não a alcança.';
+      return 'This message would pass — the rule does not reach it.';
     default:
       return null;
   }

@@ -33,26 +33,26 @@ export function DiscussaoCard({ revisaoDiscutida, comentando, comentarios, comen
     <Card>
       <Card.Header>
         <Card.Title asChild>
-          <h2>Discussão {revisaoDiscutida !== null ? `da v${String(revisaoDiscutida)}` : ''}</h2>
+          <h2>Discussion {revisaoDiscutida !== null ? `on v${String(revisaoDiscutida)}` : ''}</h2>
         </Card.Title>
         <Card.Description>
-          Por que esta revisão existe, foi rejeitada ou está pronta. O comentário é da REVISÃO —
-          criar a próxima não o move.
+          Why this revision exists, was rejected, or is ready. A comment belongs to the
+          REVISION — creating the next one does not move it.
         </Card.Description>
       </Card.Header>
       <div className="space-y-3 p-4 pt-0">
         {comentariosFalharam ? (
           <Alert
             intent="destructive"
-            title="Não foi possível ler a discussão"
-            description="A ausência abaixo é ignorância, não silêncio: pode haver comentários que esta tela não conseguiu carregar."
+            title="Could not read the discussion"
+            description="The absence below is ignorance, not silence: there may be comments this screen failed to load."
           />
         ) : null}
         {erroDeComentario !== null ? (
-          <Alert intent="destructive" title="O comentário não foi salvo" description={erroDeComentario} />
+          <Alert intent="destructive" title="The comment was not saved" description={erroDeComentario} />
         ) : null}
         {comentarios.length === 0 && !comentariosFalharam ? (
-          <p className="text-sm text-muted-foreground">Nenhum comentário nesta revisão.</p>
+          <p className="text-sm text-muted-foreground">No comments on this revision.</p>
         ) : (
           <ul className="space-y-2">
             {comentarios.map((c) => (
@@ -61,7 +61,7 @@ export function DiscussaoCard({ revisaoDiscutida, comentando, comentarios, comen
                 <p className="pt-1 text-xs text-muted-foreground">
                   {/* Autor ausente é DITO: uma credencial sem identidade humana não tem autor,
                       e inventar um apareceria numa auditoria como fato. */}
-                  {c.author ?? 'autor não registrado'}{c.quando === '' ? '' : ` · ${c.quando}`}
+                  {c.author ?? 'author not recorded'}{c.quando === '' ? '' : ` · ${c.quando}`}
                 </p>
               </li>
             ))}
@@ -71,8 +71,8 @@ export function DiscussaoCard({ revisaoDiscutida, comentando, comentarios, comen
           <textarea
             value={novoComentario}
             onChange={(e) => { setNovoComentario(e.target.value); }}
-            aria-label="Comentar esta revisão"
-            placeholder="por que esta revisão existe, ou por que não deve ir ao ar"
+            aria-label="Comment on this revision"
+            placeholder="why this revision exists, or why it should not go live"
             rows={2}
             className="min-w-[18rem] flex-1 rounded-md border border-input bg-background p-2 text-sm"
           />

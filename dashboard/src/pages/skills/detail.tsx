@@ -192,7 +192,7 @@ export function SkillDetailPage() {
               description="It runs on the client machine and ships a script; the instructions reference files a remote agent does not have. Install it through the CLI instead of loading it."
             />
           ) : instructions.loading ? (
-            <p className="text-sm text-muted-foreground">Carregando…</p>
+            <p className="text-sm text-muted-foreground">Loading…</p>
           ) : instructions.data ? (
             <>
               <p className="mb-2 text-sm text-muted-foreground">
@@ -267,7 +267,7 @@ export function SkillDetailPage() {
                   disabled={mudarCiclo.isPending}
                   onClick={() => mudarCiclo.mutate({ lifecycle: 'active', reason: '', supersededBy: '' })}
                 >
-                  Voltar a circular
+                  Put back in circulation
                 </Button>
               </div>
             </div>

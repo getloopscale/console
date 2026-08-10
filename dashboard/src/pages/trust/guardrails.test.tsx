@@ -96,8 +96,8 @@ describe('TrustGuardrailsPage', () => {
   it('declara que uma proteção deixa de valer — não que "o item some da lista"', async () => {
     await openRemovalDialog();
 
-    expect(await screen.findByText(/deixam de ser bloqueados/i)).toBeInTheDocument();
-    expect(screen.getByText(/não pode ser desfeita/i)).toBeInTheDocument();
+    expect(await screen.findByText(/stop being blocked/i)).toBeInTheDocument();
+    expect(screen.getByText(/cannot be undone/i)).toBeInTheDocument();
   });
 
   it('falha na remoção mantém a linha e mostra a mensagem do serviço', async () => {
@@ -117,15 +117,15 @@ describe('TrustGuardrailsPage', () => {
     mockList.mockRejectedValueOnce(new ApiError(502));
     render(<TrustGuardrailsPage />);
 
-    expect(await screen.findByText(/não foi possível carregar o catálogo/i)).toBeInTheDocument();
-    expect(screen.getByText(/NÃO significa que não há guardrails ativas/i)).toBeInTheDocument();
+    expect(await screen.findByText(/could not load the catalog/i)).toBeInTheDocument();
+    expect(screen.getByText(/does NOT mean there are no active guardrails/i)).toBeInTheDocument();
   });
 
   it('catálogo vazio convida a criar a primeira', async () => {
     mockList.mockResolvedValue({ validators: [] });
     render(<TrustGuardrailsPage />);
 
-    expect(await screen.findByText(/nenhuma guardrail ativa/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /criar a primeira guardrail/i })).toBeInTheDocument();
+    expect(await screen.findByText(/no active guardrail/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /create the first guardrail/i })).toBeInTheDocument();
   });
 });

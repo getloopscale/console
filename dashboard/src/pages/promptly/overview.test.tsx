@@ -25,7 +25,7 @@ import { PromptlyOverviewPage } from './overview';
  *   - E o oposto também: um catálogo de EXATAMENTE `limit` prompts sem continuação NÃO é parcial.
  *     Marcar de parcial um número correto ensina o operador a desconfiar dele.
  *
- * Os testes da LISTA vivem agora em `pages/promptly/catalogo.test.tsx` — a tela mudou de endereço
+ * Os testes da LISTA vivem agora em `pages/promptly/catalog.test.tsx` — a tela mudou de endereço
  * no M13, e os casos foram migrados junto, não descartados.
  */
 
@@ -60,7 +60,7 @@ describe('PromptlyOverviewPage', () => {
     render(<PromptlyOverviewPage />);
 
     // `despedida` (v2 escrita, prod em v1) e `rascunho` (nunca promovido) = 2.
-    expect(await screen.findByTestId('kpi-nao-promovidos')).toHaveTextContent(/^Não promovidos2$/);
+    expect(await screen.findByTestId('kpi-nao-promovidos')).toHaveTextContent(/^Not promoted2$/);
   });
 
   it('marca os números como parciais quando o serviço sinaliza continuação', async () => {
@@ -68,7 +68,7 @@ describe('PromptlyOverviewPage', () => {
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByText(/parcia/i)).toBeInTheDocument();
+    expect(await screen.findByText(/partial/i)).toBeInTheDocument();
   });
 
   // O PAR QUE DISCRIMINA, ponta a ponta: página cheia SEM continuação não é parcial.
@@ -84,7 +84,7 @@ describe('PromptlyOverviewPage', () => {
     render(<PromptlyOverviewPage />);
 
     expect(await screen.findByTestId('kpi-prompts')).toHaveTextContent(/^Prompts100$/);
-    expect(screen.queryByText(/parcia/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/partial/i)).not.toBeInTheDocument();
   });
 
   it('falha de leitura renderiza o alerta e NÃO zeros', async () => {
@@ -92,7 +92,7 @@ describe('PromptlyOverviewPage', () => {
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByText(/não foi possível carregar/i)).toBeInTheDocument();
+    expect(await screen.findByText(/could not load/i)).toBeInTheDocument();
     // Zeros aqui afirmariam "não há nada para promover" durante uma queda.
     expect(screen.queryByTestId('kpi-nao-promovidos')).not.toBeInTheDocument();
   });
@@ -116,8 +116,8 @@ describe('PromptlyOverviewPage', () => {
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByTestId('kpi-nao-promovidos')).toHaveTextContent(/^Não promovidos0$/);
-    expect(screen.getByRole('link', { name: /criar o primeiro/i })).toBeInTheDocument();
+    expect(await screen.findByTestId('kpi-nao-promovidos')).toHaveTextContent(/^Not promoted0$/);
+    expect(screen.getByRole('link', { name: /create the first/i })).toBeInTheDocument();
   });
 
   // FE-03 — num workspace vazio, `naoPromovidos` também é 0, e a tela afirmava "toda última
@@ -127,7 +127,7 @@ describe('PromptlyOverviewPage', () => {
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByText(/nenhum prompt ainda/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no prompts yet/i)).toBeInTheDocument();
     expect(screen.queryByText(/toda última revisão está servindo/i)).not.toBeInTheDocument();
   });
 
@@ -147,7 +147,7 @@ describe('PromptlyOverviewPage', () => {
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByText(/revisões escritas/i)).toBeInTheDocument();
+    expect(await screen.findByText(/revisions written/i)).toBeInTheDocument();
     expect(screen.queryByText(/revisões publicadas/i)).not.toBeInTheDocument();
   });
 
@@ -156,8 +156,8 @@ describe('PromptlyOverviewPage', () => {
 
     render(<PromptlyOverviewPage />);
 
-    const link = await screen.findByRole('link', { name: /ver o catálogo/i });
-    expect(link).toHaveAttribute('href', '/promptly/catalogo');
+    const link = await screen.findByRole('link', { name: /see the catalog/i });
+    expect(link).toHaveAttribute('href', '/promptly/catalog');
   });
 });
 
@@ -171,8 +171,8 @@ describe('PromptlyOverviewPage — cada número leva à lista', () => {
 
     render(<PromptlyOverviewPage />);
 
-    const link = await screen.findByRole('link', { name: /ver todos os prompts no catálogo/i });
-    expect(link).toHaveAttribute('href', '/promptly/catalogo');
+    const link = await screen.findByRole('link', { name: /see all prompts in the catalog/i });
+    expect(link).toHaveAttribute('href', '/promptly/catalog');
   });
 
   // Os outros dois KPIs são agregados sem subconjunto correspondente — uma soma e uma contagem de
@@ -193,7 +193,7 @@ describe('PromptlyOverviewPage — cada número leva à lista', () => {
 
     render(<PromptlyOverviewPage />);
 
-    const link = await screen.findByRole('link', { name: /ver os prompts não promovidos/i });
-    expect(link).toHaveAttribute('href', '/promptly/catalogo?recorte=nao-promovidos');
+    const link = await screen.findByRole('link', { name: /see the prompts that were never promoted/i });
+    expect(link).toHaveAttribute('href', '/promptly/catalog?recorte=nao-promovidos');
   });
 });

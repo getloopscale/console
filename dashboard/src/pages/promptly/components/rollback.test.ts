@@ -27,7 +27,7 @@ describe('frasePreRollback — o que o diálogo promete ANTES de chamar', () => 
 
   it('rollback_dialog_says_no_label_moves_when_none_was_chosen', () => {
     const frase = frasePreRollback({ nome: 'x', paraVersao: 1, ultimaVersao: 2, label: null });
-    expect(frase).toContain('nenhum label');
+    expect(frase).toContain('no label');
   });
 });
 
@@ -39,7 +39,7 @@ describe('resultadoDoRollback — o que a tela afirma DEPOIS (EC-1)', () => {
     const r = resultadoDoRollback({ version: 3, labelsMoved: [], currentLabels: [] });
     expect(r.tom).toBe('atencao');
     expect(r.texto).toContain('v3');
-    expect(r.texto).toContain('nenhum label foi movido');
+    expect(r.texto).toContain('no label was moved');
     expect(r.texto).not.toMatch(/revertido com sucesso/i);
   });
 
@@ -91,6 +91,6 @@ describe('labelsOferecidos + mensagemDeRecusa — a recusa vira escolha (EC-2)',
     const erro = new ApiError(502, { error: 'upstream_error', message: 'dial tcp 10.0.0.4:8080' });
     const msg = mensagemDeRecusa(erro);
     expect(msg).not.toContain('10.0.0.4');
-    expect(msg).toMatch(/não foi possível/i);
+    expect(msg).toMatch(/could not/i);
   });
 });

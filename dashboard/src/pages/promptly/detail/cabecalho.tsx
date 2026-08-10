@@ -25,7 +25,7 @@ export function CabecalhoDoPrompt({ promptName, latestVersion, abaAtiva }: Props
     {/* Caminho de VOLTA explícito: sem ele o detalhe é uma sala sem porta. */}
     <div className="flex flex-wrap items-center gap-4">
       <Link to="/promptly" className="text-sm underline-offset-4 hover:underline">
-        ← Catálogo de prompts
+        ← Prompt catalog
       </Link>
       {/* M12: as duas ações POR PROMPT ficam aqui, não no menu — uma entrada de menu para elas
           exigiria um nome que o menu não tem e levaria a lugar nenhum. */}
@@ -41,20 +41,20 @@ export function CabecalhoDoPrompt({ promptName, latestVersion, abaAtiva }: Props
         to={`/promptly/${encodeURIComponent(promptName)}/diff`}
         className="text-sm underline-offset-4 hover:underline"
       >
-        Comparar revisões
+        Compare revisions
       </Link>
       <Link
         to={`/promptly/new?name=${encodeURIComponent(promptName)}&next=${(latestVersion ?? 0) + 1}`}
         className="text-sm underline-offset-4 hover:underline"
       >
-        Nova revisão deste prompt
+        New revision of this prompt
       </Link>
     </div>
 
     {/* M21 DoD-1 — as quatro perguntas. São quatro coisas diferentes sobre o mesmo objeto, e
         empilhá-las numa coluna fazia o operador rolar por três respostas que não pediu para
         chegar na que pediu. */}
-    <nav aria-label="Seções do prompt" className="flex flex-wrap gap-1 border-b">
+    <nav aria-label="Prompt sections" className="flex flex-wrap gap-1 border-b">
       {ABAS.map((aba) => (
         <Link
           key={aba.id}

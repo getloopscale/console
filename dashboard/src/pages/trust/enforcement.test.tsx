@@ -66,11 +66,11 @@ describe('TrustEnforcementPage', () => {
     render(<TrustEnforcementPage />);
 
     // O aviso é obrigatório: sem ele, o vazio abaixo seria lido como boa notícia.
-    expect(await screen.findByText('Não foi possível carregar a auditoria')).toBeInTheDocument();
-    expect(screen.getByText('Sem dados — a leitura falhou')).toBeInTheDocument();
+    expect(await screen.findByText('Could not load the audit trail')).toBeInTheDocument();
+    expect(screen.getByText('No data — the read failed')).toBeInTheDocument();
 
     // E o texto de ausência NÃO pode aparecer — é ele que afirmaria o que a tela não sabe.
-    expect(screen.queryByText('Nenhuma ação de enforcement registrada')).not.toBeInTheDocument();
+    expect(screen.queryByText('No enforcement action recorded')).not.toBeInTheDocument();
     expect(screen.queryByText(/Nenhuma mensagem foi bloqueada ou reescrita/)).not.toBeInTheDocument();
   });
 
@@ -80,8 +80,8 @@ describe('TrustEnforcementPage', () => {
     mockEvents.mockResolvedValue({ events: [] });
     render(<TrustEnforcementPage />);
 
-    expect(await screen.findByText('Nenhuma ação de enforcement registrada')).toBeInTheDocument();
-    expect(screen.queryByText('Não foi possível carregar a auditoria')).not.toBeInTheDocument();
-    expect(screen.queryByText('Sem dados — a leitura falhou')).not.toBeInTheDocument();
+    expect(await screen.findByText('No enforcement action recorded')).toBeInTheDocument();
+    expect(screen.queryByText('Could not load the audit trail')).not.toBeInTheDocument();
+    expect(screen.queryByText('No data — the read failed')).not.toBeInTheDocument();
   });
 });

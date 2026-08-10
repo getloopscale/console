@@ -82,7 +82,7 @@ export function violationColumns(
 
     {
       key: 'policy',
-      label: 'Política',
+      label: 'Policy',
       render: (row) => (
         <span className="font-mono font-medium">{row.policy ?? '—'}</span>
       ),
@@ -141,7 +141,7 @@ export function violationColumns(
 
 export function TrustViolationsPage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Trust — violações'), [setPageTitle]);
+  useEffect(() => setPageTitle('Trust — violations'), [setPageTitle]);
   useRequireAuth();
   const queryClient = useQueryClient();
 
@@ -173,8 +173,8 @@ export function TrustViolationsPage() {
     violationColumns(setSelected);
   return (
     <PageShell
-      title="Violações de política"
-      description="Cada linha é um sinal que a camada de confiança registrou. Abra para ver a conversa de origem."
+      title="Policy violations"
+      description="Each row is a signal the trust layer recorded. Open it to see the source conversation."
       primaryAction={{
         label: 'Atualizar',
         icon: RefreshCw,
@@ -184,8 +184,8 @@ export function TrustViolationsPage() {
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar as violações"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há violações."
+          title="Could not load the violations"
+          description="The list below is empty because the read failed — this does NOT mean there are no violations."
         />
       ) : null}
 
@@ -193,10 +193,10 @@ export function TrustViolationsPage() {
         <Card.Header>
           {/* asChild → <h2>: o PageShell já rende o <h1> (WCAG 1.3.1). */}
           <Card.Title asChild>
-            <h2>{policy ? `Violações de ${policy}` : 'Todas as violações'}</h2>
+            <h2>{policy ? `${policy} violations` : 'All violations'}</h2>
           </Card.Title>
           <Card.Description>
-            {rows.length} de {all.length} registro(s) na janela.
+            {rows.length} of {all.length} record(s) in the window.
           </Card.Description>
         </Card.Header>
 
@@ -210,17 +210,17 @@ export function TrustViolationsPage() {
               icon={ShieldCheck}
               title={
                 failed
-                  ? 'Sem dados — a leitura falhou'
+                  ? 'No data — the read failed'
                   : policy
-                    ? `Nenhuma violação de ${policy}`
-                    : 'Nenhuma violação registrada'
+                    ? `No ${policy} violation`
+                    : 'No violation recorded'
               }
               description={
                 failed
                   ? 'Tente novamente em instantes.'
                   : policy
-                    ? 'Nenhum registro desta política na janela atual.'
-                    : 'Nenhuma violação registrada para este workspace.'
+                    ? 'No record of this policy in the current window.'
+                    : 'No violation recorded for this workspace.'
               }
               action={
                 policy ? (
@@ -228,7 +228,7 @@ export function TrustViolationsPage() {
                     variant="secondary"
                     onClick={() => void setPolicy(null)}
                   >
-                    Ver todas as violações
+                    See all violations
                   </Button>
                 ) : undefined
               }

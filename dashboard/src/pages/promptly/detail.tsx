@@ -232,7 +232,7 @@ export function PromptDetailPage() {
   const revisionsFailed = Boolean(revisions.error);
   // Três estados, nunca colapsados — a projeção é quem decide, e ela é testada fora do React.
   const agregado: AgregadoDeUso = uso.error
-    ? { estado: 'nao-lido', razao: 'não consegui ler o uso deste prompt' }
+    ? { estado: 'nao-lido', razao: 'could not read this prompt usage' }
     : { estado: 'lido', rows: uso.data?.rows ?? [] };
   const usoPorRevisao = new Map<number, LinhaDeUso>(
     projetarUso(agregado, linhas.map((l) => l.version)).map((l) => [l.revision, l]),
@@ -348,14 +348,14 @@ export function PromptDetailPage() {
   return (
     <PageShell
       title={promptName}
-      description="As revisões deste prompt e o label de ambiente que cada uma serve."
+      description="The revisions of this prompt and the environment label each one serves."
     >
       <CabecalhoDoPrompt promptName={promptName} latestVersion={latestVersion} abaAtiva={abaAtiva} />
 
       {rollbackResultado ? (
         <Alert
           intent={rollbackResultado.tom === 'sucesso' ? 'success' : 'warning'}
-          title={rollbackResultado.tom === 'sucesso' ? 'Revertido' : 'Revisão criada — mas nada mudou em produção'}
+          title={rollbackResultado.tom === 'sucesso' ? 'Rolled back' : 'Revision created — but nothing changed in production'}
           description={rollbackResultado.texto}
         />
       ) : null}
@@ -363,10 +363,10 @@ export function PromptDetailPage() {
       {labelsParaEscolher.length > 0 ? (
         <Alert
           intent="destructive"
-          title="Qual ambiente você quer reverter?"
+          title="Which environment do you want to roll back?"
           description={
             <span className="flex flex-wrap items-center gap-2">
-              Este prompt serve mais de um ambiente; escolha qual passa a apontar para a revisão nova.
+              This prompt serves more than one environment; choose which one starts pointing at the new revision.
               {labelsParaEscolher.map((l) => (
                 <Button
                   key={l}
@@ -387,27 +387,27 @@ export function PromptDetailPage() {
       ) : null}
 
       {rollbackErro ? (
-        <Alert intent="destructive" title="A reversão não aconteceu" description={rollbackErro} />
+        <Alert intent="destructive" title="The rollback did not happen" description={rollbackErro} />
       ) : null}
 
       {revisionsFailed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar as revisões"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que este prompt não tem revisões."
+          title="Could not load the revisions"
+          description="The list below is empty because the read failed — this does NOT mean this prompt has no revisions."
         />
       ) : null}
 
       {labelsFailed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar os labels de ambiente"
-          description="Sem eles não é possível saber qual revisão serve produção — a promoção fica indisponível até a leitura voltar."
+          title="Could not load the environment labels"
+          description="Without them there is no way to know which revision serves production — promotion stays unavailable until the read recovers."
         />
       ) : null}
 
       {promoteError ? (
-        <Alert intent="destructive" title="A promoção não foi aplicada" description={promoteError} />
+        <Alert intent="destructive" title="The promotion was not applied" description={promoteError} />
       ) : null}
 
       {/* M20 DoD-2 — os dois textos. Fica ACIMA de tudo porque é o próprio prompt: as tags, a
@@ -456,10 +456,10 @@ function mensagemDaRecusa(err: unknown): string {
     // `5xx` é falha de INFRAESTRUTURA e o corpo pode carregar host, porta e stack; repassá-lo
     // vazaria topologia interna para o navegador do cliente. Sem este contraste, o repasse de
     // 4xx vira matcher cego — foi por isto que a cópia nova nasceu com a guarda e esta, não.
-    if (err.status >= 500) return 'O serviço de prompts não respondeu. Tente novamente em instantes.';
+    if (err.status >= 500) return 'The prompts service did not respond. Try again in a moment.';
     const body = err.body as { message?: string; error?: string } | undefined;
     if (body?.message) return body.message;
     if (body?.error) return body.error;
   }
-  return 'O serviço de prompts recusou a promoção e não informou o motivo.';
+  return 'The prompts service refused the promotion and gave no reason.';
 }

@@ -26,6 +26,10 @@
 
 ### Changed
 
+- **Prompts e Trust passaram a falar inglês, como o resto do painel.** Dezoito das vinte telas do produto já estavam em inglês; duas não — a área de Prompts inteira e parte de Trust. Não era um produto bilíngue: eram duas ilhas, mais um resíduo escondido em telas de erro que nenhum teste manual encontra, porque só aparecem quando algo dá errado. Foram traduzidas **todas** as mensagens que chegam ao usuário, incluindo as que só existem quando uma leitura falha. Os endereços de Prompts também mudaram (`/promptly/catalogo` → `/catalog`, e o mesmo para as abas de produção e consumo), e **os antigos continuam funcionando**: um link salvo num favorito ou colado num ticket não vira página inexistente por causa disso.
+
+- **E uma verificação impede que volte.** A limpeza equivalente foi feita em Skills há três meses e não deixou nada verificando — três meses depois havia mais de duzentas frases em português no painel, quatro delas no próprio Skills. Agora a suíte falha se uma frase em português entrar numa tela. A verificação lê a estrutura do código, não o texto do arquivo: comentários em português continuam sendo a convenção do projeto e não são acusados.
+
 - **Todos os modais do dashboard passaram a vir do mesmo componente.** Existiam dois construídos lado a lado, com regras de largura diferentes: um oferecia uma escala de tamanhos, o outro deixava cada tela escolher a sua. Dezessete telas usavam o segundo. Agora há um só, e a largura de qualquer modal vem da mesma escala. **O espaçamento interno mudou em dezesseis deles** — cerca de 8 px a mais de altura —, porque os dois componentes espaçavam diferente e consolidar significa adotar um. As larguras continuam idênticas às de antes, escolhidas uma a uma.
 
 - **Os três modais compartilhados do dashboard passaram a usar o primitivo padrão.** Confirmação de ação destrutiva, redeploy e aviso de limite de plano eram construídos sobre um segundo primitivo de modal, com a largura escrita à mão em cada um. Agora vêm da mesma escala de tamanhos do resto do sistema. Nenhuma das telas mudou de aparência — as larguras escolhidas são as mesmas que já eram usadas.

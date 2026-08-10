@@ -69,7 +69,7 @@ describe('diffLines — teto de tamanho (EC-3)', () => {
     // O número é o do LADO MAIOR (a revisão nova, com uma linha a mais), não a soma dos dois:
     // a soma não corresponde a nada que o operador tenha na mão.
     expect(blocos).toEqual([
-      { kind: 'too-large', text: `${DIFF_LINE_CEILING + 2} linhas — acima do teto de ${DIFF_LINE_CEILING}` },
+      { kind: 'too-large', text: `${DIFF_LINE_CEILING + 2} lines — above the ceiling of ${DIFF_LINE_CEILING}` },
     ]);
   });
 
@@ -111,7 +111,7 @@ describe('diffConfig — a config muda, não só o texto (M17 DoD-4)', () => {
     const d = diffConfig(null, { temperature: 0.5 });
 
     expect(d.mudou).toBe(true);
-    expect(d.linhas[0]?.antes).toMatch(/anterior à config/i);
+    expect(d.linhas[0]?.antes).toMatch(/before the config/i);
   });
 
   it('as DUAS sem config nao e diferenca', () => {

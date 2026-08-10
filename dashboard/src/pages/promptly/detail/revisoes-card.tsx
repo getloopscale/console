@@ -30,12 +30,12 @@ export function RevisoesCard({ revisions, latestVersion, REVISIONS_LIMIT, column
     <Card>
       <Card.Header>
         <Card.Title asChild>
-          <h2>Revisões</h2>
+          <h2>Revisions</h2>
         </Card.Title>
         <Card.Description>
           {latestVersion === null
-            ? `As ${REVISIONS_LIMIT} primeiras — a página vem do servidor.`
-            : `As ${REVISIONS_LIMIT} mais recentes (até a v${latestVersion}) — a página vem do servidor, e o histórico completo continua na API.`}
+            ? `The first ${REVISIONS_LIMIT} — the page comes from the server.`
+            : `The ${REVISIONS_LIMIT} most recent (up to v${latestVersion}) — the page comes from the server, and the full history stays in the API.`}
         </Card.Description>
       </Card.Header>
 
@@ -47,11 +47,11 @@ export function RevisoesCard({ revisions, latestVersion, REVISIONS_LIMIT, column
         emptyState={
           <EmptyState
             icon={History}
-            title={revisionsFailed ? 'Sem dados — a leitura falhou' : 'Nenhuma revisão'}
+            title={revisionsFailed ? 'No data — the read failed' : 'No revisions'}
             description={
               revisionsFailed
-                ? 'Tente novamente em instantes. Enquanto isso, não é possível saber quais revisões existem.'
-                : 'Este prompt ainda não tem revisões publicadas.'
+                ? 'Try again in a moment. Until then, there is no way to know which revisions exist.'
+                : 'This prompt has no published revisions yet.'
             }
           />
         }

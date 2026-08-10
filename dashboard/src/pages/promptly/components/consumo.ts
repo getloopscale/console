@@ -120,8 +120,8 @@ function gerarSdk(alvo: Alvo): string {
 
 const promptly = new PromptlyClient({
   baseUrl: '${alvo.baseUrl}',
-  // Chave da PLATAFORMA (\`theo_live_…\`), criada em Settings → API Tokens com o escopo
-  // \`promptly:read\`. A chave do serviço não passa pela borda. Nunca no código: exporte-a.
+  // PLATFORM key (\`theo_live_…\`), created in Settings → API Tokens with the
+  // \`promptly:read\` scope. The service key never crosses the edge. Never in code: export it.
   apiKey: process.env.THEO_API_KEY ?? '',
 });
 
@@ -140,8 +140,8 @@ function gerarRest(alvo: Alvo): string {
   // referencia ninguém não deve pagá-la (a mesma decisão de custo do DoD-5 do M20).
   const resolucao = alvo.compoe ? '&resolve=true' : '';
   const caminho = `${alvo.baseUrl}/prompts/${encodeURIComponent(alvo.nome)}?${enderecoRest(alvo)}${resolucao}`;
-  return `# Chave da PLATAFORMA (theo_live_…), de Settings → API Tokens, com escopo promptly:read.
-# Nunca colada aqui — vem do ambiente.
+  return `# PLATFORM key (theo_live_…), from Settings → API Tokens, with the promptly:read scope.
+# Never pasted here — it comes from the environment.
 curl -sS '${caminho}' \\
   -H "Authorization: Bearer \${THEO_API_KEY}"`;
 }
@@ -158,8 +158,8 @@ function gerarMcp(alvo: Alvo): string {
     alvo.label !== null
       ? `"name": "${alvo.nome}", "label": "${alvo.label}"`
       : `"name": "${alvo.nome}", "version": ${String(alvo.ultimaVersao)}`;
-  return `1) Aponte seu cliente MCP para o servidor — chave da plataforma (theo_live_…),
-   de Settings → API Tokens, com escopo promptly:read:
+  return `1) Point your MCP client at the server — platform key (theo_live_…),
+   from Settings → API Tokens, with the promptly:read scope:
 
 {
   "mcpServers": {

@@ -29,8 +29,8 @@ async function navegarAteOCatalogoPeloMenu(page: Page) {
   // Esperar o submenu TROCAR antes de clicar no item dele — a raiz tem itens de mesmo nome, e
   // clicar cedo demais acerta o da raiz com a navegação parecendo funcionar.
   await expect(page.getByRole('button', { name: /^projects$/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /^catálogo$/i }).click();
-  await expect(page).toHaveURL(/\/promptly\/catalogo$/);
+  await page.getByRole('button', { name: /^catalog$/i }).click();
+  await expect(page).toHaveURL(/\/promptly\/catalog$/);
 }
 
 test.describe('M21 — as quatro perguntas do detalhe', () => {
@@ -42,11 +42,11 @@ test.describe('M21 — as quatro perguntas do detalhe', () => {
     // abre a aba de conteúdo — quebrá-lo trocaria uma tela melhor por caminhos mortos.
     await page.getByRole('link', { name: 'saudacao', exact: true }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao$/);
-    await expect(page.getByRole('link', { name: 'Conteúdo', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('link', { name: 'Content', exact: true })).toHaveAttribute(
       'aria-current',
       'page',
     );
-    await expect(page.getByRole('heading', { name: 'Revisões' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Revisions' })).toBeVisible();
 
     // ---- Cada aba responde a SUA pergunta -------------------------------------------------
     // `exact: true` nas quatro abas, e o motivo não é estilo.
@@ -62,19 +62,19 @@ test.describe('M21 — as quatro perguntas do detalhe', () => {
     // palavra. Um seletor frouxo é uma colisão esperando o vocabulário certo aparecer.
     await page.getByRole('link', { name: 'Config', exact: true }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao\/config$/);
-    await expect(page.getByRole('heading', { name: 'Variáveis exigidas' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Required variables' })).toBeVisible();
     // E não mostra o que é de outra aba — sem isto, um recorte que renderizasse tudo em toda aba
     // passaria, e a tela continuaria sendo o scroll único com uma barra decorativa em cima.
-    await expect(page.getByRole('heading', { name: 'Revisões' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Revisions' })).toHaveCount(0);
 
-    await page.getByRole('link', { name: 'Uso em produção', exact: true }).click();
-    await expect(page).toHaveURL(/\/promptly\/saudacao\/producao$/);
-    await expect(page.getByRole('heading', { name: 'Uso por revisão' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Quem referencia este prompt' })).toBeVisible();
+    await page.getByRole('link', { name: 'Production usage', exact: true }).click();
+    await expect(page).toHaveURL(/\/promptly\/saudacao\/production$/);
+    await expect(page.getByRole('heading', { name: 'Usage by revision' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'What references this prompt' })).toBeVisible();
 
     // ---- A aba de consumo entrega código (DoD-2) -----------------------------------------
-    await page.getByRole('link', { name: 'Como consumir', exact: true }).click();
-    await expect(page).toHaveURL(/\/promptly\/saudacao\/consumo$/);
+    await page.getByRole('link', { name: 'How to consume', exact: true }).click();
+    await expect(page).toHaveURL(/\/promptly\/saudacao\/consumption$/);
 
     for (const rotulo of ['SDK (TypeScript)', 'REST (curl)', 'MCP']) {
       await expect(page.getByRole('heading', { name: rotulo })).toBeVisible();
@@ -87,7 +87,7 @@ test.describe('M21 — as quatro perguntas do detalhe', () => {
 
     // ---- Recarregar mantém o lugar (ADR-1: a aba é rota, não estado) ----------------------
     await page.reload();
-    await expect(page.getByRole('link', { name: 'Como consumir', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('link', { name: 'How to consume', exact: true })).toHaveAttribute(
       'aria-current',
       'page',
     );
@@ -107,20 +107,20 @@ test.describe('M21 — as quatro perguntas do detalhe', () => {
     // A AÇÃO, não só o cartão. O `/review` mediu que a versão anterior deste bloco verificava dois
     // cabeçalhos e passava com ZERO botões de promoção — a ação inteira vivia na aba de conteúdo,
     // e três lugares (comentário, teste e CHANGELOG) afirmavam o contrário.
-    await expect(page.getByRole('heading', { name: 'Ambientes' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Environments' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Tags' })).toBeVisible();
-    const promover = page.getByRole('button', { name: /^Promover prod para a última revisão/ });
+    const promover = page.getByRole('button', { name: /^Promote prod to the latest revision/ });
     await expect(promover).toBeVisible();
 
     // E ela ABRE a confirmação, sem sair da aba de consumo.
     await promover.click();
     await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page).toHaveURL(/\/promptly\/saudacao\/consumo$/);
+    await expect(page).toHaveURL(/\/promptly\/saudacao\/consumption$/);
     await page.keyboard.press('Escape');
 
     // ---- E o caminho de volta existe ------------------------------------------------------
-    await page.getByRole('link', { name: 'Conteúdo', exact: true }).click();
+    await page.getByRole('link', { name: 'Content', exact: true }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao$/);
-    await expect(page.getByRole('heading', { name: 'Revisões' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Revisions' })).toBeVisible();
   });
 });

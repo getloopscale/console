@@ -27,22 +27,22 @@ export function TextoDoPromptCard({ texto, modoDeTexto, setModoDeTexto }: Props)
     <Card>
       <Card.Header>
         <Card.Title asChild>
-          <h2>Texto do prompt</h2>
+          <h2>Prompt text</h2>
         </Card.Title>
         <Card.Description>
-          Este prompt referencia outros. <strong>Como foi escrito</strong> mostra os marcadores;{' '}
-          <strong>resolvido</strong> mostra o texto que o modelo de fato recebe.
+          This prompt references others. <strong>As written</strong> shows the placeholders;{' '}
+          <strong>resolved</strong> shows the text the model actually receives.
         </Card.Description>
       </Card.Header>
       <div className="space-y-3 p-4 pt-0">
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Qual texto exibir">
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Which text to show">
           <Button
             variant={modoDeTexto === 'escrito' ? 'primary' : 'secondary'}
             size="sm"
             aria-pressed={modoDeTexto === 'escrito'}
             onClick={() => { setModoDeTexto('escrito'); }}
           >
-            Como foi escrito
+            As written
           </Button>
           <Button
             variant={modoDeTexto === 'resolvido' ? 'primary' : 'secondary'}
@@ -58,11 +58,11 @@ export function TextoDoPromptCard({ texto, modoDeTexto, setModoDeTexto }: Props)
           // errado, e o operador leria marcadores literais achando ver a composição.
           <Alert
             intent="destructive"
-            title="Não foi possível resolver a composição"
-            description="O texto resolvido não pôde ser lido. Alterne de volta para ver o texto como foi escrito."
+            title="Could not resolve the composition"
+            description="The resolved text could not be read. Switch back to see the text as it was written."
           />
         ) : texto.estado === 'carregando' ? (
-          <p className="text-sm text-muted-foreground">Resolvendo as referências…</p>
+          <p className="text-sm text-muted-foreground">Resolving references…</p>
         ) : (
           <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-mono text-xs">
             {texto.texto || '(vazio)'}

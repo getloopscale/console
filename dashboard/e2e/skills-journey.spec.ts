@@ -265,7 +265,7 @@ test.describe('M35 — distribuição: pacotes, tokens delegados e adoção', ()
     // não à lista de pacotes.
     await navegarAteOsPacotesPeloMenu(page);
     await page.getByRole('link', { name: 'Support skills' }).click();
-    await page.getByRole('link', { name: /todos os pacotes/i }).click();
+    await page.getByRole('link', { name: /all bundles/i }).click();
     await expect(page).toHaveURL(/\/bundles$/);
   });
 });
@@ -287,7 +287,7 @@ test.describe('M35 — o conteúdo do pacote é editável pela tela (AC1)', () =
     // O canal só habilita depois da skill: canais são POR skill, e um par montado antes seria
     // um item que o registro não sabe servir.
     await page.getByLabel('Skill channel').selectOption('stable');
-    await page.getByRole('button', { name: /adicionar ao pacote/i }).click();
+    await page.getByRole('button', { name: /add to bundle/i }).click();
 
     // Alteração pendente é ANUNCIADA — sem isso o operador sai da tela achando que salvou.
     await expect(page.getByText(/unsaved changes/i)).toBeVisible();
@@ -306,7 +306,7 @@ test.describe('M35 — o conteúdo do pacote é editável pela tela (AC1)', () =
     // a leitura da lista — a tela recusa dizendo por quê, em vez de ignorar em silêncio.
     await page.getByLabel('Skill to add').selectOption('sk_ordering');
     await page.getByLabel('Skill channel').selectOption('stable');
-    await page.getByRole('button', { name: /adicionar ao pacote/i }).click();
+    await page.getByRole('button', { name: /add to bundle/i }).click();
 
     await expect(page.getByText(/already in the bundle on that channel/i)).toBeVisible();
   });
@@ -349,7 +349,7 @@ test.describe('M32 — ciclo de vida: retirar de circulação sem quebrar quem u
     await page.getByRole('button', { name: /deprecate skill/i }).click();
 
     // E a situação reflete: `descontinuada`, com o caminho de volta a circular.
-    await expect(page.getByRole('button', { name: /voltar a circular/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /put back in circulation/i })).toBeVisible();
   });
 });
 

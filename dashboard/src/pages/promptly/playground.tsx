@@ -165,7 +165,7 @@ export function PromptlyPlaygroundPage() {
       navigate(`/promptly/${encodeURIComponent(promptName)}`);
     },
     onError: () =>
-      setRecusaAoSalvar('Não foi possível criar a revisão. Tente de novo em instantes.'),
+      setRecusaAoSalvar('Could not create the revision. Try again in a moment.'),
   });
 
   const habilitado = podeRodar(campos, credencial) && !rodar.isPending;
@@ -177,7 +177,7 @@ export function PromptlyPlaygroundPage() {
   return (
     <PageShell
       title={`Playground — ${promptName}`}
-      description="Rode o prompt com valores de exemplo e veja a saída do modelo antes de promover."
+      description="Run the prompt with sample values and see the model output before promoting."
     >
       {/* Caminho de VOLTA explícito — mesma razão do detalhe: sem ele a tela é uma
           sala sem porta, e o item de menu levaria ao overview, não a este prompt. */}
@@ -186,29 +186,29 @@ export function PromptlyPlaygroundPage() {
           to={`/promptly/${encodeURIComponent(promptName)}`}
           className="text-sm underline-offset-4 hover:underline"
         >
-          ← Voltar ao prompt
+          ← Back to the prompt
         </Link>
       </div>
 
       {prompt.error ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar este prompt"
-          description="A leitura falhou. Isso é diferente de o prompt não existir — recarregue a página."
+          title="Could not load this prompt"
+          description="The read failed. That is different from the prompt not existing — reload the page."
         />
       ) : null}
 
       {recusaAoSalvar ? (
-        <Alert intent="destructive" title="A revisão não foi criada" description={recusaAoSalvar} />
+        <Alert intent="destructive" title="The revision was not created" description={recusaAoSalvar} />
       ) : null}
 
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Conteúdo</h2>
+            <h2>Content</h2>
           </Card.Title>
           <Card.Description>
-            O que estiver aqui é o que será rodado — e o que será salvo, se você salvar.
+            Whatever is here is what gets run — and what gets saved, if you save.
           </Card.Description>
         </Card.Header>
         <div className="space-y-4 p-6 pt-0">
@@ -216,10 +216,10 @@ export function PromptlyPlaygroundPage() {
             <Skeleton className="h-32 w-full" />
           ) : (
             <FormField id="playground-conteudo">
-              <FormField.Label>Conteúdo do prompt</FormField.Label>
+              <FormField.Label>Prompt content</FormField.Label>
               <FormField.Control>
                 <Textarea
-                  aria-label="Conteúdo do prompt"
+                  aria-label="Prompt content"
                   className="min-h-32 font-mono text-sm"
                   value={conteudo}
                   onChange={(e) => setConteudo(e.target.value)}
@@ -233,12 +233,12 @@ export function PromptlyPlaygroundPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Valores de exemplo</h2>
+            <h2>Sample values</h2>
           </Card.Title>
           <Card.Description>
             {declaradas.length === 0
-              ? 'Este prompt não declara variáveis.'
-              : 'Um campo por variável declarada pelo prompt.'}
+              ? 'This prompt declares no variables.'
+              : 'One field per variable the prompt declares.'}
           </Card.Description>
         </Card.Header>
         <div className="space-y-4 p-6 pt-0">
@@ -254,7 +254,7 @@ export function PromptlyPlaygroundPage() {
                 />
               </FormField.Control>
               {falha?.tipo === 'validacao' && falha.variavelFaltante === campo.nome ? (
-                <FormField.Error>Preencha este campo antes de rodar.</FormField.Error>
+                <FormField.Error>Fill this field before running.</FormField.Error>
               ) : null}
             </FormField>
           ))}
@@ -271,34 +271,34 @@ export function PromptlyPlaygroundPage() {
                 className="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
                 value={temperatura}
                 onChange={(e) => setTemperatura(e.target.value)}
-                placeholder="deixe vazio para não afinar"
+                placeholder="leave empty for no tuning"
               />
             </FormField.Control>
             <FormField.Hint>
-              Esta afinação é usada ao rodar E gravada ao salvar. Vazio significa
-              &quot;não afinei&quot; — nada é gravado, em vez de um default que ninguém escolheu.
+              This tuning is used when running AND stored when saving. Empty means
+              &quot;no tuning&quot; — nothing is stored, instead of a default nobody chose.
             </FormField.Hint>
           </FormField>
 
           <FormField id="playground-descricao">
-            <FormField.Label>Por que esta revisão existe</FormField.Label>
+            <FormField.Label>Why this revision exists</FormField.Label>
             <FormField.Control>
               <input
-                aria-label="Por que esta revisão existe"
+                aria-label="Why this revision exists"
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
                 maxLength={500}
-                placeholder="afinei para extração"
+                placeholder="tuned for extraction"
               />
             </FormField.Control>
           </FormField>
 
           <FormField id="playground-credencial">
-            <FormField.Label>Chave de API do modelo</FormField.Label>
+            <FormField.Label>Model API key</FormField.Label>
             <FormField.Control>
               <input
-                aria-label="Chave de API do modelo"
+                aria-label="Model API key"
                 type="password"
                 autoComplete="off"
                 className="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
@@ -308,8 +308,8 @@ export function PromptlyPlaygroundPage() {
               />
             </FormField.Control>
             <FormField.Hint>
-              A chave é usada só nesta execução e não fica guardada em lugar nenhum — nem aqui, nem
-              no servidor. Recarregar a página pede a chave de novo.
+              The key is used only for this run and is not stored anywhere — not here, not on the
+              server. Reloading the page asks for the key again.
             </FormField.Hint>
           </FormField>
 
@@ -319,13 +319,13 @@ export function PromptlyPlaygroundPage() {
             consequência ("consome a quota da sua chave"), não a ação.
           */}
           <p className="text-sm text-muted-foreground" data-testid="playground-aviso-custo">
-            Rodar chama o modelo de verdade e <strong>consome a quota da sua chave</strong>. Uma
-            execução por clique.
+            Running calls the real model and <strong>consumes your key quota</strong>. One run
+            per click.
           </p>
 
           <div className="flex gap-2">
             <Button onClick={() => rodar.mutate()} disabled={!habilitado}>
-              {rodar.isPending ? 'Rodando…' : 'Rodar'}
+              {rodar.isPending ? 'Running…' : 'Run'}
             </Button>
             <Button
               variant="secondary"
@@ -335,7 +335,7 @@ export function PromptlyPlaygroundPage() {
               }}
               disabled={salvar.isPending || conteudo.trim() === ''}
             >
-              {salvar.isPending ? 'Salvando…' : 'Salvar como nova revisão'}
+              {salvar.isPending ? 'Saving…' : 'Save as a new revision'}
             </Button>
           </div>
         </div>
@@ -344,7 +344,7 @@ export function PromptlyPlaygroundPage() {
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Saída</h2>
+            <h2>Output</h2>
           </Card.Title>
         </Card.Header>
         <div className="p-6 pt-0" data-testid="playground-saida">
@@ -382,7 +382,7 @@ function SaidaDoModelo({
           title="O provedor do modelo recusou a chamada"
           description={
             falha.mensagem ??
-            `O provedor respondeu ${String(falha.providerStatus ?? '')} e recusou a invocação. Confira a chave e a quota da sua conta.`
+            `The provider replied ${String(falha.providerStatus ?? '')} and refused the invocation. Check the key and the quota on your account.`
           }
         />
       );
@@ -394,9 +394,9 @@ function SaidaDoModelo({
           title="Nada foi enviado ao modelo"
           description={
             falha.variavelFaltante !== undefined
-              ? `A variável "${falha.variavelFaltante}" ficou em branco. Nenhuma chamada foi feita, e nada foi cobrado.`
+              ? `Variable "${falha.variavelFaltante}" was left blank. No call was made, and nothing was charged.`
               : (falha.motivo ??
-                'O prompt não pôde ser preparado. Nenhuma chamada foi feita, e nada foi cobrado.')
+                'The prompt could not be prepared. No call was made, and nothing was charged.')
           }
         />
       );
@@ -405,16 +405,16 @@ function SaidaDoModelo({
       return (
         <Alert
           intent="destructive"
-          title="Sua sessão expirou"
-          description="Entre de novo para continuar. Isso não tem relação com a chave do modelo."
+          title="Your session expired"
+          description="Sign in again to continue. This is unrelated to the model key."
         />
       );
     }
     return (
       <Alert
         intent="destructive"
-        title="Não foi possível falar com o serviço"
-        description="A chamada não completou. Isso é diferente de o modelo ter recusado — tente de novo em instantes."
+        title="Could not reach the service"
+        description="The call did not complete. That is different from the model refusing — try again in a moment."
       />
     );
   }
@@ -422,7 +422,7 @@ function SaidaDoModelo({
   if (saida === null) {
     return (
       <p className="text-sm text-muted-foreground">
-        Rode para ver a saída do modelo aqui. Nada foi executado ainda.
+        Run to see the model output here. Nothing has been executed yet.
       </p>
     );
   }

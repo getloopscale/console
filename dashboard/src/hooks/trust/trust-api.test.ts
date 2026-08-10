@@ -43,7 +43,7 @@ describe('serviceMessage', () => {
     // ApiError(0) é o que cloudFetch produz quando a requisição nem chegou. Dizer
     // "não foi possível salvar" ali sugeriria que o servidor recusou, e ele nem foi consultado.
     expect(serviceMessage(new ApiError(0, undefined, 'network request failed'), FALLBACK)).toBe(
-      'Não foi possível falar com o servidor.',
+      'Could not reach the server.',
     );
   });
 

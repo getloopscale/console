@@ -88,10 +88,10 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     // ao operador que ele gasta menos do que o número mostrado. Numa tela cujo número as pessoas
     // tratam como fatura, é a pior inversão possível — e é exatamente o que `unpricedSpans`
     // existe para impedir.
-    expect(aviso.textContent ?? '').toMatch(/maior que o exibido/i);
+    expect(aviso.textContent ?? '').toMatch(/HIGHER than shown/i);
     expect(aviso.textContent ?? '').not.toMatch(/menor que o exibido/i);
     // …e o título carrega o mesmo sentido, para quem lê só ele.
-    expect(aviso.textContent ?? '').toMatch(/piso, não o total/i);
+    expect(aviso.textContent ?? '').toMatch(/a floor, not the total/i);
   });
 
   it('NÃO declara lacuna de preço quando não há spans sem preço', async () => {
@@ -106,7 +106,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
   it('rotula o balde unattributed como consumo NÃO ATRIBUÍDO, não como ausência', async () => {
     mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
     render(<LensUsageByUserPage />);
-    const rotulo = await screen.findByText(/não atribuído/i);
+    const rotulo = await screen.findByText(/unattributed/i);
     // e continua sendo uma LINHA da tabela, com seus números — não um aviso à parte
     const linha = rotulo.closest('tr');
     expect(linha).not.toBeNull();
@@ -133,7 +133,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     // O TÍTULO também distingue os dois casos. "O serviço recusou a sua consulta" e "o serviço
     // está indisponível" levam a ações diferentes — corrigir o parâmetro vs esperar e tentar de
     // novo. Medido por mutação: genericizar só o título deixava a suíte verde.
-    expect(await screen.findByText(/o serviço recusou a consulta/i)).toBeInTheDocument();
+    expect(await screen.findByText(/the service refused the query/i)).toBeInTheDocument();
   });
 
   it('cai na cópia genérica quando o erro não traz mensagem acionável', async () => {
@@ -141,7 +141,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     render(<LensUsageByUserPage />);
     // `findByText`, não `findByRole('heading')`: o Alert do design-system não expõe o título como
     // heading, e é assim que todas as telas irmãs o asseram (alerts, datasets, monitors, ask).
-    expect(await screen.findByText(/não foi possível carregar o consumo/i)).toBeInTheDocument();
+    expect(await screen.findByText(/could not load the usage/i)).toBeInTheDocument();
     // e não inventa uma mensagem específica que o serviço não deu
     expect(screen.queryByText(/limit must be/i)).not.toBeInTheDocument();
   });
@@ -170,7 +170,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     const kpi = await screen.findByTestId('kpi-custo');
     // 4179.475464 + 0 + 0 + 0.034032
     expect(kpi).toHaveTextContent('$4,179.51');
-    expect(kpi.textContent ?? '').toMatch(/todos os 4/i);
+    expect(kpi.textContent ?? '').toMatch(/all 4 users/i);
   });
 
   it('declara escopo PARCIAL quando há mais usuários do que linhas — e nunca diz "total"', async () => {
@@ -179,7 +179,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     const kpi = await screen.findByTestId('kpi-custo');
     // "exibidos", não "total": com 400 usuários o cabeçalho cobre 4, e chamar isso de total é a
     // mesma classe de mentira que `unpricedSpans` existe para impedir.
-    expect(kpi.textContent ?? '').toMatch(/exibid/i);
+    expect(kpi.textContent ?? '').toMatch(/shown/i);
     expect(screen.getByTestId('usage-kpis').textContent ?? '').not.toMatch(/\btotal\b/i);
   });
 
@@ -307,7 +307,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     // …e plotam COISAS DIFERENTES. Contar dois Cards não distingue dois gráficos de um gráfico
     // duplicado: medido por mutação, trocar o título do segundo pelo do primeiro passava verde.
     const titulos = graficos.map((g) => g.querySelector('figcaption')?.textContent ?? '');
-    expect(titulos[0]).toMatch(/custo/i);
+    expect(titulos[0]).toMatch(/cost/i);
     expect(titulos[1]).toMatch(/tokens/i);
     expect(titulos[0]).not.toBe(titulos[1]);
 
@@ -441,10 +441,10 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     mockCloudFetch.mockResolvedValue({ ...COM_SERIE, totalUsers: 120 });
     render(<LensUsageByUserPage />);
     await screen.findAllByTestId('usage-chart');
-    await userEvent.click(screen.getByRole('button', { name: /próxima/i }));
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
     const titulos = (await screen.findAllByTestId('usage-chart')).map((g) => g.textContent ?? '');
     // "4 maiores" na página 2 seriam os de rank 51-54 — a mesma mentira que a faixa de KPI evita.
-    for (const t of titulos) expect(t).toMatch(/maiores desta página/);
+    for (const t of titulos) expect(t).toMatch(/top 4 on this page/);
   });
 
   /**
@@ -463,11 +463,11 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     expect(primeira?.textContent ?? '').toMatch(/\d{2}\/\d{2}/);
   });
 
-  it('o cabeçalho da coluna do gráfico diz Dia, não Point', async () => {
+  it('o cabeçalho da coluna do gráfico diz Day, nao Point', async () => {
     mockCloudFetch.mockResolvedValue(COM_SERIE);
     render(<LensUsageByUserPage />);
     const grafico = (await screen.findAllByTestId('usage-chart'))[0]!;
-    expect(grafico.querySelector('[data-slot="trend-chart-table"] thead th')?.textContent).toBe('Dia');
+    expect(grafico.querySelector('[data-slot="trend-chart-table"] thead th')?.textContent).toBe('Day');
   });
 
   it('o eixo X ganha rótulos visíveis no gráfico', async () => {
@@ -545,7 +545,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     render(<LensUsageByUserPage />);
 
     // `pageCount` derivado de `totalUsers` — fixá-lo em 1 esconde o paginador inteiro.
-    expect(await screen.findByTestId('usage-pager')).toHaveTextContent('Página 1 / 3');
+    expect(await screen.findByTestId('usage-pager')).toHaveTextContent('Page 1 / 3');
     // e o contador diz ONDE dentro do total, não só quantos vieram.
     expect(screen.getByTestId('usage-count')).toHaveTextContent('Mostrando 1–50 de 120');
 
@@ -557,25 +557,25 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     // um padrão frouxo demais para distinguir o certo do errado.
     expect(primeiraUrl).toMatch(/[?&]limit=50(?:&|$)/);
 
-    await userEvent.click(screen.getByRole('button', { name: /próxima/i }));
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
 
     await vi.waitFor(() => {
       expect(String(mockCloudFetch.mock.calls.at(-1)?.[0] ?? '')).toMatch(/offset=50/);
     });
-    expect(await screen.findByTestId('usage-pager')).toHaveTextContent('Página 2 / 3');
+    expect(await screen.findByTestId('usage-pager')).toHaveTextContent('Page 2 / 3');
   });
 
   it('trocar a janela volta para a primeira página', async () => {
     mockCloudFetch.mockResolvedValue(MUITOS);
     render(<LensUsageByUserPage />);
-    await userEvent.click(await screen.findByRole('button', { name: /próxima/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /next/i }));
     await vi.waitFor(() => {
       expect(String(mockCloudFetch.mock.calls.at(-1)?.[0] ?? '')).toMatch(/offset=50/);
     });
 
     // Radix: clicar no gatilho, depois na opção — `selectOptions` só serve a `<select>` nativo.
-    await userEvent.click(screen.getByRole('combobox', { name: /janela/i }));
-    await userEvent.click(await screen.findByRole('option', { name: /7 dias/i }));
+    await userEvent.click(screen.getByRole('combobox', { name: /window/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /last 7 days/i }));
 
     // Sem o reset, a janela nova é consultada a partir do offset 150 de um resultado que pode ser
     // mais curto — e o operador troca o período para ver uma tela vazia sem entender por quê.
@@ -589,7 +589,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
   /*
    * #383 — o seletor mentia sobre QUAL consulta foi recusada. Com um `days` fora de `JANELAS`, o
    * `<select>` não tinha `<option>` correspondente, o DOM caía na PRIMEIRA opção e o controle
-   * exibia "Últimos 7 dias" enquanto o alerta dizia `days must be at most 365` — leitura
+   * exibia "Last 7 dias" enquanto o alerta dizia `days must be at most 365` — leitura
    * impossível, porque 7 É no máximo 365. A tela acertava o erro e errava a pergunta.
    */
   it('reflete no seletor a janela que veio da URL, mesmo fora da lista de janelas', async () => {
@@ -601,7 +601,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
 
     // Com o `Select` do design system o valor selecionado é o TEXTO do gatilho, não `.value` de um
     // `<select>` nativo — a asserção muda de forma, a garantia é a mesma.
-    const seletor = await screen.findByRole('combobox', { name: /janela/i });
+    const seletor = await screen.findByRole('combobox', { name: /window/i });
     // O rótulo visível nomeia o número de fato pedido, não a primeira opção da lista, para o
     // alerta ao lado fazer sentido.
     expect(seletor).toHaveTextContent('9999');
@@ -615,7 +615,7 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     mockCloudFetch.mockResolvedValue(RESPOSTA_REAL);
     render(<LensUsageByUserPage />);
 
-    const seletor = await screen.findByRole('combobox', { name: /janela/i });
+    const seletor = await screen.findByRole('combobox', { name: /window/i });
     expect(seletor).toHaveTextContent('90');
     // Abrir a lista é o único jeito de contá-la no Radix — o conteúdo só existe montado.
     await userEvent.click(seletor);
@@ -631,8 +631,8 @@ describe('LensUsageByUserPage (/observability/usage-by-user)', () => {
     const chamadasAntes = mockCloudFetch.mock.calls.length;
 
     // Radix: clicar no gatilho, depois na opção — `selectOptions` só serve a `<select>` nativo.
-    await userEvent.click(screen.getByRole('combobox', { name: /janela/i }));
-    await userEvent.click(await screen.findByRole('option', { name: /7 dias/i }));
+    await userEvent.click(screen.getByRole('combobox', { name: /window/i }));
+    await userEvent.click(await screen.findByRole('option', { name: /last 7 days/i }));
 
     await vi.waitFor(() => {
       expect(mockCloudFetch.mock.calls.length).toBeGreaterThan(chamadasAntes);

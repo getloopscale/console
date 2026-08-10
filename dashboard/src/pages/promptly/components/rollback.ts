@@ -41,14 +41,14 @@ export function resultadoDoRollback(resposta: RespostaRollback): ResultadoRollba
     return {
       tom: 'atencao',
       texto:
-        `Revisão ${v} criada com o conteúdo antigo, mas nenhum label foi movido — ` +
-        `nada em produção mudou. Promova um label para ${v} se era isso que você queria.`,
+        `Revision ${v} created with the old content, but no label was moved — ` +
+        `nothing changed in production. Promote a label to ${v} if that is what you wanted.`,
     };
   }
   const movidos = resposta.labelsMoved.join(', ');
   return {
     tom: 'sucesso',
-    texto: `Revisão ${v} criada e ${movidos} passou a apontar para ela.`,
+    texto: `Revision ${v} created and ${movidos} now points at it.`,
   };
 }
 
@@ -64,11 +64,11 @@ export function frasePreRollback(intencao: IntencaoRollback): string {
   const nova = `v${intencao.ultimaVersao + 1}`;
   const origem = `v${intencao.paraVersao}`;
   const base =
-    `Isto cria a revisão ${nova} de "${intencao.nome}" com o conteúdo de ${origem}. ` +
-    `O histórico não encolhe: ${origem} continua onde está.`;
+    `This creates revision ${nova} of "${intencao.nome}" with the content of ${origem}. ` +
+    `History does not shrink: ${origem} stays where it is.`;
   return intencao.label === null
-    ? `${base} Como você não escolheu label, nenhum label será movido e nada em produção muda.`
-    : `${base} O label ${intencao.label} deixa de servir o que serve hoje e passa a apontar para ${nova}.`;
+    ? `${base} Since you chose no label, no label will be moved and nothing changes in production.`
+    : `${base} Label ${intencao.label} stops serving what it serves today and starts pointing at ${nova}.`;
 }
 
 /**
@@ -91,7 +91,7 @@ export function labelsOferecidos(
 }
 
 /** Texto genérico para falha de infraestrutura — detalhe interno não vai para a tela do cliente. */
-const GENERICA = 'Não foi possível concluir a operação. Tente novamente em instantes.';
+const GENERICA = 'Could not complete the operation. Try again in a moment.';
 
 /**
  * A recusa do serviço, legível — mas só quando ela é DO SERVIÇO.
@@ -108,7 +108,7 @@ export function mensagemDeRecusa(erro: unknown): string {
   const doServico = typeof corpo?.message === 'string' ? corpo.message : null;
   if (corpo?.error === 'prompt_not_found' && typeof corpo.toVersion === 'number') {
     // O 404 do rollback nomeia o prompt, não a versão — e é a versão que o operador escolheu.
-    return `Não existe a versão v${corpo.toVersion} deste prompt.`;
+    return `Version v${corpo.toVersion} of this prompt does not exist.`;
   }
   return doServico ?? GENERICA;
 }

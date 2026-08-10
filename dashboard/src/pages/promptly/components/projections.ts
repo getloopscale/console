@@ -156,8 +156,14 @@ export function catalogRows(payload: unknown): CatalogRow[] {
 
 function resumirLabels(labels: CatalogEntry['labels']): string {
   if (!Array.isArray(labels) || labels.length === 0) {
-    // "nenhum" é um FATO sobre o prompt (ele não serve ambiente algum), não ausência de dado.
-    return 'nenhum';
+    // "none" é um FATO sobre o prompt (ele não serve ambiente algum), não ausência de dado.
+    //
+    // Minúscula e sem espaço: o guard de idioma NÃO a enxerga, por desenho — a heurística que
+    // separa rótulo de identificador (`estado: 'carregando'`) custa exatamente este falso
+    // negativo, e ele está declarado no docblock do guard. Quem a pegou foi a varredura de tela
+    // em navegador, a segunda rede. É o caso concreto de por que duas redes que erram por
+    // motivos diferentes valem mais que uma sozinha.
+    return 'none';
   }
   return labels.map((l) => `${l.label} → v${l.version}`).join(', ');
 }
@@ -251,12 +257,12 @@ export function promotionConsequence(args: {
 }): string {
   const { label, atual, alvo } = args;
   if (atual === null) {
-    return `O label "${label}" ainda não aponta para nenhuma revisão; ele passa a servir a v${alvo}.`;
+    return `Label "${label}" does not point at any revision yet; it starts serving v${alvo}.`;
   }
   if (atual === alvo) {
-    return `O label "${label}" já serve a v${alvo} — esta promoção não muda nada.`;
+    return `Label "${label}" already serves v${alvo} — this promotion changes nothing.`;
   }
-  return `O label "${label}" deixa de servir a v${atual} e passa a servir a v${alvo}. Todo agente que resolve "${label}" recebe a v${alvo} na próxima chamada, sem redeploy.`;
+  return `Label "${label}" stops serving v${atual} and starts serving v${alvo}. Every agent that resolves "${label}" receives v${alvo} on the next call, with no redeploy.`;
 }
 
 export interface PolicySummary {
@@ -273,11 +279,11 @@ export interface PolicySummary {
  */
 export function policySummary(policy: PromotionPolicy | null | undefined): PolicySummary {
   if (!policy) {
-    return { livre: true, texto: 'Nenhuma regra governa este label — a promoção é livre.' };
+    return { livre: true, texto: 'No rule governs this label — promotion is unrestricted.' };
   }
   return {
     livre: false,
-    texto: `A promoção exige avaliação no dataset ${policy.datasetId} com score mínimo de ${policy.minScore}.`,
+    texto: `Promotion requires an evaluation on dataset ${policy.datasetId} with a minimum score of ${policy.minScore}.`,
   };
 }
 

@@ -192,7 +192,7 @@ export default function App() {
                         <Boundaried path="/databases">
                           <SubPagePlaceholder
                             title="Databases"
-                            description="Provisionar e operar bancos gerenciados para os seus projetos, com backup, restauração e conexão por variável de ambiente."
+                            description="Provision and operate managed databases for your projects, with backup, restore and connection by environment variable."
                             icon={Database}
                           />
                         </Boundaried>

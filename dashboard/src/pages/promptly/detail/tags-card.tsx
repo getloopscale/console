@@ -15,7 +15,7 @@ interface Props {
 /**
  * As tags do prompt — lidas E escritas aqui.
  *
- * A marcação é do PROMPT, não da revisão: criar a revisão seguinte não a perde.
+ * A marcação é do PROMPT, não da revisão: creating the next revision does not lose it.
  *
  * ## Por que saiu do `detail.tsx` (B-009)
  *
@@ -32,19 +32,19 @@ export function TagsCard({ novaTag, setNovaTag, erroDeTag, marcando, tags }: Pro
           <h2>Tags</h2>
         </Card.Title>
         <Card.Description>
-          Como este prompt é encontrado no catálogo. A marcação é do PROMPT, não da revisão —
-          criar a revisão seguinte não a perde.
+          How this prompt is found in the catalog. Tagging belongs to the PROMPT, not the revision —
+          creating the next revision does not lose it.
         </Card.Description>
       </Card.Header>
       <div className="space-y-3 p-4 pt-0">
         {erroDeTag !== null ? (
-          <Alert intent="destructive" title="A marcação não foi salva" description={erroDeTag} />
+          <Alert intent="destructive" title="The tags were not saved" description={erroDeTag} />
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {tags.length === 0 ? (
             // Dito, nunca em branco: um espaço vazio lê como "não carregou". A ausência é um
             // fato sobre o prompt — mesma razão do "sem descrição" do M17.
-            <span className="text-sm text-muted-foreground">Nenhuma tag neste prompt.</span>
+            <span className="text-sm text-muted-foreground">No tags on this prompt.</span>
           ) : (
             tags.map((t) => (
               <span key={t} className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
@@ -67,7 +67,7 @@ export function TagsCard({ novaTag, setNovaTag, erroDeTag, marcando, tags }: Pro
             type="text"
             value={novaTag}
             onChange={(e) => { setNovaTag(e.target.value); }}
-            aria-label="Nova tag"
+            aria-label="New tag"
             placeholder="suporte"
             className="h-9 rounded-md border border-input bg-background px-3 text-sm"
           />

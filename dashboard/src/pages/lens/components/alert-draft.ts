@@ -58,12 +58,12 @@ export function exigeNomeDePrompt(metric: string): boolean {
 function alertProblemsByField(d: AlertDraft): Partial<Record<AlertField, string>> {
   const out: Partial<Record<AlertField, string>> = {};
 
-  if (d.name.trim() === '') out.name = 'Dê um nome ao alerta.';
+  if (d.name.trim() === '') out.name = 'Give the alert a name.';
   if (d.webhookId.trim() === '') out.webhookId = 'Escolha para onde o aviso vai.';
 
   const limiar = Number(d.threshold);
   if (d.threshold.trim() === '' || !Number.isFinite(limiar)) {
-    out.threshold = 'Informe o limite como número.';
+    out.threshold = 'Enter the threshold as a number.';
   }
 
   // O pareamento, nos DOIS sentidos — cada um falha em silêncio de um jeito diferente.
@@ -75,7 +75,7 @@ function alertProblemsByField(d: AlertDraft): Partial<Record<AlertField, string>
   } else if (!exigeNomeDePrompt(d.metric) && temNome) {
     // Aqui o backend simplesmente ignora o campo, e o próximo leitor da regra não sabe dizer se o
     // escopo valia. Recusar é o que mantém a regra legível depois.
-    out.promptName = 'Esta métrica é do workspace inteiro — ela não observa um prompt.';
+    out.promptName = 'This metric is workspace-wide — it does not watch a single prompt.';
   }
 
   return out;

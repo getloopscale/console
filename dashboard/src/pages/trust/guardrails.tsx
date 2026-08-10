@@ -60,7 +60,7 @@ export function TrustGuardrailsPage() {
   const columns: DataTableColumn<CatalogRow>[] = [
     {
       key: 'name',
-      label: 'Nome',
+      label: 'Name',
       render: (row) => <span className="font-mono font-medium">{row.name}</span>,
     },
     {
@@ -134,16 +134,16 @@ export function TrustGuardrailsPage() {
     } catch (err) {
       // A linha permanece na lista: sumir otimisticamente diria que a proteção acabou
       // quando ela continua valendo.
-      setRemoveError(serviceMessage(err, 'O serviço recusou a remoção; a guardrail continua ativa.'));
+      setRemoveError(serviceMessage(err, 'The service refused the removal; the guardrail is still active.'));
     }
   }
 
   return (
     <PageShell
       title="Guardrails"
-      description="O que a camada de confiança bloqueia nas conversas deste workspace, antes de elas acontecerem."
+      description="What the trust layer blocks in this workspace conversations, before they happen."
       primaryAction={{
-        label: 'Nova guardrail',
+        label: 'New guardrail',
         icon: Plus,
         onClick: () => void navigate('/trust/guardrails/new'),
       }}
@@ -151,13 +151,13 @@ export function TrustGuardrailsPage() {
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar o catálogo"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há guardrails ativas."
+          title="Could not load the catalog"
+          description="The list below is empty because the read failed — this does NOT mean there are no active guardrails."
         />
       ) : null}
 
       {removeError ? (
-        <Alert intent="destructive" title="A guardrail não foi removida" description={removeError} />
+        <Alert intent="destructive" title="The guardrail was not removed" description={removeError} />
       ) : null}
 
       <Card>
@@ -180,16 +180,16 @@ export function TrustGuardrailsPage() {
           emptyState={
             <EmptyState
               icon={ShieldCheck}
-              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma guardrail ativa'}
+              title={failed ? 'No data — the read failed' : 'No active guardrail'}
               description={
                 failed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que está valendo.'
-                  : 'Nada está sendo bloqueado nas conversas deste workspace no momento.'
+                  ? 'Try again in a moment. Until then, there is no way to know what is in force.'
+                  : 'Nothing is being blocked in this workspace conversations right now.'
               }
               action={
                 failed ? undefined : (
                   <Button asChild>
-                    <Link to="/trust/guardrails/new">Criar a primeira guardrail</Link>
+                    <Link to="/trust/guardrails/new">Create the first guardrail</Link>
                   </Button>
                 )
               }
@@ -209,9 +209,9 @@ export function TrustGuardrailsPage() {
         title={`Remover a guardrail "${pending?.name ?? ''}"?`}
         description={
           <>
-            Os termos desta regra deixam de ser bloqueados nas conversas deste workspace assim que
-            ela for removida. Mensagens que hoje são barradas passarão a seguir adiante.{' '}
-            <strong>Esta ação não pode ser desfeita.</strong>
+            The terms of this rule stop being blocked in this workspace conversations as soon as
+            it is removed. Messages that are stopped today will start going through.{' '}
+            <strong>This action cannot be undone.</strong>
           </>
         }
         confirmLabel="Remover guardrail"

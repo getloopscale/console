@@ -134,14 +134,14 @@ export function AlertCreateForm(p: AlertCreateFormProps) {
         {p.usoAtual ? (
                       <p className="mt-1 text-xs text-muted-foreground" data-testid="valor-medido">
                         {p.usoAtual.erro
-                          ? 'Não foi possível ler o uso atual deste prompt.'
+                          ? 'Could not read the current usage of this prompt.'
                           : p.usoAtual.carregando
-                            ? 'Lendo o uso atual…'
+                            ? 'Reading current usage…'
                             : // Sem "Hoje": o prefixo mentia sobre o período em toda janela maior
                               // que um dia, e o número é justamente a base do limiar.
-                              `${p.usoAtual.resolucoes} resoluções ${
-                                p.usoAtual.janelaDias === 1 ? 'nas últimas 24 h' : `nos últimos ${p.usoAtual.janelaDias} dias`
-                              } — a mesma janela desta regra.`}
+                              `${p.usoAtual.resolucoes} resolutions ${
+                                p.usoAtual.janelaDias === 1 ? 'in the last 24 h' : `in the last ${p.usoAtual.janelaDias} days`
+                              } — the same window as this rule.`}
                       </p>
                     ) : null}
       </div>

@@ -149,7 +149,7 @@ describe('classificarFalha — DoD-5: o motivo do provider, ou o genérico hones
     const f = classificarFalha(new ApiError(413, undefined));
 
     expect(f).toMatchObject({ tipo: 'validacao' });
-    expect((f as { motivo?: string }).motivo).toMatch(/grande demais/i);
+    expect((f as { motivo?: string }).motivo).toMatch(/too large/i);
   });
 
   it('um erro que nao e ApiError cai em transporte, sem estourar', () => {

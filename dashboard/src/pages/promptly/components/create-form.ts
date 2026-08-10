@@ -50,20 +50,20 @@ export function validarCriacao(entrada: EntradaCriacao): ValidacaoCriacao {
 
   let erroNome: string | null = null;
   if (nome === '') {
-    erroNome = 'Dê um nome ao prompt.';
+    erroNome = 'Give the prompt a name.';
   } else if (!NOME_SEGURO.test(nome)) {
     erroNome =
-      'Use apenas letras, números, ponto, hífen e sublinhado. ' +
-      'Barras e espaços quebram o endereço que lê o prompt de volta.';
+      'Use only letters, digits, dot, hyphen and underscore. ' +
+      'Slashes and spaces break the address that reads the prompt back.';
   }
 
   let erroDescricao: string | null = null;
   if (descricao === '') {
     erroDescricao =
-      'Diga por que esta revisão existe. Numa reversão às três da manhã, é isto que ' +
-      'decide qual versão voltar.';
+      'Say why this revision exists. In a rollback at three in the morning, this is what ' +
+      'decides which version to go back to.';
   } else if (entrada.descricao.length > DESCRICAO_MAX) {
-    erroDescricao = `A descrição passa de ${String(DESCRICAO_MAX)} caracteres.`;
+    erroDescricao = `The description exceeds ${String(DESCRICAO_MAX)} characters.`;
   }
 
   return { ok: erroNome === null && erroDescricao === null, erroNome, erroDescricao };
@@ -76,12 +76,12 @@ export function validarCriacao(entrada: EntradaCriacao): ValidacaoCriacao {
  * expõe `DELETE`. Um operador que descobre isso DEPOIS de salvar já não pode agir.
  */
 export function fraseDePermanencia(nomeExistente: boolean, proximaVersao: number): string {
-  const base = `Isto cria a revisão v${proximaVersao}`;
+  const base = `This creates revision v${proximaVersao}`;
   const contexto = nomeExistente
-    ? ' deste prompt, ao lado das que já existem.'
-    : ' de um prompt novo.';
+    ? ' of this prompt, alongside the ones that already exist.'
+    : ' of a new prompt.';
   return (
-    `${base}${contexto} Revisões são imutáveis: não há como editar nem apagar depois. ` +
-    'Para corrigir, cria-se outra revisão.'
+    `${base}${contexto} Revisions are immutable: there is no editing or deleting afterwards. ` +
+    'To correct one, you create another revision.'
   );
 }

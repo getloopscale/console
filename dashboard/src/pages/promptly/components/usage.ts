@@ -47,7 +47,7 @@ export interface LinhaDeUso {
   readonly razao?: string;
 }
 
-const SEM_PRECO = 'o provider não reportou custo para este modelo';
+const SEM_PRECO = 'the provider reported no cost for this model';
 /**
  * Nenhuma chamada de modelo compartilhou o trace da resolução — o limite declarado no ADR-1.
  *
@@ -57,7 +57,7 @@ const SEM_PRECO = 'o provider não reportou custo para este modelo';
  * a verdade é "não correlacionei". É o mesmo defeito contra o qual a contagem já se protegia,
  * um campo adiante.
  */
-const SEM_CORRELACAO = 'nenhuma chamada de modelo compartilhou o trace desta resolução';
+const SEM_CORRELACAO = 'no model call shared the trace of this resolution';
 
 /**
  * Projeta o agregado sobre a lista de revisões do prompt.

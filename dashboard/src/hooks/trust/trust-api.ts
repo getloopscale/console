@@ -76,7 +76,7 @@ export function serviceMessage(err: unknown, fallback: string): string {
     const message = (body as { message?: unknown }).message;
     if (typeof message === 'string' && message.trim() !== '') return message;
   }
-  return err.status === 0 ? 'Não foi possível falar com o servidor.' : fallback;
+  return err.status === 0 ? 'Could not reach the server.' : fallback;
 }
 
 /** O código tipado do serviço, quando houver — a tela usa para escolher o texto de apoio. */

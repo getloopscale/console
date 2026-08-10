@@ -90,7 +90,7 @@ export function ConfirmDialog({
       //
       // O idioma é o de `redeploy-dialog.tsx:109`, que já mostrava a falha num `Alert`
       // dentro do próprio painel. Degrau 4 da ladder: o padrão existia no repositório.
-      setErro(e instanceof Error ? e.message : 'A ação falhou. Tente novamente em instantes.');
+      setErro(e instanceof Error ? e.message : 'The action failed. Try again in a moment.');
     } finally {
       setBusy(false);
     }

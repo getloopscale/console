@@ -110,7 +110,7 @@ export function classificarFalha(erro: unknown): Falha {
    * Cair no genérico dava um diagnóstico falso para um problema de tamanho.
    */
   if (erro.status === 413) {
-    return { tipo: 'validacao', motivo: 'O prompt é grande demais para ser enviado. Reduza o texto e tente de novo.' };
+    return { tipo: 'validacao', motivo: 'The prompt is too large to send. Shorten the text and try again.' };
   }
 
   if (erro.status === 400) {

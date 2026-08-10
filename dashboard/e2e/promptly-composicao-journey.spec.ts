@@ -26,8 +26,8 @@ async function navegarAteOCatalogoPeloMenu(page: Page) {
   // Esperar o submenu TROCAR antes de clicar no item dele — a raiz tem itens de mesmo nome, e
   // clicar cedo demais acerta o da raiz com a navegação parecendo funcionar.
   await expect(page.getByRole('button', { name: /^projects$/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /^catálogo$/i }).click();
-  await expect(page).toHaveURL(/\/promptly\/catalogo$/);
+  await page.getByRole('button', { name: /^catalog$/i }).click();
+  await expect(page).toHaveURL(/\/promptly\/catalog$/);
 }
 
 test.describe('M20 — composição pelo dashboard', () => {
@@ -49,35 +49,35 @@ test.describe('M20 — composição pelo dashboard', () => {
 
     // Começa em "como foi escrito", e o marcador está VISÍVEL. É o que torna a composição
     // depurável: sem ver o marcador, o operador não sabe que há composição para depurar.
-    await expect(painel).toContainText('@@@promptly:name=politica');
+    await expect(painel).toContainText('@@@promptly:name=policy');
 
     await page.getByRole('button', { name: /^Resolvido$/ }).click();
 
     // Agora o texto do referenciado está lá, e o marcador NÃO. As duas asserções juntas: sem a
     // segunda, um "resolvido" que apenas concatenasse passaria.
     await expect(painel).toContainText('Seja sempre cordial e nunca prometa prazo');
-    await expect(painel).not.toContainText('@@@promptly:name=politica');
+    await expect(painel).not.toContainText('@@@promptly:name=policy');
 
     // E o caminho de VOLTA existe: alternar não é uma porta de mão única.
     await page.getByRole('button', { name: /^Como foi escrito$/ }).click();
-    await expect(painel).toContainText('@@@promptly:name=politica');
+    await expect(painel).toContainText('@@@promptly:name=policy');
 
     // ---- DoD-4: quem me referencia, do outro lado ----------------------------------------
     // M21 — a lista migrou para a aba de PRODUÇÃO: "quem quebra se eu mexer aqui" é pergunta sobre
     // o uso, não sobre o texto. A jornada segue o caminho do usuário e CLICA na aba.
-    await page.getByRole('link', { name: 'Uso em produção' }).click();
+    await page.getByRole('link', { name: 'Production usage' }).click();
     // Este prompt não é referenciado por ninguém — e a tela DIZ isso, em vez de deixar vazio.
     // Espaço em branco lê-se como "não carregou", que é outro estado.
     await expect(page.getByText(/Nenhum prompt referencia este/)).toBeVisible();
 
     // Segue para o prompt REFERENCIADO. O caminho natural do operador que quer mudar a política.
     await navegarAteOCatalogoPeloMenu(page);
-    await page.getByRole('link', { name: 'politica', exact: true }).click();
+    await page.getByRole('link', { name: 'policy', exact: true }).click();
     await expect(page).toHaveURL(/\/promptly\/politica$/);
 
     // Aqui a lista tem conteúdo — e é a informação que muda a decisão de promover.
-    await page.getByRole('link', { name: 'Uso em produção' }).click();
-    await expect(page.getByRole('heading', { name: 'Quem referencia este prompt' })).toBeVisible();
+    await page.getByRole('link', { name: 'Production usage' }).click();
+    await expect(page.getByRole('heading', { name: 'What references this prompt' })).toBeVisible();
     const dependente = page.getByRole('link', { name: 'atendimento', exact: true });
     await expect(dependente).toBeVisible();
     // O `via` diz se uma promoção move esta aresta. A referência é por VERSÃO, logo é fixa.

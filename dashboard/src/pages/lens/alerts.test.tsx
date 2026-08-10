@@ -424,7 +424,7 @@ describe('LensAlertsPage — M22 DoD-3, o deep-link tem CONSUMIDOR', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('chegando com ?prompt=, o formulário já vem preenchido e na métrica certa', async () => {
-    // O produtor do link vive em `promptly/tabs/producao.tsx`. Escrever o parâmetro e não lê-lo
+    // O produtor do link vive em `promptly/tabs/production.tsx`. Escrever o parâmetro e não lê-lo
     // aqui faz o operador cair num formulário vazio, em `error_rate`, com o campo Prompt nem
     // renderizado — que é exatamente a fricção que o DoD existe para remover.
     mockRoutes({ rules: [] });
@@ -482,7 +482,7 @@ describe('LensAlertsPage — M22, o valor medido cobre a janela DA REGRA', () =>
     // Nunca "24 h" quando a janela é de 7 dias — um texto que mente sobre o período faz o
     // operador atribuir o número ao intervalo errado, que é o defeito por outro caminho.
     const texto = await screen.findByTestId('valor-medido');
-    expect(texto).toHaveTextContent(/7 dias/i);
+    expect(texto).toHaveTextContent(/last 7 days/i);
     // E não diz "Hoje" sobre uma janela de sete dias — o prefixo era o texto mentindo por outro
     // caminho, e o teste anterior o tolerava.
     expect(texto).not.toHaveTextContent(/hoje/i);
@@ -554,7 +554,7 @@ describe('LensAlertsPage — M22, a recusa do serviço chega à tela', () => {
     render(<LensAlertsPage />, { initialEntries: ['/observability/alerts?prompt=saudacao'] });
     await screen.findByLabelText(/^Prompt$/i);
 
-    expect(await screen.findByText(/não foi possível ler/i)).toBeInTheDocument();
+    expect(await screen.findByText(/could not read/i)).toBeInTheDocument();
     expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument();
   });
 });

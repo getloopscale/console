@@ -56,7 +56,7 @@ describe('validarCriacao (EC-4)', () => {
     // um nome ilegível fica no histórico para sempre.
     const r = validarCriacao({ nome: 'time/saudacao', descricao: 'x' });
     expect(r.ok).toBe(false);
-    expect(r.erroNome).toContain('Barras');
+    expect(r.erroNome).toContain('Slashes');
   });
 
   it('create_form_rejects_a_name_with_spaces', () => {
@@ -79,12 +79,12 @@ describe('fraseDePermanencia', () => {
   it('create_form_states_the_revision_is_permanent', () => {
     const f = fraseDePermanencia(true, 5);
     expect(f).toContain('v5');
-    expect(f).toMatch(/imutáveis/i);
-    expect(f).toMatch(/não há como editar nem apagar/i);
+    expect(f).toMatch(/immutable/i);
+    expect(f).toMatch(/no editing or deleting/i);
   });
 
   it('create_form_distinguishes_a_brand_new_prompt_from_a_new_revision', () => {
-    expect(fraseDePermanencia(false, 1)).toContain('prompt novo');
-    expect(fraseDePermanencia(true, 2)).toContain('já existem');
+    expect(fraseDePermanencia(false, 1)).toContain('a new prompt');
+    expect(fraseDePermanencia(true, 2)).toContain('already exist');
   });
 });

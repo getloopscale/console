@@ -40,13 +40,13 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Como consumir</h2>
+            <h2>How to consume</h2>
           </Card.Title>
         </Card.Header>
         <div className="p-4 pt-0">
           <p className="text-sm text-muted-foreground">
-            Não foi possível ler este prompt, e sem ele não há trecho para gerar. Recarregue — um
-            trecho montado sobre dado ausente apontaria para o lugar errado.
+            Could not read this prompt, and without it there is no snippet to generate. Reload —
+            a snippet built on missing data would point at the wrong place.
           </p>
         </div>
       </Card>
@@ -61,13 +61,13 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Como consumir</h2>
+            <h2>How to consume</h2>
           </Card.Title>
         </Card.Header>
         <div className="p-4 pt-0">
           <p className="text-sm text-muted-foreground">
-            Não foi possível ler quais ambientes este prompt serve, e sem isso o trecho apontaria
-            para uma revisão fixa em vez do ambiente. Recarregue antes de copiar.
+            Could not read which environments this prompt serves, and without that the snippet
+            would point at a fixed revision instead of the environment. Reload before copying.
           </p>
         </div>
       </Card>
@@ -75,7 +75,7 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
   }
 
   if (alvo === null) {
-    return <p className="text-sm text-muted-foreground">Carregando…</p>;
+    return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
   return (
@@ -83,21 +83,21 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Como consumir</h2>
+            <h2>How to consume</h2>
           </Card.Title>
           <Card.Description>
-            Cada trecho já aponta para <strong>este</strong> prompt
+            Each snippet already points at <strong>this</strong> prompt
             {alvo.label !== null ? (
               <>
                 {' '}
-                pelo ambiente <code className="font-mono text-xs">{alvo.label}</code> — ele acompanha
-                a promoção, sem você republicar nada.
+                by the <code className="font-mono text-xs">{alvo.label}</code> environment — it
+                follows the promotion, with nothing for you to republish.
                 {!alvo.ambienteEProducao ? (
                   // A aba se chama "Como consumir" e o público é quem vai colar isto num serviço.
                   // Publicar `staging` sem dizer que não é produção é deixar supor o contrário.
                   <strong>
                     {' '}
-                    Atenção: este prompt não serve produção — o trecho aponta para{' '}
+                    Careful: this prompt does not serve production — the snippet points at{' '}
                     <code className="font-mono text-xs">{alvo.label}</code>.
                   </strong>
                 ) : null}
@@ -105,8 +105,8 @@ export function ConsumoTab({ alvo, ambientesIlegiveis, promptIlegivel }: Consumo
             ) : (
               <>
                 {' '}
-                pela versão <code className="font-mono text-xs">v{alvo.ultimaVersao}</code>, porque
-                nenhum ambiente aponta para ele ainda.
+                by version <code className="font-mono text-xs">v{alvo.ultimaVersao}</code>, because
+                no environment points at it yet.
               </>
             )}
           </Card.Description>
