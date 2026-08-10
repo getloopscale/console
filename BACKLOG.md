@@ -4124,7 +4124,7 @@ entregue_2026-08-10: |
   nada discriminava. Um teste que não distingue o estado defeituoso do consertado não é um
   teste — é uma afirmação com sintaxe de teste.
 
-## B-114 — A API nomeia o mesmo conceito de quatro formas, e as listas têm três contratos   [ ]
+## B-114 — A API nomeia o mesmo conceito de quatro formas, e as listas têm três contratos   [x]
 
 > Registered 2026-08-10 by `/backlog-item` (slug: `api-aggregate-and-list-contract`).
 
@@ -4159,8 +4159,57 @@ why_now: |
   O QUE MUDOU: o `B-112` é o primeiro consumidor que lê TODAS as capacidades de uma vez, e foi
   ele que tornou a divergência visível. Enquanto cada tela lia só o seu endpoint, o custo ficava
   distribuído e invisível.
-status: raw
+status: planned
+evidence: knowledge-base/discoveries/opportunities/api-aggregate-and-list-contract-opportunity.md
 dod:
   - existe uma palavra só para "resumo de capacidade", e os endpoints atuais resolvem para ela (os antigos podem continuar resolvendo)
   - toda resposta de lista segue um contrato só, declarado — incluindo como se pagina
   - o contrato está escrito onde quem cria um endpoint novo o encontra antes de escolher um nome
+
+medido_2026-08-10: |
+  A HIPÓTESE COMO EU A FILEI FOI REFUTADA, e a medição achou o defeito real na mesma vizinhança.
+
+  Os quatro nomes NÃO são escolhas do theo-cloud. Ele é um BFF e espelha o nome do upstream:
+
+    lens/observability  ← theo-lens    /v1/metrics/observability   (thelens/data_client.go:141)
+    rag/analytics       ← theo-rag     /v1/analytics               (rag/data_client.go:146)
+    memory/metrics      ← theo-memory  /v1/scopes/user/{id}/metrics (themory/client.go:608)
+    storage/usage       ← theo-storage /v1/storage/usage           (storageproxy/client.go:298)
+
+  Espelhar o nome do upstream é o que um BFF deve fazer — renomear cria uma tradução a manter e
+  a divergência continua um salto adiante.
+
+  Os três contratos de lista (`{projects,total?}`, `{members}`, `{entries,total,next_page_token}`)
+  são TODOS servidos pela engine (`/api/v1/*`, repo `theo`). Dentro do theo-cloud o padrão era
+  consistente: toda lista própria responde `{<plural>}`.
+
+  Ou seja, o item como filado atravessa `engine-go` e `data-plane-ts` — gate G3, descoberto na
+  medição. Reclassificado em vez de morto porque o que a medição achou é do mesmo repo e cobre o
+  custo que eu descrevia: um contrato de lista que não diz o que faz.
+
+  TAMBÉM CONFERIDO E DESCARTADO: `/metrics` (Prometheus) convive com `/v1/memory/metrics` e
+  `/v1/dashboard/memory/metrics`, mas são caminhos distintos, sem colisão. Ambiguidade de
+  vocabulário sem dano medido não sustenta trabalho.
+
+entregue_2026-08-10: |
+  Fechado em `128179f4`.
+
+  O DEFEITO REAL: seis rotas aplicavam teto fixo no SQL e devolviam a lista sem dizer que
+  truncaram — `lens/dashboards` (100), `lens/alert-rules` (200), `lens/saved-views` (100),
+  `memory/webhooks` (100), `workspace/webhooks` (100), `api-keys` (100). E o cliente PEDIA um teto
+  que o servidor não lia: `saved-views.tsx:52` manda `?limit=`, e o handler nunca leu.
+
+  A FORMA: a query pede uma linha a mais do que devolve, e o handler corta. `has_more` em vez de
+  `total` porque `total` custa um `COUNT(*)` por request. O `{total,limit,offset}` de
+  `lens_alert_rules.go:214` — que já existia aqui — segue sendo o destino de quem ganhar paginação
+  de verdade.
+
+  A TELA DIZ: `saved-views` e `api-keys` mostram o aviso, por um componente só — seis listas não
+  podem produzir seis frases diferentes.
+
+  UM TESTE DE IMPLEMENTAÇÃO REESCRITO: `TestListKeys_QueryContainsLIMIT100` casava o literal
+  "LIMIT 100" no SQL. O cap não sumiu, mudou de lugar. Agora o caso devolve 101 linhas e verifica
+  o que o usuário recebe.
+
+  ACHADO COLATERAL, registrado sem expandir escopo: `lens/saved-views` e `api-keys` não têm mock,
+  então em modo mock caem no proxy — a mesma classe que o `B-112` fechou para outras quatro rotas.
