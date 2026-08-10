@@ -3955,7 +3955,7 @@ domain: frontend-dashboard
 repo: theo-cloud/dashboard
 suggested_mode: evolve
 source: human
-evidence: none-yet
+evidence: knowledge-base/discoveries/opportunities/platform-overview-covers-all-capabilities-opportunity.md
 why_now: |
   A tela chama-se **Overview** e é o overview de UM subsistema.
 
@@ -3976,16 +3976,116 @@ why_now: |
   que o produto é um PaaS de deploy, e as outras sete capacidades passam a depender de alguém
   ir clicar no menu para descobrir que existem. Uma capacidade ausente da tela principal é
   indistinguível, para quem chega, de uma capacidade que não existe.
-status: raw
+status: triaged
 dod:
   - toda capacidade declarada no registro do menu aparece em `/` — afirmado por teste que QUANTIFICA sobre o registro, não por uma lista escrita à mão (uma lista fixa passaria verde no dia em que a nona capacidade fosse criada e esquecida, que é este mesmo defeito um nível acima)
   - os três estados são distinguíveis na tela e no teste — "não adotada" ≠ "zero" ≠ "não consegui ler"; uma capacidade que aparece vazia por falha de leitura convida a concluir que ela não serve
   - o custo por carregamento está declarado: a tela mais visitada do produto não passa a disparar uma requisição por capacidade sem ADR que registre a decisão
-decisao_pendente: |
-  Medido no intake: NÃO existe endpoint de resumo por capacidade (o único agregado no dashboard
-  é `/api/v1/builds/stats`). O número de cada card viria de chamar a lista de cada capacidade
-  (~9 requisições no primeiro carregamento, algumas paginadas — entrega hoje e paga todo dia) ou
-  de um agregado no backend (uma requisição, dependente de trabalho fora do dashboard).
-  Recomendação registrada: o agregado; e enquanto ele não existe, os cards mostram a capacidade
-  e o caminho de entrada SEM número — o que já resolve o problema central sem comprar custo
-  permanente. Decisão final em `/to-plan`, com ADR.
+medido_2026-08-10: |
+  A ESTIMATIVA DE CUSTO DO INTAKE ESTAVA ERRADA, e a medição a corrigiu PARA MELHOR.
+
+  Eu afirmei que "não existe endpoint de resumo por capacidade". O grep procurou
+  `summary|overview|stats|counts` e perdeu `metrics` e `analytics`. O que a app já chama:
+
+    Memory           /v1/dashboard/memory/metrics        AGREGADO
+    Knowledge Base   /v1/dashboard/rag/analytics         AGREGADO
+    Observability    /v1/dashboard/lens/observability    AGREGADO
+    Workspace        /v1/dashboard/storage/usage         AGREGADO
+    Trust            /v1/dashboard/trust/...             lista, aceita `limit`
+    Skills           /v1/dashboard/skills                lista, aceita `limit`
+    Prompts          /v1/dashboard/promptly              lista, aceita `limit`
+
+  QUATRO das sete ja tem agregado servido pelo backend. As outras tres aceitam `limit`, entao
+  "esta capacidade esta em uso?" custa `limit=1` — nao a lista. A primeira fatia e mais barata
+  do que eu disse ao dono.
+
+  CAVEAT para o plano: os quatro agregados NAO TEM MOCK. Em modo mock eles escapam para o proxy
+  e voltam 500 — foi assim que a medicao os encontrou. No ambiente onde o dono valida telas,
+  essas quatro capacidades nao mostram numero algum hoje.
+
+## B-113 — O dashboard endereça os backends por dez prefixos, e o mesmo recurso por dois caminhos   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `dashboard-endpoint-surface`).
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Medido em 2026-08-10 sobre `dashboard/src/`, fora de testes e mocks.
+
+  DEZ FAMÍLIAS DE PREFIXO coexistem:
+
+    255  /v1/dashboard      (BFF do cloud)
+    204  /api/v1            (engine, direto)
+     14  /v1/billing        12  /v1/settings      11  /v1/x
+     11  /v1/auth           10  /engine/api        7  /v1/telemetry
+      5  /api/               4  /v1/rag-connect
+
+  E O QUE CUSTA MAIS: **o mesmo recurso é alcançado por dois caminhos.**
+
+    builds        via /engine/api/v1 = 5   direto /api/v1 = 33
+    domains       via /engine/api/v1 = 3   direto /api/v1 = 18
+    environments  via /engine/api/v1 = 2   direto /api/v1 = 22
+    auth          via /engine/api/v1 = 1   direto /api/v1 = 10
+    deploys       via /engine/api/v1 = 2   direto /api/v1 = 2
+
+  Dois endereços para o mesmo dado significam duas chaves de cache que não se invalidam, dois
+  registros de mock, e nenhuma resposta para "qual é o canônico". O repositório já pagou por
+  isso em itens vizinhos: um registrou que `promote` e `rollback` montavam `fetch` cru com
+  `/engine/api/v1` e por isso NÃO passavam pelo refresh-de-token nem pelo tratamento de 402 do
+  `cloudFetch`; outro registrou o mesmo em `use-status-stream`.
+
+  E 49 chamadas usam `fetch(` cru contra 21 `cloudFetch(` e 20 `engineFetch(` — ou seja, mais da
+  metade do tráfego não passa pelo cliente que carrega auth, retry e a semântica de erro.
+
+  O QUE MUDOU: a plataforma cresceu de um produto de deploy para oito capacidades, e cada uma
+  chegou com o seu prefixo. Nenhuma decisão foi errada isoladamente; o conjunto é que virou uma
+  superfície que ninguém consegue descrever numa frase.
+status: raw
+dod:
+  - existe UM caminho canônico por recurso — o mesmo recurso não é endereçável por dois prefixos
+  - toda chamada de rede de produção passa pelo cliente que carrega auth, retry e semântica de erro (nenhum `fetch(` cru)
+  - teste que falha quando um prefixo novo é introduzido sem estar declarado
+
+## B-114 — A API nomeia o mesmo conceito de quatro formas, e as listas têm três contratos   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `api-aggregate-and-list-contract`).
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Medido em 2026-08-10 a partir do que o dashboard consome.
+
+  O MESMO CONCEITO — "resuma esta capacidade" — tem QUATRO nomes:
+
+    /v1/dashboard/memory/metrics          /v1/dashboard/rag/analytics
+    /v1/dashboard/lens/observability      /v1/dashboard/storage/usage
+    /v1/dashboard/lens/metrics            /v1/dashboard/lens/usage
+
+  `lens` sozinho usa três deles. Quem procura o resumo de uma capacidade nova precisa adivinhar
+  qual das quatro palavras aquele time escolheu.
+
+  E AS LISTAS TÊM TRÊS CONTRATOS:
+
+    { projects, total? }   { builds, total }   { environments, total? }
+    { domains, total }     { secrets, total }  { previews, total }
+    { members }                                      <- sem total
+    { entries, total, next_page_token? }             <- paginacao propria
+
+  Sete seguem `{ <plural>, total }`, `TeamListResponse` não tem `total`, e `AuditListResponse`
+  inventa a sua paginação. Um consumidor genérico — como a Overview de plataforma que o `B-112`
+  está construindo — precisa de um caso especial por endpoint.
+
+  O QUE MUDOU: o `B-112` é o primeiro consumidor que lê TODAS as capacidades de uma vez, e foi
+  ele que tornou a divergência visível. Enquanto cada tela lia só o seu endpoint, o custo ficava
+  distribuído e invisível.
+status: raw
+dod:
+  - existe uma palavra só para "resumo de capacidade", e os endpoints atuais resolvem para ela (os antigos podem continuar resolvendo)
+  - toda resposta de lista segue um contrato só, declarado — incluindo como se pagina
+  - o contrato está escrito onde quem cria um endpoint novo o encontra antes de escolher um nome

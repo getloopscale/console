@@ -16,6 +16,9 @@
 
 ### Added
 
+- **theo-cloud/dashboard:** backlog B-113 — o dashboard endereça os backends por dez prefixos, e o mesmo recurso (builds, domains, environments, auth) é alcançável por dois caminhos.
+- **theo-cloud:** backlog B-114 — a API nomeia "resumo de capacidade" de quatro formas (`metrics`, `analytics`, `observability`, `usage`) e as respostas de lista seguem três contratos diferentes.
+
 - **theo-cloud/dashboard:** backlog B-112 — a tela Overview cobre só o sistema de aplicações; as sete outras capacidades da plataforma (Memory, Knowledge Base, Workspace, Observability, Trust, Skills, Prompts) não aparecem nela.
 
 - **A bateria de testes avisa quando o código muda no meio da própria execução.** Editar um arquivo enquanto os testes rodam fazia a execução falhar dizendo que um arquivo não existe — e ele existe, quando se vai olhar depois. A contradição custou um dia de investigação. Agora a suíte compara o estado dos arquivos antes e depois, e quando eles mudaram no meio do caminho ela diz exatamente isso, nomeando os arquivos. Ela não impede a edição: quem escreve código enquanto os testes rodam está fazendo trabalho legítimo.
