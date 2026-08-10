@@ -23,6 +23,9 @@
 
 ### Added
 
+- **umbrella:** backlog B-115 — programa de padronização da superfície HTTP: não existe contrato entre os doze serviços que expõem rotas, e as seis divergências medidas (health/version, forma do erro, convenção do código, nome do resumo de capacidade, contrato de lista, nome da raiz do recurso) chegam ao dashboard multiplicadas pelo BFF.
+- **umbrella:** backlog B-116..B-124 — um item de conformação por repo (theo-rag, theo-lens, theo-memory, theo-skills, theo-trust, theo-promptly, theo-storage, theo, theo-cloud+dashboard), todos bloqueados pelo B-115.
+
 - **theo-cloud/dashboard:** a Overview passou a ser da PLATAFORMA — as oito capacidades que o menu declara (Memory, Knowledge Base, Databases, Workspace, Observability, Trust, Skills, Prompts) aparecem na tela inicial, cada uma com o seu estado real: em uso com o número, ainda não configurada, ou não foi possível ler (B-112).
 - **theo-cloud/dashboard:** `memory/metrics`, `rag/analytics`, `lens/observability` e `storage/usage` passaram a ter resposta em modo mock — antes escapavam para o proxy e voltavam 500, então quatro capacidades só sabiam mostrar erro no ambiente onde as telas são validadas (B-112).
 

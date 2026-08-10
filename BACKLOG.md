@@ -4213,3 +4213,311 @@ entregue_2026-08-10: |
 
   ACHADO COLATERAL, registrado sem expandir escopo: `lens/saved-views` e `api-keys` não têm mock,
   então em modo mock caem no proxy — a mesma classe que o `B-112` fechou para outras quatro rotas.
+
+## B-115 — Não existe contrato de superfície HTTP: doze serviços, doze convenções   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `http-surface-contract`).
+> **Item-âncora do programa de padronização.** Ele NÃO conforma repo nenhum — ele escreve o
+> contrato contra o qual os itens `B-116..B-124` conformam. Sem ele, cada um daqueles adivinha.
+
+domain: contracts-auth
+repo: theo-contracts
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Medido em 2026-08-10 no umbrella inteiro: 35 repositórios, DOZE com superfície HTTP.
+
+    theo-rag     88 rotas /v1     theo-lens    63     theo-memory  47
+    theo-skills  30                theo-storage 15     theo-trust   13
+    + theo (engine) · theo-cloud (BFF) · theo-promptly · theo-traefik-mcp
+    + consumidores: theo-cli · theokit-sdk · theokit-gateways · theokit-plugins
+
+  SEIS DIVERGÊNCIAS MEDIDAS, cada uma na fonte:
+
+  1. HEALTH E VERSION — nove serviços, nove combinações:
+       theo          /health /health/alive /health/deep /health/ready /healthz /readyz /v1/version
+       theo-cloud    /health /healthz /versions /v1/version
+       theo-lens     /v1/healthz /v1/healthz/ready /v1/version
+       theo-memory   /v1/health /v1/health/db /v1/healthz /v1/healthz/ready /v1/version
+       theo-rag      /v1/healthz /v1/healthz/ready /v1/version
+       theo-trust    /v1/version                       ← sem health algum
+       theo-skills   /v1/health /v1/version
+       theo-storage  /healthz /readyz /v1/version
+     Um verificador de saúde do ecossistema precisa de nove casos especiais.
+
+  2. FORMA DO ERRO — duas, incompatíveis:
+       theo-cloud    {"code": "...", "message": "..."}          (device.go:162)
+       theo-storage  {"error": {"code": "...", "message": "..."}} (authz.go:57)
+     E a prova de que isso JÁ CUSTA: dentro da MESMA camada de mock do dashboard existem duas
+     funções `err()` diferentes — `handlers.ts:80` devolve a forma plana e
+     `domain-handlers.ts:31` devolve a aninhada. Elas não divergem por descuido: cada uma imita
+     fielmente o backend que representa.
+
+  3. CONVENÇÃO DO CÓDIGO DE ERRO — `NOT_FOUND`/`CONFLICT` (theo-cloud) contra
+     `auth_required`/`scope_required` (theo-storage). Quem trata erro por código precisa saber de
+     qual serviço veio antes de comparar a string.
+
+  4. RESUMO DE CAPACIDADE — quatro palavras para o mesmo conceito, e o `theo-lens` sozinho usa
+     duas delas: `/v1/metrics` e `/v1/analytics`. Somando os vizinhos: `observability` (lens) e
+     `usage` (storage). O `B-114` mediu a consequência a jusante — o theo-cloud é BFF e ESPELHA
+     cada nome, então a divergência chega ao dashboard multiplicada.
+
+  5. CONTRATO DE LISTA — quatro formas, medidas no que o dashboard consome:
+       { <plural>, total }        sete rotas da engine
+       { <plural>, total? }       projects, environments — total OPCIONAL
+       { members }                TeamListResponse, sem total
+       { entries, total, next_page_token? }   AuditListResponse, paginação própria
+       [ ... ]                    o catálogo de prompts responde ARRAY NU
+     A última custou um defeito real hoje: eu li o catálogo como `{prompts}` e o card ficaria em
+     "not set up yet" para sempre, sem erro e sem log.
+
+  6. NOME DA RAIZ DO RECURSO — cada serviço escolheu o seu eixo: `/v1/scopes` (memory),
+     `/v1/documents` (rag), `/v1/validators` (trust), `/v1/traces` (lens), `/v1/skills` (skills).
+     Alguns nomeiam a ENTIDADE, outros nomeiam a AÇÃO.
+
+  O QUE MUDOU: a Overview de plataforma (`B-112`) foi o primeiro consumidor que lê TODAS as
+  capacidades de uma vez, e ela tornou visível o que estava distribuído. Enquanto cada tela lia um
+  serviço, o custo ficava diluído e ninguém o media.
+status: raw
+dod:
+  - o contrato existe em `theo-contracts` como código verificável, não como documento — um repo que o viola reprova no seu próprio CI
+  - o contrato cobre as seis divergências medidas: health/version, forma do erro, convenção do código, nome do resumo de capacidade, contrato de lista, nome da raiz do recurso
+  - o contrato declara a ESTRATÉGIA DE MIGRAÇÃO como parte de si: o caminho canônico resolve AO LADO do antigo, o antigo carrega prazo de deprecação declarado, e a remoção é uma etapa própria — nenhum repo renomeia de uma vez
+  - existe um teste que falha hoje contra pelo menos um serviço real, provando que o contrato discrimina em vez de descrever o que já existe
+
+## B-116 — theo-rag conforma-se ao contrato de superfície HTTP   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-rag`).
+> **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
+
+domain: data-plane-ts
+repo: theo-rag
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Programa de padronização de superfície HTTP. A divergência do ecossistema inteiro está medida
+  no `B-115`; o que é específico DESTE repo:
+
+  A maior superfície do ecossistema. Usa `/v1/documents`, `/v1/answers`, `/v1/collections`,
+  `/v1/connectors` e `/v1/webhook` — cinco raízes, e `answers` nomeia uma AÇÃO enquanto as
+  outras nomeiam entidades. Serve `/v1/analytics` como resumo de capacidade.
+
+  Superfície medida em 2026-08-10: 88 rotas `/v1` distintas.
+status: raw
+dod:
+  - o repo passa no verificador de contrato que o `B-115` publica em `theo-contracts`
+  - todo caminho novo resolve AO LADO do antigo — nenhum consumidor quebra no merge
+  - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
+  - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
+
+## B-117 — theo-lens conforma-se ao contrato de superfície HTTP   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-lens`).
+> **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
+
+domain: data-plane-ts
+repo: theo-lens
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Programa de padronização de superfície HTTP. A divergência do ecossistema inteiro está medida
+  no `B-115`; o que é específico DESTE repo:
+
+  O caso mais agudo do item 4 do `B-115`: usa `/v1/metrics` E `/v1/analytics` para a mesma
+  família, e o BFF ainda expõe `observability` e `usage` em cima disso. Um serviço, quatro
+  palavras para resumo.
+
+  Superfície medida em 2026-08-10: 63 rotas `/v1` distintas.
+status: raw
+dod:
+  - o repo passa no verificador de contrato que o `B-115` publica em `theo-contracts`
+  - todo caminho novo resolve AO LADO do antigo — nenhum consumidor quebra no merge
+  - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
+  - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
+
+## B-118 — theo-memory conforma-se ao contrato de superfície HTTP   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-memory`).
+> **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
+
+domain: data-plane-ts
+repo: theo-memory
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Programa de padronização de superfície HTTP. A divergência do ecossistema inteiro está medida
+  no `B-115`; o que é específico DESTE repo:
+
+  Tem QUATRO caminhos de saúde (`/v1/health`, `/v1/health/db`, `/v1/healthz`,
+  `/v1/healthz/ready`) — mais que qualquer outro serviço. E `/v1/remember` nomeia a ação
+  enquanto `/v1/scopes` nomeia a entidade, no mesmo serviço.
+
+  Superfície medida em 2026-08-10: 47 rotas `/v1` distintas.
+status: raw
+dod:
+  - o repo passa no verificador de contrato que o `B-115` publica em `theo-contracts`
+  - todo caminho novo resolve AO LADO do antigo — nenhum consumidor quebra no merge
+  - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
+  - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
+
+## B-119 — theo-skills conforma-se ao contrato de superfície HTTP   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-skills`).
+> **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
+
+domain: data-plane-ts
+repo: theo-skills
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Programa de padronização de superfície HTTP. A divergência do ecossistema inteiro está medida
+  no `B-115`; o que é específico DESTE repo:
+
+  Já carrega um precedente registrado no próprio código: `skills_distribution.go` do theo-cloud
+  documenta que montar `/v1/dashboard/skills/bundles` sob `r.Route` custou um incidente em
+  2026-08-02, e por isso `bundles` virou raiz irmã. A padronização precisa preservar esse motivo.
+
+  Superfície medida em 2026-08-10: 30 rotas `/v1` distintas.
+status: raw
+dod:
+  - o repo passa no verificador de contrato que o `B-115` publica em `theo-contracts`
+  - todo caminho novo resolve AO LADO do antigo — nenhum consumidor quebra no merge
+  - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
+  - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
+
+## B-120 — theo-trust conforma-se ao contrato de superfície HTTP   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-trust`).
+> **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
+
+domain: data-plane-ts
+repo: theo-trust
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Programa de padronização de superfície HTTP. A divergência do ecossistema inteiro está medida
+  no `B-115`; o que é específico DESTE repo:
+
+  É o ÚNICO serviço sem endpoint de saúde algum — só `/v1/version`. Um orquestrador não
+  consegue distinguir 'trust está fora' de 'trust está lento'. E `/v1/guard` nomeia a ação
+  enquanto `/v1/validators` nomeia a entidade.
+
+  Superfície medida em 2026-08-10: 13 rotas `/v1` distintas.
+status: raw
+dod:
+  - o repo passa no verificador de contrato que o `B-115` publica em `theo-contracts`
+  - todo caminho novo resolve AO LADO do antigo — nenhum consumidor quebra no merge
+  - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
+  - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
+
+## B-121 — theo-promptly conforma-se ao contrato de superfície HTTP   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-promptly`).
+> **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
+
+domain: data-plane-ts
+repo: theo-promptly
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Programa de padronização de superfície HTTP. A divergência do ecossistema inteiro está medida
+  no `B-115`; o que é específico DESTE repo:
+
+  Uma rota `/v1` só (`/v1/version`): o resto da superfície vive fora do prefixo versionado.
+  É a divergência mais barata de corrigir e a que mais assusta um consumidor novo — a API
+  parece não ter versão.
+
+  Superfície medida em 2026-08-10: 1 rotas `/v1` distintas.
+status: raw
+dod:
+  - o repo passa no verificador de contrato que o `B-115` publica em `theo-contracts`
+  - todo caminho novo resolve AO LADO do antigo — nenhum consumidor quebra no merge
+  - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
+  - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
+
+## B-122 — theo-storage conforma-se ao contrato de superfície HTTP   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-storage`).
+> **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
+
+domain: platform-cli
+repo: theo-storage
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Programa de padronização de superfície HTTP. A divergência do ecossistema inteiro está medida
+  no `B-115`; o que é específico DESTE repo:
+
+  É o serviço que define a forma de erro ANINHADA (`{"error":{...}}`, `authz.go:57`) e o
+  código em snake_case (`auth_required`) — as duas convenções que o theo-cloud não usa. Uma
+  das duas tem de ceder, e a decisão é do `B-115`.
+
+  Superfície medida em 2026-08-10: 15 rotas `/v1` distintas.
+status: raw
+dod:
+  - o repo passa no verificador de contrato que o `B-115` publica em `theo-contracts`
+  - todo caminho novo resolve AO LADO do antigo — nenhum consumidor quebra no merge
+  - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
+  - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
+
+## B-123 — theo (engine) conforma-se ao contrato de superfície HTTP   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo`).
+> **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
+
+domain: engine-go
+repo: theo
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Programa de padronização de superfície HTTP. A divergência do ecossistema inteiro está medida
+  no `B-115`; o que é específico DESTE repo:
+
+  Serve `/api/v1/*`, e é de onde vêm TRÊS dos quatro contratos de lista que o dashboard
+  consome: `{<plural>,total}`, `{members}` sem total, e `{entries,total,next_page_token}`.
+  Também tem SEIS caminhos de saúde. É o repo com maior blast radius: o CLI e o dashboard
+  dependem dele diretamente.
+
+  Superfície medida em 2026-08-10: — rotas `/v1` distintas.
+status: raw
+dod:
+  - o repo passa no verificador de contrato que o `B-115` publica em `theo-contracts`
+  - todo caminho novo resolve AO LADO do antigo — nenhum consumidor quebra no merge
+  - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
+  - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
+
+## B-124 — theo-cloud e o dashboard conformam-se ao contrato de superfície HTTP   [ ]
+
+> Registered 2026-08-10 by `/backlog-item` (slug: `http-contract-theo-cloud`).
+> **Bloqueado por `B-115`.** Conformar-se antes de o contrato existir é adivinhar qual é o padrão.
+
+domain: control-plane
+repo: theo-cloud
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  Programa de padronização de superfície HTTP. A divergência do ecossistema inteiro está medida
+  no `B-115`; o que é específico DESTE repo:
+
+  O BFF ESPELHA o nome de cada upstream — o que é o certo para um BFF, e é o que faz a
+  divergência chegar ao dashboard multiplicada. Este item só pode fechar DEPOIS dos serviços a
+  montante: espelhar um nome que ainda vai mudar é trabalho a refazer. Inclui a camada de mock,
+  onde as duas formas de erro convivem hoje (`handlers.ts:80` contra `domain-handlers.ts:31`).
+
+  Superfície medida em 2026-08-10: — rotas `/v1` distintas.
+status: raw
+dod:
+  - o repo passa no verificador de contrato que o `B-115` publica em `theo-contracts`
+  - todo caminho novo resolve AO LADO do antigo — nenhum consumidor quebra no merge
+  - todo caminho antigo carrega prazo de deprecação declarado, e a remoção é item próprio
+  - o CHANGELOG registra cada renomeação da perspectiva de quem consome, não de quem serviu
