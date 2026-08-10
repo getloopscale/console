@@ -42,32 +42,50 @@ const RESERVED = new Set(['pii', 'shell', 'jailbreak', 'moderation', 'credential
  * substitui a validação do serviço, que continua sendo a autoridade (o `422` dele é renderizado
  * com a mensagem própria quando escapa daqui).
  */
-export function draftProblems(d: GuardrailDraft): string[] {
-  const out: string[] = [];
+/** Os campos do formulário que podem carregar um problema. */
+export type DraftField = 'name' | 'terms' | 'replacement';
+
+/**
+ * Um problema de validação e o campo a que ele pertence.
+ *
+ * O campo é DADO, não algo deduzido da frase (B-111). A versão anterior devolvia apenas a
+ * string e um segundo passo adivinhava o campo por `includes('nome')` / `includes('termo')` —
+ * o que quebrou, em silêncio, no dia em que o painel foi traduzido: a lista de problemas
+ * seguia correta e só a associação com o campo sumia, então a tela dizia "há um erro" sem
+ * dizer ONDE. Texto de interface é escrito para humanos e reescrito o tempo todo; usá-lo como
+ * chave de roteamento é acoplar a lógica à redação.
+ */
+export interface ProblemaDeCampo {
+  readonly campo: DraftField;
+  readonly mensagem: string;
+}
+
+export function draftProblems(d: GuardrailDraft): readonly ProblemaDeCampo[] {
+  const out: ProblemaDeCampo[] = [];
   const name = d.name.trim();
 
-  if (name === '') out.push('Give the guardrail a name.');
+  if (name === '') out.push({ campo: 'name', mensagem: 'Give the guardrail a name.' });
   else if (RESERVED.has(name.toLowerCase())) {
-    out.push(`"${name}" is a name reserved by the platform. Choose another.`);
+    out.push({
+      campo: 'name',
+      mensagem: `"${name}" is a name reserved by the platform. Choose another.`,
+    });
   }
 
   const terms = cleanTerms(d.terms);
-  if (terms.length === 0) out.push('Add at least one term to block.');
+  if (terms.length === 0) out.push({ campo: 'terms', mensagem: 'Add at least one term to block.' });
 
   // Um termo em branco casaria em todo lugar — o serviço rejeita, mas o operador merece saber
   // antes de enviar, e sem descobrir por tentativa.
   if (d.terms.some((t) => t.trim() === '' && t !== '')) {
-    out.push('One of the terms is blank.');
+    out.push({ campo: 'terms', mensagem: 'One of the terms is blank.' });
   }
 
   if (d.action === 'modify' && d.replacement.trim() === '') {
-    out.push('Set the text that replaces the term found.');
+    out.push({ campo: 'replacement', mensagem: 'Set the text that replaces the term found.' });
   }
   return out;
 }
-
-/** Os campos do formulário que podem carregar um problema. */
-export type DraftField = 'name' | 'terms' | 'replacement';
 
 /**
  * Os mesmos problemas de `draftProblems`, mas endereçados ao campo que os causou.
@@ -78,21 +96,9 @@ export type DraftField = 'name' | 'terms' | 'replacement';
  */
 export function draftProblemsByField(d: GuardrailDraft): Partial<Record<DraftField, string>> {
   const out: Partial<Record<DraftField, string>> = {};
-  for (const problem of draftProblems(d)) {
-    // `replaces` vem ANTES de `term`: a frase do replacement é "Set the text that REPLACES the
-    // TERM found" — checar `term` primeiro a mandaria para o campo errado. A ordem é o conserto,
-    // e fica documentada porque parece arbitrária.
-    //
-    // ESTE ROTEAMENTO CASA A MENSAGEM HUMANA, e isso é frágil de um jeito que a tradução para
-    // inglês (B-109) tornou visível: as frases mudaram e o roteador continuou procurando
-    // `nome`/`reservado`/`termo`, mandando TODO problema para nenhum campo — silenciosamente,
-    // porque a lista de problemas seguia correta e só a associação com o campo sumia.
-    // Consertado casando as palavras novas. O defeito de fundo — decidir campo por substring de
-    // texto de interface em vez de por um discriminante — está registrado como `B-111`.
-    if (problem.includes('name') || problem.includes('reserved')) out.name ??= problem;
-    else if (problem.includes('replaces')) out.replacement ??= problem;
-    else if (problem.includes('term')) out.terms ??= problem;
-  }
+  // Uma indexação, não uma dedução. O primeiro problema de cada campo vence — é o mais alto na
+  // ordem em que `draftProblems` os produz, e é o que o operador precisa resolver primeiro.
+  for (const { campo, mensagem } of draftProblems(d)) out[campo] ??= mensagem;
   return out;
 }
 

@@ -2,6 +2,8 @@
 
 ### Fixed
 
+- **Um erro de formulário não vai mais parar no campo errado quando alguém reescrever a mensagem.** Na tela de criar uma proteção, cada erro aparece junto do campo que o causou — e a associação era feita procurando palavras dentro da própria mensagem em português. Traduzir o painel quebrou isso em silêncio: a lista de erros continuava certa e só o "onde" desaparecia, então a tela dizia que havia um problema sem dizer qual campo corrigir. Agora cada erro carrega o campo a que pertence, e reescrever qualquer frase — por clareza, por tradução, por qualquer motivo — não muda mais para onde ela vai.
+
 - **Mais dezenas de rótulos que ainda estavam em português foram traduzidos.** Botões como "Remover", "Testar", "Copiar", "Abrir" e "Bloqueado", campos como "Termos a bloquear" e "Mensagem de exemplo", e o parâmetro de filtro que aparece no endereço da lista de prompts. Eram palavras curtas e sem acento — o tipo que passa despercebido tanto por quem lê a tela quanto por uma busca automática. O filtro na URL mudou de nome e **o antigo continua funcionando**, pelo mesmo motivo dos endereços: um link já compartilhado não pode deixar de filtrar porque o produto mudou de idioma.
 
 - O caminho de reconstrução usado quando a credencial do registro falha voltou a funcionar. Ele existe

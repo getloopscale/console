@@ -31,28 +31,28 @@ describe('draftProblems', () => {
 
   it('exige nome', () => {
     const problems = draftProblems(draft({ terms: ['segredo'] }));
-    expect(problems).toContain('Give the guardrail a name.');
+    expect(problems.map((p) => p.mensagem)).toContain('Give the guardrail a name.');
   });
 
   it('exige ao menos um termo', () => {
     const problems = draftProblems(draft({ name: 'sem-termos' }));
-    expect(problems).toContain('Add at least one term to block.');
+    expect(problems.map((p) => p.mensagem)).toContain('Add at least one term to block.');
   });
 
   it('recusa nome reservado da plataforma antes de ir ao servidor', () => {
     // O serviço devolveria 422 VALIDATOR_NAME_RESERVED — mas só depois de uma ida ao servidor,
     // com o operador já tendo perdido o contexto do campo. A autoridade continua sendo o 422.
     const problems = draftProblems(draft({ name: 'pii', terms: ['x'] }));
-    expect(problems.some((p) => p.includes('reserved'))).toBe(true);
+    expect(problems.some((p) => p.campo === 'name' && p.mensagem.includes('reserved'))).toBe(true);
   });
 
   it('recusa nome reservado independentemente de caixa', () => {
-    expect(draftProblems(draft({ name: 'PII', terms: ['x'] })).some((p) => p.includes('reserved'))).toBe(true);
+    expect(draftProblems(draft({ name: 'PII', terms: ['x'] })).some((p) => p.campo === 'name' && p.mensagem.includes('reserved'))).toBe(true);
   });
 
   it('exige replacement quando a ação é modify', () => {
     const problems = draftProblems(draft({ name: 'n', terms: ['x'], action: 'modify', replacement: '  ' }));
-    expect(problems).toContain('Set the text that replaces the term found.');
+    expect(problems.map((p) => p.mensagem)).toContain('Set the text that replaces the term found.');
   });
 
   it('não exige replacement quando a ação é block', () => {
@@ -193,5 +193,52 @@ describe('visibleFieldProblems', () => {
     const valid = draft({ name: 'n', terms: ['x'] });
 
     expect(visibleFieldProblems(valid, new Set<DraftField>(['name', 'terms']))).toEqual({});
+  });
+});
+
+describe('o campo de cada problema é DADO, não deduzido da frase (B-111)', () => {
+  /**
+   * O defeito que este bloco fecha, e como ele apareceu.
+   *
+   * `draftProblemsByField` decidia a qual campo cada problema pertencia lendo a MENSAGEM
+   * HUMANA — `problem.includes('nome')`, `includes('termo')`, `includes('substitui')`.
+   * Funcionava, e era uma armadilha: em 2026-08-10 a tradução do painel para inglês (B-109)
+   * trocou todas as frases e o roteador parou de casar qualquer uma. O modo de falha foi o
+   * pior possível — **silencioso**: a lista de problemas seguia correta, só a associação com
+   * o campo sumia, então a tela dizia "há um erro" sem dizer ONDE.
+   *
+   * A ordem dos `if` também era carga: `replaces` tinha de ser checado ANTES de `term`,
+   * porque a frase do replacement contém a palavra "term". Uma regra de precedência entre
+   * substrings de texto de interface é uma bomba com o pino já puxado — qualquer reescrita
+   * de mensagem, inclusive por clareza, a detona.
+   *
+   * O conserto é de categoria: o campo passa a viajar COM o problema.
+   */
+  it('cada problema declara o campo a que pertence', () => {
+    const problemas = draftProblems(draft({ name: '', terms: [] }));
+
+    expect(problemas.length).toBeGreaterThan(0);
+    for (const p of problemas) {
+      expect(
+        p,
+        'um problema sem `campo` volta a obrigar alguém a adivinhar pelo texto',
+      ).toHaveProperty('campo');
+      expect(['name', 'terms', 'replacement']).toContain(p.campo);
+    }
+  });
+
+  it('o problema do replacement vai para o replacement — mesmo citando "term" na frase', () => {
+    // O caso que a precedência entre substrings existia para salvar, agora afirmado como
+    // contrato. A mensagem é "Set the text that replaces the term found": sob roteamento por
+    // substring, checar `term` antes de `replaces` a manda para o campo errado.
+    //
+    // Com o campo vindo como dado, nenhuma ordem importa e nenhuma reescrita da frase muda o
+    // destino. Este caso falha se alguém voltar a deduzir o campo do texto.
+    const porCampo = draftProblemsByField(
+      draft({ name: 'ok', terms: ['x'], action: 'modify', replacement: '' }),
+    );
+
+    expect(porCampo.replacement).toMatch(/replaces/i);
+    expect(porCampo.terms, 'a frase do replacement vazou para o campo de termos').toBeUndefined();
   });
 });

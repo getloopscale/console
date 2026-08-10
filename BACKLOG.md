@@ -3893,7 +3893,7 @@ fechado_2026-08-10: |
   interface: tipo, comparacao, chave de objeto, className, data-testid, e identificador
   interno (uma palavra minuscula e solta — `estado: 'carregando'` e nome, nao rotulo).
 
-## B-111 — O erro de formulário escolhe o campo casando SUBSTRING do texto de interface   [ ]
+## B-111 — O erro de formulário escolhe o campo casando SUBSTRING do texto de interface   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -3920,8 +3920,29 @@ why_now: |
   Consertado para as frases novas (o produto está correto hoje). O que fica aberto é a CLASSE:
   decidir campo por substring de texto de interface volta a quebrar na próxima vez que alguém
   reescrever uma mensagem — inclusive por motivo de clareza, sem suspeitar de nada.
-status: raw
+status: shipped
 dod:
   - cada problema carrega o campo a que pertence como DADO (discriminante), não como texto
   - reescrever qualquer mensagem de erro não altera o roteamento
   - teste que falha se o roteamento voltar a depender do conteúdo da frase
+fechado_2026-08-10: |
+  `draftProblems` passou a devolver `{ campo, mensagem }` em vez de `string`, e
+  `draftProblemsByField` virou uma INDEXACAO (`out[campo] ??= mensagem`) em vez de uma cadeia
+  de `includes`. Reescrever qualquer frase agora nao toca o roteamento.
+
+  DUAS CARGAS SUMIRAM JUNTO. A primeira era a precedencia documentada entre os `if`:
+  `replaces` tinha de ser checado ANTES de `term`, porque a frase do replacement contem a
+  palavra "term". Uma regra de ordem entre substrings de texto de interface e uma bomba com o
+  pino puxado — qualquer reescrita, inclusive por clareza, a detona. Com o campo vindo como
+  dado, nenhuma ordem importa.
+
+  A segunda: o comentario que explicava a armadilha. Ele existia porque a armadilha existia.
+
+  CUSTO REAL, e por isso o tipo mudou em vez de so trocar as palavras: o unico consumidor
+  (`guardrail-new.tsx`) usa apenas `problems.length` — nunca renderiza as frases. O tipo novo
+  nao custou nada a ele.
+
+  TDD com sonda: o caso RED afirma que todo problema declara `campo` (falhava — eram strings).
+  Um segundo caso trava o contrato que a precedencia salvava: o problema do replacement vai
+  para `replacement` MESMO citando "term" na frase. Sondado — simular a regressao (voltar a
+  devolver so a frase) reprova 11 casos.
