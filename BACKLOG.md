@@ -3643,7 +3643,7 @@ fechado_2026-08-10: |
   Os dois casos afirmam efeito observavel, nao "lanca": fecha no sucesso; no erro NAO fecha
   E a mensagem aparece na tela.
 
-## B-106 — Aparência renderizada de modal não tem instrumento; a revisão manual já falhou uma vez   [ ]
+## B-106 — Aparência renderizada de modal não tem instrumento; a revisão manual já falhou uma vez   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -3667,11 +3667,41 @@ why_now: |
   agora altera trinta telas de uma vez. Antes, o raio de uma mudança de espaçamento era um
   arquivo; hoje é o produto. É esse delta que torna o instrumento necessário agora, e não
   a existência de modais.
-status: raw
+status: shipped
 dod:
   - linha de base de captura para os modais migrados, versionada
   - a suíte falha quando a caixa do `AppModal` muda sem a linha de base ser atualizada junto
   - o `D4` do plano de consolidação deixa de ser a única evidência de que o `gap` mudou
+fechado_2026-08-10: |
+  `dashboard/e2e/modal-visual-baseline.spec.ts`, duas linhas de base versionadas, gravadas na
+  imagem do runner (playwright:v1.60.0-noble) — gravar nesta maquina daria verde local e
+  vermelho no CI, e o precedente esta em 1d8a26c8.
+
+  NENHUMA FERRAMENTA NOVA. O repositorio ja fazia regressao visual com `toHaveScreenshot()` e
+  referencias versionadas; escolher um fornecedor seria reinventar o que ja esta instalado
+  (degrau 4 da ladder). O `playwright.config.ts` inclusive ja declarava a decisao de
+  fornecedor como "OPEN, usando o nativo ate decidir" — a decisao continua aberta, e o
+  instrumento passou a existir.
+
+  SONDADO CONTRA O DEFEITO QUE MOTIVOU O ITEM: trocar `gap-4` por `gap-3` no `app-modal.tsx`
+  faz a captura sair 512x220 contra 512x228 esperados — os MESMOS ~8 px que a revisao visual
+  por amostra nao pegou e que o ADR D4 teve de retratar. O instrumento reproduz exatamente o
+  caso que existia para pegar.
+
+  Fotografa o `[role="dialog"]`, nao a pagina: uma foto de pagina inteira reprova por um item
+  novo na barra lateral ou um numero de uso que mudou, e um instrumento que dispara pelo
+  motivo errado e desligado em duas semanas. Dois modais, dois caminhos de composicao —
+  `PlanLimitUpgradeModal` usa o `AppModal` direto, `ConfirmDialog` o compoe (e e o que 29
+  telas consomem).
+
+  E O QUE ACHEI AO LIGA-LO: o job `e2e-ui` ENUMERA os specs a mao, entao o arquivo novo nao
+  rodaria — terceira vez no mesmo dia que um gate declarado nao estava ligado. Acrescentado a
+  lista, e a omissao virou barulhenta: `src/lib/cobertura-workflow-e2e.test.ts` falha quando
+  um spec de `e2e/` nao esta no workflow nem tem exclusao DECLARADA COM MOTIVO. Sondado:
+  tirar o spec da lista faz o guard falhar nomeando o arquivo.
+  Ele nao troca a enumeracao por uma varredura de proposito — mudar O QUE a esteira executa
+  e alteracao que eu nao consigo verificar daqui, e o modo de falha (um spec que trava o job
+  no carregamento) custou tres runs vermelhos hoje.
 
 ## B-107 — O painel de onboarding não tem cobertura de runtime de navegador   [ ]
 
