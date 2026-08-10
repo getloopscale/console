@@ -166,6 +166,19 @@ jobs:
       - name: Build (inclui typecheck via tsc -b)
         run: npm run build
 
+      # B-101/e2e — `tsc -b` acima constrói SÓ o projeto raiz, cujo `include` é `["src"]`.
+      # `e2e/` ficava fora de qualquer verificação de tipos, e isso cobrou: `b423ae99` moveu
+      # `components/lens/lens-capabilities.ts` e `observability-screens.spec.ts` seguiu
+      # importando o caminho antigo. Tipos verdes, lint verde, 2764 testes verdes — e o job
+      # `e2e-ui` morrendo com "Cannot find package", que parece dependência faltando. O
+      # Playwright falha o MÓDULO no carregamento, então as 26 suítes de jornada não rodavam.
+      #
+      # Passo separado, e não `include: ["src","e2e"]` na raiz: o `include` da raiz é o que o
+      # build compila, e ampliá-lo para conseguir uma verificação mudaria o artefato de
+      # carona. Este passo faz uma coisa só, e é barato — `e2e/` tem 26 arquivos.
+      - name: Typecheck e2e (fora do escopo do build)
+        run: npx tsc --noEmit -p e2e/tsconfig.json
+
       - name: Lint
         run: npm run lint
 

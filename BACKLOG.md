@@ -3463,7 +3463,7 @@ VERIFICACAO: `docker build` + `docker run` + `curl -I` em cinco caminhos, mais `
 DESBLOQUEIA A OPCAO 3 DO ADR-0004: remover o service worker inteiro agora e possivel sem piorar a entrega, porque o nginx passou a
 fazer o que o ADR ja afirmava (erradamente) que ele fazia.
 
-## B-101 — `upstream-debt.test.ts` falha na suite cheia e passa isolado   [ ]
+## B-101 — `upstream-debt.test.ts` falha na suite cheia e passa isolado   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -3477,10 +3477,30 @@ why_now: o teste instancia o ESLint e chama `calculateConfigForFile` — I/O de 
   classe que o proprio `vitest.config.ts` documenta ("import-smoke + render tests timing out at 10-27s while the default 5s elapses
   under starvation"), e a correcao aplicada la foi subir `testTimeout` para 20s. Este caso pode estar estourando o mesmo teto por outro
   caminho: ao contrario dos outros, ele nao renderiza — ele SOBE UM PROCESSO de analise estatica dentro de um worker.
-status: raw
+status: shipped
 dod:
   - a causa esta identificada (nao "reexecutei e passou") — medir o tempo do caso sob suite cheia contra isolado
   - OU o teste deixa de subir o ESLint dentro do worker (mover para um gate proprio de lint), OU o motivo de nao fazer isso esta escrito
+fechado_2026-08-10: |
+  CAUSA MEDIDA, nao inferida. O caso gasta **10.676 ms ISOLADO** — sem contencao nenhuma —
+  contra um `testTimeout` de 20.000 ms. A margem e de **1,87x**: qualquer contencao de worker
+  acima desse fator o reprova. Nao havia misterio nenhum, so ninguem tinha medido o custo do
+  caso; a hipotese registrada no item (I/O de resolucao de config sob contencao) estava certa,
+  e o numero e o que a torna acionavel.
+
+  Subir o `testTimeout` faria o vermelho sumir SEM tirar a causa, e ele voltaria no dia em que
+  a suite crescesse. O que estava errado era o LUGAR: o caso afirma uma propriedade da
+  CONFIGURACAO DE LINT, nao do comportamento da aplicacao. `new ESLint()` +
+  `calculateConfigForFile` carrega o flat config inteiro e o grafo de plugins junto — um
+  processo de analise estatica subindo dentro de um worker do vitest, disputando nucleos com
+  outros 2763 testes.
+
+  Movido para `dashboard/scripts/check-guard-pairs.mjs`, chamado pelo `npm run lint`, onde o
+  custo do ESLint ja esta pago. Sondado: renomear `alert-guard.tsx` faz o gate sair 1 com a
+  mensagem certa. A assercao nao foi enfraquecida — continua resolvendo a config efetiva em
+  vez de casar substring, que e o que B-093 corrigiu.
+
+  Efeito colateral medido: `upstream-debt.test.ts` caiu de ~10.7 s para 0,79 s.
 
 ## B-102 — `run_validation.py` era cego a monorepo e pulava os quatro gates principais   [x]
 
