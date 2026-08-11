@@ -7575,3 +7575,35 @@ dod:
   - every clause either matches the disk or states that it is unbuilt
   - no cross-reference points at a path that does not resolve
 
+## B-165 — DOGFOOD.md instructs two commands that do not exist   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  DOGFOOD.md:17
+  Measured 2026-08-11 against `package.json`. The QA guide lists, as runnable:
+    npm run test:lighthouse   -> not a script (`lighthouserc.json` exists; the runner is
+                                `npx @lhci/cli autorun`)
+    npm run test:visual       -> not a script, and no vendor was ever chosen
+  Both fail with `npm ERR! Missing script` for anyone following the guide.
+
+  DOGFOOD.md:13 also quoted "size-limit cap (180 KB brotli)". The enforced gate is SIX
+  per-chunk caps totalling 655 kB, of which 95 kB is eager. A single number was never the
+  shape of this gate.
+why_now: |
+  This is the document a new contributor follows to verify their work. Two of its commands
+  cannot run, and its bundle figure describes a gate that does not exist — so the first
+  QA pass someone does against it fails for reasons that have nothing to do with their change.
+status: shipped
+shipped_note: |
+  The two commands are kept in the file, commented, with what to run instead — deleting them
+  would hide that visual regression has no vendor, which is a real gap someone should decide
+  about. Test count and bundle caps re-measured.
+dod:
+  - every command the guide presents as runnable resolves in package.json
+  - the bundle figure matches the enforced gate
+
