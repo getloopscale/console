@@ -12,6 +12,8 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the login and sign-up forms no longer post your password to whatever address the authentication service names. The address is now checked against the known Theo hosts first, and a login that cannot be completed safely shows an error instead of sending anything — the safe failure, not the silent one. Nothing changes for a normal sign-in (B-138).
+
 - **theo-cloud/dashboard:** the trust screens could not be used in mock mode — `/trust` and `/trust/violations` both showed "Could not read the trust layer", because the mock never served the endpoint they read. The mock also left the guardrail catalogue without the field coverage is matched on, so the "blocked" column always answered "not blocked" whether or not a guardrail existed (B-127).
 - **theo-cloud/dashboard:** five column headers and labels on the trust screens were in Portuguese while the rest of the dashboard is in English (B-127, sweep tracked in B-128).
 
