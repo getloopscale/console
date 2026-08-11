@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-11
+
 ### Fixed
 
 - **theo-cloud/dashboard:** four more screens stopped saying "there is nothing here" when what actually happened was "we could not read it". Projects, environments, deployments and both webhook delivery views all turned a failed read into an empty state — and the projects page went further, showing the first-time onboarding screen to someone who may already have thirty projects. A check now fails the build when a NEW screen does this; the screens that already did are frozen at today's count and can only go down (B-137, B-167).
@@ -35,6 +37,7 @@
 
 ### Changed
 
+- **theo-cloud/dashboard (internal, no consumer surface):** the mock layer stopped replacing the browser's built-in event-stream object. Nothing in the product has used it since the transport was changed to put the credential in a header, and keeping the replacement suggested the mocks covered streams when they did not — which is how two live views ended up with no mock answer at all. Recorded under Changed rather than Removed because nothing a consumer can call was removed; classifying it as Removed would auto-derive a MAJOR bump and announce a breaking change that does not exist (B-223).
 - **theo-cloud/dashboard:** the live-view documentation stopped describing a credential in the URL. That was true of the browser's built-in transport and stopped being true when it was replaced precisely to get the token out of the query string, where it reached nginx access logs and browser history — the text outlived the reason it existed, describing a risk that had been closed a few lines below it (B-219).
 
 - **theo-cloud/dashboard:** the "session expired" notice moved out of the network client, which used to build and style the notice itself. It now says so plainly when the redirect it promises does not happen — a refused or deferred navigation used to leave the message claiming "Redirecting to login..." forever (B-218).
@@ -42,10 +45,6 @@
 - **theo-cloud/dashboard:** the bar charts are readable by screen reader for what the colours were saying. On /trust the amber bar was the only thing distinguishing a policy that is enforced from one that is not, and it lived inside an element assistive technology is told to skip — a compliance reading that existed only for people who see it. Each chart now says in words what its colour says, in the wording of its own screen: "not enforced" on /trust, "needs review" on the Knowledge Base confidence chart (B-187).
 - **theo-cloud/dashboard:** the bar charts declare their columns, and the bar sits inside the value cell instead of occupying a column of its own that carried nothing — a screen reader used to walk a three-column table with one permanently empty column (B-186).
 - **theo-cloud/dashboard:** on /promptly, the bucket of prompts that serve no environment is called `No environment`. It was called `not promoted`, which is also the name of a KPI card on the same screen counting something else entirely — a reader had no way to tell which of the two numbers they were looking at (B-146).
-
-### Removed
-
-- **theo-cloud/dashboard:** the mock layer stopped replacing the browser's built-in event-stream object. Nothing in the product has used it since the transport was changed to put the credential in a header, and keeping the replacement suggested the mocks covered streams when they did not — which is how two live views ended up with no mock answer at all (B-223).
 
 ## [1.0.0] - 2026-08-11
 
