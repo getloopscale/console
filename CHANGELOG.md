@@ -23,6 +23,9 @@
 
 ### Added
 
+- **theo-cloud/dashboard:** a Overview passou a responder "tem algo errado agora?" — a única pergunta que nenhuma outra tela do produto responde, porque cada capacidade só enxerga a si mesma. A faixa junta erro de agente (Observability), retrievals vazios (Knowledge Base) e requisições barradas (Trust), cada linha com o caminho que a resolve. Quando uma leitura falha, a tela diz que não conseguiu ler em vez de afirmar que está tudo bem (B-125).
+- **theo-cloud/dashboard:** a Overview mostra o que os agentes custaram, por modelo, a partir do custo medido nos spans — o único valor em dinheiro na tela antes era o preço do plano. Spans cujo modelo não tem preço aparecem declarados fora do total, para que ele não seja menor que a verdade sem dizer (B-125).
+
 - **theo-cloud/dashboard:** backlog B-125 — a Overview anuncia as oito capacidades mas não mostra o que a plataforma faz: nada na tela responde "tem algo errado agora?", o único valor em dinheiro é o preço do plano, e três dos blocos abaixo da faixa Platform são a barra lateral desenhada de novo.
 
 - **umbrella:** o programa de padronização de superfície HTTP (B-115..B-124) está entregue nos dez repositórios: o contrato em `theo-contracts/httpsurface` e a conformação de `theo`, `theo-cloud`, `theo-rag`, `theo-lens`, `theo-memory`, `theo-skills`, `theo-trust`, `theo-promptly` e `theo-storage`. Toda migração foi aditiva — nenhum caminho antigo deixou de responder.
@@ -126,6 +129,8 @@
 - **Quatro links da governança do dashboard deixaram de fingir que levam a algum lugar.** Eles apontavam para planos em `.claude/knowledge-base/` e para um `docs/handoff/` que ficaram no repositório da engine na migração do M5 — nenhum dos quatro existe aqui, e um link morto se lê como navegável até alguém tentar. O texto visível já era o próprio caminho entre crases, então virar referência de prosa não tirou uma palavra do que se lê; tirou só a promessa falsa de que um agente percorrendo o documento chegaria lá.
 
 ### Removed
+
+- **theo-cloud/dashboard:** a Overview não mostra mais cotas de plano nem "Quick actions". As cotas continuam em `/billing`, que já as renderizava com os mesmos números; os três atalhos levavam a `/projects`, `/team` e `/domains`, itens de uma barra lateral sempre visível (B-125).
 
 - **Seis constantes e funções internas que ninguém usava saíram do código.** Nenhuma tinha consumidor — a verificação automática de código morto as apontou, e três delas continuavam sendo usadas dentro do próprio arquivo, então só deixaram de ser oferecidas para fora. Nada muda para quem usa o produto; muda o que a próxima pessoa a ler esses módulos encontra.
 

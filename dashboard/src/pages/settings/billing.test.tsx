@@ -172,6 +172,72 @@ describe('BillingPage', () => {
     expect(screen.getByRole('button', { name: /manage plan/i })).toBeInTheDocument();
   });
 
+  // B-125 — herdados da Overview, cujo painel `Usage` saiu.
+  //
+  // POR QUE MIGRAR EM VEZ DE APAGAR: aqueles seis casos travavam um contrato REAL — que o painel
+  // ligava as chaves de billing verdadeiras (`projects`, `builds_per_month`, `environments`,
+  // `seats`) e NÃO o vocabulário do mockup Vercel que nunca populou. Apagá-los junto com o painel
+  // teria deixado o contrato sem guarda em qualquer tela.
+  //
+  // Medido antes de mover: `/billing` renderiza toda chave de `billing.usage` dinamicamente
+  // (`billing.tsx:215`), então as quatro já apareciam aqui — conferido no navegador, com os mesmos
+  // números que a Overview mostrava. A pergunta "quanto do meu plano eu usei" sempre foi desta
+  // tela; ela só tinha uma segunda cópia na home.
+  it('test_billing_usage_binds_real_backend_keys_not_vercel_mockup', () => {
+    mockUseCloudApi.mockReturnValue({ data: {
+      plan: 'pro',
+      team: 'acme',
+      usage: {
+        projects: { used: 4, limit: 10 },
+        builds_per_month: { used: 145, limit: 1000 },
+        environments: { used: 2, limit: 3 },
+        seats: { used: 3, limit: 10 },
+      },
+    }, loading: false, error: false });
+    render(<BillingPage />);
+
+    // `getAllByText` e não `getByText`: o `UsageMeter` renderiza o rótulo mais de uma vez (barra
+    // e legenda), e exigir ocorrência única afirmaria sobre a composição do primitivo em vez de
+    // sobre a chave estar ligada — que é o que este caso protege.
+    for (const rotulo of ['Projects', 'Builds Per Month', 'Environments', 'Seats']) {
+      expect(screen.getAllByText(rotulo).length, `${rotulo} não está ligado`).toBeGreaterThanOrEqual(1);
+    }
+
+    // As chaves fabricadas do mockup precisam continuar ausentes.
+    expect(screen.queryByText('Fast Data Transfer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Edge Requests')).not.toBeInTheDocument();
+    expect(screen.queryByText('Concurrent Builds')).not.toBeInTheDocument();
+  });
+
+  it('test_billing_usage_renders_unlimited_when_limit_null', () => {
+    // ADR-D1.bis: `limit: null` é o tier Enterprise, e renderiza "Unlimited" em vez de um teto
+    // inventado.
+    mockUseCloudApi.mockReturnValue({ data: {
+      plan: 'enterprise',
+      team: 'acme',
+      usage: {
+        projects: { used: 12, limit: null },
+        seats: { used: 20, limit: null },
+      },
+    }, loading: false, error: false });
+    render(<BillingPage />);
+
+    expect(screen.getAllByText(/\/ Unlimited/).length).toBe(2);
+  });
+
+  it('test_billing_usage_renders_over_quota', () => {
+    // EC-6: `used > limit` mostra o número REAL, não o teto. Esconder o excedente faria o
+    // operador acreditar que está no limite quando já passou dele.
+    mockUseCloudApi.mockReturnValue({ data: {
+      plan: 'pro',
+      team: 'acme',
+      usage: { projects: { used: 4, limit: 3 } },
+    }, loading: false, error: false });
+    render(<BillingPage />);
+
+    expect(screen.getByText(/^4 \/ 3$/)).toBeInTheDocument();
+  });
+
   it('test_billing_usage_meter_reflects_period_data', () => {
     mockUseCloudApi.mockReturnValue({
       data: {

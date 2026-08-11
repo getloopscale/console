@@ -3,11 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   FolderKanban,
-  Globe,
   Loader2,
   Plus,
-  Rocket,
-  Users,
 } from 'lucide-react';
 import {
   Card,
@@ -15,30 +12,17 @@ import {
   PageShell,
   ProjectCard,
 } from '@usetheo/ui';
-import { UsageMeter } from '@theokit/ui';
 import { ContentGrid } from '@/components/layout';
 import { OverviewKPIStrip } from '@/pages/overview/components/overview-kpi-strip';
 import { DeploysActivity } from '@/pages/overview/components/deploys-activity';
 import { CapabilityGrid } from '@/pages/overview/capability-grid';
+import { PlatformSignals } from '@/pages/overview/platform-signals';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useBuildStats } from '@/hooks/overview/use-build-stats';
-import { useCloudApi } from '@/hooks/use-api';
-import { formatDate, formatNumber, isZeroTime } from '@/lib/formatting/format';
+import { formatDate, isZeroTime } from '@/lib/formatting/format';
 
-interface UsageMetricShape {
-  used: number;
-  limit: number | null;
-}
-
-interface BillingResponse {
-  plan: string;
-  team: string;
-  usage: Record<string, UsageMetricShape>;
-  period_start?: string;
-  period_end?: string;
-}
 
 /**
  * OverviewPage — mockup-aligned literal implementation per
@@ -55,43 +39,15 @@ export function OverviewPage() {
   const { setPageTitle } = usePageMeta();
   const navigate = useNavigate();
   const { projects, loading } = useProjects();
-  const { data: billing } = useCloudApi<BillingResponse>('/v1/billing');
   const deployStats = useBuildStats('7d');
-  const usage = billing?.usage ?? {};
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredProjects = projects.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // Pull metric (used, limit) from billing.usage with fallback for null billing.
-  // EC: /v1/billing null → defaults to 0/limit per acceptance criteria.
-  // EC-5: limit may be null (Enterprise unlimited) — propagate as-is.
-  function pickMetric(key: string, defaultLimit: number): { value: number; max: number | null } {
-    const m = usage[key];
-    if (!m) return { value: 0, max: defaultLimit };
-    return { value: m.used, max: m.limit };
-  }
 
-  // Formatter for UsageMeter metric row's value/max text.
-  // Per ADR-D1.bis: limit===null renders "{used} / Unlimited".
-  // UsageMeter primitive natively handles over-quota (value>max → text-warning + warning intent).
-  // Uses formatNumber() from lib/format.ts per T-C.2 migration (en-US locale per ADR-D1).
-  function fmtMetric(value: number, max: number | null): string {
-    if (max === null) return `${formatNumber(value, 'grouped')} / Unlimited`;
-    return `${formatNumber(value, 'grouped')} / ${formatNumber(max, 'grouped')}`;
-  }
 
-  // T-P0: bind to the REAL /v1/billing.usage keys (billing.go getLimitsForPlan /
-  // getUsageForTenant), NOT the Vercel-mockup vocabulary that never populated.
-  // Fallback limits mirror the starter-plan defaults so a null billing response
-  // still renders honest caps (projects 2, builds 100, environments 1, seats 1).
-  // secrets_per_env / services_per_project are per-scope caps (not account totals)
-  // and are intentionally omitted here (ADR-3).
-  const projectsMetric = pickMetric('projects', 2);
-  const buildsMetric = pickMetric('builds_per_month', 100);
-  const envsMetric = pickMetric('environments', 1);
-  const seatsMetric = pickMetric('seats', 1);
 
   return (
     <PageShell
@@ -124,60 +80,14 @@ export function OverviewPage() {
         <CapabilityGrid />
       </section>
       <ContentGrid columns="2-asymmetric" gap={6}>
-        {/* Left column — Usage + Alerts */}
+        {/* B-125 — a coluna esquerda deixou de ser cotas de cobrança.
+            `Usage` gastava 56 linhas com `4/10 projetos` e `145/1.000 builds`: pergunta de
+            COBRANÇA numa tela de operação, e `/billing` existe para ela. No lugar entram as duas
+            perguntas que nenhuma outra tela do produto responde — "tem algo errado agora?" e
+            "quanto os agentes custaram" —, porque cada capacidade só enxerga a si mesma e esta é
+            a única superfície de onde elas são respondíveis. */}
         <div className="space-y-6">
-          <section>
-            <h2 className="text-label-caps text-muted-foreground uppercase mb-3 tracking-wider">
-              Usage
-            </h2>
-            {/* T-DR-2.5 v1.2 (closes V-8 from Vercel benchmark): max-h
-                + overflow-y-auto acomoda 5+ KPIs sem inflar página.
-                Vercel pattern: panel scrolls internally rather than
-                forcing page growth. */}
-            <div className="max-h-[400px] overflow-y-auto">
-              <UsageMeter
-                title="This billing period"
-                action={
-                  <Link
-                    to="/billing"
-                    className="rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-                  >
-                    Upgrade
-                  </Link>
-                }
-                metrics={[
-                {
-                  label: 'Projects',
-                  value: projectsMetric.value,
-                  max: projectsMetric.max ?? Number.MAX_SAFE_INTEGER,
-                  unit: '',
-                  formatter: (v) => fmtMetric(v, projectsMetric.max),
-                },
-                {
-                  label: 'Builds this month',
-                  value: buildsMetric.value,
-                  max: buildsMetric.max ?? Number.MAX_SAFE_INTEGER,
-                  unit: '',
-                  formatter: (v) => fmtMetric(v, buildsMetric.max),
-                },
-                {
-                  label: 'Environments',
-                  value: envsMetric.value,
-                  max: envsMetric.max ?? Number.MAX_SAFE_INTEGER,
-                  unit: '',
-                  formatter: (v) => fmtMetric(v, envsMetric.max),
-                },
-                {
-                  label: 'Seats',
-                  value: seatsMetric.value,
-                  max: seatsMetric.max ?? Number.MAX_SAFE_INTEGER,
-                  unit: '',
-                  formatter: (v) => fmtMetric(v, seatsMetric.max),
-                },
-              ]}
-              />
-            </div>
-          </section>
+          <PlatformSignals />
 
           {/* T-P1: deploy activity — the "what happened recently" view, from the
               real /api/v1/builds/stats 7-day series (useBuildStats). Pairs with the
@@ -305,58 +215,6 @@ export function OverviewPage() {
             )}
           </section>
 
-          {/* Quick actions — UI-only nav aids (replaces removed Recent Previews
-              section v1.2 T0.7 fold). Reduz a sensação de "anêmico" do Overview
-              sem inventar dados. Cada action é navegação real para surface
-              existente; nenhuma depende de backend novo. */}
-          <section>
-            <h2 className="text-label-caps text-muted-foreground uppercase mb-3 tracking-wider">
-              Quick actions
-            </h2>
-            <Card>
-              <ul className="divide-y divide-border">
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/projects')}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
-                  >
-                    <span className="flex items-center gap-3">
-                      <Rocket className="size-4 text-primary" aria-hidden="true" />
-                      <span className="font-medium text-foreground">Deploy a project</span>
-                    </span>
-                    <ArrowRight className="size-4 text-muted-foreground" aria-hidden="true" />
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/team')}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
-                  >
-                    <span className="flex items-center gap-3">
-                      <Users className="size-4 text-primary" aria-hidden="true" />
-                      <span className="font-medium text-foreground">Invite teammates</span>
-                    </span>
-                    <ArrowRight className="size-4 text-muted-foreground" aria-hidden="true" />
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/domains')}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
-                  >
-                    <span className="flex items-center gap-3">
-                      <Globe className="size-4 text-primary" aria-hidden="true" />
-                      <span className="font-medium text-foreground">Add a custom domain</span>
-                    </span>
-                    <ArrowRight className="size-4 text-muted-foreground" aria-hidden="true" />
-                  </button>
-                </li>
-              </ul>
-            </Card>
-          </section>
         </div>
       </ContentGrid>
     </PageShell>

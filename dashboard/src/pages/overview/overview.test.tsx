@@ -45,22 +45,18 @@ describe('OverviewPage', () => {
     expect(screen.getByRole('button', { name: /add new/i })).toBeInTheDocument();
   });
 
-  it('test_overview_usage_binds_real_backend_keys_not_vercel_mockup', () => {
-    // T-P0: the Usage panel must read the REAL /v1/billing.usage keys
-    // (projects, builds_per_month, environments, seats), NOT the Vercel-mockup
-    // vocabulary that never bound to a Theo metered dimension.
-    render(<OverviewPage />);
-    // "Projects" also appears as the KPI + the section header, so assert the
-    // Usage-unique labels for presence; "Projects" via getAllByText.
-    expect(screen.getAllByText('Projects').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Builds this month')).toBeInTheDocument();
-    expect(screen.getByText('Environments')).toBeInTheDocument();
-    expect(screen.getByText('Seats')).toBeInTheDocument();
-    // The fabricated keys must be gone.
-    expect(screen.queryByText('Fast Data Transfer')).not.toBeInTheDocument();
-    expect(screen.queryByText('Edge Requests')).not.toBeInTheDocument();
-    expect(screen.queryByText('Concurrent Builds')).not.toBeInTheDocument();
-  });
+
+  // B-125 — seis casos de `Usage` saíram DESTE arquivo e entraram em `settings/billing.test.tsx`.
+  //
+  // Eles travavam um contrato real: o painel ligava as chaves de billing verdadeiras
+  // (`projects`, `builds_per_month`, `environments`, `seats`) e não o vocabulário do mockup
+  // Vercel. O painel saiu da Overview porque cota é pergunta de COBRANÇA numa tela de operação,
+  // e ele gastava 56 linhas com ela.
+  //
+  // Medido antes de mover, e é o que impediu uma perda silenciosa: `/billing` renderiza toda
+  // chave de `billing.usage` dinamicamente, então as quatro já apareciam lá — conferido no
+  // navegador, com os mesmos números. Apagar os casos junto com o painel teria deixado o
+  // contrato sem guarda em tela nenhuma.
 
   it('test_overview_no_alerts_section_removed_v12', () => {
     // T-DR-1.1 v1.2: Alerts EmptyState removed (closes P1-1 CC-3 violation).
@@ -117,87 +113,12 @@ describe('OverviewPage', () => {
 
   // ---- T-P0: real-key Usage binding ----
 
-  it('test_overview_usage_reflects_real_billing_data_when_loaded', () => {
-    mockUseCloudApi.mockReturnValue({
-      data: {
-        plan: 'pro',
-        team: 'acme',
-        usage: {
-          projects: { used: 2, limit: 3 },
-          builds_per_month: { used: 37, limit: 100 },
-          environments: { used: 2, limit: 5 },
-          seats: { used: 1, limit: 3 },
-        },
-      },
-      loading: false,
-      error: false,
-    });
-    render(<OverviewPage />);
-    // Real "used" numbers from billing fixture must appear.
-    expect(screen.getByText(/^2 \/ 3$/)).toBeInTheDocument();
-    expect(screen.getByText(/^37 \/ 100$/)).toBeInTheDocument();
-    expect(screen.getByText(/^2 \/ 5$/)).toBeInTheDocument();
-  });
 
-  it('test_overview_usage_falls_back_to_plan_defaults_when_billing_null', () => {
-    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
-    render(<OverviewPage />);
-    // No billing → starter-plan defaults (projects 0/2, builds 0/100, envs 0/1, seats 0/1)
-    expect(screen.getByText(/^0 \/ 2$/)).toBeInTheDocument();
-    expect(screen.getByText(/^0 \/ 100$/)).toBeInTheDocument();
-    // 0 / 1 appears twice (environments + seats)
-    expect(screen.getAllByText(/^0 \/ 1$/).length).toBeGreaterThanOrEqual(1);
-  });
 
-  it('test_overview_usage_renders_unlimited_when_limit_null', () => {
-    // Enterprise tier returns limit:null → "Unlimited".
-    mockUseCloudApi.mockReturnValue({
-      data: {
-        plan: 'enterprise',
-        team: 'acme',
-        usage: {
-          projects: { used: 12, limit: null },
-          builds_per_month: { used: 500, limit: null },
-          environments: { used: 8, limit: null },
-          seats: { used: 20, limit: null },
-        },
-      },
-      loading: false,
-      error: false,
-    });
-    render(<OverviewPage />);
-    const unlimitedLabels = screen.getAllByText(/\/ Unlimited/);
-    expect(unlimitedLabels.length).toBe(4);
-  });
 
-  it('test_overview_usage_renders_over_quota', () => {
-    // used > limit renders real numeric + UsageMeter warning styling.
-    mockUseCloudApi.mockReturnValue({
-      data: {
-        plan: 'pro',
-        team: 'acme',
-        usage: {
-          projects: { used: 4, limit: 3 },
-          builds_per_month: { used: 37, limit: 100 },
-          environments: { used: 2, limit: 5 },
-          seats: { used: 1, limit: 3 },
-        },
-      },
-      loading: false,
-      error: false,
-    });
-    const { container } = render(<OverviewPage />);
-    expect(screen.getByText(/^4 \/ 3$/)).toBeInTheDocument();
-    expect(container.querySelector('.text-warning')).toBeInTheDocument();
-  });
 
   // ---- T-P3: Upgrade is a real link, not a dead badge ----
 
-  it('test_overview_upgrade_is_a_link_to_billing', () => {
-    render(<OverviewPage />);
-    const upgrade = screen.getByRole('link', { name: /upgrade/i });
-    expect(upgrade).toHaveAttribute('href', '/billing');
-  });
 
   // ---- T-P2: projects "View all" affordance ----
 
