@@ -191,7 +191,14 @@ describe('the chart under the counts (B-129)', () => {
     render(<TrustOverviewPage />);
 
     await screen.findByText('Could not read the trust layer');
-    expect(screen.queryByRole('table', { name: /violations by policy/i })).not.toBeInTheDocument();
+    // B-152/B-189 — esta asserção olhava a TABELA e não conseguia falhar. `CategoryBars` renderiza
+    // um `<p>` (não uma tabela) quando não há barras, e uma leitura que falhou produz zero barras:
+    // o papel `table` está ausente no mundo que passa E no que falha. Apagar o gate de
+    // settled-success deixava tudo verde — foi assim, por execução, que se provou o defeito.
+    //
+    // O `<h2>` fica FORA do `CategoryBars` e DENTRO do gate, então ele existe exatamente quando o
+    // bloco existe. É isso que torna a ausência dele uma afirmação com conteúdo.
+    expect(screen.queryByRole('heading', { name: /violations by policy/i })).toBeNull();
   });
 });
 
@@ -211,7 +218,14 @@ describe('B-227 — o gráfico não afirma cobertura que não leu', () => {
     // A tabela de violações continua: a leitura dela deu certo e vale.
     await screen.findByText(/credential_leak/i);
     // O gráfico não: sem catálogo ele só saberia dizer "âmbar em tudo".
-    expect(screen.queryByRole('table', { name: /violations by policy/i })).toBeNull();
+    // B-152/B-189 — esta asserção olhava a TABELA e não conseguia falhar. `CategoryBars` renderiza
+    // um `<p>` (não uma tabela) quando não há barras, e uma leitura que falhou produz zero barras:
+    // o papel `table` está ausente no mundo que passa E no que falha. Apagar o gate de
+    // settled-success deixava tudo verde — foi assim, por execução, que se provou o defeito.
+    //
+    // O `<h2>` fica FORA do `CategoryBars` e DENTRO do gate, então ele existe exatamente quando o
+    // bloco existe. É isso que torna a ausência dele uma afirmação com conteúdo.
+    expect(screen.queryByRole('heading', { name: /violations by policy/i })).toBeNull();
   });
 });
 

@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** four checks that were meant to prove a chart is hidden when its data could not be read were rewritten so they can actually fail. They asserted the absence of a table — but the chart draws no table when it has nothing to draw, so the assertion held whether the guard was there or not. They now assert the absence of the heading, which exists exactly when the chart block does (B-152, B-189).
+
+### Fixed
+
 - **theo-cloud/dashboard:** two internal checks that could not fail were repaired. One decided whether a screen renders a chart by searching its source text — and matched the chart's name inside a comment, so a screen that had REMOVED its chart still counted as having one; its own documentation claimed that hole was closed. The other tested the /trust coverage view against a fixture that enforced nothing, so the "policy is enforced" path had never been exercised by any screen test while a comment asserted it was (B-190, B-191).
 
 ### Fixed

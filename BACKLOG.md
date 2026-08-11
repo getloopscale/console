@@ -5618,7 +5618,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-when-only-the-validators-query-fails`). Source: code-review finding #88, `code-review-output/code-review.db`.
 
-## B-152 — 96 test files assert absence with queryBy alone — a shape already PROVEN unable to fail on four of them   [ ]
+## B-152 — 96 test files assert absence with queryBy alone — a shape already PROVEN unable to fail on four of them   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5633,7 +5633,13 @@ evidence: |
   Mechanical scan of 376 test files: 96 match expect(queryBy...).toBeNull()/not.toBeInTheDocument() as their only negative assertion. Six match the queryByRole(table) form. Falsification (external review, by execution): guard deleted from skills/overview.tsx -> 10/10 tests still pass. category-bars.tsx:74-76 returns a <p> and no table when bars.length === 0.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/skills/overview.test.tsx:184`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  Four call sites rewritten from `queryByRole('table')` to `queryByRole('heading')`.
+  The table assertion could not fail: `CategoryBars` renders a `<p>` and no table when it has no bars, and a failed read produces no bars — the role is absent in the passing world AND the failing one.
+  The `<h2>` sits OUTSIDE `CategoryBars` and INSIDE the settled-success gate, so it exists exactly when the block does.
+  Mutation-verified: replacing the gate with `true` now turns the skills case red, where before it stayed green.
+  The ratchet population is unchanged because the form is still `queryBy…` — what changed is that the queried element now exists in the passing case, which is the whole condition the ratchet's own docblock states.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6813,7 +6819,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-test-the-zero-sliver-defect-the-changelog`). Source: code-review finding #92, `code-review-output/code-review.db`.
 
-## B-189 — The four 'a failed read draws no chart' tests assert only absence of a table role — which a chart rendered ove   [ ]
+## B-189 — The four 'a failed read draws no chart' tests assert only absence of a table role — which a chart rendered ove   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6828,7 +6834,13 @@ evidence: |
   Measured: guard deleted, 10/10 still pass.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/skills/overview.test.tsx:184`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  Four call sites rewritten from `queryByRole('table')` to `queryByRole('heading')`.
+  The table assertion could not fail: `CategoryBars` renders a `<p>` and no table when it has no bars, and a failed read produces no bars — the role is absent in the passing world AND the failing one.
+  The `<h2>` sits OUTSIDE `CategoryBars` and INSIDE the settled-success gate, so it exists exactly when the block does.
+  Mutation-verified: replacing the gate with `true` now turns the skills case red, where before it stayed green.
+  The ratchet population is unchanged because the form is still `queryBy…` — what changed is that the queried element now exists in the passing case, which is the whole condition the ratchet's own docblock states.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

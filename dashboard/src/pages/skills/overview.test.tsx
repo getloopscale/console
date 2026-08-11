@@ -190,7 +190,14 @@ describe('the chart under the counts (B-129)', () => {
     render(<SkillsOverviewPage />);
 
     await screen.findByRole('status', { name: /skill registry/i });
-    expect(screen.queryByRole('table', { name: /by category/i })).not.toBeInTheDocument();
+    // B-152/B-189 — esta asserção olhava a TABELA e não conseguia falhar. `CategoryBars` renderiza
+    // um `<p>` (não uma tabela) quando não há barras, e uma leitura que falhou produz zero barras:
+    // o papel `table` está ausente no mundo que passa E no que falha. Apagar o gate de
+    // settled-success deixava tudo verde — foi assim, por execução, que se provou o defeito.
+    //
+    // O `<h2>` fica FORA do `CategoryBars` e DENTRO do gate, então ele existe exatamente quando o
+    // bloco existe. É isso que torna a ausência dele uma afirmação com conteúdo.
+    expect(screen.queryByRole('heading', { name: /by category/i })).toBeNull();
   });
 });
 
