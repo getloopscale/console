@@ -96,14 +96,14 @@ correção é sempre o mesmo: o domínio desce para um módulo folha e a página
 ## Orçamento de LoC por arquivo
 
 Ver [`adr/0002-orcamento-de-loc-por-arquivo.md`](adr/0002-orcamento-de-loc-por-arquivo.md).
-A incoerência que ele resolve: `app.tsx` tem 757 linhas — 49 a mais que o `trace-detail.tsx`
+A incoerência que ele resolve: `app.tsx` tem 226 linhas — 49 a mais que o `trace-detail.tsx`
 que foi refatorado inteiro por "estourar o orçamento de 500". Ou a regra vale para a raiz
 também, ou não vale para ninguém.
 
 Sobre **componentização**, a medição corrige a intuição usual: o problema não é empacotar
 muitos componentes num arquivo — só 4 arquivos têm 5 ou mais. É **um componente fazendo
 tudo**: 18 dos 30 maiores `.tsx` declaram exatamente um. O caso extremo é
-`pages/promptly/detail.tsx`, 916 LOC num único componente com 15 `useState` e 9 `useQuery`.
+`pages/promptly/detail.tsx`, 465 LOC num único componente com 15 `useState` e 9 `useQuery`.
 O padrão de correção já foi validado pelo próprio time em `pages/lens/trace-detail/`:
 `helpers.ts` puro + subcomponentes + `index.tsx` como composition root.
 
