@@ -4577,7 +4577,7 @@ entregue_2026-08-10: |
 
   Último de propósito: é BFF e espelha os upstream. Estava inconsistente consigo mesmo — `/v1/version` versionado, os dois probes não.
 
-## B-125 — A Overview anuncia a plataforma, mas não mostra a plataforma   [ ]
+## B-125 — A Overview anuncia a plataforma, mas não mostra a plataforma   [x]
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `overview-shows-the-platform-not-just-announces-it`).
 > **Não é regressão do `B-112`** — a DoD daquele item (toda capacidade aparece em `/`) segue
@@ -4623,7 +4623,8 @@ why_now: |
   O QUE MUDOU: o `B-112` entregou a faixa `PLATFORM` e, ao fazê-lo, TORNOU A CONTRADIÇÃO
   LEGÍVEL. A página agora diz "esta plataforma faz oito coisas" e em seguida dedica quatro
   painéis a uma delas mais cobrança. A contradição existia antes; ninguém a via.
-status: raw
+status: planned
+evidence: knowledge-base/discoveries/opportunities/overview-shows-the-platform-opportunity.md
 dod:
   - a tela responde "tem algo errado agora?" a partir de sinais de MAIS DE UMA capacidade — hoje nenhuma tela do produto responde isso, porque cada capacidade só enxerga a si mesma
   - nada na tela é a barra lateral desenhada de novo — um bloco cujo conteúdo é nome + link para um item do menu não conta como conteúdo
@@ -4643,3 +4644,28 @@ proposta_2026-08-11: |
   CAVEAT DE AMBIENTE: a faixa de custo lê `lens/observability`, que tem mock desde o `B-112`;
   `trust/enforcement-events` e `builds/stats` também. O que ainda não tem mock é o par
   `lens/saved-views` + `api-keys`, achado colateral registrado no `B-114`.
+
+entregue_2026-08-11: |
+  Fechado em `56f60441`. A Overview foi de 365 para 222 linhas respondendo MAIS perguntas.
+
+  DoD-1 — `Needs attention` junta Observability (taxa de erro), Knowledge Base (retrievals
+  vazios) e Trust (barrados). `attention.test.ts` quantifica sobre `ATTENTION_SOURCES` e exige
+  ≥ 3 capacidades distintas: uma faixa alimentada por uma só seria a tela do Lens com outro
+  título.
+
+  DoD-2 — `Quick actions` saiu. Os três atalhos levavam a `/projects`, `/team` e `/domains`,
+  itens de uma barra lateral sempre visível.
+
+  DoD-3 — três sinais, não quatro. Meu próprio desenho mostrava "2 deploys failed"; medido,
+  `BuildStatsDay` é `{date, count}` e não há contagem de falha. Um caso trava a ausência.
+
+  DoD-4 — o custo vem de `tokensByModel[].costUsd`, medido nos spans. `unpricedSpans` fica
+  declarado FORA do total.
+
+  QUASE REMOVI UMA SUPERFÍCIE EM SILÊNCIO, e a medição impediu: o painel `Usage` era o único
+  lugar que mostrava `builds_per_month`, `seats` e `environments`. Conferi no navegador que
+  `/billing` já as renderiza com os mesmos números, e MIGREI os seis testes para lá em vez de
+  apagá-los — eles travavam um contrato real.
+
+  E o TypeScript matou um teste meu: o caso "toda fonte tem destino" checava `path === ''`, que
+  o tipo literal já prova. Reescrito para afirmar o que o tipo não sabe.
