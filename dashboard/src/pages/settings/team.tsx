@@ -125,8 +125,7 @@ export function TeamPage() {
       loading={loading}
       empty={
         estadoDaLista(
-          { erro: erroDeLeitura, vazio:
-        !loading && filtered.length === 0
+          { erro: erroDeLeitura, vazio: !loading && filtered.length === 0
           ? {
               icon: Users,
               title: searchQuery ? 'No matching members' : 'No team members',
@@ -134,8 +133,7 @@ export function TeamPage() {
                 ? 'Try a different search term.'
                 : 'Invite teammates to collaborate on your projects.',
             }
-          : undefined
-          },
+          : undefined },
           'team members',
         )
       }

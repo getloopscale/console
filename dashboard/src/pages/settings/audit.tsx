@@ -154,8 +154,7 @@ export function AuditPage() {
       loading={loading}
       empty={
         estadoDaLista(
-          { erro: erroDeLeitura, vazio:
-        !loading && visibleEntries.length === 0
+          { erro: erroDeLeitura, vazio: !loading && visibleEntries.length === 0
           ? {
               icon: History,
               title: sourceFilter === 'memory' ? 'No memory activity in this period' : 'No audit entries',
@@ -164,8 +163,7 @@ export function AuditPage() {
                   ? 'Memory-related entries will appear here as your agent records or recalls memories.'
                   : 'Activity will appear here as your team uses the workspace.',
             }
-          : undefined
-          },
+          : undefined },
           'audit entries',
         )
       }

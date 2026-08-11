@@ -13,6 +13,7 @@ import { DeleteSecretDialog } from '@/pages/infra/components/delete-secret-dialo
 import { BulkUploadSheet } from '@/pages/infra/components/bulk-upload-sheet';
 import type { Secret } from '@/lib/api/types';
 import { DEFAULT_PERMANENT_ENV } from '@/hooks/infra/domain';
+import { estadoDaLista } from '@/lib/list-state';
 
 /**
  * SecretsPage — J-22 T4.1.
@@ -36,7 +37,7 @@ export function SecretsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const envFilter = searchParams.get('env') ?? undefined;
   useSetPageTitle(`${name} · Secrets`);
-  const { secrets, loading } = useSecrets({ project: name, env: envFilter });
+  const { secrets, loading, error: erroDeLeitura } = useSecrets({ project: name, env: envFilter });
 
   // T1.4: env filter options derived from useEnvironments(name) instead
   // of a hardcoded literal. Closes the J-22↔J-10 silent break.
@@ -75,14 +76,17 @@ export function SecretsPage() {
       }}
       loading={loading}
       empty={
-        !loading && secrets.length === 0
+        estadoDaLista(
+          { erro: erroDeLeitura, vazio: !loading && secrets.length === 0
           ? {
               icon: KeyRound,
               title: 'No secrets yet',
               description:
                 'Add a secret to make it available to your apps at runtime.',
             }
-          : undefined
+          : undefined },
+          'secrets',
+        )
       }
     >
       <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
