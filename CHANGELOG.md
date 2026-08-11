@@ -12,6 +12,8 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the trust overview no longer draws its policy chart when the guardrail catalogue could not be read. Every bar was painted "unblocked" in that state — the colour is how the chart says whether a policy is being stopped — so a failed read looked identical to a measured all-clear on the one screen where that distinction is the product. The violations table still shows, with its existing blind-coverage warning (B-227).
+
 - **theo-cloud/dashboard:** the skills overview no longer says "nothing recorded" while it is still reading. Opening it offline, or on the first paint before the catalogue arrives, used to show a confident zero next to a table that already had rows — the screen treated "not finished reading" as "finished, and there is nothing". It now waits for the read to settle before making any claim (B-161).
 
 - **theo-cloud/dashboard:** no screen follows an address the server picked without checking it first. The login and sign-up forms used to post your password to whatever address the authentication service named; the billing portal, the checkout, the logout and the device-flow redirect had the same shape. All of them now fail visibly instead of silently going somewhere unexpected, and a normal sign-in, upgrade or logout is unchanged. Opening a capability from the memory and RAG overviews also stops reloading the whole page, and the Grafana link on a project signal is checked like everything else (B-138, B-130).

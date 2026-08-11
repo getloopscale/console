@@ -7394,7 +7394,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-promote-to-production-dialog-deploy-error-message-mapper-duplicated-be`). Source: code-review finding #107, `code-review-output/code-review.db`.
 
-## B-227 — The trust chart test is green over the defect it should catch   [ ]
+## B-227 — The trust chart test is green over the defect it should catch   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7424,7 +7424,7 @@ why_now: |
   B-161 aligned the other capability screens on settled-success and had to stop here. Fixing
   the gate without first fixing the mock would leave the suite red over a test that was
   already green over the defect — and the honest order is mock first, then gate.
-status: raw
+status: shipped
 dod:
   - the validators request is genuinely intercepted (mock the module's internal seam, or have
     `fetchValidators` take its dependency, or use MSW at the network layer)

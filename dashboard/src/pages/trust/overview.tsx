@@ -94,12 +94,11 @@ export function TrustOverviewPage() {
   // "bloqueado" em COR: sem catálogo toda barra sai âmbar, e o operador lê um all-clear
   // falso onde o código sabe apenas que não sabe (B-161).
   const readingSettled = violationsQuery.isSuccess;
-  // NAO usado ainda — ver B-227. Gating o grafico em `coverageSettled` e o correto (sem
-  // catalogo toda barra sai ambar e o operador le um all-clear falso), mas `overview.test.tsx`
-  // hoje passa COM o catalogo falhando: `vi.mock` troca o export `fetchTrust`, e
-  // `fetchValidators` chama a ligacao interna do modulo, que o mock nao alcanca. Corrigir o
-  // gate sem antes corrigir a estrategia de mock deixaria a suite vermelha sobre um teste que
-  // ja estava verde sobre o defeito.
+  const coverageSettled = violationsQuery.isSuccess && validatorsQuery.isSuccess;
+  // O GRAFICO exige tambem o catalogo (B-161/B-227). Ele codifica "bloqueado" em COR: sem
+  // catalogo toda barra sai ambar, e o operador le um all-clear falso onde o codigo sabe
+  // apenas que nao sabe. A tabela abaixo continua valendo no caso 3 e carrega o aviso de
+  // cegueira; o grafico nao tem como carregar ressalva nenhuma.
   const failed = violationsQuery.error;
   // Uma falha ao ler o CATÁLOGO não zera a tela: `coverageGap` conta tudo como descoberto, que é o
   // lado seguro. Mas o operador precisa saber que a coluna "bloqueado" está cega.
@@ -216,7 +215,7 @@ export function TrustOverviewPage() {
           Bars and not a line, deliberately: `PolicyViolation` declares `detectedAt` and the real
           deploy DOES NOT SEND IT (`hooks/trust/trust-payloads.ts:26`). A time series here would be
           empty in production while looking correct against the mock. */}
-      {readingSettled ? (
+      {coverageSettled ? (
         <Card className="mb-4">
           <Card.Body>
             <h2 className="mb-3 text-base font-semibold">Violations by policy</h2>

@@ -5,10 +5,26 @@ vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
 }));
 
+/**
+ * B-227 — o mock desce para a costura de REDE.
+ *
+ * Antes trocava o export `fetchTrust`. Mas `trust-api.ts:33` faz `fetchValidators` chamar
+ * `fetchTrust` pela ligacao INTERNA do modulo, que um mock no nivel do export nao alcanca:
+ * a leitura do catalogo escapava para a rede de verdade e falhava sob jsdom. O resultado
+ * era um teste VERDE com o catalogo quebrado — `coverageGap` recebia `undefined`, marcava
+ * toda politica como nao-bloqueada e pintava tudo de ambar, que e exatamente o all-clear
+ * falso que esta tela existe para nao dar.
+ *
+ * `cloudFetch` e o unico ponto por onde toda a familia passa, entao interceptar ali cobre
+ * `fetchTrust` e tudo que o chama, por dentro ou por fora.
+ */
 const mockTrust = vi.fn();
-vi.mock('@/hooks/trust/trust-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/hooks/trust/trust-api')>();
-  return { ...actual, fetchTrust: (...a: unknown[]) => mockTrust(...a) };
+vi.mock('@/lib/http/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/http/api')>();
+  return {
+    ...actual,
+    cloudFetch: (path: string) => mockTrust(String(path).replace('/v1/dashboard/trust', '')),
+  };
 });
 
 import { TrustOverviewPage } from './overview';
@@ -154,5 +170,25 @@ describe('the chart under the counts (B-129)', () => {
 
     await screen.findByText('Could not read the trust layer');
     expect(screen.queryByRole('table', { name: /violations by policy/i })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * B-227 — o caso que ficava verde sobre o defeito.
+ *
+ * Com o catálogo em falha, `coverageGap` marca TODA política como não-bloqueada e o gráfico
+ * pinta tudo de âmbar. A asserção antiga ("existe uma tabela chamada violations by policy")
+ * era satisfeita por esse estado tanto quanto pelo correto — e por isso não podia falhar.
+ * Aqui a leitura do catálogo falha de propósito e o gráfico tem de SUMIR.
+ */
+describe('B-227 — o gráfico não afirma cobertura que não leu', () => {
+  it('test_chart_is_absent_when_the_catalogue_read_fails', async () => {
+    responder({ violacoes: VIOLACOES, catalogo: new Error('catalogue down') });
+    render(<TrustOverviewPage />);
+
+    // A tabela de violações continua: a leitura dela deu certo e vale.
+    await screen.findByText(/credential_leak/i);
+    // O gráfico não: sem catálogo ele só saberia dizer "âmbar em tudo".
+    expect(screen.queryByRole('table', { name: /violations by policy/i })).toBeNull();
   });
 });

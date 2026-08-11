@@ -100,7 +100,6 @@ describe('o grid nunca confunde ignorância com ausência', () => {
       data: { total_memories: 0 },
       loading: false,
       error: false,
-      isSuccess: true,
     });
 
     render(<CapabilityGrid />);
@@ -114,7 +113,6 @@ describe('o grid nunca confunde ignorância com ausência', () => {
       data: { total_memories: 1234 },
       loading: false,
       error: false,
-      isSuccess: true,
     });
 
     render(<CapabilityGrid />);
@@ -133,7 +131,6 @@ describe('o grid nunca confunde ignorância com ausência', () => {
       data: { traffic: [{ t: 1 }, { t: 2 }] },
       loading: false,
       error: false,
-      isSuccess: true,
     });
 
     render(<CapabilityGrid />);

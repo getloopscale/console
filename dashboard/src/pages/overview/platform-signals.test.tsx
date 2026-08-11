@@ -68,13 +68,11 @@ describe('a faixa de atenção junta capacidades', () => {
       data: { totals: { retrievals: 4000, answers: 3800, empty_retrieval_rate: 0.12 } },
       loading: false,
       error: false,
-      isSuccess: true,
     });
     mockTrust.mockReturnValue({
       data: { events: [{ decision: 'block', validatorName: 'pii-email' }] },
       loading: false,
       error: false,
-      isSuccess: true,
     });
 
     render(<PlatformSignals />);
@@ -93,7 +91,6 @@ describe('a faixa de atenção junta capacidades', () => {
       data: { totals: { retrievals: 100, answers: 100, empty_retrieval_rate: 0 } },
       loading: false,
       error: false,
-      isSuccess: true,
     });
     mockTrust.mockReturnValue({ data: { events: [] }, loading: false, error: false, isSuccess: true });
 
@@ -112,7 +109,6 @@ describe('a faixa de atenção junta capacidades', () => {
       data: { totals: { retrievals: 100, answers: 100, empty_retrieval_rate: 0 } },
       loading: false,
       error: false,
-      isSuccess: true,
     });
     mockTrust.mockReturnValue({ data: { events: [] }, loading: false, error: false, isSuccess: true });
 
