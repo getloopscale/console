@@ -27,6 +27,7 @@ import { ReverifyButton } from '@/pages/infra/components/reverify-button';
 import { DomainTroubleshootSheet } from '@/pages/infra/components/domain-troubleshoot-sheet';
 import type { DomainStatus } from '@/lib/api/types';
 import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import { estadoDaLista } from '@/lib/list-state';
 
 interface Domain {
   id: string;
@@ -185,13 +186,21 @@ export function DomainsPage() {
   // `error` que ele devolvia. Na pratica, uma falha de rede renderizava a tabela
   // VAZIA, que o operador le como "voce nao tem nenhum dominio" quando a verdade
   // e "nao consegui perguntar" — exatamente a classe que silent-null-guard fecha
-  // (#274). Com throwOnError a falha sobe para o RouteBoundary da rota.
+  // (#274).
+  //
+  // B-167 — a frase que estava aqui ("com throwOnError a falha sobe para o RouteBoundary")
+  // era FALSA, e foi copiada para `settings/team.tsx:54`. O `throwOnError` abaixo e o
+  // terceiro argumento do `cloudFetch`, nao a opcao homonima do TanStack — cujo default e
+  // `!!suspense`, ou seja `false`. A query resolve com `isError: true`, o componente
+  // renderiza normalmente, e o RouteBoundary nunca e alcancado. Por isso a pagina precisa
+  // LER a flag, que e o que `estadoDaLista` obriga.
   const domainsQuery = useQuery({
     queryKey: queryKeys.domains.list(),
     queryFn: () => engineFetch<DomainsResponse>(`/api/v1/domains?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const data = domainsQuery.data ?? null;
   const loading = domainsQuery.isLoading;
+  const erroDeLeitura = domainsQuery.isError;
   const domains = data?.domains ?? [];
   const [verifying, setVerifying] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -251,13 +260,19 @@ export function DomainsPage() {
       loading={loading}
       empty={
         !loading && filtered.length === 0
-          ? {
-              icon: Globe,
-              title: searchQuery ? 'No matching domains' : 'No custom domains yet',
-              description: searchQuery
-                ? 'Try a different search term.'
-                : 'Run theo domain add <domain> to attach a custom domain.',
-            }
+          ? estadoDaLista(
+              {
+                erro: erroDeLeitura,
+                vazio: {
+                  icon: Globe,
+                  title: searchQuery ? 'No matching domains' : 'No custom domains yet',
+                  description: searchQuery
+                    ? 'Try a different search term.'
+                    : 'Run theo domain add <domain> to attach a custom domain.',
+                },
+              },
+              'domains',
+            )
           : undefined
       }
     >

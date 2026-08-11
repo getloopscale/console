@@ -7645,3 +7645,40 @@ dod:
   - the count of unused exported types can only descend
   - the ratchet is proven able to fail
 
+## B-167 — Six list pages state absence when the read failed   [~]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+family: F3 · a readiness gate that is not settled-success
+evidence: |
+  src/pages/infra/domains.tsx:252
+  `PageShell` has `loading` and `empty` and no `error`, so each page writes the descriptor by
+  hand — and six landed in the same place. A failed read yields zero rows, zero rows take the
+  `empty` branch, and the screen asserts absence: `infra/domains.tsx:252` said "No custom
+  domains yet" during a 5xx, `settings/audit.tsx:153` "No audit entries",
+  `settings/webhooks.tsx:349` "No deliveries yet."
+
+  Two carry the same false premise, copied verbatim (`settings/team.tsx:54`,
+  `infra/domains.tsx:188`): "Com throwOnError a falha sobe para o RouteBoundary". That
+  `throwOnError` is `cloudFetch`'s third argument, not TanStack's option of the same name —
+  whose default is `!!suspense`, i.e. false. The query resolves with `isError: true`, the
+  component renders, and RouteBoundary is never reached. Verified at
+  `node_modules/@tanstack/query-core/build/modern/queryClient.js:274`.
+why_now: |
+  The query layer is guarded — `lib/silent-null-guard.test.ts` demands `throwOnError` on every
+  read — and all six offending pages PASS it. Nothing checks that anyone renders the rejection,
+  so the guard covers the fetch and not the screen.
+status: partial
+shipped_note: |
+  `lib/list-state.ts` is the missing decision, as a pure function rather than a wrapper around
+  a design-system component we do not own. `infra/domains.tsx` uses it and both false-premise
+  comments are corrected. FIVE PAGES REMAIN: settings/audit.tsx, settings/webhooks.tsx,
+  settings/team.tsx and two others — the helper is in place, the migration is not done, and
+  saying so is better than marking this shipped.
+dod:
+  - all six pages distinguish "nothing there" from "could not read"
+  - a guard fails when a page passes `empty=` without consulting an error flag
+

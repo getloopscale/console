@@ -51,7 +51,11 @@ export function TeamPage() {
   // throwOnError deliberado, nao o escape hatch silent-null-ok: esta pagina nunca
   // leu a flag `error`, entao uma falha de rede renderizava a lista VAZIA — o
   // operador le "seu time nao tem ninguem" quando a verdade e "nao consegui
-  // perguntar" (#274). Com throwOnError a falha sobe para o RouteBoundary.
+  // perguntar" (#274).
+  //
+  // B-167 — a segunda metade desta frase era falsa e foi copiada de `infra/domains.tsx`.
+  // `throwOnError` aqui e do `cloudFetch`, nao do TanStack; a falha NAO sobe ao
+  // RouteBoundary. Ver `lib/list-state.ts`.
   const teamQuery = useQuery({
     queryKey: queryKeys.team.list(),
     queryFn: () => engineFetch<TeamResponse>(`/api/v1/teams/members?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
