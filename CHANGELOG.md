@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the check that guarantees the session token never travels between browser tabs now holds regardless of the order tests run in. It was passing only because of where it happened to sit in the sequence — a security guarantee that depends on execution order is not a guarantee (B-197, first of seven).
+
+### Fixed
+
 - **theo-cloud/dashboard:** the team menu stopped offering "Create team" and opening a documentation page instead. No backend endpoint for creating a team exists yet, and the only production caller never supplied a handler, so the documentation branch was the only one that ever ran. The item now says what it does — and goes back to promising the action the moment a handler is passed (B-135).
 
 ### Fixed

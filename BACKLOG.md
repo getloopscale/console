@@ -7181,8 +7181,16 @@ measured: |
   um gate.
 
   O item deixa de ser uma contagem de precondição e passa a ser uma lista de sete correções, cada
-  uma com reprodução determinística pelo seed acima. A CORREÇÃO não foi feita — só a medição que o
-  DoD pedia como primeiro passo.
+  uma com reprodução determinística pelo seed acima.
+
+  PRIMEIRA CORRIGIDA (2026-08-11): o teste de segurança. O espião sobre
+  `BroadcastChannel.prototype.postMessage` morava num `beforeAll`, e qualquer `restoreAllMocks` de
+  outro arquivo o derrubava para todos os casos seguintes — em ordem fixa isso nunca acontecia; sob
+  shuffle a asserção deixava de capturar qualquer mensagem e falhava. Passou para `beforeEach`, e o
+  caso também cria a própria instância do módulo em vez de herdar a de quem rodou antes. Sob o
+  mesmo seed: 7 falhas -> 6.
+
+  As SEIS restantes seguem abertas, cada uma reproduzível com o seed acima.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

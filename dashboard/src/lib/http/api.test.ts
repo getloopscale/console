@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { engineFetch, exchangeSessionToken, cloudFetch, ApiError, sessionDefinitivelyExpired, installAuthChannel } from './api';
 
 // B-049 — `mocksEnabled` passou a morar em ./config (era ./dev-mocks), para que
@@ -14,7 +14,11 @@ vi.mock('./http/config', () => ({ API_URL: 'http://test.local', mocksEnabled: ()
 // ---------------------------------------------------------------------------
 
 const posted: unknown[] = [];
-beforeAll(() => {
+// B-197 — este espião morava num `beforeAll`, e qualquer `restoreAllMocks` de outro arquivo o
+// derrubava para todos os casos seguintes. Em ordem fixa isso nunca acontecia; sob
+// `--sequence.shuffle` a asserção de SEGURANÇA abaixo passava a não capturar nada. Reinstalar a
+// cada caso custa nada e não depende de quem rodou antes.
+beforeEach(() => {
   vi.spyOn(BroadcastChannel.prototype, 'postMessage').mockImplementation(
     (msg: unknown) => { posted.push(msg); },
   );
@@ -22,6 +26,18 @@ beforeAll(() => {
 
 describe('dashboard auth cross-tab coordination', () => {
   it('never broadcasts the JWT over BroadcastChannel (find_sec_004)', async () => {
+    // B-197 — este caso FALHAVA sob `--sequence.shuffle`, e é o achado mais caro daquela medição:
+    // uma asserção de SEGURANÇA que só passava quando rodava na posição certa. Um gate que depende
+    // da ordem de execução não é um gate.
+    //
+    // A causa é estado de MÓDULO. `installAuthChannel` é idempotente de propósito (B-042), e outro
+    // caso deste arquivo faz `vi.resetModules()` — então, dependendo da ordem, este `import`
+    // resolvia para uma instância cujo canal já estava aberto por outro teste, e a instalação daqui
+    // virava no-op sobre um canal que não era o dele.
+    //
+    // Ele passa a criar a própria instância. Um teste que afirma "nenhum segredo atravessa o canal"
+    // precisa ser verdadeiro sozinho, não em companhia.
+    vi.resetModules();
     const api = await import('./api');
     // B-042 — o canal deixou de ser aberto como efeito colateral de import e
     // passou a ter ciclo de vida explicito, entao o teste instala antes de
