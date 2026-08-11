@@ -7538,3 +7538,40 @@ dod:
   - the claim of measurement carries the date it was taken
   - TESTING.md describes the gate that exists
 
+## B-164 — DESIGN.md mandates five things that were never built   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  DESIGN.md:304
+  Measured 2026-08-11 against the disk. The document is a LOCKED design contract:
+
+  - `:304` mandates `@tanstack/react-virtual` for >1000 lines. Not a dependency. The code
+    made the opposite choice deliberately and recorded the measurement at
+    `log-viewer.tsx:86` (CSS `content-visibility`).
+  - `:306` says ANSI must be stripped via `strip-ansi` and NEVER rendered as HTML. `strip-ansi`
+    is not a dependency; `ansi.tsx:66` uses `ansi-to-html` with `dangerouslySetInnerHTML`,
+    mitigated by `escapeXML: true`.
+  - `:56` mandates `<EnvironmentBadge env={env}>` on every environment-scoped screen. grep for
+    EnvironmentBadge / EnvBadge / env-badge across `src/` returns zero files.
+  - `:683` points instrumentation at `src/lib/rum.ts`; it lives at `src/lib/telemetry/rum.ts`.
+  - `:809` lists four knowledge-base cross-references; none of the four paths exist.
+why_now: |
+  A locked contract that mandates absent things is worse than an out-of-date one: a reader
+  cannot tell which clauses bind. The ANSI clause is the sharp case — the blanket ban read as
+  satisfied while the code did the opposite, and gave no warning to anyone copying `ansi.tsx`
+  WITHOUT `escapeXML`, which is the only part that actually matters.
+status: shipped
+shipped_note: |
+  Reconciled against the disk. Where the code made a better choice than the contract, the
+  contract now records the code's choice AND the measurement behind it. The ANSI ban became a
+  narrower enforceable rule (never construct the converter without `escapeXML: true`). The
+  EnvironmentBadge row says NOT BUILT rather than being deleted — the gap is information.
+dod:
+  - every clause either matches the disk or states that it is unbuilt
+  - no cross-reference points at a path that does not resolve
+

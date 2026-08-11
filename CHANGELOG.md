@@ -75,6 +75,8 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** `DESIGN.md` is a locked design contract, and five of its clauses described a product that was never built — a virtualization library the repo does not depend on, a blanket ban on rendering ANSI as HTML that the log viewer does the opposite of, an environment badge with no implementation, a module at the wrong path, and four cross-references that resolve nowhere. Reconciled against the disk, with the gaps stated rather than quietly deleted (B-164).
+
 - **theo-cloud/dashboard:** `docs/architecture.md` said nothing in it was an estimate and then reported file sizes up to 3x off, and `TESTING.md` documented a CI gate that had been deleted for being unable to fail — a contributor following it would have restored the broken check as a fix. Both re-measured and dated (B-163).
 
 - **theo-cloud/dashboard:** a new build gate freezes how many tests prove a thing is absent by asking for something that was never there. That shape passes whether the code is right or wrong — four of them were caught doing exactly that, one by deleting the guard it claimed to protect and watching the suite stay green. The count can only go down from here (B-162).

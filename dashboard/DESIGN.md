@@ -53,7 +53,10 @@ Every screen that operates on a specific environment MUST show the environment b
 | `preview` | Blue dot + "PREVIEW" badge | Same |
 | `development` | Gray dot + "DEV" badge | Same |
 
-Implementation: `<EnvironmentBadge env={env}>` composite (T4.6 from plan).
+Implementation: **not built.** No `EnvironmentBadge` / `EnvBadge` component exists in
+`src/` (grep, 2026-08-11). This row describes intended behaviour, not shipped behaviour;
+the production/non-production distinction it defines has no implementation, and a reader
+should not assume the safety affordance is present because the table says so.
 
 ### 2.2 Destructive action choreography
 
@@ -301,9 +304,22 @@ If backend provides an error code (e.g., `BUILD_LOCK_TIMEOUT`), surface it in a 
 
 ### 7.3 Performance
 
-- Virtualized rendering (`@tanstack/react-virtual`) for >1000 lines.
+- Long log output is kept cheap with CSS `content-visibility`, NOT with
+  `@tanstack/react-virtual`. The dependency was evaluated and rejected; the
+  measurement behind that choice is recorded at `src/pages/deploy/components/
+  log-viewer.tsx:86`. This contract used to mandate the library, which meant it
+  mandated a dependency the repo does not have.
 - Lines >10KB truncated with "Expand" button (`<details>`).
-- ANSI escape codes stripped via `strip-ansi` (NEVER render as HTML).
+- ANSI escape codes are converted to HTML by `ansi-to-html` and injected with
+  `dangerouslySetInnerHTML` (`src/pages/deploy/components/ansi.tsx:66`), with the
+  converter configured `escapeXML: true` so server-controlled log text is escaped
+  before emission (EC-10).
+
+  This contract previously said ANSI must be stripped and NEVER rendered as HTML.
+  The blanket ban was the problem: it read as satisfied while the real code did the
+  opposite, and it gave no warning to anyone copying `ansi.tsx` elsewhere WITHOUT
+  `escapeXML`. The rule that matters is narrower and enforceable — never construct
+  the converter without `escapeXML: true`.
 
 ---
 
@@ -680,7 +696,7 @@ Required sequence:
 
 > **If we don't measure, we're opining.**
 
-Instrumentation lives in `cloud/dashboard/src/lib/rum.ts` (Web Vitals already wired) + new `lib/ux-metrics.ts` (planned T4.7).
+Instrumentation lives in `src/lib/telemetry/rum.ts` (Web Vitals wired at `src/main.tsx:67`). `lib/ux-metrics.ts` was planned as T4.7 and does not exist.
 
 ### 17.1 Time-based metrics
 
@@ -806,10 +822,14 @@ If they can't, the dashboard isn't done.
 
 ## Cross-references
 
-- **Audit AS-IS:** `.claude/knowledge-base/audits/2026-05-25/dashboard-faang-review.md` — current state vs this contract.
-- **Remediation plan:** `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-plan.md` — how we get from current to contract.
-- **Edge case review:** `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-edge-cases.md` — what can go wrong in implementation.
-- **Architecture:** `.claude/knowledge-base/architecture/dashboard/` — C4 docs (system-context / container / component / deep-dive).
+None of the four paths this section used to list resolve on disk (checked 2026-08-11):
+the 2026-05-25 audit, its remediation plan, the edge-case review, and
+`.claude/knowledge-base/architecture/dashboard/`. They are removed rather than left as
+dead links — a cross-reference that does not resolve costs a reader more than an absent
+one, because they go looking.
+
+- **Architecture, current:** `docs/architecture.md`.
+- **ADRs:** `docs/adr/`.
 - **Composite library:** `@usetheo/ui@0.35.1` — required canonical components. Theme + usage widgets come from `@theokit/ui@1.3.2`; the split is recorded in `docs/adr/0003`.
 - **Voice rules:** root `CLAUDE.md` § Voice and Tone (technical-direct for dashboard; aspirational reserved for PITCH.md).
 
