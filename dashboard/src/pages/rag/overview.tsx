@@ -108,9 +108,12 @@ export function RagOverviewPage() {
               <CategoryBars
                 title="Answer confidence"
                 bars={[
-                  { label: 'high', value: query.data.confidence.high, tone: 'positive' },
+                  // B-187 — os tons verde/âmbar eram a única distinção entre uma resposta em que
+                  // se pode confiar e uma que pede revisão, e viviam dentro do `aria-hidden`. Os
+                  // rótulos `high`/`low` já nomeiam a faixa; o tom acrescenta o que fazer com ela.
+                  { label: 'high', value: query.data.confidence.high, tone: 'positive', toneLabel: 'trustworthy' },
                   { label: 'medium', value: query.data.confidence.medium },
-                  { label: 'low', value: query.data.confidence.low, tone: 'warning' },
+                  { label: 'low', value: query.data.confidence.low, tone: 'warning', toneLabel: 'needs review' },
                 ]}
               />
             </Card.Body>

@@ -192,3 +192,17 @@ describe('B-227 — o gráfico não afirma cobertura que não leu', () => {
     expect(screen.queryByRole('table', { name: /violations by policy/i })).toBeNull();
   });
 });
+
+describe('B-187 — the enforcement reading is not carried by colour alone', () => {
+  it('says in words which policies are not enforced', async () => {
+    // The amber tone was the ONLY carrier of "this policy is not being applied", and it lived
+    // inside the bar's aria-hidden track. On a compliance screen, a reading that exists only in
+    // colour does not exist for a screen-reader user, nor for anyone who does not separate the
+    // two hues (WCAG 2.2 SC 1.4.1).
+    responder({ violacoes: VIOLACOES, catalogo: CATALOGO });
+    render(<TrustOverviewPage />);
+
+    const chart = await screen.findByRole('table', { name: /violations by policy/i });
+    expect(within(chart).getByText(/not enforced/i)).toBeInTheDocument();
+  });
+});

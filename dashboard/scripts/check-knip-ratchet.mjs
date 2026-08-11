@@ -24,8 +24,14 @@
  */
 import { execFileSync } from 'node:child_process';
 
-/** Congelado em 2026-08-11, medido com `npx knip --no-progress`. */
-const TETO_TIPOS = 85;
+/**
+ * Congelado em 2026-08-11, medido com `npx knip --no-progress`.
+ *
+ * 85 -> 84 em 2026-08-11 (fatia charts-primitive-honesty). Uma catraca que nunca aperta não é
+ * catraca: o próprio erro abaixo instrui a baixar o teto quando o número desce, e este é o
+ * primeiro registro disso acontecendo.
+ */
+const TETO_TIPOS = 84;
 
 /** Estas classes foram zeradas e não voltam: uma dependência não declarada quebra o build de
  *  quem clona; um export duplicado é uma segunda porta para a mesma coisa. */

@@ -1,5 +1,18 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/dashboard:** the bar charts under every capability's counts stopped printing a number the bar had refused to draw. A broken value now reads as zero in both places instead of as `NaN` beside an empty bar, because one function decides what a value is rather than two (B-148).
+- **theo-cloud/dashboard:** a small real count is no longer invisible. Three items beside a category of nine thousand used to draw nothing at all, so a category that exists read as one that does not; and the previous attempt at fixing that had made a genuine zero draw a visible sliver, so an empty workspace looked like an almost-full one. Both readings hold now, and a test pins each end (B-185, B-188).
+- **theo-cloud/dashboard:** the /promptly overview no longer goes blank when the service sends a malformed label. One label entry missing its name took the whole screen down; the same unguarded data elsewhere on the screen was quietly counting an environment that does not exist and under-counting the prompts serving nobody (B-147).
+- **theo-cloud/dashboard:** the /skills chart, cards and verdict no longer say "nothing recorded" for an instant over a table that is already listing rows — all four readings on that screen now describe the same collection (B-149).
+
+### Changed
+
+- **theo-cloud/dashboard:** the bar charts are readable by screen reader for what the colours were saying. On /trust the amber bar was the only thing distinguishing a policy that is enforced from one that is not, and it lived inside an element assistive technology is told to skip — a compliance reading that existed only for people who see it. Each chart now says in words what its colour says, in the wording of its own screen: "not enforced" on /trust, "needs review" on the Knowledge Base confidence chart (B-187).
+- **theo-cloud/dashboard:** the bar charts declare their columns, and the bar sits inside the value cell instead of occupying a column of its own that carried nothing — a screen reader used to walk a three-column table with one permanently empty column (B-186).
+- **theo-cloud/dashboard:** on /promptly, the bucket of prompts that serve no environment is called `No environment`. It was called `not promoted`, which is also the name of a KPI card on the same screen counting something else entirely — a reader had no way to tell which of the two numbers they were looking at (B-146).
+
 ## [1.0.0] - 2026-08-11
 
 > **Governance note.** The `workspace → develop` promotion for this release was merged by

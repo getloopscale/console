@@ -5429,7 +5429,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-cancel-build-usecancelbuild-reports-success-when-the-cancel`). Source: code-review finding #65, `code-review-output/code-review.db`.
 
-## B-146 — Chart bar and KPI card share the label 'not promoted' for two different quantities   [ ]
+## B-146 — Chart bar and KPI card share the label 'not promoted' for two different quantities   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5443,7 +5443,10 @@ evidence: |
   Executed against the file's own fixture: naoPromovidos=2 vs SEM_AMBIENTE=1. Both values locked in by passing tests (overview.test.tsx:63 /^Not promoted2$/ and /not promoted\s*1/).
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/promptly/components/projections.ts:77`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
-status: triaged
+status: shipped
+shipped_note: |
+  The bucket reads `No environment`, agreeing with `catalogo.tsx`; the KPI keeps `Not promoted`.
+  The two tests that pinned the old wording were amended in the same commit.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -5454,7 +5457,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-projections-chart-bar-and-kpi-card-share`). Source: code-review finding #83, `code-review-output/code-review.db`.
 
-## B-147 — localeCompare on an unvalidated label entry unmounts the whole /promptly overview   [ ]
+## B-147 — localeCompare on an unvalidated label entry unmounts the whole /promptly overview   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5468,7 +5471,10 @@ evidence: |
   Executed: promptsPorAmbiente([{labels:[{label:'prod',version:1}]},{labels:[{version:1}]}]) throws TypeError: Cannot read properties of undefined (reading 'localeCompare').
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/promptly/components/projections.ts:113`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
-status: triaged
+status: shipped
+shipped_note: |
+  `ambientesServidos` validates at the boundary and is read by BOTH `promptsPorAmbiente` (which threw) and `resumoCatalogo` (which silently miscounted).
+  Regression tests cover missing, blank and non-string labels.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -5479,7 +5485,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-projections-localecompare-on-an-unvalidated-label-entry`). Source: code-review finding #84, `code-review-output/code-review.db`.
 
-## B-148 — barWidths sanitises the value but the number cell prints the raw one — a 0%-wide bar beside a cell reading NaN   [ ]
+## B-148 — barWidths sanitises the value but the number cell prints the raw one — a 0%-wide bar beside a cell reading NaN   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5493,7 +5499,9 @@ evidence: |
   Rendered: bars=[{label:'nan',value:NaN},{label:'str',value:'12'}] produces style="width: 0%" beside <td>NaN</td> and <td>12</td>.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:100`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
-status: triaged
+status: shipped
+shipped_note: |
+  `barWidths` became `barGeometry`, returning the sanitised value AND its width from one pass, so the cell and the bar cannot disagree.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -5504,7 +5512,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-category-bars-barwidths-sanitises-the-value-but-the`). Source: code-review finding #85, `code-review-output/code-review.db`.
 
-## B-149 — The chart gate !error && !loading is not settled-success, so the chart asserts 'Nothing recorded' beside a ful   [ ]
+## B-149 — The chart gate !error && !loading is not settled-success, so the chart asserts 'Nothing recorded' beside a ful   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5519,7 +5527,10 @@ evidence: |
   overview.tsx:263 gate is `!query.error && !query.loading`; memory/overview.tsx:124 (cited by this file as precedent) uses metricsQuery.isSuccess.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/skills/overview.tsx:263`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F3 · a readiness gate that is not settled-success — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  `colecaoDescrita` names the choice once; the table, the cards, the chart and the verdict all read it.
+  Honest limit recorded in the commit: the divergence was a one-frame transient that `render()` cannot observe, so the guarantee is a pure-function test proven able to fail, not an inert screen assertion.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6580,7 +6591,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-sessions-server-side-offset-pager-copy-pasted`). Source: code-review finding #82, `code-review-output/code-review.db`.
 
-## B-185 — Removing the Math.max(2,…) floor fixed zero-as-sliver and introduced the inverse: a real non-zero count render   [ ]
+## B-185 — Removing the Math.max(2,…) floor fixed zero-as-sliver and introduced the inverse: a real non-zero count render   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6593,7 +6604,10 @@ evidence: |
   Measured: barWidths([3, 9000]) -> [0.0333, 100].
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:54`.
-status: triaged
+status: shipped
+shipped_note: |
+  Conditional floor at `MIN_VISIBLE_PCT = 1.5` — applied only to values that survived sanitisation, so it lifts a real count without lifting a zero.
+  Verified by mutation in both directions.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6604,7 +6618,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-category-bars-removing-the-math-max-2-floor`). Source: code-review finding #89, `code-review-output/code-review.db`.
 
-## B-186 — The hand-rolled table has no thead and no column headers, a weaker accessible reading than the composite its d   [ ]
+## B-186 — The hand-rolled table has no thead and no column headers, a weaker accessible reading than the composite its d   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6617,7 +6631,9 @@ evidence: |
   Measured outerHTML shows <tbody> with no <thead> and a td whose only child is aria-hidden.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:82`.
-status: triaged
+status: shipped
+shipped_note: |
+  `<thead>` with two `scope="col"` headers, and the bar moved inside the value cell — which is what the module docblock had claimed since it was written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6628,7 +6644,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-category-bars-the-hand-rolled-table-has-no`). Source: code-review finding #90, `code-review-output/code-review.db`.
 
-## B-187 — The 4-variant tone API is entirely unasserted and sits inside an aria-hidden element while carrying enforcemen   [ ]
+## B-187 — The 4-variant tone API is entirely unasserted and sits inside an aria-hidden element while carrying enforcemen   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6641,7 +6657,10 @@ evidence: |
   Measured: TONE collapsed to default, 36/36 tests still pass; no test file references the tone vocabulary.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:95`.
-status: triaged
+status: shipped
+shipped_note: |
+  Every non-default tone is announced; `toneLabel` lets a caller say what it means on its screen.
+  Wired at all three semantic call sites: trust (`not enforced`), rag (`needs review`), promptly (`serving nobody`).
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6652,7 +6671,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-category-bars-the-4-variant-tone-api-is`). Source: code-review finding #91, `code-review-output/code-review.db`.
 
-## B-188 — The zero-sliver defect the CHANGELOG headlines as fixed has no regression test   [ ]
+## B-188 — The zero-sliver defect the CHANGELOG headlines as fixed has no regression test   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6667,7 +6686,10 @@ evidence: |
   Measured: old floor restored, 18/18 pass.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/overview.test.tsx:158`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  The screen-level assertion now reads the rendered WIDTH instead of the row name, and a sibling case covers the small-non-zero direction.
+  Both were mutation-checked.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
