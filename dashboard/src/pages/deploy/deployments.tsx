@@ -158,13 +158,22 @@ export function DeploymentsPage() {
   // deploy flow we'd have to test separately.
   const [deployDialogOpen, setDeployDialogOpen] = useState(false);
   // B-167 — `error` já vinha do hook e era descartado aqui.
-  const { builds, total, loading, fetching, refetch, error: erroDeLeitura } = useDeploymentsListStream(
-    name,
-    {
+  // B-177 — `filters` era um literal inline, logo um objeto NOVO a cada render, e o efeito de
+  // `useDeploymentsListStream` o tem nas dependências: ele re-executava a cada render. O custo
+  // medido é overhead de re-execução, não uma tempestade de refetch (`refetchedFor` suprime a
+  // invalidação) — mas um efeito que roda por identidade e não por valor é uma armadilha para
+  // quem acrescentar a próxima linha dentro dele.
+  const filtros = useMemo(
+    () => ({
       ...(statusFilter === 'all' ? {} : { status: statusFilter }),
       ...(envFilter === 'all' ? {} : { env: envFilter }),
       limit: pageLimit,
-    },
+    }),
+    [statusFilter, envFilter, pageLimit],
+  );
+  const { builds, total, loading, fetching, refetch, error: erroDeLeitura } = useDeploymentsListStream(
+    name,
+    filtros,
   );
 
   // Pull the production status so the table can mark which build is

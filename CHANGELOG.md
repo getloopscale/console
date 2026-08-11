@@ -2,6 +2,8 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the deploy timeline's defence against events arriving out of order now exists. A comment said it did; the loop implementing it had an empty body, so on a reconnect a phase whose completion arrived before an earlier one's stayed marked pending indefinitely (B-174).
+- **theo-cloud/dashboard:** refreshing build logs and then leaving the page no longer writes to a screen that is gone. The initial-load path in the same file already guarded this; the refresh path did not, and the asymmetry was the defect (B-175).
 - **theo-cloud/dashboard:** page-performance measurements now reach the server in production instead of being written to the browser console, where nobody reads them. The metrics are sent with a transport that survives the page unloading, which is when two of the three are reported (B-217).
 
 ### Removed

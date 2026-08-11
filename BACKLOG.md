@@ -6308,7 +6308,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-token-refresh-threshold-branch-is-unreachable`). Source: code-review finding #64, `code-review-output/code-review.db`.
 
-## B-174 — Deploy-timeline 'cascade' loop is a no-op — the documented out-of-order defence does not exist   [ ]
+## B-174 — Deploy-timeline 'cascade' loop is a no-op — the documented out-of-order defence does not exist   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6334,7 +6334,11 @@ evidence: |
   }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deploy-timeline.ts:176`.
-status: triaged
+status: shipped
+shipped_note: |
+  The loop whose only body was an empty `if` is gone, and the defence it CLAIMED is implemented: walking backwards, a pending phase before a completed one inherits completed.
+  `foundActive` was written and read only inside that empty `if` — the documented defence did not exist, and documenting it is what stopped anyone looking for it.
+  Mutation-verified.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6345,7 +6349,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deploy-timeline-deploy-timeline-cascade-loop-is-a`). Source: code-review finding #66, `code-review-output/code-review.db`.
 
-## B-175 — useBuildLogs.refresh() writes state after unmount and never aborts — the sibling load path in the same file gu   [ ]
+## B-175 — useBuildLogs.refresh() writes state after unmount and never aborts — the sibling load path in the same file gu   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6368,7 +6372,12 @@ evidence: |
         aplicarSnapshot(data);
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-build-logs.ts:211`.
-status: triaged
+status: shipped
+shipped_note: |
+  A `montado` ref guards every write on the refresh path, matching what the initial-load effect in the same file already did.
+  NO TEST — and that is recorded in the test file rather than hidden: the one I wrote asserted `console.error` was not called, React 18 removed that warning, and it passed WITH the guard removed.
+  It was the inert shape this sweep names, written inside the commit that fixes it elsewhere, so it was deleted.
+  After unmount there is no observable output this harness can read.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6407,7 +6416,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-metrics-range-usemetrics-range-keys-the-cache-by`). Source: code-review finding #68, `code-review-output/code-review.db`.
 
-## B-177 — Refetch effect re-runs on every render — `filters` is an inline object literal at the only call site   [ ]
+## B-177 — Refetch effect re-runs on every render — `filters` is an inline object literal at the only call site   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6421,7 +6430,10 @@ evidence: |
   }, [stream.events, projectName, filters, initial.builds, queryClient]);
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deployments-list-stream.ts:131`.
-status: triaged
+status: shipped
+shipped_note: |
+  `filtros` is a `useMemo` keyed on the three values.
+  The measured cost is re-run overhead, not a refetch storm (`refetchedFor` suppresses the invalidation) — but an effect that fires on identity rather than value is a trap for whoever adds the next line inside it.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

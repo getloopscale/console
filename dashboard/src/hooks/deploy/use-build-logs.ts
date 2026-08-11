@@ -208,6 +208,13 @@ export function useBuildLogs(buildId: string, paused: boolean): UseBuildLogsResu
   // Terminal: "conectado" significa que o historico carregou. Vivo: o SSE decide.
   const connected = isTerminal ? !historicalLoading && !historicalError : stream.connected;
 
+  // B-175 — vive num ref e não em estado: ler isto não pode causar render.
+  const montado = useRef(true);
+  useEffect(() => {
+    montado.current = true;
+    return () => { montado.current = false; };
+  }, []);
+
   const refresh = useCallback(async () => {
     if (!buildId || refreshInFlight.current) return;
     refreshInFlight.current = true;
@@ -217,12 +224,18 @@ export function useBuildLogs(buildId: string, paused: boolean): UseBuildLogsResu
       const data = await engineFetch<BackendLogsResponse>(
         `/api/v1/builds/${encodeURIComponent(buildId)}/logs?limit=${MAX_LOG_LINES}`,
       );
-      aplicarSnapshot(data);
+      // B-175 — nenhuma escrita depois da desmontagem. O efeito de carga inicial deste MESMO
+      // arquivo guarda cada `set*` com um `cancelled` e limpa no unmount; este caminho não
+      // guardava nada, e a assimetria era o defeito: quem sai da tela durante um refresh recebe
+      // um aviso do React e, pior, o estado de um componente que não existe mais.
+      if (montado.current) aplicarSnapshot(data);
     } catch (err: unknown) {
-      setHistoricalError(err instanceof Error ? err.message : 'Failed to refresh logs');
+      if (montado.current) {
+        setHistoricalError(err instanceof Error ? err.message : 'Failed to refresh logs');
+      }
     } finally {
       refreshInFlight.current = false;
-      setRefreshing(false);
+      if (montado.current) setRefreshing(false);
     }
   }, [buildId, aplicarSnapshot]);
 

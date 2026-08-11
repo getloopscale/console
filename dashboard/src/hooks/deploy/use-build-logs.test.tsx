@@ -109,3 +109,21 @@ describe('useBuildLogs — teto do snapshot (B-045 / B-016)', () => {
     expect(result.current.lines).toEqual([]);
   });
 });
+
+/**
+ * B-175 — o guarda de desmontagem NÃO tem teste, e a razão está aqui.
+ *
+ * Escrevi um: ele segurava o `engineFetch`, desmontava, soltava, e afirmava que `console.error`
+ * não fora chamado. Passou — e passou TAMBÉM com o guarda removido. O React 18 deixou de avisar
+ * sobre `setState` em componente desmontado, então a asserção media a ausência de um aviso que
+ * não existe mais em versão nenhuma do código.
+ *
+ * Era a forma inerte que esta varredura inteira nomeia (B-152/B-189), escrita por mim dentro do
+ * commit que a corrige em outro lugar. Deletei em vez de deixá-la verde.
+ *
+ * O que sobra: depois da desmontagem não há `result.current` para inspecionar e nenhuma saída
+ * observável, então este harness não consegue distinguir "não escreveu" de "escreveu e ninguém
+ * viu". A correção de produção fica — guardar escritas após desmontagem é certo, e o efeito de
+ * carga inicial deste mesmo arquivo já o fazia; a assimetria era o defeito. Ela vai sem teste, e
+ * isto é o registro de que a ausência é sabida e não esquecida.
+ */

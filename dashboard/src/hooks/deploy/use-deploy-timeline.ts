@@ -170,22 +170,19 @@ export function useDeployTimeline(
       if (payload.degraded_reason) cell.degradedReason = payload.degraded_reason;
     }
 
-    // Cascade: phases ordered AFTER the current active one stay 'pending'.
-    // Phases BEFORE a completed one inherit completed too (defensive vs
-    // out-of-order arrival on reconnect).
-    let foundActive = false;
-    for (const cell of phases) {
-      if (foundActive && cell.status === 'pending') {
-        // Already pending — no-op (keeps initial state).
-      }
-      if (
-        cell.status === 'in_progress' ||
-        cell.status === 'degraded' ||
-        cell.status === 'failed' ||
-        cell.status === 'canceled'
-      ) {
-        foundActive = true;
-      }
+    // B-174 — aqui havia um laço cujo único corpo era um `if` VAZIO, com um comentário dizendo
+    // que ele defendia contra chegada fora de ordem na reconexão. `foundActive` era escrito e lido
+    // só dentro daquele `if` vazio: a defesa documentada não existia, e a documentação dela é o
+    // que fazia ninguém procurá-la.
+    //
+    // A defesa REAL é a de baixo: uma fase anterior a uma concluída herda `completed`. É isso que
+    // conserta a chegada fora de ordem — se `deploy.completed` chega antes de `build.completed`,
+    // a fase de build não fica `pending` para sempre. O laço vazio não fazia nem isso.
+    let concluidaAdiante = false;
+    for (let i = phases.length - 1; i >= 0; i -= 1) {
+      const cell = phases[i];
+      if (cell.status === 'completed') { concluidaAdiante = true; continue; }
+      if (concluidaAdiante && cell.status === 'pending') cell.status = 'completed';
     }
 
     // currentPhase = first non-pending non-completed; fallback to last

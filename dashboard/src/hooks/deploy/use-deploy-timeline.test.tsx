@@ -176,3 +176,27 @@ describe('useDeployTimeline', () => {
     expect(result.current.phases[3].degradedReason).toBe('pods failed to come up');
   });
 });
+
+describe('B-174 — a defesa contra chegada fora de ordem passa a existir', () => {
+  it('uma fase anterior a uma CONCLUÍDA não fica pendente para sempre', async () => {
+    // O laço que dizia fazer isto tinha corpo VAZIO: `foundActive` era escrito e lido só dentro de
+    // um `if` sem instruções. Na reconexão, `deploy.completed` pode chegar antes de
+    // `build.completed` — e a fase de build ficava `pending` para sempre, com o comentário logo
+    // acima afirmando que esse caso estava tratado.
+    const { result } = renderHook(() => useDeployTimeline('dep-1'));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    act(() => {
+      MockEventSource.instances[0].emit(
+        'deploy_timeline.deploy.completed',
+        JSON.stringify({ phase: 'deploy', status: 'completed' }),
+        '1',
+      );
+    });
+
+    await waitFor(() => {
+      const build = result.current.phases.find((p) => p.phase === 'build');
+      expect(build?.status).not.toBe('pending');
+    });
+  });
+});
