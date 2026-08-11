@@ -3,6 +3,7 @@ import { useDeployments } from '@/hooks/projects/use-deployments';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { useProjectStatus } from '@/hooks/use-project-status';
 import { SIGNALS, type SignalName } from '@/hooks/projects/signals';
+import { REGRAS, lerMedidas } from '@/hooks/projects/readiness-rules';
 import type { ReadinessStatus } from '@/hooks/projects/status-icons';
 
 /**
@@ -69,83 +70,20 @@ export function useReadinessSignals(
       return { signals: emptySignals(), score: null, loading: true };
     }
 
-    const project = projects.projects?.find((p) => p.name === projectName);
-    const projectUnknown = !project;
-    const statusUnknown = status.error || !status.status;
-    const deploymentsUnknown = deployments.error;
+    const medidas = lerMedidas({
+      projeto: projects.projects?.find((p) => p.name === projectName),
+      statusErro: status.error,
+      status: status.status,
+      deploysErro: deployments.error,
+      builds: deployments.builds,
+    });
 
-    // Each composed hook contributes to a subset of the 8 signals.
-    // Hook isError (or missing target row) → all of its signals are
-    // `unknown` per EC-5.
-    const signals: Record<SignalName, ReadinessSignal> = {
-      // auto_deploy proxy: last_deploy != null means the repo successfully
-      // built at least once → auto-deploy chain is wired. Unknown if the
-      // project row itself can't be resolved (cross-tenant probe / 401).
-      auto_deploy: buildSignal(
-        'auto_deploy',
-        projectUnknown
-          ? 'unknown'
-          : project?.last_deploy
-            ? 'pass'
-            : 'fail',
-      ),
-      // HPA configured = replicas_desired > 1 (the operator chose a non-
-      // trivial scaling posture). Unknown for status outage.
-      hpa_configured: buildSignal(
-        'hpa_configured',
-        statusUnknown
-          ? 'unknown'
-          : (status.status?.replicas_desired ?? 0) > 1
-            ? 'pass'
-            : 'fail',
-      ),
-      // 2+ replicas = replicas_ready >= 2 (currently serving).
-      two_plus_replicas: buildSignal(
-        'two_plus_replicas',
-        statusUnknown
-          ? 'unknown'
-          : (status.status?.replicas_ready ?? 0) >= 2
-            ? 'pass'
-            : 'fail',
-      ),
-      // Secrets count is not in the status response yet (J-22 server-side
-      // wire follow-up); for v1 the signal stays Unknown until wired.
-      // Per EC-2, Unknown is excluded from score — honest "we can't
-      // measure this right now" surface.
-      secrets_rotated: buildSignal('secrets_rotated', 'unknown'),
-      // J-11 Domains not shipped — Coming soon tooltip per EC-7.
-      custom_domain: buildSignal('custom_domain', 'unknown'),
-      // alerts_active count is in status; > 0 means alerts ARE configured
-      // (they fired). 0 in steady state is ambiguous (no alerts configured
-      // OR all healthy) — keep Unknown for v1; user can navigate to /alerts.
-      alerts_configured: buildSignal(
-        'alerts_configured',
-        statusUnknown
-          ? 'unknown'
-          : (status.status?.alerts_active ?? 0) > 0
-            ? 'warn'
-            : 'unknown',
-      ),
-      // logs_healthy = 5xx % 1h thresholds matching canonical Theo SLO.
-      logs_healthy: buildSignal(
-        'logs_healthy',
-        statusUnknown
-          ? 'unknown'
-          : (status.status?.traffic_5xx_pct_1h ?? 0) < 0.01
-            ? 'pass'
-            : (status.status?.traffic_5xx_pct_1h ?? 0) < 0.05
-              ? 'warn'
-              : 'fail',
-      ),
-      // cache_hit_rate not in API for v1 — Unknown. When project has zero
-      // deployments yet, also Unknown (no signal to compute).
-      cache_hit_rate: buildSignal(
-        'cache_hit_rate',
-        deploymentsUnknown || (deployments.builds?.length ?? 0) === 0
-          ? 'unknown'
-          : 'pass',
-      ),
-    };
+    // Cada sinal é uma regra pura em `readiness-rules.ts` (B-182/B-225). Este bloco só lê os hooks
+    // uma vez, monta as medidas e aplica a tabela — a decisão de cada sinal deixou de estar
+    // empilhada aqui.
+    const signals = Object.fromEntries(
+      SIGNALS.map((def) => [def.name, buildSignal(def.name, REGRAS[def.name](medidas))]),
+    ) as Record<SignalName, ReadinessSignal>;
 
     return { signals, score: computeScore(signals), loading: false };
   }, [

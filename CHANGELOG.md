@@ -2,6 +2,14 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the deploy timeline no longer walks backwards on a long deploy. Phase state was rebuilt from a rolling buffer that keeps only the last 60 events, so once the event that completed a phase was pushed out, the phase reverted to "pending" on a screen that had already shown it finished (B-181).
+
+### Changed
+
+- **theo-cloud/dashboard:** the deploy timeline, the deploy error messages and the project readiness checklist were each split into rules that can be read and tested one at a time. No behaviour changed; the three most tangled pieces of logic in the dashboard are now the least. The readiness rule that grades error rates gained its own tests in the process — its three thresholds had never been exercised individually (B-182, B-225, B-226).
+
+### Fixed
+
 - **theo-cloud/dashboard:** a momentary failure reaching the login service no longer signs you out. Three different causes produced the same empty answer, and all three were read as "the session ended" — so a gateway hiccup bounced a signed-in person to the login screen, where the page reload re-attempted the same call that had just failed (B-140).
 - **theo-cloud/dashboard:** when the login form cannot be prepared, the page says so instead of leaving a button that does nothing. Both attempts to load it were swallowed — the second by an empty error handler — so the Sign in button became a no-op: people clicked, nothing happened, and they concluded their password was wrong (B-141).
 

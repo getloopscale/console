@@ -6611,7 +6611,7 @@ evidence: |
     });
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deploy-timeline.ts:136`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6621,6 +6621,7 @@ dod:
   - Stop deriving durable state from an evictable buffer. Accumulate phases incrementally in a ref-backed reducer driven by `onEvent` (the pattern use-status-stream.ts:61 already uses and documents) so an evicted event cannot un-apply a transit
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deploy-timeline-deploy-timeline-replays-a-fifo-capped`). Source: code-review finding #73, `code-review-output/code-review.db`.
+shipped_note: o estado das fases passou a ser ACUMULADO num ref (`use-deploy-timeline.ts`) em vez de re-derivado a cada render a partir do buffer de 60 eventos: um `build.completed` despejado devolvia a fase a `pending` numa tela que ja a mostrara concluida. Redutor puro em `deploy-timeline-reducer.ts` (11 testes) + teste do WIRE que emite o evento e depois 70, ultrapassando o teto de verdade. Verificado por mutacao: reverter a acumulacao mata exatamente o teste novo.
 
 ## B-182 — useDeployTimeline reducer memo has measured CCN=31 — the highest in the codebase, in the reconnect-sensitive p   [ ]
 
@@ -6638,7 +6639,7 @@ evidence: |
       const byPhase = new Map<Phase, PhaseState>();
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deploy-timeline.ts:138`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6648,6 +6649,7 @@ dod:
   - Extract the event application into a pure module-level reducer `applyTimelineEvent(state, event): TimelineState` (mirroring use-status-stream.reducer.ts, which was split out for exactly this reason and is unit-tested without React), and ext
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deploy-timeline-usedeploytimeline-reducer-memo-has-measured-ccn`). Source: code-review finding #79, `code-review-output/code-review.db`.
+shipped_note: CCN 31 -> maximo 14. As quatro responsabilidades do useMemo (aplicar evento, herdar conclusao para tras, escolher fase corrente, derivar estado geral) foram para funcoes puras testaveis sem montar componente. No caminho, `formatDeployError` — codigo deste proprio ciclo, medido em CCN 27 — virou tabela de regras (CCN 9).
 
 ## B-183 — The webhooks CRUD is parameterized-by-context for 2 of its 3 mount points; /memory/webhooks is a 555-line inde   [ ]
 
@@ -8129,7 +8131,7 @@ evidence: |
         ),
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/projects/use-readiness-signals.ts:62`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -8139,6 +8141,7 @@ dod:
   - Make the signal definitions data. Extend the SIGNALS table in signals.ts with an `evaluate(inputs): ReadinessStatus` per signal (or a declarative `{ unknownWhen, thresholds }` descriptor) and reduce the memo to a map over SIGNALS. CCN then
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-readiness-signals-usereadinesssignals-memo-has-measured-ccn-30`). Source: code-review finding #80, `code-review-output/code-review.db`.
+shipped_note: CCN 30 -> sem nenhum limiar excedido. As oito derivacoes independentes viraram `REGRAS` em `readiness-rules.ts` e a adaptacao dos tres hooks compostos virou `lerMedidas`. Ganho concreto: as tres faixas de 5xx do `logs_healthy` ganharam teste proprio — antes exigiam mockar tres hooks, entao so a faixa `pass` era exercitada. 18 testes, duas mutacoes mortas.
 
 ## B-226 — Deploy error-message mapper duplicated between promote-to-production-dialog and rollback-dialog   [x]
 
