@@ -7195,8 +7195,25 @@ measured: |
   shuffle ele rodava primeiro e `useBuildStats` devolvia `undefined`. Ganhou o próprio setup.
   Sob o mesmo seed: 6 -> 5.
 
-  As CINCO restantes seguem abertas, cada uma reproduzível com o seed acima:
-    deployments.test.tsx (2), lens/traces.test.tsx, lens/playground.test.tsx, auth/login.test.tsx
+  TERCEIRA E QUARTA CORRIGIDAS (2026-08-11): as duas de `deployments.test.tsx`. A causa NÃO era
+  nenhuma das duas hipóteses anteriores — era dependência DENTRO do arquivo, não entre arquivos
+  (o arquivo sozinho, sob shuffle, já falhava). Duas causas reais:
+
+    a) o filtro de status vive na URL via `nuqs`, e o `NuqsAdapter` de produção guarda estado num
+       cache de MÓDULO. O `MemoryRouter` era recriado a cada render e não adiantava: o caso
+       seguinte montava a página com "Succeeded" já pressionado (`aria-pressed="true"` no corpo
+       renderizado), a lista vinha filtrada, e a asserção caía sem pista de por quê. Trocado pelo
+       `NuqsTestingAdapter`, que a própria biblioteca publica para isto e mantém o estado por
+       RENDER.
+
+    b) `test_status_filter_chips_work` afirmava sobre a ÚLTIMA chamada ao `engineFetch`. A página
+       tem mais de um hook fazendo request, e qual termina por último depende do escalonamento —
+       o que o caso quer provar é que o filtro CHEGA ao request, não que foi o mais recente.
+
+  Sob o mesmo seed: 5 -> 3.
+
+  As TRÊS restantes seguem abertas, cada uma reproduzível com o seed acima:
+    lens/traces.test.tsx, lens/playground.test.tsx, auth/login.test.tsx
 
   TENTATIVA REGISTRADA — `deployments.test.tsx`, NÃO resolvida. Duas hipóteses foram testadas e as
   DUAS estavam erradas quanto à causa, embora ambas descrevessem vazamentos reais que foram

@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { NuqsAdapter } from 'nuqs/adapters/react-router/v6';
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Build, BuildListResponse } from '@/lib/api/types';
 import { queryClient } from '@/lib/http/query-client';
@@ -21,7 +21,7 @@ vi.mock('@/lib/http/config', () => ({ API_URL: '' }));
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => undefined }));
 
 import { DeploymentsPage } from './deployments';
-import { engineFetch } from '@/lib/http/api';
+import { engineFetch, ensureSSEToken, hasValidToken } from '@/lib/http/api';
 import { __setTransporte, __resetSharedEventSources } from '@/hooks/deploy/shared-event-source';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
@@ -68,6 +68,19 @@ function makeBuild(id: string, overrides: Partial<Build> = {}): Build {
   };
 }
 
+/**
+ * B-197 — o adaptador de teste do `nuqs` substitui o de produção.
+ *
+ * `test_status_filter_chips_work` clica num chip de status, e o filtro vive na URL via `nuqs`. O
+ * `MemoryRouter` era recriado a cada render, mas o `NuqsAdapter` de produção guarda o estado num
+ * cache de MÓDULO — então o filtro atravessava a fronteira do teste. Em ordem fixa aquele caso
+ * rodava por último e ninguém via; sob shuffle, o caso seguinte montava a página com "Succeeded"
+ * já pressionado (`aria-pressed="true"` no corpo renderizado), a lista vinha filtrada, e a
+ * asserção sobre o commit sha caía sem nenhuma pista de por quê.
+ *
+ * `NuqsTestingAdapter` mantém o estado por RENDER em vez de por módulo — é a ferramenta que a
+ * própria biblioteca publica para isto, e não um contorno nosso.
+ */
 function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
@@ -75,11 +88,11 @@ function renderPage() {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={['/projects/teste/deployments']}>
-        <NuqsAdapter>
+        <NuqsTestingAdapter>
           <Routes>
             <Route path="/projects/:name/deployments" element={<DeploymentsPage />} />
           </Routes>
-        </NuqsAdapter>
+        </NuqsTestingAdapter>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -103,6 +116,16 @@ beforeEach(() => {
   queryClient.clear();
   __resetSharedEventSources();
   MockEventSource.instances = [];
+  // B-197 — `vi.clearAllMocks()` limpa CHAMADAS e não IMPLEMENTAÇÕES. Dois casos deste arquivo
+  // usam `mockImplementation`, e a implementação deles sobrevivia para quem rodasse depois: em
+  // ordem fixa eles vinham por último e ninguém notava; sob shuffle, um caso que espera uma
+  // resposta simples herdava a implementação condicional de outro e renderizava nada.
+  //
+  // `mockReset` apaga a implementação; os padrões que o arquivo assume são reinstalados logo
+  // abaixo, para que cada caso comece do mesmo lugar em vez de do que o anterior deixou.
+  mockedEngineFetch.mockReset();
+  vi.mocked(ensureSSEToken).mockReset().mockResolvedValue('tok');
+  vi.mocked(hasValidToken).mockReset().mockReturnValue(true);
     // B-088 — o transporte deixou de ser o EventSource global (o JWT foi para
     // o header Authorization). O fake expoe a mesma superficie; muda so onde
     // ele e instalado.
@@ -341,10 +364,14 @@ describe('DeploymentsPage', () => {
     await userEvent.click(within(group).getByRole('button', { name: /^running$/i }));
 
     // Filter pushes status= into URL → triggers refetch with new queryKey.
+    //
+    // B-197 — a asserção olhava a ÚLTIMA chamada. Esta página tem mais de um hook fazendo request,
+    // e qual deles termina por último depende do escalonamento — sob shuffle, a última era
+    // `/status?env=…` de outro hook e o caso caía sem que nada estivesse errado. O que ele quer
+    // provar é que o filtro CHEGA ao request, não que foi o request mais recente.
     await waitFor(() => {
-      const calls = mockedEngineFetch.mock.calls;
-      const lastCall = calls[calls.length - 1];
-      expect(lastCall?.[0]).toContain('?status=running');
+      const chamadas = mockedEngineFetch.mock.calls.map((c) => String(c[0]));
+      expect(chamadas.some((u) => u.includes('?status=running'))).toBe(true);
     });
   });
 });
