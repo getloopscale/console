@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-11
+
 ### Added
 
 - **theo-cloud/dashboard:** `npm run lint` now fails when a dependency is used without being declared, when a module grows a second name for the same export, or when the count of exported types nobody imports goes up. The project already ran knip; nothing failed on its output (B-166).
