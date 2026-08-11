@@ -261,7 +261,7 @@ export default [
       'src/pages/memory/webhooks.tsx', // 555 LOC
       'src/pages/skills/bundle-detail.tsx', // 539 LOC
       'src/lib/mocks/skills-handlers.ts', // 546 LOC
-      'src/pages/settings/billing.tsx', // 531 LOC
+      'src/pages/settings/billing.tsx', // 525 LOC
       'src/pages/settings/webhooks.tsx', // 521 LOC
       'src/pages/lens/alerts.tsx', // 523 LOC
       'src/pages/projects/projects.tsx', // 513 LOC

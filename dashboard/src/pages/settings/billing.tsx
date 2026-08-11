@@ -152,22 +152,12 @@ export function BillingPage() {
         { throwOnError: true },
       );
       if (portal?.url) {
-        // qa-sprint2-cleanup-2026-06-24 T2.2 — closes theo-cloud#15
-        // (BLOCKER ux_friction: Manage Plan click was inert).
-        //
-        // Pre-fix: window.open(portal.url, '_blank') from an async callback
-        // (after `await cloudFetch`) is silently blocked by modern browser
-        // popup blockers because the user gesture activation expires across
-        // the await. The user saw no modal, no redirect, no new tab.
-        //
-        // Fix: use window.location.href same-window navigation, matching the
-        // existing upgradePlan handler below AND Stripe's documented canonical
-        // Customer Portal pattern (https://docs.stripe.com/billing/customer/
-        // integration#redirect-to-portal). No gesture-activation requirement.
-        // B-138: `portal.url` is chosen by the billing backend.
-        if (!safeNavigator.goTo(portal.url, BILLING_REDIRECT)) {
-          setActionError('Failed to open billing portal. Please try again in a moment.');
-        }
+        // theo-cloud#15: `window.open(url, '_blank')` after an await is eaten by popup
+        // blockers — gesture activation expires across the await — so this is a
+        // same-window navigation, which is also Stripe's documented portal pattern.
+        // B-138: it goes through the boundary under BILLING_REDIRECT, a destination
+        // class of its own so the auth allowlist is not widened to admit a payment host.
+        if (!safeNavigator.goTo(portal.url, BILLING_REDIRECT)) setActionError('Failed to open billing portal. Please try again in a moment.');
       } else {
         // 2xx with no `url` is the contract gap; preserve the existing
         // safety-net copy.
@@ -201,10 +191,7 @@ export function BillingPage() {
         { throwOnError: true },
       );
       if (result?.url) {
-        // B-138: `result.url` is chosen by the billing backend.
-        if (!safeNavigator.goTo(result.url, BILLING_REDIRECT)) {
-          setActionError('Failed to start checkout. Please try again.');
-        }
+        if (!safeNavigator.goTo(result.url, BILLING_REDIRECT)) setActionError('Failed to start checkout. Please try again.');
       } else {
         // throwOnError makes this branch unreachable for non-2xx, but the
         // contract `T | null` still permits a 2xx with no `url` field — keep

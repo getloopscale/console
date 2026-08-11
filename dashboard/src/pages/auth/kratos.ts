@@ -6,7 +6,7 @@
 // while API lives at api.theo.dev). Falls back to API_URL for same-origin dev.
 import { API_URL, ACCOUNTS_URL as CONFIG_ACCOUNTS_URL } from '@/lib/http/config';
 import { safeNavigator } from '@/lib/navigation';
-const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL;
+export const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL;
 
 export interface FlowNode {
   type: string;

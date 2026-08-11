@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2025-2026 The Theo Authors
 
-import { isSafeRedirectUrl } from '@/pages/auth/safe-redirect';
+import { isSafeRedirectUrl } from '@/lib/navigation/safe-redirect';
 
 /**
  * A destination that has already been judged safe.
@@ -29,7 +29,7 @@ import { isSafeRedirectUrl } from '@/pages/auth/safe-redirect';
 /**
  * Which origins a destination CLASS may name, beyond the app's own.
  *
- * `pages/auth/safe-redirect.ts` states the rule this implements, in its own words: when a
+ * `./safe-redirect.ts` states the rule this implements, in its own words: when a
  * new kind of destination appears, the answer is a second allowlist and not a wider auth
  * one. Widening `SAFE_REDIRECT_ORIGINS` to admit the payment provider would also have let
  * a Kratos flow aim a login POST at it — a trade nobody would make on purpose.
@@ -40,7 +40,7 @@ export interface NavigationPolicy {
 }
 
 /** The default: same-origin plus the canonical Theo auth hosts. */
-export const SAME_APP_AND_AUTH: NavigationPolicy = { name: 'same-app-and-auth', additionalOrigins: [] };
+const SAME_APP_AND_AUTH: NavigationPolicy = { name: 'same-app-and-auth', additionalOrigins: [] };
 
 /**
  * The hosted payment provider. Used ONLY by the two billing redirects, whose destination is

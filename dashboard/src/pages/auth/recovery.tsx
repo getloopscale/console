@@ -14,12 +14,10 @@ import {
   getFlowMessages,
   getFieldErrors,
   enrichKratosError,
+  ACCOUNTS_URL,
 } from '@/pages/auth/kratos';
 import { getSession, logout } from '@/lib/auth/session';
-import { API_URL } from '@/lib/http/config';
 import { safeNavigator } from '@/lib/navigation';
-
-const ACCOUNTS_URL = API_URL;
 
 /**
  * RecoveryPage — Journey J-04 (Vercel-like password reset).
@@ -86,6 +84,7 @@ function OidcEducationalLinks(): React.ReactElement {
   );
 }
 
+const recoveryBrowserUrl = () => `${ACCOUNTS_URL}/self-service/recovery/browser?return_to=${encodeURIComponent(window.location.origin + '/recovery')}`;
 export function RecoveryPage() {
   useSetPageTitle('Recover account');
   const [searchParams] = useSearchParams();
@@ -200,7 +199,7 @@ export function RecoveryPage() {
         });
     } else {
       // No flow ID → bootstrap browser flow (canonical Kratos redirect)
-      safeNavigator.goTo(`${ACCOUNTS_URL}/self-service/recovery/browser?return_to=${encodeURIComponent(window.location.origin + '/recovery')}`);
+      safeNavigator.goTo(recoveryBrowserUrl());
     }
   }, [searchParams, authNotice]);
 
@@ -390,7 +389,7 @@ export function RecoveryPage() {
   const handleResend = useCallback(() => {
     if (cooldownEndsAt !== null) return;
     setCooldownEndsAt(Date.now() + 60_000);
-    safeNavigator.goTo(`${ACCOUNTS_URL}/self-service/recovery/browser?return_to=${encodeURIComponent(window.location.origin + '/recovery')}`);
+    safeNavigator.goTo(recoveryBrowserUrl());
   }, [cooldownEndsAt]);
 
   const cooldownSeconds =

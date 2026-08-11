@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, Button } from '@usetheo/ui';
-import { isSafeRedirectUrl } from '@/pages/auth/safe-redirect';
 import { safeNavigator } from '@/lib/navigation';
 
 // Plan J-05 amendment 2026-06-05 (LIVE debug iter 3) — Hydra v2.6 requires
@@ -61,19 +60,12 @@ export function DeviceVerifyPage() {
         setSubmitting(false);
         return;
       }
-      // B-031 — valida o destino ANTES de navegar (OWASP A01).
-      //
-      // Este era um open-redirect: a URL vinha de uma resposta do servidor e ia
-      // direto para `window.location.href`, sem checagem. O guard que fecha
-      // exatamente esta classe — `isSafeRedirectUrl` — existia no repo,
-      // documentado como "defense-in-depth para redirect_browser_to", testado, e
-      // sem NENHUM chamador. Um guard de seguranca nao chamado e pior que
-      // ausente: da a impressao de que a protecao existe.
-      //
-      // Fail-closed de proposito. Se o destino nao estiver na allowlist, o
-      // usuario ve um erro em vez de ser levado para fora — o caminho legitimo
-      // (auth-dev/auth.usetheo.dev, os hosts do fluxo OAuth) esta coberto.
-      if (!isSafeRedirectUrl(body.redirect_to)) {
+      // B-031 / B-138 — the destination comes from a server response, so it is judged
+      // before it is followed. The check used to live here as an explicit call; it now
+      // lives in the navigation boundary, which is the only thing that can reach
+      // `window.location`. Fail-closed on purpose: the user sees an error rather than
+      // being carried off-site, and the legitimate hosts are allowlisted.
+      if (!safeNavigator.goTo(body.redirect_to)) {
         setError(
           'The authentication service returned an unexpected redirect target. ' +
             'For your safety we did not follow it — run `theo login --device-flow` again.',
@@ -81,7 +73,6 @@ export function DeviceVerifyPage() {
         setSubmitting(false);
         return;
       }
-      safeNavigator.goTo(body.redirect_to);
     } catch {
       setError(
         'We could not reach the authentication service. Please try again in a moment.',
