@@ -6839,7 +6839,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-test-the-four-a-failed-read-draws`). Source: code-review finding #93, `code-review-output/code-review.db`.
 
-## B-190 — The CATALOGO fixture enforces nothing, so the muted/Blocked path is never exercised and the comment claiming i   [ ]
+## B-190 — The CATALOGO fixture enforces nothing, so the muted/Blocked path is never exercised and the comment claiming i   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6854,7 +6854,11 @@ evidence: |
   Verified: CATALOGO.validators[0] has no policy and no category key; coverageGap resolves it to ''.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/trust/overview.test.tsx:39`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  The fixture's validator gained `policy: 'credential_leak'`, matching the violation, so `coverageGap` finally builds a non-empty `enforcedPolicies` and the ENFORCED path is exercised by a screen test for the first time.
+  Two existing assertions went red and both redness was correct: the B-187 test had been asserting 'not enforced' against a fixture where NOTHING could be enforced, and the KPI test's `getByText('Blocked')` now finds two matches — the card label it was always passing on, plus the blocked row that had never rendered.
+  The duplicate is the proof.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6865,7 +6869,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-test-the-catalogo-fixture-enforces-nothing-so`). Source: code-review finding #94, `code-review-output/code-review.db`.
 
-## B-191 — The rendered() guard still matches a JSX tag inside a comment or string — the hole its own docblock claims it    [ ]
+## B-191 — The rendered() guard still matches a JSX tag inside a comment or string — the hole its own docblock claims it    [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6880,7 +6884,11 @@ evidence: |
   Executed the literal regex against five inputs; comment and string-literal forms both return true.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/capability-overview.test.ts:76`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  `rendered()` strips comments and string literals before searching.
+  The previous docblock claimed matching the opening tag closed the hole; it did not, because the regex ran over raw source — the exact case it narrated as fixed (a comment mentioning a REMOVED chart) still passed.
+  Four cases pin both directions: prose in a line comment, a block comment and a string does not count; real markup still does.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

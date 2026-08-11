@@ -50,10 +50,27 @@ const VIOLACOES = {
     { id: 'v1', policy: 'credential_leak', severity: 'high', detectedAt: '2026-08-02T12:00:00.000Z' },
   ],
 };
+/**
+ * B-190 — esta fixture não fazia cumprir NADA, e um comentário afirmava que sim.
+ *
+ * `coverageGap` (`components/trust-series.ts:162-171`) monta o conjunto de políticas aplicadas
+ * lendo `policy` OU `category` de cada validador e descartando os vazios. O validador aqui não
+ * tinha nenhum dos dois, então `enforcedPolicies` saía VAZIO e toda política voltava
+ * `enforced: false` — o caminho "aplicada" nunca era exercitado por teste de tela nenhum,
+ * enquanto o comentário em `:123` dizia "e essa política É aplicada pela fixture do catálogo".
+ *
+ * `policy` agora casa a violação da fixture, então o caminho aplicado existe de verdade.
+ */
 const CATALOGO = {
   catalogVersion: 1,
   validators: [
-    { source: 'platform', name: 'credential-mask', kind: 'rule', directions: ['input', 'output'] },
+    {
+      source: 'platform',
+      name: 'credential-mask',
+      kind: 'rule',
+      policy: 'credential_leak',
+      directions: ['input', 'output'],
+    },
   ],
 };
 
@@ -120,10 +137,15 @@ describe('the KPI dashboard (B-126, amendment D1-bis)', () => {
   it('opens with the four numbers, above the discovered rows', async () => {
     render(<TrustOverviewPage />);
 
-    // One violation, one policy, and that policy IS enforced by the catalogue fixture.
+    // B-190 — este comentário era FALSO até a fixture ganhar `policy`: o validador não trazia
+    // `policy` nem `category`, então nenhuma política contava como aplicada.
     expect(await screen.findByText('Violations')).toBeInTheDocument();
     expect(screen.getByText('Policies seen')).toBeInTheDocument();
-    expect(screen.getByText('Blocked')).toBeInTheDocument();
+    // B-190 — `Blocked` aparece DUAS vezes agora, e a duplicata é a prova: antes existia só o
+    // rótulo do card de KPI, porque a fixture não fazia nenhuma política contar como aplicada e
+    // nenhuma linha bloqueada era renderizada. Este caso passava sobre o rótulo, não sobre a
+    // leitura.
+    expect(screen.getAllByText('Blocked').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Unblocked')).toBeInTheDocument();
   });
 
@@ -199,7 +221,38 @@ describe('B-187 — the enforcement reading is not carried by colour alone', () 
     // inside the bar's aria-hidden track. On a compliance screen, a reading that exists only in
     // colour does not exist for a screen-reader user, nor for anyone who does not separate the
     // two hues (WCAG 2.2 SC 1.4.1).
+    // B-190 — antes a fixture não fazia cumprir nada, então QUALQUER política aparecia como
+    // "not enforced" e este caso passava sem provar que o tom âmbar tinha portador em palavras.
+    // Com a fixture real, é preciso uma política de fato AUSENTE do catálogo.
+    responder({
+      violacoes: { violations: [{ id: 'v9', policy: 'pii_leak', severity: 'high' }] },
+      catalogo: CATALOGO,
+    });
+    render(<TrustOverviewPage />);
+
+    const chart = await screen.findByRole('table', { name: /violations by policy/i });
+    expect(within(chart).getByText(/not enforced/i)).toBeInTheDocument();
+  });
+});
+
+describe('B-190 — o caminho "política aplicada" é de fato exercitado', () => {
+  it('uma política presente no catálogo aparece como aplicada, não como desbloqueada', async () => {
+    // Até aqui NENHUM teste de tela exercitava este caminho: o validador da fixture não trazia
+    // `policy` nem `category`, `enforcedPolicies` saía vazio, e toda política voltava
+    // `enforced: false`. O gráfico pintava tudo de âmbar — "nada está sendo barrado" — e passava.
     responder({ violacoes: VIOLACOES, catalogo: CATALOGO });
+    render(<TrustOverviewPage />);
+
+    const chart = await screen.findByRole('table', { name: /violations by policy/i });
+    expect(within(chart).getByText(/^enforced$/i)).toBeInTheDocument();
+  });
+
+  it('e uma política AUSENTE do catálogo continua aparecendo como não aplicada', async () => {
+    // O contrário também precisa valer, ou a correção só trocaria um estado fixo por outro.
+    responder({
+      violacoes: { violations: [{ id: 'v2', policy: 'pii_leak', severity: 'high' }] },
+      catalogo: CATALOGO,
+    });
     render(<TrustOverviewPage />);
 
     const chart = await screen.findByRole('table', { name: /violations by policy/i });

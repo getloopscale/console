@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** two internal checks that could not fail were repaired. One decided whether a screen renders a chart by searching its source text — and matched the chart's name inside a comment, so a screen that had REMOVED its chart still counted as having one; its own documentation claimed that hole was closed. The other tested the /trust coverage view against a fixture that enforced nothing, so the "policy is enforced" path had never been exercised by any screen test while a comment asserted it was (B-190, B-191).
+
+### Fixed
+
 - **theo-cloud/dashboard:** rollback's error messages are now covered by tests. Promote and rollback shared the same error-mapping ladder with different wording, and only promote's half was tested — the covered half was lending confidence to the uncovered one (B-226).
 
 ### Changed
