@@ -12,6 +12,8 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the skills overview no longer says "nothing recorded" while it is still reading. Opening it offline, or on the first paint before the catalogue arrives, used to show a confident zero next to a table that already had rows — the screen treated "not finished reading" as "finished, and there is nothing". It now waits for the read to settle before making any claim (B-161).
+
 - **theo-cloud/dashboard:** no screen follows an address the server picked without checking it first. The login and sign-up forms used to post your password to whatever address the authentication service named; the billing portal, the checkout, the logout and the device-flow redirect had the same shape. All of them now fail visibly instead of silently going somewhere unexpected, and a normal sign-in, upgrade or logout is unchanged. Opening a capability from the memory and RAG overviews also stops reloading the whole page, and the Grafana link on a project signal is checked like everything else (B-138, B-130).
 - **theo-cloud/dashboard:** a deploy that finished no longer keeps reconnecting in the background. The page treated a stream the server closed normally as an expired session, so it threw away the tab's credential and reopened about once a second, forever — for as long as the tab stayed open (B-160).
 
