@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatDeployError, ROLLBACK } from '@/pages/deploy/components/deploy-error-copy';
 import { Undo2 } from 'lucide-react';
 import {
   Button,
@@ -197,42 +198,5 @@ function formatRollbackError(
   status: number,
   body: { message?: string; code?: string; error?: string } | null,
 ): string {
-  const code = body?.code ?? '';
-  const detail = body?.message ?? body?.error ?? '';
-
-  // Canonical codes mapped to actionable copy.
-  if (code === 'NO_ACTIVE_RELEASE' || /no active release/i.test(detail)) {
-    return 'No active release to rollback. Deploy something first, then try again.';
-  }
-  if (code === 'NO_PREVIOUS_RELEASE' || /no previous release/i.test(detail)) {
-    return 'No previous release available. This build is the first deploy — nothing to fall back to.';
-  }
-  if (/sync wait failed/i.test(detail) || /sync timeout/i.test(detail)) {
-    return 'Rollback started but the deployment infrastructure did not finish in time. The current release is in a degraded state — please retry in a few seconds. If the issue persists, contact support.';
-  }
-  if (/sync trigger failed/i.test(detail)) {
-    return 'Rollback could not contact the deployment infrastructure. The current release remains active. Retry, or contact support if it persists.';
-  }
-  if (code === 'MISSING_FIELD' || status === 400) {
-    return detail
-      ? `Rollback rejected: ${detail}. Refresh the page and retry.`
-      : 'Rollback rejected: the request was malformed. Refresh the page and retry.';
-  }
-  if (status === 401) {
-    return 'Session expired. Sign in again and retry the rollback.';
-  }
-  if (status === 403) {
-    return 'You do not have permission to rollback this project.';
-  }
-  if (status === 404) {
-    return 'Project or build not found. The build may have been deleted — refresh the page.';
-  }
-  if (status >= 500) {
-    return detail
-      ? `Rollback failed (HTTP ${status}): ${detail}. The current release remains active. Retry, or contact support if it persists.`
-      : `Rollback failed (HTTP ${status}). The current release remains active. Retry, or contact support if it persists.`;
-  }
-  return detail
-    ? `Rollback failed (HTTP ${status}): ${detail}`
-    : `Rollback failed (HTTP ${status}). Please retry.`;
+  return formatDeployError(ROLLBACK, status, body);
 }

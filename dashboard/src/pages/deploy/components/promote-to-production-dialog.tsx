@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatDeployError, PROMOTE } from '@/pages/deploy/components/deploy-error-copy';
 import { ArrowUpToLine } from 'lucide-react';
 import {
   Button,
@@ -212,48 +213,14 @@ export function PromoteToProductionDialog({
  * policy (Cross-Project Rule 9): we say "deployment infrastructure",
  * never "ArgoCD" or "Kubernetes".
  */
+/**
+ * B-226 — a escada inteira (ordem de códigos, ramos de status, leitura do corpo) era idêntica à de
+ * `formatRollbackError`; só as PALAVRAS diferiam. A forma vive em `deploy-error-copy.ts` e o
+ * vocabulário desta operação vive no descritor `PROMOTE`.
+ */
 export function formatPromoteError(
   status: number,
   body: { message?: string; code?: string; error?: string } | null,
 ): string {
-  const code = body?.code ?? '';
-  const detail = body?.message ?? body?.error ?? '';
-
-  if (code === 'NO_ACTIVE_RELEASE' || /no active release/i.test(detail)) {
-    return 'No active release in the source environment yet. Wait for the build to finish and retry.';
-  }
-  if (code === 'SAME_ENVIRONMENT' || /same environment/i.test(detail)) {
-    return 'This deploy is already on production. Pick a preview deploy to promote.';
-  }
-  if (/sync wait failed/i.test(detail) || /sync timeout/i.test(detail)) {
-    return 'Promote started but the deployment infrastructure did not finish in time. The current production release remains active — please retry in a few seconds. If the issue persists, contact support.';
-  }
-  if (/sync trigger failed/i.test(detail)) {
-    return 'Promote could not contact the deployment infrastructure. The current production release remains active. Retry, or contact support if it persists.';
-  }
-  if (code === 'MISSING_FIELD' || status === 400) {
-    return detail
-      ? `Promote rejected: ${detail}. Refresh the page and retry.`
-      : 'Promote rejected: the request was malformed. Refresh the page and retry.';
-  }
-  if (status === 401) {
-    return 'Session expired. Sign in again and retry the promote.';
-  }
-  if (status === 403) {
-    return 'You do not have permission to promote in this project.';
-  }
-  if (status === 404) {
-    return 'Project or build not found. Refresh the page.';
-  }
-  if (status === 409) {
-    return 'Another deploy is already in progress on production. Wait for it to finish and retry.';
-  }
-  if (status >= 500) {
-    return detail
-      ? `Promote failed (HTTP ${status}): ${detail}. The current production release remains active. Retry, or contact support if it persists.`
-      : `Promote failed (HTTP ${status}). The current production release remains active. Retry, or contact support if it persists.`;
-  }
-  return detail
-    ? `Promote failed (HTTP ${status}): ${detail}`
-    : `Promote failed (HTTP ${status}). Please retry.`;
+  return formatDeployError(PROMOTE, status, body);
 }

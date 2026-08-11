@@ -6977,7 +6977,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-webhooks-addwebhookdialog-duplicated-between-memory-and-settings`). Source: code-review finding #105, `code-review-output/code-review.db`.
 
-## B-194 — SLO tone thresholds (uptime 99.9/99.0, p95 500/1000ms, error rate 1/5) duplicated between two components rende   [ ]
+## B-194 — SLO tone thresholds (uptime 99.9/99.0, p95 500/1000ms, error rate 1/5) duplicated between two components rende   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7016,7 +7016,11 @@ evidence: |
             <SignalGrid signals={signals} onDrillDown={handleDrillDown} />
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/projects/components/kpi-strip-status.tsx:74`.
-status: triaged
+status: shipped
+shipped_note: |
+  `slo-tones.ts` declares the three thresholds once, as a table that makes the DIRECTION explicit (higher-is-better for uptime, lower for latency and error) instead of hiding it in the order of the `if`s — which is where it was.
+  Both consumers read it, and `signal-grid.tsx`'s comment claiming to use 'the canonical thresholds' while being the second implementation of them was corrected.
+  An unmeasured value stays `muted` and not `destructive`: not having measured is not the same as having measured badly.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7990,7 +7994,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-readiness-signals-usereadinesssignals-memo-has-measured-ccn-30`). Source: code-review finding #80, `code-review-output/code-review.db`.
 
-## B-226 — Deploy error-message mapper duplicated between promote-to-production-dialog and rollback-dialog   [ ]
+## B-226 — Deploy error-message mapper duplicated between promote-to-production-dialog and rollback-dialog   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8017,7 +8021,12 @@ evidence: |
     if (code === 'NO_ACTIVE_RELEASE' || /no active release/i.test(detail)) {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/deploy/components/promote-to-production-dialog.tsx:216`.
-status: triaged
+status: shipped
+shipped_note: |
+  The SHAPE was extracted, not the words.
+  The two ladders were identical in order and structure and differed in copy, and consolidating them as literal duplicates would have erased the difference that matters — 'the production release remains active' and 'the current release is in a degraded state' describe different situations and ask different things of the reader.
+  Each operation carries a descriptor; adding a third is adding a descriptor, not editing the ladder.
+  The larger finding was coverage: `formatRollbackError` was not exported and had NO test at all, so the eight assertions on its twin were lending confidence to an untested half.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

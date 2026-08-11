@@ -1,4 +1,5 @@
 import { Card } from '@usetheo/ui';
+import { SLO, sloTone } from '@/pages/projects/components/slo-tones';
 import {
   Activity,
   AlertTriangle,
@@ -23,7 +24,7 @@ import type { SignalName } from '@/hooks/projects/use-status-stream';
  * Honest empty state: undefined/null values render as "—" per ADR D1
  * (EC-1/EC-8 absorption — never silently 0).
  *
- * Color-by-state: per-signal tone based on canonical thresholds (uptime,
+ * Color-by-state: per-signal tone from `slo-tones.ts`, which IS the canonical source (B-194 — este comentário afirmava isso enquanto o arquivo era a segunda implementação deles) (uptime,
  * error rate, replicas count, alerts active, status). Renders 8 cells
  * regardless of partial input — defensively shows "—" rather than blanking.
  */
@@ -121,36 +122,21 @@ const SIGNAL_PILLS: PillCfg[] = [
     label: 'Uptime 24h',
     icon: Activity,
     format: fmtPercent,
-    tone: (v) => {
-      if (typeof v !== 'number' || !Number.isFinite(v)) return 'muted';
-      if (v >= 99.9) return 'success';
-      if (v >= 99.0) return 'warning';
-      return 'destructive';
-    },
+    tone: (v) => sloTone(v as number | null, SLO.uptime),
   },
   {
     signal: 'p95_latency',
     label: 'p95 Latency',
     icon: Clock,
     format: fmtMs,
-    tone: (v) => {
-      if (typeof v !== 'number' || !Number.isFinite(v)) return 'muted';
-      if (v >= 1000) return 'destructive';
-      if (v >= 500) return 'warning';
-      return 'success';
-    },
+    tone: (v) => sloTone(v as number | null, SLO.p95LatencyMs),
   },
   {
     signal: 'error_rate',
     label: 'Error Rate',
     icon: AlertTriangle,
     format: fmtPercent,
-    tone: (v) => {
-      if (typeof v !== 'number' || !Number.isFinite(v)) return 'muted';
-      if (v >= 5) return 'destructive';
-      if (v >= 1) return 'warning';
-      return 'success';
-    },
+    tone: (v) => sloTone(v as number | null, SLO.errorRatePct),
   },
   {
     signal: 'rps',

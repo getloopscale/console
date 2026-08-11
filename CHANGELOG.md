@@ -2,6 +2,14 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** rollback's error messages are now covered by tests. Promote and rollback shared the same error-mapping ladder with different wording, and only promote's half was tested — the covered half was lending confidence to the uncovered one (B-226).
+
+### Changed
+
+- **theo-cloud/dashboard:** the service-level thresholds (uptime, latency, error rate) are declared once. They existed byte-for-byte in two components rendering the same reading on the same screen, and one of them described itself as using "the canonical thresholds" while being the second copy of them. Duplicated numbers do not diverge on the day they are copied; they diverge on the day someone changes one (B-194).
+
+### Fixed
+
 - **theo-cloud/dashboard:** the build-log viewer can no longer hold twice its own line limit. The cap was applied to each of the two sources feeding it and to neither of their outputs, so a full history plus a full live stream handed the viewer double what both sides believed they were guaranteeing (B-180).
 - **theo-cloud/dashboard:** the project metrics chart stopped implying it was showing you a specific environment. The environment was part of the cache key and was never sent to the server — and the server has no environment dimension at all, so switching environments cached a second copy of the same numbers and presented them as that environment's. The parameter is gone until the endpoint can honour it (B-176).
 - **theo-cloud/dashboard:** the deploy timeline's defence against events arriving out of order now exists. A comment said it did; the loop implementing it had an empty body, so on a reconnect a phase whose completion arrived before an earlier one's stayed marked pending indefinitely (B-174).
