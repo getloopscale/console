@@ -63,6 +63,7 @@ describe('SafeNavigator', () => {
     const throwing = {
       assign() { throw new Error('CSP violation'); },
       submitForm() { throw new Error('CSP form-action violation'); },
+      openInNewTab() { throw new Error('popup blocked'); },
     };
     const nav = new SafeNavigator(throwing);
 
@@ -70,6 +71,8 @@ describe('SafeNavigator', () => {
     expect(nav.goTo('/billing')).toBe(false);
     expect(() => nav.submitTo('/login', { password: 'x' })).not.toThrow();
     expect(nav.submitTo('/login', { password: 'x' })).toBe(false);
+    expect(() => nav.openInNewTab('/docs')).not.toThrow();
+    expect(nav.openInNewTab('/docs')).toBe(false);
   });
 
   it('refuses a null or absent destination rather than navigating to the empty string', () => {

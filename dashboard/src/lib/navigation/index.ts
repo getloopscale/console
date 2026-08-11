@@ -7,4 +7,4 @@
  * on the first draft, and the parsimony ladder's first rung is whether it needs to exist.
  */
 export { safeNavigator } from './safe-navigator';
-export { BILLING_REDIRECT, type NavigationPolicy } from './navigation-target';
+export { BILLING_REDIRECT, DOCS_SITE, type NavigationPolicy } from './navigation-target';

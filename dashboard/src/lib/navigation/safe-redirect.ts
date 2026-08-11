@@ -1,3 +1,5 @@
+import { ACCOUNTS_URL, API_URL, AUTH_URL } from '@/lib/http/config';
+
 /**
  * isSafeRedirectUrl — OWASP A01 boundary helper for server-supplied
  * redirect URLs (e.g., Kratos 422 + redirect_browser_to).
@@ -15,6 +17,27 @@
  * The allowlist is exported as a const for grep-auditability — code
  * review can verify the set without parsing the function body.
  */
+/**
+ * Origins the OPERATOR configured. `docker-entrypoint.sh` validates these and they are not
+ * response-supplied, so they are a trust root in a way `flow.ui.action` never is. Without
+ * them the boundary silently bricked login, verification and recovery on any deployment
+ * whose auth host is not one of the six literals below — including
+ * `https://accounts.usetheo.dev`, the topology `kratos.ts` documents in its own comment.
+ */
+function configuredOrigins(): string[] {
+  const out: string[] = [];
+  for (const raw of [API_URL, AUTH_URL, ACCOUNTS_URL]) {
+    if (!raw) continue;
+    try {
+      const u = new URL(raw);
+      if (u.protocol === 'https:' || u.protocol === 'http:') out.push(u.origin);
+    } catch {
+      // Not an absolute url — same-origin config, already covered.
+    }
+  }
+  return out;
+}
+
 export const SAFE_REDIRECT_ORIGINS: readonly string[] = [
   // Dev-public canonical hosts (per Caddy / Cloudflare wildcard chain).
   'https://auth-dev.usetheo.dev',
@@ -97,6 +120,14 @@ export function isSafeRedirectUrl(raw: string | null | undefined): boolean {
     }
   }
   if (typeof window !== 'undefined' && url.origin === window.location.origin) {
+    return true;
+  }
+  // The configured hosts count too — see `configuredOrigins`. Operator-supplied config is a
+  // trust root; a Kratos response is not.
+  if (
+    (url.protocol === 'https:' || url.protocol === 'http:') &&
+    configuredOrigins().includes(url.origin)
+  ) {
     return true;
   }
   if (url.protocol === 'https:' && SAFE_REDIRECT_ORIGINS.includes(url.origin)) {

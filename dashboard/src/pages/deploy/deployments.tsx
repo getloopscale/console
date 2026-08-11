@@ -29,6 +29,7 @@ import { RedeployDialog } from '@/components/dialogs/redeploy-dialog';
 import { DeploymentRowVisitIcon } from '@/pages/deploy/components/deployment-row-visit-icon';
 import { formatDate } from '@/lib/formatting/format';
 import { normalizeBuildStatus, type Build, type BuildStatus } from '@/lib/api/types';
+import { safeNavigator } from '@/lib/navigation';
 
 const STATUS_MAP: Record<BuildStatus, StatusKind> = {
   succeeded: 'live',
@@ -287,9 +288,7 @@ export function DeploymentsPage() {
               action: {
                 label: 'View deploy instructions',
                 onClick: () => {
-                  window.location.assign(
-                    `/projects/${encodeURIComponent(name)}/connect`,
-                  );
+                  safeNavigator.goTo(`/projects/${encodeURIComponent(name)}/connect`);
                 },
               },
             }

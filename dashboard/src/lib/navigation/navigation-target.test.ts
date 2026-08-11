@@ -97,3 +97,21 @@ describe('NavigationTarget.parse — the only way to obtain a target', () => {
     expect(String(target)).toBe('/billing');
   });
 });
+
+/**
+ * The BLOCKER an adversarial review found in the first draft, pinned so it cannot come back.
+ *
+ * The class had only a private CONSTRUCTOR, which makes just the static side nominal.
+ * TypeScript still compared instances structurally, so this object literal was assignable to
+ * `NavigationTarget` with no cast — while the docblock claimed a runtime brand that was never
+ * written. The design's central promise ("a sink cannot receive an unchecked value, as a
+ * compile error") was false for the exact shape an attacker would use.
+ */
+describe('NavigationTarget is nominal, not structural', () => {
+  it('rejects a look-alike object literal at compile time', () => {
+    // @ts-expect-error a plain object is NOT a NavigationTarget — this line failing to error
+    // means the private member was removed and the guarantee is gone.
+    const forged: NavigationTarget = { value: 'javascript:alert(document.cookie)' };
+    expect(forged).toBeDefined();
+  });
+});

@@ -24,6 +24,13 @@ export class SafeNavigator {
     return this.attempt(() => this.sink.assign(target));
   }
 
+  /** Opens a judged destination in a new tab. */
+  openInNewTab(raw: string | null | undefined, policy?: NavigationPolicy): boolean {
+    const target = NavigationTarget.parse(raw, policy);
+    if (target === null) return false;
+    return this.attempt(() => this.sink.openInNewTab(target));
+  }
+
   /** Browser-level POST. Returns false — having submitted nothing — if refused. */
   submitTo(raw: string | null | undefined, fields: FormFields): boolean {
     const target = NavigationTarget.parse(raw);

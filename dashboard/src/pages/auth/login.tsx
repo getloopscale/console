@@ -177,12 +177,15 @@ export function LoginPage() {
   // que o theo#140 existe para atender.
   const postOIDC = (provider: 'github' | 'google') => {
     if (!flow) return;
-    postOIDCForm(
+    const posted = postOIDCForm(
       flow.ui.action,
       flow.ui.nodes.find((n) => n.attributes.name === 'csrf_token')?.attributes
         .value || '',
       provider,
     );
+    // B-138 review: `postOIDCForm` was changed to REPORT refusal and the caller threw the
+    // answer away, which is the same defect one layer up — a dead click with no feedback.
+    if (!posted) setNetworkError(true);
   };
 
   const submitOIDC = (provider: 'github' | 'google') => {

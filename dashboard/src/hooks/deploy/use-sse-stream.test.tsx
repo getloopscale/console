@@ -71,8 +71,13 @@ class MockEventSource {
     (this.listeners[type] ?? []).forEach((l) => l(ev));
   }
 
-  triggerError() {
-    this.onerror?.({});
+  /**
+   * B-160 — o mock passa a informar a CAUSA, como o transporte real faz. Sem isso ele
+   * modelava um `EventSource` que ja nao existe, e um teste que exercita um transporte
+   * imaginario nao protege o de verdade.
+   */
+  triggerError(reason = 'network-error') {
+    this.onerror?.({ reason });
   }
 
   /**
@@ -86,7 +91,15 @@ class MockEventSource {
    */
   triggerFatalError() {
     this.readyState = 2;
-    this.onerror?.({});
+    // B-160 — o caso FATAL do B-014 e um nao-2xx, que o transporte reporta como
+    // `http-error`. `readyState` sozinho ja nao distingue isso de um fim limpo.
+    this.onerror?.({ reason: 'http-error' });
+  }
+
+  /** Fim limpo do corpo pelo servidor — nao e falha e nao deve tocar no token. */
+  triggerServerClose() {
+    this.readyState = 2;
+    this.onerror?.({ reason: 'server-closed' });
   }
 
   close() {
@@ -286,5 +299,45 @@ describe('useSSEStream', () => {
     await waitFor(() => expect(result.current.events.length).toBe(1));
     act(() => result.current.clear());
     await waitFor(() => expect(result.current.events.length).toBe(0));
+  });
+});
+
+/**
+ * B-160 — a regressão que prova que o laço acabou.
+ *
+ * Um deploy que termina fecha o stream normalmente. Antes, isso batia no ramo de
+ * "token expirado", limpava o JWT da aplicação inteira e reabria — e como `onopen`
+ * zerava o backoff a cada volta, o ciclo rodava a ~1 Hz para sempre, contra o mesmo
+ * endpoint de troca cuja quota `api.ts:180` registra como já estourada uma vez.
+ */
+describe('B-160 — fim limpo de stream não é falha de credencial', () => {
+  it('test_a_clean_server_close_does_NOT_clear_the_application_token', async () => {
+    renderHook(() => useSSEStream('/api/v1/test', { eventTypes: ['x'] }));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+    const es = MockEventSource.instances[0];
+
+    act(() => {
+      es.triggerServerClose();
+    });
+
+    await new Promise((r) => setTimeout(r, 60));
+    expect(clearToken).not.toHaveBeenCalled();
+  });
+
+  it('test_repeated_clean_closes_never_clear_the_token', async () => {
+    renderHook(() => useSSEStream('/api/v1/test', { eventTypes: ['x'] }));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    for (let i = 0; i < 5; i += 1) {
+      const es = MockEventSource.instances[MockEventSource.instances.length - 1];
+      act(() => {
+        es.triggerServerClose();
+      });
+      await new Promise((r) => setTimeout(r, 30));
+    }
+
+    // Cinco encerramentos limpos e o token da aba segue intacto. Antes eram cinco
+    // trocas de token.
+    expect(clearToken).not.toHaveBeenCalled();
   });
 });

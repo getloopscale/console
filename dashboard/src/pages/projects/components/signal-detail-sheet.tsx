@@ -5,6 +5,7 @@ import { AppModal } from '@/components/ui/app-modal';
 import { useMetricsRange } from '@/hooks/projects/use-metrics-range';
 import { buildGrafanaDeepLink } from '@/pages/projects/components/grafana-deep-link';
 import type { SignalName } from '@/hooks/projects/use-status-stream';
+import { safeNavigator } from '@/lib/navigation';
 
 /**
  * SignalDetailSheet — Plan J-18 T3.3.
@@ -80,7 +81,7 @@ export function SignalDetailSheet({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => window.open(grafanaURL, '_blank', 'noopener,noreferrer')}
+            onClick={() => safeNavigator.openInNewTab(grafanaURL)}
           >
             <ExternalLink aria-hidden="true" className="size-4" />
             <span>Open in Grafana</span>

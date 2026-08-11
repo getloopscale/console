@@ -51,12 +51,33 @@ export const BILLING_REDIRECT: NavigationPolicy = {
   additionalOrigins: ['https://billing.stripe.com', 'https://checkout.stripe.com'],
 };
 
+/** The public documentation site. Reached from help affordances, never with a credential. */
+export const DOCS_SITE: NavigationPolicy = {
+  name: 'docs-site',
+  additionalOrigins: ['https://docs.usetheo.dev'],
+};
+
 export class NavigationTarget {
   /**
-   * Private so the class cannot be constructed around the check. TypeScript enforces this
-   * at compile time; the runtime brand below closes the `as any` escape.
+   * Private so the class cannot be constructed around the check, and `__brand` above makes
+   * the instance type nominal so a look-alike object literal is rejected too.
    */
-  private constructor(readonly value: string) {}
+  /**
+   * `_value` is PRIVATE, and that is what makes the type nominal.
+   *
+   * TypeScript compares classes structurally unless they hold a private or protected
+   * MEMBER — a private constructor makes only the static side nominal. The first draft had
+   * just the constructor, and an adversarial review proved that
+   * `{ value: 'javascript:alert(1)' }` was assignable to `NavigationTarget` with no cast at
+   * all, while the docblock claimed a runtime brand that did not exist. A look-alike object
+   * is now rejected by the compiler, which is what the rest of this file promises.
+   */
+  private constructor(private readonly _value: string) {}
+
+  /** The judged destination. */
+  get value(): string {
+    return this._value;
+  }
 
   /**
    * The only way to obtain a target. Returns `null` — not a thrown error — because every
@@ -78,7 +99,8 @@ export class NavigationTarget {
     if (isSafeRedirectUrl(raw)) return new NavigationTarget(raw as string);
     if (raw != null && policy.additionalOrigins.length > 0) {
       try {
-        if (policy.additionalOrigins.includes(new URL(raw).origin)) {
+        const u = new URL(raw);
+        if (u.protocol === 'https:' && policy.additionalOrigins.includes(u.origin)) {
           return new NavigationTarget(raw);
         }
       } catch {

@@ -10,6 +10,7 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { engineFetch } from '@/lib/http/api';
 import { derivarConexaoEfetiva, derivarEstado } from '@/hooks/projects/connect-fsm';
 import type { ConnectState } from '@/hooks/projects/connect-fsm';
+import { safeNavigator } from '@/lib/navigation';
 import type {
   InstallationRepositoriesResponse,
   InstallationRepository,
@@ -202,13 +203,9 @@ export function ProjectConnectPage() {
       `/projects/${encodeURIComponent(name)}/connect`,
     );
     const installUrl = `/v1/integrations/github/install?return_to=${returnTo}`;
-    // We pass `noopener,noreferrer` for security, but per spec window.open
-    // returns `null` for ANY noopener call -- not just popup-blocker
-    // refusals. So we cannot use the return value to distinguish "blocked"
-    // from "opened with noopener". Trust the browser; if the user has a
-    // popup blocker we just leave them on the dashboard waiting for
-    // installation_id (the polling FSM still triggers).
-    window.open(installUrl, '_blank', 'noopener,noreferrer');
+    // `noopener,noreferrer` lives in the boundary now. A popup blocker still leaves the
+    // user here waiting for installation_id, which the polling FSM handles.
+    safeNavigator.openInNewTab(installUrl);
     setBusy(true);
     // Trigger an immediate poll so state flips to 'installing' even
     // before the 2s interval fires.

@@ -126,11 +126,14 @@ export function RegisterPage() {
     // B-138: `flow.ui.action` is chosen by the Kratos response; the boundary refuses any
     // destination outside the allowlist rather than posting to it.
     const csrfNode = flow.ui.nodes.find((n) => n.attributes.name === 'csrf_token');
-    safeNavigator.submitTo(flow.ui.action, {
+    if (!safeNavigator.submitTo(flow.ui.action, {
       csrf_token: csrfNode?.attributes.value || '',
       method: 'oidc',
       provider,
-    });
+    })) {
+      setValidationErrors({ form: 'We could not reach the authentication service. Please try again.' });
+      setSubmitting(false);
+    }
   };
 
   // SECURITY: submit password registration via top-level HTML form POST
@@ -198,13 +201,19 @@ export function RegisterPage() {
       // the post-error re-render can rehydrate them. Password is intentionally NOT
       // persisted.
       persistRegisterForm(name, email);
-      safeNavigator.submitTo(`/v1/auth/register?flow=${encodeURIComponent(flow.id)}`, {
+      // The `finally` below deliberately does NOT clear `submitting`, because a successful
+      // submit navigates away. A REFUSED submit does not — so it has to clear it here, or
+      // the user watches a spinner forever with no account and no error.
+      if (!safeNavigator.submitTo(`/v1/auth/register?flow=${encodeURIComponent(flow.id)}`, {
         csrf_token: csrfNode?.attributes.value || '',
         method: 'password',
         'traits.email': email,
         'traits.name': name,
         password,
-      });
+      })) {
+        setValidationErrors({ form: 'We could not reach the authentication service. Please try again.' });
+        setSubmitting(false);
+      }
       return;
     } catch {
       /* network error */

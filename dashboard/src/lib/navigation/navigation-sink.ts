@@ -23,11 +23,19 @@ export interface NavigationSink {
    * instead of exposing only `assign`.
    */
   submitForm(target: NavigationTarget, fields: FormFields): void;
+  /**
+   * A new tab. Added after an adversarial review found `signal-detail-sheet.tsx:83` opening
+   * a Grafana url derived from the backend status response — a tenth sink of the same class,
+   * invisible to both the boundary and the first guard because `window.open` is a call and
+   * not an assignment.
+   */
+  openInNewTab(target: NavigationTarget): void;
 }
 
 /** What {@link WindowNavigationSink} needs from the platform, injected so tests can bind fakes. */
 export interface BrowserBindings {
   navigate(url: string): void;
+  openTab(url: string): void;
   document: Document;
 }
 
@@ -38,12 +46,19 @@ export class WindowNavigationSink implements NavigationSink {
   constructor(bindings?: Partial<BrowserBindings>) {
     this.bindings = {
       navigate: bindings?.navigate ?? ((url: string) => { window.location.href = url; }),
+      openTab: bindings?.openTab ?? ((url: string) => { window.open(url, '_blank', 'noopener,noreferrer'); }),
       document: bindings?.document ?? document,
     };
   }
 
   assign(target: NavigationTarget): void {
     this.bindings.navigate(target.value);
+  }
+
+  openInNewTab(target: NavigationTarget): void {
+    // `noopener,noreferrer` stays: it blocks reverse tabnabbing, which judging the
+    // destination does not.
+    this.bindings.openTab(target.value);
   }
 
   submitForm(target: NavigationTarget, fields: FormFields): void {
@@ -67,6 +82,11 @@ export class WindowNavigationSink implements NavigationSink {
 export class RecordingNavigationSink implements NavigationSink {
   readonly assignments: string[] = [];
   readonly submissions: { action: string; fields: FormFields }[] = [];
+  readonly tabs: string[] = [];
+
+  openInNewTab(target: NavigationTarget): void {
+    this.tabs.push(target.value);
+  }
 
   assign(target: NavigationTarget): void {
     this.assignments.push(target.value);

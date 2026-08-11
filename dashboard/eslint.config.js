@@ -253,8 +253,8 @@ export default [
       'src/lib/api/types.ts', // 861 LOC
       'src/lib/mocks/handlers.ts', // 774 LOC
       'src/pages/auth/recovery.tsx', // 711 LOC
-      'src/pages/deploy/deployments.tsx', // 704 LOC
-      'src/pages/projects/project-connect.tsx', // 664 LOC
+      'src/pages/deploy/deployments.tsx', // 703 LOC
+      'src/pages/projects/project-connect.tsx', // 661 LOC
       'src/pages/deploy/components/deploy-timeline-hero.tsx', // 677 LOC
       'src/pages/memory/graph.tsx', // 690 LOC
       'src/pages/lens/evaluators.tsx', // 585 LOC

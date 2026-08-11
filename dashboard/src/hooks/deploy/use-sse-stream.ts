@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { API_URL } from '@/lib/http/config';
 import { ensureSSEToken, clearToken } from '@/lib/http/api';
 import { SharedEventSource } from '@/hooks/deploy/shared-event-source';
+import type { StreamEndReason } from './stream-end-reason';
 
 /**
  * useSSEStream — generic typed SSE consumer (Plan J-17 T2.1).
@@ -80,7 +81,6 @@ const MAX_REOPEN_DELAY_MS = 30_000;
  * `readyState` sem as constantes de classe, e a comparacao viraria
  * `2 === undefined`, ou seja, silenciosamente falsa. O valor e fixado pela spec.
  */
-const EVENTSOURCE_CLOSED = 2;
 
 export function useSSEStream<T = unknown>(
   path: string | null,
@@ -187,14 +187,18 @@ export function useSSEStream<T = unknown>(
       es.onopen = () => {
         if (cancelled) return;
         failureCount = 0;
-        // Conexao boa: zera o backoff para que a proxima falha recomece curta.
-        reopenAttempts = 0;
+        // B-160 — `reopenAttempts` NAO zera aqui. `onopen` prova que o socket abriu, nao
+        // que o stream serve para alguma coisa: no ciclo abrir→servidor fecha→abrir ele
+        // disparava a cada volta e mantinha o backoff em zero para sempre. O reset agora
+        // acontece na primeira mensagem, que e a primeira evidencia de que a conexao
+        // fez o trabalho dela.
         setConnected(true);
         setError(false);
       };
 
       const messageHandler = (event: MessageEvent) => {
         if (cancelled) return;
+        reopenAttempts = 0;
         push(event.lastEventId || '', 'message', event.data);
       };
       es.onmessage = messageHandler;
@@ -207,31 +211,40 @@ export function useSSEStream<T = unknown>(
         }) as EventListener);
       }
 
-      es.onerror = () => {
+      es.onerror = (evento) => {
         if (cancelled) return;
+        const motivo = (evento as { reason?: StreamEndReason }).reason ?? 'network-error';
+
+        // B-160 — a política deixou de inferir a causa a partir de `readyState`.
+        //
+        // O fix de B-014 lia `readyState === CLOSED` como "o browser desistiu num erro
+        // HTTP, logo o token expirou". Isso era verdade no `EventSource` nativo. O
+        // transporte que o substituiu (B-088) também fecha no fim LIMPO do corpo, então
+        // aquele predicado passou a ser sempre verdadeiro: todo stream que terminava
+        // normalmente limpava o JWT da aplicação inteira e reabria.
+        //
+        // `aborted` não chega aqui — `close()` não dispara `onerror`.
+        if (motivo === 'aborted') return;
+
         setError(true);
         setConnected(false);
         failureCount += 1;
 
-        // B-014 — o limiar de 3 nunca disparava no caso que mais importa.
-        //
-        // Num erro HTTP nao-2xx (401 de token expirado, tipicamente) o browser
-        // FECHA o EventSource: readyState vai para CLOSED e ele NAO tenta
-        // reconectar. `onerror` roda uma unica vez, `failureCount` para em 1, e
-        // a recuperacao de token — que existe exatamente para esse cenario —
-        // nunca acontecia. O stream ficava morto em silencio ate a navegacao
-        // seguinte.
-        //
-        // CLOSED e terminal: recupera de imediato. O contador de 3 continua
-        // valendo para CONNECTING, em que o browser ja esta retentando sozinho e
-        // reabrir na primeira falha so brigaria com ele.
-        const fechadoPeloBrowser = es?.readyState === EVENTSOURCE_CLOSED;
-        if (!fechadoPeloBrowser && failureCount < TOKEN_REFRESH_THRESHOLD) return;
+        // Um fim LIMPO nao diz nada sobre a credencial, e nao conta para o limiar: era
+        // isso que fazia todo deploy encerrado limpar o JWT da aba inteira (B-160).
+        const fimLimpo = motivo === 'server-closed';
+        if (fimLimpo) failureCount -= 1;
 
-        // EC-3: token provavelmente expirado. Limpa o JWT em cache para que o
-        // proximo ensureSSEToken() force uma troca nova, e reabre explicitamente
-        // — a reconexao nativa do browser reusaria a URL com o token velho.
-        clearToken();
+        // Duas rotas levam a suspeitar do token, e as duas continuam valendo:
+        //   - um erro HTTP diz de imediato que a credencial e a causa provavel (B-014);
+        //   - tres falhas seguidas de qualquer natureza sugerem o mesmo (EC-3), porque a
+        //     essa altura "transitorio" ja nao explica.
+        const credencialSuspeita =
+          motivo === 'http-error' || motivo === 'no-token' ||
+          failureCount >= TOKEN_REFRESH_THRESHOLD;
+        if (!credencialSuspeita && !fimLimpo) return;
+
+        if (credencialSuspeita) clearToken();
         es?.close();
 
         // Backoff exponencial com jitter: sem ele, um 401 persistente (sessao de

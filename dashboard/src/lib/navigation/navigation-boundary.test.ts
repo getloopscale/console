@@ -27,8 +27,33 @@ import { join, relative, resolve } from 'node:path';
 
 const SRC = resolve(__dirname, '../..');
 
-/** `form.action = …` and `window.location.href = …` in their assignment form. */
-const RAW_SINK = /(?:^|[^.\w])(?:form\.action|(?:window\.)?location\.href|window\.location)\s*=(?!=)/;
+/**
+ * Every shape that leaves the page.
+ *
+ * The first draft anchored on `(?:^|[^.\w])`, which meant ANY receiver prefix disqualified
+ * the match: `w.location.href`, `top.location`, `document.location` all slipped through, and
+ * renaming a local from `form` to `f` was enough to evade it. An adversarial review ran 20
+ * realistic shapes against it and 17 passed — including `location.assign`, which
+ * `deployments.tsx:290` was already using in production while this guard reported green.
+ *
+ * A guard that recognises only the shapes its author happened to write is a guard tested by
+ * half. Receiver-agnostic now, and covering the call forms as well as the assignments.
+ */
+const RAW_SINK = new RegExp(
+  [
+    // assignment to a location, through any receiver: window./top./parent./self./document./none
+    // NOT a `const location = …` declaration — that binds a name, it does not navigate.
+    String.raw`(?<!\b(?:const|let|var)\s)\blocation(?:\.href)?\s*=(?!=)`,
+    // assignment to any element's action, whatever the local is called
+    String.raw`\b\w+\.action\s*=(?!=)`,
+    // the call forms
+    String.raw`\blocation\.(?:assign|replace)\s*\(`,
+    String.raw`\bwindow\.open\s*\(`,
+    // bracket access and Object.assign onto location
+    String.raw`\blocation\[['"\`]href['"\`]\]\s*=(?!=)`,
+    String.raw`Object\.assign\s*\(\s*(?:window\.)?location\b`,
+  ].join('|'),
+);
 
 /**
  * The ONLY file allowed to hold a raw sink is the boundary itself.
@@ -63,7 +88,9 @@ function violations(): { file: string; line: number; text: string }[] {
     const rel = relative(SRC, file);
     if (rel === BOUNDARY) continue;
     readFileSync(file, 'utf-8').split('\n').forEach((text, i) => {
-      if (RAW_SINK.test(text)) found.push({ file: rel, line: i + 1, text: text.trim() });
+      const code = text.trim();
+      if (code.startsWith('//') || code.startsWith('*')) return; // prose, not a sink
+      if (RAW_SINK.test(text)) found.push({ file: rel, line: i + 1, text: code });
     });
   }
   return found;
@@ -87,10 +114,25 @@ describe('navigation boundary — no raw sink outside it', () => {
   it('detects a planted violation — the guard can fail', () => {
     // Proves the detector is load-bearing. A guard nobody has seen fail is a guard nobody
     // knows works; this repo shipped four such tests before the 2026-08-11 review.
+    // Every shape the review demonstrated. A self-test that only replays what the author
+    // imagined certifies the guard against its own blind spot.
     const planted = [
       `  window.location.href = payload.next;`,
       `      form.action = flow.ui.action;`,
       `location.href = data.logout_url`,
+      `  const w = window; w.location.href = url;`,
+      `  top.location = url;`,
+      `  parent.location.href = url;`,
+      `  self.location.href = url;`,
+      `  document.location = url;`,
+      `  globalThis.location.href = url;`,
+      `  location.assign(url);`,
+      `  window.location.assign(url);`,
+      `  location.replace(url);`,
+      `  const f = document.createElement('form'); f.action = url;`,
+      `  location['href'] = url;`,
+      "  Object.assign(location, { href: url });",
+      `  window.open(url, '_blank');`,
     ];
     for (const line of planted) {
       expect(RAW_SINK.test(line), `should have flagged: ${line}`).toBe(true);
@@ -100,6 +142,7 @@ describe('navigation boundary — no raw sink outside it', () => {
       `  const href = location.href;`,
       `  if (window.location.href === expected) {`,
       `  expect(sink.assignments).toEqual(['/x']);`,
+      `  const { pathname } = window.location;`,
     ]) {
       expect(RAW_SINK.test(benign), `should NOT have flagged: ${benign}`).toBe(false);
     }

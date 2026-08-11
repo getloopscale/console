@@ -1,3 +1,5 @@
+import { streamEndEvent, type StreamEndReason } from './stream-end-reason';
+
 /**
  * B-088 — SSE sobre `fetch`, para que o JWT de sessão saia da URL.
  *
@@ -102,7 +104,7 @@ export class FetchEventSource {
     this.abort.abort();
   }
 
-  private falhar(): void {
+  private falhar(reason: StreamEndReason): void {
     if (this.fechado) return;
     // A ORDEM importa: `useSSEStream` lê `readyState` DENTRO do `onerror` para
     // decidir se o token expirou (B-014). Disparar antes de fechar entregaria
@@ -112,14 +114,14 @@ export class FetchEventSource {
     // construtor retorna. A falha síncrona — sem token, o caminho mais curto —
     // disparava para um handler que ainda não existia, e o stream ficava morto
     // sem ninguém saber. Foi um teste que pegou isto, não uma revisão.
-    queueMicrotask(() => this.onerror?.(new Event('error')));
+    queueMicrotask(() => this.onerror?.(streamEndEvent(reason)));
   }
 
   private async abrir(): Promise<void> {
     if (!this.opcoes.token) {
       // Chamar sem credencial produz um 401 garantido e um ciclo de backoff
       // inútil. Falhar aqui é mais barato e mais claro.
-      this.falhar();
+      this.falhar('no-token');
       return;
     }
 
@@ -141,13 +143,13 @@ export class FetchEventSource {
     } catch {
       // Inclui o abort do próprio `close()`, que não é falha: `falhar()` já
       // ignora quando fechado.
-      this.falhar();
+      this.falhar('network-error');
       return;
     }
 
     if (this.fechado) return;
     if (!resposta.ok || !resposta.body) {
-      this.falhar();
+      this.falhar('http-error');
       return;
     }
 
@@ -164,14 +166,14 @@ export class FetchEventSource {
         this.consumir(decoder.decode(value, { stream: true }));
       }
     } catch {
-      this.falhar();
+      this.falhar('network-error');
       return;
     }
 
     // O servidor encerrou. O `EventSource` nativo reconectaria sozinho; aqui
     // quem reconecta é o `useSSEStream`, e ele só sabe fazê-lo quando vê
     // `onerror`. Sem isto, um stream encerrado ficaria morto em silêncio.
-    this.falhar();
+    this.falhar('server-closed');
   }
 
   /** Acumula o chunk e despacha cada frame completo. */

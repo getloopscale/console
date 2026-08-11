@@ -4,6 +4,7 @@ import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react';
 import { Badge, DropdownMenu } from '@usetheo/ui';
 import { useWhoami } from '@/hooks/settings/use-whoami';
 import { useSwitchTeam } from '@/hooks/mutations/use-switch-team';
+import { DOCS_SITE, safeNavigator } from '@/lib/navigation';
 
 interface TeamSwitcherProps {
   /** Display name fallback when whoami data hasn't loaded yet. */
@@ -129,7 +130,7 @@ export function TeamSwitcher({ fallbackName, onCreateTeam }: TeamSwitcherProps) 
               onCreateTeam();
             } else {
               // Default: directs to CLI until backend POST /v1/teams ships
-              window.open('https://docs.usetheo.dev/teams/create', '_blank');
+              safeNavigator.openInNewTab('https://docs.usetheo.dev/teams/create', DOCS_SITE);
             }
           }}
         >
