@@ -5072,7 +5072,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-overview-project-cards-display-a-hardcoded`). Source: code-review finding #9, `code-review-output/code-review.db`.
 
-## B-135 — Create team menu item does not create a team — it opens a docs page in a new tab   [ ]
+## B-135 — Create team menu item does not create a team — it opens a docs page in a new tab   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5092,7 +5092,12 @@ evidence: |
   src/components/layout/app-sidebar.tsx:142  <TeamSwitcher fallbackName={userName} />   // onCreateTeam never supplied
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/layout/team-switcher.tsx:126`.
-status: triaged
+status: shipped
+shipped_note: |
+  The label and the icon follow the behaviour: without an `onCreateTeam` handler the item reads 'How to create a team' with an external-link icon; with one it reads 'Create team' with a `+` and calls the handler.
+  The only production caller (`app-sidebar.tsx:142`) passes none, so the documentation branch was the ONLY one that ever ran — and a menu item is a promise of an action.
+  Renaming is not cosmetic here; it is the only honest thing available while `POST /v1/teams` does not exist.
+  The component had no test file at all — only a `.stories.tsx` that passes a stub handler, so the one branch production never uses was the only one being exercised.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

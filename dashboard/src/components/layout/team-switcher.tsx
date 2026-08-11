@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, Plus , ExternalLink } from 'lucide-react';
 import { Badge, DropdownMenu } from '@usetheo/ui';
 import { useWhoami } from '@/hooks/settings/use-whoami';
 import { useSwitchTeam } from '@/hooks/mutations/use-switch-team';
@@ -124,18 +124,32 @@ export function TeamSwitcher({ fallbackName, onCreateTeam }: TeamSwitcherProps) 
           })
         )}
         <DropdownMenu.Separator />
+        {/* B-135 — o item dizia "Create team" e ABRIA UMA PÁGINA DE DOCUMENTAÇÃO em outra aba.
+            O único chamador de produção (`app-sidebar.tsx`) não passa `onCreateTeam`, então o ramo
+            de docs era o único que rodava — sempre.
+
+            Um item de menu é uma promessa de ação: quem clica em "Create team" espera um time, e
+            recebe uma aba nova de documentação. Renomear não é cosmética — é a única coisa
+            honesta a fazer enquanto `POST /v1/teams` não existe, e o ícone segue o rótulo (um
+            `+` promete criação; um link externo promete outra coisa).
+
+            Quando o endpoint existir, `onCreateTeam` é passado, o rótulo volta a ser "Create
+            team" e este ramo sai. */}
         <DropdownMenu.Item
           onSelect={() => {
             if (onCreateTeam) {
               onCreateTeam();
-            } else {
-              // Default: directs to CLI until backend POST /v1/teams ships
-              safeNavigator.openInNewTab('https://docs.usetheo.dev/teams/create', DOCS_SITE);
+              return;
             }
+            safeNavigator.openInNewTab('https://docs.usetheo.dev/teams/create', DOCS_SITE);
           }}
         >
-          <Plus className="size-4" aria-hidden="true" />
-          <span>Create team</span>
+          {onCreateTeam ? (
+            <Plus className="size-4" aria-hidden="true" />
+          ) : (
+            <ExternalLink className="size-4" aria-hidden="true" />
+          )}
+          <span>{onCreateTeam ? 'Create team' : 'How to create a team'}</span>
         </DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu>

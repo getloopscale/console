@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the team menu stopped offering "Create team" and opening a documentation page instead. No backend endpoint for creating a team exists yet, and the only production caller never supplied a handler, so the documentation branch was the only one that ever ran. The item now says what it does — and goes back to promising the action the moment a handler is passed (B-135).
+
+### Fixed
+
 - **theo-cloud/dashboard:** starting a sign-in or sign-up flow now follows the identity service's redirect instead of pretending to handle it. The code that claimed to do so could never run: the request was made in a mode where the browser hands back an opaque response with no status and no headers, so the branch reading them was unreachable. A reader looking for where the redirect is handled stopped there and concluded it was solved (B-169).
 
 ### Fixed
