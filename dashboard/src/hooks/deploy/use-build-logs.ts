@@ -201,7 +201,14 @@ export function useBuildLogs(buildId: string, paused: boolean): UseBuildLogsResu
   const stream = useLogStream(streamPath, { paused });
 
   const lines = useMemo<LogLine[]>(
-    () => [...historical, ...stream.lines],
+    // B-180 — o teto era aplicado nas duas ENTRADAS e em nenhuma SAÍDA. `historical` vem capado
+    // em MAX_LOG_LINES por `aplicarSnapshot`, `stream.lines` vem capado pelo `maxEvents` do
+    // `useLogStream`, e a concatenação das duas podia entregar 10 000 linhas ao consumidor — o
+    // dobro do teto que os dois lados acreditavam estar garantindo.
+    //
+    // O corte fica no FIM: as linhas mais novas são as que importam num visualizador de log, e
+    // descartar a cauda antiga é o mesmo critério que `capLogLines` já aplica de cada lado.
+    () => capLogLines([...historical, ...stream.lines]),
     [historical, stream.lines],
   );
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 
-import { MAX_LOG_LINES } from './use-log-stream';
+import { capLogLines, MAX_LOG_LINES } from './use-log-stream';
 
 const mockEngineFetch = vi.fn();
 vi.mock('@/lib/http/api', () => ({
@@ -13,6 +13,7 @@ vi.mock('@/lib/http/api', () => ({
 vi.mock('./use-deployment', () => ({
   useDeployment: () => ({ build: { status: 'succeeded' }, loading: false }),
 }));
+
 
 vi.mock('./use-log-stream', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./use-log-stream')>()),
@@ -127,3 +128,37 @@ describe('useBuildLogs — teto do snapshot (B-045 / B-016)', () => {
  * carga inicial deste mesmo arquivo já o fazia; a assimetria era o defeito. Ela vai sem teste, e
  * isto é o registro de que a ausência é sabida e não esquecida.
  */
+
+/**
+ * B-180 — o teto passou a valer para a SAÍDA, e o caso de 2x não é observável neste harness.
+ *
+ * `historical` é capado por `aplicarSnapshot` e `stream.lines` pelo `maxEvents` do `useLogStream`.
+ * Os dois lados acreditavam estar garantindo `MAX_LOG_LINES`, e a concatenação entregava até o
+ * dobro: o teto era aplicado nas ENTRADAS e em nenhuma SAÍDA. A correção envolve a concatenação
+ * em `capLogLines`.
+ *
+ * Tentei fixá-la por comportamento e não consegui: este arquivo mocka `useDeployment` para um
+ * build TERMINAL — que é o cenário em que o snapshot REST decide sozinho o tamanho do buffer, e o
+ * motivo de o mock existir —, então `streamPath` é nulo e o stream nunca contribui linhas. Um
+ * teste que enche os dois lados passa verde com e sem a correção, porque um dos lados é sempre
+ * vazio aqui.
+ *
+ * Escrevi esse teste, verifiquei por mutação que ele não reprovava, e o deletei em vez de
+ * deixá-lo verde — é a forma inerte que esta varredura nomeia. A aritmética abaixo é o que resta
+ * de conferível: ela reprova se `capLogLines` deixar de cortar. A LIGAÇÃO (que a concatenação
+ * passa por ela) fica sem teste, e este bloco é o registro de que a ausência é sabida.
+ */
+describe('B-180 — a aritmética do teto sobre a concatenação', () => {
+  it('duas metades cheias cortadas juntas cabem no teto', () => {
+    const metade = (p: string) =>
+      Array.from({ length: MAX_LOG_LINES }, (_, i) => ({
+        ts: '2026-01-01T00:00:00Z', level: 'info' as const, msg: `${p}${String(i)}`,
+      }));
+
+    const juntas = capLogLines([...metade('h'), ...metade('s')]);
+
+    expect(juntas).toHaveLength(MAX_LOG_LINES);
+    // Corta a cauda ANTIGA: num visualizador de log as linhas novas são as que importam.
+    expect(juntas[juntas.length - 1].msg).toBe(`s${String(MAX_LOG_LINES - 1)}`);
+  });
+});

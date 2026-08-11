@@ -6517,7 +6517,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-unpausing-an-sse-stream-does-not`). Source: code-review finding #71, `code-review-output/code-review.db`.
 
-## B-180 — useBuildLogs can hold 2x MAX_LOG_LINES — the cap guard test only covers the pure function, not the merged outp   [ ]
+## B-180 — useBuildLogs can hold 2x MAX_LOG_LINES — the cap guard test only covers the pure function, not the merged outp   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6534,7 +6534,14 @@ evidence: |
     );
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-build-logs.ts:203`.
-status: triaged
+status: shipped
+shipped_note: |
+  The merged array passes through `capLogLines`, so the cap holds on the OUTPUT and not only on each input.
+  Honest limit, recorded in the test file: the 2x case is not observable in this harness — the file mocks `useDeployment` to a TERMINAL build (deliberately, so the REST snapshot alone decides the buffer size), which makes `streamPath` null so the stream never contributes lines.
+  A behavioural test filling both sides passes with AND without the fix.
+  I wrote it, mutation-checked that it did not fail, and deleted it.
+  What is asserted instead is the arithmetic — `capLogLines` over a double-length array — which does go red when the cap is removed.
+  The wiring itself is untested and the test file says so.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
