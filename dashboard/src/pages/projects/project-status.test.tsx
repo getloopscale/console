@@ -127,7 +127,7 @@ describe('ProjectStatusPage — Red Team theo-cloud#98 closure', () => {
   // J-18 — the KPI strip renders the current metric value derived from the
   // metrics_proxy (via useKpiMetric), formatted by the SignalGrid.
   it('renders the current uptime KPI from the metrics_proxy (99.5 → "99.50%")', () => {
-    mockUseKpiMetric.mockImplementation((_n, _e, signal) =>
+    mockUseKpiMetric.mockImplementation((_n, signal) =>
       signal === 'uptime_24h' ? 99.5 : null,
     );
     mockUseProjectStatus.mockReturnValue({

@@ -6388,7 +6388,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-build-logs-usebuildlogs-refresh-writes-state-after-unmount`). Source: code-review finding #67, `code-review-output/code-review.db`.
 
-## B-176 — useMetrics-range keys the cache by env but never sends env — a non-production env silently returns production    [ ]
+## B-176 — useMetrics-range keys the cache by env but never sends env — a non-production env silently returns production    [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6405,7 +6405,12 @@ evidence: |
     )}/metrics?range=${encodeURIComponent(range)}&signal=${encodeURIComponent(signal)}`;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/projects/use-metrics-range.ts:72`.
-status: triaged
+status: shipped
+shipped_note: |
+  The `env` parameter was REMOVED, not merely dropped from the cache key, and the removal propagates through `useKpiMetric` and `project-status.tsx`.
+  The server side was measured: `theo/api/internal/routes/metrics_proxy.go` reads only `signal` and `range`, and `buildPromQL` labels on `tenant_id`/`project` — the endpoint has no environment dimension.
+  Keeping `env` in the key was worse than useless: the cache ASSERTED that staging and production were distinct series, stored two entries, and served the same env-agnostic data to both, so switching environments showed the numbers 'change' to identical values.
+  The test that documented the defect was amended.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
