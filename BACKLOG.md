@@ -4670,7 +4670,7 @@ entregue_2026-08-11: |
   E o TypeScript matou um teste meu: o caso "toda fonte tem destino" checava `path === ''`, que
   o tipo literal já prova. Reescrito para afirmar o que o tipo não sabe.
 
-## B-126 — Duas das sete overviews de capacidade não respondem "como está esta capacidade?"   [ ]
+## B-126 — Duas das sete overviews de capacidade não respondem "como está esta capacidade?"   [x]
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `capability-overviews-answer-a-question`).
 > Filho do `B-125`: aquele item fez a Overview de PLATAFORMA responder uma pergunta; este mede se
@@ -4720,9 +4720,37 @@ why_now: |
   O QUE MUDOU: o `B-125` estabeleceu, na Overview de plataforma, que uma tela inicial existe para
   responder uma pergunta — não para listar. Aplicada às capacidades, a mesma régua expõe que uma
   das sete não responde nada e que outra responde melhor do que as cinco restantes.
-status: raw
+status: planned
+evidence: knowledge-base/plans/capability-overviews-answer-a-question-plan.md
 dod:
   - toda overview de capacidade responde uma pergunta ANTES de listar — verificado por teste que quantifica sobre as telas, não por inspeção de uma a uma
   - a decisão entre "KPIs" e "veredito" é registrada num ADR com a alternativa rejeitada, em vez de resolvida por maioria: cinco telas usarem KPIs não prova que KPIs é a resposta certa
   - nenhuma tela perde informação que hoje só ela mostra — medido antes de mover, como no `B-125`, onde o painel `Usage` era a única superfície de três cotas
   - o aviso "os números são parciais" do promptly ou vira contrato de todas as telas com teto de leitura, ou some por ser desnecessário nele — hoje ele é o único que o carrega, e essa assimetria não está justificada em lugar nenhum
+
+entregue_2026-08-11: |
+  Fechado em `3429510d`.
+
+  DoD-1 — `/skills` responde antes de listar, e `lib/capability-overview.test.ts` quantifica sobre
+  as seis. O guard exige DECLARAÇÃO explícita em vez de heurística: "tem MetricCard? então é KPI"
+  erraria nos dois sentidos e, pior, deixaria a tela nova passar por acidente.
+
+  DoD-2 — a escolha KPI-vs-veredito está na decisão D1 do plano, com as duas alternativas
+  rejeitadas nomeadas. Não foi por maioria: cinco telas usarem KPIs não prova que KPIs respondem
+  melhor, e uniformizar o trust teria trocado uma resposta por um dado.
+
+  DoD-3 — nada se perdeu. A tabela do skills continua onde estava; o veredito entrou acima dela, e
+  há um caso de teste afirmando isso.
+
+  DoD-4 — a decisão D2 resolveu a assimetria pelo lado certo: o aviso do promptly não é
+  peculiaridade dele, é a disciplina do `has_more` do B-114 um nível acima, e a AUSÊNCIA nas
+  outras é que era o defeito.
+
+  A PERGUNTA ABERTA DO PLANO FOI RESPONDIDA: `workspace` fica fora do conjunto por declaração —
+  é um navegador de arquivos, não um painel de capacidade —, e não por omissão.
+
+  ERREI NA COMBINAÇÃO MAIS PERIGOSA e o teste da tela pegou: `healthy` + truncado dizia "toda
+  skill publicada tem revisão" sobre uma leitura de 100 num acervo de 300.
+
+  ACHADO COLATERAL: `pages/skills/` não tinha teste de tela algum — a cobertura vivia nos hooks e
+  no e2e, e um teste de hook passa idêntico com a tela nunca montada.
