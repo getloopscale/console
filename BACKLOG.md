@@ -7465,42 +7465,43 @@ dod:
   - the detector is proven able to fail
   - lowering the count is recorded as progress
 
-## B-228 — Release is blocked: the CHANGELOG and the git tags disagree by 54 minor versions   [ ]
+## B-228 — `git describe` cannot read the released version in this branching model   [ ]
 
 domain: frontend-dashboard
 repo: theo-cloud
 suggested_mode: review
 source: human
-severity: high
+severity: medium
 category: completeness
 evidence: |
-  CHANGELOG.md:241
-  `git describe --tags --abbrev=0` reports **v0.29.0** as the most recent tag. `CHANGELOG.md:241`
-  records **[0.83.1] - 2026-08-05** as the most recent released version, with [0.83.0] above it.
-  The two records of "what shipped" disagree by 54 minor versions.
+  .claude/rules/cycle-release.md:60
+  `cycle-release.md` instructs the release chain to detect the current version with
+  `git describe --tags --abbrev=0`. Run from `workspace` — the branch the same rule requires
+  releases to be authored on — it returns **v0.29.0**. Run against `origin/develop`, also
+  **v0.29.0**. The actual latest tag is **v0.85.0**.
 
-  Deriving the next version from the tag gives v0.30.0, which would appear to REGRESS against a
-  changelog that already documents 0.83.1. Deriving it from the changelog gives 0.84.0, which
-  would leave a 54-version hole in the tag history and break `git describe` for anything that
-  reads it.
+  Cause, measured 2026-08-11: `git merge-base --is-ancestor v0.85.0 HEAD` reports NO. Release
+  tags are cut on the `develop → main` merge commit, and `main` is never merged back, so no
+  release tag is ever an ancestor of `workspace` or `develop`. `git describe` answers "the last
+  tag in THIS history", which in this model is the last time the lines happened to touch —
+  v0.29.0, roughly 56 releases ago. The command is not wrong; it is being asked a question it
+  cannot answer here.
 
-  Second, independent defect in the same block: `[Unreleased]` carries SEVEN sections with
-  duplicates — `### Changed` at CHANGELOG.md:3 AND :95, `### Fixed` at :13 AND :170. Keep a
-  Changelog allows each category once, in a fixed order, and `cycle-release.md § Bump-level
-  derivation` reads those section names to choose patch/minor/major. With duplicates the
-  derivation is ambiguous: the first `Changed` has 5 entries and the second has 27.
+  Secondary, smaller, and real: `CHANGELOG.md:241` records `[0.83.1]` as the most recent
+  released version while tags reach `v0.85.0`. Two cuts have no changelog section.
 why_now: |
-  Measured 2026-08-11 while executing the RELEASE stage for the code-review slice. The
-  workspace → develop promotion is unaffected and proceeds; the develop → main cut cannot,
-  because picking a version here is a guess and `cycle-release.md § Stop conditions` says to
-  halt and let a human choose the version explicitly rather than infer one.
+  Found while executing the RELEASE stage. A first version of this item claimed the changelog and
+  the tags diverged by 54 versions; that was WRONG — the local repository simply had not fetched
+  tags, and `git describe` reported a stale answer that looked like a divergence. Corrected after
+  `git fetch --tags` and an ancestry check. Recording the error rather than quietly rewriting it:
+  a backlog that hides its own retractions is the same defect this review cycle exists to catch.
 status: raw
 dod:
-  - one authoritative answer to "what is the current released version", reconciled between the
-    tag history and CHANGELOG.md
-  - `[Unreleased]` holds each category at most once, in the Keep a Changelog order
-  - `git describe --tags` and the top released heading in CHANGELOG.md agree
+  - the release chain reads the version from a source that is valid in this branching model
+    (`git tag --sort=-v:refname | head -1`, or the tag on `origin/main`) rather than from
+    `git describe` on the authoring branch
+  - `cycle-release.md § Chain` is corrected so the next release does not repeat the misread
+  - CHANGELOG.md gains the sections for v0.84.0 and v0.85.0, or records why they have none
 
-> Registered 2026-08-11 by `/backlog-item` (slug: `theo-cloud-changelog-tag-divergence`).
-> Found by the RELEASE stage refusing to guess a version.
-
+> Registered 2026-08-11 by `/backlog-item` (slug: `theo-cloud-release-version-detection`).
+> Corrected the same day after verifying against the remote; see `why_now`.
