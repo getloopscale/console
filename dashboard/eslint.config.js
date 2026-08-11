@@ -253,16 +253,16 @@ export default [
       'src/lib/api/types.ts', // 861 LOC
       'src/lib/mocks/handlers.ts', // 645 LOC
       'src/pages/auth/recovery.tsx', // 711 LOC
-      'src/pages/deploy/deployments.tsx', // 703 LOC
+      'src/pages/deploy/deployments.tsx', // 685 LOC
       'src/pages/projects/project-connect.tsx', // 661 LOC
       'src/pages/deploy/components/deploy-timeline-hero.tsx', // 677 LOC
       'src/pages/memory/graph.tsx', // 690 LOC
       'src/pages/lens/evaluators.tsx', // 585 LOC
-      'src/pages/memory/webhooks.tsx', // 555 LOC
+      'src/pages/memory/webhooks.tsx', // 545 LOC
       'src/pages/skills/bundle-detail.tsx', // 539 LOC
       'src/lib/mocks/skills-handlers.ts', // 546 LOC
       'src/pages/settings/billing.tsx', // 525 LOC
-      'src/pages/settings/webhooks.tsx', // 521 LOC
+      'src/pages/settings/webhooks.tsx', // 513 LOC
       'src/pages/lens/alerts.tsx', // 523 LOC
       'src/pages/projects/projects.tsx', // 513 LOC
     ],

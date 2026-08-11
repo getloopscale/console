@@ -1,9 +1,11 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Link, useSearchParams, useNavigate, type NavigateFunction } from 'react-router-dom';
-import { ExternalLink, FolderKanban, Plus } from 'lucide-react';
+import { ExternalLink, Plus } from 'lucide-react';
 import { Badge, Button, Card, Checkbox, PageShell, StatusDot, Table } from '@usetheo/ui';
 import type { StatusKind } from '@usetheo/ui';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
+import { estadoDaLista } from '@/lib/list-state';
+import { buscaSemResultado } from '@/pages/projects/empty-states';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useProjects } from '@/hooks/projects/use-projects';
 import { CreateProjectSheet } from "@/pages/projects/components/create-project-sheet";
@@ -273,7 +275,8 @@ export function ProjectsPage() {
   // (Starter=3 / Pro=10 / Team=20). Hidden when pageLimit >= total.
   const PAGE_BUMP = 20;
   const [pageLimit, setPageLimit] = useState(PAGE_BUMP);
-  const { projects, total, loading } = useProjects({ limit: pageLimit });
+  // B-167 — `error` já vinha de `useProjects` e não era desestruturado.
+  const { projects, total, loading, error: erroDeLeitura } = useProjects({ limit: pageLimit });
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') ?? '');
@@ -361,21 +364,18 @@ export function ProjectsPage() {
         onClick: () => setCreateOpen(true),
       }}
       loading={loading}
-      empty={
-        // Only PageShell empty state for SEARCH no-match. For "no projects at all"
-        // (Sprint 3 T3.3), render EmptyProjectsHero inline below — empty-state-as-
-        // onboarding per ADR D2.
-        !loading && searchQuery && filteredProjects.length === 0
-          ? {
-              icon: FolderKanban,
-              title: 'No matching projects',
-              description: 'Try a different search term.',
-            }
-          : undefined
-      }
+      empty={estadoDaLista(
+        // Só há estado vazio de PageShell para busca sem resultado. "Nenhum projeto" (Sprint 3
+        // T3.3) renderiza `EmptyProjectsHero` inline abaixo — empty-state-as-onboarding, ADR D2.
+        { erro: erroDeLeitura, vazio: buscaSemResultado(loading, searchQuery, filteredProjects.length) },
+        'your projects',
+      )}
     >
-      {!loading && projects.length === 0 ? (
+      {!loading && !erroDeLeitura && projects.length === 0 ? (
         // Sprint 3 T3.3: empty-state-as-onboarding per ADR D2.
+        // B-167 — a SEGUNDA afirmação de ausência desta tela (o registro do item só listava a
+        // primeira): sem `!erroDeLeitura`, quem já tem trinta projetos recebe, numa falha de
+        // leitura, a tela de boas-vindas convidando a criar o primeiro.
         <EmptyProjectsHero onCreateFromDashboard={() => setCreateOpen(true)} />
       ) : (
       <>

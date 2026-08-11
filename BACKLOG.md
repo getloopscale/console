@@ -5133,7 +5133,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-billing-billing-upgrade-ctas-hardcode-prices-and`). Source: code-review finding #13, `code-review-output/code-review.db`.
 
-## B-137 — The loading/error/empty/data ladder is a copy-pasted convention, not a primitive: 6 pages omit the error leg a   [ ]
+## B-137 — The loading/error/empty/data ladder is a copy-pasted convention, not a primitive: 6 pages omit the error leg a   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5175,7 +5175,10 @@ evidence: |
               <p 
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/infra/domains.tsx:189`. It is one instance of F3 · a readiness gate that is not settled-success — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed together with B-167 — they are the same defect counted twice.
+  All remaining pages consult an error signal, and `list-state.test.ts` now refuses a page that builds an `empty=` without one.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6600,6 +6603,9 @@ evidence: |
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/webhooks.tsx:34`.
 status: triaged
+partial_note: |
+  PARTIAL — the duplicated `Delivery` interface (byte-identical in both webhooks pages) was extracted to `lib/webhooks/delivery.ts` while decomposing for the LoC ratchet.
+  The larger half of the item — `memory/webhooks.tsx` being a 545-line copy of a CRUD that is parameterized-by-context at its other two mount points — is NOT done and the item stays open.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -8217,7 +8223,7 @@ dod:
   - the count of unused exported types can only descend
   - the ratchet is proven able to fail
 
-## B-167 — Six list pages state absence when the read failed   [ ]
+## B-167 — Six list pages state absence when the read failed   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8243,7 +8249,12 @@ why_now: |
   The query layer is guarded — `lib/silent-null-guard.test.ts` demands `throwOnError` on every
   read — and all six offending pages PASS it. Nothing checks that anyone renders the rejection,
   so the guard covers the fetch and not the screen.
-status: triaged
+status: shipped
+shipped_note: |
+  The four remaining sites are done: projects (TWO assertions — the `empty=` and the onboarding hero the item never listed), environments, deployments, and webhooks (the one outside `empty=`, invisible to any sweep looking for that prop).
+  The DoD's guard exists and was mutation-verified.
+  Its FIRST version had five loose alternatives and approved a page whose error consultation had been ripped out — a guard that approves for the wrong reason is not a guard — so it now accepts only the two sanctioned forms.
+  The item's false premise was corrected at the source: `list-state.ts` claimed PageShell has no `error` prop, and the installed @usetheo/ui declares one.
 remeasured: |
   Re-opened 2026-08-11. `partial` was never a status this schema declares
   (raw | triaged | planned | shipped | killed) — corrected to `triaged`.

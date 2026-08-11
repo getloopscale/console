@@ -15,6 +15,8 @@ import {
   Timestamp,
 } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
+import type { Delivery } from '@/lib/webhooks/delivery';
+import { FALHA_AO_LER_ENTREGAS } from '@/pages/settings/webhook-copy';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -286,17 +288,6 @@ export function WorkspaceWebhooksPage({ context = 'settings' }: { context?: Webh
   );
 }
 
-interface Delivery {
-  id: string;
-  event_type: string;
-  status: 'pending' | 'delivering' | 'delivered' | 'failed' | 'dead_letter';
-  attempt_count: number;
-  last_response_status?: number;
-  last_error_message?: string;
-  created_at: string;
-  completed_at?: string;
-}
-
 function deliveryStatusVariant(s: Delivery['status']): 'default' | 'success' | 'warning' | 'destructive' {
   switch (s) {
     case 'delivered':
@@ -342,12 +333,13 @@ function DeliveriesSheet({
           </Sheet.Description>
         </Sheet.Header>
         <Sheet.Body className="space-y-3">
+          {/* B-167 — único local fora de `empty=`; `query.isError` existia e não era lido. */}
           {query.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading deliveries…</p>
+          ) : query.isError ? (
+            <p className="text-sm text-muted-foreground" data-testid="deliveries-error">{FALHA_AO_LER_ENTREGAS}</p>
           ) : deliveries.length === 0 ? (
-            <p className="text-sm text-muted-foreground" data-testid="deliveries-empty">
-              No deliveries yet.
-            </p>
+            <p className="text-sm text-muted-foreground" data-testid="deliveries-empty">No deliveries yet.</p>
           ) : (
             deliveries.map((d) => (
               <Card key={d.id} data-testid={`delivery-${d.id}`}>

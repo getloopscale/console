@@ -31,10 +31,19 @@ export interface EstadoVazio {
  *
  * ## Por que uma função e não um componente
  *
- * `PageShell` vem do design system e não aceita `error`. Um wrapper em volta dele seria uma
- * segunda fachada para a mesma coisa. O que falta é só a DECISÃO — e ela cabe numa função
- * pura, que é testável sem render e impossível de esquecer quando é o único jeito de
- * construir o descritor.
+ * CORREÇÃO (2026-08-11, B-167). Este bloco afirmava que `PageShell` "não aceita `error`", e essa
+ * era a justificativa inteira para escrever uma função em vez de usar o componente. **É falso.**
+ * O `@usetheo/ui@0.35.1` instalado declara `error?: { message; onRetry?; docsHref? }`, documenta
+ * a precedência `loading > error > empty`, o ramo de fato renderiza, e
+ * `pages/lens/labeling-queue.tsx` já o usa.
+ *
+ * A função continua defensável pelos méritos dela, que são outros: ela SUBSTITUI a mensagem no
+ * lugar em vez de trocar para a superfície de erro, e devolve `undefined` quando a lista TEM
+ * linhas — um erro de refetch por cima de dados velhos merece uma tarja, não um estado vazio.
+ * Mas a razão escrita aqui não se sustentava, e uma justificativa errada num módulo consultado
+ * por oito páginas se propaga como decisão tomada.
+ *
+ * As duas formas são aceitas pelo guarda em `list-state.test.ts`; escolha por página.
  */
 export function estadoDaLista(
   { erro, vazio }: { erro: boolean; vazio: EstadoVazio | undefined },

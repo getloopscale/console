@@ -16,6 +16,7 @@ import {
   useToast,
 } from '@usetheo/ui';
 import { AppModal } from '@/components/ui/app-modal';
+import type { Delivery } from '@/lib/webhooks/delivery';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
@@ -41,17 +42,6 @@ interface Webhook {
 
 interface ListResult {
   webhooks: Webhook[];
-}
-
-interface Delivery {
-  id: string;
-  event_type: string;
-  status: 'pending' | 'delivering' | 'delivered' | 'failed' | 'dead_letter';
-  attempt_count: number;
-  last_response_status?: number;
-  last_error_message?: string;
-  created_at: string;
-  completed_at?: string;
 }
 
 interface DeliveriesResult {
