@@ -7436,3 +7436,32 @@ dod:
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-trust-chart-test-green-over-defect`).
 > Found while implementing B-161; the evidence is the failing gate, not a hunch.
 
+## B-162 — 96 test files assert absence with a query that can never fail   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+family: F4 · a test that asserts absence of something absent in both worlds
+evidence: |
+  src/lib/absence-assertion-ratchet.test.ts:1
+  Measured 2026-08-11 over all 376 test files. `expect(queryBy…).toBeNull()` only proves
+  something when the queried element EXISTS in the passing case. Four were proven inert BY
+  EXECUTION: deleting the skills chart guard left 10/10 green; restoring the zero-sliver floor
+  left 18/18 green; `capability-overview.test.ts`'s `rendered()` matches a JSX tag inside a
+  comment; and the trust chart was green with the catalogue failing (B-227).
+why_now: |
+  The 2026-08-11 review proved the shape inert in four places. Fixing 96 files by hand would
+  leave the shape free to return on the 97th, which is the failure mode the whole review names.
+status: shipped
+shipped_note: |
+  Closed by a RATCHET rather than 96 edits — the form is not wrong in itself (against an element
+  the happy path renders, it is the right assertion), so banning it would have produced 98
+  suppressions and no reading. The population is frozen at 98 and can only descend, exactly as
+  the LoC budget does. The detector carries a self-test proving it can fail.
+dod:
+  - the population of files using the shape cannot grow without the build failing
+  - the detector is proven able to fail
+  - lowering the count is recorded as progress
+
