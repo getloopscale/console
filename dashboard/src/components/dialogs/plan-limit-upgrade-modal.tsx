@@ -6,6 +6,7 @@ import {
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
 import { Link } from 'react-router-dom';
+import { readPlanLimitDetail, type PlanLimitDetail } from '@/lib/http/event-payloads';
 
 /**
  * PlanLimitUpgradeModal — Plan J-10 v1.1 T2.6 (NEW).
@@ -28,22 +29,25 @@ import { Link } from 'react-router-dom';
  *     limit: number,
  *   }
  */
-interface PlanLimitDetail {
-  code?: string;
-  message?: string;
-  resource?: string;
-  current_plan?: string;
-  limit?: number;
-}
+// B-236 — a forma validada vive em `lib/http/event-payloads.ts`, junto do emissor. Duas
+// declarações da mesma carga são duas chances de discordarem.
+
 
 export function PlanLimitUpgradeModal() {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<PlanLimitDetail | null>(null);
 
   useEffect(() => {
+    // B-236 — `CustomEvent<PlanLimitDetail>` era uma afirmacao de compilacao sobre o corpo de uma
+    // resposta HTTP: um `current_plan` numerico chegava a `String.replace` abaixo e derrubava o
+    // modal no exato momento em que ele explica por que a acao foi recusada.
+    //
+    // O emissor agora valida (`lib/http/event-payloads.ts`), entao este detail nao pode mais vir
+    // de `api.ts`. A guarda fica aqui tambem em profundidade: `theo:plan-limit` e um evento de
+    // window, e um segundo emissor acrescentado amanha nao herda o cuidado do primeiro.
     const handler = (e: Event) => {
-      const ce = e as CustomEvent<PlanLimitDetail | null>;
-      setDetail(ce.detail ?? null);
+      const ce = e as CustomEvent<unknown>;
+      setDetail(readPlanLimitDetail(ce.detail));
       setOpen(true);
     };
     window.addEventListener('theo:plan-limit', handler);

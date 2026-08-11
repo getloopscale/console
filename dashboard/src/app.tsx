@@ -17,6 +17,7 @@ import { rotasDeObservability } from '@/routes/observability-routes';
 import { rotasDeSettings } from '@/routes/settings-routes';
 import { rotasDeProfile } from '@/routes/profile-routes';
 import { PlanLimitUpgradeModal } from '@/components/dialogs/plan-limit-upgrade-modal';
+import { SessionExpiredNotice } from '@/components/session-expired-notice';
 import { RouteLoading } from '@/components/loading/route-loading';
 // Red Team #93 — parent-project existence guard for every per-project
 // sub-route. Renders "Project not found" instead of letting the sub-view
@@ -106,6 +107,10 @@ export default function App() {
             projects / future verticals). Modal is closed by default; opens
             only on 402. */}
         <PlanLimitUpgradeModal />
+        {/* B-218 — mesmo padrão, segundo evento: `lib/http/api.ts` anuncia `theo:session-expired`
+            e este componente decide o que aparece. Antes o próprio cliente HTTP montava o `<div>`
+            e o estilizava por `cssText`. Montagem única, como o modal acima. */}
+        <SessionExpiredNotice />
         <Suspense fallback={<RouteLoading />}>
           <Routes>
           <Route path="/login" element={<Boundaried path="/login"><LoginPage /></Boundaried>} />

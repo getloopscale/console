@@ -2,6 +2,9 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** a malformed message from another browser tab can no longer log you out or crash the tab that receives it. The channel that coordinates logout across tabs trusted whatever arrived on it — an empty message threw inside the handler, and any message merely shaped like a logout wiped the credential (B-234).
+- **theo-cloud/dashboard:** when the server refuses an action because of a plan limit, the dialog that explains why no longer crashes if the server's answer is shaped unexpectedly. It was reading the response body without checking it, at the exact moment the user most needs the explanation (B-236).
+
 - **theo-cloud/dashboard:** a read that succeeded and carried no content is no longer painted as a failed read. Thirteen screens ask for data through one pair of hooks, and those hooks judged failure by the returned VALUE — but an empty successful response and a server error produce the same value, so a working `204` looked like an outage (B-171).
 - **theo-cloud/dashboard:** when the login service is unreachable or answers with a server error, the dashboard now reports what actually happened instead of "too many requests". The invented status had a real cost: the retry policy decides by status and refuses to retry client errors, so the one failure that most deserved a second attempt — a gateway saying "try again" — was the only one guaranteed never to get one (B-142).
 - **theo-cloud/dashboard:** several requests failing at once no longer make the dashboard renew its credential twice. The second failure was arriving after the renewal had already succeeded and throwing away the fresh credential, which triggered another renewal against a service whose rate limit this project has already hit once in production (B-231).
@@ -12,6 +15,8 @@
 - **theo-cloud/dashboard:** the /skills chart, cards and verdict no longer say "nothing recorded" for an instant over a table that is already listing rows — all four readings on that screen now describe the same collection (B-149).
 
 ### Changed
+
+- **theo-cloud/dashboard:** the "session expired" notice moved out of the network client, which used to build and style the notice itself. It now says so plainly when the redirect it promises does not happen — a refused or deferred navigation used to leave the message claiming "Redirecting to login..." forever (B-218).
 
 - **theo-cloud/dashboard:** the bar charts are readable by screen reader for what the colours were saying. On /trust the amber bar was the only thing distinguishing a policy that is enforced from one that is not, and it lived inside an element assistive technology is told to skip — a compliance reading that existed only for people who see it. Each chart now says in words what its colour says, in the wording of its own screen: "not enforced" on /trust, "needs review" on the Knowledge Base confidence chart (B-187).
 - **theo-cloud/dashboard:** the bar charts declare their columns, and the bar sits inside the value cell instead of occupying a column of its own that carried nothing — a screen reader used to walk a three-column table with one permanently empty column (B-186).

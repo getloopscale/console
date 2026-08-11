@@ -86,3 +86,37 @@ describe('PlanLimitUpgradeModal — fechamento (T1.1)', () => {
     await waitFor(() => expect(screen.queryByText('Limite atingido')).toBeNull());
   });
 });
+
+describe('B-236 — an unvalidated 402 body must not reach a render path', () => {
+  it('a non-string plan name renders the fallback instead of crashing the modal', async () => {
+    // The measured crash: `(detail?.current_plan ?? 'Free').replace(/^\w/, …)` on the number 42
+    // throws inside a React event handler, which takes the modal down at the exact moment the
+    // user is being told why their action was refused.
+    //
+    // The emitter now validates (lib/http/event-payloads.ts), so this detail cannot be produced by
+    // api.ts any more. The modal keeps its own guard as defence in depth: `theo:plan-limit` is a
+    // window event, and a second emitter added tomorrow would not inherit the first one's care.
+    render(withRouter(<PlanLimitUpgradeModal />));
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('theo:plan-limit', { detail: { current_plan: 42 } }),
+      );
+    });
+
+    await waitFor(() => { expect(screen.getByText(/Plan limit reached/i)).toBeInTheDocument(); });
+    expect(screen.getByText(/Free/)).toBeInTheDocument();
+  });
+
+  it('a plan name that IS a string is still shown', async () => {
+    render(withRouter(<PlanLimitUpgradeModal />));
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('theo:plan-limit', { detail: { current_plan: 'starter' } }),
+      );
+    });
+
+    await waitFor(() => { expect(screen.getByText(/Starter/)).toBeInTheDocument(); });
+  });
+});

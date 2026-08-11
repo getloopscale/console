@@ -2,7 +2,7 @@
 // Copyright 2025-2026 The Theo Authors
 
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { engineFetch, exchangeSessionToken, cloudFetch, ApiError, sessionDefinitivelyExpired } from './api';
+import { engineFetch, exchangeSessionToken, cloudFetch, ApiError, sessionDefinitivelyExpired, installAuthChannel } from './api';
 
 // B-049 — `mocksEnabled` passou a morar em ./config (era ./dev-mocks), para que
 // api.ts — o modulo mais importado do repo — nao dependa do modulo de fixtures.
@@ -600,5 +600,85 @@ describe('B-231 — concurrent 401s do not each invalidate the token', () => {
 
     await expect(cloudFetch('/a')).resolves.toEqual({ ok: true });
     expect(exchanges - antes).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-234 / B-218 — what crosses an event boundary, and what the transport is allowed to build.
+// ---------------------------------------------------------------------------
+
+describe('B-234 — a malformed cross-tab message is not a logout', () => {
+  it('a null broadcast neither throws nor clears the token', async () => {
+    // `MessageEvent<AuthMessage>` was a compile-time claim about a runtime payload from another
+    // tab. `msg.type` on null threw a TypeError INSIDE the handler, where nothing catches it.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    const dispose = installAuthChannel();
+    await exchangeSessionToken();
+
+    const canal = new BroadcastChannel('theo-auth');
+    canal.postMessage(null);
+    await new Promise((r) => setTimeout(r, 20));
+
+    // The token survives, and a subsequent call does not have to re-exchange.
+    await expect(cloudFetch('/foo')).resolves.toEqual({ ok: true });
+    canal.close();
+    dispose();
+  });
+
+  it('a message with an unknown type does not force a logout', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes('/v1/auth/session/token')) {
+        return new Response(JSON.stringify({ access_token: 'tk', expires_in: 3600 }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    const dispose = installAuthChannel();
+    await exchangeSessionToken();
+
+    const canal = new BroadcastChannel('theo-auth');
+    canal.postMessage({ type: 'hello' });
+    await new Promise((r) => setTimeout(r, 20));
+
+    await expect(cloudFetch('/foo')).resolves.toEqual({ ok: true });
+    canal.close();
+    dispose();
+  });
+});
+
+describe('B-218 — the client announces the expiry instead of building DOM', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('injects no node of its own and fires an event a component can render', async () => {
+    // `redirecting` is a module-level latch: once any test in this file has triggered a redirect,
+    // every later one returns early. That is a real property of the module (it stops a redirect
+    // loop) and it makes the behaviour untestable in place — so this case gets a FRESH module.
+    // The alternative was asserting nothing, which is how the toast went four years unasserted.
+    vi.resetModules();
+    const fresh = await import('./api');
+
+    const ouvidos: string[] = [];
+    const ouvinte = () => ouvidos.push('expired');
+    window.addEventListener('theo:session-expired', ouvinte);
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      new Response(JSON.stringify({ code: 'AUTH_REQUIRED' }), { status: 401 }),
+    );
+
+    await fresh.cloudFetch('/foo').catch(() => undefined);
+
+    // The old implementation appended a styled <div> straight into document.body.
+    expect(document.body.querySelector('div[style]')).toBeNull();
+    expect(ouvidos).toContain('expired');
+
+    window.removeEventListener('theo:session-expired', ouvinte);
   });
 });

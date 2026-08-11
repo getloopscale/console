@@ -12,6 +12,7 @@
 // Runtime config via /__config.js (empty in prod = same-origin, set per-env in container).
 import { API_URL, mocksEnabled } from './config';
 import { safeNavigator } from '@/lib/navigation';
+import { isLoggedOutMessage, readPlanLimitDetail, SESSION_EXPIRY_NOTICE_MS } from './event-payloads';
 
 const API_BASE = API_URL;
 
@@ -78,8 +79,6 @@ let tokenGeneration = 0;
 // and exfiltrate tokens from every open tab. Each tab mints its own token from
 // its own Kratos session cookie via exchangeSessionToken(). Only logout (which
 // carries no secret) is coordinated across tabs.
-type AuthMessage = { type: 'logged-out' };
-
 let authChannel: BroadcastChannel | null = null;
 
 /**
@@ -99,14 +98,16 @@ export function installAuthChannel(): () => void {
   if (authChannel) return () => {};
   try {
     const ch = new BroadcastChannel('theo-auth');
-    ch.onmessage = (event: MessageEvent<AuthMessage>) => {
-      const msg = event.data;
-      if (msg.type === 'logged-out') {
-        // Another tab logged out — clear this tab's token and redirect.
-        accessToken = null;
-        tokenExpiresAt = 0;
-        redirectToLogin('expired');
-      }
+    ch.onmessage = (event: MessageEvent<unknown>) => {
+      // B-234 — `MessageEvent<AuthMessage>` era uma afirmacao de compilacao sobre um dado que
+      // chega de outra aba em execucao: `null` fazia `msg.type` lancar dentro deste handler, e
+      // qualquer objeto com `type:'logged-out'` disparava a acao destrutiva abaixo.
+      if (!isLoggedOutMessage(event.data)) return;
+      // Another tab logged out — clear this tab's token and redirect.
+      accessToken = null;
+      tokenExpiresAt = 0;
+      tokenGeneration += 1;
+      redirectToLogin('expired');
     };
     authChannel = ch;
     return () => {
@@ -268,23 +269,22 @@ export async function ensureSSEToken(): Promise<string | null> {
 let redirecting = false;
 
 /** §3.6: Show notification before redirect, with reason in query param. */
+/**
+ * §3.6 — anuncia o fim da sessao e navega. B-218: montava um `<div>` com treze declaracoes de CSS
+ * inline e um `2000` literal. Um transporte que constroi DOM nao e testavel sem documento nem
+ * re-estilizavel sem edita-lo. Segue o precedente do mesmo arquivo (`maybeEmitPaymentRequired`):
+ * o cliente ANUNCIA, `components/session-expired-notice` decide o que aparece. A navegacao fica
+ * aqui — ela tem de acontecer mesmo sem ninguem ouvindo.
+ */
 function redirectToLogin(reason?: string): void {
   if (redirecting) return;
   redirecting = true;
-
   const params = reason ? `?reason=${reason}` : '';
-
-  // §3.6: Brief delay so user sees the notification
-  if (reason === 'expired') {
-    // Show a visible indicator before redirect
-    const toast = document.createElement('div');
-    toast.style.cssText = 'position:fixed;top:16px;right:16px;background:#1a1a1a;color:white;padding:12px 20px;border-radius:8px;z-index:9999;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
-    toast.textContent = 'Session expired. Redirecting to login...';
-    document.body.appendChild(toast);
-    setTimeout(() => { safeNavigator.goTo(`/login${params}`); }, 2000);
-  } else {
-    safeNavigator.goTo(`/login${params}`);
+  if (reason !== 'expired') { safeNavigator.goTo(`/login${params}`); return; }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('theo:session-expired'));
   }
+  setTimeout(() => { safeNavigator.goTo(`/login${params}`); }, SESSION_EXPIRY_NOTICE_MS);
 }
 
 /** Clear token (on logout or login page visit). */
@@ -311,7 +311,7 @@ export function clearToken(): void {
 export function clearTokenAcrossTabs(): void {
   clearToken();
   // §3.3: Broadcast logout to all tabs
-  authChannel?.postMessage({ type: 'logged-out' } satisfies AuthMessage);
+  authChannel?.postMessage({ type: 'logged-out' });
 }
 
 // MEET-040: Unified API fetch. All paths relative to same origin.
@@ -485,9 +485,11 @@ async function maybeEmitPaymentRequired(resp: Response): Promise<void> {
   if (resp.status !== 402) return;
   if (typeof window === 'undefined') return; // SSR / test envs without window
   try {
-    const body = await resp.clone().json();
+    const body: unknown = await resp.clone().json();
+    // B-236 — o corpo seguia sem exame ate `String.replace` no modal, onde um `current_plan`
+    // numerico lancava dentro de um handler do React. A fronteira e aqui.
     window.dispatchEvent(
-      new CustomEvent('theo:plan-limit', { detail: body }),
+      new CustomEvent('theo:plan-limit', { detail: readPlanLimitDetail(body) }),
     );
   } catch {
     // Body not JSON — still emit the event so modal opens with generic copy.
