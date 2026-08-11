@@ -50,6 +50,7 @@ function extractActionableErrorMessage(err: unknown): string {
 import { formatDate, formatNumber } from '@/lib/formatting/format';
 import { useBillingActivation, type ActivationOutcome } from '@/hooks/settings/use-billing-activation';
 import type { BillingResponse } from '@/lib/api/types';
+import { BILLING_REDIRECT, safeNavigator } from '@/lib/navigation';
 
 // B-047 — o espelho local de `UsageMetric` saiu junto com o de `BillingResponse`:
 // ele so existia para tipar o campo `usage` daquela interface. O contrato
@@ -163,7 +164,10 @@ export function BillingPage() {
         // existing upgradePlan handler below AND Stripe's documented canonical
         // Customer Portal pattern (https://docs.stripe.com/billing/customer/
         // integration#redirect-to-portal). No gesture-activation requirement.
-        window.location.href = portal.url;
+        // B-138: `portal.url` is chosen by the billing backend.
+        if (!safeNavigator.goTo(portal.url, BILLING_REDIRECT)) {
+          setActionError('Failed to open billing portal. Please try again in a moment.');
+        }
       } else {
         // 2xx with no `url` is the contract gap; preserve the existing
         // safety-net copy.
@@ -197,7 +201,10 @@ export function BillingPage() {
         { throwOnError: true },
       );
       if (result?.url) {
-        window.location.href = result.url;
+        // B-138: `result.url` is chosen by the billing backend.
+        if (!safeNavigator.goTo(result.url, BILLING_REDIRECT)) {
+          setActionError('Failed to start checkout. Please try again.');
+        }
       } else {
         // throwOnError makes this branch unreachable for non-2xx, but the
         // contract `T | null` still permits a 2xx with no `url` field — keep
@@ -517,7 +524,7 @@ function MemoryUsageCard() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => (window.location.href = '/memory')}
+              onClick={() => safeNavigator.goTo('/memory')}
               className="gap-1.5 shrink-0"
             >
               {empty ? 'Get started' : 'Open Memory'}

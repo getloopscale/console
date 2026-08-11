@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Boxes, MessageSquare, RefreshCw, ScrollText, Search, Timer } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
@@ -121,15 +122,15 @@ export function RagOverviewPage() {
           <Card.Body>
             <h2 className="mb-3 text-base font-semibold">Quick actions</h2>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" data-testid="kb-quick-actions">
-              <Button variant="secondary" onClick={() => (window.location.href = '/rag/wiki')} aria-label="New wiki page">
-                New page
-              </Button>
-              <Button variant="secondary" onClick={() => (window.location.href = '/rag/documents')} aria-label="Upload a document">
-                Upload document
-              </Button>
-              <Button variant="secondary" onClick={() => (window.location.href = '/rag/ask')} aria-label="Ask a question">
-                Ask a question
-              </Button>
+              <Button asChild variant="secondary"  aria-label="New wiki page">
+              <Link to="/rag/wiki">New page</Link>
+            </Button>
+              <Button asChild variant="secondary"  aria-label="Upload a document">
+              <Link to="/rag/documents">Upload document</Link>
+            </Button>
+              <Button asChild variant="secondary"  aria-label="Ask a question">
+              <Link to="/rag/ask">Ask a question</Link>
+            </Button>
             </div>
           </Card.Body>
         </Card>
@@ -141,8 +142,8 @@ export function RagOverviewPage() {
               Create a collection, ingest documents from the SDK or the Collections tab, then query them
               with <code>theo.rag(workspace).ask(collectionId, question)</code>.
             </p>
-            <Button variant="ghost" onClick={() => (window.location.href = '/rag/collections')}>
-              Browse collections →
+            <Button asChild variant="ghost" >
+              <Link to="/rag/collections">Browse collections →</Link>
             </Button>
           </Card.Body>
         </Card>
@@ -197,8 +198,8 @@ function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps)
         <Icon className="size-5 text-primary" aria-hidden="true" />
         <h3 className="text-sm font-semibold">{title}</h3>
         <p className="text-xs text-muted-foreground">{description}</p>
-        <Button variant="ghost" size="sm" onClick={() => (window.location.href = href)}>
-          Open →
+        <Button asChild variant="ghost" size="sm">
+          <Link to={href}>Open →</Link>
         </Button>
       </Card.Body>
     </Card>

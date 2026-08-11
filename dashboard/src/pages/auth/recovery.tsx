@@ -17,6 +17,7 @@ import {
 } from '@/pages/auth/kratos';
 import { getSession, logout } from '@/lib/auth/session';
 import { API_URL } from '@/lib/http/config';
+import { safeNavigator } from '@/lib/navigation';
 
 const ACCOUNTS_URL = API_URL;
 
@@ -199,7 +200,7 @@ export function RecoveryPage() {
         });
     } else {
       // No flow ID → bootstrap browser flow (canonical Kratos redirect)
-      window.location.href = `${ACCOUNTS_URL}/self-service/recovery/browser?return_to=${encodeURIComponent(window.location.origin + '/recovery')}`;
+      safeNavigator.goTo(`${ACCOUNTS_URL}/self-service/recovery/browser?return_to=${encodeURIComponent(window.location.origin + '/recovery')}`);
     }
   }, [searchParams, authNotice]);
 
@@ -389,7 +390,7 @@ export function RecoveryPage() {
   const handleResend = useCallback(() => {
     if (cooldownEndsAt !== null) return;
     setCooldownEndsAt(Date.now() + 60_000);
-    window.location.href = `${ACCOUNTS_URL}/self-service/recovery/browser?return_to=${encodeURIComponent(window.location.origin + '/recovery')}`;
+    safeNavigator.goTo(`${ACCOUNTS_URL}/self-service/recovery/browser?return_to=${encodeURIComponent(window.location.origin + '/recovery')}`);
   }, [cooldownEndsAt]);
 
   const cooldownSeconds =

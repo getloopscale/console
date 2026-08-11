@@ -241,7 +241,7 @@ func (h *WebhookHandler) handleSubscriptionUpdated(exec dbExecer, event StripeEv
 		CurrentPeriodEnd   int64  `json:"current_period_end"`
 		Items              struct {
 			Data []struct {
-				ID                 string `json:"id"` // subscription ITEM id (si_xxx) — required for metered usage reporting
+				ID                 string `json:"id"`                   // subscription ITEM id (si_xxx) — required for metered usage reporting
 				CurrentPeriodStart int64  `json:"current_period_start"` // Stripe API 2025 canonical
 				CurrentPeriodEnd   int64  `json:"current_period_end"`
 				Price              struct {

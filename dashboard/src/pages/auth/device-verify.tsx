@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, Button } from '@usetheo/ui';
 import { isSafeRedirectUrl } from '@/pages/auth/safe-redirect';
+import { safeNavigator } from '@/lib/navigation';
 
 // Plan J-05 amendment 2026-06-05 (LIVE debug iter 3) — Hydra v2.6 requires
 // the operator to host the device-verify UI: when the browser opens
@@ -80,7 +81,7 @@ export function DeviceVerifyPage() {
         setSubmitting(false);
         return;
       }
-      window.location.href = body.redirect_to;
+      safeNavigator.goTo(body.redirect_to);
     } catch {
       setError(
         'We could not reach the authentication service. Please try again in a moment.',

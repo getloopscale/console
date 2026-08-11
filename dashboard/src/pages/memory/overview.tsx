@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Share2, Sparkles, Zap } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
@@ -178,8 +179,8 @@ export function MemoryPage() {
               Use the SDK to remember facts from your agent. Anything you write
               here is queryable via <code>theo.memory.user(&apos;u&apos;).recall()</code>.
             </p>
-            <Button variant="ghost" onClick={() => (window.location.href = '/memory/memories')}>
-              Browse memories →
+            <Button asChild variant="ghost" >
+              <Link to="/memory/memories">Browse memories →</Link>
             </Button>
           </Card.Body>
         </Card>
@@ -259,8 +260,8 @@ function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps)
         <Icon className="size-5 text-primary" aria-hidden="true" />
         <h3 className="text-sm font-semibold">{title}</h3>
         <p className="text-xs text-muted-foreground">{description}</p>
-        <Button variant="ghost" size="sm" onClick={() => (window.location.href = href)}>
-          Open →
+        <Button asChild variant="ghost" size="sm">
+          <Link to={href}>Open →</Link>
         </Button>
       </Card.Body>
     </Card>

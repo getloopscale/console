@@ -2,7 +2,7 @@
 // Copyright 2025-2026 The Theo Authors
 
 import { describe, it, expect } from 'vitest';
-import { NavigationTarget } from './navigation-target';
+import { BILLING_REDIRECT, NavigationTarget } from './navigation-target';
 
 /**
  * B-138 · T1 — parse, don't validate.
@@ -72,6 +72,24 @@ describe('NavigationTarget.parse — the only way to obtain a target', () => {
 
   it('still refuses a fragment that is not the whole destination', () => {
     expect(NavigationTarget.parse('https://evil.example/#x')).toBeNull();
+  });
+
+  it('refuses the billing provider under the default policy', () => {
+    expect(NavigationTarget.parse('https://billing.stripe.com/session/abc')).toBeNull();
+  });
+
+  it('accepts the billing provider ONLY under the billing policy', () => {
+    // `safe-redirect.ts` states the rule this follows, in its own words: when a new
+    // destination class appears, the answer is a second allowlist, NOT loosening the auth
+    // one. Widening `SAFE_REDIRECT_ORIGINS` would have let a Kratos flow redirect a login
+    // POST to Stripe, which is not a trade anyone would make deliberately.
+    const t = NavigationTarget.parse('https://billing.stripe.com/session/abc', BILLING_REDIRECT);
+    expect(t).not.toBeNull();
+    expect(t!.value).toBe('https://billing.stripe.com/session/abc');
+  });
+
+  it('the billing policy still refuses an arbitrary host', () => {
+    expect(NavigationTarget.parse('https://evil.example/x', BILLING_REDIRECT)).toBeNull();
   });
 
   it('carries its proof: toString is the destination', () => {

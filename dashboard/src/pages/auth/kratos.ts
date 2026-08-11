@@ -5,6 +5,7 @@
 // Prefer dedicated ACCOUNTS_URL (Kratos may live at accounts.theo.dev in prod
 // while API lives at api.theo.dev). Falls back to API_URL for same-origin dev.
 import { API_URL, ACCOUNTS_URL as CONFIG_ACCOUNTS_URL } from '@/lib/http/config';
+import { safeNavigator } from '@/lib/navigation';
 const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL;
 
 export interface FlowNode {
@@ -45,8 +46,9 @@ export async function initFlow(flowType: string): Promise<Flow> {
   if (resp.status >= 300 && resp.status < 400) {
     const location = resp.headers.get('Location');
     if (location) {
-      window.location.href = location;
-      return {} as Flow; // redirect will happen
+      // B-138: the destination comes from a `Location` header on a 3xx. Refused
+      // destinations fall through to the throw below, which the caller already handles.
+      if (safeNavigator.goTo(location)) return {} as Flow; // redirect will happen
     }
   }
   throw new Error(`Failed to start ${flowType} flow`);

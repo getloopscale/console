@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch, getApiBase } from '@/lib/http/api';
+import { safeNavigator } from '@/lib/navigation';
 
 /**
  * Plan 3 of dashboard-memory-section-roadmap.md, T3.6.
@@ -166,7 +167,12 @@ export function ExportsPage() {
             size="sm"
             aria-label={`Download export ${row.id}`}
             onClick={() => {
-              window.location.href = `${getApiBase()}/v1/dashboard/memory/exports/${row.id}/download`;
+              // B-138: goes through the boundary like every other navigation. `row.id` is
+              // server-supplied and was interpolated raw — encoded now, so an id carrying
+              // `../` or a query separator cannot reshape the path.
+              safeNavigator.goTo(
+                `${getApiBase()}/v1/dashboard/memory/exports/${encodeURIComponent(row.id)}/download`,
+              );
             }}
           >
             <Download className="size-4" />

@@ -11,6 +11,7 @@
 // MEET-040: Single origin. Dashboard served at cloud.{domain} — all API calls are relative.
 // Runtime config via /__config.js (empty in prod = same-origin, set per-env in container).
 import { API_URL, mocksEnabled } from './config';
+import { safeNavigator } from '@/lib/navigation';
 
 const API_BASE = API_URL;
 
@@ -253,9 +254,9 @@ function redirectToLogin(reason?: string): void {
     toast.style.cssText = 'position:fixed;top:16px;right:16px;background:#1a1a1a;color:white;padding:12px 20px;border-radius:8px;z-index:9999;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
     toast.textContent = 'Session expired. Redirecting to login...';
     document.body.appendChild(toast);
-    setTimeout(() => { window.location.href = `/login${params}`; }, 2000);
+    setTimeout(() => { safeNavigator.goTo(`/login${params}`); }, 2000);
   } else {
-    window.location.href = `/login${params}`;
+    safeNavigator.goTo(`/login${params}`);
   }
 }
 

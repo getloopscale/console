@@ -445,14 +445,31 @@ func main() {
 	var billingHandler *routes.BillingHandler
 	var billingProvisioner *billing.Provisioner
 
-	if cfg.StripeAPIKey.Value() != "" {
+	// A prontidão é avaliada ANTES de qualquer coisa ser construída, e a decisão sai daqui
+	// em vez de estar embutida numa condição.
+	//
+	// Medido em 2026-08-11: a condição anterior olhava só a chave de API, e o segredo do
+	// webhook entrava sem ser verificado. Com ele ausente, o processo registrava
+	// "billing enabled" enquanto TODO evento de pagamento era recusado por VerifySignature
+	// — que recusa segredo vazio, corretamente. Nada inseguro aconteceu; o que se perdeu foi
+	// a verdade, e a afirmação falsa é o que impediu alguém de agir durante 20 horas.
+	billingReadiness := billing.AssessReadiness(cfg.StripeAPIKey.Value(), cfg.StripeWebhookSecret.Value())
+	switch {
+	case billingReadiness.Ready():
 		stripeClient = billing.NewStripeClient(cfg.StripeAPIKey.Value())
 		webhookHandler = billing.NewWebhookHandler(db, cfg.StripeWebhookSecret.Value(), billing.LoadPlanConfig(), logger)
 		billingProvisioner = billing.NewProvisioner(db, stripeClient, logger)
 		billingHandler = routes.NewBillingHandler(db, stripeClient, webhookHandler, billingProvisioner, cfg.BillingReturnURL)
 		logger.Info("billing enabled")
-	} else {
-		logger.Warn("STRIPE_API_KEY not set — billing endpoints disabled")
+	case billingReadiness.Partial():
+		// Metade configurada é o estado perigoso: parece pronto e não está. Erro, e não
+		// aviso — um aviso rola para fora da janela de log e ninguém age.
+		logger.Error("billing NOT enabled — "+billingReadiness.Explain(),
+			"missing", billingReadiness.Missing)
+	default:
+		// Ausência total é uma escolha válida: o hermético roda assim de propósito, e
+		// dizer isso é diferente de mentir sobre estar pronto.
+		logger.Info("billing not configured in this environment")
 	}
 
 	// Universal JWT auth middleware (RSA + HMAC — one path for all)

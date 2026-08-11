@@ -8,6 +8,7 @@ import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { enrichKratosError } from '@/pages/auth/kratos';
 import { getSession } from '@/lib/auth/session';
 import { ResendCooldownButton } from '@/pages/auth/components/resend-cooldown-button';
+import { safeNavigator } from '@/lib/navigation';
 
 const KRATOS_URL = AUTH_URL || API_URL;
 
@@ -33,7 +34,7 @@ export function VerificationPage() {
       // courier dispatches a code BEFORE we show PinInput.
       ensureCodeRequested(flowId).finally(() => setStatus('input'));
     } else {
-      window.location.href = `${KRATOS_URL}/self-service/verification/browser`;
+      safeNavigator.goTo(`${KRATOS_URL}/self-service/verification/browser`);
     }
     // WAI-ARIA-equivalent: submitCode intentionally NOT in deps to avoid
     // infinite re-render loop (function identity changes each render).
@@ -210,7 +211,7 @@ export function VerificationPage() {
                 size="lg"
                 className="w-full justify-center"
                 onClick={() => {
-                  window.location.href = `${KRATOS_URL}/self-service/verification/browser`;
+                  safeNavigator.goTo(`${KRATOS_URL}/self-service/verification/browser`);
                 }}
               >
                 Resend verification email
@@ -263,7 +264,7 @@ export function VerificationPage() {
                   // new code is issued. The 60s cooldown is persisted in
                   // localStorage, so it survives this reload — the reloaded
                   // page shows the disabled countdown, blocking resend-spam.
-                  window.location.href = `${KRATOS_URL}/self-service/verification/browser`;
+                  safeNavigator.goTo(`${KRATOS_URL}/self-service/verification/browser`);
                 }}
               />
             </>

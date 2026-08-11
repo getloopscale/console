@@ -30,6 +30,7 @@ const KRATOS_URL = AUTH_URL || API_URL;
 export type { VerifiableAddress, AuthenticationMethod, Session } from '@/lib/api/types';
 import type { Session } from '@/lib/api/types';
 import { purgarCachesDeDados } from '@/lib/auth/logout-cache-purge';
+import { safeNavigator } from '@/lib/navigation';
 
 // OIDC providers whose email verification we trust (MEET-037 security mandate).
 const TRUSTED_OIDC_PROVIDERS = ['github', 'google'];
@@ -126,7 +127,7 @@ export async function getSession(): Promise<Session | null> {
 
 /** Start login flow — redirect to Kratos login UI. */
 export function startLogin(): void {
-  window.location.href = `${KRATOS_URL}/self-service/login/browser`;
+  safeNavigator.goTo(`${KRATOS_URL}/self-service/login/browser`);
 }
 
 /** Get verification URL — redirects to Kratos verification flow. */
@@ -156,12 +157,13 @@ export async function logout(): Promise<void> {
     if (resp.ok) {
       const data = await resp.json();
       if (data.logout_url) {
-        window.location.href = data.logout_url;
-        return;
+        // B-138: `logout_url` is chosen by the identity service. A refused destination
+        // falls through to the `/login` fallback below rather than navigating to it.
+        if (safeNavigator.goTo(data.logout_url)) return;
       }
     }
   } catch {
     // Fallback
   }
-  window.location.href = '/login';
+  safeNavigator.goTo('/login');
 }

@@ -1,0 +1,99 @@
+Unlisted dependencies (3)
+@storybook/react  .storybook/preview.tsx:4:30                                       
+@storybook/react  src/components/layout/team-switcher.stories.tsx:1:37              
+@storybook/react  src/pages/projects/components/project-health-card.stories.tsx:1:37
+Unlisted binaries (1)
+eslint  package.json
+Unused exported types (84)
+CategoryBar                              interface  src/components/charts/category-bars.tsx:27:18                 
+CommandCategory                          type       src/components/command/command-palette.tsx:21:13              
+MenuGroup                                interface  src/components/layout/app-sidebar-menus.ts:76:18              
+GridColumns                              type       src/components/layout/content-grid.tsx:4:13                   
+AppModalSize                             type       src/components/ui/app-modal.tsx:39:13                         
+DeployTimelineAggregatorDegradedPayload  interface  src/hooks/deploy/deploy-timeline-events.ts:61:18              
+SSEEventType                             type       src/hooks/deploy/sse-events.ts:14:13                          
+SSEEvent                                 type       src/hooks/deploy/sse-events.ts:76:13                          
+DeploymentBuildError                     interface  src/hooks/deploy/use-deployment-stream.ts:44:18               
+MutationKind                             type       src/hooks/deploy/use-mutation-in-flight.ts:36:13              
+SSEStreamEvent                           interface  src/hooks/deploy/use-sse-stream.ts:29:18                      
+TranscriptRowStats                       interface  src/hooks/lens/trace-layout.ts:287:18                         
+Dataset                                  interface  src/hooks/lens/use-datasets.ts:21:18                          
+MetricsRangeDataPoint                    interface  src/hooks/projects/use-metrics-range.ts:23:18                 
+MetricsRangeStatus                       type       src/hooks/projects/use-metrics-range.ts:30:13                 
+SignalState                              interface  src/hooks/projects/use-status-stream.reducer.ts:64:18         
+Collection                               interface  src/hooks/rag/use-collections.ts:34:18                        
+TheoError                                interface  src/lib/api/types.ts:24:18                                    
+WhoamiTeam                               interface  src/lib/api/types.ts:43:18                                    
+TeamSwitchInput                          interface  src/lib/api/types.ts:49:18                                    
+App                                      interface  src/lib/api/types.ts:59:18                                    
+ProjectStatus                            type       src/lib/api/types.ts:165:13                                   
+ProjectCreateInput                       interface  src/lib/api/types.ts:172:18                                   
+BuildApp                                 interface  src/lib/api/types.ts:240:18                                   
+BuildCreateInput                         interface  src/lib/api/types.ts:253:18                                   
+AppSBOMSummary                           interface  src/lib/api/types.ts:279:18                                   
+LogStreamEvent                           interface  src/lib/api/types.ts:318:18                                   
+EnvironmentCreateInput                   interface  src/lib/api/types.ts:359:18                                   
+DomainTLS                                interface  src/lib/api/types.ts:393:18                                   
+DomainVerification                       interface  src/lib/api/types.ts:398:18                                   
+DomainCreateInput                        interface  src/lib/api/types.ts:408:18                                   
+SecretSetInput                           interface  src/lib/api/types.ts:433:18                                   
+TeamMemberInput                          interface  src/lib/api/types.ts:457:18                                   
+TeamMemberRoleUpdate                     interface  src/lib/api/types.ts:462:18                                   
+PreviewStatus                            type       src/lib/api/types.ts:484:13                                   
+PreviewCreateInput                       interface  src/lib/api/types.ts:491:18                                   
+ScaleAutoscaling                         interface  src/lib/api/types.ts:585:18                                   
+RollbackInput                            interface  src/lib/api/types.ts:608:18                                   
+PromoteInput                             interface  src/lib/api/types.ts:617:18                                   
+ProjectConnectInput                      interface  src/lib/api/types.ts:649:18                                   
+BillingPlanPrice                         interface  src/lib/api/types.ts:712:18                                   
+BillingUsageMetric                       interface  src/lib/api/types.ts:718:18                                   
+BillingPlanCap                           interface  src/lib/api/types.ts:723:18                                   
+BillingPortalResponse                    interface  src/lib/api/types.ts:731:18                                   
+AuditActorKind                           type       src/lib/api/types.ts:767:13                                   
+TenantRestoreResponse                    interface  src/lib/api/types.ts:786:18                                   
+PaginationParams                         interface  src/lib/api/types.ts:795:18                                   
+Paginated                                interface  src/lib/api/types.ts:801:18                                   
+VerifiableAddress                        interface  src/lib/api/types.ts:838:18                                   
+AuthenticationMethod                     interface  src/lib/api/types.ts:844:18                                   
+VerifiableAddress                        type       src/lib/auth/session.ts:30:15                                 
+AuthenticationMethod                     type       src/lib/auth/session.ts:30:34                                 
+FlowNode                                 interface  src/pages/auth/kratos.ts:10:18                                
+DeploymentStatus                         type       src/pages/deploy/components/build-timeline-live.tsx:208:15    
+CascadePayload                           interface  src/pages/infra/components/delete-environment-dialog.tsx:17:18
+DotenvEntry                              interface  src/pages/infra/components/dotenv.ts:18:18                    
+DotenvWarning                            interface  src/pages/infra/components/dotenv.ts:25:18                    
+EnvKind                                  type       src/pages/infra/components/env-kind-badge.tsx:14:13           
+DeltaTrend                               type       src/pages/lens/components/overview-metrics.ts:12:13           
+AnnotationValue                          type       src/pages/lens/labeling-queue/to-resolve-body.ts:6:13         
+ToolCall                                 interface  src/pages/lens/trace-detail/helpers.ts:25:18                  
+ToggleableColumn                         type       src/pages/lens/traces/view-encoding.ts:23:13                  
+SessionRow                               interface  src/pages/memory/scope-switcher.tsx:26:18                     
+AttentionSeverity                        type       src/pages/overview/attention.ts:49:13                         
+ModelSpend                               interface  src/pages/overview/spend.ts:23:18                             
+HPATargets                               interface  src/pages/projects/components/hpa-toggle.tsx:17:18            
+SignalValues                             interface  src/pages/projects/components/signal-grid.tsx:30:18           
+DiffKind                                 type       src/pages/promptly/components/diff.ts:12:13                   
+LinhaDeConfig                            interface  src/pages/promptly/components/diff.ts:121:18                  
+Revision                                 interface  src/pages/promptly/components/projections.ts:144:18           
+LinhaDoAgregado                          interface  src/pages/promptly/components/usage.ts:21:18                  
+PromptDoDetalhe                          interface  src/pages/promptly/detail/tipos.ts:21:18                      
+ModelConfigLido                          interface  src/pages/promptly/tabs/config.tsx:5:18                       
+VerdictKind                              type       src/pages/skills/catalog-verdict.ts:28:13                     
+RetrievedSkill                           interface  src/pages/skills/components/discovery.ts:34:18                
+TokenEntry                               interface  src/pages/skills/components/distribution.ts:11:18             
+TokenStatus                              type       src/pages/skills/components/distribution.ts:32:13             
+AdoptionEntry                            interface  src/pages/skills/components/distribution.ts:75:18             
+VersionEntry                             interface  src/pages/skills/components/projections.ts:14:18              
+EnforcementEvent                         type       src/pages/trust/components/enforcement-rows.ts:5:15           
+CatalogSpec                              type       src/pages/trust/components/guardrail-catalog.ts:5:15          
+CatalogEntry                             type       src/pages/trust/components/guardrail-catalog.ts:5:28          
+Validator                                type       src/pages/trust/components/trust-series.ts:15:3               
+TrendBucket                              interface  src/pages/trust/components/trust-series.ts:34:18              
+Duplicate exports (4)
+ExportsPage|MemoryExportsPage        src/pages/memory/exports.tsx   
+PlaygroundPage|MemoryPlaygroundPage  src/pages/memory/playground.tsx
+PromptlyCreatePage|default           src/pages/promptly/create.tsx  
+PromptlyDiffPage|default             src/pages/promptly/diff.tsx    
+Configuration hints (2)
+.mdx    knip.json  Compiled extension excluded by project (imports not followed)
+.css    knip.json  Compiled extension excluded by project (imports not followed)

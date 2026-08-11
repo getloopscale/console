@@ -3,7 +3,7 @@
 
 import type { FormFields, NavigationSink } from './navigation-sink';
 import { WindowNavigationSink } from './navigation-sink';
-import { NavigationTarget } from './navigation-target';
+import { NavigationTarget, type NavigationPolicy } from './navigation-target';
 
 /**
  * The one seam through which a server-supplied destination reaches the browser.
@@ -18,8 +18,8 @@ export class SafeNavigator {
   constructor(private readonly sink: NavigationSink = new WindowNavigationSink()) {}
 
   /** Same-window navigation. Returns false — having navigated nowhere — if refused. */
-  goTo(raw: string | null | undefined): boolean {
-    const target = NavigationTarget.parse(raw);
+  goTo(raw: string | null | undefined, policy?: NavigationPolicy): boolean {
+    const target = NavigationTarget.parse(raw, policy);
     if (target === null) return false;
     return this.attempt(() => this.sink.assign(target));
   }
