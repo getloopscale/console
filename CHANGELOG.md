@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+- **theo-cloud/dashboard:** signing out now reports when a cached copy of a tenant's data survived the purge. It was failing silently by construction — each delete's result was thrown away and the outer error handler was empty — so in a multi-tenant product the most expensive failure of that journey was the one thing the code guaranteed never to count (B-170).
+
 ### Changed
 
 - **theo-cloud/dashboard:** five types were exported for nobody and are now module-private, and the check that freezes that count dropped from 84 to 79. A type exported with no importer costs reading, not bytes: whoever opens the file to find a contract reads past declarations that no other file consumes (B-203).

@@ -85,7 +85,10 @@ export type ActivationEvent =
   | 'auth.method.attempt'
   | 'auth.method.success'
   | 'auth.method.failure'
-  | 'auth.method.cancelled';
+  | 'auth.method.cancelled'
+  // B-170 — dado de tenant que sobrevive ao logout. Numa aplicação multi-tenant é a falha mais
+  // cara desta jornada, e até aqui ela era a única que a purga garantia NÃO contar.
+  | 'logout.cache_purge_incomplete';
 
 /**
  * Auth telemetry types (plan 2026-05-29 T2.2 / D5 — FAANG-grade).

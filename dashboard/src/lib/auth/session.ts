@@ -15,6 +15,7 @@
 // accounts.theo.dev vs API at api.theo.dev) requires AUTH_URL set explicitly
 // via /__config.js — without this fallback the auth flow breaks silently.
 import { API_URL, AUTH_URL, mocksEnabled } from '@/lib/http/config';
+import { reportEvent } from '@/lib/telemetry/rum';
 // B-049 — `mocksEnabled` agora vem de ./config (e configuracao, nao fixture).
 // `getMockSession` continua vindo de ./dev-mocks: transforma-lo em injecao no
 // boot (main.tsx) e o passo 2 da remediacao e fica registrado no item, porque
@@ -147,7 +148,15 @@ export async function logout(): Promise<void> {
   // a mesma URL para todo mundo. A resposta de quem sai ficava no disco por ate
   // uma hora, e uma falha de rede (ou 3s de timeout) a serviria para quem
   // entrasse depois. Nunca lanca — ver o modulo.
-  await purgarCachesDeDados();
+  // B-170 — o relato é consumido, não descartado. Um cache de dados de tenant sobrevivendo ao
+  // logout é a falha mais cara desta função, e ela era a única que garantia não contá-la.
+  const purga = await purgarCachesDeDados();
+  if (purga.sobreviventes.length > 0) {
+    reportEvent('logout.cache_purge_incomplete', {
+      tentados: purga.tentados,
+      sobreviventes: purga.sobreviventes.length,
+    });
+  }
 
   try {
     const resp = await fetch(`${KRATOS_URL}/self-service/logout/browser`, {

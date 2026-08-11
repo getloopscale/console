@@ -6187,7 +6187,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kratos-initflow-s-3xx-branch-is-unreachable`). Source: code-review finding #51, `code-review-output/code-review.db`.
 
-## B-170 — Tenant-cache purge on logout fails silently — no signal that stale tenant data survived   [ ]
+## B-170 — Tenant-cache purge on logout fails silently — no signal that stale tenant data survived   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6206,7 +6206,12 @@ evidence: |
     }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/auth/logout-cache-purge.ts:79`.
-status: triaged
+status: shipped
+shipped_note: |
+  `purgarCachesDeDados` returns a `ResultadoDaPurga` naming the caches that survived, and `session.ts` consumes it — emitting `logout.cache_purge_incomplete` rather than discarding it, which is the wiring triad's runtime-metric pillar.
+  The contract that mattered is unchanged: it still never throws and never rejects, because an exception here would stop someone SIGNING OUT — trading the defect for a worse one.
+  Two existing tests pinned `resolves.toBeUndefined()`, which WAS the defect (a void return leaves the caller nothing to inspect), and were amended.
+  `indisponivel` separates 'there was nothing to purge' from 'the purge failed', which had been the same silence.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
