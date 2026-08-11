@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** starting a sign-in or sign-up flow now follows the identity service's redirect instead of pretending to handle it. The code that claimed to do so could never run: the request was made in a mode where the browser hands back an opaque response with no status and no headers, so the branch reading them was unreachable. A reader looking for where the redirect is handled stopped there and concluded it was solved (B-169).
+
+### Fixed
+
 - **theo-cloud/dashboard:** signing out now reports when a cached copy of a tenant's data survived the purge. It was failing silently by construction — each delete's result was thrown away and the outer error handler was empty — so in a multi-tenant product the most expensive failure of that journey was the one thing the code guaranteed never to count (B-170).
 
 ### Changed

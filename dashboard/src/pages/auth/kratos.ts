@@ -5,7 +5,6 @@
 // Prefer dedicated ACCOUNTS_URL (Kratos may live at accounts.theo.dev in prod
 // while API lives at api.theo.dev). Falls back to API_URL for same-origin dev.
 import { API_URL, ACCOUNTS_URL as CONFIG_ACCOUNTS_URL } from '@/lib/http/config';
-import { safeNavigator } from '@/lib/navigation';
 export const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL;
 
 export interface FlowNode {
@@ -35,23 +34,32 @@ export interface Flow {
   };
 }
 
-/** Initiate a self-service flow (login, registration, recovery, verification, settings). */
+/**
+ * Initiate a self-service flow (login, registration, recovery, verification, settings).
+ *
+ * B-169 — o ramo de 3xx era CÓDIGO MORTO, e o `redirect: 'manual'` era a causa.
+ *
+ * Sob `manual`, a spec do Fetch entrega uma resposta filtrada do tipo `opaqueredirect`: status 0,
+ * lista de headers VAZIA. Então `resp.status >= 300` nunca era verdade, e `resp.headers.get
+ * ('Location')` — se chegasse lá — devolveria `null` de qualquer jeito. O bloco inteiro afirmava
+ * tratar o redirecionamento de fluxo do browser e não tratava nada; um leitor procurando onde o
+ * 303 é seguido parava ali e concluía que estava resolvido.
+ *
+ * `redirect: 'follow'` é a forma que `login.tsx:92` e `register.tsx:116` já usam para o mesmo
+ * serviço: o browser segue o 303 sozinho e o corpo do fluxo chega no 200. Com isso o ramo some
+ * porque deixa de ser necessário, e não porque foi apagado — que é a diferença entre remover
+ * código morto e remover uma funcionalidade.
+ *
+ * A metade de open-redirect deste item já estava fechada pelo `safeNavigator` (B-138), então nada
+ * de segurança se perde: não há mais destino vindo de header para julgar.
+ */
 export async function initFlow(flowType: string): Promise<Flow> {
   const resp = await fetch(`${ACCOUNTS_URL}/self-service/${flowType}/browser`, {
     credentials: 'include',
-    redirect: 'manual',
+    redirect: 'follow',
   });
-  if (resp.status === 200) return resp.json();
-  // Browser flow returns 303 redirect — follow it
-  if (resp.status >= 300 && resp.status < 400) {
-    const location = resp.headers.get('Location');
-    if (location) {
-      // B-138: the destination comes from a `Location` header on a 3xx. Refused
-      // destinations fall through to the throw below, which the caller already handles.
-      if (safeNavigator.goTo(location)) return {} as Flow; // redirect will happen
-    }
-  }
-  throw new Error(`Failed to start ${flowType} flow`);
+  if (resp.ok) return resp.json();
+  throw new FlowSubmitError(resp.status);
 }
 
 /** Get an existing flow by ID. */

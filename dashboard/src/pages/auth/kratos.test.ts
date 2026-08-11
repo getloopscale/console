@@ -1,5 +1,5 @@
 import { describe, it, expect , vi } from 'vitest';
-import { enrichKratosError, flowUrl, submitFlow, FlowSubmitError } from './kratos';
+import { enrichKratosError, flowUrl, submitFlow, FlowSubmitError, initFlow } from './kratos';
 
 describe('enrichKratosError (T0.1 EC-02)', () => {
   it('test_enrichKratosError_passes_through_specific_messages', () => {
@@ -110,5 +110,34 @@ describe('B-232 — submitFlow distingue uma recusa do serviço de uma recusa de
     const fluxo = { id: 'ok', ui: { action: '/a', method: 'POST', nodes: [] } };
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(fluxo), { status: 200 }));
     await expect(submitFlow('https://auth.example/x', 'POST', {})).resolves.toMatchObject({ id: 'ok' });
+  });
+});
+
+describe('B-169 — o fluxo de browser segue o 303 em vez de fingir tratá-lo', () => {
+  it('devolve o fluxo quando o serviço responde 200', async () => {
+    const fluxo = { id: 'f1', ui: { action: '/a', method: 'POST', nodes: [] } };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(fluxo), { status: 200 }));
+    await expect(initFlow('login')).resolves.toMatchObject({ id: 'f1' });
+  });
+
+  it('pede ao browser para SEGUIR o redirecionamento', async () => {
+    // Sob `redirect: 'manual'` o Fetch entrega uma resposta `opaqueredirect`: status 0 e lista de
+    // headers vazia. O ramo de 3xx que existia ali era inalcançável por construção — e afirmava,
+    // para quem lesse, que o 303 do fluxo de browser estava tratado.
+    const espiao = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ id: 'f1', ui: { action: '/a', method: 'POST', nodes: [] } }), { status: 200 }),
+    );
+
+    await initFlow('login');
+
+    // Procura a chamada ao endpoint de browser: o spy acumula chamadas de casos anteriores, e
+    // `calls[0]` seria a de outro teste.
+    const chamada = espiao.mock.calls.find((c) => String(c[0]).includes('/self-service/login/browser'));
+    expect(chamada?.[1]).toMatchObject({ redirect: 'follow' });
+  });
+
+  it('uma recusa do serviço vira erro tipado, e não um Flow vazio', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 502 }));
+    await expect(initFlow('login')).rejects.toBeInstanceOf(FlowSubmitError);
   });
 });

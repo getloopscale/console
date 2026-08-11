@@ -6156,7 +6156,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-plan-limit-upgrade-modal-unvalidated-402-response-body-crosses-a`). Source: code-review finding #50, `code-review-output/code-review.db`.
 
-## B-169 — initFlow's 3xx branch is unreachable under `redirect: 'manual'`, and would be an unguarded open redirect if it   [ ]
+## B-169 — initFlow's 3xx branch is unreachable under `redirect: 'manual'`, and would be an unguarded open redirect if it   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6176,7 +6176,12 @@ evidence: |
     }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:48`.
-status: triaged
+status: shipped
+shipped_note: |
+  The dead 3xx branch is gone because its CAUSE is gone: `redirect: 'manual'` makes Fetch return an `opaqueredirect` filtered response — status 0, empty header list — so `resp.status >= 300` was never true and `headers.get('Location')` would have been null anyway.
+  It now uses `redirect: 'follow'`, the shape `login.tsx` and `register.tsx` already use against the same service, so the branch disappears by becoming unnecessary rather than by being deleted — which is the difference between removing dead code and removing a feature.
+  A non-2xx now throws `FlowSubmitError` (B-232) instead of a generic Error.
+  The open-redirect half was already closed by `safeNavigator` (B-138), and nothing security-relevant is lost: there is no longer a header-supplied destination to judge.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
