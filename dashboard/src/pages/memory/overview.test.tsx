@@ -165,7 +165,28 @@ describe('the bars under the counts (B-129)', () => {
     renderComMetricas({ total_memories: 4, entity_count: 0, add_events: 0, retrieval_api_usage: 4 });
 
     const bars = await screen.findByRole('table', { name: /graph coverage/i });
-    expect(within(bars).getByRole('row', { name: /entities extracted\s*0/i })).toBeInTheDocument();
+    const zero = within(bars).getByRole('row', { name: /entities extracted\s*0/i });
+    expect(zero).toBeInTheDocument();
+
+    // B-188 — the row's accessible NAME reads "entities extracted 0" whether the bar is 0% or 2%
+    // wide, so the assertion above passes with the sliver restored. What the item is about is the
+    // WIDTH, so the width is what this reads. Measured beside a positive max (4), which is the
+    // only arrangement in which a floor would be visible.
+    const drawn = zero.querySelector<HTMLElement>('[data-testid="bar-track"] > div');
+    expect(drawn).not.toBeNull();
+    expect(drawn?.style.width).toBe('0%');
+  });
+
+  it('a small non-zero count is still drawn (B-185)', async () => {
+    // The inverse of the case above, and the reason the floor is conditional rather than absent.
+    // 1 against a max of 4000 is 0.025% — a category that EXISTS and cannot be seen.
+    renderComMetricas({ total_memories: 4000, entity_count: 1, add_events: 0, retrieval_api_usage: 4000 });
+
+    const bars = await screen.findByRole('table', { name: /graph coverage/i });
+    const small = within(bars).getByRole('row', { name: /entities extracted\s*1/i });
+    const drawn = small.querySelector<HTMLElement>('[data-testid="bar-track"] > div');
+
+    expect(Number.parseFloat(drawn?.style.width ?? '0')).toBeGreaterThanOrEqual(1.5);
   });
 
   it('reads as a table, like every other capability', async () => {

@@ -66,15 +66,44 @@ export function maiorVersaoServida(labels: CatalogEntry['labels'] | undefined): 
 }
 
 /**
- * Deriva os números do painel de UMA página de catálogo.
+ * O balde dos prompts que existem e não servem ninguém. Ordenado por último, sempre.
  *
- * `temContinuacao` vem do serviço e é o único insumo de `parcial` — ver o docstring de
- * `ResumoCatalogo`. Campos ausentes numa linha (dado parcial de uma versão anterior da API) não
- * podem virar `NaN` silencioso: um número errado exibido com a confiança de um certo é pior que a
- * ausência dele.
+ * B-146 — chamava-se `not promoted`, que é TAMBÉM o nome de um card de KPI na mesma tela contando
+ * outro predicado: o card conta prompts cuja última versão está acima da maior versão que algum
+ * label serve; este balde conta prompts sem label algum. Duas quantidades, uma palavra, uma tela —
+ * quem lê não tem como saber em qual número está. `catalogo.tsx:51-54` já nomeava a fatia sem
+ * label de `No environment`; o balde passa a concordar com ela.
  */
-/** O balde dos prompts que existem e não servem ninguém. Ordenado por último, sempre. */
-const SEM_AMBIENTE = 'not promoted';
+export const SEM_AMBIENTE = 'No environment';
+
+/**
+ * Os nomes de ambiente que um prompt de fato serve.
+ *
+ * ## Por que uma função e não `labels.map(l => l.label)` nos dois lugares
+ *
+ * B-147 — os dois lugares faziam exatamente isso, e nenhum validava. Em `promptsPorAmbiente` o
+ * `undefined` resultante chegava ao desempate `a.label.localeCompare(b.label)` e derrubava a
+ * /promptly inteira; em `resumoCatalogo` ele entrava num `Set` e virava um ambiente a mais na
+ * contagem — silencioso, e por isso pior. Consertar só o barulhento é como o próximo leitor
+ * encontra o outro ainda aqui.
+ *
+ * `CatalogEntry['labels']` declara `label: string`, mas uma interface do TypeScript é uma
+ * afirmação em tempo de COMPILAÇÃO sobre um payload que o browser recebe em tempo de EXECUÇÃO, de
+ * um serviço que pode ser mais velho que este build. A fronteira valida (Regra 8).
+ *
+ * Um label em branco não derruba nada — ele ordena. O que ele produz é uma barra sem nome, que é
+ * uma leitura sobre a qual ninguém consegue agir, então também não é um ambiente.
+ */
+function ambientesServidos(labels: CatalogEntry['labels'] | undefined): Set<string> {
+  const nomes = new Set<string>();
+  if (!Array.isArray(labels)) return nomes;
+  for (const l of labels) {
+    if (typeof l?.label !== 'string') continue;
+    const nome = l.label.trim();
+    if (nome !== '') nomes.add(nome);
+  }
+  return nomes;
+}
 
 /**
  * Quantos prompts cada ambiente serve, para o gráfico de barras sob os contadores (B-129).
@@ -92,10 +121,9 @@ export function promptsPorAmbiente(
   const counts = new Map<string, number>();
 
   for (const linha of linhas) {
-    const labels = Array.isArray(linha.labels) ? linha.labels : [];
     // Um Set por prompt: um payload malformado com `prod → v1` duas vezes não pode inflar `prod`
     // para 2. A barra conta PROMPTS; contar linhas de label superestimaria o alcance em silêncio.
-    const ambientes = new Set(labels.map((l) => l.label));
+    const ambientes = ambientesServidos(linha.labels);
 
     // Servir ninguém é um ESTADO, não uma ausência — e `semAmbiente` já é um KPI na mesma tela.
     // Esconder estes daqui faria as barras discordarem de um número logo acima delas.
@@ -106,14 +134,22 @@ export function promptsPorAmbiente(
   return [...counts.entries()]
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => {
-      // `not promoted` é resíduo, não destino. Deixá-lo encabeçar o gráfico responderia "onde meus
-      // prompts rodam?" com "em lugar nenhum", enterrando os ambientes que de fato existem.
+      // `No environment` é resíduo, não destino. Deixá-lo encabeçar o gráfico responderia "onde
+      // meus prompts rodam?" com "em lugar nenhum", enterrando os ambientes que de fato existem.
       if (a.label === SEM_AMBIENTE) return 1;
       if (b.label === SEM_AMBIENTE) return -1;
       return b.value - a.value || a.label.localeCompare(b.label);
     });
 }
 
+/**
+ * Deriva os números do painel de UMA página de catálogo.
+ *
+ * `temContinuacao` vem do serviço e é o único insumo de `parcial` — ver o docstring de
+ * `ResumoCatalogo`. Campos ausentes numa linha (dado parcial de uma versão anterior da API) não
+ * podem virar `NaN` silencioso: um número errado exibido com a confiança de um certo é pior que a
+ * ausência dele.
+ */
 export function resumoCatalogo(linhas: readonly CatalogRow[], temContinuacao: boolean): ResumoCatalogo {
   const ambientes = new Set<string>();
   let revisoesPublicadas = 0;
@@ -125,8 +161,12 @@ export function resumoCatalogo(linhas: readonly CatalogRow[], temContinuacao: bo
     revisoesPublicadas += ultima;
 
     const labels = Array.isArray(linha.labels) ? linha.labels : [];
-    for (const l of labels) ambientes.add(l.label);
-    if (labels.length === 0) semAmbiente += 1;
+    const servidos = ambientesServidos(labels);
+    for (const nome of servidos) ambientes.add(nome);
+    // B-147 — a contagem era `labels.length === 0`, então um prompt carregando UM label inutilizável
+    // se reportava como promovido em algum lugar enquanto não servia ninguém. O predicado é "quantos
+    // ambientes ele de fato serve", que é o que `ambientesServidos` responde.
+    if (servidos.size === 0) semAmbiente += 1;
     if (ultima > maiorVersaoServida(labels)) naoPromovidos += 1;
   }
 

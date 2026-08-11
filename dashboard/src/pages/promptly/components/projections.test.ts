@@ -247,6 +247,45 @@ describe('resumoCatalogo', () => {
     expect(r.naoPromovidos).toBe(0);
     expect(r.ambientes).toBe(2);
   });
+
+  // B-147, second site. `promptsPorAmbiente` THREW on a malformed label entry; this one does not —
+  // it adds `undefined` to the environment set and reports an environment that does not exist.
+  // Silent and wrong is the worse of the two failures, and fixing only the loud one is how the
+  // next reader finds this still here.
+  it('a malformed label entry is not counted as an environment', () => {
+    const r = resumoCatalogo(
+      [
+        linha({
+          latestVersion: 1,
+          labels: [
+            { label: 'prod', version: 1 },
+            { version: 1 } as unknown as { label: string; version: number },
+            { label: '  ', version: 1 },
+          ],
+        }),
+      ],
+      false,
+    );
+
+    expect(r.ambientes).toBe(1);
+  });
+
+  it('a prompt whose only label is malformed counts as never promoted', () => {
+    // `semAmbiente` currently keys off `labels.length === 0`, so a prompt carrying one unusable
+    // label entry reports as promoted somewhere while serving nobody.
+    const r = resumoCatalogo(
+      [
+        linha({
+          latestVersion: 1,
+          labels: [{ version: 1 } as unknown as { label: string; version: number }],
+        }),
+      ],
+      false,
+    );
+
+    expect(r.semAmbiente).toBe(1);
+    expect(r.ambientes).toBe(0);
+  });
 });
 
 /**
@@ -393,11 +432,22 @@ describe('promptsPorAmbiente (B-129)', () => {
     const bars = promptsPorAmbiente([linha('a', []), linha('b', [{ label: 'prod', version: 1 }])]);
     expect(bars).toEqual([
       { label: 'prod', value: 1 },
-      { label: 'not promoted', value: 1 },
+      { label: 'No environment', value: 1 },
     ]);
   });
 
-  it('not promoted sorts last even when it dominates', () => {
+  // B-146 — the bucket used to be called `not promoted`, which is ALSO the name of a KPI card on
+  // the same screen counting a different predicate: the card counts prompts whose latest version
+  // is above the highest version any label serves, this bucket counts prompts with no label at
+  // all. Two quantities, one word, one screen — a reader cannot tell which number they are on.
+  it('the no-label bucket is named for what it IS, not for the KPI it is not', () => {
+    const bars = promptsPorAmbiente([linha('a', [])]);
+
+    expect(bars.map((b) => b.label)).toEqual(['No environment']);
+    expect(bars.map((b) => b.label)).not.toContain('not promoted');
+  });
+
+  it('No environment sorts last even when it dominates', () => {
     // It is a residue, not a destination. Letting it head the chart would answer "where do my
     // prompts run?" with "nowhere", burying the environments that do exist.
     const bars = promptsPorAmbiente([
@@ -405,10 +455,50 @@ describe('promptsPorAmbiente (B-129)', () => {
       linha('b', []),
       linha('c', [{ label: 'prod', version: 1 }]),
     ]);
-    expect(bars.map((b) => b.label)).toEqual(['prod', 'not promoted']);
+    expect(bars.map((b) => b.label)).toEqual(['prod', 'No environment']);
   });
 
   it('an empty catalog yields no bars', () => {
     expect(promptsPorAmbiente([])).toEqual([]);
+  });
+
+  // B-147 — reproduced by execution 2026-08-11: a label entry without a `label` field put
+  // `undefined` into the key set, and the tie-break `a.label.localeCompare(b.label)` threw
+  // `TypeError: Cannot read properties of undefined`, unmounting the whole /promptly overview.
+  //
+  // The wire type says `label: string`, but a TypeScript interface is a compile-time claim about a
+  // payload the browser receives at runtime from a service that can be older than this build.
+  it('a label entry with no label field does not take the page down', () => {
+    const malformado = [
+      linha('a', [{ label: 'prod', version: 1 }]),
+      linha('b', [{ version: 1 } as unknown as { label: string; version: number }]),
+    ];
+
+    expect(() => promptsPorAmbiente(malformado)).not.toThrow();
+    expect(promptsPorAmbiente(malformado)).toEqual([
+      { label: 'prod', value: 1 },
+      { label: 'No environment', value: 1 },
+    ]);
+  });
+
+  it('a label entry whose label is blank is not an environment either', () => {
+    // An empty string would sort, so it would not throw — it would render a nameless bar, which
+    // is a reading nobody can act on.
+    const bars = promptsPorAmbiente([
+      linha('a', [{ label: '   ', version: 1 }]),
+      linha('b', [{ label: 'prod', version: 1 }]),
+    ]);
+
+    expect(bars).toEqual([
+      { label: 'prod', value: 1 },
+      { label: 'No environment', value: 1 },
+    ]);
+  });
+
+  it('a non-string label is dropped rather than coerced into a bar', () => {
+    const bars = promptsPorAmbiente([
+      linha('a', [{ label: 42 as unknown as string, version: 1 }]),
+    ]);
+    expect(bars).toEqual([{ label: 'No environment', value: 1 }]);
   });
 });

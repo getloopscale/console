@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { catalogVerdict } from './catalog-verdict';
 import { CategoryBars } from '@/components/charts/category-bars';
-import { catalogKpis, catalogByCategory } from './catalog-kpis';
+import { catalogKpis, catalogByCategory, colecaoDescrita } from './catalog-kpis';
 import { CatalogVerdictBanner } from './components/catalog-verdict-banner';
 import { Link } from 'react-router-dom';
 import { Archive, Boxes, CircleAlert, CircleCheck } from 'lucide-react';
@@ -102,20 +102,6 @@ export function SkillsOverviewPage() {
   // armadilha que `trust` tinha entre 200 e 100.
   const query = useSkillsCatalog<SkillsPayload>(PAGE_LIMIT, tokenAtual);
 
-  // B-126 — o veredito lê o acervo JÁ CARREGADO (`paginas`), não a página em mãos: um julgamento
-  // sobre a última página responderia sobre um recorte que o operador não pediu. `next_page_token`
-  // marca a parcialidade (decisão D2 do plano) — a mesma disciplina do `has_more` do B-114, um nível acima.
-  const veredito = catalogVerdict({
-    skills: query.error ? null : paginas,
-    truncated: query.data?.next_page_token != null,
-  });
-
-  // B-126, amendment D1-bis — the dashboard every capability opens with. It derives from the
-  // catalogue already loaded; no new request.
-  const kpis = catalogKpis(paginas);
-  // B-129 — o mesmo catálogo já carregado, agrupado. Nenhuma requisição nova.
-  const porCategoria = catalogByCategory(paginas);
-
   const pagina = useMemo(
     () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillLinha[]) : []),
     [query.data],
@@ -129,7 +115,30 @@ export function SkillsOverviewPage() {
     setPaginas((atual) => mesclarPaginas(atual, pagina, { primeira }));
   }, [pagina, tokenAtual]);
 
-  const acervo = paginas.length > 0 ? paginas : pagina;
+  // B-149 — UMA escolha de qual coleção esta tela descreve, lida por todos os três consumidores.
+  // Antes, os cards e o gráfico liam `paginas` enquanto a tabela lia esta expressão inline, então
+  // no primeiro frame após o sucesso o gráfico dizia "Nothing recorded" por cima de uma tabela
+  // povoada. A correção não é o gráfico passar a ler a expressão certa — é não haver duas.
+  const acervo = colecaoDescrita(paginas, pagina);
+
+  // B-126 — o veredito julga o ACERVO, não a página em mãos: um julgamento sobre a última página
+  // responderia sobre um recorte que o operador não pediu. `next_page_token` marca a parcialidade
+  // (decisão D2 do plano) — a mesma disciplina do `has_more` do B-114, um nível acima.
+  //
+  // B-149 — lia `paginas` diretamente, que é a mesma divergência de um frame do gráfico: o
+  // veredito dizia da coleção vazia enquanto a tabela ao lado já listava. Os três consumidores
+  // desta tela leem `acervo` e por isso não podem discordar entre si.
+  const veredito = catalogVerdict({
+    skills: query.error ? null : acervo,
+    truncated: query.data?.next_page_token != null,
+  });
+
+  // B-126, amendment D1-bis — the dashboard every capability opens with. It derives from the
+  // catalogue already loaded; no new request.
+  const kpis = catalogKpis(acervo);
+  // B-129 — o mesmo catálogo já carregado, agrupado. Nenhuma requisição nova.
+  const porCategoria = catalogByCategory(acervo);
+
   const rows = filtrarAcervo(acervo, filtro);
   const proximoToken = query.data?.next_page_token ?? null;
   const temMais = typeof proximoToken === 'string' && proximoToken !== '';

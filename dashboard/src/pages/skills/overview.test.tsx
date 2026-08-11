@@ -193,3 +193,4 @@ describe('the chart under the counts (B-129)', () => {
     expect(screen.queryByRole('table', { name: /by category/i })).not.toBeInTheDocument();
   });
 });
+
