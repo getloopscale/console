@@ -5862,7 +5862,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard--llms-llms-txt-at-the-dashboard-root`). Source: code-review finding #30, `code-review-output/code-review.db`.
 
-## B-230 — Blob+anchor download implemented 3 times; the canonical helper declares itself the ONE source and the third co   [ ]
+## B-230 — Blob+anchor download implemented 3 times; the canonical helper declares itself the ONE source and the third co   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5899,7 +5899,13 @@ evidence: |
   grep -rn "createElement(.a.)" src --include=*.ts --include=*.tsx | grep -v .test. -> exactly these 3 sites.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/workspace/overview.tsx:193`.
-status: triaged
+status: shipped
+shipped_note: |
+  `triggerDownload` now delegates to a new `triggerBlobDownload`, and the third copy in `workspace/overview.tsx` was deleted.
+  The copy did not exist by carelessness: the helper that declared itself the ONE source only accepted `string`, so the binary case served itself — and lost both safeguards the canonical docblock documents (`appendChild`, and the DEFERRED revoke that keeps Safari from aborting mid-transfer).
+  Widening the signature is what makes the claim true.
+  The silent `if (!res.ok) return;` now surfaces the failure.
+  A grep-based test asserts no module builds the anchor itself, because the unit tests would stay green while a fourth copy was born.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
