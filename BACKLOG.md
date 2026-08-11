@@ -7689,3 +7689,43 @@ dod:
   - all six pages distinguish "nothing there" from "could not read"
   - a guard fails when a page passes `empty=` without consulting an error flag
 
+## B-168 — useCancelBuild reports success when the cancel was refused   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: error_handling
+evidence: |
+  src/hooks/mutations/use-cancel-build.ts:9
+  `engineFetch` is called WITHOUT `{ throwOnError: true }`, so `cloudFetch` RESOLVES `null`
+  on an error. A resolved promise is success to `useMutation`: `onSuccess` runs, both query
+  keys are invalidated, and the UI reports a cancellation the server refused.
+
+  Proven by contrast, not by reasoning — three sibling mutations in the same directory pass
+  the flag, each with a comment naming this exact failure:
+    src/hooks/mutations/use-environments.ts:118  "so a typed 4xx reaches the dialog as a real
+                                                  error instead of resolving null"
+    src/hooks/mutations/use-rollback.ts:33
+    src/hooks/mutations/use-promote.ts:46
+why_now: |
+  Cancelling a build is destructive and the operator acts on the answer. Telling them it
+  worked when it did not is the failure mode that costs most on this surface.
+status: raw
+dod:
+  - a BEHAVIOURAL test (not a source-text assertion) shows the mutation ends in `isError`
+    when the request fails
+  - the request opts into `throwOnError: true`, matching its three siblings
+attempt_log: |
+  Attempted 2026-08-11 and REVERTED rather than shipped half-done. The one-line production
+  fix is right and typechecks; the test is what defeated three attempts in a row, all on the
+  same obstacle: the mocked rejection surfaces as an unhandled rejection that fails the run
+  for a reason unrelated to what is being measured. `mutateAsync().catch()` did not help, nor
+  did `mockImplementation` over `mockRejectedValue`.
+
+  Whoever picks this up should start from the test harness, not the fix. Likely answers:
+  bind `onError` on the mutation options in the test, or configure the QueryClient with a
+  silent logger. Shipping the fix without the test would have been the shortcut this cycle
+  exists to refuse.
+
