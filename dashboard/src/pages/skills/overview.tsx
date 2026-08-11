@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { catalogVerdict } from './catalog-verdict';
-import { catalogKpis } from './catalog-kpis';
+import { CategoryBars } from '@/components/charts/category-bars';
+import { catalogKpis, catalogByCategory } from './catalog-kpis';
 import { CatalogVerdictBanner } from './components/catalog-verdict-banner';
 import { Link } from 'react-router-dom';
 import { Archive, Boxes, CircleAlert, CircleCheck } from 'lucide-react';
@@ -112,6 +113,8 @@ export function SkillsOverviewPage() {
   // B-126, amendment D1-bis — the dashboard every capability opens with. It derives from the
   // catalogue already loaded; no new request.
   const kpis = catalogKpis(paginas);
+  // B-129 — o mesmo catálogo já carregado, agrupado. Nenhuma requisição nova.
+  const porCategoria = catalogByCategory(paginas);
 
   const pagina = useMemo(
     () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillLinha[]) : []),
@@ -250,6 +253,20 @@ export function SkillsOverviewPage() {
           <MetricCard title="Not loadable" value={kpis.notLoadable} icon={<CircleAlert className="h-4 w-4" aria-hidden="true" />} />
           <MetricCard title="Deprecated" value={kpis.deprecated} icon={<Archive className="h-4 w-4" aria-hidden="true" />} />
         </div>
+      ) : null}
+
+      {/* B-129 — the cards answer "how many, and how many work"; they do not answer "what IS this
+          registry", which is the question somebody browsing an agent's skills actually has.
+
+          Bars and not a line: the catalogue carries no timestamp, so there is no time axis to plot.
+          Same settled-success rule as the cards above. */}
+      {!query.error && !query.loading ? (
+        <Card className="mb-4">
+          <Card.Body>
+            <h2 className="mb-3 text-base font-semibold">By category</h2>
+            <CategoryBars title="By category" bars={porCategoria} />
+          </Card.Body>
+        </Card>
       ) : null}
 
       <Card>

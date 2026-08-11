@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@/test/render';
+import { render, screen, within } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -90,6 +90,14 @@ describe('TrustOverviewPage', () => {
 });
 
 describe('the KPI dashboard (B-126, amendment D1-bis)', () => {
+  // Explicit setup rather than leaning on the sibling describe's `beforeEach`: a test that only
+  // passes because another block ran first is order-dependent, and order dependence is the failure
+  // that passes in isolation and breaks in the suite.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    responder({ violacoes: VIOLACOES, catalogo: CATALOGO });
+  });
+
   // Owner's decision: every capability opens with the same four-number dashboard `memory` opens
   // with. The verdict stays above it — the amendment adds, it does not replace.
 
@@ -113,5 +121,38 @@ describe('the KPI dashboard (B-126, amendment D1-bis)', () => {
     await screen.findByText('Could not read the trust layer');
     expect(screen.queryByText('Violations')).not.toBeInTheDocument();
     expect(screen.queryByText('Policies seen')).not.toBeInTheDocument();
+  });
+});
+
+describe('the chart under the counts (B-129)', () => {
+  // Explicit setup rather than leaning on the sibling describe's `beforeEach`: a test that only
+  // passes because another block ran first is order-dependent, and order dependence is the failure
+  // that passes in isolation and breaks in the suite.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    responder({ violacoes: VIOLACOES, catalogo: CATALOGO });
+  });
+
+  it('shows which policies dominate, and which of them are unblocked', async () => {
+    // The table below already lists the same rows. The bars add the PROPORTION: `40 / 2 / 1` and
+    // `15 / 14 / 14` are the same three rows and completely different situations, and the table
+    // makes you read three numbers to see which.
+    //
+    // Bars and not a line, deliberately: `PolicyViolation` declares `detectedAt` and the real
+    // deploy DOES NOT SEND IT (`hooks/trust/trust-payloads.ts:26`). A time series here would be
+    // empty in production while looking correct against this mock — the exact shape of failure this
+    // repository keeps paying for.
+    render(<TrustOverviewPage />);
+
+    const chart = await screen.findByRole('table', { name: /violations by policy/i });
+    expect(within(chart).getByRole('row', { name: /credential_leak\s*1/i })).toBeInTheDocument();
+  });
+
+  it('a read that FAILED draws no chart', async () => {
+    responder({ violacoes: new Error('trust down'), catalogo: CATALOGO });
+    render(<TrustOverviewPage />);
+
+    await screen.findByText('Could not read the trust layer');
+    expect(screen.queryByRole('table', { name: /violations by policy/i })).not.toBeInTheDocument();
   });
 });

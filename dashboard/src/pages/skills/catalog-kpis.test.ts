@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { catalogKpis } from './catalog-kpis';
+import { catalogKpis, catalogByCategory } from './catalog-kpis';
 
 /**
  * The registry's KPI dashboard (B-126, amendment D1-bis).
@@ -63,5 +63,44 @@ describe("the registry's four numbers", () => {
     const k = catalogKpis([skill({ latest_revision_id: undefined })]);
     expect(k.notLoadable).toBe(1);
     expect(k.loadable).toBe(0);
+  });
+});
+
+describe('the registry by category (B-129)', () => {
+  it('counts each category, largest first', () => {
+    // Largest first because the chart answers "what is this registry made of?" — and that question
+    // is answered by the top of the list. Alphabetical would bury the answer under whatever happens
+    // to start with 'a'.
+    const bars = catalogByCategory([
+      skill({ skill_id: 'a', category: 'engineering' }),
+      skill({ skill_id: 'b', category: 'finance' }),
+      skill({ skill_id: 'c', category: 'engineering' }),
+    ]);
+
+    expect(bars).toEqual([
+      { label: 'engineering', value: 2 },
+      { label: 'finance', value: 1 },
+    ]);
+  });
+
+  it('a skill with no category is counted, not dropped', () => {
+    // Dropping it would make the bars add up to less than the "In registry" card right above, and a
+    // reader who notices has no way to tell whether the gap is uncategorised skills or a bug.
+    const bars = catalogByCategory([skill({ category: undefined }), skill({ skill_id: 'b', category: '' })]);
+    expect(bars).toEqual([{ label: 'uncategorised', value: 2 }]);
+  });
+
+  it('ties break alphabetically so the order is stable across reads', () => {
+    // Without a tiebreak the bars reshuffle between refreshes on equal counts, which reads as data
+    // changing when nothing changed.
+    const bars = catalogByCategory([
+      skill({ skill_id: 'a', category: 'zeta' }),
+      skill({ skill_id: 'b', category: 'alpha' }),
+    ]);
+    expect(bars.map((b) => b.label)).toEqual(['alpha', 'zeta']);
+  });
+
+  it('an empty registry yields no bars', () => {
+    expect(catalogByCategory([])).toEqual([]);
   });
 });

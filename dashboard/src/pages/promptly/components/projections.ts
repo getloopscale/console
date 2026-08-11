@@ -73,6 +73,47 @@ export function maiorVersaoServida(labels: CatalogEntry['labels'] | undefined): 
  * podem virar `NaN` silencioso: um número errado exibido com a confiança de um certo é pior que a
  * ausência dele.
  */
+/** O balde dos prompts que existem e não servem ninguém. Ordenado por último, sempre. */
+const SEM_AMBIENTE = 'not promoted';
+
+/**
+ * Quantos prompts cada ambiente serve, para o gráfico de barras sob os contadores (B-129).
+ *
+ * O card `Environments` diz `2`. Ele não diz QUAIS, nem que um deles serve tudo enquanto o outro
+ * serve um prompt — e é essa assimetria que diz ao operador onde uma promoção ruim de fato cairia.
+ *
+ * Barras e não linha: o catálogo tem `updatedAt`, mas "prompts atualizados por dia" responde uma
+ * pergunta que ninguém faz e fica esparso em qualquer workspace pequeno. A distribuição por
+ * ambiente é a leitura que os números ao lado não dão.
+ */
+export function promptsPorAmbiente(
+  linhas: readonly CatalogRow[],
+): { label: string; value: number }[] {
+  const counts = new Map<string, number>();
+
+  for (const linha of linhas) {
+    const labels = Array.isArray(linha.labels) ? linha.labels : [];
+    // Um Set por prompt: um payload malformado com `prod → v1` duas vezes não pode inflar `prod`
+    // para 2. A barra conta PROMPTS; contar linhas de label superestimaria o alcance em silêncio.
+    const ambientes = new Set(labels.map((l) => l.label));
+
+    // Servir ninguém é um ESTADO, não uma ausência — e `semAmbiente` já é um KPI na mesma tela.
+    // Esconder estes daqui faria as barras discordarem de um número logo acima delas.
+    const chaves = ambientes.size > 0 ? [...ambientes] : [SEM_AMBIENTE];
+    for (const chave of chaves) counts.set(chave, (counts.get(chave) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => {
+      // `not promoted` é resíduo, não destino. Deixá-lo encabeçar o gráfico responderia "onde meus
+      // prompts rodam?" com "em lugar nenhum", enterrando os ambientes que de fato existem.
+      if (a.label === SEM_AMBIENTE) return 1;
+      if (b.label === SEM_AMBIENTE) return -1;
+      return b.value - a.value || a.label.localeCompare(b.label);
+    });
+}
+
 export function resumoCatalogo(linhas: readonly CatalogRow[], temContinuacao: boolean): ResumoCatalogo {
   const ambientes = new Set<string>();
   let revisoesPublicadas = 0;

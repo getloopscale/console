@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@/test/render';
+import { render, screen, within } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -133,11 +133,14 @@ describe('PromptlyOverviewPage', () => {
 
   // FE-04 — três caminhos de erro e nenhuma saída; o mecanismo já existia e não era usado.
   it('a falha de leitura oferece tentar novamente', async () => {
+    // O rótulo foi traduzido para `Try again` (B-128): era o único botão em português numa tela
+    // cujo resto já estava em inglês. O TESTE não mudou de intenção — a saída de erro continua
+    // sendo o que ele protege.
     mockPage.mockRejectedValue(new Error('502'));
 
     render(<PromptlyOverviewPage />);
 
-    expect(await screen.findByRole('button', { name: /tentar novamente/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument();
   });
 
   // ARCH-08 — o KPI somava TODAS as revisões escritas, inclusive as que o cartão vizinho
@@ -195,5 +198,37 @@ describe('PromptlyOverviewPage — cada número leva à lista', () => {
 
     const link = await screen.findByRole('link', { name: /see the prompts that were never promoted/i });
     expect(link).toHaveAttribute('href', '/promptly/catalog?recorte=not-promoted');
+  });
+});
+
+describe('the chart under the counts (B-129)', () => {
+  beforeEach(() => {
+    mockPage.mockReset();
+  });
+
+  it('shows which environments the prompts actually serve', async () => {
+    // The `Environments` card says how MANY. It does not say WHICH, nor that one of them serves
+    // everything while another serves one prompt — and that is what tells an operator where a bad
+    // promotion would land.
+    mockPage.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
+
+    render(<PromptlyOverviewPage />);
+
+    const chart = await screen.findByRole('table', { name: /by environment/i });
+    expect(within(chart).getByRole('row', { name: /prod\s*2/i })).toBeInTheDocument();
+    // The prompt serving nobody is a state, not an absence — `Not promoted` is already a KPI on
+    // this same screen, and hiding it here would make the bars disagree with a number above them.
+    expect(within(chart).getByRole('row', { name: /not promoted\s*1/i })).toBeInTheDocument();
+  });
+
+  it('a read that FAILED draws no chart', async () => {
+    // The rule this whole screen is built on: a failed read never becomes zeros. An empty chart is
+    // a fabricated distribution standing where an error belongs.
+    mockPage.mockRejectedValue(new Error('promptly down'));
+
+    render(<PromptlyOverviewPage />);
+
+    await screen.findByText('Could not load the catalog');
+    expect(screen.queryByRole('table', { name: /by environment/i })).not.toBeInTheDocument();
   });
 });

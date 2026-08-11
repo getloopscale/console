@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Boxes, MessageSquare, RefreshCw, ScrollText, Search, Timer } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { CategoryBars } from '@/components/charts/category-bars';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -87,6 +88,32 @@ export function RagOverviewPage() {
             />
             <MetricCard title="Latency p95 (ms)" value={Math.round(query.data.latency.p95_ms)} icon={<Timer className="h-4 w-4" aria-hidden="true" />} />
           </div>
+        ) : null}
+
+        {/* B-129 — the counts say HOW MUCH, the distribution says WHAT KIND. `3 answers` reads the
+            same whether all three were confident or none were, and that difference is the one a RAG
+            operator acts on.
+
+            Bars and not a line: `/rag/analytics` returns aggregates only — no per-bucket array —
+            so there is no time axis to plot. Drawing one would be inventing an axis the data does
+            not have.
+
+            Rendered only on settled success, like the cards above: three empty bars over a failed
+            read are a fabricated distribution standing where an error belongs. */}
+        {query.isSuccess && query.data != null ? (
+          <Card>
+            <Card.Body>
+              <h2 className="mb-3 text-base font-semibold">Answer confidence</h2>
+              <CategoryBars
+                title="Answer confidence"
+                bars={[
+                  { label: 'high', value: query.data.confidence.high, tone: 'positive' },
+                  { label: 'medium', value: query.data.confidence.medium },
+                  { label: 'low', value: query.data.confidence.low, tone: 'warning' },
+                ]}
+              />
+            </Card.Body>
+          </Card>
         ) : null}
 
         {/* KB7 — quick actions unify the Knowledge Base surfaces into one home. */}

@@ -19,6 +19,7 @@ import {
   useTrustValidators,
   useInvalidateTrust,
 } from '@/hooks/trust/use-trust';
+import { CategoryBars } from '@/components/charts/category-bars';
 import { trustKpis } from './components/trust-kpis';
 import {
   coverageGap,
@@ -187,6 +188,33 @@ export function TrustOverviewPage() {
           <MetricCard title="Blocked" value={kpis.blocked} icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />} />
           <MetricCard title="Unblocked" value={kpis.unenforced} icon={<ShieldX className="h-4 w-4" aria-hidden="true" />} />
         </div>
+      ) : null}
+
+      {/* B-129 — the table below lists these same rows; the bars add the PROPORTION. `40 / 2 / 1`
+          and `15 / 14 / 14` are the same three rows and completely different situations, and the
+          table makes you read three numbers to see which.
+
+          The tone carries the coverage, so the chart answers both questions at once: how much, and
+          whether anything is stopping it. An unblocked policy is amber; a blocked one is muted,
+          because it is present without being the point.
+
+          Bars and not a line, deliberately: `PolicyViolation` declares `detectedAt` and the real
+          deploy DOES NOT SEND IT (`hooks/trust/trust-payloads.ts:26`). A time series here would be
+          empty in production while looking correct against the mock. */}
+      {!failed && !isLoading ? (
+        <Card className="mb-4">
+          <Card.Body>
+            <h2 className="mb-3 text-base font-semibold">Violations by policy</h2>
+            <CategoryBars
+              title="Violations by policy"
+              bars={coverage.map((c) => ({
+                label: c.policy,
+                value: c.observed,
+                tone: c.enforced ? ('muted' as const) : ('warning' as const),
+              }))}
+            />
+          </Card.Body>
+        </Card>
       ) : null}
 
       <Card>

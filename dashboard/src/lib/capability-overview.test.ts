@@ -50,11 +50,30 @@ const CAPABILITY_OVERVIEWS = [
   'pages/skills/overview.tsx',
 ] as const;
 
-/** The two forms, and the marker for each. */
+/** The forms a screen declares. */
 const MARKERS = {
   kpi: '@overview-answers: kpi',
   verdict: '@overview-answers: verdict',
 } as const;
+
+/**
+ * The chart primitives an overview may plot with (B-129).
+ *
+ * Named rather than detected by a generic `Chart` substring: a heuristic would count a chart
+ * imported for a modal, or miss one wrapped in a local component. The list is the contract, and a
+ * new primitive is added here deliberately — which is also the moment somebody asks whether it
+ * should exist at all.
+ *
+ * `TokenUsageChart` was in this list for one commit and is NOT a component: it was removed from
+ * `memory/overview.tsx` on 2026-07-22 for plotting memory counts under token-labelled axes, and
+ * only the comment explaining the removal survived. The first version of this guard matched plain
+ * substrings, so that COMMENT satisfied it — the screen passed a chart check while rendering no
+ * chart. Matching the JSX open tag is what closes it.
+ */
+const CHART_PRIMITIVES = ['TrendChart', 'CategoryBars', 'Histogram'] as const;
+
+/** `<Name` or `<Name/>` — a component being RENDERED, not a name mentioned in prose. */
+const rendered = (src: string, name: string) => new RegExp(`<${name}[\\s/>]`).test(src);
 
 function read(rel: string): string {
   const path = resolve(SRC, rel);
@@ -105,6 +124,33 @@ describe('every capability overview answers a question', () => {
     for (const rel of withVerdict) {
       expect(read(rel).includes(MARKERS.kpi), `${rel} has a verdict and no dashboard`).toBe(true);
     }
+  });
+
+  it('every overview plots something under its counts', () => {
+    // B-129, owner's decision: counts alone say HOW MUCH and never WHAT KIND. `3 answers` reads the
+    // same whether all three were confident or none were; `2 environments` never says which one
+    // serves everything. `/observability` had the chart from the start and the other five were
+    // catching up one screen at a time.
+    //
+    // What form is NOT dictated here, and that is deliberate. A line needs a trustworthy time
+    // series, and four of the six do not have one — `trust` is the sharpest case, where
+    // `PolicyViolation` declares `detectedAt` and the real deploy does not send it. Forcing a time
+    // axis would produce a chart that is empty in production and correct against the mock.
+    const chartless = CAPABILITY_OVERVIEWS.filter(
+      (rel) => !CHART_PRIMITIVES.some((c) => rendered(read(rel), c)),
+    );
+
+    expect(
+      [...chartless],
+      'Capability overview with counts and no chart.\n\n' +
+        'Plot the distribution the screen already has, under the KPI cards, using one of:\n' +
+        `  ${CHART_PRIMITIVES.join(', ')}\n\n` +
+        'Pick the form from what the DATA supports — bars for a categorical distribution, a line\n' +
+        'only where there is a timestamp you trust in production. A chart form the data cannot\n' +
+        'feed is fabrication with axes on it.\n\n' +
+        'And render it only on settled success: an empty chart over a failed read is a fabricated\n' +
+        'distribution standing where an error belongs.\n',
+    ).toEqual([]);
   });
 
   it('the declared set matches what exists on disk', () => {

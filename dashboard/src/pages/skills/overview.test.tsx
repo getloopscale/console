@@ -157,3 +157,35 @@ describe('the KPI dashboard (B-126, amendment D1-bis)', () => {
     expect(screen.queryByText('Not loadable')).not.toBeInTheDocument();
   });
 });
+
+describe('the chart under the counts (B-129)', () => {
+  it('shows what the registry is made of', async () => {
+    // The four cards answer "how many, and how many work". They do not answer "what IS this
+    // registry" — which is the question somebody browsing an agent's skills actually has.
+    mockCatalogo.mockReturnValue({
+      data: {
+        skills: [
+          skill({ skill_id: 'a', category: 'engineering' }),
+          skill({ skill_id: 'b', category: 'engineering' }),
+          skill({ skill_id: 'c', category: 'finance' }),
+        ],
+      },
+      loading: false,
+      error: false,
+    });
+
+    render(<SkillsOverviewPage />);
+
+    const chart = await screen.findByRole('table', { name: /by category/i });
+    expect(within(chart).getByRole('row', { name: /engineering\s*2/i })).toBeInTheDocument();
+    expect(within(chart).getByRole('row', { name: /finance\s*1/i })).toBeInTheDocument();
+  });
+
+  it('a read that FAILED draws no chart', async () => {
+    mockCatalogo.mockReturnValue({ data: undefined, loading: false, error: true });
+    render(<SkillsOverviewPage />);
+
+    await screen.findByRole('status', { name: /skill registry/i });
+    expect(screen.queryByRole('table', { name: /by category/i })).not.toBeInTheDocument();
+  });
+});

@@ -11,6 +11,7 @@ import {
   temProximaPagina,
   type CatalogRow,
   comentarioRows,
+  promptsPorAmbiente,
 } from './projections';
 
 /**
@@ -349,5 +350,65 @@ describe('M18 — a data do comentário é lida por gente', () => {
     expect(semData?.quando).toBe('');
     const [lixo] = comentarioRows([{ id: 'c2', body: 'ok', createdAt: 'nao-e-data' }]);
     expect(lixo?.quando).toBe('');
+  });
+});
+
+describe('promptsPorAmbiente (B-129)', () => {
+  const linha = (name: string, labels: { label: string; version: number }[]) => ({
+    name,
+    latestVersion: 3,
+    labels,
+    updatedAt: '2026-08-01T10:00:00Z',
+    labelsResumo: '',
+    tags: [] as readonly string[],
+  });
+
+  it('counts how many prompts each environment serves, largest first', () => {
+    // The `Environments` card says `2`. It does not say WHICH, nor that one of them serves
+    // everything while the other serves one prompt — and that asymmetry is what tells an operator
+    // where a bad promotion would actually land.
+    const bars = promptsPorAmbiente([
+      linha('a', [{ label: 'prod', version: 1 }, { label: 'staging', version: 3 }]),
+      linha('b', [{ label: 'prod', version: 2 }]),
+    ]);
+
+    expect(bars).toEqual([
+      { label: 'prod', value: 2 },
+      { label: 'staging', value: 1 },
+    ]);
+  });
+
+  it('counts a prompt once per environment, not once per label version', () => {
+    // A prompt carrying `prod → v1` twice (a malformed payload) must not inflate `prod` to 2. The
+    // bar counts PROMPTS; counting label rows instead would silently overstate reach.
+    const bars = promptsPorAmbiente([
+      linha('a', [{ label: 'prod', version: 1 }, { label: 'prod', version: 2 }]),
+    ]);
+    expect(bars).toEqual([{ label: 'prod', value: 1 }]);
+  });
+
+  it('prompts serving nobody get their own bar', () => {
+    // `semAmbiente` is already a KPI, so hiding these from the chart would make the bars disagree
+    // with a number on the same screen. Serving nobody is a state, not an absence.
+    const bars = promptsPorAmbiente([linha('a', []), linha('b', [{ label: 'prod', version: 1 }])]);
+    expect(bars).toEqual([
+      { label: 'prod', value: 1 },
+      { label: 'not promoted', value: 1 },
+    ]);
+  });
+
+  it('not promoted sorts last even when it dominates', () => {
+    // It is a residue, not a destination. Letting it head the chart would answer "where do my
+    // prompts run?" with "nowhere", burying the environments that do exist.
+    const bars = promptsPorAmbiente([
+      linha('a', []),
+      linha('b', []),
+      linha('c', [{ label: 'prod', version: 1 }]),
+    ]);
+    expect(bars.map((b) => b.label)).toEqual(['prod', 'not promoted']);
+  });
+
+  it('an empty catalog yields no bars', () => {
+    expect(promptsPorAmbiente([])).toEqual([]);
   });
 });

@@ -2,6 +2,9 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** every capability overview now shows a chart under its count cards. Counts say how much and never what kind — `3608 answers` reads the same whether they were confident or not, and `2 environments` never says which one serves everything. The chart form follows what each screen's data actually supports: bars for a distribution, a line only where there is a timestamp that exists in production (B-129).
+- **theo-cloud/dashboard:** the memory bars used to draw a visible sliver for a count of zero, so a workspace with nothing in it looked like a workspace with almost something (B-129).
+
 - **theo-cloud/dashboard:** every capability overview now opens with the same four-number dashboard. `skills` used to open straight into a table — no summary, no number, nothing answering "how is this capability doing?" — and `trust` answered only with a sentence. Both now show the four KPIs that `memory` shows, with the judgement sentence kept above them where one exists: a number says `3`, the sentence says what to do about the `3`. A test now fails when a new capability screen ships without the dashboard (B-126).
 - **theo-cloud/dashboard:** the refresh button on the three trust screens said "Atualizar" while the other five capabilities said "Refresh" (B-126, filed as B-128).
 

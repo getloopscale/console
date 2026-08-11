@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@/test/render';
+import { render, screen, within } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
@@ -41,5 +41,30 @@ describe('RagOverviewPage (/rag)', () => {
     // Explore cards still render (browsing is not blocked); a warning alert surfaces.
     expect(await screen.findByText('Could not load RAG metrics')).toBeInTheDocument();
     expect(screen.getByText('Explore')).toBeInTheDocument();
+  });
+});
+
+describe('the chart under the counts (B-129)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('shows how the answers were distributed by confidence', async () => {
+    // The counts say HOW MUCH; the distribution says WHAT KIND. `3 answers` reads the same whether
+    // all three were confident or none were — and that difference is the one a RAG operator acts on.
+    mockCloudFetch.mockResolvedValue(ANALYTICS);
+    render(<RagOverviewPage />);
+
+    const chart = await screen.findByRole('table', { name: /answer confidence/i });
+    expect(within(chart).getByRole('row', { name: /high\s*2/i })).toBeInTheDocument();
+    expect(within(chart).getByRole('row', { name: /low\s*0/i }), 'a zero bucket must still show').toBeInTheDocument();
+  });
+
+  it('a read that FAILED draws no chart', async () => {
+    // Three empty bars over a failed read are a fabricated distribution standing where an error
+    // belongs — the same rule the KPI cards follow one row above.
+    mockCloudFetch.mockRejectedValue(new Error('service down'));
+    render(<RagOverviewPage />);
+
+    await screen.findByText('Could not load RAG metrics');
+    expect(screen.queryByRole('table', { name: /answer confidence/i })).not.toBeInTheDocument();
   });
 });

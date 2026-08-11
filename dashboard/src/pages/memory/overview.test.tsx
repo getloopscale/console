@@ -3,7 +3,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
-import { render, screen } from '@/test/render';
+import { render, screen, within } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({
@@ -141,5 +141,37 @@ describe('MemoryPage (/memory landing)', () => {
     await user.click(screen.getByRole('button', { name: /refresh/i }));
     // After invalidation, the query refetches → mockCloudFetch called again.
     expect(mockCloudFetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+/** Monta a tela com um conjunto de métricas, aguardando o assentamento da leitura. */
+function renderComMetricas(metrics: Record<string, number>) {
+  mockCloudFetch.mockResolvedValue(metrics);
+  render(<MemoryPage />);
+}
+
+describe('the bars under the counts (B-129)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('a zero reads as zero, not as a sliver', async () => {
+    // The local `ActivityBar` this replaced floored every bar at `Math.max(2, …)`, so a count of 0
+    // drew a 2% bar — "almost nothing" where the truth is "nothing". On a fresh workspace, where
+    // every number IS zero, that is the whole chart lying quietly.
+    //
+    // The shared primitive scales honestly, and this case is why the migration was worth doing
+    // rather than just adding `ActivityBar` to the guard's list.
+    renderComMetricas({ total_memories: 4, entity_count: 0, add_events: 0, retrieval_api_usage: 4 });
+
+    const bars = await screen.findByRole('table', { name: /graph coverage/i });
+    expect(within(bars).getByRole('row', { name: /entities extracted\s*0/i })).toBeInTheDocument();
+  });
+
+  it('reads as a table, like every other capability', async () => {
+    renderComMetricas({ total_memories: 4, entity_count: 2, add_events: 3, retrieval_api_usage: 9 });
+
+    expect(await screen.findByRole('table', { name: /activity today/i })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /graph coverage/i })).toBeInTheDocument();
   });
 });

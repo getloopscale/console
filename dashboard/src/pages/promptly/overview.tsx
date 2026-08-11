@@ -4,10 +4,11 @@ import { FilePlus, FileText, Layers, Rocket, Server } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
+import { CategoryBars } from '@/components/charts/category-bars';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { CATALOG_PAGE_LIMIT } from '@/hooks/promptly/promptly-api';
-import { catalogRows, resumoCatalogo } from '@/pages/promptly/components/projections';
+import { catalogRows, resumoCatalogo, promptsPorAmbiente } from '@/pages/promptly/components/projections';
 import { usePromptlyCatalog } from '@/hooks/promptly/use-promptly';
 
 /**
@@ -54,7 +55,10 @@ export function PromptlyOverviewPage() {
   // um refetch unico no primeiro carregamento apos o deploy. Esta no CHANGELOG.
   const query = usePromptlyCatalog<unknown>({}, CATALOG_PAGE_LIMIT);
 
-  const resumo = resumoCatalogo(catalogRows(query.data?.data), query.data?.temContinuacao ?? false);
+  const linhas = catalogRows(query.data?.data);
+  const resumo = resumoCatalogo(linhas, query.data?.temContinuacao ?? false);
+  // B-129 — o mesmo catálogo já carregado, agrupado. Nenhuma requisição nova.
+  const porAmbiente = promptsPorAmbiente(linhas);
 
   return (
     <PageShell
@@ -70,7 +74,7 @@ export function PromptlyOverviewPage() {
              inteira. O mecanismo já existia em `AlertProps.action` e não estava sendo usado. */
           action={
             <Button variant="secondary" onClick={() => void query.refetch()}>
-              Tentar novamente
+              Try again
             </Button>
           }
         />
@@ -142,6 +146,28 @@ export function PromptlyOverviewPage() {
               icon={<Server className="h-4 w-4" aria-hidden="true" />}
             />
           </div>
+
+          {/* B-129 — o card `Environments` diz QUANTOS. Não diz QUAIS, nem que um serve tudo
+              enquanto outro serve um prompt — e é isso que diz onde uma promoção ruim cairia.
+
+              Barras e não linha: o catálogo tem `updatedAt`, mas "prompts atualizados por dia"
+              responde uma pergunta que ninguém faz e fica esparso em qualquer workspace pequeno.
+
+              Dentro do mesmo bloco de sucesso dos cards: uma leitura que falhou nunca vira zeros,
+              e um gráfico vazio é uma distribuição fabricada no lugar de um erro. */}
+          <Card>
+            <Card.Body>
+              <h2 className="mb-3 text-base font-semibold">By environment</h2>
+              {/* `not promoted` fica cinza: ele é resíduo, não destino, e sem a diferença de tom
+                  uma barra longa no fim lê como lista fora de ordem em vez de outra categoria. */}
+              <CategoryBars
+                title="By environment"
+                bars={porAmbiente.map((b) =>
+                  b.label === 'not promoted' ? { ...b, tone: 'muted' as const } : b,
+                )}
+              />
+            </Card.Body>
+          </Card>
 
           <Card>
             <Card.Header>

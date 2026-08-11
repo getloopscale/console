@@ -34,6 +34,7 @@ export interface CatalogKpis {
 interface SkillRow {
   readonly latest_revision_id?: string | null;
   readonly lifecycle?: string;
+  readonly category?: string;
 }
 
 export function catalogKpis(skills: readonly SkillRow[]): CatalogKpis {
@@ -49,4 +50,33 @@ export function catalogKpis(skills: readonly SkillRow[]): CatalogKpis {
   }
 
   return { total: skills.length, loadable, notLoadable: skills.length - loadable, deprecated };
+}
+
+/**
+ * The registry broken down by category, for the bar chart under the counts (B-129).
+ *
+ * The four cards answer "how many, and how many work". They do not answer "what is this registry
+ * made OF" — which is the question somebody browsing an agent's available skills actually has.
+ *
+ * Bars and not a line: the catalogue carries no timestamp (`lib/mocks/skills-handlers.ts:23-33`),
+ * so there is no time axis to plot. A chart form the data cannot feed is fabrication with axes.
+ *
+ * Largest first, because the answer to "what is it made of" is at the top of the list; alphabetical
+ * would bury it under whatever happens to start with 'a'. Ties break alphabetically so the order is
+ * stable across reads — bars that reshuffle on a refresh read as data changing when nothing did.
+ */
+export function catalogByCategory(skills: readonly SkillRow[]): { label: string; value: number }[] {
+  const counts = new Map<string, number>();
+
+  for (const s of skills) {
+    // A skill with no category is counted under a name, never dropped. Dropping it would make the
+    // bars total less than the "In registry" card directly above, and a reader who notices the gap
+    // cannot tell whether it is uncategorised skills or a bug.
+    const label = typeof s.category === 'string' && s.category !== '' ? s.category : 'uncategorised';
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
 }

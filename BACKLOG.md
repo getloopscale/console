@@ -4835,3 +4835,65 @@ dod:
   - the comment sweep is scoped and its remaining surface measured, not asserted
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-portuguese-strings`).
+
+## B-129 — Four capability overviews have counts and no chart   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: human
+evidence: |
+  MEASURED 2026-08-11 across the six capability overviews. `/observability` (which IS
+  `pages/lens/overview.tsx`, mounted at that path by `routes/observability-routes.tsx:32`) is the
+  reference the owner named.
+
+    screen     KPI cards   chart below them
+    lens       yes         yes — TrendChart (overview.tsx:207)
+    memory     yes         yes — TokenUsageChart
+    rag        yes         NONE
+    promptly   yes         NONE
+    trust      yes         NONE
+    skills     yes         NONE
+
+  WHAT THE DATA SUPPORTS — measured per screen, because a chart form that the data cannot feed is
+  fabrication with axes:
+
+  - `rag`  — `/rag/analytics` returns AGGREGATES only (`totals`, `latency`, `confidence`); no
+    per-bucket array. `confidence {high, medium, low}` is a distribution.
+  - `promptly` — the catalogue carries `labels` (environments) and `latestVersion`; no timestamp.
+  - `skills` — the catalogue carries `category`, `execution`, `lifecycle`, `visibility`; no
+    timestamp (`lib/mocks/skills-handlers.ts:23-33`).
+  - `trust` — `PolicyViolation` DECLARES `detectedAt`, and `hooks/trust/trust-payloads.ts:26-27`
+    records that the real deploy DOES NOT SEND IT (measured 2026-08-01). A time series here would
+    be empty in production while looking correct against the mock.
+
+  So NONE of the four has a trustworthy time series. All four have categorical distributions.
+why_now: the owner asked that every overview carry a bar or line chart below the count cards, like `/observability`. Two already do; four do not.
+status: shipped
+shipped_note: |
+  It was FIVE, not four. The guard written for this item found that `memory` had no chart either:
+  its `TokenUsageChart` was removed on 2026-07-22 for plotting memory counts under token-labelled
+  axes, and the first version of the guard matched plain substrings — so the COMMENT explaining the
+  removal satisfied the check. The screen passed a chart test while rendering no chart. Matching the
+  JSX open tag (`<Name`) instead of a mention is what closed it, and the corrected guard immediately
+  named `memory`.
+
+  `memory` had a local `ActivityBar` doing what the new shared primitive does, with a defect of its
+  own: `Math.max(2, …)` floored every bar at 2%, so a count of 0 drew a visible sliver — "almost
+  nothing" where the truth is "nothing", and on a fresh workspace, where every number IS zero, that
+  was the whole chart lying quietly. It was migrated rather than added to the guard's list: two
+  implementations of the same proportional-bar rule, one of them untested, is duplicated knowledge.
+
+  FORM FOLLOWED THE DATA, not the request's wording. Bars everywhere except where a trustworthy time
+  series already existed (`lens`), because four of the six carry no timestamp and `trust`'s is the
+  sharpest trap: `PolicyViolation` DECLARES `detectedAt` and the real deploy does not send it. A
+  line there would have been empty in production and correct against the mock.
+
+  One more Portuguese label was translated on the way (`Tentar novamente` → `Try again`, B-128).
+dod:
+  - each of the four renders a chart below its KPI cards, fed by data it already fetches
+  - no chart is rendered over a failed or unsettled read
+  - the chart form matches what the data supports — no time axis over data with no timestamp
+  - a test fails when a new capability overview ships with counts and no chart
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `overviews-need-a-chart-under-the-counts`).

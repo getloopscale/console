@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Brain, Code2, Database, FlaskConical, RefreshCw, Settings as SettingsIcon, Share2, Sparkles, Zap } from 'lucide-react';
 import { Button, Card, MetricCard, PageShell, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
+import { CategoryBars } from '@/components/charts/category-bars';
 import { ContentGrid } from '@/components/layout';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
@@ -134,15 +135,13 @@ export function MemoryPage() {
               <Card>
                 <Card.Body className="space-y-4">
                   <h3 className="text-sm font-semibold">Activity today</h3>
-                  <ActivityBar
-                    label="Memories written"
-                    value={metrics.add_events}
-                    max={Math.max(metrics.add_events, metrics.retrieval_api_usage, 1)}
-                  />
-                  <ActivityBar
-                    label="Memories retrieved"
-                    value={metrics.retrieval_api_usage}
-                    max={Math.max(metrics.add_events, metrics.retrieval_api_usage, 1)}
+                  <CategoryBars
+                    title="Activity today"
+                    valueFormatter={(v) => v.toLocaleString()}
+                    bars={[
+                      { label: 'Memories written', value: metrics.add_events },
+                      { label: 'Memories retrieved', value: metrics.retrieval_api_usage },
+                    ]}
                   />
                   <p className="text-xs text-muted-foreground">
                     Writes vs reads since the last reset. Multi-day trends arrive with the
@@ -153,15 +152,13 @@ export function MemoryPage() {
               <Card>
                 <Card.Body className="space-y-4">
                   <h3 className="text-sm font-semibold">Graph coverage</h3>
-                  <ActivityBar
-                    label="Memories stored"
-                    value={metrics.total_memories}
-                    max={Math.max(metrics.total_memories, metrics.entity_count, 1)}
-                  />
-                  <ActivityBar
-                    label="Entities extracted"
-                    value={metrics.entity_count}
-                    max={Math.max(metrics.total_memories, metrics.entity_count, 1)}
+                  <CategoryBars
+                    title="Graph coverage"
+                    valueFormatter={(v) => v.toLocaleString()}
+                    bars={[
+                      { label: 'Memories stored', value: metrics.total_memories },
+                      { label: 'Entities extracted', value: metrics.entity_count },
+                    ]}
                   />
                   <p className="text-xs text-muted-foreground">
                     {metrics.total_memories > 0
@@ -234,34 +231,13 @@ export function MemoryPage() {
   );
 }
 
-interface ActivityBarProps {
-  label: string;
-  value: number;
-  max: number;
-}
+/* B-129 — o `ActivityBar` local saiu daqui: ele fazia o mesmo que `CategoryBars`, e com um
+   defeito próprio. O piso `Math.max(2, …)` desenhava uma barra de 2% para um valor 0, ou seja
+   "quase nada" onde a verdade é "nada" — e num workspace novo, onde TODOS os números são zero,
+   isso era o gráfico inteiro mentindo baixinho.
 
-/**
- * One labeled proportional bar (pure CSS, brand primary). Replaces the
- * mislabeled TokenUsageChart pair on this page: correct labels, honest
- * single-snapshot presentation, no fake axis (UX pass 2026-07-22).
- */
-function ActivityBar({ label, value, max }: ActivityBarProps) {
-  const pct = Math.max(2, Math.round((value / max) * 100));
-  return (
-    <div className="space-y-1">
-      <div className="flex items-baseline justify-between text-xs">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-mono font-medium tabular-nums">{value.toLocaleString()}</span>
-      </div>
-      <div className="h-2 rounded-full bg-muted overflow-hidden" role="presentation">
-        <div
-          className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
-          style={{ width: `${String(pct)}%` }}
-        />
-      </div>
-    </div>
-  );
-}
+   Duas implementações de "barra proporcional" no mesmo dashboard também eram conhecimento
+   duplicado: a escala é a mesma regra escrita duas vezes, e só uma delas tinha teste. */
 
 interface ExploreCardProps {
   icon: typeof Brain;
