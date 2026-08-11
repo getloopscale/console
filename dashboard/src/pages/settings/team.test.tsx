@@ -31,7 +31,7 @@ import { TeamPage } from './team';
 /** Alimenta o caminho de dados real da pagina (useQuery -> engineFetch). */
 function seedTeam(payload: unknown) {
   mockEngineFetch.mockResolvedValue(payload);
-  mockUseEngineApi.mockReturnValue({ data: payload, loading: false, error: false });
+  mockUseEngineApi.mockReturnValue({ data: payload, loading: false, error: false, isSuccess: true });
 }
 
 describe('TeamPage', () => {

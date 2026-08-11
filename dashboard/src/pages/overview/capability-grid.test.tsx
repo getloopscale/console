@@ -17,7 +17,7 @@ import { MENUS } from '@/components/layout/app-sidebar-menus';
  */
 
 const respostas = new Map<string, { data: unknown; loading: boolean; error: boolean }>();
-const PADRAO = { data: null, loading: false, error: false };
+const PADRAO = { data: null, loading: false, error: false, isSuccess: true };
 
 vi.mock('@/hooks/use-api', () => ({
   useCloudApi: (path: string, options?: { enabled?: boolean }) => {
@@ -100,6 +100,7 @@ describe('o grid nunca confunde ignorância com ausência', () => {
       data: { total_memories: 0 },
       loading: false,
       error: false,
+      isSuccess: true,
     });
 
     render(<CapabilityGrid />);
@@ -113,6 +114,7 @@ describe('o grid nunca confunde ignorância com ausência', () => {
       data: { total_memories: 1234 },
       loading: false,
       error: false,
+      isSuccess: true,
     });
 
     render(<CapabilityGrid />);
@@ -131,6 +133,7 @@ describe('o grid nunca confunde ignorância com ausência', () => {
       data: { traffic: [{ t: 1 }, { t: 2 }] },
       loading: false,
       error: false,
+      isSuccess: true,
     });
 
     render(<CapabilityGrid />);

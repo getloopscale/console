@@ -68,6 +68,7 @@ describe('BillingPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     render(<BillingPage />);
     // PlanBadge + plan label both render "Pro" — assert occurrence count.
@@ -91,6 +92,7 @@ describe('BillingPage', () => {
       data: { plan: 'pro', team: 'acme', usage: {} },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     mockCloudFetch.mockResolvedValue({ url: 'https://billing.stripe.com/portal/xyz' });
 
@@ -140,6 +142,7 @@ describe('BillingPage', () => {
       data: { plan: 'pro', team: 'acme', usage: {} },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     // Failure path: backend returns null OR a response with no `url` field.
     mockCloudFetch.mockResolvedValue(null);
@@ -166,6 +169,7 @@ describe('BillingPage', () => {
       data: { plan: 'pro', team: 'acme', usage: {} },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     render(<BillingPage />);
     expect(screen.queryByRole('button', { name: /cancel subscription/i })).not.toBeInTheDocument();
@@ -252,6 +256,7 @@ describe('BillingPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     render(<BillingPage />);
     expect(screen.getByText('Usage This Period')).toBeInTheDocument();
@@ -275,6 +280,7 @@ describe('BillingPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     render(<BillingPage />);
     expect(screen.getByText('Includes')).toBeInTheDocument();
@@ -289,6 +295,7 @@ describe('BillingPage', () => {
       data: { plan: 'starter', team: 'acme', usage: {} },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     render(<BillingPage />);
     const upgradeBtn = screen.getByRole('button', { name: /upgrade to pro/i });
@@ -316,6 +323,7 @@ describe('BillingPage', () => {
       data: { plan: 'starter', team: 'acme', usage: {} },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     // Backend canonical 503 shape per Sprint 4 release-blockers fix.
     mockCloudFetch.mockRejectedValue(new ApiError(503, {
@@ -348,6 +356,7 @@ describe('BillingPage', () => {
       data: { plan: 'free', team: 'acme', usage: {}, period_end: '2026-12-31' },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     // Resolve only after we observe the button getting disabled. A never-
     // resolving promise would leave the test hanging on the timeout.
@@ -379,6 +388,7 @@ describe('BillingPage', () => {
       data: { plan: 'free', team: 'acme', usage: {}, period_end: '2026-12-31' },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     let releaseFetch!: (v: { url: string }) => void;
     mockCloudFetch.mockReturnValue(
@@ -410,6 +420,7 @@ describe('BillingPage', () => {
       data: { plan: 'pro', team: 'acme', usage: {}, period_end: '2026-12-31' },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     mockCloudFetch.mockRejectedValueOnce(new ApiError(400, {}));
     const user = userEvent.setup();
@@ -426,6 +437,7 @@ describe('BillingPage', () => {
       data: { plan: 'free', team: 'acme', usage: {}, period_end: '2026-12-31' },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     mockCloudFetch.mockRejectedValueOnce(new ApiError(400, {}));
     const user = userEvent.setup();
@@ -443,7 +455,7 @@ describe('BillingPage', () => {
     // pass `{ enabled: false }` to useCloudApi for `/v1/dashboard/memory/metrics`
     // (because pathname.startsWith('/memory') is false on /billing). This
     // prevents the noisy 404 console spam reported by QA against dev-public.
-    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
+    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false, isSuccess: true });
     render(<BillingPage />);
     // The MemoryUsageCard call site MUST appear in the mock log with enabled=false.
     const memoryCalls = mockUseCloudApi.mock.calls.filter(

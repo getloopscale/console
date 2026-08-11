@@ -30,6 +30,7 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
       projects: [],
       loading: false,
       error: false,
+      isSuccess: true,
     });
     render(<CreateEnvironmentSheet open={true} onOpenChange={() => {}} />);
     // Empty-state copy + CTA
@@ -47,6 +48,7 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
       projects: [{ name: 'web' }],
       loading: false,
       error: false,
+      isSuccess: true,
     });
     render(<CreateEnvironmentSheet open={true} onOpenChange={() => {}} />);
     // The Select trigger renders the auto-selected value as the
@@ -61,6 +63,7 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
       projects: [{ name: 'web' }, { name: 'api' }],
       loading: false,
       error: false,
+      isSuccess: true,
     });
     render(<CreateEnvironmentSheet open={true} onOpenChange={() => {}} />);
     // Picker is enabled (no auto-select hint).
@@ -76,6 +79,7 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
       projects: [{ name: 'web' }, { name: 'api' }], // 2 projects
       loading: false,
       error: false,
+      isSuccess: true,
     });
     mockEngineFetch.mockResolvedValue({ name: 'staging', status: 'active' });
     render(<CreateEnvironmentSheet open={true} onOpenChange={() => {}} defaultProject="api" />);
@@ -96,6 +100,7 @@ describe('CreateEnvironmentSheet — M2 v1.2 T5.1', () => {
       projects: [{ name: 'web' }],
       loading: false,
       error: false,
+      isSuccess: true,
     });
     mockEngineFetch.mockResolvedValue({ name: 'staging', status: 'active' });
 

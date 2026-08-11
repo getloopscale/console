@@ -23,7 +23,7 @@ import { render, screen, waitFor, within } from '@/test/render';
  */
 
 const respostas = new Map<string, { data: unknown; loading: boolean; error: boolean }>();
-const VAZIO = { data: null, loading: false, error: false };
+const VAZIO = { data: null, loading: false, error: false, isSuccess: true };
 
 vi.mock('@/hooks/use-api', () => ({
   useCloudApi: (path: string, options?: { enabled?: boolean }) => {
@@ -68,11 +68,13 @@ describe('a faixa de atenção junta capacidades', () => {
       data: { totals: { retrievals: 4000, answers: 3800, empty_retrieval_rate: 0.12 } },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     mockTrust.mockReturnValue({
       data: { events: [{ decision: 'block', validatorName: 'pii-email' }] },
       loading: false,
       error: false,
+      isSuccess: true,
     });
 
     render(<PlatformSignals />);
@@ -91,8 +93,9 @@ describe('a faixa de atenção junta capacidades', () => {
       data: { totals: { retrievals: 100, answers: 100, empty_retrieval_rate: 0 } },
       loading: false,
       error: false,
+      isSuccess: true,
     });
-    mockTrust.mockReturnValue({ data: { events: [] }, loading: false, error: false });
+    mockTrust.mockReturnValue({ data: { events: [] }, loading: false, error: false, isSuccess: true });
 
     render(<PlatformSignals />);
 
@@ -109,8 +112,9 @@ describe('a faixa de atenção junta capacidades', () => {
       data: { totals: { retrievals: 100, answers: 100, empty_retrieval_rate: 0 } },
       loading: false,
       error: false,
+      isSuccess: true,
     });
-    mockTrust.mockReturnValue({ data: { events: [] }, loading: false, error: false });
+    mockTrust.mockReturnValue({ data: { events: [] }, loading: false, error: false, isSuccess: true });
 
     render(<PlatformSignals />);
 
@@ -164,7 +168,7 @@ describe('o custo vem de custo medido', () => {
 describe('a tela é útil antes da rede', () => {
   it('as três faixas existem com tudo pendente', async () => {
     for (const p of [OBS, RAG]) respostas.set(p, { data: null, loading: true, error: false });
-    mockTrust.mockReturnValue({ data: undefined, loading: true, error: false });
+    mockTrust.mockReturnValue({ data: undefined, loading: true, error: false, isSuccess: false });
 
     render(<PlatformSignals />);
 

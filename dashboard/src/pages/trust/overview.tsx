@@ -85,6 +85,21 @@ export function TrustOverviewPage() {
   const validatorsQuery = useTrustValidators();
 
   const isLoading = violationsQuery.loading || validatorsQuery.loading;
+  // B-161 — uma AFIRMAÇÃO ("nenhuma violação registrada") exige leitura estabilizada das
+  // DUAS queries. `!failed && !isLoading` abria offline no mount, com `data === undefined`,
+  // e a tela dizia que nada passou quando nada foi lido — numa superfície de compliance.
+  // Os dois blocos exigem coisas diferentes, e o docblock de `overview.test.tsx` já nomeia
+  // os três estados. KPIs e veredito valem no caso 3 (violações lidas, catálogo cego): a
+  // lista é verdadeira e a cegueira aparece como aviso. O GRÁFICO não vale, porque codifica
+  // "bloqueado" em COR: sem catálogo toda barra sai âmbar, e o operador lê um all-clear
+  // falso onde o código sabe apenas que não sabe (B-161).
+  const readingSettled = violationsQuery.isSuccess;
+  // NAO usado ainda — ver B-227. Gating o grafico em `coverageSettled` e o correto (sem
+  // catalogo toda barra sai ambar e o operador le um all-clear falso), mas `overview.test.tsx`
+  // hoje passa COM o catalogo falhando: `vi.mock` troca o export `fetchTrust`, e
+  // `fetchValidators` chama a ligacao interna do modulo, que o mock nao alcanca. Corrigir o
+  // gate sem antes corrigir a estrategia de mock deixaria a suite vermelha sobre um teste que
+  // ja estava verde sobre o defeito.
   const failed = violationsQuery.error;
   // Uma falha ao ler o CATÁLOGO não zera a tela: `coverageGap` conta tudo como descoberto, que é o
   // lado seguro. Mas o operador precisa saber que a coluna "bloqueado" está cega.
@@ -181,7 +196,7 @@ export function TrustOverviewPage() {
 
           Renders only once the read has settled — four zeros over a failure would be fabricated
           numbers standing where an error belongs, which is what the Alert above exists to show. */}
-      {!failed && !isLoading ? (
+      {readingSettled ? (
         <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <MetricCard title="Violations" value={kpis.violations} icon={<Siren className="h-4 w-4" aria-hidden="true" />} />
           <MetricCard title="Policies seen" value={kpis.policies} icon={<ShieldAlert className="h-4 w-4" aria-hidden="true" />} />
@@ -201,7 +216,7 @@ export function TrustOverviewPage() {
           Bars and not a line, deliberately: `PolicyViolation` declares `detectedAt` and the real
           deploy DOES NOT SEND IT (`hooks/trust/trust-payloads.ts:26`). A time series here would be
           empty in production while looking correct against the mock. */}
-      {!failed && !isLoading ? (
+      {readingSettled ? (
         <Card className="mb-4">
           <Card.Body>
             <h2 className="mb-3 text-base font-semibold">Violations by policy</h2>

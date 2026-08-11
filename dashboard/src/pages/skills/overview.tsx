@@ -246,7 +246,7 @@ export function SkillsOverviewPage() {
 
           Renders only on settled success, as `memory/overview.tsx:124` documents — four zeros over
           a read that failed would be fabricated numbers standing where an error belongs. */}
-      {!query.error && !query.loading ? (
+      {query.isSuccess ? (
         <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
           <MetricCard title="In registry" value={kpis.total} icon={<Boxes className="h-4 w-4" aria-hidden="true" />} />
           <MetricCard title="Loadable" value={kpis.loadable} icon={<CircleCheck className="h-4 w-4" aria-hidden="true" />} />
@@ -260,7 +260,7 @@ export function SkillsOverviewPage() {
 
           Bars and not a line: the catalogue carries no timestamp, so there is no time axis to plot.
           Same settled-success rule as the cards above. */}
-      {!query.error && !query.loading ? (
+      {query.isSuccess ? (
         <Card className="mb-4">
           <Card.Body>
             <h2 className="mb-3 text-base font-semibold">By category</h2>

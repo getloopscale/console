@@ -63,6 +63,14 @@ export interface TrustQuery<T> {
   data: T | null | undefined;
   loading: boolean;
   error: boolean;
+  /**
+   * A leitura TERMINOU com dados. Distinto de `!loading && !error`: em TanStack v5
+   * `isLoading` é `isPending && isFetching`, então offline no mount as duas ficam falsas
+   * com `data === undefined`, e quem afirma algo a partir disso afirma sobre nada. Toda
+   * tela que faz uma afirmação — "nenhuma violação", "nada registrado" — precisa deste,
+   * não daquele (B-161).
+   */
+  isSuccess: boolean;
 }
 
 /**
@@ -84,7 +92,12 @@ export function useTrustViolations(limit: number): TrustQuery<ViolationsPayload>
     queryFn: () =>
       fetchTrust<ViolationsPayload>(`/policy-violations?limit=${limit}`),
   });
-  return { data: query.data, loading: query.isLoading, error: query.isError };
+  return {
+    data: query.data,
+    loading: query.isLoading,
+    error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
+  };
 }
 
 /**
@@ -104,7 +117,12 @@ export function useTrustValidators(): TrustQuery<ValidatorsPayload & CatalogPayl
     queryKey: queryKeys.trust.validators(),
     queryFn: () => fetchValidators<ValidatorsPayload & CatalogPayload>(),
   });
-  return { data: query.data, loading: query.isLoading, error: query.isError };
+  return {
+    data: query.data,
+    loading: query.isLoading,
+    error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
+  };
 }
 
 export function useTrustEnforcement(limit: number): TrustQuery<EnforcementPayload> {
@@ -115,7 +133,12 @@ export function useTrustEnforcement(limit: number): TrustQuery<EnforcementPayloa
     queryKey: queryKeys.trust.enforcement(limit),
     queryFn: () => fetchEnforcementEvents<EnforcementPayload>(limit),
   });
-  return { data: query.data, loading: query.isLoading, error: query.isError };
+  return {
+    data: query.data,
+    loading: query.isLoading,
+    error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
+  };
 }
 
 /**
@@ -130,7 +153,12 @@ export function useTrustConversation(id: string | null): TrustQuery<Conversation
     queryFn: () =>
       fetchTrust<ConversationPayload>(`/conversations/${encodeURIComponent(id ?? '')}`),
   });
-  return { data: query.data, loading: query.isLoading, error: query.isError };
+  return {
+    data: query.data,
+    loading: query.isLoading,
+    error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
+  };
 }
 
 /**

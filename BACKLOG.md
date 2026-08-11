@@ -7394,3 +7394,45 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-promote-to-production-dialog-deploy-error-message-mapper-duplicated-be`). Source: code-review finding #107, `code-review-output/code-review.db`.
 
+## B-227 — The trust chart test is green over the defect it should catch   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: code
+regression_of: B-129
+evidence: |
+  src/pages/trust/overview.test.tsx:9
+  `vi.mock('@/hooks/trust/trust-api', ...)` replaces the EXPORT `fetchTrust`. But
+  `trust-api.ts:33` has `fetchValidators` call `fetchTrust('/validators')` through the
+  module's INTERNAL binding, which an export-level mock does not reach. So the validators
+  request is never intercepted: it hits the real network under jsdom and fails.
+
+  Consequence, measured 2026-08-11: the test named "shows which policies dominate, and which
+  of them are unblocked" passes while the catalogue read FAILS. `coverageGap` then receives
+  `validators === undefined`, builds an empty enforced set, marks every row `enforced: false`,
+  and `tone: c.enforced ? 'muted' : 'warning'` paints every bar amber. The test asserts the
+  chart exists and never inspects a tone, so it is green over exactly the state review
+  finding #88 describes as a false all-clear on a compliance surface.
+
+  Proven while implementing B-161: gating the chart on `violationsQuery.isSuccess &&
+  validatorsQuery.isSuccess` — the correct contract — turns this test RED, because the
+  catalogue it claims to provide never arrives.
+why_now: |
+  B-161 aligned the other capability screens on settled-success and had to stop here. Fixing
+  the gate without first fixing the mock would leave the suite red over a test that was
+  already green over the defect — and the honest order is mock first, then gate.
+status: raw
+dod:
+  - the validators request is genuinely intercepted (mock the module's internal seam, or have
+    `fetchValidators` take its dependency, or use MSW at the network layer)
+  - a test asserts the chart is NOT rendered when the catalogue read fails
+  - a test asserts the muted/blocked tone on a policy the fixture genuinely enforces — today
+    the fixture enforces nothing, so only the amber branch is ever exercised
+  - the chart gate then moves to `violationsQuery.isSuccess && validatorsQuery.isSuccess`
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-trust-chart-test-green-over-defect`).
+> Found while implementing B-161; the evidence is the failing gate, not a hunch.
+

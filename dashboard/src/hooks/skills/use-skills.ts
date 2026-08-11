@@ -58,6 +58,14 @@ export interface SkillsQuery<T> {
   loading: boolean;
   error: boolean;
   /**
+   * A leitura TERMINOU com dados. Distinto de `!loading && !error`: em TanStack v5
+   * `isLoading` é `isPending && isFetching`, então offline no mount as duas ficam falsas
+   * com `data === undefined`, e quem afirma algo a partir disso afirma sobre nada. Toda
+   * tela que faz uma afirmação — "nenhuma violação", "nada registrado" — precisa deste,
+   * não daquele (B-161).
+   */
+  isSuccess: boolean;
+  /**
    * Refetch em segundo plano, distinto de `loading`.
    *
    * `loading` é a primeira busca — a tela não tem o que mostrar. `isFetching` é
@@ -88,6 +96,7 @@ export function useSkillsCatalog<T>(
     data: query.data,
     loading: query.isLoading,
     error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
     isFetching: query.isFetching,
     refetch: () => void query.refetch(),
   };
@@ -103,6 +112,7 @@ export function useSkill<T>(id: string | undefined): SkillsQuery<T> {
     data: query.data,
     loading: query.isLoading,
     error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
     isFetching: query.isFetching,
     refetch: () => void query.refetch(),
   };
@@ -118,6 +128,7 @@ export function useSkillInstructions<T>(id: string | undefined): SkillsQuery<T> 
     data: query.data,
     loading: query.isLoading,
     error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
     isFetching: query.isFetching,
     refetch: () => void query.refetch(),
   };
@@ -133,6 +144,7 @@ export function useSkillVersions<T>(id: string | undefined): SkillsQuery<T> {
     data: query.data,
     loading: query.isLoading,
     error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
     isFetching: query.isFetching,
     refetch: () => void query.refetch(),
   };
@@ -148,6 +160,7 @@ export function useSkillChannels<T>(id: string | undefined): SkillsQuery<T> {
     data: query.data,
     loading: query.isLoading,
     error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
     isFetching: query.isFetching,
     refetch: () => void query.refetch(),
   };
@@ -170,6 +183,7 @@ export function useSkillsDiscovery<T>(
     data: query.data,
     loading: query.isLoading,
     error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
     isFetching: query.isFetching,
     refetch: () => void query.refetch(),
   };
@@ -204,6 +218,7 @@ export function useSkillOperation<T>(
     data: query.data,
     loading: query.isLoading,
     error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
     isFetching: query.isFetching,
     refetch: () => void query.refetch(),
   };
@@ -218,6 +233,7 @@ export function useBundles<T>(): SkillsQuery<T> {
     data: query.data,
     loading: query.isLoading,
     error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
     isFetching: query.isFetching,
     refetch: () => void query.refetch(),
   };
@@ -233,6 +249,7 @@ export function useBundleTokens<T>(bundleId: string | undefined): SkillsQuery<T>
     data: query.data,
     loading: query.isLoading,
     error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
     isFetching: query.isFetching,
     refetch: () => void query.refetch(),
   };
@@ -251,6 +268,7 @@ export function useBundleAdoption<T>(
     data: query.data,
     loading: query.isLoading,
     error: query.isError,
+    isSuccess: query.isSuccess && query.data != null,
     isFetching: query.isFetching,
     refetch: () => void query.refetch(),
   };

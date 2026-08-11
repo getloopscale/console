@@ -59,8 +59,8 @@ describe('ProjectDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseProjectStatus.mockReturnValue({ status: null, loading: false });
-    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
-    mockUseEngineApi.mockReturnValue({ data: null, loading: false, error: false });
+    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false, isSuccess: true });
+    mockUseEngineApi.mockReturnValue({ data: null, loading: false, error: false, isSuccess: true });
     // Default project that satisfies the existing test suite. Per-test
     // overrides re-mock with the scenario-specific shape.
     mockUseProject.mockReturnValue({

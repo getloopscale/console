@@ -35,7 +35,7 @@ describe('OverviewPage', () => {
     vi.clearAllMocks();
     mockUseProjects.mockReturnValue({ projects: [], loading: false, total: 0 });
     // Default: billing returns null (covers fallback path)
-    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
+    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false, isSuccess: true });
     // Default: no deploy activity (deterministic empty state)
     mockUseBuildStats.mockReturnValue({ byDay: [], last7d: 0, total: 0, loading: false, error: false });
   });

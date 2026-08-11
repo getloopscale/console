@@ -48,7 +48,7 @@ function skill(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockCatalogo.mockReturnValue({ data: { skills: [skill()] }, loading: false, error: false });
+  mockCatalogo.mockReturnValue({ data: { skills: [skill()] }, loading: false, error: false, isSuccess: true });
 });
 
 describe('a tela responde antes de listar', () => {
@@ -66,6 +66,7 @@ describe('a tela responde antes de listar', () => {
       data: { skills: [skill(), skill({ skill_id: 's-2', latest_revision_id: null })] },
       loading: false,
       error: false,
+      isSuccess: true,
     });
 
     render(<SkillsOverviewPage />);
@@ -77,7 +78,7 @@ describe('a tela responde antes de listar', () => {
   it('test_leitura_que_falhou_nao_vira_acervo_saudavel', async () => {
     // A distinção que este repositório defende em toda superfície de leitura. Um "tudo carregável"
     // sobre uma requisição que caiu tranquiliza sobre o que ninguém olhou.
-    mockCatalogo.mockReturnValue({ data: undefined, loading: false, error: true });
+    mockCatalogo.mockReturnValue({ data: undefined, loading: false, error: true, isSuccess: false });
 
     render(<SkillsOverviewPage />);
 
@@ -93,6 +94,7 @@ describe('a tela responde antes de listar', () => {
       data: { skills: [skill()], next_page_token: 'proxima-pagina' },
       loading: false,
       error: false,
+      isSuccess: true,
     });
 
     render(<SkillsOverviewPage />);
@@ -130,6 +132,7 @@ describe('the KPI dashboard (B-126, amendment D1-bis)', () => {
       data: { skills: [skill(), skill({ skill_id: 's-2', latest_revision_id: null })] },
       loading: false,
       error: false,
+      isSuccess: true,
     });
 
     render(<SkillsOverviewPage />);
@@ -148,7 +151,7 @@ describe('the KPI dashboard (B-126, amendment D1-bis)', () => {
     // Four zeros over a failed read are fabricated numbers standing where an error belongs. The
     // verdict already refuses to say "healthy" here; the dashboard must not undo that refusal by
     // showing a confident `0`.
-    mockCatalogo.mockReturnValue({ data: undefined, loading: false, error: true });
+    mockCatalogo.mockReturnValue({ data: undefined, loading: false, error: true, isSuccess: false });
 
     render(<SkillsOverviewPage />);
 
@@ -172,6 +175,7 @@ describe('the chart under the counts (B-129)', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
 
     render(<SkillsOverviewPage />);
@@ -182,7 +186,7 @@ describe('the chart under the counts (B-129)', () => {
   });
 
   it('a read that FAILED draws no chart', async () => {
-    mockCatalogo.mockReturnValue({ data: undefined, loading: false, error: true });
+    mockCatalogo.mockReturnValue({ data: undefined, loading: false, error: true, isSuccess: false });
     render(<SkillsOverviewPage />);
 
     await screen.findByRole('status', { name: /skill registry/i });

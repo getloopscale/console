@@ -32,7 +32,7 @@ import { DomainsPage } from './domains';
 function seedDomains(payload: unknown) {
   mockEngineFetch.mockResolvedValue(payload);
   // Alguns filhos ainda leem via useEngineApi (ex.: selects do sheet).
-  mockUseEngineApi.mockReturnValue({ data: payload, loading: false, error: false });
+  mockUseEngineApi.mockReturnValue({ data: payload, loading: false, error: false, isSuccess: true });
 }
 
 describe('DomainsPage', () => {

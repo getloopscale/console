@@ -49,6 +49,7 @@ describe('EnvironmentsPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     renderAt('/projects/web/environments');
     // J-10 v1.1 + M2 v1.2 surface: Name, Health, Status, Protected (no
@@ -70,6 +71,7 @@ describe('EnvironmentsPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     renderAt('/projects/web/environments');
     // T-D.2 (P-4): StatusDot label title-cased via statusLabel helper.
@@ -88,6 +90,7 @@ describe('EnvironmentsPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     renderAt('/projects/web/environments');
     // EC-9: 'pending_verification' should render as 'Pending Verification',
@@ -107,6 +110,7 @@ describe('EnvironmentsPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     renderAt('/projects/web/environments');
     // "Protected" appears as table header AND as cell indicator.
@@ -125,6 +129,7 @@ describe('EnvironmentsPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     renderAt('/projects/web/environments');
     expect(screen.getByLabelText('Delete staging')).toBeInTheDocument();
@@ -147,6 +152,7 @@ describe('EnvironmentsPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     renderAt('/projects/web/environments');
     // web's envs are shown…
@@ -175,6 +181,7 @@ describe('EnvironmentsPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     renderAt('/projects/web/environments');
 
@@ -198,6 +205,7 @@ describe('EnvironmentsPage', () => {
       },
       loading: false,
       error: false,
+      isSuccess: true,
     });
     renderAt('/projects/api/environments');
     expect(screen.getByText('preview')).toBeInTheDocument();
