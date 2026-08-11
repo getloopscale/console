@@ -11,6 +11,7 @@ import { usePendingOIDC } from '@/hooks/auth/use-pending-oidc';
 import { postOIDCForm } from '@/pages/auth/oidc-form';
 import { getSession, startLogin } from '@/lib/auth/session';
 import { clearToken } from '@/lib/http/api';
+import { safeNavigator } from '@/lib/navigation';
 import { API_URL, AUTH_URL } from '@/lib/http/config';
 import { safeErrorDetail, isEnumerationCollision } from '@/hooks/auth/kratos-error-detail';
 import { mapKratosError } from '@/pages/auth/error-mapper';
@@ -224,28 +225,20 @@ export function LoginPage() {
       (n) => n.attributes.name === 'csrf_token',
     );
 
-    try {
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = flow.ui.action;
-      for (const [k, v] of [
-        ['csrf_token', csrfNode?.attributes.value || ''],
-        ['method', 'password'],
-        ['identifier', email],
-        ['password', password],
-      ]) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = k;
-        input.value = v;
-        form.appendChild(input);
-      }
-      document.body.appendChild(form);
-      form.submit();
-      return;
-    } catch {
-      // form.submit() doesn't throw; this branch covers DOM/CSP edge cases.
+    // B-138: `flow.ui.action` is chosen by the Kratos response, and this is the request
+    // that carries the user's plaintext password. It goes through the navigation boundary,
+    // which refuses any destination outside `SAFE_REDIRECT_ORIGINS` — fail-closed, because
+    // a visible login failure is recoverable and a submitted credential is not.
+    const submitted = safeNavigator.submitTo(flow.ui.action, {
+      csrf_token: csrfNode?.attributes.value || '',
+      method: 'password',
+      identifier: email,
+      password,
+    });
+    if (!submitted) {
       setNetworkError(true);
+      setSubmitting(false);
+      return;
     }
     // setSubmitting stays true: form.submit() initiates navigation;
     // the next render happens on the landing page.

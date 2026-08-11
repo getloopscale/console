@@ -39,6 +39,14 @@ export class NavigationTarget {
    * exception would push that decision into a catch block far from the message.
    */
   static parse(raw: string | null | undefined): NavigationTarget | null {
+    if (raw != null && raw.startsWith('#')) {
+      // Same-document. A fragment resolves against the current url, so it cannot name
+      // another origin and there is nothing to allowlist. Handled here rather than by
+      // widening `isSafeRedirectUrl`, which guards ABSOLUTE destinations — a fragment is
+      // not one, and loosening a proven security predicate to admit a shape it was never
+      // asked about is how allowlists rot.
+      return new NavigationTarget(raw);
+    }
     return isSafeRedirectUrl(raw) ? new NavigationTarget(raw as string) : null;
   }
 

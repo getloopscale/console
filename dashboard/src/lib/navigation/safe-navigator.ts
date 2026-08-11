@@ -21,16 +21,29 @@ export class SafeNavigator {
   goTo(raw: string | null | undefined): boolean {
     const target = NavigationTarget.parse(raw);
     if (target === null) return false;
-    this.sink.assign(target);
-    return true;
+    return this.attempt(() => this.sink.assign(target));
   }
 
   /** Browser-level POST. Returns false — having submitted nothing — if refused. */
   submitTo(raw: string | null | undefined, fields: FormFields): boolean {
     const target = NavigationTarget.parse(raw);
     if (target === null) return false;
-    this.sink.submitForm(target, fields);
-    return true;
+    return this.attempt(() => this.sink.submitForm(target, fields));
+  }
+  /**
+   * A refused destination and a throwing sink are different failures with the SAME
+   * user-facing consequence: nothing happened, and the user has to be told. Collapsing
+   * them into one boolean is what lets each call site keep a single branch — the shape
+   * the pre-boundary code needed a guard AND a try/catch to express. A `form-action` CSP
+   * violation is the real case this covers.
+   */
+  private attempt(run: () => void): boolean {
+    try {
+      run();
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 

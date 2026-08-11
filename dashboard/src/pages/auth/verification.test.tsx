@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@/test/render';
 
 vi.mock('@/lib/http/config', () => ({
-  API_URL: 'http://kratos.local',
+  API_URL: 'https://auth-dev.usetheo.dev',
   AUTH_URL: '',
   ENGINE_URL: '',
   ACCOUNTS_URL: '',
@@ -60,7 +60,7 @@ describe('VerificationPage', () => {
         ok: true,
         json: async () => ({
           ui: {
-            action: 'http://kratos.local/self-service/verification?flow=abc',
+            action: 'https://auth-dev.usetheo.dev/self-service/verification?flow=abc',
             nodes: [{ attributes: { name: 'csrf_token', value: 'csrf-xyz' } }],
           },
         }),
@@ -78,7 +78,7 @@ describe('VerificationPage', () => {
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
     const [submitUrl, submitOpts] = mockFetch.mock.calls[1];
-    expect(submitUrl).toBe('http://kratos.local/self-service/verification?flow=abc');
+    expect(submitUrl).toBe('https://auth-dev.usetheo.dev/self-service/verification?flow=abc');
     const body = JSON.parse(submitOpts.body);
     expect(body.method).toBe('code');
     expect(body.code).toBe('123456');
@@ -91,7 +91,7 @@ describe('VerificationPage', () => {
         ok: true,
         json: async () => ({
           ui: {
-            action: 'http://kratos.local/self-service/verification?flow=abc',
+            action: 'https://auth-dev.usetheo.dev/self-service/verification?flow=abc',
             nodes: [{ attributes: { name: 'csrf_token', value: 'csrf-xyz' } }],
           },
         }),
@@ -122,7 +122,7 @@ describe('VerificationPage', () => {
         ok: true,
         json: async () => ({
           ui: {
-            action: 'http://kratos.local/self-service/verification?flow=abc',
+            action: 'https://auth-dev.usetheo.dev/self-service/verification?flow=abc',
             nodes: [{ attributes: { name: 'csrf_token', value: 'csrf-xyz' } }],
           },
         }),

@@ -1,3 +1,5 @@
+import { safeNavigator } from '@/lib/navigation';
+
 /**
  * POST de um flow OIDC do Kratos por form DOM nativo.
  *
@@ -19,21 +21,12 @@ export function postOIDCForm(
   action: string,
   csrfToken: string,
   provider: string,
-): void {
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = action;
-  for (const [name, value] of [
-    ['csrf_token', csrfToken],
-    ['method', 'oidc'],
-    ['provider', provider],
-  ]) {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = name;
-    input.value = value;
-    form.appendChild(input);
-  }
-  document.body.appendChild(form);
-  form.submit();
+): boolean {
+  // B-138: `action` is `flow.ui.action`, chosen by the Kratos response. Returns false when
+  // the boundary refuses it so the caller can surface an error instead of a dead click.
+  return safeNavigator.submitTo(action, {
+    csrf_token: csrfToken,
+    method: 'oidc',
+    provider,
+  });
 }

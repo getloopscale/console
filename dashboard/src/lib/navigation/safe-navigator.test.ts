@@ -53,6 +53,25 @@ describe('SafeNavigator', () => {
     expect(JSON.stringify(sink)).not.toContain('hunter2');
   });
 
+  it('reports failure when the sink itself throws, instead of letting it escape', () => {
+    // The pre-boundary code wrapped `form.submit()` in a try/catch for "DOM/CSP edge cases"
+    // — a real path: a `form-action` violation makes the browser throw. Removing that
+    // try/catch while migrating would have turned a handled error into an unhandled one,
+    // and the login page would show nothing at all instead of its network-error alert.
+    // The boundary owns this now, so the site keeps ONE branch for both failure modes
+    // rather than a guard plus a try/catch.
+    const throwing = {
+      assign() { throw new Error('CSP violation'); },
+      submitForm() { throw new Error('CSP form-action violation'); },
+    };
+    const nav = new SafeNavigator(throwing);
+
+    expect(() => nav.goTo('/billing')).not.toThrow();
+    expect(nav.goTo('/billing')).toBe(false);
+    expect(() => nav.submitTo('/login', { password: 'x' })).not.toThrow();
+    expect(nav.submitTo('/login', { password: 'x' })).toBe(false);
+  });
+
   it('refuses a null or absent destination rather than navigating to the empty string', () => {
     const sink = new RecordingNavigationSink();
     const nav = new SafeNavigator(sink);

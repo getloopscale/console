@@ -24,7 +24,7 @@ import { userEvent } from '@testing-library/user-event';
 import { render, screen, waitFor } from '@/test/render';
 
 vi.mock('@/lib/http/config', () => ({
-  API_URL: 'http://kratos.local',
+  API_URL: 'https://auth-dev.usetheo.dev',
   AUTH_URL: '',
   ENGINE_URL: '',
   ACCOUNTS_URL: '',
@@ -54,7 +54,7 @@ function flowFixture() {
   return {
     id: 'flow-1',
     ui: {
-      action: 'http://kratos.local/self-service/login?flow=flow-1',
+      action: 'https://auth-dev.usetheo.dev/self-service/login?flow=flow-1',
       method: 'POST',
       nodes: [
         {

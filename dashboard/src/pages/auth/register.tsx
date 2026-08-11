@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { GoogleBrandIcon } from '@/pages/auth/components/google-brand-icon';
 import { useSetPageTitle } from '@/hooks/use-page-meta';
 import { getSession } from '@/lib/auth/session';
+import { safeNavigator } from '@/lib/navigation';
 import { API_URL, AUTH_URL } from '@/lib/http/config';
 // T1.2/T1.3 of plan qa-sprint1-cleanup-2026-06-24 v1.2 — closes #18 + #28.
 import { KRATOS_PASSWORD_MIN_LENGTH } from '@/pages/auth/auth-policy';
@@ -122,23 +123,14 @@ export function RegisterPage() {
 
   const submitOIDC = (provider: string) => {
     if (!flow) return;
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = flow.ui.action;
+    // B-138: `flow.ui.action` is chosen by the Kratos response; the boundary refuses any
+    // destination outside the allowlist rather than posting to it.
     const csrfNode = flow.ui.nodes.find((n) => n.attributes.name === 'csrf_token');
-    for (const [k, v] of [
-      ['csrf_token', csrfNode?.attributes.value || ''],
-      ['method', 'oidc'],
-      ['provider', provider],
-    ]) {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = k;
-      input.value = v;
-      form.appendChild(input);
-    }
-    document.body.appendChild(form);
-    form.submit();
+    safeNavigator.submitTo(flow.ui.action, {
+      csrf_token: csrfNode?.attributes.value || '',
+      method: 'oidc',
+      provider,
+    });
   };
 
   // SECURITY: submit password registration via top-level HTML form POST
@@ -192,34 +184,27 @@ export function RegisterPage() {
       // response identically for both new and existing email branches,
       // so an attacker cannot distinguish account existence by reading
       // the response.
-      const form = document.createElement('form');
-      form.method = 'POST';
       // The upstream identity-store requires the registration flow id on the
       // submit query (`?flow=<id>`); without it the submit is rejected and the
       // BFF's anti-enumeration unifier maps the rejection to the canonical
       // check-email response — a SILENT no-op that creates no account. Forward
       // the flow id so the proxied submit actually registers the user.
       // Regression: register.test.tsx "BFF submit carries the flow id".
-      form.action = `/v1/auth/register?flow=${encodeURIComponent(flow.id)}`;
-      for (const [k, v] of [
-        ['csrf_token', csrfNode?.attributes.value || ''],
-        ['method', 'password'],
-        ['traits.email', email],
-        ['traits.name', name],
-        ['password', password],
-      ]) {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = k;
-        input.value = v;
-        form.appendChild(input);
-      }
-      // #74 closure: persist name + email immediately before the
-      // page navigates so the post-error re-render can rehydrate
-      // them. Password is intentionally NOT persisted.
+      //
+      // B-138: same-origin literal, and it still goes through the boundary — the
+      // invariant has no exceptions, and this request carries the password.
+      //
+      // #74 closure: persist name + email immediately before the page navigates so
+      // the post-error re-render can rehydrate them. Password is intentionally NOT
+      // persisted.
       persistRegisterForm(name, email);
-      document.body.appendChild(form);
-      form.submit();
+      safeNavigator.submitTo(`/v1/auth/register?flow=${encodeURIComponent(flow.id)}`, {
+        csrf_token: csrfNode?.attributes.value || '',
+        method: 'password',
+        'traits.email': email,
+        'traits.name': name,
+        password,
+      });
       return;
     } catch {
       /* network error */

@@ -3,7 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { render, screen, waitFor } from '@/test/render';
 
 vi.mock('@/lib/http/config', () => ({
-  API_URL: 'http://kratos.local',
+  API_URL: 'https://auth-dev.usetheo.dev',
   AUTH_URL: '',
   ENGINE_URL: '',
   ACCOUNTS_URL: '',
@@ -40,7 +40,7 @@ function emailPhaseFlow() {
   return {
     id: 'rec-flow-1',
     ui: {
-      action: 'http://kratos.local/self-service/recovery?flow=rec-flow-1',
+      action: 'https://auth-dev.usetheo.dev/self-service/recovery?flow=rec-flow-1',
       method: 'POST',
       nodes: [
         { attributes: { name: 'csrf_token', value: 'csrf-rec' } },
@@ -55,7 +55,7 @@ function codePhaseFlow() {
   return {
     id: 'rec-flow-1',
     ui: {
-      action: 'http://kratos.local/self-service/recovery?flow=rec-flow-1',
+      action: 'https://auth-dev.usetheo.dev/self-service/recovery?flow=rec-flow-1',
       method: 'POST',
       nodes: [
         { attributes: { name: 'csrf_token', value: 'csrf-rec' } },
@@ -71,7 +71,7 @@ function passwordPhaseFlow() {
   return {
     id: 'set-flow-1',
     ui: {
-      action: 'http://kratos.local/self-service/settings?flow=set-flow-1',
+      action: 'https://auth-dev.usetheo.dev/self-service/settings?flow=set-flow-1',
       method: 'POST',
       nodes: [
         { attributes: { name: 'csrf_token', value: 'csrf-set' } },
@@ -86,7 +86,7 @@ function passwordPhaseFlowWithError(errorText: string) {
   return {
     id: 'set-flow-1',
     ui: {
-      action: 'http://kratos.local/self-service/settings?flow=set-flow-1',
+      action: 'https://auth-dev.usetheo.dev/self-service/settings?flow=set-flow-1',
       method: 'POST',
       nodes: [
         { attributes: { name: 'csrf_token', value: 'csrf-set' } },
@@ -138,7 +138,7 @@ describe('RecoveryPage', () => {
       expect(mockSubmitFlow).toHaveBeenCalledTimes(1);
     });
     const [action, method, body] = mockSubmitFlow.mock.calls[0];
-    expect(action).toBe('http://kratos.local/self-service/recovery?flow=rec-flow-1');
+    expect(action).toBe('https://auth-dev.usetheo.dev/self-service/recovery?flow=rec-flow-1');
     expect(method).toBe('POST');
     expect(body.email).toBe('user@example.com');
     expect(body.method).toBe('code');

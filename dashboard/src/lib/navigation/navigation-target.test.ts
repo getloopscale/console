@@ -55,6 +55,25 @@ describe('NavigationTarget.parse — the only way to obtain a target', () => {
     expect(target!.value).toBe(raw);
   });
 
+  it('accepts a same-document fragment', () => {
+    // A fragment posts to the CURRENT url — same-origin by construction, nothing to
+    // exfiltrate. It is accepted here rather than by widening `isSafeRedirectUrl`, because
+    // that predicate guards absolute destinations and a fragment is not one.
+    //
+    // This is not a convenience: `lib/mocks/dev-mocks.ts` serves `action: '#mock-submit-login'`
+    // precisely BECAUSE `form.submit()` is a real navigation and not a fetch the mock can
+    // intercept. The fragment is what keeps mock login on the page. Refusing it would have
+    // broken the dev flow while the production flow stayed green — the worst shape of
+    // regression, because nobody sees it until they try to work.
+    const target = NavigationTarget.parse('#mock-submit-login');
+    expect(target).not.toBeNull();
+    expect(target!.value).toBe('#mock-submit-login');
+  });
+
+  it('still refuses a fragment that is not the whole destination', () => {
+    expect(NavigationTarget.parse('https://evil.example/#x')).toBeNull();
+  });
+
   it('carries its proof: toString is the destination', () => {
     const target = NavigationTarget.parse('/billing');
     expect(String(target)).toBe('/billing');
