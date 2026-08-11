@@ -7197,6 +7197,20 @@ measured: |
 
   As CINCO restantes seguem abertas, cada uma reproduzível com o seed acima:
     deployments.test.tsx (2), lens/traces.test.tsx, lens/playground.test.tsx, auth/login.test.tsx
+
+  TENTATIVA REGISTRADA — `deployments.test.tsx`, NÃO resolvida. Duas hipóteses foram testadas e as
+  DUAS estavam erradas quanto à causa, embora ambas descrevessem vazamentos reais que foram
+  corrigidos por higiene:
+
+    1. o `queryClient` de `lib/http/query-client.ts` é singleton, então o cache do TanStack Query
+       sobrevive entre ARQUIVOS de teste — agora limpo no `beforeEach`;
+    2. o registro do `SharedEventSource` é um `Map` de módulo, então o stream reusava conexão
+       aberta por outro arquivo — agora resetado no `beforeEach`.
+
+  Nenhuma das duas mudou o resultado: os mesmos 2 casos continuam falhando sob o seed. A causa
+  ainda NÃO é conhecida, e este registro existe para que quem retomar não repita as duas hipóteses
+  já eliminadas. Os dois `beforeEach` ficam porque são correção de higiene independente do achado
+  — não porque fecharam alguma coisa.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

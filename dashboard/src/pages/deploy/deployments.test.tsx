@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v6';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Build, BuildListResponse } from '@/lib/api/types';
+import { queryClient } from '@/lib/http/query-client';
 
 vi.mock('@/lib/http/api', () => ({
   ensureSSEToken: vi.fn(async () => 'tok'),
@@ -21,7 +22,7 @@ vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => undefined }));
 
 import { DeploymentsPage } from './deployments';
 import { engineFetch } from '@/lib/http/api';
-import { __setTransporte } from '@/hooks/deploy/shared-event-source';
+import { __setTransporte, __resetSharedEventSources } from '@/hooks/deploy/shared-event-source';
 
 const mockedEngineFetch = vi.mocked(engineFetch);
 
@@ -85,6 +86,22 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  // B-197 — o `queryClient` de `lib/http/query-client.ts` é um SINGLETON de módulo, então o cache
+  // do TanStack Query atravessa arquivos de teste. Em ordem fixa isto nunca aparecia; sob
+  // `--sequence.shuffle` esta página lia dados que outro arquivo deixou cacheados sob a mesma
+  // chave, e a asserção sobre o commit sha caía. Limpar é barato e torna o caso independente.
+  // B-197 — DOIS estados de módulo atravessavam arquivos de teste e faziam este bloco depender de
+  // quem rodou antes:
+  //
+  //   1. o `queryClient` de `lib/http/query-client.ts` é singleton, então o cache do TanStack
+  //      Query sobrevive entre arquivos;
+  //   2. o registro do `SharedEventSource` é um `Map` de módulo — o stream desta página reusava
+  //      uma conexão aberta por outro arquivo, e a página nunca recebia os eventos que este caso
+  //      emite.
+  //
+  // Em ordem fixa nenhum dos dois aparecia. Sob `--sequence.shuffle`, os dois.
+  queryClient.clear();
+  __resetSharedEventSources();
   MockEventSource.instances = [];
     // B-088 — o transporte deixou de ser o EventSource global (o JWT foi para
     // o header Authorization). O fake expoe a mesma superficie; muda so onde
