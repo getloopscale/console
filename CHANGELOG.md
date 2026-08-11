@@ -2,6 +2,14 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** web fonts, file previews and provider logos no longer fail to load in production. Two content-security policies ship with the dashboard — one in the page, one as a response header — and browsers apply both, so the narrower one silently revoked six things the page declared it needed. Nothing reported an error; the assets simply never arrived (B-131).
+
+### Changed
+
+- **theo-cloud/dashboard:** the upgrade buttons on Billing no longer state a price or a quota. Both were typed into the page and could not be checked against anything: the API describes only your current plan, and the authoritative amount lives in Stripe — so a price change there left the button promising one figure and the card charging another. The plan's benefits stay; the amount is confirmed at checkout, one click later (B-136).
+
+### Fixed
+
 - **theo-cloud/dashboard:** the deploy timeline no longer walks backwards on a long deploy. Phase state was rebuilt from a rolling buffer that keeps only the last 60 events, so once the event that completed a phase was pushed out, the phase reverted to "pending" on a screen that had already shown it finished (B-181).
 
 ### Changed

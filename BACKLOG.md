@@ -4967,7 +4967,7 @@ evidence: |
   nginx-security-headers.conf:31 — add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://auth.usetheo.dev https://cloud.usetheo.dev; ..." always;  ||  index.html:52 — <meta http-equiv="Content-Security-Policy" content="... img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://checkout.stripe.com https://*.stripe.com https://auth.usetheo.dev https://auth-dev.usetheo.dev https://cloud.usetheo.dev https://cloud-dev.usetheo.dev https://storage.usetheo.dev https://storage-dev.usetheo.dev; ..." />  ||  nginx.conf:13,51,71,78,86 — include /etc/nginx/security-headers.conf;  ||  src/build/csp.test.ts asserts only that script-src lacks 'unsafe-inline' in index.html and dist/index.html — it never compares the two policies, so the drift is unguarded.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `nginx-security-headers.conf:31`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -4977,6 +4977,7 @@ dod:
   - Derive both policies from one source of truth (generate the nginx snippet from the same directive list the meta uses, or drop the meta and keep only the header) and extend src/build/csp.test.ts to assert directive-by-directive that the head
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-nginx-security-headers-the-shipped-response-header-csp-is`). Source: code-review finding #3, `code-review-output/code-review.db`.
+shipped_note: as duas politicas passaram a declarar o MESMO conjunto, medido: fontes do Google (index.html:76), `blob:` do preview de workspace e `cdn.svgporn.com` dos logos de provider estavam revogados pela intersecao em producao. `ws:`/`wss:` e os hosts do Stripe SAIRAM — nao ha WebSocket no codigo e o Stripe e alcancado por navegacao, que `connect-src` nao governa; `img-src https:` virou o host nomeado. Duas diferencas ficam declaradas e vigiadas: `ws:`/`wss:` so no meta (o Vite serve o index.html em dev e o HMR abre WebSocket) e `frame-ancestors` so no header (ignorado em meta por spec). `src/build/csp.test.ts` compara diretiva a diretiva nos dois sentidos — o guarda anterior olhava UMA diretiva de UM arquivo. Mutacao verificada.
 
 ## B-132 — Placeholder screens advertise theo CLI commands that do not exist (settings domain)   [x]
 
@@ -5127,7 +5128,7 @@ evidence: |
   src/pages/overview/components/overview-kpi-strip.tsx:15-17  export function formatPlanPrice(pp: OverviewPlanPrice | null): string { ... const amount = pp.amount_minor / 100;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/settings/billing.tsx:380`.
-status: triaged
+status: shipped
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -5137,6 +5138,7 @@ dod:
   - Bind the upgrade CTAs to the plan catalogue the API already returns (reuse formatPlanPrice from overview-kpi-strip rather than duplicating the formatting), and render the target-plan quotas from the same source as the current-plan rows. If
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-billing-billing-upgrade-ctas-hardcode-prices-and`). Source: code-review finding #13, `code-review-output/code-review.db`.
+shipped_note: CORRECAO DA PREMISSA DO ITEM: a API NAO expoe o catalogo. `/v1/billing` descreve so o plano ATUAL (`plan`, `plan_cap`, `plan_price`) e `internal/billing/plans.go` guarda apenas Price IDs do Stripe — o valor vive no Stripe, e catalogo de planos nao existe em lugar nenhum do produto. Logo o DoD ("bind as CTAs ao catalogo que a API ja retorna") era irrealizavel como escrito. O conserto honesto: a tela parou de AFIRMAR preco e cota que nao consegue verificar — $29/mo, $99/mo e "10 projects, 3 environments, 1000 builds/month" sairam, os beneficios (que sao decisao nossa) ficaram, e o checkout do Stripe mostra o valor autoritativo um clique depois. Guarda de FONTE em `billing.test.tsx` reprova qualquer literal monetario ou cota numerica nos dois arquivos; duas mutacoes mortas. Quando existir endpoint de catalogo, o preco volta por `formatPlanPrice`.
 
 ## B-137 — The loading/error/empty/data ladder is a copy-pasted convention, not a primitive: 6 pages omit the error leg a   [x]
 
