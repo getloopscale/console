@@ -7674,10 +7674,17 @@ why_now: |
 status: partial
 shipped_note: |
   `lib/list-state.ts` is the missing decision, as a pure function rather than a wrapper around
-  a design-system component we do not own. `infra/domains.tsx` uses it and both false-premise
-  comments are corrected. FIVE PAGES REMAIN: settings/audit.tsx, settings/webhooks.tsx,
-  settings/team.tsx and two others — the helper is in place, the migration is not done, and
-  saying so is better than marking this shipped.
+  a design-system component we do not own. THREE of the pages now use it — infra/domains.tsx,
+  settings/team.tsx, settings/audit.tsx — and both false-premise comments are corrected.
+
+  THREE REMAIN and are named rather than glossed: projects/projects.tsx,
+  deploy/deployments.tsx, infra/secrets.tsx and infra/environments.tsx build their descriptor
+  from a different shape (no `const loading = X.isLoading` line to hook onto), so a scripted
+  migration would have guessed. lens/labeling-queue.tsx already reads its error.
+
+  The helper's signature carries one decision worth naming: when the list HAS rows
+  (`vazio === undefined`) it returns undefined even on error. A refetch failure over stale
+  data deserves a banner, not an empty state, and that is not this function's call.
 dod:
   - all six pages distinguish "nothing there" from "could not read"
   - a guard fails when a page passes `empty=` without consulting an error flag

@@ -77,7 +77,7 @@
 
 ### Fixed
 
-- **theo-cloud/dashboard:** the domains list no longer says "No custom domains yet" when the request failed. A failed read produces zero rows, zero rows looked like an empty list, and the screen stated a fact about your account when it only knew a fact about the request. It now says it could not read them, and that the list is not showing what exists (B-167).
+- **theo-cloud/dashboard:** the domains, team and audit lists no longer state absence when the request failed. A failed read produces zero rows, zero rows looked like an empty list, and the screen stated a fact about your account when it only knew a fact about the request. It now says it could not read them, and that the list is not showing what exists (B-167).
 
 - **theo-cloud/dashboard:** two dependencies were used without being declared (`@storybook/react`, `eslint`) — a fresh clone could build differently from a warm one — and four modules exported the same page under two names. Declared and de-duplicated (B-166).
 

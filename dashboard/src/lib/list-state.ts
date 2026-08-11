@@ -37,9 +37,14 @@ export interface EstadoVazio {
  * construir o descritor.
  */
 export function estadoDaLista(
-  { erro, vazio }: { erro: boolean; vazio: EstadoVazio },
+  { erro, vazio }: { erro: boolean; vazio: EstadoVazio | undefined },
   recurso: string,
-): EstadoVazio {
+): EstadoVazio | undefined {
+  // `vazio === undefined` significa que a lista TEM linhas — `PageShell` nao mostra nada.
+  // Um erro de refetch por cima de dados velhos e outra decisao (uma tarja, nao um estado
+  // vazio), e nao e esta funcao que a toma. So substituimos a mensagem quando o usuario
+  // veria a afirmacao de ausencia.
+  if (vazio === undefined) return undefined;
   if (!erro) return vazio;
   return {
     icon: AlertTriangle,

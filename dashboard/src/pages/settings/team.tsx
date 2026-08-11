@@ -20,6 +20,7 @@ import { InviteMemberSheet } from "@/pages/settings/components/invite-member-she
 import { useRemoveMember, useUpdateMemberRole } from '@/hooks/mutations/use-team';
 import { formatDate } from '@/lib/formatting/format';
 import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
+import { estadoDaLista } from '@/lib/list-state';
 
 interface Member {
   username?: string;
@@ -62,6 +63,7 @@ export function TeamPage() {
   });
   const data = teamQuery.data ?? null;
   const loading = teamQuery.isLoading;
+  const erroDeLeitura = teamQuery.isError;
   const members = data?.members ?? [];
   const [searchQuery, setSearchQuery] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -122,6 +124,8 @@ export function TeamPage() {
       }}
       loading={loading}
       empty={
+        estadoDaLista(
+          { erro: erroDeLeitura, vazio:
         !loading && filtered.length === 0
           ? {
               icon: Users,
@@ -131,6 +135,9 @@ export function TeamPage() {
                 : 'Invite teammates to collaborate on your projects.',
             }
           : undefined
+          },
+          'team members',
+        )
       }
     >
       <Card>

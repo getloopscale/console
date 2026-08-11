@@ -9,6 +9,7 @@ import { engineFetch } from '@/lib/http/api';
 import { formatDate } from '@/lib/formatting/format';
 import { triggerAuditCsvDownload } from '@/pages/settings/audit-csv';
 import type { AuditListResponse, AuditSeverity } from '@/lib/api/types';
+import { estadoDaLista } from '@/lib/list-state';
 
 const SEVERITY_BADGE: Record<
   AuditSeverity,
@@ -112,6 +113,7 @@ export function AuditPage() {
   const entries = query.data?.entries ?? [];
   const total = query.data?.total ?? 0;
   const loading = query.isLoading;
+  const erroDeLeitura = query.isError;
   const pageCount = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
 
   // Trocar filtro reinicia a paginacao: manter a pagina 7 ao filtrar por outro
@@ -151,6 +153,8 @@ export function AuditPage() {
       }
       loading={loading}
       empty={
+        estadoDaLista(
+          { erro: erroDeLeitura, vazio:
         !loading && visibleEntries.length === 0
           ? {
               icon: History,
@@ -161,6 +165,9 @@ export function AuditPage() {
                   : 'Activity will appear here as your team uses the workspace.',
             }
           : undefined
+          },
+          'audit entries',
+        )
       }
     >
       {/* Plan 4 of dashboard-memory-section-roadmap.md, T4.3 — Memory source filter chip.
