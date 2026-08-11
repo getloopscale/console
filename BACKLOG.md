@@ -7465,3 +7465,42 @@ dod:
   - the detector is proven able to fail
   - lowering the count is recorded as progress
 
+## B-228 — Release is blocked: the CHANGELOG and the git tags disagree by 54 minor versions   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud
+suggested_mode: review
+source: human
+severity: high
+category: completeness
+evidence: |
+  CHANGELOG.md:241
+  `git describe --tags --abbrev=0` reports **v0.29.0** as the most recent tag. `CHANGELOG.md:241`
+  records **[0.83.1] - 2026-08-05** as the most recent released version, with [0.83.0] above it.
+  The two records of "what shipped" disagree by 54 minor versions.
+
+  Deriving the next version from the tag gives v0.30.0, which would appear to REGRESS against a
+  changelog that already documents 0.83.1. Deriving it from the changelog gives 0.84.0, which
+  would leave a 54-version hole in the tag history and break `git describe` for anything that
+  reads it.
+
+  Second, independent defect in the same block: `[Unreleased]` carries SEVEN sections with
+  duplicates — `### Changed` at CHANGELOG.md:3 AND :95, `### Fixed` at :13 AND :170. Keep a
+  Changelog allows each category once, in a fixed order, and `cycle-release.md § Bump-level
+  derivation` reads those section names to choose patch/minor/major. With duplicates the
+  derivation is ambiguous: the first `Changed` has 5 entries and the second has 27.
+why_now: |
+  Measured 2026-08-11 while executing the RELEASE stage for the code-review slice. The
+  workspace → develop promotion is unaffected and proceeds; the develop → main cut cannot,
+  because picking a version here is a guess and `cycle-release.md § Stop conditions` says to
+  halt and let a human choose the version explicitly rather than infer one.
+status: raw
+dod:
+  - one authoritative answer to "what is the current released version", reconciled between the
+    tag history and CHANGELOG.md
+  - `[Unreleased]` holds each category at most once, in the Keep a Changelog order
+  - `git describe --tags` and the top released heading in CHANGELOG.md agree
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `theo-cloud-changelog-tag-divergence`).
+> Found by the RELEASE stage refusing to guess a version.
+
