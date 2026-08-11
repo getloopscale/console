@@ -23,6 +23,8 @@
 
 ### Added
 
+- **theo-cloud/dashboard:** backlog B-126 — das sete overviews de capacidade, `skills` abre direto numa tabela sem responder nada, e `trust` responde com um veredito em frase que é possivelmente o melhor padrão do repositório, não uma divergência a apagar.
+
 - **theo-cloud/dashboard:** a Overview passou a responder "tem algo errado agora?" — a única pergunta que nenhuma outra tela do produto responde, porque cada capacidade só enxerga a si mesma. A faixa junta erro de agente (Observability), retrievals vazios (Knowledge Base) e requisições barradas (Trust), cada linha com o caminho que a resolve. Quando uma leitura falha, a tela diz que não conseguiu ler em vez de afirmar que está tudo bem (B-125).
 - **theo-cloud/dashboard:** a Overview mostra o que os agentes custaram, por modelo, a partir do custo medido nos spans — o único valor em dinheiro na tela antes era o preço do plano. Spans cujo modelo não tem preço aparecem declarados fora do total, para que ele não seja menor que a verdade sem dizer (B-125).
 

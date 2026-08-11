@@ -4669,3 +4669,60 @@ entregue_2026-08-11: |
 
   E o TypeScript matou um teste meu: o caso "toda fonte tem destino" checava `path === ''`, que
   o tipo literal já prova. Reescrito para afirmar o que o tipo não sabe.
+
+## B-126 — Duas das sete overviews de capacidade não respondem "como está esta capacidade?"   [ ]
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `capability-overviews-answer-a-question`).
+> Filho do `B-125`: aquele item fez a Overview de PLATAFORMA responder uma pergunta; este mede se
+> as overviews de CAPACIDADE respondem a delas.
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+evidence: none-yet
+why_now: |
+  MEDIDO EM 2026-08-11, e a medição CONTRARIA EM PARTE a premissa de que "promptly, skills e trust
+  divergem do resto". Duas das três estão certas; a divergência é outra.
+
+  As sete overviews de capacidade, por estrutura:
+
+    capacidade   PageShell  trata-erro  carregando  abre respondendo o quê
+    lens         sim        sim         sim         KPIs (MetricCard) + gráfico
+    memory       sim        sim         sim         KPIs
+    rag          sim        sim         sim         KPIs
+    promptly     sim        sim         sim         KPIs + aviso "os números são parciais"
+    trust        sim        sim         sim         VEREDITO em frase
+    workspace    sim        sim         sim         lista
+    skills       sim        sim         sim         NADA — abre direto numa tabela
+
+  O QUE JÁ ESTÁ CERTO, e por isso não é escopo:
+  - `PageShell`, tratamento de erro e estado de carregamento: as SETE têm.
+  - O primitivo de KPI já é unificado em `MetricCard`, com guard próprio
+    (`lib/kpi-primitive-unification.test.ts`, M88/#138) que reprova quem reabrir a divisão.
+
+  O QUE DIVERGE DE VERDADE:
+
+  1. `skills/overview.tsx` abre num `<Card>` com `<h2>Published skills</h2>` e um `DataTable`.
+     Nenhum resumo, nenhum número, nenhum veredito. Quem abre `/skills` vê uma LISTA — e uma
+     lista não responde "como está esta capacidade?". É a mesma classe do defeito que o `B-125`
+     acabou de corrigir um nível acima.
+
+  2. `trust/overview.tsx` responde com um VEREDITO em frase, com julgamento embutido:
+     `"Every observed policy is already being blocked."` ou `"3 observed policies are not being
+     blocked."` (`overview.tsx:118-124`). Ele calcula `coverage` e `gaps` e escolhe NÃO os
+     mostrar como número solto.
+
+     **Isso não é divergência a apagar — é possivelmente o melhor padrão do repositório.** Um
+     número exige interpretação; um veredito já a carrega. Uniformizar o trust para uma linha de
+     KPIs seria trocar uma resposta por um dado.
+
+  O QUE MUDOU: o `B-125` estabeleceu, na Overview de plataforma, que uma tela inicial existe para
+  responder uma pergunta — não para listar. Aplicada às capacidades, a mesma régua expõe que uma
+  das sete não responde nada e que outra responde melhor do que as cinco restantes.
+status: raw
+dod:
+  - toda overview de capacidade responde uma pergunta ANTES de listar — verificado por teste que quantifica sobre as telas, não por inspeção de uma a uma
+  - a decisão entre "KPIs" e "veredito" é registrada num ADR com a alternativa rejeitada, em vez de resolvida por maioria: cinco telas usarem KPIs não prova que KPIs é a resposta certa
+  - nenhuma tela perde informação que hoje só ela mostra — medido antes de mover, como no `B-125`, onde o painel `Usage` era a única superfície de três cotas
+  - o aviso "os números são parciais" do promptly ou vira contrato de todas as telas com teto de leitura, ou some por ser desnecessário nele — hoje ele é o único que o carrega, e essa assimetria não está justificada em lugar nenhum
