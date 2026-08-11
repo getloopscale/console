@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Check, ChevronDown, Rocket, X } from 'lucide-react';
 import { Button, CopyButton } from '@usetheo/ui';
 import { useOnboardingState } from '@/hooks/use-onboarding-state';
-import { reportEvent } from '@/lib/rum';
+import { reportEvent } from '@/lib/telemetry/rum';
 
 /**
  * OnboardingPanel (Sprint 3 T3.2 v2) — Linear/Vercel 2026 floating pattern.

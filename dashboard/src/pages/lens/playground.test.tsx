@@ -3,12 +3,12 @@ import { userEvent } from '@testing-library/user-event';
 
 import { render, screen, within } from '@/test/render';
 import { waitFor } from '@testing-library/react';
-import type { TraceSpanNode } from '@/lib/trace-layout';
+import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
 import { LensPlayground } from './playground';
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/api')>();
+vi.mock('@/lib/http/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/http/api')>();
   return { ...actual, cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) };
 });
 

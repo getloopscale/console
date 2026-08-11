@@ -9,7 +9,7 @@ import { LensComparePage } from './compare';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+vi.mock('@/lib/http/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
 /**
  * M8 — the compare-page integration suite (consumer-owned). The side-by-side lanes, the metrics

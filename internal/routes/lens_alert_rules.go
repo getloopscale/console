@@ -71,6 +71,10 @@ const MetricPromptResolutions = "prompt_resolutions"
 // Both states fail SILENTLY if allowed through: a prompt rule with no prompt is skipped by the
 // evaluator forever (an armed rule that can never fire), and a prompt name on a workspace metric is
 // simply ignored (the next reader cannot tell whether the scope applied).
+// capAlertRules é o teto defensivo desta lista (B-114). O `LIMIT` da query é `capAlertRules + 1`,
+// para que o handler saiba distinguir "exatamente 200" de "mais de 200".
+const capAlertRules = 200
+
 func promptPairingRejected(metric, promptName string) bool {
 	named := strings.TrimSpace(promptName) != ""
 	return (metric == MetricPromptResolutions) != named
@@ -390,7 +394,7 @@ func (h *LensAlertRulesHandler) List(w http.ResponseWriter, r *http.Request) {
 		FROM lens_alert_rules
 		WHERE subject = $1 AND tenant_id = $2
 		ORDER BY created_at DESC
-		LIMIT 200`
+		LIMIT 201`
 	rows, err := h.db.QueryContext(r.Context(), q, user.Subject, user.TenantID,
 		float64(staleAfterTicks*evaluatorTickSeconds))
 	if err != nil {
@@ -426,7 +430,8 @@ func (h *LensAlertRulesHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, v)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"alert_rules": out})
+	out, temMais := truncar(out, capAlertRules)
+	writeJSON(w, http.StatusOK, map[string]any{"alert_rules": out, "has_more": temMais})
 }
 
 // Delete serves DELETE /v1/dashboard/lens/alert-rules/{id}. Cross-tenant / non-existent → 404 (never 403).

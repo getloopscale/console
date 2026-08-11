@@ -80,11 +80,11 @@ test.describe('M22 — o monitor de prompt pela tela', () => {
     await page.goto('/');
     await page.getByRole('button', { name: /^prompts$/i }).click();
     await expect(page.getByRole('button', { name: /^projects$/i })).toHaveCount(0);
-    await page.getByRole('button', { name: /^catálogo$/i }).click();
+    await page.getByRole('button', { name: /^catalog$/i }).click();
 
     await page.getByRole('link', { name: 'saudacao', exact: true }).click();
-    await page.getByRole('link', { name: 'Uso em produção' }).click();
-    await expect(page).toHaveURL(/\/promptly\/saudacao\/producao$/);
+    await page.getByRole('link', { name: 'Production usage' }).click();
+    await expect(page).toHaveURL(/\/promptly\/saudacao\/production$/);
 
     // ---- CLICAR no caminho, não apenas conferir o href -----------------------------------
     // A primeira versão terminava em `toHaveAttribute('href', /prompt=saudacao/)` e chamava isso

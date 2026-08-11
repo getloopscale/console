@@ -11,15 +11,15 @@
  * import via shim que fechava os ciclos da familia lens.
  *
  * M58 T1.1 — `TraceSpanNode`, `computeTraceBounds`, and `computeBarLayout` now live in the pure
- * leaf module `@/lib/trace-layout` (with the new axis / row-pack / ∑-cost math). They are re-exported
+ * leaf module `@/pages/lens/trace-layout` (with the new axis / row-pack / ∑-cost math). They are re-exported
  * here so every existing importer keeps resolving; this file keeps the parse/flatten helpers.
  */
 
 export {
   computeBarLayout,
   type TraceSpanNode,
-} from '@/lib/trace-layout';
-import type { TraceSpanNode } from '@/lib/trace-layout';
+} from '@/hooks/lens/trace-layout';
+import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
 
 /** One OpenAI-shaped tool call attached to an assistant message. */
 export interface ToolCall {

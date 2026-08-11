@@ -48,8 +48,8 @@ describe('ProducaoTab — o caminho até o monitor (M22)', () => {
     // A aba é do M15/M20; acrescentar o caminho não pode custar as duas perguntas que ela já
     // respondia.
     render(<ProducaoTab {...BASE} promptName="saudacao" />);
-    expect(screen.getByRole('heading', { name: /Uso por revisão/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Quem referencia este prompt/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Usage by revision/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /What references this prompt/i })).toBeInTheDocument();
   });
 });
 
@@ -66,7 +66,7 @@ const COM_USO = [
 describe('ProducaoTab — o caminho até as resoluções (M23)', () => {
   it('oferece o caminho quando houve chamada medida', () => {
     render(<ProducaoTab {...BASE} linhas={COM_USO} promptName="saudacao" />);
-    expect(screen.getByRole('link', { name: /execuç/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /runs in traces/i })).toBeInTheDocument();
   });
 
   it('o caminho aponta para o DESTINO exato, construído pelo helper', () => {
@@ -74,7 +74,7 @@ describe('ProducaoTab — o caminho até as resoluções (M23)', () => {
     // um 404 entregue ao operador com o teste verde, que foi o defeito do M22. O `pathname`
     // literal é fixado em `traces-link.test.ts`, então esta comparação não é circular.
     render(<ProducaoTab {...BASE} linhas={COM_USO} promptName="saudacao" />);
-    expect(screen.getByRole('link', { name: /execuç/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /runs in traces/i })).toHaveAttribute(
       'href',
       linkParaTracesDoPrompt('saudacao'),
     );
@@ -82,7 +82,7 @@ describe('ProducaoTab — o caminho até as resoluções (M23)', () => {
 
   it('um nome hostil chega íntegro ao destino', () => {
     render(<ProducaoTab {...BASE} linhas={COM_USO} promptName="time/greeting&x#y" />);
-    const href = screen.getByRole('link', { name: /execuç/i }).getAttribute('href') ?? '';
+    const href = screen.getByRole('link', { name: /runs in traces/i }).getAttribute('href') ?? '';
     expect(new URL(href, 'https://x').searchParams.get('span_query')).toBe(
       'attr:prompt.id=time/greeting&x#y',
     );
@@ -91,25 +91,25 @@ describe('ProducaoTab — o caminho até as resoluções (M23)', () => {
   it('o nome acessível diz DE QUAL prompt são as execuções', () => {
     // Um leitor de tela que tabula por links ouviria "deste prompt" sem antecedente.
     render(<ProducaoTab {...BASE} linhas={COM_USO} promptName="saudacao" />);
-    expect(screen.getByRole('link', { name: /execuções de saudacao/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /saudacao runs in traces/i })).toBeInTheDocument();
   });
 
   it('um nome em branco NÃO derruba a aba — o caminho apenas não é oferecido', () => {
     // A primeira versão lançava dentro do JSX: o ErrorBoundary substituía a tela de detalhe
     // inteira por "This page crashed", com um Retry que re-renderiza o mesmo estado e estoura de
-    // novo. `/promptly/%20/producao` entrega exatamente este valor.
+    // novo. `/promptly/%20/production` entrega exatamente este valor.
     expect(() =>
       render(<ProducaoTab {...BASE} linhas={COM_USO} promptName="   " />),
     ).not.toThrow();
-    expect(screen.queryByRole('link', { name: /execuç/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Uso por revisão/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /runs in traces/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Usage by revision/i })).toBeInTheDocument();
   });
 
   it('não convida a ver "cada uma delas" quando NÃO houve chamada', () => {
     // O convite era incondicional e aparecia logo abaixo de "Nenhuma revisão para reportar".
     render(<ProducaoTab {...BASE} linhas={[]} promptName="saudacao" />);
-    expect(screen.queryByRole('link', { name: /execuç/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/Nenhuma revisão para reportar/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /runs in traces/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/No revisions to report/i)).toBeInTheDocument();
   });
 
   it('não convida quando a leitura do uso FALHOU — ausência de leitura não é ausência de uso', () => {
@@ -121,14 +121,14 @@ describe('ProducaoTab — o caminho até as resoluções (M23)', () => {
         promptName="saudacao"
       />,
     );
-    expect(screen.queryByRole('link', { name: /execuç/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /runs in traces/i })).not.toBeInTheDocument();
     expect(screen.getByText(/upstream 502/i)).toBeInTheDocument();
   });
 
   it('a aba segue respondendo o que já respondia — regressão', () => {
     render(<ProducaoTab {...BASE} linhas={COM_USO} promptName="saudacao" />);
-    expect(screen.getByRole('heading', { name: /Uso por revisão/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Quem referencia este prompt/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Usage by revision/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /What references this prompt/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /monitor/i })).toBeInTheDocument();
   });
 });

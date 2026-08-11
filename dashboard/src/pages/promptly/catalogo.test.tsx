@@ -7,8 +7,8 @@ vi.mock('@/hooks/use-auth', () => ({
 }));
 
 const mockCatalog = vi.fn();
-vi.mock('@/components/promptly/promptly-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/promptly/promptly-api')>();
+vi.mock('@/hooks/promptly/promptly-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/promptly/promptly-api')>();
   return { ...actual, fetchCatalogPage: (...a: unknown[]) => mockCatalog(...a) };
 });
 
@@ -139,8 +139,8 @@ describe('PromptlyCatalogoPage', () => {
 
     render(<PromptlyCatalogoPage />);
 
-    expect(await screen.findByText(/não foi possível carregar/i)).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /criar o primeiro/i })).not.toBeInTheDocument();
+    expect(await screen.findByText(/could not load/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /create the first/i })).not.toBeInTheDocument();
   });
 
   it('vazio de verdade oferece criar', async () => {
@@ -148,7 +148,7 @@ describe('PromptlyCatalogoPage', () => {
 
     render(<PromptlyCatalogoPage />);
 
-    expect(await screen.findByRole('link', { name: /criar o primeiro/i })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /create the first/i })).toBeInTheDocument();
   });
 
   it('filtro sem resultado NÃO diz que o workspace está vazio', async () => {
@@ -165,8 +165,8 @@ describe('PromptlyCatalogoPage', () => {
 
     // Nem afirma ausência, nem oferece criar: o que falta é limpar o filtro.
     expect(await screen.findByRole('button', { name: /limpar/i })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /criar o primeiro/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/nenhum prompt neste workspace/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /create the first/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/no prompts in this workspace/i)).not.toBeInTheDocument();
   });
 
   // ---- T4.1 — comparar a um clique ----
@@ -176,7 +176,7 @@ describe('PromptlyCatalogoPage', () => {
 
     render(<PromptlyCatalogoPage />);
 
-    const link = await screen.findByRole('link', { name: /comparar revisões de saudacao/i });
+    const link = await screen.findByRole('link', { name: /compare revisions of saudacao/i });
     expect(link).toHaveAttribute('href', '/promptly/saudacao/diff');
   });
 
@@ -187,7 +187,7 @@ describe('PromptlyCatalogoPage', () => {
     await screen.findByText('despedida');
 
     // `despedida` está em v1 — não há duas revisões para comparar.
-    expect(screen.queryByRole('link', { name: /comparar revisões de despedida/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /compare revisions of despedida/i })).not.toBeInTheDocument();
   });
 
   // EC-10 — nomes não têm restrição de caractere (`name: z.string().min(1)`). Sem escape,
@@ -200,7 +200,7 @@ describe('PromptlyCatalogoPage', () => {
 
     render(<PromptlyCatalogoPage />);
 
-    const link = await screen.findByRole('link', { name: /comparar revisões de time\/saudacao/i });
+    const link = await screen.findByRole('link', { name: /compare revisions of time\/saudacao/i });
     expect(link).toHaveAttribute('href', '/promptly/time%2Fsaudacao/diff');
   });
 });
@@ -218,13 +218,13 @@ describe('PromptlyCatalogoPage — herdado do M25', () => {
     expect(await screen.findByText('prod → v1')).toBeInTheDocument();
   });
 
-  it('descreve como "nenhum" o prompt que não serve ambiente algum', async () => {
+  it('descreve como "none" o prompt que não serve ambiente algum', async () => {
     // Estado normal do dado, distinto de "não sei": o prompt existe e nenhum label o aponta.
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 
     render(<PromptlyCatalogoPage />);
 
-    expect(await screen.findByText('nenhum')).toBeInTheDocument();
+    expect(await screen.findByText('none')).toBeInTheDocument();
   });
 
   it('pede um limite EXPLÍCITO ao servidor em vez de herdar o teto dele', async () => {
@@ -232,7 +232,7 @@ describe('PromptlyCatalogoPage — herdado do M25', () => {
 
     render(<PromptlyCatalogoPage />);
 
-    await screen.findByText(/Nenhum prompt neste workspace/i);
+    await screen.findByText(/No prompts in this workspace/i);
     expect(mockCatalog).toHaveBeenCalledWith(expect.any(Number), expect.any(Object));
     expect(mockCatalog.mock.calls[0][0]).toBeGreaterThan(0);
   });
@@ -250,7 +250,7 @@ describe('PromptlyCatalogoPage — a contagem não pode afirmar o que não sabe'
 
     render(<PromptlyCatalogoPage />);
 
-    expect(await screen.findByText(/não foi possível carregar/i)).toBeInTheDocument();
+    expect(await screen.findByText(/could not load/i)).toBeInTheDocument();
     // A regex mira a CONTAGEM (número + frase). O texto do Alert também diz "neste workspace",
     // e ele está certo — é justamente ele que nega o zero.
     expect(screen.queryByText(/\d+ neste workspace/i)).not.toBeInTheDocument();
@@ -270,7 +270,7 @@ describe('PromptlyCatalogoPage — a contagem não pode afirmar o que não sabe'
 
     render(<PromptlyCatalogoPage />);
 
-    expect(await screen.findByText(/há mais no servidor/i)).toBeInTheDocument();
+    expect(await screen.findByText(/there is more on the server/i)).toBeInTheDocument();
     expect(screen.queryByText(/\d+ neste workspace/i)).not.toBeInTheDocument();
   });
 
@@ -305,7 +305,7 @@ describe('PromptlyCatalogoPage — a contagem não pode afirmar o que não sabe'
 
     await userEvent.type(screen.getByRole('searchbox'), 'zzz');
 
-    expect(await screen.findByText(/há mais no servidor/i)).toBeInTheDocument();
+    expect(await screen.findByText(/there is more on the server/i)).toBeInTheDocument();
     expect(screen.queryByText(/O workspace tem prompts/i)).not.toBeInTheDocument();
   });
 });
@@ -320,7 +320,7 @@ describe('PromptlyCatalogoPage — recortes vindos do endereço', () => {
   it('recorta por não-promovidos quando o endereço pede', async () => {
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?recorte=nao-promovidos'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?recorte=not-promoted'] });
 
     // `saudacao` (v3, prod→v1) e `despedida` (v1, sem label) não estão no ar; `agentbuilder-base`
     // (v2, prod→v2) está.
@@ -332,10 +332,10 @@ describe('PromptlyCatalogoPage — recortes vindos do endereço', () => {
   it('anuncia o recorte ativo e oferece a saída dele', async () => {
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?recorte=nao-promovidos'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?recorte=not-promoted'] });
 
-    expect(await screen.findByRole('heading', { name: /não promovidos/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /ver todos/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /not promoted/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /see all/i })).toBeInTheDocument();
   });
 
   // Um recorte desconhecido (endereço antigo, link editado à mão) mostra a lista inteira — nunca
@@ -343,7 +343,7 @@ describe('PromptlyCatalogoPage — recortes vindos do endereço', () => {
   it('recorte desconhecido é ignorado, não vira erro nem lista vazia', async () => {
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?recorte=inventado'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?recorte=inventado'] });
 
     expect(await screen.findByText('saudacao')).toBeInTheDocument();
     expect(screen.getByText('agentbuilder-base')).toBeInTheDocument();
@@ -369,7 +369,7 @@ describe('PromptlyCatalogoPage — o tamanho de página é escolha, e vive no en
   it('pede ao servidor o tamanho que o endereço declara', async () => {
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: true });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?porPagina=10'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?porPagina=10'] });
 
     await screen.findByText('saudacao');
     expect(mockCatalog).toHaveBeenCalledWith(10, expect.any(Object));
@@ -380,7 +380,7 @@ describe('PromptlyCatalogoPage — o tamanho de página é escolha, e vive no en
     render(<PromptlyCatalogoPage />);
     await screen.findByText('saudacao');
 
-    await userEvent.selectOptions(screen.getByLabelText(/prompts por página/i), '10');
+    await userEvent.selectOptions(screen.getByLabelText(/prompts per page/i), '10');
 
     // A chave da consulta tem de carregar o tamanho: sem isso o React Query devolve a página
     // anterior do cache e a tela mostra 100 itens dizendo que pediu 10.
@@ -391,9 +391,9 @@ describe('PromptlyCatalogoPage — o tamanho de página é escolha, e vive no en
     // É este o par que o AC2 pede, e que o ambiente não conseguia produzir antes.
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: true });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?porPagina=10'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?porPagina=10'] });
 
-    expect(await screen.findByText(/há mais no servidor/i)).toBeInTheDocument();
+    expect(await screen.findByText(/there is more on the server/i)).toBeInTheDocument();
     expect(screen.queryByText(/neste workspace/i)).not.toBeInTheDocument();
   });
 
@@ -412,10 +412,10 @@ describe('PromptlyCatalogoPage — o tamanho de página é escolha, e vive no en
     }));
     mockCatalog.mockResolvedValue({ data: dez, temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?porPagina=10'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?porPagina=10'] });
 
     expect(await screen.findByText(/10 neste workspace/i)).toBeInTheDocument();
-    expect(screen.queryByText(/há mais no servidor/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/there is more on the server/i)).not.toBeInTheDocument();
   });
 
   it('tamanho invalido no endereco cai no padrao em vez de virar erro', async () => {
@@ -423,7 +423,7 @@ describe('PromptlyCatalogoPage — o tamanho de página é escolha, e vive no en
     // nunca um erro — e nunca um `limit=NaN` que o servidor recusaria.
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?porPagina=abacaxi'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?porPagina=abacaxi'] });
 
     await screen.findByText('saudacao');
     expect(mockCatalog.mock.calls[0][0]).toBeGreaterThan(0);
@@ -436,14 +436,14 @@ describe('PromptlyCatalogoPage — o tamanho de página é escolha, e vive no en
     mockCatalog.mockResolvedValue({ data: CATALOGO, temContinuacao: true });
 
     render(<PromptlyCatalogoPage />, {
-      initialEntries: ['/promptly/catalogo?recorte=nao-promovidos&porPagina=10'],
+      initialEntries: ['/promptly/catalog?recorte=nao-promovidos&porPagina=10'],
     });
-    await screen.findByRole('button', { name: /ver todos/i });
+    await screen.findByRole('button', { name: /see all/i });
 
-    await userEvent.click(screen.getByRole('button', { name: /ver todos/i }));
+    await userEvent.click(screen.getByRole('button', { name: /see all/i }));
 
     expect(await screen.findByText('agentbuilder-base')).toBeInTheDocument();
-    expect(screen.getByLabelText(/prompts por página/i)).toHaveValue('10');
+    expect(screen.getByLabelText(/prompts per page/i)).toHaveValue('10');
   });
 });
 
@@ -461,7 +461,7 @@ describe('PromptlyCatalogoPage — a busca roda no servidor (M16)', () => {
     // mesmas linhas neste teste. Só a chamada distingue as duas implementações.
     mockCatalog.mockResolvedValue({ data: [CATALOGO[0]], temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?busca=saudacao'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?busca=saudacao'] });
 
     await screen.findByText('saudacao');
     expect(mockCatalog).toHaveBeenCalledWith(
@@ -487,10 +487,10 @@ describe('PromptlyCatalogoPage — a busca roda no servidor (M16)', () => {
   it('busca sem resultado diz que o SERVIDOR nao achou, e nao que o workspace esta vazio', async () => {
     mockCatalog.mockResolvedValue({ data: [], temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?busca=zzz'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?busca=zzz'] });
 
-    expect(await screen.findByText(/nenhum prompt casa/i)).toBeInTheDocument();
-    expect(screen.queryByText(/nenhum prompt neste workspace/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/no prompt matches/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no prompts in this workspace/i)).not.toBeInTheDocument();
   });
 
   it('o termo vive no ENDERECO — o link e colavel', async () => {
@@ -498,7 +498,7 @@ describe('PromptlyCatalogoPage — a busca roda no servidor (M16)', () => {
     render(<PromptlyCatalogoPage />);
     await screen.findByText('saudacao');
 
-    await userEvent.type(screen.getByLabelText(/filtrar prompts por nome/i), 'lt033');
+    await userEvent.type(screen.getByLabelText(/filter prompts by name/i), 'lt033');
 
     await vi.waitFor(() =>
       expect(mockCatalog).toHaveBeenCalledWith(
@@ -513,7 +513,7 @@ describe('PromptlyCatalogoPage — a busca roda no servidor (M16)', () => {
     // workspace — dizê-lo seria o limite inferior apresentado como total que o M13 eliminou.
     mockCatalog.mockResolvedValue({ data: [CATALOGO[0]], temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?busca=saudacao'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?busca=saudacao'] });
 
     await screen.findByText('saudacao');
     expect(screen.queryByText(/neste workspace/i)).not.toBeInTheDocument();
@@ -549,7 +549,7 @@ describe('PromptlyCatalogoPage — tags (M16)', () => {
     render(<PromptlyCatalogoPage />);
     await screen.findByText('suporte');
 
-    await userEvent.click(screen.getByRole('button', { name: /filtrar por suporte/i }));
+    await userEvent.click(screen.getByRole('button', { name: /filter by suporte/i }));
 
     await vi.waitFor(() =>
       expect(mockCatalog).toHaveBeenCalledWith(
@@ -562,10 +562,10 @@ describe('PromptlyCatalogoPage — tags (M16)', () => {
   it('o filtro por tag e anunciado e tem saida', async () => {
     mockCatalog.mockResolvedValue({ data: COM_TAGS, temContinuacao: false });
 
-    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalogo?tag=suporte'] });
+    render(<PromptlyCatalogoPage />, { initialEntries: ['/promptly/catalog?tag=suporte'] });
 
     await screen.findByText('saudacao');
-    expect(screen.getByRole('button', { name: /ver todos/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /see all/i })).toBeInTheDocument();
   });
 });
 
@@ -595,7 +595,7 @@ describe('PromptlyCatalogoPage — pastas (M16)', () => {
     render(<PromptlyCatalogoPage />);
 
     expect(await screen.findByText('solto')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /abrir a pasta suporte/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open the suporte folder/i })).toBeInTheDocument();
   });
 
   it('entrar numa pasta filtra no servidor e oferece a saida', async () => {
@@ -603,7 +603,7 @@ describe('PromptlyCatalogoPage — pastas (M16)', () => {
     render(<PromptlyCatalogoPage />);
     await screen.findByText('solto');
 
-    await userEvent.click(screen.getByRole('button', { name: /abrir a pasta suporte/i }));
+    await userEvent.click(screen.getByRole('button', { name: /open the suporte folder/i }));
 
     await vi.waitFor(() =>
       expect(mockCatalog).toHaveBeenCalledWith(
@@ -611,6 +611,6 @@ describe('PromptlyCatalogoPage — pastas (M16)', () => {
         expect.objectContaining({ folder: 'suporte' }),
       ),
     );
-    expect(screen.getByRole('button', { name: /ver todos/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /see all/i })).toBeInTheDocument();
   });
 });

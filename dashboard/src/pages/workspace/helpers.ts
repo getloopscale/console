@@ -41,6 +41,17 @@ export interface WorkspaceEntries {
  * `prefix` (e.g. `""` for root, `"data/"` for a subfolder). Keys deeper than this
  * level contribute their first segment as a folder; the `.keep` marker is hidden.
  */
+/**
+ * B-024 (classe) — o navegador de arquivos baixava o bucket inteiro e derivava
+ * as pastas no cliente. O custo cresce com cada upload, e e a workspace mais
+ * usada que trava primeiro.
+ *
+ * 1000 e escolha, e alta de proposito: `deriveEntries` monta a arvore de
+ * prefixos a partir da lista plana, entao um teto baixo esconderia PASTAS
+ * inteiras, nao apenas arquivos do fim. A tela avisa quando bate o teto.
+ */
+export const STORAGE_OBJECT_LIMIT = 1000;
+
 export function deriveEntries(all: StorageFile[], prefix: string): WorkspaceEntries {
   const folders = new Set<string>();
   const files: StorageFile[] = [];

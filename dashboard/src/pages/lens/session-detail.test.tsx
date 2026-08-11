@@ -5,7 +5,7 @@ import { render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+vi.mock('@/lib/http/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 
 import { LensSessionDetailPage } from './session-detail';
 // Importado, e nao repetido como literal: o teste afirmava "exactly
@@ -13,7 +13,7 @@ import { LensSessionDetailPage } from './session-detail';
 // numero duplicado, mudar o cap deixava o teste vermelho apontando para um
 // magic number em vez de acompanhar a constante — e a constante ficava
 // exportada para ninguem, que foi como o gate a encontrou.
-import { CONVERSATION_TURN_CAP } from './session-detail/session-conversation';
+import { CONVERSATION_TURN_CAP, CONVERSATION_TURNS_PER_PAGE } from './session-detail/session-conversation';
 
 /**
  * M9 — /observability/sessions/:sessionId. The detail page fetches the session's traces
@@ -166,11 +166,48 @@ describe('LensSessionDetailPage (/observability/sessions/:sessionId)', () => {
     });
     renderAt('sess-abc');
     await userEvent.click(await screen.findByRole('tab', { name: /conversation/i }));
-    // exactly CONVERSATION_TURN_CAP turn cards + the overflow link disclosing the true total.
+    // O link de overflow revela o total verdadeiro — invariante original de M132.
     expect(
       await screen.findByText(new RegExp(`view all ${CONVERSATION_TURN_CAP + 1} traces`, 'i')),
     ).toBeInTheDocument();
+    // B-056 — a janela INICIAL e uma pagina, nao o cap. O mount disparava 50 GETs
+    // de arvore em paralelo para pintar uma tela que se le de cima para baixo.
+    expect(screen.getAllByTestId('conversation-turn')).toHaveLength(CONVERSATION_TURNS_PER_PAGE);
+    expect(mockCloudFetch.mock.calls.filter((c) => /\/traces\/tr-/.test(String(c[0])))).toHaveLength(
+      CONVERSATION_TURNS_PER_PAGE,
+    );
+  });
+
+  it('B-056 — "show more" cresce de pagina em pagina e PARA no cap, nunca alem', async () => {
+    const many = Array.from({ length: CONVERSATION_TURN_CAP + 1 }, (_, i) => ({
+      traceId: `tr-${i}`,
+      startTimeUnixNano: String(1000 - i),
+    }));
+    mockCloudFetch.mockImplementation((url: string) => {
+      const s = String(url);
+      if (s.includes('session_id=')) return Promise.resolve({ traces: many });
+      if (s.includes('/coherence')) return Promise.resolve({ verdict: null });
+      return Promise.resolve(null);
+    });
+    renderAt('sess-abc');
+    await userEvent.click(await screen.findByRole('tab', { name: /conversation/i }));
+    await screen.findByTestId('load-more-turns');
+
+    // Uma pagina por clique — a contagem cresce com o que a pessoa pede, nao com
+    // o tamanho da colecao, que e exatamente o que o item media.
+    await userEvent.click(screen.getByTestId('load-more-turns'));
+    expect(screen.getAllByTestId('conversation-turn')).toHaveLength(CONVERSATION_TURNS_PER_PAGE * 2);
+
+    // Ate o cap. O botao some quando chega la, e o "view all" continua sendo a
+    // saida para o resto — clicar alem do cap renderizaria turnos que a pagina
+    // nunca prometeu carregar.
+    const cliquesRestantes =
+      Math.ceil((CONVERSATION_TURN_CAP - CONVERSATION_TURNS_PER_PAGE * 2) / CONVERSATION_TURNS_PER_PAGE);
+    for (let i = 0; i < cliquesRestantes; i++) {
+      await userEvent.click(screen.getByTestId('load-more-turns'));
+    }
     expect(screen.getAllByTestId('conversation-turn')).toHaveLength(CONVERSATION_TURN_CAP);
+    expect(screen.queryByTestId('load-more-turns')).toBeNull();
   });
 
   it('M132 (review MED) — a failed per-trace fetch shows "(could not load this turn)", others still render', async () => {

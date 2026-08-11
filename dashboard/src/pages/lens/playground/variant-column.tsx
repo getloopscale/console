@@ -1,13 +1,14 @@
-import { lensErrorMessage } from '../../../lib/lens-error';
+import { lensErrorMessage } from '@/pages/lens/lens-error';
 import { forwardRef, useImperativeHandle, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
+import { useDatasets } from '@/hooks/lens/use-datasets';
 import { Braces, Plus, Trash2 } from 'lucide-react';
 import { Badge, Button, Card, Input, Select, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
-import { cloudFetch } from '@/lib/api';
-import { formatCost, formatDuration, formatTokens } from '@/lib/format';
-import type { TraceSpanNode } from '@/lib/trace-layout';
+import { cloudFetch } from '@/lib/http/api';
+import { formatCost, formatDuration, formatTokens } from '@/lib/formatting/format';
+import type { TraceSpanNode } from '@/hooks/lens/trace-layout';
 import { type EditableMessage, isStale, runKey, updateVariant, type Variant } from './variant-model';
 
 /**
@@ -29,9 +30,6 @@ interface ReplayResult {
   latencyMs: number;
   model: string;
   costUsd?: number;
-}
-interface DatasetsResult {
-  datasets: { id: string; name: string }[];
 }
 
 const ROLES = ['system', 'user', 'assistant'];
@@ -114,11 +112,7 @@ export const VariantColumn = forwardRef<
   useImperativeHandle(ref, () => ({ run }), [run]);
 
   // Datasets for the opt-in save (loaded only once there's a result to save; shared across columns by key).
-  const datasets = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/datasets'] as const,
-    queryFn: () => cloudFetch<DatasetsResult>('/v1/dashboard/lens/datasets', {}, { throwOnError: true }),
-    enabled: replay.isSuccess,
-  });
+  const datasets = useDatasets({ enabled: replay.isSuccess });
   const datasetOptions = datasets.data?.datasets ?? [];
   const targetDataset = dataset || datasetOptions[0]?.id || '';
   const save = useMutation({

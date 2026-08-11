@@ -37,9 +37,9 @@ function renderWithParams(ui: React.ReactElement, searchParams: string): RenderR
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+vi.mock('@/lib/http/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 const mockTriggerDownload = vi.fn();
-vi.mock('@/lib/download', () => ({ triggerDownload: (...a: unknown[]) => mockTriggerDownload(...a) }));
+vi.mock('@/lib/export/download', () => ({ triggerDownload: (...a: unknown[]) => mockTriggerDownload(...a) }));
 
 // Mock the M48 trace-detail's layout lib (jsdom cannot lay it out — see trace-detail.test.tsx).
 vi.mock('react-resizable-panels', () => ({
@@ -49,12 +49,13 @@ vi.mock('react-resizable-panels', () => ({
 }));
 
 import { LensTracesPage, buildTraceQuery, nsToIso } from './traces';
-import { formatDate } from '@/lib/format';
+import { formatDate } from '@/lib/formatting/format';
+import { isPath } from '@/test/url';
 
 // M49 — list-vs-detail-vs-tags URL discriminator. The list read is the base path optionally
 // followed by `?<filters>`; the detail read is base + `/<id>`; tags/annotations contain `/tags`.
 const BASE = '/v1/dashboard/lens/traces';
-const isListUrl = (url: string) => url === BASE || url.startsWith(`${BASE}?`);
+const isListUrl = (url: string) => isPath(url, BASE) || url.startsWith(`${BASE}?`);
 function filterMock(traces: unknown[]) {
   mockCloudFetch.mockImplementation((url: string) => {
     if (isListUrl(url)) return Promise.resolve({ traces });
@@ -442,9 +443,9 @@ function m52Mock(opts: { traces?: unknown[]; views?: Array<{ id: string; name: s
   const SV = '/v1/dashboard/lens/saved-views';
   mockCloudFetch.mockImplementation((url: string, init?: { method?: string }) => {
     if (isListUrl(url)) return Promise.resolve({ traces: opts.traces ?? [{ traceId: 'tr_1', name: 'checkout' }] });
-    if (url === SV && (!init || init.method === undefined || init.method === 'GET'))
+    if (isPath(url, SV) && (!init || init.method === undefined || init.method === 'GET'))
       return Promise.resolve({ saved_views: opts.views ?? [] });
-    if (url === SV && init?.method === 'POST') return Promise.resolve({ id: 'lsv-new', name: 'x', query_string: '?status=error' });
+    if (isPath(url, SV) && init?.method === 'POST') return Promise.resolve({ id: 'lsv-new', name: 'x', query_string: '?status=error' });
     if (url.startsWith(`${SV}/`) && init?.method === 'DELETE') return Promise.resolve({});
     if (url.includes('/tags')) return Promise.resolve({ tags: [] });
     return Promise.resolve({});

@@ -330,9 +330,18 @@ export interface Environment {
   status?: string;
   // M2 v1.2 (2026-06-07): per-(project, env) tuple. Empty string =
   // legacy production entry (ADR D2 backward compat).
+  //
+  // legacy-value-ok (B-063): o campo NAO esta depreciado — o que e legado e o
+  // VALOR vazio, que ADR D2 mantem significando "pertence a todo projeto".
+  // Anotar @deprecated aqui afirmaria que o campo vai sair, e ele nao vai.
   project?: string;
-  // Legacy counter — kept for backward compat with v1.0 dashboard
-  // surfaces that displayed an aggregate project count per env.
+  /**
+   * @deprecated B-063 — contador agregado de projetos por ambiente, mantido para
+   * as telas do dashboard v1.0. Nenhuma tela atual o lê: `grep -rn '\.projects'
+   * src/pages` não retorna consumidor. Sunset: remover quando o backend parar de
+   * emiti-lo, ou na próxima mudança que toque este tipo — o que vier primeiro.
+   * Enquanto estiver aqui, um campo que ninguém lê convida a ser lido por engano.
+   */
   projects?: number;
   protected?: boolean;
   domain?: string;
@@ -671,6 +680,39 @@ export interface BillingResponse {
   period_start?: string;
   period_end?: string;
   plan_cap?: BillingPlanCap;
+  /**
+   * Preço recorrente do plano. OMITIDO pela API para enterprise e para planos
+   * ainda não persistidos — o card "Plan" do Overview renderiza "—" honesto
+   * nesse caso, nunca um zero fabricado.
+   *
+   * Estava ausente deste espelho enquanto `use-overview-kpis.ts` já o lia por uma
+   * interface local (`BillingShape`). Um campo que a API manda, a tela lê e o
+   * contrato não declara é drift silencioso: o `tsc` não protege o que não
+   * conhece, e a próxima mudança de forma passa sem ninguém notar.
+   */
+  plan_price?: BillingPlanPrice;
+  /**
+   * Identificador da assinatura no Stripe. OMITIDO enquanto nao ha assinatura.
+   *
+   * B-047 — mesmo drift que `plan_price` documenta logo acima, e a prova de que
+   * o padrao se repete: `pages/settings/billing.tsx` declarava uma interface
+   * LOCAL de mesmo nome (`BillingResponse`) so para poder ler este campo, e a
+   * espera pos-checkout inteira depende dele. Duas interfaces homonimas com
+   * formatos diferentes e pior que uma incompleta: o import certo passa a ser
+   * sorte.
+   *
+   * A deteccao usa `subscription_id` e nao o rotulo do plano porque comparar
+   * rotulos falha quando a base e o alvo coincidem — alguem no Pro que cancela e
+   * recompra Pro. O id do Stripe e unico por sessao de checkout, entao qualquer
+   * compra produz diferenca.
+   */
+  subscription_id?: string;
+}
+
+export interface BillingPlanPrice {
+  amount_minor: number;
+  currency: string;
+  interval: string;
 }
 
 export interface BillingUsageMetric {
@@ -708,7 +750,13 @@ export interface AuditEntry {
   correlation_id?: string;
   metadata?: Record<string, unknown>;
 
-  // Legacy aliases — backend MAY add these later for richer UX.
+  /**
+   * @deprecated B-063 — aliases legados do wire de auditoria. Os consumidores
+   * DEVEM ler os campos canônicos acima (`event_id`, `occurred_at`, `actor`);
+   * estes existem só para backends que ainda os emitem. Sunset: remover quando
+   * a engine parar de emitir qualquer um deles — verificável por uma resposta
+   * de `/v1/dashboard/audit` sem estes campos.
+   */
   id?: string;
   ts?: string;
   actor_email?: string;

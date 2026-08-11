@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { KeyRound, TrendingUp } from 'lucide-react';
 import {
   Badge,
@@ -18,24 +18,27 @@ import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import {
+  useBundleTokens,
+  useBundleAdoption,
+  useBundles,
+  useSkillsCatalog,
+  useSkillChannels,
+  useInvalidateBundles,
+} from '@/hooks/skills/use-skills';
+import {
   adoptionRows,
   tokenRows,
   type AdoptionPayload,
   type AdoptionRow,
   type TokenRow,
   type TokensPayload,
-} from '@/components/skills/distribution';
+} from '@/pages/skills/components/distribution';
 import {
-  fetchBundleAdoption,
-  fetchBundleTokens,
-  fetchBundles,
-  fetchSkillChannels,
-  fetchSkills,
   mintBundleToken,
   promotionRefusal,
   revokeBundleToken,
   setBundleItems,
-} from '@/components/skills/skills-api';
+} from '@/hooks/skills/skills-api';
 
 /**
  * M35 — `/bundles/:bundleId`: os tokens delegados de um pacote e a adoção dele.
@@ -63,8 +66,7 @@ export function BundleDetailPage() {
   useEffect(() => setPageTitle('Bundle'), [setPageTitle]);
   useRequireAuth();
 
-  const queryClient = useQueryClient();
-  const tokensKey = ['cloud', '/v1/dashboard/bundles', bundleId, 'tokens'] as const;
+  const invalidarBundles = useInvalidateBundles();
 
   const [ttlDias, setTtlDias] = useState('30');
   const [rotulo, setRotulo] = useState('');
@@ -75,24 +77,16 @@ export function BundleDetailPage() {
   const [canalEscolhido, setCanalEscolhido] = useState('');
   const [itens, setItens] = useState<BundleItem[] | null>(null);
 
-  const tokensQuery = useQuery({
-    queryKey: tokensKey,
-    queryFn: () => fetchBundleTokens<TokensPayload>(bundleId),
-    enabled: bundleId !== '',
-  });
+  // B-052 — chaves da factory. `skillsQuery` abaixo punha um LIMITE NUMERICO
+  // no mesmo slot onde `detail.tsx` punha um id de skill e `overview.tsx` um
+  // token de pagina — tres significados no mesmo lugar de uma tupla posicional.
+  const tokensQuery = useBundleTokens<TokensPayload>(bundleId);
 
-  const adocaoQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/bundles', bundleId, 'adoption', JANELA_DIAS] as const,
-    queryFn: () => fetchBundleAdoption<AdoptionPayload>(bundleId, JANELA_DIAS),
-    enabled: bundleId !== '',
-  });
+  const adocaoQuery = useBundleAdoption<AdoptionPayload>(bundleId, JANELA_DIAS);
 
   // O conteúdo do pacote vem da LISTAGEM de bundles: o detalhe não tem rota própria, e uma
   // segunda fonte para o mesmo dado divergiria na primeira mudança do contrato.
-  const bundlesQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/bundles'] as const,
-    queryFn: () => fetchBundles<{ bundles?: { bundle_id: string; items?: BundleItem[] }[] }>(),
-  });
+  const bundlesQuery = useBundles<{ bundles?: { bundle_id: string; items?: BundleItem[] }[] }>();
   const itensDoServidor =
     bundlesQuery.data?.bundles?.find((b) => b.bundle_id === bundleId)?.items ?? [];
   // `itens` é `null` até o operador mexer: assim a tela mostra o que o servidor tem, e só passa a
@@ -100,25 +94,16 @@ export function BundleDetailPage() {
   const itensVisiveis = itens ?? itensDoServidor;
   const sujo = itens !== null;
 
-  const skillsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/skills', LIMITE_SKILLS] as const,
-    queryFn: () => fetchSkills<{ skills?: { skill_id: string; name: string }[] }>(LIMITE_SKILLS),
-  });
+  const skillsQuery = useSkillsCatalog<{ skills?: { skill_id: string; name: string }[] }>(LIMITE_SKILLS);
 
-  const canaisQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/skills', skillEscolhida, 'channels'] as const,
-    queryFn: () => fetchSkillChannels<{ channels?: { channel: string }[] }>(skillEscolhida),
-    // Só busca depois de escolher a skill: buscar os canais de TODAS custaria N requisições para
-    // exibir uma lista que o operador vai usar uma vez.
-    enabled: skillEscolhida !== '',
-  });
+  const canaisQuery = useSkillChannels<{ channels?: { channel: string }[] }>(skillEscolhida);
 
   const salvarItens = useMutation({
     mutationFn: (lista: BundleItem[]) => setBundleItems(bundleId, lista),
     onSuccess: () => {
       setErro(null);
       setItens(null);
-      void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/bundles'] });
+      invalidarBundles();
     },
     onError: (err) => setErro(promotionRefusal(err, 'Could not save the bundle contents.')),
   });
@@ -131,7 +116,7 @@ export function BundleDetailPage() {
       // listagem, por desenho do serviço, nunca o devolve de novo.
       setSegredo(typeof data?.token === 'string' ? data.token : null);
       setRotulo('');
-      void queryClient.invalidateQueries({ queryKey: tokensKey });
+      invalidarBundles();
     },
     onError: (err) => setErro(promotionRefusal(err, 'Could not issue the token.')),
   });
@@ -141,7 +126,7 @@ export function BundleDetailPage() {
     onSuccess: () => {
       setErro(null);
       setARevogar(null);
-      void queryClient.invalidateQueries({ queryKey: tokensKey });
+      invalidarBundles();
     },
     onError: (err) => {
       setARevogar(null);
@@ -239,7 +224,7 @@ export function BundleDetailPage() {
       {/* Caminho de volta explícito. O item de menu leva ao overview da capacidade, não à lista
           de pacotes — sem este link o operador que entrou pelo detalhe não tem saída óbvia. */}
       <Link to="/bundles" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-        ← Todos os pacotes
+        ← All bundles
       </Link>
 
       {erro !== null ? <Alert intent="destructive" title="The operation failed" description={erro} /> : null}
@@ -315,7 +300,7 @@ export function BundleDetailPage() {
                       )
                     }
                   >
-                    Remover
+                    Remove
                   </Button>
                 </li>
               ))}
@@ -371,12 +356,12 @@ export function BundleDetailPage() {
                 className="h-9 rounded-md border bg-background px-2 text-sm"
                 value={canalEscolhido}
                 onChange={(e) => setCanalEscolhido(e.target.value)}
-                disabled={skillEscolhida === '' || canaisQuery.isLoading}
+                disabled={skillEscolhida === '' || canaisQuery.loading}
               >
                 <option value="">
                   {skillEscolhida === ''
-                    ? 'escolha a skill antes'
-                    : canaisQuery.isLoading
+                    ? 'choose the skill first'
+                    : canaisQuery.loading
                       ? 'carregando…'
                       : 'selecione…'}
                 </option>
@@ -389,7 +374,7 @@ export function BundleDetailPage() {
             </label>
 
             <Button type="submit" variant="secondary" disabled={skillEscolhida === '' || canalEscolhido === ''}>
-              Adicionar ao pacote
+              Add to bundle
             </Button>
           </form>
 
@@ -468,7 +453,7 @@ export function BundleDetailPage() {
           columns={colunasToken}
           data={tokens}
           rowKey={(row) => row.tokenId}
-          loading={tokensQuery.isLoading}
+          loading={tokensQuery.loading}
           emptyState={
             <EmptyState
               icon={KeyRound}
@@ -510,7 +495,7 @@ export function BundleDetailPage() {
           columns={colunasAdocao}
           data={adocao}
           rowKey={(row) => `${row.skillId}@${row.version}`}
-          loading={adocaoQuery.isLoading}
+          loading={adocaoQuery.loading}
           emptyState={
             <EmptyState
               icon={TrendingUp}

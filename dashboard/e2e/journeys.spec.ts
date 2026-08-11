@@ -72,7 +72,19 @@ test.describe('TheoCloud dashboard — 6 critical journeys', () => {
     // `getByText(/pro/i)` casava cinco elementos — incluindo os itens de menu `Projects`,
     // `Prompts` e `Profile`. Num teste de faturamento, isso passaria com a tela inteira quebrada
     // desde que a barra lateral existisse: a asserção não afirmava nada sobre faturamento.
-    await expect(page.getByRole('button', { name: /upgrade to pro/i })).toBeVisible();
+    //
+    // 2026-08-10 — E MESMO ASSIM ELE PASSAVA COM A TELA QUEBRADA. A oferta era `upgrade to
+    // pro`, que é o que a página mostra para uma conta FREE. A conta mockada é `pro`, e a
+    // oferta certa para ela é o Team. Passava porque o mock de billing estava registrado num
+    // caminho que nunca casava: a tela levava 500 do proxy e caía no estado de fallback, onde
+    // a oferta de Pro aparece. Consertar a rota do mock derrubou o teste — o dado passou a
+    // chegar, e a tela passou a mostrar a verdade.
+    //
+    // Duas asserções agora, e a segunda é a que importa: **um número que só existe se a
+    // resposta de billing chegou**. Nenhum estado de fallback produz "4 / 10" — era essa a
+    // asserção ausente que deixou um 500 passar por transparência.
+    await expect(page.getByRole('button', { name: /upgrade to team/i })).toBeVisible();
+    await expect(page.getByText(/^4 \/ 10$/)).toBeVisible();
   });
 
   test('journey 5: team management — invite dialog', async ({ page }) => {

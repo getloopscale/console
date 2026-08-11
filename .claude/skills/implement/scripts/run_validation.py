@@ -47,8 +47,37 @@ def _find_project_root(start: Path) -> Path:
     return start.resolve()
 
 
+def _npm_root(project_root: Path) -> Path | None:
+    """A pasta onde os gates npm devem rodar, ou None se o projeto não é JS.
+
+    ## Por que não basta olhar a raiz
+
+    Num monorepo o `package.json` mora num subdiretório — aqui, `dashboard/`. A
+    versão anterior só olhava a raiz e devolvia False, então `npm test`,
+    `typecheck`, `lint` e `coverage` saíam como SKIP com o motivo
+    *"package.json absent — pre-code phase"*.
+
+    O motivo era FALSO, e é isso que torna o defeito grave: um gate que pula com
+    uma explicação plausível não parece um gate quebrado — parece um projeto que
+    ainda não tem código. Todo plano do dashboard passou por aqui com os quatro
+    gates mais importantes desligados, e o relatório dizia que estava tudo bem.
+
+    Uma pasta só é aceita quando é a ÚNICA candidata. Com duas, a resposta certa
+    não é escolher — é dizer que não dá para escolher, e o chamador reporta
+    AMBIGUOUS em vez de fingir que mediu.
+    """
+    if (project_root / "package.json").exists():
+        return project_root
+    candidatas = [
+        d for d in sorted(project_root.iterdir())
+        if d.is_dir() and not d.name.startswith(".") and d.name != "node_modules"
+        and (d / "package.json").exists()
+    ]
+    return candidatas[0] if len(candidatas) == 1 else None
+
+
 def _has_package_json(project_root: Path) -> bool:
-    return (project_root / "package.json").exists()
+    return _npm_root(project_root) is not None
 
 
 def _has_npm_script(project_root: Path, script: str) -> bool:
@@ -84,10 +113,10 @@ def _run_command(cmd: list[str], cwd: Path, timeout: int = 300) -> dict[str, Any
 
 def check_npm_test(project_root: Path) -> dict[str, Any]:
     if not _has_package_json(project_root):
-        return {"name": "npm test", "status": "SKIP", "reason": "package.json absent — pre-code phase"}
-    if not _has_npm_script(project_root, "test"):
+        return {"name": "npm test", "status": "SKIP", "reason": "nenhum package.json na raiz nem em subpasta única — projeto não-JS ou layout ambíguo"}
+    if not _has_npm_script(_npm_root(project_root) or project_root, "test"):
         return {"name": "npm test", "status": "SKIP", "reason": "no 'test' script in package.json"}
-    result = _run_command(["npm", "test", "--silent"], project_root, timeout=600)
+    result = _run_command(["npm", "test", "--silent"], _npm_root(project_root) or project_root, timeout=600)
     if result.get("exit_code") == 0:
         return {"name": "npm test", "status": "PASS"}
     return {
@@ -100,8 +129,8 @@ def check_npm_test(project_root: Path) -> dict[str, Any]:
 
 def check_npm_typecheck(project_root: Path) -> dict[str, Any]:
     if not _has_package_json(project_root):
-        return {"name": "npm run typecheck", "status": "SKIP", "reason": "package.json absent — pre-code phase"}
-    if not _has_npm_script(project_root, "typecheck"):
+        return {"name": "npm run typecheck", "status": "SKIP", "reason": "nenhum package.json na raiz nem em subpasta única — projeto não-JS ou layout ambíguo"}
+    if not _has_npm_script(_npm_root(project_root) or project_root, "typecheck"):
         # Fallback: run tsc --noEmit
         if (project_root / "tsconfig.json").exists():
             result = _run_command(["npx", "--no", "tsc", "--noEmit"], project_root, timeout=300)
@@ -114,7 +143,7 @@ def check_npm_typecheck(project_root: Path) -> dict[str, Any]:
                 "stderr_tail": result.get("stderr_tail", "")[:500],
             }
         return {"name": "typecheck", "status": "SKIP", "reason": "no 'typecheck' script AND no tsconfig.json"}
-    result = _run_command(["npm", "run", "typecheck", "--silent"], project_root, timeout=300)
+    result = _run_command(["npm", "run", "typecheck", "--silent"], _npm_root(project_root) or project_root, timeout=300)
     if result.get("exit_code") == 0:
         return {"name": "npm run typecheck", "status": "PASS"}
     return {
@@ -127,10 +156,10 @@ def check_npm_typecheck(project_root: Path) -> dict[str, Any]:
 
 def check_npm_lint(project_root: Path) -> dict[str, Any]:
     if not _has_package_json(project_root):
-        return {"name": "npm run lint", "status": "SKIP", "reason": "package.json absent — pre-code phase"}
-    if not _has_npm_script(project_root, "lint"):
+        return {"name": "npm run lint", "status": "SKIP", "reason": "nenhum package.json na raiz nem em subpasta única — projeto não-JS ou layout ambíguo"}
+    if not _has_npm_script(_npm_root(project_root) or project_root, "lint"):
         return {"name": "npm run lint", "status": "SKIP", "reason": "no 'lint' script in package.json"}
-    result = _run_command(["npm", "run", "lint", "--silent"], project_root, timeout=180)
+    result = _run_command(["npm", "run", "lint", "--silent"], _npm_root(project_root) or project_root, timeout=180)
     if result.get("exit_code") == 0:
         return {"name": "npm run lint", "status": "PASS"}
     return {
@@ -157,10 +186,10 @@ def check_coverage(project_root: Path) -> dict[str, Any]:
     critical path" is currently advisory, not enforced here.
     """
     if not _has_package_json(project_root):
-        return {"name": "coverage", "status": "SKIP", "reason": "package.json absent — pre-code phase"}
-    if not _has_npm_script(project_root, "test:coverage"):
+        return {"name": "coverage", "status": "SKIP", "reason": "nenhum package.json na raiz nem em subpasta única — projeto não-JS ou layout ambíguo"}
+    if not _has_npm_script(_npm_root(project_root) or project_root, "test:coverage"):
         return {"name": "coverage", "status": "SKIP", "reason": "no 'test:coverage' script in package.json"}
-    result = _run_command(["npm", "run", "test:coverage", "--silent"], project_root, timeout=600)
+    result = _run_command(["npm", "run", "test:coverage", "--silent"], _npm_root(project_root) or project_root, timeout=600)
     if result.get("exit_code") == 0:
         return {
             "name": "npm run test:coverage",

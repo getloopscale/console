@@ -76,7 +76,7 @@ test.describe('M25 — a jornada contra a instância implantada', () => {
       // ── CATÁLOGO: conteúdo, não status. Uma tabela vazia servida com 200 é o modo
       // de falha real de um BFF, e "a página carregou" passa nele.
       await expect(page.getByRole('link', { name: PROMPT })).toBeVisible();
-      await expect(page.getByText(/Não foi possível carregar o catálogo/i)).toHaveCount(0);
+      await expect(page.getByText(/Could not load the catalog/i)).toHaveCount(0);
 
       // ── DETALHE, alcançado pelo nome — o caminho que a lista oferece.
       await page.getByRole('link', { name: PROMPT }).click();
@@ -86,16 +86,16 @@ test.describe('M25 — a jornada contra a instância implantada', () => {
       // (o defeito do #364), v14 estaria ausente e v1 presente — é o par.
       await expect(page.getByRole('cell', { name: 'v14', exact: true })).toBeVisible();
       await expect(page.getByRole('cell', { name: 'v1', exact: true })).toHaveCount(0);
-      await expect(page.getByText(/até a v14/i)).toBeVisible();
+      await expect(page.getByText(/up to v14/i)).toBeVisible();
 
       // O ponteiro de ambiente, lido do serviço.
       await expect(page.getByText('prod → v6', { exact: true })).toBeVisible();
 
       // ── A CONFIRMAÇÃO: onde vivem as garantias do milestone.
-      await page.getByRole('button', { name: /Promover prod para a revisão v14/i }).click();
+      await page.getByRole('button', { name: /Promote prod to revision v14/i }).click();
       const dialogo = page.getByRole('dialog');
       // (a) a POLÍTICA vigente, ANTES do ato — lida do serviço, não adivinhada.
-      await expect(dialogo.getByText(/promoção é livre|score mínimo/i)).toBeVisible();
+      await expect(dialogo.getByText(/promotion is unrestricted|minimum score/i)).toBeVisible();
       // (b) QUAL revisão deixa de servir — número vindo de `/labels`, não inferido.
       await expect(dialogo.getByText(/deixa de servir a v6/i)).toBeVisible();
       await expect(dialogo.getByText(/passa a servir a v14/i)).toBeVisible();

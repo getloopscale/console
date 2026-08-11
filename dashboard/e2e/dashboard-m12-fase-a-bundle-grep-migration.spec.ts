@@ -327,7 +327,14 @@ test.describe('M12 Fase A — visual baseline (screenshot regression)', () => {
 
   test('billing page visual baseline', async ({ page }) => {
     await page.goto('/billing');
-    await expect(page.getByRole('button', { name: /upgrade to pro/i })).toBeVisible();
+    // A âncora de assentamento é a oferta do plano SEGUINTE ao da conta mockada, que é `pro`
+    // — portanto Team, não Pro.
+    //
+    // Ela dizia `upgrade to pro`, e passava porque o mock de billing estava registrado num
+    // caminho que nunca casava: a tela levava 500 e caía no estado de FALLBACK, onde a oferta
+    // de Pro aparece. A captura de referência foi gravada nesse estado. Consertar a rota do
+    // mock fez o dado chegar — e o teste passou a reprovar antes mesmo de tirar a foto.
+    await expect(page.getByRole('button', { name: /upgrade to team/i })).toBeVisible();
     await expect(page).toHaveScreenshot('billing-baseline.png', { maxDiffPixels: 200 });
   });
 });

@@ -33,8 +33,8 @@ test.describe('M15 — a jornada do uso por revisão', () => {
     await expect(page.getByRole('heading', { name: 'Prompts', level: 1 })).toBeVisible();
 
     // Do painel para o catálogo, pelo submenu — não pela URL.
-    await page.getByRole('button', { name: /cat[áa]logo/i }).click();
-    await expect(page.getByRole('heading', { name: /cat[áa]logo de prompts/i, level: 1 })).toBeVisible();
+    await page.getByRole('button', { name: /catalog/i }).click();
+    await expect(page.getByRole('heading', { name: /prompt catalog/i, level: 1 })).toBeVisible();
 
     // E do catálogo para o detalhe, clicando no prompt. O título da tela É o nome do prompt —
     // esperar por ele é o que garante que a navegação terminou antes de olhar a coluna.
@@ -45,7 +45,7 @@ test.describe('M15 — a jornada do uso por revisão', () => {
     // --- estado 1: houve uso, com custo ---
     // A janela precisa estar DITA na tela: implícita, o operador atribuiria o número ao
     // período errado.
-    await expect(page.getByText(/uso \(7 dias\)/i)).toBeVisible();
+    await expect(page.getByText(/usage \(7 days\)/i)).toBeVisible();
     await expect(page.getByText('12', { exact: true })).toBeVisible();
     await expect(page.getByText(/US\$ 0\.0312/)).toBeVisible();
     // O DoD-2 do ROADMAP enumera QUATRO números por revisão, não dois.
@@ -53,12 +53,12 @@ test.describe('M15 — a jornada do uso por revisão', () => {
 
     // --- estado 2: houve uso, custo AUSENTE — vazio com razão, nunca estimado (DoD-4) ---
     await expect(page.getByText('4', { exact: true })).toBeVisible();
-    await expect(page.getByText(/não reportou custo/i)).toBeVisible();
+    await expect(page.getByText(/reported no cost/i)).toBeVisible();
     // E a condição do ADR-1 aparece, em vez de o operador ter de inferir do vazio.
-    await expect(page.getByText(/mesmo trace/i)).toBeVisible();
+    await expect(page.getByText(/same trace/i)).toBeVisible();
 
     // --- estado 3: revisão sem tráfego — "sem chamadas", que é diferente de zero (DoD-3) ---
-    await expect(page.getByText(/sem chamadas no período/i).first()).toBeVisible();
+    await expect(page.getByText(/no calls in the period/i).first()).toBeVisible();
   });
 
   test('quando a leitura do uso FALHA, a tela diz isso — e não mostra zeros', async ({ page }) => {
@@ -72,13 +72,13 @@ test.describe('M15 — a jornada do uso por revisão', () => {
 
     await page.goto('/');
     await page.getByRole('button', { name: 'Prompts', exact: true }).click();
-    await page.getByRole('button', { name: /cat[áa]logo/i }).click();
+    await page.getByRole('button', { name: /catalog/i }).click();
     await page.getByRole('link', { name: 'saudacao' }).first().click();
 
     await expect(page.getByRole('heading', { name: 'saudacao', level: 1 })).toBeVisible();
     await expect(page.getByText('v3', { exact: true })).toBeVisible();
-    await expect(page.getByText(/não consegui ler o uso/i).first()).toBeVisible();
+    await expect(page.getByText(/could not read this prompt usage/i).first()).toBeVisible();
     // O oráculo negativo, que é o que dá sentido ao positivo acima.
-    await expect(page.getByText(/sem chamadas no período/i)).toHaveCount(0);
+    await expect(page.getByText(/no calls in the period/i)).toHaveCount(0);
   });
 });

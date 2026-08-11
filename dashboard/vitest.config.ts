@@ -15,6 +15,11 @@ export default defineConfig({
     globals: false,
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['./src/test/setup.ts'],
+    // B-099 — avisa quando `src/` muda DURANTE a execução. Um módulo reescrito
+    // enquanto a suíte roda produz `Failed to resolve import` para quem estiver
+    // resolvendo naquele instante, e o arquivo existe quando se vai olhar depois.
+    // A causa foi demonstrada reproduzindo a assinatura exata; ver o módulo.
+    globalSetup: ['./src/test/arvore-estavel.global.ts'],
     // The suite is jsdom + import-heavy (143 files). Under full-suite worker
     // contention a per-test/-hook timeout can fire on an otherwise-fine test
     // (observed: import-smoke + render tests timing out at 10-27s while the

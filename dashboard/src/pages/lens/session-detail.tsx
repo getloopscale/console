@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Badge, Button, Card, CopyButton, EmptyState, PageShell, SessionSummary, SessionTimeline, Tabs } from '@usetheo/ui';
-import { ListSkeleton } from '@/components/lens/list-skeleton';
+import { ListSkeleton } from '@/pages/lens/components/list-skeleton';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { formatCost, shortId } from '@/lib/format';
-import { cloudFetch } from '@/lib/api';
+import { formatCost, shortId } from '@/lib/formatting/format';
+import { cloudFetch } from '@/lib/http/api';
 import { nsToIso } from './traces';
 import type { Trace } from './traces/columns';
 import { toSessionItem } from './session-detail/to-session-item';

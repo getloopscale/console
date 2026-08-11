@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useTrustValidators, useInvalidateTrust } from '@/hooks/trust/use-trust';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import {
   Badge,
@@ -16,14 +16,13 @@ import { Alert } from '@/components/ui/alert-guard';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { deleteGuardrail, fetchValidators, serviceMessage } from '@/components/trust/trust-api';
+import { deleteGuardrail, serviceMessage } from '@/hooks/trust/trust-api';
 import {
   catalogRows,
   originLabel,
   tenantRowCount,
-  type CatalogPayload,
   type CatalogRow,
-} from '@/components/trust/guardrail-catalog';
+} from '@/pages/trust/components/guardrail-catalog';
 
 /**
  * M24 T4.2 — `/trust/guardrails`: o catálogo do que protege as conversas deste workspace.
@@ -38,22 +37,22 @@ import {
  * tela reimplementava. A confirmação é o `ConfirmDialog` canônico, com `confirmationPhrase`.
  */
 
-const QUERY_KEY = ['cloud', '/v1/dashboard/trust/validators'] as const;
 
 export function TrustGuardrailsPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Trust — guardrails'), [setPageTitle]);
   useRequireAuth();
-  const queryClient = useQueryClient();
+  const invalidarTrust = useInvalidateTrust();
   const navigate = useNavigate();
 
   const [pending, setPending] = useState<CatalogRow | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
-  const query = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => fetchValidators<CatalogPayload>(),
-  });
+  // B-052 — o mesmo catálogo que `overview.tsx` lê. Antes eram duas chaves
+  // literais para o MESMO endpoint (`fetchValidators` é `fetchTrust('/validators')`,
+  // trust-api.ts:32), então o catálogo ocupava duas entradas de cache que nunca
+  // se invalidavam juntas.
+  const query = useTrustValidators();
 
   const rows = catalogRows(query.data);
   const failed = Boolean(query.error);
@@ -61,7 +60,7 @@ export function TrustGuardrailsPage() {
   const columns: DataTableColumn<CatalogRow>[] = [
     {
       key: 'name',
-      label: 'Nome',
+      label: 'Name',
       render: (row) => <span className="font-mono font-medium">{row.name}</span>,
     },
     {
@@ -74,7 +73,7 @@ export function TrustGuardrailsPage() {
       // não tem como decidir se uma regra ainda faz sentido. Na plataforma é a categoria
       // detectada, a mesma chave que `/trust` usa ("credential_leak observada 2×").
       key: 'effect',
-      label: 'O que faz',
+      label: 'What it does',
       render: (row) => <span className="text-muted-foreground">{row.effect}</span>,
     },
     {
@@ -110,14 +109,14 @@ export function TrustGuardrailsPage() {
           <Button
             variant="ghost"
             size="sm"
-            aria-label={`Remover ${row.name}`}
+            aria-label={`Remove ${row.name}`}
             onClick={() => {
               setRemoveError(null);
               setPending(row);
             }}
           >
             <Trash2 className="size-4" />
-            Remover
+            Remove
           </Button>
         ) : null,
     },
@@ -128,21 +127,23 @@ export function TrustGuardrailsPage() {
     setRemoveError(null);
     try {
       await deleteGuardrail(pending.removableId);
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      // B-052 — `QUERY_KEY` era a literal local desta página. Invalidar o
+      // domínio alcança também o overview, que conta o mesmo catálogo.
+      invalidarTrust();
       setPending(null);
     } catch (err) {
       // A linha permanece na lista: sumir otimisticamente diria que a proteção acabou
       // quando ela continua valendo.
-      setRemoveError(serviceMessage(err, 'O serviço recusou a remoção; a guardrail continua ativa.'));
+      setRemoveError(serviceMessage(err, 'The service refused the removal; the guardrail is still active.'));
     }
   }
 
   return (
     <PageShell
       title="Guardrails"
-      description="O que a camada de confiança bloqueia nas conversas deste workspace, antes de elas acontecerem."
+      description="What the trust layer blocks in this workspace conversations, before they happen."
       primaryAction={{
-        label: 'Nova guardrail',
+        label: 'New guardrail',
         icon: Plus,
         onClick: () => void navigate('/trust/guardrails/new'),
       }}
@@ -150,13 +151,13 @@ export function TrustGuardrailsPage() {
       {failed ? (
         <Alert
           intent="destructive"
-          title="Não foi possível carregar o catálogo"
-          description="A lista abaixo está vazia porque a leitura falhou — isto NÃO significa que não há guardrails ativas."
+          title="Could not load the catalog"
+          description="The list below is empty because the read failed — this does NOT mean there are no active guardrails."
         />
       ) : null}
 
       {removeError ? (
-        <Alert intent="destructive" title="A guardrail não foi removida" description={removeError} />
+        <Alert intent="destructive" title="The guardrail was not removed" description={removeError} />
       ) : null}
 
       <Card>
@@ -175,20 +176,20 @@ export function TrustGuardrailsPage() {
           columns={columns}
           data={rows}
           rowKey={(row) => row.key}
-          loading={query.isLoading}
+          loading={query.loading}
           emptyState={
             <EmptyState
               icon={ShieldCheck}
-              title={failed ? 'Sem dados — a leitura falhou' : 'Nenhuma guardrail ativa'}
+              title={failed ? 'No data — the read failed' : 'No active guardrail'}
               description={
                 failed
-                  ? 'Tente novamente em instantes. Enquanto isso, não é possível saber o que está valendo.'
-                  : 'Nada está sendo bloqueado nas conversas deste workspace no momento.'
+                  ? 'Try again in a moment. Until then, there is no way to know what is in force.'
+                  : 'Nothing is being blocked in this workspace conversations right now.'
               }
               action={
                 failed ? undefined : (
                   <Button asChild>
-                    <Link to="/trust/guardrails/new">Criar a primeira guardrail</Link>
+                    <Link to="/trust/guardrails/new">Create the first guardrail</Link>
                   </Button>
                 )
               }
@@ -205,15 +206,15 @@ export function TrustGuardrailsPage() {
           // que a guardrail continua na lista. Ele é limpo ao ABRIR um novo diálogo.
           if (!open) setPending(null);
         }}
-        title={`Remover a guardrail "${pending?.name ?? ''}"?`}
+        title={`Remove the "${pending?.name ?? ''}" guardrail?`}
         description={
           <>
-            Os termos desta regra deixam de ser bloqueados nas conversas deste workspace assim que
-            ela for removida. Mensagens que hoje são barradas passarão a seguir adiante.{' '}
-            <strong>Esta ação não pode ser desfeita.</strong>
+            The terms of this rule stop being blocked in this workspace conversations as soon as
+            it is removed. Messages that are stopped today will start going through.{' '}
+            <strong>This action cannot be undone.</strong>
           </>
         }
-        confirmLabel="Remover guardrail"
+        confirmLabel="Remove guardrail"
         intent="destructive"
         confirmationPhrase={pending?.name}
         onConfirm={confirmRemoval}

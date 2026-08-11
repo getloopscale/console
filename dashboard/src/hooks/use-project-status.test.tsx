@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
-vi.mock('@/lib/api', () => {
+vi.mock('@/lib/http/api', () => {
   class ApiError extends Error {
     readonly status: number;
     constructor(status: number, _body?: unknown, message?: string) {
@@ -18,7 +18,7 @@ vi.mock('@/lib/api', () => {
   };
 });
 
-import { engineFetch, ApiError } from '@/lib/api';
+import { engineFetch, ApiError } from '@/lib/http/api';
 import { useProjectStatus } from './use-project-status';
 
 function makeWrapper() {

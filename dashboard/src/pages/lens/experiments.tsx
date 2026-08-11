@@ -1,6 +1,7 @@
-import { lensErrorMessage } from '../../lib/lens-error';
+import { lensErrorMessage } from '@/pages/lens/lens-error';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDatasets } from '@/hooks/lens/use-datasets';
 import { useSearchParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Badge, Button, Card, Checkbox, DataTable, type DataTableColumn, EmptyState, Input, Label, PageShell, Select, Textarea } from '@usetheo/ui';
@@ -9,8 +10,8 @@ import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
-import { formatCost, formatDuration, formatScore, formatTokens, shortId } from '@/lib/format';
+import { cloudFetch } from '@/lib/http/api';
+import { formatCost, formatDuration, formatScore, formatTokens, shortId } from '@/lib/formatting/format';
 import { TracePeekSheet } from './traces/peek-sheet';
 
 /**
@@ -129,12 +130,8 @@ export function LensExperimentsPage() {
 
   // M73 — the datasets a run can be started from, so the bare Experiments page is self-serve (not a
   // dead-end that only works via `?datasetId=` from Traces). Reuses the existing datasets read (Rule 9).
-  const datasetsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/lens/datasets'] as const,
-    queryFn: () => cloudFetch<{ datasets: { id: string; name: string }[] }>('/v1/dashboard/lens/datasets', {}, { throwOnError: true }),
-    // The run modal's dataset picker needs the list whenever we're not in the compare view.
-    enabled: compareIds.length < 2,
-  });
+  // The run modal's dataset picker needs the list whenever we're not in the compare view.
+  const datasetsQuery = useDatasets({ enabled: compareIds.length < 2 });
   const datasets = datasetsQuery.data?.datasets ?? [];
 
   // Runs list (or dataset-filtered when arriving from "create regression dataset").

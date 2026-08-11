@@ -12,7 +12,7 @@ import { Alert } from '@/components/ui/alert-guard';
 import { SessionPicker } from '@/pages/memory/scope-switcher';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * themory-graph-gateway-dashboard — /memory/graph.
@@ -238,6 +238,13 @@ export const HAIRBALL_NODE_THRESHOLD = 500;
 
 /** Labels drawn at the default zoom. Past this many nodes the text overlaps into a wash. */
 export const LABEL_BUDGET = 40;
+
+/**
+ * B-057 — teto do REQUEST do grafo. Ver o comentario na query para o porque de
+ * 300: e o mesmo valor da tela irma `rag/graphrag.tsx`, nao uma derivacao de um
+ * limite de render (que nao existe — LABEL_BUDGET limita rotulos, nao nos).
+ */
+export const GRAPH_REQUEST_CAP = 300;
 
 /**
  * theo-cloud#254 — whether unconnected (degree-0) nodes are shown on FIRST paint.
@@ -540,18 +547,37 @@ export function GraphPage() {
   // active graph. Default OFF (active edges only).
   const [includeSuperseded, setIncludeSuperseded] = useState(false);
 
+  // B-057 — TETO EXPLICITO. O request vinha sem limite: pedia o grafo inteiro do
+  // escopo e o cliente e que reduzia (`topLabelIds`, linhas 270-281, mantem os de
+  // maior grau). Isso e trabalho de rede e de memoria feito para ser jogado fora,
+  // e cresce com o tamanho da memoria do agente — o custo aparece justamente em
+  // quem mais usa o produto.
+  //
+  // Mesmo formato e mesmo valor de `pages/rag/graphrag.tsx:135`, que ja mandava
+  // `limit=300` — a outra tela de grafo do produto, com o mesmo motor de render.
+  //
+  // Nao ha teto de NOS no cliente para espelhar: `LABEL_BUDGET = 40` limita
+  // rotulos, nao nos. Entao 300 e uma escolha, nao uma derivacao — e o que
+  // sustenta e a consistencia com a tela irma, mais o fato de que um grafo de
+  // forca acima disso deixa de ser legivel antes de deixar de ser renderizavel.
+  // Se a medicao mostrar que 300 corta grafos uteis, o numero muda; o que nao
+  // volta e a ausencia de teto.
   const query = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/memory/graph', activeScope, session, includeSuperseded] as const,
+    queryKey: ['cloud', '/v1/dashboard/memory/graph', { activeScope, session, includeSuperseded }] as const,
     // throwOnError so a failed fetch is query.isError, not an empty graph rendered
     // as "no relations" (theo-cloud#250).
-    queryFn: () =>
-      cloudFetch<GraphResult>(
-        `/v1/dashboard/memory/graph?scope=${activeScope}${
-          activeScope === 'session' && session ? `&session_id=${encodeURIComponent(session)}` : ''
-        }${includeSuperseded ? '&includeSuperseded=true' : ''}`,
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set('scope', activeScope);
+      params.set('limit', String(GRAPH_REQUEST_CAP));
+      if (activeScope === 'session' && session) params.set('session_id', session);
+      if (includeSuperseded) params.set('includeSuperseded', 'true');
+      return cloudFetch<GraphResult>(
+        `/v1/dashboard/memory/graph?${params.toString()}`,
         {},
         { throwOnError: true },
-      ),
+      );
+    },
   });
 
   const result = query.data;

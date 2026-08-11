@@ -109,3 +109,59 @@ describe('AppModal — standardized modal primitive', () => {
     expect(screen.queryAllByRole('button')).toHaveLength(0);
   });
 });
+
+describe('a descrição aceita conteúdo de bloco (B-104)', () => {
+  /**
+   * `RadixDialog.Description` renderiza `Primitive.p`, e treze call sites passam
+   * `<div>`/`<p>` nessa prop — `settings/webhooks.tsx:260`, `lens/datasets.tsx:376` e outros.
+   * O resultado é `<p><div>…</div></p>`: HTML inválido.
+   *
+   * ## O que este teste NÃO afirma, porque foi medido e é falso
+   *
+   * A primeira versão do B-104 dizia que o parser fecharia o `<p>` sozinho e que o leitor
+   * de tela perderia a descrição. **Medido em navegador real** (`/settings/webhooks`, diálogo
+   * de exclusão): o `aria-describedby` resolve, o texto está inteiro, e o `<div>` está DENTRO
+   * do `<p>` tal como escrito — o React monta o DOM por API, não pelo parser HTML.
+   *
+   * ## O que ele afirma, então
+   *
+   * Que o elemento pode LEGALMENTE conter o que os call sites põem nele. A invalidez não
+   * custa nada enquanto ninguém fizer o navegador parsear este HTML; no dia em que houver
+   * render no servidor ou pré-render, o parser fecha o `<p>` e a estrutura muda de verdade —
+   * inclusive o que o `aria-describedby` passa a envolver. Fechar agora é uma linha no
+   * primitivo; descobrir depois é no meio de uma migração.
+   */
+  it('o elemento do `aria-describedby` não é um `<p>` e contém o texto inteiro', () => {
+    render(
+      <AppModal
+        open
+        onClose={() => {}}
+        title="Excluir"
+        description={
+          <div className="space-y-2">
+            <p>Primeira linha do aviso.</p>
+            <p>Segunda linha do aviso.</p>
+          </div>
+        }
+      >
+        corpo
+      </AppModal>,
+    );
+
+    const dialogo = screen.getByRole('dialog');
+    const id = dialogo.getAttribute('aria-describedby');
+    expect(id, 'o diálogo não declara `aria-describedby`').toBeTruthy();
+
+    const alvo = document.getElementById(id!);
+    expect(alvo, 'o `aria-describedby` aponta para um elemento que não existe').not.toBeNull();
+
+    expect(
+      alvo!.tagName,
+      'a descrição é um `<p>`, e os call sites passam bloco: `<p><div>…</div></p>` é HTML inválido',
+    ).not.toBe('P');
+
+    // A contraparte positiva — sem ela, trocar o elemento por um vazio passaria.
+    expect(alvo!.textContent).toContain('Primeira linha do aviso.');
+    expect(alvo!.textContent).toContain('Segunda linha do aviso.');
+  });
+});

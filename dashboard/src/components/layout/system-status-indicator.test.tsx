@@ -3,7 +3,7 @@
 // Every assertion here exists because the literal it replaces could not fail: the
 // text, the dot and the aria-label all came from JSX with no data behind them.
 //
-// Data reaches the component through `vi.mock('@/lib/api')` (repo precedent:
+// Data reaches the component through `vi.mock('@/lib/http/api')` (repo precedent:
 // `src/pages/memory/graph.test.tsx:20-23`); a global fetch stub cannot deliver it
 // because `cloudFetch` gates on `ensureToken()` first (`src/lib/api.ts:184-188`).
 
@@ -11,12 +11,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@/test/render';
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
   engineFetch: (...args: unknown[]) => mockCloudFetch(...args),
 }));
 
-import { SERVICE_VERSIONS_PATH } from '@/hooks/use-service-versions';
+import { SERVICE_VERSIONS_PATH } from '@/hooks/overview/use-service-versions';
 
 import { SystemStatusIndicator } from './system-status-indicator';
 

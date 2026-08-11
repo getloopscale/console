@@ -43,8 +43,8 @@ async function navegarAteOCatalogoPeloMenu(page: Page) {
   // O submenu tem de TROCAR antes do clique seguinte: a raiz também tem itens de mesmo nome, e
   // clicar cedo demais acerta o dela com a navegação parecendo funcionar.
   await expect(page.getByRole('button', { name: /^projects$/i })).toHaveCount(0);
-  await page.getByRole('button', { name: /^catálogo$/i }).click();
-  await expect(page).toHaveURL(/\/promptly\/catalogo$/);
+  await page.getByRole('button', { name: /^catalog$/i }).click();
+  await expect(page).toHaveURL(/\/promptly\/catalog$/);
 }
 
 test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
@@ -54,39 +54,39 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
     // ---- A AUTORIA É ALCANÇÁVEL PELO MENU -------------------------------------------------
     // Este é o passo que o milestone existe para provar. Se o item de submenu faltar, morre
     // aqui — no passo que o usuário de fato daria, e não numa asserção sobre a URL.
-    await page.getByRole('link', { name: /nova revisão/i }).first().click();
+    await page.getByRole('link', { name: /new revision/i }).first().click();
     await expect(page).toHaveURL(/\/promptly\/new$/);
 
     // ---- A PERMANÊNCIA É DITA ANTES DE GRAVAR ---------------------------------------------
     // Não há DELETE no produto. Descobrir isso depois de salvar é tarde demais para agir.
-    await expect(page.getByText(/imutáveis/i)).toBeVisible();
+    await expect(page.getByText(/immutable/i)).toBeVisible();
 
     // ---- O PREVIEW RENDERIZA SEM CHAMAR MODELO --------------------------------------------
-    await page.getByLabel('Nome do prompt').fill('boas-vindas');
-    await page.getByLabel('Texto do prompt').fill('Olá {{nome}}, bem-vindo ao {{produto}}.');
+    await page.getByLabel('Prompt name').fill('boas-vindas');
+    await page.getByLabel('Prompt text').fill('Hello {{name}}, welcome to {{product}}.');
 
     // Campo em branco deixa o marcador À VISTA — o buraco não pode passar despercebido.
-    await expect(page.getByTestId('promptly-preview')).toContainText('{{nome}}');
+    await expect(page.getByTestId('promptly-preview')).toContainText('{{name}}');
 
-    await page.getByLabel('nome', { exact: true }).fill('Paulo');
-    await expect(page.getByTestId('promptly-preview')).toContainText('Olá Paulo');
+    await page.getByLabel('name', { exact: true }).fill('Paulo');
+    await expect(page.getByTestId('promptly-preview')).toContainText('Hello Paulo');
     // E o que segue em branco continua marcado: o preview mostra o estado real, não um otimista.
-    await expect(page.getByTestId('promptly-preview')).toContainText('{{produto}}');
+    await expect(page.getByTestId('promptly-preview')).toContainText('{{product}}');
 
     // ---- O PORQUÊ É OBRIGATÓRIO (M17) ------------------------------------------------------
     // Sem descrição o botão fica DESABILITADO — a recusa acontece antes do clique, e não
     // depois. Provar isso aqui, e não só em teste de unidade, é o que garante que a regra
     // chega ao usuário: um `validarCriacao` correto ligado a um botão sempre habilitado
     // ficaria verde na unidade e quebrado na tela.
-    await expect(page.getByRole('button', { name: /criar revisão/i })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /create revision/i })).toBeDisabled();
 
-    await page.getByLabel('Por que esta revisão existe').fill('primeira versão das boas-vindas');
+    await page.getByLabel('Why this revision exists').fill('primeira versão das boas-vindas');
 
     // E habilita assim que o porquê existe — o controle que dá sentido à asserção acima.
-    await expect(page.getByRole('button', { name: /criar revisão/i })).toBeEnabled();
+    await expect(page.getByRole('button', { name: /create revision/i })).toBeEnabled();
 
     // ---- SALVAR LEVA AO DETALHE DO PROMPT CRIADO ------------------------------------------
-    await page.getByRole('button', { name: /criar revisão/i }).click();
+    await page.getByRole('button', { name: /create revision/i }).click();
     await expect(page).toHaveURL(/\/promptly\/boas-vindas$/);
 
     // ---- COMPARAR: alcançado a partir do prompt, não do menu -------------------------------
@@ -104,13 +104,13 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
     // O campo de busca só existe no catálogo: a ausência dele prova a troca.
     await expect(page).toHaveURL(/\/promptly\/saudacao$/);
     await expect(page.getByRole('searchbox')).toHaveCount(0);
-    await page.getByRole('link', { name: /comparar/i }).click();
+    await page.getByRole('link', { name: /compare/i }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao\/diff$/);
 
     // A tela precisa ter TERMINADO de carregar antes de qualquer contagem. `count()` NÃO
     // auto-espera — foi assim que a primeira versão deste teste falhou contra uma tela correta,
     // medindo o fallback de Suspense em vez do conteúdo.
-    await expect(page.getByRole('heading', { name: /diferenças/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /differences/i })).toBeVisible();
 
     // O conteúdo do diff, não o status da página: a tela mostra alguma diferença OU declara que
     // não há. As duas são respostas; uma página em branco não é nenhuma.
@@ -121,23 +121,32 @@ test.describe('M12 — autorar e comparar prompts pelo dashboard', () => {
     // ---- REVERTER: o verbo que fechava a jornada e faltava no e2e (FU-1) -------------------
     // Vai no MESMO teste, não num novo: a DoD pede UM e2e da jornada, e um segundo arquivo
     // provaria os passos isolados em vez da costura entre eles.
-    await page.getByRole('link', { name: /voltar para saudacao/i }).click();
+    await page.getByRole('link', { name: /back to saudacao/i }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao$/);
 
-    await page.getByLabel(/Reverter para a revisão v1/i).first().click();
+    await page.getByLabel(/Roll back to revision v1/i).first().click();
 
-    // A confirmação nomeia a revisão que será CRIADA. Um texto de "volta para a v1" faria o
-    // operador esperar o histórico encolher, e ele nunca encolhe.
-    await expect(page.getByText(/cria a revisão v\d+/i)).toBeVisible();
-    await expect(page.getByText(/volta para/i)).toHaveCount(0);
+    // A confirmação nomeia a revisão que será CRIADA, e DIZ que o histórico não encolhe.
+    //
+    // A asserção negativa mudou de forma na tradução para inglês, e a razão vale registrar: ela
+    // proibia a frase "volta para", porque um texto assim faria o operador esperar o histórico
+    // encolher — e ele nunca encolhe. Em inglês, o TÍTULO legítimo passou a ser "Roll … back to
+    // v1", que nomeia o alvo e é exatamente o que a tela deve dizer. Proibir "back to" passou a
+    // proibir o produto correto.
+    //
+    // A intenção nunca foi banir palavras: era garantir que a confirmação NÃO promete reversão
+    // de histórico. Isso se afirma melhor pelo positivo — a frase que o corpo tem de conter — do
+    // que por uma lista de frases que ele não pode ter.
+    await expect(page.getByText(/creates revision v\d+/i)).toBeVisible();
+    await expect(page.getByText(/history does not shrink/i)).toBeVisible();
 
     await page.getByRole('textbox').last().fill('saudacao');
-    await page.getByRole('button', { name: /^reverter$/i }).click();
+    await page.getByRole('button', { name: /^roll back$/i }).click();
 
     // Este prompt serve DOIS ambientes, então reverter sem nomear um produz a recusa tipada
     // `400 label_required` — e a tela tem de transformá-la em ESCOLHA, não repetir o erro.
     // É o caminho mais rico da jornada, e o que a fixture de propósito produz.
-    await expect(page.getByText(/qual ambiente você quer reverter/i)).toBeVisible();
+    await expect(page.getByText(/which environment do you want to roll back/i)).toBeVisible();
 
     // Os labels vêm do que o SERVIÇO devolveu, como botões — nunca um campo de digitação.
     // Um label digitado errado é respondido como "prompt não encontrado", com o nome de um

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { capLogLines, MAX_LOG_LINES } from './use-log-stream';
+import { capLogLines, MAX_LOG_LINES } from '@/hooks/deploy/use-log-stream';
 
 /**
  * B-016 — o teto FIFO aplicado ao snapshot historico.

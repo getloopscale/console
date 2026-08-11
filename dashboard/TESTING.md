@@ -170,14 +170,23 @@ The dashboard supports two modes:
   is unavailable mid-session.
 
 Mocks are tree-shaken from production builds (T7.1 / EC-10 of plan
-2026-05-27-backend-frontend-integration v1.1). The CI gate
-`npm run tree-shake-check` greps the prod bundle for `lib/mocks` strings
-and fails the build if any chunk leaked.
+2026-05-27-backend-frontend-integration v1.1). The CI gate is
+`npm run tree-shake-check`, which builds and then asserts on two string
+sentinels planted in the mock layer.
 
-`npm run tree-shake-check` runs `vite build` then asserts:
+It does NOT grep for the module path. That version existed and was deleted for
+being a check that could not fail: the bundler erases paths, so `grep -q
+'lib/mocks'` found nothing whether or not the mocks shipped. Measured 2026-08-08
+— `installAllMocks` was injected into `main.tsx`, the mocks went into the
+production bundle, and the grep printed **PASS**. The post-mortem is the docblock
+of `scripts/check-mocks-tree-shaken.mjs`.
 
-```bash
-! grep -q 'lib/mocks' dist/assets/*.js
+Two sentinels rather than one because the two mock frameworks have different
+elimination paths:
+
+```
+__theo_mocks_present_in_bundle__   (the /api/v1 layer)
+choose_method                      (the Kratos layer)
 ```
 
 This protects against an accidental import on a hot path that would defeat

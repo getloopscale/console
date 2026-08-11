@@ -68,7 +68,11 @@ test.describe('M26 — navegar o registro de skills pelo dashboard', () => {
     // ---- DETALHE: alcançado pelo nome, que é o caminho da lista --------------------------
     await page.getByRole('link', { name: 'Review pull request' }).click();
     await expect(page).toHaveURL(/\/skills\/sk_ordering$/);
-    await expect(page.getByText('sk_ordering')).toBeVisible();
+    // `.first()` porque o identificador aparece em mais de um lugar da tela do detalhe — o
+    // cabeçalho e, conforme o que já carregou, os canais. Sem isto o `strict mode` do Playwright
+    // reprova por AMBIGUIDADE, e ambiguidade depende de tempo: passa aqui e falha no runner.
+    // A asserção quer que o identificador ESTEJA na tela, não que esteja uma vez só.
+    await expect(page.getByText('sk_ordering').first()).toBeVisible();
 
     // ---- INSTRUÇÃO RESOLVIDA: o fim da jornada de leitura --------------------------------
     // O TEXTO, não a presença do bloco: é ele que um agente carregaria, e é lendo-o que o
@@ -265,7 +269,7 @@ test.describe('M35 — distribuição: pacotes, tokens delegados e adoção', ()
     // não à lista de pacotes.
     await navegarAteOsPacotesPeloMenu(page);
     await page.getByRole('link', { name: 'Support skills' }).click();
-    await page.getByRole('link', { name: /todos os pacotes/i }).click();
+    await page.getByRole('link', { name: /all bundles/i }).click();
     await expect(page).toHaveURL(/\/bundles$/);
   });
 });
@@ -287,7 +291,7 @@ test.describe('M35 — o conteúdo do pacote é editável pela tela (AC1)', () =
     // O canal só habilita depois da skill: canais são POR skill, e um par montado antes seria
     // um item que o registro não sabe servir.
     await page.getByLabel('Skill channel').selectOption('stable');
-    await page.getByRole('button', { name: /adicionar ao pacote/i }).click();
+    await page.getByRole('button', { name: /add to bundle/i }).click();
 
     // Alteração pendente é ANUNCIADA — sem isso o operador sai da tela achando que salvou.
     await expect(page.getByText(/unsaved changes/i)).toBeVisible();
@@ -295,7 +299,7 @@ test.describe('M35 — o conteúdo do pacote é editável pela tela (AC1)', () =
     await page.getByRole('button', { name: /save contents/i }).click();
     // Depois de salvar o aviso some: é o sinal de que o rascunho virou estado do servidor.
     await expect(page.getByText(/unsaved changes/i)).toHaveCount(0);
-    await expect(page.getByText('sk_ordering')).toBeVisible();
+    await expect(page.getByText('sk_ordering').first()).toBeVisible();
   });
 
   test('a mesma skill no mesmo canal não entra duas vezes', async ({ page }) => {
@@ -306,7 +310,7 @@ test.describe('M35 — o conteúdo do pacote é editável pela tela (AC1)', () =
     // a leitura da lista — a tela recusa dizendo por quê, em vez de ignorar em silêncio.
     await page.getByLabel('Skill to add').selectOption('sk_ordering');
     await page.getByLabel('Skill channel').selectOption('stable');
-    await page.getByRole('button', { name: /adicionar ao pacote/i }).click();
+    await page.getByRole('button', { name: /add to bundle/i }).click();
 
     await expect(page.getByText(/already in the bundle on that channel/i)).toBeVisible();
   });
@@ -349,7 +353,7 @@ test.describe('M32 — ciclo de vida: retirar de circulação sem quebrar quem u
     await page.getByRole('button', { name: /deprecate skill/i }).click();
 
     // E a situação reflete: `descontinuada`, com o caminho de volta a circular.
-    await expect(page.getByRole('button', { name: /voltar a circular/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /put back in circulation/i })).toBeVisible();
   });
 });
 

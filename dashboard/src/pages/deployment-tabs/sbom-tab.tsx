@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Download, FileText, Loader2 } from 'lucide-react';
 import { Badge, Button, Card, EmptyState } from '@usetheo/ui';
-import { engineFetch } from '@/lib/api';
-import { formatDate } from '@/lib/format';
+import { engineFetch } from '@/lib/http/api';
+import { formatDate } from '@/lib/formatting/format';
 import type { BuildSBOM } from '@/lib/api/types';
 
 /**

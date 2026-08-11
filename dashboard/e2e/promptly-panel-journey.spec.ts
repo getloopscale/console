@@ -37,12 +37,12 @@ test.describe('M13 — a jornada do painel de prompts', () => {
     await expect(page.getByRole('heading', { name: 'Prompts', level: 1 })).toBeVisible();
 
     // O painel responde a pergunta que a lista não responde.
-    await expect(page.getByText(/o que ainda não está no ar/i)).toBeVisible();
+    await expect(page.getByText(/what is not live yet/i)).toBeVisible();
     await expect(page.getByTestId('kpi-nao-promovidos')).toBeVisible();
 
     // --- 2. chegar ao catálogo pelo painel ---
-    await page.getByRole('link', { name: /ver o catálogo/i }).click();
-    await expect(page.getByRole('heading', { name: /catálogo de prompts/i, level: 1 })).toBeVisible();
+    await page.getByRole('link', { name: /see the catalog/i }).click();
+    await expect(page.getByRole('heading', { name: /prompt catalog/i, level: 1 })).toBeVisible();
     await expect(page.getByText('saudacao')).toBeVisible();
 
     // --- 3. a busca filtra NO SERVIDOR, e a tela não se desculpa mais (M16) ---
@@ -63,7 +63,7 @@ test.describe('M13 — a jornada do painel de prompts', () => {
     await expect(page.getByText('saudacao')).toBeVisible();
 
     // --- 5. comparar, a um clique da linha ---
-    await page.getByRole('link', { name: /comparar revisões de saudacao/i }).click();
+    await page.getByRole('link', { name: /compare revisions of saudacao/i }).click();
     await expect(page).toHaveURL(/\/promptly\/saudacao\/diff/);
   });
 
@@ -73,8 +73,8 @@ test.describe('M13 — a jornada do painel de prompts', () => {
     await page.goto('/');
 
     await page.getByRole('button', { name: 'Prompts', exact: true }).click();
-    await page.getByRole('button', { name: 'Catálogo', exact: true }).click();
+    await page.getByRole('button', { name: 'Catalog', exact: true }).click();
 
-    await expect(page.getByRole('heading', { name: /catálogo de prompts/i, level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /prompt catalog/i, level: 1 })).toBeVisible();
   });
 });

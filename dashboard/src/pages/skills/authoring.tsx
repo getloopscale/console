@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { Badge, Button, Card, Input, PageShell } from '@usetheo/ui';
 
 import { Alert } from '@/components/ui/alert-guard';
-import { faseDaOperacao } from '@/components/skills/operation-state';
-import { avaliarArquivo, paraBase64 } from '@/components/skills/skill-upload';
+import { faseDaOperacao } from '@/pages/skills/components/operation-state';
+import { avaliarArquivo, paraBase64 } from '@/hooks/skills/skill-upload';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
+import { useSkillOperation } from '@/hooks/skills/use-skills';
 import {
   createSkill,
   createSkillFromZip,
   diagnoseDiscoverability,
-  fetchOperation,
   promotionRefusal,
   validateSkill,
   validationDiagnostic,
-} from '@/components/skills/skills-api';
+} from '@/hooks/skills/skills-api';
 
 /**
  * M31 — `/skills/new`: escrever uma skill sem publicar às cegas.
@@ -147,10 +147,9 @@ export function SkillAuthoringPage() {
 
   // ACOMPANHA a operação em vez de anunciar sucesso no 202 — que significa "aceito", não "pronto".
   // Anunciar no aceite faria o autor procurar a skill num acervo onde ela ainda não está.
-  const operacao = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/operations', operacaoId] as const,
-    queryFn: () => fetchOperation<OperacaoEstado>(operacaoId ?? ''),
-    enabled: operacaoId !== null,
+  // B-052 — chave da factory. O `refetchInterval` continua sendo a FUNCAO do
+  // estado, que e o que para o polling num estado terminal.
+  const operacao = useSkillOperation<OperacaoEstado>(operacaoId ?? undefined, {
     refetchInterval: (q) => {
       const fase = faseDaOperacao((q.state.data as OperacaoEstado | undefined)?.state);
       // Para de sondar em estado TERMINAL. Sem isto o polling seguiria para sempre numa aba

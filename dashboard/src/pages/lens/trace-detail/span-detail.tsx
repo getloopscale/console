@@ -3,13 +3,13 @@ import { useMutation } from '@tanstack/react-query';
 import { AttributesTable, Badge, Button, IOCards, TokenCostBreakdown } from '@usetheo/ui';
 import { ClipboardCheck } from 'lucide-react';
 
-import { cloudFetch } from '@/lib/api';
-import { formatCost, formatDate, formatDuration, formatScore } from '@/lib/format';
-import { spanOwnCostUsd } from '@/lib/trace-layout';
-import { detectPii } from '@/lib/otel-attributes';
+import { cloudFetch } from '@/lib/http/api';
+import { formatCost, formatDate, formatDuration, formatScore } from '@/lib/formatting/format';
+import { spanOwnCostUsd } from '@/hooks/lens/trace-layout';
+import { detectPii } from '@/pages/lens/otel-attributes';
 import { LensPlayground } from '../playground';
 import { durationMs, type TraceSpanNode } from './helpers';
-import { Markdown } from '@/components/common/markdown';
+import { Markdown } from '@/pages/lens/components/markdown';
 import { toTraceSpan } from './to-trace-span';
 
 /**

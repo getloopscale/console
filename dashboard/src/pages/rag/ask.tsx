@@ -1,12 +1,13 @@
+import { useCollections } from '@/hooks/rag/use-collections';
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { MessageSquare } from 'lucide-react';
 import { Badge, Button, Card, PageShell, Select, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * M21 — /rag/ask. The core RAG surface: pick a collection, ask a question, get a
@@ -14,10 +15,6 @@ import { cloudFetch } from '@/lib/api';
  * via POST). Calls the read+write dashboard BFF `POST /v1/dashboard/rag/answers`.
  */
 
-interface Collection {
-  id: string;
-  name: string | null;
-}
 interface Source {
   document_id?: string;
   chunk_id?: string;
@@ -55,10 +52,7 @@ export function RagAskPage() {
   // M9 — default vector keeps the pre-M9 request byte-identical (strategy omitted below).
   const [strategy, setStrategy] = useState('vector');
 
-  const collectionsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
-  });
+  const collectionsQuery = useCollections();
 
   const ask = useMutation({
     mutationFn: () =>

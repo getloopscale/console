@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { PRIMARY_CANONICO } from '@/lib/theme/theo-theme';
 
 /**
  * B-034 — o token `--primary` tem UM dono, e as duas fontes concordam.
@@ -36,13 +37,21 @@ import { resolve } from 'node:path';
  * segue verde. Fixar o valor COMPUTADO exige Playwright (jsdom nao resolve
  * cascade de `@import`), e esse teste e o passo seguinte, registrado em B-034.
  */
-const PRIMARY_MEDIDO = 'oklch(0.57 0.13 302)';
+// B-007 — o valor deixou de ser lido do `main.tsx` porque saiu de lá: a config
+// do tema virou `lib/theme/theo-theme.ts`, importada pelo app E pela árvore de
+// teste. Antes disso as duas divergiam, e a suíte inteira renderizava em modo
+// claro com um roxo que o app nunca mostra.
+//
+// A constante vem do módulo dono em vez de repetida aqui: repeti-la faria este
+// teste passar sozinho no dia em que o tema mudasse, comparando um literal
+// obsoleto consigo mesmo.
+const PRIMARY_MEDIDO = PRIMARY_CANONICO;
 const ROOT = resolve(__dirname, '..');
 
 describe('token --primary (B-034)', () => {
-  it('o tema do provider declara o valor medido em runtime', () => {
-    const main = readFileSync(resolve(ROOT, 'src/main.tsx'), 'utf8');
-    expect(main).toContain(PRIMARY_MEDIDO);
+  it('o dono do tema declara o valor medido em runtime', () => {
+    const tema = readFileSync(resolve(ROOT, 'src/lib/theme/theo-theme.ts'), 'utf8');
+    expect(tema).toContain(PRIMARY_MEDIDO);
   });
 
   it('o CSS de fallback declara o MESMO valor — sem flash de cor divergente', () => {

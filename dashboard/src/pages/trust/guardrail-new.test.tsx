@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen } from '@/test/render';
 
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -10,8 +10,8 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const mockTest = vi.fn();
 const mockCreate = vi.fn();
-vi.mock('@/components/trust/trust-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/trust/trust-api')>();
+vi.mock('@/hooks/trust/trust-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/trust/trust-api')>();
   return {
     ...actual,
     testGuardrail: (...a: unknown[]) => mockTest(...a),
@@ -39,17 +39,17 @@ import { TrustGuardrailNewPage } from './guardrail-new';
 async function openWithValidDraft() {
   const user = userEvent.setup();
   render(<TrustGuardrailNewPage />);
-  await user.type(screen.getByLabelText('Nome'), 'termos-internos');
-  await user.type(screen.getByLabelText('Termos a bloquear'), 'projeto-fenix');
+  await user.type(screen.getByLabelText('Name'), 'termos-internos');
+  await user.type(screen.getByLabelText('Terms to block'), 'projeto-fenix');
   return user;
 }
 
-const saveButton = () => screen.queryByRole('button', { name: /salvar/i });
+const saveButton = () => screen.queryByRole('button', { name: /save/i });
 
 /** Roda o dry-run e devolve o controle já com o caminho de gravação disponível. */
 async function runDryRun(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /testar/i }));
-  return screen.findByRole('button', { name: /salvar/i });
+  await user.click(screen.getByRole('button', { name: /test/i }));
+  return screen.findByRole('button', { name: /save/i });
 }
 
 /** A coreografia dos casos de erro tipado: testar → salvar → o serviço recusa. */
@@ -89,7 +89,7 @@ describe('TrustGuardrailNewPage', () => {
     const user = await openWithValidDraft();
     await runDryRun(user);
 
-    expect(await screen.findByText(/seria bloqueada/i)).toBeInTheDocument();
+    expect(await screen.findByText(/would be blocked/i)).toBeInTheDocument();
   });
 
   it('alterar a regra depois do teste retira de novo o caminho de salvar', async () => {
@@ -98,10 +98,10 @@ describe('TrustGuardrailNewPage', () => {
     await runDryRun(user);
 
     // Um termo a mais = outra regra. O veredito anterior não fala dela.
-    await user.type(screen.getByLabelText('Termos a bloquear'), '\noutro-termo');
+    await user.type(screen.getByLabelText('Terms to block'), '\noutro-termo');
 
     expect(saveButton()).not.toBeInTheDocument();
-    expect(await screen.findByText(/regra mudou depois do teste/i)).toBeInTheDocument();
+    expect(await screen.findByText(/rule changed after the test/i)).toBeInTheDocument();
   });
 
   it('reescrever um campo com o MESMO valor não invalida o veredito', async () => {
@@ -111,11 +111,11 @@ describe('TrustGuardrailNewPage', () => {
     const user = await openWithValidDraft();
     await runDryRun(user);
 
-    const name = screen.getByLabelText('Nome');
+    const name = screen.getByLabelText('Name');
     await user.clear(name);
     await user.type(name, 'termos-internos'); // idêntico ao anterior
 
-    expect(await screen.findByRole('button', { name: /salvar/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /save/i })).toBeInTheDocument();
   });
 
   it('mostra a MENSAGEM DO SERVIÇO num 422 INVALID_SPEC', async () => {
@@ -130,7 +130,7 @@ describe('TrustGuardrailNewPage', () => {
     );
 
     expect(await screen.findByText('name "pii" is reserved')).toBeInTheDocument();
-    expect(await screen.findByText(/pertence à plataforma/i)).toBeInTheDocument();
+    expect(await screen.findByText(/belongs to the platform/i)).toBeInTheDocument();
   });
 
   it('mostra a mensagem do serviço num 409 CONFLICT', async () => {
@@ -145,9 +145,9 @@ describe('TrustGuardrailNewPage', () => {
     mockTest.mockRejectedValueOnce(new ApiError(500));
     const user = await openWithValidDraft();
 
-    await user.click(screen.getByRole('button', { name: /testar/i }));
+    await user.click(screen.getByRole('button', { name: /test/i }));
 
-    expect(await screen.findByText(/não pôde ser executado/i)).toBeInTheDocument();
+    expect(await screen.findByText(/could not be run/i)).toBeInTheDocument();
     expect(saveButton()).not.toBeInTheDocument();
     expect(mockCreate).not.toHaveBeenCalled();
   });
@@ -162,7 +162,7 @@ describe('TrustGuardrailNewPage', () => {
     it('não acusa campo nenhum ao abrir', () => {
       render(<TrustGuardrailNewPage />);
 
-      expect(screen.queryByText('Dê um nome à guardrail.')).not.toBeInTheDocument();
+      expect(screen.queryByText('Give the guardrail a name.')).not.toBeInTheDocument();
       expect(screen.queryByText('Adicione ao menos um termo a bloquear.')).not.toBeInTheDocument();
     });
 
@@ -170,7 +170,7 @@ describe('TrustGuardrailNewPage', () => {
     async function visitNameAndLeaveItEmpty() {
       const user = userEvent.setup();
       render(<TrustGuardrailNewPage />);
-      await user.click(screen.getByLabelText('Nome'));
+      await user.click(screen.getByLabelText('Name'));
       await user.tab();
       return user;
     }
@@ -178,18 +178,18 @@ describe('TrustGuardrailNewPage', () => {
     it('acusa o campo depois que o operador o visita e o deixa inválido', async () => {
       await visitNameAndLeaveItEmpty();
 
-      expect(await screen.findByText('Dê um nome à guardrail.')).toBeInTheDocument();
+      expect(await screen.findByText('Give the guardrail a name.')).toBeInTheDocument();
       // O campo que ele ainda não visitou continua calado.
       expect(screen.queryByText('Adicione ao menos um termo a bloquear.')).not.toBeInTheDocument();
     });
 
     it('para de acusar assim que o campo fica válido', async () => {
       const user = await visitNameAndLeaveItEmpty();
-      expect(await screen.findByText('Dê um nome à guardrail.')).toBeInTheDocument();
+      expect(await screen.findByText('Give the guardrail a name.')).toBeInTheDocument();
 
-      await user.type(screen.getByLabelText('Nome'), 'termos-internos');
+      await user.type(screen.getByLabelText('Name'), 'termos-internos');
 
-      expect(screen.queryByText('Dê um nome à guardrail.')).not.toBeInTheDocument();
+      expect(screen.queryByText('Give the guardrail a name.')).not.toBeInTheDocument();
     });
   });
 
@@ -199,7 +199,7 @@ describe('TrustGuardrailNewPage', () => {
       // unica escapatoria era o botao do navegador.
       render(<TrustGuardrailNewPage />);
 
-      const back = screen.getByRole('link', { name: /voltar para as guardrails/i });
+      const back = screen.getByRole('link', { name: /back to guardrails/i });
       expect(back).toHaveAttribute('href', '/trust/guardrails');
     });
 
@@ -208,19 +208,19 @@ describe('TrustGuardrailNewPage', () => {
       // recem-aberta com um botao cinza e nenhuma pista. A frase descreve o proximo passo.
       render(<TrustGuardrailNewPage />);
 
-      expect(screen.getByRole('button', { name: /testar/i })).toBeDisabled();
-      expect(screen.getByText(/nome e ao menos um termo/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /test/i })).toBeDisabled();
+      expect(screen.getByText(/name and at least one term/i)).toBeInTheDocument();
     });
 
     it('some com a pista quando o rascunho fica testavel', async () => {
       const user = userEvent.setup();
       render(<TrustGuardrailNewPage />);
 
-      await user.type(screen.getByLabelText('Nome'), 'regra-x');
-      await user.type(screen.getByLabelText('Termos a bloquear'), 'segredo');
+      await user.type(screen.getByLabelText('Name'), 'regra-x');
+      await user.type(screen.getByLabelText('Terms to block'), 'segredo');
 
-      expect(screen.queryByText(/nome e ao menos um termo/i)).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /testar/i })).toBeEnabled();
+      expect(screen.queryByText(/name and at least one term/i)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /test/i })).toBeEnabled();
     });
   });
 });

@@ -1,3 +1,4 @@
+import { useCollections } from '@/hooks/rag/use-collections';
 import { type ChangeEvent, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plug, RefreshCw, Trash2 } from 'lucide-react';
@@ -17,11 +18,12 @@ import {
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 import { AppModal } from '@/components/ui/app-modal';
 import { Alert } from '@/components/ui/alert-guard';
-import { ProviderLogo } from '@/components/rag/provider-logo';
+import { ProviderLogo } from '@/pages/rag/components/provider-logo';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch, getApiBase } from '@/lib/api';
+import { cloudFetch, getApiBase } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 /**
  * #191 + M8 — /rag/connectors. See and manage the workspace's connector connections (list +
@@ -45,9 +47,6 @@ interface ConnectionsResult {
   items: Connection[];
 }
 
-interface CollectionsResult {
-  items: { id: string; name: string }[];
-}
 
 interface OAuthProvidersResult {
   providers: string[];
@@ -157,16 +156,13 @@ export function RagConnectorsPage() {
 
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/connectors'] as const,
-    queryFn: () => cloudFetch<ConnectionsResult>('/v1/dashboard/rag/connectors', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<ConnectionsResult>(`/v1/dashboard/rag/connectors?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const providersQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/connectors/providers'] as const,
-    queryFn: () => cloudFetch<OAuthProvidersResult>('/v1/dashboard/rag/connectors/providers', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<OAuthProvidersResult>(`/v1/dashboard/rag/connectors/providers?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
-  const collectionsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<CollectionsResult>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
-  });
+  const collectionsQuery = useCollections();
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: ['cloud', '/v1/dashboard/rag/connectors'] });

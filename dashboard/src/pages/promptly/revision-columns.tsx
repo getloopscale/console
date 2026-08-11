@@ -1,7 +1,7 @@
 import { Badge, Button, type DataTableColumn } from '@usetheo/ui';
-import type { LinhaDeUso } from '@/components/promptly/usage';
-import type { RevisionRow } from '@/components/promptly/projections';
-import type { ResultadoRollback } from '@/components/promptly/rollback';
+import type { LinhaDeUso } from '@/pages/promptly/components/usage';
+import type { RevisionRow } from '@/pages/promptly/components/projections';
+import type { ResultadoRollback } from '@/pages/promptly/components/rollback';
 
 /**
  * As colunas da tabela de revisões — extraídas do detalhe (M21).
@@ -54,7 +54,7 @@ export function revisionColumns({
   return [
   {
     key: 'version',
-    label: 'Revisão',
+    label: 'Revision',
     render: (row) => <span className="font-mono text-xs">v{row.version}</span>,
   },
   {
@@ -62,7 +62,7 @@ export function revisionColumns({
     // M12: o corpo INTEIRO, não o trecho. Truncar servia para reconhecer a revisão numa lista;
     // decidir se ela é a certa exige ler o que o modelo de fato recebe. As variáveis vêm de
     // `variables`, que o serviço DECLARA — nunca de um regex nosso sobre o texto.
-    label: 'Conteúdo da revisão',
+    label: 'Revision content',
     render: (row) => (
       <div className="space-y-1">
         <pre className="max-w-xl whitespace-pre-wrap font-mono text-xs text-muted-foreground">
@@ -75,7 +75,7 @@ export function revisionColumns({
           {row.changeDescription !== null ? (
             <span className="text-foreground">{row.changeDescription}</span>
           ) : (
-            <span className="italic text-muted-foreground">sem descrição</span>
+            <span className="italic text-muted-foreground">no description</span>
           )}
           {row.modelConfig !== null ? (
             <span className="ml-2 font-mono text-[10px] text-muted-foreground">
@@ -104,25 +104,25 @@ export function revisionColumns({
   },
   {
     key: 'uso',
-    label: `Uso (${String(janelaDias)} dias)`,
+    label: `Usage (${String(janelaDias)} days)`,
     render: (row) => {
       const u = usoPorRevisao.get(row.version);
       if (u === undefined || u.estado === 'nao-lido') {
         // Nunca um zero: um zero aqui afirmaria um fato que ninguém mediu.
         return (
           <span className="text-xs text-destructive">
-            {u?.razao ?? 'não consegui ler o uso deste prompt'}
+            {u?.razao ?? 'could not read this prompt usage'}
           </span>
         );
       }
       if (u.estado === 'sem-chamadas') {
-        return <span className="text-xs text-muted-foreground">sem chamadas no período</span>;
+        return <span className="text-xs text-muted-foreground">no calls in the period</span>;
       }
       return (
         <div className="space-y-0.5">
           <div className="font-mono text-xs">{u.chamadas}</div>
           <div className="font-mono text-[10px] text-muted-foreground">
-            {u.latenciaP50Ms !== undefined ? `${u.latenciaP50Ms.toFixed(1)} ms` : 'latência não medida'}
+            {u.latenciaP50Ms !== undefined ? `${u.latenciaP50Ms.toFixed(1)} ms` : 'latency not measured'}
             {u.tokens !== undefined ? ` · ${String(u.tokens)} tokens` : null}
           </div>
           {u.custoUsd !== undefined ? (
@@ -131,8 +131,8 @@ export function revisionColumns({
             </div>
           ) : (
             <div className="text-[10px] text-muted-foreground">
-              {u.razaoDoCusto} — o custo só é atribuído quando a resolução e a chamada ao
-              modelo acontecem no mesmo trace
+              {u.razaoDoCusto} — cost is only attributed when the resolution and the model call
+              happen in the same trace
             </div>
           )}
         </div>
@@ -141,12 +141,12 @@ export function revisionColumns({
   },
   {
     key: 'reverter',
-    label: 'Reverter',
+    label: 'Roll back',
     render: (row) => (
       <Button
         size="sm"
         variant="ghost"
-        aria-label={`Reverter para a revisão v${row.version}`}
+        aria-label={`Roll back to revision v${row.version}`}
         onClick={() => {
           setRollbackErro(null);
           setRollbackResultado(null);
@@ -157,24 +157,24 @@ export function revisionColumns({
           setRevAlvo(row.version);
         }}
       >
-        Reverter
+        Roll back
       </Button>
     ),
   },
   {
     key: 'acoes',
-    label: 'Promover',
+    label: 'Promote',
     render: (row) => (
       <div className="flex flex-wrap gap-2">
         {ponteiros.length === 0 ? (
-          <span className="text-xs text-muted-foreground">nenhum label neste prompt</span>
+          <span className="text-xs text-muted-foreground">no label on this prompt</span>
         ) : (
           ponteiros.map((p) => (
             <Button
               key={p.label}
               size="sm"
               variant="secondary"
-              aria-label={`Promover ${p.label} para a revisão v${row.version}`}
+              aria-label={`Promote ${p.label} to revision v${row.version}`}
               onClick={() => {
                 setPromoteError(null);
                 setLabelAlvo(p.label);

@@ -37,28 +37,61 @@ test.describe('Dashboard a11y — DOM + axe (replaces bundle-grep)', () => {
     }
   });
 
-  // #81 — the onboarding progress is a real ARIA progressbar with aria-valuenow,
-  // not a plain div (screen readers must announce it as a progress indicator).
-  test('#81 onboarding: progress is an ARIA progressbar with aria-valuenow', async ({ page }) => {
+  /**
+   * #81 — a barra de progresso do onboarding é uma `progressbar` ARIA de verdade, medida em
+   * NAVEGADOR, não só em jsdom.
+   *
+   * ## Como este caso chegou aqui
+   *
+   * Ele existia, reprovava, e eu o tirei: o painel só renderiza enquanto o onboarding está
+   * INCOMPLETO (`use-onboarding-state.ts:159` — `completed < total`), os cinco passos derivam
+   * de dados, e a conta mockada satisfaz os cinco. O caso cobrava um painel que o produto
+   * corretamente não mostra — ele nunca esteve sólido: passava enquanto os dados do mock
+   * estivessem incompletos e quebrou quando ficaram completos, ou seja, media o ambiente.
+   *
+   * Forçar a pré-condição pela rede não funciona, e isso foi medido: a camada de mocks
+   * intercepta o `fetch` DENTRO da página, então `page.route('**\/api/v1/domains*')` nunca vê
+   * a requisição — zero requisições observadas.
+   *
+   * A alavanca ficou do lado certo: `window.__THEO_MOCK_NO_DOMAINS`, quarta do mesmo idioma
+   * que `__THEO_MOCK_LOGGED_OUT` já usava. **O teste declara o estado que precisa** em vez de
+   * herdar o que o mock por acaso tiver — que é o que o tornava frágil.
+   *
+   * ## Por que em navegador, se jsdom já cobre
+   *
+   * `onboarding-panel.test.tsx:118` assere os mesmos atributos, e para atributos estáticos
+   * jsdom basta. O que ele NÃO prova é que o painel é ALCANÇÁVEL: que existe um estado real
+   * do produto em que ele aparece, que o botão recolhido expande, e que a barra sobrevive à
+   * árvore inteira do app. O caso anterior morreu exatamente aí — o contrato ARIA estava
+   * certo o tempo todo, e o painel é que não vinha.
+   */
+  test('#81 onboarding: a barra é uma progressbar ARIA com aria-valuenow', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __THEO_MOCK_NO_DOMAINS?: boolean }).__THEO_MOCK_NO_DOMAINS = true;
+    });
     await page.goto('/');
-    // Localizado pelo NOME ACESSÍVEL, não por `.first()`.
-    //
-    // `.first()` casava a barra de onboarding enquanto ela era a única da página. Depois o
-    // Overview ganhou medidores de uso ("Projects: 0 / 2"), e o teste passou a asserir
-    // `aria-valuemax === '100'` contra um medidor cujo max é 2 — reprovando um produto CORRETO:
-    // `2` é o valuemax certo de "0 / 2". Um seletor posicional casa o que estiver na frente, não
-    // o que o teste quer dizer. O teste de unidade do componente já localizava pelo nome.
-    // O painel nasce RECOLHIDO; a barra só existe expandido. Expandir é o que o usuário faz —
-    // e é a etapa que faltava: sem ela o teste caía no medidor de uso e nunca chegou a exercitar
-    // a barra que o #81 existe para cobrir.
+
+    // O painel nasce RECOLHIDO; a barra só existe expandido, e expandir é o que o usuário faz.
     await page.getByRole('button', { name: /get your app live/i }).click();
 
-    const bar = page.getByRole('progressbar', { name: /onboarding progress/i });
-    await expect(bar).toBeVisible();
-    const now = await bar.getAttribute('aria-valuenow');
-    expect(now, 'progressbar exposes aria-valuenow').not.toBeNull();
-    expect(Number(now), 'aria-valuenow is numeric').not.toBeNaN();
-    expect(await bar.getAttribute('aria-valuemax'), 'progressbar exposes aria-valuemax').toBe('100');
+    const barra = page.getByRole('progressbar', { name: /onboarding progress/i });
+    await expect(barra).toBeVisible();
+
+    const agora = await barra.getAttribute('aria-valuenow');
+    expect(agora, 'a progressbar não expõe `aria-valuenow`').not.toBeNull();
+    expect(Number(agora), '`aria-valuenow` não é numérico').not.toBeNaN();
+    expect(await barra.getAttribute('aria-valuemax'), 'a progressbar não expõe `aria-valuemax`').toBe('100');
+  });
+
+  test('#81/M57 — conta com onboarding completo não recebe o painel de cobrança', async ({ page }) => {
+    // A contraparte, e ela é o que a alavanca acima torna afirmável: sem poder escolher o
+    // estado, este caso e o de cima seriam mutuamente exclusivos.
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole('button', { name: /get your app live/i }),
+      'o painel de onboarding apareceu para uma conta que já tem projeto, deploy e domínio',
+    ).toHaveCount(0);
   });
 
   // #80 — the recovery code field is an OTP-friendly numeric input (inputmode +

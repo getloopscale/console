@@ -15,7 +15,7 @@ vi.mock('@/hooks/use-auth', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-whoami', () => ({
+vi.mock('@/hooks/settings/use-whoami', () => ({
   useWhoami: () => ({ whoami: { team_id: 'team-a' } }),
 }));
 
@@ -23,9 +23,9 @@ const mockCloudFetch = vi.fn();
 const mockEngineFetch = vi.fn();
 // Partial-mock pattern (vitest-recommended): preserve ApiError (used by
 // useInvoices via `q.error instanceof ApiError`) and any other genuine
-// exports from '@/lib/api'; override only the two fetchers under test.
-vi.mock('@/lib/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/api')>();
+// exports from '@/lib/http/api'; override only the two fetchers under test.
+vi.mock('@/lib/http/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/http/api')>();
   return {
     ...actual,
     cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
@@ -37,9 +37,9 @@ vi.mock('@/lib/api', async (importOriginal) => {
 // useCloudApi delegates to cloudFetch under the hood; the existing pages
 // use both. Mocking the underlying fetcher covers both paths.
 
-import { BillingPage } from './billing';
-import { AuditPage } from './audit';
-import { SettingsPage } from './settings';
+import { BillingPage } from './settings/billing';
+import { AuditPage } from './settings/audit';
+import { SettingsPage } from './settings/overview';
 
 describe('Plan 4 Memory cross-cuts — regression + additive guards', () => {
   beforeEach(() => {

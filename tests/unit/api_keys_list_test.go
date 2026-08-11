@@ -161,25 +161,45 @@ func TestListKeys_ThreeActiveKeysFiltered(t *testing.T) {
 // response (even though the unique-name CHECK does not exist, nothing prevents
 // programmatic creation of thousands). We assert via sqlmock query-string
 // matching that the SQL contains "LIMIT 100".
-func TestListKeys_QueryContainsLIMIT100(t *testing.T) {
+// B-114 — este caso afirmava o LITERAL `LIMIT 100` no SQL, e o cap saiu de lá.
+//
+// A query agora pede `listLimit + 1` e o handler corta em `listLimit`, devolvendo `has_more`:
+// cortar em 100 no banco tornava "exatamente 100 chaves" e "mais de 100 chaves" indistinguíveis,
+// e a 101ª sumia sem que nada dissesse.
+//
+// O caso não foi apagado — foi reescrito para afirmar o COMPORTAMENTO que o literal protegia. Um
+// teste que casa o texto do SQL quebra em todo refactor e passa verde em toda regressão que não
+// mude o texto; este devolve 101 linhas e verifica o que o usuário recebe.
+func TestListKeys_TruncaNoCapEDizQueTruncou(t *testing.T) {
 	h, mock := newAPIKeysHandler(t)
-	// QueryMatcherEqual is the default — sqlmock asserts the literal SQL.
-	// We use the regex matcher implicitly: ExpectQuery treats the arg as a
-	// regex. Embed `LIMIT 100` so a missing-cap handler fails this match.
-	mock.ExpectQuery("LIMIT 100").
+	linhas := sqlmock.NewRows([]string{
+		"id", "key_name", "key_prefix", "scopes", "created_at", "last_used_at", "expires_at",
+	})
+	for i := 0; i < 101; i++ {
+		linhas.AddRow("apk-1", "k", "thk_", "{}", time.Now(), nil, nil)
+	}
+	mock.ExpectQuery("SELECT id, key_name").
 		WithArgs("user-A", "tenant-A").
-		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "key_name", "key_prefix", "scopes", "created_at", "last_used_at", "expires_at",
-		}))
+		WillReturnRows(linhas)
 
 	rec := httptest.NewRecorder()
 	h.ListKeys(rec, authedRequest("GET", "/v1/api-keys/list", &auth.UserContext{Subject: "user-A", TenantID: "tenant-A"}))
 
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("LIMIT 100 cap missing from list query (EC-1 absorption regression): %v", err)
-	}
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
+		t.Fatalf("expected 200, got %d — %s", rec.Code, rec.Body.String())
+	}
+	var corpo struct {
+		Keys    []map[string]any `json:"keys"`
+		HasMore bool             `json:"has_more"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &corpo); err != nil {
+		t.Fatalf("corpo não é JSON: %v", err)
+	}
+	if len(corpo.Keys) != 100 {
+		t.Errorf("devolveu %d chaves, quer 100 (o cap EC-1)", len(corpo.Keys))
+	}
+	if !corpo.HasMore {
+		t.Errorf("truncou em 100 de 101 e não disse: has_more ausente ou false")
 	}
 }
 

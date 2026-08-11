@@ -38,7 +38,7 @@ vi.mock('@/hooks/use-auth', () => ({
 // Mock data hooks so pages render their populated state synchronously.
 // Per-hook tests + handlers.test.ts validate the actual fetch + shape;
 // here we just ensure pages COMPILE + render their populated layout.
-vi.mock('@/hooks/use-projects', () => ({
+vi.mock('@/hooks/projects/use-projects', () => ({
   useProjects: () => ({
     projects: [
       { name: 'acme-web', apps: [{ name: 'frontend', framework: 'next' }], last_deploy: '2026-05-26T06:42:00Z', environment: 'production' },
@@ -53,11 +53,11 @@ vi.mock('@/hooks/use-api', () => ({
   useEngineApi: () => ({ data: null, loading: false, error: false }),
 }));
 
-vi.mock('@/hooks/use-deployments', () => ({
+vi.mock('@/hooks/projects/use-deployments', () => ({
   useDeployments: () => ({ builds: [], loading: false, error: false }),
 }));
 
-vi.mock('@/hooks/use-secrets', () => ({
+vi.mock('@/hooks/infra/use-secrets', () => ({
   useSecrets: () => ({ secrets: [], loading: false, error: false, refetch: () => {} }),
 }));
 
@@ -82,7 +82,7 @@ vi.mock('@/hooks/use-project-status', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-whoami', () => ({
+vi.mock('@/hooks/settings/use-whoami', () => ({
   useWhoami: () => ({
     whoami: {
       user_id: 'mock',
@@ -97,17 +97,17 @@ vi.mock('@/hooks/use-whoami', () => ({
 }));
 
 // Static imports — vi.mock factories above apply before module evaluation.
-import { OverviewPage } from '@/pages/overview';
-import { ProjectsPage } from '@/pages/projects';
-import { ProjectDetailPage } from '@/pages/project-detail';
-import { DeploymentsPage } from '@/pages/deployments';
-import { BillingPage } from '@/pages/billing';
-import { TeamPage } from '@/pages/team';
-import { SecretsPage } from '@/pages/secrets';
-import { AuditPage } from '@/pages/audit';
-import { ProjectStatusPage } from '@/pages/project-status';
-import { DomainsPage } from '@/pages/domains';
-import { EnvironmentsPage } from '@/pages/environments';
+import { OverviewPage } from '@/pages/overview/overview';
+import { ProjectsPage } from '@/pages/projects/projects';
+import { ProjectDetailPage } from '@/pages/projects/project-detail';
+import { DeploymentsPage } from '@/pages/deploy/deployments';
+import { BillingPage } from '@/pages/settings/billing';
+import { TeamPage } from '@/pages/settings/team';
+import { SecretsPage } from '@/pages/infra/secrets';
+import { AuditPage } from '@/pages/settings/audit';
+import { ProjectStatusPage } from '@/pages/projects/project-status';
+import { DomainsPage } from '@/pages/infra/domains';
+import { EnvironmentsPage } from '@/pages/infra/environments';
 
 describe('E2E journey smoke — Plan v1.0 Final Phase Dogfood QA', () => {
   beforeEach(() => {

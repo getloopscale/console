@@ -73,6 +73,20 @@ export default [
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+
+  // Scripts de build/CI rodam em NODE, não no navegador.
+  //
+  // Sem este bloco eles caem no `js.configs.recommended` sem globais
+  // declarados, e `console`/`process` viram `no-undef`. Ficou assim por dois
+  // dias sem ninguém ver, porque a verificação que eu rodava era `eslint src` e
+  // o script do projeto é `eslint .` — o subconjunto passava e o comando real
+  // reprovava. É o mesmo erro de medir o recorte em vez do todo.
+  {
+    files: ['scripts/**/*.{mjs,js}'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly', URL: 'readonly', fetch: 'readonly' },
+    },
+  },
   {
     files: ['src/**/*.{ts,tsx}'],
     linterOptions: {
@@ -226,24 +240,31 @@ export default [
       'src/test/**/*.{ts,tsx}',
       // Divida registrada (B-033). Cada linha sai daqui quando o arquivo for
       // decomposto; nenhuma linha nova entra sem ADR.
-      'src/pages/api-keys.tsx', // 954 LOC
-      'src/pages/promptly/detail.tsx', // 915 LOC
-      'src/lib/api/types.ts', // 813 LOC
-      'src/lib/mocks/handlers.ts', // 797 LOC
-      'src/app.tsx', // 757 LOC
-      'src/pages/recovery.tsx', // 711 LOC
-      'src/pages/deployments.tsx', // 704 LOC
-      'src/pages/project-connect.tsx', // 696 LOC
-      'src/components/deploy/deploy-timeline-hero.tsx', // 677 LOC
-      'src/pages/memory/graph.tsx', // 664 LOC
+      //
+      // O NUMERO E TETO, nao anotacao. Medido em 2026-08-07: a regra cobria quem
+      // ENTRA e nao quem ja estava dentro, e OITO dos dezoito tinham crescido —
+      // handlers.ts +78, types.ts +48, graph.tsx +26, app.tsx +22. Divida
+      // registrada e ilimitada: um arquivo entra a 757 linhas e chega a 1500 sem
+      // que nada acuse.
+      //
+      // `src/lib/loc-budget-ratchet.test.ts` faz o numero ser teto: ele so desce,
+      // e tem de bater com o disco exatamente (sem folga onde crescer). Ao
+      // decompor, baixe o numero — o progresso passa a ser medido.
+      'src/lib/api/types.ts', // 861 LOC
+      'src/lib/mocks/handlers.ts', // 774 LOC
+      'src/pages/auth/recovery.tsx', // 711 LOC
+      'src/pages/deploy/deployments.tsx', // 703 LOC
+      'src/pages/projects/project-connect.tsx', // 661 LOC
+      'src/pages/deploy/components/deploy-timeline-hero.tsx', // 677 LOC
+      'src/pages/memory/graph.tsx', // 690 LOC
       'src/pages/lens/evaluators.tsx', // 585 LOC
-      'src/pages/memory/webhooks.tsx', // 560 LOC
-      'src/pages/skills/bundle-detail.tsx', // 554 LOC
+      'src/pages/memory/webhooks.tsx', // 555 LOC
+      'src/pages/skills/bundle-detail.tsx', // 539 LOC
       'src/lib/mocks/skills-handlers.ts', // 546 LOC
-      'src/pages/billing.tsx', // 539 LOC
-      'src/pages/settings/webhooks.tsx', // 533 LOC
-      'src/pages/lens/alerts.tsx', // 522 LOC
-      'src/pages/projects.tsx', // 513 LOC
+      'src/pages/settings/billing.tsx', // 525 LOC
+      'src/pages/settings/webhooks.tsx', // 521 LOC
+      'src/pages/lens/alerts.tsx', // 523 LOC
+      'src/pages/projects/projects.tsx', // 513 LOC
     ],
     rules: {
       'max-lines': ['error', { max: 500, skipBlankLines: false, skipComments: false }],

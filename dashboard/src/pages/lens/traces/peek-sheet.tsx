@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Sheet, Skeleton } from '@usetheo/ui';
 
-import { shortId } from '@/lib/format';
+import { shortId } from '@/lib/formatting/format';
 import { MetadataCard } from './metadata-card';
 
 /**

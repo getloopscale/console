@@ -1,10 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 const require_ = createRequire(import.meta.url);
-const ROOT = join(__dirname, '..', '..');
 
 /**
  * Guardas de sunset para divida de UPSTREAM.
@@ -61,25 +58,16 @@ describe('divida de upstream — guardas de sunset', () => {
    * dois sozinho — inclusive quando #175 for corrigido e a remocao correta for
    * dos DOIS.
    */
-  it('o guard de Alert e o ban de lint existem em par (nunca um sem o outro)', () => {
-    const eslintCfg = readFileSync(join(ROOT, 'eslint.config.js'), 'utf8');
-    const banAtivo = eslintCfg.includes('no-restricted-imports') && eslintCfg.includes('Alert');
-
-    let guardExiste = true;
-    try {
-      readFileSync(join(ROOT, 'src', 'components', 'ui', 'alert-guard.tsx'), 'utf8');
-    } catch {
-      guardExiste = false;
-    }
-
-    expect(
-      banAtivo,
-      guardExiste
-        ? 'O guard alert-guard.tsx existe mas o ban de lint sumiu: o caminho inseguro\n' +
-          '(`Alert` cru de @usetheo/ui) voltou a ser importavel e o guard vira opcional.'
-        : 'O ban de lint existe mas o guard alert-guard.tsx sumiu: o lint proibe o Alert\n' +
-          'cru sem oferecer a alternativa. Se upstream #175 foi corrigido, remova os DOIS\n' +
-          'juntos (e este teste) — e feche B-086.',
-    ).toBe(guardExiste);
-  });
+  // O caso "o guard de Alert e o ban de lint existem em par" MUDOU DE CASA (B-101).
+  //
+  // Ele vive agora em `scripts/check-guard-pairs.mjs`, chamado pelo `npm run lint`.
+  // O motivo é medido, não estético: aqui dentro ele custava **10.676 ms isolado** contra um
+  // `testTimeout` de 20.000 — margem de 1,87×, e qualquer contenção de worker acima disso o
+  // reprovava numa execução completa enquanto ele passava sozinho. `new ESLint()` +
+  // `calculateConfigForFile` carrega o flat config inteiro e o grafo de plugins junto: é um
+  // processo de análise estática subindo dentro de um worker do vitest.
+  //
+  // Subir o timeout teria escondido a causa até a suíte crescer de novo. O que estava errado
+  // era o lugar — a afirmação é sobre a CONFIGURAÇÃO DE LINT, não sobre comportamento da
+  // aplicação, e pertence ao gate onde o custo do ESLint já está pago.
 });

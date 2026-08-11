@@ -1,12 +1,13 @@
 import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { TheoUIProvider, violetForge } from '@theokit/ui';
+import { TheoUIProvider } from '@theokit/ui';
+import { TEMA_THEO } from '@/lib/theme/theo-theme';
 import App from './app';
 import { RouteBoundary } from './components/error/route-boundary';
-import { queryClient } from './lib/query-client';
-import { installAuthChannel } from './lib/api';
-import { initWebVitals } from './lib/rum';
+import { queryClient } from './lib/http/query-client';
+import { installAuthChannel } from './lib/http/api';
+import { initWebVitals } from './lib/telemetry/rum';
 import './index.css';
 
 // DevTools only em dev — Sprint 3 (#23) v1.1 ADR D3 defense in depth:
@@ -30,15 +31,29 @@ const ReactQueryDevtools = __DEV__
 // In dev with VITE_USE_MOCKS=true: full Kratos + /api/v1/* + SSE mocks load.
 // In prod (env var absent): the dynamic import is never executed, and the
 // statically-resolvable env check lets Vite DCE the if-body to zero bytes.
-if (import.meta.env.VITE_USE_MOCKS === 'true') {
-  Promise.all([
-    import('./lib/dev-mocks'),
-    import('./lib/mocks'),
-  ]).then(([devMocks, mocks]) => {
-    devMocks.installKratosMocks();
-    mocks.installAllMocks();
-  });
-}
+// A instalacao e AGUARDADA antes do render. Ela era `.then(...)` solto, e o
+// `createRoot().render()` logo abaixo e sincrono — entao as primeiras queries
+// disparavam ANTES do interceptador existir e escapavam para a rede. Em dev sem
+// backend isso vira 500 do proxy do Vite, e a tela abre com paineis em erro que
+// nao tem nada a ver com o codigo sendo desenvolvido.
+//
+// Medido em 2026-08-07 com `VITE_USE_MOCKS=true` e sem backend: sete requisicoes
+// escapavam (`/engine/api/v1/projects`, `/engine/api/v1/auth/whoami`,
+// `/v1/dashboard/status/versions`, `/engine/api/v1/domains`, `/v1/billing`).
+// O mock JA remove o prefixo `/engine` (server.ts:150) — o problema nunca foi
+// casamento de rota, era ordem.
+//
+// Custo em producao: ZERO. O `if` e resolvido em tempo de build (a env e literal),
+// entao o corpo inteiro — inclusive o await — some do bundle.
+const prontoParaRenderizar =
+  import.meta.env.VITE_USE_MOCKS === 'true'
+    ? Promise.all([import('./lib/mocks/dev-mocks'), import('./lib/mocks')]).then(
+        ([devMocks, mocks]) => {
+          devMocks.installKratosMocks();
+          mocks.installAllMocks();
+        },
+      )
+    : Promise.resolve();
 
 // B-042 — o canal de coordenacao de logout entre abas e aberto AQUI, no boot,
 // e nao como efeito colateral de importar lib/api. Aquele modulo tem 151
@@ -83,37 +98,12 @@ if (import.meta.env.PROD) {
 //         TheoUIProvider — design system + toaster
 //           App
 //             ReactQueryDevtools (dev only) — Cmd-Shift-Q inspect cache
-createRoot(document.getElementById('root')!).render(
+void prontoParaRenderizar.then(() =>
+  createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <RouteBoundary routePath="root">
       <QueryClientProvider client={queryClient}>
-        <TheoUIProvider
-          theme={{
-            // Primary roxo Dracula neutro (sem brilho): croma reduzida (0.13) +
-            // matiz Dracula (302). #8662b6 = ~4.73:1 vs branco (passa WCAG AA,
-            // ao contrário do default oklch(0.628 0.225 296) = 3.87:1). O --primary
-            // vem do tema via TheoUIProvider (o index.css NÃO tem efeito no primary).
-            themes: [
-              {
-                ...violetForge,
-                light: { ...violetForge.light, primary: 'oklch(0.57 0.13 302)' },
-                // input agora vem do próprio @theokit/ui@1.3.1 (violetForge.dark.input
-                // = oklch(0.34), borda perceptível) — override local removido.
-                dark: { ...violetForge.dark, primary: 'oklch(0.57 0.13 302)' },
-              },
-            ],
-            defaultTheme: 'violet-forge',
-            defaultMode: 'dark',
-            // Locked dark (D1): o dashboard nunca ofereceu theme picker.
-            // - respectSystemMode:false → ignora o prefers-color-scheme do SO
-            //   (default true faria um usuário com SO em light ver o app claro).
-            // - storageKey:null → desliga a persistência em localStorage; sem isto,
-            //   uma sessão anterior que seguiu o SO gravou mode=light e continuaria
-            //   sobrescrevendo o defaultMode. Nada a persistir num tema travado.
-            respectSystemMode: false,
-            storageKey: null,
-          }}
-        >
+        <TheoUIProvider theme={TEMA_THEO}>
           <App />
           {ReactQueryDevtools ? (
             <Suspense fallback={null}>
@@ -124,4 +114,5 @@ createRoot(document.getElementById('root')!).render(
       </QueryClientProvider>
     </RouteBoundary>
   </StrictMode>,
+),
 );

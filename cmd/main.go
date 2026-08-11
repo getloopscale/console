@@ -445,14 +445,31 @@ func main() {
 	var billingHandler *routes.BillingHandler
 	var billingProvisioner *billing.Provisioner
 
-	if cfg.StripeAPIKey.Value() != "" {
+	// A prontidão é avaliada ANTES de qualquer coisa ser construída, e a decisão sai daqui
+	// em vez de estar embutida numa condição.
+	//
+	// Medido em 2026-08-11: a condição anterior olhava só a chave de API, e o segredo do
+	// webhook entrava sem ser verificado. Com ele ausente, o processo registrava
+	// "billing enabled" enquanto TODO evento de pagamento era recusado por VerifySignature
+	// — que recusa segredo vazio, corretamente. Nada inseguro aconteceu; o que se perdeu foi
+	// a verdade, e a afirmação falsa é o que impediu alguém de agir durante 20 horas.
+	billingReadiness := billing.AssessReadiness(cfg.StripeAPIKey.Value(), cfg.StripeWebhookSecret.Value())
+	switch {
+	case billingReadiness.Ready():
 		stripeClient = billing.NewStripeClient(cfg.StripeAPIKey.Value())
 		webhookHandler = billing.NewWebhookHandler(db, cfg.StripeWebhookSecret.Value(), billing.LoadPlanConfig(), logger)
 		billingProvisioner = billing.NewProvisioner(db, stripeClient, logger)
 		billingHandler = routes.NewBillingHandler(db, stripeClient, webhookHandler, billingProvisioner, cfg.BillingReturnURL)
 		logger.Info("billing enabled")
-	} else {
-		logger.Warn("STRIPE_API_KEY not set — billing endpoints disabled")
+	case billingReadiness.Partial():
+		// Metade configurada é o estado perigoso: parece pronto e não está. Erro, e não
+		// aviso — um aviso rola para fora da janela de log e ninguém age.
+		logger.Error("billing NOT enabled — "+billingReadiness.Explain(),
+			"missing", billingReadiness.Missing)
+	default:
+		// Ausência total é uma escolha válida: o hermético roda assim de propósito, e
+		// dizer isso é diferente de mentir sobre estar pronto.
+		logger.Info("billing not configured in this environment")
 	}
 
 	// Universal JWT auth middleware (RSA + HMAC — one path for all)
@@ -1094,7 +1111,7 @@ func main() {
 	// O corpo passa a nomear integracao desligada, reusando o mesmo config.MissingSettings do
 	// boot (#334). Reportada, NUNCA gatilho de reprovacao: sao opcionais por ambiente, e reprovar
 	// por causa delas derrubaria o container em toda topologia que nao as configura.
-	r.Get("/health", routes.NewHealthHandler(healthPinger(db), func() map[string][]string {
+	livenessHandler := routes.NewHealthHandler(healthPinger(db), func() map[string][]string {
 		return map[string][]string{
 			"skills": config.MissingSettings(
 				config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
@@ -1109,13 +1126,13 @@ func main() {
 				config.Setting{Name: "TRUST_PLATFORM_ADMIN_KEY", Value: cfg.TrustPlatformAdminKey.Value()},
 			),
 		}
-	}).ServeHTTP)
+	})
 
 	// /ready — READINESS. Mesma sonda, pergunta diferente: "consigo servir AGORA?". Reprova com
 	// a dependencia fora, para que o trafego seja retirado desta instancia. O /health acima
 	// NUNCA reprova por dependencia: liveness reprovada MATA o processo, e reiniciar nao
 	// conserta um banco fora (LT-038 do theo-trust, LT-040/LT-041 do promptly).
-	r.Get("/ready", routes.NewReadyHandler(healthPinger(db), func() map[string][]string {
+	readinessHandler := routes.NewReadyHandler(healthPinger(db), func() map[string][]string {
 		return map[string][]string{
 			"skills": config.MissingSettings(
 				config.Setting{Name: "SKILLS_BASE_URL", Value: cfg.SkillsBaseURL},
@@ -1130,7 +1147,25 @@ func main() {
 				config.Setting{Name: "TRUST_PLATFORM_ADMIN_KEY", Value: cfg.TrustPlatformAdminKey.Value()},
 			),
 		}
-	}).ServeHTTP)
+	})
+
+	// B-124 — the ecosystem's canonical names for these two answers
+	// (theo-contracts/httpsurface, D5), mounted alongside the unversioned pair.
+	//
+	// This service was inconsistent with itself: `/v1/version` below is versioned
+	// while these two were not, and all three are unauthenticated and consumed by
+	// infrastructure. That split was two decisions made at different times.
+	//
+	// SAME handlers, not copies. A second implementation drifts, and what drifts
+	// quietly is the degraded-detection — the half that keeps traffic off an
+	// instance that cannot serve.
+	//
+	// The unversioned pair stays: container probes and the load balancer point at
+	// it today. Additive by contract; removal is its own item after a deadline.
+	r.Get("/health", livenessHandler.ServeHTTP)
+	r.Get("/v1/health", livenessHandler.ServeHTTP)
+	r.Get("/ready", readinessHandler.ServeHTTP)
+	r.Get("/v1/health/ready", readinessHandler.ServeHTTP)
 
 	// §4.1+4.2: Metrics endpoint (Prometheus text format)
 	r.Get("/metrics", cloudmetrics.Handler())

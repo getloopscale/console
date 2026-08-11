@@ -6,10 +6,10 @@ import { Button, Card, FormField, PageShell, Textarea } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { createRevision } from '@/components/promptly/promptly-api';
-import { DESCRICAO_MAX, validarCriacao, fraseDePermanencia } from '@/components/promptly/create-form';
-import { camposDeVariaveis, renderTemplate, variaveisDoTexto } from '@/components/promptly/preview';
-import { mensagemDeRecusa } from '@/components/promptly/rollback';
+import { createRevision } from '@/hooks/promptly/promptly-api';
+import { DESCRICAO_MAX, validarCriacao, fraseDePermanencia } from '@/pages/promptly/components/create-form';
+import { camposDeVariaveis, renderTemplate, variaveisDoTexto } from '@/pages/promptly/components/preview';
+import { mensagemDeRecusa } from '@/pages/promptly/components/rollback';
 
 /**
  * M12 T3 — `/promptly/new`: autorar uma revisão.
@@ -25,7 +25,7 @@ import { mensagemDeRecusa } from '@/components/promptly/rollback';
  */
 export function PromptlyCreatePage() {
   const { setPageTitle } = usePageMeta();
-  useEffect(() => setPageTitle('Nova revisão'), [setPageTitle]);
+  useEffect(() => setPageTitle('New revision'), [setPageTitle]);
   useRequireAuth();
 
   const navigate = useNavigate();
@@ -75,29 +75,29 @@ export function PromptlyCreatePage() {
 
   return (
     <PageShell
-      title="Nova revisão"
+      title="New revision"
       description={fraseDePermanencia(nomeSugerido !== '', proximaVersao)}
     >
       {recusa ? (
-        <Alert intent="destructive" title="A revisão não foi criada" description={recusa} />
+        <Alert intent="destructive" title="The revision was not created" description={recusa} />
       ) : null}
 
       <Card>
         <Card.Header>
           <Card.Title asChild>
-            <h2>Conteúdo</h2>
+            <h2>Content</h2>
           </Card.Title>
           <Card.Description>
-            Use <code>{'{{variavel}}'}</code> para os trechos que mudam a cada chamada.
+            Use <code>{'{{variable}}'}</code> for the parts that change on every call.
           </Card.Description>
         </Card.Header>
 
         <div className="space-y-4 p-6 pt-0">
           <FormField id="promptly-nome">
-            <FormField.Label>Nome do prompt</FormField.Label>
+            <FormField.Label>Prompt name</FormField.Label>
             <FormField.Control>
               <input
-                aria-label="Nome do prompt"
+                aria-label="Prompt name"
                 className="w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
@@ -111,20 +111,20 @@ export function PromptlyCreatePage() {
           </FormField>
 
           <FormField id="promptly-descricao">
-            <FormField.Label>Por que esta revisão existe</FormField.Label>
+            <FormField.Label>Why this revision exists</FormField.Label>
             <FormField.Control>
               <input
-                aria-label="Por que esta revisão existe"
+                aria-label="Why this revision exists"
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
                 maxLength={DESCRICAO_MAX}
-                placeholder="encurtei o preâmbulo para reduzir tokens"
+                placeholder="shortened the preamble to reduce tokens"
               />
             </FormField.Control>
             {/* O teto é dito ANTES de o operador estourar, não depois de a submissão falhar. */}
             <FormField.Hint>
-              {`${String(descricao.trim().length)}/${String(DESCRICAO_MAX)} — o diff mostra o que mudou; isto explica por quê.`}
+              {`${String(descricao.trim().length)}/${String(DESCRICAO_MAX)} — the diff shows what changed; this explains why.`}
             </FormField.Hint>
             {descricao !== '' && validacao.erroDescricao !== null ? (
               <FormField.Error>{validacao.erroDescricao}</FormField.Error>
@@ -132,15 +132,15 @@ export function PromptlyCreatePage() {
           </FormField>
 
           <FormField id="promptly-conteudo">
-            <FormField.Label>Texto do prompt</FormField.Label>
+            <FormField.Label>Prompt text</FormField.Label>
             <FormField.Control>
               <Textarea
-                aria-label="Texto do prompt"
+                aria-label="Prompt text"
                 rows={12}
                 className="font-mono text-sm"
                 value={conteudo}
                 onChange={(e) => setConteudo(e.target.value)}
-                placeholder={'Você é um assistente de {{produto}}. Responda em {{idioma}}.'}
+                placeholder={'You are a {{product}} assistant. Answer in {{language}}.'}
               />
             </FormField.Control>
           </FormField>
@@ -153,15 +153,15 @@ export function PromptlyCreatePage() {
             <h2>Prever o resultado</h2>
           </Card.Title>
           <Card.Description>
-            Substituição local — nenhuma chamada a modelo, nenhum custo. Campo em branco deixa o
-            marcador à vista, para o buraco não passar despercebido.
+            Local substitution — no model call, no cost. An empty field leaves the placeholder
+            visible, so the gap does not go unnoticed.
           </Card.Description>
         </Card.Header>
 
         <div className="space-y-4 p-6 pt-0">
           {declaradas.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nenhuma variável no texto — o prompt é servido exatamente como está escrito.
+              No variables in the text — the prompt is served exactly as written.
             </p>
           ) : (
             declaradas.map((v) => (
@@ -180,7 +180,7 @@ export function PromptlyCreatePage() {
           )}
 
           <div>
-            <h3 className="mb-2 text-sm font-medium">O que o modelo receberia</h3>
+            <h3 className="mb-2 text-sm font-medium">What the model would receive</h3>
             <pre
               data-testid="promptly-preview"
               className="whitespace-pre-wrap rounded-md bg-muted p-4 font-mono text-xs"
@@ -193,7 +193,7 @@ export function PromptlyCreatePage() {
 
       <div className="flex gap-3">
         <Button onClick={salvar} disabled={!validacao.ok || criar.isPending}>
-          {criar.isPending ? 'Criando…' : `Criar revisão v${proximaVersao}`}
+          {criar.isPending ? 'Creating…' : `Create revision v${proximaVersao}`}
         </Button>
         {/* Saída explícita. Um formulário sem volta prende o operador na tela que ele abriu por
             engano — e aqui a tecla de escape é voltar, não gravar algo imutável. */}
@@ -207,4 +207,3 @@ export function PromptlyCreatePage() {
   );
 }
 
-export default PromptlyCreatePage;

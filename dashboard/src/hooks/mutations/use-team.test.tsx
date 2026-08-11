@@ -10,7 +10,7 @@ import type { ReactNode } from 'react';
 // optimistic UI hid the failure). Plain semantic tests can't catch this — only
 // a string literal assertion on the path can.
 
-vi.mock('@/lib/config', () => ({
+vi.mock('@/lib/http/config', () => ({
   API_URL: '',
   AUTH_URL: '',
   ENGINE_URL: '',
@@ -18,7 +18,7 @@ vi.mock('@/lib/config', () => ({
 }));
 
 const mockEngineFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: (...args: unknown[]) => mockEngineFetch(...args),
 }));
 

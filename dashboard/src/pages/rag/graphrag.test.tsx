@@ -4,7 +4,7 @@ import { render, screen } from '@/test/render';
 
 vi.mock('@/hooks/use-auth', () => ({ useRequireAuth: () => ({ active: true }) }));
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
+vi.mock('@/lib/http/api', () => ({ cloudFetch: (...a: unknown[]) => mockCloudFetch(...a) }));
 // react-force-graph-2d renders to a <canvas> (no-op in jsdom) — stub it to a div exposing the node count.
 vi.mock('react-force-graph-2d', () => ({
   default: (props: { graphData: { nodes: unknown[]; links: unknown[] } }) => (

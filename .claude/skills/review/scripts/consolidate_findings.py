@@ -244,7 +244,30 @@ def main() -> int:
     # Collect all findings
     all_findings: list[dict[str, Any]] = []
     agents_run: list[str] = []
-    for yml_path in sorted(args.findings_dir.glob("*.yml")):
+    # `.yml` E `.yaml`, e um arquivo ILEGÍVEL derruba a consolidação em vez de
+    # sumir dela.
+    #
+    # A versão anterior varria só `*.yml`. Num run de 2026-08-10 dois agentes
+    # gravaram `.yaml` — `domain-frontend` (que carregava o único HIGH do review)
+    # e `cross-validation` (o pilar inteiro). Os dois teriam sido descartados em
+    # SILÊNCIO, e o relatório final sairia dizendo "5 agentes" com os achados de
+    # três.
+    #
+    # É o meta-defeito que o `cycle-judge-codex :final` existe para pegar: um
+    # agregador que perde entrada sem reclamar transforma ausência de achado em
+    # ausência de problema. Ler as duas extensões conserta o caso; abortar em
+    # arquivo ilegível conserta a CLASSE.
+    candidatos = sorted(
+        set(args.findings_dir.glob("*.yml")) | set(args.findings_dir.glob("*.yaml")),
+        key=lambda p: (p.stem, p.name),  # determinístico: .yaml antes de .yml, sempre
+    )
+    # Um mesmo agente pode ter gravado as duas extensões (conteúdo idêntico) —
+    # contar as duas duplicaria cada achado dele.
+    vistos: set[str] = set()
+    for yml_path in candidatos:
+        if yml_path.stem in vistos:
+            continue
+        vistos.add(yml_path.stem)
         data = _read_findings_file(yml_path)
         agent_role = data.get("agent", yml_path.stem)
         if isinstance(agent_role, str):

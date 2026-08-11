@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { Package } from 'lucide-react';
 import {
   Button,
@@ -15,7 +15,8 @@ import {
 import { Alert } from '@/components/ui/alert-guard';
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { createBundle, fetchBundles, promotionRefusal } from '@/components/skills/skills-api';
+import { createBundle, promotionRefusal } from '@/hooks/skills/skills-api';
+import { useBundles, useInvalidateBundles } from '@/hooks/skills/use-skills';
 
 /**
  * M35 — `/bundles`: os pacotes de distribuição deste workspace.
@@ -39,28 +40,27 @@ interface BundlesPayload {
   readonly bundles?: BundleSummary[];
 }
 
-const QUERY_KEY = ['cloud', '/v1/dashboard/bundles'] as const;
 
 export function BundlesPage() {
   const { setPageTitle } = usePageMeta();
   useEffect(() => setPageTitle('Distribution'), [setPageTitle]);
   useRequireAuth();
 
-  const queryClient = useQueryClient();
+  const invalidarBundles = useInvalidateBundles();
   const [nome, setNome] = useState('');
   const [erroCriacao, setErroCriacao] = useState<string | null>(null);
 
-  const query = useQuery({
-    queryKey: QUERY_KEY,
-    queryFn: () => fetchBundles<BundlesPayload>(),
-  });
+    const query = useBundles<BundlesPayload>();
 
   const criar = useMutation({
     mutationFn: (name: string) => createBundle<BundleSummary>(name),
     onSuccess: () => {
       setNome('');
       setErroCriacao(null);
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      // B-052 — invalida a RAIZ do dominio. As chaves literais que estavam aqui
+      // deixaram de ser lidas no instante em que as paginas migraram: manter uma
+      // delas seria invalidar o que ninguem le, e a lista mostraria dado velho.
+      invalidarBundles();
     },
     // A mensagem do serviço é preferida à nossa: ela nomeia o motivo (falta de escopo, nome em
     // uso), enquanto qualquer paráfrase nossa envelhece na primeira mudança do backend.
@@ -187,7 +187,7 @@ export function BundlesPage() {
           columns={columns}
           data={rows}
           rowKey={(row) => row.bundle_id}
-          loading={query.isLoading}
+          loading={query.loading}
           emptyState={
             <EmptyState
               icon={Package}

@@ -1,5 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
+
+/**
+ * B-024 (classe) — sessoes acumulam com o uso e o seletor baixava todas para
+ * montar um <select>. Um workspace ativo por meses derruba a propria tela de
+ * memoria pelo peso do dropdown.
+ *
+ * 100 e escolha: um <select> nativo com mais que isso ja e inutilizavel como
+ * navegacao — quem tem mais sessoes chega nelas por deep link, e o caminho do
+ * deep link continua funcionando porque SessionSelectBase sintetiza a opcao
+ * desconhecida em vez de descartar o id da URL.
+ */
+const SESSION_PICKER_LIMIT = 100;
 
 /**
  * Session-separation (2026-07-23) — the M8 scope switcher.
@@ -22,12 +34,17 @@ function useSessionsQuery() {
     queryKey: ['cloud', '/v1/dashboard/memory/sessions'] as const,
     queryFn: () =>
       cloudFetch<{ sessions: SessionRow[] }>(
-        '/v1/dashboard/memory/sessions',
+        `/v1/dashboard/memory/sessions?limit=${SESSION_PICKER_LIMIT}`,
         {},
         { throwOnError: true },
       ),
     // Sessions change slowly; keep the picker snappy without hammering the BFF.
-    staleTime: 60_000,
+    //
+    // B-077 — o `staleTime: 60_000` que estava aqui REPETIA o default global
+    // (`lib/http/query-client.ts`), entao nao declarava politica nenhuma: no dia
+    // em que o default mudasse, esta linha ficaria congelada sozinha e o
+    // comentario acima seguiria afirmando uma intencao que ela deixou de
+    // entregar. O default ja da os 60s, e agora muda para todo mundo de uma vez.
   });
 }
 

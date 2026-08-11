@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from '@testing-library/user-event';
 import { render, screen, within } from '@/test/render';
 
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http/api';
 
 vi.mock('@/hooks/use-auth', () => ({
   useRequireAuth: () => ({ active: true, identity: { id: 't', traits: { email: 'u@x.com' } } }),
@@ -10,8 +10,8 @@ vi.mock('@/hooks/use-auth', () => ({
 
 const mockList = vi.fn();
 const mockDelete = vi.fn();
-vi.mock('@/components/trust/trust-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/components/trust/trust-api')>();
+vi.mock('@/hooks/trust/trust-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/trust/trust-api')>();
   return {
     ...actual,
     fetchValidators: (...a: unknown[]) => mockList(...a),
@@ -44,7 +44,7 @@ async function openRemovalDialog() {
   const user = userEvent.setup();
   render(<TrustGuardrailsPage />);
   await screen.findByText('termos-internos');
-  await user.click(within(rowOf('termos-internos')).getByRole('button', { name: /remover/i }));
+  await user.click(within(rowOf('termos-internos')).getByRole('button', { name: /remove/i }));
   return user;
 }
 
@@ -69,20 +69,20 @@ describe('TrustGuardrailsPage', () => {
     const row = await screen.findByRole('row', { name: /credential-mask/ });
 
     // Ausência, não `disabled` — ADR D2. Um botão cinza convidaria a procurar como habilitá-lo.
-    expect(within(row).queryByRole('button', { name: /remover/i })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /remove/i })).not.toBeInTheDocument();
   });
 
   it('oferece remoção apenas na linha do tenant', async () => {
     render(<TrustGuardrailsPage />);
     await screen.findByText('termos-internos');
 
-    expect(within(rowOf('termos-internos')).getByRole('button', { name: /remover/i })).toBeInTheDocument();
+    expect(within(rowOf('termos-internos')).getByRole('button', { name: /remove/i })).toBeInTheDocument();
   });
 
   it('exige a frase digitada antes de remover', async () => {
     const user = await openRemovalDialog();
 
-    const confirm = await screen.findByRole('button', { name: /remover guardrail/i });
+    const confirm = await screen.findByRole('button', { name: /remove guardrail/i });
     expect(confirm).toBeDisabled();
     expect(mockDelete).not.toHaveBeenCalled();
 
@@ -96,8 +96,8 @@ describe('TrustGuardrailsPage', () => {
   it('declara que uma proteção deixa de valer — não que "o item some da lista"', async () => {
     await openRemovalDialog();
 
-    expect(await screen.findByText(/deixam de ser bloqueados/i)).toBeInTheDocument();
-    expect(screen.getByText(/não pode ser desfeita/i)).toBeInTheDocument();
+    expect(await screen.findByText(/stop being blocked/i)).toBeInTheDocument();
+    expect(screen.getByText(/cannot be undone/i)).toBeInTheDocument();
   });
 
   it('falha na remoção mantém a linha e mostra a mensagem do serviço', async () => {
@@ -106,7 +106,7 @@ describe('TrustGuardrailsPage', () => {
     );
     const user = await openRemovalDialog();
     await user.type(await screen.findByRole('textbox'), 'termos-internos');
-    await user.click(await screen.findByRole('button', { name: /remover guardrail/i }));
+    await user.click(await screen.findByRole('button', { name: /remove guardrail/i }));
 
     expect(await screen.findByText('validator is referenced by an active policy')).toBeInTheDocument();
     // Sumir otimisticamente diria que a proteção acabou quando ela continua valendo.
@@ -117,15 +117,15 @@ describe('TrustGuardrailsPage', () => {
     mockList.mockRejectedValueOnce(new ApiError(502));
     render(<TrustGuardrailsPage />);
 
-    expect(await screen.findByText(/não foi possível carregar o catálogo/i)).toBeInTheDocument();
-    expect(screen.getByText(/NÃO significa que não há guardrails ativas/i)).toBeInTheDocument();
+    expect(await screen.findByText(/could not load the catalog/i)).toBeInTheDocument();
+    expect(screen.getByText(/does NOT mean there are no active guardrails/i)).toBeInTheDocument();
   });
 
   it('catálogo vazio convida a criar a primeira', async () => {
     mockList.mockResolvedValue({ validators: [] });
     render(<TrustGuardrailsPage />);
 
-    expect(await screen.findByText(/nenhuma guardrail ativa/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /criar a primeira guardrail/i })).toBeInTheDocument();
+    expect(await screen.findByText(/no active guardrail/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /create the first guardrail/i })).toBeInTheDocument();
   });
 });

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useCollections } from '@/hooks/rag/use-collections';
 import { Card, MetricCard, PageShell, Select, Skeleton } from '@usetheo/ui';
 import { Alert } from '@/components/ui/alert-guard';
 
 import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
 
 /**
  * M21 + v8-M7 — /rag/analytics. Read-only usage/cost/latency for the caller's workspace,
@@ -17,10 +18,6 @@ import { cloudFetch } from '@/lib/api';
  * selected the M5 summary is shown alone (backward-compat).
  */
 
-interface Collection {
-  id: string;
-  name: string | null;
-}
 
 interface AnalyticsResult {
   window: { since: string };
@@ -55,10 +52,7 @@ export function RagAnalyticsPage() {
 
   const [collectionID, setCollectionID] = useState('');
 
-  const collectionsQuery = useQuery({
-    queryKey: ['cloud', '/v1/dashboard/rag/collections'] as const,
-    queryFn: () => cloudFetch<{ items: Collection[] }>('/v1/dashboard/rag/collections', {}, { throwOnError: true }),
-  });
+  const collectionsQuery = useCollections();
 
   // When a collection is picked, the fetch key changes AND the URL carries
   // `?collection_id=` — theo-rag rc.80+ attaches the `scale` block only then.
@@ -67,7 +61,7 @@ export function RagAnalyticsPage() {
     : '/v1/dashboard/rag/analytics';
   const query = useQuery({
     queryKey: ['cloud', '/v1/dashboard/rag/analytics', collectionID] as const,
-    // silent-null-ok: o consumo deste hook ja trata `null` resolvido como erro (`isError || (isFetched && data === null)`), entao a falha nao vira estado vazio. #274
+    // silent-null-ok: ESTE hook mapeia `null` resolvido para o campo `error` que ele devolve (`isError || (isFetched && data === null)`), entao a falha nao se perde AQUI. B-094: isso NAO garante que a tela leia esse `error` — medi e varias nao liam, e o onboarding chegava a afirmar 'faca login' a quem estava logado. Quem consome este hook e responsavel por ler `error`; o marcador cobre so a metade de cima. #274
     queryFn: () => cloudFetch<AnalyticsResult>(analyticsPath),
   });
 

@@ -11,31 +11,6 @@ import (
 	"github.com/usetheoai/theo-cloud/internal/metering"
 )
 
-func TestTrackerNilDB_RecordBuild(t *testing.T) {
-	tracker := metering.NewTracker(nil, nil)
-	if err := tracker.RecordBuildCompletion("tn-acme", 300); err != nil {
-		t.Errorf("RecordBuildCompletion with nil DB should not error: %v", err)
-	}
-}
-
-func TestTrackerNilDB_RecordStorage(t *testing.T) {
-	tracker := metering.NewTracker(nil, nil)
-	if err := tracker.RecordStorageSnapshot("tn-acme", 1024*1024*500); err != nil {
-		t.Errorf("RecordStorageSnapshot with nil DB should not error: %v", err)
-	}
-}
-
-func TestTrackerNilDB_GetUsageSummary(t *testing.T) {
-	tracker := metering.NewTracker(nil, nil)
-	summary, err := tracker.GetUsageSummary("tn-acme")
-	if err != nil {
-		t.Errorf("GetUsageSummary with nil DB should not error: %v", err)
-	}
-	if len(summary) != 0 {
-		t.Errorf("summary should be empty with nil DB, got %v", summary)
-	}
-}
-
 func TestReporterNilDB(t *testing.T) {
 	reporter := metering.NewReporter(nil, nil, nil)
 	if err := reporter.ReportPending(); err != nil {

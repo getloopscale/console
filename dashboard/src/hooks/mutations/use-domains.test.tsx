@@ -6,7 +6,7 @@ import { createElement, type ReactNode } from 'react';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useAddDomain, useDeleteDomain, useVerifyDomain } from './use-domains';
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   engineFetch: vi.fn(async () => ({ domain: 'app.exemplo.com', status: 'pending' })),
 }));
 

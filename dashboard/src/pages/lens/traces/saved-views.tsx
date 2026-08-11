@@ -5,10 +5,12 @@ import {
   Button,
   Input,
 } from '@usetheo/ui';
-import { Dialog } from '@/components/ui/dialog';
+import { AppModal } from '@/components/ui/app-modal';
+import { ListTruncationNotice } from '@/components/ui/list-truncation-notice';
 import { ConfirmDialog } from '@/components/dialogs/confirm-dialog';
 
-import { cloudFetch } from '@/lib/api';
+import { cloudFetch } from '@/lib/http/api';
+import { LIST_SAFETY_CEILING } from '@/lib/http/list-ceiling';
 
 export interface SavedView {
   id: string;
@@ -17,6 +19,11 @@ export interface SavedView {
 }
 interface SavedViewsResult {
   saved_views: SavedView[];
+  /**
+   * B-114 — o servidor aplica um teto de 100 e passou a DIZER quando ele mordeu. Antes a 101ª
+   * view sumia em silêncio: a tela mostrava 100 e nada indicava que havia mais.
+   */
+  has_more?: boolean;
 }
 
 /** Return the query string with a `viewId=` handle set (so the applied view is shareable by URL). */
@@ -48,11 +55,12 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
   const savedViewsKey = ['cloud', '/v1/dashboard/lens/saved-views'] as const;
   const savedViews = useQuery({
     queryKey: savedViewsKey,
-    queryFn: () => cloudFetch<SavedViewsResult>('/v1/dashboard/lens/saved-views', {}, { throwOnError: true }),
+    queryFn: () => cloudFetch<SavedViewsResult>(`/v1/dashboard/lens/saved-views?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
   });
   const invalidateViews = () => void queryClient.invalidateQueries({ queryKey: savedViewsKey });
 
   const views = savedViews.data?.saved_views ?? [];
+  const truncou = savedViews.data?.has_more === true;
 
   // M59 P3 — a view is shareable via a `?viewId=` handle: applying appends it (the active view is
   // highlighted); opening a bare `?viewId=X` link applies that view's stored query string ONCE (a ref
@@ -124,20 +132,23 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
           Save current view
         </Button>
       </div>
+      <ListTruncationNotice temMais={truncou} total={views.length} substantivo="saved views" />
 
       {/* M59 P3 — the naming Dialog (replaces the inline form). The stored query_string is the whole
           filter URL — including the M59 `cols=` (column visibility) + `density=` params — so a saved
           view captures the columns + density with no schema change (ADR D4). */}
-      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
-        <Dialog.Content>
-          <Dialog.Header>
-            <Dialog.Title>Save current view</Dialog.Title>
-            <Dialog.Description>
-              Names this filter, column, and density combination for one-click recall (per workspace).
-            </Dialog.Description>
-          </Dialog.Header>
-          <Dialog.Body>
-            <form
+      <AppModal
+      open={saveOpen}
+      onClose={() => setSaveOpen(false)}
+      title={<>Save current view</>}
+      description={<>Names this filter, column, and density combination for one-click recall (per workspace).</>}
+      footer={<><Button type="button" variant="ghost" onClick={() => setSaveOpen(false)}>
+              Cancel
+            </Button><Button type="submit" form="save-view-form" disabled={!viewName.trim() || createView.isPending}>
+              Save
+            </Button></>}
+    >
+      <form
               id="save-view-form"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -156,17 +167,7 @@ export function SavedViewsBar({ searchParams, onApply }: SavedViewsBarProps) {
                 autoFocus
               />
             </form>
-          </Dialog.Body>
-          <Dialog.Footer>
-            <Button type="button" variant="ghost" onClick={() => setSaveOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" form="save-view-form" disabled={!viewName.trim() || createView.isPending}>
-              Save
-            </Button>
-          </Dialog.Footer>
-        </Dialog.Content>
-      </Dialog>
+    </AppModal>
 
       {pendingView !== null ? (
         <ConfirmDialog

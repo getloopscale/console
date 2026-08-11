@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { formatCost } from '@/lib/format';
+import { formatCost } from '@/lib/formatting/format';
 import {
   TRACING_OVERVIEW_TEMPLATE,
   WIDGET_TYPES,

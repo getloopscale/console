@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && node scripts/check-guard-pairs.mjs && node scripts/check-knip-ratchet.mjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "postinstall": "patch-package",
@@ -17,37 +17,37 @@
     "bundle:analyze": "ANALYZE=true vite build",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
-    "tree-shake-check": "npm run build && if grep -q 'lib/mocks' dist/assets/*.js; then echo 'FAIL: mocks chunk leaked into prod bundle (T7.1 / EC-10 of plan 2026-05-27-backend-frontend-integration v1.1)'; exit 1; else echo 'PASS: mocks tree-shaken from prod bundle'; fi",
+    "tree-shake-check": "npm run build && node scripts/check-mocks-tree-shaken.mjs",
     "test:e2e": "playwright test"
   },
   "size-limit": [
     {
-      "name": "01 \u2014 react-vendor (React 19 runtime) [eager]",
+      "name": "01 — react-vendor (React 19 runtime) [eager]",
       "path": "dist/assets/react-vendor-*.js",
       "limit": "55 KB"
     },
     {
-      "name": "02 \u2014 router (react-router-dom) [eager]",
+      "name": "02 — router (react-router-dom) [eager]",
       "path": "dist/assets/router-*.js",
       "limit": "15 KB"
     },
     {
-      "name": "03 \u2014 app entry [eager]",
+      "name": "03 — app entry [eager]",
       "path": "dist/assets/entry-*.js",
       "limit": "25 kB"
     },
     {
-      "name": "04 \u2014 vendor (node_modules eager, pos B-021/B-073)",
+      "name": "04 — vendor (node_modules eager, pos B-021/B-073)",
       "path": "dist/assets/vendor-*.js",
       "limit": "230 kB"
     },
     {
-      "name": "05 \u2014 per-route chunk (worst-case, lazy)",
+      "name": "05 — per-route chunk (worst-case, lazy)",
       "path": "dist/assets/register-*.js",
       "limit": "10 KB"
     },
     {
-      "name": "TOTAL EAGER \u2014 HARD GATE (os 4 chunks com modulepreload no index.html, brotli)",
+      "name": "TOTAL EAGER — HARD GATE (os 4 chunks com modulepreload no index.html, brotli)",
       "path": [
         "dist/assets/entry-*.js",
         "dist/assets/react-vendor-*.js",
@@ -85,6 +85,7 @@
     "react-syntax-highlighter": "^15.6.6",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^2.6.1",
     "tiptap-markdown": "^0.8.10",
     "web-vitals": "^5.2.0"
   },
@@ -94,6 +95,7 @@
     "@playwright/test": "^1.60.0",
     "@size-limit/preset-app": "^12.1.0",
     "@storybook/addon-essentials": "^8.6.14",
+    "@storybook/react": "^8.6.18",
     "@storybook/react-vite": "^8.6.18",
     "@tailwindcss/postcss": "^4.3.0",
     "@tailwindcss/typography": "^0.5.20",
@@ -105,6 +107,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "^4.3.0",
     "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^10.4.0",
     "globals": "^17.6.0",
     "jsdom": "^29.1.1",
     "patch-package": "^8.0.1",

@@ -17,7 +17,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { render, screen } from '@/test/render';
-import { ApiKeysPage } from './pages/api-keys';
+import { ApiKeysPage } from './pages/settings/api-keys';
 
 // Stub component used by the previews-redirect test below. Asserts on the
 // query string of the destination so the test can prove ?project=<slug> was
@@ -53,7 +53,7 @@ vi.mock('@/hooks/use-auth', () => ({
 }));
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
   engineFetch: (...args: unknown[]) => mockCloudFetch(...args),
 }));

@@ -3,7 +3,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NuqsAdapter } from 'nuqs/adapters/react-router/v7';
 import { Toaster } from '@usetheo/ui';
-import { ThemeProvider, violetForge } from '@theokit/ui';
+import { ThemeProvider } from '@theokit/ui';
+import { TEMA_THEO } from '@/lib/theme/theo-theme';
 import { PageMetaProvider } from '@/hooks/use-page-meta';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -36,7 +37,11 @@ function AllProviders({ children, initialEntries = ['/'] }: RenderProvidersProps
   // NuqsAdapter MUST be inside MemoryRouter (consumes router context).
   return (
     <QueryClientProvider client={client}>
-      <ThemeProvider themes={[violetForge]} defaultTheme="violet-forge" defaultMode="dark">
+      {/* B-007 — a MESMA config do app (`lib/theme/theo-theme.ts`), e não uma
+          cópia. Antes daqui a árvore de teste montava o `violetForge` cru e
+          seguia o `prefers-color-scheme` do ambiente: a suíte inteira
+          renderizava em modo CLARO, com um `--primary` que o app nunca mostra. */}
+      <ThemeProvider {...TEMA_THEO}>
         <Toaster>
           <MemoryRouter initialEntries={initialEntries}>
             <NuqsAdapter>

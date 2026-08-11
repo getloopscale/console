@@ -12,7 +12,7 @@ vi.mock('@/hooks/use-auth', () => ({
 }));
 
 const mockCloudFetch = vi.fn();
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/http/api', () => ({
   cloudFetch: (...args: unknown[]) => mockCloudFetch(...args),
   getApiBase: () => '',
 }));

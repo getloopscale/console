@@ -43,7 +43,7 @@ COPY theo-contracts/ /theo-contracts/
 # — relative paths cannot escape the BuildKit chroot).
 COPY theo-cloud/go.mod theo-cloud/go.sum ./
 RUN echo "" >> go.mod && \
-    echo "replace github.com/usetheodev/theo-contracts => /theo-contracts" >> go.mod
+    echo "replace github.com/usetheoai/theo-contracts => /theo-contracts" >> go.mod
 
 # Download deps WITHOUT a gomod_token mount — the replace resolves theo-contracts
 # locally, and every OTHER dep is public.
@@ -56,7 +56,7 @@ COPY theo-cloud/openapi/ ./openapi/
 
 RUN --mount=type=cache,target=/root/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /cloud-api ./cmd/main.go
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /cloud-api ./cmd
 
 # Distroless static runtime — byte-identical posture vs. canonical Dockerfile.
 FROM gcr.io/distroless/static-debian12:nonroot
