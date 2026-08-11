@@ -2,6 +2,8 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** the documentation stopped stating measurements that the code had moved past. Fourteen places asserted a count, a size cap or a file path that no longer held — the architecture record claimed 28 component subfolders where there are 9, the UI contract claimed 183 files importing the design system where there are 198, and three documents pointed at files that do not exist anywhere. All corrected, and — more to the point — a guard now re-measures every one of them on each test run and fails when a document and the disk disagree (B-158, B-159, B-199, B-200, B-201, B-202, B-204, B-205, B-207, B-208, B-209, B-210, B-211, B-212).
+
 - **theo-cloud/dashboard:** a malformed message from another browser tab can no longer log you out or crash the tab that receives it. The channel that coordinates logout across tabs trusted whatever arrived on it — an empty message threw inside the handler, and any message merely shaped like a logout wiped the credential (B-234).
 - **theo-cloud/dashboard:** when the server refuses an action because of a plan limit, the dialog that explains why no longer crashes if the server's answer is shaped unexpectedly. It was reading the response body without checking it, at the exact moment the user most needs the explanation (B-236).
 

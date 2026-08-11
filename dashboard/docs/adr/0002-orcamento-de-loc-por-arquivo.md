@@ -38,7 +38,7 @@ folhas e ignorada na raiz. Ha 32 arquivos `.tsx` acima de 400 LoC, somando 17.73
 ## Decisao
 
 Adotar a **opcao 2**. `eslint.config.js` passa a declarar `max-lines` com limite 500 para
-`src/**/*.tsx` e `src/**/*.ts`, acompanhado de uma **allowlist explicita dos 32 arquivos
+`src/**/*.tsx` e `src/**/*.ts`, acompanhado de uma **allowlist explicita dos 15 arquivos
 atuais** que excedem o limite. A allowlist e congelada: nenhum arquivo novo entra nela, e
 cada arquivo removido dela e um item fechado. `src/pages/login-loc-budget.test.ts` e
 substituido pela regra generalizada.

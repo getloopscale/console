@@ -219,7 +219,7 @@ export default [
   // executavel e o pior dos tres estados — cara de cumprir, impossivel de
   // auditar, indistinguivel de folclore.
   //
-  // Esta regra NAO pede refactor: ela trava a divida onde esta. Os 18 arquivos
+  // Esta regra NAO pede refactor: ela trava a divida onde esta. Os 15 arquivos
   // que hoje excedem estao listados com o seu tamanho atual, entao a divida e
   // visivel no diff em vez de invisivel no disco. A lista NAO deve crescer; ela
   // encolhe conforme os arquivos sao decompostos (ADR-0002).

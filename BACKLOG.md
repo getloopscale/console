@@ -5742,7 +5742,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DOGFOOD-dogfood-md-documents-two-npm-scripts`). Source: code-review finding #10, `code-review-output/code-review.db`.
 
-## B-158 — DOGFOOD.md states a 180 KB brotli bundle cap; the enforced size-limit gate caps 320 kB   [ ]
+## B-158 — DOGFOOD.md states a 180 KB brotli bundle cap; the enforced size-limit gate caps 320 kB   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5755,7 +5755,11 @@ evidence: |
   DOGFOOD.md:13 — "npm run size                      # size-limit cap (180 KB brotli)"  ||  DOGFOOD.md:173 — "- [ ] Production build green + bundle <180 KB brotli cap"  ||  package.json:50-57 — {"name": "TOTAL EAGER — HARD GATE (os 4 chunks com modulepreload no index.html, brotli)", "limit": "320 kB"}
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DOGFOOD.md:13`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -5766,7 +5770,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DOGFOOD-dogfood-md-states-a-180-kb`). Source: code-review finding #11, `code-review-output/code-review.db`.
 
-## B-159 — docs/architecture.md presents stale measurements as current fact (app.tsx 757 LoC, promptly/detail.tsx 916 LoC   [ ]
+## B-159 — docs/architecture.md presents stale measurements as current fact (app.tsx 757 LoC, promptly/detail.tsx 916 LoC   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5779,7 +5783,11 @@ evidence: |
   docs/architecture.md:99 — "`app.tsx` tem 757 linhas — 49 a mais que o `trace-detail.tsx`" vs `wc -l src/app.tsx` = 226  ||  docs/architecture.md:106 — "`pages/promptly/detail.tsx`, 916 LOC num unico componente com 15 `useState` e 9 `useQuery`" vs `wc -l src/pages/promptly/detail.tsx` = 465  ||  docs/architecture.md:53 — "Hoje existe **um** (`components/layout/index.ts` ...) nas **28** subpastas de `src/components/`" vs `find src/components -mindepth 1 -type d | wc -l` = 9  ||  docs/architecture.md:25 cites `components/lens/ask-thread.tsx`; that directory no longer exists (file is now src/pages/lens/components/ask-thread.tsx)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/architecture.md:99`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7066,7 +7074,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-manual-chunks-self-defect-this-audit-own-phase`). Source: code-review finding #113, `code-review-output/code-review.db`.
 
-## B-199 — Stale TODO in app-sidebar doc comment describes a hard-coded plan tier the file no longer renders   [ ]
+## B-199 — Stale TODO in app-sidebar doc comment describes a hard-coded plan tier the file no longer renders   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7083,7 +7091,11 @@ evidence: |
   $ grep -rn "hobby" src --include=*.tsx --include=*.ts | grep -v .test. -> src/pages/settings/billing.tsx:100 (PLAN_TIER_MAP, API-driven) and the comment above
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/layout/app-sidebar.tsx:42`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7094,7 +7106,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-app-sidebar-stale-todo-in-app-sidebar-doc`). Source: code-review finding #14, `code-review-output/code-review.db`.
 
-## B-200 — docs/architecture.md says eight ADRs await acceptance; there are 14 ADRs, 8 already accepted   [ ]
+## B-200 — docs/architecture.md says eight ADRs await acceptance; there are 14 ADRs, 8 already accepted   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7107,7 +7119,11 @@ evidence: |
   docs/architecture.md:112 — "`docs/adr/`. Oito ADRs em `status: proposed`, aguardando aceite do time"  ||  `head -3` of each file in docs/adr/ shows status: accepted in 0001, 0003, 0004, 0010, 0011, 0012, 0013, 0014 and status: proposed in 0002, 0005, 0006, 0007, 0008, 0009 (14 files total)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/architecture.md:112`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7118,7 +7134,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-architecture-docs-architecture-md-says-eight-adrs`). Source: code-review finding #16, `code-review-output/code-review.db`.
 
-## B-201 — docs/architecture.md cites system-design-output/final_report.md as the provenance of every number; the path do   [ ]
+## B-201 — docs/architecture.md cites system-design-output/final_report.md as the provenance of every number; the path do   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7131,7 +7147,11 @@ evidence: |
   docs/architecture.md:16 — "cujo relatorio esta em `system-design-output/final_report.md`"  ||  docs/architecture.md:123 — "Relatorio completo em `system-design-output/final_report.md`"  ||  `find /home/paulo/Projetos/theo/theo-platform/theo-cloud -maxdepth 3 -name system-design-output -not -path "*/node_modules/*"` returns nothing
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/architecture.md:16`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7142,7 +7162,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-architecture-docs-architecture-md-cites-system-design`). Source: code-review finding #17, `code-review-output/code-review.db`.
 
-## B-202 — Four duplicate page exports, two of which are alias exports with zero importers   [ ]
+## B-202 — Four duplicate page exports, two of which are alias exports with zero importers   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7159,7 +7179,11 @@ evidence: |
   src/pages/promptly/diff.tsx:72 export function PromptlyDiffPage() / :235 export default PromptlyDiffPage;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/exports.tsx:212`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7198,7 +7222,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-types-84-exported-types-are-never-imported`). Source: code-review finding #19, `code-review-output/code-review.db`.
 
-## B-204 — DESIGN.md prescribes composites and an onboarding route sequence that do not exist in the codebase   [ ]
+## B-204 — DESIGN.md prescribes composites and an onboarding route sequence that do not exist in the codebase   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7211,7 +7235,11 @@ evidence: |
   DESIGN.md:126-127 — "| Deploy progress | `DeployTimeline` + `BuildStepList` |" / "| Canary | `CanaryProgress` |"  ||  `grep -rl BuildStepList src/` and `grep -rl CanaryProgress src/` return zero files (DeployTimeline returns 7)  ||  DESIGN.md:315-322 lists /onboarding/{welcome,github,repo,configure,deploy,streaming,success}  ||  `grep -rn onboarding src/routes/*.tsx src/app.tsx` returns nothing; ls src/components/onboarding/ shows only onboarding-panel.tsx
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:126`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7222,7 +7250,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-prescribes-composites-and-an`). Source: code-review finding #21, `code-review-output/code-review.db`.
 
-## B-205 — DESIGN.md points UX instrumentation at src/lib/rum.ts; the module lives in src/lib/telemetry/ and ux-metrics.t   [ ]
+## B-205 — DESIGN.md points UX instrumentation at src/lib/rum.ts; the module lives in src/lib/telemetry/ and ux-metrics.t   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7235,7 +7263,11 @@ evidence: |
   DESIGN.md:683 — "Instrumentation lives in `cloud/dashboard/src/lib/rum.ts` (Web Vitals already wired) + new `lib/ux-metrics.ts` (planned T4.7)."  ||  `ls src/lib/` shows no rum.ts and no ux-metrics.ts; `ls src/lib/telemetry/` shows error-reporter.ts, error-reporter.test.ts, rum.ts, rum.test.ts  ||  `grep -rl ux-metrics src/` returns zero files
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:683`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7273,7 +7305,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-settings-routes-two-placeholder-routes-are-unreachable-from`). Source: code-review finding #23, `code-review-output/code-review.db`.
 
-## B-207 — DESIGN.md Cross-references section points at four knowledge-base paths that do not exist   [ ]
+## B-207 — DESIGN.md Cross-references section points at four knowledge-base paths that do not exist   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7286,7 +7318,11 @@ evidence: |
   DESIGN.md:809-812 cites `.claude/knowledge-base/audits/2026-05-25/dashboard-faang-review.md`, `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-plan.md`, `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-edge-cases.md`, `.claude/knowledge-base/architecture/dashboard/`  ||  `ls theo-cloud/.claude/knowledge-base/` = adrs audits backlog discoveries grills implementations plans reviews roadmap-runs (no architecture/)  ||  `ls .claude/knowledge-base/audits/2026-05-25/` = no such directory  ||  `find theo-cloud -name "*faang*" -not -path "*/node_modules/*"` returns nothing  ||  DOGFOOD.md:147-149 cites the same missing audit file
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:809`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7297,7 +7333,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-cross-references-section-points`). Source: code-review finding #24, `code-review-output/code-review.db`.
 
-## B-208 — DESIGN.md § 3 dependency-reach measurements are stale (183 vs 231 importers; 3 vs 5 files)   [ ]
+## B-208 — DESIGN.md § 3 dependency-reach measurements are stale (183 vs 231 importers; 3 vs 5 files)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7310,7 +7346,11 @@ evidence: |
   DESIGN.md:93-94 — "| `@usetheo/ui` | `0.35.1` | components | 183 files import it |" / "| `@theokit/ui` | `1.3.2` | the theme ... | 3 files, 4 symbols |"  ||  `grep -rl "@usetheo/ui" src/ | wc -l` = 231  ||  `grep -rln "@theokit/ui" src/` = src/main.tsx, src/test/render.tsx, src/lib/theme/theo-theme.ts, src/pages/settings/billing.tsx, src/pages/overview/overview.tsx, src/index.primary-token.test.ts, src/pages/lens/traces.test.tsx, src/pages/lens/compare.test.tsx, src/pages/lens/traces/columns-toggle.test.tsx
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:93`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7321,7 +7361,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-3-dependency-reach-measurements`). Source: code-review finding #25, `code-review-output/code-review.db`.
 
-## B-209 — DESIGN.md file:line pointers into the source are stale (index.css, top-bar.tsx, settings.tsx/profile.tsx)   [ ]
+## B-209 — DESIGN.md file:line pointers into the source are stale (index.css, top-bar.tsx, settings.tsx/profile.tsx)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7334,7 +7374,11 @@ evidence: |
   DESIGN.md:139 "`--motion-{instant,fast,base,slow}` in `index.css:113-119`" vs src/index.css:108 `--motion-instant: 0ms;` .. :111 `--motion-slow: 320ms;`  ||  DESIGN.md:466 "Already partially done in `cloud/dashboard/src/index.css:122-136`" vs src/index.css:181 `@media (prefers-reduced-motion: reduce) {`  ||  DESIGN.md:492 "NOT `<span>` like current `top-bar.tsx:67`" vs src/components/layout/top-bar.tsx:65-67 `<Select.Trigger aria-label="Select project" ...>`  ||  DESIGN.md:663 "the exact smoking gun in `settings.tsx:13-21` + `profile.tsx:30-40`" vs src/pages/settings/profile.tsx:31-40 "SG-05 CLOSED ... replaced setTimeout fake with real DELETE /api/v1/tenants/{id}" and no src/pages/settings.tsx exists
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:139`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7345,7 +7389,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-file-line-pointers-into`). Source: code-review finding #26, `code-review-output/code-review.db`.
 
-## B-210 — docs/adr/README.md contradicts itself on the ADR range and points at the wrong path for the nomenclature gate   [ ]
+## B-210 — docs/adr/README.md contradicts itself on the ADR range and points at the wrong path for the nomenclature gate   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7358,7 +7402,11 @@ evidence: |
   docs/adr/README.md:8 — "Arquivos neste diretorio: `0001-…` a `0009-…`." vs docs/adr/README.md:13-26 listing ADR-0001..ADR-0014, and `ls docs/adr/` showing 0001..0014 plus README.md  ||  docs/adr/README.md:62 — "`docs/adr/adr-nomenclature.test.ts` falha se a contagem de `ADR D<n>` no codigo crescer" vs actual location src/lib/adr-nomenclature.test.ts (verified: `find . -name "*nomenclature*"` = ./src/lib/adr-nomenclature.test.ts)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/adr/README.md:8`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7369,7 +7417,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-README-docs-adr-readme-md-contradicts-itself`). Source: code-review finding #31, `code-review-output/code-review.db`.
 
-## B-211 — docs/padronizacao-ui-2026-08-09.md still prescribes P1/P2 work that has already been executed, and references    [ ]
+## B-211 — docs/padronizacao-ui-2026-08-09.md still prescribes P1/P2 work that has already been executed, and references    [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7382,7 +7430,11 @@ evidence: |
   docs/padronizacao-ui-2026-08-09.md:217 — "### P2 — Migrar os 14 call sites de pagina e remover `ui/dialog`"; :230 — "**Pronto quando:** `components/ui/dialog.tsx` e deletado e a suite passa."  ||  `wc -l src/components/ui/dialog.tsx` = "Arquivo ou diretorio inexistente"; `ls src/components/ui/ | grep -i dialog` returns nothing  ||  `grep -rln "ui/dialog" src/` returns only files where the string appears inside comments (redeploy-dialog.tsx:63, confirm-dialog.test.tsx:138, redeploy-dialog.test.tsx:99, modal-primitive.test.ts, promote-to-production-dialog.test.tsx)  ||  doc:54 "`components/ui/dialog.tsx` (97 LoC) e `components/ui/app-modal.tsx` (104 LoC)" vs `wc -l src/components/ui/app-modal.tsx` = 148  ||  doc:10 "423 arquivos `.tsx`" vs `find src -name "*.tsx" | wc -l` = 434
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/padronizacao-ui-2026-08-09.md:217`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7393,7 +7445,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-padronizacao-ui-2026-08-09-docs-padronizacao-ui-2026-08-09`). Source: code-review finding #32, `code-review-output/code-review.db`.
 
-## B-212 — Three different sizes are given for the max-lines allowlist (ADR-0002 says 32, architecture.md says 18, eslint   [ ]
+## B-212 — Three different sizes are given for the max-lines allowlist (ADR-0002 says 32, architecture.md says 18, eslint   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7406,7 +7458,11 @@ evidence: |
   docs/adr/0002-orcamento-de-loc-por-arquivo.md § Decisao — "acompanhado de uma **allowlist explicita dos 32 arquivos atuais** que excedem o limite"  ||  docs/architecture.md:67 — "| `max-lines` (B-033) | 500 LOC por arquivo, com allowlist de 18 arquivos que carrega o LOC de cada um. |"  ||  eslint.config.js:222 — "Esta regra NAO pede refactor: ela trava a divida onde esta. Os 18 arquivos que hoje excedem estao listados" vs eslint.config.js:253-267 which lists 15 paths  ||  eslint.config.js:227-230 cites src/app.tsx as the flagship allowlist entry; app.tsx is absent from the list and is 226 lines
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/adr/0002-orcamento-de-loc-por-arquivo.md:15`.
-status: triaged
+status: shipped
+shipped_note: |
+  Closed by the docs-claims-guard slice.
+  The correction itself is one line of prose; what closes the item is `src/lib/docs-claims.test.ts`, which re-measures the claim against disk on every run and names both numbers when they disagree.
+  Hand-fixing was rejected with evidence: two of the numbers this slice corrects (`app.tsx` 226 -> 231, `.tsx` files 434 -> 437) drifted DURING the four hours the plan was being written.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
