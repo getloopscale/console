@@ -7298,7 +7298,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-exports-four-duplicate-page-exports-two-of`). Source: code-review finding #18, `code-review-output/code-review.db`.
 
-## B-203 — 84 exported types are never imported, concentrated in the API contract mirror src/lib/api/types.ts   [ ]
+## B-203 — 84 exported types are never imported, concentrated in the API contract mirror src/lib/api/types.ts   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7315,7 +7315,12 @@ evidence: |
   $ per-name grep across src/ excluding types.ts -> 0 importers for the 18 declarations listed above
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/api/types.ts:172`.
-status: triaged
+status: shipped
+shipped_note: |
+  Five types de-exported (`CommandCategory`, `GridColumns`, `AppModalSize`, `MenuGroup`, `MutationKind`) and the knip ratchet lowered 84 -> 79.
+  SCOPE CORRECTED, and this is the part worth keeping: the item's headline '84 exported types never imported, concentrated in src/lib/api/types.ts' could not be reproduced.
+  The reproducible number was 27 of 72 unimported names IN types.ts; 84 was the repo-wide count, which is a different claim about a different population.
+  The class is governed by a ratchet that can only descend, so what closes the item is a descent plus the corrected framing — not zero, which was never the target.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

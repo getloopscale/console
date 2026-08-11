@@ -31,7 +31,7 @@ import { execFileSync } from 'node:child_process';
  * catraca: o próprio erro abaixo instrui a baixar o teto quando o número desce, e este é o
  * primeiro registro disso acontecendo.
  */
-const TETO_TIPOS = 84;
+const TETO_TIPOS = 79;
 
 /** Estas classes foram zeradas e não voltam: uma dependência não declarada quebra o build de
  *  quem clona; um export duplicado é uma segunda porta para a mesma coisa. */

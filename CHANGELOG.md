@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** five types were exported for nobody and are now module-private, and the check that freezes that count dropped from 84 to 79. A type exported with no importer costs reading, not bytes: whoever opens the file to find a contract reads past declarations that no other file consumes (B-203).
+
 ### Fixed
 
 - **theo-cloud/dashboard:** four checks that were meant to prove a chart is hidden when its data could not be read were rewritten so they can actually fail. They asserted the absence of a table — but the chart draws no table when it has nothing to draw, so the assertion held whether the guard was there or not. They now assert the absence of the heading, which exists exactly when the chart block does (B-152, B-189).

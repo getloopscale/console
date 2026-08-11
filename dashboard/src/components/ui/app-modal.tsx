@@ -36,7 +36,7 @@ import { twMerge } from 'tailwind-merge';
  *
  * Controlled only: pass `open` + `onClose`. All exits (ESC / overlay / X) call `onClose`.
  */
-export type AppModalSize = 'sm' | 'md' | 'lg' | 'xl';
+type AppModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
 /** Size token → max-width. One width scale instead of an ad-hoc `max-w-*` per call site. */
 const SIZE_MAX_WIDTH: Record<AppModalSize, string> = {
