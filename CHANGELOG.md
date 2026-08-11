@@ -2,6 +2,8 @@
 
 ### Changed
 
+- **theo-cloud/dashboard:** a full 5-phase code review of the dashboard registered its findings as backlog items B-130..B-226 — 23 high, 46 medium, 28 low. Nineteen of the high findings are four recurring shapes rather than nineteen unrelated defects: a security guard that exists and is not called, a transport swap whose error policy did not follow, a readiness gate that is not settled-success, and a test that asserts the absence of something absent in both the passing and the failing case. Each item names its family so they can be closed together. The Portuguese/English findings were merged into the already-open B-128 rather than filed again (B-130..B-226).
+
 - **theo-cloud/dashboard:** every capability overview now shows a chart under its count cards. Counts say how much and never what kind — `3608 answers` reads the same whether they were confident or not, and `2 environments` never says which one serves everything. The chart form follows what each screen's data actually supports: bars for a distribution, a line only where there is a timestamp that exists in production (B-129).
 - **theo-cloud/dashboard:** the memory bars used to draw a visible sliver for a count of zero, so a workspace with nothing in it looked like a workspace with almost something (B-129).
 

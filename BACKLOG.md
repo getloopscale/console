@@ -4836,6 +4836,40 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-portuguese-strings`).
 
+### Merged in 2026-08-11 from the dashboard code review (ITEM_MERGED, gate G2)
+
+An AST pass (TypeScript compiler, declaration nodes only) over 775 files, binned by git
+creation date, quantifies what this item describes and changes its shape:
+
+| Period | Files | With pt identifiers |
+|---|---|---|
+| 2026-04 → 07 | 550 | 4.5% |
+| **2026-08** | **225** | **71.1%** |
+
+That is a 16x step change in one month — a convention SHIFT someone made, not drift that
+crept in. Two facts follow. Portuguese COMMENTS are long-standing while Portuguese
+IDENTIFIERS are new to August, so the two are separable decisions. And
+`src/test/i18n-guard.ts` already proves with a three-legged AST guard that ZERO Portuguese
+reaches the user interface — the product surface is clean and machine-enforced. What is
+left is the internal contradiction with the English-everywhere rule.
+
+Per-layer counts (declarations / files with pt identifiers, production vs test):
+
+- **#96** [medium] `src/pages/memory/overview.tsx:234` — An English docblock was replaced with a Portuguese one, against the project's explicit English-artifacts rule
+- **#97** [medium] `src/main.tsx:34` — pt-BR/English identifier mixing is a dated convention SHIFT, not drift: 4.5% -> 71.1% of new files in 2026-08
+- **#98** [medium] `src/pages/promptly/detail.tsx:421` — src/pages: 402 Portuguese declarations in 96 files, 59 of them production (pt/en mixing inside single expressions)
+- **#99** [medium] `src/routes/memory-routes.tsx:23` — src/routes: highest pt density in the codebase — 9 of 10 production files export Portuguese-named symbols consumed by src/app.tsx
+- **#100** [medium] `src/lib/auth/logout-cache-purge.ts:72` — src/lib: 122 Portuguese declarations in 31 files — including exported infrastructure such as purgarCachesDeDados()
+- **#101** [medium] `src/hooks/lens/use-traces.ts:51` — src/hooks: 75 Portuguese declarations in 29 files — exported React hooks and types mix languages (useCriarDatasetDeRegressao, ChaveDeAtributo)
+- **#102** [low] `src/test/arvore-estavel.ts:66` — src/test + src/build: Portuguese is the dominant language of the test harness and build config (51 declarations, incl. filename arvore-estavel.ts)
+- **#103** [low] `src/components/ui/modal-primitive.test.ts:76` — src/components: pt-BR confined to test files — production component code is 100% English (0 of 25 files)
+
+Aggravated instance: `src/pages/memory/overview.tsx:234` REPLACED an English docblock
+with a Portuguese one, in a file whose other added lines are English, in a commit that
+translated 'Tentar novamente' to 'Try again' in the same diff — so the rule was known.
+
+This needs a DECISION before it needs a sweep.
+
 ## B-129 — Four capability overviews have counts and no chart   [x]
 
 domain: frontend-dashboard
@@ -4897,3 +4931,2466 @@ dod:
   - a test fails when a new capability overview ships with counts and no chart
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `overviews-need-a-chart-under-the-counts`).
+
+## B-130 — recovery.tsx ignores the ACCOUNTS_URL runtime config the sibling auth module honors   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high
+category: completeness
+evidence: |
+  src/pages/auth/recovery.tsx:21
+  src/pages/auth/recovery.tsx:19-21 — import { API_URL } from '@/lib/http/config'; / const ACCOUNTS_URL = API_URL;  ||  src/pages/auth/kratos.ts:7-8 — import { API_URL, ACCOUNTS_URL as CONFIG_ACCOUNTS_URL } from '@/lib/http/config'; / const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL;  ||  grep of ACCOUNTS_URL across non-test src/ returns exactly these two declaration sites.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/recovery.tsx:21`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Replace recovery.tsx:19-21 with the kratos.ts form (import ACCOUNTS_URL as CONFIG_ACCOUNTS_URL; const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL), or import the resolved value from kratos.ts so one module owns the fallback
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-recovery-recovery-tsx-ignores-the-accounts-url`). Source: code-review finding #1, `code-review-output/code-review.db`.
+
+## B-131 — The shipped response-header CSP is strictly narrower than the meta CSP, silently revoking six allowances index   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high
+category: completeness
+evidence: |
+  nginx-security-headers.conf:31
+  nginx-security-headers.conf:31 — add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://auth.usetheo.dev https://cloud.usetheo.dev; ..." always;  ||  index.html:52 — <meta http-equiv="Content-Security-Policy" content="... img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https://checkout.stripe.com https://*.stripe.com https://auth.usetheo.dev https://auth-dev.usetheo.dev https://cloud.usetheo.dev https://cloud-dev.usetheo.dev https://storage.usetheo.dev https://storage-dev.usetheo.dev; ..." />  ||  nginx.conf:13,51,71,78,86 — include /etc/nginx/security-headers.conf;  ||  src/build/csp.test.ts asserts only that script-src lacks 'unsafe-inline' in index.html and dist/index.html — it never compares the two policies, so the drift is unguarded.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `nginx-security-headers.conf:31`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Derive both policies from one source of truth (generate the nginx snippet from the same directive list the meta uses, or drop the meta and keep only the header) and extend src/build/csp.test.ts to assert directive-by-directive that the head
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-nginx-security-headers-the-shipped-response-header-csp-is`). Source: code-review finding #3, `code-review-output/code-review.db`.
+
+## B-132 — Placeholder screens advertise theo CLI commands that do not exist (settings domain)   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high
+category: completeness
+evidence: |
+  src/routes/settings-routes.tsx:51
+  src/routes/settings-routes.tsx:51  cliCommand="theo billing status"
+  src/routes/settings-routes.tsx:89  cliCommand="theo notify list"
+  src/routes/settings-routes.tsx:106 cliCommand="theo team delete --confirm"
+  src/pages/sub-page-placeholder.tsx:49 description="This screen is part of the navigation but the full UI is still being built. Use the CLI below to do this today."
+  theo-cli/src/register/team.ts:17,21,51,82,112,148 -> team | list | add | remove | role | switch (no delete)
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/routes/settings-routes.tsx:51`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Either drop cliCommand for these three routes (the /databases precedent in src/app.tsx:180 is the governed answer), or replace each with a command that exists. Add a guard to placeholder-honesty.test.ts asserting every cliCommand names a co
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-settings-routes-placeholder-screens-advertise-theo-cli-commands`). Source: code-review finding #5, `code-review-output/code-review.db`.
+
+## B-133 — Placeholder screens advertise theo CLI commands that do not exist (profile domain)   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high
+category: completeness
+evidence: |
+  src/routes/profile-routes.tsx:32
+  src/routes/profile-routes.tsx:32 cliCommand="theo login --rotate-credentials"
+  src/routes/profile-routes.tsx:49 cliCommand="theo session list"
+  src/routes/profile-routes.tsx:66 cliCommand="theo account delete --confirm"
+  theo-cli registered top-level commands: audit, auth, billing, build, cancel, connect, deploy, disconnect, doctor, domain, env, login, logout, logs, preview, project, promote, rollback, scale, secret, status, storage, team, validate, whoami — no session, no account
+  theo-cli/src/register/auth.ts:21-36 login options: --token, --team, --refresh-token, --expires-in, --device-flow
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/routes/profile-routes.tsx:32`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Drop cliCommand on all three profile placeholders (matching the governed /databases precedent in src/app.tsx:180) until the corresponding CLI commands ship, and extend placeholder-honesty.test.ts with a cliCommand-exists assertion
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-profile-routes-placeholder-screens-advertise-theo-cli-commands`). Source: code-review finding #8, `code-review-output/code-review.db`.
+
+## B-134 — Overview project cards display a hardcoded deploy branch of main for every project   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high
+category: completeness
+evidence: |
+  src/pages/overview/overview.tsx:154
+  src/pages/overview/overview.tsx:144-154
+    // #120 (qa-dogfood-cleanup-2026-06-21 T4.1 / ADR-Q3):
+    // hardcoded 'main' is the legacy placeholder until
+    // the wire payload exposes `deploy_branch` for the listing.
+    branch: 'main',
+  node_modules/@usetheo/ui/dist/index.js:6040  project.branch  (rendered verbatim by ProjectCard)
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/overview/overview.tsx:154`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Until the projects summary payload exposes deploy_branch, render an honest unknown state rather than a plausible wrong one — pass an em-dash or omit the branch line entirely, consistent with the codebase-wide null-to-em-dash convention. Whe
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-overview-project-cards-display-a-hardcoded`). Source: code-review finding #9, `code-review-output/code-review.db`.
+
+## B-135 — Create team menu item does not create a team — it opens a docs page in a new tab   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high
+category: completeness
+evidence: |
+  src/components/layout/team-switcher.tsx:126
+  src/components/layout/team-switcher.tsx:126-138
+    <DropdownMenu.Item onSelect={() => { if (onCreateTeam) { onCreateTeam(); } else {
+      // Default: directs to CLI until backend POST /v1/teams ships
+      window.open('https://docs.usetheo.dev/teams/create', '_blank');
+    } }}>
+      <Plus className="size-4" aria-hidden="true" />
+      <span>Create team</span>
+  src/components/layout/app-sidebar.tsx:142  <TeamSwitcher fallbackName={userName} />   // onCreateTeam never supplied
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/layout/team-switcher.tsx:126`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Relabel the item to match what it does (e.g. How to create a team) with an external-link icon, or mark it with the same coming-soon treatment used elsewhere, until POST /v1/teams ships. Once the endpoint exists, wire onCreateTeam at the app
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-team-switcher-create-team-menu-item-does-not`). Source: code-review finding #12, `code-review-output/code-review.db`.
+
+## B-136 — Billing upgrade CTAs hardcode prices and quotas that the API already exposes   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high
+category: completeness
+evidence: |
+  src/pages/settings/billing.tsx:380
+  src/pages/settings/billing.tsx:374-384
+    aria-label="Upgrade to Pro — $29 per month"
+    ...
+    Upgrade to Pro — $29/mo
+    10 projects, 3 environments, 1000 builds/month
+  src/pages/settings/billing.tsx:394-400  aria-label="Upgrade to Team — $99 per month" / Upgrade to Team — $99/mo
+  src/pages/overview/components/overview-kpi-strip.tsx:15-17  export function formatPlanPrice(pp: OverviewPlanPrice | null): string { ... const amount = pp.amount_minor / 100;
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/settings/billing.tsx:380`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Bind the upgrade CTAs to the plan catalogue the API already returns (reuse formatPlanPrice from overview-kpi-strip rather than duplicating the formatting), and render the target-plan quotas from the same source as the current-plan rows. If
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-billing-billing-upgrade-ctas-hardcode-prices-and`). Source: code-review finding #13, `code-review-output/code-review.db`.
+
+## B-137 — The loading/error/empty/data ladder is a copy-pasted convention, not a primitive: 6 pages omit the error leg a   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high
+category: code
+family: F3 · a readiness gate that is not settled-success
+evidence: |
+  src/pages/infra/domains.tsx:189
+  CANONICAL (the ladder, written out by hand in 4+ domains):
+  src/pages/lens/sessions.tsx:185-192
+          {query.isLoading ? (
+            <ListSkeleton label="sessions" />
+          ) : query.isError ? (
+            <Alert intent="warning" title="Could not load sessions">
+          ) : sessions.length === 0 ? (
+            <EmptyState
+  src/pages/rag/collections.tsx:128-135  same four branches
+  src/pages/memory/memories.tsx:232-239 same four branches (error first)
+  
+  DIVERGENT — error leg absent:
+  src/pages/infra/domains.tsx:186-194
+    // ... e "nao consegui perguntar" — exatamente a classe que silent-null-guard fecha
+    // (#274). Com throwOnError a falha sobe para o RouteBoundary da rota.   <-- FALSE
+    const domainsQuery = useQuery({
+      queryKey: queryKeys.domains.list(),
+      queryFn: () => engineFetch<DomainsResponse>(`/api/v1/domains?limit=${LIST_SAFETY_CEILING}`, {}, { throwOnError: true }),
+    });
+    const data = domainsQuery.data ?? null;
+    const loading = domainsQuery.isLoading;      <-- isError never read
+    const domains = data?.domains ?? [];
+  src/pages/infra/domains.tsx:252-256
+        empty={ !loading && filtered.length === 0 ? { title: ... : "No custom domains yet" } : undefined }
+  
+  src/pages/settings/team.tsx:51-60 — identical shape, identical false RouteBoundary comment, :120 empty -> "No team members"
+  src/pages/settings/webhooks.tsx:343-349
+            {query.isLoading ? (
+              <p 
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/infra/domains.tsx:189`. It is one instance of F3 · a readiness gate that is not settled-success — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Extract the ladder into ONE primitive instead of continuing to copy it - the error leg then cannot be forgotten because it is a required prop. Two options already present in the codebase:
+(a) Use the design-system DataTable props that 11 pa
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-domains-the-loading-error-empty-data-ladder`). Source: code-review finding #39, `code-review-output/code-review.db`.
+
+## B-138 — Credentials POSTed to an unvalidated server-supplied URL (flow.ui.action)   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high
+category: security
+family: F1 · a security guard exists, is tested, and is not called
+nfr_tag: security
+evidence: |
+  src/pages/auth/login.tsx:230
+  const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = flow.ui.action;
+        for (const [k, v] of [
+          ['csrf_token', csrfNode?.attributes.value || ''],
+          ['method', 'password'],
+          ['identifier', email],
+          ['password', password],
+        ]) {
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/login.tsx:230`. It is one instance of F1 · a security guard exists, is tested, and is not called — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Gate every credential/flow destination through an allowlist before use: `if (!isSafeRedirectUrl(flow.ui.action)) { setNetworkError(true); return; }` (fail-closed, same shape as device-verify.tsx:75). Apply identically in oidc-form.ts, regis
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-login-credentials-posted-to-an-unvalidated-server`). Source: code-review finding #40, `code-review-output/code-review.db`.
+
+## B-139 — Logout silently proceeds to /login when the Kratos logout call fails — server session survives   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: error_handling
+nfr_tag: security
+evidence: |
+  src/lib/auth/session.ts:163
+  if (resp.ok) {
+        const data = await resp.json();
+        if (data.logout_url) {
+          window.location.href = data.logout_url;
+          return;
+        }
+      }
+    } catch {
+      // Fallback
+    }
+    window.location.href = '/login';
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/auth/session.ts:163`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Distinguish the outcomes: on a failed/incomplete Kratos logout, do not navigate to /login as if it succeeded. Report the error (reportEvent/reportError), and either retry once, or surface a blocking 'We could not fully sign you out — close
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-session-logout-silently-proceeds-to-login-when`). Source: code-review finding #41, `code-review-output/code-review.db`.
+
+## B-140 — getSession() null collapses transient token-exchange failures into a forced /login redirect   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: error_handling
+evidence: |
+  src/hooks/use-auth.ts:17
+  const s = await getSession();
+        if (!s) {
+          navigate('/login', { replace: true });
+          setChecked(true);
+          return;
+        }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/use-auth.ts:17`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Have `getSession()` return a discriminated result (`{kind:'session'} | {kind:'expired'} | {kind:'unavailable', status}`) instead of `Session | null`, or make `useRequireAuth` consult `sessionDefinitivelyExpired()` before redirecting: `if (!
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-auth-getsession-null-collapses-transient-token-exchange`). Source: code-review finding #42, `code-review-output/code-review.db`.
+
+## B-141 — Login page swallows both flow-hydration failures — Sign in button becomes a no-op with zero feedback   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: error_handling
+evidence: |
+  src/pages/auth/login.tsx:136
+  hydrate().catch(() => {
+        // Last-resort fallback: try once more without flow param.
+        hydrateFresh()
+          .then((fresh) => {
+            if (fresh) setFlow(fresh);
+          })
+          .catch(() => {});
+      });
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/login.tsx:136`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Replace the terminal empty catch with `setNetworkError(true)` (the banner already exists at line 330) and, in the non-throwing branches, treat `hydrateFresh()` returning null the same way — today `if (fresh) setFlow(fresh)` drops a null sil
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-login-login-page-swallows-both-flow-hydration`). Source: code-review finding #43, `code-review-output/code-review.db`.
+
+## B-142 — cloudFetch fabricates ApiError(429) for failures that were not rate limits — and retryGuard then refuses to re   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: high
+category: contract
+evidence: |
+  src/lib/http/api.ts:303
+  if (!sessionDefinitivelyExpired()) {
+        if (cfg.throwOnError === true) {
+          throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
+        }
+        return null;
+      }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:303`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Expose the recorded exchange status (`lastExchangeStatus`) and throw `new ApiError(lastExchangeStatus ?? 0, undefined, 'session token exchange failed')`, so status 0 = network, 429 = rate limit, 5xx = upstream. Then `retryGuard` retries 0/5
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-cloudfetch-fabricates-apierror-429-for-failures`). Source: code-review finding #44, `code-review-output/code-review.db`.
+
+## B-143 — Exponential backoff defeated by reopenAttempts reset on onopen — open/close cycle reconnects every ~750ms fore   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: concurrency
+family: F2 · a transport swap changed a callback's meaning; the policy did not follow
+regression_of: B-014
+nfr_tag: concurrency
+evidence: |
+  src/hooks/deploy/use-sse-stream.ts:192
+  es.onopen = () => {
+    if (cancelled) return;
+    failureCount = 0;
+    // Conexao boa: zera o backoff para que a proxima falha recomece curta.
+    reopenAttempts = 0;
+  ...
+  const tentativa = reopenAttempts;
+  reopenAttempts += 1;
+  const base = Math.min(1000 * 2 ** tentativa, MAX_REOPEN_DELAY_MS);
+  const delay = base / 2 + Math.random() * (base / 2);
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:192`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Two changes, both small. (1) Only reset the backoff after the connection has been stable for a while, not at onopen: record `openedAt` in onopen and reset `reopenAttempts` in onerror only when `Date.now() - openedAt > STABLE_CONNECTION_MS`
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-exponential-backoff-defeated-by-reopenattempts-reset`). Source: code-review finding #62, `code-review-output/code-review.db`.
+
+## B-144 — Every SSE error clears the application-wide access token, not just the SSE credential   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: error_handling
+family: F2 · a transport swap changed a callback's meaning; the policy did not follow
+regression_of: B-014
+nfr_tag: security
+evidence: |
+  src/hooks/deploy/use-sse-stream.ts:234
+  // EC-3: token provavelmente expirado. Limpa o JWT em cache para que o
+  // proximo ensureSSEToken() force uma troca nova, e reabre explicitamente
+  // — a reconexao nativa do browser reusaria a URL com o token velho.
+  clearToken();
+  es?.close();
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:234`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Make the failure typed instead of guessing. Have FetchEventSource carry the HTTP status (and a 'stream ended cleanly' marker) on the error event it dispatches, and call `clearToken()` only for status 401/403. For every other failure reconne
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-every-sse-error-clears-the-application`). Source: code-review finding #63, `code-review-output/code-review.db`.
+
+## B-145 — useCancelBuild reports success when the cancel request fails — engineFetch resolves null instead of throwing   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: error_handling
+evidence: |
+  src/hooks/mutations/use-cancel-build.ts:9
+  mutationFn: (buildId: string) =>
+    engineFetch(`/api/v1/builds/${encodeURIComponent(buildId)}/cancel`, {
+      method: 'POST',
+    }),
+  onSuccess: (_data, buildId) => {
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/mutations/use-cancel-build.ts:9`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Add `{ throwOnError: true }` as the third argument to the engineFetch calls in useCancelBuild, useCreateEnvironment and useDeleteEnvironment so a non-2xx rejects and reaches `mutation.error`, matching usePromote/useRollback. Then confirm ea
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-cancel-build-usecancelbuild-reports-success-when-the-cancel`). Source: code-review finding #65, `code-review-output/code-review.db`.
+
+## B-146 — Chart bar and KPI card share the label 'not promoted' for two different quantities   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: code
+regression_of: B-129
+evidence: |
+  src/pages/promptly/components/projections.ts:77
+  Executed against the file's own fixture: naoPromovidos=2 vs SEM_AMBIENTE=1. Both values locked in by passing tests (overview.test.tsx:63 /^Not promoted2$/ and /not promoted\s*1/).
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/promptly/components/projections.ts:77`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Rename the bar's bucket to 'No environment' to match catalogo.tsx's existing vocabulary
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-projections-chart-bar-and-kpi-card-share`). Source: code-review finding #83, `code-review-output/code-review.db`.
+
+## B-147 — localeCompare on an unvalidated label entry unmounts the whole /promptly overview   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: error_handling
+regression_of: B-129
+evidence: |
+  src/pages/promptly/components/projections.ts:113
+  Executed: promptsPorAmbiente([{labels:[{label:'prod',version:1}]},{labels:[{version:1}]}]) throws TypeError: Cannot read properties of undefined (reading 'localeCompare').
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/promptly/components/projections.ts:113`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Filter label entries to those with a string `label` before sorting, mirroring trust-series.ts:165
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-projections-localecompare-on-an-unvalidated-label-entry`). Source: code-review finding #84, `code-review-output/code-review.db`.
+
+## B-148 — barWidths sanitises the value but the number cell prints the raw one — a 0%-wide bar beside a cell reading NaN   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: contract
+regression_of: B-129
+evidence: |
+  src/components/charts/category-bars.tsx:100
+  Rendered: bars=[{label:'nan',value:NaN},{label:'str',value:'12'}] produces style="width: 0%" beside <td>NaN</td> and <td>12</td>.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:100`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Sanitise once and render the sanitised value in both the bar and the cell
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-category-bars-barwidths-sanitises-the-value-but-the`). Source: code-review finding #85, `code-review-output/code-review.db`.
+
+## B-149 — The chart gate !error && !loading is not settled-success, so the chart asserts 'Nothing recorded' beside a ful   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: contract
+family: F3 · a readiness gate that is not settled-success
+regression_of: B-129
+evidence: |
+  src/pages/skills/overview.tsx:263
+  overview.tsx:263 gate is `!query.error && !query.loading`; memory/overview.tsx:124 (cited by this file as precedent) uses metricsQuery.isSuccess.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/skills/overview.tsx:263`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F3 · a readiness gate that is not settled-success — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Gate on isSuccess && data != null, and feed the chart the same `acervo` fallback the table uses
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-the-chart-gate-error-loading-is`). Source: code-review finding #86, `code-review-output/code-review.db`.
+
+## B-150 — Same paused/idle blind spot on the one screen where an empty distribution is a compliance claim   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: contract
+family: F3 · a readiness gate that is not settled-success
+regression_of: B-129
+evidence: |
+  src/pages/trust/overview.tsx:204
+  overview.tsx:87 `const isLoading = violationsQuery.loading || validatorsQuery.loading`; gate at :204 is `!failed && !isLoading`.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/trust/overview.tsx:204`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F3 · a readiness gate that is not settled-success — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Gate on settled success of both queries
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-same-paused-idle-blind-spot-on`). Source: code-review finding #87, `code-review-output/code-review.db`.
+
+## B-151 — When only the validators query fails, every bar is painted amber 'unblocked' — asserting nothing is stopped pr   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: contract
+family: F3 · a readiness gate that is not settled-success
+regression_of: B-129
+evidence: |
+  src/pages/trust/overview.tsx:213
+  overview.tsx:88 `failed` from violationsQuery.error only; :90 catalogBlind; :213 tone: c.enforced ? 'muted' : 'warning'.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/trust/overview.tsx:213`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F3 · a readiness gate that is not settled-success — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Add a third tone for unknown coverage, or suppress the chart when catalogBlind
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-when-only-the-validators-query-fails`). Source: code-review finding #88, `code-review-output/code-review.db`.
+
+## B-152 — 96 test files assert absence with queryBy alone — a shape already PROVEN unable to fail on four of them   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: high
+category: code
+family: F4 · a test that asserts absence of something absent in both worlds
+regression_of: B-129
+evidence: |
+  src/pages/skills/overview.test.tsx:184
+  Mechanical scan of 376 test files: 96 match expect(queryBy...).toBeNull()/not.toBeInTheDocument() as their only negative assertion. Six match the queryByRole(table) form. Falsification (external review, by execution): guard deleted from skills/overview.tsx -> 10/10 tests still pass. category-bars.tsx:74-76 returns a <p> and no table when bars.length === 0.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/skills/overview.test.tsx:184`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Assert the absence of the chart heading (an element that IS present in the passing case), not the absence of a table role
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-test-96-test-files-assert-absence-with`). Source: code-review finding #110, `code-review-output/code-review.db`.
+
+## B-153 — ENGINE_URL runtime config key is plumbed through four layers and read by no production code   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  src/lib/http/config.ts:9
+  src/lib/http/config.ts:9 — ENGINE_URL: string;  (interface field, no corresponding `export const ENGINE_URL`, unlike API_URL:32, AUTH_URL:34, ACCOUNTS_URL:36)  ||  docker-entrypoint.sh:39 — ENGINE_URL: "${VITE_ENGINE_URL:-}",  ||  public/__config.js:4 — ENGINE_URL: "/engine",  ||  src/lib/http/api.ts:315 — return cloudFetch<T>(`/engine${path}`, options, cfg);  ||  grep -rn ENGINE_URL over non-test src/ yields only config.ts declarations and mock-comment mentions — zero readers.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/config.ts:9`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Either delete ENGINE_URL from the interface, the entrypoint, __config.js and the 8 test mocks, or make api.ts:315 read it (export const ENGINE_URL, default "/engine") and relax validate_url to accept a leading-slash path
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-config-engine-url-runtime-config-key-is`). Source: code-review finding #2, `code-review-output/code-review.db`.
+
+## B-154 — TESTING.md documents the tree-shake gate as a grep that was proven to be a tautology   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  TESTING.md:174
+  TESTING.md:174-181 — "The CI gate `npm run tree-shake-check` greps the prod bundle for `lib/mocks` strings" / "! grep -q 'lib/mocks' dist/assets/*.js"  ||  scripts/check-mocks-tree-shaken.mjs:7-16 — "O `tree-shake-check` anterior era: grep -q 'lib/mocks' dist/assets/*.js. Ele procurava o caminho do modulo, e o empacotador apaga caminhos. Medido em 2026-08-08: injetei `installAllMocks` em `main.tsx`, os mocks foram para o bundle de producao, e o check imprimiu PASS."  ||  scripts/check-mocks-tree-shaken.mjs:43-68 — MARCAS = [{marca: '__theo_mocks_present_in_bundle__'}, {marca: 'choose_method'}]
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `TESTING.md:174`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Rewrite TESTING.md § VITE_USE_MOCKS to describe the sentinel-marker gate (two markers, one per mock framework, plus the source-presence pre-check), and delete the `grep -q lib/mocks` snippet so nobody restores it
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-TESTING-testing-md-documents-the-tree-shake`). Source: code-review finding #4, `code-review-output/code-review.db`.
+
+## B-155 — DESIGN.md forbids rendering ANSI logs as HTML; the log viewer renders them via dangerouslySetInnerHTML   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  DESIGN.md:306
+  DESIGN.md:306 — "ANSI escape codes stripped via `strip-ansi` (NEVER render as HTML)."  ||  src/pages/deploy/components/ansi.tsx:1 — "import Convert from 'ansi-to-html';"  ||  src/pages/deploy/components/ansi.tsx:66 — "return <span dangerouslySetInnerHTML={{ __html: html }} />;"  ||  src/pages/deploy/components/ansi.tsx:21-24 — "`ansi-to-html` was chosen over ... `strip-ansi` (loses color)"  ||  package.json:73 — "ansi-to-html": "^0.7.2" declared; no strip-ansi dependency exists
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:306`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Update DESIGN.md § 7.3 to record the actual decision (ansi-to-html with `escapeXML: true` plus the adversarial test) and restate the ban as `never render unescaped ANSI-to-HTML output`, or open an ADR that supersedes the clause. Either way
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-forbids-rendering-ansi-logs`). Source: code-review finding #6, `code-review-output/code-review.db`.
+
+## B-156 — DESIGN.md mandates @tanstack/react-virtual for log virtualization; the dependency is absent and the code rejec   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  DESIGN.md:304
+  DESIGN.md:304 — "Virtualized rendering (`@tanstack/react-virtual`) for >1000 lines."  ||  src/pages/deploy/components/log-viewer.tsx:86-89 — "A escada da parcimonia respondeu antes da biblioteca. `@tanstack/react-virtual` NAO esta instalado (verificado no package.json)"  ||  src/pages/deploy/components/log-viewer.tsx:57-61 — "Renderiza ate MAX_LOG_LINES (5000) sem remover nos do DOM: o custo ... e pago por `content-visibility`"  ||  package.json:60-91 — dependencies block contains no @tanstack/react-virtual
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:304`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Replace the § 7.3 virtualization bullet with the content-visibility decision actually shipped (and cite log-viewer.tsx), or record an ADR that keeps virtualization as the target and marks the current implementation as an accepted deviation
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-mandates-tanstack-react-virtual`). Source: code-review finding #7, `code-review-output/code-review.db`.
+
+## B-157 — DOGFOOD.md documents two npm scripts that do not exist (test:lighthouse, test:visual)   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  DOGFOOD.md:17
+  DOGFOOD.md:17-18 — "npm run test:lighthouse           # Lighthouse CI against dev server with mocks" / "npm run test:visual               # Visual regression (vendor TBD)"  ||  package.json:6-22 — scripts block has no test:lighthouse and no test:visual  ||  DOGFOOD.md:124 — "## 6. Visual regression — vendor decision OPEN"
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DOGFOOD.md:17`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Either add the two scripts (lighthouse: `lhci autorun --config=./lighthouserc.json`, which already has a config file; visual: whichever vendor is chosen) or delete the two lines from the quick reference and keep only the manual `npx lhci au
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DOGFOOD-dogfood-md-documents-two-npm-scripts`). Source: code-review finding #10, `code-review-output/code-review.db`.
+
+## B-158 — DOGFOOD.md states a 180 KB brotli bundle cap; the enforced size-limit gate caps 320 kB   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  DOGFOOD.md:13
+  DOGFOOD.md:13 — "npm run size                      # size-limit cap (180 KB brotli)"  ||  DOGFOOD.md:173 — "- [ ] Production build green + bundle <180 KB brotli cap"  ||  package.json:50-57 — {"name": "TOTAL EAGER — HARD GATE (os 4 chunks com modulepreload no index.html, brotli)", "limit": "320 kB"}
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DOGFOOD.md:13`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Update both DOGFOOD.md lines to cite the size-limit configuration as the single source of the budget (TOTAL EAGER 320 kB) rather than restating a number that drifts, e.g. "npm run size — budget enforced by package.json#size-limit"
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DOGFOOD-dogfood-md-states-a-180-kb`). Source: code-review finding #11, `code-review-output/code-review.db`.
+
+## B-159 — docs/architecture.md presents stale measurements as current fact (app.tsx 757 LoC, promptly/detail.tsx 916 LoC   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  docs/architecture.md:99
+  docs/architecture.md:99 — "`app.tsx` tem 757 linhas — 49 a mais que o `trace-detail.tsx`" vs `wc -l src/app.tsx` = 226  ||  docs/architecture.md:106 — "`pages/promptly/detail.tsx`, 916 LOC num unico componente com 15 `useState` e 9 `useQuery`" vs `wc -l src/pages/promptly/detail.tsx` = 465  ||  docs/architecture.md:53 — "Hoje existe **um** (`components/layout/index.ts` ...) nas **28** subpastas de `src/components/`" vs `find src/components -mindepth 1 -type d | wc -l` = 9  ||  docs/architecture.md:25 cites `components/lens/ask-thread.tsx`; that directory no longer exists (file is now src/pages/lens/components/ask-thread.tsx)
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/architecture.md:99`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Re-run the measurements and either refresh the table or date-stamp each number inline ("medido 2026-08-06, nao re-medido"). Given the doc is cited as the architecture contract, prefer regenerating the numbers from a script that can be re-ru
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-architecture-docs-architecture-md-presents-stale-measurements`). Source: code-review finding #15, `code-review-output/code-review.db`.
+
+## B-160 — DESIGN.md mandates <EnvironmentBadge> on every environment-scoped screen; the component does not exist   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  DESIGN.md:56
+  DESIGN.md:47 — "Every screen that operates on a specific environment MUST show the environment badge"  ||  DESIGN.md:56 — "Implementation: `<EnvironmentBadge env={env}>` composite (T4.6 from plan)."  ||  `grep -rln "EnvironmentBadge\|EnvBadge\|environment-badge\|env-badge" src/` returns no files
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:56`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Either implement the composite and wire it into TopBar plus the action-button contexts, or downgrade § 2.1 from MUST to a recorded gap with an owner. Do not leave a MUST-level safety clause with zero implementation and no test
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-mandates-environmentbadge-on-every`). Source: code-review finding #20, `code-review-output/code-review.db`.
+
+## B-161 — .llms.txt at the dashboard root documents a different @usetheo/ui version and contradicts the repo lint ban on   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  .llms.txt:10
+  .llms.txt:10 — "**Current version:** `0.9.0-next.0` (npm dist-tag `next`; latest release line)" vs package.json:72 — "@usetheo/ui": "^0.35.1"  ||  .llms.txt:5 — "Treat the bullets below as non-negotiable contracts"  ||  .llms.txt:96 lists **`alert`** (NEW 0.9) among primitives to use  ||  eslint.config.js:42-44 — importNames: ['Alert'] ... "Import Alert from '@/components/ui/alert-guard' — the raw @usetheo/ui Alert silently drops a `children` body (#175)"  ||  .llms.txt:150-153 declares quality-gate command `pnpm quality:gates`, Ladle stories and Biome — none present in this repo (package.json uses vitest, storybook, eslint)
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `.llms.txt:10`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Move the upstream manifest out of the dashboard root (or rename to something explicitly upstream, e.g. docs/vendor/usetheo-ui.llms.txt) and, if a dashboard .llms.txt is wanted, write one describing this repo. At minimum pin the version line
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard--llms-llms-txt-at-the-dashboard-root`). Source: code-review finding #30, `code-review-output/code-review.db`.
+
+## B-162 — Blob+anchor download implemented 3 times; the canonical helper declares itself the ONE source and the third co   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/pages/workspace/overview.tsx:193
+  src/lib/export/download.ts:12-25 (canonical)
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    // Defer revoke so Safari + Firefox can finish streaming the download.
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  
+  src/pages/deploy/export/log-download.ts:29-39 (copy 2, identical shape + duplicated EC-4 docblock)
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `runtime-logs-${new Date().toISOString()}.log`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  
+  src/pages/workspace/overview.tsx:197-202 (copy 3, safety steps dropped)
+      const blobURL = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = blobURL;
+      a.download = file.path.split("/").pop() ?? file.path;
+      a.click();
+      URL.revokeObjectURL(blobURL);
+  
+  grep -rn "createElement(.a.)" src --include=*.ts --include=*.tsx | grep -v .test. -> exactly these 3 sites.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/workspace/overview.tsx:193`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - 1) Widen triggerDownload to accept `BlobPart | Blob` (or add a sibling `triggerBlobDownload(filename, blob)`) so a binary presigned download can use it. 2) Make workspace/overview.tsx onDownload call it, and surface the !res.ok path as an A
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-blob-anchor-download-implemented-3-times`). Source: code-review finding #38, `code-review-output/code-review.db`.
+
+## B-163 — Concurrent 401s each null the access token, re-triggering the token exchange the #324 fix exists to prevent   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: concurrency
+nfr_tag: concurrency
+evidence: |
+  src/lib/http/api.ts:379
+  if (resp.status === 401) {
+        if (!redirectOnAuthFailure) return null;
+        // Token expired — try refresh once
+        accessToken = null;
+        const newToken = await ensureToken();
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:379`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Capture the token generation before the request (`const gen = tokenGeneration`) and only invalidate when it has not advanced: `if (gen === tokenGeneration) { accessToken = null; tokenGeneration++; }`. Alternatively drop the eager null and l
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-concurrent-401s-each-null-the-access`). Source: code-review finding #45, `code-review-output/code-review.db`.
+
+## B-164 — submitFlow discards the HTTP status entirely — a 5xx is indistinguishable from a validation response   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: error_handling
+evidence: |
+  src/pages/auth/kratos.ts:72
+  export async function submitFlow(action: string, method: string, body: Record<string, string>): Promise<Flow> {
+    const resp = await fetch(action, {
+      method,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+    return resp.json();
+  }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:72`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Introduce a typed error (reuse `ApiError` from lib/http/api.ts) and throw it on non-2xx with the status attached, tolerating a non-JSON body: `if (!resp.ok && resp.status >= 500) throw new ApiError(resp.status, await resp.text().catch(() =>
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kratos-submitflow-discards-the-http-status-entirely`). Source: code-review finding #46, `code-review-output/code-review.db`.
+
+## B-165 — Error classification computed then thrown away — identical if/else branches in three recovery handlers   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: error_handling
+evidence: |
+  src/pages/auth/recovery.tsx:240
+  } catch (err) {
+        setLastSubmit(() => handleEmailSubmit);
+        if (is5xxOrNetwork(err)) {
+          setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
+        } else {
+          setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE);
+        }
+      } finally {
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/recovery.tsx:240`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Either collapse to a single `setErrorMessage(SERVICE_UNAVAILABLE_MESSAGE)` and delete `is5xxOrNetwork` (honest), or give the two branches genuinely different copy (transient 'try again in a minute' vs 'check your input'). Either way, report
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-recovery-error-classification-computed-then-thrown-away`). Source: code-review finding #47, `code-review-output/code-review.db`.
+
+## B-166 — BroadcastChannel message consumed without validating its shape   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+nfr_tag: security
+evidence: |
+  src/lib/http/api.ts:93
+  ch.onmessage = (event: MessageEvent<AuthMessage>) => {
+        const msg = event.data;
+        if (msg.type === 'logged-out') {
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:93`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Validate before dereferencing: `const msg = event.data; if (typeof msg !== 'object' || msg === null || (msg as {type?:unknown}).type !== 'logged-out') return;`. Consider also ignoring messages when this tab has no token, so a spurious messa
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-broadcastchannel-message-consumed-without-validating-its`). Source: code-review finding #48, `code-review-output/code-review.db`.
+
+## B-167 — cloudFetch's `T | null` collapses at least four distinct outcomes into one value   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+evidence: |
+  src/lib/http/api.ts:305
+  if (cfg.throwOnError === true) {
+          throw new ApiError(429, undefined, 'Too many requests. Try again in a moment.');
+        }
+        return null;
+      }
+      redirectToLogin('expired');
+      return null;
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:305`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Make `throwOnError` the default for new call sites and migrate the legacy ones, or return a discriminated result (`{ok:true,data:T} | {ok:false,kind:'empty'|'expired'|'transient'|'http',status:number}`). At minimum stop reusing `null` for t
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-cloudfetch-s-t-null-collapses-at`). Source: code-review finding #49, `code-review-output/code-review.db`.
+
+## B-168 — Unvalidated 402 response body crosses a window event into a render path that calls String.replace   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+nfr_tag: security
+evidence: |
+  src/components/dialogs/plan-limit-upgrade-modal.tsx:55
+  const resourceLabel = detail?.resource ?? 'this resource';
+    const currentPlan = (detail?.current_plan ?? 'Free').replace(/^\w/, (c) =>
+      c.toUpperCase(),
+    );
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/dialogs/plan-limit-upgrade-modal.tsx:55`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Validate at the emitter (api.ts maybeEmitPaymentRequired) before dispatching, or narrow in the handler: accept the event only when `typeof detail === 'object' && detail !== null`, and coerce each field with `typeof x === 'string' ? x : unde
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-plan-limit-upgrade-modal-unvalidated-402-response-body-crosses-a`). Source: code-review finding #50, `code-review-output/code-review.db`.
+
+## B-169 — initFlow's 3xx branch is unreachable under `redirect: 'manual'`, and would be an unguarded open redirect if it   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: error_handling
+nfr_tag: security
+evidence: |
+  src/pages/auth/kratos.ts:48
+  if (resp.status >= 300 && resp.status < 400) {
+      const location = resp.headers.get('Location');
+      if (location) {
+        window.location.href = location;
+        return {} as Flow; // redirect will happen
+      }
+    }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:48`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Use `redirect: 'follow'` (as login.tsx:91 already does) and drop the manual branch, or keep 'manual' and stop pretending to read the Location. If any redirect target is ever followed, gate it: `if (!isSafeRedirectUrl(location)) throw new Er
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kratos-initflow-s-3xx-branch-is-unreachable`). Source: code-review finding #51, `code-review-output/code-review.db`.
+
+## B-170 — Tenant-cache purge on logout fails silently — no signal that stale tenant data survived   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: error_handling
+nfr_tag: security
+evidence: |
+  src/lib/auth/logout-cache-purge.ts:79
+  await Promise.all(
+        nomes.filter(guardaDado).map((n) => caches.delete(n).catch(() => false)),
+      );
+    } catch {
+      // Storage bloqueado ou API indisponível. O logout segue.
+    }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/auth/logout-cache-purge.ts:79`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Keep the never-throw contract but emit a signal: collect the per-cache results and `reportEvent`/`console.warn` with the names that failed, e.g. `if (falhas.length) reportEvent('logout.cache_purge_failed', { caches: falhas })`. Returning `{
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-logout-cache-purge-tenant-cache-purge-on-logout-fails`). Source: code-review finding #52, `code-review-output/code-review.db`.
+
+## B-171 — useCloudApi reports `error: true` for a successful empty response   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+evidence: |
+  src/hooks/use-api.ts:48
+  error: enabled && (query.isError || (query.isFetched && query.data === null)),
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/use-api.ts:48`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Fix the contract at the source (see the cloudFetch `T | null` finding) so 'no content' and 'failure' are different values; until then, pass `{ throwOnError: true }` in the queryFn so real failures reach `query.isError` and drop the `data ==
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-api-usecloudapi-reports-error-true-for-a`). Source: code-review finding #53, `code-review-output/code-review.db`.
+
+## B-172 — A non-2xx on any SSE stream wipes the app-wide JWT via clearToken()   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: concurrency
+family: F2 · a transport swap changed a callback's meaning; the policy did not follow
+regression_of: B-014
+nfr_tag: concurrency
+evidence: |
+  src/hooks/deploy/use-sse-stream.ts:234
+  const fechadoPeloBrowser = es?.readyState === EVENTSOURCE_CLOSED;
+          if (!fechadoPeloBrowser && failureCount < TOKEN_REFRESH_THRESHOLD) return;
+  
+          // EC-3: token provavelmente expirado. Limpa o JWT em cache para que o
+          // proximo ensureSSEToken() force uma troca nova, e reabre explicitamente
+          clearToken();
+          es?.close();
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:234`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Have FetchEventSource surface the HTTP status on the error event and only call `clearToken()` for 401/403. For every other status, reopen with the existing token under backoff. If the status cannot be surfaced, prefer a stream-scoped invali
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-a-non-2xx-on-any-sse`). Source: code-review finding #60, `code-review-output/code-review.db`.
+
+## B-173 — TOKEN_REFRESH_THRESHOLD branch is unreachable with the fetch transport; its guard test asserts a state product   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+family: F2 · a transport swap changed a callback's meaning; the policy did not follow
+regression_of: B-014
+nfr_tag: concurrency
+evidence: |
+  src/hooks/deploy/use-sse-stream.ts:229
+  const fechadoPeloBrowser = es?.readyState === EVENTSOURCE_CLOSED;
+  if (!fechadoPeloBrowser && failureCount < TOKEN_REFRESH_THRESHOLD) return;
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:229`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Delete `failureCount`, `TOKEN_REFRESH_THRESHOLD` and the line-229 guard, and rewrite the lines 66-72 / 216-227 comments so they describe the fetch transport instead of the browser's native retry. Replace the removed test with one that drive
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-token-refresh-threshold-branch-is-unreachable`). Source: code-review finding #64, `code-review-output/code-review.db`.
+
+## B-174 — Deploy-timeline 'cascade' loop is a no-op — the documented out-of-order defence does not exist   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/hooks/deploy/use-deploy-timeline.ts:176
+  let foundActive = false;
+  for (const cell of phases) {
+    if (foundActive && cell.status === 'pending') {
+      // Already pending — no-op (keeps initial state).
+    }
+    if (
+      cell.status === 'in_progress' ||
+      cell.status === 'degraded' ||
+      cell.status === 'failed' ||
+      cell.status === 'canceled'
+    ) {
+      foundActive = true;
+    }
+  }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deploy-timeline.ts:176`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Decide which invariant is wanted and implement or delete. If the cascade is wanted: walk PHASE_ORDER in reverse, and once a phase with status 'completed' (or any terminal status) is seen, force every earlier phase still 'pending' to 'comple
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deploy-timeline-deploy-timeline-cascade-loop-is-a`). Source: code-review finding #66, `code-review-output/code-review.db`.
+
+## B-175 — useBuildLogs.refresh() writes state after unmount and never aborts — the sibling load path in the same file gu   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: concurrency
+nfr_tag: concurrency
+evidence: |
+  src/hooks/deploy/use-build-logs.ts:211
+  const refresh = useCallback(async () => {
+      if (!buildId || refreshInFlight.current) return;
+      refreshInFlight.current = true;
+      setRefreshing(true);
+      setHistoricalError(null);
+      try {
+        const data = await engineFetch<BackendLogsResponse>(
+          `/api/v1/builds/${encodeURIComponent(buildId)}/logs?limit=${MAX_LOG_LINES}`,
+        );
+        aplicarSnapshot(data);
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-build-logs.ts:211`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Hold a mount flag in a ref (`const montado = useRef(true)` with `useEffect(() => () => { montado.current = false }, [])`) and gate every setState in `refresh` on it, or better, hoist an AbortController ref that both the initial effect and `
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-build-logs-usebuildlogs-refresh-writes-state-after-unmount`). Source: code-review finding #67, `code-review-output/code-review.db`.
+
+## B-176 — useMetrics-range keys the cache by env but never sends env — a non-production env silently returns production    [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+evidence: |
+  src/hooks/projects/use-metrics-range.ts:72
+  const resolvedEnv = env ?? 'production';
+  
+    const path = `/api/v1/projects/${encodeURIComponent(
+      projectName ?? '',
+    )}/metrics?range=${encodeURIComponent(range)}&signal=${encodeURIComponent(signal)}`;
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/projects/use-metrics-range.ts:72`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Confirm against the backend handler whether /metrics accepts an env parameter. If it does, append `&env=${encodeURIComponent(resolvedEnv)}` to the path so the key and the request agree. If it does not, delete the `env` parameter from the ho
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-metrics-range-usemetrics-range-keys-the-cache-by`). Source: code-review finding #68, `code-review-output/code-review.db`.
+
+## B-177 — Refetch effect re-runs on every render — `filters` is an inline object literal at the only call site   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+nfr_tag: performance
+evidence: |
+  src/hooks/deploy/use-deployments-list-stream.ts:131
+  }, [stream.events, projectName, filters, initial.builds, queryClient]);
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deployments-list-stream.ts:131`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Depend on a serialized key rather than the object identity: `const filtersKey = JSON.stringify(filters ?? {})` (or destructure `filters?.status`, `filters?.env`, `filters?.limit` into three scalar deps) and use that in the array, reading `f
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deployments-list-stream-refetch-effect-re-runs-on-every`). Source: code-review finding #69, `code-review-output/code-review.db`.
+
+## B-178 — Two SSE endpoints have no mock registration — in mock mode they reconnect forever against a route that will ne   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: concurrency
+nfr_tag: concurrency
+evidence: |
+  src/lib/mocks/handlers.ts:343
+  registerSSE('/api/v1/builds/{id}/logs/stream', (es) => {
+  ...
+    registerSSE('/api/v1/projects/{name}/logs/stream', (es) => {
+  ...
+    registerSSE('/api/v1/builds/{id}/stream', (es) => {
+  ...
+    registerSSE('/api/v1/deploys/{id}/timeline', (es) => {
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/mocks/handlers.ts:343`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Register the two missing patterns with emitters that mirror the real event names — build.started / build.succeeded / build.failed for projects/{name}/builds/stream, and the named `signal.changed` frame for projects/{name}/signals/stream. Ad
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-handlers-two-sse-endpoints-have-no-mock`). Source: code-review finding #70, `code-review-output/code-review.db`.
+
+## B-179 — Unpausing an SSE stream does not flush the buffered events — the UI stays stale until the next event arrives   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+family: F2 · a transport swap changed a callback's meaning; the policy did not follow
+regression_of: B-014
+evidence: |
+  src/hooks/deploy/use-sse-stream.ts:150
+  if (!pausedRef.current) {
+          setEvents([...bufferRef.current]);
+          setLastEventID(lastIDRef.current);
+          setDroppedCount(droppedRef.current);
+        }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:150`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Add an effect keyed on `paused` that flushes on the falling edge: `useEffect(() => { if (!paused) { setEvents([...bufferRef.current]); setLastEventID(lastIDRef.current); setDroppedCount(droppedRef.current); } }, [paused])`. Add a test that
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-unpausing-an-sse-stream-does-not`). Source: code-review finding #71, `code-review-output/code-review.db`.
+
+## B-180 — useBuildLogs can hold 2x MAX_LOG_LINES — the cap guard test only covers the pure function, not the merged outp   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+nfr_tag: performance
+evidence: |
+  src/hooks/deploy/use-build-logs.ts:203
+  const lines = useMemo<LogLine[]>(
+      () => [...historical, ...stream.lines],
+      [historical, stream.lines],
+    );
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-build-logs.ts:203`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Apply the shared rule at the join: `() => capLogLines([...historical, ...stream.lines])`, so the ceiling is enforced once on the value the consumer sees. Extend use-log-stream.cap.test.ts with a case that renders useBuildLogs with a 5000-li
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-build-logs-usebuildlogs-can-hold-2x-max-log`). Source: code-review finding #72, `code-review-output/code-review.db`.
+
+## B-181 — Deploy timeline replays a FIFO-capped buffer to derive state — evicted events silently revert phases to 'pendi   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: concurrency
+nfr_tag: concurrency
+evidence: |
+  src/hooks/deploy/use-deploy-timeline.ts:136
+  const stream = useSSEStream(path, {
+      eventTypes: TIMELINE_EVENT_TYPES,
+      initialLastEventID: options.initialLastEventID ?? null,
+      paused: options.paused,
+      // Canonical 5 phases × 6 statuses + degraded events + cushion.
+      maxEvents: 60,
+    });
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deploy-timeline.ts:136`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Stop deriving durable state from an evictable buffer. Accumulate phases incrementally in a ref-backed reducer driven by `onEvent` (the pattern use-status-stream.ts:61 already uses and documents) so an evicted event cannot un-apply a transit
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deploy-timeline-deploy-timeline-replays-a-fifo-capped`). Source: code-review finding #73, `code-review-output/code-review.db`.
+
+## B-182 — useDeployTimeline reducer memo has measured CCN=31 — the highest in the codebase, in the reconnect-sensitive p   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: human
+severity: medium
+category: complexity
+cc_value: 31.0
+evidence: |
+  src/hooks/deploy/use-deploy-timeline.ts:138
+  return useMemo(() => {
+      const phases = initialPhases();
+      const byPhase = new Map<Phase, PhaseState>();
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deploy-timeline.ts:138`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Extract the event application into a pure module-level reducer `applyTimelineEvent(state, event): TimelineState` (mirroring use-status-stream.reducer.ts, which was split out for exactly this reason and is unit-tested without React), and ext
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deploy-timeline-usedeploytimeline-reducer-memo-has-measured-ccn`). Source: code-review finding #79, `code-review-output/code-review.db`.
+
+## B-183 — The webhooks CRUD is parameterized-by-context for 2 of its 3 mount points; /memory/webhooks is a 555-line inde   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/pages/memory/webhooks.tsx:34
+  THE DECLARED RULE — src/pages/settings/webhooks.tsx:69-76
+   * M86 — the SAME webhooks CRUD is mounted in two contexts (Settings and Observability). Only the
+   * COPY differs, so the component is parameterized by `context` rather than duplicated (reuse-first).
+  src/pages/settings/webhooks.tsx:86-105
+  const WEBHOOK_CONTEXTS: Record<WebhookContext, WebhookContextCopy> = {
+    settings: { description: ..., events: AVAILABLE_EVENTS, deliveryNotice: {...} },
+    observability: { description: ..., events: [{ id: "alert.threshold_breached", ... }], deliveryNotice: null },
+  };
+  
+  THE THIRD MOUNT — src/routes/memory-routes.tsx:31
+  <Route path="/memory/webhooks" element={<Boundaried path="/memory/webhooks"><WebhooksPage /></Boundaried>} />
+  (vs settings-routes.tsx:73 <WorkspaceWebhooksPage /> and observability-routes.tsx:59 <WorkspaceWebhooksPage context="observability" />)
+  
+  IDENTICAL DECLARATIONS —
+  src/pages/settings/webhooks.tsx:289-298        src/pages/memory/webhooks.tsx:46-55
+  interface Delivery {                          interface Delivery {
+    id: string;                                   id: string;
+    event_type: string;                           event_type: string;
+    status: "pending" | "delivering" |            status: "pending" | "delivering" |
+      "delivered" | "failed" | "dead_letter";       "delivered" | "failed" | "dead_letter";
+    attempt_count: number;                        attempt_coun
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/webhooks.tsx:34`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Add `memory` as a third entry in WEBHOOK_CONTEXTS rather than a third file. The map needs two new fields the existing two contexts already imply: `basePath` (`/v1/settings/webhooks` | `/v1/dashboard/memory/webhooks`) and a capability flag f
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-webhooks-the-webhooks-crud-is-parameterized-by`). Source: code-review finding #81, `code-review-output/code-review.db`.
+
+## B-184 — Server-side offset pager copy-pasted across 5 pages in 2 domains (identical arithmetic + identical Prev/Next p   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/pages/lens/sessions.tsx:58
+  IDENTICAL ARITHMETIC (only the PAGE_SIZE identifier differs):
+  src/pages/lens/sessions.tsx:58-60
+    const pageCount = Math.max(1, Math.ceil(total / SESSIONS_PAGE_SIZE));
+    const firstShown = total === 0 ? 0 : (page - 1) * SESSIONS_PAGE_SIZE + 1;
+    const lastShown = Math.min(page * SESSIONS_PAGE_SIZE, total);
+  src/pages/lens/usage-by-user.tsx:164-166
+    const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const firstShown = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+    const lastShown = Math.min(page * PAGE_SIZE, total);
+  src/pages/lens/labeling-queue.tsx:88-90
+    const pageCount = Math.max(1, Math.ceil(total / pageSize));
+    const firstShown = total === 0 ? 0 : (page - 1) * pageSize + 1;
+    const lastShown = Math.min(page * pageSize, total);
+  src/pages/settings/audit.tsx:115
+    const pageCount = Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE));
+  src/pages/lens/traces.tsx:226-227
+    const pageCount = Math.max(1, Math.ceil(total / TRACES_PAGE_SIZE));
+    const firstShown = total === 0 ? 0 : (page - 1) * TRACES_PAGE_SIZE + 1;
+  
+  IDENTICAL PREDICATES + JSX:
+  src/pages/lens/sessions.tsx:217-223
+    <Button variant="ghost" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
+    <span className="tabular-nums" data-testid="sessions-pager">{`Page ${page} / ${pageCount}`}</span>
+    <Button variant="ghost" size="sm" disabled={page >
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/lens/sessions.tsx:58`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Extract two artifacts and migrate the five sites: (1) `useOffsetPagination({ total, pageSize })` returning { page, setPage, offset, pageCount, firstShown, lastShown } and owning the labeling-queue clamp effect so every consumer inherits the
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-sessions-server-side-offset-pager-copy-pasted`). Source: code-review finding #82, `code-review-output/code-review.db`.
+
+## B-185 — Removing the Math.max(2,…) floor fixed zero-as-sliver and introduced the inverse: a real non-zero count render   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/components/charts/category-bars.tsx:54
+  Measured: barWidths([3, 9000]) -> [0.0333, 100].
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:54`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Apply the floor to non-zero values only: v > 0 ? Math.max(min, pct) : 0
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-category-bars-removing-the-math-max-2-floor`). Source: code-review finding #89, `code-review-output/code-review.db`.
+
+## B-186 — The hand-rolled table has no thead and no column headers, a weaker accessible reading than the composite its d   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/components/charts/category-bars.tsx:82
+  Measured outerHTML shows <tbody> with no <thead> and a td whose only child is aria-hidden.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:82`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Add a thead with column headers, or reuse the design system's Table as TrendChart does
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-category-bars-the-hand-rolled-table-has-no`). Source: code-review finding #90, `code-review-output/code-review.db`.
+
+## B-187 — The 4-variant tone API is entirely unasserted and sits inside an aria-hidden element while carrying enforcemen   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+evidence: |
+  src/components/charts/category-bars.tsx:95
+  Measured: TONE collapsed to default, 36/36 tests still pass; no test file references the tone vocabulary.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/charts/category-bars.tsx:95`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Assert the tone mapping, and convey enforcement in text as the house rule already requires
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-category-bars-the-4-variant-tone-api-is`). Source: code-review finding #91, `code-review-output/code-review.db`.
+
+## B-188 — The zero-sliver defect the CHANGELOG headlines as fixed has no regression test   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: code
+family: F4 · a test that asserts absence of something absent in both worlds
+regression_of: B-129
+evidence: |
+  src/pages/memory/overview.test.tsx:158
+  Measured: old floor restored, 18/18 pass.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/overview.test.tsx:158`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Add a case asserting width === 0 for a genuine zero beside a positive max
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-test-the-zero-sliver-defect-the-changelog`). Source: code-review finding #92, `code-review-output/code-review.db`.
+
+## B-189 — The four 'a failed read draws no chart' tests assert only absence of a table role — which a chart rendered ove   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: code
+family: F4 · a test that asserts absence of something absent in both worlds
+regression_of: B-129
+evidence: |
+  src/pages/skills/overview.test.tsx:184
+  Measured: guard deleted, 10/10 still pass.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/skills/overview.test.tsx:184`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Assert absence of the chart heading, not absence of a table role
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-test-the-four-a-failed-read-draws`). Source: code-review finding #93, `code-review-output/code-review.db`.
+
+## B-190 — The CATALOGO fixture enforces nothing, so the muted/Blocked path is never exercised and the comment claiming i   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: code
+family: F4 · a test that asserts absence of something absent in both worlds
+regression_of: B-129
+evidence: |
+  src/pages/trust/overview.test.tsx:39
+  Verified: CATALOGO.validators[0] has no policy and no category key; coverageGap resolves it to ''.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/trust/overview.test.tsx:39`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Give the fixture a validator that actually enforces a policy present in the violations fixture, and correct the comment
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-test-the-catalogo-fixture-enforces-nothing-so`). Source: code-review finding #94, `code-review-output/code-review.db`.
+
+## B-191 — The rendered() guard still matches a JSX tag inside a comment or string — the hole its own docblock claims it    [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+severity: medium
+category: code
+family: F4 · a test that asserts absence of something absent in both worlds
+regression_of: B-129
+evidence: |
+  src/lib/capability-overview.test.ts:76
+  Executed the literal regex against five inputs; comment and string-literal forms both return true.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/capability-overview.test.ts:76`. The failure was reproduced BY EXECUTION, not inferred from reading — the review changed the code and ran the suite. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test that FAILS on the current state exists and passes after the fix
+  - Strip comments and string literals before matching, or assert on the rendered output instead of the source
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-capability-overview-test-the-rendered-guard-still-matches-a`). Source: code-review finding #95, `code-review-output/code-review.db`.
+
+## B-192 — ExploreCard copy-pasted into 3 domain overviews and already DIVERGED: lens navigates via SPA <Link>, memory/ra   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+regression_of: B-129
+evidence: |
+  src/pages/memory/overview.tsx:255
+  src/pages/lens/overview.tsx:251-262 (FIXED copy):
+  /** Single Explore card - icon + title + 1-line description + a destination link.
+   * Uses a router `<Link>` (SPA nav) - not `window.location.href` (which forced a full reload). */
+  function ExploreCard({ icon: Icon, title, description, href }: ExploreCardProps) {
+          <Button asChild variant="ghost" size="sm">
+            <Link to={href}>Open -></Link>
+  
+  src/pages/memory/overview.tsx:249-262 (UNFIXED copy, stale justification):
+  /**
+   * Single Explore card. Renders an icon + title + 1-line description + a
+   * destination button. Kept inline here (NOT extracted to a shared component)
+   * because no other dashboard surface currently shows Explore cards in this
+   * exact shape - Rule of 3 / YAGNI.
+   */
+          <Button variant="ghost" size="sm" onClick={() => (window.location.href = href)}>
+  
+  src/pages/rag/overview.tsx:191-200 (UNFIXED copy, stale path reference):
+  /** Single Explore card - icon + title + 1-line description + a destination button.
+   * Kept inline (mirrors `pages/memory.tsx`'s ExploreCard - Rule of 3 / YAGNI). */
+          <Button variant="ghost" size="sm" onClick={() => (window.location.href = href)}>
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/overview.tsx:255`. It breaks a Definition-of-done bullet that B-129 shipped against, so the item it regresses is named rather than filed as a fresh discovery.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Fix the defect first, then remove its cause. (1) Immediately change memory/overview.tsx:262 and rag/overview.tsx:200 to the `<Button asChild><Link to={href}>` form already proven in lens/overview.tsx:260-262 — this is a user-visible navigat
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-overview-explorecard-copy-pasted-into-3-domain`). Source: code-review finding #104, `code-review-output/code-review.db`.
+
+## B-193 — AddWebhookDialog duplicated between memory and settings, including the webhook-URL validation rule — and setti   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/pages/memory/webhooks.tsx:470
+  src/pages/memory/webhooks.tsx:486-492:
+    const submit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (submitting) return;
+      onSubmit({ url, label: label.trim(), events: Array.from(selected) });
+    };
+    const submitDisabled = submitting || !/^https?:\/\//i.test(url) || label.trim() === '' || selected.size === 0;
+  
+  src/pages/settings/webhooks.tsx:452-458 — identical logic, already generalised signature:
+    const submit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (submitting) return;
+      onSubmit({ url, label: label.trim(), events: Array.from(selected) });
+    };
+    const submitDisabled = submitting || !/^https?:\/\//i.test(url) || label.trim() === '' || selected.size === 0;
+  
+  The signatures, showing settings is the superset:
+    memory:470   function AddWebhookDialog({ open, onClose, submitting, onSubmit }: AddWebhookDialogProps)
+    settings:436 function AddWebhookDialog({ open, onClose, submitting, onSubmit, description, events }: AddWebhookDialogProps)
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/webhooks.tsx:470`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Promote the settings/webhooks.tsx version verbatim to a shared module (e.g. src/components/dialogs/add-webhook-dialog.tsx), have both pages import it, and pass memory's `AVAILABLE_EVENTS` and its description string as the `events` / `descri
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-webhooks-addwebhookdialog-duplicated-between-memory-and-settings`). Source: code-review finding #105, `code-review-output/code-review.db`.
+
+## B-194 — SLO tone thresholds (uptime 99.9/99.0, p95 500/1000ms, error rate 1/5) duplicated between two components rende   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/pages/projects/components/kpi-strip-status.tsx:74
+  src/pages/projects/components/kpi-strip-status.tsx:74-93:
+  function uptimeTone(uptime: number | null | undefined): Tone {
+    if (typeof uptime !== 'number' || !Number.isFinite(uptime)) return 'muted';
+    if (uptime >= 99.9) return 'success';
+    if (uptime >= 99.0) return 'warning';
+    return 'destructive';
+  }
+  function p95Tone(latencyMs: number | null | undefined): Tone {
+    if (latencyMs >= 1000) return 'destructive';
+    if (latencyMs >= 500) return 'warning';
+  
+  src/pages/projects/components/signal-grid.tsx:124-141 — same numbers, second implementation:
+      tone: (v) => {
+        if (typeof v !== 'number' || !Number.isFinite(v)) return 'muted';
+        if (v >= 99.9) return 'success';
+        if (v >= 99.0) return 'warning';
+        return 'destructive';
+      },
+        if (v >= 1000) return 'destructive';
+        if (v >= 500) return 'warning';
+  
+  src/pages/projects/components/signal-grid.tsx:26 — asserts a canonicality that does not exist:
+   * Color-by-state: per-signal tone based on canonical thresholds (uptime,
+  
+  src/pages/projects/project-status.tsx:265 and :275 — both rendered on one page:
+            <KPIStripStatus
+            <SignalGrid signals={signals} onDrillDown={handleDrillDown} />
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/projects/components/kpi-strip-status.tsx:74`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Create one module (e.g. src/pages/projects/components/signal-tone.ts) exporting named constants and the tone functions — `UPTIME_SLO_TARGET = 99.9`, `UPTIME_SLO_WARNING = 99.0`, `P95_LATENCY_CRITICAL_MS = 1000`, `P95_LATENCY_WARNING_MS = 50
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kpi-strip-status-slo-tone-thresholds-uptime-99-9`). Source: code-review finding #106, `code-review-output/code-review.db`.
+
+## B-195 — ConfirmDialog owns type-to-confirm (confirmationPhrase) and is used by 32 files, but 6 destructive dialogs re-   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/pages/infra/components/delete-secret-dialog.tsx:41
+  CANONICAL — src/components/dialogs/confirm-dialog.tsx:30,34-35,50-63
+    confirmationPhrase?: string;
+    /** ConfirmDialog — centered confirmation modal. Focuses Cancel on open (deliberate — never
+     *  the destructive button). `confirmationPhrase` gates confirm behind exact type-to-confirm. */
+    const [typed, setTyped] = useState("");
+    useEffect(() => { if (open) { setTyped(""); setErro(null);
+        const t = setTimeout(() => cancelRef.current?.focus(), 0);   // Focus Cancel on open, not the destructive action.
+    const phraseOk = !phraseRequired || typed === confirmationPhrase;
+  
+  RE-IMPLEMENTED (same three declarations, six times):
+  src/pages/infra/components/delete-secret-dialog.tsx:41,52,100
+    const [confirmInput, setConfirmInput] = useState("");
+    const canDelete = secret !== null && confirmInput === secret.name;
+    disabled={!canDelete || submitting}
+  src/pages/infra/components/rotate-secret-dialog.tsx:42,55,104
+    const [confirmInput, setConfirmInput] = useState("");
+    const canRotate = secret !== null && confirmInput === secret.name && newValue.length > 0;
+    disabled={!canRotate || submitting}
+  src/pages/projects/components/bulk-delete-projects-dialog.tsx:41,47-48
+    const [confirmText, setConfirmText] = useState("");
+    const phrase = confirmPhrase(projectNames.length);
+    const matches = confirmText === phrase;
+  src/pages/infra/components/delete-environment-dialog.tsx:73,78
+    cons
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/infra/components/delete-secret-dialog.tsx:41`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Migrate the six to `<ConfirmDialog confirmationPhrase={...} intent="destructive" onConfirm={...} />`, keeping only the genuinely extra body content as children (cascade warning, the rollback `ack` checkbox, the new-value field for rotate).
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-delete-secret-dialog-confirmdialog-owns-type-to-confirm-confirmationph`). Source: code-review finding #108, `code-review-output/code-review.db`.
+
+## B-196 — Phase 1 inventory gap: the whole src/build/ directory (8 files) is un-inventoried, so no review agent can cove   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/build/manual-chunks.ts:1
+  Verbatim CLI rejection, reproduced for all 8 paths:
+    validation error: refusing to mark file inspected: 'src/build/csp.test.ts' not in files_inventoried. Register it via add-file-inventoried first (Phase 1 must be exhaustive).
+  
+  The directory is real and tracked (not gitignored, not excluded by knip.json or tsconfig.json — grep for 'build' in both returns no exclusion), and it contains production-shaping config:
+    src/build/sw-runtime-caching.ts:24  export interface RegraDeCache {
+    src/build/manual-chunks.ts:56       const NOMES_EXATOS = [
+  
+  Counted coverage: 767 of 775 src/ files marked inspected by maturity-detective; the 8 failures are exactly this directory.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/build/manual-chunks.ts:1`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Register the 8 paths via add-file-inventoried so Phase 3 agents can record coverage against them, then re-run the affected Phase 3 passes over src/build/. Separately, check why Phase 1's enumeration missed the directory — if the walk filter
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-manual-chunks-phase-1-inventory-gap-the-whole`). Source: code-review finding #109, `code-review-output/code-review.db`.
+
+## B-197 — 37 test files hold mutable module-level state, the precondition for order dependence   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+family: F4 · a test that asserts absence of something absent in both worlds
+evidence: |
+  src/test/arvore-estavel.ts:1
+  Mechanical scan: 37 of 376 test files match ^\s*let\s+\w+ at module scope.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/test/arvore-estavel.ts:1`. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Run the suite with vitest --sequence.shuffle to convert this from a suspicion into a measurement
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-arvore-estavel-37-test-files-hold-mutable-module`). Source: code-review finding #111, `code-review-output/code-review.db`.
+
+## B-198 — SELF-DEFECT: this audit own phase-1 inventory silently dropped all of src/build/   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  src/build/manual-chunks.ts:1
+  Phase-1 inventory reported src/build/ files=0 loc=0 while ls src/build shows 8 files (csp.test.ts, manual-chunks.ts + test, nginx-cache-policy.test.ts, sw-bff-paths.ts + test, sw-runtime-caching.ts + test). Root cause: SKIP_DIRS = {node_modules, .git, dist, build, ...} matched the path segment src/build.
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/build/manual-chunks.ts:1`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Anchor artefact exclusions to the repo root (./dist, ./build) rather than matching any path segment
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-manual-chunks-self-defect-this-audit-own-phase`). Source: code-review finding #113, `code-review-output/code-review.db`.
+
+## B-199 — Stale TODO in app-sidebar doc comment describes a hard-coded plan tier the file no longer renders   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  src/components/layout/app-sidebar.tsx:42
+  src/components/layout/app-sidebar.tsx:42-43
+   * Plan tier currently hard-coded to "hobby" (EC-14 v1.1 acknowledged TODO —
+   * resolves when BillingPage wires /v1/billing tier).
+  $ grep -niE "plan|tier" src/components/layout/app-sidebar.tsx  -> only lines 42-43 (the comment itself)
+  $ grep -rn "hobby" src --include=*.tsx --include=*.ts | grep -v .test. -> src/pages/settings/billing.tsx:100 (PLAN_TIER_MAP, API-driven) and the comment above
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/components/layout/app-sidebar.tsx:42`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Delete lines 42-43 if the plan badge was intentionally removed from the sidebar; if a plan badge is still wanted there, restore it bound to the /v1/billing tier and keep the TODO only until that binding lands
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-app-sidebar-stale-todo-in-app-sidebar-doc`). Source: code-review finding #14, `code-review-output/code-review.db`.
+
+## B-200 — docs/architecture.md says eight ADRs await acceptance; there are 14 ADRs, 8 already accepted   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  docs/architecture.md:112
+  docs/architecture.md:112 — "`docs/adr/`. Oito ADRs em `status: proposed`, aguardando aceite do time"  ||  `head -3` of each file in docs/adr/ shows status: accepted in 0001, 0003, 0004, 0010, 0011, 0012, 0013, 0014 and status: proposed in 0002, 0005, 0006, 0007, 0008, 0009 (14 files total)
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/architecture.md:112`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Replace the count with a pointer to docs/adr/README.md (which already carries the index) and state only the invariant: "o aceite e do time". A count restated in two places drifts by construction
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-architecture-docs-architecture-md-says-eight-adrs`). Source: code-review finding #16, `code-review-output/code-review.db`.
+
+## B-201 — docs/architecture.md cites system-design-output/final_report.md as the provenance of every number; the path do   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  docs/architecture.md:16
+  docs/architecture.md:16 — "cujo relatorio esta em `system-design-output/final_report.md`"  ||  docs/architecture.md:123 — "Relatorio completo em `system-design-output/final_report.md`"  ||  `find /home/paulo/Projetos/theo/theo-platform/theo-cloud -maxdepth 3 -name system-design-output -not -path "*/node_modules/*"` returns nothing
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/architecture.md:16`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Commit the report (or its summary) under .claude/knowledge-base/audits/ and update both citations, or mark the numbers as unverifiable-by-reference and re-derive them with a committed script
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-architecture-docs-architecture-md-cites-system-design`). Source: code-review finding #17, `code-review-output/code-review.db`.
+
+## B-202 — Four duplicate page exports, two of which are alias exports with zero importers   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  src/pages/memory/exports.tsx:212
+  src/pages/memory/exports.tsx:212   export const MemoryExportsPage = ExportsPage;
+  src/pages/memory/playground.tsx:284 export const MemoryPlaygroundPage = PlaygroundPage;
+  $ grep -rn "MemoryExportsPage|MemoryPlaygroundPage" src --include=*.ts --include=*.tsx (excluding the two defining files) -> no matches
+  src/pages/promptly/create.tsx:26 export function PromptlyCreatePage() / :210 export default PromptlyCreatePage;
+  src/pages/promptly/diff.tsx:72 export function PromptlyDiffPage() / :235 export default PromptlyDiffPage;
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/memory/exports.tsx:212`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Delete the two unreferenced aliases. For create.tsx and diff.tsx, pick one export style and align them with the rest of src/pages (the named export, which app-routes-lazy already consumes) and drop the default
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-exports-four-duplicate-page-exports-two-of`). Source: code-review finding #18, `code-review-output/code-review.db`.
+
+## B-203 — 84 exported types are never imported, concentrated in the API contract mirror src/lib/api/types.ts   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  src/lib/api/types.ts:172
+  src/lib/api/types.ts:1-5  // TypeScript types mirroring Go API structs ... single source of truth for API shapes
+  src/lib/api/types.ts:172 export interface ProjectCreateInput {
+  src/lib/api/types.ts:457 export interface TeamMemberInput {
+  $ wc -l src/lib/api/types.ts -> 861 ; grep -c "^export" -> 72
+  $ per-name grep across src/ excluding types.ts -> 0 importers for the 18 declarations listed above
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/api/types.ts:172`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Decide per type: either wire the input shapes into the corresponding mutation hooks (so the declared contract actually types the request bodies), or delete the ones no longer mirrored by the Go API. Leaving them exported-but-unused keeps a
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-types-84-exported-types-are-never-imported`). Source: code-review finding #19, `code-review-output/code-review.db`.
+
+## B-204 — DESIGN.md prescribes composites and an onboarding route sequence that do not exist in the codebase   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  DESIGN.md:126
+  DESIGN.md:126-127 — "| Deploy progress | `DeployTimeline` + `BuildStepList` |" / "| Canary | `CanaryProgress` |"  ||  `grep -rl BuildStepList src/` and `grep -rl CanaryProgress src/` return zero files (DeployTimeline returns 7)  ||  DESIGN.md:315-322 lists /onboarding/{welcome,github,repo,configure,deploy,streaming,success}  ||  `grep -rn onboarding src/routes/*.tsx src/app.tsx` returns nothing; ls src/components/onboarding/ shows only onboarding-panel.tsx
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:126`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Split DESIGN.md into what is contracted-and-shipped versus what is still target state, marking each unbuilt item with its backlog id. A locked contract that mixes both is unusable as a review gate
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-prescribes-composites-and-an`). Source: code-review finding #21, `code-review-output/code-review.db`.
+
+## B-205 — DESIGN.md points UX instrumentation at src/lib/rum.ts; the module lives in src/lib/telemetry/ and ux-metrics.t   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  DESIGN.md:683
+  DESIGN.md:683 — "Instrumentation lives in `cloud/dashboard/src/lib/rum.ts` (Web Vitals already wired) + new `lib/ux-metrics.ts` (planned T4.7)."  ||  `ls src/lib/` shows no rum.ts and no ux-metrics.ts; `ls src/lib/telemetry/` shows error-reporter.ts, error-reporter.test.ts, rum.ts, rum.test.ts  ||  `grep -rl ux-metrics src/` returns zero files
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:683`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Fix the path to src/lib/telemetry/rum.ts and mark the § 17.1-17.3 metrics as not-yet-captured (with backlog ids) instead of implying instrumentation exists
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-points-ux-instrumentation-at`). Source: code-review finding #22, `code-review-output/code-review.db`.
+
+## B-206 — Two placeholder routes are unreachable from navigation and duplicate screens that already shipped   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  src/routes/settings-routes.tsx:26
+  src/routes/settings-routes.tsx:26-38  <Route path="/settings/members" ... <SubPagePlaceholder title="Members" ...
+  src/routes/settings-routes.tsx:43-55  <Route path="/settings/billing" ... <SubPagePlaceholder title="Billing settings" ...
+  src/components/layout/app-sidebar-menus.ts:209-210  { label: 'Members', path: '/team' }, { label: 'Billing', path: '/billing' }
+  src/lib/placeholder-honesty.test.ts:46-47  "Nao exige o contrario: uma rota em placeholder pode legitimamente ficar FORA do menu"
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/routes/settings-routes.tsx:26`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Replace both routes with <Navigate to="/team" replace /> and <Navigate to="/billing" replace /> (the same treatment /api-keys already gets at src/app.tsx:173), so an old bookmark lands on the working screen instead of a coming-soon page for
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-settings-routes-two-placeholder-routes-are-unreachable-from`). Source: code-review finding #23, `code-review-output/code-review.db`.
+
+## B-207 — DESIGN.md Cross-references section points at four knowledge-base paths that do not exist   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  DESIGN.md:809
+  DESIGN.md:809-812 cites `.claude/knowledge-base/audits/2026-05-25/dashboard-faang-review.md`, `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-plan.md`, `.claude/knowledge-base/plans/2026-05-25-dashboard-faang-remediation-edge-cases.md`, `.claude/knowledge-base/architecture/dashboard/`  ||  `ls theo-cloud/.claude/knowledge-base/` = adrs audits backlog discoveries grills implementations plans reviews roadmap-runs (no architecture/)  ||  `ls .claude/knowledge-base/audits/2026-05-25/` = no such directory  ||  `find theo-cloud -name "*faang*" -not -path "*/node_modules/*"` returns nothing  ||  DOGFOOD.md:147-149 cites the same missing audit file
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:809`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Either restore the referenced artifacts under .claude/knowledge-base/ or strip the dead citations and the T-numbers that depend on them, replacing each with the ADR or backlog id that survives
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-cross-references-section-points`). Source: code-review finding #24, `code-review-output/code-review.db`.
+
+## B-208 — DESIGN.md § 3 dependency-reach measurements are stale (183 vs 231 importers; 3 vs 5 files)   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  DESIGN.md:93
+  DESIGN.md:93-94 — "| `@usetheo/ui` | `0.35.1` | components | 183 files import it |" / "| `@theokit/ui` | `1.3.2` | the theme ... | 3 files, 4 symbols |"  ||  `grep -rl "@usetheo/ui" src/ | wc -l` = 231  ||  `grep -rln "@theokit/ui" src/` = src/main.tsx, src/test/render.tsx, src/lib/theme/theo-theme.ts, src/pages/settings/billing.tsx, src/pages/overview/overview.tsx, src/index.primary-token.test.ts, src/pages/lens/traces.test.tsx, src/pages/lens/compare.test.tsx, src/pages/lens/traces/columns-toggle.test.tsx
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:93`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Turn the containment claim into an executable check (a test asserting the @theokit/ui importer set) rather than a number in prose; the doc already states the split is only defensible while the surface stays small
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-3-dependency-reach-measurements`). Source: code-review finding #25, `code-review-output/code-review.db`.
+
+## B-209 — DESIGN.md file:line pointers into the source are stale (index.css, top-bar.tsx, settings.tsx/profile.tsx)   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  DESIGN.md:139
+  DESIGN.md:139 "`--motion-{instant,fast,base,slow}` in `index.css:113-119`" vs src/index.css:108 `--motion-instant: 0ms;` .. :111 `--motion-slow: 320ms;`  ||  DESIGN.md:466 "Already partially done in `cloud/dashboard/src/index.css:122-136`" vs src/index.css:181 `@media (prefers-reduced-motion: reduce) {`  ||  DESIGN.md:492 "NOT `<span>` like current `top-bar.tsx:67`" vs src/components/layout/top-bar.tsx:65-67 `<Select.Trigger aria-label="Select project" ...>`  ||  DESIGN.md:663 "the exact smoking gun in `settings.tsx:13-21` + `profile.tsx:30-40`" vs src/pages/settings/profile.tsx:31-40 "SG-05 CLOSED ... replaced setTimeout fake with real DELETE /api/v1/tenants/{id}" and no src/pages/settings.tsx exists
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:139`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Drop the line numbers and cite symbols/files only, or add a doc-link test (the repo already has this pattern in src/lib/*.test.ts) that fails when a cited path stops resolving
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-file-line-pointers-into`). Source: code-review finding #26, `code-review-output/code-review.db`.
+
+## B-210 — docs/adr/README.md contradicts itself on the ADR range and points at the wrong path for the nomenclature gate   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  docs/adr/README.md:8
+  docs/adr/README.md:8 — "Arquivos neste diretorio: `0001-…` a `0009-…`." vs docs/adr/README.md:13-26 listing ADR-0001..ADR-0014, and `ls docs/adr/` showing 0001..0014 plus README.md  ||  docs/adr/README.md:62 — "`docs/adr/adr-nomenclature.test.ts` falha se a contagem de `ADR D<n>` no codigo crescer" vs actual location src/lib/adr-nomenclature.test.ts (verified: `find . -name "*nomenclature*"` = ./src/lib/adr-nomenclature.test.ts)
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/adr/README.md:8`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Change line 8 to "0001-… a 0014-…" (or drop the range, since the table below is the index) and correct the test path to src/lib/adr-nomenclature.test.ts
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-README-docs-adr-readme-md-contradicts-itself`). Source: code-review finding #31, `code-review-output/code-review.db`.
+
+## B-211 — docs/padronizacao-ui-2026-08-09.md still prescribes P1/P2 work that has already been executed, and references    [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  docs/padronizacao-ui-2026-08-09.md:217
+  docs/padronizacao-ui-2026-08-09.md:217 — "### P2 — Migrar os 14 call sites de pagina e remover `ui/dialog`"; :230 — "**Pronto quando:** `components/ui/dialog.tsx` e deletado e a suite passa."  ||  `wc -l src/components/ui/dialog.tsx` = "Arquivo ou diretorio inexistente"; `ls src/components/ui/ | grep -i dialog` returns nothing  ||  `grep -rln "ui/dialog" src/` returns only files where the string appears inside comments (redeploy-dialog.tsx:63, confirm-dialog.test.tsx:138, redeploy-dialog.test.tsx:99, modal-primitive.test.ts, promote-to-production-dialog.test.tsx)  ||  doc:54 "`components/ui/dialog.tsx` (97 LoC) e `components/ui/app-modal.tsx` (104 LoC)" vs `wc -l src/components/ui/app-modal.tsx` = 148  ||  doc:10 "423 arquivos `.tsx`" vs `find src -name "*.tsx" | wc -l` = 434
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/padronizacao-ui-2026-08-09.md:217`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Add a status header to the document (executed / superseded, with the commit or backlog ids that closed P1-P3) or move it under a docs/history/ directory. A dated measurement report is fine; a dated report that still reads as an open work or
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-padronizacao-ui-2026-08-09-docs-padronizacao-ui-2026-08-09`). Source: code-review finding #32, `code-review-output/code-review.db`.
+
+## B-212 — Three different sizes are given for the max-lines allowlist (ADR-0002 says 32, architecture.md says 18, eslint   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: completeness
+evidence: |
+  docs/adr/0002-orcamento-de-loc-por-arquivo.md:15
+  docs/adr/0002-orcamento-de-loc-por-arquivo.md § Decisao — "acompanhado de uma **allowlist explicita dos 32 arquivos atuais** que excedem o limite"  ||  docs/architecture.md:67 — "| `max-lines` (B-033) | 500 LOC por arquivo, com allowlist de 18 arquivos que carrega o LOC de cada um. |"  ||  eslint.config.js:222 — "Esta regra NAO pede refactor: ela trava a divida onde esta. Os 18 arquivos que hoje excedem estao listados" vs eslint.config.js:253-267 which lists 15 paths  ||  eslint.config.js:227-230 cites src/app.tsx as the flagship allowlist entry; app.tsx is absent from the list and is 226 lines
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `docs/adr/0002-orcamento-de-loc-por-arquivo.md:15`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Let the allowlist be its own source of truth: remove the count from the eslint comment and from architecture.md, and mark ADR-0002 as superseded-in-part by the B-033 implementation (which is what src/lib/loc-budget-ratchet.test.ts already e
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-0002-orcamento-de-loc-por-arquivo-three-different-sizes-are-given-for`). Source: code-review finding #33, `code-review-output/code-review.db`.
+
+## B-213 — Flow id from the URL interpolated into a request URL without encodeURIComponent   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: security
+nfr_tag: security
+evidence: |
+  src/pages/auth/kratos.ts:57
+  const resp = await fetch(`${ACCOUNTS_URL}/self-service/${flowType}/flows?id=${flowId}`, {
+      credentials: 'include',
+    });
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/kratos.ts:57`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Build the URL with URLSearchParams or wrap the value: `?id=${encodeURIComponent(flowId)}`. Apply at all five call sites; a single `flowUrl(flowType, id)` helper in kratos.ts would remove the possibility of missing one
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-kratos-flow-id-from-the-url-interpolated`). Source: code-review finding #54, `code-review-output/code-review.db`.
+
+## B-214 — isSafeRedirectUrl has measured CC 14 for a single-predicate security guard   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: human
+severity: low
+category: complexity
+family: F1 · a security guard exists, is tested, and is not called
+cc_value: 14.0
+nfr_tag: security
+evidence: |
+  src/pages/auth/safe-redirect.ts:57
+  if (url.protocol !== 'https:' && typeof window !== 'undefined') {
+      if (window.location.origin !== url.origin) {
+        return false;
+      }
+    }
+    if (typeof window !== 'undefined' && url.origin === window.location.origin) {
+      return true;
+    }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/safe-redirect.ts:57`. It is one instance of F1 · a security guard exists, is tested, and is not called — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Hoist the environment check once (`const origin = typeof window === 'undefined' ? null : window.location.origin;`) and express the rule as a flat sequence of guard clauses over `origin` — same behaviour, roughly half the branches, and every
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-safe-redirect-issaferedirecturl-has-measured-cc-14-for`). Source: code-review finding #55, `code-review-output/code-review.db`.
+
+## B-215 — reportError has measured CC 16 from three nested swallow layers   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: human
+severity: low
+category: complexity
+cc_value: 16.0
+evidence: |
+  src/lib/telemetry/error-reporter.ts:21
+  export function reportError(error: Error, info: ErrorInfo): void {
+    try {
+      if (errorsThisSession >= MAX_ERRORS_PER_SESSION) return;
+      errorsThisSession++;
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/telemetry/error-reporter.ts:21`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Extract `buildPayload(error, info)` and `dispatch(body)` so each has one reason to fail, keep the single outer try/catch on the composed call, and increment an in-memory `reporterFailures` counter in the outer catch so a systematically brok
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-error-reporter-reporterror-has-measured-cc-16-from`). Source: code-review finding #56, `code-review-output/code-review.db`.
+
+## B-216 — mapKratosError console.errors on every call, including from a render path   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: code
+evidence: |
+  src/pages/auth/error-mapper.ts:135
+  export function mapKratosError(input: KratosErrorInput | null | undefined): KratosErrorMapped {
+    console.error('[auth.error-mapper]', input);
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/error-mapper.ts:135`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Gate the log (`if (import.meta.env.DEV) console.debug(...)`) or move it to the call site that actually handles the error, keeping the mapper pure. If operator debuggability in production is the goal (ADR D2), route it through `reportEvent`
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-error-mapper-mapkratoserror-console-errors-on-every-call`). Source: code-review finding #57, `code-review-output/code-review.db`.
+
+## B-217 — Web Vitals reporter logs to console in production instead of beaconing   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: code
+nfr_tag: performance
+evidence: |
+  src/lib/telemetry/rum.ts:30
+  function reportInProd(metric: Metric): void {
+    // Prod: POST to telemetry endpoint when backend ships /v1/telemetry/web-vitals
+    // For now: same as dev (console). Future:
+    //   navigator.sendBeacon('/v1/telemetry/web-vitals', JSON.stringify(metric))
+    reportInDev(metric);
+  }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/telemetry/rum.ts:30`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Either implement the beacon (the sibling `reportEvent` in the same file already has the sendBeacon/fetch fallback to reuse) or make `reportInProd` a no-op and drop the misleading header claim. Silent console noise in production is the worst
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-rum-web-vitals-reporter-logs-to-console`). Source: code-review finding #58, `code-review-output/code-review.db`.
+
+## B-218 — HTTP client builds a DOM toast and hardcodes a 2000 ms redirect delay   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: code
+evidence: |
+  src/lib/http/api.ts:256
+  toast.style.cssText = 'position:fixed;top:16px;right:16px;background:#1a1a1a;color:white;padding:12px 20px;border-radius:8px;z-index:9999;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      toast.textContent = 'Session expired. Redirecting to login...';
+      document.body.appendChild(toast);
+      setTimeout(() => { window.location.href = `/login${params}`; }, 2000);
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/http/api.ts:256`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Name the constant (`const SESSION_EXPIRY_NOTICE_MS = 2_000;`) and move the notice out of the HTTP layer: dispatch a `theo:session-expired` window event (the 402 interceptor 12 lines below already uses exactly this pattern) and let a top-lev
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-http-client-builds-a-dom-toast`). Source: code-review finding #59, `code-review-output/code-review.db`.
+
+## B-219 — Stale docblock claims the JWT travels in `?token=` — contradicted 140 lines below in the same file   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: contract
+family: F2 · a transport swap changed a callback's meaning; the policy did not follow
+regression_of: B-014
+nfr_tag: security
+evidence: |
+  src/hooks/deploy/use-sse-stream.ts:25
+  * Auth: SSE cannot set custom headers, so the JWT travels in `?token=`.
+   * That matches the BFF pattern in use-log-stream (T6.0 of the older
+   * backend-frontend integration plan).
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:25`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Replace the paragraph with the current contract: 'Auth: the JWT goes in the Authorization header — the transport is fetch + ReadableStream (fetch-event-source.ts), not EventSource. See ADR-0009 / B-088.' Also revisit the sibling claim at sr
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-stale-docblock-claims-the-jwt-travels`). Source: code-review finding #61, `code-review-output/code-review.db`.
+
+## B-220 — SharedEventSource keys the registry on URL alone — a second subscriber's token and resume cursor are silently    [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: contract
+evidence: |
+  src/hooks/deploy/shared-event-source.ts:113
+  const existente = registro.get(url);
+      if (existente) {
+        this.entrada = existente;
+        existente.handles.add(this);
+        // O consumidor ainda vai atribuir `onmessage`/`addEventListener` DEPOIS
+        // do construtor. Entregar o replay agora chegaria antes dos handlers
+        // existirem — por isso ele sai numa microtask.
+        queueMicrotask(() => this.recuperarAtraso());
+        return;
+      }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/shared-event-source.ts:113`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Include the resume cursor in the registry key (`${url}|${lastEventId ?? ''}`) so subscribers that disagree get their own connection, or — cheaper and probably right here — document the rule explicitly and normalize at the caller: since the
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-shared-event-source-sharedeventsource-keys-the-registry-on-url`). Source: code-review finding #74, `code-review-output/code-review.db`.
+
+## B-221 — useSSEStream returns a fresh object and a fresh clear() on every render, propagating identity churn to consume   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: contract
+family: F2 · a transport swap changed a callback's meaning; the policy did not follow
+regression_of: B-014
+evidence: |
+  src/hooks/deploy/use-sse-stream.ts:262
+  return {
+      events,
+      connected,
+      error,
+      lastEventID,
+      droppedCount,
+      clear: () => {
+        bufferRef.current = [];
+        droppedRef.current = 0;
+        setEvents([]);
+        setDroppedCount(0);
+      },
+    };
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:262`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Wrap `clear` in useCallback with an empty dependency array (it only touches refs and setters, all stable) and wrap the returned object in useMemo keyed on the five values it exposes. Do the same at use-log-stream.ts:103, then `[stream]` in
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-usessestream-returns-a-fresh-object-and`). Source: code-review finding #75, `code-review-output/code-review.db`.
+
+## B-222 — Date.now() inside useMemo freezes the running-build elapsed time between events   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: code
+evidence: |
+  src/hooks/deploy/use-deployment-stream.ts:177
+  } else if (status === 'running') {
+          const first = steps[0];
+          if (first?.started_at) {
+            totalDurationSeconds =
+              (Date.now() - new Date(first.started_at).getTime()) / 1000;
+          }
+        }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deployment-stream.ts:177`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Return the anchor instead of the derived elapsed value — expose `startedAt` and let the presentation layer tick with its own interval or a `useElapsed(startedAt)` hook — or keep the field and drive it from a 1s interval so the memo is pure
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deployment-stream-date-now-inside-usememo-freezes-the`). Source: code-review finding #76, `code-review-output/code-review.db`.
+
+## B-223 — installSSEMocks swaps window.EventSource, which no production code path has used since B-088   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: code
+evidence: |
+  src/lib/mocks/sse.ts:163
+  export function installSSEMocks(): void {
+    if (!isSSEMockingEnabled()) return;
+    if (typeof window === 'undefined') return;
+    if (originalEventSource !== null) return; // already installed
+    originalEventSource = (window as unknown as { EventSource: typeof EventSource })
+      .EventSource;
+    (window as unknown as { EventSource: unknown }).EventSource = MockEventSource;
+  }
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/mocks/sse.ts:163`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Remove installSSEMocks / uninstallSSEMocks and their call in installAllMocks, keeping MockEventSource and registerSSE (both still used through __setTransporte), and update the file header at lines 8-14 to describe the transport-injection pa
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-sse-installssemocks-swaps-window-eventsource-which-no`). Source: code-review finding #77, `code-review-output/code-review.db`.
+
+## B-224 — Log lines without a timestamp get a new Date() on every memo recomputation   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: code
+evidence: |
+  src/hooks/deploy/use-log-stream.ts:95
+  return {
+          ts: raw.ts ?? raw.timestamp ?? new Date().toISOString(),
+          level: raw.level ?? 'info',
+          msg: raw.msg ?? raw.line ?? '',
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-log-stream.ts:95`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Stamp the arrival time once, at ingestion, rather than at projection: capture it in useSSEStream's `push` (which runs exactly once per event) or leave `ts` undefined and let the viewer render a placeholder for lines the server did not times
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-log-stream-log-lines-without-a-timestamp-get`). Source: code-review finding #78, `code-review-output/code-review.db`.
+
+## B-225 — useReadinessSignals memo has measured CCN=30 from eight inlined nested ternaries   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: human
+severity: low
+category: complexity
+cc_value: 30.0
+evidence: |
+  src/hooks/projects/use-readiness-signals.ts:62
+  logs_healthy: buildSignal(
+          'logs_healthy',
+          statusUnknown
+            ? 'unknown'
+            : (status.status?.traffic_5xx_pct_1h ?? 0) < 0.01
+              ? 'pass'
+              : (status.status?.traffic_5xx_pct_1h ?? 0) < 0.05
+                ? 'warn'
+                : 'fail',
+        ),
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/projects/use-readiness-signals.ts:62`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Make the signal definitions data. Extend the SIGNALS table in signals.ts with an `evaluate(inputs): ReadinessStatus` per signal (or a declarative `{ unknownWhen, thresholds }` descriptor) and reduce the memo to a map over SIGNALS. CCN then
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-readiness-signals-usereadinesssignals-memo-has-measured-ccn-30`). Source: code-review finding #80, `code-review-output/code-review.db`.
+
+## B-226 — Deploy error-message mapper duplicated between promote-to-production-dialog and rollback-dialog   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: code
+evidence: |
+  src/pages/deploy/components/promote-to-production-dialog.tsx:216
+  src/pages/deploy/components/promote-to-production-dialog.tsx:216-222:
+    status: number,
+    body: { message?: string; code?: string; error?: string } | null,
+  ): string {
+    const code = body?.code ?? '';
+    const detail = body?.message ?? body?.error ?? '';
+    if (code === 'NO_ACTIVE_RELEASE' || /no active release/i.test(detail)) {
+  
+  src/pages/deploy/components/rollback-dialog.tsx:197-204 — same six lines:
+    status: number,
+    body: { message?: string; code?: string; error?: string } | null,
+  ): string {
+    const code = body?.code ?? '';
+    const detail = body?.message ?? body?.error ?? '';
+    if (code === 'NO_ACTIVE_RELEASE' || /no active release/i.test(detail)) {
+why_now: |
+  a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/deploy/components/promote-to-production-dialog.tsx:216`.
+status: raw
+dod:
+  - a test covers the corrected behaviour and fails if it regresses
+  - Extract one `deployErrorMessage(status, body)` into a sibling module (e.g. src/pages/deploy/components/deploy-error-message.ts) and import it from both dialogs, keeping any dialog-specific wording as a parameter. This puts the backend error
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-promote-to-production-dialog-deploy-error-message-mapper-duplicated-be`). Source: code-review finding #107, `code-review-output/code-review.db`.
+
