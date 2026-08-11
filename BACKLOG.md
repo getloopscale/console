@@ -5405,7 +5405,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-every-sse-error-clears-the-application`). Source: code-review finding #63, `code-review-output/code-review.db`.
 
-## B-145 — useCancelBuild reports success when the cancel request fails — engineFetch resolves null instead of throwing   [ ]
+## B-145 — useCancelBuild reports success when the cancel request fails — engineFetch resolves null instead of throwing   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5422,7 +5422,15 @@ evidence: |
   onSuccess: (_data, buildId) => {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/mutations/use-cancel-build.ts:9`.
-status: triaged
+status: shipped
+shipped_note: |
+  `{ throwOnError: true }` passed, matching the three siblings.
+  The production fix is one argument; the item's `attempt_log` records three attempts REVERTED because of the test, and it was right to revert.
+  Two things unblocked it.
+  First, the harness: awaiting the rejection INSIDE `await act(async () => { try { … } catch {} })` — a floating `.catch()` attaches a handler while React's flush happens outside the act scope, so the rejection escapes as unhandled, which is what was observed and misattributed to the mock and to the QueryClient.
+  Neither guess in the log (a logger, an onError binding) was needed; TanStack v5 has no logger.
+  Second, and more important: the first version of this test mocked `engineFetch` and passed against the UNFIXED code, because `mockRejectedValue` rejects whether or not the flag is set.
+  The network is mocked at `fetch` so the real `cloudFetch` runs and the flag is what makes the difference.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -8223,7 +8231,7 @@ dod:
   - all six pages distinguish "nothing there" from "could not read"
   - a guard fails when a page passes `empty=` without consulting an error flag
 
-## B-168 — useCancelBuild reports success when the cancel was refused   [ ]
+## B-168 — useCancelBuild reports success when the cancel was refused   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -8246,7 +8254,15 @@ evidence: |
 why_now: |
   Cancelling a build is destructive and the operator acts on the answer. Telling them it
   worked when it did not is the failure mode that costs most on this surface.
-status: triaged
+status: shipped
+shipped_note: |
+  `{ throwOnError: true }` passed, matching the three siblings.
+  The production fix is one argument; the item's `attempt_log` records three attempts REVERTED because of the test, and it was right to revert.
+  Two things unblocked it.
+  First, the harness: awaiting the rejection INSIDE `await act(async () => { try { … } catch {} })` — a floating `.catch()` attaches a handler while React's flush happens outside the act scope, so the rejection escapes as unhandled, which is what was observed and misattributed to the mock and to the QueryClient.
+  Neither guess in the log (a logger, an onError binding) was needed; TanStack v5 has no logger.
+  Second, and more important: the first version of this test mocked `engineFetch` and passed against the UNFIXED code, because `mockRejectedValue` rejects whether or not the flag is set.
+  The network is mocked at `fetch` so the real `cloudFetch` runs and the flag is what makes the difference.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
