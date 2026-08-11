@@ -107,7 +107,7 @@ export function TrustEnforcementPage() {
       title="Enforcement"
       description="Each row is one time the protection acted on a conversation in this workspace."
       primaryAction={{
-        label: 'Atualizar',
+        label: 'Refresh',
         icon: RefreshCw,
         onClick: () => void queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
       }}

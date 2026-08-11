@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ArrowRight, RefreshCw, ShieldAlert, ShieldCheck, ShieldX, Siren } from 'lucide-react';
 import {
   Badge,
   Button,
   Card,
   DataTable,
   EmptyState,
+  MetricCard,
   PageShell,
   type DataTableColumn,
 } from '@usetheo/ui';
@@ -18,6 +19,7 @@ import {
   useTrustValidators,
   useInvalidateTrust,
 } from '@/hooks/trust/use-trust';
+import { trustKpis } from './components/trust-kpis';
 import {
   coverageGap,
   unenforcedCount,
@@ -25,7 +27,15 @@ import {
 } from '@/pages/trust/components/trust-series';
 
 /**
+ * @overview-answers: kpi
  * @overview-answers: verdict
+ *
+ * Amendment D1-bis (owner's decision, 2026-08-11): every capability overview opens with the same
+ * four-KPI dashboard `memory` opens with. Consistency of surface is a property of the product —
+ * whoever operates eight capabilities should not learn eight ways to read the first screen.
+ *
+ * The VERDICT stays, ABOVE the numbers. A number says `3`; the sentence says what to do about the
+ * `3`. The amendment adds the dashboard; it does not replace the verdict.
  *
  * B-126, decisão D1 de `capability-overviews-answer-a-question-plan.md` — a forma segue a existência de uma REGRA, não a maioria.
  *
@@ -81,6 +91,9 @@ export function TrustOverviewPage() {
 
   const coverage = coverageGap(violationsQuery.data, validatorsQuery.data);
   const gaps = unenforcedCount(coverage);
+  // B-126, amendment D1-bis — the four numbers every capability opens with. They derive from the
+  // `coverage` the screen already computes; no new request.
+  const kpis = trustKpis(coverage);
 
   const onRefresh = () => {
     // Uma invalidação alcança o domínio inteiro. Antes eram duas chamadas com
@@ -139,7 +152,7 @@ export function TrustOverviewPage() {
     <PageShell
       title="Trust"
       description="What the trust layer observed — and what of it still gets through unblocked."
-      primaryAction={{ label: 'Atualizar', icon: RefreshCw, onClick: onRefresh }}
+      primaryAction={{ label: 'Refresh', icon: RefreshCw, onClick: onRefresh }}
     >
       {failed ? (
         <Alert
@@ -155,6 +168,25 @@ export function TrustOverviewPage() {
           title="The guardrail catalog did not respond"
           description="Every policy appears as discovered below, because the opposite could not be confirmed. Some may already be blocked."
         />
+      ) : null}
+
+      {/* B-126, amendment D1-bis (owner's decision) — the same four-KPI dashboard `memory` opens
+          with, so whoever operates eight capabilities does not learn eight ways to read the first
+          screen.
+
+          The VERDICT below stays. It was this screen's only answer and remains the best part of
+          it: a number says `3`, the sentence says what to do about the `3`. The amendment adds the
+          dashboard; it does not replace it.
+
+          Renders only once the read has settled — four zeros over a failure would be fabricated
+          numbers standing where an error belongs, which is what the Alert above exists to show. */}
+      {!failed && !isLoading ? (
+        <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <MetricCard title="Violations" value={kpis.violations} icon={<Siren className="h-4 w-4" aria-hidden="true" />} />
+          <MetricCard title="Policies seen" value={kpis.policies} icon={<ShieldAlert className="h-4 w-4" aria-hidden="true" />} />
+          <MetricCard title="Blocked" value={kpis.blocked} icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />} />
+          <MetricCard title="Unblocked" value={kpis.unenforced} icon={<ShieldX className="h-4 w-4" aria-hidden="true" />} />
+        </div>
       ) : null}
 
       <Card>

@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Changed
+
+- **theo-cloud/dashboard:** every capability overview now opens with the same four-number dashboard. `skills` used to open straight into a table — no summary, no number, nothing answering "how is this capability doing?" — and `trust` answered only with a sentence. Both now show the four KPIs that `memory` shows, with the judgement sentence kept above them where one exists: a number says `3`, the sentence says what to do about the `3`. A test now fails when a new capability screen ships without the dashboard (B-126).
+- **theo-cloud/dashboard:** the refresh button on the three trust screens said "Atualizar" while the other five capabilities said "Refresh" (B-126, filed as B-128).
+
 ### Fixed
 
 - **theo-cloud:** seis listas truncavam em silêncio — com mais de 100 saved views, dashboards, webhooks ou API keys (200 para alert rules), os excedentes sumiam sem que a resposta ou a tela dissessem. Agora a resposta traz `has_more` e a tela avisa quantos está mostrando (B-114).

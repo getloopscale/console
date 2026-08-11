@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { catalogVerdict } from './catalog-verdict';
+import { catalogKpis } from './catalog-kpis';
 import { CatalogVerdictBanner } from './components/catalog-verdict-banner';
 import { Link } from 'react-router-dom';
-import { Boxes } from 'lucide-react';
+import { Archive, Boxes, CircleAlert, CircleCheck } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -10,6 +11,7 @@ import {
   DataTable,
   EmptyState,
   Input,
+  MetricCard,
   PageShell,
   type DataTableColumn,
 } from '@usetheo/ui';
@@ -21,7 +23,15 @@ import { useSkillsCatalog } from '@/hooks/skills/use-skills';
 import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/pages/skills/components/paging';
 
 /**
+ * @overview-answers: kpi
  * @overview-answers: verdict
+ *
+ * Amendment D1-bis (owner's decision, 2026-08-11): every capability overview opens with the same
+ * four-KPI dashboard `memory` opens with. Consistency of surface is a property of the product —
+ * whoever operates eight capabilities should not learn eight ways to read the first screen.
+ *
+ * The VERDICT stays, ABOVE the numbers. A number says `3`; the sentence says what to do about the
+ * `3`. The amendment adds the dashboard; it does not replace the verdict.
  *
  * B-126, decisão D1 de `capability-overviews-answer-a-question-plan.md` — a forma segue a existência de uma REGRA, não a maioria.
  *
@@ -98,6 +108,10 @@ export function SkillsOverviewPage() {
     skills: query.error ? null : paginas,
     truncated: query.data?.next_page_token != null,
   });
+
+  // B-126, amendment D1-bis — the dashboard every capability opens with. It derives from the
+  // catalogue already loaded; no new request.
+  const kpis = catalogKpis(paginas);
 
   const pagina = useMemo(
     () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillLinha[]) : []),
@@ -221,6 +235,22 @@ export function SkillsOverviewPage() {
           `memory` usa KPI e está certo. Aqui existe um "deveria" — uma skill publicada deveria ser
           carregável —, e é o que o veredito julga. */}
       <CatalogVerdictBanner veredito={veredito} />
+
+      {/* B-126, amendment D1-bis (owner's decision) — the same four-KPI dashboard `memory` opens
+          with, so whoever operates eight capabilities does not learn eight ways to read the first
+          screen. The verdict above STAYS: a number says `2`, the sentence says what to do about
+          the `2`.
+
+          Renders only on settled success, as `memory/overview.tsx:124` documents — four zeros over
+          a read that failed would be fabricated numbers standing where an error belongs. */}
+      {!query.error && !query.loading ? (
+        <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <MetricCard title="In registry" value={kpis.total} icon={<Boxes className="h-4 w-4" aria-hidden="true" />} />
+          <MetricCard title="Loadable" value={kpis.loadable} icon={<CircleCheck className="h-4 w-4" aria-hidden="true" />} />
+          <MetricCard title="Not loadable" value={kpis.notLoadable} icon={<CircleAlert className="h-4 w-4" aria-hidden="true" />} />
+          <MetricCard title="Deprecated" value={kpis.deprecated} icon={<Archive className="h-4 w-4" aria-hidden="true" />} />
+        </div>
+      ) : null}
 
       <Card>
         <Card.Header>

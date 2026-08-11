@@ -90,6 +90,30 @@ contagens que não têm um, que é fabricação com aparência de opinião infor
 declara qual usa e por quê. O risco aceito é alguém escolher errado; a mitigação é que a escolha
 fica explícita em vez de implícita.
 
+### D1-bis — EMENDA (2026-08-11, decisão do dono): o dashboard de KPIs é o padrão de TODAS
+
+**Decisão.** Toda overview de capacidade abre com um pequeno dashboard de KPIs, na forma do
+`memory/overview.tsx`. O veredito, onde existe, fica **acima** dele — não no lugar dele.
+
+**Quem decidiu, e por quê isto está registrado assim.** Eu escrevi o `D1` argumentando "veredito
+onde existe regra, KPI onde não existe", e o dono respondeu que os três — promptly, skills e trust
+— devem seguir o padrão do memory, com um dashboard inicial com dados. A decisão é dele; o
+registro é meu, e ele fica aqui em vez de o `D1` ser reescrito, porque um ADR que muda sem deixar
+rastro faz o próximo leitor acreditar que nunca houve dúvida.
+
+**Rationale (do dono, como eu o entendi).** Consistência de superfície é uma propriedade do
+produto, não do arquivo: quem opera oito capacidades não deveria aprender oito formas de ler a
+primeira tela. Um número na mesma posição em todas é aprendível uma vez.
+
+**O que eu argumentei e foi vencido, registrado porque continua verdade.** Um número exige
+interpretação e um veredito já a carrega; `3 policies are not being blocked` responde o que
+`12 violations` não responde. A emenda não descarta isso — ela **mantém o veredito** e acrescenta
+o dashboard. O que muda é que a ausência de KPIs deixa de ser aceitável.
+
+**Consequences.** O guard da T3.1 passa a exigir o marcador `kpi` em TODAS, e o marcador `verdict`
+vira aditivo em vez de alternativo. `trust` e `skills` ganham quatro KPIs cada; `promptly` já
+cumpre.
+
 ### D2 — Parcialidade é propriedade da LEITURA, não do promptly
 
 **Decisão.** Toda tela cujo resumo é calculado sobre leitura truncada declara isso. O `promptly`

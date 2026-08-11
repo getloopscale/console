@@ -176,7 +176,7 @@ export function TrustViolationsPage() {
       title="Policy violations"
       description="Each row is a signal the trust layer recorded. Open it to see the source conversation."
       primaryAction={{
-        label: 'Atualizar',
+        label: 'Refresh',
         icon: RefreshCw,
         onClick: onRefresh,
       }}

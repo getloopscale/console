@@ -4720,8 +4720,25 @@ why_now: |
   O QUE MUDOU: o `B-125` estabeleceu, na Overview de plataforma, que uma tela inicial existe para
   responder uma pergunta — não para listar. Aplicada às capacidades, a mesma régua expõe que uma
   das sete não responde nada e que outra responde melhor do que as cinco restantes.
-status: planned
+status: shipped
 evidence: knowledge-base/plans/capability-overviews-answer-a-question-plan.md
+shipped_note: |
+  Shipped with an AMENDMENT that overrode the plan's own ADR. D1 decided "verdict where a rule
+  exists, KPI where none does", and put `skills` on a verdict. The owner decided that ALL of them
+  open with the four-KPI dashboard `memory` opens with, and that the verdict stays ABOVE it. The
+  amendment is registered as D1-bis rather than by rewriting D1: an ADR that changes without
+  leaving a trace makes the next reader believe there was never a doubt.
+
+  So the guard inverted too. `lib/capability-overview.test.ts` used to fail any screen declaring
+  both markers, on the argument that rendering both deferred the choice; it now REQUIRES `kpi` in
+  all six and treats `verdict` as an addition. The old case stays in the file, inverted and with
+  its history, for the same reason.
+
+  Two defects were measured on the way and filed rather than mentioned: the trust mock never
+  registered `/policy-violations`, so `/trust` and `/violations` cannot be exercised in mock mode
+  (B-127) — the screen correctly refused to render four zeros over a failed read, which is what
+  exposed it — and three trust screens labelled the refresh button `'Atualizar'` while the other
+  five capabilities say `'Refresh'` (B-128; the label was fixed here, the sweep was not).
 dod:
   - toda overview de capacidade responde uma pergunta ANTES de listar — verificado por teste que quantifica sobre as telas, não por inspeção de uma a uma
   - a decisão entre "KPIs" e "veredito" é registrada num ADR com a alternativa rejeitada, em vez de resolvida por maioria: cinco telas usarem KPIs não prova que KPIs é a resposta certa
@@ -4754,3 +4771,35 @@ entregue_2026-08-11: |
 
   ACHADO COLATERAL: `pages/skills/` não tinha teste de tela algum — a cobertura vivia nos hooks e
   no e2e, e um teste de hook passa idêntico com a tela nunca montada.
+
+## B-127 — The trust mock does not serve `/policy-violations`, so two screens cannot be exercised in mock mode   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: bug
+source: human
+evidence: `src/lib/mocks/trust-handlers.ts:45-87` registers five routes (`/validators`, `/enforcement-events`, `POST /guardrails/test`, `POST /guardrails/`, `DELETE /guardrails/{id}`) and NOT `/policy-violations`, which `src/hooks/trust/use-trust.ts:85` requests. Measured in the browser 2026-08-11 with `VITE_USE_MOCKS=true` on `localhost:5199/trust`: the screen renders "Could not read the trust layer" and "No data — the read failed". `/violations` reads the same endpoint and is equally blind.
+why_now: B-126 put a KPI dashboard on `/trust`, and its screen-sweep DoD could not be verified in mock mode — the read fails before any number is computed. The screen behaved correctly (it refused to show four fabricated zeros over a failed read), which is what exposed the gap in the mock rather than in the product.
+status: raw
+dod:
+  - `localhost/trust` in mock mode renders the verdict and the four KPIs, with no error banner
+  - `localhost/violations` in mock mode lists rows
+  - a test fails when a hook requests a trust path the mock does not register
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `trust-mock-missing-policy-violations`).
+
+## B-128 — Portuguese strings in the dashboard UI and in code comments   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+evidence: three trust screens labelled the refresh button `'Atualizar'` while the other five capabilities label it `'Refresh'` (`pages/memory/overview.tsx:85`, `pages/lens/overview.tsx:149`, `pages/rag/overview.tsx:57`, `pages/workspace/overview.tsx:273`) — measured in the browser 2026-08-11 and fixed in the B-126 commit. The comment layer is far wider: most files under `src/pages/` and `src/lib/` carry Portuguese doc comments.
+why_now: the owner declared an unbreakable rule that every artifact in the projects is written in English, and that anything found in PT/PT-BR is translated. The UI label was a user-visible instance of it. Nothing enforces the rule, so it decays back one file at a time.
+status: raw
+dod:
+  - no user-visible string in the dashboard is in Portuguese
+  - a test fails when a UI label matches a Portuguese-only marker set
+  - the comment sweep is scoped and its remaining surface measured, not asserted
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-portuguese-strings`).

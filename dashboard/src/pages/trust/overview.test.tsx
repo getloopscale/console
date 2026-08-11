@@ -88,3 +88,30 @@ describe('TrustOverviewPage', () => {
     expect(screen.queryByText('The guardrail catalog did not respond')).not.toBeInTheDocument();
   });
 });
+
+describe('the KPI dashboard (B-126, amendment D1-bis)', () => {
+  // Owner's decision: every capability opens with the same four-number dashboard `memory` opens
+  // with. The verdict stays above it — the amendment adds, it does not replace.
+
+  it('opens with the four numbers, above the discovered rows', async () => {
+    render(<TrustOverviewPage />);
+
+    // One violation, one policy, and that policy IS enforced by the catalogue fixture.
+    expect(await screen.findByText('Violations')).toBeInTheDocument();
+    expect(screen.getByText('Policies seen')).toBeInTheDocument();
+    expect(screen.getByText('Blocked')).toBeInTheDocument();
+    expect(screen.getByText('Unblocked')).toBeInTheDocument();
+  });
+
+  it('a read that FAILED renders no numbers at all', async () => {
+    // Four zeros over a failed read are fabricated numbers standing where an error belongs — they
+    // reassure about what nobody looked at. This is the same distinction the verdict already
+    // defends one line above; the dashboard must not undo it.
+    responder({ violacoes: new Error('trust down'), catalogo: CATALOGO });
+    render(<TrustOverviewPage />);
+
+    await screen.findByText('Could not read the trust layer');
+    expect(screen.queryByText('Violations')).not.toBeInTheDocument();
+    expect(screen.queryByText('Policies seen')).not.toBeInTheDocument();
+  });
+});

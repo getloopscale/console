@@ -120,3 +120,40 @@ describe('nada se perde', () => {
     expect(screen.getByRole('heading', { name: /published skills/i })).toBeInTheDocument();
   });
 });
+
+describe('the KPI dashboard (B-126, amendment D1-bis)', () => {
+  // Owner's decision: every capability opens with the same four-number dashboard `memory` opens
+  // with. The verdict stays above it — the amendment adds, it does not replace.
+
+  it('opens with the four numbers, and keeps the verdict above them', async () => {
+    mockCatalogo.mockReturnValue({
+      data: { skills: [skill(), skill({ skill_id: 's-2', latest_revision_id: null })] },
+      loading: false,
+      error: false,
+    });
+
+    render(<SkillsOverviewPage />);
+
+    // The verdict is still the first thing that answers.
+    const veredito = await screen.findByRole('status', { name: /skill registry/i });
+    expect(within(veredito).getByText(/cannot be loaded/i)).toBeInTheDocument();
+
+    expect(screen.getByText('In registry')).toBeInTheDocument();
+    expect(screen.getByText('Loadable')).toBeInTheDocument();
+    expect(screen.getByText('Not loadable')).toBeInTheDocument();
+    expect(screen.getByText('Deprecated')).toBeInTheDocument();
+  });
+
+  it('a read that FAILED renders no numbers at all', async () => {
+    // Four zeros over a failed read are fabricated numbers standing where an error belongs. The
+    // verdict already refuses to say "healthy" here; the dashboard must not undo that refusal by
+    // showing a confident `0`.
+    mockCatalogo.mockReturnValue({ data: undefined, loading: false, error: true });
+
+    render(<SkillsOverviewPage />);
+
+    await screen.findByRole('status', { name: /skill registry/i });
+    expect(screen.queryByText('Loadable')).not.toBeInTheDocument();
+    expect(screen.queryByText('Not loadable')).not.toBeInTheDocument();
+  });
+});
