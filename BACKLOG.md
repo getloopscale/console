@@ -8275,19 +8275,6 @@ remeasured: |
   uses it. The justification written into `src/lib/list-state.ts:31-34` is false.
   Full detail in
   `.claude/knowledge-base/discoveries/opportunities/dashboard-code-review-sweep-opportunity.md`.
-shipped_note: |
-  `lib/list-state.ts` is the missing decision, as a pure function rather than a wrapper around
-  a design-system component we do not own. THREE of the pages now use it — infra/domains.tsx,
-  settings/team.tsx, settings/audit.tsx — and both false-premise comments are corrected.
-
-  THREE REMAIN and are named rather than glossed: projects/projects.tsx,
-  deploy/deployments.tsx, infra/secrets.tsx and infra/environments.tsx build their descriptor
-  from a different shape (no `const loading = X.isLoading` line to hook onto), so a scripted
-  migration would have guessed. lens/labeling-queue.tsx already reads its error.
-
-  The helper's signature carries one decision worth naming: when the list HAS rows
-  (`vazio === undefined`) it returns undefined even on error. A refetch failure over stale
-  data deserves a banner, not an empty state, and that is not this function's call.
 dod:
   - all six pages distinguish "nothing there" from "could not read"
   - a guard fails when a page passes `empty=` without consulting an error flag
@@ -8343,6 +8330,70 @@ attempt_log: |
   bind `onError` on the mutation options in the test, or configure the QueryClient with a
   silent logger. Shipping the fix without the test would have been the shortcut this cycle
   exists to refuse.
+
+## B-237 — Follow-ups da revisão da varredura do dashboard   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: code
+evidence: |
+  .claude/knowledge-base/reviews/dashboard-sweep-review-2026-08-11.md § HIGH / MEDIUM — registered followups
+  Dezessete achados de três revisores independentes sobre os 16 commits do ciclo, TODOS medidos
+  contra o código. Os seis HIGH fechados estão na mesma tabela; estes são os que ficaram.
+  Os mais caros: `useEngineApi` sem asserção que possa falhar (`use-api.test.tsx:111-131`);
+  o bloco B-234 de `api.test.ts:610-655` inerte; os três auto-testes de `docs-claims.test.ts`
+  que não chamam o detector; nenhum teste de tela renderiza as quatro páginas com leitura FALHA.
+why_now: |
+  A revisão deste ciclo os produziu. Registrá-los é o que separa `READY_TO_MERGE_WITH_FOLLOWUPS`
+  de chamar dívida reconhecida de verde limpo — e um caveat sem dono foi como o registro ficou
+  atrás do código da primeira vez.
+status: triaged
+dod:
+  - cada achado da tabela vira teste que reprova, ou é morto com o motivo medido
+  - nenhum guarda deste ciclo passa quando a produção que ele guarda é revertida
+
+## B-238 — A catraca de telas que afirmam ausência sem consultar erro está em 23   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: contract
+evidence: |
+  src/lib/list-state.test.ts — TETO_SEM_ERRO = 23, medido 2026-08-11
+  O guarda do B-167 foi alargado (a primeira versão era cega a `memory/webhooks.tsx`) e revelou
+  23 telas que afirmam "não há nada" sem consultar sinal de erro. Todas anteriores a este ciclo.
+why_now: |
+  Consertar as oito do B-167 não impediu a nona, e a nona foi achada pela revisão DEPOIS de o
+  item ser marcado shipped. A catraca congela a população; o que falta é fazê-la descer.
+status: triaged
+dod:
+  - a população desce e o teto acompanha
+  - nenhuma tela nova entra (já garantido pela catraca)
+
+## B-239 — Este ciclo acrescentou nove identificadores em português ao B-128   [ ]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: low
+category: code
+evidence: |
+  estadoDaLista, EstadoVazio, semDeploysAinda, buscaSemResultado, colecaoDescrita,
+  ambientesServidos/SEM_AMBIENTE, textoUtil/ehObjeto, visivel/redirecionouFalhou, geracaoUsada
+  B-128 está `raw` e cita a regra do dono de que todo artefato é escrito em inglês.
+why_now: |
+  A revisão de cross-validation mediu isto e apontou que nenhum item nem entrada de CHANGELOG
+  registrava que este ciclo aumentou a dívida do B-128. Registrar é o mínimo; a decisão de
+  traduzir (e o escopo dela) é do dono.
+status: triaged
+dod:
+  - a decisão sobre tradução está tomada e registrada, ou o item é morto com o motivo
 
 ## B-229 — Governance exception: the promotion merge was made by the assistant   [x]
 
