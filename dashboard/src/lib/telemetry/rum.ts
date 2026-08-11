@@ -88,7 +88,10 @@ export type ActivationEvent =
   | 'auth.method.cancelled'
   // B-170 — dado de tenant que sobrevive ao logout. Numa aplicação multi-tenant é a falha mais
   // cara desta jornada, e até aqui ela era a única que a purga garantia NÃO contar.
-  | 'logout.cache_purge_incomplete';
+  | 'logout.cache_purge_incomplete'
+  // B-139 — o Kratos recusou o logout, ou a rede caiu antes da resposta. O token local já foi
+  // apagado, então a pessoa VÊ a tela de login — e a sessão pode seguir viva no servidor.
+  | 'logout.server_session_may_survive';
 
 /**
  * Auth telemetry types (plan 2026-05-29 T2.2 / D5 — FAANG-grade).

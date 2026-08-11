@@ -158,6 +158,18 @@ export async function logout(): Promise<void> {
     });
   }
 
+  // B-139 — o encerramento no SERVIDOR e a navegacao deixaram de ser a mesma coisa.
+  //
+  // Antes daqui, um Kratos que recusasse o logout, um `logout_url` ausente e um destino que o
+  // `safeNavigator` rejeitasse caíam TODOS no mesmo `/login`, indistinguíveis de um logout que
+  // funcionou. A pessoa via a tela de login e concluía que tinha saído — com a sessão VIVA no
+  // servidor. Num terminal compartilhado é a diferença entre sair e achar que saiu.
+  //
+  // A navegação para `/login` continua acontecendo em todos os casos, e de propósito: deixar
+  // alguém numa tela autenticada com o token local já apagado seria trocar o defeito por um pior.
+  // O que muda é que a falha passa a ser DITA — no endereço, para a tela de login mostrar, e na
+  // telemetria, para que ela seja contável.
+  let encerrouNoServidor = false;
   try {
     const resp = await fetch(`${KRATOS_URL}/self-service/logout/browser`, {
       credentials: 'include',
@@ -168,11 +180,19 @@ export async function logout(): Promise<void> {
       if (data.logout_url) {
         // B-138: `logout_url` is chosen by the identity service. A refused destination
         // falls through to the `/login` fallback below rather than navigating to it.
+        encerrouNoServidor = true;
         if (safeNavigator.goTo(data.logout_url)) return;
       }
     }
   } catch {
-    // Fallback
+    // Rede caiu antes de o Kratos responder: a sessão do servidor pode ou não ter sido encerrada.
+    // "Não sabemos" e "não encerrou" pedem a mesma cautela de quem lê.
+  }
+
+  if (!encerrouNoServidor) {
+    reportEvent('logout.server_session_may_survive', {});
+    safeNavigator.goTo('/login?reason=logout-incomplete');
+    return;
   }
   safeNavigator.goTo('/login');
 }

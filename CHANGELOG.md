@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** a sign-out the identity service did not confirm no longer looks exactly like one that worked. A refused logout, a missing redirect and a network drop all landed on the same login screen, so someone on a shared computer saw the login page and concluded they had signed out — while the session stayed alive on the server. The browser is still signed out in every case; what changed is that the failure is now said, on screen and in telemetry (B-139).
+
+### Fixed
+
 - **theo-cloud/dashboard:** the test suite no longer depends on the order it runs in. Seven checks were passing because of where they happened to sit in the sequence — including the one guaranteeing the session token never travels between browser tabs, and one that was reading a form left behind by a different test entirely. Verified against two independent random orderings, not one (B-197).
 
 ### Fixed

@@ -5227,7 +5227,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-login-credentials-posted-to-an-unvalidated-server`). Source: code-review finding #40, `code-review-output/code-review.db`.
 
-## B-139 — Logout silently proceeds to /login when the Kratos logout call fails — server session survives   [ ]
+## B-139 — Logout silently proceeds to /login when the Kratos logout call fails — server session survives   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5251,7 +5251,14 @@ evidence: |
     window.location.href = '/login';
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/auth/session.ts:163`.
-status: triaged
+status: shipped
+shipped_note: |
+  The server-side termination and the navigation stopped being the same thing.
+  A refused Kratos logout, a missing `logout_url` and a destination `safeNavigator` rejects all fell through to the same `/login`, indistinguishable from success — on a shared terminal that is the difference between leaving and believing you left.
+  The navigation to `/login` still happens in every case, deliberately: leaving someone on an authenticated screen with the local token already cleared would trade the defect for a worse one.
+  What changed is that the failure is SAID — `?reason=logout-incomplete` drives a banner on the login screen, and `logout.server_session_may_survive` makes it countable.
+  A network drop is treated with the same caution as a refusal, because 'we do not know whether it ended' and 'it did not end' ask the same thing of the person reading.
+  Mutation-verified: restoring the plain `/login` turns two tests red.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

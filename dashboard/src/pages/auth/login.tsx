@@ -323,6 +323,18 @@ export function LoginPage() {
             />
           )}
 
+          {/* B-139 — o logout não conseguiu encerrar a sessão NO SERVIDOR. O token local já foi
+              apagado, então esta tela aparece de qualquer jeito; sem esta faixa ela seria
+              indistinguível de um logout que funcionou, e num terminal compartilhado essa é a
+              diferença entre sair e achar que saiu. */}
+          {searchParams.get('reason') === 'logout-incomplete' && allErrors.length === 0 && !networkError && (
+            <Alert
+              intent="warning"
+              title="Sign-out may not have completed"
+              description="This browser was signed out, but the identity service did not confirm it. If you are on a shared computer, close the browser or sign out again once you are back online."
+            />
+          )}
+
           {/* T1.3: network/HTTP-5xx feedback (EC-1). networkError wins over Kratos errors. */}
           {networkError && (
             <Alert
