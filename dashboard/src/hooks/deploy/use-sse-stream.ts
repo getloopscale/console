@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { API_URL } from '@/lib/http/config';
 import { ensureSSEToken, clearToken } from '@/lib/http/api';
 import { SharedEventSource } from '@/hooks/deploy/shared-event-source';
-import type { StreamEndReason } from './stream-end-reason';
+import { credentialIsSuspect, shouldReopen, type StreamEndReason } from './stream-end-reason';
 
 /**
  * useSSEStream — generic typed SSE consumer (Plan J-17 T2.1).
@@ -23,9 +23,14 @@ import type { StreamEndReason } from './stream-end-reason';
  *   user leaves the tab in the background.
  * - `paused` lets the consumer freeze updates without disconnecting.
  *
- * Auth: SSE cannot set custom headers, so the JWT travels in `?token=`.
- * That matches the BFF pattern in use-log-stream (T6.0 of the older
- * backend-frontend integration plan).
+ * Auth: the JWT travels in an `Authorization: Bearer` HEADER.
+ *
+ * B-219 — este bloco dizia "SSE não aceita header, então o JWT vai em `?token=`", que era verdade
+ * do `EventSource` nativo e deixou de ser em B-088: o transporte passou a ser `fetch`, que aceita
+ * header, precisamente para tirar a credencial da query string — de onde ela chegava a access log
+ * do nginx, log de proxy, histórico do navegador e header `Referer`. O texto sobreviveu ao motivo
+ * pelo qual ele existia, descrevendo um risco que já tinha sido fechado logo abaixo dele.
+ * Ver `fetch-event-source.ts § abrir` e o ADR-0009.
  */
 export interface SSEStreamEvent<T = unknown> {
   id: string;
@@ -63,14 +68,6 @@ export interface UseSSEStreamResult<T = unknown> {
   droppedCount: number;
   clear: () => void;
 }
-
-// 3 erros consecutivos sem um open => assume token expirado.
-//
-// Este limiar so vale para o caminho de RECONEXAO NATIVA do browser, em que o
-// EventSource fica em CONNECTING e tenta sozinho. Ver B-014 abaixo: quando o
-// browser FECHA a conexao (readyState CLOSED), esperar tres erros e esperar por
-// algo que nunca vem.
-const TOKEN_REFRESH_THRESHOLD = 3;
 
 /** Teto do backoff exponencial da reabertura manual. */
 const MAX_REOPEN_DELAY_MS = 30_000;
@@ -111,6 +108,25 @@ export function useSSEStream<T = unknown>(
   // Stable join key for the eventTypes dep (re-binding on real change).
   const eventTypesKey = eventTypes.join('|');
 
+  /**
+   * B-179 — despausar mostra o que chegou durante a pausa.
+   *
+   * `paused` congela as atualizações SEM desconectar; é o propósito declarado dele. Mas o único
+   * `useEffect` deste hook é chaveado em `[path, eventTypesKey, maxEvents]`, e a sincronização do
+   * buffer acontecia só dentro de `push`. Nada era chaveado em `paused`, então quem despausava um
+   * stream silencioso continuava vendo dados velhos até o PRÓXIMO evento chegar — uma pausa que
+   * não se consegue desfazer, o que é pior do que não ter pausa.
+   *
+   * O buffer já tem tudo; o que faltava era a sincronização. Roda na transição para
+   * despausado e é idempotente: sincronizar de novo com o mesmo buffer não muda nada.
+   */
+  useEffect(() => {
+    if (paused) return;
+    setEvents([...bufferRef.current]);
+    setLastEventID(lastIDRef.current);
+    setDroppedCount(droppedRef.current);
+  }, [paused]);
+
   useEffect(() => {
     if (!path) {
       return;
@@ -124,7 +140,6 @@ export function useSSEStream<T = unknown>(
 
     let cancelled = false;
     let es: EventSource | null = null;
-    let failureCount = 0;
     let reopenAttempts = 0;
     let reopenTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -186,7 +201,6 @@ export function useSSEStream<T = unknown>(
 
       es.onopen = () => {
         if (cancelled) return;
-        failureCount = 0;
         // B-160 — `reopenAttempts` NAO zera aqui. `onopen` prova que o socket abriu, nao
         // que o stream serve para alguma coisa: no ciclo abrir→servidor fecha→abrir ele
         // disparava a cada volta e mantinha o backoff em zero para sempre. O reset agora
@@ -213,38 +227,36 @@ export function useSSEStream<T = unknown>(
 
       es.onerror = (evento) => {
         if (cancelled) return;
-        const motivo = (evento as { reason?: StreamEndReason }).reason ?? 'network-error';
+        const motivo: StreamEndReason =
+          (evento as { reason?: StreamEndReason }).reason ?? { kind: 'network-error' };
 
-        // B-160 — a política deixou de inferir a causa a partir de `readyState`.
+        // B-160 — a política deixou de inferir a causa a partir de `readyState`, porque o
+        // transporte que substituiu o `EventSource` nativo (B-088) também fecha no fim LIMPO do
+        // corpo: aquele predicado passou a ser sempre verdadeiro e todo deploy encerrado limpava
+        // o JWT da aplicação inteira.
         //
-        // O fix de B-014 lia `readyState === CLOSED` como "o browser desistiu num erro
-        // HTTP, logo o token expirou". Isso era verdade no `EventSource` nativo. O
-        // transporte que o substituiu (B-088) também fecha no fim LIMPO do corpo, então
-        // aquele predicado passou a ser sempre verdadeiro: todo stream que terminava
-        // normalmente limpava o JWT da aplicação inteira e reabria.
+        // B-172/B-173 — e ela deixou de inferir DUAS outras coisas.
         //
-        // `aborted` não chega aqui — `close()` não dispara `onerror`.
-        if (motivo === 'aborted') return;
+        // A primeira: `'http-error'` era tratado como suspeita de credencial, e o transporte
+        // colapsava 401, 404, 500 e 503 nesse único token. Um serviço de log sobrecarregado
+        // apagava o JWT de todas as telas abertas. Agora o motivo carrega o status e
+        // `credentialIsSuspect` lê 401/403 — o resto não diz nada sobre quem está pedindo.
+        //
+        // A segunda, e a mais cara: havia um limiar de três falhas que era INALCANÇÁVEL. O
+        // `FetchEventSource` dispara `onerror` no máximo uma vez por instância, e o contador
+        // zerava antes de cada reabertura. Pior — uma falha de rede não era nem suspeita de
+        // credencial nem fim limpo, então a função RETORNAVA sem agendar nada e o stream ficava
+        // morto até o componente remontar. O contador saiu; toda causa que não fomos nós reabre.
+        //
+        // `aborted` não chega aqui — `close()` não dispara `onerror` —, mas `shouldReopen` o
+        // trata mesmo assim: um predicado que depende de um invariante de outro módulo é um
+        // predicado que quebra quando aquele módulo muda.
+        if (!shouldReopen(motivo)) return;
 
         setError(true);
         setConnected(false);
-        failureCount += 1;
 
-        // Um fim LIMPO nao diz nada sobre a credencial, e nao conta para o limiar: era
-        // isso que fazia todo deploy encerrado limpar o JWT da aba inteira (B-160).
-        const fimLimpo = motivo === 'server-closed';
-        if (fimLimpo) failureCount -= 1;
-
-        // Duas rotas levam a suspeitar do token, e as duas continuam valendo:
-        //   - um erro HTTP diz de imediato que a credencial e a causa provavel (B-014);
-        //   - tres falhas seguidas de qualquer natureza sugerem o mesmo (EC-3), porque a
-        //     essa altura "transitorio" ja nao explica.
-        const credencialSuspeita =
-          motivo === 'http-error' || motivo === 'no-token' ||
-          failureCount >= TOKEN_REFRESH_THRESHOLD;
-        if (!credencialSuspeita && !fimLimpo) return;
-
-        if (credencialSuspeita) clearToken();
+        if (credentialIsSuspect(motivo)) clearToken();
         es?.close();
 
         // Backoff exponencial com jitter: sem ele, um 401 persistente (sessao de
@@ -254,7 +266,6 @@ export function useSSEStream<T = unknown>(
         const base = Math.min(1000 * 2 ** tentativa, MAX_REOPEN_DELAY_MS);
         const delay = base / 2 + Math.random() * (base / 2);
 
-        failureCount = 0;
         reopenTimer = setTimeout(() => {
           if (!cancelled) void open();
         }, delay);

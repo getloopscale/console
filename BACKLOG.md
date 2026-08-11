@@ -6209,7 +6209,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-api-usecloudapi-reports-error-true-for-a`). Source: code-review finding #53, `code-review-output/code-review.db`.
 
-## B-172 — A non-2xx on any SSE stream wipes the app-wide JWT via clearToken()   [ ]
+## B-172 — A non-2xx on any SSE stream wipes the app-wide JWT via clearToken()   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6231,7 +6231,11 @@ evidence: |
           es?.close();
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:234`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  `StreamEndReason` became a discriminated union carrying the observed status, and `credentialIsSuspect` reads 401/403.
+  The status was already known at the transport and thrown away on the next line.
+  The existing test said "Um 401" in its comment while its mock carried no status — it passed identically for a 404, so it was proving nothing about WHY the token would be cleared; `triggerFatalError` now requires a status.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6242,7 +6246,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-a-non-2xx-on-any-sse`). Source: code-review finding #60, `code-review-output/code-review.db`.
 
-## B-173 — TOKEN_REFRESH_THRESHOLD branch is unreachable with the fetch transport; its guard test asserts a state product   [ ]
+## B-173 — TOKEN_REFRESH_THRESHOLD branch is unreachable with the fetch transport; its guard test asserts a state product   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6259,7 +6263,12 @@ evidence: |
   if (!fechadoPeloBrowser && failureCount < TOKEN_REFRESH_THRESHOLD) return;
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:229`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  `TOKEN_REFRESH_THRESHOLD` and `failureCount` deleted.
+  The threshold was unreachable in production — `FetchEventSource` fires `onerror` at most once per instance and the counter reset before each reopen — and the test that covered it passed only because the mock reuses one instance, which production never does.
+  The severe half was in no item title: a lone `network-error` was neither credential-suspect nor a clean end, so the handler RETURNED without scheduling a reopen and the stream stayed dead until remount.
+  Every end that is not `aborted` now reopens on the existing backoff.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6394,7 +6403,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deployments-list-stream-refetch-effect-re-runs-on-every`). Source: code-review finding #69, `code-review-output/code-review.db`.
 
-## B-178 — Two SSE endpoints have no mock registration — in mock mode they reconnect forever against a route that will ne   [ ]
+## B-178 — Two SSE endpoints have no mock registration — in mock mode they reconnect forever against a route that will ne   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6414,7 +6423,10 @@ evidence: |
     registerSSE('/api/v1/deploys/{id}/timeline', (es) => {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/mocks/handlers.ts:343`.
-status: triaged
+status: shipped
+shipped_note: |
+  Both paths registered, and — the part that matters — `lib/mocks/sse-registration.test.ts` compares consumed paths against registered ones, so the third cannot be born unregistered the way these two were.
+  The item's stated mechanism was corrected: they did not 'reconnect forever', they died silently after one failure, downstream of B-173.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -6425,7 +6437,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-handlers-two-sse-endpoints-have-no-mock`). Source: code-review finding #70, `code-review-output/code-review.db`.
 
-## B-179 — Unpausing an SSE stream does not flush the buffered events — the UI stays stale until the next event arrives   [ ]
+## B-179 — Unpausing an SSE stream does not flush the buffered events — the UI stays stale until the next event arrives   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -6444,7 +6456,11 @@ evidence: |
         }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:150`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  A second effect keyed on `paused` syncs the buffer on the transition to un-paused.
+  The buffer already held everything; only the sync was missing.
+  The existing test rerendered to `paused: true` and never un-paused.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7656,7 +7672,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-api-http-client-builds-a-dom-toast`). Source: code-review finding #59, `code-review-output/code-review.db`.
 
-## B-219 — Stale docblock claims the JWT travels in `?token=` — contradicted 140 lines below in the same file   [ ]
+## B-219 — Stale docblock claims the JWT travels in `?token=` — contradicted 140 lines below in the same file   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7674,7 +7690,10 @@ evidence: |
    * backend-frontend integration plan).
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:25`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  The docblock now describes the fetch transport and the `Authorization: Bearer` header.
+  No test — asserting on a comment is the inert shape this sweep is about; what makes the claim false-proof is that the auth mechanism itself is now under test.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

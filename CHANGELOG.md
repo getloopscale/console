@@ -2,6 +2,11 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** a live view that hits a network hiccup now reconnects instead of going quiet forever. The fix that stopped a finished deploy from wiping the session had, in the same edit, turned a transient failure into a dead end: the stream stopped and nothing restarted it until the page was navigated away from and back (B-173).
+- **theo-cloud/dashboard:** an overloaded or missing log service no longer signs you out of every open screen. The live-view transport reported only THAT an HTTP error happened, never which, so the dashboard treated a 503 exactly like an expired credential and discarded the session token. It now reads the status, and only a 401 or 403 touches the credential (B-172).
+- **theo-cloud/dashboard:** un-pausing a live view shows what arrived while it was paused, instead of staying on stale data until the next event happens to come in — which on a quiet stream could be indefinitely (B-179).
+- **theo-cloud/dashboard:** two live views — the deploy list and the project signals strip — had no answer at all in mock mode, so they sat empty in the environment where screens are validated. A guard now compares what the app consumes against what is registered, so the next one cannot be added silently (B-178).
+
 - **theo-cloud/dashboard:** cancelling a build no longer reports success when the server refused. The request did not opt into typed errors, so a refusal resolved as an ordinary result: the dialog closed, both lists were refreshed, and the operator was told a destructive action had happened that had not. Its three sibling operations — promote, rollback and environment changes — already had the flag, each with a comment naming this exact failure (B-145, B-168).
 
 - **theo-cloud/dashboard:** the documentation stopped stating measurements that the code had moved past. Fourteen places asserted a count, a size cap or a file path that no longer held — the architecture record claimed 28 component subfolders where there are 9, the UI contract claimed 183 files importing the design system where there are 198, and three documents pointed at files that do not exist anywhere. All corrected, and — more to the point — a guard now re-measures every one of them on each test run and fails when a document and the disk disagree (B-158, B-159, B-199, B-200, B-201, B-202, B-204, B-205, B-207, B-208, B-209, B-210, B-211, B-212).
@@ -19,6 +24,8 @@
 - **theo-cloud/dashboard:** the /skills chart, cards and verdict no longer say "nothing recorded" for an instant over a table that is already listing rows — all four readings on that screen now describe the same collection (B-149).
 
 ### Changed
+
+- **theo-cloud/dashboard:** the live-view documentation stopped describing a credential in the URL. That was true of the browser's built-in transport and stopped being true when it was replaced precisely to get the token out of the query string, where it reached nginx access logs and browser history — the text outlived the reason it existed, describing a risk that had been closed a few lines below it (B-219).
 
 - **theo-cloud/dashboard:** the "session expired" notice moved out of the network client, which used to build and style the notice itself. It now says so plainly when the redirect it promises does not happen — a refused or deferred navigation used to leave the message claiming "Redirecting to login..." forever (B-218).
 
