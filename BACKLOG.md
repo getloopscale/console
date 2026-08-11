@@ -7607,3 +7607,41 @@ dod:
   - every command the guide presents as runnable resolves in package.json
   - the bundle figure matches the enforced gate
 
+## B-166 — knip runs and nothing fails on its output   [x]
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: review
+source: human
+severity: medium
+category: completeness
+evidence: |
+  dashboard/knip.json:1
+  Measured 2026-08-11. `knip.json` is committed and knip runs, but no gate consumed the result:
+
+    Unused files ............. 0   (the codebase is genuinely clean here)
+    Unused exports ........... 0
+    Unlisted dependencies .... 3   @storybook/react, used by .storybook/preview.tsx and two stories
+    Unlisted binaries ........ 1   eslint, invoked by the lint script itself
+    Duplicate exports ........ 4   memory/exports.tsx, memory/playground.tsx, promptly/create.tsx,
+                                   promptly/diff.tsx — each exporting one page under two names
+    Unused exported types .... 85  concentrated in lib/api/types.ts (861 lines)
+
+  An undeclared dependency is the sharp one: a fresh clone resolves it transitively or not at
+  all, so the build differs between a warm machine and a cold one.
+why_now: |
+  A tool that runs and reports into nobody's build is the same shape as a test that cannot
+  fail — it produces the impression of coverage. The review found four of those in the test
+  suite; this is the same defect in the tooling layer.
+status: shipped
+shipped_note: |
+  Zeroed the classes that should never recur (unlisted deps/binaries, duplicate exports) and
+  RATCHETED the 85 unused types rather than deleting them: a type without an importer costs
+  reading, not bytes, and banning it outright would produce 85 suppressions instead of a
+  direction. `scripts/check-knip-ratchet.mjs` is wired into `npm run lint` and was verified
+  to FAIL by lowering its ceiling.
+dod:
+  - unlisted dependencies, unlisted binaries and duplicate exports are zero and stay zero
+  - the count of unused exported types can only descend
+  - the ratchet is proven able to fail
+

@@ -2,6 +2,8 @@
 
 ### Added
 
+- **theo-cloud/dashboard:** `npm run lint` now fails when a dependency is used without being declared, when a module grows a second name for the same export, or when the count of exported types nobody imports goes up. The project already ran knip; nothing failed on its output (B-166).
+
 - **theo-cloud/dashboard:** `/skills` passou a responder "como está este acervo?" antes de listar — era a única das sete overviews de capacidade que abria direto numa tabela. O veredito julga o que importa a um agente: uma skill publicada sem revisão vigente não pode ser carregada por ninguém. Quando a leitura é truncada, a frase diz que fala da página e não do acervo (B-126).
 - **theo-cloud/dashboard:** cada overview de capacidade declara se responde com KPI ou com veredito, e `lib/capability-overview.test.ts` reprova a que não declarar nenhuma — consertar uma tela não impede a oitava de nascer muda (B-126).
 - **theo-cloud/dashboard:** backlog B-126 — das sete overviews de capacidade, `skills` abre direto numa tabela sem responder nada, e `trust` responde com um veredito em frase que é possivelmente o melhor padrão do repositório, não uma divergência a apagar.
@@ -74,6 +76,8 @@
 - **Dez módulos que tinham teste verde e nenhum uso em produção saíram do código (702 linhas).** Eram componentes e utilidades escritos, testados e nunca ligados a tela nenhuma: dois esqueletos de carregamento, uma barra de ferramentas de log, um botão de repetição de rede, um indicador de linhas descartadas, uma árvore de wiki, um botão de visita a deployment, uma fronteira de erro de painel e dois formatadores. **A suíte reportava cobertura sobre todos eles** — verdadeira e irrelevante, porque produção nunca executava aquele caminho. Remover revelou dois outros módulos que só eram alcançados por eles; nenhum foi apagado junto, e o motivo está registrado: um é um guard de segurança contra `return_to` hostil, escrito para um vetor que hoje não existe mas pode voltar, e o outro é o download do buffer de log, cuja interface saiu com a barra de ferramentas. Apagar um guard ou uma funcionalidade é decisão consciente, não efeito colateral de faxina.
 
 ### Fixed
+
+- **theo-cloud/dashboard:** two dependencies were used without being declared (`@storybook/react`, `eslint`) — a fresh clone could build differently from a warm one — and four modules exported the same page under two names. Declared and de-duplicated (B-166).
 
 - **theo-cloud/dashboard:** `DOGFOOD.md` listed two commands that are not scripts — anyone following the QA guide hit `npm ERR! Missing script` — and quoted a 180 KB bundle cap where the enforced gate is six per-chunk caps totalling 655 kB. Measured and corrected, with the two missing commands kept visible as gaps rather than deleted (B-165).
 

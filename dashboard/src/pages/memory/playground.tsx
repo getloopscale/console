@@ -281,4 +281,3 @@ export function PlaygroundPage() {
 }
 
 // Alias for the page-suffix naming convention used by other memory pages.
-export const MemoryPlaygroundPage = PlaygroundPage;

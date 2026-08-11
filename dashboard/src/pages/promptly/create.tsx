@@ -207,4 +207,3 @@ export function PromptlyCreatePage() {
   );
 }
 
-export default PromptlyCreatePage;

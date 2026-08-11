@@ -215,4 +215,3 @@ export function ExportsPage() {
 }
 
 // Re-exported (alias) for callers that prefer the page-suffix naming.
-export const MemoryExportsPage = ExportsPage;

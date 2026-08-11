@@ -232,4 +232,3 @@ export function PromptlyDiffPage() {
   );
 }
 
-export default PromptlyDiffPage;
