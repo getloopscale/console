@@ -7190,7 +7190,13 @@ measured: |
   caso também cria a própria instância do módulo em vez de herdar a de quem rodou antes. Sob o
   mesmo seed: 7 falhas -> 6.
 
-  As SEIS restantes seguem abertas, cada uma reproduzível com o seed acima.
+  SEGUNDA CORRIGIDA (2026-08-11): `overview.test.tsx > B-134`. O bloco vive FORA do `beforeEach`
+  do describe anterior e passava só porque herdava os valores que aquele deixava nos mocks — sob
+  shuffle ele rodava primeiro e `useBuildStats` devolvia `undefined`. Ganhou o próprio setup.
+  Sob o mesmo seed: 6 -> 5.
+
+  As CINCO restantes seguem abertas, cada uma reproduzível com o seed acima:
+    deployments.test.tsx (2), lens/traces.test.tsx, lens/playground.test.tsx, auth/login.test.tsx
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

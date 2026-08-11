@@ -217,6 +217,15 @@ describe('OverviewPage', () => {
 });
 
 describe('B-134 — o cartão não afirma uma branch que não leu', () => {
+  // B-197 — este bloco vive FORA do `beforeEach` do describe anterior, e passava só porque herdava
+  // os valores que aquele `beforeEach` deixava nos mocks. Sob `--sequence.shuffle` ele rodava
+  // primeiro e `useBuildStats` devolvia `undefined`. Um teste que depende do que outro deixou não
+  // está testando o que diz testar.
+  beforeEach(() => {
+    mockUseCloudApi.mockReturnValue({ data: null, loading: false, error: false });
+    mockUseBuildStats.mockReturnValue({ byDay: [], last7d: 0, total: 0, loading: false, error: false });
+  });
+
   it('mostra um travessão em vez de um "main" plausível e possivelmente errado', async () => {
     // O payload do resumo de projetos não expõe `deploy_branch`, e o cartão preenchia a lacuna com
     // `main` fixo. Para um projeto que faz deploy de `develop`, isso não é um default sensato: é
