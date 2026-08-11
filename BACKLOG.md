@@ -7159,6 +7159,30 @@ evidence: |
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/test/arvore-estavel.ts:1`. It is one instance of F4 · a test that asserts absence of something absent in both worlds — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
 status: triaged
+measured: |
+  MEDIDO 2026-08-11. O item estava UNKNOWN: a varredura contou 43 de 353 arquivos com estado
+  mutável de módulo (a PRECONDIÇÃO) e nunca executou a corrida embaralhada que o próprio DoD
+  prescreve. O ponteiro de evidência original (`src/test/arvore-estavel.ts:1`) não resolve para o
+  defeito — não é sequer um arquivo de teste.
+
+  `npx vitest run --sequence.shuffle --sequence.seed=20260811` foi executado: **7 testes falham
+  sob ordem aleatória** e passam em ordem fixa. A dependência de ordem é REAL, não hipotética:
+
+    src/lib/http/api.test.ts > never broadcasts the JWT over BroadcastChannel (find_sec_004)
+    src/pages/auth/login.test.tsx > test_login_submit_password_calls_kratos
+    src/pages/deploy/deployments.test.tsx > test_initial_load_from_rest
+    src/pages/deploy/deployments.test.tsx > test_new_build_appends_in_realtime
+    src/pages/lens/traces.test.tsx > does NOT send q= / status= on the initial unfiltered load
+    src/pages/lens/playground.test.tsx > test_view_trace_404_keeps_playground_mounted
+    src/pages/overview/overview.test.tsx > B-134 — mostra um travessão
+
+  O primeiro é o mais caro: um teste de SEGURANÇA (o JWT nunca atravessa o canal entre abas) que
+  só passa se rodar na posição certa. Um gate de segurança que depende da ordem de execução não é
+  um gate.
+
+  O item deixa de ser uma contagem de precondição e passa a ser uma lista de sete correções, cada
+  uma com reprodução determinística pelo seed acima. A CORREÇÃO não foi feita — só a medição que o
+  DoD pedia como primeiro passo.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
