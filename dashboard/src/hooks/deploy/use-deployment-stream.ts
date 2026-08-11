@@ -51,6 +51,12 @@ export interface DeploymentBuildError {
 export interface UseDeploymentStreamResult {
   steps: BuildStep[];
   currentStep: BuildStep | null;
+  /**
+   * Soma das durações dos passos, para um build que TERMINOU.
+   *
+   * `null` enquanto ele corre, de propósito: duração total de algo que não acabou não existe
+   * (B-222).
+   */
   totalDurationSeconds: number | null;
   status: DeploymentStatus;
   error: DeploymentBuildError | null;
@@ -171,13 +177,24 @@ export function useDeploymentStream(
           (acc, s) => acc + (s.duration_seconds ?? 0),
           0,
         );
-      } else if (status === 'running') {
-        const first = steps[0];
-        if (first?.started_at) {
-          totalDurationSeconds =
-            (Date.now() - new Date(first.started_at).getTime()) / 1000;
-        }
       }
+      // B-222 — havia aqui um ramo `status === 'running'` que fazia
+      // `Date.now() - started_at` DENTRO deste `useMemo`. Um memo existe precisamente para NÃO
+      // recomputar, então o valor congelava: um build em andamento sem tráfego de eventos exibia
+      // um cronômetro parado.
+      //
+      // Ele não foi consertado com um timer, e sim REMOVIDO, por duas razões medidas.
+      //
+      // A primeira: `grep -rn "totalDurationSeconds"` fora dos testes não acerta NENHUM consumidor
+      // de produção. Consertar um relógio que nenhuma tela mostra é consertar uma exibição que não
+      // existe (parsimony ladder, rung 1).
+      //
+      // A segunda: `null` é a resposta verdadeira. Não temos duração TOTAL de um build que não
+      // terminou — temos tempo decorrido, que é outra grandeza. Devolver uma sob o nome da outra
+      // é o tipo de afirmação que esta varredura inteira está removendo do produto.
+      //
+      // Um cronômetro ao vivo é uma FUNCIONALIDADE, e ninguém a pediu. Se for pedida, ela nasce
+      // com um tick próprio no componente que a exibe, não num memo desta camada.
     }
 
     // error: first failed step (chronological).

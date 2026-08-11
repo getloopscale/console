@@ -376,3 +376,55 @@ describe('B-160 — fim limpo de stream não é falha de credencial', () => {
     expect(clearToken).not.toHaveBeenCalled();
   });
 });
+
+describe('B-221/B-224 — identidade estável e carimbo que não se move', () => {
+  it('o handle devolvido é referencialmente estável entre renders', async () => {
+    // Um hook que devolve um objeto novo a cada render obriga todo consumidor a ou desestruturar
+    // com cuidado ou re-executar. É o contrato dele empurrando trabalho para quem o chama.
+    const { result, rerender } = renderHook(() =>
+      useSSEStream('/api/v1/test', { eventTypes: ['x'] }),
+    );
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    const antes = result.current;
+    rerender();
+    expect(result.current).toBe(antes);
+    expect(result.current.clear).toBe(antes.clear);
+  });
+
+  it('MAS muda quando um valor muda — estável não é parado', async () => {
+    // Sem este caso, `useMemo(() => ({...}), [])` passaria no anterior e devolveria dados velhos
+    // para sempre, que é um defeito pior do que o que se estava consertando.
+    const { result } = renderHook(() => useSSEStream('/api/v1/test', { eventTypes: ['x'] }));
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+    const antes = result.current;
+
+    act(() => {
+      MockEventSource.instances[0].emit('x', JSON.stringify({ a: 1 }), '1');
+    });
+
+    expect(result.current).not.toBe(antes);
+    expect(result.current.events.length).toBe(1);
+  });
+
+  it('carimba a chegada de cada evento UMA vez, na ingestão', async () => {
+    const { result, rerender } = renderHook(() =>
+      useSSEStream('/api/v1/test', { eventTypes: ['x'] }),
+    );
+    await waitFor(() => expect(MockEventSource.instances.length).toBe(1));
+
+    act(() => {
+      MockEventSource.instances[0].emit('x', JSON.stringify({ a: 1 }), '1');
+    });
+    const primeiro = result.current.events[0].receivedAt;
+    expect(primeiro).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    act(() => {
+      MockEventSource.instances[0].emit('x', JSON.stringify({ a: 2 }), '2');
+    });
+    rerender();
+
+    // O carimbo do PRIMEIRO evento não pode ter andado porque um segundo chegou.
+    expect(result.current.events[0].receivedAt).toBe(primeiro);
+  });
+});

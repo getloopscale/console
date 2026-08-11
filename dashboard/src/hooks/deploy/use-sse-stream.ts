@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_URL } from '@/lib/http/config';
 import { ensureSSEToken, clearToken } from '@/lib/http/api';
 import { SharedEventSource } from '@/hooks/deploy/shared-event-source';
@@ -36,6 +36,16 @@ export interface SSEStreamEvent<T = unknown> {
   id: string;
   type: string;
   data: T;
+  /**
+   * Quando ESTE evento chegou, carimbado UMA vez na ingestão (B-224).
+   *
+   * Existe porque nem todo emissor manda um horário, e o consumidor que preenchia a lacuna o
+   * fazia dentro de um `useMemo`: um valor derivado que lê o relógio não é derivado — é uma
+   * medição nova a cada recomputação, e uma linha de log ganhava um horário de chegada diferente
+   * toda vez que a lista era recalculada. Carimbar na chegada também é a leitura honesta: isto é
+   * quando NÓS recebemos, não quando o servidor produziu.
+   */
+  receivedAt: string;
 }
 
 export interface UseSSEStreamOptions<T = unknown> {
@@ -152,7 +162,7 @@ export function useSSEStream<T = unknown>(
         // the raw string under a known shape.
         data = raw as unknown as T;
       }
-      const event: SSEStreamEvent<T> = { id, type, data };
+      const event: SSEStreamEvent<T> = { id, type, data, receivedAt: new Date().toISOString() };
       bufferRef.current.push(event);
       if (bufferRef.current.length > maxEvents) {
         const overflow = bufferRef.current.length - maxEvents;
@@ -283,17 +293,27 @@ export function useSSEStream<T = unknown>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, eventTypesKey, maxEvents]);
 
-  return {
-    events,
-    connected,
-    error,
-    lastEventID,
-    droppedCount,
-    clear: () => {
-      bufferRef.current = [];
-      droppedRef.current = 0;
-      setEvents([]);
-      setDroppedCount(0);
-    },
-  };
+  /**
+   * B-221 — o handle devolvido é referencialmente ESTÁVEL.
+   *
+   * Antes, o objeto e o `clear` eram literais novos a cada render, então todo consumidor que
+   * colocasse o resultado numa lista de dependências re-executava a cada render. Era o contrato
+   * deste hook empurrando trabalho para quem o chama — e a consequência medida está no
+   * `use-log-stream`, onde a troca de identidade do array fazia o carimbo de horário ser
+   * refeito a cada recomputação (B-224).
+   *
+   * Estável não é parado: `events`, `connected`, `error`, `lastEventID` e `droppedCount` estão
+   * nas dependências, então o objeto muda quando um valor muda — e só então.
+   */
+  const clear = useCallback(() => {
+    bufferRef.current = [];
+    droppedRef.current = 0;
+    setEvents([]);
+    setDroppedCount(0);
+  }, []);
+
+  return useMemo(
+    () => ({ events, connected, error, lastEventID, droppedCount, clear }),
+    [events, connected, error, lastEventID, droppedCount, clear],
+  );
 }

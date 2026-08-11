@@ -7704,7 +7704,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-stale-docblock-claims-the-jwt-travels`). Source: code-review finding #61, `code-review-output/code-review.db`.
 
-## B-220 — SharedEventSource keys the registry on URL alone — a second subscriber's token and resume cursor are silently    [ ]
+## B-220 — SharedEventSource keys the registry on URL alone — a second subscriber's token and resume cursor are silently    [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7726,7 +7726,10 @@ evidence: |
       }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/shared-event-source.ts:113`.
-status: triaged
+status: shipped
+shipped_note: |
+  The registry key became `url + \\0 + (lastEventId ?? '')`.
+  The token stays OUT of the key deliberately and that asymmetry is now asserted: a token is a credential for the SAME data, so two tabs that refreshed at different moments must not open two connections for one build; a resume cursor is a request for DIFFERENT data, which one connection cannot serve.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7737,7 +7740,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-shared-event-source-sharedeventsource-keys-the-registry-on-url`). Source: code-review finding #74, `code-review-output/code-review.db`.
 
-## B-221 — useSSEStream returns a fresh object and a fresh clear() on every render, propagating identity churn to consume   [ ]
+## B-221 — useSSEStream returns a fresh object and a fresh clear() on every render, propagating identity churn to consume   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7764,7 +7767,10 @@ evidence: |
     };
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-sse-stream.ts:262`. It breaks a Definition-of-done bullet that B-014 shipped against, so the item it regresses is named rather than filed as a fresh discovery. It is one instance of F2 · a transport swap changed a callback's meaning; the policy did not follow — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: triaged
+status: shipped
+shipped_note: |
+  `useMemo` on the returned handle and `useCallback` on `clear`.
+  A companion test asserts the object DOES change when a value changes — without it, `useMemo(…, [])` would pass the stability test and return stale data forever, which is worse than the defect.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7775,7 +7781,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-sse-stream-usessestream-returns-a-fresh-object-and`). Source: code-review finding #75, `code-review-output/code-review.db`.
 
-## B-222 — Date.now() inside useMemo freezes the running-build elapsed time between events   [ ]
+## B-222 — Date.now() inside useMemo freezes the running-build elapsed time between events   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7794,7 +7800,12 @@ evidence: |
         }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-deployment-stream.ts:177`.
-status: triaged
+status: shipped
+shipped_note: |
+  NOT fixed with a timer.
+  `grep -rn totalDurationSeconds` outside tests finds no production consumer, so repairing the clock would have repaired a display that does not exist (parsimony rung 1).
+  The running branch was removed and the field reports `null` while a build runs — total duration of something unfinished does not exist, and elapsed time is a different quantity.
+  A live elapsed display is a FEATURE nobody asked for; if requested it belongs in the component that shows it, with its own tick.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7805,7 +7816,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-use-deployment-stream-date-now-inside-usememo-freezes-the`). Source: code-review finding #76, `code-review-output/code-review.db`.
 
-## B-223 — installSSEMocks swaps window.EventSource, which no production code path has used since B-088   [ ]
+## B-223 — installSSEMocks swaps window.EventSource, which no production code path has used since B-088   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7825,7 +7836,11 @@ evidence: |
   }
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/lib/mocks/sse.ts:163`.
-status: triaged
+status: shipped
+shipped_note: |
+  `installSSEMocks`/`uninstallSSEMocks` deleted.
+  It was not broken — it was worse: it suggested the mock layer covered the stream transport, which is the misreading that let two consumed SSE paths ship with no registration (B-178).
+  `index.ts` already documented that it covered nothing.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in
@@ -7836,7 +7851,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-sse-installssemocks-swaps-window-eventsource-which-no`). Source: code-review finding #77, `code-review-output/code-review.db`.
 
-## B-224 — Log lines without a timestamp get a new Date() on every memo recomputation   [ ]
+## B-224 — Log lines without a timestamp get a new Date() on every memo recomputation   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -7852,7 +7867,11 @@ evidence: |
           msg: raw.msg ?? raw.line ?? '',
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/hooks/deploy/use-log-stream.ts:95`.
-status: triaged
+status: shipped
+shipped_note: |
+  `SSEStreamEvent` gained `receivedAt`, stamped ONCE in `push`.
+  The fallback used to run inside a `useMemo`, so a derived value read the clock — which makes it a new measurement per recomputation, not a derivation.
+  Stamping at ingestion is also the honest reading: when WE received it, not when the server produced it.
 remeasured: |
   Re-opened against the current tree on 2026-08-11 and confirmed STILL PRESENT.
   Current pointer, quote and any correction to this block's own claims are in

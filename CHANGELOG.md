@@ -2,6 +2,10 @@
 
 ### Fixed
 
+- **theo-cloud/dashboard:** two views watching the same live stream from different points no longer share one connection and silently serve the second one the first one's position. Asking to resume from a different place is asking for different data, so they now get their own connection — while two views asking for the same thing still share one, which is why that mechanism exists (B-220).
+- **theo-cloud/dashboard:** a log line that arrives without a timestamp keeps the arrival time it was given, instead of being re-stamped with the current time every time the list is recomputed (B-221, B-224).
+- **theo-cloud/dashboard:** the deploy view stopped reporting a total duration for a build that has not finished. It was computing one from a clock read inside a cached calculation, so the number froze at the moment of the last event and was handed back as though it were live. A build that has not ended has no total duration, and that is what it reports now (B-222).
+
 - **theo-cloud/dashboard:** a live view that hits a network hiccup now reconnects instead of going quiet forever. The fix that stopped a finished deploy from wiping the session had, in the same edit, turned a transient failure into a dead end: the stream stopped and nothing restarted it until the page was navigated away from and back (B-173).
 - **theo-cloud/dashboard:** an overloaded or missing log service no longer signs you out of every open screen. The live-view transport reported only THAT an HTTP error happened, never which, so the dashboard treated a 503 exactly like an expired credential and discarded the session token. It now reads the status, and only a 401 or 403 touches the credential (B-172).
 - **theo-cloud/dashboard:** un-pausing a live view shows what arrived while it was paused, instead of staying on stale data until the next event happens to come in — which on a quiet stream could be indefinitely (B-179).
@@ -32,6 +36,10 @@
 - **theo-cloud/dashboard:** the bar charts are readable by screen reader for what the colours were saying. On /trust the amber bar was the only thing distinguishing a policy that is enforced from one that is not, and it lived inside an element assistive technology is told to skip — a compliance reading that existed only for people who see it. Each chart now says in words what its colour says, in the wording of its own screen: "not enforced" on /trust, "needs review" on the Knowledge Base confidence chart (B-187).
 - **theo-cloud/dashboard:** the bar charts declare their columns, and the bar sits inside the value cell instead of occupying a column of its own that carried nothing — a screen reader used to walk a three-column table with one permanently empty column (B-186).
 - **theo-cloud/dashboard:** on /promptly, the bucket of prompts that serve no environment is called `No environment`. It was called `not promoted`, which is also the name of a KPI card on the same screen counting something else entirely — a reader had no way to tell which of the two numbers they were looking at (B-146).
+
+### Removed
+
+- **theo-cloud/dashboard:** the mock layer stopped replacing the browser's built-in event-stream object. Nothing in the product has used it since the transport was changed to put the credential in a header, and keeping the replacement suggested the mocks covered streams when they did not — which is how two live views ended up with no mock answer at all (B-223).
 
 ## [1.0.0] - 2026-08-11
 
