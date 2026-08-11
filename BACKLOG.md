@@ -4576,3 +4576,70 @@ entregue_2026-08-10: |
   Fechado em `1321fde1 (theo-cloud)`.
 
   Último de propósito: é BFF e espelha os upstream. Estava inconsistente consigo mesmo — `/v1/version` versionado, os dois probes não.
+
+## B-125 — A Overview anuncia a plataforma, mas não mostra a plataforma   [ ]
+
+> Registered 2026-08-11 by `/backlog-item` (slug: `overview-shows-the-platform-not-just-announces-it`).
+> **Não é regressão do `B-112`** — a DoD daquele item (toda capacidade aparece em `/`) segue
+> satisfeita, medida hoje. Este é o problema SEGUINTE, que só ficou visível porque aquele fechou.
+
+domain: frontend-dashboard
+repo: theo-cloud/dashboard
+suggested_mode: evolve
+source: human
+evidence: none-yet
+why_now: |
+  Medido em 2026-08-11 no navegador, `localhost:5174` em modo mock. As seções da tela:
+
+    PLATFORM         8 capacidades, com estado real       <- entregue pelo B-112
+    USAGE            4/10 projetos · 145/1.000 builds · 2/3 ambientes · 3/10 assentos
+    DEPLOY ACTIVITY  uma capacidade
+    PROJECTS         3 de 4 + "ver todos os 4"
+    QUICK ACTIONS    3 botões que já são itens do menu
+
+  E o que a tela RESPONDE, consultado no texto renderizado:
+
+    quais capacidades existem        SIM
+    o que rodou além de deploys      não
+    tem algo errado agora            não
+    quanto custam os agentes         NÃO — o único valor em dinheiro é `USD 20/mo`, o do plano
+
+  QUATRO DEFEITOS CONCRETOS:
+
+  1. "Quick actions" é a barra lateral desenhada uma terceira vez. Deploy a project →
+     `/projects`, Invite teammates → `/team`, Add a custom domain → `/domains`. Os três já são
+     itens de um menu sempre visível. É o mesmo defeito que os cards de capacidade evitaram ao
+     exigir um SINAL — navegação vestida de conteúdo.
+
+  2. Cotas respondem pergunta de cobrança numa tela de operação. `4/10 projetos` não é algo que
+     se opera; é algo que se confere ao bater no teto, e `/billing` existe.
+
+  3. "View all 4 projects" aparece numa conta com quatro projetos.
+
+  4. Nada responde "tem algo errado agora?" — a pergunta mais valiosa de uma overview de
+     plataforma, e a única que nenhuma outra tela responde, porque cada capacidade só enxerga a
+     si mesma.
+
+  O QUE MUDOU: o `B-112` entregou a faixa `PLATFORM` e, ao fazê-lo, TORNOU A CONTRADIÇÃO
+  LEGÍVEL. A página agora diz "esta plataforma faz oito coisas" e em seguida dedica quatro
+  painéis a uma delas mais cobrança. A contradição existia antes; ninguém a via.
+status: raw
+dod:
+  - a tela responde "tem algo errado agora?" a partir de sinais de MAIS DE UMA capacidade — hoje nenhuma tela do produto responde isso, porque cada capacidade só enxerga a si mesma
+  - nada na tela é a barra lateral desenhada de novo — um bloco cujo conteúdo é nome + link para um item do menu não conta como conteúdo
+  - nenhuma série temporal desenha mais fontes do que o dado sustenta: medido, só `lens/observability`, `builds/stats` e `trust` têm série; `rag`, `memory` e `storage` servem só totais, e alinhar cinco seria fabricar quatro
+  - o que a tela afirma sobre custo vem de custo medido (`tokensByModel[].costUsd`), não do preço do plano
+proposta_2026-08-11: |
+  O desenho, renderizado nos tokens do produto:
+  https://claude.ai/code/artifact/d530a10c-93ca-4ec5-9685-5491e5929392
+
+  Três faixas no lugar de quatro painéis: *precisa de você* (violações barradas, retrievals
+  vazios, deploys falhos — cada um uma frase e um caminho), *o que fez e o que custou* (runs e
+  deploys no mesmo eixo, com o custo por modelo ao lado) e *projetos* rebaixado a uma tira.
+
+  RISCO REGISTRADO: a proposta remove "Quick actions" inteiro. Se medição de uso mostrar que os
+  três botões eram usados, eles voltam como faixa própria — não misturados à faixa de atenção.
+
+  CAVEAT DE AMBIENTE: a faixa de custo lê `lens/observability`, que tem mock desde o `B-112`;
+  `trust/enforcement-events` e `builds/stats` também. O que ainda não tem mock é o par
+  `lens/saved-views` + `api-keys`, achado colateral registrado no `B-114`.
