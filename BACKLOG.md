@@ -4932,7 +4932,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `overviews-need-a-chart-under-the-counts`).
 
-## B-130 — recovery.tsx ignores the ACCOUNTS_URL runtime config the sibling auth module honors   [ ]
+## B-130 — recovery.tsx ignores the ACCOUNTS_URL runtime config the sibling auth module honors   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -4945,7 +4945,9 @@ evidence: |
   src/pages/auth/recovery.tsx:19-21 — import { API_URL } from '@/lib/http/config'; / const ACCOUNTS_URL = API_URL;  ||  src/pages/auth/kratos.ts:7-8 — import { API_URL, ACCOUNTS_URL as CONFIG_ACCOUNTS_URL } from '@/lib/http/config'; / const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL;  ||  grep of ACCOUNTS_URL across non-test src/ returns exactly these two declaration sites.
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/recovery.tsx:21`.
-status: raw
+status: shipped
+shipped_note: |
+  Fechado junto com B-138: `recovery.tsx` importa `ACCOUNTS_URL` de `kratos.ts`, onde um unico modulo resolve o fallback. O const local que sombreava o nome sumiu, e com ele a divergencia invisivel entre os dois arquivos.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Replace recovery.tsx:19-21 with the kratos.ts form (import ACCOUNTS_URL as CONFIG_ACCOUNTS_URL; const ACCOUNTS_URL = CONFIG_ACCOUNTS_URL || API_URL), or import the resolved value from kratos.ts so one module owns the fallback
@@ -5148,7 +5150,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-domains-the-loading-error-empty-data-ladder`). Source: code-review finding #39, `code-review-output/code-review.db`.
 
-## B-138 — Credentials POSTed to an unvalidated server-supplied URL (flow.ui.action)   [ ]
+## B-138 — Credentials POSTed to an unvalidated server-supplied URL (flow.ui.action)   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5171,7 +5173,9 @@ evidence: |
         ]) {
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `src/pages/auth/login.tsx:230`. It is one instance of F1 · a security guard exists, is tested, and is not called — 19 of the review's 23 high-severity findings share that shape, and the review's conclusion is that a guard per family closes them together and prevents recurrence.
-status: raw
+status: shipped
+shipped_note: |
+  Fechado por uma FRONTEIRA, nao por N checagens. `NavigationTarget` nao tem construtor publico, entao um sink que aceita um nao pode receber string nao julgada — erro de compilacao onde antes era convencao. Os 27 sinks crus sumiram; so `lib/navigation/navigation-sink.ts` alcanca `window.location`, e um guard receiver-agnostic (provado capaz de falhar) reprova o build num novo. Politica por classe de destino (auth / billing / docs) em vez de alargar a allowlist de auth. Um review adversarial reprovou a primeira versao com 1 BLOCKER + 4 HIGH — o tipo nao era nominal e o docblock afirmava um brand inexistente; todos corrigidos.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Gate every credential/flow destination through an allowlist before use: `if (!isSafeRedirectUrl(flow.ui.action)) { setNetworkError(true); return; }` (fail-closed, same shape as device-verify.tsx:75). Apply identically in oidc-form.ts, regis
@@ -5660,7 +5664,7 @@ dod:
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-architecture-docs-architecture-md-presents-stale-measurements`). Source: code-review finding #15, `code-review-output/code-review.db`.
 
-## B-160 — DESIGN.md mandates <EnvironmentBadge> on every environment-scoped screen; the component does not exist   [ ]
+## B-160 — DESIGN.md mandates <EnvironmentBadge> on every environment-scoped screen; the component does not exist   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5673,14 +5677,16 @@ evidence: |
   DESIGN.md:47 — "Every screen that operates on a specific environment MUST show the environment badge"  ||  DESIGN.md:56 — "Implementation: `<EnvironmentBadge env={env}>` composite (T4.6 from plan)."  ||  `grep -rln "EnvironmentBadge\|EnvBadge\|environment-badge\|env-badge" src/` returns no files
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `DESIGN.md:56`.
-status: raw
+status: shipped
+shipped_note: |
+  A causa raiz nao era o hook: o transporte sabia por que o stream terminou e jogava fora. `falhar(reason)` agora reporta `server-closed | http-error | no-token | network-error | aborted`, e a politica decide a partir disso. Um fim limpo deixou de limpar o JWT da aba. O backoff tambem passou a resetar na primeira MENSAGEM, nao em `onopen` — abrir nao prova nada num ciclo que abre toda vez. Teste de regressao: cinco encerramentos limpos, zero trocas de token.
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Either implement the composite and wire it into TopBar plus the action-button contexts, or downgrade § 2.1 from MUST to a recorded gap with an owner. Do not leave a MUST-level safety clause with zero implementation and no test
 
 > Registered 2026-08-11 by `/backlog-item` (slug: `dashboard-DESIGN-design-md-mandates-environmentbadge-on-every`). Source: code-review finding #20, `code-review-output/code-review.db`.
 
-## B-161 — .llms.txt at the dashboard root documents a different @usetheo/ui version and contradicts the repo lint ban on   [ ]
+## B-161 — .llms.txt at the dashboard root documents a different @usetheo/ui version and contradicts the repo lint ban on   [x]
 
 domain: frontend-dashboard
 repo: theo-cloud/dashboard
@@ -5693,7 +5699,9 @@ evidence: |
   .llms.txt:10 — "**Current version:** `0.9.0-next.0` (npm dist-tag `next`; latest release line)" vs package.json:72 — "@usetheo/ui": "^0.35.1"  ||  .llms.txt:5 — "Treat the bullets below as non-negotiable contracts"  ||  .llms.txt:96 lists **`alert`** (NEW 0.9) among primitives to use  ||  eslint.config.js:42-44 — importNames: ['Alert'] ... "Import Alert from '@/components/ui/alert-guard' — the raw @usetheo/ui Alert silently drops a `children` body (#175)"  ||  .llms.txt:150-153 declares quality-gate command `pnpm quality:gates`, Ladle stories and Biome — none present in this repo (package.json uses vitest, storybook, eslint)
 why_now: |
   a full 5-phase code review of `dashboard/` ran on 2026-08-11 and MEASURED this in our own code at `.llms.txt:10`.
-status: raw
+status: shipped
+shipped_note: |
+  Corrigido na FACHADA, nao nos call sites: os hooks de dominio expunham `{data, loading, error}` e nao `isSuccess`, entao a forma correta nao era expressavel. Com ela disponivel, `skills` usa nos dois gates e `trust` separa `readingSettled` (KPIs, valem no caso de catalogo cego) de `coverageSettled` (grafico, que codifica bloqueio em COR e nao pode afirmar cobertura que nao leu).
 dod:
   - a test covers the corrected behaviour and fails if it regresses
   - Move the upstream manifest out of the dashboard root (or rename to something explicitly upstream, e.g. docs/vendor/usetheo-ui.llms.txt) and, if a dashboard .llms.txt is wanted, write one describing this repo. At minimum pin the version line
