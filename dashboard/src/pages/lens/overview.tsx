@@ -25,6 +25,18 @@ import { OverviewKpiStrip, type KpiTile, type OverviewMetric } from '@/pages/len
 import { costByPeriod, errorRateValues, p95Values, tracesValues } from '@/pages/lens/components/overview-metrics';
 
 /**
+ * @overview-answers: kpi
+ *
+ * B-126, decisão D1 de `capability-overviews-answer-a-question-plan.md` — a forma segue a existência de uma REGRA, não a maioria.
+ *
+ * Volume de atividade: traces, latência e tokens. Não existe um "deveria" contra o qual julgar
+ * 8.400 traces — o número é o dado, e a leitura é de quem opera.
+ *
+ * O marcador é lido por `lib/capability-overview.test.ts`, que reprova a tela que não
+ * declarar nenhuma forma — foi assim que `skills` ficou mudo entre sete telas.
+ */
+
+/**
  * M46 — /lens landing (Overview). The first customer-visible Lens surface, mirroring the Memory /
  * RAG Overview (`pages/memory.tsx` / `pages/rag.tsx`, Rule 9): a KPI strip aggregated from the lens
  * observability + cost summaries + a Getting-started card + an Explore grid to the sub-pages. Every

@@ -9,6 +9,19 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/http/api';
 
 /**
+ * @overview-answers: kpi
+ *
+ * B-126, decisão D1 de `capability-overviews-answer-a-question-plan.md` — a forma segue a existência de uma REGRA, não a maioria.
+ *
+ * Volume de recuperação. A taxa de resposta vazia É julgável, e por isso ela alimenta a faixa de
+ * atenção da Overview de plataforma (`B-125`) — mas aqui, ao lado dos contadores, ela é um KPI
+ * como os outros.
+ *
+ * O marcador é lido por `lib/capability-overview.test.ts`, que reprova a tela que não
+ * declarar nenhuma forma — foi assim que `skills` ficou mudo entre sete telas.
+ */
+
+/**
  * M23 — /rag landing (Overview). The first customer-visible RAG surface, mirroring
  * the Memory Overview (`pages/memory.tsx`, Rule 9): a KPI strip from the RAG M5
  * summary (`GET /v1/dashboard/rag/analytics`) + a Getting-started card + an Explore

@@ -23,6 +23,9 @@
 
 ### Added
 
+- **theo-cloud/dashboard:** `/skills` passou a responder "como está este acervo?" antes de listar — era a única das sete overviews de capacidade que abria direto numa tabela. O veredito julga o que importa a um agente: uma skill publicada sem revisão vigente não pode ser carregada por ninguém. Quando a leitura é truncada, a frase diz que fala da página e não do acervo (B-126).
+- **theo-cloud/dashboard:** cada overview de capacidade declara se responde com KPI ou com veredito, e `lib/capability-overview.test.ts` reprova a que não declarar nenhuma — consertar uma tela não impede a oitava de nascer muda (B-126).
+
 - **theo-cloud/dashboard:** backlog B-126 — das sete overviews de capacidade, `skills` abre direto numa tabela sem responder nada, e `trust` responde com um veredito em frase que é possivelmente o melhor padrão do repositório, não uma divergência a apagar.
 
 - **theo-cloud/dashboard:** a Overview passou a responder "tem algo errado agora?" — a única pergunta que nenhuma outra tela do produto responde, porque cada capacidade só enxerga a si mesma. A faixa junta erro de agente (Observability), retrievals vazios (Knowledge Base) e requisições barradas (Trust), cada linha com o caminho que a resolve. Quando uma leitura falha, a tela diz que não conseguiu ler em vez de afirmar que está tudo bem (B-125).

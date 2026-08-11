@@ -9,6 +9,18 @@ import { useRequireAuth } from '@/hooks/use-auth';
 import { cloudFetch } from '@/lib/http/api';
 
 /**
+ * @overview-answers: kpi
+ *
+ * B-126, decisão D1 de `capability-overviews-answer-a-question-plan.md` — a forma segue a existência de uma REGRA, não a maioria.
+ *
+ * Volume: memórias, entidades, escritas. `1.284 memórias` não é bom nem ruim, e transformá-lo
+ * numa frase de julgamento seria inventar um critério que ninguém definiu.
+ *
+ * O marcador é lido por `lib/capability-overview.test.ts`, que reprova a tela que não
+ * declarar nenhuma forma — foi assim que `skills` ficou mudo entre sete telas.
+ */
+
+/**
  * Plan 1 of dashboard-memory-section-roadmap.md, T1.6.
  *
  * /memory landing page — the first customer-visible Memory surface. Renders
@@ -39,14 +51,14 @@ export function MemoryPage() {
 
   const metricsQuery = useQuery({
     queryKey: ['cloud', '/v1/dashboard/memory/metrics'] as const,
-    // dashboard-memory-error-surfacing T1.3 (ADR D2): opt into throwOnError so a
+    // dashboard-memory-error-surfacing T1.3 (decisão D2 do plano): opt into throwOnError so a
     // backend non-2xx routes to `isError` (showing the error Alert) instead of
     // resolving to null + masking the outage as fabricated zeros.
     queryFn: () => cloudFetch<MemoryMetrics>('/v1/dashboard/memory/metrics', {}, { throwOnError: true }),
   });
 
   // A successful-but-empty 2xx (null body edge) falls back to zeros so the
-  // dashboard never renders NaN. On ERROR the KPI strip is NOT rendered (ADR D2),
+  // dashboard never renders NaN. On ERROR the KPI strip is NOT rendered (decisão D2 do plano),
   // so these zeros are never used to mask an outage.
   const metrics: MemoryMetrics = metricsQuery.data ?? {
     total_memories: 0,

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { catalogVerdict } from './catalog-verdict';
+import { CatalogVerdictBanner } from './components/catalog-verdict-banner';
 import { Link } from 'react-router-dom';
 import { Boxes } from 'lucide-react';
 import {
@@ -17,6 +19,18 @@ import { usePageMeta } from '@/hooks/use-page-meta';
 import { useRequireAuth } from '@/hooks/use-auth';
 import { useSkillsCatalog } from '@/hooks/skills/use-skills';
 import { filtrarAcervo, mesclarPaginas, type SkillLinha } from '@/pages/skills/components/paging';
+
+/**
+ * @overview-answers: verdict
+ *
+ * B-126, decisão D1 de `capability-overviews-answer-a-question-plan.md` — a forma segue a existência de uma REGRA, não a maioria.
+ *
+ * Existe a REGRA: uma skill publicada deveria ser carregável, e `latest_revision_id: null`
+ * significa que ela não é. `N skills publicadas` seria verdade e inútil.
+ *
+ * O marcador é lido por `lib/capability-overview.test.ts`, que reprova a tela que não
+ * declarar nenhuma forma — foi assim que `skills` ficou mudo entre sete telas.
+ */
 
 /**
  * M26 — `/skills`: o acervo de skills do workspace.
@@ -76,6 +90,14 @@ export function SkillsOverviewPage() {
   // invalidavam juntas. E nenhuma das duas carregava o limite, que e a
   // armadilha que `trust` tinha entre 200 e 100.
   const query = useSkillsCatalog<SkillsPayload>(PAGE_LIMIT, tokenAtual);
+
+  // B-126 — o veredito lê o acervo JÁ CARREGADO (`paginas`), não a página em mãos: um julgamento
+  // sobre a última página responderia sobre um recorte que o operador não pediu. `next_page_token`
+  // marca a parcialidade (decisão D2 do plano) — a mesma disciplina do `has_more` do B-114, um nível acima.
+  const veredito = catalogVerdict({
+    skills: query.error ? null : paginas,
+    truncated: query.data?.next_page_token != null,
+  });
 
   const pagina = useMemo(
     () => (Array.isArray(query.data?.skills) ? (query.data.skills as SkillLinha[]) : []),
@@ -188,6 +210,17 @@ export function SkillsOverviewPage() {
           description="The list below is empty because the read failed — this does NOT mean there are no published skills."
         />
       ) : null}
+
+      {/* B-126 — a tela responde ANTES de listar.
+          Medido em 2026-08-11: das sete overviews de capacidade, esta era a única que não
+          respondia nada — abria direto na tabela abaixo, e uma lista não responde "como está esta
+          capacidade?". É a mesma classe do defeito que o B-125 corrigiu na Overview de plataforma.
+
+          VEREDITO e não linha de KPIs, por decisão medida (decisão D1 do plano): a forma segue a
+          existência de uma REGRA, não a maioria. `1.284 memórias` não é bom nem ruim, então
+          `memory` usa KPI e está certo. Aqui existe um "deveria" — uma skill publicada deveria ser
+          carregável —, e é o que o veredito julga. */}
+      <CatalogVerdictBanner veredito={veredito} />
 
       <Card>
         <Card.Header>

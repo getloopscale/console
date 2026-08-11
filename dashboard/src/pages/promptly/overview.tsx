@@ -11,6 +11,18 @@ import { catalogRows, resumoCatalogo } from '@/pages/promptly/components/project
 import { usePromptlyCatalog } from '@/hooks/promptly/use-promptly';
 
 /**
+ * @overview-answers: kpi
+ *
+ * B-126, decisão D1 de `capability-overviews-answer-a-question-plan.md` — a forma segue a existência de uma REGRA, não a maioria.
+ *
+ * Volume do catálogo. Já carrega o aviso de parcialidade quando a leitura trunca, que o decisão D2
+ * promoveu de peculiaridade desta tela a contrato de todas.
+ *
+ * O marcador é lido por `lib/capability-overview.test.ts`, que reprova a tela que não
+ * declarar nenhuma forma — foi assim que `skills` ficou mudo entre sete telas.
+ */
+
+/**
  * M13 — `/promptly`: o painel da capacidade.
  *
  * Até aqui esta rota era o catálogo, e o submenu já a rotulava `Overview` — o rótulo prometia

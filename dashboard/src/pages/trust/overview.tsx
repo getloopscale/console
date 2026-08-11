@@ -25,6 +25,18 @@ import {
 } from '@/pages/trust/components/trust-series';
 
 /**
+ * @overview-answers: verdict
+ *
+ * B-126, decisão D1 de `capability-overviews-answer-a-question-plan.md` — a forma segue a existência de uma REGRA, não a maioria.
+ *
+ * Existe a REGRA: toda política observada deveria estar sendo bloqueada. O veredito nasceu aqui,
+ * antes da decisão D1 — este marcador o registra como padrão em vez de o deixar como exceção.
+ *
+ * O marcador é lido por `lib/capability-overview.test.ts`, que reprova a tela que não
+ * declarar nenhuma forma — foi assim que `skills` ficou mudo entre sete telas.
+ */
+
+/**
  * M23 — `/trust`. A tela abre com uma frase, não com três números.
  *
  * A pergunta que ela responde é **o que passa sem ser bloqueado**: o plano de observação enxerga
